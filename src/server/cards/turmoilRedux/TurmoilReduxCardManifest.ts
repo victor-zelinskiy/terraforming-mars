@@ -1,0 +1,31 @@
+import {ModuleManifest} from '../ModuleManifest';
+
+/**
+ * TURMOIL REDUX («Кризис Redux») — the PROJECT CARD manifest.
+ *
+ * The expansion's RESOLUTIONS are not cards of this manifest: they live in
+ * `src/server/parliament/resolutions/**` and reach the client through
+ * `ParliamentCatalog`. This manifest carries the set's 70 PROJECT CARDS
+ * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus the six
+ * REPLACEMENT cards the set prints for the base Turmoil ones (Aerial Lenses,
+ * Banned Delegate, Political Alliance, Recruitment, Sponsored Mohole, Vote of
+ * No Confidence) — RESERVED, not yet authored.
+ *
+ * CARD NUMBER NAMESPACE — `TR##`, zero-padded to two digits (TR01…TR70).
+ * `metadata.cardNumber` is the module's card ID, and in this fork it is also
+ * the ART key (`assets/card-images/<cardNumber>.webp` + `thumb/`) and the LORE
+ * key (`assets/text/lore_texts.json`) — see `client/cards/cardArt.ts` and
+ * `client/cards/cardLore.ts`. Every other module owns a prefix the same way
+ * (`DP##` delta, `U##`/`UC##`/`UP##` underworld, `M##`… moon, `Pf##`…), so
+ * Turmoil Redux cards MUST stay inside `TR##` and MUST NOT reuse a number.
+ * `tests/cards/turmoilRedux/TurmoilReduxCardManifest.spec.ts` enforces both
+ * halves (namespace membership, and no collision with any other module's
+ * number) and the deck gate (`gameOptions.turmoilReduxExpansion`).
+ *
+ * Author's checklist for the next card: `docs/claude/turmoil-redux-card-checklist.md`.
+ */
+export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
+  module: 'turmoilRedux',
+  projectCards: {
+  },
+});

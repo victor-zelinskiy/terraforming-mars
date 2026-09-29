@@ -35,7 +35,7 @@ import {NormalizedRequirement, normalizeRequirement} from '../../src/client/comp
  * key just as thoroughly («не менее» for «at most»).
  */
 
-const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
+const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 function scopeCards(): Array<ClientCard> {

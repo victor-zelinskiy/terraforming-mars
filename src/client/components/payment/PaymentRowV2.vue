@@ -93,6 +93,7 @@ const ICON_CLASS: Record<SpendableResource, string> = {
   lunaArchivesScience: 'resource_icon--science',
   graphene: 'resource_icon--graphene',
   floodgateSteel: 'resource_icon--steel',
+  mechs: 'resource_icon--mech',
 };
 
 export default defineComponent({

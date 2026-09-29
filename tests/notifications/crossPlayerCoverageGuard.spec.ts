@@ -37,7 +37,7 @@ import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
  * would be «cross-player» and the classification would say nothing.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 
 /** The cross-player mechanism families. EVERY family must point at the
  *  delivery scenario that proves its notification path end to end. */

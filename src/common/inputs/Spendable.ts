@@ -43,6 +43,9 @@ export const SPENDABLE_CARD_RESOURCES = [
   // deducted from the CARD, never from `player.steel`. The console treats it
   // as a strategically protected source: it never auto-allocates.
   'floodgateSteel',
+  // Mechs stored on EVA Mechs (TR09) pay for cards with Space tags at a flat
+  // 5 M€ each (`MECHS_VALUE`) — the Dirigibles pattern, one tag over.
+  'mechs',
 ] as const;
 
 export const SPENDABLE_RESOURCES = [...SPENDABLE_STANDARD_RESOURCES, ...SPENDABLE_CARD_RESOURCES] as const;
@@ -64,4 +67,5 @@ export const CARD_FOR_SPENDABLE_RESOURCE = {
   graphene: CardName.CARBON_NANOSYSTEMS,
   kuiperAsteroids: CardName.KUIPER_COOPERATIVE,
   floodgateSteel: CardName.MODULAR_FLOODGATES,
+  mechs: CardName.EVA_MECHS,
 } satisfies Record<SpendableCardResource, CardName>;

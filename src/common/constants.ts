@@ -7,6 +7,9 @@ export const MAX_AWARDS = 3;
 export const DEFAULT_STEEL_VALUE = 2;
 export const DEFAULT_TITANIUM_VALUE = 3;
 export const FLOATERS_VALUE = 3;
+// EVA Mechs (TR09): a mech ON that card pays 5 M€ toward a Space-tag card — a
+// FLAT rate (no titanium modifier, no Metal Research bonus touches it).
+export const MECHS_VALUE = 5;
 export const MICROBES_VALUE = 2;
 export const OCEAN_BONUS = 2;
 export const CORPORATION_CARDS_DEALT_PER_PLAYER = 2;

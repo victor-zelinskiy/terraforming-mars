@@ -81,6 +81,9 @@ const ICON_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = {
   'floater': ['floater'],
   'science': ['science'],
   'asteroid': ['asteroid'],
+  // EVA Mechs (TR09): without this the impulse never finds its result icon
+  // and silently degrades to the plate.
+  'mech': ['mech'],
 };
 
 export type ActionCommitAnchors = {

@@ -170,6 +170,7 @@ export function hashToModel(windowLocationHash: string): CardListModel {
       [CardResource.ACTIVIST]: true,
       [CardResource.SUPPLY_CHAIN]: true,
       [CardResource.STEEL]: true,
+      [CardResource.MECH]: true,
     },
     searchIndex: SearchIndex.create(),
     namesOnly: true,

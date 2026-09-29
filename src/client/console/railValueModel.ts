@@ -121,6 +121,8 @@ const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext> = {
   kuiperAsteroids: 'aquifer-asteroid',
   // Modular Floodgates steel pays exactly where ordinary steel does.
   floodgateSteel: 'building',
+  // EVA Mechs (TR09): «5 M€ · Космос» — the same dictionary titanium reads.
+  mechs: 'space',
 };
 
 function badgeOf(facts: Array<RailMcUnitFact>): RailMcBadge {

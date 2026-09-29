@@ -22,7 +22,7 @@ import {FORECAST_HOOK_PAIRS} from '../../src/server/models/effectForecast';
  * The same law for the MarsBot corporations: a corporation reacting to human
  * plays (`onHumanCardPlayed`) declares `humanCardPlayedForecast`.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 
 /**
  * Cards with a live hook and NO forecast, each with the reason the forecast

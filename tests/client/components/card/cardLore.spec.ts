@@ -237,7 +237,7 @@ describe('cardLore', () => {
   describe('current scope coverage', () => {
     // Mirrors the premium-face scope: every card that can reach the fullscreen
     // viewer must have a real archive entry — never the fallback.
-    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
+    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
     const LORE_CARD_TYPES = new Set<CardType>([
       CardType.AUTOMATED,
       CardType.ACTIVE,

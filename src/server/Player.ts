@@ -1151,6 +1151,10 @@ export class Player implements IPlayer {
       // so it is usable EXACTLY where ordinary steel is — same condition, by
       // reference to the line above, never a second reading of the rule.
       floodgateSteel: this.lastCardPlayed === CardName.LAST_RESORT_INGENUITY || card.tags.includes(Tag.BUILDING),
+      // EVA Mechs (TR09): «when playing a Space tag» — the printed condition and
+      // nothing else. Not Last Resort Ingenuity (its text names steel and
+      // titanium), not standard projects, not a deferred bill.
+      mechs: card.tags.includes(Tag.SPACE),
     };
   }
 
@@ -1247,6 +1251,10 @@ export class Player implements IPlayer {
     // Floodgate steel pays at the player's LIVE steel value (Advanced Alloys
     // and friends), exactly as ordinary steel does — never the flat default.
     removeResourcesOnCard(CardName.MODULAR_FLOODGATES, payment.floodgateSteel, this.getSteelValue());
+    // EVA Mechs (TR09): the flat 5 — and this line IS the tracking: the mech
+    // leaves the CARD (`removeResourceFrom`) and the saving is recorded as
+    // payment (`cardResourcesSpentAsPayment` → the effects overlay + journal).
+    removeResourcesOnCard(CardName.EVA_MECHS, payment.mechs, DEFAULT_PAYMENT_VALUES.mechs);
 
     this.recordPaymentValueBonus(payment);
 
@@ -2141,6 +2149,7 @@ export class Player implements IPlayer {
       graphene: this.getSpendable('graphene'),
       kuiperAsteroids: this.getSpendable('kuiperAsteroids'),
       floodgateSteel: this.getSpendable('floodgateSteel'),
+      mechs: this.getSpendable('mechs'),
     };
   }
 
@@ -2185,6 +2194,7 @@ export class Player implements IPlayer {
       graphene: options?.graphene ?? false,
       kuiperAsteroids: options?.kuiperAsteroids ?? false,
       floodgateSteel: options?.floodgateSteel ?? false,
+      mechs: options?.mechs ?? false,
     };
 
     // HOOK: Luna Trade Federation

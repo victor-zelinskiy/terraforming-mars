@@ -1069,6 +1069,9 @@ export enum CardName {
   CORPORATE_ESPIONAGE = 'Corporate Espionage',
   MODULAR_FLOODGATES = 'Modular Floodgates',
 
+  // Turmoil Redux (project cards TR01–TR70; the resolutions live in ParliamentCatalog)
+  EVA_MECHS = 'EVA Mechs',
+
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
   COLLUSION_STANDARD_PROJECT = 'Collusion:SP',

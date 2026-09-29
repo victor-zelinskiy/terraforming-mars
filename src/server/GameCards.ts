@@ -25,6 +25,7 @@ import {PRELUDE2_CARD_MANIFEST} from './cards/prelude2/Prelude2CardManifest';
 import {STAR_WARS_CARD_MANIFEST} from './cards/starwars/StarwarsCardManifest';
 import {UNDERWORLD_CARD_MANIFEST} from './cards/underworld/UnderworldCardManifest';
 import {DELTA_PROJECT_CARD_MANIFEST} from './cards/delta/DeltaProjectCardManifest';
+import {TURMOIL_REDUX_CARD_MANIFEST} from './cards/turmoilRedux/TurmoilReduxCardManifest';
 import {isCardBannedForAutoma} from './automa/AutomaBans';
 
 /**
@@ -67,6 +68,11 @@ export class GameCards {
       // false` and is never dealt — this entry is what lets the module's OWN
       // project cards reach the deck, and only while the option is on.
       [gameOptions.deltaProjectExpansion, DELTA_PROJECT_CARD_MANIFEST],
+      // Turmoil Redux PROJECT cards (TR01…TR70) — the resolutions reach the
+      // table through ParliamentCatalog, never through this deck. Without this
+      // row the module's cards are registered (name lookup, render data) but
+      // never dealt.
+      [gameOptions.turmoilReduxExpansion, TURMOIL_REDUX_CARD_MANIFEST],
     ];
 
     this.moduleManifests = manifests

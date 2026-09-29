@@ -1,4 +1,4 @@
-import {DATA_VALUE, FLOATERS_VALUE, MICROBES_VALUE, GRAPHENE_VALUE, SEED_VALUE} from '../constants';
+import {DATA_VALUE, FLOATERS_VALUE, MECHS_VALUE, MICROBES_VALUE, GRAPHENE_VALUE, SEED_VALUE} from '../constants';
 import {SpendableResource, SPENDABLE_RESOURCES} from './Spendable';
 
 /**
@@ -43,6 +43,9 @@ export const DEFAULT_PAYMENT_VALUES = {
   // rate follows the player's steel value (Advanced Alloys and friends)
   // exactly as ordinary steel does (`Player.payingAmount`).
   floodgateSteel: 2,
+  // EVA Mechs (TR09): a FLAT 5 — the live titanium value and Metal Research
+  // never touch it (`Player.payingAmount` keeps the default).
+  mechs: MECHS_VALUE,
 } satisfies Record<SpendableResource, number>;
 
 export namespace Payment {
@@ -61,6 +64,7 @@ export namespace Payment {
     graphene: 0,
     kuiperAsteroids: 0,
     floodgateSteel: 0,
+    mechs: 0,
   } as const;
 
   export function of(payment: Partial<Payment>) : Payment {
@@ -78,6 +82,7 @@ export namespace Payment {
       graphene: payment.graphene ?? 0,
       kuiperAsteroids: payment.kuiperAsteroids ?? 0,
       floodgateSteel: payment.floodgateSteel ?? 0,
+      mechs: payment.mechs ?? 0,
       plants: payment.plants ?? 0,
     };
   }

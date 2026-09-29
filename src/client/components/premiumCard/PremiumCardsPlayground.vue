@@ -145,7 +145,7 @@ import {MechDensity} from './mechanicsModel';
 import PremiumCard from './PremiumCard.vue';
 import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 
-const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject'];
+const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject', 'turmoilRedux'];
 
 type CuratedCase = {label: string, model: CardModel};
 type ReqCase = {label: string, reqs: Array<NormalizedRequirement>};

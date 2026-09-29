@@ -40,6 +40,7 @@ export class SelectPayment extends BasePlayerInput<Payment> {
       microbes: player.getSpendable('microbes'),
       graphene: player.getSpendable('graphene'),
       floodgateSteel: player.getSpendable('floodgateSteel'),
+      mechs: player.getSpendable('mechs'),
     };
     // The VOTE-BILL marker rides HERE (the payment is a deferred follow-up of a
     // menu branch; central decoration only ever sees the top-level prompt).

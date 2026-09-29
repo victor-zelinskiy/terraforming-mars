@@ -420,7 +420,7 @@ export function playerActionSourceCount(tableau: ReadonlyArray<CardModel>): numb
 
 // Current scope for the actions feature (same as the effects overlay).
 const SCOPE_MODULES: ReadonlySet<GameModule> =
-  new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
+  new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 
 /**
  * Every in-scope card (Base / CorpEra / Promo / Venus / Colonies / Prelude) with

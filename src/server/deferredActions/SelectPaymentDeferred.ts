@@ -135,6 +135,9 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         kuiperAsteroids: this.options.canUseAsteroids || false,
         graphene: this.options.canUseGraphene || false,
         floodgateSteel: this.options.canUseSteel || false,
+        // EVA Mechs pay ONLY for a Space-tag CARD PLAY; a deferred bill (a
+        // standard project, a trade fee, a resolution's action) is never that.
+        mechs: false,
       }, this.options.reserveUnits);
     if (this.options.votePayment !== undefined) {
       select.markVotePayment(this.options.votePayment);

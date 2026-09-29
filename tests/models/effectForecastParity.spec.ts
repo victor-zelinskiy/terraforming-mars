@@ -55,7 +55,7 @@ import {Herbivores} from '../../src/server/cards/base/Herbivores';
  * anti-vacuous floor), so a hook the sweep cannot fire is a spec bug, not a
  * green.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject']);
+const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 
 type Factory = new () => ICard;
 

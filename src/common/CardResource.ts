@@ -32,6 +32,14 @@ export enum CardResource {
   // in Spendable.ts), never as a silent merge into `player.steel`.
   STEEL = 'Steel',
 
+  // Turmoil Redux (EVA Mechs, TR09): a full card resource — any card may store
+  // or add mechs; the ones ON EVA Mechs are also the `mechs` payment unit
+  // (`Spendable.ts`), worth a flat 5 M€ each on a Space-tag card play.
+  // The literal is LOAD-BEARING: the sprite (`assets/resources/mech.png`),
+  // the graphic id (`res-mech`) and the CSS class (`.card-resource-mech`) are
+  // all derived from it.
+  MECH = 'Mech',
+
   // Moon
   SYNDICATE_FLEET = 'Syndicate Fleet',
 

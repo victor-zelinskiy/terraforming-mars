@@ -126,6 +126,65 @@ describe('paymentPlan (T3 native payment math)', () => {
     });
   });
 
+  /**
+   * MECHS (EVA Mechs, TR09) — an ORDINARY card-backed alternate, the Dirigibles
+   * pattern one tag over: a lane on a Space-tag card at a FLAT 5, seeded by
+   * the opening mix like floaters and graphene (a mech buys nothing else —
+   * `initialCounts` protects floodgate steel because that steel is also a
+   * blockade; a mech has no second use). The coarsest step in the game, so
+   * «Переплата +N» is the honest default more often than on any other lane.
+   */
+  describe('mechs — the EVA Mechs card-backed alternate (flat 5, Space tag)', () => {
+    const owner = (mechs: number, extra: Partial<Record<string, unknown>> = {}) => player({
+      titanium: 0, steel: 0,
+      tableau: [{name: CardName.EVA_MECHS, resources: mechs}],
+      ...extra,
+    });
+
+    it('is a lane exactly on a Space tag, at a flat 5, named and drawn as the RESOURCE', () => {
+      const lanes = paymentLanes(prompt(10, {mechs: true}), owner(2));
+      expect(lanes.find((l) => l.unit === 'mechs')).to.deep.include({rate: 5, available: 2});
+      // FLAT: the titanium value (Phobolog, Metal Research) never reaches it.
+      expect(rateFor('mechs', player({titaniumValue: 4}), {mechs: true})).to.eq(5);
+      // The project-card option mirror: Space → yes; Building / no tag → no;
+      // Last Resort Ingenuity names steel and titanium, never mechs.
+      expect(projectCardPaymentOptions([Tag.SPACE], {}, undefined).mechs).to.eq(true);
+      expect(projectCardPaymentOptions([Tag.BUILDING], {}, undefined).mechs).to.eq(false);
+      expect(projectCardPaymentOptions([], {}, CardName.LAST_RESORT_INGENUITY).mechs).to.eq(false);
+      // The row draws the mech sprite (never `.card-resource-mechs`).
+      expect(paymentUnitIcon('mechs')).to.eq('mech');
+      // No mechs on the card → no lane at all (a 0-available lane is no decision).
+      expect(paymentLanes(prompt(10, {mechs: true}), owner(0)).find((l) => l.unit === 'mechs')).to.eq(undefined);
+    });
+
+    it('the opening mix seeds it greedily — an ordinary alternate, never a protected one', () => {
+      // Cost 6, 2 mechs, 20 M€: the default spends ONE mech (5) and lets M€
+      // settle the remaining 1 — never the second mech (that would overpay).
+      const lanes = paymentLanes(prompt(6, {mechs: true}), owner(2));
+      const counts = initialCounts(6, lanes, 20);
+      expect(counts.mechs).to.eq(1);
+      expect(autoMegacredits(6, lanes, counts, 20)).to.eq(1);
+      expect(paymentOverpay(6, lanes, counts, 20)).to.eq(0);
+      expect(paymentFromCounts(6, lanes, counts, 20).mechs).to.eq(1);
+    });
+
+    it('cap and overpay at cost 6 with 2 mechs: ceil(6/5) = 2, the second mech is +4 — legal, and stated', () => {
+      const lanes = paymentLanes(prompt(6, {mechs: true}), owner(2));
+      const lane = lanes.find((l) => l.unit === 'mechs')!;
+      expect(laneCap(6, lane, lanes, {})).to.eq(2);
+      // No M€ at all: the mix NEEDS both mechs (5 < 6) and overpays by 4 —
+      // the upstream semantic (payingAmount ≥ cost, no change given).
+      const poor = initialCounts(6, lanes, 0);
+      expect(poor.mechs).to.eq(2);
+      expect(paymentCovers(6, lanes, poor, 0)).to.eq(true);
+      expect(paymentOverpay(6, lanes, poor, 0)).to.eq(4);
+      // With 1 M€ the player can dial down to 1 mech + 1 M€ = exact.
+      const dialed = {...poor, mechs: 1};
+      expect(paymentCovers(6, lanes, dialed, 1)).to.eq(true);
+      expect(paymentOverpay(6, lanes, dialed, 1)).to.eq(0);
+    });
+  });
+
   it('laneCap: never more of one unit than covers the whole cost', () => {
     const steel: PaymentLane = {unit: 'steel', rate: 2, available: 10, reserved: false};
     expect(laneCap(7, steel, [steel], {})).to.eq(4); // ceil(7/2)
@@ -373,8 +432,11 @@ describe('paymentPlan (T3 native payment math)', () => {
         holder(CardName.PSYCHROPHILES, 3),
         holder(CardName.DIRIGIBLES, 2),
         holder(CardName.LUNA_ARCHIVES, 4),
+        holder(CardName.EVA_MECHS, 2),
       ],
     });
+    const space = projectCardPaymentPrompt(12, [Tag.SPACE], {}, undefined, undefined);
+    expect(paymentLanes(space, rich).find((l) => l.unit === 'mechs')).to.deep.include({rate: 5, available: 2});
     const plant = projectCardPaymentPrompt(12, [Tag.PLANT], {}, undefined, undefined);
     expect(paymentLanes(plant, rich).find((l) => l.unit === 'microbes')).to.deep.include({rate: 2, available: 3});
     const venus = projectCardPaymentPrompt(12, [Tag.VENUS], {}, undefined, undefined);

@@ -321,6 +321,7 @@ export default defineComponent({
       const plural: Partial<Record<string, string>> = {
         'Animal': 'Animals', 'Microbe': 'Microbes', 'Floater': 'Floaters',
         'Asteroid': 'Asteroids', 'Seed': 'Seeds', 'Fighter': 'Fighters',
+        'Mech': 'Mechs',
       };
       return translateText(plural[label] ?? label);
     },

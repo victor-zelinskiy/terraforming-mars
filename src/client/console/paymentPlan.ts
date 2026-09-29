@@ -150,6 +150,10 @@ export function projectCardPaymentOptions(
     // Modular Floodgates steel is usable EXACTLY where ordinary steel is —
     // the same condition, mirroring Player.paymentOptionsForCard.
     floodgateSteel: tags.includes(Tag.BUILDING) || lastResort,
+    // EVA Mechs pay for a Space tag and nothing else — the EXACT mirror of
+    // Player.paymentOptionsForCard (no Last Resort exception: its text names
+    // steel and titanium).
+    mechs: tags.includes(Tag.SPACE),
   };
 }
 
@@ -368,6 +372,10 @@ const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
   // different pool from the player-board lane above it, and the label is what
   // keeps the two from ever reading as one number.
   floodgateSteel: 'Modular Floodgates',
+  // A lane names its RESOURCE (like `floaters`); only floodgate steel names
+  // its card, because stored steel is otherwise indistinguishable from the
+  // player-board lane beside it. A mech has no such twin.
+  mechs: 'Mechs',
 };
 
 export function paymentUnitLabel(unit: string): string {
@@ -395,6 +403,9 @@ const PAY_UNIT_ICONS: Readonly<Record<string, string>> = {
   // The stored steel IS steel — the standard sprite carries the resource;
   // the row label carries the source card.
   floodgateSteel: 'steel',
+  // `mechs` → `.card-resource-mechs` would be exactly the empty-box class this
+  // table exists to prevent.
+  mechs: 'mech',
 };
 
 export function paymentUnitIcon(unit: string): string {

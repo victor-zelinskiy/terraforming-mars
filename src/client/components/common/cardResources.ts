@@ -31,4 +31,7 @@ export const cardResourceCSS = {
   // steel sprite class (cards_v2.less) already paints it; the premium face
   // resolves `assets/resources/steel.png` by name with no mapping at all.
   [CardResource.STEEL]: 'card-resource-steel',
+  // EVA Mechs (TR09): the global class is generated from `@card_resource_types`
+  // (cards_v2.less); the premium face resolves `assets/resources/mech.png` by name.
+  [CardResource.MECH]: 'card-resource-mech',
 } satisfies Record<CardResource, string>;

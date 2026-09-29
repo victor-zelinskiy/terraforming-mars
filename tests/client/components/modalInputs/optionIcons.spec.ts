@@ -19,6 +19,9 @@ describe('iconClassFor', () => {
     expect(iconClassFor(CardResource.ANIMAL)).to.eq('card-resource card-resource-animal');
     expect(iconClassFor(CardResource.SYNDICATE_FLEET)).to.eq('card-resource card-resource-syndicate-fleet');
     expect(iconClassFor(CardResource.HYDROELECTRIC_RESOURCE)).to.eq('card-resource card-resource-hydroelectric-resource');
+    // EVA Mechs (TR09): the literal `'Mech'` is what makes the generated class
+    // (`@card_resource_types` in cards_v2.less) and the sprite name line up.
+    expect(iconClassFor(CardResource.MECH)).to.eq('card-resource card-resource-mech');
   });
 
   it('is idempotent on an already-normalised card-resource key', () => {

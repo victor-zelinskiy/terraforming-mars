@@ -42,6 +42,9 @@ export const GENERIC_PAYMENT_ORDER: ReadonlyArray<SpendableResource> = [
   'kuiperAsteroids',
   'spireScience',
   'graphene',
+  // EVA Mechs (TR09) — an ORDINARY greedy alternate like floaters and graphene:
+  // a mech buys nothing but this, so the default mix cashes it first.
+  'mechs',
   // Modular Floodgates stored steel — LAST among the alternates on purpose:
   // it is a strategically protected source (`initialCounts` never seeds it;
   // the player raises the dial explicitly), so the default allocation must
@@ -170,6 +173,7 @@ export function buildStandardProjectPaymentModel(
     microbes: available.microbes,
     graphene: available.graphene,
     floodgateSteel: available.floodgateSteel,
+    mechs: available.mechs,
   };
 }
 
