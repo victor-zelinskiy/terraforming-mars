@@ -234,9 +234,20 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B27_BUILD_BUILD_BUILD, VENUS)).deep.eq(view);
   });
 
-  it('an out-of-scope card degrades to its printed summary', () => {
+  it('B21 Party Politics (Turmoil Redux): one free delegate by the chooser\'s list, a RECURRING card', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
-    expect(view.lines).has.length(1);
     expect(view.name).eq('Party Politics');
+    expect(view.lines).has.length(2);
+    expect(view.lines[0]).to.deep.include({icon: 'delegate'});
+    expect(view.lines[0].text).to.include('free delegate');
+    expect(view.lines[1].muted).is.true;
+    expect(view.fate.kind).eq('recurring');
+    expect(buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, VENUS)).deep.eq(view);
+  });
+
+  it('an out-of-scope card degrades to its printed summary', () => {
+    const view = buildBonusCardView(BonusCardId.B29_GRAY_EMINENCE, BASE);
+    expect(view.lines).has.length(1);
+    expect(view.name).eq('Gray Eminence');
   });
 });

@@ -311,7 +311,7 @@ Extended Shipping Lines подмешивается со следующего п�
 | B17 Expedited Construction (Colonies) | ✓ (city≥2 greenery/ocean → destroy; иначе если колоний ≤1 → построить колонию flip-методом + 2 ресурса, БЕЗ destroy; иначе ничего) | RB-C p.4 |
 | B18 Outer System Foothold | ✓ (колония flip-методом + 2 ресурса; затем draw из BONUS deck и discard без резолва — reshuffle без самого OSF) | RB-C p.5 |
 | B19/B20 Shipping / Extended Shipping Lines | ✓ (тайл с самым продвинутым треком → tie: где колония бота → tie: flip-метод; −1 MC и trade) | RB-C p.5 |
-| B21 Party Politics | ✓, но Turmoil вне POC | RB-C p.6 |
+| B21 Party Politics | ✓ **транскрибирована полностью 2026-09-29** (дамп страницы целиком через `pypdfium2`). Официальный текст (RB-C p.6, там карта названа «B20» — конфликт нумерации решён в §1): *«If MarsBot has at least 1 delegate left in the reserve, place 1 of its delegates from the reserve into one of the delegate areas, then check whether the Party Leader or the Dominant Party changes because of this. To select which party to place it in, use the below priority list to narrow the options until a single party is selected: 1. A party where placing 1 delegate would cause MarsBot to become Party Leader AND the party to become Dominant. 2. A party where placing 1 delegate would cause MarsBot to become Party Leader. 3. A party where MarsBot is already Party Leader, and placing 1 delegate would make the party Dominant. 4. A party where you (the player) have the fewest (including zero) delegates (including possibly a Party Leader). 5. A party where MarsBot has fewest (including zero) delegates (including possibly a Party Leader). 6. The next party clockwise from the Dominance marker (circling around). Then, if there is at least 1 MarsBot delegate remaining in reserve and MarsBot has at least 5 MC, flip a card from the project deck (and then discard it). If the flipped card's price is evenly divisible by 3, MarsBot spends 5 MC and repeats the above procedure to place a second delegate from the reserve.»* Реализована **в Redux-прочтении** (§15): делегат — на РЕЗОЛЮЦИЮ по списку §3.3 проекта, хвост про флип снят — платные делегаты даёт «Лоббирование» | RB-C p.6 |
 | B09–B14, B22–B32 | вне POC (карты/Awards&Milestones/корпорации) | — |
 
 ## 6. Venus-правила, закрытые RB-C (бывшие блокеры B1/B4)
@@ -914,3 +914,30 @@ MarsBot places on here, it doesn't gain or lose anything» предполага�
 
 ⚠️ Reveal-until — тот же общий примитив, что у Magnate (B09), Celebrity (B10) и Incorporator
 (B11). Второго цикла вскрытия нет.
+
+## 15. Turmoil (RB-C pp.6–7) → Turmoil Redux («Кризис: Возвращение»)
+
+Источник: RB-C p.6 (раздел TURMOIL: Setup Changes, Gameplay Changes, New MarsBot Bonus Card,
+Turmoil Step 1) и p.7 (Turmoil Step 2–4, End of Game, Increasing the Difficulty) — обе страницы
+сдамплены целиком через `pypdfium2` 2026-09-29. **Правил Automa для Redux не существует**: дока даёт
+ФОРМУ, содержание Redux другое (нет партий с зонами делегатов, доминирования, лидеров партий с ПО,
+кресла по доминированию, глобальных событий, пересмотра РТ). Проект переноса —
+`docs/TURMOIL_REDUX_MARSBOT.md` (решения владельца §10), реализация — `AutomaPartyPolitics.ts`,
+`AutomaLobbying.ts`, `parliament/BotVoteChooser.ts`, `BotParliamentPolicy.ts` (аспекты).
+
+Обозначения: **К** — как есть, **А** — адаптировать, **С** — снять, **Н** — наше (в доке нет).
+
+| RB-C p.6–7 (дословно) | Смысл в классике | В Redux | Вердикт |
+| --- | --- | --- | --- |
+| Setup 1: «leave all 7 delegates of MarsBot's color in the reserve» | лобби = бесплатный делегат человека; боту бесплатный даёт карта из резерва | лобби — родной бесплатный голос ВСЕХ мест, пополняется на шаге `lobby` | **А**: бот получает делегата в лобби при сетапе и на пополнении (`Parliament.newInstance`, `stepLobby` по аспекту `delegates`) |
+| Setup 2: «MarsBot's starting TR is reduced by 10, to 10 TR» | компенсация освобождения от пересмотра РТ (p.7, Step 1) | пересмотра РТ в Redux нет | **С** (D1: старт 20/20) |
+| Setup 3 + Gameplay: «shuffle the Party Politics card into [the starting action deck]» / «After the Research Phase each generation, shuffle the Party Politics card into MarsBot's action deck» | recurring с 1-го поколения | то же — `recurringBonusCards` семейства B16 (`AutomaSetup.setup`, `AutomaResearch.finishActionDeck`) | **К** |
+| «MarsBot ignores the ruling party's policy» | политика/бонус правящей | эффекты партий, пассив/действие/скидки принятой резолюции, немедленные выплаты | **А** (обобщено): аспекты `party-effects` и `enactment` у бота выключены (`PoliticsBot`) |
+| Party Politics: делегат из резерва бесплатно по списку 1–6; затем флип «цена делится на 3» → −5 M€ и второй | вся политика бота — один момент в поколении | владелец (D6): счёт голосов должен быть случайным и растянутым по ходам | **А** → §3 проекта: карта = ОДИН бесплатный делегат (лобби, иначе резерв) на резолюцию; платные — «Лоббирование»: каждая разыгранная ботом карта проекта с ценой ÷3 → 1 делегат за 5 M€, ÷9 → 2 (`AutomaLobbying`, ручки `LOBBYING_DIVISOR` / `LOBBYING_DOUBLE_DIVISOR`) |
+| Приоритеты 1–6 (лидер И доминирование / лидер / уже лидер → доминирование / где у игрока меньше всего / где у бота меньше всего / следующая партия по часовой) | партии, лидер партии, доминирование, маркер | карты области, лидер КАРТЫ (`leaderOf`), ПРИНИМАЕМАЯ карта (`winnerAmong`), слот приоритета ничьей | **А** — список §3.3: `win-now` (дефицит 1) → `closest` (наименьший дефицит, симуляция настоящими правилами) → ничьи `star` → `fewest-human` → `nearest-slot` (`BotVoteChooser`); официальные 1 и 3 в Redux — одно событие («стать победителем голосования»), 2 и 4 рассеивают — их место занял дефицит |
+| Turmoil Step 1: «You lose 1 TR normally. MarsBot does not lose a TR» | — | шага нет | — |
+| Step 2: «Global Event … only affects you»; «choices to be made by the first player, they are always made by you» | политические выплаты не боту | ближайший аналог — выплаты принятой резолюции (боту не платятся, D3); «первый игрок» мирового шага = ближайший человек (`worldStepHandle`, D10) | **А** |
+| Step 3: «MarsBot ignores the Ruling Party bonus»; «MarsBot does gain 1 TR if it becomes Chairman»; «Do not place a MarsBot delegate in the Lobby» | кресло по доминированию | кресло — за задание председателя; бот ведёт задания своей игрой (§5 проекта, Э3); награда кресла в Redux — шаг Повестки (бонус `tr` → +1 РТ, `card` → 1 M€ по FAQ p.11) | **А** (D5) |
+| End of Game: «both you and MarsBot score 1 VP for any Party Leader or the Chairman owned» | — | политических ПО в Redux нет (Q-2) | **С** |
+| Increasing the Difficulty: −7 вместо −10; случайный делегат при сетапе | — | — | **С** (D8: не делать) |
+| Награда победителя ★, Повестка, влияние, Народная поддержка, задания, колонии Redux, Лоббирование | — | — | **Н** (§2 проекта) |

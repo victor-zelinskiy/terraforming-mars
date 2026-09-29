@@ -384,14 +384,26 @@ export class Parliament {
 
   /** The resolution that would be enacted now, and who wins it (rulebook p.8, p.10). */
   public winner(): WinnerVerdict | undefined {
-    if (this.slots.length === 0) {
+    return this.winnerAmong(this.slots);
+  }
+
+  /**
+   * THE SAME VERDICT OVER ANY TABLE — the one arithmetic of «which card is
+   * enacted and who wins it», asked by the live table (`winner`) and by every
+   * HYPOTHETICAL one (the vote projection of the model, MarsBot's chooser
+   * simulating its next delegate): most delegates including the neutral ones,
+   * a tie to the slot closer to ENACTED, the winner being the card's leader.
+   * Pure — reads `slots` alone, mutates nothing.
+   */
+  public winnerAmong(slots: ReadonlyArray<Slot>): WinnerVerdict | undefined {
+    if (slots.length === 0) {
       return undefined;
     }
     let bestIndex = 0;
     let tied = false;
-    for (let i = 1; i < this.slots.length; i++) {
-      const votes = this.slots[i].votes.length;
-      const bestVotes = this.slots[bestIndex].votes.length;
+    for (let i = 1; i < slots.length; i++) {
+      const votes = slots[i].votes.length;
+      const bestVotes = slots[bestIndex].votes.length;
       if (votes > bestVotes) {
         bestIndex = i;
         tied = false;
@@ -399,7 +411,7 @@ export class Parliament {
         tied = true;
       }
     }
-    const slot = this.slots[bestIndex];
+    const slot = slots[bestIndex];
     const leader = this.leaderOf(slot);
     const verdict: WinnerVerdict = {
       slotIndex: bestIndex,

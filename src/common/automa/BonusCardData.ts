@@ -97,7 +97,11 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   },
   [BonusCardId.B21_PARTY_POLITICS]: {
     name: 'Party Politics',
-    text: 'The Turmoil bonus card (outside the POC scope).',
+    // Turmoil Redux (docs/TURMOIL_REDUX_MARSBOT.md §3.1): the printed classic
+    // card sends a delegate into a PARTY and flips for a paid second one; in
+    // Redux the delegate goes on a RESOLUTION, free, and the paid delegates
+    // come from Lobbying (the bot's played project cards) instead.
+    text: 'MarsBot sends a free delegate (from the lobby, else the reserve) to the resolution where it is closest to winning the vote. Returns to the action deck every generation.',
   },
   [BonusCardId.B22_SETTLERS]: {name: 'Settlers', text: 'Arcadian Communities: MarsBot claims a non-reserved area with one of its player markers, preferring the space beside the most ocean-reserved ones. Recurs into the action deck every generation.'},
   [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'Ecoline: a plant grows on the corporation card, or the grown plant becomes a greenery raising oxygen 1 step. Recurs into the action deck every generation.'},
@@ -362,6 +366,15 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         id === BonusCardId.B20_EXTENDED_SHIPPING_LINES ?
           {text: 'Joins the deck once MarsBot unlocks its second trade fleet', muted: true} :
           {text: 'Joins the deck from generation 2', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.B21_PARTY_POLITICS:
+    return {
+      name,
+      lines: [
+        {icon: 'delegate', text: 'MarsBot sends a free delegate (from the lobby, else the reserve) to a resolution up for the vote'},
+        {text: 'It picks the card where the delegate makes it the winning player, else the card it is closest to winning', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
     };

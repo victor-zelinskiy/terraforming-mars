@@ -65,7 +65,26 @@ export type MarsBotStepCause =
   | {kind: 'colony'}
   | {kind: 'failed'}
   | {kind: 'delta'}
-  | {kind: 'corporation'};
+  | {kind: 'corporation'}
+  /**
+   * LOBBYING (Turmoil Redux, docs/TURMOIL_REDUX_MARSBOT.md §3.2): the played
+   * project card's cost is divisible by 3, so the bot sends a paid delegate
+   * from its reserve AFTER the card resolved — its own step of the turn,
+   * beside the tags, never a tag's consequence.
+   */
+  | {kind: 'lobbying'};
+
+/**
+ * WHY the bot's delegate went WHERE it went — the rule of the priority list
+ * that decided the card (`server/parliament/BotVoteChooser.ts`, §3.3 of the
+ * project document): it becomes the winning player right now · it is the
+ * card it is closest to winning · the tie-breaks — a winner's reward it can
+ * execute, the fewest delegates of the players, the slot closest to ENACTED.
+ */
+export type MarsBotVoteRule = 'win-now' | 'closest' | 'star' | 'fewest-human' | 'nearest-slot';
+
+/** WHY a delegate was NOT sent — every refusal names itself (never a silent nothing). */
+export type MarsBotVoteRefusal = 'no-seat' | 'no-resolution' | 'no-delegate' | 'not-enough-mc';
 
 /**
  * The SEMANTIC role of a public log line captured during the turn — stamped by
@@ -233,6 +252,22 @@ export type MarsBotTurnStep =
   /** Any other public log line emitted during the turn, in order. `role` is the
    *  server-stamped semantic (flip noise / a resource loss) the review reads. */
   | {kind: 'log', message: LogMessage, cause?: MarsBotStepCause, role?: MarsBotLogRole}
+  /**
+   * A DELEGATE OF THE BOT SENT to a resolution (Turmoil Redux): by Party
+   * Politics (a free one — the lobby's, else the reserve's) or by Lobbying
+   * (a paid one from the reserve, `cost` M€). `rules` is the TRAIL of the
+   * priority list — every rule that narrowed the choice, in order, the last
+   * being the one that decided; `deficit` is how many delegates of the bot
+   * (this one included) make it the winning player of that card, absent when
+   * no number within its supply does; `winsNow` says the verdict after the
+   * placement names the bot. `message` is the journal line of the move.
+   */
+  | {
+      kind: 'vote', resolution: string, slot: number, source: 'lobby' | 'reserve', cost: number,
+      rules: ReadonlyArray<MarsBotVoteRule>, deficit?: number, winsNow: boolean, message?: LogMessage, cause?: MarsBotStepCause,
+    }
+  /** A delegate the bot COULD NOT send, and why (the journal line names it too). */
+  | {kind: 'vote-refused', reason: MarsBotVoteRefusal, message?: LogMessage, cause?: MarsBotStepCause}
   /**
    * The turn's NET effect on one participant — every stock/production/TR
    * value that changed, as explicit before → after pairs. Appended at the end

@@ -8,6 +8,7 @@ import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaDeltaProject} from './AutomaDeltaProject';
 import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
+import {AutomaLobbying} from './AutomaLobbying';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
@@ -136,6 +137,9 @@ export class AutomaController {
       // human play would trigger them.
       AutomaHumanTagReactions.onBotCardResolved(game, card);
       AutomaResolver.resolveProjectCard(game, card);
+      // Turmoil Redux: a played card whose cost is divisible by 3 LOBBIES —
+      // the bot's paid delegate(s), after the tags and inside the same turn.
+      AutomaLobbying.afterProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {
       // The bonus card is NAMED — «разыграл бонусную карту» with no name made

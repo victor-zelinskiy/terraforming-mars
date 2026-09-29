@@ -92,6 +92,9 @@
             <span class="mbr__chain-kicker" v-i18n>Corporation effect</span>
             <span v-if="chain.cause.id !== undefined" class="mbr__chain-title">{{ corpName(chain.cause.id) }}</span>
           </template>
+          <template v-else-if="chain.cause.kind === 'lobbying'">
+            <span class="mbr__chain-kicker" v-i18n>Lobbying</span>
+          </template>
           <template v-else>
             <span class="mbr__chain-kicker" v-i18n>Consequences</span>
           </template>

@@ -514,10 +514,12 @@ describe('ParliamentPhase', () => {
   describe('with MarsBot (BotParliamentMode politics)', () => {
     /**
      * THE SAME FIVE GENERATIONS under the political seat — the mode a NEW
-     * game seats the bot in. Without Party Politics in its deck (stage Э1)
-     * the bot's free delegate simply STANDS in the lobby all game: it is a
-     * seat that holds delegates (its lobby, its reserve, its row in the
-     * ledger), never a seat the sitting asks, never a seat a law pays.
+     * game seats the bot in. The bot's deck is EMPTIED every generation, so
+     * it never plays Party Politics nor lobbies: its free delegate simply
+     * STANDS in the lobby all game — a seat that holds delegates (its lobby,
+     * its reserve, its row in the ledger), never a seat the sitting asks,
+     * never a seat a law pays. What its votes do is the political specs'
+     * business (`AutomaPartyPolitics`, `AutomaLobbying`, `BotVoteChooser`).
      */
     it('plays several generations: the bot holds its delegates, is never asked, is never paid, and the ledger holds after every sitting', () => {
       const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
@@ -540,9 +542,10 @@ describe('ParliamentPhase', () => {
         if (parliament.lobby.has(human.id)) {
           parliament.placeVote(human, slot, 'lobby');
         }
+        game.automa!.actionDeck = [];
         game.playerHasPassed(human);
         game.playerIsFinishedTakingActions();
-        // The bot has played its deck out; the sitting stands at ASSEMBLY, before anything changes —
+        // The bot passed at once (an empty deck); the sitting stands at ASSEMBLY, before anything changes —
         // what the bot holds NOW is what the sitting must leave it with.
         expect(game.phase).eq(Phase.PARLIAMENT);
         const botMegacredits = bot.megaCredits;
@@ -592,6 +595,8 @@ describe('ParliamentPhase', () => {
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
+      // The bot's deck is emptied: this is the GATE's spec, not the vote's — the human's card must win.
+      game.automa!.actionDeck = [];
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();

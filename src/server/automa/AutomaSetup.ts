@@ -142,6 +142,13 @@ export class AutomaSetup {
     if (options.venusNextExtension) {
       state.recurringBonusCards.push(BonusCardId.B16_GOVERNMENT_INTERVENTION);
     }
+    // Turmoil Redux: Party Politics recurs into the action deck every
+    // generation INCLUDING THE FIRST (RB-C p.6 Setup 3: «after creating
+    // MarsBot's starting action deck, shuffle the Party Politics bonus card
+    // into it») — the B16 family, never the bonus deck.
+    if (options.turmoilReduxExpansion) {
+      state.recurringBonusCards.push(BonusCardId.B21_PARTY_POLITICS);
+    }
     if (options.coloniesExtension) {
       state.setAsideBonusCards.push(BonusCardId.B19_SHIPPING_LINES, BonusCardId.B20_EXTENDED_SHIPPING_LINES);
     }

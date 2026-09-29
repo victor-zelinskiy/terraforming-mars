@@ -1132,5 +1132,6 @@
   "Send the delegates": "Отправить делегатов",
   "Delegates placed": "Делегаты поставлены",
   "Return to the vote": "Вернуться к голосованию",
-  "Add delegates to a resolution": "Добавьте делегатов на резолюцию"
+  "Add delegates to a resolution": "Добавьте делегатов на резолюцию",
+  "${0} is now the winning player of ${1}": "${0} — теперь победитель голосования на ${1}"
 }

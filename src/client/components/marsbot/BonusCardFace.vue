@@ -56,6 +56,8 @@ const GLYPHS: Record<string, string> = {
   colony: '◉',
   trade: '⇄',
   animal: '◆',
+  /** A delegate cube (Turmoil Redux — Party Politics). */
+  delegate: '▪',
 };
 
 const FATE_LABEL: Record<BonusCardView['fate']['kind'], string> = {

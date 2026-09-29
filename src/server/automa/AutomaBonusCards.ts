@@ -27,6 +27,7 @@ import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {pushNearestBonus} from './AutomaNearBonusPush';
+import {partyPolitics} from './AutomaPartyPolitics';
 import {AutomaResearch} from './AutomaResearch';
 import {inplaceShuffle} from '../utils/shuffle';
 import {AutomaResolver} from './AutomaResolver';
@@ -259,6 +260,9 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.B19_SHIPPING_LINES:
   case BonusCardId.B20_EXTENDED_SHIPPING_LINES:
     return shippingLines(game);
+  case BonusCardId.B21_PARTY_POLITICS:
+    // Turmoil Redux: the bot's free delegate (its paid ones come from Lobbying).
+    return partyPolitics(game);
   default: {
     // Corporation-specific bonus cards (B22–B32) resolve co-located in their
     // corporation's own module — the registry dispatches by ownership.

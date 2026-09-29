@@ -72,6 +72,8 @@ export type BotReviewChainCause =
   | {kind: 'delta'}
   /** The bot's own corporation effect (RB-B) — `id` names it when the archive captured one. */
   | {kind: 'corporation', id?: MarsBotCorpId}
+  /** Turmoil Redux: the played card's cost is divisible by 3 — the bot's paid delegate(s), a step of its own. */
+  | {kind: 'lobbying'}
   | {kind: 'effect'};
 
 export type BotReviewChain = {
@@ -336,6 +338,8 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       return {kind: 'delta'};
     case 'corporation':
       return {kind: 'corporation', ...(source.corporation !== undefined ? {id: source.corporation} : {})};
+    case 'lobbying':
+      return {kind: 'lobbying'};
     case 'failed':
       return {kind: 'failed', reason: 'no-tags'};
     }
@@ -419,6 +423,16 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       chain.lines.push(...hazardConsequenceLines(source, step, logDepthOf(chain)));
       break;
     }
+    case 'vote':
+    case 'vote-refused': {
+      // A delegate sent (or refused) — its journal line, under the rule that sent it (Party Politics' bonus chain, Lobbying's own).
+      if (step.message === undefined) {
+        break;
+      }
+      const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
+      chain.lines.push({kind: 'log', depth: logDepthOf(chain), message: step.message});
+      break;
+    }
     case 'log': {
       if (isNoiseLog(step.role, step.message)) {
         break;
@@ -500,6 +514,15 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     case 'hazard': {
       const chain = current ?? ensureLoose();
       chain.lines.push(...hazardConsequenceLines(source, step, nextDepth(chain, false)));
+      break;
+    }
+    case 'vote':
+    case 'vote-refused': {
+      if (step.message === undefined) {
+        break;
+      }
+      const chain = current ?? ensureLoose();
+      chain.lines.push({kind: 'log', depth: nextDepth(chain, false), message: step.message});
       break;
     }
     case 'log': {
