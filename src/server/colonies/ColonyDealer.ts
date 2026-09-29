@@ -4,6 +4,7 @@ import {Random} from '../../common/utils/Random';
 import {ALL_COLONIES_TILES, BASE_COLONIES_TILES, COMMUNITY_COLONIES_TILES, IColonyFactory, PATHFINDERS_COLONIES_TILES, TURMOIL_REDUX_COLONIES_TILES} from './ColonyManifest';
 import {GameOptions} from '../game/GameOptions';
 import {isTurmoilReduxAddition, TURMOIL_REDUX_REPLACEMENTS} from '../../common/colonies/AllColonies';
+import {shippingAreaFor} from '../../common/automa/ShippingBoardData';
 import {Colony} from './Colony';
 
 // TODO(kberg): Add ability to hard-code chosen colonies, separate from customColoniesList, so as to not be
@@ -50,7 +51,29 @@ export class ColonyDealer {
     if (!gameOptions.aresExtension) {
       colonyTiles = colonyTiles.filter((c) => c.colonyName !== ColonyName.DEIMOS);
     }
-    this.gameColonies = ColonyDealer.withReduxReplacements(colonyTiles, gameOptions).map((cf) => new cf.Factory());
+    this.gameColonies = ColonyDealer.withoutTilesMarsBotCannotUse(ColonyDealer.withReduxReplacements(colonyTiles, gameOptions), gameOptions)
+      .map((cf) => new cf.Factory());
+  }
+
+  /**
+   * A REDUX ADDITION WITH NO SHIPPING BOARD AREA IS NOT DEALT TO A MARSBOT
+   * TABLE. The bot's colony play stores resources in the area of the tile
+   * (`AutomaColonies.addToStorage` ← `shippingAreaFor`): a REPLACEMENT
+   * borrows its base twin's area, an ADDITION (Venus, Vesta) has none, and
+   * the bot's build, its trade and its cube's bonus on a human's trade all
+   * throw «has no MarsBot storage area» the moment it touches one. Until
+   * MarsBot support for Turmoil Redux gives these tiles an area, the dealer
+   * keeps them off the table — a refusal to deal what the bot cannot use,
+   * never a mechanic. Structural (the predicate, not a list of names), so
+   * the next addition is covered by declaring itself; applied to the dealt
+   * pool AND to a hand-picked `customColoniesList`. REMOVE with MarsBot
+   * support for Turmoil Redux.
+   */
+  private static withoutTilesMarsBotCannotUse(tiles: ReadonlyArray<IColonyFactory<Colony>>, gameOptions: GameOptions): Array<IColonyFactory<Colony>> {
+    if (gameOptions.automa === undefined) {
+      return [...tiles];
+    }
+    return tiles.filter((cf) => !(isTurmoilReduxAddition(cf.colonyName) && shippingAreaFor(cf.colonyName) === undefined));
   }
 
   private static includesCommunityColonies(gameOptions: GameOptions) : boolean {
@@ -115,7 +138,8 @@ export class ColonyDealer {
     let colonies = this.gameColonies;
     if (customColonies.length > 0) {
       const picked = ALL_COLONIES_TILES.filter((c) => customColonies.includes(c.colonyName));
-      colonies = ColonyDealer.withReduxReplacements(picked, this.gameOptions).map((cf) => new cf.Factory());
+      colonies = ColonyDealer.withoutTilesMarsBotCannotUse(ColonyDealer.withReduxReplacements(picked, this.gameOptions), this.gameOptions)
+        .map((cf) => new cf.Factory());
     }
 
     const count = (players + 2) +

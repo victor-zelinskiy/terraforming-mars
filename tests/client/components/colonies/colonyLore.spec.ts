@@ -28,6 +28,7 @@ const BASE_COLONIES: ReadonlyArray<ColonyName> = [
   // Venus addition prints its own (the retired community tile had none).
   ColonyName.PLUTO_REDUX,
   ColonyName.VENUS_REDUX,
+  ColonyName.VESTA,
 ];
 
 /*

@@ -629,7 +629,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1789671568586,
+ "createdTimeMs": 1790692506595,
  "currentSeed": 688668745688,
  "deferredActions": [],
  "donePlayers": [],
@@ -649,7 +649,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568586
+   "timestamp": 1790692506595
   },
   {
    "message": "Good luck ${0}!",
@@ -659,7 +659,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568586,
+   "timestamp": 1790692506595,
    "playerId": "p-player1-id"
   },
   {
@@ -670,7 +670,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1789671568586,
+   "timestamp": 1790692506595,
    "playerId": "p-player2-id"
   },
   {
@@ -681,7 +681,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789671568586,
+   "timestamp": 1790692506595,
    "type": 1
   },
   {
@@ -696,7 +696,7 @@
      "value": "Manutech"
     }
    ],
-   "timestamp": 1789671568587,
+   "timestamp": 1790692506596,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -718,7 +718,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789671568587,
+   "timestamp": 1790692506596,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -735,7 +735,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568587,
+   "timestamp": 1790692506596,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -752,7 +752,7 @@
      "value": "Pharmacy Union"
     }
    ],
-   "timestamp": 1789671568587,
+   "timestamp": 1790692506597,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -779,7 +779,7 @@
      }
     }
    ],
-   "timestamp": 1789671568587,
+   "timestamp": 1790692506597,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -798,7 +798,7 @@
      ]
     }
    ],
-   "timestamp": 1789671568587,
+   "timestamp": 1790692506597,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -815,7 +815,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568588,
+   "timestamp": 1790692506598,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -840,7 +840,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568588,
+   "timestamp": 1790692506599,
    "correlationId": 5,
    "parentId": 7,
    "role": "effect-result"
@@ -1251,7 +1251,7 @@
   "Planner",
   "Hoverlord"
  ],
- "name": "Kinetic Gamma Cloud",
+ "name": "Erratic Particle Pulse",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1385,11 +1385,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 2,
-    "startedAt": 1789671568588,
+    "sumElapsed": 4,
+    "startedAt": 1790692506599,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568588
+    "lastStoppedAt": 1790692506599
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1502,11 +1502,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 2,
-    "startedAt": 1789671568587,
+    "sumElapsed": 4,
+    "startedAt": 1790692506597,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568588
+    "lastStoppedAt": 1790692506599
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

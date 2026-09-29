@@ -358,7 +358,9 @@ describe('PlutoRedux', () => {
       const all = [...dealer.colonies, ...dealer.discardedColonies].map(toName);
       expect(all).to.include(ColonyName.PLUTO_REDUX);
       expect(all).to.not.include(ColonyName.PLUTO);
-      expect(all).to.have.lengthOf(11);
+      // …beside the 10 other base tiles and the Vesta ADDITION (Venus needs Venus Next).
+      expect(all).to.include(ColonyName.VESTA);
+      expect(all).to.have.lengthOf(12);
     });
 
     it('is never dealt without the expansion', () => {

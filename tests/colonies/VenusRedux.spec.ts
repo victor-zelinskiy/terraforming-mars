@@ -502,7 +502,8 @@ describe('VenusRedux', () => {
       expect(all).to.include(ColonyName.VENUS_REDUX);
       expect(all).to.include(ColonyName.PLUTO_REDUX);
       expect(all).to.not.include('Venus');
-      expect(all).to.have.lengthOf(12);
+      expect(all).to.include(ColonyName.VESTA);
+      expect(all).to.have.lengthOf(13);
     });
 
     it('is never dealt without the expansion', () => {

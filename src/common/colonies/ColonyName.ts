@@ -42,6 +42,12 @@ export enum ColonyName {
     // same identity scheme as Pluto's on purpose — the suffix is the enum,
     // the i18n key and the art alias; the printed face still reads «VENUS».
     VENUS_REDUX = 'Venus Redux',
+    // The second Turmoil Redux ADDITION: «mechs, asteroids or fighters» onto
+    // any card — the first tile whose card benefit spans SEVERAL kinds
+    // (`ColonyMetadata.cardResources`). No base twin, no Venus Next needed;
+    // the printed face reads «VESTA», and so does the name (no suffix — there
+    // is no other Vesta tile to tell it from).
+    VESTA = 'Vesta',
 
     // WHEN ADDING A NEW COLONY, ADD IT TO AllColonies.ts
 }

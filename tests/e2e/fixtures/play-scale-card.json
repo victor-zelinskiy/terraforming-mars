@@ -595,7 +595,7 @@
    "Teractor"
   ]
  },
- "createdTimeMs": 1789671568457,
+ "createdTimeMs": 1790692506333,
  "currentSeed": 467049282315,
  "deferredActions": [],
  "donePlayers": [],
@@ -622,7 +622,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789671568458
+   "timestamp": 1790692506334
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -639,7 +639,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789671568458
+   "timestamp": 1790692506334
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -656,7 +656,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1789671568458
+   "timestamp": 1790692506334
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -673,7 +673,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1789671568458
+   "timestamp": 1790692506334
   },
   {
    "message": "The id of this game is ${0}",
@@ -683,7 +683,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1789671568459
+   "timestamp": 1790692506334
   },
   {
    "message": "Good luck ${0}!",
@@ -693,7 +693,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1789671568459,
+   "timestamp": 1790692506334,
    "playerId": "p-player1-id"
   },
   {
@@ -704,7 +704,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1789671568459,
+   "timestamp": 1790692506334,
    "type": 1
   },
   {
@@ -719,7 +719,7 @@
      "value": "Interplanetary Cinematics"
     }
    ],
-   "timestamp": 1789671568461,
+   "timestamp": 1790692506336,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -741,7 +741,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1789671568462,
+   "timestamp": 1790692506340,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -758,7 +758,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1789671568463,
+   "timestamp": 1790692506340,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -993,7 +993,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Silent Particle Drift",
+ "name": "Solar Vector Mass",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1091,11 +1091,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 5,
-    "startedAt": 1789671568464,
+    "sumElapsed": 8,
+    "startedAt": 1790692506342,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1789671568464
+    "lastStoppedAt": 1790692506342
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

@@ -25,4 +25,5 @@ export const COLONY_DESCRIPTIONS = {
   [ColonyName.KUIPER]: 'Asteroids',
   [ColonyName.PLUTO_REDUX]: 'Data & Cards',
   [ColonyName.VENUS_REDUX]: 'Venus & Delegates',
+  [ColonyName.VESTA]: 'Mechs, Asteroids & Fighters',
 } satisfies Record<ColonyName, string>;

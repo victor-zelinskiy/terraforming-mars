@@ -43,6 +43,7 @@ export const PATHFINDERS_COLONY_NAMES = [
 export const TURMOIL_REDUX_COLONY_NAMES = [
   ColonyName.PLUTO_REDUX,
   ColonyName.VENUS_REDUX,
+  ColonyName.VESTA,
 ];
 
 /** base tile → the Redux tile that REPLACES it when Turmoil Redux is on. */

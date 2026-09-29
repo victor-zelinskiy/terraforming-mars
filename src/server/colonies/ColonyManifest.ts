@@ -24,6 +24,7 @@ import {Terra} from '../cards/community/Terra';
 import {Kuiper} from '../cards/community/Kuiper';
 import {PlutoRedux} from './PlutoRedux';
 import {VenusRedux} from './VenusRedux';
+import {Vesta} from './Vesta';
 // import {LeavittII} from '../cards/pathfinders/LeavittII';
 
 export interface IColonyFactory<T> {
@@ -71,6 +72,7 @@ export const PATHFINDERS_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
 export const TURMOIL_REDUX_COLONIES_TILES: Array<IColonyFactory<Colony>> = [
   {colonyName: ColonyName.PLUTO_REDUX, Factory: PlutoRedux},
   {colonyName: ColonyName.VENUS_REDUX, Factory: VenusRedux},
+  {colonyName: ColonyName.VESTA, Factory: Vesta},
 ];
 
 export const ALL_COLONIES_TILES = [...BASE_COLONIES_TILES, ...COMMUNITY_COLONIES_TILES, ...PATHFINDERS_COLONIES_TILES, ...TURMOIL_REDUX_COLONIES_TILES];
