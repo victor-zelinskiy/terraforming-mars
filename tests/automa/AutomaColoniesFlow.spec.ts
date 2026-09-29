@@ -14,6 +14,9 @@ import {Europa} from '../../src/server/colonies/Europa';
 import {Triton} from '../../src/server/colonies/Triton';
 import {Pluto} from '../../src/server/colonies/Pluto';
 import {PlutoRedux} from '../../src/server/colonies/PlutoRedux';
+import {Vesta} from '../../src/server/colonies/Vesta';
+import {VenusRedux} from '../../src/server/colonies/VenusRedux';
+import {GiveColonyBonus} from '../../src/server/deferredActions/GiveColonyBonus';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
 
@@ -72,6 +75,47 @@ describe('Automa Colonies', () => {
       expect(redux.stored).deep.eq([3, 0]);
       expect(redux.science).is.greaterThan(0);
       expect(redux.science).eq(scienceAfter(new Pluto(), ColonyName.PLUTO).science);
+    });
+
+    /*
+     * TURMOIL REDUX ADDITIONS (docs/TURMOIL_REDUX_MARSBOT.md §7, D7): an addition stores in an area of its
+     * OWN — Vesta exchanges 5 for a step of the Space track (its printed tag), the Redux Venus for a step of
+     * the Venus track. Without Venus Next that track does not exist, and the area simply accumulates: the
+     * icon of an expansion not in play is ignored (Titan's floaters are the precedent), never an error.
+     */
+    it('Vesta (a Redux addition) stores in its own area and exchanges 5 for a step of the Space track', () => {
+      const [game] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const automa = game.automa!;
+      setColonies(game, new Vesta(), new Luna());
+      const spaceBefore = automa.board.tracks[THARSIS_TRACK.SPACE].position;
+      AutomaColonies.addToStorage(game, ColonyName.VESTA, 3);
+      expect(automa.shippingStorage[ColonyName.VESTA]).eq(3);
+      expect(automa.board.tracks[THARSIS_TRACK.SPACE].position).eq(spaceBefore);
+      AutomaColonies.addToStorage(game, ColonyName.VESTA, 2); // 5 → exchange.
+      expect(automa.shippingStorage[ColonyName.VESTA]).eq(0);
+      // At least one step: the cell the step lands on may itself be an «advance» action (the Luna precedent above).
+      expect(automa.board.tracks[THARSIS_TRACK.SPACE].position).is.greaterThan(spaceBefore);
+    });
+
+    it('the Redux Venus WITHOUT Venus Next accumulates past 5 — no Venus track to advance, no error', () => {
+      const [game] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      const automa = game.automa!;
+      setColonies(game, new VenusRedux(), new Luna());
+      expect(automa.board.getTrackIndexForTag(Tag.VENUS)).is.undefined;
+      AutomaColonies.addToStorage(game, ColonyName.VENUS_REDUX, 6);
+      expect(automa.shippingStorage[ColonyName.VENUS_REDUX]).eq(6);
+    });
+
+    it('…and WITH Venus Next exchanges 5 for a step of the Venus track', () => {
+      const [game] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true});
+      const automa = game.automa!;
+      setColonies(game, new VenusRedux(), new Luna());
+      const venus = automa.board.getTrackIndexForTag(Tag.VENUS);
+      expect(venus).is.not.undefined;
+      const before = automa.board.tracks[venus!].position;
+      AutomaColonies.addToStorage(game, ColonyName.VENUS_REDUX, 6);
+      expect(automa.shippingStorage[ColonyName.VENUS_REDUX]).eq(1);
+      expect(automa.board.tracks[venus!].position).eq(before + 1);
     });
 
     it('Titan routes to the single automa.floaters counter (usable), NOT the inert Titan storage', () => {
@@ -184,6 +228,35 @@ describe('Automa Colonies', () => {
       ceres.trade(human);
       runAllActions(game);
       expect(game.automa!.shippingStorage[ColonyName.CERES]).eq(1);
+    });
+
+    it('the bot builds on and trades with a Redux addition by the official abstraction — resources into ITS area, the printed reward ignored', () => {
+      const [game, /* human */, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      setColonies(game, new Vesta());
+      const vesta = game.colonies[0];
+      vesta.trackPosition = 5;
+      bot.megaCredits = 3;
+      expect(AutomaColonies.botBuildColony(game)).is.true;
+      expect(vesta.colonies).deep.eq([bot.id]);
+      expect(game.automa!.shippingStorage[ColonyName.VESTA]).eq(2);
+      vesta.trackPosition = 5;
+      expect(AutomaColonies.botTrade(game)).is.true;
+      // +2 for the trade, +1 for its own colony there; the fee paid; no printed asteroid or fighter went anywhere.
+      expect(game.automa!.shippingStorage[ColonyName.VESTA]).eq(0); // 2 + 3 = 5 → one exchange.
+      expect(bot.megaCredits).eq(2);
+      expect(vesta.visitor).eq(bot.id);
+    });
+
+    it('a human\'s trade of a Redux addition pays the bot\'s cube into the bot\'s own area (+1)', () => {
+      // The cube bonus rides the trade's own deferred payout; Vesta's income gate (a holder of asteroids or
+      // fighters) is the HUMAN's business and stands aside here — the payout to the cube owners is the subject.
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+      setColonies(game, new Vesta());
+      const vesta = game.colonies[0];
+      vesta.colonies.push(bot.id);
+      game.defer(new GiveColonyBonus(human, vesta));
+      runAllActions(game);
+      expect(game.automa!.shippingStorage[ColonyName.VESTA]).eq(1);
     });
 
     it('the human trading Europa with a MarsBot colony pays the bot 1 M€ instead', () => {

@@ -51,10 +51,11 @@ export const VESTA_NO_HOLDER_REASON = 'No card of yours can hold the mechs, aste
  *
  * `shouldIncreaseTrack: 'yes'` — one kind of income, more of it higher up.
  *
- * MARSBOT: this tile has no Shipping Board area (an ADDITION has no base
- * twin to borrow one from), so `ColonyDealer` keeps every such tile off a
- * MarsBot table until MarsBot support for Turmoil Redux lands — a refusal to
- * deal what the bot cannot use, not a mechanic.
+ * MARSBOT: the tile has a Shipping Board area of its own (`ShippingBoardData`
+ * — 5 resources → the SPACE track, the tile's printed tag; D7 of
+ * docs/TURMOIL_REDUX_MARSBOT.md). The bot builds and trades here by the
+ * official abstraction — resources into the area, the printed income and the
+ * holder rule ignored — so the dealer seats it on a MarsBot table like any tile.
  */
 export class Vesta extends Colony {
   constructor() {

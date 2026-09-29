@@ -3,7 +3,8 @@ import {TURMOIL_REDUX_REPLACEMENTS} from '../colonies/AllColonies';
 import {Tag} from '../cards/Tag';
 
 /**
- * The MarsBot Colonies Shipping Board — 11 storage areas, one per base-Colonies colony tile.
+ * The MarsBot Colonies Shipping Board — 11 storage areas, one per base-Colonies colony tile,
+ * plus one per Turmoil Redux ADDITION (Venus, Vesta — this fork's reading, see the entries).
  *
  * Rules source: TM-Automa-rulebook-C-11-14-2023 (Adding Expansions), pp.4–5:
  * - Build Colony: MarsBot gains 2 resources into the tile's storage area (ignores printed reward).
@@ -53,6 +54,14 @@ export const SHIPPING_BOARD_AREAS: ReadonlyArray<ShippingAreaData> = [
   {colony: ColonyName.PLUTO, exchangeTag: Tag.SCIENCE}, // 5 science → Science track (not steal-targetable, RB-C p.5)
   {colony: ColonyName.TITAN, exchangeTag: undefined}, // floater area — no track exchange
   {colony: ColonyName.EUROPA, exchangeTag: undefined}, // never stores resources
+  // TURMOIL REDUX ADDITIONS (docs/TURMOIL_REDUX_MARSBOT.md §7, decision D7 — a project reading, the
+  // Automa rulebook predates the expansion): an addition has no base twin to borrow an area from, so it
+  // gets one of its own, keyed to the tile's printed tag. The bot builds and trades by the official
+  // abstraction — resources into the area, the printed reward ignored — and exchanges 5 for a step of
+  // the tag's track. The Venus tag's track exists only with Venus Next; without it the area simply
+  // accumulates (the icon of an expansion not in play is ignored — like Titan's floaters, never an error).
+  {colony: ColonyName.VENUS_REDUX, exchangeTag: Tag.VENUS}, // 5 floaters → Venus track (Venus Next only)
+  {colony: ColonyName.VESTA, exchangeTag: Tag.SPACE}, // 5 asteroids / fighters → Space track
 ];
 
 /**

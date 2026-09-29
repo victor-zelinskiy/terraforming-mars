@@ -7,6 +7,7 @@ import {testGame} from '../TestGame';
 import {runAllActions} from '../TestingUtils';
 import {Vesta, VESTA_NO_HOLDER_REASON} from '../../src/server/colonies/Vesta';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
+import {Tag} from '../../src/common/cards/Tag';
 import {ColonyBenefit} from '../../src/common/colonies/ColonyBenefit';
 import {CardResource} from '../../src/common/CardResource';
 import {Resource} from '../../src/common/Resource';
@@ -365,41 +366,43 @@ describe('Vesta', () => {
       expect(g.colonies.map(toName)).to.include(ColonyName.VESTA);
     });
 
-    it('MARSBOT: a Redux ADDITION with no Shipping Board area is never dealt to a MarsBot table (Vesta, Venus) — a replacement borrows its twin\'s', () => {
-      expect(shippingAreaFor(ColonyName.VESTA)).is.undefined;
-      expect(shippingAreaFor(ColonyName.VENUS_REDUX)).is.undefined;
-      expect(shippingAreaFor(ColonyName.PLUTO_REDUX)).is.not.undefined;
+    /*
+     * MARSBOT (docs/TURMOIL_REDUX_MARSBOT.md §7, D7): a Redux ADDITION has a Shipping Board area of its OWN
+     * (Vesta → the Space track, Venus → the Venus track; a replacement still borrows its twin's), so the
+     * dealer seats it on a MarsBot table exactly as on a human one — the dealt pool, a hand-picked list
+     * and the real MarsBot game alike. The old «not dealt until the bot can use it» gate is gone.
+     */
+    it('MARSBOT: a Redux addition has an area of its own and is dealt to a MarsBot table like any tile (Vesta, Venus)', () => {
+      expect(shippingAreaFor(ColonyName.VESTA)?.exchangeTag).eq(Tag.SPACE);
+      expect(shippingAreaFor(ColonyName.VENUS_REDUX)?.exchangeTag).eq(Tag.VENUS);
+      expect(shippingAreaFor(ColonyName.PLUTO_REDUX)).eq(shippingAreaFor(ColonyName.PLUTO));
       const automa = {difficulty: 'normal' as const};
 
       const dealt = new ColonyDealer(new SeededRandom(1), {...options, turmoilReduxExpansion: true, venusNextExtension: true, automa});
       dealt.drawColonies(1);
       const pool = [...dealt.colonies, ...dealt.discardedColonies].map(toName);
-      expect(pool).to.not.include(ColonyName.VESTA);
-      expect(pool).to.not.include(ColonyName.VENUS_REDUX);
+      expect(pool).to.include(ColonyName.VESTA);
+      expect(pool).to.include(ColonyName.VENUS_REDUX);
       expect(pool).to.include(ColonyName.PLUTO_REDUX);
-      expect(pool).to.have.lengthOf(11);
+      // …the same pool a human table of the same seed is dealt.
+      const human = new ColonyDealer(new SeededRandom(1), {...options, turmoilReduxExpansion: true, venusNextExtension: true, automa: undefined});
+      human.drawColonies(1);
+      expect(pool).to.have.members([...human.colonies, ...human.discardedColonies].map(toName));
 
-      // …a hand-picked list too: the bot cannot use the tile whoever asked for it.
+      // …a hand-picked list keeps every name it asked for.
       const picked = new ColonyDealer(new SeededRandom(1), {
         ...options, turmoilReduxExpansion: true, venusNextExtension: true, automa,
         customColoniesList: [ColonyName.VESTA, ColonyName.VENUS_REDUX, ColonyName.LUNA, ColonyName.IO, ColonyName.CERES, ColonyName.TITAN, ColonyName.CALLISTO],
       });
       picked.drawColonies(1);
-      expect([...picked.colonies, ...picked.discardedColonies].map(toName)).to.have.members([ColonyName.LUNA, ColonyName.IO, ColonyName.CERES, ColonyName.TITAN, ColonyName.CALLISTO]);
+      expect([...picked.colonies, ...picked.discardedColonies].map(toName))
+        .to.have.members([ColonyName.VESTA, ColonyName.VENUS_REDUX, ColonyName.LUNA, ColonyName.IO, ColonyName.CERES, ColonyName.TITAN, ColonyName.CALLISTO]);
 
-      // …and the real MarsBot game seats neither.
+      // …and the real MarsBot game's pool holds both additions (which of the pool the seed seats is the deal's).
       const [g] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true});
-      const seated = g.colonies.map(toName);
-      expect(seated).to.not.include(ColonyName.VESTA);
-      expect(seated).to.not.include(ColonyName.VENUS_REDUX);
-    });
-
-    it('a table WITHOUT MarsBot is untouched by the gate (the same seed deals the additions)', () => {
-      const human = new ColonyDealer(new SeededRandom(1), {...options, turmoilReduxExpansion: true, venusNextExtension: true, automa: undefined});
-      human.drawColonies(1);
-      const pool = [...human.colonies, ...human.discardedColonies].map(toName);
-      expect(pool).to.include(ColonyName.VESTA);
-      expect(pool).to.include(ColonyName.VENUS_REDUX);
+      const gamePool = [...g.colonies, ...g.discardedColonies].map(toName);
+      expect(gamePool).to.include(ColonyName.VESTA);
+      expect(gamePool).to.include(ColonyName.VENUS_REDUX);
     });
   });
 

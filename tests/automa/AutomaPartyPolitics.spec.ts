@@ -83,7 +83,14 @@ describe('B21 Party Politics (Turmoil Redux)', () => {
       const automa = game.automa!;
       game.playerIsFinishedWithResearchPhase(human);
       for (let generation = 1; generation <= 3; generation++) {
-        expect(automa.actionDeck.filter((c) => c.kind === 'bonus' && c.id === B21), `generation ${generation}`).has.length(1);
+        // DEALT EXACTLY ONCE: still in the deck — or already the bot's FIRST turn of the generation, when the
+        // bot opens the generation and the shuffle put the card on top (the colony pool moves the seed's
+        // shuffle, so which of the two it is must not decide the spec).
+        const inDeck = automa.actionDeck.filter((c) => c.kind === 'bonus' && c.id === B21).length;
+        const last = automa.lastTurn;
+        const played = last !== undefined && last.generation === game.generation &&
+          last.steps.some((s) => s.kind === 'reveal' && s.card.kind === 'bonus' && s.card.id === B21) ? 1 : 0;
+        expect(inDeck + played, `generation ${generation}: in the deck ${inDeck}, played by the bot's first turn ${played}`).eq(1);
         automa.actionDeck = [{kind: 'bonus', id: B21}];
         human.popWaitingFor();
         game.playerHasPassed(human);

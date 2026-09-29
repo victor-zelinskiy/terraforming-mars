@@ -5,6 +5,7 @@ import {MarsBotBoard, MarsBotTrack} from '../../src/server/automa/MarsBotBoard';
 import {THARSIS_MARSBOT_BOARD} from '../../src/server/automa/boards/TharsisMarsBot';
 import {VENUS_TRACK, VENUS_TRACK_INDEX, VENUS_CELL9_TARGET_TRACK} from '../../src/server/automa/boards/VenusMarsBot';
 import {SHIPPING_BOARD_AREAS, shippingAreaFor} from '../../src/common/automa/ShippingBoardData';
+import {OFFICIAL_COLONY_NAMES, TURMOIL_REDUX_COLONY_NAMES} from '../../src/common/colonies/AllColonies';
 
 describe('VenusMarsBot track data', () => {
   it('has 13 positions (0–12)', () => {
@@ -74,10 +75,36 @@ describe('VenusMarsBot track data', () => {
 });
 
 describe('Colonies shipping board data', () => {
-  it('has exactly 11 storage areas, one per base-Colonies colony', () => {
-    expect(SHIPPING_BOARD_AREAS.length).to.eq(11);
+  it('has 11 base storage areas, one per base-Colonies colony, plus one per Turmoil Redux addition', () => {
     const names = SHIPPING_BOARD_AREAS.map((a) => a.colony);
-    expect(new Set(names).size).to.eq(11);
+    expect(new Set(names).size).to.eq(SHIPPING_BOARD_AREAS.length);
+    for (const base of OFFICIAL_COLONY_NAMES) {
+      expect(names, base).to.include(base);
+    }
+    expect(SHIPPING_BOARD_AREAS.length).to.eq(OFFICIAL_COLONY_NAMES.length + 2);
+  });
+
+  /*
+   * TURMOIL REDUX ADDITIONS (docs/TURMOIL_REDUX_MARSBOT.md §7, D7): an addition has no base twin to
+   * borrow an area from, so it carries its own — keyed to the tile's printed tag. Every tile the
+   * dealer can seat on a Redux MarsBot table has an area (the dealer's old gate is gone).
+   */
+  it('the Redux additions have areas of their own: Venus → the Venus tag, Vesta → the Space tag', () => {
+    expect(shippingAreaFor(ColonyName.VENUS_REDUX)?.exchangeTag).to.eq(Tag.VENUS);
+    expect(shippingAreaFor(ColonyName.VESTA)?.exchangeTag).to.eq(Tag.SPACE);
+  });
+
+  it('every tile a Turmoil Redux MarsBot table can seat has an area (base tiles and Redux tiles alike)', () => {
+    for (const name of [...OFFICIAL_COLONY_NAMES, ...TURMOIL_REDUX_COLONY_NAMES]) {
+      expect(shippingAreaFor(name), name).to.not.be.undefined;
+    }
+  });
+
+  it('the Venus tag exchanges only where the Venus track stands — without Venus Next the area accumulates, no error', () => {
+    const tharsis = new MarsBotBoard([...THARSIS_MARSBOT_BOARD]);
+    expect(tharsis.getTrackIndexForTag(Tag.VENUS)).to.be.undefined;
+    const withVenus = new MarsBotBoard([...THARSIS_MARSBOT_BOARD, VENUS_TRACK]);
+    expect(withVenus.getTrackIndexForTag(Tag.VENUS)).to.eq(VENUS_TRACK_INDEX);
   });
 
   it('matches the transcribed 5-resources → tag exchange mapping', () => {
@@ -101,8 +128,8 @@ describe('Colonies shipping board data', () => {
     expect(shippingAreaFor(ColonyName.EUROPA)?.exchangeTag).to.be.undefined;
   });
 
-  it('every exchange tag resolves to a Tharsis track', () => {
-    const board = new MarsBotBoard([...THARSIS_MARSBOT_BOARD]);
+  it('every exchange tag resolves to a Tharsis track — the Venus tag to the appended Venus track', () => {
+    const board = new MarsBotBoard([...THARSIS_MARSBOT_BOARD, VENUS_TRACK]);
     for (const area of SHIPPING_BOARD_AREAS) {
       if (area.exchangeTag !== undefined) {
         expect(board.getTrackIndexForTag(area.exchangeTag),

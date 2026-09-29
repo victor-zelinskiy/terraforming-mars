@@ -941,3 +941,4 @@ Turmoil Step 1) и p.7 (Turmoil Step 2–4, End of Game, Increasing the Difficul
 | End of Game: «both you and MarsBot score 1 VP for any Party Leader or the Chairman owned» | — | политических ПО в Redux нет (Q-2) | **С** |
 | Increasing the Difficulty: −7 вместо −10; случайный делегат при сетапе | — | — | **С** (D8: не делать) |
 | Награда победителя ★, Повестка, влияние, Народная поддержка, задания, колонии Redux, Лоббирование | — | — | **Н** (§2 проекта) |
+| Shipping Board (RB-A p.2): 11 областей базовых тайлов | Плутон Redux наследует область Плутона (замена) | ДОБАВЛЕНИЯ Redux без близнеца: **Венера Redux → метка Венеры** (трек только с Venus Next; без него область копит, обмена нет — как Титан), **Веста → метка космоса**; бот строит/торгует по абстракции (ресурсы в область, печатная награда и правило держателя игнорируются); гейт дилера снят | **Н** (D7, `ShippingBoardData.ts`, `VenusAndShippingData.spec`) |

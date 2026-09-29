@@ -533,6 +533,7 @@ describe('ParliamentPhase', () => {
       expect(parliament.hasPartyEffect(human, PartyName.GREENS)).is.true;
 
       game.playerIsFinishedWithResearchPhase(human);
+      let botWins = 0;
       for (let generation = 1; generation <= 5; generation++) {
         expect(game.generation).eq(generation);
         expect(game.phase).eq(Phase.ACTION);
@@ -570,11 +571,18 @@ describe('ParliamentPhase', () => {
         expect(game.phase).eq(Phase.RESEARCH);
         expect(parliament.phase).is.undefined;
         expect(parliament.enacted).is.not.undefined;
-        // The sitting's seat records name the human alone — the bot is outside the enactment.
-        const seats = new Set((parliament.lastPhase?.outcomes ?? []).map((o) => o.player).filter((p) => p !== undefined));
+        // The bot may have VOTED on its first turn of the generation (it opens every other generation, and the
+        // freshly dealt deck's top card may be B21 or a lobbying card — the political specs' business), and may
+        // therefore be the WINNING PLAYER: its ★ is paid by declaration (D4), never as a seat's payout of the law.
+        // The sitting's SEAT records name the human alone — the bot is outside the enactment.
+        const botWon = parliament.lastPhase?.winner.player === bot.id;
+        const seats = new Set((parliament.lastPhase?.outcomes ?? []).filter((o) => o.part !== 'winner').map((o) => o.player).filter((p) => p !== undefined));
         expect(seats.has(bot.id), `the law paid the bot in generation ${generation}`).is.false;
-        expect(bot.megaCredits, `the sitting changed the bot's M€ in generation ${generation}`).eq(botMegacredits);
-        expect(bot.terraformRating, `the sitting changed the bot's TR in generation ${generation}`).eq(botTr);
+        if (!botWon) {
+          expect(bot.megaCredits, `the sitting changed the bot's M€ in generation ${generation}`).eq(botMegacredits);
+          expect(bot.terraformRating, `the sitting changed the bot's TR in generation ${generation}`).eq(botTr);
+        }
+        botWins += botWon ? 1 : 0;
         // The lobby refill reaches the bot too — its free delegate, still standing, is simply kept.
         expect(parliament.lobby.has(human.id)).is.true;
         expect(parliament.lobby.has(bot.id)).is.true;
@@ -584,9 +592,9 @@ describe('ParliamentPhase', () => {
         game.playerIsFinishedWithResearchPhase(human);
       }
       expect(game.generation).eq(6);
-      expect(parliament.agendaOf(bot)).eq(0);
-      expect(parliament.chairman).not.eq(bot.id);
-      expect(parliament.votesOf(bot)).eq(0);
+      expect(parliament.agendaOf(bot), 'the Agenda moves by the bot\'s own wins alone — never by a payout').eq(botWins);
+      expect(parliament.chairman, 'an empty deck plays no card: no quest, no office').not.eq(bot.id);
+      expect(parliament.votesOf(bot), 'its delegates are home after every sitting').eq(0);
     });
 
     it('the barrier of a gate is the seats that are ASKED — one human, the bot never', () => {

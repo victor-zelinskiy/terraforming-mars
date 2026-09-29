@@ -8,6 +8,7 @@ import {message} from '../logs/MessageBuilder';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {ReduxParty} from '../../common/parliament/ParliamentTypes';
 import {QuestTracker} from './quests/QuestTracker';
+import {placeBotDelegate} from '../automa/AutomaPolitics';
 
 /**
  * «ADD n DELEGATES TO A RESOLUTION» — a game effect (the Turmoil Redux Venus
@@ -70,6 +71,15 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     const count = Math.min(this.quantity, reserve);
     if (count < this.quantity) {
       game.log('${0} has only ${1} of the ${2} delegates in reserve', (b) => b.player(player).number(count).number(this.quantity));
+    }
+    // MARSBOT NEVER RECEIVES A PARLIAMENT PROMPT (docs/TURMOIL_REDUX_MARSBOT.md §2): a delegate grant to the
+    // bot is placed on the spot — free, from the reserve, every delegate by the bot's own vote rules (a fresh
+    // choice per cube, the same door as Party Politics and Lobbying: the journal, the turn step, the ledger).
+    if (player.isMarsBot) {
+      for (let i = 0; i < count; i++) {
+        placeBotDelegate(game, player, 'reserve', {paid: false});
+      }
+      return undefined;
     }
     const title = count === 1 ?
       'Add 1 delegate to a resolution' :

@@ -474,16 +474,23 @@ Pluto's / Venus's voice). Every ladder speaks it unchanged through
 a named skip, COPY_TRADE disables. A project reading — one line and one spec
 if the owner prefers a plain skip where nothing would be paid.
 
-**MarsBot: a structural gate, not a mechanic.** A Redux ADDITION has no
-Shipping Board area (`shippingAreaFor` knows the base tiles and lends a
-REPLACEMENT its twin's), and `AutomaColonies.addToStorage` throws the moment
-the bot builds, trades or collects a cube bonus on one — Venus only ever met
-it with Venus Next, Vesta would have met it in every MarsBot × Redux game.
-`ColonyDealer.withoutTilesMarsBotCannotUse` keeps every such tile off a
-MarsBot table (`gameOptions.automa` ∧ `isTurmoilReduxAddition` ∧ no area),
-dealt pool and hand-picked list alike, and the two inline `VENUS_REDUX`
-filters in `CloudDevelopment.spec` / `GasExport.spec` are gone. REMOVE the
-gate with MarsBot support for Turmoil Redux.
+**MarsBot: every Redux tile has a Shipping Board area of its own** (MarsBot
+support for Turmoil Redux, 2026-09-30 — `docs/TURMOIL_REDUX_MARSBOT.md` §7,
+decision D7). A REPLACEMENT still borrows its base twin's area
+(`shippingAreaFor`: Pluto Redux → Pluto's science); an ADDITION carries its
+own entry in `ShippingBoardData.ts`, keyed to the tile's printed tag — **Venus
+Redux → `Tag.VENUS`** (the Venus track exists only with Venus Next; without it
+the area accumulates and never exchanges, the way Titan's floaters do —
+never an error), **Vesta → `Tag.SPACE`**. The bot builds and trades there by
+the official abstraction (resources into the area, −1 M€, the printed income,
+the holder rule and the first-position levy all ignored), a human's trade of
+a tile with the bot's cube feeds the area +1, and a delegate grant addressed
+to the bot (`PlaceDelegatesOnResolution`) is placed on the spot by the bot's
+own vote rules — free, from the reserve, never a prompt. The dealer's old
+`withoutTilesMarsBotCannotUse` gate is GONE: a MarsBot table is dealt exactly
+what a human table is (dealt pool and hand-picked list alike), guarded by
+`VenusAndShippingData.spec` («every tile a Redux MarsBot table can seat has
+an area») and `Vesta.spec` § MARSBOT.
 
 **The expansion's Russian name** is «Кризис: Возвращение» (the owner's
 2026-09-29 decision — «Redux» is translated; UA «Турбулентність: Повернення»):
