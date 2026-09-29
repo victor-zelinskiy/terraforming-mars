@@ -7,8 +7,11 @@ import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {Server} from '../../src/server/models/ServerModel';
 import {TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {Phase} from '../../src/common/Phase';
-import {answerGate, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerGate, answerStandingGates, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
+import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalScience';
+import {CardName} from '../../src/common/cards/CardName';
+import {CardResource} from '../../src/common/CardResource';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -79,5 +82,27 @@ describe('ParliamentModel — the sitting', () => {
     expect(other.phase?.pending).deep.eq({player: p1.color, key: 'choose-plant-or-heat', input: 'or'});
     expect(other.phase?.awaiting, 'no gate stands during the effects').is.undefined;
     expect(Server.getPlayerModel(p2).waitingFor).is.undefined;
+  });
+
+  it('a `card-effect` of the renewal journal reaches the wire with the seat as a COLOR, the card, the resource and the count (TR02)', () => {
+    const [game, p1, p2, parliament] = reduxGame();
+    const card = new PoliticalScience();
+    p1.playedCards.push(card);
+    seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // asks nothing
+    parliament.placeVote(p2, parliament.slots[0], 'lobby');
+    // p1's free delegate on the SECOND slot — a loser (the tie-free slot 0 wins for p2).
+    parliament.placeVote(p1, parliament.slots[1], 'lobby');
+    const loser = parliament.slots[1].instance;
+    passToParliament(game);
+    answerStandingGates(game, 'assembly');
+    const model = getParliamentModel(game, p2)!;
+    expect(model.phase?.step).eq('adjourn');
+    const journal = model.phase?.summary?.renewal ?? [];
+    const effect = journal.find((e) => e.kind === 'card-effect');
+    expect(effect).deep.eq({kind: 'card-effect', player: p1.color, card: CardName.POLITICAL_SCIENCE, resource: CardResource.DATA, count: 1, instance: loser});
+    // …right after the leave of the very card p1's delegate stood on.
+    const at = journal.indexOf(effect!);
+    expect(journal[at - 1]).deep.include({kind: 'leave', instance: loser});
+    expect(card.resourceCount).eq(1);
   });
 });

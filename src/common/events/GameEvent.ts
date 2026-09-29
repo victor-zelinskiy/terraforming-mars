@@ -67,6 +67,7 @@ export type EventTrigger =
   | 'cards-not-bought'
   | 'insurance-claim'
   | 'delta-advance' // one committed advance on the Delta Project («Гидросеть») track
+  | 'delegates-discarded' // Turmoil Redux: the sitting's refresh sent the player's delegates home off an UNENACTED resolution
   | 'automa-corporation'; // a MarsBot corporation's printed effect fired (Rule Book B)
 
 /**

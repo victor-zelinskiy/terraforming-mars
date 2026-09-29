@@ -21,6 +21,9 @@ import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../Te
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
+import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalScience';
+import {CardName} from '../../src/common/cards/CardName';
+import {CardResource} from '../../src/common/CardResource';
 
 /*
  * THE RENEWAL JOURNAL («Обновление», 2026-09-22) — the refresh of the voting
@@ -203,6 +206,15 @@ function replay(before: Snapshot, summary: SerializedPhaseSummary, parliament: P
       break;
     case 'lobby':
       lobby.add(event.player);
+      break;
+    case 'card-effect':
+      // A card answered the leave before it (TR02): resources on a card, the table untouched — the replay ignores it,
+      // except that it must FOLLOW its own leave (the client plays it where that card's cubes landed).
+      {
+        const previous = journal[n - 1];
+        expect(previous?.kind, `${at}: the card's answer follows its leave at once`).eq('leave');
+        expect(previous?.kind === 'leave' ? previous.instance : undefined, `${at}: …the leave of the very card it answers`).eq(event.instance);
+      }
       break;
     }
   });
@@ -451,6 +463,32 @@ describe('ParliamentPhase — the renewal JOURNAL (the small deck\'s seven scena
     expect(parliament.popularSupportOf(PartyName.UNITY)).eq(0);
     expect(parliament.popularSupportOf(PartyName.GREENS)).eq(0);
     expect(parliament.neutralVotes(parliament.slots[0])).eq(1);
+  });
+
+  it('9 · a CARD ANSWERS A LEAVE (TR02 Political Science): the journal carries `card-effect` right after the leave it answers, the replay ignores it and the table still converges', () => {
+    const t = table();
+    const {parliament, p1, p2} = t;
+    const card = new PoliticalScience();
+    p1.playedCards.push(card);
+    // p2 wins Mars First's card outright (3 against the Greens' 2 — a tie would go to the Greens' closer slot, and
+    // ITS winner's ocean asks); p1's two stand on the Greens' loser, one more on the Industrialists'.
+    const mars = slotOfParty(parliament, M);
+    parliament.placeVote(p2, parliament.slots[mars], 'lobby');
+    parliament.placeVote(p2, parliament.slots[mars], 'reserve');
+    parliament.placeVote(p2, parliament.slots[mars], 'reserve');
+    parliament.placeVote(p1, parliament.slots[slotOfParty(parliament, G)], 'lobby');
+    parliament.placeVote(p1, parliament.slots[slotOfParty(parliament, G)], 'reserve');
+    parliament.placeVote(p1, parliament.slots[slotOfParty(parliament, I)], 'reserve');
+    parliament.deck = [];
+    parliament.discard = [];
+    const {journal} = sit(t);
+    expect(card.resourceCount).eq(3);
+    const effects = journal.filter((e): e is Extract<SerializedRenewalEvent, {kind: 'card-effect'}> => e.kind === 'card-effect');
+    expect(effects.map((e) => e.count)).deep.eq([2, 1]);
+    expect(effects.every((e) => e.player === p1.id && e.card === CardName.POLITICAL_SCIENCE && e.resource === CardResource.DATA)).is.true;
+    // The journal's SHAPE: each answer sits between its leave and the next move — the derived lists say nothing of it.
+    expect(moves(journal).slice(0, 4)).deep.eq(['leave', 'card-effect', 'leave', 'card-effect']);
+    expect(summaryOf(parliament).discarded).has.length(2);
   });
 
   it('the wire carries the journal with resolutions and colours resolved — one event per record, in order', () => {

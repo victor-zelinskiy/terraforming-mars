@@ -1,5 +1,7 @@
 import {expect} from 'chai';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
+import {CardResource} from '@/common/CardResource';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {
@@ -291,8 +293,13 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect((empty.chips[1] as {key: string}).key).eq('The deck has no resolution of another party');
       const lobby = line({stage: 'renewal', renewal: {index: 7, kind: 'lobby', player: BLUE}});
       expect(kinds(lobby.chips)).deep.eq(['label', 'player']);
+      // A CARD ANSWERED A LEAVE (TR02 Political Science): the seat, the resource under its own word, the card by name — no prose.
+      const cardEffect = line({stage: 'renewal', renewal: {index: 1, kind: 'card-effect', player: BLUE, card: CardName.POLITICAL_SCIENCE, resource: CardResource.DATA, count: 2}});
+      expect(kinds(cardEffect.chips)).deep.eq(['player', 'count', 'label']);
+      expect(cardEffect.chips[1]).deep.eq({kind: 'count', key: 'Data', amount: 2});
+      expect((cardEffect.chips[2] as {key: string}).key).eq('Political Science');
       // Every event is its own line: the crossfade fires per event, never within one.
-      expect(new Set([leave, reshuffle, reject, deal, support, empty, lobby].map((l) => l.key)).size).eq(7);
+      expect(new Set([leave, reshuffle, reject, deal, support, empty, lobby, cardEffect].map((l) => l.key)).size).eq(8);
       expect(line({stage: 'renewal', renewal: {index: 0, kind: 'leave', resolution: 'RDX_B', party: PartyName.REDS}}).key).eq(leave.key);
     });
     it('the FINAL phase has no renewal page at all — its results line is the heading, nothing renews', () => {

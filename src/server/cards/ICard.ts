@@ -28,6 +28,7 @@ import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
 import {UndergroundResourceToken} from '../../common/underworld/UndergroundResourceToken';
 import {BoardFact} from '../../common/boards/BoardInformationFacts';
+import {ResolutionId, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {PlacementPreviewContext} from '../boards/PlacementPreviewContext';
 import {DeltaMovement, DeltaMovementBonus} from '../delta/deltaMovement';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
@@ -219,6 +220,18 @@ export interface ICard {
   getVictoryPoints(player: IPlayer, context?: GetVictoryPointsContext): number;
   /** Returns any dynamic influence value */
   getInfluenceBonus?: (player: IPlayer) => number;
+  /**
+   * Turmoil Redux — a hook the SITTING calls: at the refresh step of the
+   * political phase (`ParliamentPhase.stepRefresh`) every UNENACTED resolution
+   * leaves the voting area and its delegates go home; for each such card that
+   * carried `count` (> 0) of this player's delegates the phase calls the hook
+   * ONCE, inside `events.withEffect(player, card, 'delegates-discarded')`.
+   * Never called for the enacted resolution (`stepEnact`), for a delegate
+   * taken back for the chairman's seat (`removeLatestVote` — a move, not a
+   * discard), nor in the final generation (nothing is refreshed).
+   * First holder: TR02 Political Science (data per delegate).
+   */
+  onDelegatesDiscarded?(player: IPlayer, count: number, context: {instance: ResolutionInstanceId, resolution: ResolutionId}): void;
   /** Called when cards are played. Corps have a different callback */
   onCardPlayed?(player: IPlayer, card: ICard): PlayerInput | undefined | void;
   onCardPlayedByAnyPlayer?(thisCardOwner: IPlayer, card: ICard, activePlayer: IPlayer): PlayerInput | undefined | void;

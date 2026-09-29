@@ -262,13 +262,12 @@ describe('PoliticalScience', () => {
   });
 
   describe('the requirement — 3 delegates on resolutions (rule 5)', () => {
-    let game: IGame;
     let p1: TestPlayer;
     let parliament: Parliament;
     let card: PoliticalScience;
 
     beforeEach(() => {
-      ({game, p1, parliament} = table());
+      ({p1, parliament} = table());
       card = new PoliticalScience();
       p1.cardsInHand.push(card);
       p1.megaCredits = 20;

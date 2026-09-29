@@ -422,7 +422,9 @@ export type ParliamentRenewalEventModel =
   | {kind: 'deal'; instance: ResolutionInstanceId; resolution: ResolutionId; party: ReduxParty; slot: number; source: 'deck' | 'reshuffled'}
   | {kind: 'support'; party: ReduxParty; instance: ResolutionInstanceId; count: number}
   | {kind: 'empty'; slot: number}
-  | {kind: 'lobby'; player: Color};
+  | {kind: 'lobby'; player: Color}
+  /** A card of `player`'s tableau answered the `leave` before it (TR02): `count` `resource` landed on `card`. */
+  | {kind: 'card-effect'; player: Color; card: CardName; resource: CardResource; count: number; instance: ResolutionInstanceId};
 
 /**
  * What the LAST completed end-of-generation phase did — a summary the client

@@ -587,6 +587,13 @@ describe('ParliamentPhase', () => {
         expect(parliament.lobby.has(human.id)).is.true;
         expect(parliament.lobby.has(bot.id)).is.true;
         expect(parliament.reserve(bot)).eq(6);
+        // …and its delegates are HOME after the sitting — read HERE, in the research phase that follows it.
+        // The bot opens every other generation, and the deck it draws from once the human finishes this
+        // research is a REAL one (it is emptied only inside the loop), so a top card of B21 / a lobbying card
+        // votes on the bot's very first turn: read after the loop, «home after the sitting» was a claim about
+        // generation 6's opening turn, and the seeded deal (which moves with every card the fork ships — TR02
+        // was the one that moved it) decided whether it held.
+        expect(parliament.votesOf(bot), `its delegates are home after the sitting of generation ${generation}`).eq(0);
         parliament.assertLedger(game);
         human.popWaitingFor();
         game.playerIsFinishedWithResearchPhase(human);
@@ -594,7 +601,6 @@ describe('ParliamentPhase', () => {
       expect(game.generation).eq(6);
       expect(parliament.agendaOf(bot), 'the Agenda moves by the bot\'s own wins alone — never by a payout').eq(botWins);
       expect(parliament.chairman, 'an empty deck plays no card: no quest, no office').not.eq(bot.id);
-      expect(parliament.votesOf(bot), 'its delegates are home after every sitting').eq(0);
     });
 
     it('the barrier of a gate is the seats that are ASKED — one human, the bot never', () => {

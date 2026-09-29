@@ -128,6 +128,10 @@ describe('effectExtraction', () => {
     // TR09 EVA Mechs: the printed «mech = 5 M€» row IS the effect node (the
     // `.equals().megacredits(5)` pattern Dirigibles set) — never a flagged unknown.
     expect(flagged).to.not.include(CardName.EVA_MECHS);
+    // TR02 Political Science: a crossed-out delegate → data row is a real effect() node (a sitting-fired
+    // trigger with no card-played twin) — never a flagged unknown.
+    expect(flagged).to.not.include(CardName.POLITICAL_SCIENCE);
+    expect(cardHasPassiveEffect(CardName.POLITICAL_SCIENCE)).to.eq(true);
     expect(flagged.length).to.be.lessThan(8);
   });
 

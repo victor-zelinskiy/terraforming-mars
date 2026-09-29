@@ -1073,6 +1073,7 @@ export enum CardName {
   EVA_MECHS = 'EVA Mechs',
   FORMULA_ZERO = 'Formula Zero',
   AUTOMATED_CONVOYS = 'Automated Convoys',
+  POLITICAL_SCIENCE = 'Political Science',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

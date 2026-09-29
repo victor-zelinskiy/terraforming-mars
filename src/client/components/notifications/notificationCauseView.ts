@@ -84,6 +84,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'cards-not-bought': 'for cards not bought',
   'insurance-claim': 'insurance payout',
   'delta-advance': 'for a Hydronetwork advance',
+  'delegates-discarded': 'for delegates discarded off an unenacted resolution',
   'automa-corporation': 'MarsBot corporation effect',
 };
 

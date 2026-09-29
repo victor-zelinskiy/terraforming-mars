@@ -1127,6 +1127,7 @@ function cueOf(index: number, event: ParliamentRenewalEventModel): BandRenewalCu
   case 'support': return {index, kind: 'support', party: event.party, count: event.count};
   case 'empty': return {index, kind: 'empty'};
   case 'lobby': return {index, kind: 'lobby', player: event.player};
+  case 'card-effect': return {index, kind: 'card-effect', player: event.player, card: event.card, resource: event.resource, count: event.count};
   }
 }
 

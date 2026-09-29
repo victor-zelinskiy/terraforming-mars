@@ -8,5 +8,9 @@
 
     "Automated Convoys": "Беспилотные конвои",
     "Action: Pay 2 energy to add 2 mech resources to this card.": "Действие: заплатите 2 энергии, чтобы положить 2 меха на эту карту.",
-    "Action: Spend 1 mech from here to trade for free.": "Действие: потратьте 1 мех с этой карты, чтобы бесплатно поторговать."
+    "Action: Spend 1 mech from here to trade for free.": "Действие: потратьте 1 мех с этой карты, чтобы бесплатно поторговать.",
+
+    "Political Science": "Политология",
+    "Effect: Whenever your delegates get discarded from unenacted resolutions, add 1 data resource here per delegate discarded.": "Эффект: когда ваши делегаты сбрасываются с непринятых резолюций, положите на эту карту 1 единицу данных за каждого сброшенного делегата.",
+    "Action: Spend 3 data from here to draw a card.": "Действие: потратьте 3 единицы данных с этой карты, чтобы взять карту."
 }

@@ -140,6 +140,9 @@ export function seedRenewalHolds(beforeView: ParliamentViewVm, after: Parliament
     h.pile = {deck: beforeView.deckSize, discard: beforeView.discardSize};
   }
   for (const event of journal) {
+    // Only the returns are seeded here. A `card-effect` (a card answered a leave — TR02) holds nothing of
+    // the table: its token is born at the LANDING of the owner's last cube, inside the director's own
+    // flight accounting, never as a display hold.
     if (event.kind === 'leave') {
       for (const entry of event.returned) {
         h.renewalReturns.set(entry.owner, (h.renewalReturns.get(entry.owner) ?? 0) + entry.count);

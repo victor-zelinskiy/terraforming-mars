@@ -3,6 +3,7 @@ import {ModuleManifest} from '../ModuleManifest';
 import {EvaMechs} from './EvaMechs';
 import {FormulaZero} from './FormulaZero';
 import {AutomatedConvoys} from './AutomatedConvoys';
+import {PoliticalScience} from './PoliticalScience';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -35,5 +36,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     [CardName.EVA_MECHS]: {Factory: EvaMechs},
     // The ▲ printed beside the art: the card needs Colonies (Delta Works precedent).
     [CardName.AUTOMATED_CONVOYS]: {Factory: AutomatedConvoys, compatibility: 'colonies'},
+    // The purple Turmoil symbol at the bottom left: the card needs the political engine — which for a
+    // card of THIS manifest is the module itself (the deck gate), never `compatibility: 'turmoil'`
+    // (the upstream-adaptation marker that demands `politics: 'redux'`).
+    [CardName.POLITICAL_SCIENCE]: {Factory: PoliticalScience},
   },
 });

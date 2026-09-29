@@ -54,7 +54,7 @@ import {Resource} from '../../common/Resource';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {EventTrigger} from '../../common/events/GameEvent';
 import {
-  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ParliamentPhaseStage, ReduxParty, REDUX_PARTIES, ResolutionInstanceId,
+  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ParliamentPhaseStage, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId,
 } from '../../common/parliament/ParliamentTypes';
 import {CapturedEventContext} from '../events/EventRecorder';
 import {SelectOption} from '../inputs/SelectOption';
@@ -898,13 +898,15 @@ export class ParliamentPhase {
     this.summary.discarded = parliament.slots.map((slot) => slot.instance);
     parliament.slots.forEach((slot, index) => {
       const definition = parliament.resolutionOf(slot.instance);
+      const returned = ownersOf(slot.votes);
       journal.push({
         kind: 'leave', instance: slot.instance,
         slot: winnerSlot !== undefined && index >= winnerSlot ? index + 1 : index,
-        returned: ownersOf(slot.votes),
+        returned,
       });
       parliament.discard.push(slot.instance);
       this.game.log('Resolution ${0} leaves the voting area', (b) => b.resolution(definition.id));
+      this.fireDelegatesDiscarded(slot.instance, definition.id, returned, journal);
     });
     parliament.slots = [];
     // Deal three fresh resolutions, closest slot first; no party may repeat a
@@ -932,6 +934,43 @@ export class ParliamentPhase {
       }
     }
     this.markApplied(key);
+  }
+
+  /**
+   * THE CARDS ANSWER A LOSER'S LEAVE (`ICard.onDelegatesDiscarded` — TR02
+   * Political Science): for every PLAYER whose delegates just went home off
+   * this UNENACTED resolution, every card of that player's tableau carrying
+   * the hook is called once with the count, under the card's own effect scope
+   * (the journal, the notifications and the stats read the card as the
+   * source). Neutral delegates belong to nobody and fire nothing. The phase
+   * measures what the hook did to the card's resources and journals the
+   * DELTA as a `card-effect` event right after the `leave` — the hook may
+   * belong to any card with any resource, and a hook that changed nothing
+   * writes nothing. Idempotent with the step: it runs inside the
+   * `refresh:<generation>` key, so a reload mid-sitting never collects twice.
+   */
+  private fireDelegatesDiscarded(
+    instance: ResolutionInstanceId, resolution: ResolutionId,
+    returned: ReadonlyArray<{owner: SerializedDelegateOwner; count: number}>, journal: Array<SerializedRenewalEvent>,
+  ): void {
+    for (const entry of returned) {
+      if (entry.owner === 'NEUTRAL' || entry.count <= 0) {
+        continue;
+      }
+      const player = this.game.getPlayerById(entry.owner);
+      for (const card of player.tableau) {
+        if (card.onDelegatesDiscarded === undefined) {
+          continue;
+        }
+        const before = card.resourceCount;
+        this.game.events.withEffect(player, card, 'delegates-discarded', () =>
+          card.onDelegatesDiscarded?.(player, entry.count, {instance, resolution}));
+        const delta = card.resourceCount - before;
+        if (delta > 0 && card.resourceType !== undefined) {
+          journal.push({kind: 'card-effect', player: player.id, card: card.name, resource: card.resourceType, count: delta, instance});
+        }
+      }
+    }
   }
 
   /**

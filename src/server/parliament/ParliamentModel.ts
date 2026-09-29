@@ -502,6 +502,8 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
         return {kind: 'support', party: event.party as ReduxParty, instance: event.instance, count: event.count};
       case 'lobby':
         return {kind: 'lobby', player: game.getPlayerById(event.player).color};
+      case 'card-effect':
+        return {kind: 'card-effect', player: game.getPlayerById(event.player).color, card: event.card, resource: event.resource, count: event.count, instance: event.instance};
       case 'reshuffle':
         return {kind: 'reshuffle', size: event.size};
       case 'empty':

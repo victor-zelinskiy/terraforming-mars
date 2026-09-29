@@ -41,6 +41,8 @@
  * nothing about the game, touches no DOM. Spec: `tests/console/parliamentBand.spec.ts`.
  */
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
+import {CardResource} from '@/common/CardResource';
 import type {WinnerRewardGlyph} from './winnerRewardModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
@@ -183,7 +185,7 @@ export type BandStanding = {
 export type BandRenewalCue = {
   /** The event's index in the journal — a new index is a new line. */
   index: number;
-  kind: 'leave' | 'reshuffle' | 'reject' | 'deal' | 'support' | 'empty' | 'lobby';
+  kind: 'leave' | 'reshuffle' | 'reject' | 'deal' | 'support' | 'empty' | 'lobby' | 'card-effect';
   resolution?: ResolutionId;
   party?: ReduxParty;
   reason?: 'party-in-area' | 'party-enacted';
@@ -191,6 +193,9 @@ export type BandRenewalCue = {
   player?: Color;
   /** `leave`: the delegates that go home first, per owner. */
   returned?: ReadonlyArray<{owner: Color | 'neutral', count: number}>;
+  /** `card-effect`: the card that answered the leave and the resource it collected (`count` of them). */
+  card?: CardName;
+  resource?: CardResource;
 };
 
 export type BandSitting = {
@@ -511,6 +516,20 @@ function renewalLine(sitting: BandSitting): BandLine {
     chips.push({kind: 'label', key: 'A free delegate enters the lobby', tone: 'quiet'});
     if (cue.player !== undefined) {
       chips.push({kind: 'player', player: cue.player});
+    }
+    break;
+  case 'card-effect':
+    // A CARD ANSWERED THE LEAVE (TR02 Political Science): whose card, what it collected (the resource's
+    // own word — «Данные 2»), and the card by name (a card name is an i18n key of its own). The rule it
+    // answers is on the card; the line names the fact.
+    if (cue.player !== undefined) {
+      chips.push({kind: 'player', player: cue.player});
+    }
+    if (cue.resource !== undefined && cue.count !== undefined) {
+      chips.push({kind: 'count', key: cue.resource, amount: cue.count});
+    }
+    if (cue.card !== undefined) {
+      chips.push({kind: 'label', key: cue.card});
     }
     break;
   }

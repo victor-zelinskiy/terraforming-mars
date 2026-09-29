@@ -309,10 +309,18 @@ export type EnactOutcomePart = 'effect' | 'world' | 'winner';
  *  · `support`   — the party's whole popular support becomes `count` neutral
  *                  votes on the card just dealt;
  *  · `empty`     — nothing of another party exists anywhere: `slot` stays empty;
- *  · `lobby`     — the lobby step put a free delegate into `player`'s lobby.
+ *  · `lobby`     — the lobby step put a free delegate into `player`'s lobby;
+ *  · `card-effect` — a card of `player`'s tableau answered the `leave` just
+ *                  before it (`ICard.onDelegatesDiscarded`, TR02 Political
+ *                  Science): `count` `resource` landed on `card`. The record
+ *                  is the DELTA the phase measured on the card, so a client
+ *                  plays it where the cubes landed; a hook that changed
+ *                  nothing writes no event, and the replay ignores it (the
+ *                  table is untouched).
  */
 export type SerializedRenewalEvent =
   | {kind: 'leave'; instance: ResolutionInstanceId; slot: number; returned: Array<{owner: SerializedDelegateOwner; count: number}>}
+  | {kind: 'card-effect'; player: PlayerId; card: CardName; resource: CardResource; count: number; instance: ResolutionInstanceId}
   | {kind: 'reshuffle'; size: number}
   | {kind: 'reject'; instance: ResolutionInstanceId; slot: number; reason: 'party-in-area' | 'party-enacted'}
   | {kind: 'deal'; instance: ResolutionInstanceId; slot: number; source: 'deck' | 'reshuffled'}
