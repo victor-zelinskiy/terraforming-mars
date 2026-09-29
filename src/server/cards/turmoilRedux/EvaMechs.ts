@@ -16,6 +16,10 @@ import {ActionCard} from '../ActionCard';
  * `onCardPlayed` hook and no forecast twin; the payment layer is what carries
  * it (`Player.paymentOptionsForCard` → `pay()` → the «spent as payment» record).
  *
+ * SCAN READING — the atom sits in the orange MIN box beside the cost: that is
+ * the REQUIREMENT («Requires 1 Science tag»), not a tag. The card's only tag is
+ * the one in the corner — Space.
+ *
  * RULE READINGS (pinned by tests/cards/turmoilRedux/EvaMechs.spec.ts):
  *  1. Mechs pay ONLY for a card play with a Space tag — never a standard
  *     project, never a deferred bill, never through Last Resort Ingenuity
@@ -38,7 +42,7 @@ export class EvaMechs extends ActionCard implements IActionCard {
     super({
       name: CardName.EVA_MECHS,
       type: CardType.ACTIVE,
-      tags: [Tag.SCIENCE, Tag.SPACE],
+      tags: [Tag.SPACE],
       cost: 6,
       resourceType: CardResource.MECH,
       requirements: {tag: Tag.SCIENCE},

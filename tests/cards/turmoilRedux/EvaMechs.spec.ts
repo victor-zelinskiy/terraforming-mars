@@ -58,7 +58,8 @@ describe('EvaMechs', () => {
     expect(card.name).eq(CardName.EVA_MECHS);
     expect(card.type).eq(CardType.ACTIVE);
     expect(card.cost).eq(6);
-    expect(card.tags).deep.eq([Tag.SCIENCE, Tag.SPACE]);
+    // The scan's atom sits in the MIN box — the requirement; the corner holds the only tag.
+    expect(card.tags).deep.eq([Tag.SPACE]);
     expect(card.resourceType).eq(CardResource.MECH);
     expect(card.metadata.cardNumber).eq('TR09');
     expect(card.requirements).has.lengthOf(1);
