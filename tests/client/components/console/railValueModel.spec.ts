@@ -150,6 +150,18 @@ describe('railValueModel — MC badges', () => {
     expect(badges.cardBound.get(CardResource.ASTEROID)?.facts[0]?.context).to.eq('aquifer-asteroid');
   });
 
+  it('mechs ×5 (space) — the EVA Mechs coin, only while the card is in the tableau, counting ITS mechs', () => {
+    const eva = railMcBadges(fakePlayer({tableau: [fakeCardModel(CardName.EVA_MECHS, 2)]}));
+    const badge = eva.cardBound.get(CardResource.MECH);
+    expect(badge?.text).to.eq('5');
+    expect(badge?.facts[0]?.context).to.eq('space');
+    expect(badge?.facts[0]?.spendableAmount).to.eq(2);
+    // A flat 5: the player's titanium value is not the mech's rate.
+    expect(railMcBadges(fakePlayer({titaniumValue: 4, tableau: [fakeCardModel(CardName.EVA_MECHS, 1)]})).cardBound.get(CardResource.MECH)?.text).to.eq('5');
+    // No EVA Mechs in the tableau → no mech coin at all.
+    expect(railMcBadges(fakePlayer({tableau: []})).cardBound.get(CardResource.MECH)).to.eq(undefined);
+  });
+
   it('a shared-icon chip with two tender rates carries both (Luna Archives + Spire)', () => {
     const badges = railMcBadges(fakePlayer({tableau: [
       fakeCardModel(CardName.LUNA_ARCHIVES, 3),

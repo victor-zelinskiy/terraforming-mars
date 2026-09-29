@@ -125,6 +125,9 @@ describe('effectExtraction', () => {
     expect(flagged).to.not.include(CardName.SPACE_STATION); // already renders
     expect(flagged).to.not.include(CardName.ANTS); // action-only
     expect(flagged).to.not.include(CardName.OLYMPUS_CONFERENCE); // overridden
+    // TR09 EVA Mechs: the printed «mech = 5 M€» row IS the effect node (the
+    // `.equals().megacredits(5)` pattern Dirigibles set) — never a flagged unknown.
+    expect(flagged).to.not.include(CardName.EVA_MECHS);
     expect(flagged.length).to.be.lessThan(8);
   });
 
