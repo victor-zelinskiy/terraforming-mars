@@ -113,6 +113,9 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   // «Requires N step(s) advanced on the Hydronetwork» restates the whole
   // printed rule — the rules block adds nothing over the reason.
   RequirementType.DELTA_POSITION,
+  // «Requires N delegate(s) on resolutions» is the whole printed rule too
+  // (Turmoil Redux — the voting area is the only place a delegate can be «on a resolution»).
+  RequirementType.DELEGATES_ON_RESOLUTIONS,
 ]);
 
 /**
@@ -260,6 +263,10 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     // The position IS the steps-moved count (movement is monotone) — the
     // `current` badge shows honest progress («сейчас: 3») against the bar.
     return {type: 'count', message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: [String(required)], current};
+  case RequirementType.DELEGATES_ON_RESOLUTIONS:
+    // The player's own delegates on the voting area's resolutions (never the
+    // lobby, the chair or the reserve) — `current` is that honest count.
+    return {type: 'count', message: 'Requires ${0} delegate(s) on resolutions', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
   case RequirementType.CHAIRMAN:

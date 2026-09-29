@@ -257,6 +257,15 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
       `Requires that you have moved ${enCount(n, 'step', 'steps')} on the Hydronetwork track.`;
     break;
   }
+  case RequirementType.DELEGATES_ON_RESOLUTIONS: {
+    // Turmoil Redux (TR02): the player's OWN delegates on the resolutions of
+    // the voting area — the printed rule names the area, so the line does too.
+    const n = descriptor.delegatesOnResolutions ?? descriptor.count ?? 1;
+    en = max ?
+      `Requires at most ${enCount(n, 'delegate', 'delegates')} of yours on resolutions in the Voting Area.` :
+      `Requires ${enCount(n, 'delegate', 'delegates')} of yours on resolutions in the Voting Area.`;
+    break;
+  }
   default:
     notes.push(`requirement type '${type}' not templated`);
     return undefined;

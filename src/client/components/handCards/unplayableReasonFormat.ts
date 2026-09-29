@@ -73,6 +73,8 @@ const COUNT_MESSAGE_LABELS: Readonly<Record<string, string>> = {
   'Requires ${0} floater(s)': 'Floaters',
   'Requires ${0} resource type(s)': 'Resource types',
   'Requires ${0} step(s) advanced on the Hydronetwork': 'Hydronetwork',
+  // Turmoil Redux (TR02) — the SAME key the parliament info panel prints for the count («На резолюциях 1/3»).
+  'Requires ${0} delegate(s) on resolutions': 'On resolutions',
 };
 
 /** The compact counter's label (an English i18n key), or undefined when the

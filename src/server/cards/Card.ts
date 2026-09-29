@@ -512,7 +512,8 @@ function populateCount(requirement: CardRequirementDescriptor): CardRequirementD
     requirement.roadTiles ??
     requirement.corruption ??
     requirement.undergroundTokens ??
-    requirement.deltaPosition;
+    requirement.deltaPosition ??
+    requirement.delegatesOnResolutions;
 
   return requirement;
 }

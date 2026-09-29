@@ -123,6 +123,7 @@ const EN_SUBJECT: Readonly<Record<string, RegExp>> = {
   [RequirementType.PRODUCTION]: /production/i,
   [RequirementType.REMOVED_PLANTS]: /plants were removed/i,
   [RequirementType.DELTA_POSITION]: /hydronetwork/i,
+  [RequirementType.DELEGATES_ON_RESOLUTIONS]: /delegates? of yours on resolutions/i,
   [RequirementType.PARTY_LEADERS]: /party leader/i,
   [RequirementType.CHAIRMAN]: /chairman/i,
   [RequirementType.PARTY]: /party/i,

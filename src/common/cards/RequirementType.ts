@@ -20,6 +20,10 @@ export enum RequirementType {
     PARTY_LEADERS = 'Party leader',
     PARTY = 'party',
 
+    // Turmoil Redux
+    /** The player's own delegates on the resolutions of the VOTING AREA — the lobby, the chairman's seat and the reserve never count. */
+    DELEGATES_ON_RESOLUTIONS = 'Delegates on resolutions',
+
     // The Moon
     HABITAT_RATE = 'Habitat rate',
     MINING_RATE = 'Mining rate',

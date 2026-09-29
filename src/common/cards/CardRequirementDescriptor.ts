@@ -50,6 +50,12 @@ export type CardRequirementDescriptor = {
   chairman?: {},
   partyLeader?: number,
 
+  // Turmoil Redux
+  /** Requires at least N of the player's own delegates on resolutions in the
+   *  VOTING AREA (`Parliament.votesOf`) — the lobby, the chairman's seat and the
+   *  reserve never count. Without the Mars Parliament the count is 0. */
+  delegatesOnResolutions?: number,
+
   // The Moon
   habitatTiles?: number,
   miningTiles?: number,
@@ -126,6 +132,8 @@ export function requirementType(descriptor: CardRequirementDescriptor): Requirem
     return RequirementType.CORRUPTION;
   } else if (descriptor.deltaPosition !== undefined) {
     return RequirementType.DELTA_POSITION;
+  } else if (descriptor.delegatesOnResolutions !== undefined) {
+    return RequirementType.DELEGATES_ON_RESOLUTIONS;
   } else {
     throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
   }

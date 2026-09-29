@@ -47,6 +47,15 @@ export interface PoliticalOps {
   partiesLedBy(player: IPlayer): number;
   delegatesInReserve(player: IPlayer): number;
   delegatesOf(player: IPlayer, party: PartyName): number;
+  /**
+   * The player's own delegates ON RESOLUTIONS in the voting area — the card
+   * requirement reading («Requires 3 delegates on resolutions», TR02). Redux:
+   * `Parliament.votesOf` over the three slots (the lobby, the chairman's seat
+   * and the reserve never count — the info panel's «On resolutions»). Classic:
+   * 0 — there is no voting area, and a card of the Redux set is gated by its
+   * module, so the facade stays honest instead of pretending parties are it.
+   */
+  delegatesOnResolutions(player: IPlayer): number;
 }
 
 export class ReduxPoliticalOps implements PoliticalOps {
@@ -108,6 +117,9 @@ export class ReduxPoliticalOps implements PoliticalOps {
     const slot = this.parliament.slotOf(party);
     return slot === undefined ? 0 : this.parliament.votesOf(player, slot);
   }
+  public delegatesOnResolutions(player: IPlayer): number {
+    return this.parliament.votesOf(player);
+  }
 }
 
 export class ClassicPoliticalOps implements PoliticalOps {
@@ -157,6 +169,10 @@ export class ClassicPoliticalOps implements PoliticalOps {
   }
   public delegatesOf(player: IPlayer, party: PartyName): number {
     return this.turmoil.getPartyByName(party).delegates.count(player);
+  }
+  public delegatesOnResolutions(_player: IPlayer): number {
+    // Classic Turmoil has no voting area and no resolutions: nothing stands «on a resolution».
+    return 0;
   }
 }
 

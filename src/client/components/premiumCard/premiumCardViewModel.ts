@@ -251,6 +251,9 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // carry in their expansion corner, so «[Гидросеть] ≥ 4» reads as track
   // progress and can never be mistaken for an energy price or an action count.
   [RequirementType.DELTA_POSITION]: {value: (d) => d.deltaPosition ?? d.count ?? 1, iconUrl: 'assets/expansion_icons/expansion_icon_deltaProject.png'},
+  // Turmoil Redux (TR02): as printed — the delegate figure and the number. PARTY_LEADERS wears the same
+  // icon; the two differ in the rule line and the chip's hint, never in the picture.
+  [RequirementType.DELEGATES_ON_RESOLUTIONS]: {value: (d) => d.delegatesOnResolutions ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
 };
 
 export function normalizeRequirement(descriptor: CardRequirementDescriptor): NormalizedRequirement {

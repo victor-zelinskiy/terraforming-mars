@@ -141,6 +141,7 @@
     "Requires ${0} colony(ies)": "Требуется колоний: ${0}",
     "Requires ${0} greenery(ies)": "Требуется озеленений: ${0}",
     "Requires ${0} floater(s)": "Требуется аэростатов: ${0}",
+    "Requires ${0} delegate(s) on resolutions": "Требуется делегатов на резолюциях: ${0}",
     "Requires ${0} resource type(s)": "Требуется типов ресурсов: ${0}",
     "Requires a habitat rate of ${0}": "Требуется рейтинг колоний: ${0}",
     "Requires a mining rate of ${0}": "Требуется рейтинг добычи: ${0}",

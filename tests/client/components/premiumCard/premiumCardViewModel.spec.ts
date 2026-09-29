@@ -461,6 +461,17 @@ describe('normalizeRequirement', () => {
     expect(removed.isBinary).to.eq(true);
     expect(removed.negation).to.eq(true);
   });
+
+  it('«delegates on resolutions» (Turmoil Redux, TR02) draws the delegate figure and its number, as printed', () => {
+    const delegates = normalizeRequirement({delegatesOnResolutions: 3});
+    expect(delegates.type).to.eq(RequirementType.DELEGATES_ON_RESOLUTIONS);
+    expect(delegates.value).to.eq(3);
+    expect(delegates.comparator).to.eq('min');
+    expect(delegates.iconUrl).to.eq('assets/misc/delegate.png');
+    expect(delegates.isBinary).to.eq(false);
+    // Never the «exotic type» text fallback: the chip is a picture with a number.
+    expect(delegates.label).to.eq(undefined);
+  });
 });
 
 describe('premium face coverage guard', () => {
