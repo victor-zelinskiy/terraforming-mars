@@ -15,5 +15,9 @@
     "Action: Spend 3 data from here to draw a card.": "Действие: потратьте 3 единицы данных с этой карты, чтобы взять карту.",
 
     "Supreme Expertise": "Высшая экспертиза",
-    "Requires that you have at least 10 of any one type of tag. Add 4 data to ANY card.": "Требуется не менее 10 меток одного вида. Добавьте 4 единицы данных на ЛЮБУЮ карту."
+    "Requires that you have at least 10 of any one type of tag. Add 4 data to ANY card.": "Требуется не менее 10 меток одного вида. Добавьте 4 единицы данных на ЛЮБУЮ карту.",
+
+    "Vector Computations": "Векторные вычисления",
+    "Effect: Whenever you play a Science tag (including this), add 2 data resources to this card.": "Эффект: когда вы играете метку науки (включая эту карту), положите на эту карту 2 единицы данных.",
+    "Action: Spend 4 data from here to draw a Space card.": "Действие: потратьте 4 единицы данных с этой карты, чтобы взять карту с меткой космоса."
 }

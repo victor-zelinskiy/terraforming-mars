@@ -5,6 +5,7 @@ import {FormulaZero} from './FormulaZero';
 import {AutomatedConvoys} from './AutomatedConvoys';
 import {PoliticalScience} from './PoliticalScience';
 import {SupremeExpertise} from './SupremeExpertise';
+import {VectorComputations} from './VectorComputations';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -43,5 +44,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     [CardName.POLITICAL_SCIENCE]: {Factory: PoliticalScience},
     // The purple Turmoil symbol at the bottom left again — the module is the gate (see TR02 above).
     [CardName.SUPREME_EXPERTISE]: {Factory: SupremeExpertise},
+    // The purple Turmoil symbol at the bottom left once more — the module is the gate (see TR02 above).
+    [CardName.VECTOR_COMPUTATIONS]: {Factory: VectorComputations},
   },
 });
