@@ -68,7 +68,10 @@ export type BandChip =
   | {kind: 'player', player: Color | 'neutral'}
   /** A count under its own word («Делегаты 5»). */
   | {kind: 'count', key: string, amount: number}
-  /** The Agenda step's own gift: the influence level it sets, or the bonus it hands over. */
+  /**
+   * The Agenda step's own gift: the influence level it sets (the GLYPH with the level in one disc — parliament
+   * law 14, never a bare numeral), or the bonus it hands over.
+   */
   | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card'}
   /** The payout formula — the reward's reading, printed whole (with the LEVY a budget takes first, when there is one). */
   | {kind: 'yield', yields: ReadonlyArray<InfluenceYield>, levy?: LevyReading}
@@ -233,11 +236,24 @@ export type BandQuest = {
   move?: {from: number, to: number, bonus?: 'tr' | 'card'};
 };
 
+/**
+ * «КАРЬЕРА» — a card's WALK of the Agenda track (TR04) shown as the outcome of
+ * its play: the seat whose marker walks and the steps it has LANDED on so
+ * far, each with what it set or paid. The chips grow one landing at a time —
+ * a step's chip appears when the cube has touched the step, never as a batch.
+ */
+export type BandWalk = {
+  player: Color;
+  landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number}>;
+};
+
 export type BandContext = {
   /** `undefined` outside a live sitting the viewer takes part in — the overview's line. */
   sitting?: BandSitting;
   /** `undefined` outside the chairman-quest flow — it outranks the overview, never the sitting (they cannot coexist). */
   quest?: BandQuest;
+  /** `undefined` outside a card's walk — it outranks the overview and the quest (a walk is never live during either). */
+  walk?: BandWalk;
   standing: BandStanding;
 };
 
@@ -253,6 +269,9 @@ function supportRuleKey(wave: '' | SupportStatus): string {
 export function parliamentBandLine(ctx: BandContext): BandLine {
   const sitting = ctx.sitting;
   if (sitting === undefined) {
+    if (ctx.walk !== undefined) {
+      return walkLine(ctx.walk);
+    }
     return ctx.quest === undefined ? overviewLine(ctx.standing) : questLine(ctx.quest);
   }
   switch (sitting.stage) {
@@ -267,6 +286,21 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
   case 'results':
     return resultsLine(sitting);
   }
+}
+
+/**
+ * КАРЬЕРА — a card's walk: the seat's cube, then one chip per LANDED step in
+ * the walk's order — an influence step as the glyph with its level, a paying
+ * step with its bonus. Past the commit throughout (the play is made; the
+ * record is the answer). The line's key grows with every landing, so the band
+ * crossfades once per step and stands still between them.
+ */
+function walkLine(walk: BandWalk): BandLine {
+  const chips: Array<BandChip> = [{kind: 'player', player: walk.player}];
+  for (const step of walk.landed) {
+    chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus})});
+  }
+  return {kicker: 'Agenda track', key: `walk:${walk.player}:${walk.landed.map((s) => s.to).join(',')}`, chips, committed: true};
 }
 
 /**

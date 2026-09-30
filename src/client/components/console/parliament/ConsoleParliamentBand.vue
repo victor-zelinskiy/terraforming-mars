@@ -44,11 +44,15 @@
               <b class="con-band__num">{{ chip.amount }}</b>
             </span>
             <span v-else-if="chip.kind === 'agenda'" class="con-band__chip con-band__chip--agenda" data-parl-band-chip="agenda"
-                  :data-parl-band-step="chip.to">
+                  :data-parl-band-step="chip.to" :data-parl-band-level="chip.level">
               <span class="con-band__text con-band__text--dim">{{ $t('Agenda step') }}</span>
               <b class="con-band__num">{{ chip.to }}</b>
               <span v-if="chip.bonus !== undefined" class="con-band__bonus" :data-parl-band-bonus="chip.bonus">
                 <b>+1</b><i class="con-band__unit" :class="bonusClass(chip.bonus)" aria-hidden="true"></i>
+              </span>
+              <!-- An INFLUENCE step: the glyph with the level in one disc (law 14 — a bare numeral reads as an ordinal). -->
+              <span v-else-if="chip.level !== undefined" class="con-band__bonus con-band__bonus--inf">
+                <i class="con-band__unit con-band__unit--inf" aria-hidden="true"></i><b>{{ chip.level }}</b>
               </span>
             </span>
             <ConsoleInfluenceYield v-else-if="chip.kind === 'yield'"
@@ -162,9 +166,11 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {
-  BandLine, BandQuest, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, parliamentBandLine,
+  BandLine, BandQuest, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandWalk, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
+import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
+import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import {enactedLevyOf, enactedYieldsOf, resolvingLevyOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
@@ -196,7 +202,21 @@ export default defineComponent({
   },
   computed: {
     line(): BandLine {
-      return parliamentBandLine({sitting: this.sitting, quest: this.quest, standing: this.standing});
+      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, standing: this.standing});
+    },
+    /**
+     * «КАРЬЕРА»'s own context — a card's walk, live in this section: the seat and the steps LANDED so far.
+     * An influence step carries the level it set (the track's own arithmetic), a paying step its bonus.
+     */
+    walk(): BandWalk | undefined {
+      const flow = agendaWalkFlow;
+      if (!flow.live || flow.owed === undefined) {
+        return undefined;
+      }
+      return {
+        player: flow.owed.player,
+        landed: flow.landed.map((step) => step.bonus === undefined ? {to: step.to, level: influenceAtAgenda(step.to)} : {to: step.to, bonus: step.bonus}),
+      };
     },
     /**
      * «ПРЕДСЕДАТЕЛЬСТВО»'s own context — the flow is never live during a

@@ -130,9 +130,12 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
  * completed chairman quest («ПРЕДСЕДАТЕЛЬСТВО»: the reading, the office, the
  * Agenda step — `consoleChairmanQuest`); `sitting` — the political phase's
  * ONE flow («ЗАСЕДАНИЕ»: verdict → enactment → reward → renewal → closing),
- * whose stage is the server's step (`consoleSittingFlow`).
+ * whose stage is the server's step (`consoleSittingFlow`); `walk` — a CARD's
+ * walk of the Agenda track shown as the OUTCOME of its play («КАРЬЕРА», TR04:
+ * the Parliament hosted in the hand's own zone, the marker step by step, then
+ * the surface leaves — `agendaWalk`), past the commit and absorbing input.
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk';
 
 /**
  * The vote's numbers at the SUBMIT — the mode reads these until the delegate
@@ -347,13 +350,18 @@ export function parliamentCrumbStage(sittingTail: string, questTail = ''): strin
   case 'seat': return 'Seat';
   case 'sitting': return sittingTail;
   case 'quest': return questTail;
+  // A card's walk: the track's own name is the stage («КАРЬЕРА»), the same key the tier's kicker prints.
+  case 'walk': return AGENDA_WALK_STAGE_KEY;
   default: return '';
   }
 }
 
+/** The crumb tail of a card's walk of the Agenda track — the track's own name (the tier's kicker, the band's). */
+export const AGENDA_WALK_STAGE_KEY = 'Agenda track';
+
 export function parliamentCrumbCommitted(questLive = false): boolean {
   const stage = parliamentFlow.stage;
-  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' ||
+  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' || stage === 'walk' ||
     (stage === 'seat' && questLive);
 }
 

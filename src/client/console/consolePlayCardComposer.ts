@@ -239,6 +239,24 @@ export function playDoorOf(branch: ActionPreviewBranch | undefined): PlayDoor | 
   return undefined;
 }
 
+/**
+ * THE EFFECTS THE LANDING SCENE DELIVERS ITSELF — the play's immediate gains,
+ * minus what a WALK of the Agenda track pays on its own (Turmoil Redux TR04).
+ * A branch that carries an `agendaWalk` step promised its TR / draw chips FROM
+ * the walk (`agendaWalkEffects`): each is delivered by the step it belongs
+ * to, off the track's own node, when the marker has landed there. Carried by
+ * the hero scene as well, the rating ticked from the landed card two seconds
+ * before the marker reached the step that pays it — one gain, shown twice.
+ * The track and influence chips have no rail cell to fly to at all.
+ */
+export function heroRewardEffectsOf(branch: ActionPreviewBranch | undefined): ReadonlyArray<ActionEffect> {
+  const effects = branch?.effects ?? [];
+  if (branch === undefined || !branch.steps.some((s) => s.kind === 'agendaWalk')) {
+    return effects;
+  }
+  return effects.filter((e) => !(e.direction === 'gain' && (e.icon === 'tr' || e.icon === 'cards' || e.icon === 'agenda' || e.icon === 'influence')));
+}
+
 /** «Разыграть карту» — or the door's own navigational verb: the press leads somewhere, it does not finish the play. */
 export function playCommitVerb(door: PlayDoor | undefined): string {
   switch (door?.kind) {

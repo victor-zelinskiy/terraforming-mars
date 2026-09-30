@@ -16,6 +16,8 @@ import {AgendaWalkModel} from '../../../src/common/models/ActionPreviewModel';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {questGateOf} from '../../parliament/parliamentArrange';
 import {runAllActions} from '../../TestingUtils';
+import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
+import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
 
 /**
  * TR04 — MINORITY REPRESENTATION: the third engine of the Agenda track and the
@@ -153,6 +155,32 @@ describe('MinorityRepresentation', () => {
       expect(trChanged).has.lengthOf(1);
       expect(trChanged[0].source, 'the TR of a walked step is the card\'s deed').deep.include({kind: 'card', card: CardName.MINORITY_REPRESENTATION});
       expect(trChanged[0].correlationId, 'one chain: the play').eq(advanced[0].correlationId);
+    });
+
+    it('the journal draws the walk as a row of the CARD — the steps chip «+2» with the position and the level it set — beside the TR row; the payment reads last', () => {
+      const {game, p1, card} = table(1);
+      p1.playCard(card, Payment.of({megacredits: 6}));
+      runAllActions(game);
+      const root = game.events.events.find((e) => e.type === 'action' && e.source?.kind === 'card' && e.source.card === CardName.MINORITY_REPRESENTATION)!.id;
+      const chain = game.events.events.filter((e) => e.correlationId === root);
+      const rows = buildEventChildren(chain, root, p1.color);
+      const own = rows.filter((row) => row.source.kind === 'card' && row.source.card === CardName.MINORITY_REPRESENTATION);
+      const walk = own.find((row) => row.political?.kind === 'agenda');
+      expect(walk, 'the walk is a row of its own').is.not.undefined;
+      expect(walk!.chips).deep.eq([{icon: 'agenda', text: '+2'}]);
+      expect(walk!.political).deep.eq({kind: 'agenda', from: 1, to: 3, level: 2});
+      expect(own.some((row) => row.chips.some((chip) => chip.icon === 'tr' && chip.text === '+1')), 'the TR of the walked step is its own chip').is.true;
+      expect(rows[rows.length - 1].bucket).eq('payment');
+    });
+
+    it('a rival\'s notification carries the walk and the TR as the actor\'s pills — never a bare «played a card · −6 M€»', () => {
+      const {game, p1, p2, card} = table(1);
+      p1.playCard(card, Payment.of({megacredits: 6}));
+      runAllActions(game);
+      const root = game.events.events.find((e) => e.type === 'action' && e.source?.kind === 'card' && e.source.card === CardName.MINORITY_REPRESENTATION)!.id;
+      const impact = recomputeRootImpact(game.events.events, root, p1.color, p2.color);
+      const actor = impact.pillGroups.find((group) => group.scope === 'actor');
+      expect(actor?.chips.map((chip) => `${chip.icon} ${chip.text}`)).to.include.members(['agenda +2', 'tr +1']);
     });
 
     it('the TR\'s provenance segment is the TRACK\'s («Agenda track»), whoever walked it', () => {

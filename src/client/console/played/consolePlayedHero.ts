@@ -57,7 +57,7 @@ import {
   killHeroTweens, HeroStageEls,
 } from '@/client/console/played/playedHeroDirector';
 import {
-  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
+  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
   resetCardResourceLandings,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
@@ -165,6 +165,33 @@ let heldSourceEl: HTMLElement | undefined;
 let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
 /** The hold was seeded for THIS transaction (the commit path's one-shot). */
 let rewardHoldSeeded = false;
+/**
+ * THE HOLDS THIS SCENE SEEDED AND HAS NOT RELEASED — released one by one at
+ * each chip's touchdown, and whatever is left at the beat's end / an abort /
+ * the finish. NEVER `clearPanelRewardHold()` here: that drops every hold on
+ * the board, including one another flow seeded in the same response for a
+ * chip of its own (the Parliament's Agenda walk holds the rating until the
+ * marker has reached the step that pays it — TR04; the colony build learned
+ * the same lesson). The scene lets go of its OWN and nobody else's.
+ */
+let heldRewards: Array<ResourceTransferSpec> = [];
+
+/** Release ONE of this scene's holds (a chip's touchdown) — the spec's own metric ticks, the others stay held. */
+function releaseHeroReward(spec: ResourceTransferSpec): void {
+  const index = heldRewards.indexOf(spec);
+  if (index !== -1) {
+    heldRewards.splice(index, 1);
+    releasePanelRewardHold(spec);
+  }
+}
+
+/** Release every hold this scene still owns (the beat's end, an abort, the finish) — its chips fire late, never lost; foreign holds untouched. */
+function releaseHeroRewards(): void {
+  const left = heldRewards.splice(0);
+  for (const spec of left) {
+    releasePanelRewardHold(spec);
+  }
+}
 
 // ── stage / target registries (layer + overlay plug in) ────────────────────
 
@@ -507,6 +534,7 @@ export function seedPlayedHeroRewardHold(): void {
     return;
   }
   rewardHoldSeeded = true;
+  heldRewards = [...pendingRewards];
   beginPanelRewardHold(pendingRewards);
 }
 
@@ -755,7 +783,7 @@ export async function endPlayedHero(): Promise<void> {
       return;
     }
     const source = {selectors: heroRewardSourceSelectors(playedHeroState.card ?? '')};
-    const release = (spec: ResourceTransferSpec) => releasePanelRewardHold(spec);
+    const release = (spec: ResourceTransferSpec) => releaseHeroReward(spec);
     const hooks = effectHooks;
     if (playedHeroState.host === 'workspace' && hooks !== undefined) {
       // THE EFFECT RESOLUTION SEQUENCE (the receiving stage): card targets
@@ -785,9 +813,9 @@ export async function endPlayedHero(): Promise<void> {
     } else {
       await runResourceTransfers({specs: rewards, source, arrival: 'auto', onArrive: release});
     }
-    // Belt-and-braces: any hold a degraded transfer left behind snaps to the
-    // committed truth now (its chip fires marginally late, never lost).
-    clearPanelRewardHold();
+    // Belt-and-braces: any hold of OURS a degraded transfer left behind snaps to
+    // the committed truth now (its chip fires marginally late, never lost).
+    releaseHeroRewards();
     if (!playedHeroState.active) {
       return;
     }
@@ -923,7 +951,7 @@ export function abortPlayedHero(): void {
   // released, so cards the server DID move into the hand can never be lost
   // behind a failed animation.
   abortPlayedCardReturns();
-  clearPanelRewardHold();
+  releaseHeroRewards();
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;
@@ -952,7 +980,7 @@ function finish(): void {
   // Safety — a beat that never ran (a path that skipped the return) must not
   // leave its dock withhold behind; a completed one already cleared itself.
   abortPlayedCardReturns();
-  clearPanelRewardHold(); // safety — the reward beat leaves it empty
+  releaseHeroRewards(); // safety — the reward beat leaves it empty
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;

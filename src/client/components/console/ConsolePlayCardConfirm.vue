@@ -627,7 +627,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
-import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -647,7 +647,7 @@ import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversion
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {TargetImpactChange} from '@/common/models/TargetImpactModel';
-import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateCardName, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {
@@ -670,7 +670,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -1683,6 +1683,13 @@ export default defineComponent({
           const key = playDoorNextStepKey({kind: 'parliament', staged: s.staged});
           if (key !== undefined) {
             out.push(noteRow(translateText(key)));
+          }
+        } else if (s.kind === 'agendaWalk') {
+          // THE SHOW STEP's own row (TR04): the name of the coming stage and what the marker will do there —
+          // from the server's own reading of the walk, the cut at the track's end named («1 из 2 · конец трека»).
+          out.push(noteRow(translateTextWithParams('Agenda — the marker walks ${0} steps in the Parliament', [String(s.walk.walked)])));
+          if (s.walk.walked < s.walk.printed) {
+            out.push(noteRow(translateTextWithParams('${0} of ${1} · end of the track', [String(s.walk.walked), String(s.walk.printed)])));
           }
         }
         // `tabbedTargets` is now PRE-COLLECTED inline (a decision row) — no note.
@@ -3820,9 +3827,11 @@ export default defineComponent({
         // card-resources with their pre-selected hosts), extracted from the
         // server-computed preview — the hero scene's reward beat carries
         // them from the landed card onto the left panel.
+        // …minus what a WALK of the Agenda track pays on its own (TR04): those chips are the walk's, delivered off
+        // the track's node when the marker lands — the landing scene must not tick them from the card.
         rewards: extractPlayRewards({
           cardName: this.cardName,
-          effects: b.effects,
+          effects: heroRewardEffectsOf(b),
           steps: b.steps,
           stepResponses: this.captured,
         }),
@@ -3831,7 +3840,7 @@ export default defineComponent({
         // for the arrival's size, never a gate: the workspace claims its
         // follow-up either way, because a triggered effect (Point Luna's Earth
         // tag) draws cards no preview can advertise.
-        draws: (b.effects ?? []).reduce((n, e) =>
+        draws: heroRewardEffectsOf(b).reduce((n, e) =>
           (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0),
         // ProjectInspection: the chosen already-used action + its composed
         // responses (+ nodeIndex / reveal for the in-frame reveal handoff),
@@ -3857,10 +3866,19 @@ export default defineComponent({
         // the shell parks the batch and opens the Parliament's vote mode inside
         // this workspace; the resolution confirmed there is the play's one submit.
         stagedVote: this.playDoor?.kind === 'parliament' ? this.playDoor.staged : undefined,
+        // «КАРЬЕРА» (Turmoil Redux TR04): the branch's SHOW step — the marker's walk the play will produce. Not a
+        // door (nothing is chosen, the play submits here as any other): the shell reads it to owe the hosted
+        // outcome to this workspace from the press on.
+        agendaWalk: this.agendaWalkOf(b),
         // …and the raw capture snapshot that restores this very screen when
         // the player comes back from the board with B. Opaque to the shell.
         composerDraft: this.composerDraftSnapshot(),
       });
+    },
+    /** The walk of the Agenda track the CHOSEN branch promises (TR04's SHOW step), if any. */
+    agendaWalkOf(branch: ActionPreviewBranch | undefined): AgendaWalkModel | undefined {
+      const step = branch?.steps.find((s) => s.kind === 'agendaWalk');
+      return step !== undefined && step.kind === 'agendaWalk' ? step.walk : undefined;
     },
     /** The staged payload of the CHOSEN branch — first Mars boardPlacement
      *  step carrying `staged` (D2: only the first placement ever carries it). */

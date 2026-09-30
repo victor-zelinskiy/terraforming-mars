@@ -50,6 +50,13 @@ export type RunMarkerArgs = {
   /** New stop marker-slot rect — screen coords (the pixel-perfect target). */
   to: DOMRect,
   reduced: boolean,
+  /**
+   * NO CHARGE: the marker is already in hand (the second and every later leg
+   * of a WALK of several steps — the Parliament's Agenda track, TR04): it
+   * lifts off at once, from the stop it has just locked on. The first leg of
+   * a walk, and every one-step move, charges as ever.
+   */
+  skipCharge?: boolean,
   /** Phase → controller (injected to keep the graph acyclic). */
   onPhase: (phase: MarkerPhaseName) => void,
 };
@@ -61,7 +68,8 @@ function centre(r: DOMRect): Point {
 
 export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHandle {
   const {marker, reduced} = args;
-  const t: MarkerTimings = reduced ? reducedMarkerTimings() : markerTimings();
+  const base: MarkerTimings = reduced ? reducedMarkerTimings() : markerTimings();
+  const t: MarkerTimings = args.skipCharge === true ? {...base, chargeMs: 0} : base;
   const s = (baseMs: number) => motionMs(baseMs) / 1000;
 
   const from = centre(args.from);
@@ -99,9 +107,12 @@ export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHan
 
   const tl = gsap.timeline();
 
-  // CHARGE — the marker focuses on the old stop (a brief, calm ready beat).
-  args.onPhase('charge');
-  tl.to(marker, {scale: reduced ? startScale : startScale * 1.18, duration: s(t.chargeMs), ease: 'power2.out'}, 0);
+  // CHARGE — the marker focuses on the old stop (a brief, calm ready beat). A leg
+  // that continues a walk skips it: the cube is in hand, it just lifts again.
+  if (args.skipCharge !== true) {
+    args.onPhase('charge');
+    tl.to(marker, {scale: reduced ? startScale : startScale * 1.18, duration: s(t.chargeMs), ease: 'power2.out'}, 0);
+  }
 
   // LIFT + GLIDE — a touch off the rail, then a straight eased glide to the
   // new stop (an instrument track — no arc). A tiny lift reads as "off the

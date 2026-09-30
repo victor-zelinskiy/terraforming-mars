@@ -344,6 +344,16 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
  */
 export const DELEGATE_GRANT_STEP_STAGE = 'Voting';
 
+/**
+ * The crumb tail of a hosted AGENDA WALK (Turmoil Redux TR04 — a card that
+ * walks the marker by being played): the track's own word, the one the tier's
+ * kicker and the band print (`AGENDA_WALK_STAGE_KEY`). NOT a row of
+ * `FOLLOW_UP_STEP_STAGES`: that table is keyed by a PROMPT's kind, and the
+ * walk asks nothing — it is owed by the play's own preview step
+ * (`agendaWalk`) and paid by the answer's record (`agendaWalk.ts`).
+ */
+export const AGENDA_WALK_STEP_STAGE = 'Agenda track';
+
 const FOLLOW_UP_STEP_STAGES: Partial<Record<TaskKind, string>> = {
   // The name `ConsoleColoniesSection` publishes UP for an embedded pick (its
   // `embeddedCrumb` default) and the one `openColoniesForPrompt` pushes — ONE

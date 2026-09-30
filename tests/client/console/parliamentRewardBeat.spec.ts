@@ -15,7 +15,7 @@ import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/compone
 import {
   detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, parliamentParksReveal,
   parliamentRewardDiag, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, releaseParliamentRewards, resetParliamentRewards,
-  rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, takeOwedRewards, waveSpecOf,
+  rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, queueAgendaBonuses, takeOwedRewards, waveSpecOf,
 } from '@/client/console/parliament/parliamentRewardBeat';
 
 /*
@@ -245,7 +245,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(heldStock('plants')).eq(0);
     expect(rewardLanded(record)).is.true;
     expect(heldStock(RATING_RAIL_KEY), 'no track on screen to fly the bonus on — the rating ticks with the commit').eq(0);
-    expect(parliamentRewardState.agendaBonus).is.undefined;
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
   });
 
   it('a new sitting drops what the old one still owed (its holds released), and the phase\'s end clears the ledger', () => {
@@ -271,7 +271,32 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(heldStock(RATING_RAIL_KEY), 'still held while the chip flies').eq(1);
     markAgendaBonusLanded();
     expect(heldStock(RATING_RAIL_KEY)).eq(0);
-    expect(parliamentRewardState.agendaBonus).is.undefined;
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
+  });
+
+  it('A WALK OF TWO PAYING STEPS (TR04): the queue holds the rail once per TR step, each entry is taken and released by ITS step, in order — the second point ticks only on the second landing', () => {
+    consoleParliamentUi.stageStanding = true;
+    const spec = {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1};
+    queueAgendaBonuses([
+      {generation: 3, player: BLUE, step: 6, kind: 'tr', spec},
+      {generation: 3, player: BLUE, step: 7, kind: 'card'},
+      {generation: 3, player: BLUE, step: 9, kind: 'tr', spec},
+    ]);
+    expect(heldStock(RATING_RAIL_KEY), 'two TR steps — the rail holds two points').eq(2);
+    expect(parliamentParksReveal({type: 'agenda'}), 'the card step parks the agenda reveal').is.true;
+    expect(takeAgendaBonus(3, 9)?.step, 'a step is taken by its own number').eq(9);
+    expect(takeAgendaBonus(3)?.step, 'no step named — the head of the queue').eq(6);
+    expect(takeAgendaBonus(undefined, 7)?.kind, 'no generation named — any generation, this step').eq('card');
+    markAgendaBonusLanded(6);
+    expect(heldStock(RATING_RAIL_KEY), 'the first point ticked, the second is still held').eq(1);
+    expect(parliamentRewardState.agendaBonuses.map((b) => b.step)).deep.eq([7, 9]);
+    markAgendaBonusLanded(7);
+    expect(parliamentParksReveal({type: 'agenda'}), 'the cover may lift now').is.false;
+    markAgendaBonusLanded(9);
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
+    markAgendaBonusLanded(9);
+    expect(parliamentRewardState.agendaBonuses, 'a second landing of the same step is a no-op').deep.eq([]);
   });
 
   it('v2 — NO WALL CLOCK: seeding arms no timer; a hold outlives any pause and ends only by a touchdown, an explicit end of the stage, or the registry\'s ceiling', () => {
@@ -303,7 +328,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(parliamentRewardPending()).is.false;
     expect(heldStock('plants')).eq(0);
     expect(heldStock(RATING_RAIL_KEY)).eq(0);
-    expect(parliamentRewardState.agendaBonus).is.undefined;
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
     const trail = parliamentRewardDiag().trail.map((e) => `${e.ev}:${(e.detail as {why?: string} | undefined)?.why ?? ''}`);
     expect(trail).includes('flush:board');
     expect(trail).includes('flush-agenda:board');

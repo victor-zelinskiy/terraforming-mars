@@ -33,8 +33,7 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {AgendaMove} from './consoleParliamentModel';
-import {flushAgendaBonus, parliamentRewardState, RATING_RAIL_KEY} from './parliamentRewardBeat';
-import {beginPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
 
 /**
  * THE FLOW'S STAGES — the crumb's tail, one word each
@@ -208,13 +207,9 @@ function seedQuestAgendaBonus(after: PlayerViewModel, step: number, bonus: 'tr' 
   }
   flushAgendaBonus('re-seed');
   const generation = after.game.generation;
-  if (bonus === 'tr') {
-    const spec = {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1};
-    beginPanelRewardHold([spec]);
-    parliamentRewardState.agendaBonus = {generation, player: viewer, step, kind: 'tr', spec};
-  } else {
-    parliamentRewardState.agendaBonus = {generation, player: viewer, step, kind: 'card'};
-  }
+  queueAgendaBonuses([bonus === 'tr' ?
+    {generation, player: viewer, step, kind: 'tr', spec: {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1}} :
+    {generation, player: viewer, step, kind: 'card'}]);
 }
 
 /** Every hold this flow seeded, released at once (the flow ends, the section unmounts, the motion is cut). */

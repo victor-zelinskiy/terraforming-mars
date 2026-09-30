@@ -101,6 +101,7 @@ import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
+import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -585,6 +586,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // have moved them. Seeded LAST — the reward ledger's own `enterSitting('')`
   // runs above and would flush an Agenda bonus seeded before it.
   seedChairmanQuestHolds(currentView(), newView);
+  // …and «КАРЬЕРА»'s (a card's walk of the Agenda track, TR04): the marker held on its old step and every
+  // paying step's bonus owed — ONLY when the hand that played the card (or an open Parliament) is there to
+  // play it; seeded after the quest's for the same reason as the quest's after the ledger's.
+  seedAgendaWalkHolds(currentView(), newView);
   // …and ANOTHER SEAT'S DELEGATE that arrived with this response (a rival's
   // vote, MarsBot's Party Politics / Lobbying): its ribbon cube is hidden
   // and its flight queued in this very block, or it paints before it flies.

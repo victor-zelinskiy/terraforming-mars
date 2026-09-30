@@ -226,6 +226,12 @@
            landing ritual (`preloadResolutionArt`), so there is nothing left to fade in. */
         .pcard__art img { opacity: 1; transition: none; }
     }
+    /* «КАРЬЕРА» — a card's WALK shown as the outcome of its play (TR04): the track is the hero for the walk's
+       length; the government, the voting area and the parties' row RECEDE — opacity only, the tiers keep their
+       boxes and nothing re-solves (the same law as the sitting's park). The band reads the steps as they land. */
+    &--walk {
+        .con-parl__top, .con-parl__parties-tier { opacity: .5; transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out; }
+    }
     &__toolbar {
         flex-shrink: 0;
         display: flex;
@@ -1170,6 +1176,8 @@
     &__num { font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; }
     &__emblem { width: .95rem; height: .95rem; object-fit: contain; flex-shrink: 0; }
     &__unit { display: inline-block; width: 1rem; height: 1rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    /* An INFLUENCE step's chip (TR04's walk): the badge with its level in one disc — the track node's own asset. */
+    &__unit--inf { background-image: url(./assets/misc/influence.png); }
     &__bonus { display: inline-flex; align-items: center; gap: .16rem; b { font-size: .8rem; font-weight: 800; } }
     &__seat { display: inline-flex; align-items: center; gap: .2rem; min-width: 0; }
     &__lost { flex-shrink: 0; display: inline-flex; align-items: center; gap: .16rem; }

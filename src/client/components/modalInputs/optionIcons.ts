@@ -25,8 +25,12 @@ const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'ven
 // `rating` is the rail's own key for the terraform rating (the parliament's Agenda bonus rides it as a chip).
 // `delegate` / `neutral-delegate` (Turmoil Redux): a player's own delegate and the dark neutral one — the
 // REAL figures, as assets of their own (the console strips `filter`, so a dimmed copy would not paint).
+// `agenda` / `influence` (Turmoil Redux TR04): the Agenda track's printed unit (the starred square) and the
+// influence badge — the SAME assets the card face and the track's node draw, so a preview chip, a journal chip
+// and the track speak one symbol.
 const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {
   'tr': 'rating', 'rating': 'rating', 'cards': 'cards', 'delegate': 'delegate', 'neutral-delegate': 'neutral-delegate',
+  'agenda': 'agenda-step', 'influence': 'influence',
 };
 // The `GlobalParameter` enum uses the PLURAL 'oceans', but the icon class is the
 // singular `wgt-icon--ocean` (the ocean TILE art). Normalise here — the single

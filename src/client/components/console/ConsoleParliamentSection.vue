@@ -28,6 +28,7 @@
              'con-parl--swapping': motion.swapping,
              'con-parl--sitting': sittingUp,
              'con-parl--sitting-field': flow.sittingField,
+             'con-parl--walk': walkUp,
              ['con-parl--zone-' + flow.zone]: true,
            }"
            ref="rootEl"
@@ -42,6 +43,7 @@
            :data-sitting-beat="motion.beat || undefined"
            :data-renewal-degraded="motion.renewalDegraded.length > 0 ? motion.renewalDegraded.join(' · ') : undefined"
            :data-quest-beat="questBeat || undefined"
+           :data-walk-beat="walkBeat || undefined"
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
@@ -167,7 +169,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {
-  AgendaMove, agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
+  agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
@@ -200,6 +202,12 @@ import {
   finishSittingMotion, killSittingMotion, playSittingStage, resetSittingDirector, sittingMotion, sittingMotionActive, SittingDirectorContext,
 } from '@/client/console/parliament/sittingDirector';
 import {probeTick} from '@/client/console/probeTick';
+import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
+import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {
+  AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, deliverAgendaStepReward,
+} from '@/client/console/parliament/agendaWalkDirector';
+import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne} from '@/client/console/parliament/parliamentFlights';
 import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
@@ -298,6 +306,9 @@ export default defineComponent({
       ledgerReadOwed: false,
       /** The step door as last PUBLISHED (post-flush) — what a pre-flush watcher may still read as «a step was open». */
       stepOpenMirror: false,
+      /** «КАРЬЕРА»: the walk's animation hold (sized to the walk) and the read beat after the last landing. */
+      walkHold: undefined as AnimationHold | undefined,
+      walkReadBeat: undefined as ParliamentBeat | undefined,
       /** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
       walking: false,
       /** A walk is queued for the next probe tick (idempotent). */
@@ -623,6 +634,18 @@ export default defineComponent({
     questBeat(): string {
       return chairmanQuestFlow.live ? chairmanQuestFlow.beat : '';
     },
+    /** «КАРЬЕРА» — a card's walk is the section's subject (the walk pose stands). */
+    walkUp(): boolean {
+      return parliamentFlow.stage === 'walk';
+    },
+    /** The walk's own beat, published on the root — read by the e2e probe, never by the product. */
+    walkBeat(): string {
+      return agendaWalkFlow.live ? agendaWalkFlow.beat : '';
+    },
+    /** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
+    walkOwedSeq(): number {
+      return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded ? agendaWalkFlow.owed.seq : 0;
+    },
     /** The flow is holding at its seat beat with the server's own pick standing — the picker takes the stage. */
     questSeatStep(): boolean {
       return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'seat' && this.bridge.seat !== undefined;
@@ -918,8 +941,25 @@ export default defineComponent({
     'questGate': {
       immediate: true,
       handler(gate: {generation: number} | undefined): void {
-        if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live) {
+        // The gate opens its flow only in a Parliament the PLAYER walked into by the plate's A: a section pushed
+        // INTO another workspace as a step («КАРЬЕРА» — a card's walk hosted by the hand, TR04) is not that door.
+        // The plate keeps announcing the gate; it is answered after the walk, in the Parliament the player opens.
+        if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live && !this.embedded && agendaWalkFlow.owed === undefined) {
           this.openQuestFlow();
+        }
+      },
+    },
+    /**
+     * «КАРЬЕРА» (TR04): the section was pushed INTO the hand's zone with a walk
+     * owed to it — the pose opens on the record, at SETUP (so the first name
+     * this surface publishes is the walk's stage, never «Обзор» for a render),
+     * and its beats start on the mounted DOM.
+     */
+    'walkOwedSeq': {
+      immediate: true,
+      handler(seq: number): void {
+        if (seq > 0 && parliamentFlow.stage === 'browse' && !agendaWalkFlow.live) {
+          this.openWalkFlow();
         }
       },
     },
@@ -1049,6 +1089,16 @@ export default defineComponent({
       killChairmanQuestBeats();
       releaseChairmanQuestHolds('unmount');
       resetChairmanQuestFlow();
+    }
+    // «КАРЬЕРА» ends with its section too: the beats are cut, the poses go to their end, every hold the walk
+    // seeded is released (the rail ticks with this block — honestly late, never lost).
+    if (agendaWalkFlow.owed !== undefined || agendaWalkFlow.live) {
+      this.walkReadBeat?.kill();
+      this.walkReadBeat = undefined;
+      this.walkHold?.release();
+      this.walkHold = undefined;
+      (this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined)?.stopAgendaGlide();
+      releaseAgendaWalkHolds('unmount');
     }
     // The phase is over (the section unmounts after its latched leave — v3 В1): the sitting's display
     // holds end here, never in the apply block that carried the phase away (the surface still needed
@@ -1301,6 +1351,9 @@ export default defineComponent({
       case 'seat':
         (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
         return;
+      case 'walk':
+        // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand.
+        return;
       default:
         return;
       }
@@ -1394,13 +1447,13 @@ export default defineComponent({
           root,
           viewer: this.viewerColor,
           generation: this.pv.game.generation,
-          playAgendaGlide: (move: AgendaMove, onLanded: () => void) => {
+          playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
             const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
             if (agenda === undefined) {
-              onLanded();
+              hooks.onLanded();
               return;
             }
-            void agenda.playAgendaGlide(move, {onLanded});
+            void agenda.playAgendaWalk(record, hooks);
           },
           owesSeatPick: () => this.bridge.seat !== undefined,
           onStage: () => {
@@ -1413,6 +1466,67 @@ export default defineComponent({
         chairmanQuestFlow.sent = true;
         this.send({type: 'option'}, 'quest');
       }
+    },
+    /**
+     * «КАРЬЕРА» — OPEN the walk pose on the record the answer carried: the
+     * track is the hero, the tiers recede, the band grows a chip per landing.
+     * Started on the mounted DOM (a tick + a probe tick, as the quest's beats
+     * are): the tier walks the marker leg by leg, each INTERMEDIATE step's
+     * reward delivered from that very step and waited for; the LAST step's
+     * reward follows the settle; then one read beat, and the flow ends by its
+     * own hand (the shell takes the hosted step and its hand down as ONE
+     * surface). Every release is a real callback or a beat on the motion
+     * clock; the whole walk holds an animation hold sized to its steps.
+     */
+    openWalkFlow(): void {
+      agendaWalkFlow.live = true;
+      agendaWalkFlow.beat = 'walk';
+      agendaWalkFlow.landed = [];
+      parliamentFlow.zone = 'government';
+      this.openStage('walk');
+      void this.$nextTick(() => probeTick(() => {
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
+        const owed = agendaWalkFlow.owed;
+        if (root === undefined || agenda === undefined || owed === undefined || !agendaWalkFlow.live) {
+          this.endWalkFlow();
+          return;
+        }
+        this.walkHold?.release();
+        this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
+        const generation = owed.generation;
+        void agenda.playAgendaWalk(owed, {
+          rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
+          onStep: (leg: AgendaWalkLeg) => {
+            agendaWalkFlow.landed.push(leg.step);
+          },
+          onLanded: () => {
+            // The LAST step's reward, off the settled marker; then the read.
+            deliverAgendaStepReward(root, generation, owed.to, () => {
+              if (!agendaWalkFlow.live) {
+                return;
+              }
+              agendaWalkFlow.beat = 'read';
+              this.walkReadBeat?.kill();
+              this.walkReadBeat = scheduleParliamentBeat(AGENDA_WALK_READ_MS, () => {
+                this.walkReadBeat = undefined;
+                if (agendaWalkFlow.live) {
+                  this.endWalkFlow();
+                }
+              });
+            });
+          },
+        });
+      }));
+    },
+    /** The walk is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
+    endWalkFlow(): void {
+      this.walkReadBeat?.kill();
+      this.walkReadBeat = undefined;
+      this.walkHold?.release();
+      this.walkHold = undefined;
+      agendaWalkFlow.beat = 'done';
+      this.$emit('flow-complete', 'walk');
     },
     /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
     endQuestFlow(): void {
@@ -1476,7 +1590,9 @@ export default defineComponent({
       const rect = tier?.getBoundingClientRect();
       this.stageFromRect = rect !== undefined && rect.width > 0 ? {left: rect.left, top: rect.top, width: rect.width, height: rect.height} : undefined;
       parliamentFlow.stage = stage;
-      setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'configure');
+      // A WALK is a transient beat, never a navigation destination (the workspace flow's commit boundary):
+      // its frame is `executing` — B and A are `none` for its length, and a double press is impossible.
+      setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : stage === 'walk' ? 'executing' : 'configure');
     },
     closeStage(): void {
       killSittingMotion();
@@ -1607,13 +1723,13 @@ export default defineComponent({
       }
       return {
         root, view: this.view, model: this.model, summary, viewer: this.viewerColor,
-        playAgendaGlide: (move: AgendaMove, onLanded?: () => void) => {
+        playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
           const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
           if (agenda === undefined) {
-            onLanded?.();
+            hooks.onLanded();
             return;
           }
-          void agenda.playAgendaGlide(move, {onLanded});
+          void agenda.playAgendaWalk(record, hooks);
         },
       };
     },

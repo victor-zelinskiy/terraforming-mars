@@ -160,6 +160,10 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   }
   case 'quest':
     return input.quest?.done === true ? [{control: 'confirm', label: 'Close', highlight: true}] : [];
+  // A card's WALK (TR04): the outcome of a play made elsewhere — nothing to confirm (the composer's preview already
+  // said «1 → 3 · +1 РТ»), nothing to go back to; the flow leaves by itself once the marker has settled.
+  case 'walk':
+    return [];
   case 'submitting':
     // A SUBMIT INSIDE THE CHAIRMANSHIP FLOW is not a wait the player watches —
     // the reading beat plays over it, so the bar stays as quiet as it is

@@ -134,7 +134,7 @@ import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {Parliament} from '../../../src/server/parliament/Parliament';
-import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution} from '../../parliament/parliamentArrange';
+import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
 import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 import {Space} from '../../../src/server/boards/Space';
 import {ArtificialLake} from '../../../src/server/cards/base/ArtificialLake';
@@ -153,6 +153,7 @@ import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
 import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
 import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/PoliticalScience';
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
+import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
@@ -1052,6 +1053,40 @@ parliamentFixture('political-donation', {
         parties[0] !== PartyName.INDUSTRIALISTS || parties[1] !== PartyName.MARS ||
         parliament.popularSupportOf(PartyName.INDUSTRIALISTS) !== 0 || parliament.popularSupportOf(PartyName.MARS) !== 2) {
       throw new Error(`the political-donation fixture expected a playable card, the lobby cube, a reserve of 2+, slots [Industrialists, Mars First] with support 0 / 2 — got playable=${card !== undefined && p1.canPlay(card)} lobby=${parliament.lobby.has(p1.id)} reserve=${parliament.reserve(p1)} parties=${parties.join(',')} support=${parliament.popularSupportOf(PartyName.INDUSTRIALISTS)}/${parliament.popularSupportOf(PartyName.MARS)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR04 · MINORITY REPRESENTATION — the card's WALK of the Agenda track as the
+//    OUTCOME of its play (docs/TURMOIL_REDUX_MINORITY_REPRESENTATION.md): blue's
+//    action phase, the card in hand, 10 M€, blue's marker on step 1 (influence
+//    1 — the card's «max 1» is met), RED's marker on step 3 — the step blue's
+//    walk ENDS on, so the cube lands BESIDE a rival's, never on top of it. The
+//    Greens rule BY A CARD — Generous Funding, enacted — whose chairman quest is
+//    «raise your TR 3 steps»: blue stands at 2 of 3, so the walked TR CLOSES it
+//    and its gate's plate may rise only AFTER the walk has settled (B5); the
+//    Greens still answer the walked TR with their +2 M€. The voting area holds
+//    three real resolutions of the three OTHER parties (never a second Greens
+//    card while the Greens rule by a card). ──
+parliamentFixture('minority-representation', {
+  stopAt: 'vote',
+  megacredits: [10, 30],
+  agenda: [1, 3],
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, GENEROUS_FUNDING_ID);
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+    parliament.quest = {definition: {goal: {kind: 'tr'}, count: 3}, source: GENEROUS_FUNDING_ID, generation: game.generation, progress: new Map([[p1.id, 2]])};
+    p1.cardsInHand.push(new MinorityRepresentation());
+  },
+  expect: ({game, parliament, p1, p2}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.MINORITY_REPRESENTATION);
+    const parties = parliament.slots.map((s) => parliament.resolutionOf(s.instance).party);
+    if (card === undefined || !p1.canPlay(card) || parliament.agendaOf(p1) !== 1 || parliament.agendaOf(p2) !== 3 ||
+        parliament.influence(p1) !== 1 || parliament.rulingParty() !== PartyName.GREENS || parties.includes(PartyName.GREENS) ||
+        parliament.quest?.source !== GENEROUS_FUNDING_ID || parliament.quest.completedBy !== undefined || parliament.questProgressOf(p1) !== 2) {
+      throw new Error(`the minority-representation fixture expected a playable card, blue on step 1 (influence 1), red on step 3, the Greens ruling by Generous Funding with blue at 2 of 3 on its quest — got playable=${card !== undefined && p1.canPlay(card)} agenda=${parliament.agendaOf(p1)}/${parliament.agendaOf(p2)} influence=${parliament.influence(p1)} ruling=${parliament.rulingParty()} parties=${parties.join(',')} quest=${parliament.quest?.source}:${parliament.questProgressOf(p1)}`);
     }
     parliament.assertLedger(game);
   },

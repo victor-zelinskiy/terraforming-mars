@@ -33,7 +33,7 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {AgendaMove} from './consoleParliamentModel';
+import {AgendaWalkHooks, AgendaWalkRecordLike} from './agendaWalkDirector';
 import {parliamentFlow, pulseParliamentChair, pulseParliamentQuest} from './consoleParliamentFlow';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {chairmanQuestFlow} from './consoleChairmanQuest';
@@ -57,8 +57,8 @@ export type ChairmanQuestDirectorContext = {
   /** The viewer — the seat that completed the quest (the gate is never anyone else's). */
   viewer: Color | undefined;
   generation: number;
-  /** `ConsoleParliamentAgenda.playAgendaGlide`, through the section (the marker is the component's). */
-  playAgendaGlide: (move: AgendaMove, onLanded: () => void) => void;
+  /** `ConsoleParliamentAgenda.playAgendaWalk`, through the section (the marker is the component's) — the quest's step is a walk of ONE. */
+  playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => void;
   /** The crumb's tail advances (the section publishes it to the frame). */
   onStage: (stage: 'task' | 'agenda') => void;
   /**
@@ -261,9 +261,12 @@ function beatAgenda(): void {
     schedule(BEAT_GAP_MS, () => finishRun());
     return;
   }
-  state.ctx.playAgendaGlide(move, () => {
-    parliamentHolds.agendaAwaits = undefined;
-    launchAgendaBonus();
+  const bonus = chairmanQuestFlow.bonus;
+  state.ctx.playAgendaWalk({player: move.player, from: move.from, to: move.to, steps: [bonus === undefined ? {to: move.to} : {to: move.to, bonus}]}, {
+    onLanded: () => {
+      parliamentHolds.agendaAwaits = undefined;
+      launchAgendaBonus();
+    },
   });
 }
 

@@ -129,7 +129,8 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     const {before, after} = answerPair('tr');
     armChairmanQuestFlow(before.game.parliament, BLUE);
     seedChairmanQuestHolds(before, after);
-    expect(parliamentRewardState.agendaBonus, 'the rating is owed at the step the marker reached')
+    expect(parliamentRewardState.agendaBonuses).has.lengthOf(1);
+    expect(parliamentRewardState.agendaBonuses[0], 'the rating is owed at the step the marker reached')
       .includes({generation: 3, player: BLUE, step: 2, kind: 'tr'});
   });
 
@@ -137,7 +138,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     const {before, after} = answerPair('card');
     armChairmanQuestFlow(before.game.parliament, BLUE);
     seedChairmanQuestHolds(before, after);
-    expect(parliamentRewardState.agendaBonus?.kind).eq('card');
+    expect(parliamentRewardState.agendaBonuses[0]?.kind).eq('card');
     expect(parliamentParksReveal({type: 'agenda'}), 'the drawn card presents NOWHERE until the cover can lift off the step').is.true;
     expect(parliamentParksReveal({type: 'card'}), '…and only that batch is parked').is.false;
   });
@@ -146,7 +147,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     const {before, after} = answerPair();
     armChairmanQuestFlow(before.game.parliament, BLUE);
     seedChairmanQuestHolds(before, after);
-    expect(parliamentRewardState.agendaBonus).is.undefined;
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
     expect(parliamentHolds.agendaAwaits, 'the step itself IS the reward').is.not.undefined;
   });
 
@@ -158,7 +159,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     expect(parliamentHolds.agendaAwaits).is.undefined;
     expect(parliamentHolds.chairAwaits).is.undefined;
     expect(parliamentHolds.returns.size).eq(0);
-    expect(parliamentRewardState.agendaBonus).is.undefined;
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
   });
 
   it('THE CRUMB is continuous: «ПАРЛАМЕНТ › ПРЕДСЕДАТЕЛЬСТВО › <СТАДИЯ>», and only the tail advances', () => {

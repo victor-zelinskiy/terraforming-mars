@@ -125,6 +125,45 @@ function scheduleLaunch(id: string, delayMs: number, fire: () => void): void {
   flightBeats[id] = {beat: scheduleParliamentBeat(delayMs, fire), fire};
 }
 
+let hurriedBeatSerial = 0;
+
+/**
+ * A BEAT «ДОЖАТЬ» FIRES AT ONCE — the same class as a flight's stagger: a wait
+ * between one physical act and the next that the player's press may cut (the
+ * Agenda walk's lead and its gaps between legs, played by the sitting's
+ * ПОВЕСТКА beat). Under an armed hurry it fires now; a pending one is fired
+ * by `finishParliamentFlights` with the flights'; `kill` drops it unfired.
+ */
+export function scheduleHurriedParliamentBeat(delayMs: number, fire: () => void): ParliamentBeat {
+  if (hurried) {
+    fire();
+    return {kill: () => undefined};
+  }
+  const id = `beat-${++hurriedBeatSerial}`;
+  let done = false;
+  // Once, whoever asks first: the clock, the hurry (which drops the entry BEFORE it fires) or the kill.
+  const fireOnce = (): void => {
+    if (done) {
+      return;
+    }
+    done = true;
+    delete flightBeats[id];
+    fire();
+  };
+  const beat = scheduleParliamentBeat(delayMs, fireOnce);
+  flightBeats[id] = {beat, fire: fireOnce};
+  return {
+    kill: () => {
+      if (done) {
+        return;
+      }
+      done = true;
+      delete flightBeats[id];
+      beat.kill();
+    },
+  };
+}
+
 /** Register a running handle — and drive it to rest at once under «дожать». */
 function runHandle(id: string, handle: CubeFlightHandle): void {
   flightHandles[id] = handle;

@@ -106,6 +106,26 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
     });
   });
 
+  describe('КАРЬЕРА — a card walk of the Agenda track (TR04), one chip per LANDED step', () => {
+    it('reads the seat and the steps as they land — nothing before the first landing, the chips growing in the order of the walk', () => {
+      const none = parliamentBandLine({standing: {votes: 0}, walk: {player: BLUE, landed: []}});
+      expect(none.kicker).eq('Agenda track');
+      expect(none.committed, 'the play is made — the record is the answer').is.true;
+      expect(kinds(none.chips)).deep.eq(['player']);
+      const one = parliamentBandLine({standing: {votes: 0}, walk: {player: BLUE, landed: [{to: 2, bonus: 'tr'}]}});
+      expect(kinds(one.chips)).deep.eq(['player', 'agenda']);
+      expect(one.chips[1]).deep.eq({kind: 'agenda', to: 2, bonus: 'tr'});
+      const two = parliamentBandLine({standing: {votes: 0}, walk: {player: BLUE, landed: [{to: 2, bonus: 'tr'}, {to: 3, level: 2}]}});
+      expect(kinds(two.chips)).deep.eq(['player', 'agenda', 'agenda']);
+      expect(two.chips[2], 'an influence step is the glyph with its level — never a bare ordinal (law 14)').deep.eq({kind: 'agenda', to: 3, level: 2});
+      expect(new Set([none.key, one.key, two.key]).size, 'the crossfade fires once per landing').eq(3);
+    });
+    it('outranks the overview and the quest (a walk is never live during either)', () => {
+      const walk = parliamentBandLine({standing: {votes: 2, player: RED, resolution: {resolution: ARCHITECTURE, party: PartyName.MARS}}, quest: {beat: 'task', player: RED}, walk: {player: BLUE, landed: []}});
+      expect(walk.kicker).eq('Agenda track');
+    });
+  });
+
   describe('ПОВЕСТКА · ПОДДЕРЖКА · ПРИНЯТИЕ — one line per beat of the enactment', () => {
     it('the AGENDA beat says whose step it is and what the step gave', () => {
       const band = line({stage: 'enact', beat: 'agenda', summary: summary({agenda: {player: BLUE, from: 1, to: 4, bonus: 'tr'}})});

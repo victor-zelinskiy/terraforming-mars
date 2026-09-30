@@ -93,6 +93,8 @@
              or the party whose Popular Support took the neutral delegates (with its area's fill). -->
         <span v-if="vm.political !== undefined && vm.political.kind === 'resolution'"
               class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(vm.political.resolution) }}</span>
+        <span v-else-if="vm.political !== undefined && vm.political.kind === 'agenda'"
+              class="journal-child-row__tile journal-em">{{ agendaLabel(vm.political.from, vm.political.to, vm.political.level) }}</span>
         <span v-else-if="vm.political !== undefined"
               class="journal-child-row__tile journal-em">{{ supportLabel(vm.political.party, vm.political.total) }}</span>
       </span>
@@ -112,7 +114,7 @@ import {highlightBoardSpace} from '@/client/components/journal/boardCellHighligh
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 
@@ -165,6 +167,10 @@ export default defineComponent({
     /** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
     resolutionLabel(id: string): string {
       return resolutionName(id);
+    },
+    /** «Карьера 1 → 3 · Влияние 2» — the position fact and the level the walk set (the chip beside it counts the steps). */
+    agendaLabel(from: number, to: number, level: number): string {
+      return `${translateTextWithParams('Agenda track ${0} → ${1}', [String(from), String(to)])} · ${translateText('Influence')} ${level}`;
     },
     /** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
     supportLabel(party: PartyName, total: number): string {

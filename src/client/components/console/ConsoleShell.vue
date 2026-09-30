@@ -1683,6 +1683,7 @@ import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentIn
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {parliamentVoteSubject} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
+import {agendaWalkFlow, agendaWalkLiveIn, agendaWalkOwedTo, dropAgendaWalkPromise, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
@@ -1928,7 +1929,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, drawnCardsState, markRevealPresented, registerRevealQueuePark, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -2146,7 +2147,7 @@ import {
   clearStagedPlay,
 } from '@/client/console/stagedPlay';
 import type {PlayComposerDraft, StagedPlayArm} from '@/client/console/stagedPlay';
-import type {StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import type {AgendaWalkModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -7626,6 +7627,8 @@ export default defineComponent({
       return [
         workspaceFrameHasNested(kind) ? 'nested' : '',
         this.followUpStepOwed && workspaceHostForStep() === kind ? 'owed-step' : '',
+        kind === 'hand' && agendaWalkOwedTo('hand') ? 'walk-owed' : '',
+        kind === 'hand' && agendaWalkLiveIn('hand') ? `walk-live:${agendaWalkFlow.beat}` : '',
         workspaceOutcomeState.host === kind && workspaceOutcomeClaimed() ?
           `claim:${workspaceOutcomeState.stage}` : '',
         this.workspaceOutcomeServingNow ? 'serving' : '',
@@ -10069,6 +10072,16 @@ export default defineComponent({
         return;
       }
       if (phase === 'closing' && playedHeroState.host === 'workspace') {
+        // «КАРЬЕРА»: the answer carried the marker's walk for THIS hand — the
+        // Parliament is pushed into the hand's own zone to play it, and the
+        // play's ending waits for the walk (`onParliamentFlowComplete('walk')`).
+        if (agendaWalkFlow.owed?.host === 'hand' && !agendaWalkFlow.live && workspaceFrameDescended('hand')) {
+          void this.enterAgendaWalkStep();
+          return;
+        }
+        // The answer is in and carried no walk (the track's end took every
+        // step): nothing is owed any more.
+        dropAgendaWalkPromise();
         // The landing scene has told its whole story — the play's ONE ending
         // decides what happens to the workspace around it (see
         // `endPlayCardFlow`: it may hold for a nested step, for the cards this
@@ -10087,6 +10100,8 @@ export default defineComponent({
         markWorkspaceOutcomeBeatDone();
       }
       if (phase === 'failed') {
+        // A refused play walks nothing: the promise is dropped with the move.
+        dropAgendaWalkPromise();
         const composer = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
         composer?.resetSubmitting?.();
         // A refused move never happened: the descent goes back to configurable,
@@ -14231,6 +14246,18 @@ export default defineComponent({
         this.endStagedVote();
         return;
       }
+      // «КАРЬЕРА» (TR04): the walk shown inside the hand is over — the step
+      // and the play it was the outcome of end TOGETHER (the hand's one guarded
+      // conclusion takes the whole stack; the surface leaves as one). A walk
+      // played by a stand-alone Parliament never reports here (no pose).
+      if (kind === 'walk') {
+        if (workspaceFrameHost('parliament') === 'hand') {
+          this.endHandWithHostedStep();
+          return;
+        }
+        this.concludeWorkspaceFlowOrOwe('parliament');
+        return;
+      }
       // A HOSTED STEP (the delegate grant's vote inside the colonies): the step
       // LEAVES — one level — and the host goes on with its own ending (its owed
       // conclusion re-fires the moment `nested` falls). Never the lateral
@@ -15104,7 +15131,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, agendaWalk?: AgendaWalkModel, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -15234,6 +15261,15 @@ export default defineComponent({
       // never opens for it. A play with no descent behind it (the
       // playFromHand band) — or one made while the player's own table is
       // already open — keeps the overlay scenery.
+      // «КАРЬЕРА» (Turmoil Redux TR04): the preview's SHOW step says the marker
+      // will walk — the workspace the play runs in OWES that step from this
+      // press on (its conclusion holds, its crumb names the coming stage) until
+      // the answer's record arrives and is played there. Only the hand's own
+      // descent hosts it; a play with no descent behind it (the standalone
+      // band, an open table) lets the state update and the journal tell.
+      if (payload.agendaWalk !== undefined && payload.agendaWalk.walked > 0 && workspaceFrameDescended('hand') && !this.playedOpen) {
+        promiseAgendaWalk(pending.cardName, 'hand');
+      }
       armPlayedHero(pending.cardName, isEvent, {
         manualTableOpen: this.playedOpen,
         rewards: payload.rewards,
@@ -17668,8 +17704,12 @@ export default defineComponent({
         // `openColoniesForPrompt` will make). Concluding here would drop the
         // player on the board and then throw the second effect at them as a
         // screen of its own.
-        owedStep: this.followUpStepOwed && workspaceHostForStep() === kind,
-        outcomeLive: mine,
+        // …and a WALK this hand owes (TR04): promised by the play's preview and
+        // not yet played — the record on its way, or the landing ritual still
+        // telling its story before the Parliament takes the zone.
+        owedStep: (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'hand' && agendaWalkOwedTo('hand')),
+        // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
+        outcomeLive: mine || (kind === 'hand' && agendaWalkLiveIn('hand')),
         // The second half of a pick-then-pay and a DRAW & SELECT still standing
         // in our zone are both this activation, still being answered — and so
         // is any prompt this FRAME earned the right to serve.
@@ -17805,6 +17845,7 @@ export default defineComponent({
         !workspaceFrameParked(kind) &&
         !this.workspaceOutcomeServingNow && // no live prompt/batch it serves
         !this.followUpStepOwed && // no second effect still owed a door
+        !(kind === 'hand' && (agendaWalkOwedTo('hand') || agendaWalkLiveIn('hand'))) && // no walk owed or playing (TR04)
         !this.placementActive &&
         this.consoleRevealMode === undefined &&
         !currentRevealEvent() &&
@@ -18581,6 +18622,47 @@ export default defineComponent({
         fades.forEach((fade) => fade.cancel());
       }
       void finishStagedPlayedLanding();
+    },
+    /**
+     * THE HOSTED WALK — «КАРЬЕРА» (Turmoil Redux TR04). An ORDINARY play's
+     * answer carried the marker's walk; the landing scene has told its story;
+     * the Parliament is pushed INTO the hand's own zone as a SHOW step (no
+     * question, no serve — an `always` anchor: it leaves by its own hand) and
+     * its section opens the walk pose off the owed record. RELEASE as the
+     * staged vote's (law 22): the landing scene and the landed card's proxy
+     * let go IN PLACE while the Parliament rises out of the same rect; the
+     * composer is unmounted once the fade is done. The frame is a BEAT
+     * (`executing`) — input is absorbed for the walk's length, a second A is
+     * impossible by construction, and B is not offered (a hidden section
+     * cannot measure its rows, and «honestly late» would be worse than three
+     * seconds of waiting). The flow ends by its own hand:
+     * `onParliamentFlowComplete('walk')` takes the step and the hand down as
+     * ONE surface. An outcome, never a door: nothing here is submitted.
+     */
+    async enterAgendaWalkStep(): Promise<void> {
+      const owed = agendaWalkFlow.owed;
+      if (owed === undefined || owed.host !== 'hand' || agendaWalkFlow.live || !workspaceFrameDescended('hand')) {
+        return;
+      }
+      setWorkspaceFramePhase('hand', 'committed');
+      pushWorkspaceFrame({
+        kind: 'parliament',
+        subject: '',
+        stage: AGENDA_WALK_STEP_STAGE,
+        phase: 'executing',
+        serves: [],
+        anchor: {type: 'always'},
+        nest: workspaceFrameKnown('parliament'),
+        sourceCard: owed.card ?? '',
+      });
+      const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
+      const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
+      const fades = [composer, proxy].flatMap((el) =>
+        el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
+          [el.animate([{opacity: 1}, {opacity: 0}], {duration: motionMs(STAGED_VOTE_RELEASE_MS), easing: 'ease-out', fill: 'forwards'})] : []);
+      await Promise.all(fades.map((fade) => fade.finished.catch(() => undefined)));
+      // The composer goes once its scene has let go — the play is made, there is nothing to roll back.
+      this.pendingPlayCard = undefined;
     },
     /**
      * THE STAGED VOTE'S COMMIT — A in the vote mode. The one POST of the whole

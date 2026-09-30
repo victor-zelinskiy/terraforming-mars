@@ -37,11 +37,15 @@
  *    the wedge net every critical animation shares). A player who pauses on
  *    a page releases nothing: the numbers wait for their beat.
  *
- * The AGENDA STEP'S TR BONUS of the viewer rides the same ledger: it is paid
- * by the server in the chain after the first gate (v2), in the SAME response
- * that carries the enactment — the rating is held on the rail's own score
- * cell (`stock` channel, key `rating`) and flies from the reached Agenda step
- * once the marker's glide has landed (the enactment's first beat).
+ * The AGENDA STEPS' BONUSES of the viewer ride the same ledger — a QUEUE, one
+ * entry per step that PAYS (TR04 walks the marker two steps and «collects the
+ * bonus of each»; the sitting's and the quest's one step are a queue of one):
+ * a TR step's rating is held on the rail's own score cell (`stock` channel,
+ * key `rating`) until its chip has flown from THAT step and touched the row —
+ * two TR steps hold the rail twice, and the second release ticks the second
+ * point; a CARD step parks the `agenda`-sourced reveal until the cover can
+ * lift off its own step. `takeAgendaBonus(generation, step)` takes a step's
+ * own entry, `markAgendaBonusLanded(step)` releases exactly it.
  *
  * Pure + a reactive record; no DOM, no Vue components, no i18n.
  */
@@ -94,8 +98,8 @@ export const parliamentRewardState = reactive({
   flying: [] as Array<OwedReward>,
   /** Keys whose chips have LANDED (or were released) this sitting — the reading turns «Получено». */
   landed: [] as Array<RewardBeatKey>,
-  /** The viewer's Agenda TR bonus, held on the rail until the marker's glide has landed. */
-  agendaBonus: undefined as AgendaBonusOwed | undefined,
+  /** The viewer's Agenda step bonuses, one per paying step of the walk, in the walk's order — each held until its own step has landed. */
+  agendaBonuses: [] as Array<AgendaBonusOwed>,
   /**
    * THE WINNER'S TILE JUST LANDED (the viewer's own `ocean` / `greenery`
    * record arrived while the sitting's frame stood aside for the board): when
@@ -131,12 +135,12 @@ registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPe
   expire: () => flushParliamentRewards('ceiling'),
 });
 
-/** The Agenda bonus rides the same law: held until the marker's glide lands, bounded by the registry's ceiling alone. */
-registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentRewardState.agendaBonus !== undefined, {
-  diagnose: () => {
-    const bonus = parliamentRewardState.agendaBonus;
-    return {sitting: parliamentRewardState.sitting, bonus: bonus === undefined ? undefined : {kind: bonus.kind, step: bonus.step, generation: bonus.generation}};
-  },
+/** The Agenda bonuses ride the same law: held until each step's own landing, bounded by the registry's ceiling alone. */
+registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentRewardState.agendaBonuses.length > 0, {
+  diagnose: () => ({
+    sitting: parliamentRewardState.sitting,
+    bonuses: parliamentRewardState.agendaBonuses.map((bonus) => ({kind: bonus.kind, step: bonus.step, generation: bonus.generation})),
+  }),
   expire: () => flushAgendaBonus('ceiling'),
 });
 
@@ -286,14 +290,13 @@ function trail(ev: string, detail?: unknown): void {
 }
 
 /** The ledger's state and its recent trail — one snapshot for a diagnostic (`window.__conReady().parliamentReward`). */
-export function parliamentRewardDiag(): {sitting: string; owed: Array<string>; flying: Array<string>; landed: Array<string>; agendaBonus?: {step: number; generation: number; kind: 'tr' | 'card'}; trail: Array<RewardTrailEvent>} {
-  const bonus = parliamentRewardState.agendaBonus;
+export function parliamentRewardDiag(): {sitting: string; owed: Array<string>; flying: Array<string>; landed: Array<string>; agendaBonuses: Array<{step: number; generation: number; kind: 'tr' | 'card'}>; trail: Array<RewardTrailEvent>} {
   return {
     sitting: parliamentRewardState.sitting,
     owed: parliamentRewardState.owed.map((r) => r.key),
     flying: parliamentRewardState.flying.map((r) => r.key),
     landed: [...parliamentRewardState.landed],
-    ...(bonus === undefined ? {} : {agendaBonus: {step: bonus.step, generation: bonus.generation, kind: bonus.kind}}),
+    agendaBonuses: parliamentRewardState.agendaBonuses.map((bonus) => ({step: bonus.step, generation: bonus.generation, kind: bonus.kind})),
     trail: rewardTrail.slice(-40),
   };
 }
@@ -330,15 +333,30 @@ export function flushParliamentRewards(why: RewardReleaseReason | string = 'flus
   }
 }
 
-/** Release the Agenda bonus's hold (a stage's end, the ceiling, a glide that never came). `why` is for the trail. */
+/** Release EVERY Agenda bonus's hold at once (a stage's end, the ceiling, a glide that never came). `why` is for the trail. */
 export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush'): void {
-  const bonus = parliamentRewardState.agendaBonus;
-  parliamentRewardState.agendaBonus = undefined;
-  if (bonus !== undefined) {
+  const bonuses = parliamentRewardState.agendaBonuses.splice(0);
+  for (const bonus of bonuses) {
     trail('flush-agenda', {why, kind: bonus.kind, step: bonus.step, generation: bonus.generation});
     if (bonus.spec !== undefined) {
       releasePanelRewardHold(bonus.spec);
     }
+  }
+}
+
+/**
+ * OWE the steps' bonuses — the walk's queue, in the walk's order: a TR step's
+ * rating goes on hold on the rail NOW (the same synchronous block as the view
+ * apply), a card step parks its reveal. The one door every seeder uses (the
+ * sitting's one step, the quest's, a card's walk of N).
+ */
+export function queueAgendaBonuses(bonuses: ReadonlyArray<AgendaBonusOwed>): void {
+  for (const bonus of bonuses) {
+    if (bonus.spec !== undefined) {
+      beginPanelRewardHold([bonus.spec]);
+    }
+    parliamentRewardState.agendaBonuses.push(bonus);
+    trail('owe-agenda', {kind: bonus.kind, step: bonus.step, generation: bonus.generation});
   }
 }
 
@@ -401,10 +419,7 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
     trail('seed-agenda', {key, kind: bonus.kind, step: bonus.step, generation: bonus.generation, onScreen});
     flushAgendaBonus('re-seed');
     if (onScreen) {
-      if (bonus.spec !== undefined) {
-        beginPanelRewardHold([bonus.spec]);
-      }
-      parliamentRewardState.agendaBonus = bonus;
+      queueAgendaBonuses([bonus]);
     }
   }
 }
@@ -419,11 +434,20 @@ export function takeOwedRewards(): Array<OwedReward> {
   return taken;
 }
 
-/** The director takes the Agenda bonus for its flight (the hold still stands until `markAgendaBonusLanded`). */
-export function takeAgendaBonus(generation: number): AgendaBonusOwed | undefined {
-  const bonus = parliamentRewardState.agendaBonus;
-  trail('take-agenda', {asked: generation, held: bonus?.generation, step: bonus?.step});
-  if (bonus === undefined || bonus.generation !== generation) {
+/**
+ * The director takes ONE step's bonus for its flight (the hold still stands
+ * until `markAgendaBonusLanded`): the entry of `step` when a step is named
+ * (a walk delivers each step's own), else the first owed — the one-step
+ * callers' reading. `generation` guards against a stale entry; `undefined`
+ * accepts any (a walk played off the tier's own watcher knows the step, not
+ * the sitting's key).
+ */
+export function takeAgendaBonus(generation: number | undefined, step?: number): AgendaBonusOwed | undefined {
+  const bonus = step === undefined ?
+    parliamentRewardState.agendaBonuses[0] :
+    parliamentRewardState.agendaBonuses.find((entry) => entry.step === step);
+  trail('take-agenda', {asked: generation, step, held: bonus?.generation, heldStep: bonus?.step});
+  if (bonus === undefined || (generation !== undefined && bonus.generation !== generation)) {
     return undefined;
   }
   return bonus;
@@ -437,8 +461,17 @@ export function markRewardLanded(reward: OwedReward): void {
   noteLanded(reward.key);
 }
 
-export function markAgendaBonusLanded(): void {
-  flushAgendaBonus('landed');
+/** ONE step's chip touched the rail (or its cover may lift): that step's hold releases — the others keep standing. */
+export function markAgendaBonusLanded(step?: number): void {
+  const index = step === undefined ? 0 : parliamentRewardState.agendaBonuses.findIndex((entry) => entry.step === step);
+  if (index === -1 || parliamentRewardState.agendaBonuses.length === 0) {
+    return;
+  }
+  const [bonus] = parliamentRewardState.agendaBonuses.splice(index, 1);
+  trail('flush-agenda', {why: 'landed', kind: bonus.kind, step: bonus.step, generation: bonus.generation});
+  if (bonus.spec !== undefined) {
+    releasePanelRewardHold(bonus.spec);
+  }
 }
 
 /** A wave is owed or in the air — the field pose and the next door wait for it. */
@@ -456,7 +489,7 @@ export function parliamentRewardPending(): boolean {
  * reveal»; bounded by the idle net (then the standard draw presents it).
  */
 export function parliamentParksReveal(source: {type?: string} | undefined): boolean {
-  return source?.type === 'agenda' && parliamentRewardState.agendaBonus?.kind === 'card';
+  return source?.type === 'agenda' && parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind === 'card');
 }
 
 /** This record's chip has landed (or the record never had a wave to wait for). */

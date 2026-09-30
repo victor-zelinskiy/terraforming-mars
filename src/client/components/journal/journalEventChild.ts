@@ -9,7 +9,7 @@ import {EventImpact, SkippedEffectFact} from '@/common/events/EventImpact';
 import {EventSource, ParliamentRule, sourceKey} from '@/common/events/EventSource';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
-import {DELEGATE_ICON, NEUTRAL_DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
+import {DELEGATE_ICON, NEUTRAL_DELEGATE_ICON, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {PartyName} from '@/common/turmoil/PartyName';
 
 /**
@@ -93,7 +93,11 @@ export type JournalChildVM = {
    * (`popular-support-gained`). Ids and enum values — the row names them
    * through the parliament manifest / the party's own key, never a log line.
    */
-  political?: {kind: 'resolution'; resolution: string} | {kind: 'support'; party: PartyName; total: number};
+  political?:
+    | {kind: 'resolution'; resolution: string}
+    | {kind: 'support'; party: PartyName; total: number}
+    /** A WALK of the Agenda track (`agenda-advanced`, TR04): from → to and the influence level the walk set. */
+    | {kind: 'agenda'; from: number; to: number; level: number};
   /**
    * An effect that could NOT apply (`effect-skipped`): WHICH (`label`), WHY
    * (`reason`), and the magnitude lost as a chip of its own. Deliberately
@@ -405,6 +409,16 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       // its address — which resolution the delegate stands on.
       push(`delegates|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'resolution', resolution: e.impact.delegates.resolution}}, impactChips(e.impact));
+      continue;
+    }
+    if (e.type === 'agenda-advanced' && e.impact.agenda !== undefined) {
+      // Its OWN row: the chip is the STEPS walked («+2» — a pill sums it like any gain), the political label the
+      // POSITION fact («Карьера 1 → 3 · Влияние 2»); the steps' TR and card are their own chokepoint rows beside
+      // it, never summed into this one.
+      const agenda = e.impact.agenda;
+      push(`agenda|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'agenda', from: agenda.from, to: agenda.to, level: influenceAtAgenda(agenda.to)}},
+      [{icon: 'agenda', text: signed(agenda.to - agenda.from)}]);
       continue;
     }
     if (e.type === 'popular-support-gained' && e.impact.popularSupport !== undefined) {

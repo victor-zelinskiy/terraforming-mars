@@ -89,7 +89,7 @@ import {
 import {
   CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
   flyCardOffTable, flyCube, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeCubeRect, pushCardFlight, rectOf,
-  registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, setParliamentFlightsHurried, TOKEN_RISE_MS,
+  registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, scheduleHurriedParliamentBeat, setParliamentFlightsHurried, TOKEN_RISE_MS,
 } from './parliamentFlights';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceIconKey} from './influenceYieldModel';
@@ -98,6 +98,7 @@ import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
 import {SittingBeat} from './sittingBeats';
 import {BandRenewalCue} from './parliamentBand';
 import {ParliamentRenewalEventModel} from '@/common/models/ParliamentModel';
+import {AgendaWalkHooks, AgendaWalkRecordLike} from './agendaWalkDirector';
 
 // ── the storyboard's budget (base ms; §6, v2) ───────────────────────────────
 const VERDICT_LIGHT_MS = 220;
@@ -111,7 +112,7 @@ const BEAT_GAP_MS = 250;
    * speaks, and a console-wide object language is not worth trimming for one beat's budget). So this lead is
    * the only part of the beat that is ours: v4 cut it from 240 ms, which is what kept the beat near 1.2 s.
    */
-const AGENDA_SEGMENT_MS = 150;
+const AGENDA_SEGMENT_MS = 150; // the phrase's own lead (`agendaWalkDirector.AGENDA_SEGMENT_MS`) — kept here as the beat's budget term
 const AGENDA_GLIDE_BUDGET_MS = 900;
 /** ПОДДЕРЖКА: cube by cube, party by party. The row is already standing (v4 — there is no tier to bring in). */
 const SUPPORT_CUBE_STAGGER_MS = 90;
@@ -217,7 +218,8 @@ export type SittingDirectorContext = {
   summary: ParliamentPhaseSummaryModel;
   viewer: Color | undefined;
   /** The Agenda tier's own glide (it registers its own hold); `onLanded` fires when the marker has settled on its step. */
-  playAgendaGlide?: (move: AgendaMove, onLanded?: () => void) => void;
+  /** The tier's walk (`ConsoleParliamentAgenda.playAgendaWalk`) — the sitting's step is a walk of ONE. */
+  playAgendaWalk?: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => void;
 };
 
 type StageRun = {
@@ -407,35 +409,42 @@ function launchAgendaBonus(runState: StageRun, ctx: SittingDirectorContext): voi
   }));
 }
 
-/** ПОВЕСТКА: the reached segment lights, the marker glides from its old step to the new one, the step's bonus follows the arrival. */
+/**
+ * ПОВЕСТКА: the reached segment lights, the marker glides from its old step to the new one, the step's bonus
+ * follows the arrival. ONE step of the ONE walk (`agendaWalkDirector` — the segment's lead and the shared glide
+ * are the phrase's own, so the beat's budget is the lead plus the glide, as it always was).
+ */
 function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   const agenda = ctx.summary.agenda;
   const move: AgendaMove | undefined = parliamentHolds.agendaAwaits ??
     (agenda !== undefined && agenda.to !== agenda.from ? {player: agenda.player, from: agenda.from, to: agenda.to} : undefined);
-  if (move === undefined || ctx.playAgendaGlide === undefined) {
+  if (move === undefined || ctx.playAgendaWalk === undefined) {
     tl.call(() => {
       parliamentHolds.agendaAwaits = undefined;
       flushAgendaBonus('no-glide');
     }, undefined, 0.01);
     return 0;
   }
-  const glide = ctx.playAgendaGlide;
-  let at = 0;
-  tl.call(() => {
-    sittingMotion.agendaSegment = move;
-  }, undefined, at);
-  at += s(AGENDA_SEGMENT_MS) * k;
-  // The glide is the beat's OWN work: the master's arithmetic ends before the marker settles, so the run counts
-  // the glide as airborne until its landing — the bonus then leaves the reached step.
+  const walk = ctx.playAgendaWalk;
+  const record: AgendaWalkRecordLike = {
+    player: move.player, from: move.from, to: move.to,
+    steps: [agenda?.bonus === undefined ? {to: move.to} : {to: move.to, bonus: agenda.bonus}],
+  };
+  // The walk is the beat's OWN work: the master's arithmetic ends before the marker settles, so the run counts
+  // the glide as airborne until its landing — the bonus then leaves the reached step. Its lead rides the clock
+  // «дожать» fires at once (as the master's own call did before the walk became one phrase): a press mid-lead
+  // moves the marker NOW; the glide itself plays to its lock, as ever.
   runState.pending++;
-  tl.call(() => glide(move, () => {
-    sittingMotion.agendaSegment = undefined;
-    parliamentHolds.agendaAwaits = undefined;
-    launchAgendaBonus(runState, ctx);
-    runState.pending = Math.max(0, runState.pending - 1);
-  }), undefined, at);
-  at += s(AGENDA_GLIDE_BUDGET_MS) * k;
-  return at;
+  tl.call(() => walk(record, {
+    beat: scheduleHurriedParliamentBeat,
+    onLanded: () => {
+      sittingMotion.agendaSegment = undefined;
+      parliamentHolds.agendaAwaits = undefined;
+      launchAgendaBonus(runState, ctx);
+      runState.pending = Math.max(0, runState.pending - 1);
+    },
+  }), undefined, 0.01);
+  return (s(AGENDA_SEGMENT_MS) + s(AGENDA_GLIDE_BUDGET_MS)) * k;
 }
 
 // ── ПРИНЯТИЕ · ПОДДЕРЖКА ───────────────────────────────────────────────────
