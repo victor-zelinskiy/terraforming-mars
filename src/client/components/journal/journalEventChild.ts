@@ -9,6 +9,8 @@ import {EventImpact, SkippedEffectFact} from '@/common/events/EventImpact';
 import {EventSource, ParliamentRule, sourceKey} from '@/common/events/EventSource';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
+import {DELEGATE_ICON, NEUTRAL_DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
+import {PartyName} from '@/common/turmoil/PartyName';
 
 /**
  * The NAME of a parliament-sourced event (Turmoil Redux), shared by the journal
@@ -85,6 +87,14 @@ export type JournalChildVM = {
   /** copied-action extra. */
   copiedCard?: CardName;
   /**
+   * WHERE a political chip landed (Turmoil Redux): the RESOLUTION a delegate
+   * was placed on (`delegates-placed`), or the PARTY whose Popular Support
+   * took the neutral delegates, with what its area holds now
+   * (`popular-support-gained`). Ids and enum values — the row names them
+   * through the parliament manifest / the party's own key, never a log line.
+   */
+  political?: {kind: 'resolution'; resolution: string} | {kind: 'support'; party: PartyName; total: number};
+  /**
    * An effect that could NOT apply (`effect-skipped`): WHICH (`label`), WHY
    * (`reason`), and the magnitude lost as a chip of its own. Deliberately
    * OUTSIDE `chips`: nothing moved, so the pills that sum `chips` (the
@@ -142,6 +152,14 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
   }
   if (impact.tr !== undefined && impact.tr !== 0) {
     chips.push({icon: 'tr', text: signed(impact.tr)});
+  }
+  // Turmoil Redux: a delegate an effect placed on a resolution, neutral
+  // delegates an effect added to a party's Popular Support.
+  if (impact.delegates !== undefined && impact.delegates.count !== 0) {
+    chips.push({icon: DELEGATE_ICON, text: signed(impact.delegates.count)});
+  }
+  if (impact.popularSupport !== undefined && impact.popularSupport.gained !== 0) {
+    chips.push({icon: NEUTRAL_DELEGATE_ICON, text: signed(impact.popularSupport.gained)});
   }
   if (impact.cardsDrawn !== undefined && impact.cardsDrawn !== 0) {
     chips.push({icon: 'cards', text: signed(impact.cardsDrawn)});
@@ -380,6 +398,18 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       // Each skipped effect is its OWN row (never merged — two lost effects are
       // two statements), keyed by event id; its magnitude rides `skipped.chip`.
       push(`skipped|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], skipped: skippedRowOf(e.impact.skipped)}, []);
+      continue;
+    }
+    if (e.type === 'delegates-placed' && e.impact.delegates !== undefined) {
+      // Its OWN row (never merged into the card's other gains): the chip needs
+      // its address — which resolution the delegate stands on.
+      push(`delegates|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'resolution', resolution: e.impact.delegates.resolution}}, impactChips(e.impact));
+      continue;
+    }
+    if (e.type === 'popular-support-gained' && e.impact.popularSupport !== undefined) {
+      push(`support|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'support', party: e.impact.popularSupport.party, total: e.impact.popularSupport.total}}, impactChips(e.impact));
       continue;
     }
     const chips = [...impactChips(e.impact), ...(foldedChips.get(e.id) ?? [])];

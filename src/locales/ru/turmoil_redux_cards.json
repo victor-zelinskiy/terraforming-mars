@@ -19,5 +19,8 @@
 
     "Vector Computations": "Векторные вычисления",
     "Effect: Whenever you play a Science tag (including this), add 2 data resources to this card.": "Эффект: когда вы играете метку науки (включая эту карту), положите на эту карту 2 единицы данных.",
-    "Action: Spend 4 data from here to draw a Space card.": "Действие: потратьте 4 единицы данных с этой карты, чтобы взять карту с меткой космоса."
+    "Action: Spend 4 data from here to draw a Space card.": "Действие: потратьте 4 единицы данных с этой карты, чтобы взять карту с меткой космоса.",
+
+    "Political Donation": "Политическое пожертвование",
+    "Add a delegate to a resolution. Then add up to 3 neutral delegates to the Popular Support Area of that resolution's party.": "Добавьте делегата на резолюцию. Затем добавьте до 3 нейтральных делегатов в Народную поддержку партии этой резолюции."
 }

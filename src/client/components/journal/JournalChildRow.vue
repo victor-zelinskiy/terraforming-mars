@@ -89,6 +89,12 @@
           <span class="journal-child-row__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
           <span class="journal-child-row__chip-amt">{{ chip.text }}</span>
         </span>
+        <!-- WHERE a political chip landed (Turmoil Redux): the resolution a delegate stands on,
+             or the party whose Popular Support took the neutral delegates (with its area's fill). -->
+        <span v-if="vm.political !== undefined && vm.political.kind === 'resolution'"
+              class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(vm.political.resolution) }}</span>
+        <span v-else-if="vm.political !== undefined"
+              class="journal-child-row__tile journal-em">{{ supportLabel(vm.political.party, vm.political.total) }}</span>
       </span>
     </template>
   </span>
@@ -104,6 +110,11 @@ import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/jou
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {translateText} from '@/client/directives/i18n';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 
 /**
  * Renders ONE grouped journal child as `source → impact · impact`: a card chip
@@ -150,6 +161,14 @@ export default defineComponent({
     },
     showOnMap(space: SpaceId): void {
       highlightBoardSpace(space);
+    },
+    /** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
+    resolutionLabel(id: string): string {
+      return resolutionName(id);
+    },
+    /** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
+    supportLabel(party: PartyName, total: number): string {
+      return `${translateText('Popular support')} · ${translateText(partyNameKey(party))} · ${total}/${PARLIAMENT_MAX_POPULAR_SUPPORT}`;
     },
   },
 });

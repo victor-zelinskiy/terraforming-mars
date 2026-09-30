@@ -188,6 +188,9 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
         }
         const definition = parliament.resolutionOf(slot.instance);
         game.log('${0} added ${1} delegate(s) from the reserve to ${2}', (b) => b.player(player).number(placed).resolution(definition.id));
+        // The typed fact beside the journal line: an effect's delegate lands inside a chain that has rows of
+        // its own (the play's payment, a trade's income), where a text-only line is hidden.
+        game.events.recordDelegatesPlaced(player, placed, definition.id);
         QuestTracker.report(player, {kind: 'delegates', amount: placed});
         if (this.options.support !== undefined) {
           this.paySupport(parliament, definition.party, this.options.support);
@@ -209,8 +212,10 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     const room = parliament.popularSupportRoom(party, support);
     const gained = parliament.addPopularSupport(party, support);
     if (gained > 0) {
+      const total = parliament.popularSupportOf(party);
       player.game.log('${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})', (b) =>
-        b.partyName(party).number(gained).number(parliament.popularSupportOf(party)).number(PARLIAMENT_MAX_POPULAR_SUPPORT));
+        b.partyName(party).number(gained).number(total).number(PARLIAMENT_MAX_POPULAR_SUPPORT));
+      player.game.events.recordPopularSupportGained(player, party, gained, total);
       return;
     }
     const lost = skippedPopularSupport(room);

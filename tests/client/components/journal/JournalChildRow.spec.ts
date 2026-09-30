@@ -4,6 +4,7 @@ import {globalConfig} from '../getLocalVue';
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
 import {JournalChildVM} from '@/client/components/journal/journalEventChild';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 
 function mountRow(vm: JournalChildVM) {
   return mount(JournalChildRow, {
@@ -51,6 +52,34 @@ describe('JournalChildRow', () => {
     });
     expect(wrapper.find('.journal-child-row__chip--skipped').exists()).is.false;
     expect(wrapper.find('.journal-child-row__skipped-label').text()).eq('Steal resources from another player');
+  });
+
+  it('a delegate placed by an EFFECT names the resolution it stands on (Turmoil Redux — «[делегат] +1 · <резолюция>»)', () => {
+    const wrapper = mountRow({
+      source: {kind: 'card', card: CardName.POLITICAL_DONATION},
+      bucket: 'card',
+      chips: [{icon: 'delegate', text: '+1'}],
+      political: {kind: 'resolution', resolution: 'RDX_GREENS_1'},
+    });
+    expect(wrapper.find('.journal-child-row__chip-icon').classes()).includes('resource_icon--delegate');
+    expect(wrapper.find('.journal-child-row__chip--pos').text()).eq('+1');
+    const address = wrapper.find('.journal-token--resolution');
+    expect(address.exists(), 'the chip has an address').is.true;
+    expect(address.text()).not.eq('');
+  });
+
+  it('neutral delegates added to Popular Support name the party and what its area holds', () => {
+    const wrapper = mountRow({
+      source: {kind: 'card', card: CardName.POLITICAL_DONATION},
+      bucket: 'card',
+      chips: [{icon: 'neutral-delegate', text: '+3'}],
+      political: {kind: 'support', party: PartyName.GREENS, total: 3},
+    });
+    expect(wrapper.find('.journal-child-row__chip-icon').classes()).includes('resource_icon--neutral-delegate');
+    const address = wrapper.find('.journal-child-row__tile');
+    expect(address.text()).contains('Popular support');
+    expect(address.text()).contains('3/3');
+    expect(wrapper.find('.journal-token--resolution').exists()).is.false;
   });
 
   it('a NON-discount row (payment) shows NO discount badge', () => {

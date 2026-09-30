@@ -45,6 +45,22 @@ export type GameEventType =
    */
   | 'chairman-seated'
   /**
+   * DELEGATES PLACED ON A RESOLUTION BY AN EFFECT (Turmoil Redux): a colony's
+   * grant, a card's play (TR03 Political Donation) — `impact.delegates` names
+   * how many and onto which resolution. The vote ACTION needs none: its chain
+   * has no other row, so its journal line is read. An effect's delegate lands
+   * inside a chain that HAS rows (the payment, a trade's income), where a
+   * text-only line is hidden — hence the typed fact.
+   */
+  | 'delegates-placed'
+  /**
+   * NEUTRAL DELEGATES ADDED TO A PARTY'S POPULAR SUPPORT BY AN EFFECT
+   * (Turmoil Redux, TR03): `impact.popularSupport` names the party, how many
+   * landed and what the area holds now. The sitting's own support step is not
+   * this event — it is told by the phase's summary.
+   */
+  | 'popular-support-gained'
+  /**
    * NO SILENT LOSS, the live half: an effect the engine could NOT apply — no
    * card can hold the resource, no opponent can be hit. `impact.skipped` names
    * WHICH effect, WHY, and the magnitude lost, in the SAME words the play

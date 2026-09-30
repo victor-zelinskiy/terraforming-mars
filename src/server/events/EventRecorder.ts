@@ -1,6 +1,7 @@
 import {Color} from '../../common/Color';
 import {Phase} from '../../common/Phase';
 import {CardName} from '../../common/cards/CardName';
+import {PartyName} from '../../common/turmoil/PartyName';
 import {SpaceId} from '../../common/Types';
 import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
@@ -360,6 +361,25 @@ export class EventRecorder {
       impact: {},
       ...(previous === undefined ? {} : {target: {player: previous}}),
     });
+  }
+
+  /**
+   * AN EFFECT PLACED DELEGATES ON A RESOLUTION (Turmoil Redux — a colony's
+   * grant, a card's play): recorded under the live scope, so the fact joins
+   * the chain of the action that caused it and names that action's source.
+   * Written only by `parliament/PlaceDelegatesOnResolution`.
+   */
+  public recordDelegatesPlaced(player: IPlayer, count: number, resolution: string): void {
+    this.record({type: 'delegates-placed', player: player.color, impact: {delegates: {count, resolution}}, visibility: 'journal'});
+  }
+
+  /**
+   * AN EFFECT ADDED NEUTRAL DELEGATES TO A PARTY'S POPULAR SUPPORT (Turmoil
+   * Redux TR03). `player` is the one whose effect it was — the support itself
+   * is nobody's. Written only by `parliament/PlaceDelegatesOnResolution`.
+   */
+  public recordPopularSupportGained(player: IPlayer, party: PartyName, gained: number, total: number): void {
+    this.record({type: 'popular-support-gained', player: player.color, impact: {popularSupport: {party, gained, total}}, visibility: 'journal'});
   }
 
   /**

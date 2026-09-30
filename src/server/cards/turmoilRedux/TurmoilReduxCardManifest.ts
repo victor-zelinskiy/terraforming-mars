@@ -6,6 +6,7 @@ import {AutomatedConvoys} from './AutomatedConvoys';
 import {PoliticalScience} from './PoliticalScience';
 import {SupremeExpertise} from './SupremeExpertise';
 import {VectorComputations} from './VectorComputations';
+import {PoliticalDonation} from './PoliticalDonation';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -46,5 +47,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     [CardName.SUPREME_EXPERTISE]: {Factory: SupremeExpertise},
     // The purple Turmoil symbol at the bottom left once more — the module is the gate (see TR02 above).
     [CardName.VECTOR_COMPUTATIONS]: {Factory: VectorComputations},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above): the card is
+    // dealt only into a game with the Mars Parliament, so its delegate always has a voting area to go to.
+    [CardName.POLITICAL_DONATION]: {Factory: PoliticalDonation},
   },
 });

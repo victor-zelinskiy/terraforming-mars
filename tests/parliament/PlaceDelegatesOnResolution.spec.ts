@@ -157,6 +157,10 @@ describe('PlaceDelegatesOnResolution — «then add up to N neutral delegates to
     expect(delegate, 'the delegate is journalled').gte(0);
     expect(support, '«then»: the support follows the delegate').gt(delegate);
     parliament.assertLedger(game);
+    // …and beside the journal lines, the two TYPED facts (a chain with rows of its own hides a text-only line).
+    const resolution = parliament.resolutionOf(parliament.slots[0].instance).id;
+    expect(game.events.events.filter((e) => e.type === 'delegates-placed').map((e) => e.impact.delegates)).deep.eq([{count: 1, resolution}]);
+    expect(game.events.events.filter((e) => e.type === 'popular-support-gained').map((e) => e.impact.popularSupport)).deep.eq([{party: G, gained: 3, total: 3}]);
   });
 
   it('a party with ONE place left takes one — and the answer re-reads the room', () => {
@@ -262,5 +266,7 @@ describe('PlaceDelegatesOnResolution — «then add up to N neutral delegates to
     t.p1.process({type: 'party', partyName: G});
     expect(t.parliament.votesOf(t.p1, t.parliament.slots[0])).eq(2);
     expect(t.parliament.popularSupportOf(G)).eq(0);
+    expect(t.game.events.events.filter((e) => e.type === 'delegates-placed').map((e) => e.impact.delegates?.count), 'a typed fact for every giver').deep.eq([2]);
+    expect(t.game.events.events.some((e) => e.type === 'popular-support-gained')).is.false;
   });
 });

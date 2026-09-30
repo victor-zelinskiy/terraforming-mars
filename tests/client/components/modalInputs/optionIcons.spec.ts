@@ -24,6 +24,11 @@ describe('iconClassFor', () => {
     expect(iconClassFor(CardResource.MECH)).to.eq('card-resource card-resource-mech');
   });
 
+  it('a delegate and a NEUTRAL delegate are assets of their own (Turmoil Redux), never a card-resource class', () => {
+    expect(iconClassFor('delegate')).to.eq('resource_icon resource_icon--delegate');
+    expect(iconClassFor('neutral-delegate')).to.eq('resource_icon resource_icon--neutral-delegate');
+  });
+
   it('is idempotent on an already-normalised card-resource key', () => {
     expect(iconClassFor('microbe')).to.eq('card-resource card-resource-microbe');
     expect(iconClassFor('')).to.eq('');

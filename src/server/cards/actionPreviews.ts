@@ -24,6 +24,8 @@ import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
+import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
+import {DELEGATE_ICON} from '../../common/parliament/ParliamentTypes';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectPlayer} from '../inputs/SelectPlayer';
@@ -325,6 +327,36 @@ export function colonyTradeStep(card: ICard): ActionPreviewStep {
  */
 export function deltaAdvanceStep(offer: DeltaAdvanceOffer): ActionPreviewStep {
   return {kind: 'deltaAdvance', offer};
+}
+
+/**
+ * THIS PLAY PLACES A DELEGATE ON A RESOLUTION — declared, not described.
+ *
+ * The third sibling of {@link colonyTradeStep} / {@link deltaAdvanceStep}: a
+ * card that adds a delegate by being played does not ask «which resolution» in
+ * the composer — it enters the ONE vote mode of the Parliament, hosted inside
+ * the workspace the card is played from, and the play is committed THERE (a
+ * staged vote: nothing is sent before that confirm). `grant` is the very step
+ * the card's `bespokePlay` defers — asked here for the prompt it WOULD raise
+ * (`previewSelectParty`), so the staged door shows the commit's own question.
+ *
+ * `undefined` when the step would ask nothing (no resolution up for a vote, an
+ * empty reserve) — the card is unplayable there anyway, and no door is drawn.
+ */
+export function delegateGrantStep(card: ICard, grant: PlaceDelegatesOnResolution): ActionPreviewStep | undefined {
+  const prompt = grant.previewSelectParty();
+  return prompt === undefined ? undefined : {kind: 'delegateGrant', staged: {prompt, sourceCard: card.name}};
+}
+
+/**
+ * «N of your delegates leave the RESERVE» — the chip of a delegate placed by an
+ * effect (the reserve's `current → resulting`). Target-independent on purpose:
+ * WHERE the delegate lands, and what that does to the chosen resolution and
+ * its party, is read in the Parliament once a target exists.
+ */
+export function delegateFromReserve(player: IPlayer, amount: number): ActionEffect {
+  const reserve = player.game.parliament?.reserve(player) ?? 0;
+  return {direction: 'cost', icon: DELEGATE_ICON, amount, current: reserve, resulting: Math.max(0, reserve - amount), note: 'from the reserve'};
 }
 
 /**

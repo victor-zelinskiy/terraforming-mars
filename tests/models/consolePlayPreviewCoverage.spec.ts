@@ -11,6 +11,7 @@ import {OrOptionsModel, SelectCardModel} from '../../src/common/models/PlayerInp
 import {testGame} from '../TestGame';
 import {fakeCard} from '../TestingUtils';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {PoliticalDonation} from '../../src/server/cards/turmoilRedux/PoliticalDonation';
 
 const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'deltaProject', 'turmoilRedux']);
 
@@ -25,7 +26,10 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
  *                  «Разыграно» view's pick mode / a REPEAT-action pick, via the
  *                  ДЕЙСТВИЯ КАРТ surface in repeat mode / player / amount /
  *                  or-with-leaf-or-nested-player/card options /
- *                  spendHeat / tabbedTargets).
+ *                  spendHeat / tabbedTargets / a `delegateGrant` DOOR — the
+ *                  staged vote: the composer's commit opens the Parliament's
+ *                  vote mode and the resolution rides the batch as its
+ *                  addressed tail).
  *   - 'followup' — an honest post-submit follow-up (board / colony placement /
  *                  note / an UNOWNED multi-select — the documented, safe
  *                  exceptions, ridden by the native flow).
@@ -37,6 +41,12 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
 function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, handNames: ReadonlySet<string>, tableauNames: ReadonlySet<string>): 'inline' | 'followup' | 'gap' {
   void branch;
   if (step.kind === 'spendHeat' || step.kind === 'tabbedTargets') {
+    return 'inline';
+  }
+  // A delegate grant by PLAYING the card (TR03): never a follow-up and never a
+  // gap — the console turns the commit into the staged vote (`stagedPlay`'s
+  // resolution target), so the answer is collected BEFORE the one submit.
+  if (step.kind === 'delegateGrant') {
     return 'inline';
   }
   if (step.kind === 'boardPlacement' || step.kind === 'note') {
@@ -115,7 +125,10 @@ describe('console play-preview coverage', () => {
           if (typeof (card as {cardPlayPreview?: unknown}).cardPlayPreview !== 'function') {
             continue;
           }
-          const [/* game */, player, opponent] = testGame(2, {venusNextExtension: true});
+          // A Turmoil Redux card is previewed at a Redux table: its steps may need the Mars Parliament
+          // (Political Donation's door does not exist without a voting area).
+          const [/* game */, player, opponent] = testGame(2, {venusNextExtension: true,
+            ...(manifest.module === 'turmoilRedux' ? {turmoilReduxExpansion: true, coloniesExtension: true} : {})});
           for (const r of [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM, Resource.PLANTS, Resource.ENERGY, Resource.HEAT]) {
             player.stock.add(r, 40);
             opponent.stock.add(r, 40);
@@ -160,6 +173,31 @@ describe('console play-preview coverage', () => {
       }
     }
     expect(gaps, `console play-preview GAPS (a shape the console can't pre-collect):\n  ${gaps.join('\n  ')}`).to.have.length(0);
+  });
+
+  /*
+   * A DELEGATE GRANT BY PLAY IS A DOOR, AND THE DOOR IS HOSTED.
+   *
+   * Political Donation's preview carries ONE `delegateGrant` step — structural,
+   * never a `note` and never an `input` — whose staged prompt is the grant the
+   * commit will raise. The console reads it to open the Parliament's vote mode
+   * inside the hand (a staged vote); classified anything but `inline` it would
+   * drop to a live follow-up and the player would pay before seeing the table.
+   */
+  it('a delegate grant by play is an INLINE door with the staged prompt on it (Political Donation)', () => {
+    const [, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    const card = new PoliticalDonation();
+    player.cardsInHand.push(card);
+    player.megaCredits = 20;
+    const branch = cardPlayPreview(player, card).branches[0];
+    const doors = branch.steps.filter((step) => step.kind === 'delegateGrant');
+    expect(doors).has.length(1);
+    expect(classifyStep(doors[0], branch, new Set([card.name]), new Set())).eq('inline');
+    const door = doors[0] as Extract<ActionPreviewStep, {kind: 'delegateGrant'}>;
+    expect(door.staged.sourceCard).eq(card.name);
+    expect(door.staged.prompt.type).eq('party');
+    expect(door.staged.prompt.votePrompt?.source).eq('grant');
+    expect(door.staged.prompt.choiceContext?.source.card).eq(card.name);
   });
 
   /*

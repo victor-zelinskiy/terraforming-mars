@@ -5,7 +5,7 @@ import {Color} from '../Color';
 import {Message} from '../logs/Message';
 import {TileType} from '../TileType';
 import {Units} from '../Units';
-import {PlayerInputModel, SelectCardModel} from './PlayerInputModel';
+import {PlayerInputModel, SelectCardModel, SelectPartyModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 import {EffectForecast} from './EffectForecastModel';
 
@@ -386,6 +386,21 @@ export type ActionPreviewStep =
    * grants no waiver — the client never re-derives either.
    */
   | {kind: 'deltaAdvance', offer: DeltaAdvanceOffer}
+  /**
+   * THIS PLAY PLACES A DELEGATE ON A RESOLUTION — and the resolution is picked
+   * in the Parliament, never in the composer (Turmoil Redux TR03 Political
+   * Donation: the vote's THIRD door, after the action and an effect's grant).
+   *
+   * The sibling of `colonyTrade` / `boardPlacement.staged`, structural for the
+   * same reason: the console reads it to turn the composer's commit into a
+   * NAVIGATION («Выбрать резолюцию») into the Parliament's vote mode, hosted
+   * inside the workspace the card is played from — a STAGED VOTE: nothing is
+   * sent until the resolution is confirmed there, and that confirm posts the
+   * one batch with the party answer as its ADDRESSED tail
+   * (`SelectPartyResponse.stagedFor`). A prose note could only be matched by
+   * its text, which is banned, and it would carry none of the prompt.
+   */
+  | {kind: 'delegateGrant', staged: StagedVoteModel}
   | {
     kind: 'boardPlacement',
     placementType: string,
@@ -502,6 +517,25 @@ export type StagedPlacementModel = {
    *  multi-tile card's first cell is the commit boundary, the rest are live
    *  prompts). The dossier announces them during the staged pick. */
   followUpPlacements?: ReadonlyArray<{tileType?: TileType}>;
+};
+
+/**
+ * The staged twin of a delegate GRANT — everything the console's vote mode
+ * needs to run the resolution pick BEFORE the play is submitted. `prompt` is,
+ * field for field, the `SelectParty` the commit WILL raise
+ * (`PlaceDelegatesOnResolution.previewSelectParty()` — the same title, parties,
+ * `votePrompt` with its count and its per-party support projection, the same
+ * `choiceContext`), so the staged door and the live one are one prompt read
+ * twice; there is no `promptId` (no server prompt exists yet — the answer
+ * rides the play batch). `sourceCard` is the tail's ADDRESS.
+ *
+ * ⚠ The vote's per-slot projections (`ParliamentModel.viewer.vote.projections`)
+ * are computed for ONE delegate while no live grant stands — a card granting
+ * more than one must first thread its count into that projection.
+ */
+export type StagedVoteModel = {
+  prompt: SelectPartyModel;
+  sourceCard: CardName;
 };
 
 /** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */

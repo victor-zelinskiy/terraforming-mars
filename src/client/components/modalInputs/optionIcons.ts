@@ -23,7 +23,11 @@ const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'ven
 // Pseudo-icons that map onto the global `resource_icon` sprite family (the same
 // art the card renderer uses, but its own classes are scoped under `.card-container`).
 // `rating` is the rail's own key for the terraform rating (the parliament's Agenda bonus rides it as a chip).
-const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {tr: 'rating', rating: 'rating', cards: 'cards'};
+// `delegate` / `neutral-delegate` (Turmoil Redux): a player's own delegate and the dark neutral one — the
+// REAL figures, as assets of their own (the console strips `filter`, so a dimmed copy would not paint).
+const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {
+  'tr': 'rating', 'rating': 'rating', 'cards': 'cards', 'delegate': 'delegate', 'neutral-delegate': 'neutral-delegate',
+};
 // The `GlobalParameter` enum uses the PLURAL 'oceans', but the icon class is the
 // singular `wgt-icon--ocean` (the ocean TILE art). Normalise here — the single
 // resolution point — so both the journal's `impact` chips (which pass

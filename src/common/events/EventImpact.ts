@@ -4,6 +4,7 @@ import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
+import {PartyName} from '../turmoil/PartyName';
 
 /**
  * FACTUAL impact of a {@link GameEvent}. Facts only — never an estimated
@@ -119,6 +120,18 @@ export type EventImpact = {
    * loss cases). Absent where the live value wasn't threaded (documented partial).
    */
   snapshot?: {resource: string; scope: 'stock' | 'production'; before: number; after: number};
+  /**
+   * Delegates an EFFECT placed on a resolution of the voting area
+   * (`delegates-placed`): `count` cubes of the event's `player`, onto the
+   * resolution `resolution` (a catalog id — the client names it through the
+   * parliament manifest, never from a log line).
+   */
+  delegates?: {count: number; resolution: string};
+  /**
+   * Neutral delegates an EFFECT added to a party's Popular Support
+   * (`popular-support-gained`): how many landed and what the area holds now.
+   */
+  popularSupport?: {party: PartyName; gained: number; total: number};
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
 };
