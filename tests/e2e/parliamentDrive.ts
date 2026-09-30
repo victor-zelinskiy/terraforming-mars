@@ -100,16 +100,35 @@ export async function answerGateAs(request: APIRequestContext, seat: string, sta
 }
 
 /**
- * GATE 2 FROM THE VIEWER'S OWN SCREEN — A on the results page («Закрыть заседание»), act → verify → retry
- * against the SERVER's record. A blind `press(Enter)` there is swallowed whenever a beat still holds the pad
- * (the Deck, a loaded runner), and the miss surfaced a minute later, three lines down, as «the generation
- * never advanced». Waits for the gate to STAND first: `pressUntil` checks its witness before pressing.
+ * A PARLIAMENT GATE ANSWERED FROM THE VIEWER'S OWN SCREEN — A on the verdict (gate 1, `assembly`) or on the
+ * results (gate 2, `adjourn`): act → verify → retry, where the verify is the SERVER's record and it is given the
+ * time a loaded runner needs.
+ *
+ * Both halves were paid for. A blind `press(Enter)` is swallowed whenever a beat still holds the pad (the Deck, a
+ * loaded runner), and the miss surfaced a minute later as «the generation never advanced». And the hand-rolled
+ * `pressUntil(Enter, …, {settleMs: 1500})` re-pressed whenever the answer took longer than its settle: the SECOND
+ * A landed on whatever the first one had opened — on a loaded 4K runner, the distribution layout the sitting
+ * teleports in, which the next line then found «not empty» (console-parliament-gallery § DISTRIBUTION). So the
+ * gate must STAND before the press, and a retry happens only while it provably still stands 10 s later.
  */
+export async function answerGateOnScreen(page: Page, request: APIRequestContext, viewer: string, stage: 'assembly' | 'adjourn'): Promise<void> {
+  const standing = async () => (await parliamentWire(request, viewer)).waitingFor?.parliamentPhasePrompt?.stage === stage;
+  await expect.poll(standing, {timeout: 30_000, message: `the viewer stands at the ${stage} gate`}).toBe(true);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await press(page, 'Enter', 400);
+    try {
+      await expect.poll(async () => !(await standing()), {timeout: 10_000}).toBe(true);
+      return;
+    } catch {
+      // still standing 10 s after the press: it was swallowed — press again
+    }
+  }
+  expect(await standing(), `A on the screen answers the viewer's ${stage} gate`).toBe(false);
+}
+
+/** GATE 2 from the results page («Закрыть заседание») — `answerGateOnScreen` at the adjourn gate. */
 export async function closeSitting(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
-  const atGate = async () => (await parliamentWire(request, viewer)).waitingFor?.parliamentPhasePrompt?.stage === 'adjourn';
-  await expect.poll(atGate, {timeout: 30_000, message: 'the viewer stands at the adjourn gate'}).toBe(true);
-  expect(await pressUntil(page, 'Enter', async () => !(await atGate()), {tries: 4, settleMs: 1200}),
-    'A on the results answers the viewer’s adjourn gate').toBe(true);
+  await answerGateOnScreen(page, request, viewer, 'adjourn');
 }
 
 /** Answer `seat`'s standing resolution asks over the API with the plainest legal answer until none stands (a card take: every card; a pick: the first). */

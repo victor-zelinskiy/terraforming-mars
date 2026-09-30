@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, bootFixtureSeats, closeZoomViewer, openCardActions, openMandatoryAnnounce, openZoomViewer, placeTile, press, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest, focusParliamentZone, mandatoryPlate, openParliament,
+  answerAsksAs, answerGateAs, answerGateOnScreen, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest, focusParliamentZone, mandatoryPlate, openParliament,
   parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep, waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -255,8 +255,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await waitSittingAtRest(page, 30_000);
         await waitSittingAtRest(page, 30_000);
         // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-          'A answers the assembly gate').toBe(true);
+        await answerGateOnScreen(page, request, playerId, 'assembly');
         await pose(page, preset, mode, '14', 'sitting-verdict-gate-wait');
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 40_000});
@@ -297,8 +296,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await waitSittingAtRest(page, 30_000);
         await waitSittingAtRest(page, 30_000);
         // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-          'A answers the assembly gate').toBe(true);
+        await answerGateOnScreen(page, request, playerId, 'assembly');
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
         await waitSittingAtRest(page, 30_000);
@@ -349,8 +347,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect(rulerBefore.locator('[data-parl-support]'), 'a ruler without a card keeps its sockets').toHaveCount(1);
         await expect(rulerBefore.locator('[data-support-void]')).toHaveCount(0);
         await pose(page, preset, mode, '23', 'sitting-verdict-four-parties');
-        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-          'A answers the assembly gate').toBe(true);
+        await answerGateOnScreen(page, request, playerId, 'assembly');
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the layout stands inside the sitting').toHaveCount(1, {timeout: 40_000});
         await waitSittingAtRest(page, 30_000);
@@ -374,8 +371,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await pose(page, preset, mode, '24c', 'sitting-results-distribution');
         // UNITY IN POWER: close the sitting, open the Parliament — the Unity tile in the government, its sockets void.
         await answerGateAs(request, red, 'adjourn');
-        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 5, settleMs: 1500}),
-          'A answers the adjourn gate').toBe(true);
+        await answerGateOnScreen(page, request, playerId, 'adjourn');
         await settle(page, {timeoutMs: 30_000});
         await openParliament(page);
         const ruler = page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]');
@@ -507,8 +503,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await waitSittingAtRest(page, 30_000);
         await waitSittingAtRest(page, 30_000);
         // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-          'A answers the assembly gate').toBe(true);
+        await answerGateOnScreen(page, request, playerId, 'assembly');
         await answerGateAs(request, red, 'assembly');
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task .con-cards__slot'), 'six candidates').toHaveCount(6, {timeout: 20_000});
@@ -714,8 +709,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             });
             mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-parl-band-quiet', 'class']});
           });
-          expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-            'A answers the assembly gate').toBe(true);
+          await answerGateOnScreen(page, request, playerId, 'assembly');
           await answerGateAs(request, red, 'assembly');
           const seen: {quiet: {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string} | null} = {quiet: null};
           await expect.poll(async () => {
@@ -758,8 +752,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await waitSittingAtRest(page, 30_000);
         await waitSittingAtRest(page, 30_000);
         // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-          'A answers the assembly gate').toBe(true);
+        await answerGateOnScreen(page, request, playerId, 'assembly');
         await answerGateAs(request, red, 'assembly');
         // The record arrives with the skip: the plate names the lost tile and its reason. Photographed the moment it stands
         // (the page holds through the plants' wave, then the results enter).
