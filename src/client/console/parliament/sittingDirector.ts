@@ -495,6 +495,15 @@ function answerSupportPlace(root: HTMLElement, party: ReduxParty, index: number)
   if (el === null) {
     return;
   }
+  // ONE SOCKET ANSWERS AT A TIME — by construction, not by rhythm. The answer runs 280 ms while the scene lands
+  // a cube every ≥ 90 ms and the next party's wave ~220 ms after the last one, so two sockets of two parties
+  // were lit together (`console-parliament-sitting-v3` measured Unity#1 + Scientists#1 for 60 ms). The earlier
+  // answer is in its settling tail by then (the peak is at 38 %), so ending it here is not a visible cut.
+  root.querySelectorAll<HTMLElement>('.con-pseal__support-place--landed').forEach((other) => {
+    if (other !== el) {
+      other.classList.remove('con-pseal__support-place--landed');
+    }
+  });
   el.classList.remove('con-pseal__support-place--landed');
   void el.offsetWidth;
   el.classList.add('con-pseal__support-place--landed');
