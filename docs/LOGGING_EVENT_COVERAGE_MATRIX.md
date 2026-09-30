@@ -143,8 +143,13 @@ Sites to wrap (one each):
 ## 4. Skipped / no-op meaningful events (Phase-3, optional)
 
 Per the proposal §12, record a meaningful SKIP only where analytics cares (no silent noise). Candidates:
-- `addResourcesToAnyCard` with no eligible card (the server already detects this — see CLAUDE.md "NO
-  SILENT-LOSS"): emit a `card-resource-changed` with `amount: 0` + a `tags:['card-impact']` skip marker.
+- ✅ **Implemented 2026-09-30 as its own event kind, not a zero delta**: every effect the engine could NOT apply
+  (no holder, no target) records `effect-skipped` with `impact.skipped = {label, reason, effect?}` through ONE
+  function, `deferredActions/skippedEffect.recordSkippedEffect` — the add-to-card family, the attack family
+  (plants / production / steal / removal), Flooding, the Ares adjacency bonus, an empty-deck draw, the
+  Hydronetwork's «repeat» reward, Corporate Espionage. A zero `card-resource-changed` was rejected: it is a
+  delta, so every aggregate and pill would have had to learn to ignore it. Contract: `.claude/rules/game-logic.md`
+  § No silent loss; guard `tests/models/skippedEffectRecord.spec.ts`.
 - A discount source present but inapplicable to the played card: not recorded (no saving) — intentionally
   silent (the absence of a `discount-applied` IS the signal).
 - An optional effect the player declined: emit only if the decline is a real choice the analytics should

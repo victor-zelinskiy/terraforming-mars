@@ -6,6 +6,9 @@ import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
+// Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
+import {SKIP_REASON, SKIPPED_LABEL, skippedAttackChip} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 export type Options = {
   count: number,
@@ -47,6 +50,11 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
     const targets = this.player.game.players.filter((p) => p.canHaveProductionReduced(this.resource, this.options.count, this.player));
 
     if (targets.length === 0) {
+      // No silent loss: the attack the preview warned about names itself in the record.
+      recordSkippedEffect(this.player, SKIP_REASON.noTarget, {
+        label: SKIPPED_LABEL.reduceProduction,
+        effect: skippedAttackChip(this.resource, this.options.count, 'production'),
+      });
       this.cb(false);
       return undefined;
     }

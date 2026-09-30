@@ -10,6 +10,9 @@ import {message} from '../logs/MessageBuilder';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {disabledPlayerTarget, removeCorpPlantsFromBot, stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+// Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
+import {SKIP_REASON, SKIPPED_LABEL, skippedAttackChip} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 export class StealResources extends DeferredAction {
   constructor(
@@ -61,7 +64,15 @@ export class StealResources extends DeferredAction {
       this.player.resolveInsuranceInSoloGame();
       return undefined;
     }
-    return this.buildOptions();
+    const options = this.buildOptions();
+    if (options === undefined) {
+      // No silent loss: nobody could be stolen from — the steal names itself in the record.
+      recordSkippedEffect(this.player, SKIP_REASON.noTarget, {
+        label: SKIPPED_LABEL.stealResources,
+        effect: skippedAttackChip(this.resource, this.count),
+      });
+    }
+    return options;
   }
 
   /**

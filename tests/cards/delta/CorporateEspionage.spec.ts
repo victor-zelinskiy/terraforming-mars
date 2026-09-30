@@ -202,6 +202,9 @@ describe('CorporateEspionage', () => {
       runAllActions(game);
       expect(player.deltaProjectData!.position).eq(1);
       expect(logText(game)).to.match(/attack of .* is skipped/);
+      // …and it is a structured fact too — the journal row and the notification name the lost attack.
+      expect(game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped))
+        .deep.eq([{label: 'Push another player back on the Hydronetwork', reason: 'No valid target available'}]);
       // …and naming a target anyway would have been refused:
       // (fresh play on the next generation-like state)
       expect(positionMovements(game)).lengthOf(1);

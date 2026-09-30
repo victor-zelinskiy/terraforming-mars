@@ -113,6 +113,21 @@ describe('Flooding', () => {
     cast(selectSpace.cb(oceans[0]), undefined);
     runAllActions(game);
     cast(player.popWaitingFor(), undefined);
+    // No prompt — but no silent loss: the attack names itself with the dossier's own cause.
+    expect(game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped)).deep.eq([
+      {label: 'Remove resources from another player', reason: 'Adjacent opponents have no M€', effect: {direction: 'cost', icon: 'megacredits', amount: 4}},
+    ]);
+  });
+
+  it('No adjacent opponent tile: the attack is a named skip, never a silent one', () => {
+    const oceans = game.board.getAvailableSpacesForOcean(player);
+    cast(card.play(player), undefined);
+    runAllActions(game);
+    const selectSpace = cast(player.popWaitingFor(), SelectSpace);
+    cast(selectSpace.cb(oceans[0]), undefined);
+    runAllActions(game);
+    cast(player.popWaitingFor(), undefined);
+    expect(game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped?.reason)).deep.eq(['No opponent tile is adjacent']);
   });
 
   it('A broke adjacent opponent is a greyed target with a reason, not a hidden one', () => {

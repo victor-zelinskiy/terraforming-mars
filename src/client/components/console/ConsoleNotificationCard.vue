@@ -212,6 +212,25 @@
       </span>
     </div>
 
+    <!-- NO SILENT LOSS, after the fact: an effect of this action that could NOT
+         apply names itself — «пропущено · <что> [величина, зачёркнута] ·
+         <почему>», with the owner's cube when it was not the actor's. Nothing
+         moved, so it never rides the pills and never tints the card. -->
+    <ul v-if="skippedLines.length > 0" class="con-notif__skips">
+      <li v-for="(line, i) in skippedLines" :key="i" class="con-notif__skip">
+        <span class="con-notif__skip-tag" v-i18n>Skipped</span>
+        <span v-if="line.owner !== undefined" class="con-notif__side">
+          <span class="con-notif__dot" :class="'player_bg_color_' + line.owner" aria-hidden="true"></span>
+          <span class="con-notif__who">{{ ownerName(line.owner) }}</span>
+        </span>
+        <span class="con-notif__skip-label" v-i18n>{{ line.label }}</span>
+        <span v-if="line.chip !== undefined" class="con-notif__chip con-notif__chip--skipped">
+          <span v-if="iconClass(line.chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(line.chip.icon)" aria-hidden="true"></span>
+          <span class="con-notif__chip-amt">{{ line.chip.text }}</span>
+        </span>
+        <span class="con-notif__skip-reason" v-i18n>{{ line.reason }}</span>
+      </li>
+    </ul>
     <!-- Pad contract ON the card (its own hints — the command bar keeps the
          CURRENT screen's contract, a toast never re-labels it): the DETAIL
          action first, when the card has one (press-and-HOLD X — a single tap
@@ -296,7 +315,7 @@ import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
 import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
-import {LiveNotification, NotificationPillGroup, NotificationVariant} from '@/client/components/notifications/notificationTypes';
+import {LiveNotification, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 
 // icon-key → PublicPlayerModel field (the viewer's before → after readout
 // for a single-resource loss).
@@ -359,6 +378,10 @@ export default defineComponent({
         return '';
       }
       return displayNameForColor(this.players, a);
+    },
+    /** The skipped-effect lines — two at most: the card is a toast, the journal holds the rest. */
+    skippedLines(): ReadonlyArray<NotificationSkippedLine> {
+      return (this.notification.skipped ?? []).slice(0, 2);
     },
     attackerName(): string {
       const a = this.impactBand?.attacker;
@@ -593,6 +616,9 @@ export default defineComponent({
     }
   },
   methods: {
+    ownerName(color: Color): string {
+      return displayNameForColor(this.players, color);
+    },
     iconClass(icon: string): string {
       return iconClassFor(icon);
     },

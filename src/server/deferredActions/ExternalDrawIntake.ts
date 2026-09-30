@@ -8,6 +8,9 @@ import {LogHelper} from '../LogHelper';
 import {message} from '../logs/MessageBuilder';
 import {ExternalDrawCause, ExternalDrawTakeMeta} from '../../common/models/ExternalDrawPromptModel';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+// Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
+import {SKIP_REASON, SKIPPED_LABEL} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 /**
  * EXTERNAL CARD DRAW — the mandatory-intake path for every draw an effect
@@ -94,6 +97,11 @@ export class ExternalDrawIntake {
       } else {
         game.log('${0} drew no cards from ${1} (the deck is empty)',
           (b) => b.player(recipient).resolution(cause.resolution));
+      }
+      // …and as the structured fact the journal row and the notification read.
+      if (count > 0) {
+        recordSkippedEffect(recipient, SKIP_REASON.deckEmpty,
+          {label: SKIPPED_LABEL.drawCards, effect: {direction: 'gain', icon: 'cards', amount: count}}, {log: false});
       }
       return undefined;
     }

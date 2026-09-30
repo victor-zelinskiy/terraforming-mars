@@ -610,7 +610,6 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
       // the input step's `cardResource`) so `iconClassFor` resolves the sprite —
       // the raw `CardResource` value ('Animal') would yield `card-resource-Animal`,
       // which has no CSS class, so no icon showed. Undefined = any-resource → no icon.
-      const icon = a.type !== undefined ? cardResourceIcon(a.type) : 'resources';
       steps.push({
         kind: 'note',
         noteKind: 'warning',
@@ -618,11 +617,9 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
         resource: a.type !== undefined ? cardResourceIcon(a.type) : undefined,
         // NAME the skipped effect: the gain chip is suppressed above, so without
         // this the player only learns that "a resource" is lost — ambiguous on a
-        // card that adds several (Imported Nitrogen: microbes AND animals).
-        skipped: {
-          label: actionPreviews.SKIPPED_LABEL.addToCard,
-          effect: {direction: 'gain', icon, amount: count, note: 'to a card'},
-        },
+        // card that adds several (Imported Nitrogen: microbes AND animals). The
+        // SAME description the live step records if the play goes ahead.
+        skipped: actionPreviews.skippedAddToCard(a.type, count),
       });
     } else {
       const model = target.previewSelectCard();

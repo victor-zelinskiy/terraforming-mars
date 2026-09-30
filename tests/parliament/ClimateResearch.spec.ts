@@ -457,6 +457,9 @@ describe('ClimateResearch', () => {
       expect(stockEventsFrom(game, p1, 'resolution'), 'no substitute reward').is.empty;
       expect(outcomeOf(parliament, p1, 'draw')).deep.include({kind: 'skipped', amount: 3, drawn: 0, reason: 'The project deck is empty'});
       expect(game.gameLog.some((e) => e.message.includes('drew no cards from'))).is.true;
+      // …and the structured fact: the journal row and the notification name the lost draw.
+      const skipped = game.events.events.filter((e) => e.type === 'effect-skipped' && e.player === p1.color).map((e) => e.impact.skipped);
+      expect(skipped).deep.eq([{label: 'Draw cards', reason: 'The deck is empty', effect: {direction: 'gain', icon: 'cards', amount: 3}}]);
     });
 
     it('a short deck delivers what it has, and the record keeps BOTH numbers', () => {

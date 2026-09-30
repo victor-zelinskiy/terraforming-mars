@@ -15,6 +15,7 @@ import {message} from '../../logs/MessageBuilder';
 import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class Sabotage extends Card implements IProjectCard {
   constructor() {
@@ -48,7 +49,12 @@ export class Sabotage extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return this.buildOptions(player);
+    const options = this.buildOptions(player);
+    // No silent loss outside solo (the neutral opponent is the solo rule — the preview is silent there too).
+    if (options === undefined && !player.game.isSoloMode()) {
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.noTarget, {label: actionPreviews.SKIPPED_LABEL.removeResources});
+    }
+    return options;
   }
 
   // The on-play preview: the SAME OrOptions `bespokePlay` builds, hosted as a

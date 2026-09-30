@@ -10,6 +10,7 @@ import {Card} from '../Card';
 import {IProjectCard} from '../IProjectCard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class FreyjaBiodomes extends Card implements IProjectCard {
   constructor() {
@@ -57,6 +58,8 @@ export class FreyjaBiodomes extends Card implements IProjectCard {
     const cards = this.getResCards(player);
 
     if (cards.length === 0) {
+      // No silent loss: the SAME label the preview warned with (microbes OR animals — no single chip is honest).
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.noHolder, {label: actionPreviews.SKIPPED_LABEL.addToCard});
       return undefined;
     }
 

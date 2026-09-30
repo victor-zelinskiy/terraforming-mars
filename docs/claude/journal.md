@@ -27,3 +27,16 @@ Component framework (`src/client/components/journal/`):
 
 Conventions: prefer transform/opacity animation, honour `prefers-reduced-motion` (handled in `journal.less`), no native `title` tooltips inside the journal (use `aria-label` + visible labels). When you add a new token type, add a `v-else-if` branch in `JournalTokenRenderer.vue` and a `.journal-token--*` style; don't render raw HTML.
 
+
+## «ПРОПУЩЕНО» — a skipped effect is a ROW (2026-09-30)
+
+An effect the engine could NOT apply (no card can hold the resource, no opponent can be hit, the deck is empty)
+arrives as the structured event `effect-skipped` (`impact.skipped = {label, reason, effect?}`, written by the ONE
+function `deferredActions/skippedEffect.recordSkippedEffect` under the live scope). `buildEventChildren` turns it
+into its own row (`bucket: 'skipped'`): the source chip, a «ПРОПУЩЕНО» badge, the effect's label, its magnitude as
+a STRUCK chip, the cause in italics — never merged (two lost effects are two statements) and read LAST (tier 4:
+after the gains, after the cost). The magnitude rides `vm.skipped.chip`, deliberately OUTSIDE `vm.chips`, so no
+pill, cluster or «+N» count ever sums a lost «+4» as a gain. Why a structured row and not the text log alone:
+`JournalGroup` renders a chain's EVENT rows and hides its text children whenever any event row exists — a skip
+written only to `game.log` was invisible in exactly the chains that also moved something. Contract:
+`.claude/rules/game-logic.md` § No silent loss.

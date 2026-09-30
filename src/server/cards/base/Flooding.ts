@@ -20,6 +20,7 @@ import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as actionPreviews from '../actionPreviews';
 import * as placementPreviews from '../placementPreviews';
 import {Priority} from '../../deferredActions/Priority';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class Flooding extends Card implements IProjectCard {
   constructor() {
@@ -68,6 +69,11 @@ export class Flooding extends Card implements IProjectCard {
    * derivation shared by `bespokePlay` and the read-only `placementPreview`, so
    * the panel can never name a different set than the follow-up prompt offers.
    */
+  /** WHAT the ocean's attack loses when nobody adjacent can be hit — the dossier's own causes name WHY. */
+  private skippedRemoval(): actionPreviews.SkippedEffect {
+    return {label: actionPreviews.SKIPPED_LABEL.removeResources, effect: actionPreviews.skippedAttackChip(Resource.MEGACREDITS, 4)};
+  }
+
   private adjacentOpponents(player: IPlayer, space: Space): ReadonlyArray<IPlayer> {
     const adjacentPlayers: Set<IPlayer> = new Set();
     player.game.board.getAdjacentSpaces(space).forEach((adjacent) => {
@@ -142,6 +148,8 @@ export class Flooding extends Card implements IProjectCard {
       }
       const adjacentPlayers = this.adjacentOpponents(player, space);
       if (adjacentPlayers.length === 0) {
+        // No silent loss: the dossier named it before the tile went down, the record names it after.
+        recordSkippedEffect(player, 'No opponent tile is adjacent', this.skippedRemoval());
         return undefined;
       }
       // The premium attack shape (the StealResources / RemoveAnyPlants
@@ -152,9 +160,10 @@ export class Flooding extends Card implements IProjectCard {
       // rendered as a context-less two-step wizard.
       const attackable = adjacentPlayers.filter((target) => this.removableFrom(target) > 0);
       if (attackable.length === 0) {
-        // Nobody adjacent holds any M€ — a silent no-op, like the shared
-        // removal helpers: the placement dossier already said so before the
-        // tile went down, and a prompt whose every row is dead is modal spam.
+        // Nobody adjacent holds any M€ — no prompt (one whose every row is dead
+        // is modal spam), but no silent loss either: the dossier said so before
+        // the tile went down, the record says it after.
+        recordSkippedEffect(player, 'Adjacent opponents have no M€', this.skippedRemoval());
         return undefined;
       }
       const removalOptions = attackable.map((target) => {

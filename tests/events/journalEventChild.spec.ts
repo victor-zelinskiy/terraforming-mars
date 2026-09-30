@@ -207,4 +207,62 @@ describe('journal event-driven children', () => {
     expect(parliamentSourceLabel({kind: 'parliament', rule: 'greenery-tile'})).to.eq('Greenery tile');
     expect(parliamentSourceLabel({kind: 'parliament'})).to.eq('Mars Parliament');
   });
+
+  describe('a SKIPPED effect (`effect-skipped`) — named, last, never summed', () => {
+    const PLAY = ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.SUPREME_EXPERTISE}, player: 'red', correlationId: 1});
+
+    it('reads LAST, whenever it was recorded — the closing note of the play', () => {
+      const events: Array<GameEvent> = [
+        PLAY,
+        ev({id: 4, type: 'effect-skipped', source: {kind: 'card', card: CardName.SUPREME_EXPERTISE}, player: 'red', visibility: 'journal', correlationId: 1, parentId: 1,
+          impact: {skipped: {label: 'Add resources to a card', reason: 'No eligible card', effect: {direction: 'gain', icon: 'data', amount: 4, note: 'to a card'}}}}),
+        ev({id: 2, type: 'resource-changed', source: {kind: 'payment'}, player: 'red', impact: {stock: {megacredits: -12}}, correlationId: 1, parentId: 1}),
+        ev({id: 3, type: 'resource-changed', source: {kind: 'spaceBonus'}, player: 'red', impact: {stock: {plants: 2}}, correlationId: 1, parentId: 1}),
+      ];
+      const rows = buildEventChildren(events, 1, 'red');
+      // Recorded FIRST, read LAST: after the gain, after the cost.
+      expect(rows.map((r) => r.bucket)).to.deep.eq(['spaceBonus', 'payment', 'skipped']);
+      expect(rows.flatMap((r) => r.chips).some((c) => c.icon === 'data'), 'the lost «+4» is never a chip').to.eq(false);
+    });
+
+    it('is its own row: the source, the label, the cause and the lost magnitude beside — never in — the chips', () => {
+      const events: Array<GameEvent> = [
+        PLAY,
+        ev({id: 3, type: 'effect-skipped', source: {kind: 'card', card: CardName.SUPREME_EXPERTISE}, player: 'red', visibility: 'journal', correlationId: 1, parentId: 1,
+          impact: {skipped: {label: 'Add resources to a card', reason: 'No eligible card', effect: {direction: 'gain', icon: 'data', amount: 4, note: 'to a card'}}}}),
+      ];
+      const rows = buildEventChildren(events, 1, 'red');
+      const skip = rows.find((r) => r.bucket === 'skipped');
+      expect(skip).to.deep.eq({
+        source: {kind: 'card', card: CardName.SUPREME_EXPERTISE},
+        player: undefined,
+        bucket: 'skipped',
+        chips: [],
+        skipped: {label: 'Add resources to a card', reason: 'No eligible card', chip: {icon: 'data', text: '+4'}},
+      });
+    });
+
+    it('a production attack keeps its production frame and its minus; an either/or effect has no chip', () => {
+      const events: Array<GameEvent> = [
+        PLAY,
+        ev({id: 2, type: 'effect-skipped', player: 'red', correlationId: 1, parentId: 1,
+          impact: {skipped: {label: 'Reduce another player\'s production', reason: 'No valid target available', effect: {direction: 'cost', icon: 'heat', amount: 2, note: 'production'}}}}),
+        ev({id: 3, type: 'effect-skipped', player: 'red', correlationId: 1, parentId: 1,
+          impact: {skipped: {label: 'Steal resources from another player', reason: 'No valid target available'}}}),
+      ];
+      const rows = buildEventChildren(events, 1, 'red');
+      expect(rows.map((r) => r.skipped)).to.deep.eq([
+        {label: 'Reduce another player\'s production', reason: 'No valid target available', chip: {icon: 'heat', text: '−2', production: true}},
+        {label: 'Steal resources from another player', reason: 'No valid target available'},
+      ]);
+    });
+
+    it('two lost effects are two rows, and another player\'s lost effect carries its owner', () => {
+      const lost = (id: number, player: 'red' | 'blue') => ev({id, type: 'effect-skipped', source: {kind: 'colony', name: ColonyName.TITAN, benefit: 'colonyBonus'}, player, correlationId: 1, parentId: 1,
+        impact: {skipped: {label: 'Add resources to a card', reason: 'No eligible card', effect: {direction: 'gain', icon: 'floater', amount: 1, note: 'to a card'}}}});
+      const rows = buildEventChildren([PLAY, lost(2, 'red'), lost(3, 'blue')], 1, 'red');
+      expect(rows).to.have.lengthOf(2);
+      expect(rows.map((r) => r.player)).to.deep.eq([undefined, 'blue']);
+    });
+  });
 });

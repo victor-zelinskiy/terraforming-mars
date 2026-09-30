@@ -129,6 +129,14 @@ describe('AresAdjacencyGrants', () => {
     expect(game.aresAdjacencyGrants[0].grants[0].delivery).eq('none');
     const loss = game.gameLog.find((m) => m.message === '${0} loses the ${1} adjacency bonus (no card can hold it)');
     expect(loss, 'the skipped effect names itself').is.not.undefined;
+    // …and it is a STRUCTURED fact too (the journal row, the notification line),
+    // with the tile's own specific log line kept — never a second, generic one.
+    const skipped = game.events.events.filter((e) => e.type === 'effect-skipped');
+    expect(skipped.map((e) => e.impact.skipped)).deep.eq([
+      {label: 'Add resources to a card', reason: 'No eligible card', effect: {direction: 'gain', icon: 'animal', amount: 1, note: 'to a card'}},
+    ]);
+    expect(skipped[0].player).eq(player.color);
+    expect(game.gameLog.some((m) => m.message === '${0} — effect skipped: ${1} (${2})')).is.false;
   });
 
   it('a DRAW_CARD adjacency reports draw and the reveal names the paying tile', () => {

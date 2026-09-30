@@ -161,7 +161,10 @@ export function impactTouchesOwner(impact: EventImpact): boolean {
     (impact.deltaPosition !== undefined && impact.deltaPosition.steps !== 0) ||
     // A Modular Floodgates blockade PLACED against the owner is personal by
     // definition (the quiet 'expired' phase is a journal fact, not a touch).
-    (impact.deltaBlockade !== undefined && impact.deltaBlockade.phase === 'placed');
+    (impact.deltaBlockade !== undefined && impact.deltaBlockade.phase === 'placed') ||
+    // An effect of the owner's that could not apply is theirs to know about —
+    // a colony bonus someone else's trade owed them, lost for want of a holder.
+    impact.skipped !== undefined;
 }
 
 /**

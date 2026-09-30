@@ -10,6 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class VenusianPlants extends Card implements IProjectCard {
   constructor() {
@@ -52,6 +53,8 @@ export class VenusianPlants extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     const cards = this.getResCards(player);
     if (cards.length === 0) {
+      // No silent loss: the SAME label the preview warned with (microbe OR animal — no single chip is honest).
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.noHolder, {label: actionPreviews.SKIPPED_LABEL.addToCard});
       return undefined;
     }
 

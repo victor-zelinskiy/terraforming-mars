@@ -47,16 +47,11 @@ export class EcologyResearch extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     // autoSelect:false — ALWAYS ask which card receives the resource (even with a
     // single candidate) so the player sees where the animal / microbes land; the
-    // play modal pre-collects both picks in order (animal then microbe).
-    const animalCards = player.getResourceCards(CardResource.ANIMAL);
-    if (animalCards.length) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 1, autoSelect: false, cause: cardSource(this)}));
-    }
-
-    const microbeCards = player.getResourceCards(CardResource.MICROBE);
-    if (microbeCards.length) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: 2, autoSelect: false, cause: cardSource(this)}));
-    }
+    // play modal pre-collects both picks in order (animal then microbe). Deferred
+    // UNCONDITIONALLY: with no holder the shared step names the lost resource
+    // itself (no silent loss) — the SAME description the preview warned with.
+    player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 1, autoSelect: false, cause: cardSource(this)}));
+    player.game.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: 2, autoSelect: false, cause: cardSource(this)}));
 
     return undefined;
   }
@@ -80,10 +75,7 @@ export class EcologyResearch extends Card implements IProjectCard {
     } else {
       steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', {
         resource: CardResource.ANIMAL,
-        skipped: {
-          label: actionPreviews.SKIPPED_LABEL.addToCard,
-          effect: actionPreviews.cardResourceGain(CardResource.ANIMAL, 1),
-        },
+        skipped: actionPreviews.skippedAddToCard(CardResource.ANIMAL, 1),
       }));
     }
     if (player.getResourceCards(CardResource.MICROBE).length > 0) {
@@ -92,10 +84,7 @@ export class EcologyResearch extends Card implements IProjectCard {
     } else {
       steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', {
         resource: CardResource.MICROBE,
-        skipped: {
-          label: actionPreviews.SKIPPED_LABEL.addToCard,
-          effect: actionPreviews.cardResourceGain(CardResource.MICROBE, 2),
-        },
+        skipped: actionPreviews.skippedAddToCard(CardResource.MICROBE, 2),
       }));
     }
     return actionPreviews.playPreview(this, player, extra, steps);

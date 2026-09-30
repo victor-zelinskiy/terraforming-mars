@@ -94,7 +94,7 @@ export class CorporateTheft extends Card implements IProjectCard, IActionCard {
       }
     });
 
-    const action = removeResourcesFromCard.execute();
+    const action = removeResourcesFromCard.composedPrompt();
     if (action !== undefined) {
       options.options.push(action);
     }

@@ -199,6 +199,55 @@ describe('notificationModel (pure)', () => {
     });
   });
 
+  describe('a SKIPPED effect on the card (no silent loss, after the fact)', () => {
+    const lost = (id: number, corr: number, player: Color, amount: number) => event({
+      id, type: 'effect-skipped', player, correlationId: corr, source: {kind: 'card', card: CARD},
+      impact: {skipped: {label: 'Add resources to a card', reason: 'No eligible card', effect: {direction: 'gain', icon: 'data', amount, note: 'to a card'}}},
+    });
+
+    it('an opponent\'s play names what it lost as its own line — never a pill, never a gain', () => {
+      const header = rootHeader(RED, 80);
+      const chain = [
+        event({id: 80, type: 'action', player: RED, correlationId: 80, source: {kind: 'card', card: CARD}, impact: {}}),
+        event({id: 81, type: 'production-changed', player: RED, correlationId: 80, source: {kind: 'card', card: CARD}, impact: {production: {energy: 1}}}),
+        lost(82, 80, RED, 4),
+      ];
+      const {models} = diffRootNotifications({messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1});
+      expect(models[0].skipped).to.deep.eq([{label: 'Add resources to a card', reason: 'No eligible card', chip: {icon: 'data', text: '+4'}}]);
+      expect(models[0].pills.map((p) => p.icon), 'the lost data is not summed into the headline').to.deep.eq(['energy']);
+      expect((models[0].pillGroups ?? []).flatMap((g) => g.chips).some((c) => c.icon === 'data')).to.eq(false);
+      expect(models[0].sign, 'nothing moved for the viewer').to.eq('neutral');
+    });
+
+    it('an effect the VIEWER lost to someone else\'s action names its owner, and the card reaches the viewer\'s personal feed', () => {
+      const header = rootHeader(RED, 90, 'colony');
+      const chain = [
+        event({id: 90, type: 'action', player: RED, correlationId: 90, source: {kind: 'card', card: CARD}, impact: {}}),
+        lost(91, 90, BLUE, 1),
+      ];
+      const {models} = diffRootNotifications({messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1});
+      expect(models[0].skipped?.[0]).to.deep.include({owner: BLUE});
+      expect(models[0].affects).to.include(BLUE);
+    });
+
+    it('no skip → no field at all (absent, never an empty list)', () => {
+      const header = rootHeader(RED, 95);
+      const chain = [event({id: 95, type: 'action', player: RED, correlationId: 95, source: {kind: 'card', card: CARD}, impact: {}}),
+        event({id: 96, type: 'production-changed', player: RED, correlationId: 95, source: {kind: 'card', card: CARD}, impact: {production: {energy: 1}}})];
+      const {models} = diffRootNotifications({messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1});
+      expect('skipped' in models[0]).to.eq(false);
+    });
+
+    it('a skip that lands late (a deferred step) joins the card on refresh', () => {
+      const fee = event({id: 701, type: 'resource-changed', player: RED, correlationId: 70, source: {kind: 'payment'}, impact: {stock: {megacredits: -12}}});
+      expect(recomputeRootImpact([fee], 70, RED, BLUE).skipped).to.deep.eq([]);
+      const full = recomputeRootImpact([fee, lost(702, 70, RED, 4)], 70, RED, BLUE);
+      expect(full.skipped).to.have.lengthOf(1);
+      expect(full.childVMs.map((vm) => vm.bucket)).to.deep.eq(['payment', 'skipped']);
+      expect(full.pills.map((p) => p.icon)).to.deep.eq(['megacredits']);
+    });
+  });
+
   describe('passive-effect root', () => {
     it('carries the effect source CARD (for the name + popover + details); its action is the journal', () => {
       const header = rootHeader(BLUE, 50);

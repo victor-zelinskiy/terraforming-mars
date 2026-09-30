@@ -5,7 +5,7 @@ import {Units} from '@/common/Units';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {tileTypeToString} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
-import {EventImpact} from '@/common/events/EventImpact';
+import {EventImpact, SkippedEffectFact} from '@/common/events/EventImpact';
 import {EventSource, ParliamentRule, sourceKey} from '@/common/events/EventSource';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
@@ -68,7 +68,9 @@ export type JournalChildSource =
 export type JournalChildBucket =
   | 'payment' | 'discount' | 'placement' | 'spaceBonus' | 'oceanBonus'
   | 'copied' | 'effect' | 'colony' | 'globalParameter' | 'production'
-  | 'card' | 'system';
+  | 'card' | 'system'
+  /** An effect that could NOT apply (`effect-skipped`) — named, never summed. */
+  | 'skipped';
 
 export type JournalChildVM = {
   source: JournalChildSource;
@@ -82,6 +84,14 @@ export type JournalChildVM = {
   tileLabel?: string;
   /** copied-action extra. */
   copiedCard?: CardName;
+  /**
+   * An effect that could NOT apply (`effect-skipped`): WHICH (`label`), WHY
+   * (`reason`), and the magnitude lost as a chip of its own. Deliberately
+   * OUTSIDE `chips`: nothing moved, so the pills that sum `chips` (the
+   * notification's headline, its ownership clusters) must never count a lost
+   * «+4» as a gain. `chips` stays empty on such a row.
+   */
+  skipped?: {label: string; reason: string; chip?: JournalImpactChip};
 };
 
 const UNIT_KEYS: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
@@ -142,6 +152,22 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
   return chips;
 }
 
+/**
+ * The display shape of a skipped effect (`effect-skipped`): its i18n label and
+ * cause, and the magnitude it would have moved as a chip — a gain on the
+ * player's own card reads «+4», a cost on someone else's pool «−3»; the row
+ * draws it struck through. A production attack keeps its production frame.
+ */
+export function skippedRowOf(fact: SkippedEffectFact): {label: string; reason: string; chip?: JournalImpactChip} {
+  const e = fact.effect;
+  const chip: JournalImpactChip | undefined = e === undefined ? undefined : {
+    icon: e.icon,
+    text: e.direction === 'gain' ? `+${e.amount}` : `−${e.amount}`,
+    ...(e.note === 'production' ? {production: true} : {}),
+  };
+  return {label: fact.label, reason: fact.reason, ...(chip === undefined ? {} : {chip})};
+}
+
 // Every event maps to an EXPLICIT source — the action's own results show the
 // action card itself, payments read "Payment", bonuses get a semantic label —
 // so a child row is never source-less.
@@ -198,6 +224,9 @@ const MARKER_TYPES = new Set(['effect-triggered', 'copied-action']);
 
 /** The semantic bucket a raw event belongs to (keeps unlike rows distinct). */
 function bucketFor(e: GameEvent): JournalChildBucket {
+  if (e.type === 'effect-skipped') {
+    return 'skipped';
+  }
   if (e.type === 'tile-placed') {
     return 'placement';
   }
@@ -253,10 +282,14 @@ function rootCardOf(events: ReadonlyArray<GameEvent>, rootId: number): CardName 
  *       it placed): the most direct "what I got";
  *   1 — INDIRECT gains from other effects (bonuses, other cards, colony income);
  *   2 — discounts (cost reductions — a saving, but cost-related so after gains);
- *   3 — payment + any net LOSS (what was spent / lost) — last.
+ *   3 — payment + any net LOSS (what was spent / lost);
+ *   4 — an effect that could NOT apply (nothing moved) — the closing note.
  * A stable sort within a tier preserves the chronological story.
  */
 function childTier(vm: JournalChildVM, rootCard: CardName | undefined): number {
+  if (vm.bucket === 'skipped') {
+    return 4;
+  }
   if (vm.bucket === 'payment') {
     return 3;
   }
@@ -341,6 +374,12 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
         space: e.space,
         tileLabel: e.tile !== undefined ? tileTypeToString[e.tile] : undefined,
       }, []);
+      continue;
+    }
+    if (e.type === 'effect-skipped' && e.impact.skipped !== undefined) {
+      // Each skipped effect is its OWN row (never merged — two lost effects are
+      // two statements), keyed by event id; its magnitude rides `skipped.chip`.
+      push(`skipped|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], skipped: skippedRowOf(e.impact.skipped)}, []);
       continue;
     }
     const chips = [...impactChips(e.impact), ...(foldedChips.get(e.id) ?? [])];

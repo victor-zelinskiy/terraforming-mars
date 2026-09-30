@@ -44,6 +44,14 @@ export type GameEventType =
    * an office is not a resource, so no `impact` delta names it.
    */
   | 'chairman-seated'
+  /**
+   * NO SILENT LOSS, the live half: an effect the engine could NOT apply — no
+   * card can hold the resource, no opponent can be hit. `impact.skipped` names
+   * WHICH effect, WHY, and the magnitude lost, in the SAME words the play
+   * preview's warning used before the commit; `player` is the one whose effect
+   * it was. Journal-visible, never a delta.
+   */
+  | 'effect-skipped'
   // High-level game milestones:
   | 'milestone-claimed'
   | 'award-funded'

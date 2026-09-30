@@ -14,6 +14,7 @@ import {Priority} from '../../deferredActions/Priority';
 import {DP10_ADVANCE, DeltaProjectExpansion} from '../../delta/DeltaProjectExpansion';
 import {DeltaEspionageInput} from '../../delta/DeltaEspionageInput';
 import {buildEspionageProjection} from '../../delta/deltaEspionage';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 /**
  * DP10 — CORPORATE ESPIONAGE.
@@ -157,6 +158,7 @@ export class CorporateEspionage extends Card implements IProjectCard {
         // the input: this branch is unreachable while a legal target exists).
         game.log('${0} found no player to push back on the Hydronetwork — the attack of ${1} is skipped', (b) =>
           b.player(player).cardName(this.name));
+        recordSkippedEffect(player, actionPreviews.SKIP_REASON.noTarget, {label: actionPreviews.SKIPPED_LABEL.pushBack}, {log: false});
       }
 
       // ── The owner's own advance: strictly after the attack resolves. ──

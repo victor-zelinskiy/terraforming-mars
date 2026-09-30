@@ -14,6 +14,7 @@ import {attackEffect} from '../../inputs/choiceContext';
 import {message} from '../../logs/MessageBuilder';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 import {AutomaTargeting} from '../../automa/AutomaTargeting';
 
 export class CometForVenus extends Card implements IProjectCard {
@@ -47,7 +48,20 @@ export class CometForVenus extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return this.buildOptions(player);
+    const options = this.buildOptions(player);
+    // No silent loss outside solo (the neutral opponent is the solo rule — the preview is silent there too).
+    if (options === undefined && !player.game.isSoloMode()) {
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.noTarget, this.skippedRemoval());
+    }
+    return options;
+  }
+
+  /** WHAT is lost when no Venus-tagged opponent can be hit — the preview's warning and the live record say it alike. */
+  private skippedRemoval(): actionPreviews.SkippedEffect {
+    return {
+      label: actionPreviews.SKIPPED_LABEL.removeResources,
+      effect: actionPreviews.skippedAttackChip(Resource.MEGACREDITS, 4),
+    };
   }
 
   // The on-play preview: the declarative venus chip + the SAME M€-steal OrOptions
@@ -58,10 +72,7 @@ export class CometForVenus extends Card implements IProjectCard {
     const step = actionPreviews.targetStepOrWarning(player,
       options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined,
       undefined,
-      {
-        label: actionPreviews.SKIPPED_LABEL.removeResources,
-        effect: actionPreviews.skippedAttackChip(Resource.MEGACREDITS, 4),
-      });
+      this.skippedRemoval());
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 

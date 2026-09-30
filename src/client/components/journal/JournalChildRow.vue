@@ -26,6 +26,34 @@
       </span>
     </template>
 
+    <!-- An effect that could NOT apply: "<source> [Пропущено] <which> [struck
+         magnitude] · <why>". Nothing moved, so the magnitude is drawn struck
+         and muted — never a gain chip. -->
+    <template v-else-if="vm.skipped !== undefined">
+      <span class="journal-child-row__lead">
+        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
+        <span class="journal-child-row__skipped-badge" v-i18n>Skipped</span>
+        <span v-if="vm.player !== undefined"
+              class="journal-player journal-child-row__player"
+              :class="'player_translucent_bg_color_' + vm.player">
+          <span class="journal-player__dot" :class="'player_bg_color_' + vm.player" aria-hidden="true"></span>
+          <span class="journal-player__name">{{ playerName(vm.player) }}</span>
+        </span>
+      </span>
+      <!-- No arrow: nothing flowed from the source — the row states what did NOT. -->
+      <span class="journal-child-row__impacts">
+        <span class="journal-child-row__skipped-label" v-i18n>{{ vm.skipped.label }}</span>
+        <span v-if="vm.skipped.chip !== undefined"
+              class="journal-child-row__chip journal-child-row__chip--skipped"
+              :class="{'journal-child-row__chip--prod': vm.skipped.chip.production === true}">
+          <span class="journal-child-row__chip-icon" :class="iconClass(vm.skipped.chip.icon)" aria-hidden="true"></span>
+          <span class="journal-child-row__chip-amt">{{ vm.skipped.chip.text }}</span>
+        </span>
+        <span class="journal-child-row__skipped-reason" v-i18n>{{ vm.skipped.reason }}</span>
+      </span>
+    </template>
+
     <!-- Source → impact. -->
     <template v-else>
       <span class="journal-child-row__lead">

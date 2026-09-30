@@ -7,10 +7,10 @@ import {GameEvent, JournalActionCategory} from '@/common/events/GameEvent';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {buildJournalView} from '@/client/components/journal/journalView';
-import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip, skippedRowOf} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
 import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
-import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NotificationSkippedLine, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 import {LogMessageType} from '@/common/logs/LogMessageType';
 
 /**
@@ -414,7 +414,7 @@ export function recomputeRootImpact(
   correlationId: number,
   actor: Color | undefined,
   viewerColor?: Color,
-): {pills: Array<JournalImpactChip>; pillGroups: Array<NotificationPillGroup>; detailCount: number; childVMs: Array<JournalChildVM>; viewerImpact: ViewerImpactMeta} {
+): {pills: Array<JournalImpactChip>; pillGroups: Array<NotificationPillGroup>; detailCount: number; childVMs: Array<JournalChildVM>; viewerImpact: ViewerImpactMeta; skipped: Array<NotificationSkippedLine>} {
   const chain = events.filter((e) => e.correlationId === correlationId);
   const childVMs = buildEventChildren(chain, correlationId, actor);
   const viewerImpact = viewerImpactOfChain(chain, viewerColor, actor);
@@ -425,7 +425,29 @@ export function recomputeRootImpact(
     ...viewerImpact,
     sourceCard: viewerImpact.sourceCard ?? rootSourceCard(chain, correlationId),
   };
-  return {pills, pillGroups: contextPillGroups(contextVms), detailCount: childVMs.length, childVMs, viewerImpact: withSource};
+  return {pills, pillGroups: contextPillGroups(contextVms), detailCount: childVMs.length, childVMs, viewerImpact: withSource, skipped: skippedLinesOf(chain, actor)};
+}
+
+/**
+ * NO SILENT LOSS, on the card: every effect of this chain that could NOT apply
+ * (the server's own `effect-skipped` records), in chain order. The line names the
+ * owner only when the lost effect was not the actor's.
+ */
+export function skippedLinesOf(chain: ReadonlyArray<GameEvent>, actor: Color | undefined): Array<NotificationSkippedLine> {
+  const lines: Array<NotificationSkippedLine> = [];
+  for (const e of chain) {
+    if (e.type !== 'effect-skipped' || e.impact.skipped === undefined) {
+      continue;
+    }
+    const row = skippedRowOf(e.impact.skipped);
+    lines.push({...row, ...(e.player !== undefined && e.player !== actor ? {owner: e.player} : {})});
+  }
+  return lines;
+}
+
+/** The optional model field, absent (not an empty list) when nothing was skipped. */
+function skippedField(lines: Array<NotificationSkippedLine>): {skipped?: ReadonlyArray<NotificationSkippedLine>} {
+  return lines.length > 0 ? {skipped: lines} : {};
 }
 
 // ── Root-event notification ─────────────────────────────────────────────────
@@ -549,6 +571,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     pills,
     pillGroups: pillGroups.length > 0 ? pillGroups : undefined,
     detailCount: vms.length,
+    ...skippedField(skippedLinesOf(chain, actor)),
     correlationId: input.correlationId,
     generation: input.generation,
     ttl: NOTIFICATION_TTL[kind],

@@ -168,6 +168,9 @@ export type NotificationCta = {
  * `JournalChildVM` children so the card can reuse the journal's renderers, and
  * a parsed prompt for the turn notifications.
  */
+/** One skipped effect on a notification card — see `NotificationModel.skipped`. */
+export type NotificationSkippedLine = {label: string; reason: string; chip?: JournalImpactChip; owner?: Color};
+
 export type NotificationModel = {
   /** Stable de-dup key. Root events → `g<correlationId>`; turn → `turn:<kind>`. */
   id: string;
@@ -240,6 +243,15 @@ export type NotificationModel = {
   pillGroups?: ReadonlyArray<NotificationPillGroup>;
   /** Number of breakdown rows available behind "+N details". */
   detailCount: number;
+  /**
+   * NO SILENT LOSS, after the fact: the effects of this chain that could NOT
+   * apply (`effect-skipped` — no holder, no target), each named with its cause
+   * and the magnitude lost. Its own line on the card, never a pill: nothing
+   * moved, so it can neither be summed nor passed off as a gain. `owner` is set
+   * when the lost effect belonged to someone other than the actor (a colony
+   * bonus an opponent's trade owed the viewer).
+   */
+  skipped?: ReadonlyArray<NotificationSkippedLine>;
   /** The journal root-event id, for "open in journal" + highlight. */
   correlationId?: number;
 

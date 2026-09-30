@@ -17,6 +17,7 @@ import {ActionPreview, TabbedPlantTarget, TabbedTargetsStep} from '../../../comm
 import {SelectCardModel} from '../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../actionPreviews';
 import {attackEffect, cardSource} from '../../inputs/choiceContext';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class Virus extends Card implements IProjectCard {
   constructor() {
@@ -45,8 +46,11 @@ export class Virus extends Card implements IProjectCard {
 
     const orOptions = this.buildRemovalOptions(player);
     if (orOptions === undefined) {
-      // If no other player has resources to remove.
-      player.game.log('There was nobody to steal plants or animals from.');
+      // No silent loss: nobody had animals or plants to take — the record names
+      // the removal with the SAME label and cause the preview warned with.
+      recordSkippedEffect(player,
+        this.protectedPlantTargets(player).length > 0 ? actionPreviews.SKIP_REASON.plantsProtected : actionPreviews.SKIP_REASON.noTarget,
+        {label: actionPreviews.SKIPPED_LABEL.removeAnimalsOrPlants});
       return undefined;
     }
     return orOptions;
@@ -59,10 +63,10 @@ export class Virus extends Card implements IProjectCard {
   // undefined when there's nobody to remove from. Structure: [animal SelectCard?,
   // ...opponent plant SelectOptions, MarsBot animal option?, skip].
   public buildRemovalOptions(player: IPlayer): OrOptions | undefined {
-    // Extract the animal-CARD picker by TYPE (execute() may itself bundle a
+    // Extract the animal-CARD picker by TYPE (the composed prompt may itself bundle a
     // MarsBot option now — we add the bot animal target separately below via the
     // shared helper so the tab classifies it cleanly by its 'animal' icon).
-    const orOptionsAnimals = new RemoveResourcesFromCard(player, CardResource.ANIMAL, 2, {mandatory: false, log: true, cause: cardSource(this)}).execute();
+    const orOptionsAnimals = new RemoveResourcesFromCard(player, CardResource.ANIMAL, 2, {mandatory: false, log: true, cause: cardSource(this)}).composedPrompt();
     const removeAnimals = orOptionsAnimals instanceof OrOptions ?
       orOptionsAnimals.options.find((o) => o instanceof SelectCard) :
       undefined;

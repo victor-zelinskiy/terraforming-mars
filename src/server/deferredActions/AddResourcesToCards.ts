@@ -64,7 +64,8 @@ import {cardsToModel} from '../models/ModelUtils';
 import {AddResourcesToCard, cardResourceKinds, holderResourceIcons, holderResourceOf, holdsOneOf} from './AddResourcesToCard';
 // Runtime-only calls (safe circular import: actionPreviews imports the
 // deferred actions at top level; these are late-bound reads at prompt time).
-import {cardResourceIcon, distributionVictoryPoints} from '../cards/actionPreviews';
+import {cardResourceIcon, distributionVictoryPoints, SKIP_REASON, skippedAddToCard} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 export type Options = {
   /**
@@ -134,6 +135,8 @@ export class AddResourcesToCards extends DeferredAction<ReadonlyArray<ResourcePl
     }
     const cards = this.getCards();
     if (cards.length === 0) {
+      // No silent loss: the whole N is named, never an anonymous no-op.
+      recordSkippedEffect(this.player, SKIP_REASON.noHolder, skippedAddToCard(this.resourceTypes, this.count));
       return undefined;
     }
     if (!this.distributes()) {

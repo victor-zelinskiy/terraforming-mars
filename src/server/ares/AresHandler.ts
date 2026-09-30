@@ -17,6 +17,8 @@ import {Phase} from '../../common/Phase';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {SelectProductionToLoseDeferred} from '../deferredActions/SelectProductionToLoseDeferred';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {recordSkippedEffect} from '../deferredActions/skippedEffect';
+import {SKIP_REASON, skippedAddToCard} from '../cards/actionPreviews';
 import {namedCardSource} from '../inputs/choiceContext';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {AutomaAres} from '../automa/AutomaAres';
@@ -90,9 +92,11 @@ export class AresHandler {
       {delivery: AresAdjacencyDelivery, targetCard?: CardName} {
       const availableCards = player.getResourceCards(resourceType);
       if (availableCards.length === 0) {
-        // No silent loss: the skipped effect names itself in the log.
+        // No silent loss: the adjacency bonus names itself — the text line AND the
+        // structured record the journal row and the notification read.
         player.game.log('${0} loses the ${1} adjacency bonus (no card can hold it)', (b) =>
           b.player(player).string(resourceAsText));
+        recordSkippedEffect(player, SKIP_REASON.noHolder, skippedAddToCard(resourceType, 1), {log: false});
         return {delivery: 'none'};
       }
       // The SHARED add-resource pick, premium end to end: never a silent

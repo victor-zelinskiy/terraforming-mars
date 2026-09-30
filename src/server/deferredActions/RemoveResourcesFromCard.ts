@@ -12,6 +12,9 @@ import {message} from '../logs/MessageBuilder';
 import {CardName} from '../../common/cards/CardName';
 import {skip, removeCardResourceFromPlayer} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+// Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
+import {cardResourceIcon, SKIP_REASON, SKIPPED_LABEL, skippedAttackChip} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 export type Source = 'self' | 'opponents' | 'all';
 export type Response = {card: ICard, owner: IPlayer, proceed: boolean} | {card: undefined, owner: undefined, proceed: boolean};
@@ -71,6 +74,20 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
   }
 
   public execute() {
+    return this.run(/* recordSkip= */ true);
+  }
+
+  /**
+   * The prompt for a COMPOSER that folds this removal into a choice of its own
+   * (Virus: animals OR plants; Corporate Theft) — `execute()` without the skip
+   * record: an empty card list here does not mean the composed EFFECT was
+   * skipped, and whether it was is the composer's to say.
+   */
+  public composedPrompt() {
+    return this.run(/* recordSkip= */ false);
+  }
+
+  private run(recordSkip: boolean) {
     if (this.source !== 'self' && this.player.game.isSoloMode()) {
       this.player.resolveInsuranceInSoloGame();
       this.cb({card: undefined, owner: undefined, proceed: true});
@@ -89,6 +106,14 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     const botOption = this.botOption(() => this.cb({card: undefined, owner: undefined, proceed: true}));
 
     if (cards.length === 0 && botOption === undefined) {
+      // No silent loss: an attack on someone else's card that finds no card names
+      // itself (a removal from your OWN card is a cost, gated before it is asked).
+      if (recordSkip && this.source !== 'self') {
+        recordSkippedEffect(this.player, SKIP_REASON.noTarget, {
+          label: SKIPPED_LABEL.removeResources,
+          effect: this.cardResource === undefined ? undefined : skippedAttackChip(cardResourceIcon(this.cardResource), this.count),
+        });
+      }
       this.cb({card: undefined, owner: undefined, proceed: false});
       return undefined;
     }

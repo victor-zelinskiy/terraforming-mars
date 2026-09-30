@@ -273,6 +273,9 @@ describe('deltaAdvancePlan (the ordered projected resource plan)', () => {
       expect(player.popWaitingFor(), 'no empty prompt').is.undefined;
       const log = game.gameLog.map((m) => m.message).join('\n');
       expect(log).to.contain('had no usable action to repeat');
+      // …and the structured fact the journal row and the notification read (the text line stays the only log line).
+      const skipped = game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped);
+      expect(skipped).deep.eq([{label: 'Repeat a used action', reason: 'No used action to repeat'}]);
     });
 
     it('other candidates remain → the standard selector serves them (never an empty fallback)', () => {

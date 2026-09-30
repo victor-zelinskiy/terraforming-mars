@@ -480,6 +480,37 @@
     white-space: nowrap;
     flex-shrink: 0;
 }
+/* A SKIPPED effect (`effect-skipped`): the "ПРОПУЩЕНО" word in a muted slate —
+   neither a gain's mint nor a loss's red, because nothing moved. The magnitude
+   chip is struck through and dimmed; the label and the cause read as quiet prose. */
+.journal-child-row__skipped-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 4px;
+    background: rgba(150, 165, 185, 0.12);
+    border: 1px dashed rgba(170, 186, 206, 0.55);
+    color: #c9d4e2;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.journal-child-row__skipped-label { font-size: 11px; color: @j-text; }
+.journal-child-row__skipped-reason { font-size: 11px; color: @j-text-muted; font-style: italic; }
+/* Doubled class: the base `.journal-child-row__chip` is declared LATER in this file at equal specificity. */
+.journal-child-row__chip.journal-child-row__chip--skipped {
+    background: rgba(120, 135, 155, 0.10);
+    border-style: dashed;
+    border-color: rgba(160, 176, 196, 0.40);
+    color: @j-text-muted;
+    /* On the NUMBER itself: a flex container does not reliably hand its decoration down. */
+    .journal-child-row__chip-amt { text-decoration: line-through; }
+    .journal-child-row__chip-icon { opacity: 0.6; }
+}
 .journal-child-row--spaceBonus     { --src-rim: rgba(120, 200, 130, 0.40); --src-fg: #bfe6c6; }
 .journal-child-row--oceanBonus     { --src-rim: rgba(96, 168, 230, 0.42);  --src-fg: #bcd9f4; }
 .journal-child-row--colony         { --src-rim: rgba(120, 200, 210, 0.42); --src-fg: #b6e3ea; }

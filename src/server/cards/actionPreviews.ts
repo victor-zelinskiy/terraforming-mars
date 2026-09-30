@@ -372,7 +372,38 @@ export const SKIPPED_LABEL = {
   reduceProduction: 'Reduce another player\'s production',
   removeAnimalsOrPlants: 'Remove animals or plants from another player',
   addToCard: 'Add resources to a card',
+  // Named only AFTER the fact (their cause cannot be known before the commit):
+  drawCards: 'Draw cards',
+  repeatAction: 'Repeat a used action',
+  pushBack: 'Push another player back on the Hydronetwork',
 } as const;
+
+/**
+ * WHY a skipped effect could not apply — the short CAUSE the after-the-fact
+ * record states (`effect-skipped`: the journal row, the notification line).
+ * The preview's warning sentences speak of the future («… will not be
+ * added») and stay as they are; a record of what already happened names the
+ * cause alone.
+ */
+export const SKIP_REASON = {
+  noHolder: 'No eligible card',
+  noTarget: 'No valid target available',
+  plantsProtected: 'Plants are protected',
+  deckEmpty: 'The deck is empty',
+  noActionToRepeat: 'No used action to repeat',
+} as const;
+
+/**
+ * WHAT an «add N <resource> to a card» loses when no card can hold it — ONE
+ * description the preview's warning and the live record share, so the
+ * promise before the commit and the record after it can never read apart.
+ * Several kinds (or any) draw the generic resource icon.
+ */
+export function skippedAddToCard(resource: CardResource | ReadonlyArray<CardResource> | undefined, amount: number): SkippedEffect {
+  const kinds = resource === undefined ? [] : typeof resource === 'string' ? [resource] : resource;
+  const icon = kinds.length === 1 ? cardResourceIcon(kinds[0]) : 'resources';
+  return {label: SKIPPED_LABEL.addToCard, effect: {direction: 'gain', icon, amount, note: 'to a card'}};
+}
 
 /** The muted chip for a skipped attack on ANOTHER player's pool: it changes
  *  nobody's value, so there is no `current → resulting` — just the magnitude

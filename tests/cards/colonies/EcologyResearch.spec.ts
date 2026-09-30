@@ -58,7 +58,11 @@ describe('EcologyResearch', () => {
     player.playedCards.push(tardigrades, ants);
 
     card.play(player);
-    expect(game.deferredActions).has.lengthOf(1);
+    // Both additions are deferred; the animal one finds no holder and NAMES its loss
+    // (no silent loss) instead of never being queued.
+    expect(game.deferredActions).has.lengthOf(2);
+    expect(game.deferredActions.pop()!.execute()).is.undefined;
+    expect(game.events.events.filter((e) => e.type === 'effect-skipped').map((e) => e.impact.skipped?.effect?.icon)).deep.eq(['animal']);
 
     // add two microbes to Ants
     const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);

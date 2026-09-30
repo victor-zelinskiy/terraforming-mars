@@ -15,6 +15,7 @@ import {message} from '../../logs/MessageBuilder';
 import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../../inputs/optionMetadata';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class HiredRaiders extends Card implements IProjectCard {
   constructor() {
@@ -44,7 +45,12 @@ export class HiredRaiders extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    return this.buildOptions(player);
+    const options = this.buildOptions(player);
+    if (options === undefined) {
+      // No silent loss: the SAME label the preview warned with, named in the record.
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.noTarget, {label: actionPreviews.SKIPPED_LABEL.stealResources});
+    }
+    return options;
   }
 
   // The on-play preview: the SAME steal OrOptions `bespokePlay` builds, hosted as

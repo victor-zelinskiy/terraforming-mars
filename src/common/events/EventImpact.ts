@@ -119,4 +119,22 @@ export type EventImpact = {
    * loss cases). Absent where the live value wasn't threaded (documented partial).
    */
   snapshot?: {resource: string; scope: 'stock' | 'production'; before: number; after: number};
+  /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
+  skipped?: SkippedEffectFact;
+};
+
+/**
+ * WHAT an `effect-skipped` event lost — the after-the-fact twin of the play
+ * preview's `warning` note (`skipped: {label, effect}`), in the same
+ * vocabulary so the promise and the record read alike: `label` names the
+ * effect (the shared `SKIPPED_LABEL` keys), `reason` says why it could not
+ * apply (a short i18n key: «No eligible card», «No valid target available»),
+ * `effect` is the magnitude it would have moved (a gain on the player's own
+ * card, or a cost on someone else's pool), absent when no single magnitude is
+ * honest (an either/or attack).
+ */
+export type SkippedEffectFact = {
+  label: string;
+  reason: string;
+  effect?: {direction: 'gain' | 'cost'; icon: string; amount: number; note?: string};
 };

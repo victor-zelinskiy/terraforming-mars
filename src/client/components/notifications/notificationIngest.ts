@@ -361,6 +361,8 @@ function refreshQueuedImpacts(events: ReadonlyArray<GameEvent>, viewerColor: Col
       n.pillGroups = next.pillGroups.length > 0 ? next.pillGroups : undefined;
       n.detailCount = next.detailCount;
       n.childVMs = next.childVMs;
+      // A skip that landed late (a deferred step of the same action) joins its card.
+      n.skipped = next.skipped.length > 0 ? next.skipped : undefined;
       // A chain that grew a viewer delta upgrades the QUEUED model — it has
       // not presented yet, so this is still preparation, not a visible
       // mutation. A loss surfacing this way is COVERED: the standalone

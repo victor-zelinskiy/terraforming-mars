@@ -9,6 +9,9 @@ import {Message} from '../../common/logs/Message';
 import {ChoiceContextSource, DisabledOptionModel} from '../../common/models/PlayerInputModel';
 import {disabledPlayerTarget, removeCorpPlantsFromBot, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
+// Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
+import {SKIP_REASON, SKIPPED_LABEL, skippedAttackChip} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 /** Plants ON the bot's corporation card (Ecoline) — 0 for humans and corpless bots. */
 function corpPlantPoolOf(target: IPlayer): number {
@@ -118,7 +121,15 @@ export class RemoveAnyPlants extends DeferredAction {
       return this.withCause(new OrOptions(...removalOptions).setTitle(this.title));
     }
 
-    return this.buildOptions();
+    const options = this.buildOptions();
+    if (options === undefined) {
+      // No silent loss: nobody had plants to lose — the attack names itself in the record.
+      recordSkippedEffect(player, SKIP_REASON.noTarget, {
+        label: SKIPPED_LABEL.removePlants,
+        effect: skippedAttackChip(Resource.PLANTS, this.count),
+      });
+    }
+    return options;
   }
 
   private skipOption(): SelectOption {

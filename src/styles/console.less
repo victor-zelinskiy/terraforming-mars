@@ -14762,6 +14762,8 @@ html.con-profile-handheld .con-mafocus {
     .journal-child-row__tile { font-size: .7rem; }
     .journal-child-row__copied, .journal-child-row__player, .journal-child-row__arrow { font-size: .65rem; }
     .journal-child-row__discount-badge { font-size: .6rem; }
+    .journal-child-row__skipped-badge { font-size: .6rem; }
+    .journal-child-row__skipped-label, .journal-child-row__skipped-reason { font-size: .65rem; }
     .journal-chip__dot { width: .4rem; height: .4rem; }
     .journal-chip__tag { width: .8rem; height: .8rem; }
     .journal-chip__cost-value { font-size: .65rem; }
@@ -26351,6 +26353,40 @@ html.console-mode .notifications-layer {
     &__cluster-tag--planet { border-left-color: fade(@con-cyan, 55%); }
     &__cluster-tag--others { border-left-color: rgba(196, 216, 236, 0.5); }
 
+    /* ── NO SILENT LOSS — «ПРОПУЩЕНО»: an effect of this action that could NOT
+       apply, named with its cause. Slate, dashed, the magnitude struck —
+       nothing moved, so it borrows no sign tone and can never read as a
+       reward or a loss. Below the clusters, the quietest statement. ── */
+    &__skips {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .25rem;
+        margin: .4rem 0 0;
+        padding: 0;
+        list-style: none;
+    }
+    &__skip {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .3rem;
+    }
+    &__skip-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: .08rem .4rem .08rem .3rem;
+        border-left: .125rem dashed rgba(170, 186, 206, 0.55);
+        font-size: .55rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: fade(#c4d8ec, 62%);
+        white-space: nowrap;
+    }
+    &__skip-label { font-size: .7rem; color: @con-text; }
+    &__skip-reason { font-size: .7rem; color: @con-text-dim; font-style: italic; }
+
     /* Impact chips (band + clusters reuse one look). */
     &__chip {
         display: inline-flex;
@@ -26370,6 +26406,15 @@ html.console-mode .notifications-layer {
         &--prod { background: rgba(66, 48, 34, 0.8); }
         /* Neutral before → after (a global-parameter change) — never sign-tinted. */
         &--neutral { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 50%); color: #d7ecf8; }
+        /* A SKIPPED effect's magnitude — struck and slate: it did not happen. */
+        &--skipped {
+            box-shadow: inset 0 0 0 .05rem rgba(170, 186, 206, 0.45);
+            color: @con-text-dim;
+
+            /* On the NUMBER itself: a flex container does not reliably hand its decoration down. */
+            .con-notif__chip-amt { text-decoration: line-through; }
+            .con-notif__chip-icon { opacity: .55; }
+        }
     }
     &__chip-icon {
         display: inline-block;

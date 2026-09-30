@@ -10,6 +10,7 @@ import {IProjectCard} from '../IProjectCard';
 import {ICard} from '../ICard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
 
 export class AirScrappingExpedition extends Card implements IProjectCard {
   constructor() {
@@ -49,6 +50,8 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     const floaterCards = this.floaterCards(player);
     if (floaterCards.length === 0) {
+      // No silent loss: the SAME description the preview warned with.
+      recordSkippedEffect(player, actionPreviews.SKIP_REASON.noHolder, actionPreviews.skippedAddToCard(CardResource.FLOATER, 3));
       return undefined;
     }
 
@@ -76,10 +79,7 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
       actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards, {amount: 3}) :
       actionPreviews.warningNote('No eligible card — this resource is not added.', {
         resource: CardResource.FLOATER,
-        skipped: {
-          label: actionPreviews.SKIPPED_LABEL.addToCard,
-          effect: actionPreviews.cardResourceGain(CardResource.FLOATER, 3),
-        },
+        skipped: actionPreviews.skippedAddToCard(CardResource.FLOATER, 3),
       });
     return actionPreviews.playPreview(this, player, extraEffects, [step]);
   }

@@ -9,7 +9,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
-import {EventImpact} from '../../common/events/EventImpact';
+import {EventImpact, SkippedEffectFact} from '../../common/events/EventImpact';
 import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
@@ -360,6 +360,17 @@ export class EventRecorder {
       impact: {},
       ...(previous === undefined ? {} : {target: {player: previous}}),
     });
+  }
+
+  /**
+   * NO SILENT LOSS, the live half: an effect of `player`'s that could not
+   * apply (no holder, no target). Recorded under the live scope, so the fact
+   * joins the play's own chain — the journal row and the notification name it
+   * where the action is told. Journal-visible; nothing moved, so no delta.
+   * Written only by `deferredActions/skippedEffect.recordSkippedEffect`.
+   */
+  public recordEffectSkipped(player: IPlayer, skipped: SkippedEffectFact): void {
+    this.record({type: 'effect-skipped', player: player.color, impact: {skipped}, visibility: 'journal'});
   }
 
   /** Record a tile placement (carries the space for "show on map" + the tile type). */

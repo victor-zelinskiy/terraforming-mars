@@ -501,3 +501,15 @@ A persisted presentation preference (`notificationFeedMode.ts`, localStorage `tm
 **FIFO stays intact when a toast is suppressed.** A filtered model never enters transient/queue: no 5 s auto-close lifetime, no `holdsFlow`, `notificationsSettled()` reads true immediately (a mandatory prompt never waits behind a phantom toast); the journal/event stream is untouched (seen-sets are marked at diff time regardless, so flipping the mode back replays nothing). The bot staged-commit pipeline advances via the generalized **`ensureBotPresentationLiveness` front-walk**: leading pending turns with NO card in the presentation deliver their visuals immediately in order (a fully-filtered batch walks to the end = the authoritative commit), and the walk STOPS at the first pending turn whose card is still visible/queued — a later turn can never commit ahead of an earlier card's presentation. Filtered bot turns are soft-ACKED at push time (`presentFreshBotTurns` ack loop — no card will ever finish to ack them). A mode switch re-checks the QUEUE only (`reconcileQueueWithFeedMode`, wired by a module watch): visible toasts finish their own lifecycle; dropped queued bot cards are acked and the staging module's own liveness watcher drains their timeline in order (delivering from the reconcile would commit a batch out of order — deliberately NOT done).
 
 **The setting** is a ring row (`notifications`) in `consoleSettingsModel.ts`'s ИНТЕРФЕЙС category (both hosts: main menu + in-game system menu). `.con-set` heights were re-calibrated for the five-row category (base 20.4rem / TV 25.4rem) — «no category ever needs to scroll» is guarded by the `console-options-settings` e2e. i18n keys in `ru/console.json` («Быстрые уведомления», «Все события», «Только связанные со мной» + the description). Guards: `tests/notifications/notificationFeedPolicy.spec.ts` (exhaustive classification worklist + fail-open + locale independence), `notificationFeedMode.spec.ts`, feed-mode blocks in `notificationState.spec.ts` / `marsBotStagedCommits.spec.ts` (full/partial-filter FIFO) / `consoleOptionsPanel.spec.ts`.
+
+## «ПРОПУЩЕНО» on the card — a skipped effect is a LINE, never a pill (2026-09-30)
+
+A root chain carrying `effect-skipped` events (see `docs/claude/journal.md` § «ПРОПУЩЕНО») builds
+`NotificationModel.skipped` (`skippedLinesOf` — label, cause, struck magnitude, and `owner` when the lost effect
+was not the actor's; absent, never an empty list, when nothing was skipped). `ConsoleNotificationCard` prints at
+most two «Пропущено» lines under the context clusters; nothing about them rides `pills` / `pillGroups` and they
+never tint the card (nothing moved). `impactTouchesOwner` counts `impact.skipped`, so a player whose effect
+someone ELSE's action lost (a colony bonus owed by an opponent's trade, with no holder) gets the card in the
+«только связанные со мной» feed. A skip recorded by a deferred step joins its card on refresh
+(`recomputeRootImpact` → `skipped`). The actor's own ordinary action still raises no card — they saw the
+preview's warning before the commit, and the journal keeps the row.

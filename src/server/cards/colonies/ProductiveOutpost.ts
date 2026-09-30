@@ -176,10 +176,8 @@ export class ProductiveOutpost extends Card implements IProjectCard {
       if (new AddResourcesToCard(player, resource).getCards().length === 0) {
         steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', {
           resource,
-          skipped: {
-            label: actionPreviews.SKIPPED_LABEL.addToCard,
-            effect: actionPreviews.cardResourceGain(resource, amount),
-          },
+          // The SAME description each colony bonus's shared step records if the play goes ahead.
+          skipped: actionPreviews.skippedAddToCard(resource, amount),
         }));
       } else {
         effects.push(actionPreviews.cardResourceGain(resource, amount));

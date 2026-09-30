@@ -28,6 +28,9 @@ import {DeltaMovementCause, activeDeltaBlockade, commitDeltaMovement, commitDelt
 import {DeltaBlockadeTargetBlockedReason} from '../../common/models/DeltaBlockadeModel';
 import {DeltaBlockade} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaEspionageBlockedReason, DeltaStageOutcomeProjection} from '../../common/models/DeltaEspionageModel';
+// Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
+import {SKIP_REASON, SKIPPED_LABEL} from '../cards/actionPreviews';
+import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 
 /**
  * The ordered tags for each track position (1-indexed).
@@ -1382,6 +1385,7 @@ export class DeltaProjectExpansion {
         // NO SILENT LOSS: the reward fizzling for want of a candidate is a
         // named omission, never a quiet nothing — the resolution continues.
         player.game.log('${0} had no usable action to repeat — the Hydronetwork reward is skipped', (b) => b.player(player));
+        recordSkippedEffect(player, SKIP_REASON.noActionToRepeat, {label: SKIPPED_LABEL.repeatAction}, {log: false});
         break;
       }
       {

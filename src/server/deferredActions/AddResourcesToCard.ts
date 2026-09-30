@@ -12,7 +12,8 @@ import {message} from '../logs/MessageBuilder';
 import {From} from '../logs/From';
 // Runtime-only calls (safe circular import: actionPreviews imports this class
 // at top level, these two are late-bound function reads at prompt-build time).
-import {cardResourceIcon, targetVictoryPoints} from '../cards/actionPreviews';
+import {cardResourceIcon, SKIP_REASON, skippedAddToCard, targetVictoryPoints} from '../cards/actionPreviews';
+import {recordSkippedEffect} from './skippedEffect';
 
 /**
  * THE KINDS a pick spans, as a LIST — one kind is the list of one (every
@@ -179,13 +180,15 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
   }
 
   public execute() {
-    const cards = this.getCards();
-    if (cards.length === 0) {
+    const qty = this.options.count ?? 1;
+    if (qty === 0) {
       return undefined;
     }
 
-    const qty = this.options.count ?? 1;
-    if (qty === 0) {
+    const cards = this.getCards();
+    if (cards.length === 0) {
+      // No silent loss: the preview warned before the commit; the record names it after.
+      recordSkippedEffect(this.player, SKIP_REASON.noHolder, skippedAddToCard(this.resourceTypes, qty));
       return undefined;
     }
 
