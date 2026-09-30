@@ -471,6 +471,45 @@ FIRST confirm»;
 opponent-interleave деградирует в live-переспрос (drain живёт в нашем роуте);
 полировка: hero-сцена авто-приземлённого пина сейчас generic (flyRemote).
 
+## 9-quinquies. ТРЕТЬЯ ЦЕЛЬ — РЕЗОЛЮЦИЯ (STAGED VOTE, TR03, 2026-09-30)
+
+Staged-хранилище осталось ОДНИМ; у него появилась вторая форма цели. Раньше рука (`flow: 'play'`) и действие синей
+карты (`flow: 'action'`) целились в КЛЕТКУ; теперь розыгрыш может целиться в РЕЗОЛЮЦИЮ Парламента — карта, которая
+ставит делегата самим розыгрышем (TR03 «Политическое пожертвование», `docs/TURMOIL_REDUX_POLITICAL_DONATION.md`).
+
+```ts
+export type StagedPlayTarget =
+  | {kind: 'cell', placement: StagedPlacementModel}
+  | {kind: 'resolution', vote: StagedVoteModel};   // {prompt: SelectPartyModel, sourceCard: CardName}
+StagedPlayArm.target                                // ровно одна; .placement как поля больше нет
+stagedPlacementOf(arm?) / stagedVoteOf(arm?)        // читатели — один на форму
+```
+
+Что общее (и потому не переписывалось): `armStagedPlay` / `clearStagedPlay` / `stagedPlayActive()`, `committing` и
+abort-батарея транспорта (`markStagedPlayCommitting` / `abortStagedPlayCommit`), `PlayComposerDraft` + возврат B,
+ритуал `beginStagedPlayLanding` (карта ложится в «Разыграно» ДО сервера), `actionBlockedReason` (одна причина, пока
+решение открыто), сверка с миром по `gameStateVersion`.
+
+Что у резолюции своё:
+
+| | клетка | резолюция |
+| --- | --- | --- |
+| Куда уходит экран | на поле: `yieldStackForStagedPlay()` | НИКУДА: `pushWorkspaceFrame({kind: 'parliament', …})` — режим голосования встаёт шагом ВНУТРИ руки, в её зоне `hand-play` |
+| Синтетический промпт | `stagedPlayPrompt` → `placementSpaceModel` | `stagedVoteModel` → `parliamentPromptBridge(wf, staged)` (тот же `bridge.grant` + `staged`) |
+| Хвост батча | `{type: 'space', spaceId, stagedFor}` | `{type: 'party', partyName, stagedFor}` |
+| Адрес хвоста (`stagedMismatch`) | промпт размещения этой карты | `SelectParty` с `votePrompt.source === 'grant'` и `choiceContext.source.card === stagedFor` |
+| Уход ритуала | прокси растворяется вместе с уходящим workspace | RELEASE на месте: сцена «Разыграно» и прокси гаснут, Парламент поднимается из той же зоны (`enterStagedVote`) |
+| После коммита | played-hero тайла, выплаты от клетки | посадка режима (куб + нейтральные), затем рука уходит ОДНОЙ поверхностью |
+| Сверка мира | `reconcileStagedPlayWorldMove` | `reconcileStagedVoteWorldMove` → три исхода `settleStagedVote` (LANDED / RE-ASKED / PARKED — зеркало §9-quater) |
+
+⚠ Две ловушки, оплаченные один раз:
+- **Хранилище реактивно — в нём лежит PROXY плеча.** `stagedPlayState.arm === arm` для только что положенного `arm`
+  ложно всегда; «это ещё наше плечо?» спрашивается по содержимому (`stagedVoteOf() !== undefined && arm.cardName`), не
+  по идентичности. С проверкой по идентичности композер не размонтировался вовсе и забирал ввод у режима.
+- **Композер размонтируется ДО `finishStagedPlayedLanding()`.** Конец сцены посадки без исхода он читает как ОТКАЗ
+  сервера (`landingHolding` ↓ без `playLandingYieldedToOutcome`) и возвращает свою настройку — кадр «вернулся композер»
+  под уже стоящим Парламентом. У клетки этого не было видно только потому, что `pendingPlayCard` гасился первым.
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.

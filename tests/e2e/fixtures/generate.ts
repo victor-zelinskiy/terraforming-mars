@@ -152,6 +152,7 @@ import {GeothermalPower} from '../../../src/server/cards/base/GeothermalPower';
 import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
 import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
 import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/PoliticalScience';
+import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
@@ -1024,6 +1025,35 @@ parliamentFixture('political-science-assembly', {
         card === undefined || card.resourceCount !== 0) {
       throw new Error(`the political-science-assembly fixture expected red to win the middle slot with blue's two delegates on the Greens' loser and 0 data, got ${JSON.stringify(winner)} blue-on-greens=${greens === undefined ? '-' : parliament.votesOf(p1, greens)} data=${card?.resourceCount}`);
     }
+  },
+});
+// ── political-donation (TR03): the STAGED VOTE — the vote's third door. Blue's first action phase with
+//    «Политическое пожертвование» in hand, 20 M€, the free delegate in the lobby and a full reserve (the
+//    card's delegate leaves the RESERVE — the lobby's cube must still stand after the play). The voting
+//    area is pinned: the Industrialists' card first, Mars First's second, the Greens' third (the Greens
+//    rule by the starting rule, so slots 0 and 1 read a real «1 of 2»).
+//    SYNTHETIC, for the frame «предел области»: Mars First's area already holds 2 neutral delegates —
+//    no sitting has been held yet, so no engine path put them there; the ledger stays whole (the supply
+//    is 14 − 2). Slot 0 then promises «0 → 3», slot 1 «2 → 3 · +1 из 3 · предел области». ──
+parliamentFixture('political-donation', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({p1, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    parliament.popularSupport.set(PartyName.MARS, 2);
+    p1.cardsInHand.push(new PoliticalDonation());
+  },
+  expect: ({game, parliament, p1}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.POLITICAL_DONATION);
+    const parties = parliament.slots.map((s) => parliament.resolutionOf(s.instance).party);
+    if (card === undefined || !p1.canPlay(card) || !parliament.lobby.has(p1.id) || parliament.reserve(p1) < 2 ||
+        parties[0] !== PartyName.INDUSTRIALISTS || parties[1] !== PartyName.MARS ||
+        parliament.popularSupportOf(PartyName.INDUSTRIALISTS) !== 0 || parliament.popularSupportOf(PartyName.MARS) !== 2) {
+      throw new Error(`the political-donation fixture expected a playable card, the lobby cube, a reserve of 2+, slots [Industrialists, Mars First] with support 0 / 2 — got playable=${card !== undefined && p1.canPlay(card)} lobby=${parliament.lobby.has(p1.id)} reserve=${parliament.reserve(p1)} parties=${parties.join(',')} support=${parliament.popularSupportOf(PartyName.INDUSTRIALISTS)}/${parliament.popularSupportOf(PartyName.MARS)}`);
+    }
+    parliament.assertLedger(game);
   },
 });
 // Generation 2 has just begun: the results scene moves the card from its voting
