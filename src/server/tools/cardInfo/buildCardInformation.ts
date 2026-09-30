@@ -297,9 +297,12 @@ function enResourceCount(res: Resource, n: number): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** Card resources named by a MASS noun — «4 data», never «4 datas» (TR01 printed the first plural of one). */
+const UNCOUNTABLE_CARD_RESOURCES: ReadonlySet<CardResource> = new Set([CardResource.DATA, CardResource.STEEL, CardResource.GRAPHENE]);
+
 function enCardResource(res: CardResource, n: number): string {
   const noun = res.toLowerCase();
-  return n === 1 ? noun : (noun.endsWith('s') ? noun : `${noun}s`);
+  return n === 1 || UNCOUNTABLE_CARD_RESOURCES.has(res) ? noun : (noun.endsWith('s') ? noun : `${noun}s`);
 }
 
 /** Space-bonus nouns for an adjacency-bonus phrase (in-scope Ares tiles). */

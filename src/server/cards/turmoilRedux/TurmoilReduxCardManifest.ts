@@ -4,6 +4,7 @@ import {EvaMechs} from './EvaMechs';
 import {FormulaZero} from './FormulaZero';
 import {AutomatedConvoys} from './AutomatedConvoys';
 import {PoliticalScience} from './PoliticalScience';
+import {SupremeExpertise} from './SupremeExpertise';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -40,5 +41,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // card of THIS manifest is the module itself (the deck gate), never `compatibility: 'turmoil'`
     // (the upstream-adaptation marker that demands `politics: 'redux'`).
     [CardName.POLITICAL_SCIENCE]: {Factory: PoliticalScience},
+    // The purple Turmoil symbol at the bottom left again — the module is the gate (see TR02 above).
+    [CardName.SUPREME_EXPERTISE]: {Factory: SupremeExpertise},
   },
 });

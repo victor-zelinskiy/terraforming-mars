@@ -1074,6 +1074,7 @@ export enum CardName {
   FORMULA_ZERO = 'Formula Zero',
   AUTOMATED_CONVOYS = 'Automated Convoys',
   POLITICAL_SCIENCE = 'Political Science',
+  SUPREME_EXPERTISE = 'Supreme Expertise',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
