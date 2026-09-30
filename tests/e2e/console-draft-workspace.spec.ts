@@ -395,10 +395,13 @@ test.describe('draft workspace · the between-generations flow', () => {
       const w = window as unknown as {__flip?: FlipSt};
       const st: FlipSt = {timer: 0, samples: 0, mid: 0, max: 0, first: '', ts: [], refMax: 0, winT0: 0, midWindow: 0};
       const t0 = performance.now();
-      // The A/B REFERENCE: an injected slot with the same classes proved to
-      // flip on this very stylesheet in isolation — if it flips here too
-      // while the real slots stay flat, the difference lives in the real
-      // subtree, not the environment.
+      // The A/B REFERENCE — a CONTROL for «does this page run a rotateY right now at all». The pass turn is a
+      // WAAPI animation (the slots carry `__passFlip` and one live Animation), so the control is one too: a
+      // visible 40×56 element turned by the same kind of animation over the same window. It USED to be a slot
+      // with the pass classes, flipped by a CSS animation that no longer exists — it read 0° in every run,
+      // green ones included (rerun 2026-09-30: real slots 82°, reference 0°), so it could not tell a starved
+      // compositor (the WAAPI animations stay PENDING for the whole window: real 0°, reference 0°) from the
+      // hidden-stage regression it exists for (real 0°, reference turning).
       let ref: HTMLElement | undefined;
       const angOf = (tf: string): number => {
         if (!tf.startsWith('matrix3d')) {
@@ -411,17 +414,13 @@ test.describe('draft workspace · the between-generations flow', () => {
         const els = Array.from(document.querySelectorAll<HTMLElement>('.con-draftws__slot--passing .con-draftws__slot-flip'));
         if (els.length > 0 && ref === undefined) {
           ref = document.createElement('div');
-          ref.className = 'con-draftws';
-          ref.style.cssText = 'position:fixed;left:4px;top:4px;opacity:0.02;pointer-events:none;';
-          ref.innerHTML = '<div class="con-cards__slot con-draftws__slot con-draftws__slot--passing" style="--con-draftws-pass-x: 40px; --con-draftws-pass-dir: 1; width:40px;height:56px;">' +
-            '<div class="con-draftws__slot-flip"><div class="con-draftws__slot-face">R</div></div></div>';
+          ref.style.cssText = 'position:fixed;left:4px;top:4px;width:40px;height:56px;opacity:0.02;pointer-events:none;';
           document.body.appendChild(ref);
+          ref.animate([{transform: 'rotateY(0deg)'}, {transform: 'rotateY(180deg)'}], {duration: 1200, fill: 'forwards'});
+          (w as unknown as {__flipRef?: HTMLElement}).__flipRef = ref;
         }
         if (ref !== undefined) {
-          const rf = ref.querySelector<HTMLElement>('.con-draftws__slot-flip');
-          if (rf !== null) {
-            st.refMax = Math.max(st.refMax, angOf(getComputedStyle(rf).transform));
-          }
+          st.refMax = Math.max(st.refMax, angOf(getComputedStyle(ref).transform));
         }
         for (const el of els) {
           st.samples++;
@@ -473,6 +472,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       const w = window as unknown as {__flip: {timer: number, samples: number, mid: number, max: number, first: string, ts: Array<string>, refMax: number, midWindow: number}, __flipMo?: MutationObserver};
       window.clearInterval(w.__flip.timer);
       w.__flipMo?.disconnect(); // the probe may not keep taxing the rest of the tour
+      (w as unknown as {__flipRef?: HTMLElement}).__flipRef?.remove();
       return {samples: w.__flip.samples, mid: w.__flip.mid, max: Math.round(w.__flip.max),
         refMax: Math.round(w.__flip.refMax), midWindow: w.__flip.midWindow, first: w.__flip.first, ts: w.__flip.ts.slice(0, 12)};
     });
@@ -484,10 +484,12 @@ test.describe('draft workspace · the between-generations flow', () => {
     // moving part — so the assert names the BUG SHAPE it exists for: a
     // HEALTHY sampler across the whole pass that never saw ANY 3D transform
     // (the hidden-stage regression measured midWindow 41..274 with max=0).
-    if (flip.max === 0 && flip.midWindow >= 60) {
-      expect(flip.mid, 'the pass physically TURNS (a healthy sampler saw no rotateY at all — the hidden-stage shape)').toBeGreaterThan(0);
+    // …and ONLY when the page was animating at all: the control turned (a starved compositor leaves every WAAPI
+    // animation pending — the real slots AND the control read 0°, and that says nothing about the product).
+    if (flip.max === 0 && flip.midWindow >= 60 && flip.refMax > 0) {
+      expect(flip.mid, `the pass physically TURNS (a healthy sampler saw no rotateY at all while the control turned ${flip.refMax}° — the hidden-stage shape)`).toBeGreaterThan(0);
     } else if (flip.mid === 0) {
-      console.log('[pass-flip] window drifted/starved under jank — angle assertion skipped');
+      console.log(`[pass-flip] no angle witnessed and the control turned ${flip.refMax}° — ${flip.refMax > 0 ? 'the window drifted under jank' : 'the page ran no WAAPI transform in the window (a starved compositor)'}; angle assertion skipped`);
     }
     await expect.poll(async () => (await surface(page)).shelfCards, {timeout: 20_000}).toBe(1);
     s = await surface(page);

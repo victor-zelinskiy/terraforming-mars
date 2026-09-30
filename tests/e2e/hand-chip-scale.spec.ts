@@ -52,15 +52,22 @@ async function shoot(page: Page, name: string): Promise<void> {
 /** Arm the page-side flight sampler (interval + observer, never rAF). */
 async function armSampler(page: Page): Promise<void> {
   await page.evaluate((card) => {
-    const w = window as unknown as {__chipSamples?: Array<Sample>, __chipTimer?: number};
+    const w = window as unknown as {__chipSamples?: Array<Sample>, __chipTimer?: number, __chipMiss?: unknown};
     w.__chipSamples = [];
+    // WHY a tick recorded nothing — so «0 samples» names its cause instead of reading as a dead sampler.
+    const miss: {ticks: number, noBody: number, noChip: number, turning: number, tiny: number, cosMax?: number} =
+      {ticks: 0, noBody: 0, noChip: 0, turning: 0, tiny: 0};
+    w.__chipMiss = miss;
     const take = () => {
+      miss.ticks++;
       const body = document.querySelector<HTMLElement>(`[data-hand-dock-card="${card}"][data-reveal-card]`);
       if (body === null) {
+        miss.noBody++;
         return;
       }
       const chip = body.querySelector<HTMLElement>('.con-deal-proxy__chip');
       if (chip === null) {
+        miss.noChip++;
         return;
       }
       // THE FLIP GATE: the episode turns the card in 3D (`rotationY` on
@@ -73,8 +80,14 @@ async function armSampler(page: Page): Promise<void> {
       if (flip !== null) {
         const t = getComputedStyle(flip).transform;
         if (t.startsWith('matrix3d(')) {
-          const m11 = Number.parseFloat(t.slice('matrix3d('.length));
-          if (!(m11 > 0.98)) {
+          // The ANGLE, never the raw m11: a rotateY under a scale puts scale·cosθ in m11 and −scale·sinθ in m13
+          // (the first column), so cosθ = m11 / |(m11, m13)|. Read raw, a flip layer that also carries a scale
+          // (the TV profile's proxy does) never looked flat — every 4K sample was rejected as «turning».
+          const m = t.slice('matrix3d('.length, -1).split(',').map((v) => Number.parseFloat(v));
+          const cos = m[0] / Math.hypot(m[0], m[2]);
+          miss.cosMax = Math.max(miss.cosMax ?? -1, Math.round(cos * 1000) / 1000);
+          if (!(cos > 0.98)) {
+            miss.turning++;
             return; // turning or back-facing — width is foreshortened
           }
         }
@@ -82,6 +95,7 @@ async function armSampler(page: Page): Promise<void> {
       const b = body.getBoundingClientRect();
       const c = chip.getBoundingClientRect();
       if (b.width < 4 || c.width < 2) {
+        miss.tiny++;
         return;
       }
       // Double-render witness: VISIBLE chips naming this card. The slot's own
@@ -97,6 +111,41 @@ async function armSampler(page: Page): Promise<void> {
     mo.observe(document.body, {childList: true, subtree: true, attributes: true});
     w.__chipTimer = window.setInterval(take, 16);
   }, CARD);
+}
+
+type Miss = {ticks: number, noBody: number, noChip: number, turning: number, tiny: number, cosMax?: number};
+
+const readMiss = (page: Page): Promise<Miss> =>
+  page.evaluate(() => ((window as unknown as {__chipMiss?: Miss}).__chipMiss ?? {ticks: 0, noBody: 0, noChip: 0, turning: 0, tiny: 0}));
+
+/**
+ * A PROBE'S FLOOR MAY ONLY CATCH A DEAD SAMPLER (tests.md). The ratio is judged on FRONT-FLAT frames only, and how
+ * many of those a run gets is the harness's business: on a loaded 4K runner the page paints every 100–200 ms, the
+ * flat tail of the flight falls between two paints, and «≥ 3 samples» failed a flight whose every frame was sampled
+ * mid-turn (measured: 28 body ticks, all turning, cos ≤ 0.98). So the floor asserts what IS a defect — the sampler
+ * ran, the flight's body was on screen, it carried its chip — and the ratio claims run on whatever flat frames exist.
+ */
+function expectFlightSampled(label: string, samples: ReadonlyArray<Sample>, miss: Miss): void {
+  const why = `${samples.length} flat samples, misses ${JSON.stringify(miss)}`;
+  expect(miss.ticks, `${label}: the sampler ran (${why})`).toBeGreaterThanOrEqual(3);
+  expect(miss.ticks - miss.noBody, `${label}: the flight's body was on screen (${why})`).toBeGreaterThan(0);
+  expect(miss.noChip, `${label}: the flying body carries its chip (${why})`).toBe(0);
+  if (samples.length === 0) {
+    console.log(`[chip-scale] ${label}: every sampled frame was mid-turn — the ratio has no flat frame to be judged on (${why})`);
+  }
+}
+
+/**
+ * THE FLIGHT IS OVER when its body has been on screen and has LEFT (the handoff) — a fixed 2.4 s / 2.2 s stood in
+ * for that, and on a loaded 4K runner the samples were read mid-flight, before the flat tail they are judged on
+ * (measured: 0 flat samples at the read, `cosMax: 1` arriving after it).
+ */
+async function awaitFlightEnd(page: Page, label: string): Promise<void> {
+  await expect.poll(() => page.evaluate((card) => {
+    const miss = (window as unknown as {__chipMiss?: {ticks: number, noBody: number}}).__chipMiss;
+    const seen = miss !== undefined && miss.ticks - miss.noBody > 0;
+    return seen && document.querySelector(`[data-hand-dock-card="${card}"][data-reveal-card]`) === null;
+  }, CARD), {timeout: 30_000, message: `${label}: the flight's body came and went`}).toBe(true);
 }
 
 async function readSamples(page: Page): Promise<Array<Sample>> {
@@ -171,7 +220,7 @@ for (const preset of PRESETS) {
       // ── OPEN: sample the flight, then the settled slot. ──────────────
       await armSampler(page);
       expect(await openHandFast(page), 'the hand opened (the fast open: wheel → A)').toBe(true);
-      await page.waitForTimeout(2400); // open ≈ lift + flight + spread + handoff
+      await awaitFlightEnd(page, 'open');
       const openSamples = await readSamples(page);
       // The REFERENCE must be the card at REST: a focused slot carries the
       // album's focus scale (`--selected`, ~1.08 on TV) and would skew the
@@ -188,32 +237,34 @@ for (const preset of PRESETS) {
       const rest = await restingRatio(page);
       await shoot(page, `${preset.tag}-open`);
       expect(rest, 'the settled album shows the blocked card with its chip').toBeDefined();
-      expect(openSamples.length,
-        `a dead sampler fails, a starved one does not — saw ${openSamples.length} samples`).toBeGreaterThanOrEqual(3);
-      const open = ratioStats(openSamples);
-      // 1. Constant ratio through the flight (one composition, no jumps).
-      expect(open.max / open.min,
-        `flight ratio must not drift: ${JSON.stringify(open)}`).toBeLessThan(1.1);
-      // 2. …and it is the RESTING ratio — the handoff cannot pop.
-      expect(Math.abs(open.mean - rest!.ratio) / rest!.ratio,
-        `flight ${open.mean.toFixed(3)} vs resting ${rest!.ratio.toFixed(3)} (slot ${rest!.slotW.toFixed(0)}px)`).toBeLessThan(0.1);
-      // 3. Never two representations of the chip at once.
-      expect(Math.max(...openSamples.map((s) => s.chips)), 'one chip per card at every frame').toBeLessThanOrEqual(1);
+      expectFlightSampled('open', openSamples, await readMiss(page));
+      if (openSamples.length > 0) {
+        const open = ratioStats(openSamples);
+        // 1. Constant ratio through the flight (one composition, no jumps).
+        expect(open.max / open.min,
+          `flight ratio must not drift: ${JSON.stringify(open)}`).toBeLessThan(1.1);
+        // 2. …and it is the RESTING ratio — the handoff cannot pop.
+        expect(Math.abs(open.mean - rest!.ratio) / rest!.ratio,
+          `flight ${open.mean.toFixed(3)} vs resting ${rest!.ratio.toFixed(3)} (slot ${rest!.slotW.toFixed(0)}px)`).toBeLessThan(0.1);
+        // 3. Never two representations of the chip at once.
+        expect(Math.max(...openSamples.map((s) => s.chips)), 'one chip per card at every frame').toBeLessThanOrEqual(1);
+      }
 
       // ── CLOSE: the same three claims in the gather direction. ────────
       await armSampler(page);
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(2200);
+      await awaitFlightEnd(page, 'close');
       const closeSamples = await readSamples(page);
       await shoot(page, `${preset.tag}-closed`);
-      expect(closeSamples.length,
-        `the close flight was sampled — saw ${closeSamples.length}`).toBeGreaterThanOrEqual(3);
-      const close = ratioStats(closeSamples);
-      expect(close.max / close.min,
-        `close ratio must not drift: ${JSON.stringify(close)}`).toBeLessThan(1.1);
-      expect(Math.abs(close.mean - rest!.ratio) / rest!.ratio,
-        `close ${close.mean.toFixed(3)} vs resting ${rest!.ratio.toFixed(3)}`).toBeLessThan(0.1);
-      expect(Math.max(...closeSamples.map((s) => s.chips))).toBeLessThanOrEqual(1);
+      expectFlightSampled('close', closeSamples, await readMiss(page));
+      if (closeSamples.length > 0) {
+        const close = ratioStats(closeSamples);
+        expect(close.max / close.min,
+          `close ratio must not drift: ${JSON.stringify(close)}`).toBeLessThan(1.1);
+        expect(Math.abs(close.mean - rest!.ratio) / rest!.ratio,
+          `close ${close.mean.toFixed(3)} vs resting ${rest!.ratio.toFixed(3)}`).toBeLessThan(0.1);
+        expect(Math.max(...closeSamples.map((s) => s.chips))).toBeLessThanOrEqual(1);
+      }
     });
   });
 }

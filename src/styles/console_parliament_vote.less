@@ -415,9 +415,13 @@
     from { opacity: 0.35; }
     to { opacity: 1; }
 }
-.con-parl-xfade-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard; }
+.con-parl-xfade-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
 .con-parl-xfade-leave-active { transition: opacity calc(140ms * var(--motion-scale, 1)) @con-ease-standard; }
-.con-parl-xfade-enter-from { opacity: 0; transform: translateY(.25rem); }
+/* IN PLACE (the template's own contract: «the bodies crossfade in place when the selection moves»): no rise.
+   A .25rem lift on the entering body was a box moving under a d-pad step that moves only the selection
+   (invariant 13) — on the 4K harness the double-rAF that starts a Vue enter lands late, and the stability
+   probe read the body still 10 px low 700 ms after ← (`console-parliament-stability` § the vote mode). */
+.con-parl-xfade-enter-from { opacity: 0; }
 .con-parl-xfade-leave-to { opacity: 0; }
 
 /* ── the HANDHELD ladder (the vote mode's rows at the Deck's size). ── */
