@@ -249,8 +249,18 @@ type Report = {
   classMismatch: boolean,
   proxyCls: string,
   faceCls: string,
-  /** The recorder's median sample gap over the flight — the page's cadence. */
+  /** The RECORDER's median sample gap over the flight — main-thread liveness
+   *  (a stalled main thread stretches it), NOT the paint cadence: the
+   *  setInterval keeps its 8 ms while the compositor paints at 10 fps. */
   medianGapMs: number,
+  /**
+   * The page's PAINT cadence: the median interval between two consecutive
+   * proxy positions over the arc. The arc is a rAF-driven tween that writes
+   * the proxy on every painted frame, so its writes ARE the frame clock
+   * (measured 2026-09-30 against an in-page rAF log: no rAF tick without a
+   * proxy change from the lift to the touchdown).
+   */
+  paintMs: number,
 };
 
 function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, kind: string, seq0: number, revealKey: string): Report {
@@ -329,6 +339,21 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
       break;
     }
   }
+  // THE PAINT CLOCK (see `Report.paintMs`): every change of the proxy's
+  // position over the arc is one painted frame, so the median interval
+  // between two changes is the page's own frame interval. The hover is judged
+  // against this clock — never against the recorder's, which only proves
+  // that the main thread was free.
+  const paintFrom = iFlightStart >= 0 ? iFlightStart : Math.max(0, iProxyFirst);
+  const paintTo = Math.min(frames.length - 1, iLanded > paintFrom ? iLanded : landedLimit);
+  const writes: Array<number> = [];
+  for (let i = paintFrom + 1; i <= paintTo; i++) {
+    if (magnitude(frames[i - 1].proxy, frames[i].proxy) > 0.05) {
+      writes.push(frames[i].t);
+    }
+  }
+  const paintGaps = writes.slice(1).map((t, k) => t - writes[k]).sort((a, b) => a - b);
+  const paintMs = paintGaps.length > 0 ? paintGaps[Math.floor(paintGaps.length / 2)] : 0;
   let glideAfterReveal = 0;
   if (iReveal >= 0) {
     const base = frames[iReveal].proxy;
@@ -403,8 +428,8 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
   // different positioning classes (`--flyer` on the proxy, the pile's own on
   // the slot) — the picture is the same; only a printed face can differ.
   const bothBacks = proxyCls.includes('con-card-back') && faceCls.includes('con-card-back');
-  // The page's own cadence over the flight (a starved 4K frame stretches
-  // every wait): the hover budget is expressed in frames, not ms.
+  // The RECORDER's cadence over the flight — main-thread liveness only (see
+  // `Report.medianGapMs`); the frame clock is `paintMs`.
   const gaps: Array<number> = [];
   for (let i = Math.max(1, iProxyFirst); i < end; i++) {
     gaps.push(frames[i].t - frames[i - 1].t);
@@ -422,6 +447,7 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
     classMismatch: !bothBacks && proxyCls !== '' && faceCls !== '' && proxyCls !== faceCls,
     proxyCls, faceCls,
     medianGapMs: Math.round(medianGapMs * 10) / 10,
+    paintMs: Math.round(paintMs * 10) / 10,
   };
 }
 
@@ -430,7 +456,7 @@ function printReport(r: Report, frames: ReadonlyArray<Frame>, revealKey: string)
   console.log(`[landing:${r.profile}:${r.card}] samples=${r.samples} press=${r.tPress} proxy=${r.tProxyFirst} hover=${r.hoverMs}ms flight=${r.tFlightStart}→${r.tLanded} ` +
     `reveal=${r.tReveal} proxyGone=${r.tProxyGone} fold=${r.tFold} ready=${r.tReady}`);
   console.log(`[landing:${r.profile}:${r.card}] landingError ${fmt(r.landingError)} | boundary ${fmt(r.boundary)} | glideAfterReveal=${r.glideAfterReveal}px ` +
-    `targetMoveInFlight=${r.targetMoveInFlight}px gap=${r.gapFrames} twin=${r.twinFrames}(${r.twinMs}ms) pulse=${r.pulseFrames} classMismatch=${r.classMismatch} cadence=${r.medianGapMs}ms`);
+    `targetMoveInFlight=${r.targetMoveInFlight}px gap=${r.gapFrames} twin=${r.twinFrames}(${r.twinMs}ms) pulse=${r.pulseFrames} classMismatch=${r.classMismatch} cadence=${r.medianGapMs}ms paint=${r.paintMs}ms`);
   if (r.classMismatch) {
     console.log(`[landing:${r.profile}:${r.card}] proxy=«${r.proxyCls}» real=«${r.faceCls}»`);
   }
@@ -559,10 +585,24 @@ function assertBoundary(r: Report): void {
   expect(r.classMismatch, `${r.card}: the proxy and the real card are the same picture`).toBe(false);
   // No dead hover before the flight: the aim is taken during the round trip
   // and the arc takes over from the lift's tail, so the card never stands
-  // still between the two — at most two painted frames (main-thread stalls
+  // still between the two — at most two PAINTED FRAMES (main-thread stalls
   // excluded from the measure; see `hoverMs`).
-  expect(r.hoverMs, `${r.card}: no dead hover before the flight (cadence ${r.medianGapMs} ms)`)
-    .toBeLessThanOrEqual(90);
+  //
+  // The budget is counted on the PAGE's frame clock (`paintMs`), never as a
+  // flat wall-clock number. The card moves only when a frame is painted, so
+  // even a perfect handoff (the arc's first write on the very next frame after
+  // the lift's last) stands still for ONE frame interval — and the tv4k
+  // profile's frame interval is the harness's, not the product's: headless
+  // Chromium composites 3840×2160 in SOFTWARE for this spec's video recording
+  // (`SoftwareRenderer::DrawFrame` ≈ 75–80 ms per frame with nothing to
+  // raster, measured 2026-09-30), so every frame of the flight lasts
+  // 60–210 ms while the recorder keeps its 8 ms. A flat 90 ms sat BELOW that
+  // floor and failed a flawless handoff whenever the one interval it measures
+  // came out long. 90 ms stays the floor for a page painting faster.
+  const hoverBudget = Math.max(90, 2 * r.paintMs);
+  expect(r.hoverMs, `${r.card}: no dead hover before the flight — ${r.hoverMs} ms ≈ ${r.paintMs > 0 ? (r.hoverMs / r.paintMs).toFixed(1) : '?'} ` +
+    `painted frames (paint ${r.paintMs} ms, recorder ${r.medianGapMs} ms, budget ${hoverBudget} ms)`)
+    .toBeLessThanOrEqual(hoverBudget);
 }
 
 /**
