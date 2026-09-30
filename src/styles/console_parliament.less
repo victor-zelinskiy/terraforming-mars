@@ -282,13 +282,17 @@
        painting over the block below it is one that looks like a layout nobody designed. */
     &__ruling { display: flex; align-items: stretch; gap: .55rem; min-height: 0; flex: 1 1 auto; overflow: hidden; }
     &__gov-card { flex-shrink: 0; align-self: flex-start; zoom: var(--con-parl-gov-zoom); }
+    /* The CARD'S COLUMN in the ruling row keeps the government's widest width (`--con-parl-gov-col-zoom`, the
+       fit's monotonic mark): the card shrinks inside it when a taller quest takes its room, and the ruler's slot
+       beside it never moves. Carried onto the enactment stage the wrapper leaves this row, and the rule with it. */
+    &__ruling > &__gov-carry { flex: 0 0 auto; width: calc(320px * var(--con-parl-gov-col-zoom, var(--con-parl-gov-zoom))); }
     /* THE EMPTY SEAT — until the first political phase: an honest empty
        card-shaped place, never a placeholder card. */
     &__gov-empty {
         flex: 0 0 auto;
         align-self: flex-start;
         box-sizing: border-box;
-        width: calc(320px * var(--con-parl-gov-zoom));
+        width: calc(320px * var(--con-parl-gov-col-zoom, var(--con-parl-gov-zoom)));
         height: calc(460px * var(--con-parl-gov-zoom));
         display: flex;
         flex-direction: column;

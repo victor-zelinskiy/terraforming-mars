@@ -52,6 +52,24 @@ function questReserveFor(innerH: number, questH: number): number {
 }
 
 /**
+ * …AND THE GOVERNMENT'S COLUMN KEEPS ITS WIDEST WIDTH, for the same layout's life. The card only ever shrinks
+ * (the reserve above), and the ruler's slot — the box the ruling party's tile FLIPs into — stands right of the
+ * card's column: a column that shrank WITH the card moved that slot by the card's lost width in the very sitting
+ * that changes the government (1.183 → 1.179 at 4K, 2 px, `console-parliament-stability` § the sitting). The card
+ * shrinks inside a column that does not; the same layout key as the quest's reserve re-takes the mark from scratch.
+ */
+let govColumn = {innerH: 0, zoom: 0};
+
+function govColumnZoomFor(innerH: number, zoom: number): number {
+  if (Math.abs(govColumn.innerH - innerH) > 1) {
+    govColumn = {innerH, zoom};
+    return zoom;
+  }
+  govColumn.zoom = Math.max(govColumn.zoom, zoom);
+  return govColumn.zoom;
+}
+
+/**
  * THE FIT IS FROZEN from a vote's submit until the flow leaves (v2, «Заседание v2» § Б5): a re-fit under the
  * delegate's flight jumped the very scene it measured (three cards shrinking for the cube's flight, the panel
  * growing). ONE point: the view watcher, the ResizeObserver and the bill's arrival all pass through here.
@@ -193,6 +211,7 @@ export function fitParliamentCards(): void {
       const rcs = getComputedStyle(ruling);
       const innerW = ruling.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight);
       govZoom = Math.min(govZoom, (innerH - taken - px(rcs.paddingTop) - px(rcs.paddingBottom)) / PCARD_H, (innerW * 0.52) / PCARD_W);
+      root.style.setProperty('--con-parl-gov-col-zoom', String(govColumnZoomFor(innerH, snap(govZoom, MIN_GOV_ZOOM))));
     }
     root.style.setProperty('--con-parl-gov-zoom', String(snap(govZoom, MIN_GOV_ZOOM)));
   }
