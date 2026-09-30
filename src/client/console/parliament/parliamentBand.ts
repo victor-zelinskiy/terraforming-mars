@@ -281,13 +281,13 @@ function questLine(quest: BandQuest): BandLine {
     const move = quest.move;
     if (move === undefined) {
       chips.push({kind: 'label', key: 'end of the track', tone: 'quiet'});
-      return {kicker: 'Agenda', key: 'quest:agenda:end', chips, committed: true};
+      return {kicker: 'Agenda track', key: 'quest:agenda:end', chips, committed: true};
     }
     if (player !== undefined) {
       chips.push({kind: 'player', player});
     }
     chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
-    return {kicker: 'Agenda', key: `quest:agenda:${player ?? ''}:${move.to}`, chips, committed: true};
+    return {kicker: 'Agenda track', key: `quest:agenda:${player ?? ''}:${move.to}`, chips, committed: true};
   }
   if (quest.beat === 'seat') {
     if (player !== undefined) {
@@ -375,7 +375,7 @@ function enactLine(sitting: BandSitting): BandLine {
     const move = summary.agenda;
     chips.push({kind: 'player', player: move.player});
     chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
-    return {kicker: 'Agenda', key: `agenda:${move.player}:${move.to}`, chips, committed: true};
+    return {kicker: 'Agenda track', key: `agenda:${move.player}:${move.to}`, chips, committed: true};
   }
   if (sitting.beat === 'support') {
     chips.push({kind: 'label', key: supportRuleKey(sitting.supportWave)});

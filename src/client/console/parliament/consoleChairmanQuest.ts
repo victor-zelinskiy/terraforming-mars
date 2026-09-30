@@ -52,7 +52,7 @@ export {CHAIRMAN_QUEST_SUBJECT_KEY} from './consoleParliamentFlow';
 
 /** The crumb's tail per stage — one word, never echoing the subject's noun. */
 export function chairmanQuestStageKey(stage: ChairmanQuestStage): string {
-  return stage === 'agenda' ? 'Agenda' : 'Quest';
+  return stage === 'agenda' ? 'Agenda track' : 'Quest';
 }
 
 export const chairmanQuestFlow = reactive({

@@ -26,7 +26,7 @@
       <section class="con-info__parl-sec" data-parl-info-section="influence">
         <h4 class="con-info__parl-title">{{ $t('Influence') }}</h4>
         <div class="con-info__parl-sum" data-parl-info-influence>
-          <span class="con-info__parl-term"><span>{{ $t('Agenda') }}</span><b>{{ reading.influence.track }}</b></span>
+          <span class="con-info__parl-term"><span>{{ $t('Agenda track') }}</span><b>{{ reading.influence.track }}</b></span>
           <template v-if="reading.influence.bonus > 0">
             <span class="con-info__parl-op" aria-hidden="true">+</span>
             <span class="con-info__parl-term"><span>{{ $t('Bonuses') }}</span><b>{{ reading.influence.bonus }}</b></span>
@@ -45,7 +45,7 @@
 
       <!-- ── ПОВЕСТКА — the step and what the NEXT one pays. -->
       <section class="con-info__parl-sec" data-parl-info-section="agenda">
-        <h4 class="con-info__parl-title">{{ $t('Agenda') }}</h4>
+        <h4 class="con-info__parl-title">{{ $t('Agenda track') }}</h4>
         <div class="con-info__stat-lines">
           <div class="con-info__stat-line"><span>{{ $t('Step') }}</span><b data-parl-info-step>{{ stepText }}</b></div>
           <div v-if="reading.agenda.next !== undefined" class="con-info__stat-line">

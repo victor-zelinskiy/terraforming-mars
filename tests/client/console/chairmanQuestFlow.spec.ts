@@ -165,7 +165,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     parliamentFlow.stage = 'quest';
     expect(parliamentCrumbSubject(true)).eq('Chairmanship');
     expect(parliamentCrumbStage('', chairmanQuestStageKey('task'))).eq('Quest');
-    expect(parliamentCrumbStage('', chairmanQuestStageKey('agenda'))).eq('Agenda');
+    expect(parliamentCrumbStage('', chairmanQuestStageKey('agenda'))).eq('Agenda track');
     // The delegate pick is a STAGE of the flow, not a screen of its own.
     parliamentFlow.stage = 'seat';
     expect(parliamentCrumbSubject(true), 'the subject never restarts').eq('Chairmanship');
@@ -195,7 +195,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     expect(kept.chips.some((c) => c.kind === 'label'), 'a sitting chairman loses nothing, and nothing is claimed').is.false;
 
     const agenda = parliamentBandLine({standing, quest: {beat: 'agenda', player: BLUE, move: {from: 1, to: 2, bonus: 'tr'}}});
-    expect(agenda.kicker).eq('Agenda');
+    expect(agenda.kicker).eq('Agenda track');
     expect(agenda.chips.find((c) => c.kind === 'agenda')).deep.eq({kind: 'agenda', to: 2, bonus: 'tr'});
     expect(agenda.key, 'the crossfade fires exactly when the reading changes').not.eq(seat.key);
 

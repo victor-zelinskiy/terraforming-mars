@@ -6,7 +6,7 @@
        it (`holds.agendaAwaits`) — the influence reads the old level too. ══ -->
   <div class="con-parl__agenda" data-parl-agenda data-parl-recede>
     <div class="con-parl__agenda-head">
-      <span class="con-parl__kicker">{{ $t('Agenda') }}</span>
+      <span class="con-parl__kicker">{{ $t('Agenda track') }}</span>
       <span v-if="view.viewer !== undefined" class="con-parl__agenda-me">
         <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
         <span class="con-parl__chip-dim">{{ $t('Influence') }}</span>

@@ -20,6 +20,14 @@ const CREATE_GAME_UA = path.join(ROOT, 'src', 'locales', 'ua', 'create_game.json
 const EXPANSION_KEY = 'Turmoil Redux';
 const EXPANSION_RU = 'Кризис: Возвращение';
 const EXPANSION_UA = 'Турбулентність: Повернення';
+/**
+ * The parliament's surfaces beyond the trees: the info panel's parliament block and the info mode's stat line —
+ * they name the track too, and may not do it with the Pathfinders resource's key.
+ */
+const AGENDA_KEY_FILES = [
+  path.join('src', 'client', 'components', 'console', 'ConsoleInfoParliament.vue'),
+  path.join('src', 'client', 'components', 'console', 'ConsoleInfoMode.vue'),
+];
 const TREES = [
   path.join('src', 'client', 'console', 'parliament'),
   path.join('src', 'client', 'components', 'console', 'parliament'),
@@ -43,7 +51,12 @@ const CANON: Record<string, string> = {
   // word each, and the outgoing delegate's own fact — where it GOES.
   'Quest': 'Задание',
   'The delegate returns to the reserve': 'Делегат возвращается в резерв',
-  'Agenda step': 'шаг Повестки',
+  // «КАРЬЕРА» (owner's decision 2026-09-30, TR04): the Agenda track is «Карьера» in RU — the track, its start,
+  // the stage of every flow that walks it and the step. The Pathfinders card RESOURCE keeps the bare `Agenda`
+  // key («Повестка»); the parliament never prints that key (see the last case below).
+  'Agenda track': 'Карьера',
+  'Agenda start': 'Старт карьеры',
+  'Agenda step': 'шаг Карьеры',
   'Available to every player': 'Доступен всем',
   'Waiting for the other seats': 'Ожидание',
   'The ruling party answers': 'Ответ правящей партии',
@@ -146,6 +159,9 @@ const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
   {pattern: /размер в fullscreen|плитка/i, why: 'the glossary says «осмотр» and «тайл» (P-36, P-37)'},
   // The expansion's name (glossary § 6-bis): «Кризис: Возвращение» — never the half-Latin form, never the English key inside a RU line.
   {pattern: /кризис redux|turmoil redux/i, why: 'the expansion is «Кризис: Возвращение» (glossary § 6-bis)'},
+  // «КАРЬЕРА» (TR04, 2026-09-30): the track is never «Повестка» in a parliament line — the word reads as a
+  // summons («повестка из военкомата»); the bare `Agenda` key belongs to the Pathfinders resource alone.
+  {pattern: /повестк/i, why: 'the Agenda track is «Карьера» (glossary §4)'},
 ];
 
 /** Retired keys: not translated, not referenced. */
@@ -210,6 +226,13 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     expect(translated, 'retired keys still translated').to.deep.equal([]);
     const referenced = sources.flatMap(({p, text}) => GONE.filter((k) => text.includes(`'${k}'`)).map((k) => `${p}: '${k}'`));
     expect(referenced, 'retired keys still referenced').to.deep.equal([]);
+  });
+
+  it('the track is named by the `Agenda track` key — the bare `Agenda` key is the Pathfinders resource\'s («Повестка») and never a parliament kicker, crumb tail or panel title', () => {
+    const files = [...sources, ...AGENDA_KEY_FILES.flatMap(listFiles).map((p) => ({p: path.relative(ROOT, p), text: fs.readFileSync(p, 'utf8')}))];
+    expect(files.length, 'the info surfaces are in the tree').to.be.greaterThan(sources.length);
+    const bare = files.filter(({text}) => /'Agenda'|"Agenda"/.test(text)).map(({p}) => p);
+    expect(bare, 'a parliament surface prints the bare «Agenda» key').to.deep.equal([]);
   });
 
   it('the party tile\'s X is «Осмотреть», never the name of what it opens', () => {

@@ -171,7 +171,7 @@
             <template v-if="parliamentReading.participates">
               <div class="con-info__stat-lines">
                 <div class="con-info__stat-line"><span>{{ $t('Influence') }}</span><b class="con-info__mint" data-parl-zone-influence>{{ parliamentReading.influence.total }}</b></div>
-                <div class="con-info__stat-line"><span>{{ $t('Agenda') }}</span><b>{{ parliamentZoneAgenda }}</b></div>
+                <div class="con-info__stat-line"><span>{{ $t('Agenda track') }}</span><b>{{ parliamentZoneAgenda }}</b></div>
                 <div class="con-info__stat-line"><span>{{ $t('Delegates') }}</span><b>{{ parliamentZoneDelegates }}</b></div>
                 <div v-if="parliamentReading.chairman" class="con-info__stat-line"><span>{{ $t('Chairman') }}</span><b class="con-info__mint">{{ $t('yes') }}</b></div>
               </div>

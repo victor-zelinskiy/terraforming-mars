@@ -109,7 +109,7 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
   describe('ПОВЕСТКА · ПОДДЕРЖКА · ПРИНЯТИЕ — one line per beat of the enactment', () => {
     it('the AGENDA beat says whose step it is and what the step gave', () => {
       const band = line({stage: 'enact', beat: 'agenda', summary: summary({agenda: {player: BLUE, from: 1, to: 4, bonus: 'tr'}})});
-      expect(band.kicker).eq('Agenda');
+      expect(band.kicker).eq('Agenda track');
       expect(kinds(band.chips)).deep.eq(['player', 'agenda']);
       expect(band.chips[1]).deep.eq({kind: 'agenda', to: 4, bonus: 'tr'});
     });
