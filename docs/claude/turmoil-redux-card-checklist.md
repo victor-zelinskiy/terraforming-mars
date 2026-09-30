@@ -49,7 +49,9 @@
   `Action: …` / `Effect: …` (клиент срезает префикс). Голос — как у соседей в `cards.json`
   («потратьте 1 энергию, чтобы…»).
 - **`card_info.json`** — все `missingTranslations` из аудита `src/genfiles/cardInfoAudit.json` + курируемые
-  `effect-short` / `action-short` (капшен > 52 символов → `infoText` в карте + RU ключ).
+  `effect-short` / `action-short` (капшен > 52 символов → `infoText` в карте + RU ключ). ⚠️ Бюджет мерить и по
+  RU-переводу из `turmoil_redux_cards.json` РУКАМИ: гарды `effectCaption` / `actionCaption` читают RU только из
+  `cards.json` / `card_info.json` / `ui.json` и модульный словарь не видят (TR05: EN-правило 44, RU ≈ 75 → `action-short`).
 - Перед КАЖДЫМ ключом: `grep -rn '"<ключ>"' src/locales/*/*.json` — дубль роняет `make:json`.
 - **Тестовый режим**: модуль уже в `GUARANTEED_MODULES` (через `PREMIUM_EXPANSIONS`) — карту можно
   гарантировать в первую руку без правок (`docs/DEV_GUARANTEED_CARDS.md`).
@@ -71,7 +73,7 @@ effects/trackerCoverageGuard, effects/effectFamilyCoverage}.spec.ts`.
 
 | Бесплатно (декларативная карта) | Требует руки |
 | --- | --- |
-| превью розыгрыша и действия, причины недоступности, прогноз эффектов, блок эффектов и «Spent as payment», структурный текст (`metadata.information`), капшены из `behavior`, сериализация `resourceCount`, коммит действия в консоли (полёт ресурса в капсулу карты по узлу `res-<ресурс>`), бейдж «N M€ · <контекст>» в спутнике ДОП. РЕСУРСЫ (если ресурс — платёжная единица) | бесподобный `play`/`action` → хуки превью/причин в файле карты; НОВЫЙ ресурс карт → `CardResource` + спрайт `assets/resources/<name>.png` + `@card_resource_types` (cards_v2.less) + `@resource_types` (resources.less) + `cardResources.ts` + `CardListModel.ts` + `ICON_NEEDLES` (commit-motion) + множественное в `ConsoleExtrasExplorer.vue` + `"<Name>"`/`"<Names>"` в `console.json`/`ui.json`; НОВАЯ платёжная единица → тропа `mechs` (`docs/TURMOIL_REDUX_EVA_MECHS.md` §3) |
+| превью розыгрыша и действия, причины недоступности, прогноз эффектов, блок эффектов и «Spent as payment», структурный текст (`metadata.information`), капшены из `behavior`, сериализация `resourceCount`, коммит действия в консоли (полёт ресурса в капсулу карты по узлу `res-<ресурс>`), бейдж «N M€ · <контекст>» в спутнике ДОП. РЕСУРСЫ (если ресурс — платёжная единица) | бесподобный `play`/`action` → хуки превью/причин в файле карты; ТРИГГЕР (`onCardPlayed` / `onCardPlayedByAnyPlayer` / `onResourceAdded` / `onProductionGain` / `onTilePlaced`) → близнец прогноза (`cardPlayedForecast` / `grantForecast` / `tilePlacedForecast`) в файле карты тем же предикатом, что живой хук (образец TR05: `forecast.exact` + `actionPreviews.cardGain`; гарды `effectForecastCoverage` / `effectForecastParity`); НОВЫЙ ресурс карт → `CardResource` + спрайт `assets/resources/<name>.png` + `@card_resource_types` (cards_v2.less) + `@resource_types` (resources.less) + `cardResources.ts` + `CardListModel.ts` + `ICON_NEEDLES` (commit-motion) + множественное в `ConsoleExtrasExplorer.vue` + `"<Name>"`/`"<Names>"` в `console.json`/`ui.json`; НОВАЯ платёжная единица → тропа `mechs` (`docs/TURMOIL_REDUX_EVA_MECHS.md` §3) |
 | требование СУЩЕСТВУЮЩЕГО вида (метки, параметры, «делегаты на резолюциях», «метки одного вида») — причина с «сейчас», чип, строка правил, счётчик руки | НОВЫЙ вид требования → тропа `e68e8db190` (TR02; повтор — TR01 `3f70200dec`), 8 точек: `RequirementType`, поле дескриптора + `requirementType()`, `CardRequirements.compileOne`, класс `<Kind>Requirement`, `Card.populateCount`, строка `buildCardInformation.requirementBlock`, причина + `FULLY_RESTATED_REQUIREMENTS`, клиент `REQUIREMENT_RENDER` + `COUNT_MESSAGE_LABELS`. Причина — `type: 'count'`, НЕ `'tag'`: `reasonParams` при заданном `tag` подменяет число именем метки. Счёт меток — только через `tagRequirementScore` / `Tags.tagTypesInPlay` |
 
 ## 5. Политика e2e

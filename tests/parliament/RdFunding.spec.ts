@@ -15,7 +15,7 @@ import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
 import {Server} from '../../src/server/models/ServerModel';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {repeatableActionCards} from '../../src/server/cards/repeatableActions';
-import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {endGenerationThroughParliament, quietWinnerIndex, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {PlayerInput} from '../../src/server/PlayerInput';
@@ -519,9 +519,17 @@ describe('RdFunding', () => {
       runAllActions(game);
       expect(parliament.resolutionActionUsesLeft(p1)).eq(0);
 
+      // A QUIET card wins the next sitting — here only the boundary matters, and the counter is cleared at the LOBBY
+      // step, past the enacted card's asks. The deal is seeded and shifts with every card the catalog gains (TR05
+      // put Greens Budget, which ASKS the Tardigrades owner for a microbe holder, into slot 0 and parked the sitting
+      // at its effects), so the slot is found, never assumed — the Open IP Trade twin's arrangement.
+      const index = quietWinnerIndex(parliament);
+      seatQuiet(parliament, index);
+      parliament.placeVote(p1, parliament.slots[index], 'lobby');
       endGenerationThroughParliament(game);
       runAllActions(game);
       settleParliamentGates(game);
+      expect(parliament.phase, 'the sitting ran to its end').is.undefined;
       // The next sitting enacts its own law; put THIS one back in the slot to
       // read the counter the generation boundary cleared.
       parliament.enacted = RDF;
