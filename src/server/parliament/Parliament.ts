@@ -19,7 +19,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {
   AGENDA_TRACK, AgendaStep, BotParliamentMode, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS, PARLIAMENT_DELEGATES_PER_PLAYER,
   PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER,
-  PARTY_EFFECT_DELEGATES, PartyActionId, QuestDefinition, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId, STARTER_QUEST,
+  PARTY_EFFECT_DELEGATES, PartyActionId, QuestDefinition, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId, STARTER_QUEST, SupportRoom,
 } from '../../common/parliament/ParliamentTypes';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
@@ -648,17 +648,35 @@ export class Parliament {
     return this.popularSupport.get(party) ?? 0;
   }
 
+  /**
+   * WHAT adding up to `n` neutral delegates to a party's support area comes to
+   * right now — PURE: the hook that answers, never the one that acts. The
+   * promise (a delegate grant's forecast, `PlaceDelegatesOnResolution`) and
+   * the payout (`addPopularSupport`, below) read this ONE arithmetic, so they
+   * cannot part. The area holds `PARLIAMENT_MAX_POPULAR_SUPPORT`; the common
+   * supply may run out first; `limit` names which of the two cut the number
+   * short of `n` — the area's ceiling is judged first.
+   */
+  public popularSupportRoom(party: ReduxParty, n: number): SupportRoom {
+    const current = this.popularSupportOf(party);
+    const area = Math.max(0, PARLIAMENT_MAX_POPULAR_SUPPORT - current);
+    const supply = Math.max(0, this.neutralSupply());
+    const printed = Math.max(0, n);
+    const gained = Math.min(printed, area, supply);
+    const room: SupportRoom = {current, gained, resulting: current + gained, printed};
+    if (gained < printed) {
+      room.limit = area <= supply ? 'area' : 'supply';
+    }
+    return room;
+  }
+
   /** Add up to `n` neutral delegates to a party's support area (cap 3, supply permitting). Returns how many landed. */
   public addPopularSupport(party: ReduxParty, n: number): number {
-    let gained = 0;
-    for (let i = 0; i < n; i++) {
-      if (this.popularSupportOf(party) >= PARLIAMENT_MAX_POPULAR_SUPPORT || this.neutralSupply() <= 0) {
-        break;
-      }
-      this.popularSupport.set(party, this.popularSupportOf(party) + 1);
-      gained++;
+    const room = this.popularSupportRoom(party, n);
+    if (room.gained > 0) {
+      this.popularSupport.set(party, room.resulting);
     }
-    return gained;
+    return room.gained;
   }
 
   /** Move every neutral delegate of a party's support area onto `slot` as votes (rulebook p.12). */

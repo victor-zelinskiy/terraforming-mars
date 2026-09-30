@@ -27,6 +27,18 @@ import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {TileType} from '../../src/common/TileType';
 import {setTemperature, runAllActions} from '../TestingUtils';
+import {SelectParty} from '../../src/server/inputs/SelectParty';
+import {SelectOption} from '../../src/server/inputs/SelectOption';
+import {Priority} from '../../src/server/deferredActions/Priority';
+import {PlaceDelegatesOnResolution} from '../../src/server/parliament/PlaceDelegatesOnResolution';
+import {Parliament} from '../../src/server/parliament/Parliament';
+import {colonySource} from '../../src/server/inputs/choiceContext';
+import {ColonyName} from '../../src/common/colonies/ColonyName';
+import {Phase} from '../../src/common/Phase';
+import {IGame} from '../../src/server/IGame';
+import {IPlayer} from '../../src/server/IPlayer';
+import {isSelectPartyResponse} from '../../src/common/inputs/InputResponse';
+import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {
   clearBatchTail,
   drainBatchTail,
@@ -435,6 +447,212 @@ describe('deferredInputBatch', () => {
       runAllActions(game);
       const prompt = cast(player.getWaitingFor(), SelectSpace);
       expect(prompt.sourceCard).eq(aquifer.name);
+    });
+  });
+
+  /**
+   * THE ADDRESSED STAGED RESOLUTION — the cell's law, generalized to `party`.
+   *
+   * A card that places a delegate by being PLAYED (Turmoil Redux TR03) has its
+   * resolution picked before the play batch is submitted, so the party answer
+   * is the batch's tail. The type alone cannot tell whose question a
+   * `SelectParty` is: the chairman's seat is one too, and «Greens» answered
+   * there would choose which resolution GIVES UP a delegate. The address
+   * (`stagedFor`) matches only a GRANT whose `choiceContext.source.card` is
+   * that card; everything else parks the tail untried.
+   */
+  describe('addressed staged resolution (party)', () => {
+    const G = PartyName.GREENS;
+    const M = PartyName.MARS;
+    const I = PartyName.INDUSTRIALISTS;
+
+    type Staged = {game: IGame, player: TestPlayer, parliament: Parliament, card: IProjectCard, seatAnswers: Array<PartyName>};
+
+    /**
+     * A Redux table (the Greens' · Mars First's · the Industrialists' quiet
+     * resolutions) and a card in hand whose play defers the shared delegate
+     * step — behind `before`, a prompt the same play raises AHEAD of it.
+     */
+    function stagedGame(before?: (player: IPlayer, state: Staged) => void): Staged {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      const parliament = game.parliament!;
+      ([G, M, I] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+      const state = {game, player, parliament, seatAnswers: []} as unknown as Staged;
+      const card = fakeCard({
+        name: 'A card that adds a delegate' as CardName,
+        cost: 4,
+        play: (p: IPlayer) => {
+          before?.(p, state);
+          p.game.defer(new PlaceDelegatesOnResolution(p, 1, {kind: 'card', card: card.name}, {support: 3}));
+          return undefined;
+        },
+      });
+      state.card = card;
+      player.cardsInHand = [card];
+      player.megaCredits = 50;
+      player.takeAction();
+      return state;
+    }
+
+    function tailOf(state: Staged, party: PartyName): InputResponse {
+      return {type: 'party', partyName: party, stagedFor: state.card.name};
+    }
+
+    function votes(state: Staged, party: PartyName): number {
+      return state.parliament.votesOf(state.player, state.parliament.slotOf(party as never)!);
+    }
+
+    /** A two-way choice the play raises first (any `or` a triggered effect would ask). */
+    function interposeChoice(onAnswer?: (state: Staged) => void) {
+      return (p: IPlayer, state: Staged) => {
+        p.defer(() => new OrOptions(
+          new SelectOption('one').andThen(() => {
+            onAnswer?.(state);
+            return undefined;
+          }),
+          new SelectOption('two'),
+        ), Priority.COST);
+      };
+    }
+
+    /** The chairman's seat — a `SelectParty` that is NOT a grant — raised ahead of the card's own question. */
+    function interposeSeat(p: IPlayer, state: Staged) {
+      p.defer(() => new SelectParty('Choose which of your resolutions gives up a delegate for the chairman seat', 'Take', [G, M, I])
+        .markVotePrompt({source: 'chairman-seat', cost: 0})
+        .andThen((party) => {
+          state.seatAnswers.push(party);
+          return undefined;
+        }), Priority.COST);
+    }
+
+    it('lands at once when nothing interposes: the delegate, then the party\'s support', () => {
+      const state = stagedGame();
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      expect(votes(state, M)).eq(1);
+      expect(state.parliament.popularSupportOf(M)).eq(3);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      expect(state.player.getWaitingFor() instanceof SelectParty, 'the resolution is never asked again').is.false;
+    });
+
+    it('PARKS behind a prompt that jumped the queue and auto-lands once it is answered', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      cast(state.player.getWaitingFor(), OrOptions);
+      expect(parkedBatchTailLength(state.player), 'parked, untried').eq(1);
+      expect(votes(state, M)).eq(0);
+      expect(parkedStagedPlacement(state.player), 'a staged resolution is not a staged CELL').is.undefined;
+
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+
+      expect(votes(state, M)).eq(1);
+      expect(state.parliament.popularSupportOf(M)).eq(3);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      expect(state.player.getWaitingFor() instanceof SelectParty).is.false;
+    });
+
+    it('the CHAIRMAN\'S SEAT in front of the card\'s own question does NOT eat the tail', () => {
+      const state = stagedGame(interposeSeat);
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      const seat = cast(state.player.getWaitingFor(), SelectParty);
+      expect(seat.votePrompt?.source).eq('chairman-seat');
+      expect(state.seatAnswers, 'the seat was not answered by the staged resolution').deep.eq([]);
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      // A drain while the seat stands leaves the tail parked, untried.
+      drainBatchTail(state.player);
+      expect(state.seatAnswers).deep.eq([]);
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      // The player answers the seat for real; the resolution then lands on its own prompt.
+      state.player.process({type: 'party', partyName: G});
+      drainBatchTail(state.player);
+      expect(state.seatAnswers).deep.eq([G]);
+      expect(votes(state, M)).eq(1);
+      expect(votes(state, G), 'the seat\'s answer placed nothing').eq(0);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+    });
+
+    it('a COLONY\'s grant is another giver\'s question: the tail parks past it', () => {
+      const state = stagedGame((p) => {
+        p.game.defer(new PlaceDelegatesOnResolution(p, 1, colonySource(ColonyName.VENUS_REDUX)), Priority.COST);
+      });
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      const grant = cast(state.player.getWaitingFor(), SelectParty);
+      expect(grant.choiceContext?.source.kind).eq('colony');
+      expect(parkedBatchTailLength(state.player)).eq(1);
+      expect(votes(state, M)).eq(0);
+
+      state.player.process({type: 'party', partyName: I});
+      drainBatchTail(state.player);
+      expect(votes(state, I), 'the colony\'s delegate went where the player sent it').eq(1);
+      expect(votes(state, M), 'the card\'s delegate where it was staged').eq(1);
+      expect(state.parliament.popularSupportOf(M)).eq(3);
+      expect(state.parliament.popularSupportOf(I), 'a colony\'s grant pays no support').eq(0);
+    });
+
+    it('the party LEFT the voting area while parked: the tail is dropped and the question stands live', () => {
+      const state = stagedGame(interposeChoice((s) => {
+        s.parliament.slots = s.parliament.slots.filter((slot) => s.parliament.resolutionOf(slot.instance).party !== M);
+      }));
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+
+      expect(parkedBatchTailLength(state.player), 'stale — dropped, never held for a later prompt').eq(0);
+      const live = cast(state.player.getWaitingFor(), SelectParty);
+      expect(live.votePrompt?.source).eq('grant');
+      expect(live.choiceContext?.source.card).eq(state.card.name);
+      expect(live.parties).deep.eq([G, I]);
+      expect(state.parliament.votesOf(state.player), 'nothing was placed by the stale pick').eq(0);
+    });
+
+    it('a manual answer to its own prompt SUPERSEDES the parked resolution', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      // The queue advances OUTSIDE our drain window (an opponent's request):
+      // the card's own question surfaces live and the player answers it by hand.
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      const live = cast(state.player.getWaitingFor(), SelectParty);
+      expect(live.choiceContext?.source.card).eq(state.card.name);
+      expireSupersededStagedTail(state.player);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      state.player.process({type: 'party', partyName: G});
+      drainBatchTail(state.player);
+      expect(votes(state, G)).eq(1);
+      expect(votes(state, M), 'the superseded pick never lands').eq(0);
+    });
+
+    it('expires with the action it was collected for', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+      expect(parkedBatchTailLength(state.player)).eq(1);
+      clearBatchTail(state.player);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+    });
+
+    it('an UNADDRESSED party answer replays positionally, exactly as before', () => {
+      // …onto the grant it was (positionally) meant for:
+      const direct = stagedGame();
+      replayBatch(direct.player, playBatch(direct.player, direct.card, [{type: 'party', partyName: M}]));
+      expect(votes(direct, M)).eq(1);
+      // …and onto whatever `SelectParty` stands first — which is WHY a staged door must address its tail.
+      const seat = stagedGame(interposeSeat);
+      replayBatch(seat.player, playBatch(seat.player, seat.card, [{type: 'party', partyName: M}]));
+      expect(seat.seatAnswers, 'the positional answer went to the seat').deep.eq([M]);
+      expect(parkedBatchTailLength(seat.player)).eq(0);
+    });
+
+    it('the wire validator accepts both forms and nothing else', () => {
+      expect(isSelectPartyResponse({type: 'party', partyName: M})).is.true;
+      expect(isSelectPartyResponse({type: 'party', partyName: M, stagedFor: CardName.ANTS})).is.true;
+      expect(isSelectPartyResponse({type: 'party', partyName: M, extra: 1} as unknown as InputResponse)).is.false;
+      expect(isSelectPartyResponse({type: 'party', stagedFor: CardName.ANTS} as unknown as InputResponse)).is.false;
     });
   });
 

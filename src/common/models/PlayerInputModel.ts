@@ -11,7 +11,7 @@ import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
-import type {ParliamentPhaseStage, PartyActionId} from '../parliament/ParliamentTypes';
+import type {ParliamentPhaseStage, PartyActionId, SupportRoom} from '../parliament/ParliamentTypes';
 import {PayProductionModel} from './PayProductionUnitsModel';
 import {ProductionLossSource} from './ProductionLossSource';
 import {AresData} from '../ares/AresData';
@@ -474,7 +474,21 @@ export type VotePromptMeta = {
   cost: number;
   count?: number;
   printed?: number;
+  /**
+   * A grant that ALSO pays the chosen resolution's PARTY: «then add up to N
+   * neutral delegates to the Popular Support Area of that resolution's party»
+   * (Turmoil Redux TR03 Political Donation). One entry per party of the voting
+   * area — the SERVER's projection (`Parliament.popularSupportRoom`, the same
+   * arithmetic the payout runs): what the area holds, how many would land, and
+   * WHAT cut the number short of the printed one. The answer depends on the
+   * target, so it rides the prompt per target; the client prints it and never
+   * derives «3 − current» itself. Absent = the grant pays no support.
+   */
+  support?: ReadonlyArray<VoteSupportProjection>;
 }
+
+/** One party's row of `VotePromptMeta.support`. */
+export type VoteSupportProjection = {party: PartyName} & SupportRoom;
 
 /**
  * EXPLICIT marker that a `SelectPayment` is the BILL of a Turmoil Redux vote

@@ -30,6 +30,11 @@ import {CometForVenus} from '../../src/server/cards/venusNext/CometForVenus';
 import {VenusianPlants} from '../../src/server/cards/venusNext/VenusianPlants';
 import {FreyjaBiodomes} from '../../src/server/cards/venusNext/FreyjaBiodomes';
 import {AirScrappingExpedition} from '../../src/server/cards/venusNext/AirScrappingExpedition';
+import {PlaceDelegatesOnResolution} from '../../src/server/parliament/PlaceDelegatesOnResolution';
+import {NEUTRAL_DELEGATE_ICON, POPULAR_SUPPORT_LABEL, SUPPORT_LIMIT_REASON} from '../../src/common/parliament/ParliamentTypes';
+import {SelectPartyModel} from '../../src/common/models/PlayerInputModel';
+import {Server} from '../../src/server/models/ServerModel';
+import {Phase} from '../../src/common/Phase';
 
 /**
  * NO SILENT LOSS — THE LIVE HALF, as a CLASS.
@@ -272,6 +277,24 @@ describe('skipped effects — the live record (no silent loss, after the fact)',
       const [game, player] = testGame(2);
       new RemoveResourcesFromCard(player, undefined, 1, {source: 'opponents'}).execute();
       expect(factsOf(game)).deep.eq([{label: SKIPPED_LABEL.removeResources, reason: SKIP_REASON.noTarget}]);
+    });
+
+    it('PlaceDelegatesOnResolution with «then N neutral delegates to the party» — a full support area is named at the ANSWER, in the words of the prompt', () => {
+      // The loss depends on the TARGET, so the promise is the prompt's per-party row (`votePrompt.support`,
+      // `gained: 0` + what cut it) rather than a preview warning — and the record repeats it.
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      const parliament = game.parliament!;
+      const party = parliament.partiesInVotingArea()[0];
+      parliament.popularSupport.set(party, 3);
+      game.defer(new PlaceDelegatesOnResolution(player, 1, {kind: 'card', card: 'A card that adds a delegate' as CardName}, {support: 3}));
+      runAllActions(game);
+      const prompt = Server.getPlayerModel(player).waitingFor as SelectPartyModel;
+      const promised = prompt.votePrompt!.support!.find((row) => row.party === party)!;
+      expect(promised).deep.include({gained: 0, printed: 3, limit: 'area'});
+      expect(factsOf(game), 'asking records nothing').deep.eq([]);
+      player.process({type: 'party', partyName: party});
+      expect(factsOf(game)).deep.eq([{label: POPULAR_SUPPORT_LABEL, reason: SUPPORT_LIMIT_REASON.area, effect: {direction: 'gain', icon: NEUTRAL_DELEGATE_ICON, amount: promised.printed}}]);
     });
 
     it('a card with a Venus tag in the way does not change the rule (a restricted pick with no candidate is still a named loss)', () => {

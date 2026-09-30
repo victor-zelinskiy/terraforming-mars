@@ -122,10 +122,26 @@ export function isSelectPlayerResponse(response: InputResponse): response is Sel
 export interface SelectPartyResponse {
   type: 'party',
   partyName: PartyName;
+  /**
+   * THE STAGED-VOTE ADDRESS — the `party` twin of `SelectSpaceResponse.stagedFor`.
+   * A card that places a delegate by being PLAYED (Turmoil Redux TR03) has its
+   * resolution picked BEFORE the play batch is submitted, so the party answer
+   * travels as the batch's TAIL — and the first `SelectParty` the server raises
+   * is not always that card's: the chairman's seat is a `SelectParty` too
+   * (`votePrompt.source === 'chairman-seat'`), and a positional «Greens» there
+   * would choose which resolution GIVES UP a delegate.
+   *
+   * `stagedFor` names the card whose own delegate grant this answers; the batch
+   * replay applies it ONLY to a grant prompt whose `choiceContext.source.card`
+   * is that card and PARKS it past everything else. Absent on every other party
+   * answer (the vote, a colony's grant, the seat) — those replay as before.
+   */
+  stagedFor?: CardName;
 }
 
 export function isSelectPartyResponse(response: InputResponse): response is SelectPartyResponse {
-  return response.type === 'party' && matches(response, ['type', 'partyName']);
+  return response.type === 'party' &&
+    (matches(response, ['type', 'partyName']) || matches(response, ['type', 'partyName', 'stagedFor']));
 }
 
 export interface SelectDelegateResponse {

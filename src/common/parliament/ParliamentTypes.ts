@@ -47,6 +47,33 @@ export const PARLIAMENT_NEUTRAL_DELEGATES = 14;
 export const PARLIAMENT_VOTE_COST = 5;
 export const PARLIAMENT_VOTING_SLOTS = 3;
 export const PARLIAMENT_MAX_POPULAR_SUPPORT = 3;
+/**
+ * WHAT «add up to `printed` neutral delegates to a party's Popular Support»
+ * comes to RIGHT NOW — the one reading the promise (a prompt's forecast) and
+ * the payout (`Parliament.addPopularSupport`) both stand on, produced by
+ * `Parliament.popularSupportRoom`. `gained` is how many land (the area holds
+ * `PARLIAMENT_MAX_POPULAR_SUPPORT`, the common supply may run out), and
+ * `limit` NAMES what cut it short of `printed`: `area` — the area's ceiling
+ * (judged first), `supply` — no neutral delegates left. Absent = nothing cut.
+ */
+export type SupportRoom = {
+  current: number;
+  gained: number;
+  resulting: number;
+  printed: number;
+  limit?: 'area' | 'supply';
+};
+
+/** The name a «neutral delegates to Popular Support» effect goes by where it is lost — the forecast's and the record's one label. */
+export const POPULAR_SUPPORT_LABEL = 'Popular support';
+/** WHY none landed, by what cut the number — the forecast's tail and the after-the-fact record state the same cause. */
+export const SUPPORT_LIMIT_REASON: Readonly<Record<NonNullable<SupportRoom['limit']>, string>> = {
+  area: 'The support area is full',
+  supply: 'No neutral delegates left',
+};
+/** The chip icon of a neutral delegate (the dark figure) — and of a player's own. */
+export const NEUTRAL_DELEGATE_ICON = 'neutral-delegate';
+export const DELEGATE_ICON = 'delegate';
 /** Own delegates on a party's resolution that grant its effect AND satisfy its card requirement. */
 export const PARTY_EFFECT_DELEGATES = 2;
 export const PARLIAMENT_AGENDA_STEPS = 12;

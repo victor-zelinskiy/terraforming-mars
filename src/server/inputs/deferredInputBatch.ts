@@ -1,5 +1,5 @@
 import type {IPlayer} from '../IPlayer';
-import {InputResponse, isOrOptionsResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isOrOptionsResponse, SelectPartyResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
 import type {PlayerInput} from '../PlayerInput';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
@@ -7,6 +7,7 @@ import {TileType} from '../../common/TileType';
 import {OrOptions} from './OrOptions';
 import {SelectSpace} from './SelectSpace';
 import {SelectCard} from './SelectCard';
+import {SelectParty} from './SelectParty';
 
 /**
  * THE PRE-COLLECTED BATCH — replay, and the TAIL THAT HAS NOT LANDED YET.
@@ -240,25 +241,52 @@ function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boole
 }
 
 
-/** The staged-placement address of a response, when it carries one. */
+/**
+ * The staged address of a response, when it carries one — a CELL picked before
+ * the play (`space`) or a RESOLUTION picked before it (`party`, the staged
+ * vote of a card that places a delegate by being played).
+ */
 function stagedAddress(response: InputResponse): CardName | undefined {
+  switch (response.type) {
+  case 'space': return (response as SelectSpaceResponse).stagedFor;
+  case 'party': return (response as SelectPartyResponse).stagedFor;
+  default: return undefined;
+  }
+}
+
+/** The address of a staged CELL — the only kind the cell baselines and the parked pin are about. */
+function stagedCellAddress(response: InputResponse): CardName | undefined {
   return response.type === 'space' ? (response as SelectSpaceResponse).stagedFor : undefined;
 }
 
 /**
- * An ADDRESSED response meeting a prompt that is NOT the placement it was
- * staged for. The address is the server's own `SelectSpace.sourceCard` —
- * every card-owned placement carries it (the Executor threads it, bespoke
- * paths pass it to `createMarsSelectSpace`), while every threshold/bonus
- * placement (the 0°C ocean, a Hellas placement-bonus ocean) leaves it
- * undefined — which is exactly what makes the two distinguishable at all.
- * Unaddressed responses answer `false` everywhere: the positional replay is
- * unchanged for every non-staged flow.
+ * An ADDRESSED response meeting a prompt that is NOT the one it was staged
+ * for. Unaddressed responses answer `false` everywhere: the positional replay
+ * is unchanged for every non-staged flow.
+ *
+ * A CELL's address is the server's own `SelectSpace.sourceCard` — every
+ * card-owned placement carries it (the Executor threads it, bespoke paths pass
+ * it to `createMarsSelectSpace`), while every threshold/bonus placement (the
+ * 0°C ocean, a Hellas placement-bonus ocean) leaves it undefined — which is
+ * exactly what makes the two distinguishable at all.
+ *
+ * A RESOLUTION's address is the delegate GRANT of that very card: a
+ * `SelectParty` marked `votePrompt.source === 'grant'` whose
+ * `choiceContext.source.card` is the address (`PlaceDelegatesOnResolution`).
+ * The type alone is as blind here as it was for cells — the chairman's seat
+ * is a `SelectParty` too (`source === 'chairman-seat'`), and «Greens» answered
+ * there would choose which resolution GIVES UP a delegate; a colony's grant
+ * and the vote's own paid pick are party prompts of other givers.
  */
 function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boolean {
   const address = stagedAddress(response);
   if (address === undefined) {
     return false;
+  }
+  if (response.type === 'party') {
+    return !(waitingFor instanceof SelectParty) ||
+      waitingFor.votePrompt?.source !== 'grant' ||
+      waitingFor.choiceContext?.source.card !== address;
   }
   if (!(waitingFor instanceof SelectSpace)) {
     return true;
@@ -285,7 +313,10 @@ const stagedParkBaselines = new WeakMap<IPlayer, Map<SpaceId, TileType | 'empty'
 
 function recordStagedParkBaselines(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
   for (const r of responses) {
-    if (stagedAddress(r) === undefined) {
+    // Cells only: a staged RESOLUTION needs no baseline — the voting area's
+    // membership cannot change inside an action, and `SelectParty.process`
+    // validates the party against the live prompt.
+    if (stagedCellAddress(r) === undefined) {
       continue;
     }
     const spaceId = (r as SelectSpaceResponse).spaceId;
@@ -306,7 +337,7 @@ function recordStagedParkBaselines(player: IPlayer, responses: ReadonlyArray<Inp
  * `process` still validates membership and refuses an illegal cell.
  */
 function stagedParkStale(player: IPlayer, response: InputResponse): boolean {
-  const address = stagedAddress(response);
+  const address = stagedCellAddress(response);
   if (address === undefined) {
     return false;
   }
@@ -323,12 +354,12 @@ function stagedParkStale(player: IPlayer, response: InputResponse): boolean {
 }
 
 /**
- * The player is about to answer a prompt MANUALLY that a parked staged cell
+ * The player is about to answer a prompt MANUALLY that a parked staged answer
  * was addressed to (an opponent's request advanced the queue past our drain
- * window, so the placement surfaced live). Their live answer supersedes the
- * parked plan — expire it, or the drain would land the stale cell on the SAME
- * card's NEXT same-shaped prompt (a two-ocean card's second ocean). Called by
- * the single-input route BEFORE processing.
+ * window, so the placement — or the delegate grant — surfaced live). Their
+ * live answer supersedes the parked plan — expire it, or the drain would land
+ * the stale answer on the SAME card's NEXT same-shaped prompt (a two-ocean
+ * card's second ocean). Called by the single-input route BEFORE processing.
  */
 export function expireSupersededStagedTail(player: IPlayer): void {
   const tail = parkedTails.get(player);
@@ -355,7 +386,7 @@ export function expireSupersededStagedTail(player: IPlayer): void {
  * and an F5 mid-chain re-derives the same fact instead of losing it.
  */
 export function parkedStagedPlacement(player: IPlayer): {card: CardName, spaceId: SpaceId} | undefined {
-  const entry = parkedTails.get(player)?.find((r) => stagedAddress(r) !== undefined);
+  const entry = parkedTails.get(player)?.find((r) => stagedCellAddress(r) !== undefined);
   if (entry === undefined) {
     return undefined;
   }
