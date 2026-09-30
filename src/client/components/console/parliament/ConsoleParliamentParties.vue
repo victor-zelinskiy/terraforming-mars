@@ -102,8 +102,8 @@ export default defineComponent({
      * stands (the teleport must move a frame before the FLIP, or there is nothing to invert), and the two
      * answers differ for exactly the length of the swap: a plaque in the air still shows the state of the
      * place it left, and changes in the frame it ARRIVES in («подпись не опережает объект» — the rising
-     * tile keeps its support sockets until it has landed in the government, the descending one gets its
-     * own back on the row).
+     * tile keeps its empty support sockets until it has landed in the government, the descending one gets
+     * its own back on the row; the cubes of a standing stock ride with the tile both ways).
      */
     rulerSettled(): ReduxParty {
       return parliamentHolds.rulerSettling ?? this.rulerShown;
@@ -112,8 +112,8 @@ export default defineComponent({
      * …AND WHETHER THAT SETTLED RULER RULES BY AN ENACTED CARD — the fact the support sockets stand on.
      * While the old ruler is still shown or still in the air, the answer is the OLD government's (seeded
      * with the sitting: `rulerBeforeByCard`); at rest it is the live one. Generation 1's starting-rule
-     * Greens are the one ruler without a card: their sockets stay drawn, and the support step's cube for
-     * them lands there.
+     * Greens are the one ruler without a card: their empty sockets stay drawn, and the support step's cube
+     * for them lands there.
      */
     rulerSettledByCard(): boolean {
       const holds = parliamentHolds;

@@ -116,8 +116,8 @@ export type ParliamentDisplayHolds = {
    * THE OLD RULING PARTY WHILE ITS PLAQUE IS STILL IN THE AIR. `rulerBefore` has to be released one frame
    * BEFORE the flight (the FLIP measures the tiles in their NEW places and inverts them back), so it
    * cannot say what a travelling tile should LOOK like. This can: until the swap has settled, each of the
-   * two plaques still wears the state of the place it LEFT — the ruler's tile loses its support sockets in
-   * the frame it ARRIVES in the government, not in the frame it takes off («подпись не опережает объект»).
+   * two plaques still wears the state of the place it LEFT — the ruler's tile loses its EMPTY support sockets
+   * in the frame it ARRIVES in the government, not in the frame it takes off («подпись не опережает объект»).
    * Set beside the release in the enactment beat, cleared by the FLIP's own settle.
    */
   rulerSettling: ReduxParty | undefined;

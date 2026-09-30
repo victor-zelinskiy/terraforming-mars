@@ -187,10 +187,11 @@
         gap: .1rem;
         flex-shrink: 0;
         margin-left: auto;
-        /* THE RULING PARTY HOLDS NONE, EVER (see the plaque's markup for the proof) — so its places are
-           hidden and KEEP THEIR ROOM: the ruler's plaque is the row's plaque, one box, and the two
+        /* NOTHING CAN PAY THE RULING PARTY (see the plaque's markup for the proof) — so its EMPTY places
+           are hidden and KEEP THEIR ROOM: the ruler's plaque is the row's plaque, one box, and the two
            exchange places physically. `display: none` would resize the government's tile and break the
-           swap; `visibility` leaves the geometry untouched. */
+           swap; `visibility` leaves the geometry untouched. A ruler with no stock voids the whole block;
+           a stock a card paid before it came to power stays drawn, place by place (`__support-place--void`). */
         &--void { visibility: hidden; }
     }
     &__support-place {
@@ -202,6 +203,8 @@
         /* A PLACE THE PRESS BEING DECIDED WILL FILL (the vote mode's support block): a hollow DASHED outline —
            a forecast, never a cube; the dash is what tells it from an empty socket without any colour. */
         &--incoming { background: transparent; box-shadow: none; outline: .06rem dashed fade(@con-cyan, 85%); outline-offset: -.06rem; }
+        /* AN EMPTY PLACE THAT CAN NEVER FILL (the ruler's, beside a stock that still stands): its room, no paint. */
+        &--void { visibility: hidden; }
         /* THE TOUCHDOWN (v3 В3, law 1): the ONE socket that received the cube answers — its material goes
            denser for a beat and settles. A one-shot ended by its own animationend: no pulse, no repeat,
            and nothing around it moves. */

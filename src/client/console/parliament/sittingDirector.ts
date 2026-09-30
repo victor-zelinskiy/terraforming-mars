@@ -629,7 +629,8 @@ function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, 
   const settlePose = () => {
     sittingMotion.swapping = false;
     // …and the two plaques ARRIVE: only now does each take the state of the place it landed in (the
-    // ruler's tile loses its support sockets here, the descending one gets them back — never in flight).
+    // ruler's tile loses its EMPTY support sockets here, the descending one gets them back — never in flight;
+    // a standing cube travels with its tile and never blinks).
     parliamentHolds.rulerSettling = undefined;
     parliamentHolds.rulerBeforeByCard = undefined;
   };

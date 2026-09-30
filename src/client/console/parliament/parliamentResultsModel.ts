@@ -48,10 +48,12 @@
  *    while it stands. The increment rides along as a MARK on the fresh places,
  *    never as the row's quantity.
  *
- *    THE RULING PARTY IS NOT IN THAT ROW: a party that rules by an enacted card
- *    holds exactly zero support by construction (the proof is in
- *    `ConsolePartyPlaque.vue`, which hides the sockets on the ruler's own tile
- *    for the same reason), and its place is read in the government's zone.
+ *    THE RULING PARTY IS NOT IN THAT ROW: its stock is read on its OWN plaque in
+ *    the government's zone, which stands beside this panel — and the panel never
+ *    restates another zone. It is almost always zero (nothing can pay a party
+ *    that rules by an enacted card — the proof is in `ConsolePartyPlaque.vue`);
+ *    the one exception, a stock a card paid to a resolution that then won, is
+ *    DRAWN there as cubes, so leaving it out loses nothing.
  *
  *    THE «NO FREE DELEGATE» ROW IS AN EXCEPTION, not a list: it exists only
  *    when somebody is in that state, which in an ordinary game is almost never.
@@ -487,8 +489,8 @@ export function resultsReadingOf(
     payouts,
     table: {
       fresh: summary.refreshed.map((f) => ({instance: f.instance, resolution: f.resolution, party: f.party})),
-      // The party that rules by the enacted card is left out: its stock is zero by construction and its
-      // plaque stands in the government's zone, two hand-spans away from this row.
+      // The party that rules by the enacted card is left out: its plaque stands in the government's zone,
+      // two hand-spans away from this row, and draws whatever stock it holds (zero unless a card paid it).
       support: support.filter((entry) => entry.party !== summary.enacted.party).map((entry) => ({
         party: entry.party,
         total: entry.support,

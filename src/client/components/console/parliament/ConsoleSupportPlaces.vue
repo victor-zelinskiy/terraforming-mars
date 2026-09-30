@@ -10,10 +10,17 @@
     through its own attributes (`data-parl-support` on a plaque,
     `data-parl-vote-support` in the vote panel): the sitting's flights address
     a PLAQUE's sockets and must never find this block's.
+    VOID EMPTY PLACES (the ruler's plaque): a place that can never fill keeps
+    its room but draws nothing, one by one — a cube that IS standing is a fact
+    and is always drawn; with no cube at all the whole block is void.
   -->
-  <span class="con-pseal__support" :class="{'con-pseal__support--void': hidden}" aria-hidden="true">
+  <span class="con-pseal__support" :class="{'con-pseal__support--void': allVoid}" aria-hidden="true">
     <span v-for="n in places" :key="n" class="con-pseal__support-place"
-          :class="{'con-pseal__support-place--on': n <= filled, 'con-pseal__support-place--incoming': n > filled && n <= filled + incoming}"
+          :class="{
+            'con-pseal__support-place--on': n <= filled,
+            'con-pseal__support-place--incoming': n > filled && n <= filled + incoming,
+            'con-pseal__support-place--void': voidEmpty && n > filled + incoming,
+          }"
           :data-support-place="n"
           :data-support-incoming="n > filled && n <= filled + incoming ? '' : undefined">
       <PlayerCube v-if="n <= filled" color="neutral" steel :size="cubePx" :glow="false" />
@@ -36,11 +43,17 @@ export default defineComponent({
     incoming: {type: Number, default: 0},
     /** The cube's size in device px (the host's own profile). */
     cubePx: {type: Number, required: true},
-    /** The block keeps its room but draws nothing (the ruling party's void sockets — see the plaque). */
-    hidden: {type: Boolean, default: false},
+    /** The EMPTY places keep their room but draw nothing — they can never fill (the ruling party's — see the plaque). */
+    voidEmpty: {type: Boolean, default: false},
   },
   data() {
     return {places: PARLIAMENT_MAX_POPULAR_SUPPORT};
+  },
+  computed: {
+    /** Nothing in the block is drawn: every place is a void empty one. */
+    allVoid(): boolean {
+      return this.voidEmpty && this.filled + this.incoming <= 0;
+    },
   },
 });
 </script>

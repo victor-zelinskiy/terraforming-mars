@@ -25,7 +25,7 @@ import {ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
 import {CardRenderItemType} from '../../../src/common/cards/render/CardRenderItemType';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {cast} from '../../../src/common/utils/utils';
-import {answerQuestGate, quietResolutionOf, seatResolution} from '../../parliament/parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, quietResolutionOf, seatQuiet, seatResolution} from '../../parliament/parliamentArrange';
 import {runAllActions} from '../../TestingUtils';
 import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
@@ -263,6 +263,58 @@ describe('PoliticalDonation', () => {
       playToPrompt(t);
       expect(() => t.p1.process({type: 'party', partyName: PartyName.UNITY})).to.throw();
       expect(t.parliament.votesOf(t.p1)).eq(0);
+    });
+  });
+
+  /*
+   * RULE 5 ACROSS THE SITTINGS — the one way a party RULING BY AN ENACTED CARD holds popular support.
+   * The sitting alone never pays the ruler (`ParliamentPhase.spec.ts` § ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ), but this card
+   * pays the party of a resolution that is IN the area, and that resolution may win. Nothing takes a stock
+   * but the deal of the party's next card (`moveSupportToSlot`), and the enacted party's card is never dealt —
+   * so the stock rides into the government and waits there. The console's ruler plaque DRAWS it
+   * (`ConsolePartyPlaque` § the ruler's sockets): a hidden stock would be three cubes gone from the supply
+   * with nowhere to see them.
+   */
+  describe('rule 5 across the sittings — the stock rides into the government and votes on the party\'s next card', () => {
+    it('the voted resolution wins: its party rules WITH the stock, gains nothing while it rules, and the stock votes on its next card', () => {
+      const t = table();
+      const {game, p1, parliament} = t;
+      playToPrompt(t);
+      p1.process({type: 'party', partyName: M});
+      runAllActions(game);
+      expect(parliament.popularSupportOf(M)).eq(3);
+
+      // Generation 1: p1's delegate is the only vote — the voted card wins and its party comes to power.
+      endGenerationThroughParliament(game);
+      expect(parliament.rulingParty()).eq(M);
+      expect(parliament.lastPhase!.support.map((entry) => entry.party), 'the sitting paid the winner nothing').not.includes(M);
+      expect(parliament.popularSupportOf(M), 'the card\'s stock rode into the government — nothing took it').eq(3);
+      expect(parliament.partiesInVotingArea(), 'the ruler\'s card is never dealt, so the stock waits').not.includes(M);
+      parliament.assertLedger(game);
+
+      // Generation 2: another party wins; a Mars First card waits on top of the deck for the refresh.
+      game.phase = Phase.ACTION;
+      for (let i = 0; i < parliament.slots.length; i++) {
+        seatQuiet(parliament, i);
+      }
+      parliament.addNeutralVote(parliament.slots[0]);
+      parliament.addNeutralVote(parliament.slots[0]);
+      const next = [...parliament.deck, ...parliament.discard].find((instance) => parliament.resolutionOf(instance).party === M);
+      expect(next, 'the pool holds another Mars First card').is.not.undefined;
+      parliament.deck = parliament.deck.filter((i) => i !== next);
+      parliament.discard = parliament.discard.filter((i) => i !== next);
+      parliament.deck.unshift(next!);
+      endGenerationThroughParliament(game);
+
+      const summary = parliament.lastPhase!;
+      expect(parliament.rulingParty(), 'the government changed hands').not.eq(M);
+      expect(summary.support.map((entry) => entry.party), 'still ENACTED at the support step: no «absent» cube on a full stock').not.includes(M);
+      const dealt = parliament.slots.find((slot) => slot.instance === next);
+      expect(dealt, 'the refresh dealt the party\'s next card').is.not.undefined;
+      expect(parliament.neutralVotes(dealt), 'the stock became three votes on it').eq(3);
+      expect(parliament.popularSupportOf(M)).eq(0);
+      expect(summary.refreshed.find((entry) => entry.instance === next)?.neutralVotes).eq(3);
+      parliament.assertLedger(game);
     });
   });
 

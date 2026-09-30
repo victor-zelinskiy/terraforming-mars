@@ -158,11 +158,14 @@ describe('ParliamentPhase', () => {
   });
 
   /*
-   * ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ — the rule two console surfaces STAND on: the ruler's plaque hides its three
-   * support sockets and the results panel leaves the ruling party out of its support row, both because a
-   * party that rules by an enacted card can never hold a neutral delegate. The rule is not written
+   * ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ — THE SITTING NEVER PAYS THE RULER, the rule the ruler's plaque stands on: its
+   * EMPTY support places are void (nothing can ever fill them while it rules). The rule is not written
    * anywhere in the engine; it FOLLOWS from three independent facts, and this spec pins the two that can
    * be weakened by a careless edit (the third, `moveSupportToSlot`, is asserted by the phase spec above).
+   * On a quiet table the three give «the ruler holds zero». A CARD can still hand a ruler a stock — TR03
+   * Political Donation pays the party of a resolution IN the area, and that resolution may win — and then
+   * the stock rides into the government, the plaque draws it, and it waits for the party's next card
+   * (`PoliticalDonation.spec.ts` § rule 5 across the sittings).
    */
   it('ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ: the enacted card\'s party gains nothing, is never dealt back into the area, and holds zero support', () => {
     const [game, p1, , parliament] = reduxGame();
@@ -193,10 +196,10 @@ describe('ParliamentPhase', () => {
       const parties = parliament.partiesInVotingArea();
       expect(parties, `a card of the ruling party stands in the voting area (${where})`).not.includes(ruling);
       expect(new Set(parties).size, `two cards of one party in the area (${parties.join(', ')} — ${where})`).eq(parties.length);
-      // ③ …so after the whole phase, deal included, the ruler holds nothing.
+      // ③ …so after the whole phase, deal included, the ruler holds nothing (on this QUIET table — no card paid anyone).
       expect(parliament.popularSupportOf(ruling), `the ruler holds popular support (${where})`).eq(0);
-      // …and the invariant the rule rides on: a party REPRESENTED in the area holds no stock either —
-      // the deal turned whatever it had into votes on its fresh card.
+      // …and the invariant the rule rides on: a party REPRESENTED in the area holds no stock either right after
+      // the deal — it turned whatever it had into votes on its fresh card (only a card can refill it before the sitting).
       for (const party of parties) {
         expect(parliament.popularSupportOf(party), `${party} keeps a stock while its card is in the area (${where})`).eq(0);
       }

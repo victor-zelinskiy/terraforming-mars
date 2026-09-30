@@ -99,31 +99,38 @@
       <!-- POPULAR SUPPORT — three places, ALWAYS reserved (v3 В3): a socket that appears when the first
            cube lands would make the arrival its own layout jump. Empty sockets read as empty sockets; the
            landing socket answers ONCE, on contact (`--landed`, the director adds it at the touchdown).
-           …AND THE RULING PARTY HAS NO PLACES TO SHOW. A party that rules by an ENACTED CARD holds exactly
-           zero popular support in every legal state, by construction — three sockets there promise
-           something that cannot happen, which is v4 §2.5 («0/2» стояло на месте правителя) all over
-           again. So the block is HIDDEN and stays IN THE FLOW: the ruler's plaque must keep the row's
-           height, that being the condition of the physical swap (v3–v5). The proof, and the two places
-           support can move at all (`grantSupport` in the phase, `moveSupportToSlot` at the deal):
+           …AND THE RULING PARTY'S EMPTY PLACES CAN NEVER FILL. Nothing pays a party that rules by an
+           ENACTED CARD for as long as it rules — an empty socket there promises something that cannot
+           happen, which is v4 §2.5 («0/2» стояло на месте правителя) all over again. So its EMPTY places
+           are VOID and stay IN THE FLOW (`voidEmpty`, `visibility` per place): the ruler's plaque must
+           keep the row's height, that being the condition of the physical swap (v3–v5). The proof, over
+           every place support can be paid (`grantSupport` in the phase, a card's grant):
              ① the first wave skips it — it is represented by the card in ENACTED;
              ② the second wave skips it — it pays the area's UNENACTED cards, and the deal never puts a
                 card of the enacted party (nor a second card of any party) into the area (`dealSlot` in
                 `ParliamentPhase.ts`, the rule stated in `ResolutionCatalog.ts`; guarded by
                 `ParliamentPhase.spec.ts` § ПРАВИТЕЛЬ БЕЗ ПОДДЕРЖКИ);
-             ③ whatever it had accumulated was zeroed by `moveSupportToSlot` the moment its card entered
-                the area and the stock became instant votes.
+             ③ a card pays the party of a resolution IN the area (TR03 Political Donation) — never the
+                ruler's, whose card is never there.
+           …BUT A STANDING CUBE IS A FACT AND IS ALWAYS DRAWN. Only the deal of the party's next card takes
+           a stock (`moveSupportToSlot`), so a stock the card of ③ paid to a resolution that then WON
+           rides into the government with its tile and waits there for the refresh after the party steps
+           down (`PoliticalDonation.spec.ts` § rule 5 across the sittings). Hiding it was three neutral
+           delegates gone from the supply with nowhere to see them; drawn, they travel with the tile in
+           the swap and later leave its sockets for the party's fresh card like any other stock. Without
+           a card of ③ the stock is zero and the whole block is void (`data-support-void`).
            THE ONE PARTY THAT RULES WITHOUT AN ENACTED CARD is the starting-rule Greens of generation 1
            (rulebook p.8: an empty ENACTED slot). The rule is the CARD's, not the office's: the support
            step pays every party «not present on any card in the Voting Area or Enacted slot» (p.11), and
            a printed slot is not a card — so once a fourth party's resolution can leave the Greens out of
            the generation-1 area, the server pays them as absent while they still rule. Their plaque
-           therefore KEEPS its sockets and its stock in the government (`rulesByCard` false — the host
-           reads it off the enacted card, lagging the swap exactly as `ruling` does), and the sitting's
-           support wave lands there. The same rule keeps the ENACTED CARD's party — never the office — out
-           of the results panel's support row. -->
+           therefore KEEPS its empty sockets in the government (`rulesByCard` false — the host reads it
+           off the enacted card, lagging the swap exactly as `ruling` does), and the sitting's support
+           wave lands there. -->
       <ConsoleSupportPlaces v-if="support !== undefined"
-                            :filled="support" :cubePx="supportCubePx" :hidden="ruling && rulesByCard"
-                            :data-support="support" :data-parl-support="party" :data-support-void="ruling && rulesByCard ? '' : undefined" />
+                            :filled="support" :cubePx="supportCubePx" :voidEmpty="ruling && rulesByCard"
+                            :data-support="support" :data-parl-support="party"
+                            :data-support-void="ruling && rulesByCard && support <= 0 ? '' : undefined" />
     </div>
   </div>
 </template>
@@ -167,15 +174,16 @@ export default defineComponent({
     reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
     /**
      * This tile WEARS the ruler's state: it is the ruling party's, so its state row says «правит» instead
-     * of an access counter (v4 §2.5) and its support sockets are hidden (they could never fill). During
+     * of an access counter (v4 §2.5) and its EMPTY support sockets are void (they could never fill). During
      * the government's swap this deliberately lags the tile's PLACE by the length of the flight — the host
      * passes «the ruler as settled», so a plaque changes state in the frame it arrives, never in flight.
      */
     ruling: {type: Boolean, default: false},
     /**
-     * The ruler's state is BY AN ENACTED CARD — the sockets are void (its stock can never be anything but
-     * zero). False for the one ruler without a card, generation 1's starting-rule Greens, whose sockets
-     * and stock stay drawn in the government. Read with `ruling`, lagging the swap the same way.
+     * The ruler's state is BY AN ENACTED CARD — its empty sockets are void (nothing can pay it while it
+     * rules; a stock a card paid before it came to power stays drawn). False for the one ruler without a
+     * card, generation 1's starting-rule Greens, whose empty sockets stay drawn in the government. Read
+     * with `ruling`, lagging the swap the same way.
      */
     rulesByCard: {type: Boolean, default: true},
     /** The roll call's word for this party while the support scene runs (v3 В3) — it takes the state row in place of the live state. */
