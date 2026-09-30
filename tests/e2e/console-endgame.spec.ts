@@ -267,15 +267,22 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // un-forced read sees the PREVIOUS item — the walker then concludes «that
     // hop moved nothing», turns around, and oscillates between two labels
     // until its budget runs out.
+    // The TRAIL of every read, so a shortfall names the walk it took instead of only the ring it walked.
+    const trail: Array<string> = [];
     const focusedNow = async (): Promise<string> => {
       await forceFrame(page);
-      return (await focused()) ?? '';
+      const at = (await focused()) ?? '';
+      trail.push(at);
+      return at;
     };
+    // THE BUDGET COVERS ~3 PASSES of the ring (tests.md: ≥ 2.5): the walker turns around after ONE hop that moved
+    // nothing, and on a loaded runner a hop that paints late reads exactly like a wall — `labels.length + 2` (6 on
+    // a four-item ring) ran out on the bounce, with «Повторить подсчёт» two items away.
     expect(await walkFocusUntil(page,
       async () => /Повторить подсчёт/i.test(await focusedNow()),
       focusedNow,
-      labels.length + 2),
-    `never reached «Повторить подсчёт» on the action ring (${labels.join(' | ')})`).toBeTruthy();
+      labels.length * 3),
+    `never reached «Повторить подсчёт» on the action ring (${labels.join(' | ')}) — walked ${trail.join(' → ')}`).toBeTruthy();
     await page.keyboard.press('Enter');
     await waitWithFrames(page, async () =>
       (await page.locator('.con-endgame--entering, .con-endgame--scoring').count()) > 0,
