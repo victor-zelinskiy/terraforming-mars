@@ -6,6 +6,7 @@ import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionCard} from '../ActionCard';
+import {digit} from '../Options';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
@@ -27,7 +28,8 @@ export const DATA_PER_SCIENCE_TAG = 2;
  *
  * SCAN READING — the corner holds TWO tags, Science (the atom) and Space (the
  * yellow star on black — not Energy). The orange MIN box beside the cost is
- * EMPTY: no requirement. No VP badge. The purple Turmoil symbol at the bottom
+ * EMPTY: no requirement. No VP badge. The effect row prints TWO data icons,
+ * the action row «4 [data]» as a digit. The purple Turmoil symbol at the bottom
  * left means «needs the political engine» — for a card of THIS manifest that
  * is the module itself (no `compatibility`, see TR02).
  *
@@ -85,7 +87,7 @@ export class VectorComputations extends ActionCard implements IActionCard {
             eb.tag(Tag.SCIENCE).startEffect.resource(CardResource.DATA, 2);
           }).br;
           b.action('Spend 4 data from here to draw a Space card.', (eb) => {
-            eb.resource(CardResource.DATA, 4).startAction.cards(1, {secondaryTag: Tag.SPACE});
+            eb.resource(CardResource.DATA, {amount: 4, digit}).startAction.cards(1, {secondaryTag: Tag.SPACE});
           });
         }),
       },
