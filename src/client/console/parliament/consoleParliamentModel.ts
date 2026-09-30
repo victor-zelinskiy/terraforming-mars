@@ -24,9 +24,9 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {PlayerInputModel, SelectPartyModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {
@@ -612,6 +612,13 @@ export type VoteVerbVm = {
   cost: number;
   /** The translated reason it cannot be sent now (undefined when available). */
   reason: string | undefined;
+  /**
+   * The DOOR this verb answers when it is not the viewer's own vote: `grant` —
+   * a live delegate grant (the delegate is the giver's, free); `card` — a
+   * STAGED card play, where the press is the play's one commit («Разыграть
+   * карту», the delegate leaves the reserve «по карте»). Undefined = the vote.
+   */
+  door?: 'grant' | 'card';
 };
 
 /**
@@ -641,6 +648,12 @@ export function voteVerbOf(input: {
   turnText: string;
   /** The translated «no longer offered» line (a card the live prompt dropped). */
   notOfferedText: string;
+  /**
+   * A DELEGATE GRANT stands on this screen (live, or a staged card door): the
+   * caller has already fed its prompt's parties and its own gate into the
+   * fields above — this only names the door on the verb, on every branch.
+   */
+  door?: 'grant' | 'card';
 }): VoteVerbVm | undefined {
   const tile = input.tile;
   if (!input.participates || tile === undefined) {
@@ -648,17 +661,26 @@ export function voteVerbOf(input: {
   }
   const source = tile.source === 'lobby' || tile.source === 'reserve' ? tile.source : 'none';
   const cost = source === 'reserve' ? (tile.cost ?? 0) : 0;
+  const door = input.door === undefined ? {} : {door: input.door};
   if (!tile.available) {
-    return {available: false, gate: 'rule', source, cost, reason: input.refusalText};
+    return {available: false, gate: 'rule', source, cost, reason: input.refusalText, ...door};
   }
   if (!input.canActNow || !input.offered) {
-    return {available: false, gate: 'turn', source, cost, reason: input.turnText};
+    return {available: false, gate: 'turn', source, cost, reason: input.turnText, ...door};
   }
   if (input.offeredParties !== undefined && !input.offeredParties.includes(input.party)) {
-    return {available: false, gate: 'rule', source, cost, reason: input.notOfferedText};
+    return {available: false, gate: 'rule', source, cost, reason: input.notOfferedText, ...door};
   }
-  return {available: true, gate: undefined, source, cost, reason: undefined};
+  return {available: true, gate: undefined, source, cost, reason: undefined, ...door};
 }
+
+/**
+ * The lift-off interval between the NEUTRAL delegates of a grant's Popular
+ * Support (the vote mode's landing): one after another, the support scene's
+ * rhythm (parliament law 12 — a cube every ≥ 90 ms), so each place answers its
+ * own touchdown and the supply's count drops cube by cube.
+ */
+export const SUPPORT_CUBE_STAGGER_MS = 110;
 
 // ── THE AGENDA READING ─────────────────────────────────────────────────────
 
@@ -721,24 +743,71 @@ export type ParliamentPromptBridge = {
    * the effect came from. `printed` is what the source printed when the
    * reserve fell short (equal to `count` otherwise).
    */
-  grant: {model: SelectPartyModel, count: number, printed: number} | undefined;
+  grant: GrantBridge | undefined;
 };
 
-export function parliamentPromptBridge(wf: PlayerInputModel | undefined): ParliamentPromptBridge {
-  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined};
-  if (wf === undefined) {
-    return bridge;
+/**
+ * A DELEGATE GRANT as the vote mode reads it — ONE shape for both of its
+ * doors (docs/TURMOIL_REDUX_POLITICAL_DONATION.md: «у голосования три двери и
+ * одно тело»):
+ *  · LIVE — the server's own prompt stands (a colony's grant; a card's grant
+ *    met past its commit): the answer is the plain party response;
+ *  · STAGED — a card that places a delegate by being played (TR03): nothing
+ *    has been sent, the model is the play preview's staged prompt (field for
+ *    field what the commit will raise), and the answer is the ADDRESSED tail
+ *    of the play batch (`stagedFor`).
+ * The mode has one code path; `staged` and `card` are the only differences.
+ */
+export type GrantBridge = {
+  model: SelectPartyModel;
+  count: number;
+  printed: number;
+  /** The GIVER is a card (`choiceContext.source.card`) — the door's L3 «Источник» and the «по карте» source line. */
+  card?: CardName;
+  /** The door is STAGED: the play is not submitted yet — A commits it, B walks back to the composer. */
+  staged?: boolean;
+  /** «Then N neutral delegates to the chosen resolution's party» — the SERVER's per-party projection (never computed here). */
+  support?: ReadonlyArray<VoteSupportProjection>;
+};
+
+/** The grant reading of a party prompt carrying the `grant` marker — live or staged alike. */
+function grantBridgeOf(model: SelectPartyModel, staged: boolean): GrantBridge | undefined {
+  const marker = model.votePrompt;
+  if (marker === undefined || marker.source !== 'grant') {
+    return undefined;
   }
-  if (wf.type === 'party' && wf.votePrompt?.source === 'chairman-seat') {
+  const count = Math.max(1, marker.count ?? 1);
+  const card = model.choiceContext?.source.kind === 'card' ? model.choiceContext.source.card : undefined;
+  return {
+    model,
+    count,
+    printed: Math.max(count, marker.printed ?? count),
+    ...(card === undefined ? {} : {card}),
+    ...(staged ? {staged: true} : {}),
+    ...(marker.support === undefined ? {} : {support: marker.support}),
+  };
+}
+
+/**
+ * `staged` — the SECOND source of a grant: a staged vote's prompt (the play
+ * preview's `delegateGrant` step, held by the staged-play store while the
+ * resolution is being chosen). The LIVE prompt always wins: a seat pick or a
+ * live grant standing means the server is past whatever was staged.
+ */
+export function parliamentPromptBridge(wf: PlayerInputModel | undefined, staged?: StagedVoteModel): ParliamentPromptBridge {
+  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined};
+  if (wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'chairman-seat') {
     bridge.seat = wf;
     return bridge;
   }
-  if (wf.type === 'party' && wf.votePrompt?.source === 'grant') {
-    const count = Math.max(1, wf.votePrompt.count ?? 1);
-    bridge.grant = {model: wf, count, printed: Math.max(count, wf.votePrompt.printed ?? count)};
+  if (wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'grant') {
+    bridge.grant = grantBridgeOf(wf, false);
     return bridge;
   }
-  if (wf.type !== 'or') {
+  if (staged !== undefined) {
+    bridge.grant = grantBridgeOf(staged.prompt, true);
+  }
+  if (wf === undefined || wf.type !== 'or') {
     return bridge;
   }
   wf.options.forEach((option, index) => {
@@ -834,12 +903,27 @@ export function seatResponse(bridge: ParliamentPromptBridge, party: PartyName): 
   return {type: 'party', partyName: party};
 }
 
-/** A delegate GRANT's answer — the stand-alone party prompt, byte-identical to the historical radio UI. */
+/**
+ * A delegate GRANT's answer. LIVE — the stand-alone party prompt, byte-identical
+ * to the historical radio UI. STAGED — the same answer ADDRESSED to the card
+ * (`stagedFor`): it rides the play batch as its tail and lands only on that
+ * card's own grant (`server/inputs/deferredInputBatch.ts`), never on a prompt
+ * of the same type that jumped the queue (the chairman's seat).
+ */
 export function grantResponse(bridge: ParliamentPromptBridge, party: PartyName): InputResponse | undefined {
-  if (bridge.grant === undefined || !bridge.grant.model.parties.includes(party)) {
+  const grant = bridge.grant;
+  if (grant === undefined || !grant.model.parties.includes(party)) {
     return undefined;
   }
+  if (grant.staged === true && grant.card !== undefined) {
+    return {type: 'party', partyName: party, stagedFor: grant.card};
+  }
   return {type: 'party', partyName: party};
+}
+
+/** The support the chosen resolution's PARTY would receive under this grant — the server's own row (undefined: the grant pays none). */
+export function grantSupportOf(grant: GrantBridge | undefined, party: PartyName): VoteSupportProjection | undefined {
+  return grant?.support?.find((row) => row.party === party);
 }
 
 /** The Industrialists' shift: the `and` of two `or` picks (decrease, increase), byte-identical to the live prompt. */

@@ -199,6 +199,9 @@
         background: rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
         &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+        /* A PLACE THE PRESS BEING DECIDED WILL FILL (the vote mode's support block): a hollow DASHED outline —
+           a forecast, never a cube; the dash is what tells it from an empty socket without any colour. */
+        &--incoming { background: transparent; box-shadow: none; outline: .06rem dashed fade(@con-cyan, 85%); outline-offset: -.06rem; }
         /* THE TOUCHDOWN (v3 В3, law 1): the ONE socket that received the cube answers — its material goes
            denser for a beat and settles. A one-shot ended by its own animationend: no pulse, no repeat,
            and nothing around it moves. */

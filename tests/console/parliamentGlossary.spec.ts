@@ -84,6 +84,16 @@ const CANON: Record<string, string> = {
   'Greenery tiles': 'Тайлы озеленения',
   // THE EXPANSION'S NAME (glossary § 6-bis): «Redux» is translated — the two parliament lines that name
   // the expansion print it, never the half-Latin «Кризис Redux» and never «Turmoil Redux» in a RU string.
+  // THE VOTE'S THIRD DOOR (TR03 Political Donation — glossary § 9): the door is a navigation verb on the play
+  // composer, the delegate is the CARD's («по карте», never «бесплатно» — the card was paid for), and the
+  // party's support speaks in NUMBERS with the cause of a cut named («предел области», the supply's count).
+  'Choose the resolution': 'Выбрать резолюцию',
+  'Resolution — chosen in the Parliament': 'Резолюция — выбор в Парламенте',
+  'from the reserve · by the card': 'из резерва · по карте',
+  '+${0} of ${1} · area limit': '+${0} из ${1} · предел области',
+  '+${0} of ${1} · neutral supply: ${2}': '+${0} из ${1} · нейтральных в запасе: ${2}',
+  'area is full': 'область заполнена',
+  'no neutral delegates left': 'нейтральных не осталось',
   'Turmoil Redux requires Colonies': '«Кризис: Возвращение» требует дополнение «Колонии»',
   'Redux resolutions showcase': 'Витрина резолюций «Кризис: Возвращение»',
 };
@@ -103,6 +113,15 @@ const THIRD_PERSON_KEYS: ReadonlyArray<string> = [
   'Theirs at influence ${0} — win or not',
   'Only if they win — influence ${0} is below ${1}',
   'cities on Mars: ${0}',
+  // THE PARTY'S SUPPORT (TR03): it stands in the vote panel whoever the reading's subject is, and it is
+  // nobody's — the party's. None of its lines may turn it into «ваша».
+  'Popular support',
+  '+${0} of ${1} · area limit',
+  '+${0} of ${1} · neutral supply: ${2}',
+  'area is full',
+  'no neutral delegates left',
+  '${0} → ${1} of ${2}',
+  'Neutral delegates in a party\'s Popular Support become votes on that party\'s next resolution. They do not vote on this one.',
 ];
 
 /** The second person in RU (no `` — JS word boundaries are ASCII-only and never fire beside Cyrillic). */

@@ -45,6 +45,7 @@
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
+           :data-parl-grant-degraded="flow.grantDegraded !== '' ? flow.grantDegraded : undefined"
            data-motion-panel>
     <!-- EMBEDDED (a step of another workspace — the delegate grant of the Redux
          Venus, hosted inside the colonies): the host draws the crumb (embed
@@ -62,11 +63,11 @@
                    :stage="crumbStage"
                    :committed="crumbCommitted">
       <template #trailing>
-        <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" />
+        <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" :neutralSource="neutralSource" />
       </template>
     </ConsoleWsHead>
     <div v-else class="con-parl__toolbar" data-parl-toolbar>
-      <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" />
+      <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" :neutralSource="neutralSource" />
     </div>
 
     <!-- THE FIELD — the overview's body and, over it, the vote mode's layer. -->
@@ -135,6 +136,7 @@
                                :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
                                :awaitingInput="awaitingInput" :bridge="bridge" :voteTile="voteTile" :winningSlot="winningSlot"
                                :benchSource="benchSource" :benchWarn="benchWarn" :canActNow="canActNow" :canVoteNow="canVoteNow"
+                               :cardReceipt="stagedVote !== undefined ? stagedReceipt : undefined"
                                @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)"
                                @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)" />
     </div>
@@ -146,6 +148,7 @@ import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -164,7 +167,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {
-  AgendaMove, agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
+  AgendaMove, agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
@@ -249,8 +252,17 @@ export default defineComponent({
      * ГОЛОСОВАНИЕ»); logic, state and the submit path are untouched.
      */
     embedded: {type: Boolean, default: false},
+    /**
+     * A STAGED VOTE (a card that places a delegate by being played — Turmoil Redux TR03): the play
+     * preview's staged grant, held by the shell's staged-play store while the resolution is chosen HERE.
+     * It is the bridge's SECOND source of a grant — the vote mode then serves it through its one code
+     * path; nothing has been sent, and the confirm is the play's one submit (the shell's funnel).
+     */
+    stagedVote: {type: Object as PropType<StagedVoteModel | undefined>, default: undefined},
+    /** …and the card's price as the play composer settled it — the mode's locked receipt. */
+    stagedReceipt: {type: Number as PropType<number | undefined>, default: undefined},
   },
-  emits: ['close', 'submit', 'notice', 'inspect', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'to-board'],
+  emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
   data() {
     return {
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
@@ -323,7 +335,19 @@ export default defineComponent({
       return model === undefined ? emptyParliamentView() : buildParliamentView(model, this.viewerColor, this.pv.players);
     },
     bridge(): ParliamentPromptBridge {
-      return parliamentPromptBridge(this.pv.waitingFor);
+      return parliamentPromptBridge(this.pv.waitingFor, this.stagedVote);
+    },
+    /**
+     * THE NEUTRAL SUPPLY IS A SOURCE TOO — while the vote mode stands behind a door that also pays the
+     * selected card's party and at least one neutral delegate would land: two sources (the viewer's
+     * reserve, the common supply), two addressees, both marked on the bench before the press.
+     */
+    neutralSource(): boolean {
+      if (parliamentFlow.stage !== 'vote') {
+        return false;
+      }
+      const slot = this.focusedSlot;
+      return slot !== undefined && (grantSupportOf(this.bridge.grant, slot.party)?.gained ?? 0) > 0;
     },
     /**
      * A nested frame (the action workspace) took the SCENE — this screen yields and waits. A frame this
@@ -640,7 +664,12 @@ export default defineComponent({
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
         voteSubjects: this.voteSubjectCount,
-        grant: this.bridge.grant === undefined ? undefined : {count: this.bridge.grant.count},
+        grant: this.bridge.grant === undefined ? undefined : {
+          count: this.bridge.grant.count,
+          // Staged only BEFORE the press: past it the door is committed like any other.
+          staged: this.bridge.grant.staged === true && parliamentFlow.voteSnapshot === undefined,
+          source: this.bridge.grant.card !== undefined,
+        },
       });
     },
     /**
@@ -715,14 +744,6 @@ export default defineComponent({
       immediate: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
         consoleParliamentUi.commands = [...cmds];
-      },
-    },
-    'frameCrumb': {
-      immediate: true,
-      deep: true,
-      handler(crumb: {subject: string, stage: string}): void {
-        setWorkspaceFrameSubject('parliament', crumb.subject);
-        setWorkspaceFrameStage('parliament', crumb.stage);
       },
     },
     /** The vote mode's PAYMENT zone — published once the mode's DOM stands (post-flush: a teleport into a zone not yet rendered drops its content). */
@@ -959,6 +980,22 @@ export default defineComponent({
         } else {
           mode.openVote({index: idx});
         }
+      },
+    },
+    /**
+     * THE CRUMB, handed UP. Declared LAST on purpose: every `immediate` watcher
+     * above that opens a stage at SETUP (the sitting, a seat pick, a delegate
+     * grant's vote) has already done so, and the first name this surface
+     * publishes is the stage it is BORN on. Published earlier, a step mounting
+     * for a grant named itself «Обзор» for one render before «Голосование» —
+     * the host's crumb animated its tail twice, through a stage nobody entered.
+     */
+    'frameCrumb': {
+      immediate: true,
+      deep: true,
+      handler(crumb: {subject: string, stage: string}): void {
+        setWorkspaceFrameSubject('parliament', crumb.subject);
+        setWorkspaceFrameStage('parliament', crumb.stage);
       },
     },
   },
@@ -1227,6 +1264,13 @@ export default defineComponent({
           return;
         }
         if (f.stage === 'vote') {
+          // A STAGED door (a card's own play — nothing sent yet): B is ONE
+          // reversible level — back to the play composer, every capture intact.
+          // The shell owns the way back (the frame leaves, the composer returns).
+          if (this.bridge.grant?.staged === true) {
+            this.$emit('staged-back');
+            return;
+          }
           // A DELEGATE GRANT is mandatory and stands past the commit of the
           // flow that paid it: there is no browse layer to fold back to — B
           // is «Свернуть», the whole hosting stack parks (the board-home
@@ -1239,6 +1283,15 @@ export default defineComponent({
           return;
         }
         this.closeStage();
+        return;
+      }
+      // L3 «ИСТОЧНИК» — the CARD whose play (or effect) places this delegate: opened over the mode, which
+      // stays mounted under it (X belongs to the selected resolution — the staged dossier's own split).
+      if (f.stage === 'vote' && intent.kind === 'press' && intent.button === 'stickL') {
+        const card = this.bridge.grant?.card;
+        if (card !== undefined) {
+          this.$emit('inspect-source', card);
+        }
         return;
       }
       switch (f.stage) {

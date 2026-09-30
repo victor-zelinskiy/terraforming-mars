@@ -214,6 +214,17 @@
         padding: 0;
         width: 100%;
         align-self: stretch;
+        /* A STEP'S ENTRY IS ITS OWN, IN CSS (`backwards`: the first painted frame is already the start of
+           the entry — a JS reveal would have to hide a surface that is on screen by then, which is a blink).
+           The step rises out of the zone the previous surface is letting go in: the staged vote over the
+           landing scene, the colony's grant over the track. OPACITY ONLY — a transform here would make this
+           root the containing block of every `position: fixed` measure inside it for the entry's length. */
+        animation: con-parl-step-in calc(240ms * var(--motion-scale, 1)) ease-out backwards;
+        /* …and its pictures rise WITH it: the face's own first-load fade (`premium_card.less` starts every
+           art at opacity 0) is a second, slower entrance inside this one — the frames and ribbons stood at
+           half strength over black windows. The staged door warms the table's art during the card's
+           landing ritual (`preloadResolutionArt`), so there is nothing left to fade in. */
+        .pcard__art img { opacity: 1; transition: none; }
     }
     &__toolbar {
         flex-shrink: 0;
@@ -1293,6 +1304,9 @@
 @keyframes con-parl-ghost {
     from { opacity: .35; }
     to { opacity: 1; }
+}
+@keyframes con-parl-step-in {
+    from { opacity: 0; }
 }
 @keyframes con-parl-tick {
     from { transform: translateY(-.3rem); opacity: .2; }

@@ -1,5 +1,5 @@
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
-import {parliamentFlow, parliamentVoteInFlight} from './consoleParliamentFlow';
+import {parliamentFlow, parliamentSupportInFlight, parliamentVoteInFlight} from './consoleParliamentFlow';
 import {PartyActionStateVm, ParliamentViewVm} from './consoleParliamentModel';
 
 /*
@@ -46,7 +46,16 @@ export type ParliamentCommandsInput = {
    * says «delegates»), and B is «Свернуть» — the grant is mandatory and past
    * the commit of the flow that paid it, there is no browse layer to fold to.
    */
-  grant?: {count: number};
+  grant?: {
+    count: number,
+    /**
+     * The door is STAGED (a card that places a delegate by being played — TR03): nothing has been sent, so A
+     * is the PLAY's own commit («Разыграть карту») and B is one reversible level back to the composer («Назад»).
+     */
+    staged?: boolean,
+    /** The giver is a CARD: L3 «Источник» opens it over the mode (X belongs to the selected resolution). */
+    source?: boolean,
+  };
 };
 
 /** The law's verb: advertised whenever an enacted resolution has an action — lit only when it can be taken now. */
@@ -112,14 +121,23 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     return browseCommands(input, back);
   case 'vote': {
     const grant = input.grant;
+    const staged = grant?.staged === true;
+    // A STAGED door's A is the PLAY's commit — the existing «Разыграть карту», never a second verb for it.
+    const verb = staged ? 'Play card' : (grant !== undefined && grant.count > 1 ? 'Send the delegates' : 'Send the delegate');
     const cmds: Array<ConsoleCommand> = [
-      {control: 'confirm', label: grant !== undefined && grant.count > 1 ? 'Send the delegates' : 'Send the delegate', enabled: input.canVoteNow, highlight: input.canVoteNow},
+      {control: 'confirm', label: verb, enabled: input.canVoteNow, highlight: input.canVoteNow},
       {control: 'secondary', label: 'Inspect'},
     ];
     if ((input.voteSubjects ?? 0) > 1) {
       cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Players'});
     }
-    cmds.push(grant !== undefined ? {control: 'back', label: 'Minimize'} : back);
+    if (grant?.source === true) {
+      // The console's one short word for it (a long label is the first thing a full bar drops).
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+    }
+    // B: a staged door is REVERSIBLE («Назад» — back to the composer, nothing was sent); a live grant is
+    // mandatory and past the commit of the flow that paid it («Свернуть»).
+    cmds.push(grant !== undefined && !staged ? {control: 'back', label: 'Minimize'} : back);
     return cmds;
   }
   case 'seat':
@@ -155,6 +173,6 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     return [];
   case 'landed':
     // The landing beat is a STATUS, not a verb: the bar echoes the CTA (busy until the cube lands) and offers nothing until the flow leaves.
-    return [{control: 'confirm', label: parliamentVoteInFlight() ? 'Performing…' : 'Delegate placed', enabled: false}];
+    return [{control: 'confirm', label: parliamentVoteInFlight() || parliamentSupportInFlight() ? 'Performing…' : 'Delegate placed', enabled: false}];
   }
 }

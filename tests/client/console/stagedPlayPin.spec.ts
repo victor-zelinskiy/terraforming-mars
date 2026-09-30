@@ -34,7 +34,7 @@ describe('stagedPlay — the parked pin', () => {
       cardName: CardName.NUCLEAR_ZONE,
       isEvent: false,
       batch: [],
-      placement: {title: '', spaces: [], sourceCard: CardName.NUCLEAR_ZONE, tileType: TileType.NUCLEAR_ZONE},
+      target: {kind: 'cell', placement: {title: '', spaces: [], sourceCard: CardName.NUCLEAR_ZONE, tileType: TileType.NUCLEAR_ZONE}},
       rewards: [REWARD],
       draws: 0,
       deckCheck: false,

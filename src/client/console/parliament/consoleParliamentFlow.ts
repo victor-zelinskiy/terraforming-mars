@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
+import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {SITTING_SUBJECT_KEY} from '@/client/console/parliament/consoleSittingFlow';
 
@@ -139,7 +140,23 @@ export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting
  * cubes the press sends: one for the vote, a delegate GRANT's count (the Redux
  * Venus's two) — read at the landing, when the prompt that said so is gone.
  */
-export type VoteSnapshot = {votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve', count: number};
+export type VoteSnapshot = {
+  votes: number, mine: number, leader: Color | 'neutral' | undefined, winning: boolean, winner: string | undefined, source: 'lobby' | 'reserve', count: number,
+  /**
+   * WHICH DOOR sent it — remembered past the submit, when the prompt that said so is gone: `card` = a card's
+   * own play placed the delegate (TR03's staged vote: the source line stays «из резерва · по карте» and the
+   * confirm stays «Разыграть карту» through the landing). Absent = the vote / an effect's grant.
+   */
+  door?: 'card',
+  /** A STAGED card door's receipt (the card's price as the composer settled it) — read through the landing. */
+  receipt?: number,
+  /**
+   * THE PARTY'S SUPPORT this press also pays («then up to N neutral delegates to the chosen resolution's
+   * party»): the server's row for the SELECTED card's party as it stood at the press. The block reads it
+   * until every neutral cube has landed — the places fill on the touchdowns, never on the packet.
+   */
+  support?: VoteSupportProjection,
+};
 
 function freshFlow() {
   return {
@@ -186,6 +203,15 @@ function freshFlow() {
     flightSeq: undefined as number | undefined,
     /** The cubes of the current flow that have NOT flown yet (hidden on the ribbon — they still stand on the bench). */
     pendingSeqs: [] as Array<number>,
+    /**
+     * THE NEUTRAL DELEGATES OF A GRANT'S SUPPORT, in the air (TR03): `held` cubes still stand in the common
+     * supply (the bench paints and counts them until each LIFTS), `landed` have touched down on the party's
+     * places in the vote panel (a place fills on contact). Both are zero outside that landing.
+     */
+    supportHeld: 0,
+    supportLanded: 0,
+    /** The flight could not be flown for want of a measurable place — CONFESSED on the section root (`data-parl-grant-degraded`), never silent. */
+    grantDegraded: '',
     /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes (cleared by the flash's own `animationend`). */
     chairPulse: false,
     /** The chairman QUEST block answers once (its reading beat) — the same one-shot grammar as the chair's. */
@@ -242,6 +268,9 @@ export function armGrantVoteFlow(slotIndex: number): void {
   f.sourceLeaving = undefined;
   f.sourceHoldCount = 0;
   f.sourceLeavingCount = 0;
+  f.supportHeld = 0;
+  f.supportLanded = 0;
+  f.grantDegraded = '';
 }
 
 /** The chairman's delegate has landed on the seat mark: it flashes once (a CSS one-shot; the government clears the flag on `animationend`). */
@@ -381,6 +410,13 @@ export function parliamentVoteInFlight(): boolean {
   const f = parliamentFlow;
   return f.voteSnapshot !== undefined &&
     (f.stage === 'submitting' || f.stage === 'paying' || (f.stage === 'landed' && f.landedSeq === undefined));
+}
+
+/** A grant's NEUTRAL delegates are still on their way to the party's support places (the landing is not read yet). */
+export function parliamentSupportInFlight(): boolean {
+  const f = parliamentFlow;
+  const support = f.voteSnapshot?.support;
+  return f.stage === 'landed' && support !== undefined && f.supportLanded < support.gained;
 }
 
 // ── the section's root element ─────────────────────────────────────────────

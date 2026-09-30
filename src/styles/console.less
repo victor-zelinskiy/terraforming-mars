@@ -32537,6 +32537,14 @@ html.console-mode {
     display: flex;
     align-items: stretch;
 
+    /* BACK FROM A STAGED STEP (B on the board / in the Parliament): the card was on screen a moment ago and
+       its picture is decoded — the face's first-load fade would hand the player an empty frame for its first
+       frames (the `.con-discard-proxy` precedent; `premium_card.less` starts every art at opacity 0). */
+    &.con-composer--restored .con-composer__playcard .pcard__art img {
+        opacity: 1;
+        transition: none;
+    }
+
     .con-composer__panel--play {
         width: 100%;
         max-width: none;

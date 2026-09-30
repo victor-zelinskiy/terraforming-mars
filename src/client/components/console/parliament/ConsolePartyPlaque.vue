@@ -121,13 +121,9 @@
            reads it off the enacted card, lagging the swap exactly as `ruling` does), and the sitting's
            support wave lands there. The same rule keeps the ENACTED CARD's party — never the office — out
            of the results panel's support row. -->
-      <span v-if="support !== undefined" class="con-pseal__support"
-            :class="{'con-pseal__support--void': ruling && rulesByCard}"
-            :data-support="support" :data-parl-support="party" :data-support-void="ruling && rulesByCard ? '' : undefined" aria-hidden="true">
-        <span v-for="n in 3" :key="n" class="con-pseal__support-place" :class="{'con-pseal__support-place--on': n <= support}" :data-support-place="n">
-          <PlayerCube v-if="n <= support" color="neutral" steel :size="supportCubePx" :glow="false" />
-        </span>
-      </span>
+      <ConsoleSupportPlaces v-if="support !== undefined"
+                            :filled="support" :cubePx="supportCubePx" :hidden="ruling && rulesByCard"
+                            :data-support="support" :data-parl-support="party" :data-support-void="ruling && rulesByCard ? '' : undefined" />
     </div>
   </div>
 </template>
@@ -138,6 +134,7 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty, PARTY_EFFECT_DELEGATES} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -148,7 +145,7 @@ export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside';
 
 export default defineComponent({
   name: 'ConsolePartyPlaque',
-  components: {ConsolePartyFormula, PlayerCube},
+  components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerCube},
   props: {
     party: {type: String as PropType<ReduxParty>, required: true},
     size: {type: String as PropType<PartyPlaqueSize>, default: 'tile'},

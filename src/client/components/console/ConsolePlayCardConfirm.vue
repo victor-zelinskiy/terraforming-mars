@@ -25,6 +25,7 @@
          'con-ws': !embedded,
          'con-composer--ptsel': playedTargetStepOpen,
          'con-composer--landing': landingUp,
+         'con-composer--restored': restored,
        }"
        role="dialog" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'play-composer'">
@@ -669,7 +670,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -680,7 +681,7 @@ import {
   initialCounts, dialLaneCount, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
-import {setConsolePlayCardCommands, resetConsolePlayCardUi, takePlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
+import {consolePlayCardUi, setConsolePlayCardCommands, resetConsolePlayCardUi, takePlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 import {setWorkspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
@@ -857,6 +858,9 @@ export default defineComponent({
     return {
       preview: undefined as ActionPreview | undefined,
       loading: true,
+      /** This mount is the RETURN from a staged step (its draft is waiting to be applied): the card was on
+       *  screen a moment ago, so its face skips the first-load fade. A peek — `applyPreview` consumes the draft. */
+      restored: consolePlayCardUi.stagedDraft?.cardName === this.cardName,
       selectedPos: undefined as number | undefined,
       capturedPre: {} as Record<number, unknown>,
       capturedOption: undefined as unknown,
@@ -1673,6 +1677,13 @@ export default defineComponent({
           out.push(placementRow(s, consoleTranslate, textOf));
         } else if (s.kind === 'note' && s.noteKind !== 'warning') {
           out.push(noteRow(s.text !== undefined ? textOf(s.text) : translateText('Choose a target')));
+        } else if (s.kind === 'delegateGrant') {
+          // THE DOOR's own row: the name of the step («Резолюция — выбор в Парламенте»), never a guess
+          // about what it will pay — the support of a party depends on the resolution not yet chosen.
+          const key = playDoorNextStepKey({kind: 'parliament', staged: s.staged});
+          if (key !== undefined) {
+            out.push(noteRow(translateText(key)));
+          }
         }
         // `tabbedTargets` is now PRE-COLLECTED inline (a decision row) — no note.
       }
@@ -1716,14 +1727,22 @@ export default defineComponent({
      *  screen to the board, and the CELL CONFIRM there is the actual commit —
      *  so the CTA must not promise a finished play. */
     ctaStaged(): boolean {
-      const b = this.selectedBranch;
-      return b !== undefined && this.stagedPlacementOf(b) !== undefined;
+      return this.playDoor !== undefined;
+    },
+    /**
+     * THE DOOR of the chosen branch (`playDoorOf` — the one classification): a
+     * staged board placement, or the Parliament's vote mode for a card that
+     * places a delegate by being played. The CTA, the bar, the «next step» row
+     * and the confirm payload all read this.
+     */
+    playDoor(): PlayDoor | undefined {
+      return playDoorOf(this.selectedBranch);
     },
     /** The big CTA strip label — the primary action in words. */
     ctaLabel(): string {
       const st = this.primaryActionState;
       switch (st.kind) {
-      case 'ready': return this.ctaStaged ? 'Play on the board' : 'Play card';
+      case 'ready': return playCommitVerb(this.playDoor);
       // Calm INSTRUCTION, not a refusal: the rail says what the screen is
       // waiting for instead of dangling a live «Разыграть карту» over a result
       // the player has not chosen.
@@ -1803,6 +1822,9 @@ export default defineComponent({
         focused,
         pickAnswered: row !== undefined && !this.rowMissing(row),
         primary: this.primaryActionState,
+        // The vote's door names itself in the bar exactly as on the rail («Выбрать резолюцию»): the press
+        // opens the Parliament, it does not finish the play. (The board's door keeps its historical bar verb.)
+        doorVerb: this.playDoor?.kind === 'parliament' ? playCommitVerb(this.playDoor) : undefined,
       });
     },
     /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
@@ -3831,6 +3853,10 @@ export default defineComponent({
         // shell then parks the batch and runs the cell pick BEFORE submitting
         // — the cell is the play's last reversible step.
         staged: this.stagedPlacementOf(b),
+        // STAGED VOTE (Turmoil Redux TR03): the branch's `delegateGrant` door —
+        // the shell parks the batch and opens the Parliament's vote mode inside
+        // this workspace; the resolution confirmed there is the play's one submit.
+        stagedVote: this.playDoor?.kind === 'parliament' ? this.playDoor.staged : undefined,
         // …and the raw capture snapshot that restores this very screen when
         // the player comes back from the board with B. Opaque to the shell.
         composerDraft: this.composerDraftSnapshot(),

@@ -31,7 +31,8 @@ import {CardName} from '@/common/cards/CardName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
-import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {
   levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
@@ -65,6 +66,17 @@ export const READING_KICKER_SPECTATOR = 'When enacted';
 export const VOTE_KICKER = 'Your vote';
 /** «ВАШИ ДЕЛЕГАТЫ» — a delegate GRANT's block (the Redux Venus): not a vote, the effect's own delegates. */
 export const GRANT_KICKER = 'Your delegates';
+/** «ИЗ РЕЗЕРВА · ПО КАРТЕ» — the source line of a delegate a CARD's own play places (TR03): free, and the card is what pays. */
+export const CARD_DOOR_SOURCE = 'from the reserve · by the card';
+/** …and its locked RECEIPT: the card's price as the composer settled it («Карта · 4 M€» — changed only through B). */
+export const CARD_DOOR_RECEIPT = 'Card';
+/** The kicker of the party's support block — the glossary's own term. */
+export const SUPPORT_KICKER = 'Popular support';
+/** The support tail's words, by what cut the number (the area first, the supply second) — and the two named zeroes. */
+export const SUPPORT_TAIL_AREA = '+${0} of ${1} · area limit';
+export const SUPPORT_TAIL_SUPPLY = '+${0} of ${1} · neutral supply: ${2}';
+export const SUPPORT_NONE_AREA = 'area is full';
+export const SUPPORT_NONE_SUPPLY = 'no neutral delegates left';
 /** The party box's one line of moment (the graphic beside the reading — not a kicker, not a reading). */
 export const PARTY_MOMENT = 'party effect · to every player when enacted';
 /** …and of the suffix's words. */
@@ -166,6 +178,67 @@ export type VoteFactsVm = {lead: VoteFactVm, win: VoteFactVm, access: VoteFactVm
 /** The vote's counts (the inspector's row; the panel leaves them to the ribbon under the card). */
 export type VoteNumbersVm = {votesBefore: number, votesAfter: number, mineBefore: number, mineAfter: number};
 
+/**
+ * «НАРОДНАЯ ПОДДЕРЖКА» of the selected card's PARTY under a grant that also
+ * pays it (TR03: «then up to 3 neutral delegates…»). Every number is the
+ * SERVER's row (`votePrompt.support`) — this only lays it out: the area's
+ * three places (filled · arriving · empty), `current → resulting`, and a tail
+ * that NAMES what cut the printed number. The support belongs to the PARTY —
+ * it is nobody's, so nothing here ever says «ваша» at any subject.
+ */
+export type SupportReadingVm = {
+  party: ReduxParty;
+  current: number;
+  resulting: number;
+  gained: number;
+  printed: number;
+  /** The area's places as SHOWN: filled now, arriving with this press (a ghost outline), out of `total`. */
+  places: {filled: number, incoming: number, total: number};
+  /** The signed amount («+3», «+1», «+0») — a number, not a word. */
+  amount: string;
+  /** The words after it, when the printed number was cut: an English key with its params; undefined when all of it lands. */
+  tail: {key: string, params: ReadonlyArray<string>} | undefined;
+  /** `gain` — everything printed lands; `cut` — some of it (amber); `none` — a named skip, in the calm register. */
+  tone: 'gain' | 'cut' | 'none';
+};
+
+/**
+ * The support block of one party. `landed` = the neutral cubes that have
+ * already touched down during the landing (the places fill on contact; before
+ * the press and outside the landing it is 0).
+ */
+export function supportReadingOf(row: VoteSupportProjection, landed = 0): SupportReadingVm {
+  const arrived = Math.max(0, Math.min(row.gained, landed));
+  const cut = row.gained < row.printed;
+  let tail: SupportReadingVm['tail'];
+  if (cut && row.gained === 0) {
+    tail = {key: row.limit === 'supply' ? SUPPORT_NONE_SUPPLY : SUPPORT_NONE_AREA, params: []};
+  } else if (cut) {
+    tail = row.limit === 'supply' ?
+      {key: SUPPORT_TAIL_SUPPLY, params: [String(row.gained), String(row.printed), String(row.gained)]} :
+      {key: SUPPORT_TAIL_AREA, params: [String(row.gained), String(row.printed)]};
+  }
+  return {
+    party: row.party as ReduxParty,
+    current: row.current,
+    resulting: row.resulting,
+    gained: row.gained,
+    printed: row.printed,
+    places: {filled: row.current + arrived, incoming: row.gained - arrived, total: PARLIAMENT_MAX_POPULAR_SUPPORT},
+    amount: `+${row.gained}`,
+    tail,
+    tone: !cut ? 'gain' : (row.gained === 0 ? 'none' : 'cut'),
+  };
+}
+
+/** The tail as the panel prints it: the whole line for a cut («+1 из 3 · предел области»), «+0 · <cause>» for a named skip, the bare amount otherwise. */
+export function supportTailText(support: SupportReadingVm, text: TextFn): string {
+  if (support.tail === undefined) {
+    return support.amount;
+  }
+  return support.gained === 0 ? `${support.amount} · ${text(support.tail.key)}` : text(support.tail.key, support.tail.params);
+}
+
 export type VoteInfoVm = {
   instance: string;
   /** English i18n key of the resolution's name. */
@@ -184,12 +257,21 @@ export type VoteInfoVm = {
     count: number;
     /** A DELEGATE GRANT, not the vote: free, from the reserve, mandatory. */
     grant: boolean;
+    /**
+     * WHICH DOOR this block stands behind: the player's own `vote`, an effect's `grant` (a colony), or a
+     * `card` whose own play places the delegate (TR03) — the source line and the receipt follow it.
+     */
+    door: 'vote' | 'grant' | 'card';
+    /** A `card` door's locked receipt — what the composer settled for the card (M€ equivalent); undefined elsewhere. */
+    receipt?: {cost: number};
     /** The panel's facts: the leader, the winning state, and the party effect ONLY on its edge. */
     facts: ReadonlyArray<VoteFactVm>;
     /** Every fact — the inspector's full reading. */
     all: VoteFactsVm;
     numbers: VoteNumbersVm;
   };
+  /** The party's support under a grant that pays it — undefined for every other door (the block is not drawn). */
+  support?: SupportReadingVm;
 };
 
 // ── THE READING ─────────────────────────────────────────────────────────────
@@ -393,10 +475,20 @@ export type VoteInfoInput = {
    * the reserve, free, no vote of the player's own — the block's kicker and
    * its source line say so instead of «ВАШ ГОЛОС · из резерва · 5 M€».
    */
-  grant?: {count: number};
+  grant?: {
+    count: number,
+    /** The delegate is placed by a CARD (TR03 — its own play, staged or met live): «из резерва · по карте». */
+    card?: boolean,
+    /** A STAGED card door's receipt: the card's price as the composer settled it (absent once the card is paid). */
+    receipt?: number,
+  };
+  /** The grant also pays the selected card's PARTY: the server's row and how many of its cubes have landed. */
+  support?: {row: VoteSupportProjection, landed: number};
 };
 
 export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
+  const card = input.grant?.card === true;
+  const receipt = card ? input.grant?.receipt : undefined;
   return {
     instance: input.slot.instance,
     name: input.name,
@@ -409,10 +501,13 @@ export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
       cost: input.grant !== undefined ? 0 : (input.source === 'reserve' ? input.cost : 0),
       count: input.grant?.count ?? 1,
       grant: input.grant !== undefined,
+      door: input.grant === undefined ? 'vote' : (card ? 'card' : 'grant'),
+      ...(receipt === undefined ? {} : {receipt: {cost: receipt}}),
       facts: panelFactsOf(input.facts),
       all: input.facts,
       numbers: input.numbers,
     },
+    ...(input.support === undefined ? {} : {support: supportReadingOf(input.support.row, input.support.landed)}),
   };
 }
 
@@ -437,6 +532,12 @@ export type VoteInfoBudget = {
   words: number;
   /** Words of the party box's one line of moment beside the reading (a caption under a graphic — not decision text; its own ceiling). */
   moment: number;
+  /**
+   * Words of the party's SUPPORT block (a door that pays Popular Support — TR03): its kicker and its tail.
+   * Counted apart, against its own ceiling: the block is a place with three sockets and two numbers, and
+   * its words are a caption of that place — 0 for every door that pays no support.
+   */
+  support: number;
 };
 
 /** The ceilings `voteInfoBudget.spec.ts` holds every resolution of the catalog to. */
@@ -444,7 +545,8 @@ export type VoteInfoBudget = {
 // microbes reads the no-holder note (8 words, shared verbatim with the Scientists' action refusal)
 // on top of a full panel — at influence 0 on the edge that is 30. The ceiling moved rather than the
 // note, because the alternative was dropping «если победите · шаг» exactly where the win changes the number.
-export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 30, momentWords: 5} as const;
+// `supportWords` 7: «Народная поддержка» + the longest tail, «+2 из 3 · нейтральных в запасе: 2» (five words).
+export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 30, momentWords: 5, supportWords: 7} as const;
 
 const IDENTITY: TextFn = (key, params) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
 
@@ -534,7 +636,13 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     }
   }
   strings.push(text(vm.vote.kicker));
-  if (vm.vote.source === 'lobby') {
+  if (vm.vote.door === 'card') {
+    // A card's own door: «из резерва · по карте» and, while staged, the locked receipt «Карта · N M€».
+    strings.push(text(CARD_DOOR_SOURCE));
+    if (vm.vote.receipt !== undefined) {
+      strings.push(text(CARD_DOOR_RECEIPT), 'M€');
+    }
+  } else if (vm.vote.source === 'lobby') {
     strings.push(text('from the lobby · free'));
   } else if (vm.vote.source === 'reserve') {
     strings.push(text('from the reserve'), 'M€');
@@ -557,5 +665,6 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     // The party box beside the reading prints a GRAPHIC (the emblem in the printed formula) and one
     // line of moment — counted apart from the decision text, against its own ceiling.
     moment: countWords(text(PARTY_MOMENT)),
+    support: vm.support === undefined ? 0 : countWords(`${text(SUPPORT_KICKER)} ${supportTailText(vm.support, text)}`),
   };
 }

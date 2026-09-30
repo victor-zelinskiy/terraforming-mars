@@ -14,6 +14,14 @@
  * with every capture intact; nothing was ever sent, so the cancel has no
  * consequences BY CONSTRUCTION.
  *
+ * THE SAME STORE HAS A SECOND KIND OF TARGET — a RESOLUTION (the STAGED VOTE
+ * of a card that places a delegate by being played: Turmoil Redux TR03,
+ * docs/TURMOIL_REDUX_POLITICAL_DONATION.md). «Выбрать резолюцию» submits
+ * nothing either: the batch parks here, the Parliament's vote mode opens
+ * INSIDE the hand workspace fed by the staged prompt, and its confirm posts
+ * the one batch with the party answer as the ADDRESSED tail. One store, one
+ * `stagedPlayActive()`, one abort battery — the target is what differs.
+ *
  * This module owns only the state + its tiny lifecycle; the shell owns every
  * decision (what yields, what restores, what submits) — mirroring the other
  * client-side placement hand-offs (convert-plants, a task's nested space).
@@ -21,7 +29,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {TileType} from '@/common/TileType';
-import {StagedPlacementModel} from '@/common/models/ActionPreviewModel';
+import {StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
@@ -53,6 +61,16 @@ export type PlayComposerDraft = {
   focusIdx: number;
 };
 
+/**
+ * WHAT the staged step picks before the one submit — exactly one of:
+ *  · a CELL (`cell`): the board runs the pick, the space rides the batch's tail;
+ *  · a RESOLUTION (`resolution`): the Parliament's vote mode runs the pick
+ *    inside the workspace the card is played from, the party rides the tail.
+ */
+export type StagedPlayTarget =
+  | {kind: 'cell', placement: StagedPlacementModel}
+  | {kind: 'resolution', vote: StagedVoteModel};
+
 export type StagedPlayArm = {
   /**
    * WHICH staged flow this is — a card PLAY (the hand composer: the batch's
@@ -69,7 +87,9 @@ export type StagedPlayArm = {
    *  `buildActionBatch`'s own wire shape — opaque here) — posted verbatim at
    *  the cell confirm (+ the space tail for a non-fixed placement). */
   batch: ReadonlyArray<unknown>;
-  placement: StagedPlacementModel;
+  target: StagedPlayTarget;
+  /** PLAY flow: the card's price as the composer settled it (M€) — the staged vote's locked receipt. */
+  receipt?: number;
   /** The play's immediate gains (composer-extracted) — the card-seal beat's
    *  reward wave. Play flow only. */
   rewards?: ReadonlyArray<ResourceTransferSpec>;
@@ -97,6 +117,16 @@ export const stagedPlayState = reactive({
 
 export function stagedPlayActive(): boolean {
   return stagedPlayState.arm !== undefined;
+}
+
+/** The staged CELL pick's board data (undefined for a staged vote / nothing staged). */
+export function stagedPlacementOf(arm: StagedPlayArm | undefined = stagedPlayState.arm): StagedPlacementModel | undefined {
+  return arm?.target.kind === 'cell' ? arm.target.placement : undefined;
+}
+
+/** The staged VOTE's prompt (undefined for a staged cell / nothing staged). */
+export function stagedVoteOf(arm: StagedPlayArm | undefined = stagedPlayState.arm): StagedVoteModel | undefined {
+  return arm?.target.kind === 'resolution' ? arm.target.vote : undefined;
 }
 
 export function armStagedPlay(arm: StagedPlayArm): void {

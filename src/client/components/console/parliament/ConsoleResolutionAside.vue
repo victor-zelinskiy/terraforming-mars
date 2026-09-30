@@ -46,6 +46,7 @@ import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePa
 import {resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {PartyActionStateVm, partyActionStateOf, ParliamentPartyVm} from '@/client/console/parliament/consoleParliamentModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
+import {SupportReadingVm} from '@/client/console/parliament/voteInfoModel';
 import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
@@ -67,10 +68,15 @@ export default defineComponent({
     nonce: {type: Number, default: 0},
     /** The close flight began — hide instantly (never lag the card). */
     closing: {type: Boolean, default: false},
+    /**
+     * THE PARTY'S SUPPORT under the door the inspector was opened from (a delegate grant that also pays the
+     * party — TR03): the vote panel's own reading, and the rule in words under it. Undefined elsewhere.
+     */
+    support: {type: Object as PropType<SupportReadingVm | undefined>, default: undefined},
   },
   computed: {
     annotations(): ReadonlyArray<CardAnnotation> {
-      return resolutionPartyAnnotations(this.party);
+      return resolutionPartyAnnotations(this.party, this.support);
     },
     contextText(): string | undefined {
       return this.contextKey === undefined ? undefined : translateText(this.contextKey);

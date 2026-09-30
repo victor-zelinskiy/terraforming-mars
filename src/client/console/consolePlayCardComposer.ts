@@ -30,7 +30,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
-import {ActionEffect, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import type {Units} from '@/common/Units';
 import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActionComposer';
@@ -205,6 +205,56 @@ export function playChoiceMode(
     return 'inline';
   }
   return 'followup';
+}
+
+// ── THE DOOR — a step the composer does not answer but LEADS to ─────────────
+
+/**
+ * A branch step that is a DOOR rather than a choice: the composer collects
+ * nothing for it — its commit becomes a NAVIGATION into the surface where the
+ * decision is made, and the play itself is committed THERE (a STAGED play:
+ * nothing is sent before that confirm).
+ *  · `board`      — the first Mars placement carrying `staged` board data: the
+ *                   cell is picked on the board (docs/TILE_PLAY_STAGED_COMMIT.md);
+ *  · `parliament` — a `delegateGrant` step (Turmoil Redux TR03): the resolution
+ *                   is picked in the Parliament's vote mode, hosted inside the
+ *                   workspace the card is played from.
+ * ONE classification, read by the CTA's words, the command bar's verb, the
+ * «what happens next» row and the confirm payload alike.
+ */
+export type PlayDoor =
+  | {kind: 'board', staged: StagedPlacementModel}
+  | {kind: 'parliament', staged: StagedVoteModel};
+
+/** The branch's door, if it has one — the FIRST such step (a multi-tile card commits on its first cell). */
+export function playDoorOf(branch: ActionPreviewBranch | undefined): PlayDoor | undefined {
+  for (const step of branch?.steps ?? []) {
+    if (step.kind === 'delegateGrant') {
+      return {kind: 'parliament', staged: step.staged};
+    }
+    if (step.kind === 'boardPlacement' && step.staged !== undefined) {
+      return {kind: 'board', staged: step.staged};
+    }
+  }
+  return undefined;
+}
+
+/** «Разыграть карту» — or the door's own navigational verb: the press leads somewhere, it does not finish the play. */
+export function playCommitVerb(door: PlayDoor | undefined): string {
+  switch (door?.kind) {
+  case 'board': return 'Play on the board';
+  case 'parliament': return 'Choose the resolution';
+  default: return 'Play card';
+  }
+}
+
+/**
+ * The «what happens next» row of a door whose decision is NOT a tile (the
+ * board's own row is the placement presenter's): the name of the step, never
+ * a guess about its result.
+ */
+export function playDoorNextStepKey(door: PlayDoor | undefined): string | undefined {
+  return door?.kind === 'parliament' ? 'Resolution — chosen in the Parliament' : undefined;
 }
 
 // ── Copied-production fold (Cyberia Systems / Robotic Workforce) ─────────────
@@ -435,10 +485,16 @@ export function playPrimaryVerb(ctx: {
   /** For a `picker` row: does it already hold an answer? */
   pickAnswered?: boolean,
   primary: PrimaryActionState,
+  /**
+   * The READY commit is a DOOR whose verb the bar must repeat word for word
+   * (one verb — one place): «Выбрать резолюцию» on the rail and «Разыграть» in
+   * the bar were two promises about one press. Absent → the plain play verb.
+   */
+  doorVerb?: string,
 }): {label: string, enabled: boolean} {
   if (ctx.focused === 'cta') {
     switch (ctx.primary.kind) {
-    case 'ready': return {label: 'Play now', enabled: true};
+    case 'ready': return {label: ctx.doorVerb ?? 'Play now', enabled: true};
     case 'blocked-payment': return {label: 'Configure payment', enabled: true};
     case 'need-preselect': return {label: 'Choose an option', enabled: true};
     // The ИЛИ choice is unmade: the rail states the instruction and refuses.

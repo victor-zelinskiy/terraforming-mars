@@ -49,7 +49,9 @@
         <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
         <span class="con-parl__seat-name">{{ $t('Neutral') }}</span>
       </span>
-      <span class="con-parl__seat-place" data-parl-seat-place="neutral">
+      <!-- A SOURCE, marked like the viewer's own place, while the vote mode's door also pays the selected
+           card's party out of this supply (`neutralSource`) — the second source of the press, named before it. -->
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': neutralSource}" data-parl-seat-place="neutral" :data-parl-neutral-source="neutralSource ? '' : undefined">
         <span class="con-parl__seat-key">{{ $t('Reserve') }}</span>
         <span class="con-parl__seat-obj">
           <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': neutralSupplyShown === 0}" data-parl-neutral-cube :data-count="neutralSupplyShown">
@@ -128,6 +130,8 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     benchSource: {type: String as PropType<BenchSource>, required: true},
     benchWarn: {type: Boolean, default: false},
+    /** The common supply is a SOURCE of the press being decided (a door that pays the selected party's Popular Support). */
+    neutralSource: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -165,7 +169,10 @@ export default defineComponent({
       });
     },
     neutralSupplyShown(): number {
-      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0));
+      // …PLUS the cubes a grant's support has not LIFTED yet (`supportHeld`): the answer already took them
+      // out of the supply, the bench keeps painting and counting each until its proxy stands over it.
+      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0)) +
+        parliamentFlow.supportHeld;
     },
     /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
     deckShown(): number {

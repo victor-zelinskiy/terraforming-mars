@@ -15,6 +15,8 @@
        :style="{'--parl-accent': voteSlot !== undefined ? partyAccent(voteSlot.party) : undefined}"
        :aria-hidden="voteUp ? undefined : 'true'"
        :data-parl-vote-source-kind="voteSource"
+       :data-parl-vote-door="voteUp && voteInfo !== undefined ? voteInfo.vote.door : undefined"
+       :data-parl-vote-staged="stagedDoor ? '' : undefined"
        data-parl-vote>
     <!-- THE CARD ROW — the slots stand here while the mode is up (fewer
          than three stand centred at their usual size). -->
@@ -149,9 +151,36 @@
                   <span class="con-parl__info-law-text">{{ $t(lawPassiveText) }}</span>
                 </div>
               </div>
-              <div class="con-parl__info-party" data-parl-vote-item data-parl-info="party-effect" :data-party="voteInfo.party">
+              <div class="con-parl__info-party" :class="{'con-parl__info-party--support': voteInfo.support !== undefined}"
+                   data-parl-vote-item data-parl-info="party-effect" :data-party="voteInfo.party">
                 <ConsolePartyFormula class="con-parl__info-party-formula" :party="voteInfo.party" :emblem="true" size="compact" />
-                <span class="con-parl__info-party-when" data-parl-vote-late>{{ $t(partyMoment) }}</span>
+                <span v-if="voteInfo.support === undefined" class="con-parl__info-party-when" data-parl-vote-late>{{ $t(partyMoment) }}</span>
+                <!-- «НАРОДНАЯ ПОДДЕРЖКА» — a door that ALSO pays the chosen resolution's PARTY (TR03 Political
+                     Donation: «then up to 3 neutral delegates…»). The area in the plaque's own vocabulary — three
+                     places: filled · arriving (hollow) · empty — then `current → resulting` and a tail that NAMES
+                     what cut the printed number. Every number is the SERVER's row (`votePrompt.support`); this
+                     block is also where the neutral cubes LAND, so it stands for the door's whole life, a «+0»
+                     included. It takes the box's line of moment (one caption, one place): the box keeps its
+                     geometry from card to card and from the press to the leave. Nothing here is «yours» —
+                     the support is the party's. -->
+                <div v-else class="con-parl__info-support" :class="'con-parl__info-support--' + voteInfo.support.tone"
+                     data-parl-vote-support data-parl-vote-late
+                     :data-support-party="voteInfo.support.party"
+                     :data-support-current="voteInfo.support.current"
+                     :data-support-resulting="voteInfo.support.resulting"
+                     :data-support-gained="voteInfo.support.gained"
+                     :data-support-shown="voteInfo.support.places.filled">
+                  <span class="con-parl__info-kicker con-parl__info-support-kicker">{{ $t(supportKicker) }}</span>
+                  <span class="con-parl__info-support-row">
+                    <ConsoleSupportPlaces class="con-parl__info-support-places"
+                                          :filled="voteInfo.support.places.filled" :incoming="voteInfo.support.places.incoming" :cubePx="cubePx(10)" />
+                    <!-- `current → resulting`, and the left number is the area AS IT STANDS: it ticks with each
+                         neutral cube's touchdown, and a fact that does not change (a full area, the landed
+                         result) is ONE value. -->
+                    <span class="con-parl__info-support-num"><template v-if="voteInfo.support.places.filled !== voteInfo.support.resulting"><b>{{ voteInfo.support.places.filled }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span></template><b class="con-parl__info-support-after">{{ voteInfo.support.resulting }}</b></span>
+                  </span>
+                  <span class="con-parl__info-support-tail" data-parl-vote-support-tail>{{ supportTail }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -177,8 +206,10 @@
                       <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
                     </span>
                     <span class="con-parl__info-src-text" data-parl-vote-late :data-parl-vote-count="voteInfo.vote.count">
+                      <!-- A CARD's own door (TR03): «из резерва · по карте» — the delegate is free, the card is what is paid for. -->
+                      <template v-if="voteInfo.vote.door === 'card'">{{ $t(cardDoorSource) }}</template>
                       <!-- A delegate GRANT: «×2 из резерва · бесплатно» — the count, the place, no price. -->
-                      <template v-if="voteInfo.vote.grant">{{ grantSourceText }}</template>
+                      <template v-else-if="voteInfo.vote.grant">{{ grantSourceText }}</template>
                       <template v-else-if="voteInfo.vote.source === 'lobby'">{{ $t('from the lobby · free') }}</template>
                       <template v-else>
                         <span>{{ $t('from the reserve') }}</span>
@@ -188,6 +219,14 @@
                       </template>
                     </span>
                   </template>
+                </div>
+                <!-- THE RECEIPT of a staged card door: the card's price as the composer settled it — LOCKED here
+                     (the mode cannot change it; B walks back to the composer, which can). -->
+                <div v-if="voteInfo.vote.receipt !== undefined" class="con-parl__info-receipt" data-parl-vote-receipt data-parl-vote-late :data-receipt-cost="voteInfo.vote.receipt.cost">
+                  <span class="con-parl__info-receipt-key">{{ $t(cardDoorReceipt) }}</span>
+                  <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
+                  <b class="con-parl__info-src-num">{{ voteInfo.vote.receipt.cost }}</b>
+                  <i class="con-parl__info-src-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
                 </div>
                 <!-- The SHARED fact row (ConsoleVoteFactRow) — the same markup the fullscreen inspector's footer prints. -->
                 <div class="con-parl__facts">
@@ -207,8 +246,8 @@
              :class="{
                'con-parl__cta--ready': canVoteNow && flow.stage === 'vote',
                'con-parl__cta--blocked': !canVoteNow && flow.stage === 'vote',
-               'con-parl__cta--busy': flow.stage === 'submitting' || flow.stage === 'paying' || (flow.stage === 'landed' && voteInFlight),
-               'con-parl__cta--done': flow.stage === 'landed' && !voteInFlight,
+               'con-parl__cta--busy': flow.stage === 'submitting' || flow.stage === 'paying' || (flow.stage === 'landed' && (voteInFlight || supportInFlight)),
+               'con-parl__cta--done': flow.stage === 'landed' && !voteInFlight && !supportInFlight,
              }"
              data-parl-vote-item data-parl-cta @click="submitVote()">
           <GamepadGlyph v-if="flow.stage === 'vote' && canVoteNow" control="confirm" class="con-parl__cta-glyph" />
@@ -238,6 +277,7 @@ import ConsoleVoteLedger from '@/client/components/console/parliament/ConsoleVot
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVoteFactRow.vue';
+import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
@@ -258,27 +298,32 @@ import {offTurnReason} from '@/client/console/offTurnReason';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {
-  parliamentFlow, parliamentRootEl, parliamentVoteInFlight, parliamentVoteSubject, parliamentVoteUp,
+  parliamentFlow, parliamentRootEl, parliamentSupportInFlight, parliamentVoteInFlight, parliamentVoteSubject, parliamentVoteUp,
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
-  dropFlight, dropFlightsWithPrefix, flightEl, nextFlightId, pushCubeFlight, registerFlightHandle,
+  dropFlight, dropFlightsWithPrefix, flightEl, flyCube, nextFlightId, placeCubeRect, pushCubeFlight, rectOf, registerFlightHandle,
 } from '@/client/console/parliament/parliamentFlights';
 import {
   emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
   restoreParliamentBody, runDelegateCubeFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
-  grantResponse, ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
-  VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
+  grantResponse, grantSupportOf, ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
+  SUPPORT_CUBE_STAGGER_MS, VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
-import {PARTY_MOMENT, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm} from '@/client/console/parliament/voteInfoModel';
+import {
+  CARD_DOOR_RECEIPT, CARD_DOOR_SOURCE, PARTY_MOMENT, SUPPORT_KICKER, supportTailText, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm,
+} from '@/client/console/parliament/voteInfoModel';
+import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {LedgerChipVm, voteLedgerOf} from '@/client/console/parliament/voteLedgerModel';
 import {BenchSource, voteSourceOf, winningShownOf} from '@/client/console/parliament/parliamentVoteView';
 import {ParliamentInspectRequest, slotFaceOf} from '@/client/console/parliament/parliamentInspect';
 
 /** The delegate's landing beat (the cube settles, the counters tick, the landed reading is READ) — then the flow leaves as ONE surface. */
 const VOTE_LANDING_MS = 700;
+
+/** The neutral cubes of a grant's support leave the supply one after another — the support scene's own rhythm (law 12: a cube every ≥ 90 ms). */
 
 /** The confirm's price line: the lobby's delegate is free, the reserve's costs the server's own M€. */
 type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
@@ -297,7 +342,7 @@ export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
   components: {
     ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
-    PlayerCube, GamepadGlyph, PremiumMechanicsPanel,
+    ConsoleSupportPlaces, PlayerCube, GamepadGlyph, PremiumMechanicsPanel,
   },
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
@@ -314,11 +359,21 @@ export default defineComponent({
     /** The execution gate — the viewer's own action window (never a reason of its own). */
     canActNow: {type: Boolean, default: false},
     canVoteNow: {type: Boolean, default: false},
+    /**
+     * A STAGED card door's receipt — the card's price as the composer settled it (the shell hands it in
+     * from the staged-play store). Undefined for every other door: the card is already paid, or there is none.
+     */
+    cardReceipt: {type: Number as PropType<number | undefined>, default: undefined},
   },
   emits: ['notice', 'inspect', 'send', 'flow-complete'],
   data() {
     return {
       partyMoment: PARTY_MOMENT,
+      supportKicker: SUPPORT_KICKER,
+      cardDoorSource: CARD_DOOR_SOURCE,
+      cardDoorReceipt: CARD_DOOR_RECEIPT,
+      /** The neutral cubes' flights of the running landing (dropped with it). */
+      supportFlights: [] as Array<string>,
       landingBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
@@ -344,6 +399,10 @@ export default defineComponent({
     voteInFlight(): boolean {
       return parliamentVoteInFlight();
     },
+    /** A grant's neutral delegates are still on their way to the party's places. */
+    supportInFlight(): boolean {
+      return parliamentSupportInFlight();
+    },
     /** A nested frame (the action workspace) took the scene — this screen yields and waits. */
     sceneHandedOver(): boolean {
       return workspaceFrameHasNested('parliament');
@@ -362,6 +421,44 @@ export default defineComponent({
     },
     grantSourceText(): string {
       return translateTextWithParams('${0} from the reserve · free', ['×' + String(this.voteCount)]);
+    },
+    /**
+     * THE DOOR IS STAGED (a card that places a delegate by being played — TR03): nothing has been sent,
+     * A is the play's own commit and B walks back to the composer. Past the press the snapshot remembers
+     * nothing of it — the door is then simply «a card's», live or landing.
+     */
+    stagedDoor(): boolean {
+      return this.bridge.grant?.staged === true && parliamentFlow.voteSnapshot === undefined;
+    },
+    /** The delegate is placed by a CARD (its own play, staged or met live) — the source line says so, through the landing too. */
+    cardDoor(): boolean {
+      return parliamentFlow.voteSnapshot?.door === 'card' || (parliamentFlow.voteSnapshot === undefined && this.bridge.grant?.card !== undefined);
+    },
+    /** The staged card door's receipt: the shell's before the press, the snapshot's through the landing; none once the card is paid (a live door). */
+    receiptCost(): number | undefined {
+      const snap = parliamentFlow.voteSnapshot;
+      if (snap !== undefined) {
+        return snap.receipt;
+      }
+      return this.stagedDoor ? this.cardReceipt : undefined;
+    },
+    /**
+     * THE SUPPORT ROW of the selected card's party: the press's own snapshot once it is made (the places
+     * fill on the touchdowns, never on the packet), the SERVER's projection before it. Undefined when the
+     * door pays no support — the block is not drawn at all.
+     */
+    supportRow(): VoteSupportProjection | undefined {
+      const snap = parliamentFlow.voteSnapshot;
+      if (snap !== undefined) {
+        return snap.support;
+      }
+      const slot = this.voteSlot;
+      return slot === undefined ? undefined : grantSupportOf(this.bridge.grant, slot.party);
+    },
+    /** The support block's tail, in words («+1 из 3 · предел области»; the bare «+3» when all of it lands). */
+    supportTail(): string {
+      const support = this.voteInfo?.support;
+      return support === undefined ? '' : supportTailText(support, (key, params) => translateTextWithParams(key, params === undefined ? [] : [...params]));
     },
     voteForecast(): VoteForecastVm | undefined {
       const slot = this.voteSlot;
@@ -387,7 +484,10 @@ export default defineComponent({
         facts: this.voteFacts,
         numbers: this.voteNumbers,
         // A grant's block keeps saying «ваши делегаты» through the landing (the prompt is gone by then, the snapshot remembers).
-        grant: this.grantUp || (parliamentFlow.voteSnapshot?.count ?? 1) > 1 ? {count: this.voteCount} : undefined,
+        grant: this.grantUp || this.cardDoor || (parliamentFlow.voteSnapshot?.count ?? 1) > 1 ?
+          {count: this.voteCount, card: this.cardDoor, receipt: this.receiptCost} :
+          undefined,
+        support: this.supportRow === undefined ? undefined : {row: this.supportRow, landed: parliamentFlow.supportLanded},
       });
     },
     /**
@@ -511,9 +611,14 @@ export default defineComponent({
       case 'submitting': return translateText('Performing…');
       case 'paying': return translateText('Pay for the delegate');
       // «placed» only once the cube has landed — the answer's arrival is not the delegate's.
-      case 'landed': return translateText(this.voteInFlight ? 'Performing…' : (several ? 'Delegates placed' : 'Delegate placed'));
+      case 'landed': return translateText(this.voteInFlight || this.supportInFlight ? 'Performing…' : (several ? 'Delegates placed' : 'Delegate placed'));
       default:
-        return this.canVoteNow ? translateText(several ? 'Send the delegates' : 'Send the delegate') : this.voteBlockedText;
+        if (!this.canVoteNow) {
+          return this.voteBlockedText;
+        }
+        // A STAGED door's confirm is the PLAY's own commit — the existing «Разыграть карту», the very verb the
+        // composer would have carried had the card asked nothing (one verb for one act; never a second key).
+        return translateText(this.stagedDoor ? 'Play card' : (several ? 'Send the delegates' : 'Send the delegate'));
       }
     },
     voteBlockedText(): string {
@@ -854,16 +959,21 @@ export default defineComponent({
         return undefined;
       }
       const tile = this.voteTile;
+      // A GRANT (live or staged) is the decision standing on this very screen:
+      // what it offers is ITS prompt's parties, and the viewer's action window
+      // is not its gate (`canVoteNow` — the mode's own confirm reads the same).
+      const grant = this.bridge.grant;
       return voteVerbOf({
         participates: this.viewerParticipates,
         tile,
         refusalText: tile === undefined || tile.available ? '' : this.reasonText(tile.reason),
-        offered: this.bridge.vote !== undefined,
-        canActNow: this.canActNow,
-        offeredParties: this.bridge.vote?.model.parties,
+        offered: grant !== undefined || this.bridge.vote !== undefined,
+        canActNow: grant !== undefined ? this.canVoteNow : this.canActNow,
+        offeredParties: (grant ?? this.bridge.vote)?.model.parties,
         party: slot.party,
         turnText: translateText(offTurnReason(this.awaitingInput)),
         notOfferedText: translateText('This option is no longer offered'),
+        door: grant === undefined ? undefined : (grant.staged === true ? 'card' : 'grant'),
       });
     },
     /**
@@ -895,9 +1005,20 @@ export default defineComponent({
       // THE COMMIT BOUNDARY is the viewer's own: the cube, the counters and «Делегат поставлен» are
       // about them, so the reading comes home before the beat that shows it.
       this.resetSubject();
+      // Read BEFORE the snapshot stands (they switch to it the moment it does): the door's own facts, remembered
+      // through the landing — the prompt that stated them is gone with the answer.
+      const support = this.supportRow;
+      const receipt = this.receiptCost;
+      const byCard = this.cardDoor;
+      parliamentFlow.supportHeld = 0;
+      parliamentFlow.supportLanded = 0;
+      parliamentFlow.grantDegraded = '';
       parliamentFlow.voteSnapshot = {
         votes: slot.totalVotes, mine: slot.viewerVotes, leader: slot.leader, winning: slot.isWinning, winner: this.winningSlot?.instance, source,
         count: grant?.count ?? 1,
+        ...(byCard ? {door: 'card' as const} : {}),
+        ...(receipt === undefined ? {} : {receipt}),
+        ...(support === undefined ? {} : {support}),
       };
       // FROM THE PRESS TO THE FLOW'S END nothing but text, the confirm's state and the cube's flight may change:
       // the card fit is FROZEN (a re-fit under the flight jumped the scene it measured — § Б5).
@@ -925,6 +1046,30 @@ export default defineComponent({
       if (this.paymentStands) {
         parliamentFlow.stage = 'paying';
         setWorkspaceFramePhase('parliament', 'committed');
+        return;
+      }
+      // RE-ASKED — the answer placed nothing and the GRANT itself stands live (a staged tail the server
+      // dropped as stale; a grant raised again): this very mode BECOMES that door, in place — the selection
+      // is kept, B is «Свернуть», the crumb stays past the commit. Never a close followed by an open.
+      const grant = this.bridge.grant;
+      if (grant !== undefined && grant.staged !== true) {
+        parliamentFlow.voteSnapshot = undefined;
+        parliamentFlow.stage = 'vote';
+        freezeParliamentFit(false);
+        setWorkspaceFramePhase('parliament', 'committed');
+        return;
+      }
+      // PARKED — a card's own door whose answer waits behind somebody else's prompt (the play is real, the
+      // delegate is not on the table yet): nothing landed, so nothing flies; the step LEAVES WHOLE and the
+      // delegate and the support arrive with the ordinary update once the server's drain lands them.
+      if (parliamentFlow.voteSnapshot?.door === 'card') {
+        // …but only once the PLAY is on the table. A key that moved for somebody else's reason while
+        // the staged commit is still on the wire is not this door's answer: keep waiting for it.
+        const card = grant?.card;
+        if (grant?.staged === true && card !== undefined && !this.playerView.thisPlayer.tableau.some((c) => c.name === card)) {
+          return;
+        }
+        this.$emit('flow-complete', 'vote');
         return;
       }
       this.closeVote();
@@ -959,7 +1104,18 @@ export default defineComponent({
       const seqs = mine.map((vote) => vote.seq).sort((a, b) => b - a).slice(0, arrived).reverse();
       f.stage = 'landed';
       setWorkspaceFramePhase('parliament', 'committed');
-      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1)});
+      // THE PARTY'S SUPPORT (a door that also pays it): how many neutral delegates REALLY landed is the
+      // model's answer (the party's stock against the snapshot's), never the prompt's promise. They stay
+      // «in the supply» on the bench until each lifts off.
+      const support = snap.support;
+      const supportLanded = support === undefined ? 0 :
+        Math.max(0, Math.min(support.gained, (this.view.parties.find((p) => p.party === support.party)?.support ?? support.current) - support.current));
+      if (support !== undefined) {
+        snap.support = {...support, gained: supportLanded, resulting: support.current + supportLanded};
+      }
+      f.supportHeld = supportLanded;
+      f.supportLanded = 0;
+      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1) + 900 * supportLanded});
       f.landedSeqs = [];
       f.flightSeq = seqs[0];
       f.pendingSeqs = seqs.slice(1);
@@ -988,7 +1144,7 @@ export default defineComponent({
       const next = () => {
         f.landedSeqs = [...f.landedSeqs, seq];
         if (last) {
-          this.beginLanding(seq);
+          this.flySupport(seq);
         } else {
           this.flyDelegates(seqs, index + 1, color);
         }
@@ -1002,8 +1158,65 @@ export default defineComponent({
         f.flightSeq = undefined;
         f.pendingSeqs = [];
         f.landedSeqs = [...seqs];
-        this.beginLanding(seqs[seqs.length - 1]);
+        this.flySupport(seqs[seqs.length - 1]);
       }
+    },
+    /**
+     * THE NEUTRAL DELEGATES OF THE PARTY'S SUPPORT — second source, second addressee, AFTER the player's own
+     * cube has landed: each leaves the COMMON SUPPLY on the bench (its count drops on the lift-off) and
+     * lands on the next free place of the vote panel's support block (the place fills on the touchdown and
+     * answers ONCE). One after another, the support scene's rhythm. No support to land → straight to the
+     * landed read; nothing measurable → the places are simply filled and the miss is CONFESSED on the
+     * section root (`data-parl-grant-degraded`), never silent.
+     */
+    flySupport(seq: number): void {
+      const f = parliamentFlow;
+      const support = f.voteSnapshot?.support;
+      const root = parliamentRootEl();
+      const count = support?.gained ?? 0;
+      if (support === undefined || count <= 0 || root === undefined) {
+        f.supportHeld = 0;
+        this.beginLanding(seq);
+        return;
+      }
+      const reduced = typeof window === 'undefined' || consoleReducedMotionActive();
+      const from = placeCubeRect(root, '[data-parl-neutral-cube]');
+      let remaining = count;
+      for (let n = 0; n < count; n++) {
+        const placeEl = root.querySelector<HTMLElement>(`[data-parl-vote-support] [data-support-place="${support.current + n + 1}"]`);
+        const to = rectOf(placeEl);
+        if (!reduced && (from === undefined || to === undefined)) {
+          f.grantDegraded = from === undefined ? 'support: the neutral supply has no measurable place' : 'support: the party block has no measurable place';
+          console.warn(`[parliament] grant: ${f.grantDegraded} — settled without a flight`);
+        }
+        const id = flyCube('neutral', from, to, n * SUPPORT_CUBE_STAGGER_MS, () => {
+          f.supportLanded = Math.min(count, f.supportLanded + 1);
+          this.answerSupportPlace(placeEl);
+          remaining--;
+          if (remaining === 0) {
+            this.beginLanding(seq);
+          }
+        }, {
+          onLifted: () => {
+            f.supportHeld = Math.max(0, f.supportHeld - 1);
+          },
+        });
+        if (id !== undefined) {
+          this.supportFlights.push(id);
+        }
+      }
+    },
+    /** The ONE place that received the cube answers, once (the plaque's own touchdown — law 11): ended by its own animationend. */
+    answerSupportPlace(el: HTMLElement | null): void {
+      if (el === null || consoleReducedMotionActive()) {
+        return;
+      }
+      void this.$nextTick(() => {
+        el.classList.remove('con-pseal__support-place--landed');
+        void el.offsetWidth;
+        el.classList.add('con-pseal__support-place--landed');
+        el.addEventListener('animationend', () => el.classList.remove('con-pseal__support-place--landed'), {once: true});
+      });
     },
     /** One cube's flight — `onLanded` is the caller's continuation (the next cube, or the landed read). */
     flyDelegate(seq: number, color: Color, onLanded: () => void): boolean {
@@ -1113,11 +1326,15 @@ export default defineComponent({
       this.landingBeat?.kill();
       this.landingBeat = undefined;
       dropFlightsWithPrefix('vote');
+      this.supportFlights.forEach((id) => dropFlight(id));
+      this.supportFlights = [];
       this.flightHold?.release();
       this.flightHold = undefined;
       this.landingHold?.release();
       this.landingHold = undefined;
       const f = parliamentFlow;
+      f.supportHeld = 0;
+      f.supportLanded = 0;
       f.landedSeq = undefined;
       f.landedSeqs = [];
       f.flightSeq = undefined;

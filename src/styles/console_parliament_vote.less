@@ -227,6 +227,56 @@
         overflow: hidden;
     }
     &__info-party-formula { --con-pformula-zoom: calc(0.74 * var(--con-ui-scale, 1)); max-width: 100%; }
+    /* «НАРОДНАЯ ПОДДЕРЖКА» — the party box's foot under a door that also pays the party (TR03): the kicker, the
+       area's three places with `current → resulting`, and the tail that names what cut the printed number.
+       It stands in the place of the box's line of moment, so the box keeps ONE geometry from card to card
+       and from the press to the leave; every row is a fixed height (a tail that appears or changes wording
+       moves nothing). The places are the plaque's own sockets (`ConsoleSupportPlaces`). */
+    &__info-support {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .12rem;
+        width: 100%;
+        min-width: 0;
+        flex-shrink: 0;
+    }
+    &__info-support-kicker { color: fade(@con-parl-silver, 92%); opacity: 1; }
+    &__info-support-row { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; height: 1.05rem; }
+    &__info-support-places { margin-left: 0; }
+    &__info-support-num {
+        display: inline-flex; align-items: center; gap: .24rem; font-size: .8rem; line-height: 1; white-space: nowrap;
+        b { font-size: .96rem; font-variant-numeric: tabular-nums; }
+    }
+    &__info-support-after { color: @con-cyan; }
+    &__vote--committed &__info-support-after { color: @con-parl-mint; }
+    /* The tail: ONE line of fixed height — mint when everything printed lands, amber when it was cut, the
+       calm register for a named zero (no strike, no alarm: the delegate is still the card's first effect). */
+    &__info-support-tail {
+        height: .8rem;
+        max-width: 100%;
+        font-size: .6rem;
+        line-height: .8rem;
+        letter-spacing: .06em;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: @con-parl-mint;
+    }
+    &__info-support--cut &__info-support-tail { color: @con-amber; }
+    &__info-support--none &__info-support-tail { color: fade(@con-text, 72%); font-weight: 600; }
+    /* …and a number that does not change is not a result: the full area's count keeps the plain ink. */
+    &__info-support--none &__info-support-after { color: fade(@con-text, 92%); }
+    /* THE RECEIPT of a staged card door — the card's price, settled in the composer and LOCKED here: a quiet
+       line under the source (a dashed hairline says «not editable on this screen»). */
+    &__info-receipt {
+        display: flex; align-items: center; gap: .3rem; min-width: 0; min-height: 1rem;
+        padding-top: .14rem;
+        border-top: .05rem dashed rgba(255, 255, 255, 0.16);
+        font-size: .78rem; line-height: 1.1; color: fade(@con-text, 86%);
+    }
+    &__info-receipt-key { letter-spacing: .04em; }
     &__info-party-when { font-size: .5rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
     /* THE LAW'S OWN COLUMN (Water Export): two quiet rows beside the seat's reading — what the card does to
        the TABLE (no recipient: outside «для вас» by construction) and what it does WHILE ENACTED. The same

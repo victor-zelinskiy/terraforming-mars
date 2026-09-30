@@ -49,6 +49,7 @@ import {
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 import {TILE_GRANT_RULE_KEY, TileGrantReading, tileGrantSentenceOf} from './tileGrantModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
+import {SUPPORT_KICKER, SupportReadingVm} from './voteInfoModel';
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
 
@@ -418,10 +419,30 @@ export function resolutionAnnotations(
  * effect's edge — is the footer's, in the vote panel's own fact rows
  * (`ConsoleZoomVoteFacts`, `ConsoleResolutionStatus`), never prose.
  */
-export function resolutionPartyAnnotations(party: ReduxParty): ReadonlyArray<CardAnnotation> {
+export function resolutionPartyAnnotations(party: ReduxParty, support?: SupportReadingVm): ReadonlyArray<CardAnnotation> {
   const effect = getPartyEffect(party);
-  return effect === undefined ? [] : partyMechanicBlocks(effect, ASIDE_LABELS);
+  const out = effect === undefined ? [] : partyMechanicBlocks(effect, ASIDE_LABELS);
+  // THE PARTY'S SUPPORT under a door that also pays it (TR03 Political Donation): the vote panel's own
+  // numbers — `current → resulting` out of the area's three, with what cut the printed amount — and, ONLY
+  // here, the RULE in words: the neutral delegates wait in the area for the party's NEXT resolution and do
+  // not vote on the one the delegate is sent to. The panel itself carries no sentence.
+  if (support !== undefined) {
+    const rows: Array<string | RowText> = [
+      {text: SUPPORT_NUMBERS_KEY, params: [String(support.current), String(support.resulting), String(support.places.total)]},
+    ];
+    if (support.tail !== undefined) {
+      rows.push(support.gained === 0 ? support.tail.key : {text: support.tail.key, params: support.tail.params});
+    }
+    rows.push(SUPPORT_RULE_KEY);
+    out.push(block('group:support', 'note', SUPPORT_KICKER, rows, 2));
+  }
+  return out;
 }
+
+/** «0 → 3 из 3» — the area's stock before and after the press, out of its ceiling. */
+export const SUPPORT_NUMBERS_KEY = '${0} → ${1} of ${2}';
+/** The rule of Popular Support a delegate grant's forecast stands on — the one sentence, printed by the inspector only. */
+export const SUPPORT_RULE_KEY = 'Neutral delegates in a party\'s Popular Support become votes on that party\'s next resolution. They do not vote on this one.';
 
 export function partyAnnotations(party: ReduxParty, model: ParliamentModel | undefined, viewer: Color | undefined, canActNow?: boolean): ReadonlyArray<CardAnnotation> {
   const effect = getPartyEffect(party);

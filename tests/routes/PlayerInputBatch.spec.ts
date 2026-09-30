@@ -7,6 +7,9 @@ import {Factorum} from '../../src/server/cards/promo/Factorum';
 import {testGame} from '../TestGame';
 import {runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
+import {SelectParty} from '../../src/server/inputs/SelectParty';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {CardName} from '../../src/common/cards/CardName';
 
 describe('PlayerInputBatch.reconcileBatchResponse', () => {
   const orWrap: InputResponse = {type: 'or', index: 1, response: {type: 'option'}};
@@ -110,5 +113,41 @@ describe('PlayerInputBatch.reconcileBatchResponse', () => {
     runAllActions(game);
     expect(player.cardsInHand).has.lengthOf(1);
     expect(player.megaCredits).to.eq(7);
+  });
+});
+
+/*
+ * THE ADDRESSED PARTY TAIL (Turmoil Redux TR03 — the staged vote): the batch
+ * route reshapes WRAPPERS only, so the tail's address survives it untouched,
+ * and the input it finally meets accepts the addressed form as it accepts the
+ * plain one. Who the tail may LAND on is `deferredInputBatch`'s decision
+ * (tests/inputs/deferredInputBatch.spec.ts § addressed staged resolution).
+ */
+describe('PlayerInputBatch — the addressed party tail', () => {
+  const tail: InputResponse = {type: 'party', partyName: PartyName.MARS, stagedFor: CardName.POLITICAL_DONATION};
+  const grant = () => {
+    const picked: Array<PartyName> = [];
+    const input = new SelectParty('Add 1 delegate to a resolution', 'Add', [PartyName.MARS, PartyName.GREENS]).andThen((party) => {
+      picked.push(party);
+      return undefined;
+    });
+    return {input, picked};
+  };
+
+  it('the reconciler leaves it UNCHANGED against its own prompt — the address is not a wrapper', () => {
+    expect(reconcileBatchResponse(tail, grant().input)).to.eq(tail);
+  });
+
+  it('wrapped for a single-option menu, the address rides INSIDE the wrapper', () => {
+    const one = new OrOptions(grant().input);
+    expect(reconcileBatchResponse(tail, one)).to.deep.eq({type: 'or', index: 0, response: tail});
+  });
+
+  it('the input accepts the addressed form and answers with the party; an unknown key is still refused', () => {
+    const {input, picked} = grant();
+    input.process(tail);
+    expect(picked).to.deep.eq([PartyName.MARS]);
+    expect(() => grant().input.process({...tail, extra: 1} as unknown as InputResponse)).to.throw('Not a valid SelectPartyResponse');
+    expect(() => grant().input.process({type: 'party', partyName: PartyName.UNITY, stagedFor: CardName.POLITICAL_DONATION})).to.throw('Invalid party selected');
   });
 });

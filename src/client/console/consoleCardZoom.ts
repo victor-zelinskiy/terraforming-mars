@@ -81,6 +81,8 @@ export type ConsoleZoomVoteVerb = {
   cost: number;
   /** The translated reason the send is not possible now (undefined when available). */
   reason: string | undefined;
+  /** The door the verb answers when it is not the viewer's own vote (`VoteVerbVm.door`). */
+  door?: 'grant' | 'card';
 };
 
 export type ConsoleZoomVote = {
