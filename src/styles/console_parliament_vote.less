@@ -361,6 +361,10 @@
 }
 
 /* THE INFO SURFACE'S CROSSFADE — a body enters over the one leaving, both absolute. */
+@keyframes con-parl-reading-flick {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+}
 .con-parl-xfade-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard; }
 .con-parl-xfade-leave-active { transition: opacity calc(140ms * var(--motion-scale, 1)) @con-ease-standard; }
 .con-parl-xfade-enter-from { opacity: 0; transform: translateY(.25rem); }
@@ -409,10 +413,6 @@ html.con-profile-handheld .con-parl {
     /* .52: a two-row formula is 75 px here and the box's 107 px hold it with the two-line moment
        (at .56 it was 81 and the moment lost 3 px of its second line). */
     &__info-party-formula { --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1)); }
-@keyframes con-parl-reading-flick {
-    from { opacity: 0.35; }
-    to { opacity: 1; }
-}
     &__info-party-when { font-size: .5rem; white-space: normal; text-align: center; line-height: 1.15; }
     &__info-readings { column-gap: .35rem; row-gap: .15rem; }
     /* HANDHELD — THE GRAPHIC STEPS ASIDE FOR THE LEDGER. The Deck's info block has no vertical

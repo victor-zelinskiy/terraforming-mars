@@ -50,9 +50,9 @@
                  plate; the words are the inspector's). -->
             <div class="con-parl__info-main">
               <div class="con-parl__info-own"
+                   :key="'own:' + (voteSubject ?? 'viewer')"
                    :class="{
                      'con-parl__info-own--yields': voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined,
-                   :key="'own:' + (voteSubject ?? 'viewer')"
                      'con-parl__info-own--ledger': voteLedger.length > 0,
                      'con-parl__info-own--dense': voteLedger.length > 0 && voteInfo.reading.yields.length > 1,
                      'con-parl__info-own--rival': voteInfo.reading.subject !== undefined,
