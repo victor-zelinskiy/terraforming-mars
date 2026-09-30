@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, hotVerb, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, hotVerb, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
 
@@ -76,11 +76,16 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     expect(tilesAfter, 'five tiles in the row, the Greens back among them, Mars First gone up').toHaveLength(5);
     expect(tilesAfter).toContain('Greens');
     expect(tilesAfter).not.toContain('Mars First');
-    // The tiles are ONE chassis: every tile the same height at rest, the row's tiles at one y.
-    const heights = new Set(Object.values(rest.tiles).map((r) => r.h));
-    expect(Array.from(heights), `every party tile keeps one height (${JSON.stringify(rest.tiles)})`).toHaveLength(1);
-    const rowYs = new Set(tilesAfter.map((p) => rest.tiles[p ?? '']?.y));
-    expect(Array.from(rowYs), 'the row\'s tiles stand on one line').toHaveLength(1);
+    // The tiles are ONE chassis: every tile the same height, the row's tiles at one y — read as a STATE, never off
+    // the probe's last sample: past the wave the walk goes on BY ITSELF (a quiet card's adjourn rode the record),
+    // and the body swap's downward stagger is a legitimate mid-motion pose (measured: ys 807 → 767 in one frame).
+    const chassis = () => page.evaluate(() => {
+      const heights = Array.from(document.querySelectorAll('.con-parl__party[data-party]')).map((el) => Math.round(el.getBoundingClientRect().height));
+      const rowYs = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party')).map((el) => Math.round(el.getBoundingClientRect().top));
+      return {heights: [...new Set(heights)], rowYs: [...new Set(rowYs)]};
+    });
+    await expect.poll(async () => (await chassis()).heights.length, {timeout: 15_000, message: 'every party tile keeps one height'}).toBe(1);
+    await expect.poll(async () => (await chassis()).rowYs.length, {timeout: 15_000, message: 'the row\'s tiles stand on one line'}).toBe(1);
     // The old law's seat: the government kept the EMPTY seat until the enactment beat, the winner's card stands there at rest.
     const earlyGov = s.slice(0, enactAt).filter((st) => st.govCard !== '');
     expect(earlyGov.length, 'no card in the government before the enactment beat').toBe(0);
@@ -113,7 +118,7 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     expect(await hotVerb(page)).toMatch(/Закрыть заседание|Close the sitting/i);
     await expectParliamentFits(page, 'remote results');
     await shoot(page, '03-results');
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await parliamentWire(request, playerId)).game.phase, {timeout: 60_000}).not.toBe('parliament');

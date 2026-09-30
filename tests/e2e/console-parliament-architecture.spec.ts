@@ -185,7 +185,7 @@ for (const preset of PRESETS) {
         reading('forecast', 2, 3, 5, 5),
       ]);
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rules state the qualification in words').toContainText(/значок ПО|VP icon/);
+      await expect(rules, 'the rules state the qualification in words').toContainText(/значком ПО|VP icon/);
       await expect(rules, 'the counted cards behind the number').toContainText(/Учтены сейчас|Counted right now/);
       await expect(rules).toContainText(/Искусственное озеро|Artificial Lake/);
       await expect(rules, 'Mine (no VP icon) is not counted').not.toContainText(/Шахта|\bMine\b/);

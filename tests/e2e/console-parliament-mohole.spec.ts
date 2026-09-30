@@ -2,9 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placeTile, placementState, press, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placeTile, placementState, pressUntil, settle,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, closeSitting, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * MOHOLE CONTEST (Turmoil Redux, RX23) — the ONE e2e of the new mechanic: a
@@ -214,7 +214,7 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
     await expect(part.locator('[data-sit-part-tr]')).toHaveText(/РТ \+2|TR \+2/);
     await expect(page.locator('[data-sit-section="planet"]'), 'a rewarded step of the winner is never the planet line').toHaveCount(0);
     await shoot(page, '05-results');
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
 

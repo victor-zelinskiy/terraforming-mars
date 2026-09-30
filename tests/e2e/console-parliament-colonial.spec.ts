@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports,
+  answerAsksAs, answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -368,7 +368,7 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await shoot(page, '07-results');
 
     // ── GATE 2 closes the sitting; the next generation opens.
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     const after = await wireOf(request, playerId);

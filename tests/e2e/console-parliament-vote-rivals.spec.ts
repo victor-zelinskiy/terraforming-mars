@@ -122,7 +122,13 @@ test.describe('the vote panel · чужие исходы', () => {
     expect(await selectedOf(page), '◀ ▶ move the selection').not.toBe(before);
     expect(moved.subject, 'the subject survives the card change — one seat across the three proposals').toBe(rival);
 
-    // ── LB walks back to the viewer's own chip (the row is a ring with the viewer at home).
+    // ── LB walks back to the viewer's own chip (the row is a ring with the viewer at home). The walk exists
+    //    only on a card that HAS a row: a card whose reading pays no seat prints none and the bar offers no
+    //    LB/RB there — and which card the deal put beside the first one is not this spec's to assume.
+    if (moved.chips.length < 2) {
+      await press(page, 'ArrowLeft', 900);
+      expect(await selectedOf(page), 'back on the card whose row was walked').toBe(before);
+    }
     await press(page, 'KeyQ', 900);
     expect((await panelOf(page)).subject, 'LB steps back to the viewer').toBe(viewer);
     await press(page, 'KeyE', 900);

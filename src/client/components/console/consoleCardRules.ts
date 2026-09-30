@@ -86,6 +86,20 @@ export function rulesLengthTier(annotations: ReadonlyArray<CardAnnotation>): Rul
   return total <= 90 ? 'brief' : total <= 240 ? 'regular' : 'dense';
 }
 
+const TIER_LADDER: ReadonlyArray<RulesLengthTier> = ['brief', 'regular', 'dense', 'packed'];
+
+/**
+ * `steps` rungs DENSER than `tier`, clamped at `packed` — the MEASURED half of the ladder. The length buckets
+ * above are a heuristic over the text alone, and the room they are read in is not: at 4K the availability panel
+ * above the rules left «Роботы саморепликанты» (≈240 chars, `regular`) 21 px short, and the panel scrolled
+ * — while the no-scroll goal is the console's first. The panel steps down when its own scroll area reports an
+ * overflow, one rung at a time and never back up (a denser rung only fits better, so it cannot oscillate).
+ */
+export function steppedRulesTier(tier: RulesLengthTier, steps: number): RulesLengthTier {
+  const at = TIER_LADDER.indexOf(tier);
+  return TIER_LADDER[Math.min(TIER_LADDER.length - 1, at + Math.max(0, steps))];
+}
+
 /** The denser of several panels' tiers — ONE type size for a scene read as one composition. */
 export function denserRulesTier(...tiers: ReadonlyArray<RulesLengthTier>): RulesLengthTier {
   return tiers.reduce((a, b) => (TIER_RANK[b] > TIER_RANK[a] ? b : a), 'brief' as RulesLengthTier);

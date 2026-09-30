@@ -3,7 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, openZoomViewer, closeZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, expectParliamentFits, focusParliamentZone, mandatoryPlate, openParliament, parliamentWire,
+  answerGateAs, expectParliamentFits, focusParliamentZone, mandatoryPlate, openParliament, parliament, parliamentWire,
   sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -88,6 +88,9 @@ for (const preset of PROFILES) {
           ?.reduce((sum, s) => sum + s.totalVotes, 0) ?? 0;
         return now > before;
       }, {tries: 5, settleMs: 1400});
+      // The finished flow LEAVES as one surface — and the section stays mounted for its whole leave, so a
+      // re-open taken before the leave is over finds the departing root, calls it open, and measures nothing.
+      await expect(parliament(page), 'the vote flow leaves the Parliament on its own').toHaveCount(0, {timeout: 30_000});
       await settle(page, {timeoutMs: 30_000});
       await openParliament(page);
       await scene(page, preset.id, '06-vote-after');

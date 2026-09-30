@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports,
+  answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -391,7 +391,7 @@ test.describe('Greens Budget · standard-1080', () => {
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
 
     // ── The generation moves on: A on the results answers the viewer's gate, red answers over the API.
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
   });

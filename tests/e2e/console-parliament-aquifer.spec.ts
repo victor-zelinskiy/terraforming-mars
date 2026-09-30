@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, placeTile,
   placementState, press, pressUntil, sendPlayerInput, settle, waitForBoardHome,
 } from './consoleStart';
-import {answerGateAs, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, closeSitting, hotVerb, sittingStep, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * AQUIFER CONTEST (Turmoil Redux, RX01) — the first REAL resolution, end to
@@ -280,9 +280,14 @@ for (const preset of PRESETS) {
       expect(probe.samples, 'the probe ran').toBeGreaterThan(10);
       expect(probe.chips, `one payout chip flew (${JSON.stringify(probe)})`).toBe(1);
       expect(probe.chipText).toContain('+2');
-      // ── THE WINNER'S OCEAN is a STEP of the same sitting (Э3/Э5): the reward stage yields the stack to the
-      //    board — no second plate, no second press — and the standard placement comes alive.
-      await expect.poll(async () => await placementState(page), {timeout: 60_000, message: 'the winner\'s ocean placement stands'}).not.toBe('none');
+      // ── THE WINNER'S OCEAN is a STEP of the same sitting — and it waits for the player's OWN press (sitting law 4):
+      //    the reward page stops on the tile's DOOR, the board is not live yet, and A «К полю» opens it. No second
+      //    plate either way.
+      await expect.poll(() => sittingStep(page), {timeout: 60_000, message: 'the reward page stops on the winner\'s tile'}).toBe('placement');
+      expect(await hotVerb(page), 'the door is the command bar\'s own verb').toMatch(/К полю|Onto the board/i);
+      expect(await placementState(page), 'the board waits for the press').toBe('none');
+      expect(await pressUntil(page, 'Enter', async () => await placementState(page) !== 'none', {tries: 3, settleMs: 1500}),
+        'A «К полю» opens the winner\'s ocean placement').toBe(true);
       const mid = await wireOf(request, playerId);
       const holder = mid.thisPlayer.tableau.find((c) => c.name === focusedName);
       expect(holder?.resources, `the animals landed on ${focusedName}`).toBe(2);
@@ -307,7 +312,7 @@ for (const preset of PRESETS) {
       await expect(parliament(page), 'the sitting is back after the board').toHaveCount(1, {timeout: 60_000});
       await waitSittingAtRest(page, 30_000);
       expect(await turnTo(page, 'results'), 'the results page').toBe(true);
-      await press(page, 'Enter', 1200);
+      await closeSitting(page, request, playerId);
       await answerGateAs(request, red, 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);

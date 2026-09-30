@@ -206,7 +206,26 @@ for (const preset of PARLIAMENT_PRESETS) {
         });
         return out;
       }, tiers);
-      const base = await snapTiers();
+      // A COMPARISON IS ONLY AS SETTLED AS ITS LEAST SETTLED SIDE (tests.md): both reads go through ONE settle — two
+      // consecutive equal snapshots. The government re-solves its zoom once its ROOM settles (sitting law 16: the quest
+      // block takes its size a beat after the mount), and on a loaded 4K runner that landed AFTER the verdict's rest —
+      // the base read 1.183, the room 1.179, and the ruler's slot «moved» 2 px on a walk that moved nothing.
+      const settledTiers = async (): Promise<Awaited<ReturnType<typeof snapTiers>>> => {
+        let prev = JSON.stringify(await snapTiers());
+        await expect.poll(async () => {
+          const now = JSON.stringify(await snapTiers());
+          const same = now === prev;
+          prev = now;
+          return same;
+        }, {timeout: 20_000, intervals: [400], message: 'the tiers settle (two equal reads)'}).toBe(true);
+        return JSON.parse(prev);
+      };
+      const base = await settledTiers();
+      // EVIDENCE, not a claim: the government row's children (the empty seat or the enacted card, then the ruler
+      // block) — the ruler's slot sits right of the first, so a moved slot names which neighbour changed width.
+      const rulingRow = () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__ruling > *'))
+        .map((el) => `${el.className.toString().split(' ')[0]}:${el.getBoundingClientRect().width.toFixed(2)}`).join(' '));
+      const rulingBefore = await rulingRow();
       // The other seat answers first; the viewer's A is the last answer — the walk plays the whole chain.
       await answerGateAs(request, seats[1], 'assembly');
       await press(page, 'Enter', 400);
@@ -214,8 +233,9 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
       await waitSittingAtRest(page, 40_000);
       const trail: Array<string> = [];
-      const moved = diff(base, await snapTiers());
+      const moved = diff(base, await settledTiers());
       trail.push(`results: moved=${moved.length}`);
+      trail.push(`the government row: ${rulingBefore} → ${await rulingRow()}`);
       expect(moved, `${preset.id} · after the walk (the government changed) — the tiers and the row's five boxes keep their places\n${trail.join('\n')}`).toEqual([]);
       await expect(page.locator('[data-parl-ruler] .con-parl__party[data-party="Mars First"]'), 'Mars First rules').toHaveCount(1);
       await expect(page.locator('.con-parl__parties .con-parl__party[data-party="Greens"]'), 'the Greens are back in the row').toHaveCount(1);

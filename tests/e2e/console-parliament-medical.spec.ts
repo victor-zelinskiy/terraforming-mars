@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
-import {answerAsksAs, answerGateAs, expectParliamentFits, openParliament, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerAsksAs, answerGateAs, closeSitting, expectParliamentFits, openParliament, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * MEDICAL DATABASE (Turmoil Redux, RX18) — the ONE e2e of the card's new
@@ -301,7 +301,7 @@ test.describe('Medical Database · standard-1080', () => {
     await waitSittingAtRest(page, 30_000);
     expect(await turnTo(page, 'results'), 'the results page').toBe(true);
     await shoot(page, '07-results');
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
 

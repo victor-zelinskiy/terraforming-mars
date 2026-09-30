@@ -230,15 +230,16 @@ for (const preset of PRESETS) {
       await expect(zoom).toHaveCount(0, {timeout: 10_000});
       await expect(page.locator('.cm-stand')).toHaveCount(1);
 
-      // ── ▶ …: past the REAL resolutions (each stamped with its own RX## code) the catalog ends in the
-      //    never-dealt development examples — no scaled part, and the instrument says so. The real ones
-      //    grow with every iteration, so the walk asks the CURSOR what it stands on instead of counting slots.
+      // ── ▶ …: a resolution whose reward is NOT scaled by influence — the instrument says so in words and never
+      //    draws an empty one. (The never-dealt development examples that used to carry this are gone: the
+      //    catalog is real resolutions only, and it grows with every iteration — so the walk asks the
+      //    INSTRUMENT what the cursor stands on instead of counting slots or naming a card.)
       await press(page, 'ArrowRight', 400);
       await expect(page.locator('[data-rxpg-catalog] .con-rxpg__slot').nth(1)).toHaveAttribute('data-rxpg-code', 'RX02');
-      const onExample = await pressUntil(page, 'ArrowRight',
-        async () => await page.locator('[data-rxpg-catalog] .con-rxpg__slot--cursor[data-rxpg-code=""]').count() > 0,
-        {tries: 14, settleMs: 300});
-      expect(onExample, 'the cursor reaches a catalog entry without a code (a development example)').toBe(true);
+      const onUnscaled = await pressUntil(page, 'ArrowRight',
+        async () => await page.locator('[data-rxpg-yield-none]').count() > 0,
+        {tries: 80, settleMs: 300});
+      expect(onUnscaled, 'the cursor reaches a resolution not scaled by influence').toBe(true);
       await expect(page.locator('[data-rxpg-yield-none]')).toHaveCount(1);
 
       // No native scrollbar anywhere on the stand (the console rule).
@@ -617,7 +618,7 @@ for (const preset of PRESETS) {
       // ── The cap bounds the INCREASE, not the total: production 8 → 13.
       await toScenario('grid-high-production');
       expect(await countedIn(page, '[data-rxpg-yield]')).toEqual([counted('applied', 4, 3, 5, 7)]);
-      await expect(page.locator('.con-rxpg__texts')).toContainText(/энергетических меток|power tags/i);
+      await expect(page.locator('.con-rxpg__texts')).toContainText(/энергетическ[а-яё]* метк|power tag/i);
       await shoot(page, preset.id, '39-grid-high-production');
 
       // ── X: the REAL fullscreen on RX04 — the rules name the tag rule and each counted card's contribution.

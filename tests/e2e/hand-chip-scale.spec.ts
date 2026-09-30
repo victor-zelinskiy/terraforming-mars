@@ -135,20 +135,24 @@ function ratioStats(samples: ReadonlyArray<Sample>) {
   return {min, max, mean, n: ratios.length};
 }
 
-async function openHandFast(page: Page): Promise<void> {
+/** Bare presses on purpose (the flight must be sampled from its first frame) — but every step waits on STATE. */
+async function openHandFast(page: Page): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     await page.keyboard.press('Period');
-    await page.waitForTimeout(350); // the wheel opens
+    // The wheel's OWN presence is the witness: a fixed 350 ms stood in for it, a loaded 4K runner was still
+    // opening the wheel there, Enter landed on the board, and the spec reported a «dead sampler» with 0 samples.
+    await page.locator('.con-quick').first().waitFor({state: 'visible', timeout: 3_000}).catch(() => undefined);
     await page.keyboard.press('Enter');
     for (let i = 0; i < 12; i++) {
       const started = await page.evaluate(() =>
         document.querySelectorAll('.con-hand, .con-handreveal-layer [data-reveal-card]').length > 0);
       if (started) {
-        return;
+        return true;
       }
       await page.waitForTimeout(100);
     }
   }
+  return false;
 }
 
 for (const preset of PRESETS) {
@@ -166,7 +170,7 @@ for (const preset of PRESETS) {
 
       // ── OPEN: sample the flight, then the settled slot. ──────────────
       await armSampler(page);
-      await openHandFast(page);
+      expect(await openHandFast(page), 'the hand opened (the fast open: wheel → A)').toBe(true);
       await page.waitForTimeout(2400); // open ≈ lift + flight + spread + handoff
       const openSamples = await readSamples(page);
       // The REFERENCE must be the card at REST: a focused slot carries the

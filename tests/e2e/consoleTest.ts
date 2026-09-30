@@ -21,7 +21,7 @@
  *
  * The server binary must be BUILT (`npm run build:server` at least) — the
  * spawn runs `node build/src/server/server.js` from the repo root, exactly
- * what `npm start` runs. Its output lands in test-results/worker-servers/
+ * what `npm start` runs. Its output lands in <served root>/test-results/worker-servers/
  * so a boot failure is diagnosable, not a silent 60 s timeout.
  *
  * ⚠️ SEVERAL SESSIONS SHARE ONE CLONE — and «nothing is shared but the build»
@@ -68,21 +68,32 @@ function freePort(): Promise<number> {
 }
 
 /** Newest mtime under a source dir (genfiles excluded — the build writes those itself). */
-function newestSourceMtime(dir: string): number {
+function newestSourceMtime(dir: string, ext: RegExp): number {
   let newest = 0;
+  if (!fs.existsSync(dir)) {
+    return newest;
+  }
   for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
     if (entry.name === 'genfiles' || entry.name === 'node_modules') {
       continue;
     }
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      newest = Math.max(newest, newestSourceMtime(full));
-    } else if (/\.(ts|vue|less)$/.test(entry.name)) {
+      newest = Math.max(newest, newestSourceMtime(full, ext));
+    } else if (ext.test(entry.name)) {
       newest = Math.max(newest, fs.statSync(full).mtimeMs);
     }
   }
   return newest;
 }
+
+/** The three artifacts a run serves and the sources each one is built from. */
+const BUILD_SIDES: ReadonlyArray<{side: string, artifact: ReadonlyArray<string>, sources: ReadonlyArray<string>, ext: RegExp}> = [
+  // A DIRECTORY for the server: an incremental tsc rewrites only the outputs that changed, so no one file dates it.
+  {side: 'server', artifact: ['build', 'src'], sources: ['src/server', 'src/common'], ext: /\.ts$/},
+  {side: 'client', artifact: ['build', 'main.js'], sources: ['src/client', 'src/common'], ext: /\.(ts|vue)$/},
+  {side: 'styles', artifact: ['build', 'styles.css'], sources: ['src/styles'], ext: /\.less$/},
+];
 
 /**
  * WHAT THIS RUN IS TESTING — computed once per worker: the build's commit and
@@ -100,23 +111,29 @@ function buildStamp(): string {
     // no stamp — reported as «?», the boot will say the rest
   }
   const root = path.relative(REPO_ROOT, SERVE_ROOT) || '.';
-  let stale = '';
-  try {
-    const built = Math.min(fs.statSync(SERVER_ENTRY).mtimeMs, fs.statSync(path.join(SERVE_ROOT, 'build', 'main.js')).mtimeMs);
-    const newest = newestSourceMtime(path.join(REPO_ROOT, 'src'));
-    if (newest > built) {
-      stale = ` · ⚠️ STALE: a source file is ${Math.round((newest - built) / 60_000)} min newer than this build — the run tests the product as it WAS`;
+  // A side is STALE only against its OWN sources: a client-only rebuild leaves `server.js` old by design, and a
+  // `min()` over both artifacts called that a stale build.
+  const stale: Array<string> = [];
+  for (const {side, artifact, sources, ext} of BUILD_SIDES) {
+    const file = path.join(SERVE_ROOT, ...artifact);
+    if (!fs.existsSync(file)) {
+      stale.push(`no ${side} build`);
+      continue;
     }
-  } catch {
-    stale = ' · ⚠️ no build to stamp';
+    const built = fs.statSync(file).isDirectory() ? newestSourceMtime(file, /\.js$/) : fs.statSync(file).mtimeMs;
+    const newest = Math.max(...sources.map((dir) => newestSourceMtime(path.join(REPO_ROOT, dir), ext)));
+    if (newest > built) {
+      stale.push(`${side} is ${Math.round((newest - built) / 60_000)} min older than its sources`);
+    }
   }
+  const staleNote = stale.length === 0 ? '' : ` · ⚠️ STALE (${stale.join('; ')}) — the run tests the product as it WAS`;
   let tree = '';
   try {
     tree = ` · HEAD ${execSync('git rev-parse --short HEAD', {cwd: REPO_ROOT, stdio: ['ignore', 'pipe', 'ignore']}).toString().trim()}`;
   } catch {
     // not a git checkout (a packaged CI artifact) — the build's own head is enough
   }
-  return `build ${head} (${builtAt}) from ${root}${tree}${stale}`;
+  return `build ${head} (${builtAt}) from ${root}${tree}${staleNote}`;
 }
 
 type WorkerServer = {baseURL: string};
@@ -174,7 +191,9 @@ export const test = base.extend<{buildAnnotation: void}, {workerServer: WorkerSe
       await freePort();
     const baseURL = `http://localhost:${port}`;
     const dbDir = fs.mkdtempSync(path.join(os.tmpdir(), `tm-e2e-w${workerInfo.workerIndex}-`));
-    const logDir = path.join(REPO_ROOT, 'test-results', 'worker-servers');
+    // Beside the SERVED build: two sessions on one clone each run a worker 0, and one shared folder had them
+    // appending into the same worker-0.log (a private snapshot keeps its own; the default root is unchanged).
+    const logDir = path.join(SERVE_ROOT, 'test-results', 'worker-servers');
     fs.mkdirSync(logDir, {recursive: true});
     const logFile = path.join(logDir, `worker-${workerInfo.workerIndex}.log`);
     const log = fs.openSync(logFile, 'a');

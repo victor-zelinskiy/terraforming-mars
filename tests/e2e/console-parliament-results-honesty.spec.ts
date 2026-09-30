@@ -382,21 +382,32 @@ test.describe('«Итоги: честность» — панель, поддер
 
   test('И5 · ОБМЕН МЕСТАМИ: гнёзда меняются в кадре прибытия, ни одного кадра в чужом состоянии', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {seats} = await openSitting(page, request, 'parliament-architecture-assembly');
+    const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly');
+    const rulerBefore = (await parliamentWire(request, playerId)).game.parliament?.rulingParty;
     await armHonestyProbe(page);
     await runWalk(page, request, seats[1]);
+    // THE PARTY THAT RULES BY CARD after this walk — the server's own answer. The government's basis line is no
+    // witness for a TILE: it turns the moment the new card lands on its seat, while the starting-rule ruler still
+    // stands in the slot (sockets rightly shown) until its own FLIP — «by card» there named the wrong object.
+    const byCard = (await parliamentWire(request, playerId)).game.parliament?.rulingParty;
+    expect(byCard, `the walk changed the government (${rulerBefore} → ${byCard})`).not.toBe(rulerBefore);
 
     const all = ticks((await readHonesty(page)).samples);
     expect(all.length, 'the sampler ran').toBeGreaterThan(40);
     const full = all.filter((s) => s.tiles.length === 6);
     expect(full.length, 'the six plaques were sampled').toBeGreaterThan(20);
 
-    // ① AT REST the sockets are hidden on exactly the tile standing in the government, and nowhere else.
+    // ① AT REST the sockets are hidden on exactly the tile standing in the government WHEN IT RULES BY AN ENACTED CARD,
+    //    and nowhere else. Before the first enactment the Greens rule by the STARTING RULE and keep their sockets
+    //    (RX06, 2026-09-22 — a starting-rule ruler can hold support; the Cloud spec pins it).
     const settled = full.filter((s) => !s.swapping);
-    const wrongAtRest = settled.filter((s) => s.tiles.some((t) => t.socketsHidden !== t.inSlot));
-    expect(wrongAtRest.map((s) => `${s.stage}: ` + s.tiles.filter((t) => t.socketsHidden !== t.inSlot)
-      .map((t) => `${t.party} slot=${t.inSlot} hidden=${t.socketsHidden}`).join(', ')).slice(0, 4),
-    'only the ruler hides its support places, and it always does').toEqual([]);
+    const hides = (_s: HonestySample, t: TileSample) => t.inSlot && t.party === byCard;
+    const wrongAtRest = settled.filter((s) => s.tiles.some((t) => t.socketsHidden !== hides(s, t)));
+    expect(wrongAtRest.map((s) => `${s.stage}: ` + s.tiles.filter((t) => t.socketsHidden !== hides(s, t))
+      .map((t) => `${t.party} slot=${t.inSlot} by-card=${t.party === byCard} hidden=${t.socketsHidden}`).join(', ')).slice(0, 4),
+    'only a ruler BY CARD hides its support places, and it always does').toEqual([]);
+    expect(settled.some((s) => s.tiles.some((t) => t.inSlot && t.party === byCard && t.socketsHidden)),
+      'the ruler by card was sampled hiding its places (the law is not vacuous)').toBe(true);
 
     // ② THE PLACES ARE HIDDEN, NOT REMOVED — the ruler's plaque must keep the row's box.
     const collapsed = full.filter((s) => s.tiles.some((t) => t.inSlot && !t.socketsBox));
@@ -458,7 +469,9 @@ for (const preset of PARLIAMENT_PRESETS) {
 
     test('И4 · гнёзда правителя не видны и не съедают место; высота правителя равна ряду', async ({page, request}) => {
       test.setTimeout(240_000);
-      await bootFixture(page, request, 'parliament-actions', {query: preset.query});
+      // A party that rules BY AN ENACTED CARD (generation 2, Metal Research): only such a ruler holds zero support in every
+      // legal state. The STARTING-RULE ruler of generation 1 keeps its sockets (RX06, 2026-09-22 — the Cloud spec pins it).
+      await bootFixture(page, request, 'parliament-metal-enacted', {query: preset.query});
       await openParliament(page);
       await settle(page, {timeoutMs: 20_000});
       await shoot(page, `honesty-plaque-${preset.id}`);

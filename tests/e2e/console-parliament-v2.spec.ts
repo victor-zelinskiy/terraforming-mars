@@ -123,7 +123,7 @@ async function focusParty(page: Page, party: string): Promise<void> {
 async function focusVoting(page: Page): Promise<void> {
   const zone = () => parliament(page).getAttribute('data-zone');
   for (let i = 0; i < 4 && await zone() !== 'voting'; i++) {
-    await press(page, (await zone()) === 'government' ? 'ArrowRight' : 'ArrowUp', 400);
+    await press(page, (await zone()) === 'ruler' ? 'ArrowRight' : 'ArrowUp', 400);
   }
   expect(await zone(), 'the voting area is the focus zone').toBe('voting');
 }
@@ -937,8 +937,9 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await settle(page, {timeoutMs: 8_000});
     // THE ENACTED CARD (the government): its own context — «enacted», the
     // party effect every player's, no vote verb and no paging.
-    expect(await pressUntil(page, 'ArrowLeft', async () => await parliament(page).getAttribute('data-zone') === 'government', {tries: 3, settleMs: 400}), 'the government zone').toBeTruthy();
-    await openZoomViewer(page);
+    // v3 В5: the enacted resolution left the focus ring and rides R3 «ОСМОТРЕТЬ ПРИНЯТУЮ» from any browse zone.
+    expect(await pressUntil(page, 'KeyV', async () => await page.locator('dialog.con-zoom[open]').count() > 0, {tries: 3, settleMs: 1100}),
+      'R3 inspects the enacted resolution').toBeTruthy();
     await expect(page.locator('.con-rstatus[data-lifecycle="enacted"]'), 'the enacted standing').toHaveCount(1);
     await expect(page.locator('.con-rstatus[data-access="everyone"]'), 'the party effect is every player\'s').toHaveCount(1);
     await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote'), 'no vote verb over the enacted card').toHaveCount(0);

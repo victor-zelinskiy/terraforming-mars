@@ -1529,6 +1529,10 @@ html.con-profile-tv .con-parl {
        cut name (the neutral word is never cut: the host-doubled rule). */
     &__head { flex-wrap: wrap; row-gap: .15rem; }
     &__seats { gap: 0 .55rem; }
+    /* FIVE PLAYERS on the TV: the names yield exactly as on the Deck (the cube IS the identity). Five groups +
+       the neutral supply + both piles ran 73 px past a 4K screen and cut «Сброс резолюций» — the piles are the
+       zone's last members, so they are the ones an overflow eats. Seven children = five seats + neutral + piles. */
+    &__seats:has(> .con-parl__seat:nth-child(7)) .con-parl__seat-name { display: none; }
     &__seat { gap: .3rem; padding: .06rem .3rem .06rem .24rem; }
     &__seat-ident { font-size: .8rem; }
     &__seat-name { max-width: 5.2rem; }

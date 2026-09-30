@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, placeTile, placementState, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -327,7 +327,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
 
     // ── GATE 2 closes the sitting; the next generation opens.
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     const after = await wireOf(request, playerId);
@@ -362,7 +362,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     expect(mid.game.parliament.phase?.outcomes?.find((o) => o.player === seat && o.kind === 'colony')).toMatchObject({part: 'winner', colony: 'Europa'});
     expect(mid.game.oceans - before.game.oceans, 'the ocean is on the board').toBe(1);
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
-    await press(page, 'Enter', 1200);
+    await closeSitting(page, request, playerId);
     await answerGateAs(request, red, 'adjourn');
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     await settle(page, {timeoutMs: 30_000});

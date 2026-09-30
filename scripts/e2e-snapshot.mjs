@@ -11,8 +11,10 @@
  * same folder.
  *
  * This copies the CURRENT build/ (minus the compiled tests) to `.e2e-<name>/`,
- * links `assets/` beside it (the server reads assets relative to its cwd — a
- * junction on Windows, a symlink elsewhere), refuses a build whose server still
+ * links what the server reads relative to its cwd beside it — `assets/` and
+ * the engine-generated `tests/e2e/fixtures/` the «Полигон» live scenarios boot
+ * (without it every live scenario read «В этой сборке этого сценария нет») — as
+ * a junction on Windows, a symlink elsewhere, refuses a build whose server still
  * carries unrewritten `@/` imports (a bare `tsc --build` without `tsc-alias`
  * boots nothing), and prints the one line that makes the harness serve it:
  *
@@ -67,25 +69,35 @@ if (unresolved.length > 0) {
 }
 
 const target = path.join(ROOT, `.e2e-${name}`);
-const assetsLink = path.join(target, 'assets');
-if (fs.existsSync(assetsLink)) {
-  // A junction is removed as a LINK, never recursed into (it would delete the real assets/).
-  if (process.platform === 'win32') {
-    execSync(`cmd /c rmdir "${assetsLink}"`);
-  } else {
-    fs.unlinkSync(assetsLink);
+/** Every directory the server reads RELATIVE TO ITS CWD (grep `path.resolve('` under src/server): linked, never copied. */
+const LINKS = ['assets', path.join('tests', 'e2e', 'fixtures')];
+for (const rel of LINKS) {
+  const link = path.join(target, rel);
+  if (fs.existsSync(link)) {
+    // A junction is removed as a LINK, never recursed into (it would delete the real directory).
+    if (process.platform === 'win32') {
+      execSync(`cmd /c rmdir "${link}"`);
+    } else {
+      fs.unlinkSync(link);
+    }
   }
 }
 fs.rmSync(path.join(target, 'build'), {recursive: true, force: true});
 fs.mkdirSync(target, {recursive: true});
 fs.cpSync(BUILD, path.join(target, 'build'), {
   recursive: true,
+  // The build's OWN times travel with it: the harness judges STALE by them, and a copy stamped «now» is never stale.
+  preserveTimestamps: true,
   filter: (src) => path.relative(BUILD, src).split(path.sep)[0] !== 'tests',
 });
-if (process.platform === 'win32') {
-  execSync(`cmd /c mklink /J "${assetsLink}" "${path.join(ROOT, 'assets')}"`, {stdio: 'ignore'});
-} else {
-  fs.symlinkSync(path.join(ROOT, 'assets'), assetsLink, 'dir');
+for (const rel of LINKS) {
+  const link = path.join(target, rel);
+  fs.mkdirSync(path.dirname(link), {recursive: true});
+  if (process.platform === 'win32') {
+    execSync(`cmd /c mklink /J "${link}" "${path.join(ROOT, rel)}"`, {stdio: 'ignore'});
+  } else {
+    fs.symlinkSync(path.join(ROOT, rel), link, 'dir');
+  }
 }
 
 const exclude = path.join(ROOT, '.git', 'info', 'exclude');

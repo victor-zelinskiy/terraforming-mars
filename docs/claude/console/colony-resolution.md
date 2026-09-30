@@ -901,3 +901,18 @@ is never named either.
    animation is skipped when there is no `$el` yet, which is exactly right —
    a stage that mounts already handed over has nothing to release, only a pose
    to be in.
+7. **A RESTORE RE-OPENS THE ACT'S STAGE, NEVER `'inspect'`** (2026-09-30).
+   The two doors that re-open the focus mid-resolution — the post-discard
+   return (`restoreColonyFocusAfterDiscard`) and the park restore
+   (`restoreDeferredTask`) — asked for `'inspect'`, which used to be the focus
+   stage's neutral composition. Since the colony DOSSIER (2026-09-27) that
+   intent mounts `ConsoleColonyInspect` instead: a reading with no outcome
+   zone and no track, so the return leg landed on «КОЛОНИИ › ПЛУТОН › ОСМОТР»
+   with «A К торговле» on the bar, the reset glide had no track to play on and
+   a parked batch had no zone to open in (`console-colony-pluto-embed` «OWN
+   colony» failed on `focusSeen`). Both doors now ask
+   `colonyResolutionFocusIntent` (pure, spec'd in `colonyResolution.spec.ts`):
+   the viewer's own trade → `'trade'`, a foreign payout walked in for →
+   `'bonus'`, an un-stamped colony draw (a BUILD) → `'build'`. A spent act
+   already presents the neutral receipt by itself (`presentMode` falls back to
+   the inspect composition), so no fourth composition is needed.

@@ -930,11 +930,14 @@ const architectureTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTa
 parliamentFixture('parliament-architecture-assembly', architectureTable('assembly'));
 parliamentFixture('parliament-architecture-adjourn', architectureTable('adjourn'));
 // ── «Итоги: честность» — the SUPPORT STOCK. The same table, except that UNITY has been collecting
-//    neutral delegates for two generations already. Unity has no resolution in the deck at all, so the
-//    refresh can never deal it a card and take them away: after this sitting it holds 2 older delegates
-//    plus the 1 this support step grants. WITHOUT such a party the results panel's support row is all
-//    fresh, and the probe's «свежие отличимы от ранее накопленных» would have nothing to compare — it
-//    would pass on an empty claim. ──
+//    neutral delegates for two generations already, and every Unity card lies at the BOTTOM of the deck:
+//    the refresh (three slots, drawn from the top) deals other parties first, so it never deals Unity a
+//    card and takes them away — after this sitting it holds 2 older delegates plus the 1 this support
+//    step grants. WITHOUT such a party the results panel's support row is all fresh, and the probe's
+//    «свежие отличимы от ранее накопленных» would have nothing to compare — it would pass on an empty
+//    claim. (Until the deck held Unity cards the premise was «Unity has no resolution at all»; the
+//    catalog grew and the fixture silently stopped proving it — so the deck is now ARRANGED, never
+//    assumed.) ──
 const supportStockTable = (): ParliamentFixtureSpec => {
   const base = architectureTable('assembly');
   return {
@@ -942,10 +945,17 @@ const supportStockTable = (): ParliamentFixtureSpec => {
     arrange: (table) => {
       base.arrange?.(table);
       table.parliament.popularSupport.set(PartyName.UNITY, 2);
+      const parliament = table.parliament;
+      const unity = parliament.deck.filter((instance) => parliament.resolutionOf(instance).party === PartyName.UNITY);
+      parliament.deck = [...parliament.deck.filter((instance) => !unity.includes(instance)), ...unity];
     },
     expect: ({parliament}) => {
       if (parliament.popularSupportOf(PartyName.UNITY) !== 2) {
         throw new Error(`the parliament-support-stock fixture expected Unity to hold 2 neutral delegates before the sitting, got ${parliament.popularSupportOf(PartyName.UNITY)}`);
+      }
+      const others = parliament.deck.findIndex((instance) => parliament.resolutionOf(instance).party === PartyName.UNITY);
+      if (others !== -1 && others < 6) {
+        throw new Error(`the parliament-support-stock fixture expected at least six non-Unity cards above the first Unity card, got ${others}`);
       }
     },
   };

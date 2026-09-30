@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
   waitForBoardHome,
 } from './consoleStart';
-import {answerAsksAs, answerGateAs, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerAsksAs, answerGateAs, closeSitting, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * CLOUD DEVELOPMENT (Turmoil Redux, RX06) — the first DISTRIBUTED payout, the
@@ -366,7 +366,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(zone.bandHeights.length <= 1 || Math.max(...zone.bandHeights) - Math.min(...zone.bandHeights) <= 1,
         `the band kept its height through the layout, the commit and the results (${zone.bandHeights.join(', ')})`).toBe(true);
       expect(zone.emptyBodyFrames, 'the body zone never stood empty').toBe(0);
-      await press(page, 'Enter', 1200);
+      await closeSitting(page, request, playerId);
       await answerGateAs(request, red, 'adjourn');
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
 

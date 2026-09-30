@@ -65,7 +65,9 @@ async function armLeaveProbe(page: Page): Promise<void> {
         // In the vote mode the slots are CARRIED into the vote layer (their homes stand empty by design): the area's content is the layer's cards.
         voting: vote !== null ? vote.querySelectorAll('.pcard').length > 0 : root.querySelectorAll('.con-parl__voting .con-parl__slot').length > 0,
         agenda: root.querySelectorAll('.con-parl__agenda .con-parl__step').length > 0,
-        stage: stageEl === null ? undefined : (stageEl.querySelector('.con-sit__panel--on')?.textContent?.trim() ?? '') !== '' || stageEl.querySelector('.con-parl__stage-head') !== null,
+        // The stage is a block only while it is SHOWN: since v5 the verdict, the Agenda, the support and the enactment are the
+        // TABLE (the body is the row of parties, the reading panel stands hidden by `v-show`) — an empty hidden stage is the design.
+        stage: !shown(stageEl) ? undefined : (stageEl!.querySelector('.con-sit__panel--on')?.textContent?.trim() ?? '') !== '' || stageEl!.querySelector('.con-parl__stage-head') !== null,
         vote: vote === null ? undefined : vote.querySelectorAll('.pcard').length > 0,
         parties: stageEl !== null || !shown(partiesTier) ? undefined : root.querySelectorAll('.con-parl__parties .con-parl__party').length === 5,
       };

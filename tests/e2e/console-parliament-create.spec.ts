@@ -7,9 +7,11 @@ import {bootIntoGame, fetchPlayerModel, openQuickWheel, press, settle, soloGameC
  * CREATING A TURMOIL REDUX GAME WITH MARSBOT — the first item of iteration 0:
  * the create-game door accepts `turmoilRedux` (with Colonies), the server
  * stands a Parliament up (three resolutions of distinct parties, the Greens
- * ruling, the starter quest), MarsBot sits at the table as a BYSTANDER (no
- * delegates, no lobby seat — `BotParliamentMode = 'none'`), and the console's
- * wheel carries the «Парламент» slot from the first action phase on.
+ * ruling, the starter quest), MarsBot sits at the table as a POLITICAL seat
+ * (`BotParliamentMode = 'politics'`, the default of every new game since
+ * 2026-09-29 — docs/TURMOIL_REDUX_MARSBOT.md D9: it holds delegates and its
+ * free lobby delegate, and an enacted resolution never pays it), and the
+ * console's wheel carries the «Парламент» slot from the first action phase on.
  */
 
 const OUT = path.resolve('screenshots', 'parliament-create');
@@ -42,7 +44,7 @@ test.describe('parliament · creation with MarsBot', () => {
     // the Greens rule, and the bot is not a participant.
     const model = await fetchPlayerModel(request, playerId) as unknown as {
       thisPlayer: {color: string},
-      game: {parliament?: {slots: Array<{party: string}>, rulingParty: string, players: Array<{color: string, participates: boolean, lobby: boolean}>, quest?: {source: string}}},
+      game: {parliament?: {slots: Array<{party: string}>, rulingParty: string, botMode: string, players: Array<{color: string, participates: boolean, enactment?: boolean, lobby: boolean}>, quest?: {source: string}}},
     };
     const p = model.game.parliament;
     expect(p, 'the game carries a Parliament').toBeTruthy();
@@ -54,8 +56,10 @@ test.describe('parliament · creation with MarsBot', () => {
     const bot = p!.players.find((s) => s.color !== model.thisPlayer.color);
     expect(me?.participates, 'the human participates').toBe(true);
     expect(me?.lobby, 'with the free lobby delegate').toBe(true);
-    expect(bot?.participates, 'MarsBot is a bystander').toBe(false);
-    expect(bot?.lobby, 'and holds no lobby delegate').toBe(false);
+    expect(p!.botMode, 'a new game seats the political bot').toBe('politics');
+    expect(bot?.participates, 'MarsBot holds delegates').toBe(true);
+    expect(bot?.lobby, 'with its free lobby delegate').toBe(true);
+    expect(bot?.enactment, 'and an enacted resolution never pays it').toBe(false);
 
     // THE CONSOLE: the wheel's slot opens the workspace on a real table.
     await openParliament(page);

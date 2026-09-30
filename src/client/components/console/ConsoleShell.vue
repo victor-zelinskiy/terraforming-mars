@@ -1806,7 +1806,7 @@ import {
   colonyBonusCardPickOf,
   COLONY_BONUS_CYCLE_WAIT_MS,
   colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony,
-  colonyResolutionEvidenceFor, colonyResolutionLiveFor,
+  colonyResolutionEvidenceFor, colonyResolutionFocusIntent, colonyResolutionLiveFor,
   colonyResolutionUi, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver,
   noticeColonyBonusSequence,
   noticeColonyResolutionDiscard, remoteColonyBonusParksReveal, remoteColonyBonusPendingFor,
@@ -11829,10 +11829,11 @@ export default defineComponent({
         // overview grid for the one-two frames of the swap, and «не
         // показывать Overview даже на один кадр» is the contract.
         // …in the composition the resolution belongs to: a FOREIGN trade's
-        // payout comes back to its bonus stage, not to the trade dossier it
-        // never opened (the entry context is what tells them apart).
+        // payout comes back to its bonus stage, the viewer's own act to its
+        // own stage — never `'inspect'`, which mounts the read-only DOSSIER
+        // (no outcome zone, no track for the reset) since 2026-09-27.
         openColonyFocus(name as ColonyName,
-          this.bonusEntry.colonyName === name ? 'bonus' : 'inspect');
+          colonyResolutionFocusIntent(this.colonyResolutionSignals, name));
         await this.$nextTick();
         setColonyDiscardStage(false);
         // Let the stage publish its zones before anything measures against it
@@ -18098,7 +18099,10 @@ export default defineComponent({
             !this.colonyFocus.open && !colonyResolutionUi.discardStage) {
           const name = this.colonyResolutionColonyName;
           if (name !== '') {
-            openColonyFocus(name as ColonyName, 'inspect');
+            // The act's own stage (never `'inspect'` — that is the dossier,
+            // which hosts no payout zone; see `colonyResolutionFocusIntent`).
+            openColonyFocus(name as ColonyName,
+              colonyResolutionFocusIntent(this.colonyResolutionSignals, name));
           }
         }
         // A restored HOSTED funding step (the start's awards scene step)

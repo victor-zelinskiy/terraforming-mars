@@ -381,7 +381,9 @@ test.describe('console: generation-order chip conveyor', () => {
     const stopFilm1 = await startFilm(page, 'flip1');
     await passGeneration(request, p2);
     await waitForOrder(page, ['green', 'red']);
-    await cinematicBeat(page, 1400, 'let the conveyor glide finish before collecting the film');
+    // The glide's END is a state (the mask class leaves the ribbon) — a fixed 1.4 s was a duration standing in for
+    // it, and a loaded 4K runner is still mid-glide there («mask class gone at rest» on the film's last frame).
+    await expect(page.locator('.con-status__players--conveyor'), 'the conveyor glide finished').toHaveCount(0, {timeout: 15_000});
     const frames1 = await stopFilm1();
     const film1 = await collectProbe(page);
     assertConveyorFilm(film1, 'flip 1');
@@ -396,7 +398,9 @@ test.describe('console: generation-order chip conveyor', () => {
     const stopFilm2 = await startFilm(page, 'flip2');
     await passGeneration(request, p1); // the last pass — generation 3, red leads
     await waitForOrder(page, ['red', 'green']);
-    await cinematicBeat(page, 1400, 'let the conveyor glide finish before collecting the film');
+    // The glide's END is a state (the mask class leaves the ribbon) — a fixed 1.4 s was a duration standing in for
+    // it, and a loaded 4K runner is still mid-glide there («mask class gone at rest» on the film's last frame).
+    await expect(page.locator('.con-status__players--conveyor'), 'the conveyor glide finished').toHaveCount(0, {timeout: 15_000});
     await stopFilm2();
     const film2 = await collectProbe(page);
     assertConveyorFilm(film2, 'flip 2');
@@ -461,7 +465,9 @@ test.describe('console: chip conveyor at 4 seats on the TV profile', () => {
     await passGeneration(request, p3);
     await passGeneration(request, p4);
     await waitForOrder(page, ['green', 'blue', 'yellow', 'red']);
-    await cinematicBeat(page, 1400, 'let the conveyor glide finish before collecting the film');
+    // The glide's END is a state (the mask class leaves the ribbon) — a fixed 1.4 s was a duration standing in for
+    // it, and a loaded 4K runner is still mid-glide there («mask class gone at rest» on the film's last frame).
+    await expect(page.locator('.con-status__players--conveyor'), 'the conveyor glide finished').toHaveCount(0, {timeout: 15_000});
     await stopFilm();
     const film = await collectProbe(page);
     fs.mkdirSync(OUT, {recursive: true});

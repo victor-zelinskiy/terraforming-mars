@@ -257,6 +257,17 @@ export function createChipConveyor(): ChipConveyor {
       residuals.set(color, res);
       survivorRes.push(res);
     }
+    // …and NEVER A CROSSING. A survivor whose PREDECESSOR grew in the same patch starts at its own old left
+    // while the grown pill's NEW right edge already stands over it — at 4K a status swap measured +177 px and a
+    // 149 px overlap held for the whole pending belt (`console-chip-conveyor` § four seats). Two neighbours'
+    // residuals differ by exactly the predecessor's width change, so making them NON-DECREASING along the new
+    // order keeps every gap at least its new-layout width from frame 0: the grown pill NUDGES its neighbour on
+    // the frame it grows (the one discontinuity that reads as physics) and the rigid belt stays rigid.
+    let floor = -Infinity;
+    for (const res of survivorRes) {
+      floor = Math.max(floor, res.dx);
+      res.dx = floor;
+    }
     const inherited = beltShift > 0 ?
       survivorRes[survivorRes.length - 1] :
       survivorRes[0];

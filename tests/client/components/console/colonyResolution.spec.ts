@@ -17,6 +17,7 @@ import {
   colonyBonusCardPickOf,
   colonyResolutionColony,
   colonyResolutionEvidenceFor,
+  colonyResolutionFocusIntent,
   colonyResolutionLiveFor,
   colonyResolutionPhaseFor,
   colonyResolutionUi,
@@ -123,6 +124,29 @@ describe('colonyResolution', () => {
     expect(colonyResolutionColony({...IDLE, discardFlightMeta: meta(1, 1)})).to.eq('Pluto');
     expect(colonyResolutionColony({...IDLE, entryColony: 'Pluto'})).to.eq('Pluto');
     expect(colonyResolutionColony({...IDLE, revealSource: bonusSource})).to.eq('Pluto');
+  });
+
+  it('re-opens on the ACT\'s own stage — never the read-only dossier', () => {
+    const intentOf = (s: ColonyResolutionSignals) => colonyResolutionFocusIntent(s, 'Pluto');
+    // The own trade — live, or already concluded before its owner-bonus discard
+    // (the built-then-traded case: the track never moves, the transaction ends
+    // first and only the discard's flight still names the colony).
+    expect(intentOf({...IDLE, tradeActive: true, tradeColony: 'Pluto', revealSource: bonusSource})).to.eq('trade');
+    expect(intentOf({...IDLE, discardFlightMeta: meta(1, 1)})).to.eq('trade');
+    expect(intentOf({...IDLE, discardMeta: meta(1, 2)})).to.eq('trade');
+    // A foreign trade's payout the viewer walked in for…
+    expect(intentOf({...IDLE, entryColony: 'Pluto', discardFlightMeta: meta(1, 1)})).to.eq('bonus');
+    // …but the viewer's OWN live transaction outranks a stale entry context.
+    expect(intentOf({...IDLE, tradeActive: true, tradeColony: 'Pluto', entryColony: 'Pluto'})).to.eq('trade');
+    // A colony draw no trade stamped is a BUILD's placement bonus.
+    expect(intentOf({...IDLE, revealSource: {type: 'colony', colonyName: ColonyName.PLUTO}})).to.eq('build');
+    // Another colony's entry or build batch says nothing about this one.
+    expect(intentOf({...IDLE, entryColony: 'Miranda'})).to.eq('trade');
+    expect(intentOf({...IDLE, revealSource: {type: 'colony', colonyName: ColonyName.MIRANDA}})).to.eq('trade');
+    // The DOSSIER hosts no payout zone and no track: it is never the answer.
+    for (const s of [IDLE, {...IDLE, entryColony: 'Pluto'}, {...IDLE, revealSource: incomeSource}]) {
+      expect(intentOf(s)).to.not.eq('inspect');
+    }
   });
 
   it('a colony-caused card TARGET pick is the third shape of an owner bonus', () => {

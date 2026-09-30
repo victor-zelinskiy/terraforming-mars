@@ -275,7 +275,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         await pose(page, preset, mode, '17', 'sitting-reward-received');
         await answerAsksAs(request, red);
         // «Обновление»: the renewal is a page of its own (the tact on the table), then the results card; A on it answers gate 2.
-        await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('renewal');
+        // REDUCED MOTION: the renewal page is a resting pose with nothing to fly (law 2 — no hold, no proxy), so the walk
+        // may pass it inside one poll tick; the results card is the stop that must stand.
+        await expect.poll(() => sittingStage(page), {timeout: 60_000}).toMatch(mode === 'reduced' ? /^(renewal|results)$/ : /^renewal$/);
         await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
         await waitSittingAtRest(page, 30_000);
         await pose(page, preset, mode, '18', 'sitting-results');
@@ -676,30 +678,48 @@ for (const preset of PARLIAMENT_PRESETS) {
           await waitSittingAtRest(page, 30_000);
           // v2: A answers gate 1 first; the other seat answers last — the walk plays, and the REWARD page (turned by the
           // director, about a second for a quiet card) carries its quiet pose: no reading pretends a payout; the stage
-          // says what OUTLIVES the enactment, and for an action, where it lives. Read in ONE sample the moment it stands.
-          expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-            'A answers the assembly gate').toBe(true);
-          await answerGateAs(request, red, 'assembly');
-          const seen: {quiet: {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string} | null} = {quiet: null};
-          await expect.poll(async () => {
+          // says what OUTLIVES the enactment, and for an action, where it lives. Read in ONE sample the moment it stands —
+          // captured IN THE PAGE by an observer armed before the press: under reduced motion the quiet page stands
+          // ~0.9 s, and a Node-side poll whose interval grows to 1 s walked straight past it into the results.
+          await page.evaluate(() => {
+            const w = window as unknown as {__quietPose?: unknown};
+            w.__quietPose = undefined;
             // v5: the quiet pose is the BAND's line — it names what OUTLIVES the enactment and, for an action,
             // where it lives. The card's own declaration is NOT repeated: the enacted resolution prints it in
             // the government, one tier up, and the band never says what an object already says itself.
-            seen.quiet = await page.evaluate(() => {
+            const read = () => {
               const band = document.querySelector<HTMLElement>('.con-band[data-parl-band-quiet]');
-              if (band === null) {
-                return null;
+              // The band CROSSFADES in one shared cell (law 18): on the first frame of the reward line the enactment's
+              // line is still in the DOM, leaving — read the ENTERING line only, or its «Правящая партия» reads first.
+              const labels = band === null ? [] : Array.from(band.querySelectorAll<HTMLElement>('.con-band__line:not(.con-band-fade-leave-active) [data-parl-band-chip="label"]'))
+                .map((el) => el.textContent?.trim() ?? '');
+              if (band === null || labels.length === 0) {
+                return undefined;
               }
-              const labels = Array.from(band.querySelectorAll<HTMLElement>('[data-parl-band-chip="label"]')).map((el) => el.textContent?.trim() ?? '');
               return {
                 kind: band.getAttribute('data-parl-band-quiet'),
                 kicker: labels[0] ?? '',
                 text: '',
                 where: labels.length - 1,
-                contexts: band.querySelectorAll('[data-yield-context]').length,
+                contexts: band.querySelectorAll('.con-band__line:not(.con-band-fade-leave-active) [data-yield-context]').length,
                 part: document.querySelector('[data-parl-enacted-effect] .con-parl__ruler-own-kicker')?.textContent?.trim() ?? '',
               };
+            };
+            const mo = new MutationObserver(() => {
+              const q = read();
+              if (q !== undefined) {
+                w.__quietPose = q;
+                mo.disconnect();
+              }
             });
+            mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-parl-band-quiet', 'class']});
+          });
+          expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
+            'A answers the assembly gate').toBe(true);
+          await answerGateAs(request, red, 'assembly');
+          const seen: {quiet: {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string} | null} = {quiet: null};
+          await expect.poll(async () => {
+            seen.quiet = await page.evaluate(() => ((window as unknown as {__quietPose?: unknown}).__quietPose ?? null) as never);
             return seen.quiet !== null;
           }, {timeout: 60_000, message: `${family.kind}: the REWARD stage carries its quiet pose`}).toBe(true);
           const q = seen.quiet!;

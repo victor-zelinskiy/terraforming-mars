@@ -200,6 +200,9 @@
         color: fade(@con-text, 96%);
     }
     &__info-own-body { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; align-items: center; gap: .9rem; }
+    /* A SUBJECT change re-mounts the own block alone (keyed on the subject): its content answers with the
+       console's one value flick — the head of the panel and the party box stand still. */
+    &__info-own-head, &__info-own-body { animation: con-parl-reading-flick calc(140ms * var(--motion-scale, 1)) ease-out; }
     /* THE READING ROW: the reading (grows) and, at its right, THE PARTY BOX — the card's party as a
        graphic: its emblem inside its printed formula and one quiet line of moment. The row takes the
        column's whole remaining height and BOTH boxes stretch to it (the stability law: a card with a
@@ -406,6 +409,10 @@ html.con-profile-handheld .con-parl {
     /* .52: a two-row formula is 75 px here and the box's 107 px hold it with the two-line moment
        (at .56 it was 81 and the moment lost 3 px of its second line). */
     &__info-party-formula { --con-pformula-zoom: calc(0.52 * var(--con-ui-scale, 1)); }
+@keyframes con-parl-reading-flick {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+}
     &__info-party-when { font-size: .5rem; white-space: normal; text-align: center; line-height: 1.15; }
     &__info-readings { column-gap: .35rem; row-gap: .15rem; }
     /* HANDHELD — THE GRAPHIC STEPS ASIDE FOR THE LEDGER. The Deck's info block has no vertical

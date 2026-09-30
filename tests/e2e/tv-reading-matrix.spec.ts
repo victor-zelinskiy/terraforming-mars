@@ -79,7 +79,7 @@ async function forceFrame(page: Page): Promise<void> {
 /** The zoomed card's reading-tier modifier, off the live class list. */
 async function rulesTier(page: Page): Promise<string> {
   const cls = await page.locator('.con-zoom-rules').first().getAttribute('class') ?? '';
-  const m = /con-zoom-rules--(brief|regular|dense)/.exec(cls);
+  const m = /con-zoom-rules--(brief|regular|dense|packed)/.exec(cls);
   return m?.[1] ?? '(none)';
 }
 
@@ -214,7 +214,8 @@ for (const preset of PRESETS) {
       // evidence is in the log instead of in a bisect.
       const tiers = new Set(seen.values());
       console.log(`[TIERS:${preset.tag}] ${[...seen.entries()].map(([i, t]) => `${CARDS[Number(i)]}=${t}`).join(' · ')}`);
-      expect([...tiers].every((t) => ['brief', 'regular', 'dense'].includes(t)),
+      // `packed` is the fourth rung (a four-block or >300-char reading, and the MEASURED step-down when a room is short).
+      expect([...tiers].every((t) => ['brief', 'regular', 'dense', 'packed'].includes(t)),
         `every tier is a known bucket — got ${JSON.stringify([...tiers])}`).toBe(true);
       expect(tiers.size,
         `the matrix must span more than one reading tier — got ${JSON.stringify([...tiers])}`)

@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openCardActions, openActionFocus, press} from './consoleStart';
+import {bootWithCards, openCardActions, openActionFocus, press, pressUntilGone} from './consoleStart';
 import {
   LAUNCHPAD, TRADE_CORP, cardTradeConfig, playLaunchpad, focusTradeVariantTile,
 } from './cardTradeDoor';
@@ -226,7 +226,21 @@ for (const profile of RESUME_PROFILES) {
       await shoot(page, `${profile.tag}-05-resumed-discard`);
 
       // ── 5 · Complete: discard → the resolution finishes → the chain closes. ─
-      await press(page, 'Enter', 3200);
+      // act → verify → retry. The resume REPLAYS the dock → grid reveal, and A
+      // waits that episode out BY DESIGN (`handleSectionConfirm` swallows a
+      // confirm under the flying proxies — the key bridge still reports it
+      // «consumed»). At 4K the replay can still be in the air when the hand
+      // first reads visible and the screenshot above is done, so ONE blind
+      // press was swallowed about one run in four and the flow then waited
+      // 25 s for a discard nobody had made (measured: a press at the resume's
+      // first visible frame leaves the hand standing with no discard armed; the
+      // next press arms it within ~0.1 s). The witness is the hand step leaving
+      // (it pops once the answer is in); a repeat A while the discard is
+      // already in flight is absorbed (`isCardDiscardActive`), so a retry can
+      // never submit twice.
+      const discarded = await pressUntilGone(page, 'Enter', '.con-colonies .con-hand.con-hand--embedded',
+        {tries: 4, settleMs: 1600});
+      expect(discarded, 'the discard press never took — the hand step still stands').toBe(true);
       await page.waitForTimeout(3200); // the discard flight + the track reset
       await expect(page.locator('.con-colonies'), 'the resolution never concluded after the resume')
         .toHaveCount(0, {timeout: 25_000});

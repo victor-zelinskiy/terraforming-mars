@@ -25,7 +25,7 @@ export type ParliamentWire = {
   };
   game: {
     phase: string; generation: number;
-    parliament?: {phase?: {step: string; awaiting?: Array<string>; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>;
+    parliament?: {rulingParty?: string; phase?: {step: string; awaiting?: Array<string>; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>;
       summary?: {
         agenda?: {player: string; from: number; to: number; bonus?: string}; winner: {player?: string; instance?: string}; refreshed: Array<unknown>;
         support?: Array<{party: string; gained: number; total: number}>;
@@ -99,6 +99,19 @@ export async function answerGateAs(request: APIRequestContext, seat: string, sta
   await sendPlayerInput(request, seat, {type: 'option', promptId: wire.waitingFor?.promptId} as never);
 }
 
+/**
+ * GATE 2 FROM THE VIEWER'S OWN SCREEN — A on the results page («Закрыть заседание»), act → verify → retry
+ * against the SERVER's record. A blind `press(Enter)` there is swallowed whenever a beat still holds the pad
+ * (the Deck, a loaded runner), and the miss surfaced a minute later, three lines down, as «the generation
+ * never advanced». Waits for the gate to STAND first: `pressUntil` checks its witness before pressing.
+ */
+export async function closeSitting(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
+  const atGate = async () => (await parliamentWire(request, viewer)).waitingFor?.parliamentPhasePrompt?.stage === 'adjourn';
+  await expect.poll(atGate, {timeout: 30_000, message: 'the viewer stands at the adjourn gate'}).toBe(true);
+  expect(await pressUntil(page, 'Enter', async () => !(await atGate()), {tries: 4, settleMs: 1200}),
+    'A on the results answers the viewer’s adjourn gate').toBe(true);
+}
+
 /** Answer `seat`'s standing resolution asks over the API with the plainest legal answer until none stands (a card take: every card; a pick: the first). */
 export async function answerAsksAs(request: APIRequestContext, seat: string, rounds = 6): Promise<void> {
   for (let i = 0; i < rounds; i++) {
@@ -152,8 +165,10 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
       // v5: the middle zone is a BAND and a BODY — the band's line and the results panel's two sections.
       ' .con-cards__verdictbar, .con-band, .con-band__line, .con-sit__payouts, .con-sit__payout, .con-sit__table,' +
       // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect's columns and its bar, the party
-      // composer's two columns, the playground's catalog (the chairman's seat pick renders inside `.con-parl__stage`, listed above).
-      ' .con-mandatory, .con-mandatory__body, .con-zoom-asidecol, .con-zoom-sidecol, .con-zoom__bar, .con-pact__source, .con-pact__main, .con-rxpg__catalog';
+      // composer's two columns (the chairman's seat pick renders inside `.con-parl__stage`, listed above). NOT the playground's
+      // catalog as a whole: it is a list that grows with every shipped resolution inside the stand's own scroll area — its
+      // pieces are measured, its height is not a claim.
+      ' .con-mandatory, .con-mandatory__body, .con-zoom-asidecol, .con-zoom-sidecol, .con-zoom__bar, .con-pact__source, .con-pact__main';
     const scoped = root.matches(blocks) ? [root as HTMLElement] : [];
     for (const el of [...scoped, ...Array.from(root.querySelectorAll<HTMLElement>(blocks))]) {
       const r = el.getBoundingClientRect();
@@ -279,6 +294,9 @@ export async function strandedReports(page: Page): Promise<Array<string>> {
 
 /** Open the Parliament workspace from the quick wheel (RT → down): the direction press IS the activation. */
 export async function openParliament(page: Page): Promise<void> {
+  // A LEAVING root is not an open Parliament: the section stays mounted for its whole leave (v3 В1), so
+  // counting it would skip the open and hand the caller a surface that is gone a beat later.
+  await expect(page.locator('.con-parl[data-parl-leaving]'), 'a leaving Parliament finishes its leave').toHaveCount(0, {timeout: 20_000});
   for (let i = 0; i < 6 && await parliament(page).count() === 0; i++) {
     await openQuickWheel(page);
     await press(page, 'ArrowDown', 1400);

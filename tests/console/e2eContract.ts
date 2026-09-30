@@ -171,8 +171,10 @@ export function copyVocabulary(): string {
   for (const file of walk(path.join(REPO_ROOT, 'src', 'locales', 'ru'), ['.json'])) {
     collect(JSON.parse(fs.readFileSync(file, 'utf8')));
   }
+  // The client's own text — its code, never its COMMENTS (a comment saying «значок ПО» once vouched for copy the
+  // product had re-worded to «со значком ПО», and the spec waiting for it stayed red for weeks).
   for (const file of walk(path.join(REPO_ROOT, 'src', 'client'), ['.vue', '.ts'])) {
-    values.push(normPhrase(fs.readFileSync(file, 'utf8')));
+    values.push(normPhrase(stripComments(fs.readFileSync(file, 'utf8'))));
   }
   return values.join('\n');
 }
@@ -186,7 +188,7 @@ const camel = (kebab: string) => kebab.replace(/-([a-z0-9])/g, (_, c: string) =>
  *   · `dataset` — every `dataset.<name>` read or write (an attribute named in camel case);
  *   · `stems`  — every token the product CONCATENATES onto (`'con-x--' + s`, `` `con-x--${s}` ``).
  */
-export type ProductIndex = {words: Set<string>; dataset: Set<string>; stems: Set<string>};
+export type ProductIndex = {words: Set<string>; dataset: Set<string>; stems: Set<string>; transitions: Set<string>};
 
 export function indexCorpus(corpus: string): ProductIndex {
   const words = new Set<string>();
@@ -201,7 +203,14 @@ export function indexCorpus(corpus: string): ProductIndex {
   for (const m of corpus.matchAll(/([a-zA-Z0-9_-]+)(?=['"]|\$\{|` \+)/g)) {
     stems.add(m[1]);
   }
-  return {words, dataset, stems};
+  // A Vue TRANSITION renders classes nobody writes out: `<transition name="con-band-fade">` puts
+  // `con-band-fade-leave-active` on the leaving node. The name is the contract (static names only — a bound
+  // `:name` is a dynamic stem and falls to the stem rule).
+  const transitions = new Set<string>();
+  for (const m of corpus.matchAll(/<(?:transition|Transition|transition-group|TransitionGroup)\b[^>]*?\sname="([a-zA-Z0-9_-]+)"/g)) {
+    transitions.add(m[1]);
+  }
+  return {words, dataset, stems, transitions};
 }
 
 /**
@@ -267,6 +276,10 @@ export function hookAlive(ref: Pick<HookRef, 'kind' | 'token'>, index: ProductIn
     return true;
   }
   if (!prefix && index.words.has(token)) {
+    return true;
+  }
+  const transition = /^(.+)-(?:(?:enter|leave)-(?:from|active|to)|move)$/.exec(token);
+  if (transition !== null && index.transitions.has(transition[1])) {
     return true;
   }
   // A dynamic prefix in the SPEC (`.wgt-icon--${param}`): alive while the product names anything under it.

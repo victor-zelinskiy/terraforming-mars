@@ -30,7 +30,10 @@
         <transition name="con-parl-xfade">
           <!-- Always MOUNTED (the layer hides it): the press that opens the mode
                then moves the cards and lifts the surface — it builds nothing. -->
-          <div v-if="voteInfo !== undefined" :key="voteInfo.instance + ':' + (voteSubject ?? '')" class="con-parl__info-body" data-parl-vote-body>
+          <!-- Keyed on the CARD only: a SUBJECT change (LB/RB) re-reads the own block in place (its own key
+               below) — re-keying the body crossfaded the head and the party box too, so two things that do not
+               change with the subject rose .25rem on every press (`console-parliament-vote-geometry`). -->
+          <div v-if="voteInfo !== undefined" :key="voteInfo.instance" class="con-parl__info-body" data-parl-vote-body>
             <div class="con-parl__info-head" data-parl-vote-item>
               <img class="con-parl__info-emblem" :src="emblemUrl(voteInfo.party)" alt="" />
               <b class="con-parl__info-name">{{ $t(voteInfo.name) }}</b>
@@ -49,6 +52,7 @@
               <div class="con-parl__info-own"
                    :class="{
                      'con-parl__info-own--yields': voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined,
+                   :key="'own:' + (voteSubject ?? 'viewer')"
                      'con-parl__info-own--ledger': voteLedger.length > 0,
                      'con-parl__info-own--dense': voteLedger.length > 0 && voteInfo.reading.yields.length > 1,
                      'con-parl__info-own--rival': voteInfo.reading.subject !== undefined,

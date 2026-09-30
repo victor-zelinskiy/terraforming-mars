@@ -38,14 +38,19 @@ function drawerY(tiles: ReadonlyArray<HTMLElement>): number {
   return Math.max(24, Math.round(h * 0.55));
 }
 
-/** ONE SHORT IMPULSE from the carrier card: the cause of the work that is opening. */
+/**
+ * ONE SHORT IMPULSE from the carrier card: the cause of the work that is opening. It PRESSES IN, never swells:
+ * the card fills its ruling row edge to edge on the TV and the Deck and that row clips (`overflow: hidden` — the
+ * government's zoom is solved against it), so a 1.035 swell was cut top and bottom for its whole length and
+ * crossed into the chairman's quest below (`console-parliament-sitting-v4` Г-П4: 560 px of card in a 542 px row).
+ */
 export function pulseCarrier(card: HTMLElement | undefined): void {
   if (card === undefined) {
     return;
   }
   gsap.fromTo(card,
     {scale: 1},
-    {scale: 1.035, duration: motionMs(140) / 1000, ease: 'power2.out', yoyo: true, repeat: 1,
+    {scale: 0.975, duration: motionMs(140) / 1000, ease: 'power2.out', yoyo: true, repeat: 1,
       transformOrigin: 'center center', clearProps: 'transform,transformOrigin', overwrite: 'auto'});
 }
 

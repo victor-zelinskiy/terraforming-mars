@@ -27,7 +27,7 @@ type V3Sample = {
   /** The enacted card's own slug and the quest's text — the caption may never move before its object. */
   card: string, quest: string,
   row: Array<string>, support: Record<string, number>,
-  lit: number, landed: number, flights: Array<Flight>,
+  lit: number, landed: number, landedAt: Array<string>, flights: Array<Flight>,
   supply: Rect | undefined, cards: Record<string, Rect>, ribbons: Record<string, Rect>,
 };
 type V3Probe = {samples: Array<V3Sample>};
@@ -86,6 +86,9 @@ async function armV3Probe(page: Page): Promise<void> {
         support,
         lit: root.querySelectorAll('.con-parl__party--lit').length,
         landed: root.querySelectorAll('.con-pseal__support-place--landed').length,
+        // WHICH sockets answer, so a crowded frame names its pair instead of a bare count.
+        landedAt: Array.from(root.querySelectorAll<HTMLElement>('.con-pseal__support-place--landed')).map((el) =>
+          (el.closest('[data-parl-support]')?.getAttribute('data-parl-support') ?? '?') + '#' + (el.getAttribute('data-support-place') ?? '?')),
         flights: Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
           const r = el.getBoundingClientRect();
           return {id: el.getAttribute('data-parl-flight') ?? '', x: r.left + r.width / 2, y: r.top + r.height / 2, shown: getComputedStyle(el).visibility !== 'hidden'};
@@ -225,7 +228,9 @@ test.describe('the sitting v3 (standard-1080)', () => {
 
     // ④ ONE SOCKET AT A TIME ANSWERS, and no tile carries a stage accent in any frame.
     const crowded = s.filter((x) => x.landed > 1);
-    expect(crowded.length, `at most one socket answers at a time (${crowded.length} samples had ${crowded[0]?.landed})`).toBe(0);
+    const pairs = [...new Set(crowded.map((x) => x.landedAt.join(' + ')))];
+    expect(crowded.length, `at most one socket answers at a time (${crowded.length} samples had ${crowded[0]?.landed}: ${pairs.join(' · ')}; ` +
+      `from t=${crowded[0]?.t} to t=${crowded[crowded.length - 1]?.t})`).toBe(0);
     expect(s.filter((x) => x.lit > 0).length, 'no party tile ever lights').toBe(0);
     // ⑤ …and the scene's own words leave with it: no roll-call line survives the rest.
     await expect(page.locator('[data-pseal-roll]'), 'the roll call\'s words are the scene\'s, not the tiles\'').toHaveCount(0);

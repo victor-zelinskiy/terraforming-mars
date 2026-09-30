@@ -423,6 +423,40 @@ export function colonyResolutionColony(s: ColonyResolutionSignals): string {
 }
 
 /**
+ * THE STAGE A RESOLUTION COMES BACK TO — the focus-stage composition of the
+ * ACT that is paying, for the two doors that re-open the stage mid-resolution
+ * (the post-discard return and the park restore).
+ *
+ * It is never `'inspect'`: since the colony DOSSIER (2026-09-27) that intent
+ * mounts `ConsoleColonyInspect`, a READING with no outcome zone and no track
+ * the reset can glide on — asking for it here put the dossier («… › ОСМОТР»,
+ * «A К торговле») where the payout's own stage belonged, and the resolution's
+ * last beats played on nothing. A trade or build stage whose act is spent
+ * already presents the neutral receipt by itself (`presentMode` falls back to
+ * the inspect composition), so the ACT is the whole answer:
+ *  · the viewer's own trade here → `'trade'` (outranks the entry context, the
+ *    same order as the stage's own `resolutionContext`);
+ *  · a foreign trade's payout the viewer walked in for → `'bonus'`;
+ *  · a colony payout no trade stamped (a BUILD's placement draw — the server
+ *    leaves `benefit === 'build'` un-tagged) → `'build'`;
+ *  · anything else (an owner bonus of the viewer's own, finished trade) →
+ *    `'trade'`. PURE.
+ */
+export function colonyResolutionFocusIntent(s: ColonyResolutionSignals, colony: string): 'trade' | 'bonus' | 'build' {
+  if (s.tradeActive && s.tradeColony === colony) {
+    return 'trade';
+  }
+  if (s.entryColony !== '' && s.entryColony === colony) {
+    return 'bonus';
+  }
+  const source = s.revealSource;
+  if (source?.type === 'colony' && source.colonyName === colony && source.trade === undefined) {
+    return 'build';
+  }
+  return 'trade';
+}
+
+/**
  * IS THE RESOLUTION STILL OWED? The workspace's close gate: while this is
  * true the colony workspace is the ONE interaction owner and may not be
  * unmounted, folded to the board or replaced by another root.

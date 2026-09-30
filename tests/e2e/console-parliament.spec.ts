@@ -5,6 +5,7 @@ import {
   bootFixture, closeZoomViewer, crumbText, fetchPlayerModel, focusCard, openCardActions, openQuickWheel, openZoomViewer, press,
   pressUntil, reloadConsole, settle, visibleSurfaces, walkFocusUntil,
 } from './consoleStart';
+import {focusParliamentZone} from './parliamentDrive';
 
 /**
  * THE MARS PARLIAMENT (Turmoil Redux) — the reworked workspace
@@ -243,9 +244,8 @@ for (const preset of PRESETS) {
         await shoot(page, preset, '03-vote-step');
         expect(await pressUntil(page, 'Escape', async () => await voteStep(page).count() === 0, {tries: 3, settleMs: 900})).toBeTruthy();
         await settle(page, {timeoutMs: 8_000});
-        const zone = () => parliament(page).getAttribute('data-zone');
-        expect(await pressUntil(page, 'ArrowLeft', async () => await zone() === 'government', {tries: 3, settleMs: 300})).toBeTruthy();
-        await press(page, 'ArrowDown', 500); // → the parties, on the ruling party
+        // v3 В5: the ruling party's tile is the government's only focus stop (the retired 'government' zone).
+        await focusParliamentZone(page, 'ruler');
         // «ПРАВИТ» alone (glossary §3, registry R-03): the government block beside the tile names the basis.
         await expect(page.locator('.con-parl__party[data-party="Greens"] .con-pseal__state'), 'the plaque states that the Greens rule').toContainText(/правит/i);
         await expectFits(page, preset);
@@ -420,7 +420,12 @@ for (const preset of PRESETS) {
         seen.add(await partyFocused());
         await expectFits(page, preset);
       }
-      expect([...seen].filter((p) => p !== ''), 'the walk visited every party').toHaveLength(6);
+      // v3: the row holds the FIVE opposition tiles; the ruling party's tile is the government's own focus stop.
+      expect([...seen].filter((p) => p !== ''), 'the walk visited every opposition party').toHaveLength(5);
+      await focusParliamentZone(page, 'ruler');
+      seen.add(await page.evaluate(() => document.querySelector('[data-parl-ruler] .con-parl__party')?.getAttribute('data-party') ?? ''));
+      await expectFits(page, preset);
+      expect([...seen].filter((p) => p !== ''), 'with the ruler\'s tile, every party').toHaveLength(6);
 
       // The action menu lists the viewer's party actions with the menu's own
       // states — and never a tile for a party the viewer has no access to.

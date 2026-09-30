@@ -8,7 +8,7 @@
         <span class="con-zoom-rules__title">{{ $t('Rules') }}</span>
       </div>
       <ConsoleScrollArea ref="scroll" class="con-zoom-rules__scroll" axis="y"
-                         @overflow-change="overflowing = $event">
+                         @overflow-change="onOverflow">
         <div class="con-zoom-rules__body" data-zoom-flank-content>
           <section v-for="group in orderedAnnotations" :key="group.id"
                    class="con-zoom-rules__group"
@@ -50,7 +50,8 @@
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
-import {cardRuleAnnotations, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
+import {cardRuleAnnotations, RulesLengthTier, rulesLengthTier, steppedRulesTier} from '@/client/components/console/consoleCardRules';
+import {probeTick} from '@/client/console/probeTick';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
@@ -129,6 +130,8 @@ export default defineComponent({
        * own progress rail; the host reads this to route the right stick.
        */
       overflowing: false,
+      /** Rungs stepped DENSER than the length tier because the body overflowed (`steppedRulesTier`). */
+      fitSteps: 0,
     };
   },
   computed: {
@@ -165,11 +168,30 @@ export default defineComponent({
      *  roomier, the longest RU rules step down to the reading floor and
      *  gain hyphenation. Measured on what actually renders (post-i18n),
      *  because RU runs ~15–20% longer than the English keys. */
-    lengthTier(): RulesLengthTier {
+    baseTier(): RulesLengthTier {
       return this.tier ?? rulesLengthTier(this.annotations);
+    },
+    /** …stepped denser while the body still overflows its room (the measured half of the ladder). */
+    lengthTier(): RulesLengthTier {
+      return steppedRulesTier(this.baseTier, this.fitSteps);
+    },
+    /** What the fit steps were measured FOR — a new reading starts from its own length tier again. */
+    fitKey(): string {
+      return `${this.baseTier}|${this.annotations.map((a) => `${a.id}:${a.rows.length}`).join(',')}`;
     },
   },
   watch: {
+    fitKey() {
+      this.fitSteps = 0;
+      // The scroll area reports only a CHANGE of its overflow, so a reading that overflows exactly like the
+      // one before it would never be heard: re-ask once the new body has been measured.
+      probeTick(() => probeTick(() => {
+        const area = this.$refs.scroll as {overflowing?: boolean} | undefined;
+        if (area?.overflowing === true) {
+          this.fitDenser();
+        }
+      }));
+    },
     nonce() {
       this.scheduleMeasure();
     },
@@ -183,6 +205,18 @@ export default defineComponent({
     this.scheduleMeasure();
   },
   methods: {
+    /** The scroll area's own verdict: an overflow first steps the reading DENSER, and only the last rung scrolls. */
+    onOverflow(overflowing: boolean): void {
+      this.overflowing = overflowing;
+      if (overflowing) {
+        this.fitDenser();
+      }
+    },
+    fitDenser(): void {
+      if (this.lengthTier !== 'packed') {
+        this.fitSteps++;
+      }
+    },
     /** The SHARED rule-text formatter (translate → strip the co-located
      *  kind prefix → read as a sentence). The action workspace shows the
      *  same texts, so the wording lives in ONE place — see

@@ -268,6 +268,30 @@ describe('statusChipConveyor', () => {
       conveyor2.dispose();
     });
 
+    it('a predecessor that GROWS in the same patch nudges its neighbour — frame 0 never crosses', async () => {
+      // 3-chip ring [red, green, blue] → [green, blue, red]; green's pill grows 100 → 180 in the same patch.
+      // Faithful to its old left, blue would start 80 px INSIDE the grown green (the 4K measurement: 149 px).
+      chip('red', {left: 100, width: 150});
+      chip('green', {left: 260, width: 100});
+      chip('blue', {left: 370, width: 100});
+      const conveyor3 = createChipConveyor();
+      conveyor3.sync(['red', 'green', 'blue']);
+      conveyor3.beforePatch(container, ['green', 'blue', 'red']);
+      // green: 260→100 (belt = 160, now 180 wide); blue: 370→290 (own delta 80 → residual −80).
+      patchOrder(['green', 'blue', 'red'],
+        [{left: 100, width: 180}, {left: 290, width: 100}, {left: 400, width: 150}]);
+      conveyor3.afterPatch(container, ['green', 'blue', 'red']);
+
+      const transforms = anims.filter((a) => 'transform' in (a.keyframes[0] ?? {}));
+      const byColor = new Map(transforms.slice(1).map((a) => [(a.el as HTMLElement).dataset.color, a]));
+      // Residuals are non-decreasing along the new order: blue is not pulled back over green (−80 → 0), so
+      // it rides the pure belt — frame 0 keeps the new-layout gap (green 260..440, blue 450..550).
+      expect(byColor.has('blue'), 'no residual pulls blue back under the grown green').to.eq(false);
+      expect(byColor.has('red'), 'the enterer inherits blue\'s (now zero) residual').to.eq(false);
+      await settleRuns();
+      conveyor3.dispose();
+    });
+
     it('a second reorder mid-flight cancels the first run before starting over', () => {
       const conveyor = createChipConveyor();
       chip('red', {left: 100, width: 150});
