@@ -236,6 +236,15 @@ abstract class Builder<T> {
   }
 
   /**
+   * Turmoil Redux: «advance your Agenda marker N steps» — N starred squares,
+   * the set's printed unit of one step of the track (TR04). A SQUARE is a unit
+   * in the scans' icon language; the star inside is the track's own mark.
+   */
+  public agendaStep(amount: number, options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.AGENDA_STEP, amount, options));
+  }
+
+  /**
    * Turmoil Redux: marks the part of a resolution's enactment that only the
    * WINNER of the vote receives (the printed star). Drawn as a small marker
    * beside the effect it qualifies — superscript by default, the physical

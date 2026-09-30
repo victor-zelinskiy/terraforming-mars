@@ -7,6 +7,7 @@ import {PoliticalScience} from './PoliticalScience';
 import {SupremeExpertise} from './SupremeExpertise';
 import {VectorComputations} from './VectorComputations';
 import {PoliticalDonation} from './PoliticalDonation';
+import {MinorityRepresentation} from './MinorityRepresentation';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -50,5 +51,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above): the card is
     // dealt only into a game with the Mars Parliament, so its delegate always has a voting area to go to.
     [CardName.POLITICAL_DONATION]: {Factory: PoliticalDonation},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above): the card is
+    // dealt only into a game with the Mars Parliament, so its Agenda marker always has a track to walk.
+    [CardName.MINORITY_REPRESENTATION]: {Factory: MinorityRepresentation},
   },
 });

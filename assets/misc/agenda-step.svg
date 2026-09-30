@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Turmoil Redux — ONE STEP OF THE AGENDA TRACK, as the scans print the unit:
+       a square tile (a SQUARE is a unit of something in the set's icon language)
+       holding the track's red-rimmed gold star — the vote-winner star's own
+       geometry, in the premium face's lacquer language. The colour lives in the
+       file: the console strips every `filter`, so a tinted copy is never an option. -->
+  <defs>
+    <linearGradient id="as-plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf8f1"/>
+      <stop offset="1" stop-color="#e2ddd2"/>
+    </linearGradient>
+    <linearGradient id="as-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff2a8"/>
+      <stop offset="0.55" stop-color="#f2c54a"/>
+      <stop offset="1" stop-color="#b8821a"/>
+    </linearGradient>
+    <linearGradient id="as-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d43b2a"/>
+      <stop offset="1" stop-color="#7a1a10"/>
+    </linearGradient>
+    <linearGradient id="as-sweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="7" fill="url(#as-plate)" stroke="#2a2622" stroke-width="3"/>
+  <rect x="7" y="7" width="50" height="50" rx="4" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5"/>
+  <g transform="translate(9 9.5) scale(0.72)">
+    <polygon points="32,3 40.4,22.2 61,24.3 45.6,38.3 50.2,59 32,48.4 13.8,59 18.4,38.3 3,24.3 23.6,22.2"
+             fill="url(#as-rim)" stroke="#3a0c06" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="32,10 38.2,24.6 54,26.2 42.2,37 45.7,52.6 32,44.6 18.3,52.6 21.8,37 10,26.2 25.8,24.6"
+             fill="url(#as-body)" stroke="#8a5a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <polygon points="32,10 38.2,24.6 54,26.2 42.2,37 45.7,52.6 32,44.6 18.3,52.6 21.8,37 10,26.2 25.8,24.6"
+             fill="url(#as-sweep)"/>
+  </g>
+</svg>

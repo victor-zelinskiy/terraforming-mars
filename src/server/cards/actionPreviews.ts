@@ -16,7 +16,7 @@ import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
@@ -25,7 +25,7 @@ import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCar
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
-import {DELEGATE_ICON} from '../../common/parliament/ParliamentTypes';
+import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectPlayer} from '../inputs/SelectPlayer';
@@ -346,6 +346,65 @@ export function deltaAdvanceStep(offer: DeltaAdvanceOffer): ActionPreviewStep {
 export function delegateGrantStep(card: ICard, grant: PlaceDelegatesOnResolution): ActionPreviewStep | undefined {
   const prompt = grant.previewSelectParty();
   return prompt === undefined ? undefined : {kind: 'delegateGrant', staged: {prompt, sourceCard: card.name}};
+}
+
+/** The pseudo-icons of the Agenda walk's chips (the client draws a styled badge, as for `tr` / `cards`). */
+export const AGENDA_TRACK_ICON = 'agenda';
+export const INFLUENCE_ICON = 'influence';
+
+/**
+ * THE WALK READ BEFORE THE PRESS (Turmoil Redux TR04): where the marker
+ * stands, where `printed` steps would take it — cut at the end of the track —
+ * every step with what it pays, and the WHOLE influence now → after. Pure:
+ * the printed track and the position, nothing mutated, nothing the client
+ * has to compute.
+ */
+export function agendaWalkModel(player: IPlayer, printed: number): AgendaWalkModel {
+  const parliament = player.game.parliament;
+  const from = parliament?.agendaOf(player) ?? 0;
+  const current = parliament?.influence(player) ?? 0;
+  const to = Math.min(PARLIAMENT_AGENDA_STEPS, from + printed);
+  const steps: Array<AgendaWalkModel['steps'][number]> = [];
+  for (let step = from + 1; step <= to; step++) {
+    const printedStep = AGENDA_TRACK[step - 1];
+    steps.push(printedStep.kind === 'influence' ? {to: step, kind: 'influence', level: printedStep.influence} : {to: step, kind: printedStep.kind});
+  }
+  return {
+    from, to, printed, walked: to - from, steps,
+    influence: {current, resulting: current + influenceAtAgenda(to) - influenceAtAgenda(from)},
+  };
+}
+
+/**
+ * The walk's chips, in the order the steps pay: the track chip («1 → 3», a
+ * cut noted as «end of the track»), then one chip per bonus — the TR chip is
+ * the one the effect forecast reads the ruling Greens' «+2 M€» from, so it is
+ * never folded into the track chip; the influence chip states the level the
+ * walk sets.
+ */
+export function agendaWalkEffects(player: IPlayer, walk: AgendaWalkModel): Array<ActionEffect> {
+  const effects: Array<ActionEffect> = [{
+    direction: 'gain', icon: AGENDA_TRACK_ICON, amount: walk.walked, current: walk.from, resulting: walk.to,
+    ...(walk.walked < walk.printed ? {note: 'end of the track'} : {}),
+  }];
+  const trSteps = walk.steps.filter((step) => step.kind === 'tr').length;
+  const cardSteps = walk.steps.filter((step) => step.kind === 'card').length;
+  const influenceGain = walk.influence.resulting - walk.influence.current;
+  for (const step of walk.steps) {
+    if (step.kind === 'tr' && !effects.some((e) => e.icon === 'tr')) {
+      effects.push(trGain(player, trSteps));
+    } else if (step.kind === 'card' && !effects.some((e) => e.icon === 'cards')) {
+      effects.push(drawGain(cardSteps));
+    } else if (step.kind === 'influence' && influenceGain > 0 && !effects.some((e) => e.icon === INFLUENCE_ICON)) {
+      effects.push({direction: 'gain', icon: INFLUENCE_ICON, amount: influenceGain, current: walk.influence.current, resulting: walk.influence.resulting});
+    }
+  }
+  return effects;
+}
+
+/** The SHOW step of the walk (see `ActionPreviewStep` — `agendaWalk`). */
+export function agendaWalkStep(walk: AgendaWalkModel): ActionPreviewStep {
+  return {kind: 'agendaWalk', walk};
 }
 
 /**

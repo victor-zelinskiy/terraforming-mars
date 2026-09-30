@@ -42,6 +42,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.SELF_REPLICATING))).to.deep.equal({kind: 'img', url: 'assets/resources/card.webp'});
   });
 
+  it('the Agenda-step unit (Turmoil Redux TR04) is its own asset — the starred square, never the vote-winner star bare', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.AGENDA_STEP, 2))).to.deep.equal({kind: 'img', url: 'assets/misc/agenda-step.svg'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.VOTE_WINNER))).to.deep.equal({kind: 'img', url: 'assets/misc/vote-winner.svg'});
+  });
+
   it('tag markers + promo icons resolve to shipped art', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.NO_TAGS))).to.deep.equal({kind: 'img', url: 'assets/tags/tag-none.png'});
     expect(mechItemIcon(itemNode(CardRenderItemType.DIVERSE_TAG))).to.deep.equal({kind: 'img', url: 'assets/tags/diverse.png'});

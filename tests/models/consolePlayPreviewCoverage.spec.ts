@@ -49,6 +49,13 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
   if (step.kind === 'delegateGrant') {
     return 'inline';
   }
+  // A walk of the Agenda marker by PLAYING the card (TR04): a SHOW step — the
+  // composer collects nothing, the play's one POST carries the walk's record,
+  // and the console hosts the Parliament in the hand's own zone to play it.
+  // Never a gap: nothing is dropped and nothing is mis-submitted.
+  if (step.kind === 'agendaWalk') {
+    return 'followup';
+  }
   if (step.kind === 'boardPlacement' || step.kind === 'note') {
     return 'followup';
   }

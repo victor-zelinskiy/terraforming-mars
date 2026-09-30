@@ -254,6 +254,9 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.FIRST_PLAYER]: `${MISC}/first-player.png`,
   // Turmoil Redux: the winner-of-the-vote star beside a resolution's winner-only part.
   [CardRenderItemType.VOTE_WINNER]: `${MISC}/vote-winner.svg`,
+  // Turmoil Redux (TR04): one step of the Agenda track as a printed unit — the starred square, its colour in
+  // the file (the console strips every filter). The same mark the composer's track chip and the preview wear.
+  [CardRenderItemType.AGENDA_STEP]: `${MISC}/agenda-step.svg`,
 
   // CEO vocabulary (the L-deck renders premium since desktop-removal wave 4).
   // The Reds party emblem (Zan) + the Ares adjacency-bonus tile (Gaia) reuse

@@ -401,6 +401,17 @@ export type ActionPreviewStep =
    * its text, which is banned, and it would carry none of the prompt.
    */
   | {kind: 'delegateGrant', staged: StagedVoteModel}
+  /**
+   * THIS PLAY WALKS THE AGENDA MARKER (Turmoil Redux TR04 Minority
+   * Representation) — a SHOW step, not a choice: the composer collects
+   * nothing for it and the play's one POST carries the walk's record back.
+   * Structural for the console's sake: it names the COMING stage of the crumb
+   * («КАРЬЕРА») from the press on, keeps the flow owing a step until the
+   * record arrives (`owed-step`), and prints «the marker walks N steps in the
+   * Parliament» from the model — never from a note's text. `walk` is the same
+   * reading the track chip in `effects` draws.
+   */
+  | {kind: 'agendaWalk', walk: AgendaWalkModel}
   | {
     kind: 'boardPlacement',
     placementType: string,
@@ -536,6 +547,27 @@ export type StagedPlacementModel = {
 export type StagedVoteModel = {
   prompt: SelectPartyModel;
   sourceCard: CardName;
+};
+
+/**
+ * A CARD'S WALK OF THE AGENDA TRACK, read by the SERVER before the press
+ * (Turmoil Redux TR04): where the marker stands, where it will land, how many
+ * of the printed steps the track still has room for (the end of the track
+ * cuts the walk honestly, and the cut is named by `walked < printed`), every
+ * step with what it pays, and the influence the walk changes. Computed from
+ * the printed track and the position — the client computes none of it.
+ */
+export type AgendaWalkModel = {
+  from: number;
+  to: number;
+  /** The steps the card prints. */
+  printed: number;
+  /** The steps the marker will actually take — fewer than `printed` only at the end of the track. */
+  walked: number;
+  /** Every step in order: the step reached, what it is, and the influence level an influence step sets. */
+  steps: ReadonlyArray<{to: number, kind: 'influence' | 'tr' | 'card', level?: number}>;
+  /** The player's WHOLE influence now → after the walk. */
+  influence: {current: number, resulting: number};
 };
 
 /** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */

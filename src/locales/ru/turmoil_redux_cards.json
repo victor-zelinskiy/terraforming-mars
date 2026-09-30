@@ -22,5 +22,8 @@
     "Action: Spend 4 data from here to draw a Space card.": "Действие: потратьте 4 единицы данных с этой карты, чтобы взять карту с меткой космоса.",
 
     "Political Donation": "Политическое пожертвование",
-    "Add a delegate to a resolution. Then add up to 3 neutral delegates to the Popular Support Area of that resolution's party.": "Добавьте делегата на резолюцию. Затем добавьте до 3 нейтральных делегатов в Народную поддержку партии этой резолюции."
+    "Add a delegate to a resolution. Then add up to 3 neutral delegates to the Popular Support Area of that resolution's party.": "Добавьте делегата на резолюцию. Затем добавьте до 3 нейтральных делегатов в Народную поддержку партии этой резолюции.",
+
+    "Minority Representation": "Представительство меньшинств",
+    "Requires that you have no more than 1 Influence. Advance your Agenda marker 2 steps. (And collect bonuses from each step.)": "Требуется не больше 1 влияния. Продвиньте маркер Карьеры на 2 шага (и получите бонус каждого шага)."
 }
