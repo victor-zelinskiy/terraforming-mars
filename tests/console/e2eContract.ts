@@ -18,7 +18,7 @@ import * as path from 'path';
  *
  * This module is the ONE reader of that contract, shared by the liveness guard
  * (`e2eLiveness.spec.ts` — fails the commit that kills a hook a spec still
- * uses) and the affected-spec finder (`scripts/e2e-affected.ts` — which specs
+ * uses) and the affected-spec finder (`tests/console/e2eAffected.ts` — which specs
  * a change of product files can break, i.e. which ones to run before
  * committing). PURE: file reads and regexes, no imports of the product.
  */

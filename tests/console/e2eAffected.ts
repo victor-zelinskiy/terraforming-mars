@@ -26,7 +26,7 @@
 import {execSync} from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import {copyRefs, e2eFiles, hookRefs, normPhrase, REPO_ROOT, rel, stripComments} from '../tests/console/e2eContract';
+import {copyRefs, e2eFiles, hookRefs, normPhrase, REPO_ROOT, rel, stripComments} from './e2eContract';
 
 const ref = process.argv[2] ?? 'HEAD';
 const git = (args: string) => execSync(`git ${args}`, {cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
