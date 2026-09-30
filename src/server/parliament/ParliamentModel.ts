@@ -172,7 +172,10 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       from: advance.from,
       to: advance.to,
       bonus: advance.bonus,
+      // Always present in memory (`Parliament.deserialize` normalizes a pre-TR04 save); the fallback is the same one step.
+      steps: advance.steps ?? [advance.bonus === undefined ? {to: advance.to} : {to: advance.to, bonus: advance.bonus}],
       reason: advance.reason,
+      ...(advance.card === undefined ? {} : {card: advance.card}),
       generation: advance.generation,
     };
   }

@@ -77,6 +77,10 @@ const COUNT_MESSAGE_LABELS: Readonly<Record<string, string>> = {
   'Requires ${0} delegate(s) on resolutions': 'On resolutions',
   // Turmoil Redux (TR01) — «Метки 7/10», the same label the single-tag reason wears.
   'Requires ${0} tags of one type': 'Tags',
+  // Turmoil Redux (TR04) — «Влияние 2/≤1»: the WHOLE influence, one label for the ceiling and the floor
+  // (the «or less» marker of the max template draws the «≤»).
+  'Requires influence ${0} or less': 'Influence',
+  'Requires ${0} influence': 'Influence',
 };
 
 /** The compact counter's label (an English i18n key), or undefined when the

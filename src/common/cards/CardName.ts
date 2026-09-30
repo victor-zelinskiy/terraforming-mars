@@ -1077,6 +1077,7 @@ export enum CardName {
   SUPREME_EXPERTISE = 'Supreme Expertise',
   VECTOR_COMPUTATIONS = 'Vector Computations',
   POLITICAL_DONATION = 'Political Donation',
+  MINORITY_REPRESENTATION = 'Minority Representation',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

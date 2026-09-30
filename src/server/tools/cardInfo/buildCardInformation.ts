@@ -266,6 +266,15 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
       `Requires ${enCount(n, 'delegate', 'delegates')} of yours on resolutions in the Voting Area.`;
     break;
   }
+  case RequirementType.INFLUENCE: {
+    // Turmoil Redux (TR04): the WHOLE influence, in the scan's own words
+    // («Requires that you have no more than 1 Influence»).
+    const n = descriptor.influence ?? descriptor.count ?? 1;
+    en = max ?
+      `Requires that you have no more than ${n} Influence.` :
+      `Requires that you have at least ${n} Influence.`;
+    break;
+  }
   case RequirementType.TAGS_OF_ONE_TYPE: {
     // Turmoil Redux (TR01): the most tags of any ONE type — no single tag to
     // name, so no qualifier; the rule line says «any one type» as printed.

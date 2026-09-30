@@ -22,6 +22,14 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonLine(reason)).eq('Requires 10 tags of one type · Now: 7');
   });
 
+  it('«influence» (Turmoil Redux, TR04) reads as one counter for the ceiling and the floor — «Influence 2/≤1» draws the ≤ off the template\'s «or less»', () => {
+    const ceiling: UnplayableReason = {type: 'count', message: 'Requires influence ${0} or less', params: ['1'], current: 2, requirement: true};
+    expect(unplayableReasonCompact(ceiling)).eq('Influence 2/≤1');
+    expect(unplayableReasonLine(ceiling)).eq('Requires influence 1 or less · Now: 2');
+    const floor: UnplayableReason = {type: 'count', message: 'Requires ${0} influence', params: ['2'], current: 1, requirement: true};
+    expect(unplayableReasonCompact(floor)).eq('Influence 1/2');
+  });
+
   it('the Hydronetwork precedent keeps its counter, and an unknown count message keeps the full line', () => {
     expect(unplayableReasonCompact({type: 'count', message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: ['4'], current: 3})).eq('Hydronetwork 3/4');
     const unknown: UnplayableReason = {type: 'count', message: 'Not enough resources on this card', current: 2};

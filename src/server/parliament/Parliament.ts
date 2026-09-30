@@ -854,7 +854,11 @@ export class Parliament {
     // The history: a sitting that names a retired card is dropped (as `lastPhase` is), the cap re-applied.
     parliament.phaseSeq = d.phaseSeq ?? 0;
     parliament.phaseHistory = (d.phaseHistory ?? []).filter((summary) => !summaryNamesAny(summary, retired)).slice(-PARLIAMENT_PHASE_HISTORY_CAP);
-    parliament.lastAdvance = d.lastAdvance;
+    // A save from before TR04 recorded ONE step and no `steps`: the walk is that step.
+    parliament.lastAdvance = d.lastAdvance === undefined ? undefined : {
+      ...d.lastAdvance,
+      steps: d.lastAdvance.steps ?? [d.lastAdvance.bonus === undefined ? {to: d.lastAdvance.to} : {to: d.lastAdvance.to, bonus: d.lastAdvance.bonus}],
+    };
     parliament.pendingActions = [...(d.pendingActions ?? [])];
     if (carriedRetired) {
       parliament.rebuildAfterRetirement(table);

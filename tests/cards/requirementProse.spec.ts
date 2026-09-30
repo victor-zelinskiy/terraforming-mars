@@ -125,6 +125,7 @@ const EN_SUBJECT: Readonly<Record<string, RegExp>> = {
   [RequirementType.DELTA_POSITION]: /hydronetwork/i,
   [RequirementType.DELEGATES_ON_RESOLUTIONS]: /delegates? of yours on resolutions/i,
   [RequirementType.TAGS_OF_ONE_TYPE]: /tags? of any one type/i,
+  [RequirementType.INFLUENCE]: /influence/i,
   [RequirementType.PARTY_LEADERS]: /party leader/i,
   [RequirementType.CHAIRMAN]: /chairman/i,
   [RequirementType.PARTY]: /party/i,

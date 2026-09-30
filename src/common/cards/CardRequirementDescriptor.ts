@@ -59,6 +59,10 @@ export type CardRequirementDescriptor = {
    *  types (no wild / clone tag; the event tag only under Odyssey), each counted
    *  exactly as a printed «N tags of X»; tags of different types never add up. */
   tagsOfOneType?: number,
+  /** Requires N of the player's WHOLE influence (the Agenda track's level, every
+   *  influence bonus, the tableau's own hooks — `PoliticalOps.influence`); with
+   *  `max` — no more than N (TR04 Minority Representation prints «max 1»). */
+  influence?: number,
 
   // The Moon
   habitatTiles?: number,
@@ -140,6 +144,8 @@ export function requirementType(descriptor: CardRequirementDescriptor): Requirem
     return RequirementType.DELEGATES_ON_RESOLUTIONS;
   } else if (descriptor.tagsOfOneType !== undefined) {
     return RequirementType.TAGS_OF_ONE_TYPE;
+  } else if (descriptor.influence !== undefined) {
+    return RequirementType.INFLUENCE;
   } else {
     throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
   }

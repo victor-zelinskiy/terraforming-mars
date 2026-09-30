@@ -473,6 +473,17 @@ describe('normalizeRequirement', () => {
     expect(delegates.label).to.eq(undefined);
   });
 
+  it('«influence» (Turmoil Redux, TR04) draws the influence badge with the bar — the track\'s own symbol, «max 1» as printed', () => {
+    const influence = normalizeRequirement({influence: 1, max: true});
+    expect(influence.type).to.eq(RequirementType.INFLUENCE);
+    expect(influence.value).to.eq(1);
+    expect(influence.comparator).to.eq('max');
+    expect(influence.iconUrl).to.eq('assets/misc/influence.png');
+    expect(influence.isBinary).to.eq(false);
+    expect(influence.label).to.eq(undefined);
+    expect(normalizeRequirement({influence: 2}).comparator, 'the floor form').to.eq('min');
+  });
+
   it('«tags of any one type» (Turmoil Redux, TR01) draws the printed «?» disc and its number', () => {
     const oneType = normalizeRequirement({tagsOfOneType: 10});
     expect(oneType.type).to.eq(RequirementType.TAGS_OF_ONE_TYPE);

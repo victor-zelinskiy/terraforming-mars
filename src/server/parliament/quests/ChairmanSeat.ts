@@ -22,6 +22,12 @@
  * `DEFAULT` would announce the reward in the middle of that card's own
  * cinematic.
  *
+ * THE WALK OF THE TRACK IS ONE FUNCTION (`walkAgenda`, TR04 Minority
+ * Representation): the sitting's winner step, the quest's step and a card's
+ * «advance N steps» are the same walk — one step at a time, each step's bonus
+ * paid before the next is taken, ONE record and ONE journal event for the
+ * whole walk. The quest and the phase call it with `steps = 1`.
+ *
  * THE ORDER after the answer is SEAT, then AGENDA. The rules fix no order;
  * this is the presentation's choice and it follows the sitting's own law
  * «причина раньше следствия» — the player learns WHAT they took (the office)
@@ -40,52 +46,103 @@ import {Priority} from '../../deferredActions/Priority';
 import {Color} from '../../../common/Color';
 import {Resource} from '../../../common/Resource';
 import {PartyName} from '../../../common/turmoil/PartyName';
-import {ResolutionId} from '../../../common/parliament/ParliamentTypes';
-import type {AgendaAdvance, Parliament} from '../Parliament';
+import {AgendaAdvanceStep, ResolutionId} from '../../../common/parliament/ParliamentTypes';
+import {CardName} from '../../../common/cards/CardName';
+import type {Parliament} from '../Parliament';
 import {chooseSeatSlot} from '../BotVoteChooser';
 import {AutomaTurnLog} from '../../automa/AutomaTurnLog';
 
 /** What `seat()` did: the office changed hands here and now, or the player still has to pick the delegate. */
 type SeatResult = 'seated' | 'asking';
 
+/**
+ * WHY the marker walks — the THREE ENGINES of the Agenda track: the sitting's
+ * winner step (`phase`), the chairman quest (`quest`) and a card that prints
+ * «advance your Agenda marker N steps» (`card`, TR04 Minority Representation).
+ * A card names itself: the journal, the score's provenance segment and the
+ * other players' notification read the walk off the card's own play.
+ */
+export type AgendaWalkCause = {reason: 'quest'} | {reason: 'phase'} | {reason: 'card', card: CardName};
+
+/** What ONE walk did: where it started, where it ended, and EVERY step it took in order, each with the bonus that step paid. */
+export type AgendaWalk = {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>};
+
 export class ChairmanSeat {
-  /** Advance the Agenda marker and pay the step's bonus, attributed to the parliament. Returns what happened. */
-  public static advanceAgenda(player: IPlayer, parliament: Parliament, reason: 'quest' | 'phase' = 'quest'): AgendaAdvance | undefined {
+  /**
+   * THE ONE WALK OF THE AGENDA TRACK. The marker takes up to `steps` steps,
+   * one at a time, and EACH step pays its own bonus before the next one is
+   * taken («collect bonuses from each step»: a TR step raises the rating on
+   * the spot, a card step draws — an influence step pays nothing immediately,
+   * the level being a reading of the position). The end of the track cuts the
+   * walk honestly: «already at the end» is logged ONCE and the walk stops; a
+   * walk that took no step returns undefined and records nothing.
+   *
+   * ONE record for the whole walk (`parliament.lastAdvance`, `seq` + 1 once —
+   * the client plays a record by its serial): `from`, `to` and every step in
+   * order; the top-level `bonus` stays the LAST step's for the one-step
+   * readers. ONE journal event (`agenda-advanced`) after the last step. The
+   * sitting and the quest are this walk with `steps = 1`, attributed to the
+   * parliament (`withSource`); a card's walk runs INSIDE the card's own play
+   * and keeps that source — the journal shows the card's chip, the rival's
+   * notification says «played a card». The TR's provenance segment is the
+   * TRACK's for all three engines, the way the greenery revision names its
+   * segment after the rule and not after who laid the tile.
+   */
+  public static walkAgenda(player: IPlayer, parliament: Parliament, steps: number, cause: AgendaWalkCause): AgendaWalk | undefined {
     const game = player.game;
-    const advance = parliament.advanceAgenda(player);
-    if (advance === undefined) {
-      game.log('${0} is already at the end of the Agenda track', (b) => b.player(player));
-      return undefined;
-    }
-    // The move is RECORDED for the client's presentation (the marker's glide
-    // and the step's reward, played once by its sequence number) — the
-    // political phase's summary carries its own copy for the results scene.
-    parliament.lastAdvance = {
-      seq: (parliament.lastAdvance?.seq ?? 0) + 1,
-      player: player.id,
-      from: advance.from,
-      to: advance.to,
-      bonus: advance.bonus,
-      reason,
-      generation: game.generation,
-    };
-    game.events.withSource({kind: 'parliament'}, () => {
-      game.log('${0} advances on the Agenda track to step ${1}', (b) => b.player(player).number(advance.to));
-      if (advance.bonus === 'tr') {
-        player.increaseTerraformRating(1, {trAttribution: {sourceType: 'other', sourceName: 'Agenda track'}});
-        game.log('${0} gained ${1} ${2} from the Agenda track', (b) => b.player(player).number(1).tr());
-      } else if (advance.bonus === 'card') {
-        if (player.isMarsBot) {
-          // The Automa FAQ (RB-A p.11): a card MarsBot would draw is 1 M€ — it has no hand (decision D3: the bot moves on the Agenda as a human does).
-          player.stock.add(Resource.MEGACREDITS, 1, {log: false});
-          game.log('${0} gains 1 M€ from the Agenda track instead of a card', (b) => b.player(player));
-        } else {
-          // The Agenda's own source: the console lifts the card off the track step.
-          player.drawCard(1, {source: {type: 'agenda'}});
+    const walk = (): AgendaWalk | undefined => {
+      const from = parliament.agendaOf(player);
+      const taken: Array<AgendaAdvanceStep> = [];
+      for (let i = 0; i < steps; i++) {
+        const advance = parliament.advanceAgenda(player);
+        if (advance === undefined) {
+          game.log('${0} is already at the end of the Agenda track', (b) => b.player(player));
+          break;
         }
+        taken.push(advance.bonus === undefined ? {to: advance.to} : {to: advance.to, bonus: advance.bonus});
+        game.log('${0} advances on the Agenda track to step ${1}', (b) => b.player(player).number(advance.to));
+        ChairmanSeat.payStep(player, advance.bonus);
       }
-    });
-    return advance;
+      if (taken.length === 0) {
+        return undefined;
+      }
+      const last = taken[taken.length - 1];
+      // The walk is RECORDED for the client's presentation (the marker's glide
+      // step by step and each step's reward, played once by its sequence
+      // number) — the political phase's summary carries its own one-step copy.
+      parliament.lastAdvance = {
+        seq: (parliament.lastAdvance?.seq ?? 0) + 1,
+        player: player.id,
+        from,
+        to: last.to,
+        bonus: last.bonus,
+        steps: taken,
+        reason: cause.reason,
+        ...(cause.reason === 'card' ? {card: cause.card} : {}),
+        generation: game.generation,
+      };
+      game.events.recordAgendaAdvanced(player, {from, to: last.to, steps: taken}, cause.reason);
+      return {from, to: last.to, steps: taken};
+    };
+    return cause.reason === 'card' ? walk() : game.events.withSource({kind: 'parliament'}, walk);
+  }
+
+  /** The step's own bonus, paid the moment the marker lands on it — before the next step is taken. */
+  private static payStep(player: IPlayer, bonus: 'tr' | 'card' | undefined): void {
+    const game = player.game;
+    if (bonus === 'tr') {
+      player.increaseTerraformRating(1, {trAttribution: {sourceType: 'other', sourceName: 'Agenda track'}});
+      game.log('${0} gained ${1} ${2} from the Agenda track', (b) => b.player(player).number(1).tr());
+    } else if (bonus === 'card') {
+      if (player.isMarsBot) {
+        // The Automa FAQ (RB-A p.11): a card MarsBot would draw is 1 M€ — it has no hand (decision D3: the bot moves on the Agenda as a human does).
+        player.stock.add(Resource.MEGACREDITS, 1, {log: false});
+        game.log('${0} gains 1 M€ from the Agenda track instead of a card', (b) => b.player(player));
+      } else {
+        // The Agenda's own source: the console lifts the card off the track step.
+        player.drawCard(1, {source: {type: 'agenda'}});
+      }
+    }
   }
 
   /**
@@ -127,13 +184,14 @@ export class ChairmanSeat {
     try {
       game.log('${0} takes the chairmanship', (b) => b.player(bot));
       const seat = ChairmanSeat.seatBot(bot, parliament);
-      const advance = ChairmanSeat.advanceAgenda(bot, parliament);
+      const walk = ChairmanSeat.walkAgenda(bot, parliament, 1, {reason: 'quest'});
+      const bonus = walk?.steps[walk.steps.length - 1].bonus;
       AutomaTurnLog.note(game, {
         kind: 'chairman',
         source: seat.source,
         ...(seat.resolution === undefined ? {} : {resolution: seat.resolution}),
         ...(seat.previous === undefined ? {} : {previous: seat.previous}),
-        ...(advance === undefined ? {} : {agenda: {from: advance.from, to: advance.to, ...(advance.bonus === undefined ? {} : {bonus: advance.bonus})}}),
+        ...(walk === undefined ? {} : {agenda: {from: walk.from, to: walk.to, ...(bonus === undefined ? {} : {bonus})}}),
       });
     } finally {
       events.endScope();
@@ -254,7 +312,7 @@ export class ChairmanSeat {
       // outgoing delegate's line.
       game.log('${0} takes the chairmanship', (b) => b.player(player));
       if (ChairmanSeat.seat(player, parliament) === 'seated') {
-        ChairmanSeat.advanceAgenda(player, parliament);
+        ChairmanSeat.walkAgenda(player, parliament, 1, {reason: 'quest'});
       }
     } finally {
       events.endScope();
@@ -329,7 +387,7 @@ export class ChairmanSeat {
         game.log('${0} becomes the chairman', (b) => b.player(player));
         game.events.recordChairmanSeated(player, previous);
         // …and only NOW the Agenda step: the office is what the step pays for.
-        ChairmanSeat.advanceAgenda(player, parliament);
+        ChairmanSeat.walkAgenda(player, parliament, 1, {reason: 'quest'});
       } finally {
         game.events.endScope();
       }

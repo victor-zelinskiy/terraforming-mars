@@ -45,6 +45,17 @@ export type GameEventType =
    */
   | 'chairman-seated'
   /**
+   * THE AGENDA MARKER WALKED (Turmoil Redux): `impact.agenda` carries the
+   * walk — from, to, EVERY step with the bonus it paid, and the engine (the
+   * sitting's winner step, the chairman quest, a card — TR04 Minority
+   * Representation, the card riding the event's `source`). Until TR04 an
+   * advance had no event of its own: only log text, and a rival learned of it
+   * from the TR delta alone. The steps' TR / card ride their own chokepoint
+   * events beside this one; this is the POSITION fact the journal's row and
+   * the notification's line read — never a delta.
+   */
+  | 'agenda-advanced'
+  /**
    * DELEGATES PLACED ON A RESOLUTION BY AN EFFECT (Turmoil Redux): a colony's
    * grant, a card's play (TR03 Political Donation) — `impact.delegates` names
    * how many and onto which resolution. The vote ACTION needs none: its chain

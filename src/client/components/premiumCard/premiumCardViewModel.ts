@@ -257,6 +257,9 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // Turmoil Redux (TR01): the printed «?» disc — the same asset the DIVERSE_TAG item draws (Aridor,
   // Interplanetary Trade: «different tags»); the rule line tells «any one type» apart, the picture is the scan's.
   [RequirementType.TAGS_OF_ONE_TYPE]: {value: (d) => d.tagsOfOneType ?? d.count ?? 1, iconUrl: 'assets/tags/diverse.png'},
+  // Turmoil Redux (TR04): the influence badge — the SAME asset the Agenda track's node and every resolution's
+  // payout formula draw (`con-parl__inf-icon`), so «influence» is one symbol everywhere; `max` draws the bar.
+  [RequirementType.INFLUENCE]: {value: (d) => d.influence ?? d.count ?? 1, iconUrl: `${MISC}/influence.png`},
 };
 
 export function normalizeRequirement(descriptor: CardRequirementDescriptor): NormalizedRequirement {

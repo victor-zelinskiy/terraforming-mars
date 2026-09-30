@@ -6,7 +6,7 @@ import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
-import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {TileType} from '../../common/TileType';
@@ -360,14 +360,24 @@ export type SerializedPhaseSummary = {
   renewal?: Array<SerializedRenewalEvent>;
 };
 
-/** The last Agenda advance (see `ParliamentAdvanceModel`). */
+/** The last WALK of an Agenda marker (see `ParliamentAdvanceModel`). */
 export type SerializedAdvance = {
   seq: number;
   player: PlayerId;
   from: number;
   to: number;
+  /** The LAST step's bonus — kept for readers of the one-step record; `steps` is the walk. */
   bonus?: 'tr' | 'card';
-  reason: 'quest' | 'phase';
+  /**
+   * EVERY step of the walk in order, each with the bonus it paid (one entry for
+   * a quest / phase step, up to N for a card). Absent on a save from before
+   * TR04 — normalized to the one step `[{to, bonus}]` on load, so in memory it
+   * is always present.
+   */
+  steps?: Array<AgendaAdvanceStep>;
+  reason: AgendaAdvanceReason;
+  /** The card that walked the marker (`reason: 'card'`). */
+  card?: CardName;
   generation: number;
 };
 

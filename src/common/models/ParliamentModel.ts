@@ -15,10 +15,7 @@ import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
 import type {EventTrigger} from '../events/GameEvent';
 import {ActionEffect} from './ActionPreviewModel';
-import {
-  BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty,
-  ResolutionId, ResolutionInstanceId,
-} from '../parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
 
 /** One delegate on a resolution, in placement order (`seq` is global and monotonic). */
 export type ParliamentVoteModel = {
@@ -461,9 +458,12 @@ export type ParliamentPhaseSummaryModel = {
 };
 
 /**
- * The LAST move of an Agenda marker — a mid-generation quest completion or the
- * political phase's winner step. The client plays it ONCE (`seq` is the key):
- * the marker glides from `from` to `to`, the step's reward follows.
+ * The LAST WALK of an Agenda marker — a mid-generation quest completion, the
+ * political phase's winner step, or a card that walks the marker several steps
+ * (TR04). The client plays it ONCE (`seq` is the key): the marker glides step
+ * by step, each step's reward following its own landing (`steps`, in order).
+ * `bonus` is the LAST step's — the one-step readers' field; a reader that can
+ * meet a walk of more than one step reads `steps`.
  */
 export type ParliamentAdvanceModel = {
   seq: number;
@@ -471,7 +471,10 @@ export type ParliamentAdvanceModel = {
   from: number;
   to: number;
   bonus?: 'tr' | 'card';
-  reason: 'quest' | 'phase';
+  steps: ReadonlyArray<AgendaAdvanceStep>;
+  reason: AgendaAdvanceReason;
+  /** The card that walked the marker (`reason: 'card'`). */
+  card?: CardName;
   generation: number;
 };
 

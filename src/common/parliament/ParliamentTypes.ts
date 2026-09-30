@@ -78,6 +78,22 @@ export const DELEGATE_ICON = 'delegate';
 export const PARTY_EFFECT_DELEGATES = 2;
 export const PARLIAMENT_AGENDA_STEPS = 12;
 
+/**
+ * One step a WALK of the Agenda track took: the step the marker reached and
+ * the bonus that step paid on the spot (none for an influence step — the level
+ * is a reading of the position). A record of a walk lists every step in order
+ * (`ParliamentAdvanceModel.steps`), because a card walks the marker several
+ * steps at once and «collects bonuses from each step» (TR04).
+ */
+export type AgendaAdvanceStep = {to: number; bonus?: 'tr' | 'card'};
+
+/**
+ * The THREE ENGINES of the track — the sitting's winner step, the chairman
+ * quest, and a card that prints «advance your Agenda marker N steps». One
+ * walk function serves all three (`ChairmanSeat.walkAgenda`).
+ */
+export type AgendaAdvanceReason = 'quest' | 'phase' | 'card';
+
 /** One step of the Agenda track: it either raises the base influence or pays an immediate bonus. */
 export type AgendaStep =
   | {kind: 'influence', influence: number}

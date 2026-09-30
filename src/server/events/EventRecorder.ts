@@ -2,6 +2,7 @@ import {Color} from '../../common/Color';
 import {Phase} from '../../common/Phase';
 import {CardName} from '../../common/cards/CardName';
 import {PartyName} from '../../common/turmoil/PartyName';
+import {AgendaAdvanceReason, AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
 import {SpaceId} from '../../common/Types';
 import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
@@ -361,6 +362,16 @@ export class EventRecorder {
       impact: {},
       ...(previous === undefined ? {} : {target: {player: previous}}),
     });
+  }
+
+  /**
+   * THE AGENDA MARKER WALKED (Turmoil Redux) — one event per walk, written by
+   * `ChairmanSeat.walkAgenda` after the last step, under the live scope: the
+   * parliament's for the sitting and the quest, the CARD's for a card's walk
+   * (so the journal row and the rival's notification name the card).
+   */
+  public recordAgendaAdvanced(player: IPlayer, walk: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>}, reason: AgendaAdvanceReason): void {
+    this.record({type: 'agenda-advanced', player: player.color, impact: {agenda: {from: walk.from, to: walk.to, steps: [...walk.steps], reason}}, visibility: 'journal'});
   }
 
   /**

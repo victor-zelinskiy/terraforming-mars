@@ -355,9 +355,10 @@ export class ParliamentPhase {
     const events = this.game.events;
     events.beginAction(player, {kind: 'parliament'}, {category: 'political-phase'});
     try {
-      const advance = ChairmanSeat.advanceAgenda(player, this.parliament, 'phase');
-      if (advance !== undefined) {
-        this.summary.agenda = {player: player.id, from: advance.from, to: advance.to, bonus: advance.bonus};
+      // The winner's ONE step — the same walk a card takes for N (TR04); the summary keeps its one-step shape.
+      const walk = ChairmanSeat.walkAgenda(player, this.parliament, 1, {reason: 'phase'});
+      if (walk !== undefined) {
+        this.summary.agenda = {player: player.id, from: walk.from, to: walk.to, bonus: walk.steps[walk.steps.length - 1].bonus};
       }
     } finally {
       events.endScope();

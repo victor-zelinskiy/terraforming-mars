@@ -118,6 +118,8 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   RequirementType.DELEGATES_ON_RESOLUTIONS,
   // «Requires N tags of one type» — the whole printed rule (Turmoil Redux TR01).
   RequirementType.TAGS_OF_ONE_TYPE,
+  // «Requires influence N or less» / «Requires N influence» — the whole printed rule (Turmoil Redux TR04).
+  RequirementType.INFLUENCE,
 ]);
 
 /**
@@ -274,6 +276,12 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     // a `tag` field would make `reasonParams` swap the number for a tag name.
     // `current` is the honest maximum over the types («now: 7»).
     return {type: 'count', message: 'Requires ${0} tags of one type', params: [String(required)], current};
+  case RequirementType.INFLUENCE:
+    // The WHOLE influence (the track's level + every bonus) — `current` is that
+    // honest count. The MAX form carries «or less»: the marker the compact hand
+    // counter reads to draw «≤» (`MAX_REQUIREMENT_MARKERS`) — without it the
+    // counter would print «≥» over a ceiling.
+    return {type: 'count', message: max ? 'Requires influence ${0} or less' : 'Requires ${0} influence', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
   case RequirementType.CHAIRMAN:

@@ -25,6 +25,8 @@ export enum RequirementType {
     DELEGATES_ON_RESOLUTIONS = 'Delegates on resolutions',
     /** The most tags the player has of any ONE type — the maximum over the types, never a sum across them. */
     TAGS_OF_ONE_TYPE = 'Tags of one type',
+    /** The player's WHOLE influence — the Agenda track's level plus every bonus (TR04 prints «max 1»). */
+    INFLUENCE = 'Influence',
 
     // The Moon
     HABITAT_RATE = 'Habitat rate',

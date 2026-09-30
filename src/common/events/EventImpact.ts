@@ -5,6 +5,7 @@ import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
 import {PartyName} from '../turmoil/PartyName';
+import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
 
 /**
  * FACTUAL impact of a {@link GameEvent}. Facts only — never an estimated
@@ -132,6 +133,14 @@ export type EventImpact = {
    * (`popular-support-gained`): how many landed and what the area holds now.
    */
   popularSupport?: {party: PartyName; gained: number; total: number};
+  /**
+   * A WALK OF THE AGENDA TRACK (`agenda-advanced`, Turmoil Redux): where the
+   * marker started and ended, EVERY step in order with the bonus that step
+   * paid, and which engine walked it — the sitting's winner step, the chairman
+   * quest, or a card (TR04; the card itself rides the event's `source`). One
+   * event per walk, written after the last step.
+   */
+  agenda?: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>; reason: AgendaAdvanceReason};
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
 };
