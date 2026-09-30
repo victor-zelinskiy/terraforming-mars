@@ -2645,7 +2645,7 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
       // happens to sit on, which spends the turn on an unrelated card and makes
       // the spec fail somewhere else entirely, several assertions later.
       for (let i = 0; i < 3 && await placing.count() === 0 &&
-        await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+        await page.locator('.con-hand, .con-composer--play').count() > 0; i++) {
         await press(page, 'Escape', 700);
       }
       continue;
@@ -2656,7 +2656,7 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
     await page.locator('.con-hand:not(.con-hand--transit)')
       .waitFor({state: 'visible', timeout: 15_000});
     await press(page, 'Enter', 900); // open the play composer
-    for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
+    for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
       await press(page, 'Enter', 900);
     }
     await page.waitForTimeout(4200); // the played-hero scene settles, the card lands
@@ -2664,7 +2664,7 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
       return true;
     }
     for (let i = 0; i < 3 && await placing.count() === 0 &&
-      await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+      await page.locator('.con-hand, .con-composer--play').count() > 0; i++) {
       await press(page, 'Escape', 700);
     }
   }
@@ -2747,7 +2747,7 @@ export async function closeZoomViewer(page: Page, maxMs = 15_000): Promise<void>
 export async function openQuickWheel(page: Page, tries = 8): Promise<void> {
   const wheel = page.locator('.con-quick');
   for (let i = 0; i < tries && await wheel.count() === 0; i++) {
-    if (i > 0 && await page.locator('.con-hand, .con-play').count() > 0) {
+    if (i > 0 && await page.locator('.con-hand').count() > 0) {
       await press(page, 'Escape', 600);
     }
     await press(page, 'Period', 700);
@@ -2758,7 +2758,7 @@ export async function openQuickWheel(page: Page, tries = 8): Promise<void> {
 export async function openCardActions(page: Page, tries = 10): Promise<void> {
   const workspace = page.locator('.con-cardactions');
   for (let i = 0; i < tries && await workspace.count() === 0; i++) {
-    if (i > 0 && await page.locator('.con-hand, .con-play').count() > 0) {
+    if (i > 0 && await page.locator('.con-hand').count() > 0) {
       await press(page, 'Escape', 600);
     }
     await press(page, 'Period', 800);

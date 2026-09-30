@@ -119,8 +119,6 @@ type Sighting = {
   embedded: boolean;
   /** A full-bleed reveal parented straight to <body> — the reported bug. */
   fullBleed: boolean;
-  /** Any legacy modal-input surface, ever. */
-  legacyModal: boolean;
   /** TWO workspace roots visible at once (`.con-ws` ×2) — the split screen. */
   workspaceSplit: boolean;
   /** A STANDALONE hand workspace root during the payout — the flow break. */
@@ -170,7 +168,7 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
     const w = window as unknown as {__pluto?: Sighting};
     const seen: Sighting = {
       seen: false, inStage: false, embedded: false, fullBleed: false,
-      legacyModal: false, workspaceSplit: false, standaloneHand: false,
+      workspaceSplit: false, standaloneHand: false,
       focusHandZone: false, emptyStage: false, markerOutsideFocus: false,
       focusSeen: false, glideOverReveal: false, glideOverBlankStage: false, markerSeen: false,
       coloniesGoneAtMs: -1, announceAtMs: -1,
@@ -235,11 +233,9 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
           seen.fullBleed = true;
         }
       }
-      if (document.querySelector('.mandatory-input-modal, .modal-input-root') !== null) {
-        seen.legacyModal = true;
-      }
-      // The REMOVED intermediate state: a hand zone inside the focus stage.
-      if (document.querySelector('.con-colfocus__handzone, .con-colfocus [data-hand-zone]') !== null) {
+      // The REMOVED intermediate state: the hand inside the focus stage (its
+      // one home is the section's own `colonies-hand` zone, beside the stage).
+      if (document.querySelector('.con-colfocus .con-hand') !== null) {
         seen.focusHandZone = true;
       }
       // A BLANK stage mid-flow — the «empty pause» class of break. The
@@ -349,7 +345,6 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
   await shoot(page, '04-trade-end');
 
   expect(seen.seen, 'no payout reveal ever appeared').toBeTruthy();
-  expect(seen.legacyModal, 'a LEGACY modal opened for the Pluto payout').toBeFalsy();
   expect(seen.fullBleed, 'the payout mounted OUTSIDE a workspace zone (the full-bleed band)').toBeFalsy();
   expect(seen.embedded, 'the payout did not carry the embedded skin').toBeTruthy();
   expect(seen.inStage, 'the payout did not open inside the colony FOCUS STAGE').toBeTruthy();
@@ -442,7 +437,6 @@ test('Pluto BUILD: the draw presents inside the colony workspace, never as a ban
   await shoot(page, '08-build-end');
 
   expect(seen.seen, 'no draw reveal ever appeared for the build bonus').toBeTruthy();
-  expect(seen.legacyModal, 'a LEGACY modal opened for the Pluto build draw').toBeFalsy();
   expect(seen.fullBleed, 'the draw mounted OUTSIDE a workspace zone (the full-bleed band)').toBeFalsy();
   expect(seen.embedded, 'the draw did not carry the embedded skin').toBeTruthy();
   expect(seen.inStage, 'the draw did not open inside the colony FOCUS STAGE').toBeTruthy();
@@ -479,7 +473,7 @@ test('Pluto BUILD: the draw presents inside the colony workspace, never as a ban
  *  · the mandatory discard runs on the REAL hand EMBEDDED inside it
  *    (`.con-colonies .con-hand--embedded`), never as a standalone root;
  *  · no second workspace root is ever visible (the split screen);
- *  · no board-level «Получены карты» band, no legacy modal.
+ *  · no board-level «Получены карты» band.
  */
 test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the same workspace', async ({page, request}) => {
   test.setTimeout(480_000);
@@ -564,7 +558,6 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   expect(tail.focusSeen, 'the colony FOCUS was never restored after the discard').toBeTruthy();
 
   const seen = seenEarly;
-  expect(seen.legacyModal, 'a LEGACY modal opened during the resolution').toBeFalsy();
   expect(seen.fullBleed, 'a payout mounted OUTSIDE a workspace zone during the resolution').toBeFalsy();
   expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
   expect(seen.standaloneHand, 'the discard opened a STANDALONE hand workspace').toBeFalsy();

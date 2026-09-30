@@ -337,7 +337,7 @@ async function armAndSubmit(page: Page, shotPrefix: string): Promise<void> {
     const s = await page.evaluate(() => ({
       ctaReady: document.querySelector('.con-composer__cta--ready') !== null,
       ctaFocused: document.querySelector('.con-composer__cta--focused') !== null,
-      pick: document.querySelector('.con-hand__stage .con-pick, .con-played-cat') !== null,
+      pick: document.querySelector('.con-played-cat') !== null,
       composer: document.querySelector('.con-composer--play') !== null,
       landing: document.querySelector('.con-composer__playstage--up') !== null,
     }));

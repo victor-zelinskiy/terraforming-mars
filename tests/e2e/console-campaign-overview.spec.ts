@@ -174,7 +174,7 @@ for (const preset of PRESETS) {
         `the crumb hugs the frame (head inset ${chassis.headInset} vs frame pad ${chassis.framePad})`)
         .toBeLessThan(3);
       // The old «ДОП. РЕСУРСЫ» caption is gone — the chips are the label.
-      await expect(page.locator('.con-res-aux__cap')).toHaveCount(0);
+      await expect(page.locator('.con-res-aux', {hasText: /Доп\. ресурсы/i})).toHaveCount(0);
       // The corporation meta in the header NAMES the composition size:
       // Alice carries the mission-1 lineage corp + the mission-2 pick.
       const corpMeta = (await page.locator('.con-info__corp').innerText()).toLowerCase();

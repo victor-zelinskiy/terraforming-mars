@@ -98,7 +98,7 @@ for (const profile of PROFILES) {
       // Verified entry (the driver retries) — a blind press is consumed on a
       // busy 4K frame, which is what made this fail on tv4k and pass on fhd.
       await openQuickWheel(page);
-      expect(await page.locator('.con-quick__backdrop').count(), 'the wheel has no private backdrop').toBe(0);
+      await expect(page.locator('.con-quick[data-motion-surface]'), 'the wheel rides the shared shade (no private backdrop)').toHaveCount(1);
       await expect(page.locator('.con-shade--on')).toHaveCount(1);
       await shoot(page, `${profile.tag}-01-rt-wheel-open`);
       // Dismiss (B): the wheel leaves through the director; the shade lets go.
@@ -114,7 +114,7 @@ for (const profile of PROFILES) {
       const handoffShade = await sampleShadeContinuity(page, 8, 45);
       expect(handoffShade.every(Boolean), `shade blinked during wheel→stdp handoff: ${handoffShade}`).toBeTruthy();
       await expect(page.locator('.con-stdp')).toHaveCount(1);
-      expect(await page.locator('.con-stdp__backdrop').count(), 'std-projects has no private backdrop').toBe(0);
+      await expect(page.locator('.con-stdp[data-motion-surface]'), 'std-projects rides the shared shade (no private backdrop)').toHaveCount(1);
       await shoot(page, `${profile.tag}-02-stdp-after-wheel-handoff`);
       await key(page, 'Escape', 700);
       await expect(page.locator('.con-stdp')).toHaveCount(0);
@@ -148,10 +148,10 @@ for (const profile of PROFILES) {
 
       // ── 4. The blue-card action: RT → ↑ (card actions) → composer. ──────
       await openCardActions(page);
-      expect(await page.locator('.con-cardactions__backdrop').count(), 'action center has no private backdrop').toBe(0);
+      await expect(page.locator('.con-cardactions[data-motion-surface]'), 'the action center rides the shared shade (no private backdrop)').toHaveCount(1);
       await openActionFocus(page); // open the composer for Search For Life
       await expect(page.locator('.con-composer')).toHaveCount(1);
-      expect(await page.locator('.con-composer__backdrop').count(), 'action composer has no private backdrop').toBe(0);
+      await expect(page.locator('.con-composer[data-motion-surface]'), 'the action composer rides the shared shade (no private backdrop)').toHaveCount(1);
       await expect(page.locator('.con-composer [data-motion-anchor="card:Search For Life"]')).toHaveCount(1);
       await expect(page.locator('.con-shade--on')).toHaveCount(1);
       await shoot(page, `${profile.tag}-03-action-composer-confirm`);

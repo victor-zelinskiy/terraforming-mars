@@ -1,10 +1,10 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, press, soloGameConfig} from './consoleStart';
+import {bootSeededGame, press, pressUntilVisible, soloGameConfig} from './consoleStart';
 
 /**
- * THE COLONY SUMMARY RAIL — the reward PACKAGE, and the overview's ONE verb.
+ * THE COLONY SUMMARY RAIL — the reward PACKAGE, and the overview's verbs.
  *
  * Two contracts, one screen:
  *  · «ВАШ ИТОГ» is what the VIEWER ends up with — the track's income plus
@@ -12,10 +12,11 @@ import {bootSeededGame, press, soloGameConfig} from './consoleStart';
  *    «СОСТАВ НАГРАДЫ» is the arithmetic behind it, and «ДРУГИМ ИГРОКАМ» is
  *    everyone else's, deliberately outside the total (it used to sit beside
  *    it and read as part of the payout).
- *  · the overview offers ONE press: «A Выбрать». There is no «X Осмотреть»
- *    (both verbs opened the same stage) and no «К строительству» / «Торговать»
- *    (a destination the overview cannot promise — the stage owns the action
- *    and the reason it may be impossible).
+ *  · the overview's A is «Выбрать» — it enters the act, and names no
+ *    destination it cannot promise («К строительству» / «Торговать»: the stage
+ *    owns the action and the reason it may be impossible); X is «Осмотреть» —
+ *    the read-only colony DOSSIER (docs/claude/console/colony-inspect.md),
+ *    never the act's stage.
  */
 
 const OUT = path.resolve('screenshots', 'colony-rail');
@@ -62,7 +63,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
 
 /** The command bar's live contract, as the player reads it. */
 async function barLabels(page: Page): Promise<Array<string>> {
-  return page.locator('.con-cmdbar__cmd, .con-cmd').allInnerTexts()
+  return page.locator('.con-cmdbar__cmd').allInnerTexts()
     .then((rows) => rows.map((r) => r.replace(/\s+/g, ' ').trim()).filter((r) => r !== ''));
 }
 
@@ -71,7 +72,7 @@ async function barLabels(page: Page): Promise<Array<string>> {
  * failure in the first must not report the second as «did not run».
  */
 
-test('the colonies OVERVIEW offers one verb: «Выбрать», and no «Осмотреть»', async ({page, request}) => {
+test('the colonies OVERVIEW: A «Выбрать» enters the act, X «Осмотреть» opens the read-only dossier', async ({page, request}) => {
   test.setTimeout(300_000);
   await bootSeededGame(page, request, await createGame(request), {buy: 1, keepColony: 'Io'});
   await openColoniesAndFocus(page, 'Io');
@@ -79,15 +80,21 @@ test('the colonies OVERVIEW offers one verb: «Выбрать», and no «Осм
 
   const labels = (await barLabels(page)).join(' | ');
   expect(labels, `the overview bar read: ${labels}`).toMatch(/Выбрать/i);
-  expect(labels, 'the overview still advertises «Осмотреть»').not.toMatch(/Осмотр/i);
-  expect(labels, 'the overview still names a destination on A').not.toMatch(/строительств|Торговать/i);
+  expect(labels, `the overview does not advertise the dossier on X: ${labels}`).toMatch(/Осмотреть/i);
+  expect(labels, 'the overview still names a destination on A').not.toMatch(/строительств|Торговать|К торговле/i);
+
+  // X READS: the dossier opens — never the act's stage — and only there does
+  // A name the act it leads on to.
+  expect(await pressUntilVisible(page, 'KeyX', '.con-colinspect'), 'X did not open the colony dossier').toBe(true);
+  expect(await page.locator('.con-colfocus').count(), 'X opened the act stage instead of the dossier').toBe(0);
+  await expect(page.locator('.con-cmdbar'), 'the dossier\'s A does not lead on to the act').toContainText(/К торговле/i);
 });
 
 test('the summary rail reads as a reward PACKAGE (total · breakdown · others)', async ({page, request}) => {
   test.setTimeout(300_000);
   await bootSeededGame(page, request, await createGame(request), {buy: 1, keepColony: 'Io'});
   await openColoniesAndFocus(page, 'Io');
-  await press(page, 'Enter', 2200); // A = the focus stage (the only verb)
+  await press(page, 'Enter', 2200); // A = the focus stage (the act)
   expect(await page.locator('.con-colfocus').count(), 'the focus stage did not open').toBeGreaterThan(0);
   await shoot(page, '02-reward-rail');
 

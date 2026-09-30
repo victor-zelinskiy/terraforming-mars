@@ -143,7 +143,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__slot-empty, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__agenda, ' +
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__slot-empty, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__agenda, ' +
       '.con-parl__stage, .con-parl__quest, .con-parl__info, .con-parl__info-block, .con-parl__fact, .con-parl__cta, ' +
       // The bill inside the mode: the shared payment panel must stand whole in the vote column (it once ran past it on the right).
       '.con-parl__vote .con-task-host--embedded .con-pay';
@@ -162,8 +162,8 @@ async function expectFits(page: Page, label: string): Promise<void> {
         out.push(`spills-x ${name(el)} ${el.scrollWidth}>${el.clientWidth}`);
       }
     }
-    const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__ruler-name, .con-parl__ruler-scope, .con-parl__info-scope, .con-parl__cta-cost, ' +
-      '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, .con-parl__pline-text, ' +
+    const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__cta-cost, ' +
+      '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, ' +
       '.con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
       '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
@@ -173,7 +173,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       if (el.scrollWidth > el.clientWidth + 1) {
         out.push(`cut ${name(el)}: ${(el.textContent ?? '').trim().slice(0, 48)}`);
       }
-      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__slot-empty, .con-parl__seats, .con-parl__pline, .con-parl__info');
+      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__slot-empty, .con-parl__seats, .con-parl__info');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
@@ -334,7 +334,6 @@ async function expectNoRuleProse(page: Page): Promise<void> {
     expect(text, `no rule prose on the overview: «${fragment}»`).not.toContain(fragment);
   }
   expect(text, 'no V1/V2/V3 labels').not.toMatch(/\bV[123]\b/);
-  await expect(page.locator('.con-parl__head [data-parl-delegates]'), 'the header counts no delegates — the ledger does, once').toHaveCount(0);
 }
 
 /** How many copies of the resolution's face are VISIBLE on the whole page (the viewer's included). */
@@ -420,8 +419,6 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-gov-empty]'), 'an honest empty seat before the first political phase').toHaveCount(1);
       await expect(page.locator('[data-parl-ruler]'), 'the ruler\'s identity').toContainText(/Зелёные/);
       await expect(page.locator('[data-parl-ruler] .con-pformula__mech'), 'the ruling effect is a GRAPHIC here').toHaveCount(1);
-      await expect(page.locator('[data-parl-ruler] .con-parl__ruler-rule'), 'no rule paragraph in the government — the inspector has the sentences').toHaveCount(0);
-      await expect(page.locator('.con-parl__voting-lead'), 'the winner is named ONCE — on its slot, never a second line over the voting area').toHaveCount(0);
       expect((await crumbText(page)).toUpperCase(), 'the overview names itself on the head line').toContain('ОБЗОР');
       await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
       // PARITY (R-20): two seats keep the strip as it was — the waiting seat still says its word.
@@ -432,9 +429,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-quest-reward]')).toContainText(/Председательство/);
       await expect(page.locator('[data-parl-reward-step]'), 'the reward names the viewer\'s next Agenda step').toHaveCount(1);
       await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «принимается»').toHaveCount(1);
-      await expect(page.locator('.con-parl__slot .pcard__quest-reward'), 'no reward marks repeated on the faces').toHaveCount(0);
       await expect(page.locator('.con-parl__voting--focus'), 'the voting area is ONE focus zone').toHaveCount(1);
-      await expect(page.locator('.con-parl__slot--focus'), 'no per-card focus in the overview').toHaveCount(0);
       await expectNoRuleProse(page);
       await expectFits(page, preset.id);
       await expectOneOfEach(page, before, `${preset.id} overview`);
@@ -509,7 +504,6 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
       // The plate carries the verb alone (registry R-14); the price is the «ВАШ ГОЛОС» row's and the plate's own attribute.
       await expect(page.locator('[data-parl-cta-cost][data-cost-kind="free"]'), 'the confirm knows the lobby delegate is free').toHaveAttribute('data-cost-amount', '0');
-      await expect(page.locator('.con-parl__vote .con-parl__cta'), 'no «a full action» filler on the confirm').not.toContainText(/Полное действие/i);
       // ONE NUMBER (docs/TURMOIL_REDUX_PARLIAMENT_VOTE_ONE_NUMBER.md): the count is the ribbon under
       // the card, the first delegate's 0 → 1 is the places under it — neither is a panel fact.
       await expect(page.locator('[data-parl-fact="votes"], [data-parl-fact="mine"]'), 'the delegate count is not a panel fact').toHaveCount(0);
@@ -520,7 +514,6 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__slot--selected [data-parl-vote-place]'), 'the place the delegate will take, on the selected card').toHaveCount(1);
       await expect(page.locator('[data-parl-info="own"]'), 'the resolution\'s own effect block').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-reading]'), 'ONE reading — the viewer\'s number').toHaveCount(1);
-      await expect(page.locator('[data-parl-info="own"] .con-parl__info-part'), 'no printed sentence on the panel — the inspector has them').toHaveCount(0);
       await expect(page.locator('[data-parl-info="party"], [data-parl-info="quest"]'), 'the party and the quest left the panel for the inspector').toHaveCount(0);
       await expect(page.locator('.con-parl__stage'), 'no second surface').toHaveCount(0);
       await expectFits(page, `${preset.id} mode`);

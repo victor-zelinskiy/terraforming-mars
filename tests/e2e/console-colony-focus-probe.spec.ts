@@ -209,7 +209,7 @@ test('colony focus: entry choreography + trade resolution', async ({page, reques
       cell: box('.con-colfocus__xcell'),
       glyph: box('.con-colfocus__xcell-glyph'),
       markerSeat: box('.con-colfocus__xcell--marker .con-colfocus__xcell-seat'),
-      resetRail: box('.con-colfocus__resetrail'),
+      stop: box('.con-colfocus__stop'),
       berth: box('.con-colfocus__berth'),
       berthSeat: box('.con-colfocus__berth-seat'),
       ownerBonus: box('.con-colfocus__ownerbonus'),
@@ -307,7 +307,6 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
   await shoot(page, '03-inspect');
   const inspect = await page.evaluate(() => ({
     mode: document.querySelector('.con-colfocus')?.className ?? '',
-    rules: document.querySelectorAll('.con-colfocus__rule').length,
     emptyBottom: (() => {
       const s = document.querySelector('.con-colfocus__surface')?.getBoundingClientRect();
       const last = Array.from(document.querySelectorAll('.con-colfocus__main > section'))
@@ -454,7 +453,7 @@ test('colony focus: the stage holds its composition on every display profile', a
         return el === null ? 0 : Math.round(el.getBoundingClientRect().width);
       };
       return {
-        profile: document.documentElement.getAttribute('data-con-profile') ??
+        profile: Array.from(document.documentElement.classList).find((c) => c.startsWith('con-profile-')) ??
           document.querySelector('.con-root')?.className ?? '',
         trackRows: rowsOf('.con-colfocus__xcell'),
         berthRows: rowsOf('.con-colfocus__berth'),

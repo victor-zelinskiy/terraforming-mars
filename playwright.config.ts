@@ -97,9 +97,10 @@ export default defineConfig({
 
   // NO webServer: every WORKER boots its own server + throwaway DB via the
   // worker fixture in tests/e2e/consoleTest.ts (phase 3 of
-  // docs/E2E_ARCHITECTURE_REWORK.md) — port 8100+workerIndex, TM_DB_FOLDER
+  // docs/E2E_ARCHITECTURE_REWORK.md) — a free port from the OS, TM_DB_FOLDER
   // temp dir, torn down with the worker. That is what makes workers>1 safe:
-  // runs share NOTHING but the build. Requires a built server
-  // (`npm run build`). Debug escape hatch: TM_E2E_SHARED_SERVER=1 points
-  // every worker at BASE_URL (default http://localhost:8080) the old way.
+  // runs share NOTHING but the build — and with TM_E2E_ROOT pointing at a
+  // private snapshot (`npm run e2e:snapshot <name>`) not even that. Requires
+  // a built server (`npm run build`). Debug escape hatch: TM_E2E_SHARED_SERVER=1
+  // points every worker at BASE_URL (default http://localhost:8080) the old way.
 });

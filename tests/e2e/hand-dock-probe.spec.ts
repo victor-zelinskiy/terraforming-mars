@@ -219,9 +219,9 @@ test.describe('hand dock · standard 1080', () => {
     const dock = page.locator('.con-handdock');
     const hand = await handSize(request, playerId);
     await expect(page.locator('.con-handbody')).toHaveCount(hand); // EVERY card is a physical body now (single-owner layer)
-    // No placeholder at 0 cards — the empty pack + «0» counter say it; a
-    // dashed ghost frame was removed (it read as a broken/awaiting slot).
-    await expect(page.locator('.con-handdock__ghost')).toHaveCount(0);
+    // No placeholder at 0 cards — the empty pack + «0» counter say it; the
+    // pack is a bare geometry anchor (a dashed ghost read as a broken slot).
+    await expect(page.locator('.con-handdock__pack > *')).toHaveCount(0);
     expect(hand, 'no preludes, nothing bought — the tray must be empty').toBe(0);
     await expect(dock).toHaveClass(/con-handdock--empty/);
     await assertDockCentered(page);

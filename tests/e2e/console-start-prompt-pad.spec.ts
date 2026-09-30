@@ -104,8 +104,8 @@ async function screen(page: Page) {
       /** The deployment queue still standing behind it. */
       queue: Array.from(document.querySelectorAll('.con-start__queue [data-queue-slot]'))
         .map((el) => el.getAttribute('data-queue-slot') ?? ''),
-      /** Nothing about this may reach for a legacy modal. */
-      legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal').length,
+      /** The payment is served natively — the stranded-prompt guard never rises. */
+      stranded: document.querySelectorAll('.con-stranded').length,
     };
   });
 }
@@ -197,7 +197,7 @@ test.describe('console — the opening yields the pad to the prompt it is showin
     await shoot(page, 'payment-standing');
 
     expect(standing.payUp, 'the payment panel is up').toBeTruthy();
-    expect(standing.legacyModal, 'no legacy modal was pulled in').toBe(0);
+    expect(standing.stranded, 'the payment prompt was not left stranded').toBe(0);
     // NORTH STAR: it is a STAGE of the opening, not a screen that replaced it.
     expect(standing.startUp, 'the workspace still stands around it').toBeTruthy();
     expect(standing.crumb, 'the crumb keeps the opening as its root').toContain('старт партии');

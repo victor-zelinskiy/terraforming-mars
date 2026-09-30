@@ -92,7 +92,7 @@ async function assertNoClipping(page: Page): Promise<void> {
         bad.push(`text overflows: «${(p.textContent ?? '').slice(0, 40)}»`);
       }
     }
-    const scroll = document.querySelector<HTMLElement>('.con-zoom-rules__scroll .con-scroll__view') ??
+    const scroll = document.querySelector<HTMLElement>('.con-zoom-rules__scroll .con-scroll-area__viewport') ??
       document.querySelector<HTMLElement>('.con-zoom-rules__scroll');
     if (scroll !== null && scroll.scrollHeight > scroll.clientHeight + 1) {
       bad.push(`panel needs scroll: ${scroll.scrollHeight} > ${scroll.clientHeight}`);

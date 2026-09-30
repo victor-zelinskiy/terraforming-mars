@@ -212,7 +212,8 @@ for (const preset of PRESETS) {
       // ── THE PARLIAMENT OPENS AROUND THE PICK: the enactment stage names the payout, the picker stands in its zone.
       await expect(page.locator('.con-sit'), 'the sitting surface').toHaveCount(1, {timeout: 30_000});
       await settle(page, {timeoutMs: 20_000});
-      await expect(page.locator('.con-sit [data-sit-reward-state]'), 'the reward reads «this payout» until the record lands').toHaveAttribute('data-sit-reward-state', 'This payout');
+      // The reward's state word lives on the BAND since v5 (the middle zone's one reading line).
+      await expect(page.locator('.con-band [data-parl-band-state]'), 'the reward reads «this payout» until the record lands').toHaveAttribute('data-parl-band-state', 'This payout');
       const slots = page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot');
       await expect(slots, 'the two animal holders, inside the Parliament').toHaveCount(2);
       // ONE instance: the government's own card stands on the payout stage (teleported), none is left behind.

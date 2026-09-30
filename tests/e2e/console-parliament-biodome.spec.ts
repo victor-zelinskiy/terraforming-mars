@@ -231,7 +231,7 @@ for (const preset of PRESETS) {
       ]);
       await expect(page.locator('[data-parl-vote-yield] [data-parl-vote-suffix]'), 'the win\'s difference as a suffix').toHaveAttribute('data-parl-vote-suffix', '2');
       // The winner's tile is CONDITIONAL — the inspector's chip and its «for you» row, never a block on the panel.
-      await expect(page.locator('[data-parl-vote-winner]'), 'no winner block on the panel').toHaveCount(0);
+      await expect(page.locator('.con-parl__vote .con-wreward'), 'no winner block on the panel').toHaveCount(0);
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
@@ -243,8 +243,8 @@ for (const preset of PRESETS) {
       expect(await winnerReading(page, 'dialog.con-zoom[open] [data-zoom-winner]')).toMatchObject({context: 'conditional', before: '5', after: '6', tr: '2'});
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules).toContainText(/Получите по 2 растения за каждое влияние|Gain 2 plants for every point of your influence/);
-      await expect(rules).toContainText(/Бесплатно разместите озеленение|Place a greenery tile for free/);
-      await expect(rules).toContainText(/1 РТ за сам тайл|1 TR for the tile itself/);
+      await expect(rules).toContainText(/Бесплатно разместите тайл озеленения|Place a greenery tile for free/);
+      await expect(rules).toContainText(/1 РТ за озеленение и 1 РТ за шаг кислорода|1 TR for the greenery and 1 TR for the oxygen step/);
       await expect(rules).toContainText(/Разместите 2 озеленения|Place 2 greeneries/);
       // FOR YOU: the winner's reading in words — on the Deck the footer has no room for the chip, so this row is it.
       await expect(rules).toContainText(/Если победите: кислород 5 → 6 %; РТ \+2 \(за тайл \+1, за кислород \+1\)|If you win: oxygen 5 → 6 %; TR \+2 \(for the tile \+1, for oxygen \+1\)/);

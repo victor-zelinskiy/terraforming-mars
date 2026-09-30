@@ -80,8 +80,7 @@ for (const profile of PROFILES) {
       // the focused first fundable award advertises the INTENT («Спонсировать»),
       // and the universal «Выбрать» is gone — a dead race and a live claim no
       // longer promise the same thing.
-      expect(await page.locator('.con-ma__btn').count(), 'the per-item CTA must be gone').toBe(0);
-      expect(await page.locator('.con-ma__cta').count(), 'the CTA zone must be gone').toBe(0);
+      expect(await page.locator('.con-ma__card .gp-glyph').count(), 'the per-item CTA must be gone').toBe(0);
       const listBar = await barText(page);
       expect(listBar, 'the overview footer advertises the intent verb').toContain('СПОНСИРОВАТЬ');
       expect(listBar, 'the universal select verb must be gone').not.toContain('ВЫБРАТЬ');
@@ -90,7 +89,6 @@ for (const profile of PROFILES) {
       const head = (await page.locator('.con-ma__wshead').innerText()).replace(/\s+/g, ' ');
       expect(head, 'the header carries the live price chip').toContain('ЦЕНА');
       expect(head, 'the header must not project a balance').not.toContain('→');
-      expect(await page.locator('.con-ma__wallet').count(), 'the header wallet is gone').toBe(0);
 
       // THE STATUS RAIL carries the WHOLE projection of the focused item, in
       // the shared chips (M€ + the category counter), and nothing else does.
@@ -131,8 +129,6 @@ for (const profile of PROFILES) {
       // and the old «БУДЕТ ПОТРАЧЕНО −8 462 → 454» band is gone with it.
       expect(await page.locator('.con-mafocus .con-marail .action-effect-chip').count(),
         'the stage projects through the shared rail').toBe(2);
-      expect(await page.locator('.con-mafocus__spend, .con-mafocus__slots-after').count(),
-        'the bespoke spend/slots band must be gone').toBe(0);
 
       // THE BADGE stays inside its hero column (the clipped «ПОРОГ ДОСТИГНУТ —
       // МОЖНО ВЗЯТЬ СЕЙЧАС» is what this measures against).

@@ -136,7 +136,7 @@ for (const profile of PROFILES) {
           await key(page, 'ArrowRight', 260);
         }
         await key(page, 'Enter', 900);
-        for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
+        for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
           await key(page, 'Enter', 900);
         }
         await page.waitForTimeout(4200);
@@ -144,7 +144,7 @@ for (const profile of PROFILES) {
           break;
         }
         // Still in hand — close whatever is open and try the play again.
-        for (let i = 0; i < 3 && await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+        for (let i = 0; i < 3 && await page.locator('.con-hand, .con-composer--play').count() > 0; i++) {
           await key(page, 'Escape', 700);
         }
       }
@@ -155,7 +155,7 @@ for (const profile of PROFILES) {
       // lands mid-flight): back out of whatever opened instead, and try the
       // wheel again — the drive must not depend on a lucky frame.
       for (let tries = 0; tries < 10 && await page.locator('.con-cardactions').count() === 0; tries++) {
-        if (tries > 0 && await page.locator('.con-hand, .con-play').count() > 0) {
+        if (tries > 0 && await page.locator('.con-hand').count() > 0) {
           await key(page, 'Escape', 600);
         }
         await key(page, 'Period', 800);

@@ -23,18 +23,101 @@
  * spawn runs `node build/src/server/server.js` from the repo root, exactly
  * what `npm start` runs. Its output lands in test-results/worker-servers/
  * so a boot failure is diagnosable, not a silent 60 s timeout.
+ *
+ * ⚠️ SEVERAL SESSIONS SHARE ONE CLONE — and «nothing is shared but the build»
+ * was exactly the hole (2026-09-30: a neighbour rebuilt the build a parliament
+ * run was serving, 03:38–03:43, and ~40 reds of that run could no longer be
+ * told apart from real ones). Three rules close it:
+ *   · THE PORT is asked from the OS (a free ephemeral port per worker) unless
+ *     TM_E2E_PORT_BASE is set — two sessions' workers no longer race for 8100+N;
+ *   · THE BUILD may be a private SNAPSHOT: `npm run e2e:snapshot <name>` copies
+ *     build/ to `.e2e-<name>/` and `TM_E2E_ROOT=.e2e-<name>` serves it — a
+ *     neighbour's `npm run build` can no longer rewrite the product mid-run;
+ *   · EVERY TEST NAMES THE BUILD IT RAN AGAINST (the `build` annotation:
+ *     commit, time, root) and a build OLDER than the sources on disk is called
+ *     STALE out loud — a red against a stale or foreign build is not a verdict
+ *     about the code in front of you (`tests.md` § «VERIFY THE BUILD»).
  */
 import {test as base} from '@playwright/test';
-import {ChildProcess, spawn} from 'child_process';
+import {ChildProcess, execSync, spawn} from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
+import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 
 export * from '@playwright/test';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const SERVER_ENTRY = path.join(REPO_ROOT, 'build', 'src', 'server', 'server.js');
+/** The tree the worker server runs from: the repo (default) or a private snapshot (`npm run e2e:snapshot`). */
+const SERVE_ROOT = path.resolve(REPO_ROOT, process.env.TM_E2E_ROOT ?? '.');
+const SERVER_ENTRY = path.join(SERVE_ROOT, 'build', 'src', 'server', 'server.js');
+
+/** A port nobody holds right now — asked from the OS, so two sessions' workers never collide. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.unref();
+    probe.on('error', reject);
+    probe.listen(0, () => {
+      const address = probe.address();
+      const port = typeof address === 'object' && address !== null ? address.port : 0;
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+/** Newest mtime under a source dir (genfiles excluded — the build writes those itself). */
+function newestSourceMtime(dir: string): number {
+  let newest = 0;
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    if (entry.name === 'genfiles' || entry.name === 'node_modules') {
+      continue;
+    }
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      newest = Math.max(newest, newestSourceMtime(full));
+    } else if (/\.(ts|vue|less)$/.test(entry.name)) {
+      newest = Math.max(newest, fs.statSync(full).mtimeMs);
+    }
+  }
+  return newest;
+}
+
+/**
+ * WHAT THIS RUN IS TESTING — computed once per worker: the build's commit and
+ * time (its own `genfiles/settings.json`), the served root, and STALE when a
+ * source file on disk is newer than the build's server or client bundle.
+ */
+function buildStamp(): string {
+  let head = '?';
+  let builtAt = '?';
+  try {
+    const settings = JSON.parse(fs.readFileSync(path.join(SERVE_ROOT, 'build', 'src', 'genfiles', 'settings.json'), 'utf8')) as {head?: string, builtAt?: string};
+    head = settings.head ?? '?';
+    builtAt = settings.builtAt ?? '?';
+  } catch {
+    // no stamp — reported as «?», the boot will say the rest
+  }
+  const root = path.relative(REPO_ROOT, SERVE_ROOT) || '.';
+  let stale = '';
+  try {
+    const built = Math.min(fs.statSync(SERVER_ENTRY).mtimeMs, fs.statSync(path.join(SERVE_ROOT, 'build', 'main.js')).mtimeMs);
+    const newest = newestSourceMtime(path.join(REPO_ROOT, 'src'));
+    if (newest > built) {
+      stale = ` · ⚠️ STALE: a source file is ${Math.round((newest - built) / 60_000)} min newer than this build — the run tests the product as it WAS`;
+    }
+  } catch {
+    stale = ' · ⚠️ no build to stamp';
+  }
+  let tree = '';
+  try {
+    tree = ` · HEAD ${execSync('git rev-parse --short HEAD', {cwd: REPO_ROOT, stdio: ['ignore', 'pipe', 'ignore']}).toString().trim()}`;
+  } catch {
+    // not a git checkout (a packaged CI artifact) — the build's own head is enough
+  }
+  return `build ${head} (${builtAt}) from ${root}${tree}${stale}`;
+}
 
 type WorkerServer = {baseURL: string};
 
@@ -66,7 +149,18 @@ async function waitForServer(url: string, child: ChildProcess, logFile: string, 
   throw new Error(`worker server never answered at ${url} in ${timeoutMs} ms — see ${logFile}`);
 }
 
-export const test = base.extend<{}, {workerServer: WorkerServer}>({
+export const test = base.extend<{buildAnnotation: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  // eslint-disable-next-line no-empty-pattern -- Playwright's fixture signature
+  workerBuild: [async ({}, use) => {
+    await use(process.env.TM_E2E_SHARED_SERVER === '1' ? `shared server ${process.env.BASE_URL ?? 'http://localhost:8080'} (build unknown)` : buildStamp());
+  }, {scope: 'worker'}],
+
+  /** Every test names the build it ran against — the first thing to read on a red (`tests.md` § VERIFY THE BUILD). */
+  buildAnnotation: [async ({workerBuild}, use, testInfo) => {
+    testInfo.annotations.push({type: 'build', description: workerBuild});
+    await use();
+  }, {auto: true}],
+
   // eslint-disable-next-line no-empty-pattern -- Playwright's fixture signature
   workerServer: [async ({}, use, workerInfo) => {
     if (process.env.TM_E2E_SHARED_SERVER === '1') {
@@ -75,16 +169,21 @@ export const test = base.extend<{}, {workerServer: WorkerServer}>({
       await use({baseURL});
       return;
     }
-    const portBase = Number(process.env.TM_E2E_PORT_BASE ?? 8100);
-    const port = portBase + workerInfo.workerIndex;
+    const port = process.env.TM_E2E_PORT_BASE !== undefined ?
+      Number(process.env.TM_E2E_PORT_BASE) + workerInfo.workerIndex :
+      await freePort();
     const baseURL = `http://localhost:${port}`;
     const dbDir = fs.mkdtempSync(path.join(os.tmpdir(), `tm-e2e-w${workerInfo.workerIndex}-`));
     const logDir = path.join(REPO_ROOT, 'test-results', 'worker-servers');
     fs.mkdirSync(logDir, {recursive: true});
     const logFile = path.join(logDir, `worker-${workerInfo.workerIndex}.log`);
     const log = fs.openSync(logFile, 'a');
+    if (!fs.existsSync(SERVER_ENTRY)) {
+      throw new Error(`no built server at ${SERVER_ENTRY} — run \`npm run build\` (and \`npm run e2e:snapshot <name>\` for a private copy)`);
+    }
+    fs.appendFileSync(logFile, `\n[e2e worker ${workerInfo.workerIndex}] ${buildStamp()} · port ${port}\n`);
     const child = spawn(process.execPath, [SERVER_ENTRY], {
-      cwd: REPO_ROOT,
+      cwd: SERVE_ROOT,
       env: {
         ...process.env,
         PORT: String(port),

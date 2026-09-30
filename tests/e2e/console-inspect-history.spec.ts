@@ -123,14 +123,13 @@ for (const profile of PROFILES) {
 
       // ── Open the Action Browser (RT wheel → ↑ card actions). ────────────
       await openCardActions(page);
-      // 1. The browser is a DECISION surface: no per-game usage ledger, and no
-      // in-panel copy of the inspect verb either — `ConsoleCardActions.vue:228`
-      // («a second copy inside the panel was pure duplication») removed the
-      // hint node deliberately, so its ABSENCE is the contract now. The verb
-      // itself is proved where it matters, one beat below: X opens the dossier.
-      expect(await page.locator('.con-cardactions__detail-usage').count(), 'usage ledger removed from the browser').toBe(0);
-      expect(await page.locator('.con-cardactions__usage-line').count(), 'usage lines removed').toBe(0);
-      expect(await page.locator('.con-cardactions__detail-history-hint').count(),
+      // 1. The browser is a DECISION surface: the per-game history lives in the
+      // X dossier only, and the inspector carries no controller glyph — «a
+      // second copy inside the panel was pure duplication», the command bar
+      // owns the verb. The verb itself is proved where it matters, one beat
+      // below: X opens the dossier.
+      expect(await page.locator('.con-cardactions .con-cardhist').count(), 'usage ledger removed from the browser').toBe(0);
+      expect(await page.locator('.con-cardactions__detail .gp-glyph').count(),
         'no in-panel inspect hint — the command bar owns that verb').toBe(0);
       await shoot(page, `${profile.tag}-01-browser-clean`);
 

@@ -151,8 +151,9 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
       ' .con-iyield, .con-iyield__reading, .con-preact, .con-wreward, .con-sit__zone--on, .con-extdraw__cards, .con-cards__slot, .con-task,' +
       // v5: the middle zone is a BAND and a BODY — the band's line and the results panel's two sections.
       ' .con-cards__verdictbar, .con-band, .con-band__line, .con-sit__payouts, .con-sit__payout, .con-sit__table,' +
-      // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect, the party composer, the playground, the seat.
-      ' .con-mandatory__card, .con-mandatory__body, .con-zoom__card, .con-zoom__aside, .con-zoom__foot, .con-pact__panel, .con-pact__step, .con-rplay__panel, .con-seat__panel';
+      // The other parliament chassis a gallery photographs: the announce plate, the fullscreen inspect's columns and its bar, the party
+      // composer's two columns, the playground's catalog (the chairman's seat pick renders inside `.con-parl__stage`, listed above).
+      ' .con-mandatory, .con-mandatory__body, .con-zoom-asidecol, .con-zoom-sidecol, .con-zoom__bar, .con-pact__source, .con-pact__main, .con-rxpg__catalog';
     const scoped = root.matches(blocks) ? [root as HTMLElement] : [];
     for (const el of [...scoped, ...Array.from(root.querySelectorAll<HTMLElement>(blocks))]) {
       const r = el.getBoundingClientRect();

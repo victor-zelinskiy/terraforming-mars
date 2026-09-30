@@ -100,7 +100,7 @@ test('Pluto Redux: the tile, the dossier and the stage name the refusal; the lob
     return {
       status: (el?.querySelector('.con-coltile__status')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       statusClass: el?.querySelector('.con-coltile__status')?.className ?? '',
-      title: (el?.querySelector('.con-coltile__name, .con-coltile__title, header')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      title: (el?.querySelector('.con-coltile__name, header')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       tradeGlyphType: glyph?.getAttribute('data-bg-type') ?? '',
       tradeGlyphIcon: glyph?.querySelector('.benefit-glyph__icon')?.className ?? '',
       planetClass: el?.querySelector('.con-planet')?.className ?? '',

@@ -278,13 +278,9 @@ for (const preset of PRESETS) {
       await expect(sitting(page).locator('[data-sit-row="results-lobby"]'), 'no lobby row survives').toHaveCount(0);
       await expect(sitting(page).locator('[data-sit-payout]'), 'a payout row per participating seat — the one thing seen nowhere else').toHaveCount(2);
       await expect(sitting(page).locator('[data-sit-results]'), 'no sentence on the results').not.toContainText(/возвращаются в лобби/);
-      // «Обновление»: a loser dealt straight back from the reshuffled discard LEFT the table and was dealt again — the
-      // renewal's own page showed it. The panel lists it as a fresh resolution like any other; nothing says «stays».
-      await expect(sitting(page).locator('[data-sit-results] [data-sit-stays]'), 'no fresh resolution claims to have stayed').toHaveCount(0);
       // «Итоги: честность»: the LAW section is GONE — the enacted resolution, the party that rules by it
       // and the chairman's new quest all stand in the government's own zone on this very screen, and the
       // panel states only what is nowhere else (the payouts and the table).
-      await expect(sitting(page).locator('[data-sit-law]'), 'no law member survives').toHaveCount(0);
       expect(await sitting(page).locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section'))),
         'two sections, and nothing beside them').toEqual(['payouts', 'table']);
       // …and the row that took its place is an EXCEPTION: with every seat holding a delegate it does not exist.

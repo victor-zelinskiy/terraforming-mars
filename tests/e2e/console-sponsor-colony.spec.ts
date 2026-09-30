@@ -91,17 +91,18 @@ async function surfaces(page: Page) {
       headCount: document.querySelectorAll('.con-wshead').length,
       railCount: document.querySelectorAll('.con-colonies__rail').length,
       crumb: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase(),
-      banner: (document.querySelector('.con-banner:not(.con-banner--events)')?.textContent ?? '').trim().toLowerCase(),
+      banner: (document.querySelector('.con-banner')?.textContent ?? '').trim().toLowerCase(),
       // Fleet placement: the bar hugs the RIGHT edge of its host row.
       fleetsRightGap: fleets !== null && fleetsHost !== null && fleetsHost !== undefined ?
         Math.round(fleetsHost.getBoundingClientRect().right - fleets.getBoundingClientRect().right) : -1,
       queueUp: vis('.con-start__queuecol') || document.querySelectorAll('.con-start [data-queue-slot]').length > 0,
       cubeFlying: document.querySelectorAll('.con-colonybuild__cube').length,
       stageCubes: document.querySelectorAll('.con-colfocus__berth-seat .player-cube').length,
-      legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal').length,
+      /** No prompt of the chain is left unserved (the stranded-prompt guard). */
+      stranded: document.querySelectorAll('.con-stranded').length,
       /** The central ask banner must not repaint over the host's crumb: an
        *  embedded step IS the surface the prompt is answered on. */
-      askBanner: document.querySelectorAll('.con-banner:not(.con-banner--events)').length,
+      askBanner: document.querySelectorAll('.con-banner').length,
       /** The command bar must name what the buttons DO on the screen the
        *  player is looking at — never the host's own browse verbs. */
       footer: (document.querySelector('.con-footer')?.textContent ?? '')
@@ -215,7 +216,7 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     expect(s.railCount, 'ONE status rail').toBe(1);
     expect(s.crumb.includes('колони'), 'the crumb names the colonies step').toBeTruthy();
     expect(s.fleetsRightGap, 'the fleet dock hugs the right edge').toBeLessThanOrEqual(24);
-    expect(s.legacyModal, 'no legacy modal anywhere in the chain').toBe(0);
+    expect(s.stranded, 'no stranded prompt anywhere in the chain').toBe(0);
     expect(s.askBanner, 'no ask banner over the step that answers the prompt').toBe(0);
     // The overview NEVER commits (iteration 2): A enters the build focus.
     // ONE VERB ON THE OVERVIEW — «Выбрать» (ConsoleShell's pick-mode bar): the

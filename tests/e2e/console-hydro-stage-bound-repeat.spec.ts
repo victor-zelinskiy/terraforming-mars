@@ -262,7 +262,7 @@ for (const profile of PROFILES) {
             deal: document.querySelector('.con-deckdraw') !== null,
             seat: seat !== null,
             seatCard: seat?.getAttribute('data-zoom-slot') ?? '',
-            stage: (document.querySelector('.con-wshead__stage')?.textContent ?? '').trim(),
+            stage: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim(),
           };
           const census = w.__census!;
           const prev = census[census.length - 1];

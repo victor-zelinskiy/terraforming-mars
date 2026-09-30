@@ -86,17 +86,17 @@ test.describe('console placement panel · convert plants', () => {
     // is gone with the CTA (zero controller prompts inside the panel).
     // ⚠️ STRUCTURAL: «Нельзя разместить здесь» sits in the always-mounted
     // (collapsed) refusal well, so a text match for the CTA phrase hits the
-    // REFUSAL and fails on a panel that has no CTA at all.
-    await expect(panel.locator('.con-context__source-hint')).toHaveCount(0);
-    await expect(panel.locator('.con-inspector__placement')).toHaveCount(0);
-    await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/ИСТОЧНИК/i);
+    // REFUSAL and fails on a panel that has no CTA at all. The only glyph the
+    // panel may carry is its overflow affordance.
+    await expect(panel.locator(':not(.con-inspector__more) > .gp-glyph')).toHaveCount(0);
+    await expect(page.locator('.con-cmdbar').first()).toContainText(/ИСТОЧНИК/i);
 
     // …and the marker's OTHER half arrives with it: this placement is genuinely
     // cancellable (the plants are spent only once a cell is chosen). The cancel
     // lives in the COMMAND BAR only — the panel used to legend it a second time
     // and that duplicate is gone, so assert on the bar and on the panel's
     // silence.
-    await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/Отменить размещение/i);
+    await expect(page.locator('.con-cmdbar').first()).toContainText(/Отменить размещение/i);
     await expect(panel).not.toContainText(/Отменить размещение/i);
 
     // L3 opens the real standard-action card; the placement survives.

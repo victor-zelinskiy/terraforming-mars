@@ -88,12 +88,11 @@ async function readout(page: Page): Promise<Readout> {
       // The rule the request states outright: no extra source card, no banner,
       // no duplicate chip naming the card — the crumb is the whole trace.
       sourceExtras: document.querySelectorAll(
-        '.con-colonies [data-ptsel-source], .con-colfocus [data-ptsel-source], .con-task__source').length,
+        '.con-colonies [data-ptsel-source], .con-colfocus [data-ptsel-source], .con-task .con-src').length,
       // The FLEET DOCK berths in the host's header (the same right edge it
       // occupies when the player walks in through «Колонии»); a dock floating
       // in the content area is both the wrong place AND a row of grid height.
-      fleetsInHeader: document.querySelector('[data-colony-fleet-berth] .con-colfleet, ' +
-        '[data-colony-fleet-berth] > *') !== null,
+      fleetsInHeader: document.querySelector('[data-colony-fleet-berth] > *') !== null,
       toolbarUp: document.querySelector('.con-colonies__toolbar') !== null,
       variantChipUp: document.querySelector('.con-cardactions__stat--variant') !== null,
       // The working zone — the number that decides «did I arrive at the same

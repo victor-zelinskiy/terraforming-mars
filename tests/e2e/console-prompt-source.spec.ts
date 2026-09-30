@@ -173,7 +173,7 @@ test('a resource distribution names the card that caused it', async ({page, requ
 
   // 4 · and it can be READ — L3 opens it fullscreen. The verb lives in the ONE
   //     command bar; the dock draws no badge of its own.
-  await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/ИСТОЧНИК/i);
+  await expect(page.locator('.con-cmdbar').first()).toContainText(/ИСТОЧНИК/i);
 
   await key(page, 'KeyC', 1800); // L3
   await shoot(page, '2-source-fullscreen');
@@ -235,7 +235,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
   await expect(source).toHaveClass(/con-src--compact/);
   expect(await source.locator('.pcard, .card-container').count(),
     'a card cause renders the REAL premium card face, not a name in a chip').toBeGreaterThan(0);
-  await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/ИСТОЧНИК/i);
+  await expect(page.locator('.con-cmdbar').first()).toContainText(/ИСТОЧНИК/i);
   // …and the six rows are still the subject: they get the width.
   const cardBox = await source.locator('.pcard, .card-container').first().boundingBox();
   const rowsBox = await page.locator('.con-prodloss__rows').boundingBox();
@@ -262,5 +262,5 @@ test('a forced production loss names what forced it — card and hazard alike', 
   await expect(hazard.locator('.con-src__rule')).toContainText(/опасной зоной/i);
   expect(await hazard.locator('.pcard, .card-container').count(), 'nothing to render as a card').toBe(0);
   // Nothing to open → the bar must not offer a source verb it cannot honour.
-  await expect(page.locator('.con-cmdbar, .con-commands').first()).not.toContainText(/ИСТОЧНИК/i);
+  await expect(page.locator('.con-cmdbar').first()).not.toContainText(/ИСТОЧНИК/i);
 });

@@ -174,9 +174,9 @@ const budgetOf = (page: Page) => page.evaluate((limit) => {
   const words = (text.match(/[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё'’-]*/g) ?? []).length;
   const gone: Array<string> = [];
   for (const [sel, what] of [
-    ['.con-parl__info-part', 'a printed sentence'], ['[data-parl-info="party"]', 'the party block'], ['[data-parl-info="quest"]', 'the quest block'],
-    ['[data-parl-fact="votes"]', 'the delegate count'], ['[data-parl-fact="mine"]', 'the own-delegate count'], ['[data-parl-vote-winner]', 'the winner\'s tile'],
-    ['.con-iyield__reading--forecast', 'a forecast plate'], ['.con-parl__info-subkicker', 'a second heading'], ['[data-reaction-caption]', 'the answer\'s caption'],
+    ['[data-parl-info="party"]', 'the party block'], ['[data-parl-info="quest"]', 'the quest block'],
+    ['[data-parl-fact="votes"]', 'the delegate count'], ['[data-parl-fact="mine"]', 'the own-delegate count'], ['.con-wreward', 'the winner\'s tile'],
+    ['.con-iyield__reading--forecast', 'a forecast plate'], ['[data-reaction-caption]', 'the answer\'s caption'],
   ] as Array<[string, string]>) {
     if (q(sel).length > 0) {
       gone.push(what);
@@ -354,7 +354,8 @@ for (const preset of PRESETS) {
           glyphs: document.querySelectorAll('.con-parl__slot-win--glyph').length,
           glyphsHinted: document.querySelectorAll('.con-parl__slot-win--glyph[data-hint]').length,
           words: document.querySelectorAll('.con-parl__slot-win:not(.con-parl__slot-win--glyph)').length,
-          ribbonEmpty: document.querySelectorAll('.con-parl__ribbon-empty').length,
+          // An EMPTY ribbon (no delegate on the card) prints nothing at all — the tally below says «0».
+          ribbonEmpty: Array.from(document.querySelectorAll('.con-parl__ribbon[data-votes="0"]')).filter((el) => (el.textContent ?? '').trim() !== '').length,
           noLeader: Array.from(document.querySelectorAll('.con-parl__tally-row--none')).map((el) => (el.textContent ?? '').trim()),
         }));
         expect(badges.head, 'no winning badge in the panel head').toBe(0);

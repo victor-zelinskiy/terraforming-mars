@@ -320,7 +320,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
         centralStage: document.querySelector('.con-start .con-recv') !== null,
         embedReveal: document.querySelector('.con-start__embed *') !== null,
         standalone: document.querySelector('.con-played:not(.con-played--embedded)') !== null,
-        handDock: document.querySelector('.con-handdock, .con-hand-dock, [data-hand-dock]') !== null,
+        handDock: document.querySelector('.con-handdock') !== null,
         mandatory: document.querySelector('.con-mandatory') !== null,
         drawQueued: document.querySelector(`.con-start [data-queue-slot="${drawCard}"]`) !== null,
         flowReady: document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete',
@@ -482,7 +482,7 @@ async function descendIntoPlay(page: Page, card: string): Promise<void> {
   for (let i = 0; i < 60 && await onTarget() === 0; i++) {
     const st = await page.evaluate(() => ({
       selected: document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '',
-      wheel: document.querySelector('.con-quick, .con-wheel, [class*="quickwheel"]') !== null,
+      wheel: document.querySelector('.con-quick') !== null,
       zoom: document.querySelector('.con-zoom') !== null,
       start: document.querySelector('.con-start') !== null,
       mandatory: document.querySelector('.con-mandatory') !== null,

@@ -230,13 +230,8 @@ test.describe('Social Heating (DP09) · fhd', () => {
     await shoot(page, '02-result');
 
     // The rail's heat metric ends on the SERVER's number (the wave settled).
-    const railHeat = await page.evaluate(() => {
-      const el = document.querySelector('[data-metric="heat"] .con-rail__value, [data-rail-metric="heat"]') as HTMLElement | null;
-      return el === null ? undefined : Number((el.innerText ?? '').replace(/[^0-9-]/g, ''));
-    });
-    if (railHeat !== undefined) {
-      expect(railHeat, 'the resource rail matches the server').toBe(heatAfter);
-    }
+    await expect(page.locator('.con-res__row--heat .con-res__value'), 'the resource rail matches the server')
+      .toHaveText(String(heatAfter));
   });
 });
 

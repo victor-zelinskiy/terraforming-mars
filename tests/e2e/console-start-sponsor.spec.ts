@@ -68,12 +68,14 @@ async function surfaces(page: Page) {
       composerUp: vis('.con-composer--play'),
       composerEmbedded: document.querySelector('.con-composer--play')?.closest('.con-hand__stage') !== null,
       playedDock: vis('.con-splayed'),
-      playedOverlay: vis('.con-played-overlay, .con-info__played'),
-      legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal').length,
+      /** The full «РАЗЫГРАНО» table (`ConsolePlayedOverlay`). */
+      playedOverlay: vis('.con-played'),
+      /** No prompt of the flow is left unserved (the stranded-prompt guard). */
+      stranded: document.querySelectorAll('.con-stranded').length,
       /** The floating ask-banner. It belongs to the MINIMIZED state only: over
        *  an open workspace it is a second title, and it used to land across
        *  the breadcrumb tail. */
-      banner: (document.querySelector('.con-banner:not(.con-banner--events)')?.textContent ?? '').trim(),
+      banner: (document.querySelector('.con-banner')?.textContent ?? '').trim(),
       handCards: document.querySelectorAll('.con-hand__slot').length,
       playable: document.querySelectorAll('.con-hand__slot--playable').length,
       /** The card faces actually PAINTED (a rendered-but-invisible grid is
@@ -136,7 +138,7 @@ async function surfaces(page: Page) {
       /** The dock's card backs do not overlap the embedded hand's status
        *  rail (the divergence this rework closes). */
       dockOverRail: (() => {
-        const rail = document.querySelector('.con-hand__verdictbar, .con-hand__statusrail, .con-start__statusrail');
+        const rail = document.querySelector('.con-hand__verdictbar, .con-start__statusrail');
         if (rail === null) {
           return false;
         }
@@ -153,7 +155,7 @@ async function surfaces(page: Page) {
       /** The board took the screen for a tile placement the project asked for.
        *  ⚠️ Match case-INSENSITIVELY: the kicker is uppercased by CSS
        *  (`text-transform`), so `textContent` carries the sentence case. */
-      placementUp: vis('.con-context--placement, .con-place, [data-placement-panel]') ||
+      placementUp: vis('.con-board--placing') ||
         (document.body.textContent ?? '').toLowerCase().includes('размещение тайла'),
       placementSource: (document.body.textContent ?? '').toLowerCase().includes('источник') ?
         'source-named' : '',
@@ -234,10 +236,10 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // ① ONE ROOT: the workspace is still up and the hand is INSIDE it.
     expect(s.startUp, 'the Game Start Workspace is still on screen').toBeTruthy();
     expect(s.handEmbedded, 'the hand is teleported into the workspace embed zone').toBeTruthy();
-    // ② ONE SHELL: no second header, no own hand head, no legacy modal.
+    // ② ONE SHELL: no second header, no own hand head, no stranded prompt.
     expect(s.handOwnHead, 'the hand drew its own workspace header').toBe(0);
     expect(s.headCount, 'exactly one workspace header on screen').toBe(1);
-    expect(s.legacyModal, 'a legacy prompt modal appeared').toBe(0);
+    expect(s.stranded, 'a prompt was left stranded').toBe(0);
     // ③ THE CRUMB states the workspace, the CAUSE and the stage — and never
     // the hand's own root («КАРТЫ В РУКЕ» as a ROOT would mean the player left
     // the start; as a STAGE it means they went deeper inside it).
@@ -420,7 +422,7 @@ test.describe('console start — «Эпатажный спонсор» as a work
     const after = await surfaces(page);
     await page.screenshot({path: 'screenshots/sponsor-3-back-in-startup.png'});
 
-    expect(after.legacyModal, 'no legacy modal at any point').toBe(0);
+    expect(after.stranded, 'no stranded prompt at any point').toBe(0);
     // THE PROJECT WAS REALLY PLAYED — through the ordinary machinery, so it is
     // on the tableau whichever branch the continuation took.
     expect(after.tableauCards, 'the project joined the played cards')

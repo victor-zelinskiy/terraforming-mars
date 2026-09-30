@@ -375,7 +375,6 @@ for (const preset of PARLIAMENT_PRESETS) {
             expect(firstTake, `the take DEALT only after the ${wv.res} chip had landed (take @${firstTake}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
           }
           await expect(page.locator('.con-extdraw__source'), 'no second source dock beside the carrier').toBeHidden();
-          await expect(page.locator('.con-extdraw__ghostband, .con-extdraw__slot--ghost'), 'no ghost seat of any kind').toHaveCount(0);
           await expect(page.locator('.con-extdraw__cause'), 'no cause plate inside the stage — the promise rides the status line').toHaveCount(0);
           await expect(page.locator('.con-extdraw__status')).toContainText(/Принятая резолюция|The enacted resolution/i);
           expect((await crumbText(page)).toUpperCase()).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
@@ -536,7 +535,7 @@ test.describe('the big draw on the Deck (deck-handheld)', () => {
     expect(shape.insideZone, 'every card inside the zone').toBe(true);
     expect(shape.minW, 'a readable card (≥ 96 px wide on the Deck)').toBeGreaterThan(96);
     await expect(page.locator('.con-extdraw__source')).toBeHidden();
-    await expect(page.locator('.con-extdraw__ghostband, .con-extdraw__slot--ghost, .con-extdraw__cause')).toHaveCount(0);
+    await expect(page.locator('.con-extdraw__cause')).toHaveCount(0);
     await expectParliamentFits(page, 'deck big draw');
     await shoot(page, 'deck-handheld', 'RX05-big-draw');
     expect(await strandedReports(page)).toEqual([]);

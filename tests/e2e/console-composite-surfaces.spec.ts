@@ -136,9 +136,9 @@ async function expectsWorkspaceBand(page: Page, root: string): Promise<void> {
   const band = await page.locator(root).boundingBox();
   expect(band).not.toBeNull();
   expect(band!.x, 'the surface starts right of the player rail').toBeGreaterThan(60);
-  // …and the desktop fallback modal is gone, not merely covered.
-  expect(await page.locator('.mandatory-input-modal:not(.mandatory-input-modal--suppressed)').count(),
-    'the desktop modal must not serve this prompt any more').toBe(0);
+  // …and the prompt is served natively: the stranded-prompt guard never rises.
+  expect(await page.locator('.con-stranded').count(),
+    'the stranded-prompt guard must not stand over this prompt').toBe(0);
 }
 
 const amountOption = (title: string, max: number) =>
@@ -172,7 +172,7 @@ test('spend heat: a bill, two lanes, and no way to overpay', async ({page, reque
   expect(await page.locator('.con-heat .con-src .pcard, .con-heat .con-src .card-container').count()).toBeGreaterThan(0);
 
   // The pad contract is on the ONE bar — the panel draws no footer of its own.
-  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText(/МАКС/i);
   await expect(bar).toContainText(/Оплатить/i);
   await expect(bar).toContainText(/ИСТОЧНИК/i);
@@ -273,7 +273,7 @@ test('a one-step bill is a radio too — the same gesture, the bill kept', async
   await expect(page.locator('.con-lanes__meter-target')).toHaveText('1');
   await expect(page.locator('.con-lanes__blocked')).toContainText(/выберите, чем оплатить/i);
 
-  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText(/ДОБАВИТЬ/i);
   await expect(bar).not.toContainText(/МАКС/i);
 
@@ -324,7 +324,7 @@ test('one resource: the lanes become a radio — A places it, X takes it', async
   await expect(page.locator('.con-lanes__blocked')).toContainText(/выберите, куда положить/i);
 
   // ONE verb on the bar, and none of the stepper ones.
-  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText(/ДОБАВИТЬ/i);
   await expect(bar).not.toContainText(/МАКС/i);
   await expect(bar).toContainText(/ЗАБРАТЬ/i);
@@ -453,9 +453,8 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     await key(page, 'Enter', 1200);
     await shoot(page, '9-venus-wild-picker');
 
-    // THE SHARED STEP, and no Venus strip anywhere.
+    // THE SHARED STEP.
     await expect(page.locator('.con-ptsel')).toBeVisible();
-    expect(await page.locator('.con-venus__cards').count(), 'the old strip is gone').toBe(0);
     // The panel header states the ask, so the step must not restate it.
     expect(await page.locator('.con-ptsel__contract').count()).toBe(0);
     await expect(page.locator('.con-lanes__kicker')).toContainText(/БОНУС ВЕНЕРЫ/i);

@@ -80,7 +80,7 @@ test.describe('bot turn card · premium neutral story', () => {
         .map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim());
       const whole = (root as HTMLElement).innerText;
       return {actor, lines, headline, clusterTags, whole,
-        banner: document.querySelectorAll('.con-banner--events').length,
+        banner: [...document.querySelectorAll('.con-banner')].filter((el) => /События в очереди/i.test(el.textContent ?? '')).length,
         queueTail: document.querySelectorAll('.con-notifq').length};
     });
     expect(audit, 'the bot card is on screen').toBeDefined();
@@ -123,7 +123,7 @@ test.describe('bot turn card · premium neutral story', () => {
         sawTail = true;
         break;
       }
-      if (await page.locator('.con-banner--events').count() > 0) {
+      if (await page.locator('.con-banner', {hasText: /События в очереди/i}).count() > 0) {
         throw new Error('the centre-stage queue banner came back');
       }
       await pumpFrames(page, 250);

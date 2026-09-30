@@ -15,8 +15,8 @@ import type {CardName} from '../../src/common/cards/CardName';
  *     cards are NOWHERE in the hand until taken;
  *  2. A opens the dedicated «ДОБОР КАРТЫ» workspace: cause line (who played
  *     what), the effect card's source seat, the batch dealt off the deck;
- *  3. A takes ONE card (its seat stays as a quiet ghost — the row never
- *     re-flows under the flight), B takes ALL; with a single card left B is
+ *  3. A takes ONE card (its seat leaves the row only after the card has
+ *     landed in the dock — no ghost), B takes ALL; with a single card left B is
  *     deliberately DEAD (the workspace is locked — no close, no minimize);
  *  4. the last take folds the workspace and the player is back on the board,
  *     nothing stranded, nothing deferred.
@@ -185,37 +185,17 @@ async function snapshot(page: Page) {
   return page.evaluate(() => {
     const ws = document.querySelector('.con-extdraw');
     const slots = Array.from(document.querySelectorAll('.con-extdraw__slot'));
-    const ghosts = Array.from(document.querySelectorAll('.con-extdraw__slot--ghost'));
+    /** A taken card's seat — it stands only while that card is in flight. */
+    const takenSeats = Array.from(document.querySelectorAll('.con-extdraw__slot--taken'));
     const status = (document.querySelector('.con-extdraw__status') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '';
     const cause = (document.querySelector('.con-extdraw__cause') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '';
     return {
       workspace: ws !== null,
       slots: slots.length,
-      ghosts: ghosts.length,
+      takenSeats: takenSeats.length,
       status,
       cause,
-      bar: (document.querySelector('.con-cmdbar, .con-commands, .con-footer') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
-      ghostDebug: (() => {
-        const g = document.querySelector('.con-extdraw__slot--ghost') as HTMLElement | null;
-        if (g === null) {
-          return '';
-        }
-        const r = g.getBoundingClientRect();
-        const card = g.querySelector('.card-container, .pcard') as HTMLElement | null;
-        const band = g.querySelector('.con-extdraw__ghostband') as HTMLElement | null;
-        const cs = card === null ? undefined : getComputedStyle(card);
-        const bs = band === null ? undefined : getComputedStyle(band);
-        const br = band?.getBoundingClientRect();
-        return `slot=${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}` +
-          ` card=${cs?.opacity}/${cs?.visibility}/${cs?.display}` +
-          ` band=${bs?.visibility}/${bs?.display}/${Math.round(br?.width ?? 0)}x${Math.round(br?.height ?? 0)}`;
-      })(),
-      /** The ghost seat's card must stay faintly PAINTED (the intake's
-       *  con-deal-hold released) — 0 here is the invisible-hole regression. */
-      ghostOpacity: (() => {
-        const card = document.querySelector('.con-extdraw__slot--ghost :is(.card-container, .pcard)');
-        return card === null ? -1 : parseFloat(getComputedStyle(card as HTMLElement).opacity);
-      })(),
+      bar: (document.querySelector('.con-cmdbar, .con-footer') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       plate: document.querySelector('.con-mandatory') !== null,
       plateText: (document.querySelector('.con-mandatory') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       fullBleedReveal: document.querySelector('.con-reveal') !== null,
@@ -257,7 +237,7 @@ test('an external draw: announced → A opens the workspace → take one, take a
   console.log('── external draw, opened ──', JSON.stringify(opened));
   expect(opened.workspace, 'the workspace stood up').toBeTruthy();
   expect(opened.slots, 'three prepared seats').toBe(3);
-  expect(opened.ghosts, 'nothing taken yet').toBe(0);
+  expect(opened.takenSeats, 'nothing taken yet').toBe(0);
   expect(opened.sourceSeat, 'the effect card sits in the source seat').toBeTruthy();
   expect(opened.cause, 'the cause names the initiator').toContain('Rival');
   expect(opened.cause, 'the cause names the trigger card').toContain('Большой астероид');
@@ -282,7 +262,7 @@ test('an external draw: announced → A opens the workspace → take one, take a
   expect(sequence.taken(), 'exactly one card was submitted').toBe(1);
   expect(afterOne.workspace, 'the workspace stands through the batch').toBeTruthy();
   expect(afterOne.slots, 'the taken card left the row — no ghost seat (Э5)').toBe(2);
-  expect(afterOne.ghosts, 'no ghost seat').toBe(0);
+  expect(afterOne.takenSeats, 'no taken seat stays behind once it has landed').toBe(0);
   await shoot(page, '02-after-take-one');
 
   // ── 3 · B takes ALL the rest (two cards, one answer, the stack intake).

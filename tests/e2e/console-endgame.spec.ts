@@ -182,14 +182,13 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     const rowBoxes = new Set(visible.filter((s) => s.rowBox !== '-').map((s) => s.rowBox));
     expect([...rowBoxes], `row boxes: ${[...rowBoxes].join(' ')}`).toHaveLength(1);
     // The barcode: the settled bar is ONE hue per category — no micro shades.
-    expect(await page.locator('.con-eg__subseg--s1, .con-eg__subseg--s2').count()).toBe(0);
+    expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
     expect(await page.locator('.con-eg__chip').count()).toBe(0);
 
     // 5 · The winner is the ROW: ribbon + places; NO duplicate plate exists.
     expect(await page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
     expect(await page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
     expect(await page.locator('.con-eg__place-num').count()).toBe(2);
-    expect(await page.locator('.con-eg__wplate').count()).toBe(0);
     // Anchored values exist in both homes (wide → inside, narrow → below).
     expect(await page.locator('.con-eg__vlab--on').count()).toBeGreaterThan(0);
 
@@ -289,7 +288,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
       .map((t) => Number(t.trim()))
       .sort((a, b) => b - a);
     expect(shownAfterSkip).toEqual(serverTotals);
-    expect(await page.locator('.con-eg__subseg--s1, .con-eg__subseg--s2').count()).toBe(0);
+    expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
     await shoot(page, SHOT_DIR, '2p-after-skip');
   });
 });
@@ -343,7 +342,7 @@ test.describe('console endgame workspace — 4K TV, four players', () => {
     // row — and the settled bar is category-clean (merged, no shades).
     expect(await page.locator('.con-eg__place-num').count()).toBe(4);
     expect(await page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-eg__subseg--s1, .con-eg__subseg--s2').count()).toBe(0);
+    expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
     expect(await page.locator('.con-eg__vlab--on').count()).toBeGreaterThan(0);
   });
 });

@@ -377,7 +377,7 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
     expect(await focusCard(page, CARD_B, Math.max(slots * 2, 8)), `${CARD_B} must be focusable`).toBe(true);
     await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
     await press(page, 'Enter', 900); // open the play composer
-    const composer = page.locator('.con-composer--play, .con-play');
+    const composer = page.locator('.con-composer--play');
     await composer.first().waitFor({timeout: 8_000});
 
     const t0 = Date.now();

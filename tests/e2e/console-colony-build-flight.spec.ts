@@ -14,12 +14,10 @@ import {bootSeededGame, press} from './consoleStart';
  * board cell's card bonus rides), and the reveal is HELD until they land. «The
  * cards simply appear» is the bug this spec exists to keep out.
  *
- * It also fences the two physicality rules the payout must obey wherever the
- * cards come from:
- *   · no card is painted in a slot while its own cover is still airborne
- *     (one object, never two — the bonus zone's own back was the offender);
- *   · every card turns IN THE AIR (one flip language), so nothing flips again
- *     after it has landed.
+ * It also fences the physicality rule the payout must obey wherever the cards
+ * come from: no card is painted in a slot while its own cover is still
+ * airborne (one object, never two — the bonus zone's own back was the
+ * offender).
  */
 
 const OUT = path.resolve('screenshots', 'colony-build-flight');
@@ -121,9 +119,6 @@ type FlightWatch = {
   /** A card back was on screen INSIDE the reveal while proxies still flew
    *  (the bonus zone's own back — physicality broken). */
   zoneBackWhileFlying: boolean;
-  /** An in-place flip class ever ran on a landed card (the second, different
-   *  flip the in-air turn makes redundant). */
-  inPlaceFlip: boolean;
   /** The colony stage's working area was already faded before the first cover
    *  even left its fan (the abrupt disappearance). */
   earlyDissolve: boolean;
@@ -143,7 +138,7 @@ async function watchFlight(page: Page, ms: number): Promise<FlightWatch> {
     const w = window as unknown as {__buildFlight?: FlightWatch};
     const seen: FlightWatch = {
       proxySeen: false, proxyMax: 0, coverSeen: false, phases: [],
-      doubleImage: false, zoneBackWhileFlying: false, inPlaceFlip: false,
+      doubleImage: false, zoneBackWhileFlying: false,
       earlyDissolve: false, stageOpacityAtLaunch: -1, sourceTwin: false,
     };
     w.__buildFlight = seen;
@@ -210,10 +205,6 @@ async function watchFlight(page: Page, ms: number): Promise<FlightWatch> {
           seen.earlyDissolve = seen.stageOpacityAtLaunch >= 0 && seen.stageOpacityAtLaunch < 0.5;
         }
       }
-      // A SECOND flip after the landing: the zone's own in-place turn.
-      if (document.querySelector('.con-reveal__flip--flipping') !== null) {
-        seen.inPlaceFlip = true;
-      }
       if (performance.now() - t0 < budget) {
         requestAnimationFrame(tick);
       }
@@ -262,7 +253,6 @@ test('Pluto BUILD: the bonus cards physically leave the slot and fly into the re
   expect(seen.proxyMax, 'both bonus cards fly as their own objects').toBeGreaterThanOrEqual(2);
   expect(seen.doubleImage, 'a real card was painted while its cover was still airborne').toBeFalsy();
   expect(seen.zoneBackWhileFlying, 'a card back stood in the reveal while covers were still flying').toBeFalsy();
-  expect(seen.inPlaceFlip, 'a card flipped again AFTER landing (the in-air turn is the only flip)').toBeFalsy();
   expect(seen.earlyDissolve,
     `the colony stage was already gone when the cards launched (opacity ${seen.stageOpacityAtLaunch})`).toBeFalsy();
 });

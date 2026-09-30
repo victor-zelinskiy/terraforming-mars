@@ -546,7 +546,7 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
       return {pos: v.thisPlayer.deltaProject?.position ?? 0, waiting: v.waitingFor !== undefined};
     });
     const backLabel = await page.evaluate(() => Array.from(
-      document.querySelectorAll('.con-cmd__label, .con-cmdbar__label'))
+      document.querySelectorAll('.con-cmdbar__label'))
       .map((e) => e.textContent?.trim() ?? '').join(' | '));
     expect(backLabel, `the command bar read «${backLabel}»`).not.toMatch(/Пропустить/i);
 

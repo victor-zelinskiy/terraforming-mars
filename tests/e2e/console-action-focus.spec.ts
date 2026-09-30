@@ -80,7 +80,9 @@ for (const profile of PROFILES) {
       await openCardActions(page);
       const thumb = page.locator('.con-cardactions__detail-cardwrap[data-zoom-slot="Search For Life"]');
       await expect(thumb).toHaveCount(1);
-      expect(await page.locator('.con-cardactions__detail-graphic').count(),
+      // The action SCHEMA reads on the focused tile only — the inspector
+      // carries the card and the structured chips, never a second graphic.
+      expect(await page.locator('.con-cardactions__detail .con-cardactions__graphic').count(),
         'the right-panel schema duplicate must be gone').toBe(0);
       expect(await page.locator('.con-composer--stage').count(), 'no stage in browse').toBe(0);
       await shoot(page, `${profile.tag}-01-browse-thumbnail`);
@@ -88,8 +90,9 @@ for (const profile of PROFILES) {
       // ── 2. A: the SAME frame recomposes into ACTION FOCUS. ──────────────
       await openActionFocus(page);
       // No second frame chrome, no private backdrop — the browser's frame IS
-      // the stage's chrome (never a web-modal feeling).
-      expect(await page.locator('.con-composer__backdrop').count()).toBe(0);
+      // the stage's chrome (never a web-modal feeling): the stage stands inside
+      // the frame's stage wrap (`openActionFocus`) and draws no header of its own.
+      await expect(page.locator('.con-composer--stage .con-wshead')).toHaveCount(0);
       await expect(page.locator('.con-cardactions__browse--parked')).toHaveCount(1);
       // The header is the operation breadcrumb now.
       await expect(page.locator('.con-wshead__step')).toHaveCount(1);

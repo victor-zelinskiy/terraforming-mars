@@ -154,7 +154,7 @@ test.describe('console placement panel · the source', () => {
     // The re-labelled marker lands on the first POLL after the placement opens,
     // not in the input response that opened it — so give it a poll or two.
     await expect(chip.locator('.con-src__plate-name'))
-      .toContainText(/Луч с Луны|Лунный луч|Lunar Beam/i, {timeout: 25_000});
+      .toContainText(/Луч с Луны|Lunar Beam/i, {timeout: 25_000});
 
     // 2 · …and it costs ONE LINE. The consequences preview is this panel's job;
     //     the source may not push it off screen.
@@ -172,10 +172,10 @@ test.describe('console placement panel · the source', () => {
     //     in the panel's always-mounted (collapsed) refusal well — that is
     //     what keeps legal ↔ illegal free of layout shift — so a
     //     `not.toContainText(/Разместить здесь/)` matches the refusal and
-    //     fails on a panel that carries no CTA at all.
-    await expect(panel.locator('.con-context__source-hint')).toHaveCount(0);
-    await expect(panel.locator('.con-inspector__placement')).toHaveCount(0);
-    const bar = page.locator('.con-cmdbar, .con-commands').first();
+    //     fails on a panel that carries no CTA at all. The only glyph the
+    //     panel may carry is its overflow affordance.
+    await expect(panel.locator(':not(.con-inspector__more) > .gp-glyph')).toHaveCount(0);
+    const bar = page.locator('.con-cmdbar').first();
     await expect(bar).toContainText(/ИСТОЧНИК/i);
     await expect(bar).not.toContainText(/СЛЕДУЮЩАЯ/i);
 

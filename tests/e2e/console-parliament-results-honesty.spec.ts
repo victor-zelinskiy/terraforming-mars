@@ -230,7 +230,6 @@ test.describe('«Итоги: честность» — панель, поддер
     // …and the guard is not vacuous: every zone in the table actually spoke while the panel was up.
     expect(ZONE_WORDS.filter((z) => (zoneSeen.get(z.zone) ?? 0) === 0).map((z) => `${z.zone} (${z.selector}) — ${z.why}`),
       'a zone whose own words were never read: the law is unguarded there').toEqual([]);
-    await expect(page.locator('[data-sit-law]'), 'no law member survives anywhere').toHaveCount(0);
     // The three government facts are the ones the table's first three rows carry, and they are REAL.
     expect(`${zone.enacted}|${zone.ruler}|${zone.quest}`.toLowerCase(), 'the government still states all three')
       .not.toBe('||');
@@ -245,7 +244,6 @@ test.describe('«Итоги: честность» — панель, поддер
     const refilled = summaryOf(wire).lobbyRefilled ?? [];
     expect(refilled.length, 'the server DID refill somebody — the removed row was not vacuous').toBeGreaterThan(0);
     await expect(page.locator('[data-sit-row="results-lobby"]'), 'no lobby row survives').toHaveCount(0);
-    await expect(page.locator('[data-sit-lobby]'), 'and no chip of it either').toHaveCount(0);
 
     const wireSeats = (wire.game.parliament as unknown as {players?: Array<{color: string, participates: boolean, lobby: boolean, reserve: number}>})?.players ?? [];
     const voteless = wireSeats.filter((p) => p.participates && !p.lobby && p.reserve <= 0).map((p) => p.color);

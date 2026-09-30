@@ -64,7 +64,7 @@ test.describe('Play → scale raise → the workspace concludes · fhd', () => {
     const home = await page.waitForFunction(() => {
       const w = window as unknown as {__conReady?: () => {wsDepth?: number} | undefined};
       const r = w.__conReady?.();
-      const band = document.querySelector('.con-ws, .con-hand, .con-play') as HTMLElement | null;
+      const band = document.querySelector('.con-ws, .con-hand') as HTMLElement | null;
       const bandShown = band !== null && band.offsetParent !== null;
       return (r?.wsDepth ?? 0) === 0 && !bandShown;
     }, {timeout: 20_000}).then(() => true).catch(() => false);

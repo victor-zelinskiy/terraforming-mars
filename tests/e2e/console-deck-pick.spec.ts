@@ -75,7 +75,8 @@ async function surfaces(page: Page) {
         .replace(/\s+/g, ' ').trim().toLowerCase(),
       /** The generic card browser must never appear for this prompt. */
       taskHost: document.querySelectorAll('.con-task-host').length,
-      legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal, .mandatory-input-modal').length,
+      /** …and the prompt is never left unserved (the stranded-prompt guard). */
+      stranded: document.querySelectorAll('.con-stranded').length,
       cards: slots.length,
       /** PAINTED, not merely rendered — the defect this replaces was a row
        *  that existed but overflowed its column and was clipped away. */
@@ -282,7 +283,7 @@ async function surfaces(page: Page) {
       handCount: (document.querySelector('.con-handdock')?.textContent ?? '').trim(),
       flow: pick?.getAttribute('data-flow') ?? '',
       /** The bottom command bar's live contract. */
-      bar: (document.querySelector('.con-cmdbar, .con-commandbar')?.textContent ?? '')
+      bar: (document.querySelector('.con-cmdbar')?.textContent ?? '')
         .replace(/\s+/g, ' ').trim().toLowerCase(),
     };
   });
@@ -458,7 +459,7 @@ for (const profile of PROFILES) {
       expect(at.pickEmbedded, 'the surface renders inside the start embed zone').toBeTruthy();
       expect(at.headCount, 'exactly ONE breadcrumb — the host\'s').toBe(1);
       expect(at.taskHost, 'the generic card browser never serves this prompt').toBe(0);
-      expect(at.legacyModal, 'no desktop fallback modal').toBe(0);
+      expect(at.stranded, 'no stranded-prompt guard').toBe(0);
 
       // ── 2. THE CRUMB NAMES THE CARD ─────────────────────────────────────
       expect(at.crumb, `crumb names the source card — «${at.crumb}»`)

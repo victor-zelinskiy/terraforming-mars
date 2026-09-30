@@ -155,8 +155,8 @@ test.describe('hand delivery · standard 1080', () => {
     test.setTimeout(240_000);
     const corporation = await toSummary(page, request);
 
-    // Summary: NO placeholder ghost, dock empty (bought cards not yet paid).
-    await expect(page.locator('.con-handdock__ghost')).toHaveCount(0);
+    // Summary: NO placeholder in the tray, dock empty (bought cards not yet paid).
+    await expect(page.locator('.con-handdock__pack > *')).toHaveCount(0);
     await shoot(page, '01-summary-empty-dock');
 
     await toPayStep(page, corporation);

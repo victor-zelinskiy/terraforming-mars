@@ -219,12 +219,10 @@ for (const profile of RESUME_PROFILES) {
         .not.toContain('ПЛУТОН');
       expect(resumed.stage.toUpperCase(), 'the tail is the suspended phase').toMatch(/СБРОС/);
       expect(resumed.overlap, 'the resumed crumb painted over the workspace name').toBe(false);
-      // One workspace root, no legacy modal, no board-level band.
+      // One workspace root, no board-level band.
       const roots = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ws'))
         .filter((el) => (el as HTMLElement).getClientRects().length > 0).length);
       expect(roots, 'exactly one workspace root after the resume').toBe(1);
-      expect(await page.locator('.mandatory-input-modal, .modal-input-root').count(),
-        'a legacy modal opened on resume').toBe(0);
       await shoot(page, `${profile.tag}-05-resumed-discard`);
 
       // ── 5 · Complete: discard → the resolution finishes → the chain closes. ─

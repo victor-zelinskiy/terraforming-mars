@@ -252,7 +252,6 @@ for (const preset of PRESETS) {
       // NO FALSE PROGRESS: a category card never draws a share track — the
       // top segmented bar is the ONE place shares live; every card explains
       // its own subtotal through the source ledger instead.
-      await expect(page.locator('.con-vpx__tile-track, .con-vpx__tile-fill')).toHaveCount(0);
       await expect(page.locator('.con-vpx__tile-ledger')).toHaveCount(tileCount);
       const trLedgerText = (await page.locator('[data-vpx-tile="tr"] .con-vpx__tile-ledger').textContent() ?? '').trim();
       expect(trLedgerText, 'the TR card speaks its arithmetic (start term present)').toMatch(/20\s*старт/i);

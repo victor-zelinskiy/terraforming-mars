@@ -96,7 +96,7 @@ test.describe('start deployment · a tile-placing prelude', () => {
     const kicker = page.locator('.con-context__task-kicker');
     await expect(kicker).toHaveCount(1);
     const highlighted = await page.evaluate(() =>
-      document.querySelectorAll('.board-space--available, .con-board__space--available').length);
+      document.querySelectorAll('.board-space--available').length);
     expect(highlighted, 'the board offers its legal cells').toBeGreaterThan(0);
     const view = await (await request.get(`/api/player?id=${id}`)).json() as {waitingFor?: {type?: string}};
     expect(view.waitingFor?.type, 'the server really is waiting for a space').toBe('space');

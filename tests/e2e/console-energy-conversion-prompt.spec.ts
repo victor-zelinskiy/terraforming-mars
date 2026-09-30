@@ -90,7 +90,7 @@ test('Supercapacitors: premium conversion prompt → rail handoff → next promp
   const bar = page.locator('.con-cmdbar');
   await expect(bar).toContainText(/не преобразовывать/i);
   // No duplicated dial hints inside the panel — the bar is the one source.
-  expect(await page.locator('.con-task__stepper-keys, .con-convert .gp-glyph').count()).toBe(0);
+  expect(await page.locator('.con-convert .gp-glyph').count()).toBe(0);
   // The rail marks the two stock rows the decision is about (values untouched).
   await expect(page.locator('.con-res__row--energy.con-res__row--conv-watch')).toHaveCount(1);
   await expect(page.locator('.con-res__row--heat.con-res__row--conv-watch')).toHaveCount(1);

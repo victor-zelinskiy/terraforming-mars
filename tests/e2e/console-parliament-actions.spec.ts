@@ -273,7 +273,7 @@ test.describe('parliament · party actions', () => {
 
     // ── The Parliament carries NO actions column: party actions are actions. ──
     await openParliament(page);
-    await expect(page.locator('[data-zone="actions"], .con-parl__tile'), 'no action catalog inside the Parliament').toHaveCount(0);
+    await expect(page.locator('[data-zone="actions"]'), 'no action catalog inside the Parliament').toHaveCount(0);
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
     await settle(page);
 

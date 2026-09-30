@@ -66,7 +66,7 @@ const readFaces = (page: Page, scope: string) => page.evaluate((sel) => {
     if (!face.classList.contains('pcard--bill')) {
       problems.push(`${id}: not the bill anatomy`);
     }
-    for (const old of ['.pcard__frame', '.pcard-nameplate', '.pcard__cost', '.pcard__tags', '.pcard-play-rail', '.pcard__rim', '.pcard__quest-kicker']) {
+    for (const old of ['.pcard__frame', '.pcard-nameplate', '.pcard__cost', '.pcard__tags', '.pcard-play-rail', '.pcard__rim']) {
       if (face.querySelector(old) !== null) {
         problems.push(`${id}: wears the project's ${old}`);
       }

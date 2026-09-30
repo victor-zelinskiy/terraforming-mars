@@ -359,7 +359,6 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(new Set(rows).size, 'one row per seat, never two').toBe(rows.length);
 
     // The table says what has already left the eye — and only that.
-    await expect(page.locator('[data-sit-law]'), 'no law member survives').toHaveCount(0);
     await expect(page.locator('[data-sit-row="results-fresh"]')).toHaveCount(1);
     await expect(page.locator('[data-sit-row="results-support"]')).toHaveCount(1);
     // «Итоги: честность» Ф1: the lobby row is gone (the delegates ledger says it, permanently and by name);

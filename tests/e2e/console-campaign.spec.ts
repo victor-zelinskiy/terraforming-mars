@@ -219,7 +219,7 @@ test.describe('campaign map', () => {
   test('a non-creator sees the waiting state, never the launch CTA', async ({page, request}) => {
     const {id} = await createCampaign(request);
     await openMapAs(page, id, 'Bruno');
-    const barText = await page.locator('.con-cmdbar, .cm-cmdbar, [class*="cmdbar"]').first().innerText().catch(() => '');
+    const barText = await page.locator('.con-cmdbar, [class*="cmdbar"]').first().innerText().catch(() => '');
     // The waiting line renders either in the CTA verb or the state plate —
     // assert the map itself communicates it (never a dead screen).
     const pageText = await page.locator('.cmap').innerText();

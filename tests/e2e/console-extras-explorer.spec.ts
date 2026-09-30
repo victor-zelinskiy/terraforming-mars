@@ -182,7 +182,7 @@ for (const preset of PRESETS) {
       await key(page, 'ArrowUp', 450);
       await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: Животное/i);
       // No caption over the column — the chips are the label.
-      await expect(satellite.locator('.con-res-aux__cap')).toHaveCount(0);
+      await expect(satellite.filter({hasText: /Доп\. ресурсы/i})).toHaveCount(0);
       await expect(page.locator('.con-info__hotkey')).toHaveCount(0);
       await shoot(page, preset, '02-summary-extras-focused');
 
@@ -319,7 +319,7 @@ for (const preset of PRESETS) {
         explorer.locator('.con-exr__hero').waitFor({state: 'visible', timeout: 8_000}).then(() => 'types' as const),
       ]).catch(() => 'neither' as const);
       expect(emptyOrTypes, 'the bot seat presents SOMETHING honest at the same depth').not.toBe('neither');
-      await expect(page.locator('.con-res-aux__none'), 'the ghost plate is retired').toHaveCount(0);
+      await expect(page.locator('.con-res-aux:not(:has(.con-res-aux__cell))'), 'the ghost plate is retired').toHaveCount(0);
       if (emptyOrTypes === 'void') {
         await expect(page.locator('.con-res-aux'), 'an empty seat keeps the lane calm — no column at all').toHaveCount(0);
       }

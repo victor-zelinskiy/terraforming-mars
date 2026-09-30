@@ -238,7 +238,7 @@ test.describe('console strategy rail — FHD', () => {
         left: round('.con-res'), right: round('.con-strat'), board: round('.con-board'),
         inspectors: document.querySelectorAll('.con-inspector').length,
         pips: document.querySelectorAll('.con-strat__head .con-strat__pip').length,
-        prices: document.querySelectorAll('.con-strat__price').length,
+        prices: document.querySelectorAll('.con-strat .resource_icon--megacredits').length,
         milestones: document.querySelectorAll('.con-strat__zone--milestones .con-strat__item').length,
         awards: document.querySelectorAll('.con-strat__zone--awards .con-strat__item').length,
         titles: [...document.querySelectorAll('.con-strat__title')].map((t) => ({
@@ -271,7 +271,7 @@ test.describe('console strategy rail — FHD', () => {
     // the workspace where the claim/fund decision is made) — and the NAME
     // never ellipsizes to make room for the tray.
     expect(await page.locator('.con-strat__head .con-strat__pip').count()).toBe(6);
-    expect(await page.locator('.con-strat__price').count()).toBe(0);
+    expect(await page.locator('.con-strat .resource_icon--megacredits').count()).toBe(0);
     await expectTitlesFit(page, 'FHD');
 
     await page.screenshot({path: 'screenshots/strategy-rail/fhd-home.png', fullPage: false});

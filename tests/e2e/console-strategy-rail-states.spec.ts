@@ -452,7 +452,9 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await expect(landlord.locator('.con-strat__unitbody--lead .con-strat__crown')).toHaveCount(1);
     await expect(landlord.locator('.con-strat__unitbody--lead .con-strat__num')).toHaveText('3');
     await expect(landlord.locator('.con-strat__unitbody--ii')).toHaveCount(1);
-    expect(await page.locator('.con-strat__rank').count(), 'no roman numerals anywhere').toBe(0);
+    // A podium level reads its score alone — no rank glyph beside it.
+    const levelTexts = await page.locator('.con-strat__unitbody').allTextContents();
+    expect(levelTexts.filter((t) => /[IVX]/.test(t)), 'no roman numerals anywhere').toEqual([]);
     await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(1);
     await expect(page.locator('.con-strat__zone--awards .con-strat__item--now')).toHaveCount(0);
     // THE CASSETTE AXES (±1 rendered px): both levels' cubes share one

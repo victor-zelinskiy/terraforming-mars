@@ -94,7 +94,7 @@ async function armProbe(page: Page, spaceId: string): Promise<void> {
         holds: (ready?.holds ?? []).filter((h) => /tile|board|parliament|placement/.test(h)).join('|'),
         sit: (() => {
           const root = document.querySelector<HTMLElement>('.con-parl');
-          const tail = document.querySelector<HTMLElement>('.con-wshead__stage, .con-wshead [data-stage]')?.textContent?.trim() ?? '';
+          const tail = document.querySelector<HTMLElement>('.con-wshead__step, .con-wshead [data-stage]')?.textContent?.trim() ?? '';
           return root === null ? '' : `pg=${root.dataset.sittingPage ?? '-'} mo=${root.dataset.sittingMotion ?? '-'} bt=${root.dataset.sittingBeat ?? '-'} d=${ready?.wsDepth ?? '?'} y=${ready?.wsYielded ?? '?'} ${tail}`;
         })(),
       });

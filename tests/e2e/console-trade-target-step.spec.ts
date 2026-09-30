@@ -132,7 +132,7 @@ async function readStep(page: Page): Promise<StepReadout> {
       crumb,
       focusedCard: nameOf(focusedCell ?? null),
       lockedCard: nameOf(lockedCell ?? null),
-      ask: (document.querySelector('.con-colfocus__targetask')?.textContent ?? '').trim(),
+      ask: (document.querySelector('.con-colfocus__targetstage .con-ptsel__contract-ask')?.textContent ?? '').trim(),
     };
   });
 }

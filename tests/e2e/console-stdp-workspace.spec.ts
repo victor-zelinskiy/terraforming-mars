@@ -154,7 +154,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
     .toBeGreaterThanOrEqual(2);
   expect(asteroidChips.some((t) => /→/.test(t)),
     'the projection reads as current → resulting, like every other workspace').toBeTruthy();
-  expect(await page.locator('.con-stdp__wallet').count(),
+  expect(await page.locator('.con-stdp__wshead .con-wshead__trailing').count(),
     'the header must NOT carry a second copy of the money preview').toBe(0);
   expect(await page.locator('.con-status__param--ghost').count(),
     'the affected HUD readout must carry the pre-select ghost ring').toBe(1);

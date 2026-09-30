@@ -152,7 +152,7 @@ for (const preset of PRESETS) {
 
       // DEDUP + the ONE summary layout: no rail summary repeats; the
       // canonical zone grid renders with the premium score zone focused.
-      await expect(workspace.locator('.con-info__res-grid')).toHaveCount(0);
+      await expect(workspace.locator('.con-res__row')).toHaveCount(0);
       await expect(workspace.locator('.con-tagmx')).toHaveCount(0);
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
       await expect(workspace.locator('.con-info__zone--vp.con-info__zone--focused')).toHaveCount(1);
@@ -181,8 +181,8 @@ for (const preset of PRESETS) {
       // ghost plate, no caption, no stray focus ring), and when present it
       // stands at the seat-invariant anchor above the panel's dim.
       const satellite = page.locator('.con-res-aux');
-      await expect(satellite.locator('.con-res-aux__cap')).toHaveCount(0);
-      await expect(page.locator('.con-res-aux__none'), 'the ghost plate is retired').toHaveCount(0);
+      await expect(satellite.filter({hasText: /Доп\. ресурсы/i})).toHaveCount(0);
+      await expect(page.locator('.con-res-aux:not(:has(.con-res-aux__cell))'), 'the ghost plate is retired').toHaveCount(0);
 
       // PARITY BASELINE: capture the shared zones' boxes on the human seat.
       const zoneBox = async (zone: string) =>
@@ -230,7 +230,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-res .con-res__prod:not(.con-res__prod--void)')).toHaveCount(0);
       await expect(page.locator('.con-res .con-res__prod--void')).toHaveCount(6);
       await expect(page.locator('.con-res .con-tagmx__grid')).toHaveCount(1);
-      await expect(page.locator('.con-res .con-tagmx__trackrow')).toHaveCount(0);
+      await expect(page.locator('.con-res .con-tagmx')).toHaveCount(1);
       await expect(page.locator('.con-res .con-res__rows--bot')).toHaveCount(1);
 
       // THE SKELETON PARITY: every standard row and the МЕТКИ block sit at

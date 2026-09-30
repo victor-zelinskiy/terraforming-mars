@@ -333,7 +333,7 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   //      dock's count grows (the take used to be a dead press — with no slot
   //      the intake flight had no origin and never committed). ──────────────
   const handCount = async (): Promise<number> => {
-    const txt = (await page.locator('.con-handdock__count, .con-handdock').first().textContent().catch(() => '')) ?? '';
+    const txt = (await page.locator('.con-handdock').first().textContent().catch(() => '')) ?? '';
     const m = /(\d+)\s*\/\s*(\d+)/.exec(txt.replace(/\s+/g, ' '));
     return m === null ? -1 : Number(m[2]);
   };

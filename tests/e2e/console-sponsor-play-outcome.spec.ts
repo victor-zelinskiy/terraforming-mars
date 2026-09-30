@@ -79,7 +79,7 @@ async function surfaces(page: Page) {
         }).length,
       /** ONE root, ONE breadcrumb — the whole rendered line. */
       heads: document.querySelectorAll('.con-wshead').length,
-      crumb: (document.querySelector('.con-wshead__deep, .con-wshead')?.textContent ?? '')
+      crumb: (document.querySelector('.con-wshead')?.textContent ?? '')
         .replace(/\s+/g, ' ').trim().toLowerCase(),
       /** The corporation's mandatory-move stage. */
       firstAction: document.querySelectorAll('.con-start__firstact').length,
@@ -168,7 +168,7 @@ test.describe('console start — a project played through «Эпатажный �
     let landed = false;
     for (let i = 0; i < slots * 2 + 4 && !landed; i++) {
       landed = await page.evaluate(() =>
-        document.querySelector('.con-hand__slot--selected[data-zoom-slot], .con-hand__slot--focused[data-zoom-slot]')
+        document.querySelector('.con-hand__slot--selected[data-zoom-slot]')
           ?.getAttribute('data-zoom-slot') ?? '') === 'Business Contacts';
       if (!landed) {
         await press(page, 'ArrowRight', 280);

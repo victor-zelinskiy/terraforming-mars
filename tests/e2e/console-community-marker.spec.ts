@@ -155,7 +155,7 @@ test.describe('console · Arcadian Communities', () => {
     await expect.poll(async () => (await panel.innerText().catch(() => '')).length > 0,
       {timeout: 30_000}).toBeTruthy();
     await expect.poll(async () =>
-      page.evaluate(() => document.querySelectorAll('.board-space--available, .con-board__space--available').length),
+      page.evaluate(() => document.querySelectorAll('.board-space--available').length),
     {timeout: 30_000}).toBeGreaterThan(0);
     const waiting = await (await request.get(`/api/player?id=${playerId}`)).json() as {waitingFor?: {type?: string}};
     expect(waiting.waitingFor?.type, 'the server really is waiting for a space').toBe('space');
@@ -165,7 +165,7 @@ test.describe('console · Arcadian Communities', () => {
     // `placementEffect: 'marker'`; the panel used to default to a tile
     // placement and offer «ВЫ ПОЛУЧИТЕ · Бонус клетки +2» on a bonus cell.
     const cellsWithBonus = await page.evaluate(() => Array.from(
-      document.querySelectorAll('.board-space--available, .con-board__space--available'))
+      document.querySelectorAll('.board-space--available'))
       .filter((el) => el.querySelectorAll('.board-space-bonus').length > 0)
       .map((el) => el.getAttribute('data_space_id') ?? '')
       .filter((id) => id !== ''));

@@ -389,10 +389,12 @@ flow: ${flowDiag}`).toBe(true);
           .map((m) => `${(m.className.match(/player_bg_color_(\w+)/) ?? [])[1]}@${berth.getAttribute('data-hydro-marker')}`));
       return {
         seats,
-        // The reverted marks: nothing of the kind may exist on a cell.
-        trail: document.querySelectorAll('.con-hydro__stop-trail, .con-hydro__trailmark').length,
-        badges: document.querySelectorAll(
-          '.con-hydro__stop-badge--done, .con-hydro__stop-badge--crossed, .con-hydro__stop-badge--skip').length,
+        // A cell carries what it IS plus the tokens: nothing on it wears a
+        // player's colour but a marker in its marker row (or a blockade gate's
+        // band), and its only badge is the stage's own grade.
+        trail: Array.from(document.querySelectorAll('.con-hydro__stop [class*="player_bg_color_"]'))
+          .filter((el) => el.closest('[data-hydro-marker]') === null && el.closest('.con-hydro__gate') === null).length,
+        badges: document.querySelectorAll('.con-hydro__stop-badge:not(.con-hydro__stop-badge--grade)').length,
         roster: Array.from(document.querySelectorAll('.con-hydro__roster-row'))
           .map((r) => (r.textContent ?? '').replace(/\s+/g, ' ').trim()),
       };

@@ -112,7 +112,7 @@ async function armToastProbe(page: Page): Promise<void> {
           cause: text(el, '.con-notif__cause'),
           head: text(el, '.con-notif__head'),
           body: text(el, '.con-notif__body'),
-          pills: text(el, '.con-notif__pills'),
+          pills: text(el, '.con-notif__clusters'),
         };
         const existing = byId.get(id);
         if (existing === undefined) {

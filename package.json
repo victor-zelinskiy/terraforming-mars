@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.1040",
+  "version": "1.2.1041",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=24.20.0 <25"
@@ -128,6 +128,8 @@
     "pack:only:win": "rimraf ./dist-desktop/ && electron-builder --dir --win --config electron-builder.yml",
     "pack:only:linux": "rimraf ./dist-desktop/ && electron-builder --dir --linux --config electron-builder.yml",
     "e2e:baseline": "node scripts/e2e-ratchet-baseline.mjs --write",
+    "e2e:snapshot": "node scripts/e2e-snapshot.mjs",
+    "e2e:affected": "tsx scripts/e2e-affected.ts",
     "e2e:fixtures": "tsx tests/e2e/fixtures/generate.ts"
   },
   "repository": {

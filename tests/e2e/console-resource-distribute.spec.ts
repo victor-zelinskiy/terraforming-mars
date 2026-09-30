@@ -168,7 +168,7 @@ test('one resource is a RADIO — A places and takes back, X commits, no stock c
   await expect(page.locator('.con-task__dist-target')).toHaveCount(0);
   await expect(page.locator('.con-task__lane-max')).toHaveCount(0);
   await expect(page.locator('.con-task__lane-stock')).toHaveCount(6);
-  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText(/Добавить/i);
   await expect(bar).not.toContainText('−1');
 
@@ -217,7 +217,7 @@ test('a real budget keeps the dials — and an EMPTY pool still takes both units
 
   // The BUDGET shape: the meter and the stepper verbs stay.
   await expect(page.locator('.con-task__dist-target')).toHaveCount(1);
-  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText('−1');
   await expect(bar).not.toContainText(/Добавить/i);
 

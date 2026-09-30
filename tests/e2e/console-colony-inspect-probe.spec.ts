@@ -153,7 +153,7 @@ async function composition(page: Page): Promise<Composition> {
       planetW: planet === null ? 0 : Math.round(planet.getBoundingClientRect().width),
       lore: (Array.from(document.querySelectorAll('.con-colinspect .card-zoom-lore__text')).find(visible)?.textContent ?? '').trim(),
       loreSeat: (['side', 'inline'] as const).find((seat) => {
-        const el = document.querySelector(`.con-colinspect__lore--${seat}`);
+        const el = document.querySelector(seat === 'side' ? '.con-colinspect__lore--side' : '.con-colinspect__lore--inline');
         return el !== null && visible(el);
       }) ?? 'none',
       loreFallback: document.querySelector('.con-colinspect .card-zoom-lore--fallback') !== null,

@@ -98,8 +98,6 @@ async function gate(page: Page) {
         .map((el) => txt(el)).filter((s) => s !== ''),
       /** A held press advertises itself as held. */
       holdRing: document.querySelector('.con-cmdbar__hold') !== null,
-      /** Nothing about a gate may reach for the legacy modal. */
-      legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal').length,
       /** Everything the player can read, for the contradiction check. */
       screen: (document.body.textContent ?? '').replace(/\s+/g, ' ').toLowerCase(),
     };
@@ -298,7 +296,6 @@ test.describe('console — the prelude ORDER GATE', () => {
     expect(armed.stageBody.toLowerCase(),
       'the body names the enabling prelude, dynamically').toContain('бизнес-империя');
     expect(armed.effectLost, 'nothing has been lost yet').toBeFalsy();
-    expect(armed.legacyModal, 'no legacy modal was pulled in').toBe(0);
     await shoot(page, 'armed');
 
     // ── THE CONTRADICTION IS GONE ─────────────────────────────────────────

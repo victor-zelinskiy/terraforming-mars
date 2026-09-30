@@ -243,9 +243,9 @@ for (const profile of PROFILES) {
       expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--zoom').count()).toBe(0);
       expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--go').count()).toBe(0);
       // No stage-specific labels under the SOURCE card — its column must be
-      // byte-identical across phases (the stability contract); the L3 verb
-      // lives in the ONE command bar only.
-      expect(await page.locator('.con-composer__cardrole').count()).toBe(0);
+      // byte-identical across phases (the stability contract), so it holds the
+      // card's wrap and nothing else; the L3 verb lives in the ONE command bar.
+      await expect(page.locator('.con-composer--stage .con-composer__actside > *')).toHaveCount(1);
       // (Source text, not the CSS uppercase; the Deck bar drops the
       //  self-evident hints first — this one must survive on every profile.)
       await expect(page.locator('.con-cmdbar')).toContainText(/Источник/i);

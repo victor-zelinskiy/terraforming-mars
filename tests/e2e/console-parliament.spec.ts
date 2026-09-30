@@ -87,7 +87,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
     };
-    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__slot-empty, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__pline, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
+    const blocks = '.con-parl__gov, .con-parl__slot, .con-parl__slot-empty, .con-parl__tally, .con-parl__seats, .con-parl__seat, .con-parl__party, .con-parl__quest, .con-parl__agenda, .con-parl__stage, ' +
       '.con-parl__info, .con-parl__info-block, .con-parl__fact';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(blocks))) {
       if (!visible(el)) {
@@ -110,7 +110,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
     }
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__fact-key, .con-parl__fact-val, ' +
-      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__pline-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat-name, .con-parl__seat-key, .con-parl__ruler-name, ' +
+      '.con-parl__quest-reward, .con-parl__quest-text, .con-parl__slot-win, .con-parl__kicker, .con-parl__seat-name, .con-parl__seat-key, ' +
       '.con-parl__txn-row, .con-parl__info-src-text, .con-parl__info-name, .con-parl__slot-party, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
@@ -121,7 +121,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
       // Clipped by an ancestor tier (the tier's overflow hides it) — vertically,
       // and along the one-line focus rail, horizontally too.
-      const tier = el.closest<HTMLElement>('.con-parl__pline, .con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__slot-empty, .con-parl__seats, .con-parl__info');
+      const tier = el.closest<HTMLElement>('.con-parl__gov, .con-parl__stage, .con-parl__party, .con-parl__slot, .con-parl__slot-empty, .con-parl__seats, .con-parl__info');
       if (tier !== null) {
         const t = tier.getBoundingClientRect();
         const e = el.getBoundingClientRect();
