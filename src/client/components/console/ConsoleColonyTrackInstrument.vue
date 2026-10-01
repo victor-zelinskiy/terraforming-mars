@@ -31,8 +31,8 @@
            :style="{'--stop-col': resetPosition, '--ghost-col': resetPositionAfterBuild}">
     <header v-if="head" class="con-colfocus__zonehead" data-unfold-late>
       <span class="con-colfocus__sec-title">{{ $t('Trade track') }}</span>
-      <span v-if="offsetSteps > 0" class="con-colfocus__tracknote-adv">
-        {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
+      <span v-if="offsetSteps > 0" class="con-colfocus__tracknote-adv" data-colony-track-offset>
+        {{ $t(offsetCaption) }} <b>+{{ offsetSteps }}</b>
       </span>
     </header>
 
@@ -47,6 +47,7 @@
              'con-colfocus__xcell--latching': cell.index === latchCell,
              'con-colfocus__xcell--willprotect': buildPreview && cell.index === resetPosition,
              'con-colfocus__xcell--settled': cell.index === settledCell,
+             'con-colfocus__xcell--answer': cell.index === touchedCell && touchedCell > markerPosition,
            }">
         <span class="con-colfocus__xcell-num">{{ cell.index + 1 }}</span>
         <!-- THE FIXED PART OF A COMPOSITE INCOME (the Redux Venus: «[Venus] +
@@ -220,6 +221,19 @@ export default defineComponent({
     buildPreview: {type: Boolean, default: false},
     /** The zone head («ТОРГОВЫЙ ТРЕК» + the standing-offset caption). */
     head: {type: Boolean, default: true},
+    /**
+     * WHY the effective cell is ahead of the marker — the caption's KIND, set
+     * by the host's mode (never read off a text): a trade's standing offset
+     * moves the track first; a track-moving pick (TR07) puts the marker at the
+     * top. An i18n key.
+     */
+    offsetCaption: {type: String, default: 'Your trade advances the track first'},
+    /**
+     * The furthest cell a MOVING marker has touched (a track move in flight —
+     * `colonyTrackWaveState.touched`): the crossed cells light up as passed on
+     * the touch, the last one's income answers once. −1 when nothing moves.
+     */
+    touchedCell: {type: Number, default: -1},
   },
   computed: {
     /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
@@ -252,7 +266,7 @@ export default defineComponent({
           levy: tradeBenefitAt(this.metadata, i).type === ColonyBenefit.LOSE_RESOURCES,
           marker: i === this.markerPosition,
           effective: i === this.effectivePosition && this.effectivePosition !== this.markerPosition,
-          passed: i < this.markerPosition,
+          passed: i < this.markerPosition || (i > this.markerPosition && i <= this.touchedCell),
         });
       }
       return cells;

@@ -94,6 +94,7 @@
                    :ref="i === index && !dockCursorOn ? 'selectedSlot' : undefined">
                 <ConsoleColonyTile :colony="colony"
                                    :tradeOffset="tradeOffset"
+                                   :projectedPosition="tileProjection(colony)"
                                    :focused="i === index && !dockCursorOn"
                                    :justDocked="colony.name === dockedColony"
                                    :status="tileStatus(colony)" />
@@ -150,6 +151,28 @@
             <span class="con-colonies__rail-name">{{ $t(colonies[index] !== undefined ? colonies[index].name : '') }}</span>
             <span v-if="railMode === 'trade'" class="con-colonies__rail-track">{{ focusedTrackDisplay }}</span>
 
+            <!-- ── A CHOSEN TRACK's pick (TR07): «3/7 → 7/7» · «торговля здесь: [now] → [after]», or the ONE
+                 reason (at the top / not active). The rail says only what the tile cannot: the tile shows the
+                 ghost and «+N», the rail the trade this move buys. ── -->
+            <template v-if="railMode === 'track'">
+              <template v-if="focusedTrackReading !== undefined">
+                <span class="con-colonies__rail-track" data-colonies-rail-track>{{ focusedTrackReading.before.display }} → {{ focusedTrackReading.after.display }}</span>
+                <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
+                <span class="con-colonies__rail-cell con-colonies__rail-cell--get">
+                  <span class="con-colonies__rail-label">{{ $t('Trade here') }}</span>
+                  <b v-if="focusedTrackReading.before.quantity > 1">{{ focusedTrackReading.before.quantity }}</b>
+                  <BenefitGlyph :benefit="focusedTrackReading.before.benefit" :idx="focusedTrackReading.before.position" :cardResources="cardResourceKinds" />
+                  <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+                  <b v-if="focusedTrackReading.after.quantity > 1">{{ focusedTrackReading.after.quantity }}</b>
+                  <BenefitGlyph :benefit="focusedTrackReading.after.benefit" :idx="focusedTrackReading.after.position" :cardResources="cardResourceKinds" />
+                </span>
+              </template>
+              <span v-else-if="railBlocked" class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + focusedStatus.kind">
+                <span aria-hidden="true">{{ focusedStatus.kind === 'inactive' ? '○' : '✕' }}</span>
+                <span>{{ focusedStatus.text }}</span>
+              </span>
+            </template>
+
             <!-- ── BLOCKED (trade window): the one reason, nothing else.
                  The guard states the POSITIVE fact. It used to read
                  `kind !== 'ok'`, and `'ok'` is only ever produced while a
@@ -160,7 +183,7 @@
                  of choosing. `'none'` means «nothing to report», not «blocked
                  with no reason given». (Cross-cutting: never derive where the
                  player is by negating a rendering condition.) ── -->
-            <template v-if="railMode === 'trade' && railBlocked">
+            <template v-else-if="railMode === 'trade' && railBlocked">
               <span class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + focusedStatus.kind">
                 <span aria-hidden="true">{{ focusedStatus.kind === 'inactive' ? '○' : '✕' }}</span>
                 <span>{{ focusedStatus.text }}</span>
@@ -314,6 +337,8 @@
                                    :viewerColor="viewerColor"
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
+                                   :trackMove="focusTrackMove"
+                                   @inspect="onStageInspect"
                                    @confirm="onFocusConfirm"
                                    @build-confirm="$emit('build-confirm', $event)"
                                    @pick-confirm="$emit('pick-confirm')"
@@ -378,8 +403,11 @@ import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
   colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus, switchColonyFocusIntent,
-  colonyDockCursor, openFleetDockFocus, resetColonyDockCursor,
+  colonyDockCursor, openFleetDockFocus, resetColonyDockCursor, colonyPickIntent,
 } from '@/client/console/consoleColoniesModel';
+import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
+import {ColonyTrackMoveReading, colonyTrackMoveReading, trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
+import {colonyTrackMoveFlow} from '@/client/console/colonyTrade/colonyTrackMove';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
@@ -454,6 +482,18 @@ export type ConsoleColonyPick = {
   buttonLabel: string,
   /** The DISPLAY i18n key for the A chip / command bar («Trade» / «Build» / «Select»). */
   labelKey: string,
+  /**
+   * THE PICK MOVES THE CHOSEN TILE'S TRACK (TR07 — the server's
+   * `SelectColonyModel.trackMoves`): where each CANDIDATE's marker lands.
+   * Its presence makes the act `track` (`colonyPickIntent`).
+   */
+  trackMoves?: ReadonlyArray<ColonyTrackMove>,
+  /**
+   * The pick is a STAGED door (TR07's staged colony): nothing is on the wire
+   * yet — the stage's A is the PLAY's one submit and B walks one level back.
+   * Absent on a live server prompt.
+   */
+  staged?: boolean,
 };
 
 /** The focus stage's confirm payload (forwarded verbatim to the shell). */
@@ -569,6 +609,8 @@ export default defineComponent({
       outcomeState: workspaceOutcomeState,
       /** The resolution's presentation state (discard stage flag + receipt). */
       resolutionUi: colonyResolutionUi,
+      /** A chosen track's move (TR07), mirrored: the stage it was confirmed on plays it, so nothing folds it before. */
+      trackMoveFlow: colonyTrackMoveFlow,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
       /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
@@ -679,7 +721,9 @@ export default defineComponent({
         return revealIsOwnerBonus(currentRevealEvent()?.source) ? 'Owner bonus' : 'Card draw';
       }
       if (this.focusState.open) {
-        return this.focusState.stage;
+        // A CHOSEN TRACK's stage names itself from the descent on (the stage publishes «Трек» a flush later — the
+        // tail must not animate through «ЛУНА · ВЫБОР КОЛОНИИ» on the way).
+        return this.focusState.stage !== '' ? this.focusState.stage : (this.focusState.intent === 'track' ? 'Track' : '');
       }
       if (this.revealEmbedActive) {
         return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
@@ -925,10 +969,15 @@ export default defineComponent({
       if (this.focusState.intent === 'trade') {
         return this.focusTradeable;
       }
-      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick') {
+      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track') {
         return this.pick !== undefined && this.pick.selectable.includes(model.name);
       }
       return false;
+    },
+    /** The server's projected move of the focused colony (a `track` pick only — TR07). */
+    focusTrackMove(): ColonyTrackMove | undefined {
+      const model = this.focusColonyModel;
+      return model === undefined ? undefined : trackMoveOf(this.pick?.trackMoves, model.name);
     },
     /**
      * THE ACT BEHIND THE DOSSIER'S A — the same derivation the grid's A makes
@@ -937,7 +986,7 @@ export default defineComponent({
      */
     inspectActIntent(): ColonyFocusIntent {
       if (this.pick !== undefined) {
-        return this.pick.buttonLabel === 'Build' ? 'build' : 'pick';
+        return colonyPickIntent(this.pick);
       }
       return 'trade';
     },
@@ -979,7 +1028,7 @@ export default defineComponent({
       }
       if (this.pick !== undefined) {
         // A pick refused THIS colony: the server's own reason.
-        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick') {
+        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track') {
           return this.pickReasonFor(model.name);
         }
         // Mid-pick the trade window simply is not open — the stage's verdict
@@ -1074,11 +1123,18 @@ export default defineComponent({
     /** Which rail the compact readout shows: a SelectColony pick titled
      *  'Build' grants a settlement + placement bonus (NOT trade); other picks
      *  are identity-only; no pick ⇒ the trade rail. */
-    railMode(): 'trade' | 'build' | 'select' {
+    railMode(): 'trade' | 'build' | 'select' | 'track' {
       if (this.pick === undefined) {
         return 'trade';
       }
-      return this.pick.buttonLabel === 'Build' ? 'build' : 'select';
+      const intent = colonyPickIntent(this.pick);
+      return intent === 'build' ? 'build' : (intent === 'track' ? 'track' : 'select');
+    },
+    /** The focused tile's projected move, read for the rail (a `track` pick's candidate only). */
+    focusedTrackReading(): ColonyTrackMoveReading | undefined {
+      const colony = this.colonies[this.index];
+      const move = colony === undefined ? undefined : trackMoveOf(this.pick?.trackMoves, colony.name);
+      return move === undefined || this.focusedMeta === undefined ? undefined : colonyTrackMoveReading(this.focusedMeta, move);
     },
     /** The slot a new settlement lands in (next empty build slot, ≤ 2). */
     focusedBuildSlot(): number {
@@ -1640,6 +1696,12 @@ export default defineComponent({
       if (this.completeTimer !== undefined || workspaceOutcomeClaimed() || this.resolutionUi.cardSceneLive) {
         return;
       }
+      // A CHOSEN TRACK's move (TR07) owns its own ending: the STAGED door ends with the play (the shell's
+      // `endStagedColony`), and the move — owed or in flight — plays on THIS stage first. Folding here (the play's
+      // own claim releasing a tick after the answer) sent the marker to the tile behind a closed stage.
+      if (this.pick?.staged === true || this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live) {
+        return;
+      }
       this.completeTimer = window.setTimeout(() => {
         this.completeTimer = undefined;
         if (workspaceOutcomeClaimed() || !this.focusState.open || this.resolutionUi.cardSceneLive) {
@@ -1697,6 +1759,25 @@ export default defineComponent({
       armColonyFocusOrigin(rectOf(surface), rectOf(planet), rectOf(track), rectOf(slots));
       armColonyFocusHandoff();
       switchColonyFocusIntent(intent);
+    },
+    /**
+     * THE TILE'S PROJECTED CELL — a `track` pick's candidate reads the
+     * server's projection (the ghost at the top, «+N»); every other tile (and
+     * every trade) passes −1 and keeps the trade's own projection.
+     */
+    tileProjection(colony: ColonyModel): number {
+      return trackMoveOf(this.pick?.trackMoves, colony.name)?.after ?? -1;
+    },
+    /** X on a `track` stage — the colony's dossier, the act kept (A on the dossier leads back to it). */
+    onStageInspect(): void {
+      if (this.focusState.open && this.focusState.intent === 'track') {
+        switchColonyFocusIntent('inspect');
+      }
+    },
+    /** The commit did not hold (a refusal, a live re-ask): the stage is a door again (see the stage's `releasePresentation`). */
+    releaseFocusStage(): void {
+      const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
+      stage?.releasePresentation();
     },
     /** The shell ACCEPTED a stage confirm — pin the stage's presentation
      *  across the commit boundary (see the stage's `holdPresentation`). */

@@ -400,7 +400,21 @@ export type TrackWavePlan = {
   legs: ReadonlyArray<TrackWaveLeg>;
   /** The wave's whole length (BASE ms): the breath, the last leg's start, its glide, the settle and the read. */
   totalMs: number;
+  /** The read after the last landing (BASE ms) — the layer holds the scene this long before it ends. */
+  readMs: number;
 };
+
+/**
+ * THE RHYTHM of a track move — the one thing that differs between the two
+ * shows the ONE mechanism plays:
+ *  · `wave` — a LAW over every track (RX29 «advance each colony track 2
+ *    steps»): a breath, a stagger, countable steps with a rest between;
+ *  · `rail` — ONE chosen tile's marker set to its top (TR07 Colony
+ *    Sponsors): a short breath (the marker visibly stands where it was), then
+ *    the trade's own even rail rhythm (`glideCellMs` — the advance and the
+ *    reset legs' beat) with NO rests: it is one move, not steps with rewards.
+ */
+export type TrackMoveRhythm = 'wave' | 'rail';
 
 /** The scene breathes: the table stands still before the first marker moves. */
 export const TRACK_WAVE_BREATH_MS = 760;
@@ -418,6 +432,11 @@ export const TRACK_WAVE_READ_MS = 900;
 /** The short form's breath and stagger (reduced motion / fx-lite) — the order stays legible, the wait does not. */
 const TRACK_WAVE_REDUCED_BREATH_MS = 240;
 const TRACK_WAVE_REDUCED_STAGGER_MS = 90;
+/** The RAIL move's breath: the marker visibly stands on its cell after the answer before it moves (TR07). */
+export const TRACK_RAIL_BREATH_MS = 320;
+/** …and its read after the landing: the lock pulse and the flipped readout, before the scene hands back —
+ *  the class of the stage's own read of a landed result (`CARDLAND_READ_MS`). */
+export const TRACK_RAIL_READ_MS = 680;
 
 /** ONE leg's own length (BASE ms): the charge, the steps with their rests, the settle. */
 function legLengthMs(leg: TrackWaveLeg): number {
@@ -433,9 +452,14 @@ function legLengthMs(leg: TrackWaveLeg): number {
  * tile — a track at its end gets a leg with NO cells (the marker charges and
  * settles back, and the surface names it); the plan never invents motion.
  */
-export function trackWavePlan(moves: ReadonlyArray<{colony: ColonyName, before: number, after: number}>, opts: {reduced: boolean}): TrackWavePlan {
-  const breath = opts.reduced ? TRACK_WAVE_REDUCED_BREATH_MS : TRACK_WAVE_BREATH_MS;
+export function trackWavePlan(
+  moves: ReadonlyArray<{colony: ColonyName, before: number, after: number}>,
+  opts: {reduced: boolean, rhythm?: TrackMoveRhythm},
+): TrackWavePlan {
+  const rail = opts.rhythm === 'rail';
+  const breath = opts.reduced ? TRACK_WAVE_REDUCED_BREATH_MS : (rail ? TRACK_RAIL_BREATH_MS : TRACK_WAVE_BREATH_MS);
   const stagger = opts.reduced ? TRACK_WAVE_REDUCED_STAGGER_MS : TRACK_WAVE_STAGGER_MS;
+  const readMs = rail ? TRACK_RAIL_READ_MS : TRACK_WAVE_READ_MS;
   const legs: Array<TrackWaveLeg> = moves.map((move, index) => {
     const path: Array<number> = [];
     for (let p = move.before + 1; p <= move.after; p++) {
@@ -443,9 +467,12 @@ export function trackWavePlan(moves: ReadonlyArray<{colony: ColonyName, before: 
     }
     return {
       colony: move.colony, from: move.before, to: move.after, path,
-      startAtMs: breath + index * stagger, perCellMs: TRACK_WAVE_CELL_MS, pauseMs: TRACK_WAVE_PAUSE_MS,
+      startAtMs: breath + index * stagger,
+      // THE RAIL: the trade's own even beat, no rests — one move, never steps with rewards between them.
+      perCellMs: rail ? glideCellMs(Math.max(1, path.length)) : TRACK_WAVE_CELL_MS,
+      pauseMs: rail ? 0 : TRACK_WAVE_PAUSE_MS,
     };
   });
   const last = legs.reduce((max, leg) => Math.max(max, leg.startAtMs + legLengthMs(leg)), breath);
-  return {legs, totalMs: last + TRACK_WAVE_READ_MS};
+  return {legs, totalMs: last + readMs, readMs};
 }

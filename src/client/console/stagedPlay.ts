@@ -22,6 +22,14 @@
  * the one batch with the party answer as the ADDRESSED tail. One store, one
  * `stagedPlayActive()`, one abort battery — the target is what differs.
  *
+ * …AND A FOURTH: a COLONY TILE (the STAGED COLONY of a card that moves a chosen
+ * tile's track by being played: Turmoil Redux TR07 Colony Sponsors,
+ * docs/TURMOIL_REDUX_COLONY_SPONSORS.md). «Выбрать колонию» submits nothing:
+ * the colony grid opens INSIDE the hand workspace fed by the staged prompt
+ * (every candidate showing where its marker lands), A on a tile descends to
+ * its stage, and the stage's confirm posts the one batch with the colony
+ * answer as the ADDRESSED tail (`{type: 'colony', colonyName, stagedFor}`).
+ *
  * This module owns only the state + its tiny lifecycle; the shell owns every
  * decision (what yields, what restores, what submits) — mirroring the other
  * client-side placement hand-offs (convert-plants, a task's nested space).
@@ -29,7 +37,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {TileType} from '@/common/TileType';
-import {StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
@@ -65,11 +73,15 @@ export type PlayComposerDraft = {
  * WHAT the staged step picks before the one submit — exactly one of:
  *  · a CELL (`cell`): the board runs the pick, the space rides the batch's tail;
  *  · a RESOLUTION (`resolution`): the Parliament's vote mode runs the pick
- *    inside the workspace the card is played from, the party rides the tail.
+ *    inside the workspace the card is played from, the party rides the tail;
+ *  · a COLONY TILE (`colony`): the colony grid runs the pick inside the
+ *    workspace the card is played from, the tile's stage confirms it, the
+ *    colony rides the tail.
  */
 export type StagedPlayTarget =
   | {kind: 'cell', placement: StagedPlacementModel}
-  | {kind: 'resolution', vote: StagedVoteModel};
+  | {kind: 'resolution', vote: StagedVoteModel}
+  | {kind: 'colony', pick: StagedColonyModel};
 
 export type StagedPlayArm = {
   /**
@@ -127,6 +139,21 @@ export function stagedPlacementOf(arm: StagedPlayArm | undefined = stagedPlaySta
 /** The staged VOTE's prompt (undefined for a staged cell / nothing staged). */
 export function stagedVoteOf(arm: StagedPlayArm | undefined = stagedPlayState.arm): StagedVoteModel | undefined {
   return arm?.target.kind === 'resolution' ? arm.target.vote : undefined;
+}
+
+/** The staged COLONY pick's prompt (undefined for a staged cell / vote / nothing staged). */
+export function stagedColonyOf(arm: StagedPlayArm | undefined = stagedPlayState.arm): StagedColonyModel | undefined {
+  return arm?.target.kind === 'colony' ? arm.target.pick : undefined;
+}
+
+/**
+ * A staged target that stands as a STEP INSIDE the hand workspace (the
+ * Parliament's vote mode, the colony grid) — never the board. One question for
+ * every hosted target: the entry, the commit, B and the ending are the same
+ * phrase for both, only the frame differs.
+ */
+export function stagedHostedTarget(arm: StagedPlayArm | undefined = stagedPlayState.arm): boolean {
+  return arm?.target.kind === 'resolution' || arm?.target.kind === 'colony';
 }
 
 export function armStagedPlay(arm: StagedPlayArm): void {

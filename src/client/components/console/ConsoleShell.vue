@@ -232,7 +232,7 @@
              (`:embedded`) — one instance, one input path, one set of captures
              (workspace-embed rules 1-4; `workspaceFrameRenders` covers the
              claim-to-slot gap frame). -->
-        <Teleport :to="colonyEmbedTarget ?? 'body'" :disabled="colonyEmbedTarget === undefined">
+        <Teleport :to="colonySectionTarget ?? 'body'" :disabled="colonySectionTarget === undefined">
         <!-- `data-motion-surface` is part of what the `embedded` prop STRIPS
              (host-agnostic rule 1). Left on, the band-surface director gave a
              hosted STEP the standalone workspace-switch entrance — a full
@@ -242,17 +242,20 @@
              wrong grammar, not a missing one. Absent, the director's hooks
              pass straight through and the step's arrival is the workspace
              entry phrase the section itself speaks. -->
-        <ConsoleColoniesSection v-if="workspaceFrameRenders('colonies')"
+        <!-- (A STAGED COLONY's step — TR07 — stays MOUNTED for its host's dissolve: the hand leaves with the
+             colonies inside it as ONE surface, so the section reads the latch of the zone and the pick it stood in
+             until the hand's own leave releases it — `coloniesLeaving`.) -->
+        <ConsoleColoniesSection v-if="workspaceFrameRenders('colonies') || coloniesLeaving"
                                 ref="coloniesSection"
-                                :data-motion-surface="colonyEmbedActive ? undefined : 'section'"
-                                :embedded="colonyEmbedActive"
+                                :data-motion-surface="colonySectionTarget !== undefined ? undefined : 'section'"
+                                :embedded="colonySectionTarget !== undefined"
                                 :colonies="coloniesForRail"
                                 :index="consoleState.colonyIndex"
                                 :tradeable="tradeableColonyNames"
                                 :tradeBlockReason="colonyTradeBlockReason"
                                 :myTurn="myTurn"
                                 :awaitingInput="awaitingInput"
-                                :pick="colonyPick"
+                                :pick="coloniesLeaving ? colonyPickLatch : colonyPick"
                                 :catalog="colonyRailIsCatalog"
                                 :players="playerView.players"
                                 :viewerColor="thisPlayer.color"
@@ -264,7 +267,7 @@
                                 :thisPlayer="thisPlayer"
                                 :playerId="playerView.id"
                                 :viewVersion="`${playerView.game.gameAge}|${playerView.game.undoCount}`"
-                                :docks="colonyDocks"
+                                :docks="coloniesLeaving ? [] : colonyDocks"
                                 @dock-confirm="onFleetDockConfirm($event)"
                                 @dock-inspect="inspectFleetDock($event)"
                                 @dock-flow-complete="onFleetDockFlowComplete($event)"
@@ -1833,7 +1836,7 @@ import {
   resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
-import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {colonyStepCrumbParts, colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf, discardPickedTags,
@@ -1897,6 +1900,7 @@ import {
   colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
   colonyFocusState, closeColonyFocus, openColonyFocus, resetColonyFocus, ColonyFocusIntent,
   colonyRailIsCatalog as railIsCatalog, colonyDockCursor, fleetDockUi, resetColonyDockCursor,
+  colonyPickIntent, markColonyFocusCommitting,
 } from '@/client/console/consoleColoniesModel';
 import {colonyCursorStep, FleetDockView, fleetDockViews} from '@/client/console/colonyTrade/fleetDockModel';
 import {releaseFleetDockHoldWhenGone, endFleetDockScene, fleetDockSceneState} from '@/client/console/colonyTrade/fleetDockScene';
@@ -2148,13 +2152,19 @@ import {
   stagedPlayActive,
   stagedPlacementOf,
   stagedVoteOf,
+  stagedColonyOf,
+  stagedHostedTarget,
   armStagedPlay,
   armStagedSeal,
   markStagedPlayCommitting,
   clearStagedPlay,
 } from '@/client/console/stagedPlay';
 import type {PlayComposerDraft, StagedPlayArm} from '@/client/console/stagedPlay';
-import type {AgendaWalkModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import type {AgendaWalkModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {
+  clearColonyTrackMove, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove, registerColonyTrackMoveHost,
+} from '@/client/console/colonyTrade/colonyTrackMove';
+import {trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -2371,6 +2381,18 @@ export default defineComponent({
       handDissolveArmed: false,
       /** …and the hosted Parliament's release rides that dissolve instead of fading on its own under it. */
       parliamentLeaveRelease: undefined as (() => void) | undefined,
+      /**
+       * …and the hosted COLONIES' (a staged colony's step, TR07): the frame pops first, the section stays MOUNTED
+       * in the dissolving hand's zone (a transition outside a Teleport never sees the v-if inside it, so the
+       * section cannot play a leave of its own) and is released by the hand's dissolve. The zone and the pick it
+       * stood on are LATCHED for that leave — a leaving step re-read as a live screen re-words itself mid-fade.
+       */
+      coloniesLeaving: false,
+      colonyEmbedLatch: '',
+      colonyPickLatch: undefined as ConsoleColonyPick | undefined,
+      coloniesLeaveNet: undefined as number | undefined,
+      /** A chosen colony track's move (TR07), mirrored so the follow-up's liveness tracks it. */
+      trackMoveFlow: colonyTrackMoveFlow,
       /** The reveal QUEUE park's restore fn (registered at mount beside the board-beat probe). */
       releaseRevealQueuePark: undefined as (() => void) | undefined,
       /** …and its bounded net: a leave that never reports back may not latch the surface for the session. */
@@ -5420,7 +5442,8 @@ export default defineComponent({
       }
       // …a STAGED VOTE is a decision still open exactly as a staged cell is (the
       // latter rides `placementActive`): one reason while either stands.
-      return this.placementActive || this.mandatoryDeferredActive || this.stagedVoteModel !== undefined ?
+      return this.placementActive || this.mandatoryDeferredActive || this.stagedVoteModel !== undefined ||
+        this.stagedColonyModel !== undefined ?
         'Finish your current action first' : '';
     },
     shellTaskActive(): boolean {
@@ -5460,7 +5483,13 @@ export default defineComponent({
     // ── colony pick (T4 — a server SelectColony) ────────────────────────
     colonyModel(): SelectColonyModel | undefined {
       const wf = this.playerView.waitingFor;
-      return wf?.type === 'colony' ? (wf as SelectColonyModel) : undefined;
+      if (wf?.type === 'colony') {
+        return wf as SelectColonyModel;
+      }
+      // THE STAGED COLONY (TR07): the prompt the hand's colony step serves while the tile is chosen — field for
+      // field the SelectColony the commit WILL raise (`previewSelectColony`), so the grid, the projections and
+      // the stage read ONE model whichever door is open. A live prompt always outranks it.
+      return this.stagedColonyModel?.prompt;
     },
     colonyPick(): ConsoleColonyPick | undefined {
       const model = this.colonyModel;
@@ -5489,7 +5518,19 @@ export default defineComponent({
         // orchestration below keys on it) — it maps to the real «Trade» i18n
         // key here and is never rendered raw again.
         labelKey: buttonLabel === 'trade' ? 'Trade' : buttonLabel,
+        // A pick that MOVES the chosen tile's track (TR07) — the server's projection, read by the grid and the stage.
+        ...(model.trackMoves !== undefined ? {trackMoves: model.trackMoves} : {}),
+        // …and whether it is the STAGED door (nothing on the wire yet) or a live server prompt.
+        ...(this.playerView.waitingFor?.type !== 'colony' && this.stagedColonyModel !== undefined ? {staged: true} : {}),
       };
+    },
+    /** STAGED COLONY (TR07): the store's fourth target — the colony pick the hand's step serves before the one submit. */
+    stagedColonyModel(): StagedColonyModel | undefined {
+      return stagedColonyOf(stagedPlayState.arm);
+    },
+    /** The staged colony's commit is on the wire (the abort battery's falling edge gives the stage back). */
+    stagedColonyCommitting(): boolean {
+      return this.stagedColonyModel !== undefined && stagedPlayState.committing;
     },
     /**
      * THE RAIL IS THE ADD-A-TILE CATALOG — a pick-a-NEW-tile prompt (Aridor's
@@ -6010,7 +6051,7 @@ export default defineComponent({
       // …and while a STAGED VOTE stands: the composer is gone (the Parliament
       // took its zone) but the card has not left the hand — it is «being played».
       return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard ??
-        (this.stagedVoteModel !== undefined ? stagedPlayState.arm?.cardName : undefined);
+        (this.stagedVoteModel !== undefined || this.stagedColonyModel !== undefined ? stagedPlayState.arm?.cardName : undefined);
     },
     /**
      * TRUE exactly when the held departing-play slot can be released: the
@@ -6098,11 +6139,17 @@ export default defineComponent({
       // the tail gains «· ЭФФЕКТЫ» (and the source card's name at its detail)
       // and gives it back on B / R3; the composed string is pre-translated.
       const forecastTail = nestedStage === '' && outcomeStage === '' ? forecastStageText('play', name) : undefined;
+      // A HOSTED COLONY STEP folds the colony it carries INTO the tail — «КАРТЫ В РУКЕ › СПОНСОРЫ КОЛОНИЙ › ЛУНА ·
+      // ТРЕК» — the grammar «Действия карт» speaks for the same step (`colonyStepCrumbParts`): the subject slot is
+      // already the card's. Before a colony is picked up there is only the stage.
+      const colonyTail = workspaceFrameHost('colonies') === 'hand' && workspaceFrameSubject('colonies') !== '' ?
+        colonyStepCrumbParts(workspaceFrameSubject('colonies'), workspaceFrameStage('colonies')).map((part) => translateText(part)).join(' · ') :
+        undefined;
       return {
         subject: workspaceFrameSubject('hand'),
-        name: forecastTail ?? name,
+        name: colonyTail ?? forecastTail ?? name,
         committed: isCommitted(phase),
-        raw: forecastTail !== undefined,
+        raw: colonyTail !== undefined || forecastTail !== undefined,
       };
     },
     /**
@@ -6758,7 +6805,7 @@ export default defineComponent({
       const name = this.colonyFocus.colonyName;
       const pick = this.colonyPick;
       if (pick !== undefined) {
-        const intent: ColonyFocusIntent = pick.buttonLabel === 'Build' ? 'build' : 'pick';
+        const intent: ColonyFocusIntent = colonyPickIntent(pick);
         return {intent, label: intent === 'build' ? 'To building' : 'To selection', available: name !== '' && pick.selectable.includes(name)};
       }
       return {intent: 'trade', label: 'To trade', available: name !== '' && this.tradeableColonyNames.includes(name)};
@@ -7219,7 +7266,9 @@ export default defineComponent({
         fleetDockSceneState.holding ||
         workspaceOutcomeState.host === 'colonies' ||
         this.colonyResolutionLive ||
-        this.colonyGrantStepLive || workspaceFrameHost('parliament') === 'colonies';
+        this.colonyGrantStepLive || workspaceFrameHost('parliament') === 'colonies' ||
+        // A CHOSEN TRACK's move (TR07) the answer carried: the stage it was confirmed on plays it first.
+        this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live;
     },
     /**
      * A COLONY'S OWN DELEGATE GRANT STANDS (Turmoil Redux — the Redux Venus:
@@ -7252,6 +7301,10 @@ export default defineComponent({
     },
     colonyEmbedActive(): boolean {
       return this.colonyEmbedTarget !== undefined;
+    },
+    /** Where the colonies section renders: its frame's zone — or, while it rides its host's dissolve, the latched one. */
+    colonySectionTarget(): string | undefined {
+      return this.colonyEmbedTarget ?? (this.coloniesLeaving && this.colonyEmbedLatch !== '' ? this.colonyEmbedLatch : undefined);
     },
     /**
      * The CARD whose effect owes this colony step — the L3 «Источник» target
@@ -7987,7 +8040,8 @@ export default defineComponent({
         }
         return hydroDeeper && isDeltaRewardPickActive() ? 'Reward selection' : 'Repeat action';
       }
-      if (this.stagedVoteModel !== undefined && workspaceFrameHost('parliament') === 'hand') {
+      if ((this.stagedVoteModel !== undefined && workspaceFrameHost('parliament') === 'hand') ||
+          (this.stagedColonyModel !== undefined && workspaceFrameHost('colonies') === 'hand')) {
         // A STAGED VOTE stands: the bar reads as it will for the step's whole
         // life (a hosted step's convention — its host's root), from the frame
         // the step is pushed. The handoff's few frames otherwise walked it
@@ -8480,6 +8534,18 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        if (intent === 'track') {
+          // A CHOSEN TRACK's stage (TR07): A is the confirm — «Разыграть карту» on the staged door (it IS the
+          // play's one submit), the server's verb on a live one; X reads the colony's dossier; L3 the source card.
+          const staged = this.colonyPick?.staged === true;
+          return [
+            {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),
+              enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'secondary', label: 'Inspect'},
+            ...(this.colonyEmbedSourceCard !== undefined ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (intent !== 'trade' || !this.colonyFocusTradeable) {
           // The dossier composition: B is the only verb.
           return [{control: 'back', label: 'Back'}];
@@ -8820,7 +8886,8 @@ export default defineComponent({
             // The pick is OWED BY A CARD → the console-wide source verb.
             ...(this.colonyEmbedSourceCard !== undefined ?
               [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
-            {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
+            // A STAGED door (TR07) is one reversible level: B walks back to the composer, nothing to minimize.
+            {control: 'back', label: pick.staged === true ? 'Back' : (this.colonyCancellable ? 'Cancel' : 'Minimize')},
           ];
         }
         return [
@@ -10677,6 +10744,23 @@ export default defineComponent({
      * selection (B still walks back to the composer), the hand's beat ends,
      * and the claim made at the press answers for nothing.
      */
+    /**
+     * THE STAGED COLONY'S COMMIT WAS REFUSED (TR07 — the abort battery cleared
+     * `committing` with the arm standing): the stage is a door again on the same
+     * tile, the hand's beat ends, the claim made at the press answers for nothing.
+     */
+    stagedColonyCommitting(now: boolean, was: boolean): void {
+      if (now || !was || this.stagedColonyModel === undefined) {
+        return;
+      }
+      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
+      colonyFocusState.committing = false;
+      setWorkspaceFramePhase('hand', 'configure');
+      setWorkspaceFramePhase('colonies', 'configure');
+      if (workspaceOutcomeState.host === 'hand') {
+        releaseWorkspaceOutcome('staged-colony-refused');
+      }
+    },
     stagedVoteCommitting(now: boolean, was: boolean): void {
       if (now || !was || this.stagedVoteModel === undefined) {
         return;
@@ -10818,6 +10902,9 @@ export default defineComponent({
         // A STAGED VOTE rides the same signal with its own three outcomes
         // (LANDED · RE-ASKED · PARKED) — see `settleStagedVote`.
         this.reconcileStagedVoteWorldMove();
+      } else if (stagedColonyOf(stagedPlayState.arm) !== undefined) {
+        // …and a STAGED COLONY (TR07) the same three — see `settleStagedColony`.
+        this.reconcileStagedColonyWorldMove();
       } else if (stagedPlayActive()) {
         if (stagedPlayState.committing) {
           const arm = stagedPlayState.arm;
@@ -10830,6 +10917,12 @@ export default defineComponent({
         } else {
           this.reconcileStagedPlayWorldMove();
         }
+      }
+      // A LIVE colony pick that moved the chosen tile's track (TR07's live door — a re-ask, a reload, a door
+      // outside the staged boundary): the answer carried the move, the stage it was confirmed on plays it. The
+      // follow-up stays live through it (`colonyFollowUpLive`), so the frame hands back only once it has landed.
+      if (stagedColonyOf(stagedPlayState.arm) === undefined && colonyTrackMoveFlow.owed !== undefined) {
+        void playOwedColonyTrackMove();
       }
       const phase = this.placementFlowState.phase;
       if (!this.placementActive || phase === 'navigate') {
@@ -14416,6 +14509,14 @@ export default defineComponent({
         this.collapseWorkspace();
         return;
       }
+      // A STAGED COLONY's grid (TR07): B is ONE level — the composer comes back
+      // (nothing was sent). Past the commit a beat is in flight: B is absorbed.
+      if (stagedColonyOf(stagedPlayState.arm) !== undefined && this.consoleState.section === 'colonies' && !this.colonyFocusOpen) {
+        if (!stagedPlayState.committing) {
+          this.cancelStagedPlay();
+        }
+        return;
+      }
       // THE COLONY FOCUS STAGE: B folds ONE level back to the browse surface
       // (workspace flow: configure → browse) — before the shell-task branch,
       // so an X-opened dossier during a SelectColony pick closes to the grid
@@ -15218,7 +15319,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, agendaWalk?: AgendaWalkModel, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -15328,6 +15429,29 @@ export default defineComponent({
         // The ritual is the warm-up window: the table's illustrations are
         // decoded while the card lands, so the vote rises with its pictures in.
         preloadResolutionArt((this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution));
+        void this.beginStagedPlayLanding(pending, isEvent, arm);
+        return;
+      }
+      // STAGED COLONY (Turmoil Redux TR07 — docs/TURMOIL_REDUX_COLONY_SPONSORS.md): a play whose preview carries a
+      // `colonyPick` door submits NOTHING here. The same ritual plays, then the colony grid unfolds INSIDE this
+      // workspace, out of the zone the landing scene stood in — every candidate showing where its marker lands; A
+      // on a tile descends to its stage, A there is the play's one submit, B walks back one level. The SAME v1
+      // boundary as the staged cell and the staged vote — everything else submits and meets the pick LIVE.
+      if (payload.stagedColony !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
+          stagedRoot === 'hand' && workspaceFrameDescended('hand') && !this.playedOpen) {
+        const arm: StagedPlayArm = {
+          flow: 'play',
+          cardName: pending.cardName,
+          isEvent,
+          batch,
+          target: {kind: 'colony', pick: payload.stagedColony},
+          draws: payload.draws ?? 0,
+          deckCheck: false,
+          pending,
+          draft: payload.composerDraft,
+          yieldedStack: false,
+          receipt: pending.input.cards.find((c) => c.name === pending.cardName)?.calculatedCost,
+        };
         void this.beginStagedPlayLanding(pending, isEvent, arm);
         return;
       }
@@ -15834,7 +15958,7 @@ export default defineComponent({
         if (isColonyBuildActive()) {
           return; // a build hero is already flying — never re-enter
         }
-        this.enterColonyFocus(pick.buttonLabel === 'Build' ? 'build' : 'pick');
+        this.enterColonyFocus(colonyPickIntent(pick));
         return;
       }
       // THE STAGE IS THE DOSSIER — the one exemption to the blocked-reason
@@ -15963,6 +16087,29 @@ export default defineComponent({
       const selected = this.coloniesForRail.find((c) => c.name === name);
       if (selected === undefined || !pick.selectable.includes(selected.name)) {
         return;
+      }
+      // A STAGED COLONY (TR07): A on the stage is the PLAY's one submit — the parked batch with this tile as its
+      // ADDRESSED tail. Nothing of the live pick's path applies (there is no live prompt to answer).
+      if (pick.staged === true) {
+        this.commitStagedColony(selected.name as ColonyName);
+        return;
+      }
+      // A LIVE pick that MOVES the chosen tile's track (TR07's live door): the stage stays, pinned, and plays the
+      // move once the answer carries it (the follow-up stays live through it); the same reading as the staged door.
+      if (pick.trackMoves !== undefined) {
+        const move = trackMoveOf(pick.trackMoves, selected.name);
+        if (move !== undefined) {
+          (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+          markColonyFocusCommitting();
+          setWorkspaceFramePhase('colonies', 'committed');
+          promiseColonyTrackMove({
+            colony: selected.name as ColonyName, card: this.colonyModel?.choiceContext?.source.card,
+            before: move.before, after: move.after,
+          });
+          this.consoleState.task.deferred = false;
+          this.submit(colonyResponse(selected.name));
+          return;
+        }
       }
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
@@ -18735,6 +18882,10 @@ export default defineComponent({
         await this.enterStagedVote(arm);
         return;
       }
+      if (arm.target.kind === 'colony') {
+        await this.enterStagedColony(arm);
+        return;
+      }
       this.enterStagedPlacement(arm);
       // The proxy — the landed card's one visible body — dissolves together
       // with the workspace's own leave, never alone over the board.
@@ -18753,11 +18904,7 @@ export default defineComponent({
      * absorbed by the landing transaction until then.
      */
     async enterStagedVote(arm: StagedPlayArm): Promise<void> {
-      armStagedPlay(arm);
-      // The descent is REVERSIBLE again (the ceremony set `executing`): the
-      // decision now standing is the resolution, and B walks back from it.
-      setWorkspaceFramePhase('hand', 'configure');
-      pushWorkspaceFrame({
+      await this.enterStagedHostedStep(arm, {
         kind: 'parliament',
         subject: '',
         stage: DELEGATE_GRANT_STEP_STAGE,
@@ -18769,6 +18916,52 @@ export default defineComponent({
         nest: workspaceFrameKnown('parliament'),
         sourceCard: arm.cardName,
       });
+    },
+    /**
+     * THE STAGED HANDOFF TO THE COLONIES (TR07) — the store's fourth target,
+     * the SAME entry as the vote's: the colony grid is pushed as a step INTO the
+     * hand's own zone, out of the rect the landing scene lets go of. The cursor
+     * lands on the first candidate (no auto-select: A there only descends).
+     */
+    async enterStagedColony(arm: StagedPlayArm): Promise<void> {
+      closeColonyFocus();
+      resetColonyDockCursor();
+      const pick = stagedColonyOf(arm);
+      const first = pick === undefined ? -1 : this.coloniesForRailOf(pick.prompt).findIndex((c) =>
+        pick.prompt.coloniesModel.some((m) => m.name === c.name));
+      this.consoleState.colonyIndex = Math.max(0, first);
+      await this.enterStagedHostedStep(arm, {
+        kind: 'colonies',
+        subject: '',
+        stage: 'Colony selection',
+        phase: 'configure',
+        // It serves no prompt — none exists yet; a re-asked pick earns `colony` in `settleStagedColony`.
+        serves: [],
+        anchor: {type: 'always'},
+        sourceCard: arm.cardName,
+      });
+    },
+    /** The rail a staged pick will show — the in-game colonies (a track pick is never an add-a-tile catalog). */
+    coloniesForRailOf(prompt: SelectColonyModel): ReadonlyArray<ColonyModel> {
+      return prompt.purpose === 'addNewColonyToGame' ? prompt.coloniesModel : this.game.colonies;
+    },
+    /**
+     * THE ONE STAGED HANDOFF TO A STEP OF THE HAND (the vote's Parliament, TR03;
+     * the colonies, TR07). The batch parks, the step's frame is pushed INTO the
+     * hand's own stage zone (the one section instance, embedded), and the
+     * landing scene LETS GO where it stands: the composer and the landed card's
+     * proxy dissolve while the step's entrance surfaces out of the same rect
+     * (release → unfold → reveal, never a swap). Only once the old surface is
+     * fully gone is the composer unmounted — the hand's frame keeps its subject
+     * (the card) and its zone the whole time, so the crumb never loses the
+     * card's name. Input is absorbed by the landing transaction until then.
+     */
+    async enterStagedHostedStep(arm: StagedPlayArm, frame: Parameters<typeof pushWorkspaceFrame>[0]): Promise<void> {
+      armStagedPlay(arm);
+      // The descent is REVERSIBLE again (the ceremony set `executing`): the
+      // decision now standing is the step's, and B walks back from it.
+      setWorkspaceFramePhase('hand', 'configure');
+      pushWorkspaceFrame(frame);
       // RELEASE: what stands in the zone is the landing scene — the composer's
       // «Разыграно» stage (its setup let go at the press) and the landed card's
       // proxy above it. Both let go IN PLACE, together, while the Parliament
@@ -18787,7 +18980,7 @@ export default defineComponent({
       // by what the arm is, never by identity; B cannot have fired — the
       // transaction absorbed input — but a world move may have voided the
       // staged preview meanwhile.)
-      if (stagedVoteOf() !== undefined && stagedPlayState.arm?.cardName === arm.cardName &&
+      if (stagedHostedTarget() && stagedPlayState.arm?.cardName === arm.cardName &&
           this.pendingPlayCard?.cardName === arm.cardName) {
         this.pendingPlayCard = undefined;
         await this.$nextTick();
@@ -18849,6 +19042,39 @@ export default defineComponent({
      * armed: the landing ritual was the play's, and it has already been seen.
      */
     commitStagedVote(response: InputResponse): void {
+      this.commitStagedTail(response);
+    },
+    /**
+     * THE STAGED COLONY'S COMMIT (TR07) — A on the tile's stage. The one POST:
+     * `[projectCard + payment, …pre-collected, {colony, colonyName, stagedFor}]`.
+     * The stage pins what it shows (the commit boundary), the crumb goes amber,
+     * and the move the answer will carry is PROMISED — it is seeded from the
+     * views' diff in the apply block and played on this stage, never before.
+     */
+    commitStagedColony(colony: ColonyName): void {
+      const arm = stagedPlayState.arm;
+      const staged = stagedColonyOf(arm);
+      if (arm === undefined || staged === undefined || stagedPlayState.committing) {
+        return;
+      }
+      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      markColonyFocusCommitting();
+      setWorkspaceFramePhase('colonies', 'committed');
+      const move = trackMoveOf(staged.prompt.trackMoves, colony);
+      if (move !== undefined) {
+        promiseColonyTrackMove({colony, card: arm.cardName, before: move.before, after: move.after});
+      }
+      this.commitStagedTail({type: 'colony', colonyName: colony, stagedFor: staged.sourceCard});
+    },
+    /**
+     * THE ONE COMMIT OF A STAGED STEP (the vote's party, the colony's tile): the
+     * one POST of the whole play, the step's answer ADDRESSED to the card as the
+     * batch's tail. The frames cross their commit boundary (the hand's beat
+     * absorbs a second A), the play's outcome is claimed as for any play (a
+     * triggered draw belongs to this workspace) — and NO played-hero is armed:
+     * the landing ritual was the play's, and it has already been seen.
+     */
+    commitStagedTail(response: InputResponse): void {
       const arm = stagedPlayState.arm;
       if (arm === undefined || stagedPlayState.committing) {
         return;
@@ -18856,10 +19082,85 @@ export default defineComponent({
       markStagedPlayCommitting();
       claimPlayOutcome(arm.cardName, arm.draws);
       // The execution beat the claim withholds its surface for has ALREADY
-      // played (the card landed before the vote) — report it at once.
+      // played (the card landed before the step) — report it at once.
       markWorkspaceOutcomeBeatDone();
       setWorkspaceFramePhase('hand', 'executing');
       this.submitBatch([...arm.batch, response]);
+    },
+    /**
+     * A version move under a STAGED COLONY (TR07). Before the commit the world
+     * moved under an unsent play (its preview is void → back to the composer);
+     * after it the answer is in and the step settles into one of its three
+     * honest outcomes.
+     */
+    reconcileStagedColonyWorldMove(): void {
+      const arm = stagedPlayState.arm;
+      if (arm === undefined) {
+        return;
+      }
+      const played = this.playerView.thisPlayer.tableau.some((c) => c.name === arm.cardName);
+      if (stagedPlayState.committing || played) {
+        this.settleStagedColony(arm);
+        return;
+      }
+      this.cancelStagedPlay();
+      this.showNotice('Game state changed');
+    },
+    /**
+     * THE THREE OUTCOMES OF A STAGED COLONY'S COMMIT (the staged cell's
+     * §9-quater, mirrored once more). The play itself is real in all three.
+     *  · LANDED — the chosen tile's marker moved: the apply block held it on its
+     *    old cell and owed the move; the stage plays it, then the step and the
+     *    play end together (`endStagedColony`).
+     *  · RE-ASKED — the server dropped the tail as stale and the card's own pick
+     *    stands LIVE: the standing grid / stage becomes that live door in place
+     *    (the frame earns the prompt, nothing closes and nothing opens).
+     *  · PARKED — another prompt stands in front of the card's own: nothing
+     *    moved, so nothing moves; the step leaves, the track arrives with the
+     *    ordinary update once the server's drain lands the parked answer.
+     */
+    settleStagedColony(arm: StagedPlayArm): void {
+      const wf = this.playerView.waitingFor;
+      const reAsked = wf?.type === 'colony' && wf.choiceContext?.source.kind === 'card' && wf.choiceContext.source.card === arm.cardName;
+      if (reAsked) {
+        clearStagedPlay();
+        clearColonyTrackMove();
+        colonyFocusState.committing = false;
+        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
+        setWorkspaceFrameServes('colonies', ['colony']);
+        setWorkspaceFramePhase('colonies', 'committed');
+        setWorkspaceFramePhase('hand', 'committed');
+        const frame = workspaceStackTop();
+        if (frame !== undefined && frame.kind === 'colonies') {
+          frame.anchor = {type: 'prompt', promptType: 'colony'};
+        }
+        return;
+      }
+      if (colonyTrackMoveFlow.live) {
+        // The move is already on stage (a second view of the same answer) — its own landing ends the step.
+        return;
+      }
+      if (colonyTrackMoveFlow.owed !== undefined) {
+        void this.playStagedColonyMove(arm.cardName);
+        return;
+      }
+      // PARKED — or a lost answer whose truth a forced update brought (the card is on the table, nothing was
+      // held): nothing moved on screen, so nothing flies; the step and the play end together.
+      this.endStagedColony();
+    },
+    /** LANDED: the move plays on the stage it was confirmed on; once it has landed and been read the flow leaves. */
+    async playStagedColonyMove(cardName: CardName): Promise<void> {
+      await playOwedColonyTrackMove();
+      // Only the flow that started the move ends here (a B / abort meanwhile already ended it).
+      if (stagedColonyOf(stagedPlayState.arm) !== undefined && stagedPlayState.arm?.cardName === cardName) {
+        this.endStagedColony();
+      }
+    },
+    /** The staged colony's step and the play it belonged to end together — the hand's one guarded conclusion takes the whole stack. */
+    endStagedColony(): void {
+      clearStagedPlay();
+      clearColonyTrackMove();
+      this.endHandWithHostedStep();
     },
     /**
      * A version move under a staged vote. Before the commit the world moved
@@ -18939,11 +19240,33 @@ export default defineComponent({
      * in place, inside the zone the outcome is arriving into.
      */
     endHandWithHostedStep(): void {
-      if (workspaceStackTop()?.kind === 'parliament' && workspaceFrameHost('parliament') === 'hand') {
+      // The hosted STEP (the Parliament's vote / walk, the staged colony's grid) pops first — it is the top frame.
+      const top = workspaceStackTop();
+      const hosted = top !== undefined && (top.kind === 'parliament' || top.kind === 'colonies') &&
+        workspaceFrameHost(top.kind) === 'hand' ? top.kind : undefined;
+      if (hosted === 'colonies') {
+        // LATCHED before the pop: the zone and the pick the step stood on (see `coloniesLeaving`).
+        this.colonyEmbedLatch = this.colonyEmbedTarget ?? '';
+        this.colonyPickLatch = this.colonyPick;
+      }
+      if (hosted !== undefined) {
         popWorkspaceFrame();
       }
       this.endPlayCardFlow();
       this.handDissolveArmed = !workspaceFrameKnown('hand');
+      if (hosted === 'colonies') {
+        if (this.handDissolveArmed && this.colonyEmbedLatch !== '') {
+          // The hand leaves: the colonies ride its dissolve, mounted in its zone, released by its own leave.
+          this.coloniesLeaving = true;
+          window.clearTimeout(this.coloniesLeaveNet);
+          this.coloniesLeaveNet = window.setTimeout(() => this.releaseColoniesLeave(), PARLIAMENT_LEAVE_NET_MS);
+        } else {
+          // The hand HOLDS (the play still owes something): the step lets go in place.
+          this.colonyEmbedLatch = '';
+          this.colonyPickLatch = undefined;
+          closeColonyFocus();
+        }
+      }
       // The hook consumes the flag inside the flush that drops the section; a
       // flush that never called it (no section stood) may not leave the flag —
       // or the step's handed-over release — behind.
@@ -18951,9 +19274,23 @@ export default defineComponent({
         if (this.handDissolveArmed) {
           this.handDissolveArmed = false;
           this.parliamentLeaveRelease?.();
+          this.releaseColoniesLeave();
         }
       });
     },
+    /** The hosted colonies' ride is over (the hand's dissolve ended, or its net): the section may unmount now. */
+    releaseColoniesLeave(): void {
+      window.clearTimeout(this.coloniesLeaveNet);
+      this.coloniesLeaveNet = undefined;
+      if (!this.coloniesLeaving) {
+        return;
+      }
+      this.coloniesLeaving = false;
+      this.colonyEmbedLatch = '';
+      this.colonyPickLatch = undefined;
+      closeColonyFocus();
+    },
+
     /**
      * THE HAND'S ONE LEAVE HOOK. Every ordinary ending of the hand releases at
      * once (the hook exists for one case and must change nothing else — a
@@ -18969,6 +19306,7 @@ export default defineComponent({
       const finish = (): void => {
         done();
         this.parliamentLeaveRelease?.();
+        this.releaseColoniesLeave();
       };
       if (!armed || !(el instanceof HTMLElement) || consoleReducedMotionActive() || typeof el.animate !== 'function') {
         finish();
@@ -19058,13 +19396,18 @@ export default defineComponent({
         clearStagedPlay();
         return;
       }
-      if (arm.target.kind === 'resolution') {
-        // B OUT OF A STAGED VOTE — one level: the Parliament's frame leaves (its
-        // hosted dissolve, in place) and the composer comes back into the same
-        // zone from the parked draft, payment and focus intact. Nothing was
-        // sent, so there is nothing to undo.
-        if (workspaceStackTop()?.kind === 'parliament' && workspaceFrameHost('parliament') === 'hand') {
+      if (arm.target.kind === 'resolution' || arm.target.kind === 'colony') {
+        // B OUT OF A STAGED STEP — one level: the step's frame leaves (the
+        // Parliament's hosted dissolve; the colonies' own leave) and the
+        // composer comes back into the same zone from the parked draft, payment
+        // and focus intact. Nothing was sent, so there is nothing to undo.
+        const step = arm.target.kind === 'resolution' ? 'parliament' : 'colonies';
+        if (workspaceStackTop()?.kind === step && workspaceFrameHost(step) === 'hand') {
           popWorkspaceFrame();
+        }
+        if (step === 'colonies') {
+          closeColonyFocus();
+          clearColonyTrackMove();
         }
         setPlayComposerStagedDraft(arm.draft);
         setWorkspaceFramePhase('hand', 'configure');
@@ -20203,6 +20546,8 @@ export default defineComponent({
     },
   },
   mounted() {
+    // A CHOSEN TRACK's move (TR07) is seeded only while the stage that will play it stands — the shell knows.
+    registerColonyTrackMoveHost((colony) => workspaceFrameKnown('colonies') && this.colonyFocus.open && this.colonyFocus.colonyName === colony);
     // The e2e readiness probe (`window.__conReady`) — read-only snapshots of
     // the holds/transport/stack facts this shell already stands on. Installed
     // here so the aggregator adds no new edges to any import graph.
@@ -20542,6 +20887,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    registerColonyTrackMoveHost(undefined);
     this.offIntent?.();
     this.offWsPresence?.();
     this.offHydroWitnesses?.();

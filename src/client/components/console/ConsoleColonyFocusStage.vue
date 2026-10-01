@@ -80,6 +80,7 @@
          'con-colfocus--carding-rail': cardlandVisible && intent === 'build',
        }]"
        :data-colony-intent="intent"
+       :data-colony-track-degraded="intent === 'track' && trackMoveFlow.degraded !== '' ? trackMoveFlow.degraded : undefined"
        :style="fitNeedPx > 0 ? {'--colfocus-need': fitNeedPx + 'px'} : undefined">
     <div class="con-colfocus__surface" data-unfold-surface>
       <!-- THE EDGE IS NOT THE SUBJECT. The stage's boundary is a separate,
@@ -165,7 +166,7 @@
              data-unfold-late>
           <template v-if="presentAvailable">
             <span class="con-coltile__status-dot" aria-hidden="true"></span>
-            <span>{{ $t(intent === 'build' ? 'Build here' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
+            <span>{{ $t(intent === 'build' ? 'Build here' : intent === 'track' ? 'Can select' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
           </template>
           <!-- The turn gate is not a refusal: every trade rule is satisfied and
                the colony would take the fleet — it is simply not this player's
@@ -230,6 +231,8 @@
                                       :viewerColor="viewerColor"
                                       :latchCell="latchCell"
                                       :settledCell="settledCell"
+                                      :touchedCell="touchedCell"
+                                      :offsetCaption="intent === 'track' ? 'The marker moves to the top' : 'Your trade advances the track first'"
                                       :buildPreview="buildPreview" />
 
         <!-- ── THE ACTION CONFIGURATION — adaptive by mode: never an empty
@@ -464,7 +467,41 @@
              made of, and what does everyone else get. The middle block is the
              arithmetic made visible; the last one is deliberately OUTSIDE the
              total (it used to sit beside it, reading as part of the payout). -->
-        <template v-if="intent !== 'build'">
+        <!-- A CHOSEN TRACK'S MOVE (TR07): «ТОРГОВЛЯ ЗДЕСЬ» — what a trade with this tile pays with the
+             marker where it stands, and where it will stand. The owners' bonus does not depend on the track
+             and is not printed; a tile's fixed income part stands at both ends. The readout above it is the
+             tile's own («3/7 → 7/7»): it flips on the landing, and the «after» end answers once then. -->
+        <template v-if="intent === 'track' && trackReading !== undefined">
+          <div class="con-colfocus__rsec con-colfocus__rsec--lead" data-colony-track-reading>
+            <div class="con-colfocus__trackpos" data-colony-track-readout data-unfold-late>
+              <ConsoleFlipValue :value="markerPosition" :text="markerDisplay" accent="cyan" />
+              <template v-if="markerPosition < trackReading.after.position">
+                <span class="con-colfocus__trackpos-arrow" aria-hidden="true">→</span>
+                <b class="con-colfocus__trackpos-to">{{ trackReading.after.display }}</b>
+                <span class="con-colfocus__trackpos-steps">+{{ trackReading.steps }}</span>
+              </template>
+            </div>
+            <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t('Trade here') }}</div>
+            <div class="con-colfocus__trackread">
+              <span v-for="end in trackReadingEnds" :key="end.key"
+                    class="con-colfocus__trackread-end"
+                    :class="['con-colfocus__trackread-end--' + end.key, {'con-colfocus__trackread-end--answer': end.key === 'after' && trackLanded}]"
+                    :data-colony-track-end="end.key">
+                <span v-if="trackFixedBenefit !== undefined" class="con-colfocus__trackread-fixed">
+                  <BenefitGlyph :benefit="trackFixedBenefit" :idx="0" :cardResources="cardResourceKinds" />
+                  <span aria-hidden="true">+</span>
+                </span>
+                <b v-if="end.end.quantity > 1 || (end.end.levy && end.end.quantity > 0)"
+                   :class="{'con-colfocus__trackread-qty--levy': end.end.levy}">{{ end.end.levy ? '−' : '' }}{{ end.end.quantity }}</b>
+                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
+                  <BenefitGlyph :benefit="end.end.benefit" :idx="end.end.position" :cardResources="cardResourceKinds" />
+                </span>
+                <span v-if="end.key === 'before'" class="con-colfocus__trackread-arrow" aria-hidden="true">→</span>
+              </span>
+            </div>
+          </div>
+        </template>
+        <template v-else-if="intent !== 'build'">
           <div class="con-colfocus__rsec con-colfocus__rsec--lead">
             <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable && intent !== 'pick' ? 'Your total' : 'On the current level') }}</div>
             <template v-for="total in rewardPackage.totals" :key="total.key">
@@ -695,7 +732,7 @@ import {
   buildSteps,
   buildNotices,
 } from '@/client/components/colonies/colonyTradePlan';
-import {presentedColonyModel, colonyTradeState, colonyTrackAdvancing, setColonyStageYielded} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {presentedColonyModel, colonyTradeState, colonyTrackAdvancing, colonyTrackWaveState, setColonyStageYielded} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
   ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations,
   presentedTargetModel,
@@ -724,6 +761,10 @@ import {
 } from '@/client/console/consoleActionOutcomeMotion';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ConsoleColonyTrackInstrument from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
+import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
+import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
+import {ColonyTrackMoveReading, colonyTrackMoveReading, TrackMoveBenefit, TrackMoveEnd} from '@/client/console/colonyTrade/colonyTrackMoveModel';
+import {colonyTrackMoveFlow} from '@/client/console/colonyTrade/colonyTrackMove';
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -827,7 +868,7 @@ export default defineComponent({
   name: 'ConsoleColonyFocusStage',
   components: {
     BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
-    ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleColonyTrackInstrument, ConsolePlanetDisc,
+    ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
   },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
@@ -859,8 +900,15 @@ export default defineComponent({
     tradeOffset: {type: Number, default: 0},
     /** The chosen payment path's own advance the PREVIEW was fetched with (the section echoes `path-offset` back). */
     pathOffset: {type: Number, default: 0},
+    /**
+     * THE SERVER'S PROJECTION of this tile's marker (`track` intent — TR07:
+     * `SelectColonyModel.trackMoves`): where it stands and where the pick puts
+     * it. The instrument's ghost, the «+N» and the «торговля здесь» reading
+     * are drawn from it; the stage computes none of it.
+     */
+    trackMove: {type: Object as PropType<ColonyTrackMove | undefined>, default: undefined},
   },
-  emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset'],
+  emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset', 'inspect'],
   data() {
     return {
       payIdx: 0,
@@ -903,6 +951,9 @@ export default defineComponent({
       tradeFleetState,
       colonyTradeState,
       colonyBuildState,
+      /** The ONE track mechanism's wave (a chosen track's move plays here — TR07) and its flow, mirrored for tracking. */
+      colonyTrackWaveState,
+      trackMoveFlow: colonyTrackMoveFlow,
       workspaceOutcomeState,
       /** The remote-entry context (module reactive, mirrored for tracking). */
       bonusEntry: colonyBonusEntry,
@@ -975,7 +1026,10 @@ export default defineComponent({
     resolving(): boolean {
       return (this.tradeFleetState.active && this.tradeFleetState.colonyName === this.colony.name) ||
         (this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name) ||
-        (this.colonyBuildState.active && this.colonyBuildState.colonyName === this.colony.name);
+        (this.colonyBuildState.active && this.colonyBuildState.colonyName === this.colony.name) ||
+        // …and a CHOSEN TRACK's move playing on this very stage (TR07).
+        (this.colonyTrackWaveState.active && this.colonyTrackWaveState.anchors === 'stage' &&
+          this.colonyTrackWaveState.moves.some((move) => move.colony === this.colony.name));
     },
     /**
      * THE SOURCE CONTEXT of the running resolution (the hero's chip). The
@@ -1123,6 +1177,9 @@ export default defineComponent({
       if (this.intent === 'pick') {
         return 'pick';
       }
+      if (this.intent === 'track') {
+        return 'track';
+      }
       if (this.intent === 'bonus') {
         return 'bonus';
       }
@@ -1148,7 +1205,34 @@ export default defineComponent({
       // Pick / inspect: the first group inside is ALREADY labelled «On the
       // current level» — repeating it as the section title read as a stutter
       // (the 4K removal-pick frame). The section states its subject instead.
+      if (this.intent === 'track') {
+        return 'Colony track';
+      }
       return this.intent === 'trade' && this.presentAvailable ? 'Trade outcome' : 'Colony rewards';
+    },
+    /** The server's projected move read the way the surfaces print it (`track` intent only). */
+    trackReading(): ColonyTrackMoveReading | undefined {
+      return this.intent === 'track' && this.trackMove !== undefined ? colonyTrackMoveReading(this.metadata, this.trackMove) : undefined;
+    },
+    trackReadingEnds(): Array<{key: 'before' | 'after', end: TrackMoveEnd}> {
+      const r = this.trackReading;
+      return r === undefined ? [] : [{key: 'before', end: r.before}, {key: 'after', end: r.after}];
+    },
+    trackFixedBenefit(): TrackMoveBenefit | undefined {
+      const fixed = this.trackReading?.fixed;
+      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
+    },
+    /** The marker's readout — the tile's own «3/7». */
+    markerDisplay(): string {
+      return `${this.markerPosition + 1}/${this.trackMax + 1}`;
+    },
+    /** The chosen track's marker has LANDED at the top (the hold released under the settled proxy). */
+    trackLanded(): boolean {
+      return this.trackReading !== undefined && this.settledCell === this.trackReading.after.position;
+    },
+    /** The furthest cell a moving marker has touched on THIS tile — −1 when nothing moves. */
+    touchedCell(): number {
+      return this.colonyTrackWaveState.active ? (this.colonyTrackWaveState.touched[this.colony.name] ?? -1) : -1;
     },
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
@@ -1176,6 +1260,10 @@ export default defineComponent({
       return this.pinnedConfig !== undefined ? this.pinnedConfig.tradeOffset : this.tradeOffset + this.chosenPathOffset;
     },
     effectivePosition(): number {
+      // A CHOSEN TRACK's move: the cell is the server's projection (the top), never a trade's offset.
+      if (this.intent === 'track' && this.trackMove !== undefined) {
+        return Math.min(this.trackMove.after, this.trackMax);
+      }
       const offset = this.colony.isActive ? this.presentedOffset : 0;
       return effectiveTradePosition(this.presented, this.metadata, offset);
     },
@@ -1210,7 +1298,9 @@ export default defineComponent({
      *  flying proxy (the overview tile's `--marker-gliding` contract, now
      *  honoured on the stage the trade actually resolves on). */
     trackGliding(): boolean {
-      return this.colonyTradeState.phase === 'glide' && this.colonyTradeState.colonyName === this.colony.name;
+      return (this.colonyTradeState.phase === 'glide' && this.colonyTradeState.colonyName === this.colony.name) ||
+        // …or the ONE track mechanism moving this tile's marker (a chosen track set to its top — TR07).
+        this.colonyTrackWaveState.gliding[this.colony.name] === true;
     },
     /** The teleported follow-up has actually landed in our zone. */
     outcomeContentIn(): boolean {
@@ -1243,7 +1333,10 @@ export default defineComponent({
     },
     /** One-shot: the cell the reset marker just landed on (the settle glow). */
     settledCell(): number {
-      return this.colonyTradeState.colonyName === this.colony.name ? this.colonyTradeState.settledCell : -1;
+      if (this.colonyTradeState.colonyName === this.colony.name) {
+        return this.colonyTradeState.settledCell;
+      }
+      return this.colonyTrackWaveState.settled[this.colony.name] ?? -1;
     },
     buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const b = this.metadata.build;
@@ -1902,7 +1995,7 @@ export default defineComponent({
       if (!this.actionAvailable) {
         return false;
       }
-      if (this.intent === 'pick') {
+      if (this.intent === 'pick' || this.intent === 'track') {
         return true;
       }
       if (this.intent === 'build') {
@@ -2384,6 +2477,11 @@ export default defineComponent({
         setColonyFocusStage('Selection');
         return;
       }
+      // A CHOSEN TRACK's stage — «… › ЛУНА · ТРЕК» (the host folds the colony and the stage into one tail).
+      if (this.intent === 'track') {
+        setColonyFocusStage('Track');
+        return;
+      }
       if (this.intent === 'bonus') {
         // The stage the player is on is the BONUS itself; the payout's own
         // surface renames the tail as it advances («ДОБОР КАРТ», «СБРОС КАРТЫ»)
@@ -2568,7 +2666,7 @@ export default defineComponent({
         // ask something (its placement bonus needs a card) speaks the trade's
         // grammar instead — A opens the focused decision, X commits — so one
         // press can never mean «выбрать» and «построить» on the same screen.
-        if (this.sub === undefined && (this.intent === 'pick' || (this.intent === 'build' && !this.hasDecisions))) {
+        if (this.sub === undefined && (this.intent === 'pick' || this.intent === 'track' || (this.intent === 'build' && !this.hasDecisions))) {
           if (this.canConfirm) {
             this.$emit(this.intent === 'build' ? 'build-confirm' : 'pick-confirm');
           }
@@ -2577,6 +2675,14 @@ export default defineComponent({
         this.onConfirmPress();
         return;
       case 'inspect':
+        // A CHOSEN TRACK's stage (TR07): X is the console's ordinary «Осмотреть» — the colony's dossier.
+        // The confirm here is A; there is nothing composed for X to commit.
+        if (this.intent === 'track' && this.sub === undefined) {
+          if (!this.pastCommit) {
+            this.$emit('inspect');
+          }
+          return;
+        }
         // X = the one final confirm of a composed act (only when every
         // decision is in) — the trade, and a build that had decisions.
         if (this.sub === undefined && this.canConfirm &&
@@ -3006,6 +3112,19 @@ export default defineComponent({
      *  the confirm (a hold with no submit behind it would gate input forever
      *  — the transaction that releases it would never start). Released by
      *  the transaction's falling edge. */
+    /**
+     * THE COMMIT DID NOT HOLD (a refused answer; the server re-asked the
+     * pick live): the pinned presentation lets go, so the stage is a door
+     * again — its verdict, its confirm and its configuration re-derive from
+     * the live props. Nothing of a move was shown, so nothing is undone.
+     */
+    releasePresentation(): void {
+      this.heldView = undefined;
+      this.pinnedConfig = undefined;
+      this.commitLatched = false;
+      this.publishStageName();
+      this.syncUiMirror();
+    },
     holdPresentation(): void {
       // Arm the outcome origin while the configuration surface still stands —
       // its rect is what the follow-up's zone will unfold from.

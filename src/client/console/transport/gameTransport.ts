@@ -104,6 +104,7 @@ import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRe
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -597,6 +598,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // paying step's bonus owed — ONLY when the hand that played the card (or an open Parliament) is there to
   // play it; seeded after the quest's for the same reason as the quest's after the ledger's.
   seedAgendaWalkHolds(currentView(), newView);
+  // …and a CHOSEN COLONY TRACK's move (TR07 Colony Sponsors — «move its marker to the highest position»):
+  // the promised tile held on its old cell until the stage it was confirmed on plays the glide — ONLY while
+  // that stage stands (a hold nobody plays would freeze the track).
+  seedColonyTrackMoveHolds(currentView(), newView);
   // …and ANOTHER SEAT'S DELEGATE that arrived with this response (a rival's
   // vote, MarsBot's Party Politics / Lobbying): its ribbon cube is hidden
   // and its flight queued in this very block, or it paints before it flies.
@@ -1242,6 +1247,8 @@ function abortAllConsoleTransactions(): void {
   // …and a STAGED play's commit: the batch never landed, so the staged play
   // is simply «not yet sent» again — still cancellable, still retryable.
   abortStagedPlayCommit();
+  // …and a chosen colony track's move (TR07): the answer was refused, nothing moved — no promise, no hold.
+  clearColonyTrackMove();
   // …and the nomad move: the camp never lifts off, nothing is collected.
   transportHolds.nomadMove = false;
   abortNomadMove();

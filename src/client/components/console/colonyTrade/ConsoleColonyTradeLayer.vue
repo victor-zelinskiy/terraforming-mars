@@ -51,12 +51,11 @@ import {probeTick} from '@/client/console/probeTick';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  colonyPayoutPending, colonyTrackWavePlan, colonyTrackWaveState, colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState,
+  colonyPayoutPending, colonyTrackWavePlan, colonyTrackWaveState, noteColonyTrackWaveTouched, colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState,
   finishColonyTrackAdvance, finishColonyTrackReset, finishColonyTrackWave, isColonyTradeRevealStaged,
   markColonyTradeZoomReady, noteColonyTrackWaveGliding, noteColonyTrackWaveLanded, registerColonyTradeZoomOrigin, setColonyTradeBeat,
   setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
-import {TRACK_WAVE_READ_MS} from '@/client/console/colonyTrade/colonyTradeModel';
 import {
   TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, TRADE_LIFTOFF_AT_F,
   tradeCoverPlan, TradeCoverPlanEntry,
@@ -861,8 +860,11 @@ export default defineComponent({
         finishColonyTrackWave('no plan');
         return;
       }
-      // The overview tile's strip — the wave plays on the hosted grid, never on a focus stage.
+      // WHERE the move plays: a LAW's wave on the hosted grid's tiles (never on a focus stage); a CHOSEN tile's
+      // move (TR07) on the stage it was confirmed on first — its big instrument — the tile as the fallback.
+      const onStage = colonyTrackWaveState.anchors === 'stage';
       const cellEl = (name: string, pos: number) => pickAnchor([
+        ...(onStage ? [`.con-colfocus [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`] : []),
         `[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`,
       ]);
       const legs = plan.legs;
@@ -911,6 +913,8 @@ export default defineComponent({
           reduced: colonyTrackWaveState.reduced,
           onStart: () => noteColonyTrackWaveGliding(leg.colony, true),
           onCellPassed: (k) => {
+            // THE TOUCH: the crossed cell lights up as passed and its income answers once (the surfaces read it).
+            noteColonyTrackWaveTouched(leg.colony, leg.path[k]);
             // The passed cell's one impulse — the cell itself, and only it (the neighbours stand still).
             const cell = cellEls[k];
             if (cell !== null && cell !== undefined && !colonyTrackWaveState.reduced) {
@@ -926,7 +930,7 @@ export default defineComponent({
             landed++;
             if (landed === legs.length) {
               // THE READ: the table is looked at for a beat before the scene is declared over.
-              ctx.waveHandles.push({kill: gsap.delayedCall(motionMs(TRACK_WAVE_READ_MS) / 1000, () => finishColonyTrackWave('landed')).kill});
+              ctx.waveHandles.push({kill: gsap.delayedCall(motionMs(plan.readMs) / 1000, () => finishColonyTrackWave('landed')).kill});
             }
           },
         }));

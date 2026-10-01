@@ -1684,6 +1684,13 @@ export default defineComponent({
           if (key !== undefined) {
             out.push(noteRow(translateText(key)));
           }
+        } else if (s.kind === 'colonyPick') {
+          // THE COLONY DOOR's own row (TR07): «Трек колонии — выбор в «Колониях»» — where the marker lands is
+          // read on each tile of the grid, never guessed here before the tile is chosen.
+          const key = playDoorNextStepKey({kind: 'colonies', staged: s.staged});
+          if (key !== undefined) {
+            out.push(noteRow(translateText(key)));
+          }
         } else if (s.kind === 'agendaWalk') {
           // THE SHOW STEP's own row (TR04): the name of the coming stage and what the marker will do there —
           // from the server's own reading of the walk, the cut at the track's end named («1 из 2 · конец трека»).
@@ -1831,7 +1838,7 @@ export default defineComponent({
         primary: this.primaryActionState,
         // The vote's door names itself in the bar exactly as on the rail («Выбрать резолюцию»): the press
         // opens the Parliament, it does not finish the play. (The board's door keeps its historical bar verb.)
-        doorVerb: this.playDoor?.kind === 'parliament' ? playCommitVerb(this.playDoor) : undefined,
+        doorVerb: this.playDoor?.kind === 'parliament' || this.playDoor?.kind === 'colonies' ? playCommitVerb(this.playDoor) : undefined,
       });
     },
     /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
@@ -3866,6 +3873,9 @@ export default defineComponent({
         // the shell parks the batch and opens the Parliament's vote mode inside
         // this workspace; the resolution confirmed there is the play's one submit.
         stagedVote: this.playDoor?.kind === 'parliament' ? this.playDoor.staged : undefined,
+        // STAGED COLONY (Turmoil Redux TR07): the branch's `colonyPick` door — the shell parks the batch and
+        // opens the colony grid inside this workspace; the tile confirmed on its stage is the play's one submit.
+        stagedColony: this.playDoor?.kind === 'colonies' ? this.playDoor.staged : undefined,
         // «КАРЬЕРА» (Turmoil Redux TR04): the branch's SHOW step — the marker's walk the play will produce. Not a
         // door (nothing is chosen, the play submits here as any other): the shell reads it to owe the hosted
         // outcome to this workspace from the press on.

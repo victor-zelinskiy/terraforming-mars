@@ -9363,6 +9363,9 @@ html.console-mode {
         gap: .8rem;
         min-width: 0;
     }
+    /* The FLEET BERTH of a hosted colony step (TR07) — the action centre's own cell, word for word: a flex
+       cell of the header's trailing zone, no plate (the teleported dock brings its chassis). */
+    &__fleetberth { display: inline-flex; align-items: center; min-height: 1.5rem; }
     &__count {
         font-size: .8rem;
         letter-spacing: .02rem;
@@ -18721,7 +18724,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        less height than the standalone workspace, and the tall token there
        meant `min(100%, …)` resolved to the host and the content spilled out of
        the frame's bottom edge. */
-    &--build, &--pick { --colfocus-h: 21.5rem; }
+    /* …and a CHOSEN TRACK's stage (TR07): the instrument and the «торговля здесь» reading — nothing to configure. */
+    &--build, &--pick, &--track { --colfocus-h: 21.5rem; }
     /* A LIVE FOLLOW-UP KEEPS THE ACTION HEIGHT. Past the commit the server has
        taken the pick away, so the mode re-derives to `inspect` — and the panel
        would shrink by a third UNDER the payout it is presenting, starving the
@@ -19053,6 +19057,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--willprotect { box-shadow: inset 0 0 0 .08rem fade(@con-mint, 55%); }
         /* The landed-marker settle (one-shot, driven by the transaction). */
         &--settled { animation: con-colfocus-settle calc(560ms * var(--motion-scale, 1)) ease-out 1; }
+        /* A MOVING marker's TOUCH (TR07 — a chosen track set to its top): the crossed cell's income
+           answers ONCE, on the touch — a one-shot, never a loop (the cell is `--passed` from the same touch). */
+        &--answer .con-colfocus__xcell-glyph {
+            animation: con-colfocus-answer calc(420ms * var(--motion-scale, 1)) ease-out 1;
+        }
     }
     &__xcell-num {
         font-size: .66rem;
@@ -20214,6 +20223,54 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     /* The LEAD group is what the player came for — it gets the weight. */
     &__rsec--lead { padding-bottom: .38rem; }
+    /* A CHOSEN TRACK's move (TR07): the tile's own readout «3/7 → 7/7 +4» — the ONE number that flips on
+       the landing — over «ТОРГОВЛЯ ЗДЕСЬ», the income a trade here pays now → after. Content-sized, one line. */
+    &__trackpos {
+        display: flex;
+        align-items: baseline;
+        gap: .35rem;
+        font-size: 1.15rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        margin-bottom: .2rem;
+    }
+    &__trackpos-arrow { color: fade(@con-text-dim, 85%); font-weight: 600; }
+    &__trackpos-to { color: @con-mint; }
+    &__trackpos-steps {
+        font-size: .82rem;
+        font-weight: 800;
+        color: @con-mint;
+    }
+    &__trackread {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: .4rem;
+        min-width: 0;
+    }
+    &__trackread-end {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .95rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text-dim;
+
+        &--after { color: @con-mint; }
+        /* …and it ANSWERS ONCE when the marker lands on it (a one-shot, never a loop). */
+        &--answer { animation: con-colfocus-answer calc(420ms * var(--motion-scale, 1)) ease-out 1; }
+    }
+    &__trackread-fixed {
+        display: inline-flex;
+        align-items: center;
+        gap: .1rem;
+        zoom: var(--con-ui-scale, 1);
+        .benefit-glyph__num { display: none; }
+    }
+    &__trackread-qty--levy { color: @con-amber; }
+    &__trackread-arrow { color: fade(@con-text-dim, 85%); font-weight: 600; margin-left: .1rem; }
     &__rsec-label {
         font-size: .6rem;
         font-weight: 700;
@@ -20406,6 +20463,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 }
 
 /* The landed marker's settle — the cell the reset glide finished on. */
+@keyframes con-colfocus-answer {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+}
+
 @keyframes con-colfocus-settle {
     0%   { box-shadow: inset 0 0 0 .12rem fade(@con-cyan, 95%), 0 0 1.5rem fade(@con-cyan, 40%); }
     100% { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 1rem fade(@con-cyan, 20%); }

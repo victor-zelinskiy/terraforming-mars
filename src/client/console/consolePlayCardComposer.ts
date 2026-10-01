@@ -30,7 +30,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
-import {ActionEffect, ActionPreviewBranch, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import type {Units} from '@/common/Units';
 import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActionComposer';
@@ -218,19 +218,26 @@ export function playChoiceMode(
  *                   cell is picked on the board (docs/TILE_PLAY_STAGED_COMMIT.md);
  *  · `parliament` — a `delegateGrant` step (Turmoil Redux TR03): the resolution
  *                   is picked in the Parliament's vote mode, hosted inside the
- *                   workspace the card is played from.
+ *                   workspace the card is played from;
+ *  · `colonies`   — a `colonyPick` step (Turmoil Redux TR07): the colony TILE is
+ *                   picked in the colony grid, hosted inside the workspace the
+ *                   card is played from, and confirmed on the tile's stage.
  * ONE classification, read by the CTA's words, the command bar's verb, the
  * «what happens next» row and the confirm payload alike.
  */
 export type PlayDoor =
   | {kind: 'board', staged: StagedPlacementModel}
-  | {kind: 'parliament', staged: StagedVoteModel};
+  | {kind: 'parliament', staged: StagedVoteModel}
+  | {kind: 'colonies', staged: StagedColonyModel};
 
 /** The branch's door, if it has one — the FIRST such step (a multi-tile card commits on its first cell). */
 export function playDoorOf(branch: ActionPreviewBranch | undefined): PlayDoor | undefined {
   for (const step of branch?.steps ?? []) {
     if (step.kind === 'delegateGrant') {
       return {kind: 'parliament', staged: step.staged};
+    }
+    if (step.kind === 'colonyPick') {
+      return {kind: 'colonies', staged: step.staged};
     }
     if (step.kind === 'boardPlacement' && step.staged !== undefined) {
       return {kind: 'board', staged: step.staged};
@@ -262,6 +269,7 @@ export function playCommitVerb(door: PlayDoor | undefined): string {
   switch (door?.kind) {
   case 'board': return 'Play on the board';
   case 'parliament': return 'Choose the resolution';
+  case 'colonies': return 'Choose the colony';
   default: return 'Play card';
   }
 }
@@ -272,7 +280,11 @@ export function playCommitVerb(door: PlayDoor | undefined): string {
  * a guess about its result.
  */
 export function playDoorNextStepKey(door: PlayDoor | undefined): string | undefined {
-  return door?.kind === 'parliament' ? 'Resolution — chosen in the Parliament' : undefined;
+  switch (door?.kind) {
+  case 'parliament': return 'Resolution — chosen in the Parliament';
+  case 'colonies': return 'Colony track — chosen in the Colonies';
+  default: return undefined;
+  }
 }
 
 // ── Copied-production fold (Cyberia Systems / Robotic Workforce) ─────────────

@@ -185,6 +185,14 @@ export default defineComponent({
     colony: {type: Object as PropType<ColonyModel>, required: true},
     /** The viewer's standing trade offset (Trading Colony etc.). */
     tradeOffset: {type: Number, default: 0},
+    /**
+     * THE PROJECTED POSITION — where a pick would put this tile's marker, by
+     * the SERVER's projection (TR07: `SelectColonyModel.trackMoves`, the top).
+     * When set it IS the cell the tile reads (the ghost marker, «+N», the
+     * reward at that cell); absent (−1), the tile projects the trade exactly
+     * as before (the standing offset through `effectiveTradePosition`).
+     */
+    projectedPosition: {type: Number, default: -1},
     focused: {type: Boolean, default: false},
     /** Brief post-launch settle: the fleet just docked here (owner-hue seat). */
     justDocked: {type: Boolean, default: false},
@@ -259,9 +267,16 @@ export default defineComponent({
       return this.metadata.colony.quantity ?? 1;
     },
     effectivePosition(): number {
+      if (this.projectedPosition >= 0) {
+        return Math.min(this.projectedPosition, this.trackMax);
+      }
       // Only an ACTIVE colony can be traded with — the offset ghost is noise otherwise.
       const offset = this.colony.isActive ? this.tradeOffset : 0;
       return effectiveTradePosition(this.presented, this.metadata, offset);
+    },
+    /** The furthest cell a moving marker has TOUCHED (a track move in flight) — −1 when none. */
+    touchedCell(): number {
+      return colonyTrackWaveState.active ? (colonyTrackWaveState.touched[this.colony.name] ?? -1) : -1;
     },
     offsetSteps(): number {
       return Math.max(0, this.effectivePosition - this.displayedTrackPosition);
@@ -285,7 +300,8 @@ export default defineComponent({
           index: i,
           marker: i === marker,
           effective: i === effective && effective !== marker,
-          passed: i < marker,
+          // …and the cells a moving marker has already crossed light up on the touch, before the hold releases.
+          passed: i < marker || (i > marker && i <= this.touchedCell),
         });
       }
       return cells;

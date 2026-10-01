@@ -161,6 +161,13 @@
            footer bay (ConsoleHandDock `album` prop), beside the LB/RB verbs
            that drive it. A second pager up here would split the navigation
            from its own controls and hand the header a competing corner.) -->
+      <!-- THE FLEET BERTH (a hosted COLONIES step — TR07's staged colony): the colony screen's fleet dock lands
+           where «Колонии» always puts it, the header's reserved right edge — never a toolbar row inside the zone,
+           which would steal height from the grid whose fit is height-bound. Only the root header lends it (an
+           embedded hand has no header of its own). -->
+      <template v-if="!embedded" #trailing>
+        <span v-if="colonyStepHosted" class="con-hand__fleetberth" data-colony-fleet-berth></span>
+      </template>
     </component>
 
     <!-- ── The STAGE WRAP: the BROWSE layer (album + status rail) and the
@@ -429,7 +436,8 @@ import Card from '@/client/components/card/CardFace.vue';
 import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
-import {setWorkspaceFrameSlot, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
+import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
+import {colonyFleetBerth, setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {
   releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
@@ -704,6 +712,18 @@ export default defineComponent({
     /** The workspace has been descended into — the browse layer is parked. */
     stageOpen(): boolean {
       return this.stage !== undefined;
+    },
+    /** The COLONIES stand inside this hand as its step (TR07's staged colony; a played card's live pick). */
+    colonyStepHosted(): boolean {
+      return workspaceFrameHost('colonies') === 'hand';
+    },
+    /** …and this header lends them its fleet berth (only the root header exists to lend it). */
+    berthOffered(): boolean {
+      return !this.embedded && this.colonyStepHosted;
+    },
+    /** Another host (the action centre) is lending the berth right now — never ours to retract. */
+    berthHeldElsewhere(): boolean {
+      return workspaceFrameHost('colonies') === 'card-actions';
     },
     /**
      * THIS workspace holds the outcome claim of the play it is standing in —
@@ -1046,6 +1066,23 @@ export default defineComponent({
       flush: 'post',
       handler(on: boolean) {
         setWorkspaceFrameSlot('hand', on ? '[data-embed-slot="hand-play"]' : '');
+      },
+    },
+    /**
+     * The FLEET BERTH the hosted colonies' dock teleports into (TR07) — offered
+     * while the step stands, retracted the moment it leaves, so the section
+     * falls back to its own toolbar for a host with no header. POST-flush, the
+     * slot's law: the node exists before anyone resolves it.
+     */
+    berthOffered: {
+      immediate: true,
+      flush: 'post',
+      handler(on: boolean) {
+        if (on) {
+          setColonyFleetBerth('[data-colony-fleet-berth]');
+        } else if (colonyFleetBerth.selector === '[data-colony-fleet-berth]' && !this.berthHeldElsewhere) {
+          setColonyFleetBerth('');
+        }
       },
     },
     /** The OUTCOME zone, same law and same reason (POST-flush: the shell is our
@@ -1440,6 +1477,10 @@ export default defineComponent({
     // teleports the next surface into a detached node, and the unmount watcher
     // does not fire (Vue tears the component down before its watchers run).
     setWorkspaceFrameSlot('hand', '');
+    // …and the fleet berth this header lent the hosted colonies, by the same law.
+    if (this.berthOffered) {
+      setColonyFleetBerth('');
+    }
     // …AND THE OUTCOME ZONE IS THE SAME LAW — PARK INCLUDED. The CLAIM
     // deliberately survives «свернуть» (below); the DOM node does not, and the
     // slot describes a NODE. Left published, it is not merely stale: a

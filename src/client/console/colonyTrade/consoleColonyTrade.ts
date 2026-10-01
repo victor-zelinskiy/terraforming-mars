@@ -59,7 +59,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
-  trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan,
+  trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan, TrackMoveRhythm,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 
 /**
@@ -1240,6 +1240,17 @@ export function heldColonyTrackPosition(colony: ColonyName): number | undefined 
 
 export type ColonyTrackWaveMove = {colony: ColonyName, before: number, after: number};
 
+/**
+ * WHERE a track move is PLAYED — the anchors the layer measures:
+ *  · `tile` — the overview tiles only (a law's wave over the whole table,
+ *    RX29: the colonies stand as a show step, never a focus stage);
+ *  · `stage` — the colony's FOCUS STAGE first (its expanded instrument — the
+ *    big rail the player is looking at), the tile as the fallback (TR07: the
+ *    marker of the tile the player picked moves on the very stage they
+ *    confirmed it on). The trade's own glide reads the same two-rung ladder.
+ */
+export type ColonyTrackMoveAnchors = 'tile' | 'stage';
+
 export const colonyTrackWaveState = reactive({
   /** A wave is on stage (the hold the transport and the notifications wait on). */
   active: false,
@@ -1252,6 +1263,16 @@ export const colonyTrackWaveState = reactive({
   gliding: {} as Record<string, boolean>,
   /** One-shot: the cell a tile's marker just settled on (its glow; the trade cell's morph) — absent when none. */
   settled: {} as Record<string, number>,
+  /**
+   * The furthest cell the moving marker has TOUCHED, per tile — the cells it
+   * crossed light up on the touch («пройдено», one after another), and the
+   * last touched cell's income answers once. Cleared with the wave.
+   */
+  touched: {} as Record<string, number>,
+  /** Which surface the wave plays on (see `ColonyTrackMoveAnchors`). */
+  anchors: 'tile' as ColonyTrackMoveAnchors,
+  /** The rhythm the wave plays in (see `TrackMoveRhythm`). */
+  rhythm: 'wave' as TrackMoveRhythm,
   /** How the last wave ended (`landed` · `net` · `no standing table` · …) — a diagnostic for the probes. */
   lastFinish: '',
 });
@@ -1281,7 +1302,7 @@ export function colonyTrackWavePlan(): TrackWavePlan | undefined {
   if (!colonyTrackWaveState.active || colonyTrackWaveState.moves.length === 0) {
     return undefined;
   }
-  return trackWavePlan(colonyTrackWaveState.moves, {reduced: colonyTrackWaveState.reduced});
+  return trackWavePlan(colonyTrackWaveState.moves, {reduced: colonyTrackWaveState.reduced, rhythm: colonyTrackWaveState.rhythm});
 }
 
 /**
@@ -1291,7 +1312,10 @@ export function colonyTrackWavePlan(): TrackWavePlan | undefined {
  * (`holdColonyTracks`) — each landing releases its own tile. Resolves at once
  * for an empty list.
  */
-export function requestColonyTrackWave(moves: ReadonlyArray<ColonyTrackWaveMove>, opts: {reduced?: boolean} = {}): Promise<void> {
+export function requestColonyTrackWave(
+  moves: ReadonlyArray<ColonyTrackWaveMove>,
+  opts: {reduced?: boolean, anchors?: ColonyTrackMoveAnchors, rhythm?: TrackMoveRhythm} = {},
+): Promise<void> {
   if (moves.length === 0) {
     return Promise.resolve();
   }
@@ -1301,11 +1325,15 @@ export function requestColonyTrackWave(moves: ReadonlyArray<ColonyTrackWaveMove>
     finishColonyTrackWave('re-request');
   }
   const reduced = opts.reduced ?? (consoleReducedMotionActive() || consoleFxLiteState.enabled);
-  const plan = trackWavePlan(moves, {reduced});
+  const rhythm = opts.rhythm ?? 'wave';
+  const plan = trackWavePlan(moves, {reduced, rhythm});
   colonyTrackWaveState.moves = moves.map((move) => ({colony: move.colony, before: move.before, after: move.after}));
   colonyTrackWaveState.reduced = reduced;
+  colonyTrackWaveState.anchors = opts.anchors ?? 'tile';
+  colonyTrackWaveState.rhythm = rhythm;
   colonyTrackWaveState.gliding = {};
   colonyTrackWaveState.settled = {};
+  colonyTrackWaveState.touched = {};
   colonyTrackWaveState.active = true;
   colonyTrackWaveState.nonce++;
   tradeLog('track wave', moves.length, 'tiles', reduced ? '(short form)' : '');
@@ -1321,6 +1349,14 @@ export function noteColonyTrackWaveGliding(colony: ColonyName, on: boolean): voi
     return;
   }
   colonyTrackWaveState.gliding = {...colonyTrackWaveState.gliding, [colony]: on};
+}
+
+/** The layer: the moving marker TOUCHED `cell` of this tile — the cell lights up as crossed, its income answers once. */
+export function noteColonyTrackWaveTouched(colony: ColonyName, cell: number): void {
+  if (!colonyTrackWaveState.active) {
+    return;
+  }
+  colonyTrackWaveState.touched = {...colonyTrackWaveState.touched, [colony]: cell};
 }
 
 /**
@@ -1368,6 +1404,9 @@ export function finishColonyTrackWave(why = 'landed'): void {
     waveGlowId = 0;
     colonyTrackWaveState.settled = {};
   }, motionMs(TRACK_WAVE_GLOW_MS)) as unknown as number;
+  // The touched cells are the LIVE marker's business — once every hold is released the model's own
+  // position draws them (`passed` below the marker), so the trail ends with the wave.
+  colonyTrackWaveState.touched = {};
   const resolve = waveResolver;
   waveResolver = undefined;
   resolve?.();

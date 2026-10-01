@@ -221,8 +221,27 @@ export function resetConsoleColoniesUi(): void {
  *              Mixing that into the trade dossier made a two-second collect
  *              read as the trading screen, with the live decision squeezed
  *              into a corner of a surface describing an action nobody took.
+ *  'track'   — the pick MOVES THE CHOSEN TILE'S TRACK (Turmoil Redux TR07
+ *              Colony Sponsors — the server's `trackMoves` marker): the
+ *              instrument is the hero — the marker where it stands, the ghost
+ *              where it will land, «+N» — and the reward rail says what a
+ *              trade HERE pays now and after («торговля здесь»). A confirms,
+ *              like a pick; the move itself plays on this stage after the
+ *              answer (`colonyTrackMove`).
  */
-export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus';
+export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus' | 'track';
+
+/**
+ * THE ACT OF A SERVER COLONY PICK — the one derivation the grid's A, the
+ * dossier's A and the stage read: a pick that moves a track (its `trackMoves`
+ * marker) is `track`, a build is `build`, anything else is a plain `pick`.
+ */
+export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: ReadonlyArray<unknown>}): ColonyFocusIntent {
+  if (pick.trackMoves !== undefined) {
+    return 'track';
+  }
+  return pick.buttonLabel === 'Build' ? 'build' : 'pick';
+}
 
 export const colonyFocusState = reactive({
   /** The focus stage is open (the browse grid is parked behind it). */
