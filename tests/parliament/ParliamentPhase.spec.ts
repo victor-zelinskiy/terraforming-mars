@@ -179,15 +179,24 @@ describe('ParliamentPhase', () => {
       for (let i = 0; i < parliament.slots.length; i++) {
         quiet(parliament, i);
       }
-      parliament.addNeutralVote(parliament.slots[0]);
-      parliament.addNeutralVote(parliament.slots[0]);
       if (parliament.slots.length > 1) {
         parliament.placeVote(p1, parliament.slots[1], 'lobby');
       }
+      // …and the neutral lead is COUNTED, never assumed to be «two»: a freshly dealt card arrives carrying its
+      // party's stock as neutral votes, so «two on slot 0» loses to «the stock + the player's vote on slot 1»
+      // the day the seeded deal puts a stocked party there (TR06 moved it: the Greens' card won with the
+      // player's vote on it, its winner's ocean ASKED, the sitting stood at that prompt — and the assertions
+      // below read the PREVIOUS generation's summary against the new ruler).
+      const rivals = Math.max(0, ...parliament.slots.slice(1).map((slot) => slot.votes.length));
+      while (parliament.slots[0].votes.length <= rivals) {
+        parliament.addNeutralVote(parliament.slots[0]);
+      }
       endGenerationThroughParliament(game);
+      expect(parliament.phase, `the sitting of generation ${generation} is over — its summary is this generation's`).is.undefined;
 
       const ruling = parliament.rulingParty();
       const summary = parliament.lastPhase!;
+      expect(summary.generation, 'the summary read is the sitting just held').eq(generation);
       const where = `generation ${generation}, ruling ${ruling}`;
       // ① the support step never pays it (it is represented by the card in ENACTED, and it won its slot).
       expect(summary.support.map((entry) => entry.party), `the support step paid the ruler (${where})`).not.includes(ruling);
@@ -535,6 +544,13 @@ describe('ParliamentPhase', () => {
       expect(parliament.hasPartyEffect(bot, PartyName.GREENS)).is.false;
       expect(parliament.hasPartyEffect(human, PartyName.GREENS)).is.true;
 
+      // THE BOT PLAYS NO CARD ALL GAME — and that has to be ARRANGED for its OPENING turn too: the bot opens
+      // every other generation, on the deck dealt for that generation, the moment the human finishes research.
+      // Emptied only inside the loop, that deck was real for one turn, and the seeded deal (it moves with every
+      // card the fork ships) decided what that turn did: a vote once (TR02), and with TR06 a card whose tags
+      // closed the chairman quest — the bot took the chair, its delegate left the reserve, and «reserve 6» /
+      // «no office» below failed for a sitting that did everything right.
+      game.automa!.actionDeck = [];
       game.playerIsFinishedWithResearchPhase(human);
       let botWins = 0;
       for (let generation = 1; generation <= 5; generation++) {
@@ -599,6 +615,7 @@ describe('ParliamentPhase', () => {
         expect(parliament.votesOf(bot), `its delegates are home after the sitting of generation ${generation}`).eq(0);
         parliament.assertLedger(game);
         human.popWaitingFor();
+        game.automa!.actionDeck = [];
         game.playerIsFinishedWithResearchPhase(human);
       }
       expect(game.generation).eq(6);

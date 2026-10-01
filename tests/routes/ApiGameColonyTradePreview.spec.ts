@@ -5,6 +5,9 @@ import {TestPlayer} from '../TestPlayer';
 import {MockResponse} from './HttpMocks';
 import {RouteTestScaffolding} from './RouteTestScaffolding';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
+import {CardName} from '../../src/common/cards/CardName';
+import {WaterHauling} from '../../src/server/cards/turmoilRedux/WaterHauling';
+import {VenusTradeHub} from '../../src/server/cards/prelude2/VenusTradeHub';
 import {statusCode} from '../../src/common/http/statusCode';
 import {use} from 'chai';
 import chaiAsPromised from 'chai-as-promised';
@@ -101,6 +104,55 @@ describe('ApiGameColonyTradePreview', () => {
     await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
     expect(res.statusCode).eq(statusCode.badRequest);
     expect(res.content).eq('Bad request: invalid offset parameter');
+  });
+
+  /**
+   * `?dock=<card>` — the same question about a trade whose destination is a
+   * fleet-dock CARD of the asking player's own (`FleetDockPreviewModel`).
+   */
+  describe('a fleet dock (`dock`)', () => {
+    it('returns the dock preview for a dock in the asking player\'s tableau', async () => {
+      const {game, player} = await freshGame();
+      player.playedCards.push(new WaterHauling());
+      scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&dock=${encodeURIComponent(CardName.WATER_HAULING)}`;
+      await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+      const preview = JSON.parse(res.content);
+      expect(preview.card).eq(CardName.WATER_HAULING);
+      expect(preview.available).eq(true);
+      expect(preview.colonyName, 'no colony takes part').is.undefined;
+      expect(preview.track).is.undefined;
+      const oceans = game.board.getOceanSpaces().length;
+      expect(preview.effects).to.deep.eq([
+        {direction: 'gain', icon: 'oceans', amount: 1, current: oceans, resulting: oceans + 1},
+        {direction: 'gain', icon: 'tr', amount: 1, current: player.terraformRating, resulting: player.terraformRating + 1},
+      ]);
+      expect(preview.followUps).to.deep.eq([{kind: 'note', role: 'tradeReward', note: 'placeOcean'}]);
+    });
+
+    it('`colony` and `dock` are mutually exclusive', async () => {
+      const {player} = await freshGame();
+      scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&colony=${ColonyName.LUNA}&dock=${encodeURIComponent(CardName.WATER_HAULING)}`;
+      await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+      expect(res.statusCode).eq(statusCode.badRequest);
+      expect(res.content).eq('Bad request: colony and dock are mutually exclusive');
+    });
+
+    it('answers no-content for a card that is not in the tableau, and for a played card that is no dock', async () => {
+      const {player, player2} = await freshGame();
+      player2.playedCards.push(new WaterHauling());
+      // Another seat's dock is not the asking player's destination (only the owner trades with it).
+      scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&dock=${encodeURIComponent(CardName.WATER_HAULING)}`;
+      await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+      expect(res.statusCode).eq(statusCode.noContent);
+      expect(res.headers.get('X-No-Preview')).eq('no such fleet dock in the tableau');
+
+      player.playedCards.push(new VenusTradeHub());
+      res = new MockResponse();
+      scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&dock=${encodeURIComponent(CardName.VENUS_TRADE_HUB)}`;
+      await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+      expect(res.statusCode).eq(statusCode.noContent);
+      expect(res.content).eq('');
+    });
   });
 
   it('returns the preview for a colony', async () => {
