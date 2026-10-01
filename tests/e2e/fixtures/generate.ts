@@ -156,6 +156,9 @@ import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/Politica
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
+import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
+import {WildlifeDome} from '../../../src/server/cards/turmoil/WildlifeDome';
+import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
@@ -1160,6 +1163,37 @@ parliamentFixture('colony-sponsors', {
     parliament.assertLedger(game);
   },
 });
+// ── TR13 · POLITICAL THINK TANK — the third deck check and the first that KEEPS the revealed card: blue's action
+//    phase with the card in its tableau (its action unused) and 12 M€. The deck's TOP is pinned AFTER the deal (the
+//    deal draws from the top; `customProjectCards` would deal the card into a hand and `Deck.shuffle(cardsOnTop)`
+//    reorders the top — memory e2e-fixture-generator-powergrid-break):
+//      · `political-think-tank` — Wildlife Dome on top (requires the Greens): a MATCH. ⚠️ SYNTHETIC: no card of the
+//        Redux deck carries a party requirement yet (TR14–TR27 will) — replace it with the first TR card that does;
+//      · `political-think-tank-miss` — the dealt top card, asserted to carry NO party requirement: a MISS.
+//    A quiet government (the Industrialists by Central Power Grid), as every recent Redux card table. ──
+for (const variant of ['match', 'miss'] as const) {
+  const name = variant === 'match' ? 'political-think-tank' : 'political-think-tank-miss';
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [12, 30],
+    arrange: ({game, p1, parliament}) => {
+      seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+      p1.playedCards.push(new PoliticalThinkTank());
+      if (variant === 'match') {
+        game.projectDeck.drawPile.push(new WildlifeDome()); // SYNTHETIC — see above
+      }
+    },
+    expect: ({game, p1}) => {
+      const card = p1.tableau.get(CardName.POLITICAL_THINK_TANK);
+      const top = game.projectDeck.drawPile[game.projectDeck.drawPile.length - 1];
+      const matchOk = variant === 'match' ? top?.name === CardName.WILDLIFE_DOME : top !== undefined && !hasPartyRequirement(top);
+      if (card === undefined || p1.actionsThisGeneration.has(CardName.POLITICAL_THINK_TANK) || p1.megaCredits !== 12 || !matchOk) {
+        throw new Error(`the ${name} fixture expected the card in blue's tableau (unused), 12 M€ and the ${variant} top — got card=${card !== undefined} used=${p1.actionsThisGeneration.has(CardName.POLITICAL_THINK_TANK)} mc=${p1.megaCredits} top=${top?.name}`);
+      }
+    },
+  });
+}
+
 // Generation 2 has just begun: the results scene moves the card from its voting
 // slot into the government and flies red's production gain from the card to the rail.
 parliamentFixture('parliament-architecture-recap', architectureTable('done', (table) => {

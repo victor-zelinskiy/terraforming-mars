@@ -2345,6 +2345,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR07 Colony Sponsors: blue's action phase with the card in hand, 10 M€, blue's colony on Luna (track at cell 3), Ceres at
   // its top, Titan inactive, Europa and Io candidates; a quiet government (docs/TURMOIL_REDUX_COLONY_SPONSORS.md).
   'colony-sponsors' |
+  // TR13 Political Think Tank: blue's action phase with the card in its tableau (action unused), 12 M€; the deck's TOP is
+  // pinned after the deal — Wildlife Dome (a party requirement: a MATCH — SYNTHETIC, no Redux card carries one yet) or,
+  // in the -miss table, the dealt top card (no party requirement: a MISS) (docs/claude/turmoil-redux-cards-progress.md).
+  'political-think-tank' | 'political-think-tank-miss' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
