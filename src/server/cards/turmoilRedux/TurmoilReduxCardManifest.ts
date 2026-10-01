@@ -10,6 +10,7 @@ import {PoliticalDonation} from './PoliticalDonation';
 import {MinorityRepresentation} from './MinorityRepresentation';
 import {WaterHauling} from './WaterHauling';
 import {ColonySponsors} from './ColonySponsors';
+import {MechSports} from './MechSports';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -62,5 +63,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The grey ▲ at the bottom left: the card needs Colonies (it moves a colony TILE's track, and its
     // requirement is a colony of one's own). The purple Turmoil symbol below it is the module itself.
     [CardName.COLONY_SPONSORS]: {Factory: ColonySponsors, compatibility: 'colonies'},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲, so the
+    // card needs nothing else.
+    [CardName.MECH_SPORTS]: {Factory: MechSports},
   },
 });
