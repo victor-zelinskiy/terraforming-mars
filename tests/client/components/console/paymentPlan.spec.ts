@@ -4,11 +4,14 @@ import {
   dialLaneCount, initialCounts, laneCap,
   paymentCovers, paymentFromCounts, PaymentLane,
   paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
-  projectCardPaymentPrompt, paymentUnitIcon,
+  projectCardPaymentPrompt, paymentUnitIcon, paymentUnitLabel, paymentLaneLabel, buildPaymentView,
   rateFor,
 } from '@/client/console/paymentPlan';
 import {buildStandardProjectPaymentOptions, GENERIC_PAYMENT_ORDER} from '@/client/components/payment/paymentModelUtils';
-import {SPENDABLE_RESOURCES} from '@/common/inputs/Spendable';
+import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SPENDABLE_RESOURCES} from '@/common/inputs/Spendable';
+import {getCard} from '@/client/cards/ClientCardManifest';
+import {cardResourceCSS} from '@/client/components/common/cardResources';
+import {railMcBadges} from '@/client/console/railValueModel';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Units} from '@/common/Units';
@@ -182,6 +185,143 @@ describe('paymentPlan (T3 native payment math)', () => {
       const dialed = {...poor, mechs: 1};
       expect(paymentCovers(6, lanes, dialed, 1)).to.eq(true);
       expect(paymentOverpay(6, lanes, dialed, 1)).to.eq(0);
+    });
+  });
+
+  /**
+   * CONSTRUCTION MECHS (TR17) — the SECOND mech pool, its own unit: a lane on a
+   * Building OR a City tag at the same flat 5. On a Building card it stands
+   * beside player-board steel, and the ORDER of the opening mix is a decision:
+   * steel first (the fine 2-M€ step), the coarse 5-M€ mech tops up — pinned
+   * here so it can never become an accident of the list.
+   */
+  describe('constructionMechs — the Construction Mechs pool (flat 5, Building or City tag)', () => {
+    const owner = (mechs: number, extra: Partial<Record<string, unknown>> = {}) => player({
+      titanium: 0, steel: 0,
+      tableau: [{name: CardName.CONSTRUCTION_MECHS, resources: mechs}],
+      ...extra,
+    });
+
+    it('is a lane exactly on a Building or a City tag, at a flat 5, drawn as the mech', () => {
+      expect(projectCardPaymentOptions([Tag.BUILDING], {}, undefined).constructionMechs).to.eq(true);
+      expect(projectCardPaymentOptions([Tag.CITY], {}, undefined).constructionMechs).to.eq(true);
+      expect(projectCardPaymentOptions([Tag.SPACE], {}, undefined).constructionMechs).to.eq(false);
+      expect(projectCardPaymentOptions([], {}, CardName.LAST_RESORT_INGENUITY).constructionMechs).to.eq(false);
+      const lanes = paymentLanes(projectCardPaymentPrompt(10, [Tag.CITY], {}, undefined, undefined), owner(2));
+      expect(lanes.find((l) => l.unit === 'constructionMechs')).to.deep.include({rate: 5, available: 2});
+      // FLAT: the live steel value (Advanced Alloys, Metal Research) never reaches it.
+      expect(rateFor('constructionMechs', player({steelValue: 4}), {constructionMechs: true})).to.eq(5);
+      expect(paymentUnitIcon('constructionMechs')).to.eq('mech');
+      // EVA's mechs are not this lane: a Building card offers only Construction's.
+      const evaToo = owner(2, {tableau: [{name: CardName.EVA_MECHS, resources: 3}, {name: CardName.CONSTRUCTION_MECHS, resources: 2}]});
+      const building = paymentLanes(projectCardPaymentPrompt(10, [Tag.BUILDING], {}, undefined, undefined), evaToo);
+      expect(building.map((l) => l.unit)).to.deep.eq(['constructionMechs']);
+    });
+
+    it('beside steel on a Building card: two independent lanes, steel first in the panel', () => {
+      const p = projectCardPaymentPrompt(9, [Tag.BUILDING], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(2, {steel: 2}));
+      expect(lanes.map((l) => l.unit)).to.deep.eq(['steel', 'constructionMechs']);
+    });
+
+    it('the opening mix: steel is seeded FIRST, the mech tops up what steel leaves', () => {
+      // 9 M€ card, 2 steel (4) + 2 mechs: steel 2 → 4, the remaining 5 is one mech — exact.
+      const p = projectCardPaymentPrompt(9, [Tag.BUILDING], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(2, {steel: 2}));
+      const counts = initialCounts(9, lanes, 20);
+      expect([counts.steel, counts.constructionMechs]).to.deep.eq([2, 1]);
+      expect(autoMegacredits(9, lanes, counts, 20)).to.eq(0);
+      expect(paymentOverpay(9, lanes, counts, 20)).to.eq(0);
+    });
+
+    it('the opening mix when steel alone covers: the mech is left on the card', () => {
+      // 8 M€ card, 4 steel (8): steel pays it all, no mech is cashed.
+      const p = projectCardPaymentPrompt(8, [Tag.BUILDING], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(2, {steel: 4}));
+      const counts = initialCounts(8, lanes, 20);
+      expect([counts.steel, counts.constructionMechs]).to.deep.eq([4, 0]);
+    });
+
+    it('a City card without a Building tag: steel is no lane, the mech is the ONLY alternative — dialed in place', () => {
+      const p = projectCardPaymentPrompt(12, [Tag.CITY], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(2, {steel: 5}));
+      expect(lanes.map((l) => l.unit)).to.deep.eq(['constructionMechs']);
+      const view = buildPaymentView({cost: 12, lanes, counts: initialCounts(12, lanes, 20), mcAvailable: 20});
+      expect(view.rows[0]).to.deep.include({unit: 'constructionMechs', labelKey: 'Mechs', quickAdjust: true});
+    });
+  });
+
+  /**
+   * TWO POOLS OF ONE RESOURCE ON ONE PANEL — a Space+Building card with both
+   * EVA Mechs and Construction Mechs in the tableau opens two mech lanes. Two
+   * rows reading «Мехи» are two rows the player cannot tell apart, so each
+   * names its card; a lone mech lane keeps the plain word.
+   */
+  describe('two mech lanes on one panel name their cards', () => {
+    const both = player({
+      titanium: 0, steel: 0,
+      tableau: [{name: CardName.EVA_MECHS, resources: 2}, {name: CardName.CONSTRUCTION_MECHS, resources: 3}],
+    });
+    const p = projectCardPaymentPrompt(25, [Tag.SPACE, Tag.BUILDING], {}, undefined, undefined);
+
+    it('both lanes, each reading its own card\'s stock', () => {
+      const lanes = paymentLanes(p, both);
+      expect(lanes.map((l) => [l.unit, l.available])).to.deep.eq([['mechs', 2], ['constructionMechs', 3]]);
+    });
+
+    it('the labels differ — «Mechs · EVA Mechs» / «Mechs · Construction Mechs»', () => {
+      const lanes = paymentLanes(p, both);
+      const view = buildPaymentView({cost: 25, lanes, counts: initialCounts(25, lanes, 0), mcAvailable: 0});
+      expect(view.rows.map((r) => r.labelKey)).to.deep.eq(['Mechs · EVA Mechs', 'Mechs · Construction Mechs', 'Megacredits']);
+      // 2 + 3 mechs × 5 = 25: the sum covers the price, each lane spends its own.
+      expect(view.rows.slice(0, 2).map((r) => r.used)).to.deep.eq([2, 3]);
+    });
+
+    it('a lone mech lane keeps the plain resource word', () => {
+      expect(paymentLaneLabel('mechs', [{unit: 'mechs'}, {unit: 'titanium'}])).to.eq('Mechs');
+      expect(paymentLaneLabel('constructionMechs', [{unit: 'steel'}, {unit: 'constructionMechs'}])).to.eq('Mechs');
+    });
+  });
+
+  /**
+   * THE UNIT-COMPLETENESS GUARD — a card-bound payment unit touches tables the
+   * compiler cannot see (TR09 §3, the «silent» half). Every
+   * SpendableCardResource must have: a LABEL (not the raw ledger key), a
+   * SPRITE that is its card's own resource icon (the empty-box class is the
+   * failure), a rail CONTEXT, and — when it shares its label with another unit
+   * — a source-naming label that tells the two apart. Fails with the unit.
+   */
+  describe('every card-bound payment unit is complete', () => {
+    for (const unit of SPENDABLE_CARD_RESOURCES) {
+      it(`${unit}: label, sprite, rail context`, () => {
+        expect(paymentUnitLabel(unit), `${unit} has no lane label`).to.not.eq(unit);
+        const enabler = CARD_FOR_SPENDABLE_RESOURCE[unit];
+        const resourceType = getCard(enabler)?.resourceType;
+        expect(resourceType, `${enabler} (the ${unit} card) holds no resource`).to.not.eq(undefined);
+        if (resourceType === undefined) {
+          return;
+        }
+        expect(`card-resource-${paymentUnitIcon(unit)}`, `${unit} draws a sprite no stylesheet defines`).to.eq(cardResourceCSS[resourceType]);
+        const badges = railMcBadges(player({tableau: [{name: enabler, resources: 1}]}));
+        const fact = badges.cardBound.get(resourceType)?.facts.find((f) => f.unit === unit);
+        expect(fact?.context, `${unit} has no rail context`).to.not.eq(undefined);
+      });
+    }
+
+    it('units sharing a label are told apart on one panel', () => {
+      for (const a of SPENDABLE_CARD_RESOURCES) {
+        for (const b of SPENDABLE_CARD_RESOURCES) {
+          if (a === b || paymentUnitLabel(a) !== paymentUnitLabel(b)) {
+            continue;
+          }
+          // Luna Archives' and Spire's science never meet on one panel (a Moon tag vs the standard projects).
+          if ([a, b].every((u) => u === 'lunaArchivesScience' || u === 'spireScience')) {
+            continue;
+          }
+          const lanes = [{unit: a}, {unit: b}];
+          expect(paymentLaneLabel(a, lanes), `${a} and ${b} read the same on one panel`).to.not.eq(paymentLaneLabel(b, lanes));
+        }
+      }
     });
   });
 

@@ -1155,6 +1155,10 @@ export class Player implements IPlayer {
       // nothing else. Not Last Resort Ingenuity (its text names steel and
       // titanium), not standard projects, not a deferred bill.
       mechs: card.tags.includes(Tag.SPACE),
+      // Construction Mechs (TR17): «when playing a Building or City tag» — the
+      // printed condition and nothing else (the same exclusions as EVA Mechs).
+      // A Space+Building card opens BOTH mech units, each paid off its own card.
+      constructionMechs: card.tags.includes(Tag.BUILDING) || card.tags.includes(Tag.CITY),
     };
   }
 
@@ -1255,6 +1259,8 @@ export class Player implements IPlayer {
     // leaves the CARD (`removeResourceFrom`) and the saving is recorded as
     // payment (`cardResourcesSpentAsPayment` → the effects overlay + journal).
     removeResourcesOnCard(CardName.EVA_MECHS, payment.mechs, DEFAULT_PAYMENT_VALUES.mechs);
+    // Construction Mechs (TR17): the second mech pool leaves ITS OWN card.
+    removeResourcesOnCard(CardName.CONSTRUCTION_MECHS, payment.constructionMechs, DEFAULT_PAYMENT_VALUES.constructionMechs);
 
     this.recordPaymentValueBonus(payment);
 
@@ -2150,6 +2156,7 @@ export class Player implements IPlayer {
       kuiperAsteroids: this.getSpendable('kuiperAsteroids'),
       floodgateSteel: this.getSpendable('floodgateSteel'),
       mechs: this.getSpendable('mechs'),
+      constructionMechs: this.getSpendable('constructionMechs'),
     };
   }
 
@@ -2195,6 +2202,7 @@ export class Player implements IPlayer {
       kuiperAsteroids: options?.kuiperAsteroids ?? false,
       floodgateSteel: options?.floodgateSteel ?? false,
       mechs: options?.mechs ?? false,
+      constructionMechs: options?.constructionMechs ?? false,
     };
 
     // HOOK: Luna Trade Federation

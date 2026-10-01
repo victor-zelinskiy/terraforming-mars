@@ -175,6 +175,26 @@ describe('railValueModel — MC badges', () => {
     expect(badge?.facts[0]?.spendableAmount).to.eq(2);
   });
 
+  it('Construction Mechs ×5 (building or city) — its own fact; with EVA Mechs the ONE mech chip carries both pools', () => {
+    const solo = railMcBadges(fakePlayer({tableau: [fakeCardModel(CardName.CONSTRUCTION_MECHS, 3)]})).cardBound.get(CardResource.MECH);
+    expect(solo?.text).to.eq('5');
+    expect(solo?.facts.map((f) => [f.unit, f.context, f.spendableAmount])).to.deep.eq([['constructionMechs', 'building-or-city', 3]]);
+    // A flat 5: the steel value is not the mech's rate.
+    expect(railMcBadges(fakePlayer({steelValue: 4, tableau: [fakeCardModel(CardName.CONSTRUCTION_MECHS, 1)]})).cardBound.get(CardResource.MECH)?.text).to.eq('5');
+    // Both pools + Mech Sports: one chip (the satellite groups by resource), one coin «5» (one rate),
+    // two facts — each pool's own context and its own card's mechs; Mech Sports' are storage.
+    const both = railMcBadges(fakePlayer({tableau: [
+      fakeCardModel(CardName.EVA_MECHS, 2),
+      fakeCardModel(CardName.CONSTRUCTION_MECHS, 3),
+      fakeCardModel(CardName.MECH_SPORTS, 4),
+    ]})).cardBound.get(CardResource.MECH);
+    expect(both?.text).to.eq('5');
+    expect(both?.facts.map((f) => [f.unit, f.context, f.spendableAmount])).to.deep.eq([
+      ['mechs', 'space', 2],
+      ['constructionMechs', 'building-or-city', 3],
+    ]);
+  });
+
   it('a shared-icon chip with two tender rates carries both (Luna Archives + Spire)', () => {
     const badges = railMcBadges(fakePlayer({tableau: [
       fakeCardModel(CardName.LUNA_ARCHIVES, 3),

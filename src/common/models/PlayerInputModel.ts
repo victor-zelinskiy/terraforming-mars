@@ -807,6 +807,7 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
   spireScience: number;
   floodgateSteel: number;
   mechs: number;
+  constructionMechs: number;
 }
 
 /**
@@ -986,6 +987,7 @@ export type SelectPaymentModel = BaseInputModel & {
   graphene: number,
   floodgateSteel: number,
   mechs: number,
+  constructionMechs: number,
 }
 
 export type SelectPlayerModel = BaseInputModel & {

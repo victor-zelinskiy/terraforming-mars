@@ -361,7 +361,7 @@ import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
 import {railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
-import {paymentUnitLabel} from '@/client/console/paymentPlan';
+import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 type ResourceRow = {
@@ -411,6 +411,7 @@ const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
   'venus': 'for cards with a Venus tag',
   'moon': 'for cards with a Moon tag',
   'city-or-space': 'for cards with a city or space tag',
+  'building-or-city': 'for cards with a building or city tag',
   'standard-project': 'for standard projects',
   'aquifer-asteroid': 'for the aquifer and asteroid standard projects',
 };
@@ -931,7 +932,8 @@ export default defineComponent({
     mcBadgeAria(badge: RailMcBadge): string {
       return badge.facts
         .map((f) => translateTextWithParams('${0}: 1 unit pays ${1} M€ ${2}', [
-          translateText(paymentUnitLabel(f.unit)),
+          // Two pools of one resource on ONE chip (EVA + Construction Mechs) name their cards.
+          translateText(paymentLaneLabel(f.unit, badge.facts)),
           String(f.rate),
           translateText(MC_CONTEXT_KEYS[f.context]),
         ]))

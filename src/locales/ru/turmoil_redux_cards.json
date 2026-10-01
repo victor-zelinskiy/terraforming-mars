@@ -45,5 +45,8 @@
     "Martian Census": "Марсианская перепись",
     "Effect: Whenever ANY player places a city on Mars, add a data resource to this card.": "Эффект: каждый раз, когда ЛЮБОЙ игрок размещает город на Марсе, положите на эту карту 1 единицу данных.",
     "Action: Add 1 data resource here.": "Действие: положите на эту карту 1 единицу данных.",
-    "Action: Spend 3 data from here to add a delegate to a resolution.": "Действие: потратьте 3 единицы данных с этой карты, чтобы добавить делегата на резолюцию."
+    "Action: Spend 3 data from here to add a delegate to a resolution.": "Действие: потратьте 3 единицы данных с этой карты, чтобы добавить делегата на резолюцию.",
+
+    "Construction Mechs": "Строительные мехи",
+    "Effect: When playing a Building or City tag, mechs here may be used as payment, and are worth 5 M€ each.": "Эффект: разыгрывая карту с меткой Строительства или Города, вы можете платить мехами с этой карты по 5 M€ за каждый."
 }

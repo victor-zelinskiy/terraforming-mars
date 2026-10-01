@@ -138,6 +138,8 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         // EVA Mechs pay ONLY for a Space-tag CARD PLAY; a deferred bill (a
         // standard project, a trade fee, a resolution's action) is never that.
         mechs: false,
+        // Construction Mechs: the same reading — a Building/City-tag CARD PLAY only.
+        constructionMechs: false,
       }, this.options.reserveUnits);
     if (this.options.votePayment !== undefined) {
       select.markVotePayment(this.options.votePayment);

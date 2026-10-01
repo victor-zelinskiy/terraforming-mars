@@ -55,7 +55,7 @@ function bill(): SelectPaymentModel {
     amount: 8,
     paymentOptions: {titanium: true, heat: false},
     seeds: 0, auroraiData: 0, kuiperAsteroids: 0, spireScience: 0, reserveUnits: undefined,
-    floaters: 0, microbes: 0, graphene: 0, floodgateSteel: 0, mechs: 0,
+    floaters: 0, microbes: 0, graphene: 0, floodgateSteel: 0, mechs: 0, constructionMechs: 0,
     resolutionActionPrompt: {...MARKER, stage: 'pay'},
   } as unknown as SelectPaymentModel;
 }

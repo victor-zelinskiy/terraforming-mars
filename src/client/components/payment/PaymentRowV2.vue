@@ -94,6 +94,7 @@ const ICON_CLASS: Record<SpendableResource, string> = {
   graphene: 'resource_icon--graphene',
   floodgateSteel: 'resource_icon--steel',
   mechs: 'resource_icon--mech',
+  constructionMechs: 'resource_icon--mech',
 };
 
 export default defineComponent({

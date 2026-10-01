@@ -46,6 +46,9 @@ export const DEFAULT_PAYMENT_VALUES = {
   // EVA Mechs (TR09): a FLAT 5 — the live titanium value and Metal Research
   // never touch it (`Player.payingAmount` keeps the default).
   mechs: MECHS_VALUE,
+  // Construction Mechs (TR17): the same flat 5 — ONE constant for both mech
+  // pools; the live steel value and Metal Research never touch it.
+  constructionMechs: MECHS_VALUE,
 } satisfies Record<SpendableResource, number>;
 
 export namespace Payment {
@@ -65,6 +68,7 @@ export namespace Payment {
     kuiperAsteroids: 0,
     floodgateSteel: 0,
     mechs: 0,
+    constructionMechs: 0,
   } as const;
 
   export function of(payment: Partial<Payment>) : Payment {
@@ -83,6 +87,7 @@ export namespace Payment {
       kuiperAsteroids: payment.kuiperAsteroids ?? 0,
       floodgateSteel: payment.floodgateSteel ?? 0,
       mechs: payment.mechs ?? 0,
+      constructionMechs: payment.constructionMechs ?? 0,
       plants: payment.plants ?? 0,
     };
   }

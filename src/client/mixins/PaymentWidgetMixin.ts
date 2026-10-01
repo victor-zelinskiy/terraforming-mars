@@ -107,6 +107,7 @@ export const PaymentWidgetMixin = defineComponent({
         kuiperAsteroids: spendable.kuiperAsteroids,
         floodgateSteel: spendable.floodgateSteel,
         mechs: spendable.mechs,
+        constructionMechs: spendable.constructionMechs,
       };
 
       // Stratospheric Birds requires discarding one floater from any card.

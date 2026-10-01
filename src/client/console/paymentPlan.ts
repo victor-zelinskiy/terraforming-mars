@@ -154,6 +154,9 @@ export function projectCardPaymentOptions(
     // Player.paymentOptionsForCard (no Last Resort exception: its text names
     // steel and titanium).
     mechs: tags.includes(Tag.SPACE),
+    // Construction Mechs pay for a Building OR a City tag — the exact mirror
+    // of Player.paymentOptionsForCard (no Last Resort exception either).
+    constructionMechs: tags.includes(Tag.BUILDING) || tags.includes(Tag.CITY),
   };
 }
 
@@ -376,10 +379,36 @@ const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
   // its card, because stored steel is otherwise indistinguishable from the
   // player-board lane beside it. A mech has no such twin.
   mechs: 'Mechs',
+  constructionMechs: 'Mechs',
+};
+
+/**
+ * The SOURCE-NAMING label of a card-bound unit — used only when two lanes of
+ * ONE panel would otherwise read the same word: EVA Mechs and Construction
+ * Mechs are two pools of one resource, and a Space+Building card offers both
+ * («Мехи · Мехи ВКД» / «Мехи · Строительные мехи»). One lane keeps the plain
+ * resource word. A third pool of an already-labelled resource adds its row
+ * here (the unit-completeness guard in paymentPlan.spec names it).
+ */
+const PAY_UNIT_SOURCE_LABELS: Readonly<Record<string, string>> = {
+  mechs: 'Mechs · EVA Mechs',
+  constructionMechs: 'Mechs · Construction Mechs',
 };
 
 export function paymentUnitLabel(unit: string): string {
   return PAY_UNIT_LABELS[unit] ?? unit;
+}
+
+/**
+ * A lane's label ON ITS PANEL: the resource word, unless another lane of the
+ * same panel would read the same word — then the lane names its source card
+ * (`PAY_UNIT_SOURCE_LABELS`). Two identical labels on one panel are two rows
+ * the player cannot tell apart.
+ */
+export function paymentLaneLabel(unit: string, lanes: ReadonlyArray<{unit: string}>): string {
+  const plain = paymentUnitLabel(unit);
+  const twin = lanes.some((other) => other.unit !== unit && paymentUnitLabel(other.unit) === plain);
+  return twin ? (PAY_UNIT_SOURCE_LABELS[unit] ?? plain) : plain;
 }
 
 /**
@@ -406,6 +435,7 @@ const PAY_UNIT_ICONS: Readonly<Record<string, string>> = {
   // `mechs` → `.card-resource-mechs` would be exactly the empty-box class this
   // table exists to prevent.
   mechs: 'mech',
+  constructionMechs: 'mech',
 };
 
 export function paymentUnitIcon(unit: string): string {
@@ -564,7 +594,7 @@ export function buildPaymentView(args: {
     const cap = laneCap(cost, lane, lanes, counts);
     return {
       unit: lane.unit,
-      labelKey: paymentUnitLabel(lane.unit),
+      labelKey: paymentLaneLabel(lane.unit, lanes),
       rate: lane.rate,
       available: lane.available,
       used,

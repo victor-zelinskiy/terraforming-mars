@@ -1083,6 +1083,7 @@ export enum CardName {
   MECH_SPORTS = 'Mech Sports',
   POLITICAL_THINK_TANK = 'Political Think Tank',
   MARTIAN_CENSUS = 'Martian Census',
+  CONSTRUCTION_MECHS = 'Construction Mechs',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

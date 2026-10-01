@@ -95,6 +95,7 @@ const DEFAULT_DESCRIPTIONS: Record<SpendableResource, string> = {
   plants: 'Plants',
   floodgateSteel: 'Modular Floodgates',
   mechs: 'Mechs',
+  constructionMechs: 'Construction Mechs',
 };
 
 type DataModel = {

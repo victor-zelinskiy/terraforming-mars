@@ -45,6 +45,11 @@ export const GENERIC_PAYMENT_ORDER: ReadonlyArray<SpendableResource> = [
   // EVA Mechs (TR09) — an ORDINARY greedy alternate like floaters and graphene:
   // a mech buys nothing but this, so the default mix cashes it first.
   'mechs',
+  // Construction Mechs (TR17) — the second mech pool, the same ordinary greedy
+  // alternate. AFTER steel on purpose: on a Building card the opening mix
+  // spends the fine-grained player-board steel first and tops up with the
+  // coarse 5 M€ mech (paymentPlan.spec § constructionMechs pins the order).
+  'constructionMechs',
   // Modular Floodgates stored steel — LAST among the alternates on purpose:
   // it is a strategically protected source (`initialCounts` never seeds it;
   // the player raises the dial explicitly), so the default allocation must
@@ -174,6 +179,7 @@ export function buildStandardProjectPaymentModel(
     graphene: available.graphene,
     floodgateSteel: available.floodgateSteel,
     mechs: available.mechs,
+    constructionMechs: available.constructionMechs,
   };
 }
 

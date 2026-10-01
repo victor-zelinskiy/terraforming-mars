@@ -46,6 +46,11 @@ export const SPENDABLE_CARD_RESOURCES = [
   // Mechs stored on EVA Mechs (TR09) pay for cards with Space tags at a flat
   // 5 M€ each (`MECHS_VALUE`) — the Dirigibles pattern, one tag over.
   'mechs',
+  // Mechs stored on Construction Mechs (TR17) pay for cards with a Building OR
+  // a City tag at the same flat 5 M€. A SECOND pool of the same card resource
+  // is a SECOND unit: every unit names exactly one card, so `pay()` always
+  // knows which card a mech leaves (docs/TURMOIL_REDUX_EVA_MECHS.md §6).
+  'constructionMechs',
 ] as const;
 
 export const SPENDABLE_RESOURCES = [...SPENDABLE_STANDARD_RESOURCES, ...SPENDABLE_CARD_RESOURCES] as const;
@@ -68,4 +73,5 @@ export const CARD_FOR_SPENDABLE_RESOURCE = {
   kuiperAsteroids: CardName.KUIPER_COOPERATIVE,
   floodgateSteel: CardName.MODULAR_FLOODGATES,
   mechs: CardName.EVA_MECHS,
+  constructionMechs: CardName.CONSTRUCTION_MECHS,
 } satisfies Record<SpendableCardResource, CardName>;

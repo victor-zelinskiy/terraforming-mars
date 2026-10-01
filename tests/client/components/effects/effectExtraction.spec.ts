@@ -128,6 +128,8 @@ describe('effectExtraction', () => {
     // TR09 EVA Mechs: the printed «mech = 5 M€» row IS the effect node (the
     // `.equals().megacredits(5)` pattern Dirigibles set) — never a flagged unknown.
     expect(flagged).to.not.include(CardName.EVA_MECHS);
+    // TR17 Construction Mechs: the same row with TWO cause tags («[стр.] / [город] : мех = 5»).
+    expect(flagged).to.not.include(CardName.CONSTRUCTION_MECHS);
     // TR02 Political Science: a crossed-out delegate → data row is a real effect() node (a sitting-fired
     // trigger with no card-played twin) — never a flagged unknown.
     expect(flagged).to.not.include(CardName.POLITICAL_SCIENCE);
@@ -194,6 +196,11 @@ describe('effectExtraction', () => {
       'Psychrophiles microbe = 2 M€').to.be.true;
     expect(playerEffects([model(CardName.CARBON_NANOSYSTEMS)]).some((e) => e.signature.valueAsPayment),
       'Carbon Nanosystems graphene = 4 M€').to.be.true;
+    // TR17: two cause tags (Building / City) still read as ONE payment row, both tags kept in its cause.
+    const construction = playerEffects([model(CardName.CONSTRUCTION_MECHS)]).find((e) => e.signature.valueAsPayment);
+    expect(construction, 'Construction Mechs mech = 5 M€').to.not.eq(undefined);
+    const causeTags = (construction?.effectNode?.rows?.[0] ?? []).filter((i) => isICardRenderItem(i) && i.tag !== undefined);
+    expect(causeTags, 'both printed cause tags').to.have.length(2);
     // A plain effect (Space Station discount) is NOT a resource-as-payment effect.
     expect(playerEffects([model(CardName.SPACE_STATION)]).every((e) => !e.signature.valueAsPayment)).to.be.true;
   });

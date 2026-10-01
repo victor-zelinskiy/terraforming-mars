@@ -76,6 +76,7 @@ export type RailMcContext =
   | 'venus'             // cards with a Venus tag (Dirigibles floaters)
   | 'moon'              // cards with a Moon tag (Luna Archives science)
   | 'city-or-space'     // city or space tag (Carbon Nanosystems graphene)
+  | 'building-or-city'  // building or city tag (Construction Mechs mechs)
   | 'standard-project'  // standard projects (Spire science, Aurorai data)
   | 'aquifer-asteroid'; // the aquifer / asteroid standard projects (Kuiper)
 
@@ -123,6 +124,8 @@ const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext> = {
   floodgateSteel: 'building',
   // EVA Mechs (TR09): «5 M€ · Космос» — the same dictionary titanium reads.
   mechs: 'space',
+  // Construction Mechs (TR17): «5 M€ · Строительство или Город».
+  constructionMechs: 'building-or-city',
 };
 
 function badgeOf(facts: Array<RailMcUnitFact>): RailMcBadge {

@@ -13,6 +13,7 @@ import {ColonySponsors} from './ColonySponsors';
 import {MechSports} from './MechSports';
 import {PoliticalThinkTank} from './PoliticalThinkTank';
 import {MartianCensus} from './MartianCensus';
+import {ConstructionMechs} from './ConstructionMechs';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -74,5 +75,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
     // FIRST card with a PARTY REQUIREMENT (the Mars First emblem in the MIN plate) — TR13's check can now hit.
     [CardName.MARTIAN_CENSUS]: {Factory: MartianCensus},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. TR09's
+    // twin for Building / City tags: the second mech payment pool (`constructionMechs`), and the second card
+    // with a PARTY REQUIREMENT (Mars First).
+    [CardName.CONSTRUCTION_MECHS]: {Factory: ConstructionMechs},
   },
 });
