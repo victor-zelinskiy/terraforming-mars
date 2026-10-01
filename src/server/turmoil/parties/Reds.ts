@@ -28,8 +28,11 @@ class RedsBonus01 extends Bonus {
     const game = player.game;
     const players = [...game.playersInGenerationOrder];
 
-    if (game.isSoloMode() && players[0].terraformRating <= 20) {
-      return 1;
+    // Solo: the neutral opponent sits at 20 TR — the bonus applies only when the
+    // player is at or below it, and never falls through to the "lowest" test,
+    // where a lone player is always the lowest (upstream #8500).
+    if (game.isSoloMode()) {
+      return players[0].terraformRating <= 20 ? 1 : 0;
     }
 
     players.sort((p1, p2) => p1.terraformRating - p2.terraformRating);
@@ -67,8 +70,10 @@ class RedsBonus02 implements IBonus {
     const game = player.game;
     const players = [...game.playersInGenerationOrder];
 
-    if (game.isSoloMode() && players[0].terraformRating > 20) {
-      return -1;
+    // Solo: only above the neutral opponent's 20 TR, and never the "highest" test
+    // (a lone player is always the highest — upstream #8500).
+    if (game.isSoloMode()) {
+      return players[0].terraformRating > 20 ? -1 : 0;
     }
 
     players.sort((p1, p2) => p2.terraformRating - p1.terraformRating);
