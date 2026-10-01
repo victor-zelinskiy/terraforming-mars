@@ -10299,7 +10299,10 @@ export default defineComponent({
       // at full depth. The stage therefore resets only when the colonies
       // frame is genuinely GONE (neither live nor parked) — «the section
       // moved» alone is not «the player left».
-      if (section !== 'colonies' && this.colonyFocus.open && !workspaceFrameKnown('colonies')) {
+      // …and a hosted step that RIDES its host's dissolve (`coloniesLeaving`) is gone as a frame but still on
+      // screen: its reset waits for the ride's own end (`releaseColoniesLeave`) — resetting here un-parked the grid
+      // under the leaving stage for the whole dissolve.
+      if (section !== 'colonies' && this.colonyFocus.open && !workspaceFrameKnown('colonies') && !this.coloniesLeaving) {
         resetColonyFocus();
         resetConsoleColoniesUi();
       }
@@ -19158,9 +19161,12 @@ export default defineComponent({
     },
     /** The staged colony's step and the play it belonged to end together — the hand's one guarded conclusion takes the whole stack. */
     endStagedColony(): void {
+      // The pick IS the staged store's (`colonyModel` falls back to it): read AFTER the clear it is gone, and the
+      // section riding the hand's dissolve lost its pick mid-leave — the stage let go and the grid un-parked under it.
+      const pick = this.colonyPick;
       clearStagedPlay();
       clearColonyTrackMove();
-      this.endHandWithHostedStep();
+      this.endHandWithHostedStep(pick);
     },
     /**
      * A version move under a staged vote. Before the commit the world moved
@@ -19239,15 +19245,16 @@ export default defineComponent({
      * drew cards, a triggered effect asks) nothing is armed: the step lets go
      * in place, inside the zone the outcome is arriving into.
      */
-    endHandWithHostedStep(): void {
+    endHandWithHostedStep(colonyPick?: ConsoleColonyPick): void {
       // The hosted STEP (the Parliament's vote / walk, the staged colony's grid) pops first — it is the top frame.
       const top = workspaceStackTop();
       const hosted = top !== undefined && (top.kind === 'parliament' || top.kind === 'colonies') &&
         workspaceFrameHost(top.kind) === 'hand' ? top.kind : undefined;
       if (hosted === 'colonies') {
-        // LATCHED before the pop: the zone and the pick the step stood on (see `coloniesLeaving`).
+        // LATCHED before the pop: the zone and the pick the step stood on (see `coloniesLeaving`) — the pick as the
+        // caller read it BEFORE clearing the store it lives in, when it did.
         this.colonyEmbedLatch = this.colonyEmbedTarget ?? '';
-        this.colonyPickLatch = this.colonyPick;
+        this.colonyPickLatch = colonyPick ?? this.colonyPick;
       }
       if (hosted !== undefined) {
         popWorkspaceFrame();
@@ -19288,7 +19295,9 @@ export default defineComponent({
       this.coloniesLeaving = false;
       this.colonyEmbedLatch = '';
       this.colonyPickLatch = undefined;
-      closeColonyFocus();
+      // The reset the section watcher deferred to the ride's end (a frame-less colonies stage is a reset one).
+      resetColonyFocus();
+      resetConsoleColoniesUi();
     },
 
     /**
