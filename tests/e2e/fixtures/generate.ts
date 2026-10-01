@@ -155,6 +155,7 @@ import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/Political
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
+import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
@@ -1117,6 +1118,44 @@ parliamentFixture('water-hauling', {
     if (dock === undefined || p1.colonies.getFleetSize() !== 2 || p1.colonies.freeTradeFleets() !== 2 ||
         p1.colonies.potentialTradeCount() < 2 || !game.canAddOcean() || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the water-hauling fixture expected the dock in the tableau, two free fleets, trades on offer, room for an ocean and the Industrialists ruling — got dock=${dock !== undefined} fleets=${p1.colonies.getFleetSize()}/${p1.colonies.freeTradeFleets()} trades=${p1.colonies.potentialTradeCount()} oceans=${game.board.getOceanSpaces().length} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR07 · COLONY SPONSORS — the STAGED COLONY, the staged play's fourth target
+//    (docs/TURMOIL_REDUX_COLONY_SPONSORS.md): blue's action phase with the card in hand and 10 M€, a colony of
+//    blue's OWN on Luna (the card's requirement) and Luna's marker on cell 3 (index 2) — the move «3 → 7 · +4».
+//    Ceres stands at its TOP (disabled: «Маркер уже на максимуме»); Titan is INACTIVE (disabled: «Эта колония ещё
+//    не активна») — SYNTHETIC, set explicitly: no floater card is in play, so the rule would leave it inactive
+//    anyway, but the frame must never depend on the deal. Europa (red's cube) and Io are further candidates — a
+//    rival's tile is a track like any other. A QUIET government (the Industrialists by Central Power Grid). ──
+parliamentFixture('colony-sponsors', {
+  stopAt: 'vote',
+  megacredits: [10, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const luna = new Luna();
+    const ceres = new Ceres();
+    const titan = new Titan();
+    const europa = new Europa();
+    const io = new Io();
+    game.colonies = [luna, ceres, titan, europa, io];
+    luna.colonies.push(p1.id);
+    luna.trackPosition = 2;
+    ceres.trackPosition = 6;
+    titan.isActive = false;
+    europa.colonies.push(p2.id);
+    europa.trackPosition = 1;
+    io.trackPosition = 1;
+    p1.cardsInHand.push(new ColonySponsors());
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.COLONY_SPONSORS);
+    const track = (name: ColonyName) => game.colonies.find((c) => c.name === name);
+    if (card === undefined || !p1.canPlay(card) || p1.megaCredits !== 10 || track(ColonyName.LUNA)?.trackPosition !== 2 ||
+        !track(ColonyName.LUNA)?.colonies.includes(p1.id) || track(ColonyName.CERES)?.trackPosition !== 6 ||
+        track(ColonyName.TITAN)?.isActive !== false || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the colony-sponsors fixture expected a playable card, 10 M€, Luna at 2 with blue's colony, Ceres at its top, Titan inactive and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} mc=${p1.megaCredits} luna=${track(ColonyName.LUNA)?.trackPosition} ceres=${track(ColonyName.CERES)?.trackPosition} titan=${track(ColonyName.TITAN)?.isActive} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

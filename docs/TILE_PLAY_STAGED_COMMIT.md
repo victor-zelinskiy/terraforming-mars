@@ -510,6 +510,35 @@ abort-батарея транспорта (`markStagedPlayCommitting` / `abortSt
   сервера (`landingHolding` ↓ без `playLandingYieldedToOutcome`) и возвращает свою настройку — кадр «вернулся композер»
   под уже стоящим Парламентом. У клетки этого не было видно только потому, что `pendingPlayCard` гасился первым.
 
+## 9-sexies. ЧЕТВЁРТАЯ ЦЕЛЬ — КОЛОНИЯ (STAGED COLONY, TR07, 2026-10-01)
+
+Розыгрыш может целиться в КОЛОНИЮ: карта, которая самим розыгрышем двигает трек выбранного тайла (TR07 «Спонсоры
+колоний», `docs/TURMOIL_REDUX_COLONY_SPONSORS.md`). Хранилище по-прежнему ОДНО; у резолюции и колонии общая форма —
+«шаг внутри руки» (`stagedHostedTarget()`), и её вход, коммит, B и уход — ОДНИ функции, различающиеся только кадром.
+
+```ts
+export type StagedPlayTarget =
+  | {kind: 'cell', placement: StagedPlacementModel}
+  | {kind: 'resolution', vote: StagedVoteModel}
+  | {kind: 'colony', pick: StagedColonyModel};   // {prompt: SelectColonyModel (с trackMoves), sourceCard: CardName}
+stagedColonyOf(arm?) / stagedHostedTarget(arm?)
+```
+
+| | клетка | резолюция | колония |
+| --- | --- | --- | --- |
+| Куда уходит экран | на поле | шаг Парламента в зоне руки `hand-play` | шаг колоний (сетка → стейдж `track`) в зоне руки |
+| Синтетический промпт | `stagedPlayPrompt` → `placementSpaceModel` | `stagedVoteModel` → `parliamentPromptBridge` | `stagedColonyModel.prompt` → второй источник `colonyModel` / `colonyPick` (`staged: true`) |
+| Вход | `enterStagedPlacement` | `enterStagedHostedStep(arm, кадр parliament)` | `enterStagedHostedStep(arm, кадр colonies)` |
+| Хвост батча | `{type: 'space', spaceId, stagedFor}` | `{type: 'party', partyName, stagedFor}` | `{type: 'colony', colonyName, stagedFor}` |
+| Адрес хвоста | промпт размещения карты (`sourceCard`) | `SelectParty`-грант, `choiceContext.source.card` | `SelectColony`, `choiceContext.source.card` |
+| Коммит | `onStagedPlaySpacePicked` | `commitStagedTail` | `commitStagedTail` (+ пин стейджа, обещание хода) |
+| После коммита | played-hero тайла | посадка куба и нейтральных | ход маркера на стейдже (холд из диффа, ОДИН глайд) |
+| Три исхода | LANDED/PARKED-пин/RE-ASK | `settleStagedVote` | `settleStagedColony` |
+| Уход | на поле | `endHandWithHostedStep` (Парламент в растворении руки) | `endHandWithHostedStep` (колонии в растворении руки, латч `coloniesLeaving`) |
+
+⚠ Ловушка этой цели: секция колоний сама сворачивает стейдж на снятие претензии розыгрыша (`completeFlow`) — через тик
+после ответа, т. е. ДО хода. Staged-дверь и должный/идущий ход теперь это исключают.
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.
