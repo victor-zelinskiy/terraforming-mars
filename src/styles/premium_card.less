@@ -739,6 +739,58 @@
     inset 0 0 0 1.4px rgba(var(--pcard-any-rgb), 0.4);   /* crimson inner kant — the structural {all} cue */
 }
 
+/* «A CARD WITH A REQUIREMENT OF ANY PARTY» (PremiumPartyRequirementGlyph —
+   Turmoil Redux TR13). The requirements PLATE of the face in miniature — the
+   same pointed banner, bronze rim and copper field (`.pcard__reqs` above), drawn
+   from the plate's own tokens with fallbacks for hosts outside `.pcard` (the
+   console composer and verdict) — with the owner's wild-party pill seated inside
+   at its own 256×184 proportion. `--pprq-size` is the plate's HEIGHT; the tips
+   are half of it, so the silhouette scales as one shape at every size. No
+   `filter` anywhere: the console strips it, and the plate's rim is its edge. */
+.pprq {
+  --pprq-h: var(--pprq-size, var(--pcard-mech-icon, 24px));
+  --pprq-clip: polygon(
+    calc(var(--pprq-h) * 0.42) 0, calc(100% - var(--pprq-h) * 0.42) 0, 100% 50%,
+    calc(100% - var(--pprq-h) * 0.42) 100%, calc(var(--pprq-h) * 0.42) 100%, 0 50%);
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: calc(var(--pprq-h) * 2.2);
+  height: var(--pprq-h);
+  vertical-align: middle;
+  clip-path: var(--pprq-clip);
+  background: linear-gradient(180deg,
+    var(--pcard-req-rim-hi, #dcb06c) 0%, var(--pcard-req-rim, #9f6f3d) 48%, var(--pcard-req-rim-deep, #5d3b1e) 100%);
+}
+/* Hosted as a mechanics icon (`.pcard-ic` — declared later, it would square the
+   box): the plate keeps its own width and the plate's own background. */
+.pprq.pcard-ic {
+  width: calc(var(--pprq-h) * 2.2);
+  height: var(--pprq-h);
+  background-size: auto;
+  filter: none;
+}
+.pprq__field {
+  position: absolute;
+  inset: max(1px, calc(var(--pprq-h) * 0.06));
+  clip-path: var(--pprq-clip);
+  background:
+    radial-gradient(95% 150% at 50% 8%, rgba(255, 238, 205, 0.28), transparent 54%),
+    linear-gradient(180deg,
+      var(--pcard-req-rim-hi, #dcb06c) 0%, var(--pcard-req-copper-hi, #b87f42) 16%,
+      var(--pcard-req-copper, #a06835) 56%, var(--pcard-req-copper-deep, #8a5730) 100%);
+}
+.pprq__pill {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 84%;
+  aspect-ratio: 256 / 184;
+  transform: translate(-50%, -50%);
+  background: url(./assets/misc/wild-party.png) center / contain no-repeat;
+}
+
 /* one requirement SEGMENT — a clear icon → operator → value group, centred,
    with controlled air; identical paddings/height for every segment */
 .pcard-req {

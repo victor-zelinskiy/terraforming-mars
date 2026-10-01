@@ -77,7 +77,7 @@ export default defineComponent({
     /** The checked tag's icon URL ('' when the check is absent / iconless). */
     checkIcon(): string {
       const check = this.reveal.check;
-      return check !== undefined ? tagIconUrl(check.tag) : '';
+      return check?.tag !== undefined ? tagIconUrl(check.tag) : '';
     },
     /**
      * The VP the source card GAINED. `to === from` (a match on an already-maxed

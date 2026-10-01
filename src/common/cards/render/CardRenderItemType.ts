@@ -28,6 +28,13 @@ export enum CardRenderItemType {
   /** Turmoil Redux: ONE STEP OF THE AGENDA TRACK as a printed unit — the starred square (TR04 «advance 2 steps»). */
   AGENDA_STEP = 'agenda-step',
   /**
+   * Turmoil Redux: «a card with a requirement of ANY party» — the orange
+   * requirement plate with the purple «?» party pill inside (TR13 Political
+   * Think Tank's check). Not a party (`PARTY_LEADERS` / a party plate), not a
+   * tag: the object is the REQUIREMENT a card prints.
+   */
+  PARTY_REQUIREMENT = 'party-requirement',
+  /**
    * A CARD THAT PRINTS A VP ICON (and, through `secondaryTag`, the tag it
    * prints): the card cover with the tag's bubble and the VP plate in its
    * corner — Turmoil Redux's «Building card with a VP icon» (Architecture

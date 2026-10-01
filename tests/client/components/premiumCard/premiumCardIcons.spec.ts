@@ -75,6 +75,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.VP_CARD, 1))).to.deep.equal({kind: 'vpCard'});
   });
 
+  it('a card with a requirement of ANY party (Turmoil Redux TR13) is the drawn plate glyph — never a text plate, never a party', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.PARTY_REQUIREMENT))).to.deep.equal({kind: 'partyRequirement'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.PARTY_REQUIREMENT))).to.not.deep.equal(mechItemIcon(itemNode(CardRenderItemType.PARTY_LEADERS)));
+  });
+
   it('community reuses the premium player cube (representative colour)', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.COMMUNITY))).to.deep.equal({kind: 'cube', color: 'orange'});
   });

@@ -1,8 +1,8 @@
 import {IPlayer} from '../IPlayer';
 import {ICard} from './ICard';
 import {CardName} from '../../common/cards/CardName';
-import {Tag} from '../../common/cards/Tag';
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
+import {RevealCheck, RevealDestination} from '../../common/models/RevealResultModel';
 import {cardsToModel} from '../models/ModelUtils';
 
 /*
@@ -18,6 +18,11 @@ import {cardsToModel} from '../models/ModelUtils';
  * MUST be called BEFORE the revealed card is discarded (the card is serialized
  * NOW). Sets `player.lastReveal`, which `ServerModel` serializes self-only and
  * `Player.process` clears at the start of the next input. NOTHING else mutates.
+ *
+ * `destination` is WHERE THE CARD WENT — the discard pile (every reveal before
+ * TR13, and TR13's miss) or the revealer's hand (TR13's match). The verdict
+ * states it and the console sends the card there physically on «OK», so a
+ * caller that keeps the card must say so; the default is the discard.
  */
 export function recordReveal(
   player: IPlayer,
@@ -26,7 +31,8 @@ export function recordReveal(
   conditionMet: boolean,
   reward: ActionEffect,
   vp?: {from: number, to: number},
-  check?: {tag: Tag, label: string},
+  check?: RevealCheck,
+  destination: RevealDestination = 'discard',
 ): void {
   player.lastReveal = {
     action,
@@ -34,6 +40,7 @@ export function recordReveal(
     conditionMet,
     check,
     reward: conditionMet ? reward : undefined,
+    destination,
     vp,
   };
 }

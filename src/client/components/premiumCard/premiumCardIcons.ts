@@ -45,6 +45,8 @@ export type MechIconSpec =
   | {kind: 'opg'}
   /** A card that prints `tag` and a VP icon (Turmoil Redux) — `PremiumVpCardGlyph`. */
   | {kind: 'vpCard', tag?: Tag}
+  /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`. */
+  | {kind: 'partyRequirement'}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -500,6 +502,10 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     const tag = secondary !== undefined && (Object.values(Tag) as Array<string>).includes(secondary) ? secondary as Tag : undefined;
     return tag === undefined ? {kind: 'vpCard'} : {kind: 'vpCard', tag};
   }
+  case CardRenderItemType.PARTY_REQUIREMENT:
+    // «A card with a requirement of ANY party» (TR13): the requirements plate
+    // in miniature with the wild-party pill — drawn, never a party plate.
+    return {kind: 'partyRequirement'};
   case CardRenderItemType.COLONY_TILE:
     // The printed COLONY TILE glyph (the pill of a tile: track bars + the
     // planet's limb — Turmoil Redux TR07 «SET [tile] TO MAX», Aridor, Early

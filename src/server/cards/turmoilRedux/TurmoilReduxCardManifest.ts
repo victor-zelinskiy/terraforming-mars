@@ -11,6 +11,7 @@ import {MinorityRepresentation} from './MinorityRepresentation';
 import {WaterHauling} from './WaterHauling';
 import {ColonySponsors} from './ColonySponsors';
 import {MechSports} from './MechSports';
+import {PoliticalThinkTank} from './PoliticalThinkTank';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -66,5 +67,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲, so the
     // card needs nothing else.
     [CardName.MECH_SPORTS]: {Factory: MechSports},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. Its check
+    // (a card with a PARTY REQUIREMENT) can succeed only once such cards join the Redux deck (TR14–TR27).
+    [CardName.POLITICAL_THINK_TANK]: {Factory: PoliticalThinkTank},
   },
 });

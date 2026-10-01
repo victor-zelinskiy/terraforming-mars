@@ -8,6 +8,7 @@ import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 import {EffectForecast} from './EffectForecastModel';
+import type {RevealCheckIcon} from './RevealResultModel';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -153,16 +154,35 @@ export type ActionEffectBasis = {count: number, label: string, tag?: Tag};
  * WHAT will be checked + the reward on a match; after confirming the live result
  * (the revealed card + a success/fail marker) arrives via `PlayerViewModel.lastReveal`.
  * Declared by the card's co-located `actionPreview` hook. SearchForLife (microbe
- * tag → science resource) and AsteroidDeflectionSystem (space tag → asteroid) are
- * the in-scope cases — both check a TAG.
+ * tag → science resource) and AsteroidDeflectionSystem (space tag → asteroid)
+ * check a TAG; Turmoil Redux TR13 Political Think Tank checks a PARTY REQUIREMENT
+ * (`icon`) and KEEPS the revealed card on a match.
  */
 export type ActionRevealDescriptor = {
   /** Which deck the top card is revealed from (only the project deck today). */
   deck: 'project';
-  /** The condition checked on the revealed card. A tag check, with a label. */
-  check: {tag?: Tag, label: string | Message};
+  /**
+   * The condition checked on the revealed card: a TAG check (`tag`) or a
+   * non-tag check named by its printed glyph (`icon` — `'party-requirement'`),
+   * with a label.
+   */
+  check: {tag?: Tag, icon?: RevealCheckIcon, label: string | Message};
   /** What the player gains on a match — reuses the chip type (e.g. science +1 here). */
   reward: ActionEffect;
+  /**
+   * On a match the revealed card goes INTO THE HAND (TR13) instead of the
+   * discard pile. A display fact only — deliberately NOT a `cards` gain in the
+   * branch's effects: that chip is what an outcome claim reads as «this action
+   * draws», and a kept reveal is a verdict, not a drawn batch.
+   */
+  keepsCard?: true;
+  /**
+   * The COMPOSITION behind the odds, as open information: how many cards in
+   * this game can satisfy the check at all (TR13: cards with a party
+   * requirement anywhere in the game — deck, discard, hands, tableaus). Never
+   * the count left in the hidden deck, never a probability.
+   */
+  pool?: {count: number};
   /**
    * The VP the SOURCE card scores NOW → after a successful match (`from` → `to`).
    * Drives a clarity note so the player never has to wonder why a match did or

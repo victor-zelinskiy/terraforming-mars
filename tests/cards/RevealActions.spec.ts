@@ -1,6 +1,9 @@
 import {expect} from 'chai';
 import {SearchForLife} from '../../src/server/cards/base/SearchForLife';
 import {AsteroidDeflectionSystem} from '../../src/server/cards/promo/AsteroidDeflectionSystem';
+import {PoliticalThinkTank} from '../../src/server/cards/turmoilRedux/PoliticalThinkTank';
+import {WildlifeDome} from '../../src/server/cards/turmoil/WildlifeDome';
+import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Tag} from '../../src/common/cards/Tag';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
@@ -33,6 +36,8 @@ describe('Reveal / deck-check actions', () => {
       // The overlay explains WHAT was checked (the microbe tag) — recorded on
       // both outcomes so the result can say "looking for X → found / not found".
       expect(player.lastReveal?.check).to.deep.equal({tag: Tag.MICROBE, label: 'Microbe tag'});
+      // The revealed card is ALWAYS discarded here — the verdict says where it went.
+      expect(player.lastReveal?.destination).eq('discard');
       expect(card.resourceCount).eq(1);
       // First find: VP goes 0 → 3 (the binary 3-VP threshold is unlocked).
       expect(player.lastReveal?.vp).to.deep.equal({from: 0, to: 3});
@@ -106,6 +111,7 @@ describe('Reveal / deck-check actions', () => {
       expect(player.lastReveal?.conditionMet).is.true;
       expect(player.lastReveal?.reward?.icon).eq('asteroid');
       expect(player.lastReveal?.check).to.deep.equal({tag: Tag.SPACE, label: 'Space tag'});
+      expect(player.lastReveal?.destination).eq('discard');
       expect(card.resourceCount).eq(1);
       // 1 VP per asteroid → a match always adds 1 VP (never maxed).
       expect(player.lastReveal?.vp).to.deep.equal({from: 0, to: 1});
@@ -130,6 +136,54 @@ describe('Reveal / deck-check actions', () => {
       const branch = card.actionPreview(player).branches[0];
       expect(branch.reveal?.check.tag).eq(Tag.SPACE);
       expect(branch.reveal?.reward.icon).eq('asteroid');
+    });
+  });
+
+  // The third deck check (Turmoil Redux TR13) and the first that KEEPS the card:
+  // a non-tag check (`icon`), the card's DESTINATION, a stock reward.
+  describe('PoliticalThinkTank', () => {
+    it('a match: the card goes to the HAND, the check names its party, +5 M€ is the reward', () => {
+      const card = new PoliticalThinkTank();
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      player.playedCards.push(card);
+      const top = new WildlifeDome();
+      game.projectDeck.drawPile.push(top);
+
+      card.action(player);
+      runAllActions(game);
+
+      expect(player.lastReveal?.revealed.name).eq(top.name);
+      expect(player.lastReveal?.conditionMet).is.true;
+      expect(player.lastReveal?.destination).eq('hand');
+      expect(player.lastReveal?.check).to.deep.equal({icon: 'party-requirement', label: 'Party requirement', party: PartyName.GREENS});
+      expect(player.lastReveal?.check?.tag).is.undefined;
+      expect(player.lastReveal?.reward?.icon).eq('megacredits');
+      expect(player.cardsInHand).includes(top);
+    });
+
+    it('a miss: the card goes to the DISCARD, no reward', () => {
+      const card = new PoliticalThinkTank();
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      player.playedCards.push(card);
+      game.projectDeck.drawPile.push(fakeCard({tags: [Tag.SPACE]}));
+
+      card.action(player);
+      runAllActions(game);
+
+      expect(player.lastReveal?.conditionMet).is.false;
+      expect(player.lastReveal?.destination).eq('discard');
+      expect(player.lastReveal?.reward).is.undefined;
+      expect(player.cardsInHand).is.empty;
+    });
+
+    it('actionPreview: a non-tag check, the M€ reward, keepsCard and the pool', () => {
+      const card = new PoliticalThinkTank();
+      const [/* game */, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      const branch = card.actionPreview(player).branches[0];
+      expect(branch.reveal?.check).to.deep.equal({icon: 'party-requirement', label: 'Party requirement'});
+      expect(branch.reveal?.reward.icon).eq('megacredits');
+      expect(branch.reveal?.keepsCard).is.true;
+      expect(branch.reveal?.pool).to.deep.equal({count: 0});
     });
   });
 

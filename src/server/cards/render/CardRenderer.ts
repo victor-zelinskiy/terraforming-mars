@@ -236,6 +236,15 @@ abstract class Builder<T> {
   }
 
   /**
+   * Turmoil Redux: «a card with a requirement of ANY party» — the requirement
+   * plate with the wild-party «?» pill (TR13 Political Think Tank). Never a
+   * text plate: the scan prints the plate itself.
+   */
+  public partyRequirement(options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.PARTY_REQUIREMENT, -1, options));
+  }
+
+  /**
    * Turmoil Redux: «advance your Agenda marker N steps» — N starred squares,
    * the set's printed unit of one step of the track (TR04). A SQUARE is a unit
    * in the scans' icon language; the star inside is the track's own mark.

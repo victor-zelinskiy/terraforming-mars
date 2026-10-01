@@ -4,6 +4,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {PreludeCard} from '../prelude/PreludeCard';
 import {ICard} from '../ICard';
 import {IPlayer} from '../../IPlayer';
+import {hasPartyRequirement} from '../requirements/partyRequirementCards';
 
 export class HighCircles extends PreludeCard implements ICard {
   public isDisabled: boolean = false;
@@ -32,7 +33,7 @@ export class HighCircles extends PreludeCard implements ICard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    player.drawCard(1, {include: ((card) => card.requirements?.some((req) => req.party !== undefined))});
+    player.drawCard(1, {include: hasPartyRequirement});
     return undefined;
   }
 }
