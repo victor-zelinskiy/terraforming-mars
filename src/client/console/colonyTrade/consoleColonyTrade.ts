@@ -56,6 +56,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {TradeReceiptBase} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
@@ -208,6 +209,37 @@ const ctx: TradeCtx = {
 
 /** Trades already presented this session — a poll replay can never re-play one. */
 const seenTradeIds = new Set<string>();
+
+/**
+ * THE RECEIPT'S BASE (`colonyTradeReceipt.ts`), remembered for the
+ * transaction's whole life. The focus stage takes it at the commit boundary;
+ * it is kept HERE, not in the stage, because a stage may MOUNT mid-resolution
+ * (the post-discard restore) — and by then the live stock already holds the
+ * payout. The transaction's own end paths forget it, so it never outlives the
+ * trade it describes. The shell pins the stage BEFORE it arms the trade, so
+ * the arm must not clear it.
+ */
+let receiptBase: {colony: string, base: TradeReceiptBase} | undefined;
+
+/** The stage took its boundary snapshot of `colony` from a pre-answer view. */
+export function noteColonyTradeReceiptBase(colony: string, base: TradeReceiptBase): void {
+  receiptBase = {colony, base};
+}
+
+/**
+ * The remembered base — ONLY once the server's answer has been CLAIMED for
+ * this colony's trade (`ctx.claimed`: the claim runs in the same synchronous
+ * block as the view apply, so from then on the live view holds the payout —
+ * the phase stays `armed` until the rewards start, which is too late). Before
+ * the claim the live view IS the pre-trade view, and the caller reads it (and
+ * notes it) itself.
+ */
+export function colonyTradeReceiptBase(colony: string): TradeReceiptBase | undefined {
+  if (!colonyTradeState.active || colonyTradeState.colonyName !== colony || !ctx.claimed) {
+    return undefined;
+  }
+  return receiptBase?.colony === colony ? receiptBase.base : undefined;
+}
 
 let armSafetyId = 0;
 let ceilingId = 0;
@@ -1079,6 +1111,7 @@ function finishTrade(): void {
   colonyTradeState.tradeId = '';
   ctx.manifest = undefined;
   ctx.targets = undefined;
+  receiptBase = undefined;
   tradeLog('transaction finished');
 }
 
@@ -1128,6 +1161,7 @@ export function abortColonyTrade(): void {
     clearTimeout(settleTimerId);
     settleTimerId = 0;
   }
+  receiptBase = undefined;
   if (!colonyTradeState.active) {
     return;
   }

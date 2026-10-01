@@ -732,7 +732,11 @@ import {
   buildSteps,
   buildNotices,
 } from '@/client/components/colonies/colonyTradePlan';
-import {presentedColonyModel, colonyTradeState, colonyTrackAdvancing, colonyTrackWaveState, setColonyStageYielded} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {
+  presentedColonyModel, colonyTradeState, colonyTrackAdvancing, colonyTrackWaveState, setColonyStageYielded,
+  colonyTradeReceiptBase, noteColonyTradeReceiptBase,
+} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {TradeReceiptBase, tradeReceiptBaseOf} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {
   ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations,
   presentedTargetModel,
@@ -862,6 +866,13 @@ type HeldView = {
   preview: ColonyTradePreviewModel | undefined,
   /** The pre-trade track offset the committed move was read at. */
   tradeOffset: number,
+  /**
+   * What every `current → resulting` of the receipt is measured FROM — the
+   * stocks, productions and card resources AS THE PLAYER PRESSED. The live
+   * model already holds the paid fee and the credited income once the
+   * answer lands, and a receipt read off it counts the trade twice.
+   */
+  receipt: TradeReceiptBase,
 };
 
 export default defineComponent({
@@ -1776,9 +1787,7 @@ export default defineComponent({
           tradeNotices(this.presentedPreview) :
           (this.buildConfigLive ? buildNotices(this.presentedPreview) : []),
         resourceOf: (name) => getCard(name)?.resourceType,
-        beforeOf: (name) => this.players
-          .flatMap((p) => p.tableau)
-          .find((c) => c.name === name)?.resources ?? 0,
+        beforeOf: (name) => this.receiptBase.cardResources[name] ?? 0,
       });
     },
     /** A reward chip of this payout is still in the air. */
@@ -1889,30 +1898,23 @@ export default defineComponent({
         [{icon: meta.icon, amount: meta.amount, resource: meta.resource}] :
         [];
     },
+    /**
+     * The base every `current → resulting` of the outcome reads — the live
+     * models before the commit, the boundary snapshot after it (see
+     * `HeldView.receipt`).
+     */
+    receiptBase(): TradeReceiptBase {
+      return this.pinnedConfig?.receipt ?? tradeReceiptBaseOf(this.thisPlayer, this.players);
+    },
     outcome(): {cost: Array<TradeOutcomeChip>, gains: Array<TradeOutcomeChip>} {
-      const player = this.thisPlayer;
       return tradeOutcome({
         metadata: this.metadata,
         rewardPosition: this.rewardPosition,
         payments: this.outcomePayments,
         ownColonyCount: this.ownColonyCount,
         flatBonuses: this.presentedPreview?.flatBonuses,
-        stocks: player !== undefined ? {
-          megacredits: player.megacredits,
-          steel: player.steel,
-          titanium: player.titanium,
-          plants: player.plants,
-          energy: player.energy,
-          heat: player.heat,
-        } : {},
-        production: player !== undefined ? {
-          megacredits: player.megacreditProduction,
-          steel: player.steelProduction,
-          titanium: player.titaniumProduction,
-          plants: player.plantProduction,
-          energy: player.energyProduction,
-          heat: player.heatProduction,
-        } : {},
+        stocks: this.receiptBase.stocks,
+        production: this.receiptBase.production,
       });
     },
     /**
@@ -2944,6 +2946,23 @@ export default defineComponent({
      * PRESENTS from here on. Two callers: the shell's accept (the ordinary
      * path) and the stage's own commit latch (the one that cannot be missed).
      */
+    /**
+     * The receipt's base for the snapshot. Before the server's answer the live
+     * models ARE the pre-trade state — read them and leave them with the trade
+     * transaction, which outlives this instance. Past the answer (a stage
+     * MOUNTING mid-resolution) the live models already hold the payout, so the
+     * transaction's remembered base is the truth; with nothing remembered the
+     * live read is the honest degrade.
+     */
+    boundaryReceipt(): TradeReceiptBase {
+      const remembered = colonyTradeReceiptBase(this.colony.name);
+      if (remembered !== undefined) {
+        return remembered;
+      }
+      const live = tradeReceiptBaseOf(this.thisPlayer, this.players);
+      noteColonyTradeReceiptBase(this.colony.name, live);
+      return live;
+    },
     pinConfig(): void {
       const held: PayEntry | undefined = this.payEntries[this.payIdx];
       const mix = this.energyMixInfo;
@@ -2964,6 +2983,7 @@ export default defineComponent({
         disabledOptions: this.disabledOptions.slice(),
         preview: this.preview,
         tradeOffset: this.tradeOffset + this.chosenPathOffset,
+        receipt: this.boundaryReceipt(),
       };
       this.pinnedConfig = this.heldView;
     },

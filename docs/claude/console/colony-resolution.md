@@ -499,6 +499,25 @@ still mounted for the conclusion's own beat, and re-deriving there is the same
 re-lit menu one frame later (`pinnedConfig`, cleared only by a new colony or a
 fresh mount).
 
+**THE RECEIPT'S BASE IS PART OF THE SNAPSHOT (2026-10-01).** Pinning the
+server's inputs was not enough: every `current → resulting` of the receipt —
+«ВАШ ИТОГ», «ОПЛАТА», the card-target lines — still read the LIVE player and
+tableau, and once the answer lands those already hold the paid fee and the
+credited income. Callisto's «+2 энергии, 4 → 6» read «6 → 8» for the whole
+resolution (TR66's second door, 2026-09-29). `HeldView.receipt`
+(`TradeReceiptBase`, `colonyTrade/colonyTradeReceipt.ts`: the viewer's six
+stocks, six productions and every tableau card's stored resources) is taken
+with the rest of the config and read by `outcome()` and `cardDestinations`
+through ONE computed, `receiptBase` (live before the commit, the pin after).
+A stage can MOUNT mid-resolution (the post-discard restore), when the live view
+already holds the payout — so the base is also left with the TRADE
+TRANSACTION (`noteColonyTradeReceiptBase`), which outlives the instance, and
+handed back only once that transaction's answer has been CLAIMED
+(`colonyTradeReceiptBase` reads `ctx.claimed`, never the phase: the phase
+stays `armed` until the rewards start). The shell pins the stage BEFORE it arms
+the trade, so the arm keeps the note; every end of the transaction (finish,
+abort, reset) forgets it. Spec: `tests/client/components/console/colonyTradeReceipt.spec.ts`.
+
 ### 2 · The hand-back was a CROSS-FADE, so the glide launched inside it
 
 `cardlandReleased` flipped `--carding` off and `--leaving` on in the SAME flush:
