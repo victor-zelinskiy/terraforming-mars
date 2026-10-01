@@ -1,8 +1,9 @@
 import {Message} from '../../common/logs/Message';
-import {BasePlayerInput} from '../PlayerInput';
+import {BasePlayerInput, PlayerInput} from '../PlayerInput';
 import {IColony} from '../colonies/IColony';
+import {CardName} from '../../common/cards/CardName';
 import {InputResponse, isCancelResponse, isSelectColonyResponse} from '../../common/inputs/InputResponse';
-import {SelectColonyModel} from '../../common/models/PlayerInputModel';
+import {FleetDockOfferModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
 import {coloniesToModel} from '../models/ModelUtils';
 import {IPlayer} from '../IPlayer';
 import {InputError} from './InputError';
@@ -29,6 +30,20 @@ export class SelectColony extends BasePlayerInput<IColony> {
    * action menu. Absent → a cancel response is rejected (mandatory).
    */
   public onCancel?: () => void;
+
+  /**
+   * THE TRADE'S OTHER DESTINATIONS — the player's fleet-dock cards with the
+   * server's verdict (`ColoniesHandler.tradeDestinationPick` fills both
+   * fields; see `colonies/FleetDock.ts`). Published as the model's
+   * `fleetDocks` marker, and answered with the second form of the colony
+   * response (`{type: 'colony', fleetDock}`): the card must be listed here
+   * as `available`, or the answer is rejected with the dock's own reason.
+   * Empty on every pick that is not a trade's destination pick — a dock
+   * answer to such a pick is rejected like any unknown colony.
+   */
+  public fleetDocks: ReadonlyArray<FleetDockOfferModel> = [];
+  /** The handler of a dock answer — the twin of `cb` for the second response form. */
+  public onFleetDock?: (card: CardName) => PlayerInput | undefined;
 
   constructor(
     title: string | Message,
@@ -60,7 +75,25 @@ export class SelectColony extends BasePlayerInput<IColony> {
     if (this.placementContext !== undefined) {
       model.placementContext = this.placementContext;
     }
+    // The trade's card destinations ride the input's own toModel for the same
+    // reason: the pick is nested in the trade action's AndOptions.
+    if (this.fleetDocks.length > 0) {
+      model.fleetDocks = this.fleetDocks;
+    }
     return model;
+  }
+
+  /** The second response form: the fleet goes to a card. Refused BEFORE anything is paid. */
+  private processFleetDock(card: CardName): PlayerInput | undefined {
+    const offer = this.fleetDocks.find((dock) => dock.card === card);
+    if (offer === undefined || this.onFleetDock === undefined) {
+      throw new InputError(`Fleet dock ${card} not found`);
+    }
+    if (!offer.available) {
+      const reason = typeof offer.reason === 'string' ? offer.reason : offer.reason?.message;
+      throw new InputError(reason ?? `Fleet dock ${card} is not available`);
+    }
+    return this.onFleetDock(card);
   }
 
   public process(input: InputResponse) {
@@ -73,6 +106,9 @@ export class SelectColony extends BasePlayerInput<IColony> {
     }
     if (!isSelectColonyResponse(input)) {
       throw new InputError('Not a valid SelectColonyResponse');
+    }
+    if (input.fleetDock !== undefined) {
+      return this.processFleetDock(input.fleetDock);
     }
     if (input.colonyName === undefined) {
       throw new InputError('No colony selected');

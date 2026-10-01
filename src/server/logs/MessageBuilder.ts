@@ -11,6 +11,7 @@ import {IGlobalEvent} from '../turmoil/globalEvents/IGlobalEvent';
 import {GlobalEventName} from '../../common/turmoil/globalEvents/GlobalEventName';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {IColony} from '../colonies/IColony';
+import {ITradeDestination} from '../colonies/ITradeDestination';
 import {Message} from '../../common/logs/Message';
 import {Color} from '../../common/Color';
 import {LogMessageData, LogMessageDataAttrs} from '../../common/logs/LogMessageData';
@@ -97,6 +98,20 @@ export class MessageBuilder {
     this.message.data.push({type: LogMessageDataType.COLONY, value: value.name});
     return this;
   }
+
+  /**
+   * WHAT A TRADE WAS MADE WITH — a colony tile names itself as a colony, a
+   * fleet-dock card as a card. The one token every payment path ends its
+   * journal line on, so no path asks which kind of destination it has.
+   */
+  public tradeDestination(value: ITradeDestination): this {
+    const source = value.tradeSource;
+    this.message.data.push(source.kind === 'colony' ?
+      {type: LogMessageDataType.COLONY, value: source.name} :
+      {type: LogMessageDataType.CARD, value: source.card});
+    return this;
+  }
+
   public party(value: IParty): this {
     return this.partyName(value.name);
   }

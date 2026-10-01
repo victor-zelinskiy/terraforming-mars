@@ -34,6 +34,9 @@ import {PlaceDelegatesOnResolution} from '../../src/server/parliament/PlaceDeleg
 import {NEUTRAL_DELEGATE_ICON, POPULAR_SUPPORT_LABEL, SUPPORT_LIMIT_REASON} from '../../src/common/parliament/ParliamentTypes';
 import {SelectPartyModel} from '../../src/common/models/PlayerInputModel';
 import {Server} from '../../src/server/models/ServerModel';
+import {SkyDocks} from '../../src/server/cards/colonies/SkyDocks';
+import {FLEET_LIMIT_REASON, GAIN_TRADE_FLEET_LABEL, TRADE_FLEET_ICON} from '../../src/server/colonies/tradeFleetGain';
+import {MAX_FLEET_SIZE} from '../../src/common/constants';
 import {Phase} from '../../src/common/Phase';
 
 /**
@@ -156,6 +159,16 @@ const SCENARIOS: ReadonlyArray<Scenario> = [
     expected: [{label: SKIPPED_LABEL.removeAnimalsOrPlants, reason: SKIP_REASON.noTarget}],
   },
   {
+    // The engine's `increaseFleetSize` caps at four WITHOUT a word; the class (`behavior.colonies.addTradeFleet`)
+    // names the fleet the cap cut — the chip reads «4 → 4 · limit» before the play, the record after it.
+    name: 'Sky Docks (declarative «gain a trade fleet») — the fleet is already at its maximum of four',
+    card: () => new SkyDocks(),
+    arrange: (_game, player) => {
+      player.colonies.setFleetSize(MAX_FLEET_SIZE);
+    },
+    expected: [{label: GAIN_TRADE_FLEET_LABEL, reason: FLEET_LIMIT_REASON, effect: {direction: 'gain', icon: TRADE_FLEET_ICON, amount: 1}}],
+  },
+  {
     name: 'Virus — the only plants are PROTECTED: the cause says so',
     card: () => new Virus(),
     arrange: (_game, _player, opponent) => {
@@ -215,6 +228,25 @@ describe('skipped effects — the live record (no silent loss, after the fact)',
   }
 
   describe('what records NOTHING', () => {
+    it('a fleet gain with ROOM under the cap — the fleet arrives, the chip says so, nothing is skipped', () => {
+      const [game, player] = testGame(2, {coloniesExtension: true});
+      const card = new SkyDocks();
+      expect(previewSkips(player, card)).deep.eq([]);
+      const chip = cardPlayPreview(player, card).branches[0].effects.find((e) => e.icon === TRADE_FLEET_ICON);
+      expect(chip).deep.eq({direction: 'gain', icon: TRADE_FLEET_ICON, amount: 1, current: 1, resulting: 2});
+      player.playCard(card);
+      runAllActions(game);
+      expect(player.colonies.getFleetSize()).eq(2);
+      expect(factsOf(game)).deep.eq([]);
+    });
+
+    it('…and AT the cap the chip is honest: «4 → 4 · limit»', () => {
+      const [, player] = testGame(2, {coloniesExtension: true});
+      player.colonies.setFleetSize(MAX_FLEET_SIZE);
+      const chip = cardPlayPreview(player, new SkyDocks()).branches[0].effects.find((e) => e.icon === TRADE_FLEET_ICON);
+      expect(chip).deep.eq({direction: 'gain', icon: TRADE_FLEET_ICON, amount: 1, current: 4, resulting: 4, note: 'limit'});
+    });
+
     it('a holder present — the resource lands, nothing is skipped', () => {
       const [game, player] = testGame(2);
       player.playedCards.push(new PoliticalScience());

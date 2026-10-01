@@ -6,6 +6,7 @@ import {SerializedColony} from '../SerializedColony';
 import {ColonyMetadata} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyTradeGrantModel} from '../../common/models/ColonyTradeManifestModel';
+import {ITradeDestination} from './ITradeDestination';
 
 export type TradeOptions = {
   usesTradeFleet?: boolean;
@@ -80,7 +81,12 @@ export type TradeTrackPlan = {
   blockedReason?: string;
 };
 
-export interface IColony {
+/**
+ * A colony tile. It is a TRADE DESTINATION (`ITradeDestination` — the other
+ * one being a fleet-dock card): `tradeSource` names it and `trade` is the door
+ * every payment path hands its paid trade to.
+ */
+export interface IColony extends ITradeDestination {
   readonly name: ColonyName;
   readonly metadata: ColonyMetadata;
 

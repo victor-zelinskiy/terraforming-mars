@@ -10,7 +10,11 @@ import {
   ColonyTradeFollowUpRole,
   ColonyTradeNoteKind,
   ColonyTradePreviewModel,
+  FleetDockPreviewModel,
+  TradePaymentPreviewModel,
 } from '../../common/models/ColonyTradePreviewModel';
+import {FleetDockCard, fleetDockBlockedReason} from './FleetDock';
+import {tradeFlatBonuses} from './tradePerformed';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {StealResources} from '../deferredActions/StealResources';
@@ -77,33 +81,13 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
     followUps.push(rewardFollowUp);
   }
 
-  // ── The M€ path's payment prompt (undefined = M€ auto-pays). ──────────────
-  const mcTrader = new TradeWithMegacredits(player);
-  const megacreditsPayment = mcTrader.canUse() ?
-    new SelectPaymentDeferred(player, mcTrader.cost,
-      {title: message('Select how to pay ${0} for colony trade', (b) => b.number(mcTrader.cost))})
-      .previewPaymentModel() :
-    undefined;
+  // ── What the FEE will ask (the M€ path's payment prompt, the energy path's
+  //    Delta Works mix) — the part every destination of a trade shares. ──────
+  const payment = tradePaymentPreview(player);
 
-  // ── The ENERGY path's source mix (Delta Works: 1 steel = 1 energy) —
-  //    mirrors TradeWithEnergy.trade exactly: min = the energy deficit,
-  //    max = min(stock, cost); min < max is when the server will ASK. ────────
-  const steelSubstitute = DeltaWorks.steelSubstituteAvailable(player);
-  const energyTrader = new TradeWithEnergy(player);
-  const energyMix = steelSubstitute > 0 ? {
-    cost: energyTrader.cost,
-    energyAvailable: player.energy,
-    steelAvailable: steelSubstitute,
-    minSteel: Math.max(0, energyTrader.cost - player.energy),
-    maxSteel: Math.min(steelSubstitute, energyTrader.cost),
-    card: CardName.DELTA_WORKS,
-  } : undefined;
-
-  // ── Flat every-trade card modifiers (mirrors Colony.handleTrade). ─────────
-  const flatBonuses: Array<{card: CardName, resource: string, amount: number}> = [];
-  if (player.tableau.has(CardName.VENUS_TRADE_HUB)) {
-    flatBonuses.push({card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3});
-  }
+  // ── Flat every-trade card modifiers — the very list the trade pays
+  //    (`tradePerformed.ts`). ─────────────────────────────────────────────────
+  const flatBonuses = flatBonusModels(player);
 
   // ── What BUILDING here would ask this player (the NEXT free slot's
   //    placement bonus). Same shape as a trade follow-up, so the console
@@ -115,12 +99,72 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
     colonyName: colony.name,
     track: {current: colony.trackPosition, effective, steps, willAsk},
     rewardQuantity,
-    ...(megacreditsPayment !== undefined ? {megacreditsPayment} : {}),
-    ...(energyMix !== undefined ? {energyMix} : {}),
+    ...payment,
     followUps,
     ...(buildFollowUps.length > 0 ? {buildFollowUps} : {}),
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
   };
+}
+
+/**
+ * READ-ONLY preview of a trade whose destination is a fleet-dock CARD
+ * (`FleetDock.ts`) — the dock twin of `buildColonyTradePreview`: the same
+ * payment part (one builder), the dock's own verdict, and the reward exactly
+ * as the card's co-located contract states it (`previewEffects` /
+ * `previewFollowUps`). Nothing here re-states a rule and nothing mutates.
+ */
+export function buildFleetDockPreview(player: IPlayer, card: FleetDockCard): FleetDockPreviewModel {
+  const reason = fleetDockBlockedReason(player, card);
+  const flatBonuses = flatBonusModels(player);
+  return {
+    card: card.name,
+    available: reason === undefined,
+    ...(reason !== undefined ? {reason} : {}),
+    ...tradePaymentPreview(player),
+    effects: card.fleetDock.previewEffects(player),
+    followUps: card.fleetDock.previewFollowUps?.(player) ?? [],
+    ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
+  };
+}
+
+/**
+ * WHAT THE FEE OF A TRADE WILL ASK — destination-independent (a path takes the
+ * same fee whatever it trades with), so the colony preview and the dock
+ * preview both read it here and cannot drift:
+ *  · the M€ path's payment prompt (`undefined` = M€ auto-pays), from the REAL
+ *    `SelectPaymentDeferred.previewPaymentModel`;
+ *  · the ENERGY path's source mix (Delta Works: 1 steel = 1 energy) — mirrors
+ *    `TradeWithEnergy.trade` exactly: min = the energy deficit, max =
+ *    min(stock, cost); min < max is when the server will ASK.
+ */
+export function tradePaymentPreview(player: IPlayer): TradePaymentPreviewModel {
+  const mcTrader = new TradeWithMegacredits(player);
+  const megacreditsPayment = mcTrader.canUse() ?
+    new SelectPaymentDeferred(player, mcTrader.cost,
+      {title: message('Select how to pay ${0} for colony trade', (b) => b.number(mcTrader.cost))})
+      .previewPaymentModel() :
+    undefined;
+
+  const steelSubstitute = DeltaWorks.steelSubstituteAvailable(player);
+  const energyTrader = new TradeWithEnergy(player);
+  const energyMix = steelSubstitute > 0 ? {
+    cost: energyTrader.cost,
+    energyAvailable: player.energy,
+    steelAvailable: steelSubstitute,
+    minSteel: Math.max(0, energyTrader.cost - player.energy),
+    maxSteel: Math.min(steelSubstitute, energyTrader.cost),
+    card: CardName.DELTA_WORKS,
+  } : undefined;
+
+  return {
+    ...(megacreditsPayment !== undefined ? {megacreditsPayment} : {}),
+    ...(energyMix !== undefined ? {energyMix} : {}),
+  };
+}
+
+/** The flat every-trade bonuses in the previews' wire form (the resource as its icon key). */
+function flatBonusModels(player: IPlayer): Array<{card: CardName, resource: string, amount: number}> {
+  return tradeFlatBonuses(player).map((bonus) => ({card: bonus.card, resource: bonus.resource, amount: bonus.amount}));
 }
 
 /**

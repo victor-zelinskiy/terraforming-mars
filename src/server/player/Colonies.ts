@@ -4,7 +4,10 @@ import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {AndOptions} from '../inputs/AndOptions';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {ENERGY_TRADE_COST, MC_TRADE_COST, TITANIUM_TRADE_COST} from '../../common/constants';
-import {IColony, TradeTerms} from '../colonies/IColony';
+import {TradeTerms} from '../colonies/IColony';
+import {ITradeDestination} from '../colonies/ITradeDestination';
+import {availableFleetDocks} from '../colonies/FleetDock';
+import {tradeDestinationPick, tradeThrough} from '../colonies/tradeDoor';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {Resource} from '../../common/Resource';
 import {TradeWithTitanFloatingLaunchPad} from '../cards/colonies/TitanFloatingLaunchPad';
@@ -48,8 +51,8 @@ export class Colonies {
   /**
    * Returns `true` if this player can execute a trade.
    */
-  public canTrade() {
-    return this.tradeBlockedReason() === undefined;
+  public canTrade(opts: {colonyOnly?: boolean} = {}) {
+    return this.tradeBlockedReason(opts) === undefined;
   }
 
   /**
@@ -65,8 +68,16 @@ export class Colonies {
    *
    * Ordered by how ABSOLUTE the blocker is: a game-wide embargo outranks the
    * player's own fleet count, which outranks the state of the board.
+   *
+   * A trade needs a DESTINATION, and a colony is one of two: a free fleet
+   * dock of the player's own (`FleetDock.ts` — a card the fleet is sent to
+   * instead of a colony) keeps the trade possible with every tile visited.
+   * `colonyOnly` asks the historical question («is there a COLONY to trade
+   * with») for the doors that offer colonies alone and would otherwise open
+   * an empty pick (the out-of-scope card actions: Darkside Smugglers' Union,
+   * Collegium Copernicus).
    */
-  public tradeBlockedReason(): string | undefined {
+  public tradeBlockedReason(opts: {colonyOnly?: boolean} = {}): string | undefined {
     if (this.player.game.tradeEmbargo === true) {
       return 'Trade embargo is in effect';
     }
@@ -76,6 +87,9 @@ export class Colonies {
     const game = this.player.game;
     const terms = this.bestTradeTerms();
     if (ColoniesHandler.tradeableColonies(game, this.player, terms).length === 0) {
+      if (opts.colonyOnly !== true && availableFleetDocks(this.player).length > 0) {
+        return undefined;
+      }
       // An open colony that REFUSES this player (the Turmoil Redux Pluto with
       // no card to hold its data) is named by its own reason — «no colony
       // available» would hide a tile that is plainly on the table.
@@ -160,9 +174,9 @@ export class Colonies {
   }
 
   /**
-   * TURN-INDEPENDENT PROJECTION: how many more colony trades this player could
-   * execute in the current game state — `min(tradeable colonies, free fleets)`,
-   * and 0 when a trade is impossible at all.
+   * TURN-INDEPENDENT PROJECTION: how many more trades this player could
+   * execute in the current game state — `min(tradeable colonies + available
+   * fleet docks, free fleets)`, and 0 when a trade is impossible at all.
    *
    * It reuses the authoritative validators rather than restating them:
    * `tradeBlockedReason()` (embargo / fleet / an open colony) and the SAME
@@ -186,7 +200,8 @@ export class Colonies {
       return 0; // a free fleet and an open colony, but nothing to pay the fee with
     }
     const colonies = ColoniesHandler.tradeableColonies(this.player.game, this.player, this.bestTradeTerms()).length;
-    return Math.min(colonies, this.freeTradeFleets());
+    // Every available fleet dock is one more destination a free fleet can go to.
+    return Math.min(colonies + availableFleetDocks(this.player).length, this.freeTradeFleets());
   }
 
   private tradeWithColony(): AndOptions | undefined {
@@ -232,33 +247,28 @@ export class Colonies {
     // The OFFER is judged by the BEST usable path (the Unity +1's reach, the
     // cheapest M€ fee — the same list the options above were built from); a
     // colony refusing the player at every reach is DISABLED with its reason,
-    // never dropped.
-    const selectColony = ColoniesHandler.tradeColonyPick(player, 'Select colony tile for trade', 'trade', this.bestTradeTerms())
-      .andThen((colony) => {
-        if (selected === undefined) {
-          throw new Error(`Unexpected condition: no trade funding source selected when trading with ${colony.name}.`);
+    // never dropped. The pick is of a DESTINATION: the colony tiles and the
+    // player's fleet-dock cards (`tradeDestinationPick`) — a
+    // dock alone, with every tile visited, is a legal pick.
+    const selectColony = tradeDestinationPick(player, 'Select colony tile for trade', 'trade', this.bestTradeTerms(),
+      (destination) => {
+        const trader: IColonyTrader | undefined = selected;
+        if (trader === undefined) {
+          throw new Error('Unexpected condition: no trade funding source selected when trading.');
         }
         // The CHOSEN path may reach less than the offer did (M€ where only
         // the Unity step lifted the Redux Pluto's refusal), or TAKE the M€ the
         // colony needs on top (the Redux Venus's 1st position): re-judged by
         // the chosen path BEFORE anything is paid — a named rejection, never
         // a fee paid into nothing.
-        const refusal = colony.tradeBlockedReason(player, Colonies.termsOf(selected));
+        const refusal = destination.tradeBlockedReason(player, Colonies.termsOf(trader));
         if (refusal !== undefined) {
           throw new InputError(refusal);
         }
         // Root the chain at this TOP-LEVEL trade so the fee, reward and colony
-        // bonuses group under it. (A trade triggered BY A CARD instead nests
-        // under that card's scope — the card vs action distinction is preserved.)
-        const events = player.game?.events;
-        events?.beginAction(player, {kind: 'colony', name: colony.name}, {category: 'colony'});
-        try {
-          player.game.log('${0} traded with ${1}', (b) => b.player(player).colony(colony));
-          selected.trade(colony);
-        } finally {
-          events?.endScope();
-        }
-        return undefined;
+        // bonuses group under it — the one scope every door of the trade opens
+        // (`tradeThrough`), here with the action's own headline.
+        tradeThrough(player, trader, destination, {headline: true});
       });
 
     return new AndOptions(howToPayForTrade, selectColony)
@@ -348,7 +358,7 @@ export class Colonies {
  * The Adhai card-resource discount (MC trader) is a separate mechanism and stays
  * unattributed here. The trade was already paid by the caller.
  */
-function recordTradeDiscountSaving(player: IPlayer, colony: IColony, resource: 'energy' | 'titanium' | 'megacredits', baseCost: number): void {
+function recordTradeDiscountSaving(player: IPlayer, destination: ITradeDestination, resource: 'energy' | 'titanium' | 'megacredits', baseCost: number): void {
   const events = player.game.events;
   const discount = player.colonies.tradeDiscount;
   if (events === undefined || discount <= 0) {
@@ -367,7 +377,7 @@ function recordTradeDiscountSaving(player: IPlayer, colony: IColony, resource: '
     if (take <= 0) {
       continue;
     }
-    events.recordTradeDiscount(player, card, colony.name, resource, take);
+    events.recordTradeDiscount(player, card, destination.tradeSource, resource, take);
     remaining -= take;
   }
 }
@@ -418,7 +428,7 @@ export class TradeWithEnergy implements IColonyTrader {
 
   /** Deduct the ACTUAL chosen mix and run the trade. Substitution, never
    *  conversion: no energy is added anywhere, the steel leaves as steel. */
-  private pay(colony: IColony, steel: number) {
+  private pay(destination: ITradeDestination, steel: number) {
     const energy = this.tradeCost - steel;
     // The trade FEE is a payment, not a colony benefit — attribute it to the
     // `payment` source so the journal reads "Оплата → −N", distinct from the
@@ -431,18 +441,18 @@ export class TradeWithEnergy implements IColonyTrader {
         this.player.stock.deduct(Resource.STEEL, steel, {log: false, from: {card: CardName.DELTA_WORKS}});
       }
       if (steel === 0) {
-        this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+        this.player.game.log('${0} spent ${1} energy to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).tradeDestination(destination));
       } else if (energy === 0) {
-        this.player.game.log('${0} spent ${1} steel to trade with ${2}', (b) => b.player(this.player).number(steel).colony(colony));
+        this.player.game.log('${0} spent ${1} steel to trade with ${2}', (b) => b.player(this.player).number(steel).tradeDestination(destination));
       } else {
-        this.player.game.log('${0} spent ${1} energy and ${2} steel to trade with ${3}', (b) => b.player(this.player).number(energy).number(steel).colony(colony));
+        this.player.game.log('${0} spent ${1} energy and ${2} steel to trade with ${3}', (b) => b.player(this.player).number(energy).number(steel).tradeDestination(destination));
       }
     });
-    recordTradeDiscountSaving(this.player, colony, 'energy', ENERGY_TRADE_COST);
-    colony.trade(this.player);
+    recordTradeDiscountSaving(this.player, destination, 'energy', ENERGY_TRADE_COST);
+    destination.trade(this.player);
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     const cost = this.tradeCost;
     const substitute = this.steelSubstitute();
     const maxSteel = Math.min(substitute, cost);
@@ -462,7 +472,7 @@ export class TradeWithEnergy implements IColonyTrader {
           if (steel > this.steelSubstitute() || cost - steel > this.player.energy) {
             throw new InputError('Cannot afford that energy and steel mix');
           }
-          this.pay(colony, steel);
+          this.pay(destination, steel);
           return undefined;
         });
       const deltaWorks = this.player.tableau.get(CardName.DELTA_WORKS);
@@ -475,7 +485,7 @@ export class TradeWithEnergy implements IColonyTrader {
     } else {
       // No choice to make: energy-only (no Delta Works / no steel), or the one
       // forced mix (the deficit dictates the steel share). Shown, never asked.
-      this.pay(colony, minSteel);
+      this.pay(destination, minSteel);
     }
   }
 }
@@ -501,14 +511,14 @@ export class TradeWithTitanium implements IColonyTrader {
     return 'Not enough titanium';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     // The trade FEE is a payment — see TradeWithEnergy.trade.
     this.player.game.events.withSource({kind: 'payment'}, () => {
       this.player.pay(Payment.of({titanium: this.tradeCost}));
-      this.player.game.log('${0} spent ${1} titanium to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
+      this.player.game.log('${0} spent ${1} titanium to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).tradeDestination(destination));
     });
-    recordTradeDiscountSaving(this.player, colony, 'titanium', TITANIUM_TRADE_COST);
-    colony.trade(this.player);
+    recordTradeDiscountSaving(this.player, destination, 'titanium', TITANIUM_TRADE_COST);
+    destination.trade(this.player);
   }
 }
 
@@ -558,13 +568,13 @@ export class TradeWithMegacredits implements IColonyTrader {
     return 'Not enough M€';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     this.player.game.defer(new SelectPaymentDeferred(this.player, this.tradeCost,
       {title: message('Select how to pay ${0} for colony trade', (b) => b.number(this.tradeCost))}))
       .andThen(() => {
-        this.player.game.log('${0} spent ${1} M€ to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).colony(colony));
-        recordTradeDiscountSaving(this.player, colony, 'megacredits', MC_TRADE_COST);
-        colony.trade(this.player);
+        this.player.game.log('${0} spent ${1} M€ to trade with ${2}', (b) => b.player(this.player).number(this.tradeCost).tradeDestination(destination));
+        recordTradeDiscountSaving(this.player, destination, 'megacredits', MC_TRADE_COST);
+        destination.trade(this.player);
       });
   }
 }

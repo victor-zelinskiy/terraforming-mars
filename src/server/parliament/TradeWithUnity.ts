@@ -1,5 +1,5 @@
 import {IPlayer} from '../IPlayer';
-import {IColony} from '../colonies/IColony';
+import {ITradeDestination} from '../colonies/ITradeDestination';
 import {IColonyTrader} from '../colonies/IColonyTrader';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {message} from '../logs/MessageBuilder';
@@ -50,7 +50,7 @@ export class TradeWithUnity implements IColonyTrader {
     return 'The Unity action was already used this generation';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     const parliament = this.player.game.parliament;
     if (parliament === undefined) {
       throw new Error('No parliament');
@@ -58,8 +58,8 @@ export class TradeWithUnity implements IColonyTrader {
     const events = this.player.game.events;
     events.withSource(partySource(PartyName.UNITY, this.player), () => {
       parliament.recordPartyActionUse(this.player, PartyName.UNITY);
-      this.player.game.log('${0} used the ${1} action to trade for free with ${2}', (b) => b.player(this.player).partyName(PartyName.UNITY).colony(colony));
+      this.player.game.log('${0} used the ${1} action to trade for free with ${2}', (b) => b.player(this.player).partyName(PartyName.UNITY).tradeDestination(destination));
     });
-    colony.trade(this.player, {}, 1);
+    destination.trade(this.player, {}, this.bonusTradeOffset);
   }
 }

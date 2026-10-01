@@ -47,6 +47,16 @@ export interface CardModel {
     protectedResources?: true,
     discount?: Array<CardDiscount>,
     isDisabled?: boolean; // Used with Pharmacy Union
+    /**
+     * A TRADE FLEET STANDS ON THIS CARD this generation (a fleet dock —
+     * Turmoil Redux TR06 Water Hauling and its sisters): the owner sent a
+     * trade's fleet here instead of to a colony, and it returns with the
+     * others at the generation's end. Public (a fleet on a card is on the
+     * table for every seat); absent — never `false` — on every other card and
+     * on a free dock. NOT a used ACTION: the card has none, and it must not
+     * read as «activated».
+     */
+    fleetDocked?: true;
     // When this card is a DISABLED candidate in a SelectCard prompt (it's a
     // relevant target but can't be picked right now — e.g. no resources on it),
     // a user-facing reason. Shown as a badge/popover in the premium card picker.

@@ -10,9 +10,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IPlayer} from '../../IPlayer';
 import {PlayerInput} from '../../PlayerInput';
-import {IColony} from '../../colonies/IColony';
+import {ITradeDestination} from '../../colonies/ITradeDestination';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
-import {ColoniesHandler} from '../../colonies/ColoniesHandler';
+import {tradeDestinationPick, tradeThrough} from '../../colonies/tradeDoor';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {effectChoice} from '../../inputs/choiceContext';
@@ -149,20 +149,13 @@ export class AutomatedConvoys extends Card implements IProjectCard {
     if (this.tradeVariantReason(player) === undefined) {
       options.push(new SelectOption('Spend 1 mech from this card to trade for free', 'Trade').andThen(() => {
         // The trader IS the implementation; this is one of its two entry
-        // points (the colonies menu's fee picker is the other).
+        // points (the colonies menu's fee picker is the other). The pick is
+        // of a DESTINATION — a colony tile or a fleet-dock card of the
+        // player's own — and the door's scope is the shared one.
         const trader = new TradeWithAutomatedConvoys(player);
         player.defer(
-          ColoniesHandler.tradeColonyPick(player, 'Select colony tile to trade with for free', 'trade')
-            .andThen((colony) => {
-              const events = player.game.events;
-              events?.beginAction(player, {kind: 'colony', name: colony.name}, {category: 'colony'});
-              try {
-                trader.trade(colony);
-              } finally {
-                events?.endScope();
-              }
-              return undefined;
-            }));
+          tradeDestinationPick(player, 'Select colony tile to trade with for free', 'trade', 0,
+            (destination) => tradeThrough(player, trader, destination)));
         return undefined;
       }));
     }
@@ -216,12 +209,12 @@ export class TradeWithAutomatedConvoys implements IColonyTrader {
     return 'This card\'s action was already used this generation';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     if (this.automatedConvoys !== undefined) {
       this.player.removeResourceFrom(this.automatedConvoys, 1, {log: false});
     }
     this.player.actionsThisGeneration.add(CardName.AUTOMATED_CONVOYS);
-    this.player.game.log('${0} spent 1 mech to trade with ${1}', (b) => b.player(this.player).colony(colony));
-    colony.trade(this.player);
+    this.player.game.log('${0} spent 1 mech to trade with ${1}', (b) => b.player(this.player).tradeDestination(destination));
+    destination.trade(this.player);
   }
 }

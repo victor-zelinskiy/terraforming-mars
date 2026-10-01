@@ -22,20 +22,7 @@ import {IStandardProjectCard} from '../cards/IStandardProjectCard';
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {StandardProjectPreviewModel} from '../../common/models/CardModel';
 import {Resource} from '../../common/Resource';
-import {MAX_OCEAN_TILES} from '../../common/constants';
 import * as preview from '../cards/actionPreviews';
-
-/** The `tr.oceans` chip: `globalGain` covers the three scales, oceans count
- *  their own tiles. Clamped exactly like the scales — a maxed board renders
- *  the chip's own honest «no effect» (current === resulting). */
-function oceanGain(player: IPlayer, amount: number): ActionEffect {
-  const current = player.game.board.getOceanSpaces().length;
-  return {
-    direction: 'gain', icon: 'oceans', amount,
-    current,
-    resulting: Math.min(MAX_OCEAN_TILES, current + amount),
-  };
-}
 
 /**
  * Build the guaranteed preview for one standard project.
@@ -79,7 +66,7 @@ export function buildStandardProjectPreview(
       effects.push(preview.globalGain(player, 'venus', tr.venus));
     }
     if (tr.oceans !== undefined && tr.oceans !== 0) {
-      effects.push(oceanGain(player, tr.oceans));
+      effects.push(preview.oceanGain(player, tr.oceans));
     }
     if (tr.tr !== undefined && tr.tr !== 0) {
       effects.push(preview.trGain(player, tr.tr));

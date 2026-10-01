@@ -41,6 +41,8 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {colonySource} from '../inputs/choiceContext';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
+import {TradeDestinationSource} from './ITradeDestination';
+import {payTradeFlatBonuses, reportTrade} from './tradePerformed';
 
 export abstract class Colony implements IColony {
   // Players can't build colonies on Miranda until someone has played an Animal card.
@@ -69,6 +71,11 @@ export abstract class Colony implements IColony {
 
   public get name(): ColonyName {
     return this.metadata.name;
+  }
+
+  /** This tile as a trade destination (`ITradeDestination`) — what a payment path names, and the scope its trade roots at. */
+  public get tradeSource(): TradeDestinationSource {
+    return {kind: 'colony', name: this.name};
   }
 
   public endGeneration(game: IGame): void {
@@ -153,7 +160,7 @@ export abstract class Colony implements IColony {
       if (this.refuseTrade(player, this.tradeIncomeBlockedReason(player, this.trackPosition))) {
         return;
       }
-      ParliamentHandler.onTrade(player);
+      reportTrade(player);
       this.handleTrade(player, tradeOptions);
       return;
     }
@@ -165,8 +172,9 @@ export abstract class Colony implements IColony {
     // Turmoil Redux: the chairman quest (trades performed) — reported at the
     // one door every trade enters by, BEFORE the track question: the fee is
     // paid and the fleet committed by now, so the trade is a fact whichever
-    // way the player answers about the track.
-    ParliamentHandler.onTrade(player);
+    // way the player answers about the track. (`tradePerformed.ts` — the one
+    // module both trade destinations report through.)
+    reportTrade(player);
 
     if (plan.ask) {
       // Ask the player how far to advance — down to the plan's floor.
@@ -369,9 +377,9 @@ export abstract class Colony implements IColony {
       player.colonies.usedTradeFleets++;
     }
 
-    if (player.tableau.has(CardName.VENUS_TRADE_HUB)) {
-      player.stock.add(Resource.MEGACREDITS, 3, {log: true});
-    }
+    // The flat every-trade card bonuses (Venus Trade Hub's +3 M€) — the list a
+    // fleet dock's trade pays too, and the one the previews read.
+    payTradeFlatBonuses(player);
 
     // The trade FINALIZER: reset the track (Colonies rules — the marker
     // returns to the number of built colonies) and close the trade-stamping

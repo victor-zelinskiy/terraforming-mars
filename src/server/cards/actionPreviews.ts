@@ -15,7 +15,7 @@ import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
+import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel} from '../../common/models/PlayerInputModel';
@@ -105,6 +105,15 @@ export function globalGain(player: IPlayer, parameter: 'oxygen' | 'temperature' 
   const cur = m.get(player);
   const delta = steps * m.step;
   return {direction: delta >= 0 ? 'gain' : 'cost', icon: parameter, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, m.min, m.max), unit: m.unit};
+}
+/**
+ * Place N ocean tiles — the oceans count their own tiles (`globalGain` covers
+ * the three scales). Clamped exactly like the scales: a maxed board renders
+ * the chip's own honest «no effect» (current === resulting).
+ */
+export function oceanGain(player: IPlayer, amount: number): ActionEffect {
+  const current = player.game.board.getOceanSpaces().length;
+  return {direction: 'gain', icon: 'oceans', amount, current, resulting: Math.min(MAX_OCEAN_TILES, current + amount)};
 }
 /** Draw N cards (no single pool — shown as a "+N draw" chip). */
 export function drawGain(amount: number): ActionEffect {

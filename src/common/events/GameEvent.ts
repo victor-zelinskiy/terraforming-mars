@@ -72,6 +72,15 @@ export type GameEventType =
    */
   | 'popular-support-gained'
   /**
+   * A TRADE FLEET WAS SENT TO A CARD (Turmoil Redux — a fleet dock: TR06 Water
+   * Hauling and its sisters TR26 / TR27). `player` is the trader (always the
+   * card's owner — FAQ p.19), `target.card` and the event's `source` name the
+   * card. The trade has no colony in it, so nothing else in the chain says
+   * WHERE the fleet went: the fee is a payment row and the reward (an ocean, a
+   * TR step) is its own chokepoint event. Journal-visible, never a delta.
+   */
+  | 'fleet-docked'
+  /**
    * NO SILENT LOSS, the live half: an effect the engine could NOT apply — no
    * card can hold the resource, no opponent can be hit. `impact.skipped` names
    * WHICH effect, WHY, and the magnitude lost, in the SAME words the play

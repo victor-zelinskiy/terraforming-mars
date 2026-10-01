@@ -45,6 +45,8 @@ import {asArray, inplaceRemove} from '../../common/utils/utils';
 import {SelectCard} from '../inputs/SelectCard';
 import {cardDiscard} from '../inputs/discardPrompt';
 import {steelSpendSourceOptions} from './steelSpendSource';
+import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetsLost} from '../colonies/tradeFleetGain';
+import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -642,8 +644,16 @@ export class Executor implements BehaviorExecutor {
         player.game.defer(new BuildColony(player, {allowDuplicate: colonies.buildColony.allowDuplicates}));
       }
       if (colonies.addTradeFleet !== undefined) {
+        // `increaseFleetSize` caps SILENTLY at MAX_FLEET_SIZE: the fleets the
+        // cap cuts are counted BEFORE the grant and named after it — the same
+        // arithmetic and the same words the play preview warned with
+        // (`colonies/tradeFleetGain.ts`). No silent loss.
+        const lost = tradeFleetsLost(player, colonies.addTradeFleet);
         for (let idx = 0; idx < colonies.addTradeFleet; idx++) {
           player.colonies.increaseFleetSize();
+        }
+        if (lost > 0) {
+          recordSkippedEffect(player, FLEET_LIMIT_REASON, skippedTradeFleet(lost));
         }
       }
       if (colonies.tradeDiscount !== undefined) {

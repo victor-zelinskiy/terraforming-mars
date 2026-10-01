@@ -183,7 +183,11 @@ function foldImpact(acc: {
   if (impact.tradeDiscountSaved !== undefined) {
     for (const td of impact.tradeDiscountSaved) {
       acc.tradeDiscount[td.resource] += td.amount;
-      acc.tradeDiscount.colonies[td.colony] = (acc.tradeDiscount.colonies[td.colony] ?? 0) + td.amount;
+      // The per-colony breakdown lists colonies; a saving on a trade with a
+      // fleet-dock card counts in the totals above and has no tile to list under.
+      if (td.colony !== undefined) {
+        acc.tradeDiscount.colonies[td.colony] = (acc.tradeDiscount.colonies[td.colony] ?? 0) + td.amount;
+      }
     }
     acc.tradeDiscount.count += 1;
   }

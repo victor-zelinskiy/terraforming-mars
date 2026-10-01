@@ -7,11 +7,11 @@ import {CardResource} from '../../../common/CardResource';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
-import {IColony} from '../../colonies/IColony';
+import {ITradeDestination} from '../../colonies/ITradeDestination';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
-import {ColoniesHandler} from '../../colonies/ColoniesHandler';
+import {tradeDestinationPick, tradeThrough} from '../../colonies/tradeDoor';
 import {message} from '../../logs/MessageBuilder';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
@@ -113,19 +113,12 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
         // card grouped differently in the journal, and only it carried the
         // `'trade'` button label the console's trade orchestration keys on.
         // The trader IS the implementation; this is one of its two entry points.
+        // The pick is of a DESTINATION — a colony tile or a fleet-dock card of
+        // the player's own — and the door's scope is the shared one.
         const trader = new TradeWithTitanFloatingLaunchPad(player);
         player.defer(
-          ColoniesHandler.tradeColonyPick(player, 'Select colony tile to trade with for free', 'trade')
-            .andThen((colony) => {
-              const events = player.game.events;
-              events?.beginAction(player, {kind: 'colony', name: colony.name}, {category: 'colony'});
-              try {
-                trader.trade(colony);
-              } finally {
-                events?.endScope();
-              }
-              return undefined;
-            }));
+          tradeDestinationPick(player, 'Select colony tile to trade with for free', 'trade', 0,
+            (destination) => tradeThrough(player, trader, destination)));
         return undefined;
       }),
       new SelectOption('Add 1 floater to a Jovian card', 'Add floater').andThen(() => {
@@ -184,13 +177,13 @@ export class TradeWithTitanFloatingLaunchPad implements IColonyTrader {
     return 'This card\'s action was already used this generation';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     // grr I wish there was a simpler syntax.
     if (this.titanFloatingLaunchPad !== undefined) {
       this.titanFloatingLaunchPad.resourceCount--;
     }
     this.player.actionsThisGeneration.add(CardName.TITAN_FLOATING_LAUNCHPAD);
-    this.player.game.log('${0} spent 1 floater to trade with ${1}', (b) => b.player(this.player).colony(colony));
-    colony.trade(this.player);
+    this.player.game.log('${0} spent 1 floater to trade with ${1}', (b) => b.player(this.player).tradeDestination(destination));
+    destination.trade(this.player);
   }
 }

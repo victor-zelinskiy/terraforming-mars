@@ -2,6 +2,7 @@ import {ColonyName} from '../colonies/ColonyName';
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {SelectCardModel, SelectPaymentModel} from './PlayerInputModel';
+import type {ActionEffect} from './ActionPreviewModel';
 
 /**
  * A NOTE follow-up: something the trade will require / trigger AFTER the
@@ -87,21 +88,13 @@ export type ColonyTradeFollowUpModel =
  * (reuses the REAL trade rules; never mutates), served by
  * `GET /api/game/colony-trade-preview`.
  */
-export type ColonyTradePreviewModel = {
-  colonyName: ColonyName;
-  track: {
-    /** The marker position right now. */
-    current: number;
-    /** The position the reward is read at after the (auto) trade offset. */
-    effective: number;
-    /** Steps the track advances before the trade (0 = none). */
-    steps: number;
-    /** True = the server ASKS how far to advance (IncreaseColonyTrack). */
-    willAsk: boolean;
-  };
-  /** Trade reward quantity at the effective position (type/resource/icons
-   *  come from the shared colony manifest on the client). */
-  rewardQuantity: number;
+/**
+ * WHAT THE FEE OF A TRADE WILL ASK, whatever the trade's destination — the two
+ * payment paths that can raise a prompt of their own. One builder
+ * (`tradePaymentPreview`) feeds both previews, so a colony's and a dock's
+ * composer pre-collect the same question from the same fact.
+ */
+export type TradePaymentPreviewModel = {
   /**
    * The payment prompt an M€ trade would raise (heat / alt-resource payers),
    * or undefined when M€ pays automatically. Applies ONLY when the player
@@ -130,7 +123,48 @@ export type ColonyTradePreviewModel = {
     /** The substitution's source card (Delta Works) — the mix row's badge. */
     card: CardName;
   };
-  /** Every other follow-up, in live prompt order. */
+};
+
+/**
+ * Read-only preview of ONE trade whose destination is a CARD — a fleet dock
+ * (Turmoil Redux TR06 Water Hauling and its sisters; `server/colonies/
+ * FleetDock.ts`). Deliberately the colony preview's shape minus the colony:
+ * the same payment part, the reward as `current → resulting` chips, and the
+ * same follow-up list — so a dock whose reward ASKS (TR27: the Venus card the
+ * floaters go to) is pre-collected by the very step a colony's card target
+ * uses. Built by `buildFleetDockPreview`, served by the same route
+ * (`GET /api/game/colony-trade-preview?dock=<card>`).
+ */
+export type FleetDockPreviewModel = TradePaymentPreviewModel & {
+  card: CardName;
+  /** The server's verdict for THIS player right now — the dock's own gate (the berth, the reward). */
+  available: boolean;
+  /** The ONE blocker when unavailable (an English i18n key). */
+  reason?: string;
+  /** What the trade pays (oceans `current → resulting`, the TR step, …). */
+  effects: ReadonlyArray<ActionEffect>;
+  /** What the reward asks / triggers after the confirm, in live order. */
+  followUps: ReadonlyArray<ColonyTradeFollowUpModel>;
+  /** The flat every-trade card modifiers this trade pays too (Venus Trade Hub's +3 M€). */
+  flatBonuses?: ReadonlyArray<{card: CardName, resource: string, amount: number}>;
+};
+
+export type ColonyTradePreviewModel = TradePaymentPreviewModel & {
+  colonyName: ColonyName;
+  track: {
+    /** The marker position right now. */
+    current: number;
+    /** The position the reward is read at after the (auto) trade offset. */
+    effective: number;
+    /** Steps the track advances before the trade (0 = none). */
+    steps: number;
+    /** True = the server ASKS how far to advance (IncreaseColonyTrack). */
+    willAsk: boolean;
+  };
+  /** Trade reward quantity at the effective position (type/resource/icons
+   *  come from the shared colony manifest on the client). */
+  rewardQuantity: number;
+  /** Every other follow-up (the fee's own two ride {@link TradePaymentPreviewModel}), in live prompt order. */
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>;
   /**
    * What BUILDING here would ask this player — the placement bonus of the NEXT

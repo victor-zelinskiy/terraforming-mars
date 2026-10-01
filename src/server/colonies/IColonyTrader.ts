@@ -1,12 +1,18 @@
 import {Message} from '../../common/logs/Message';
 import {OptionMetadata} from '../../common/models/PlayerInputModel';
-import {IColony} from './IColony';
+import {ITradeDestination} from './ITradeDestination';
 
-/** Something that can pay for trading with colonies. */
+/**
+ * Something that can pay for a trade — ONE payment path of the trade action.
+ *
+ * A path trades with a DESTINATION (`ITradeDestination`): a colony tile, or a
+ * fleet-dock card. It takes its fee, names the destination in its journal
+ * line and hands the paid trade over — and never asks which kind it is.
+ */
 export interface IColonyTrader {
   canUse(): boolean;
   optionText(): string | Message;
-  trade(colony: IColony): void;
+  trade(destination: ITradeDestination): void;
   /**
    * The extra colony-track step this payment path grants BEFORE the income
    * is read (the Unity party action's «you may advance the track 1 step

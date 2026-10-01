@@ -39,6 +39,14 @@ function asOwnAction(player: TestPlayer, f: () => void, source: EventSource = {k
   }
 }
 
+/** Queue «+1 heat production» for `player` — a step that runs when the deferred queue is drained. */
+function heatLater(player: TestPlayer): void {
+  player.defer(() => {
+    player.production.add(Resource.HEAT, 1);
+    return undefined;
+  });
+}
+
 describe('QuestTracker (the chairman quest)', () => {
   it('counts the starter quest (+3 heat production) only from the player\'s own action-phase actions', () => {
     const [game, p1, p2, parliament] = reduxGame();
@@ -63,6 +71,47 @@ describe('QuestTracker (the chairman quest)', () => {
     // A different resource: nothing.
     asOwnAction(p1, () => p1.production.add(Resource.PLANTS, 2));
     expect(parliament.questProgressOf(p1)).eq(2);
+  });
+
+  /*
+   * A DEFERRED STEP IS STILL THE PLAYER'S ACTION. A deferred action captures only the TOP scope of the event
+   * stack, so a step queued inside a source override (`withSource` — a colony's bonus, a fleet dock's reward) or
+   * a passive effect used to run with no ROOT on the stack: the same gain counted when made at once and was
+   * silently dropped when it had to wait for the queue (a colony's ocean, a dock's ocean — their TR never reached
+   * the quest). The non-root scope now remembers the root it was opened under (`EventContext.root`).
+   */
+  it('a step deferred inside a source override, or a passive effect, keeps its ROOT — the gain counts as it does when made at once', () => {
+    const [game, p1, , parliament] = reduxGame();
+    const card = fakeCard({name: 'A reacting card' as CardName});
+    // At once, inside the override: counts (it always did).
+    asOwnAction(p1, () => game.events.withSource({kind: 'colony', name: game.colonies[0].name}, () => p1.production.add(Resource.HEAT, 1)));
+    expect(parliament.questProgressOf(p1)).eq(1);
+    // Deferred from inside the override, run after the action's scope has closed: counts too.
+    asOwnAction(p1, () => game.events.withSource({kind: 'colony', name: game.colonies[0].name}, () => {
+      heatLater(p1);
+    }));
+    expect(parliament.questProgressOf(p1), 'nothing ran yet').eq(1);
+    game.deferredActions.runAll(() => {});
+    expect(parliament.questProgressOf(p1), 'the deferred step is still p1\'s own action').eq(2);
+    // …and the same from inside a passive effect of the player's own card.
+    asOwnAction(p1, () => game.events.withEffect(p1, card, 'card-played', () => {
+      heatLater(p1);
+    }));
+    game.deferredActions.runAll(() => {});
+    expect(parliament.questProgressOf(p1)).eq(3);
+    // The root is REMEMBERED, never invented: a step deferred under ANOTHER player's action is still not p1's deed…
+    const [game2, q1, q2, parliament2] = reduxGame();
+    asOwnAction(q2, () => game2.events.withSource({kind: 'colony', name: game2.colonies[0].name}, () => {
+      heatLater(q1);
+    }));
+    game2.deferredActions.runAll(() => {});
+    expect(parliament2.questProgressOf(q1)).eq(0);
+    // …and a step deferred with no action at all has no root to remember.
+    game2.events.withSource({kind: 'colony', name: game2.colonies[0].name}, () => {
+      heatLater(q1);
+    });
+    game2.deferredActions.runAll(() => {});
+    expect(parliament2.questProgressOf(q1)).eq(0);
   });
 
   it('completing the quest advances the Agenda and seats the chairman from the reserve; nobody else can complete it this generation', () => {

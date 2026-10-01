@@ -4,7 +4,8 @@ import {Context} from './IHandler';
 import {isPlayerId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
-import {buildColonyTradePreview} from '../colonies/colonyTradePreview';
+import {buildColonyTradePreview, buildFleetDockPreview} from '../colonies/colonyTradePreview';
+import {isFleetDockCard} from '../colonies/FleetDock';
 import {MAX_COLONY_TRACK_POSITION} from '../../common/constants';
 
 /**
@@ -14,6 +15,11 @@ import {MAX_COLONY_TRACK_POSITION} from '../../common/constants';
  * for ONE colony from the trading player's perspective — track advance,
  * reward position, the M€ payment prompt, and every follow-up prompt (card
  * targets pre-collectable) in live order. Mirrors `ApiGameDeltaPreview`.
+ *
+ * `?dock=<card>` asks the same question about a trade whose destination is a
+ * fleet-dock CARD of the player's own
+ * ({@link import('../../common/models/ColonyTradePreviewModel').FleetDockPreviewModel});
+ * `colony` and `dock` are mutually exclusive.
  *
  * `id` MUST be the trading player's own id — the preview embeds that player's
  * card-target candidates (their own tableau; no other player's private data).
@@ -34,9 +40,17 @@ export class ApiGameColonyTradePreview extends Handler {
       responses.badRequest(req, res, 'invalid player id');
       return;
     }
-    const colonyName = ctx.url.searchParams.get('colony');
-    if (colonyName === null || colonyName === '') {
+    // ONE destination per ask: a colony tile (`colony`) or a fleet-dock card
+    // (`dock` — the trade whose fleet goes to a card). Both at once, or
+    // neither, is a malformed request.
+    const colonyName = ctx.url.searchParams.get('colony') ?? '';
+    const dockName = ctx.url.searchParams.get('dock') ?? '';
+    if (colonyName === '' && dockName === '') {
       responses.badRequest(req, res, 'missing colony parameter');
+      return;
+    }
+    if (colonyName !== '' && dockName !== '') {
+      responses.badRequest(req, res, 'colony and dock are mutually exclusive');
       return;
     }
     // The CHOSEN payment path's own track advance (the Unity action's «advance
@@ -55,6 +69,18 @@ export class ApiGameColonyTradePreview extends Handler {
     const player = game.players.find((p) => p.id === id);
     if (player === undefined) {
       responses.notFound(req, res, 'player not found');
+      return;
+    }
+    if (dockName !== '') {
+      // The dock is the asking player's OWN played card (only the owner trades
+      // with it). A card that is not in their tableau, or is no dock, is an
+      // expired / never-valid SUBJECT — the preview family's 204, not an error.
+      const card = player.tableau.asArray().find((c) => c.name === dockName);
+      if (card === undefined || !isFleetDockCard(card)) {
+        responses.noPreview(res, 'no such fleet dock in the tableau');
+        return;
+      }
+      responses.writeJson(res, ctx, buildFleetDockPreview(player, card));
       return;
     }
     const colony = game.colonies.find((c) => c.name === colonyName);

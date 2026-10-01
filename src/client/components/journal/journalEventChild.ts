@@ -11,6 +11,7 @@ import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
 import {DELEGATE_ICON, NEUTRAL_DELEGATE_ICON, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {TRADE_FLEET_ICON} from '@/common/colonies/tradeFleet';
 
 /**
  * The NAME of a parliament-sourced event (Turmoil Redux), shared by the journal
@@ -419,6 +420,13 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       push(`agenda|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'agenda', from: agenda.from, to: agenda.to, level: influenceAtAgenda(agenda.to)}},
       [{icon: 'agenda', text: signed(agenda.to - agenda.from)}]);
+      continue;
+    }
+    if (e.type === 'fleet-docked') {
+      // A TRADE FLEET WENT TO A CARD (a fleet dock — TR06 Water Hauling): its OWN row under the card. The
+      // chip is the fleet that left the supply for the generation («−1» — it reads with the trade's cost, where
+      // it belongs); the card it stands on is the row's source. The reward (an ocean, a TR step) is its own row.
+      push(`fleet|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: []}, [{icon: TRADE_FLEET_ICON, text: '−1'}]);
       continue;
     }
     if (e.type === 'popular-support-gained' && e.impact.popularSupport !== undefined) {

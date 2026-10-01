@@ -34,6 +34,7 @@ import {DeltaMovement, DeltaMovementBonus} from '../delta/deltaMovement';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
+import type {FleetDock} from '../colonies/FleetDock';
 
 /*
  * Represents a card which has an action that itself allows a player
@@ -232,6 +233,17 @@ export interface ICard {
    * First holder: TR02 Political Science (data per delegate).
    */
   onDelegatesDiscarded?(player: IPlayer, count: number, context: {instance: ResolutionInstanceId, resolution: ResolutionId}): void;
+  /**
+   * THIS CARD IS A FLEET DOCK (Turmoil Redux — TR06 Water Hauling, TR26 UNMI
+   * Liner, TR27 Aurora Station: «once per generation, when you trade, you can
+   * send the trade fleet to this card to …»): a DESTINATION of its owner's
+   * trade action beside the colony tiles. The card states only what is its
+   * own — the reward, the reward's one blocker, the reward's preview; the
+   * occupied berth, the offer, the landing and the destination itself are the
+   * class's (`colonies/FleetDock.ts`). A dock card also declares
+   * `data = {dockedGeneration}` so the fleet standing on it survives a save.
+   */
+  fleetDock?: FleetDock;
   /** Called when cards are played. Corps have a different callback */
   onCardPlayed?(player: IPlayer, card: ICard): PlayerInput | undefined | void;
   onCardPlayedByAnyPlayer?(thisCardOwner: IPlayer, card: ICard, activePlayer: IPlayer): PlayerInput | undefined | void;

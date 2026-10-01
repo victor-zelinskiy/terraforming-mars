@@ -75,10 +75,12 @@ export type EventImpact = {
    * Trade resources a TRADE-DISCOUNT effect (Cryo-Sleep / Rim Freighters —
    * `behavior.colonies.tradeDiscount`) saved on a trade (you pay N fewer of the trade
    * resource). `amount` is the EXACT units saved of `resource` (energy/titanium/M€) on
-   * a trade with `colony`. Attributed to the owning card. Only titanium/M€ have a
-   * clean M€ value, so the saving is shown in resource units (confidence partial).
+   * a trade with `colony` — or with the fleet-dock card `dock` (a trade whose
+   * destination is a card pays the same fee, so the same discount saves on it;
+   * exactly one of the two is set). Attributed to the owning card. Only titanium/M€
+   * have a clean M€ value, so the saving is shown in resource units (confidence partial).
    */
-  tradeDiscountSaved?: ReadonlyArray<{colony: ColonyName; resource: 'energy' | 'titanium' | 'megacredits'; amount: number}>;
+  tradeDiscountSaved?: ReadonlyArray<{colony?: ColonyName; dock?: CardName; resource: 'energy' | 'titanium' | 'megacredits'; amount: number}>;
   /**
    * Plants a GREENERY-DISCOUNT effect (EcoLine — `behavior.greeneryDiscount`) saved on
    * ONE plants→greenery conversion (you pay N fewer plants than the base 8). `plants` is

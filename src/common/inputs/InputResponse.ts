@@ -162,13 +162,23 @@ export function isSelectAmountResponse(response: InputResponse): response is Sel
   return response.type === 'amount' && matches(response, ['type', 'amount']);
 }
 
-export interface SelectColonyResponse {
-  type: 'colony',
-  colonyName: ColonyName;
-}
+/**
+ * The answer to a colony pick — in ONE of two forms, never both:
+ *  · `colonyName` — a colony tile (every colony pick);
+ *  · `fleetDock` — a CARD the trade fleet is sent to instead of a colony
+ *    (Turmoil Redux TR06 Water Hauling and its sisters). Valid only on a
+ *    trade's destination pick, and only for a dock its `fleetDocks` marker
+ *    lists as available (`SelectColonyModel.fleetDocks`).
+ */
+export type SelectColonyResponse =
+  | {type: 'colony', colonyName: ColonyName, fleetDock?: undefined}
+  | {type: 'colony', fleetDock: CardName, colonyName?: undefined};
 
 export function isSelectColonyResponse(response: InputResponse): response is SelectColonyResponse {
-  return response.type === 'colony' && matches(response, ['type', 'colonyName']);
+  // EXACTLY one of the two fields — the same two-shape check a space answer
+  // uses (`isSelectSpaceResponse`): both at once, or neither, is not an answer.
+  return response.type === 'colony' &&
+    (matches(response, ['type', 'colonyName']) || matches(response, ['type', 'fleetDock']));
 }
 
 export interface SelectPaymentResponse {

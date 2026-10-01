@@ -932,7 +932,32 @@ export type SelectColonyModel = BaseInputModel & {
   // Venus/Europa/Leavitt TR affordability). The selectable `coloniesModel` is
   // what the server validates against; these never submit.
   disabledColonies?: ReadonlyArray<{name: import('../colonies/ColonyName').ColonyName, reason: string | Message}>;
+  /**
+   * STRUCTURAL «this pick chooses the DESTINATION OF A TRADE, and a card may be
+   * one» (Turmoil Redux TR06 Water Hauling and its sisters): the viewer's OWN
+   * fleet-dock cards, each with the server's verdict. A dock is answered with
+   * the second form of the colony response (`{type: 'colony', fleetDock}`),
+   * and the server accepts only a dock listed here as `available`. Absent when
+   * the pick is not a trade's destination pick or the player owns no dock —
+   * and it can stand beside an EMPTY `coloniesModel` (every tile visited, the
+   * dock free: the trade is still on offer).
+   */
+  fleetDocks?: ReadonlyArray<FleetDockOfferModel>;
 }
+
+/**
+ * One FLEET DOCK as a trade destination, by the server's own judgement: the
+ * card, whether the fleet may be sent to it now, the ONE reason when it may
+ * not (the fleet already stands on it this generation → the reward's own
+ * blocker), and what the trade would pay (`current → resulting` chips).
+ */
+export type FleetDockOfferModel = {
+  card: CardName;
+  available: boolean;
+  /** Why the dock is unavailable — an English i18n key; absent when `available`. */
+  reason?: string | Message;
+  effects: ReadonlyArray<ActionEffect>;
+};
 
 export type SelectPaymentModel = BaseInputModel & {
   type: 'payment';

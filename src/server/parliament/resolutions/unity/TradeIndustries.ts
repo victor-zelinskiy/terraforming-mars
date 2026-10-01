@@ -61,6 +61,7 @@ import {SelectOption} from '../../../inputs/SelectOption';
 import {IPlayer} from '../../../IPlayer';
 import {ResolutionAction, ResolutionDefinition} from '../IResolution';
 import {runPaidResolutionAction} from '../ResolutionAction';
+import {FLEET_LIMIT_REASON, TRADE_FLEET_ICON} from '../../../colonies/tradeFleetGain';
 
 export const TRADE_INDUSTRIES_ID: ResolutionId = 'RDX_UNITY_TRADE_INDUSTRIES';
 export const TRADE_INDUSTRIES_CODE: ResolutionCode = 'RX28';
@@ -69,10 +70,10 @@ export const TRADE_INDUSTRIES_BILL: ResolutionActionBill = {amount: 12, discount
 /** Once per generation, as every action of the Parliament. */
 export const TRADE_INDUSTRIES_USES_PER_GENERATION = 1;
 /** The action's own gates. */
-export const TRADE_INDUSTRIES_FLEET_FULL_REASON = 'Your trade fleet is already at its maximum';
+export const TRADE_INDUSTRIES_FLEET_FULL_REASON = FLEET_LIMIT_REASON;
 export const TRADE_INDUSTRIES_UNAFFORDABLE_KEY = 'Need ${0} M€ for the trade fleet, you can pay ${1}';
-/** The icon key of the fleet chip — the shared fleet sprite (`card-resource-trade-fleet`). */
-export const TRADE_FLEET_ICON = 'trade-fleet';
+/** The icon key of the fleet chip — the one every fleet gain draws (`colonies/tradeFleetGain.ts`). */
+export {TRADE_FLEET_ICON};
 
 const SOURCE: ChoiceContextSource = {kind: 'resolution', resolution: TRADE_INDUSTRIES_ID};
 

@@ -18,6 +18,7 @@ import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
 import {CardType} from '../../common/cards/CardType';
 import type {DeltaMovementCause} from '../delta/deltaMovement';
+import type {TradeDestinationSource} from '../colonies/ITradeDestination';
 
 // Minimal structural view of the game (avoids a circular Game import).
 type GameClock = {generation: number; phase: Phase};
@@ -56,6 +57,17 @@ type EventContext = {
   rootLogEmitted: boolean;
   // The journal category stamped on this scope's root-action log.
   category: JournalActionCategory | undefined;
+  /**
+   * THE ROOT THIS SCOPE WAS OPENED UNDER, on a scope that is not a root itself
+   * (a source override, a passive effect). A deferred action captures only the
+   * TOP scope (`captureContext`), so a step queued inside `withSource` used to
+   * run later with no root on the stack at all — and `currentRoot()` answered
+   * «nobody's action» for a consequence of the player's own action (a colony
+   * bonus's ocean, a fleet dock's reward: their TR never reached the chairman
+   * quest, while the same gain made synchronously did). The scope remembers
+   * its root so the question has one answer on both paths.
+   */
+  root?: {player: Color | undefined; category: JournalActionCategory | undefined};
 };
 
 /** Opaque handle a deferred action carries so its impact links to the live chain. */
@@ -280,7 +292,7 @@ export class EventRecorder {
   /** Begin a passive-effect scope (lazy: nothing is emitted unless the hook acts). */
   public beginEffect(player: IPlayer, source: EventSource | undefined, trigger: EventTrigger): void {
     const parent = this.current;
-    this.stack.push({rootId: parent?.rootId, parentId: parent?.parentId, source, playerColor: player.color, kind: 'effect', trigger, triggerEmitted: false, rootLogEmitted: true, category: undefined});
+    this.stack.push({rootId: parent?.rootId, parentId: parent?.parentId, source, playerColor: player.color, kind: 'effect', trigger, triggerEmitted: false, rootLogEmitted: true, category: undefined, root: this.currentRoot()});
   }
 
   public endScope(): void {
@@ -321,6 +333,13 @@ export class EventRecorder {
         return {player: ctx.playerColor, category: ctx.category};
       }
     }
+    // A scope restored ALONE by a deferred action (see `EventContext.root`).
+    for (let i = this.stack.length - 1; i >= 0; i--) {
+      const root = this.stack[i].root;
+      if (root !== undefined) {
+        return root;
+      }
+    }
     return undefined;
   }
 
@@ -341,6 +360,7 @@ export class EventRecorder {
     this.stack.push({
       rootId: parent?.rootId, parentId: parent?.parentId, source, playerColor: parent?.playerColor,
       kind: 'source', trigger: undefined, triggerEmitted: true, rootLogEmitted: true, category: undefined,
+      root: this.currentRoot(),
     });
     try {
       return fn();
@@ -391,6 +411,16 @@ export class EventRecorder {
    */
   public recordPopularSupportGained(player: IPlayer, party: PartyName, gained: number, total: number): void {
     this.record({type: 'popular-support-gained', player: player.color, impact: {popularSupport: {party, gained, total}}, visibility: 'journal'});
+  }
+
+  /**
+   * A TRADE FLEET LANDED ON A CARD (Turmoil Redux — a fleet dock: TR06 Water
+   * Hauling and its sisters). Recorded under the card's own source inside the
+   * trade's chain, so the journal's row and the rival's notification name the
+   * card the fleet went to. Written only by `colonies/FleetDock.dockFleet`.
+   */
+  public recordFleetDocked(player: IPlayer, card: ICard): void {
+    this.record({type: 'fleet-docked', player: player.color, target: {card: card.name}, impact: {}, visibility: 'journal'});
   }
 
   /**
@@ -782,16 +812,21 @@ export class EventRecorder {
    * resources on a trade, attributed to the OWNING card. `amount` is the EXACT units
    * of `resource` saved. Overlay-analytics only (the trade fee is already logged).
    */
-  public recordTradeDiscount(player: IPlayer, card: ICard, colony: ColonyName, resource: 'energy' | 'titanium' | 'megacredits', amount: number): void {
+  public recordTradeDiscount(player: IPlayer, card: ICard, destination: TradeDestinationSource, resource: 'energy' | 'titanium' | 'megacredits', amount: number): void {
     if (amount <= 0) {
       return;
     }
     const kind = card.type === CardType.CORPORATION ? 'corporation' : 'card';
+    // The trade's destination: a colony tile, or a fleet-dock card (the same
+    // fee, so the same saving — see `EventImpact.tradeDiscountSaved`).
+    const saved = destination.kind === 'colony' ?
+      {colony: destination.name, resource, amount} :
+      {dock: destination.card, resource, amount};
     this.emit({
       type: 'effect-triggered',
       source: {kind, card: card.name, owner: player.color},
       player: player.color,
-      impact: {tradeDiscountSaved: [{colony, resource, amount}]},
+      impact: {tradeDiscountSaved: [saved]},
       tags: ['passive-effect', 'trade-discount', 'engine'],
     }, this.current);
   }

@@ -8,7 +8,7 @@ import {ICard} from '../ICard';
 import {isPlanetaryTag} from '../../pathfinders/PathfindersData';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
 import {message} from '../../logs/MessageBuilder';
-import {IColony} from '../../colonies/IColony';
+import {ITradeDestination} from '../../colonies/ITradeDestination';
 import {CardResource} from '../../../common/CardResource';
 import {digit} from '../Options';
 import {ICorporationCard} from '../corporation/ICorporationCard';
@@ -73,16 +73,16 @@ export class TradeWithHectateSpeditions implements IColonyTrader {
       (b) => b.number(this.tradeCost - (this.hectateSpeditions?.resourceCount ?? 0)));
   }
 
-  private tradeWithColony(card: ICard, player: IPlayer, colony: IColony) {
+  private tradeWithColony(card: ICard, player: IPlayer, destination: ITradeDestination) {
     card.resourceCount -= this.tradeCost;
     player.game.log('${0} spent ${1} ${2} from ${3} to trade with ${4}',
-      (b) => b.player(player).number(this.tradeCost).string('supply chain resources').card(card).colony(colony));
-    colony.trade(player);
+      (b) => b.player(player).number(this.tradeCost).string('supply chain resources').card(card).tradeDestination(destination));
+    destination.trade(player);
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     if (this.hectateSpeditions !== undefined) {
-      this.tradeWithColony(this.hectateSpeditions, this.player, colony);
+      this.tradeWithColony(this.hectateSpeditions, this.player, destination);
     }
   }
 }

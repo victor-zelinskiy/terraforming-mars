@@ -18,6 +18,7 @@ import {actionUnavailableReasons as computeActionUnavailableReasons} from './act
 import {standardProjectUnavailableReasons} from './standardProjectReasons';
 import {buildStandardProjectPreview} from './standardProjectPreview';
 import {Message} from '../../common/logs/Message';
+import {isFleetDocked} from '../colonies/FleetDock';
 
 export function cardsToModel(
   player: IPlayer,
@@ -93,6 +94,11 @@ export function cardsToModel(
       // console's premium std-projects screen renders both). Same cost number
       // as the row's own price — overridden costs included.
       model.standardProjectPreview = buildStandardProjectPreview(player, card, calculatedCost ?? 0);
+    }
+    // The fleet standing on a fleet-dock card this generation — public state,
+    // read off the card itself (never off who asks).
+    if (isFleetDocked(card, player.game.generation)) {
+      model.fleetDocked = true;
     }
     if (card.isDisabled) {
       model.isDisabled = true;

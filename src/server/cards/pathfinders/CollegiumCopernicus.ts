@@ -8,7 +8,7 @@ import {IActionCard, ICard} from '../ICard';
 import {CardResource} from '../../../common/CardResource';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
-import {IColony} from '../../colonies/IColony';
+import {ITradeDestination} from '../../colonies/ITradeDestination';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {message} from '../../logs/MessageBuilder';
 
@@ -52,7 +52,8 @@ export class CollegiumCopernicus extends CorporationCard implements ICorporation
   }
 
   public canAct(player: IPlayer) {
-    return player.colonies.canTrade() && this.resourceCount >= tradeCost(player);
+    // This door offers COLONIES alone (out of the fleet-dock scope): a free dock must not open an empty pick.
+    return player.colonies.canTrade({colonyOnly: true}) && this.resourceCount >= tradeCost(player);
   }
 
   public action(player: IPlayer) {
@@ -67,11 +68,11 @@ export class CollegiumCopernicus extends CorporationCard implements ICorporation
   }
 }
 
-export function tradeWithColony(card: ICard, player: IPlayer, colony: IColony) {
+export function tradeWithColony(card: ICard, player: IPlayer, destination: ITradeDestination) {
   const cost = tradeCost(player);
   card.resourceCount -= cost;
-  player.game.log('${0} spent ${1} data from ${2} to trade with ${3}', (b) => b.player(player).number(cost).card(card).colony(colony));
-  colony.trade(player);
+  player.game.log('${0} spent ${1} data from ${2} to trade with ${3}', (b) => b.player(player).number(cost).card(card).tradeDestination(destination));
+  destination.trade(player);
 }
 export class TradeWithCollegiumCopernicus implements IColonyTrader {
   private collegiumCopernicus: ICard | undefined;
@@ -101,10 +102,10 @@ export class TradeWithCollegiumCopernicus implements IColonyTrader {
     return 'This card\'s action was already used this generation';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     this.player.actionsThisGeneration.add(CardName.COLLEGIUM_COPERNICUS);
     if (this.collegiumCopernicus !== undefined) {
-      tradeWithColony(this.collegiumCopernicus, this.player, colony);
+      tradeWithColony(this.collegiumCopernicus, this.player, destination);
     }
   }
 }

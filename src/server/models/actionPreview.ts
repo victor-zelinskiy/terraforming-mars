@@ -19,6 +19,7 @@ import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {TITLES} from '../inputs/titles';
 import {cardSource} from '../inputs/choiceContext';
 import * as actionPreviews from '../cards/actionPreviews';
+import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLost} from '../colonies/tradeFleetGain';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -451,6 +452,13 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
       out.push({direction: 'gain', icon: 'cards', amount: Math.max(0, n), note: 'draw', basis: countableBasis(ctx, raw)});
     }
   }
+  // «Gain N trade fleets» — the fleet count `current → resulting`, honest
+  // about the cap of four (`colonies/tradeFleetGain.ts`): on the cap the chip
+  // reads «4 → 4 · limit» and the steps below NAME the fleets lost.
+  const fleets = behavior.colonies?.addTradeFleet;
+  if (typeof fleets === 'number' && fleets > 0) {
+    out.push(tradeFleetGainChip(player, fleets));
+  }
 
   return out;
 }
@@ -705,6 +713,12 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // reads BOTH `tile.type` and `tile.on`) — it is what lets the preview NAME the
   // tile. `placementType` is only the terrain filter and cannot substitute:
   // every special tile on land collapses to `'land'`.
+  // A fleet gain the cap of four CUTS is a named loss, never a quiet one: the
+  // same count the Executor records after the commit, in the same words.
+  const fleets = behavior.colonies?.addTradeFleet;
+  if (typeof fleets === 'number' && tradeFleetsLost(player, fleets) > 0) {
+    steps.push(actionPreviews.warningNote(FLEET_LIMIT_REASON, {skipped: skippedTradeFleet(tradeFleetsLost(player, fleets))}));
+  }
   if (behavior.colonies?.buildColony !== undefined) {
     // A colony is built off-Mars — no tile, so no tile identity to name.
     steps.push({kind: 'boardPlacement', placementType: 'colony'});

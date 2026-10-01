@@ -8,6 +8,7 @@ import {IActionCard} from '../ICard';
 import {IPlayer} from '../../IPlayer';
 import {IColonyTrader} from '../../colonies/IColonyTrader';
 import {IColony} from '../../colonies/IColony';
+import {ITradeDestination} from '../../colonies/ITradeDestination';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {message} from '../../logs/MessageBuilder';
 
@@ -36,7 +37,8 @@ export class DarksideSmugglersUnion extends Card implements IProjectCard, IActio
   }
 
   public canAct(player: IPlayer): boolean {
-    return player.colonies.canTrade();
+    // This door offers COLONIES alone (out of the fleet-dock scope): a free dock must not open an empty pick.
+    return player.colonies.canTrade({colonyOnly: true});
   }
 
   public action(player: IPlayer) {
@@ -69,9 +71,9 @@ export class TradeWithDarksideSmugglersUnion implements IColonyTrader {
     return 'This card\'s action was already used this generation';
   }
 
-  public trade(colony: IColony) {
+  public trade(destination: ITradeDestination) {
     this.player.actionsThisGeneration.add(CardName.DARKSIDE_SMUGGLERS_UNION);
-    this.player.game.log('${0} used ${1} action to trade with ${2}', (b) => b.player(this.player).cardName(CardName.DARKSIDE_SMUGGLERS_UNION).colony(colony));
-    colony.trade(this.player);
+    this.player.game.log('${0} used ${1} action to trade with ${2}', (b) => b.player(this.player).cardName(CardName.DARKSIDE_SMUGGLERS_UNION).tradeDestination(destination));
+    destination.trade(this.player);
   }
 }

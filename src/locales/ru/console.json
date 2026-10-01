@@ -310,6 +310,8 @@
     "Trade unavailable": "Торговля недоступна",
     "This colony is not active yet": "Эта колония ещё не активна",
     "No trade fleet available": "Нет свободного торгового флота",
+    "The trade fleet is already on this card this generation": "Флот уже на этой карте в этом поколении",
+    "The trade fleet has been sent": "Флот отправлен",
     "Already visited this generation": "Уже посещена в этом поколении",
     "No colonies in this game": "В этой партии нет колоний",
     "Basic actions": "Базовые действия",
