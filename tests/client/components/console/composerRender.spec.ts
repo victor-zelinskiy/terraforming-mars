@@ -978,6 +978,96 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  // ── TR13 Political Think Tank: a NON-tag check, a stock reward, a KEPT card ──
+
+  const thinkTankReveal = (count: number) => ({
+    deck: 'project',
+    check: {icon: 'party-requirement', label: 'Party requirement'},
+    reward: {direction: 'gain', icon: 'megacredits', amount: 5, current: 47, resulting: 52},
+    keepsCard: true,
+    pool: {count},
+  });
+
+  it('the honest «до» of a kept reveal: TWO gain chips (the card «в руку» + M€), the check by its glyph, the pool', () => {
+    const w = factory({
+      card: 'Political Think Tank', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [], reveal: thinkTankReveal(2)}],
+    }, 'Political Think Tank');
+    const gains = (w.vm as any).heroGain as Array<any>;
+    expect(gains.map((g) => g.icon)).deep.eq(['cards', 'megacredits']);
+    expect(gains[0].note).eq('to hand');
+    expect(gains[1].current).eq(47);
+    expect(gains[1].resulting).eq(52);
+    const check = w.find('[data-reveal-check]');
+    expect(check.exists()).to.eq(true);
+    expect(check.find('.pprq').exists(), 'the any-party plate — the card face\'s glyph').to.eq(true);
+    expect(check.text()).to.contain('Party requirement');
+    const pool = w.find('[data-reveal-pool]');
+    expect(pool.attributes('data-reveal-pool')).eq('2');
+    expect(pool.text()).to.contain('2');
+    expect(pool.classes()).to.not.contain('con-composer__next--pool-empty');
+    expect((w.vm as any).warnings).to.not.include('The check cannot succeed now: this game has no such cards');
+    w.unmount();
+  });
+
+  it('a ZERO pool warns in the amber register — and the action stays available', () => {
+    const w = factory({
+      card: 'Political Think Tank', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [], reveal: thinkTankReveal(0)}],
+    }, 'Political Think Tank');
+    expect(w.find('[data-reveal-pool]').classes()).to.contain('con-composer__next--pool-empty');
+    expect((w.vm as any).warnings).to.include('The check cannot succeed now: this game has no such cards');
+    expect(w.find('.con-composer__warn').text()).to.contain('The check cannot succeed now');
+    expect((w.vm as any).commitReady, 'revealing and discarding is a legal move').to.eq(true);
+    w.unmount();
+  });
+
+  it('the verdict of a KEPT reveal: the party found, the card + M€ reward, the card\'s fate «в руку»; a miss keeps the same rows', async () => {
+    const w = factory({
+      card: 'Political Think Tank', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [], reveal: thinkTankReveal(1)}],
+    }, 'Political Think Tank');
+    await w.setProps({outcome: {kind: 'deck-check'}});
+    await w.vm.$nextTick();
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
+      action: 'Political Think Tank',
+      revealed: {name: 'Wildlife Dome'},
+      conditionMet: true,
+      check: {icon: 'party-requirement', label: 'Party requirement', party: 'Greens'},
+      reward: {direction: 'gain', icon: 'megacredits', amount: 5, current: 47, resulting: 52},
+      destination: 'hand',
+    }}});
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    const verdict = w.find('.con-verdict');
+    expect(verdict.classes()).to.contain('con-verdict--met');
+    expect(verdict.attributes('data-reveal-destination')).eq('hand');
+    expect(verdict.find('[data-verdict-row="check"] .pprq').exists()).to.eq(true);
+    expect(verdict.find('.con-verdict__found--yes').text()).to.contain('Greens');
+    expect(verdict.findAll('[data-verdict-row="reward"] .action-effect-chip')).to.have.length(2);
+    expect(verdict.find('[data-reveal-reward-stock="megacredits"]').exists(), 'the M€ chip is the flight\'s birth point').to.eq(true);
+    expect(verdict.find('.con-verdict__fate--hand').text()).to.contain('to hand');
+    expect(verdict.find('.con-verdict__fate--hand').attributes('aria-label')).to.contain('Wildlife Dome');
+    const metRows = verdict.findAll('[data-verdict-row]').map((r) => r.attributes('data-verdict-row'));
+
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
+      action: 'Political Think Tank',
+      revealed: {name: 'Asteroid'},
+      conditionMet: false,
+      check: {icon: 'party-requirement', label: 'Party requirement'},
+      destination: 'discard',
+    }}});
+    await w.vm.$nextTick();
+    const miss = w.find('.con-verdict');
+    expect(miss.classes()).to.contain('con-verdict--miss');
+    expect(miss.find('.con-verdict__found--no').exists()).to.eq(true);
+    expect(miss.text()).to.contain('Not received');
+    expect(miss.find('.con-verdict__fate--discard').text()).to.contain('to the discard pile');
+    expect(miss.findAll('[data-verdict-row]').map((r) => r.attributes('data-verdict-row')),
+      'one geometry: the same rows on both outcomes').deep.eq(metRows);
+    w.unmount();
+  });
+
   it('REGRESSION: a composer MOUNTED with `reveal` already set launches the flight (repeat-reveal must not hang on «Вскрываем карту»)', async () => {
     // The repeat-action flow points the composer at the chosen reveal action AND
     // opens the reveal phase in the SAME tick — the composer MOUNTS with `reveal`

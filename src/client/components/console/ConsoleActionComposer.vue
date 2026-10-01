@@ -184,7 +184,7 @@
                SHARED panel (ConsoleRevealVerdict): the embedded stage and the
                legacy overlay render the same component, so the embedded flow
                can never again say less about the same event. -->
-          <div class="con-composer__verdictslot">
+          <div class="con-composer__verdictslot" ref="verdictSlot">
             <transition name="con-actfocus-outcome" mode="out-in">
               <div v-if="!revealOutcomeOn || revealPayload === undefined" key="status" class="con-composer__revealstatus" role="status">
                 <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
@@ -601,6 +601,30 @@
             <span v-if="n.constraint !== ''" class="con-composer__next-tail">{{ n.constraint }}</span>
           </div>
 
+          <!-- THE DECK CHECK'S «ДО» — what the revealed card will be checked FOR,
+               drawn with the SAME glyph the card face prints (a tag, or the
+               any-party requirement plate) — and, when the descriptor carries
+               it, the COMPOSITION behind the odds: how many such cards this game
+               holds at all (open information; never the hidden deck's count,
+               never a probability). Zero is warned in the amber register above
+               — the action stays available, revealing and discarding is legal. -->
+          <div v-if="revealPreview !== undefined" class="con-composer__next con-composer__next--check" data-reveal-check>
+            <span class="con-composer__next-check" aria-hidden="true">
+              <PremiumPartyRequirementGlyph v-if="revealPreview.check.glyph.kind === 'party-requirement'" class="con-composer__next-plate" />
+              <i v-else-if="revealPreview.check.glyph.kind === 'tag'" class="con-composer__next-tag"
+                 :style="{backgroundImage: 'url(' + revealPreview.check.glyph.url + ')'}"></i>
+            </span>
+            <span class="con-composer__next-label">{{ $t('Checked') }}</span>
+            <span class="con-composer__next-text">{{ revealCheckLabel }}</span>
+          </div>
+          <div v-if="revealPreview !== undefined && revealPreview.pool !== undefined"
+               class="con-composer__next con-composer__next--pool"
+               :class="{'con-composer__next--pool-empty': revealPreview.pool.empty}"
+               :data-reveal-pool="revealPreview.pool.count">
+            <span class="con-composer__next-glyph" aria-hidden="true">#</span>
+            <span class="con-composer__next-text">{{ poolLine(revealPreview.pool) }}</span>
+          </div>
+
           <!-- PAYMENT — the ONE shared panel, identical to the play-card flow.
                A persistent INFO block, NOT a focus row: the dedicated trigger +
                LB/RB reach it so it never competes with the decision rows / the
@@ -860,6 +884,9 @@ import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWs
 import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
 import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
+import {REVEAL_POOL_EMPTY_WARNING, RevealPreviewReading, revealPreviewReading} from '@/client/console/revealReading';
+import {runRevealHandoff} from '@/client/console/revealHandoff';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
@@ -1026,7 +1053,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1179,6 +1206,10 @@ export default defineComponent({
       /** One-shot pop on the counter + the «на этой карте» chip. */
       revealGainPop: false,
       revealGainPopTimer: undefined as number | undefined,
+      /** «OK» was pressed and the revealed card is being handed over (the
+       *  workspace concludes on the handoff's own seam) — further presses are
+       *  swallowed, so one verdict can never hand its card over twice. */
+      revealHandingOff: false,
     };
   },
   computed: {
@@ -1859,9 +1890,21 @@ export default defineComponent({
         out.push(...this.syntheticGain(c));
       }
       if (branch.reveal !== undefined) {
-        out.push(branch.reveal.reward);
+        // The kept card (TR13) first, then the printed reward — the SAME
+        // reading the verdict states after the reveal.
+        out.push(...revealPreviewReading(branch.reveal).gains);
       }
       return out;
+    },
+    /** The selected branch's deck check, read for the composer's «до» (undefined off a reveal). */
+    revealPreview(): RevealPreviewReading | undefined {
+      const reveal = this.selectedBranch?.reveal;
+      return reveal !== undefined ? revealPreviewReading(reveal) : undefined;
+    },
+    /** The check's name, translated («Требование партии», «Бактерия»). */
+    revealCheckLabel(): string {
+      const label = this.revealPreview?.check.label;
+      return label === undefined ? '' : textOf(label);
     },
     heroChoice(): ReadonlyArray<{id: string, icon?: string}> {
       const out: Array<{id: string, icon?: string}> = [];
@@ -1881,8 +1924,14 @@ export default defineComponent({
       return out;
     },
     warnings(): Array<string> {
-      return this.heroGain.some((e) => e.current !== undefined && e.current === e.resulting) ?
+      const out: Array<string> = this.heroGain.some((e) => e.current !== undefined && e.current === e.resulting) ?
         ['One of the gains has no effect — the value is already at maximum.'] : [];
+      // The check is unwinnable in THIS game (no card of its kind exists) — said
+      // before the press, in the amber register; the action itself stays legal.
+      if (this.revealPreview?.pool?.empty === true) {
+        out.push(REVEAL_POOL_EMPTY_WARNING);
+      }
+      return out;
     },
     // Skipped-effect warnings for the selected branch, via the SAME shared
     // derivation the desktop modal + the play composer use.
@@ -4291,6 +4340,7 @@ export default defineComponent({
     /** Launch the deck-pull flight (the phase just opened; the payload may
      *  not exist yet — the flip waits for it). */
     beginRevealFlight(): void {
+      this.revealHandingOff = false;
       this.revealStage = 'pending';
       this.revealFlightOn = true;
       void this.$nextTick(() => {
@@ -4372,6 +4422,7 @@ export default defineComponent({
       }, 750);
     },
     abortRevealFlight(): void {
+      this.revealHandingOff = false;
       this.revealHandle?.kill();
       this.revealHandle = undefined;
       this.revealGainHandle?.kill();
@@ -4680,10 +4731,33 @@ export default defineComponent({
       this.beatRowStyle = {};
       markWorkspaceOutcomeArrivalDone();
     },
+    /** The composition line «В этой партии карт с требованием партии: N». */
+    poolLine(pool: {count: number, key: string}): string {
+      return translateTextWithParams(pool.key, [String(pool.count)]);
+    },
     /** OK on the shown outcome: the parent marks the reveal seen and returns
      *  the flow to the (refreshed) browse grid. */
     ackReveal(): void {
-      this.$emit('reveal-ack');
+      const payload = this.revealPayload;
+      if (this.revealHandingOff) {
+        return;
+      }
+      if (payload === undefined) {
+        this.$emit('reveal-ack');
+        return;
+      }
+      // THE VERDICT HANDS THE CARD OVER: the revealed card leaves its slot for
+      // where the server sent it (the hand dock / the discard pile), and the
+      // acknowledgement — which concludes this workspace — fires in the frame
+      // the card has detached, so the workspace folds UNDER the lifted card.
+      // One press: a second A while the handoff is staging is swallowed.
+      this.revealHandingOff = true;
+      runRevealHandoff({
+        reveal: payload,
+        slot: this.$refs.revealSlot as HTMLElement | undefined,
+        verdict: this.$refs.verdictSlot as HTMLElement | undefined,
+        onDetached: () => this.$emit('reveal-ack'),
+      });
     },
     /** X on the shown outcome: the revealed card lifts out of ITS slot into
      *  the fullscreen viewer and returns there on close. */

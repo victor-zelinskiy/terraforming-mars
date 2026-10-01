@@ -1938,6 +1938,8 @@ import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeCons
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, markRevealPresented, registerRevealQueuePark, revealPresented, serverRevealConsumed, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {revealKeptCardHeld} from '@/client/console/revealReading';
+import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
@@ -2742,6 +2744,13 @@ export default defineComponent({
           out.push(name);
         }
       });
+      // …and a KEPT REVEAL (TR13): the server put the card into the hand with
+      // its verdict; it stands in the verdict's slot until «OK» hands it to
+      // the intake (whose in-flight ledger takes over in the same block).
+      const kept = revealKeptCardHeld(this.playerView.lastReveal, this.dismissedRevealKey);
+      if (kept !== undefined) {
+        out.push(kept);
+      }
       return out;
     },
     /**
@@ -20986,6 +20995,8 @@ export default defineComponent({
     // …and never carry a PANEL HOLD across games: the «Фора» beat holds the
     // rail to a flight that a dead shell can no longer fly.
     resetBonusGainReward();
+    // …and the verdict's held stock reward (TR13 «+5 M€») — released unflown, never somebody else's hold.
+    resetRevealHandoff();
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     resetActionPreviews(); // per-game preview cache dies with the shell

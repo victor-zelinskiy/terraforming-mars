@@ -25480,6 +25480,25 @@ body.con-start-ceremony {
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
         font-weight: 700;
     }
+    /* ONE GEOMETRY for both outcomes: every row reserves the height of the
+       tallest thing it can hold (a reward chip), so a match and a miss are two
+       frames of the same panel — «не получена» never collapses the row a chip
+       would have filled. */
+    &__row { min-height: 1.9rem; }
+    /* The any-party requirement plate (TR13) — the card face's own glyph, at
+       the tag icon's optical height. */
+    &__plate { --pprq-size: 1.3rem; }
+    &__chip { display: inline-flex; }
+    /* WHERE THE CARD WENT — «→ в руку / в сброс» (the card itself stands in the
+       slot beside the panel). The hand reads in the gain's mint, the discard in
+       the quiet ink of a miss. */
+    &__fate {
+        flex-wrap: nowrap;
+        &-arrow { flex: none; color: @con-text-dim; }
+        &-place { flex: none; font-weight: 700; }
+        &--hand &-place { color: @con-mint; }
+        &--discard &-place { color: @con-text-dim; }
+    }
 }
 
 /* ── T8: the native play-card + colony-trade confirms (fallback retired).
@@ -32554,6 +32573,20 @@ html.console-mode {
         color: fade(@con-cyan, 58%);
         &::before { content: '— '; }
     }
+    /* THE DECK CHECK's «ДО» row: the check's own glyph (the card face's —
+       a tag, or the any-party requirement plate) where a step's chevron
+       stands. The glyph box is shorter than the row, so the fixed-height
+       chassis above is untouched. */
+    &__next-check { flex: none; display: inline-flex; align-items: center; }
+    &__next-plate { --pprq-size: 1.05rem; }
+    &__next-tag {
+        width: 1.1rem; height: 1.1rem; display: inline-block;
+        background-size: contain; background-repeat: no-repeat; background-position: center;
+    }
+    /* The composition line — information, not a step: the quiet register; at
+       zero it turns amber with the warning above it (`warnings`). */
+    &__next--pool { color: fade(@con-cyan, 72%); background: fade(@con-cyan, 4%); }
+    &__next--pool-empty { color: #ffe6b0; background: fade(@con-amber, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 32%); }
 
     /* The composer's OWN single bottom bar (covers the action center's). */
     &__foot {

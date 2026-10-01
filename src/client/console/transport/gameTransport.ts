@@ -102,6 +102,7 @@ import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
@@ -606,6 +607,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // vote, MarsBot's Party Politics / Lobbying): its ribbon cube is hidden
   // and its flight queued in this very block, or it paints before it flies.
   seedRivalVotes(currentView(), newView);
+  // …and a DECK-CHECK VERDICT that pays a stock reward (TR13 «+5 M€»): the rail
+  // keeps the pre-reward number until the verdict's «OK» flies the chip in.
+  seedRevealRewardHold(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

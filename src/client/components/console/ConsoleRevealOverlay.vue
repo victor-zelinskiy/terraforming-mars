@@ -366,7 +366,7 @@
                  The breakdown is the SHARED panel — the same component the
                  EMBEDDED workspace stage renders, so this legacy surface can
                  never again be the more informative of the two. -->
-            <div class="con-reveal__verdict-slot">
+            <div class="con-reveal__verdict-slot" ref="resultVerdict">
               <transition name="con-actfocus-outcome" mode="out-in">
                 <div v-if="!resultRevealed" key="status" class="con-reveal__verdict con-reveal__verdict--pending" role="status">
                   <span class="con-reveal__revealstatus-spin" aria-hidden="true"></span>
@@ -516,6 +516,7 @@ import {
   DrawnRevealPresentationCtx, drawnRevealDetached, drawnRevealHeadless, drawnRevealViewerOpens,
 } from '@/client/console/consoleRevealPresentation';
 import {rewardPayoutSettling} from '@/client/console/rewardPayoutQuiet';
+import {runRevealHandoff} from '@/client/console/revealHandoff';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -678,6 +679,8 @@ export default defineComponent({
       resultFlightOn: false,
       resultHandle: undefined as ActionRevealFlightHandle | undefined,
       resultLaunchTimer: undefined as number | undefined,
+      /** «OK» pressed: the revealed card is being handed over (one press only). */
+      resultHandingOff: false,
     };
   },
   computed: {
@@ -1778,6 +1781,7 @@ export default defineComponent({
      */
     scheduleResultFlight(): void {
       this.abortResultFlight();
+      this.resultHandingOff = false;
       this.resultStage = 'pending';
       this.resultFlightOn = true;
       this.resultLaunchTimer = window.setTimeout(() => {
@@ -1950,7 +1954,7 @@ export default defineComponent({
         if (action === 'inspect') {
           this.zoomRevealed();
         } else if (action === 'primary') {
-          this.$emit('dismiss-result');
+          this.ackResult();
         }
         return;
       default:
@@ -2049,6 +2053,30 @@ export default defineComponent({
       openConsoleCardZoom([{name: s.cardName} as CardModel], 0, undefined, undefined, {
         statusLabel: 'Draw source',
         origin: workspaceSourceZoomOrigin(String(s.cardName)),
+      });
+    },
+    /**
+     * «OK» on the verdict — the SAME handoff the composer's own stage plays
+     * (one panel, one outcome, every door): the revealed card leaves its slot
+     * for the hand dock or the discard pile, and the dismissal (which concludes
+     * the hosting flow) fires in the frame the card has detached.
+     */
+    ackResult(): void {
+      const reveal = this.lastReveal;
+      if (this.resultHandingOff) {
+        return;
+      }
+      if (reveal === undefined || this.resultStage !== 'settled') {
+        this.$emit('dismiss-result');
+        return;
+      }
+      this.resultHandingOff = true;
+      const host = this.$refs.resultSlot as HTMLElement | undefined;
+      runRevealHandoff({
+        reveal,
+        slot: host?.querySelector<HTMLElement>('.pcard, .card-container') ?? host,
+        verdict: this.$refs.resultVerdict as HTMLElement | undefined,
+        onDetached: () => this.$emit('dismiss-result'),
       });
     },
     zoomRevealed(): void {

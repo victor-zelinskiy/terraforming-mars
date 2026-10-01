@@ -351,6 +351,7 @@ import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDro
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
@@ -790,6 +791,8 @@ export default defineComponent({
             seedAgendaWalkHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).
             seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.
+            seedRevealRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {
