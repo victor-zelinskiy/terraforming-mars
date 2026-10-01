@@ -77,6 +77,13 @@ export type PartyAccess = {
   party: ReduxParty;
   ruling: boolean;
   delegates: number;
+  /**
+   * The party's resolution stands in the VOTING AREA — the delegates road is
+   * open at all this generation. Without it `delegates` is 0 by construction,
+   * and «0 of 2» would read as a count to chase when it is a closed door
+   * (the party requirement's named reason says which — TR15).
+   */
+  onVote: boolean;
   byDelegates: boolean;
   granted: ReadonlyArray<string>;
   hasEffect: boolean;
@@ -446,6 +453,7 @@ export class Parliament {
       party,
       ruling,
       delegates,
+      onVote: slot !== undefined,
       byDelegates,
       granted,
       hasEffect: ruling || byDelegates || granted.length > 0,

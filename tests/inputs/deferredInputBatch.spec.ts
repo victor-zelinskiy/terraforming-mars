@@ -45,6 +45,7 @@ import {Luna} from '../../src/server/colonies/Luna';
 import {Ceres} from '../../src/server/colonies/Ceres';
 import {Europa} from '../../src/server/colonies/Europa';
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
+import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {
   clearBatchTail,
   drainBatchTail,
@@ -652,6 +653,80 @@ describe('deferredInputBatch', () => {
       replayBatch(seat.player, playBatch(seat.player, seat.card, [{type: 'party', partyName: M}]));
       expect(seat.seatAnswers, 'the positional answer went to the seat').deep.eq([M]);
       expect(parkedBatchTailLength(seat.player)).eq(0);
+    });
+
+    /*
+     * …AND THE HEAD MAY BE A CARD'S ACTION (Turmoil Redux TR15 Martian Census: «spend 3 data from here to
+     * add a delegate to a resolution»). The console stages the vote from «Действия карт» exactly as from the
+     * hand: the batch is `[perform the card's action, its branch B, {party, stagedFor}]`, and the address is
+     * the same — the grant whose giver is the card.
+     */
+    describe('…with an ACTION head (a blue card\'s staged vote)', () => {
+      /** Martian Census on the table with 3 data, its action unused; `interpose` raises the seat in the grant's drain. */
+      function actionGame(interpose?: (p: IPlayer, state: Staged) => void): Staged & {census: MartianCensus} {
+        const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        game.phase = Phase.ACTION;
+        const parliament = game.parliament!;
+        ([G, M, I] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+        const census = new MartianCensus();
+        census.resourceCount = 3;
+        player.playedCards.push(census);
+        const state = {game, player, parliament, card: census, census, seatAnswers: []} as unknown as Staged & {census: MartianCensus};
+        if (interpose !== undefined) {
+          // The seat is raised in the SAME drain as the card's grant, ahead of it (the shape a triggered
+          // chairman seat would take) — the grant's own deferral is the hook.
+          const defer = game.defer.bind(game);
+          game.defer = ((action: Parameters<IGame['defer']>[0], priority?: Priority) => {
+            if (action instanceof PlaceDelegatesOnResolution) {
+              interpose(player, state);
+            }
+            return defer(action, priority);
+          }) as IGame['defer'];
+        }
+        player.takeAction();
+        return state;
+      }
+
+      function actionBatch(state: Staged & {census: MartianCensus}, tail: ReadonlyArray<InputResponse>): Array<InputResponse> {
+        const menu = cast(state.player.getWaitingFor(), OrOptions);
+        const perform = menu.options.findIndex((o) => o.title === 'Perform an action from a played card');
+        expect(perform, 'the action menu offers the card action').gte(0);
+        return [
+          {type: 'or', index: perform, response: {type: 'card', cards: [CardName.MARTIAN_CENSUS]}},
+          // Branch B — «spend 3 data → a delegate» — the second option of the card's OrOptions.
+          {type: 'or', index: 1, response: {type: 'option'}},
+          ...tail,
+        ];
+      }
+
+      it('lands at once: the data leave, the delegate lands on the staged resolution, nothing is asked again', () => {
+        const state = actionGame();
+        replayBatch(state.player, actionBatch(state, [tailOf(state, M)]));
+        expect(votes(state, M)).eq(1);
+        expect(state.census.resourceCount).eq(0);
+        expect(state.parliament.popularSupportOf(M), 'the census pays no support').eq(0);
+        expect(state.player.actionsThisGeneration.has(CardName.MARTIAN_CENSUS)).is.true;
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectParty, 'the resolution is never asked again').is.false;
+      });
+
+      it('the CHAIRMAN\'S SEAT in front of the action\'s grant does NOT eat the tail — it parks, then lands', () => {
+        const state = actionGame(interposeSeat);
+        replayBatch(state.player, actionBatch(state, [tailOf(state, M)]));
+        const seat = cast(state.player.getWaitingFor(), SelectParty);
+        expect(seat.votePrompt?.source).eq('chairman-seat');
+        expect(state.seatAnswers).deep.eq([]);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+        expect(state.census.resourceCount, 'nothing paid while the tail is parked').eq(3);
+
+        state.player.process({type: 'party', partyName: G});
+        drainBatchTail(state.player);
+        expect(state.seatAnswers).deep.eq([G]);
+        expect(votes(state, M)).eq(1);
+        expect(votes(state, G), 'the seat\'s answer placed nothing').eq(0);
+        expect(state.census.resourceCount).eq(0);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+      });
     });
 
     it('the wire validator accepts both forms and nothing else', () => {

@@ -657,6 +657,7 @@
     "Not enough floaters": "Недостаточно аэростатов",
     "No floaters on this card": "Нет аэростатов на этой карте",
     "No mechs on this card": "На этой карте нет мехов",
+    "${0} of 3 data on this card": "На карте ${0} из 3",
     "No card to add microbes to": "Нет карты, на которую можно добавить микробов",
     "No colony available to trade with": "Нет колонии для торговли",
     "Configure payment": "Настроить оплату",

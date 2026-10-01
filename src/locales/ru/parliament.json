@@ -1130,6 +1130,8 @@
   "${0} takes no part in the Mars Parliament: no delegates to add": "${0} не участвует в Марсианском парламенте: делегатов добавить нельзя",
   "${0} cannot add delegates to a resolution: no resolution is up for a vote": "${0} не может добавить делегатов на резолюцию: ни одна резолюция не на голосовании",
   "${0} cannot add delegates to a resolution: all their delegates are in play": "${0} не может добавить делегатов на резолюцию: все делегаты уже в игре",
+  "${0} cannot add delegates to a resolution: not enough resources on the card": "${0} не может добавить делегатов на резолюцию: на карте недостаточно ресурсов",
+  "Requires ${0} to be ruling or ${1} of your delegates on its resolution": "Требуется: «${0}» правит или ${1} ваших делегата на её резолюции",
   "${0} has only ${1} of the ${2} delegates in reserve": "${0} имеет в резерве лишь ${1} из ${2} делегатов",
   "The support area is full": "Область поддержки заполнена",
   "No neutral delegates left": "Нейтральных делегатов не осталось",

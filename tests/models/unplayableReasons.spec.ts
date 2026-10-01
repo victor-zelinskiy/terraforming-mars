@@ -5,7 +5,11 @@ import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {CardName} from '../../src/common/cards/CardName';
 import {MAX_TEMPERATURE} from '../../src/common/constants';
-import {unplayableReasons} from '../../src/server/models/unplayableReasons';
+import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../src/server/models/unplayableReasons';
+import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {Parliament} from '../../src/server/parliament/Parliament';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {quietResolutionOf, seatEnacted, seatResolution} from '../parliament/parliamentArrange';
 import {GeneRepair} from '../../src/server/cards/base/GeneRepair';
 import {ArchaeBacteria} from '../../src/server/cards/base/ArchaeBacteria';
 import {LakeMarineris} from '../../src/server/cards/base/LakeMarineris';
@@ -311,6 +315,54 @@ describe('unplayableReasons', () => {
       const cities = unplayableReasons(player, new StarVegas()).find((r) => r.type === 'count');
       expect(cities, 'the city requirement is reported').is.not.undefined;
       expect(cities?.requirementKey, 'an «any player» requirement is not fully restated').is.undefined;
+    });
+
+    /*
+     * A PARTY REQUIREMENT (Turmoil Redux — TR15 the first, TR14–TR27 after it): the reason NAMES the party
+     * and both roads with their «now» — and only that named form restates the rule (`req:party`); the classic
+     * engine's faceless line addresses nothing, so its rule stays printed.
+     */
+    describe('a PARTY requirement', () => {
+      function redux(arrange?: (parliament: Parliament) => void) {
+        const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        const parliament = game.parliament!;
+        ([PartyName.GREENS, PartyName.MARS, PartyName.INDUSTRIALISTS] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+        arrange?.(parliament);
+        player.megaCredits = 100;
+        return {player, parliament, reason: () => unplayableReasons(player, new MartianCensus())};
+      }
+
+      it('not ruling, no delegate on its resolution: the party, «0 of 2», the rules-block address', () => {
+        const {reason} = redux();
+        expect(reason()).deep.eq([{
+          type: 'party', message: PARTY_REQUIREMENT_REASON, params: [PartyName.MARS, '2'], party: PartyName.MARS, current: 0,
+          requirement: true, requirementKey: 'req:party',
+        }]);
+      });
+
+      it('one delegate on its resolution: «1 of 2»', () => {
+        const t = redux();
+        t.parliament.placeVote(t.player, t.parliament.slots[1], 'reserve');
+        expect(t.reason()[0]).deep.include({party: PartyName.MARS, current: 1});
+        expect(t.reason()[0].partyOffVote).is.undefined;
+      });
+
+      it('the party rules: no reason at all', () => {
+        const {reason} = redux((p) => seatEnacted(p, quietResolutionOf(PartyName.MARS)));
+        expect(reason()).deep.eq([]);
+      });
+
+      it('its resolution is not up for a vote: `partyOffVote`, the count 0', () => {
+        const {reason} = redux((p) => seatResolution(p, 1, quietResolutionOf(PartyName.UNITY)));
+        expect(reason()[0]).deep.include({party: PartyName.MARS, current: 0, partyOffVote: true});
+      });
+
+      it('the CLASSIC engine keeps upstream\'s line and addresses no rules block', () => {
+        const [/* game */, player] = testGame(2, {turmoilExtension: true});
+        player.megaCredits = 100;
+        const reasons = unplayableReasons(player, new MartianCensus()).filter((r) => r.type === 'party');
+        expect(reasons).deep.eq([{type: 'party', message: 'Requires a specific political situation', requirement: true}]);
+      });
     });
 
     it('a tag shortfall is a requirement reason but never unattainable', () => {

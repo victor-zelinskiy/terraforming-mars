@@ -12,6 +12,7 @@ import {WaterHauling} from './WaterHauling';
 import {ColonySponsors} from './ColonySponsors';
 import {MechSports} from './MechSports';
 import {PoliticalThinkTank} from './PoliticalThinkTank';
+import {MartianCensus} from './MartianCensus';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -70,5 +71,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. Its check
     // (a card with a PARTY REQUIREMENT) can succeed only once such cards join the Redux deck (TR14–TR27).
     [CardName.POLITICAL_THINK_TANK]: {Factory: PoliticalThinkTank},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
+    // FIRST card with a PARTY REQUIREMENT (the Mars First emblem in the MIN plate) — TR13's check can now hit.
+    [CardName.MARTIAN_CENSUS]: {Factory: MartianCensus},
   },
 });

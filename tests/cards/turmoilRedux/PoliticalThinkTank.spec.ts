@@ -13,7 +13,8 @@ import {actionPreview} from '../../../src/server/models/actionPreview';
 import {actionUnavailableReasons} from '../../../src/server/models/actionUnavailableReasons';
 import {newProjectCard} from '../../../src/server/createCard';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
-import {partyRequirementCardsInGame} from '../../../src/server/cards/requirements/partyRequirementCards';
+import {hasPartyRequirement, partyRequirementCardsInGame} from '../../../src/server/cards/requirements/partyRequirementCards';
+import {TURMOIL_REDUX_CARD_MANIFEST} from '../../../src/server/cards/turmoilRedux/TurmoilReduxCardManifest';
 import {formatMessage} from '../../TestingUtils';
 
 /**
@@ -36,6 +37,13 @@ function topCard(game: IGame, name: CardName): IProjectCard {
   }
   game.projectDeck.drawPile.push(card);
   return card;
+}
+
+/** How many cards of the Turmoil Redux SET print a party requirement — the pool of a clean Redux table. */
+function setPartyRequirementCards(): number {
+  return Object.values(TURMOIL_REDUX_CARD_MANIFEST.projectCards)
+    .map((entry) => entry?.Factory === undefined ? undefined : new entry.Factory())
+    .filter((c) => c !== undefined && hasPartyRequirement(c)).length;
 }
 
 function skipped(game: IGame) {
@@ -206,21 +214,25 @@ describe('PoliticalThinkTank', () => {
         check: {icon: 'party-requirement', label: 'Party requirement'},
         reward: {direction: 'gain', icon: 'megacredits', amount: 5, current: 3, resulting: 8},
         keepsCard: true,
-        pool: {count: 0},
+        pool: {count: setPartyRequirementCards()},
       });
     });
 
-    it('the pool is 0 on a clean Redux table and counts the cards ADDED to the game, wherever they stand', () => {
-      expect(partyRequirementCardsInGame(game)).eq(0);
+    it('a clean Redux table holds exactly the SET\'s party-requirement cards — and the pool counts the cards ADDED, wherever they stand', () => {
+      // A CLASS, never a literal: every Redux card printing a party requirement (TR15 Martian Census was the
+      // first; TR14–TR27 follow) is dealt into the game — the count grows with the set, not with this spec.
+      const base = setPartyRequirementCards();
+      expect(base, 'TR15 joined the set').gte(1);
+      expect(partyRequirementCardsInGame(game)).eq(base);
       topCard(game, CardName.WILDLIFE_DOME);
-      expect(actionPreview(player, card).branches[0].reveal?.pool).deep.eq({count: 1});
+      expect(actionPreview(player, card).branches[0].reveal?.pool).deep.eq({count: base + 1});
       opponent.cardsInHand.push(newProjectCard(CardName.RED_TOURISM_WAVE)!);
       game.projectDeck.discardPile.push(newProjectCard(CardName.PR_OFFICE)!);
       opponent.playedCards.push(newProjectCard(CardName.SPONSORED_MOHOLE)!);
-      expect(partyRequirementCardsInGame(game)).eq(4);
+      expect(partyRequirementCardsInGame(game)).eq(base + 4);
       // A card with a NON-party political requirement is not in the pool.
       game.projectDeck.drawPile.push(newProjectCard(CardName.BANNED_DELEGATE)!);
-      expect(partyRequirementCardsInGame(game)).eq(4);
+      expect(partyRequirementCardsInGame(game)).eq(base + 4);
     });
 
     it('is read-only: the game serializes identically before and after', () => {

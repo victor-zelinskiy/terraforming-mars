@@ -1,5 +1,6 @@
 import {Tag} from './Tag';
 import {Resource} from '../Resource';
+import {PartyName} from '../turmoil/PartyName';
 
 /**
  * A single, structured reason a project card in hand can't be played right
@@ -67,6 +68,22 @@ export interface UnplayableReason {
    * "Venus" / "ocean" / "oxygen", which vanishes in non-English locales).
    */
   globalParameter?: 'temperature' | 'oxygen' | 'oceans' | 'venus';
+  /**
+   * For a PARTY requirement (Turmoil Redux — «Requires Mars First to be ruling
+   * or that you have 2 delegates there»): WHICH party, structurally — the
+   * emblem the hand's compact counter draws and the name its line speaks
+   * (never sniffed out of `params`, which carry it only for the template).
+   * `current` is then the player's own delegates on that party's resolution
+   * and `params[1]` the number the rule asks for. Absent on the classic
+   * engine's reason, which keeps upstream's line.
+   */
+  party?: PartyName;
+  /**
+   * …and that party's resolution is NOT in the voting area right now: the
+   * delegates road is closed this generation, so the line says so instead of
+   * «0 of 2» — a count nobody can chase.
+   */
+  partyOffVote?: boolean;
   /** The player's current value, shown as a muted "now: N" badge. */
   current?: number;
   /**

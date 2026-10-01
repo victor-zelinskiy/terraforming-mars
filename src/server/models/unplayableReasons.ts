@@ -7,6 +7,7 @@ import {InequalityRequirement} from '../cards/requirements/InequalityRequirement
 import {GlobalParameterRequirement} from '../cards/requirements/GlobalParameterRequirement';
 import {TagCardRequirement} from '../cards/requirements/TagCardRequirement';
 import {ProductionRequirement} from '../cards/requirements/ProductionRequirement';
+import {PartyRequirement} from '../cards/requirements/PartyRequirement';
 import {RequirementType} from '../../common/cards/RequirementType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {GlobalParameter} from '../../common/GlobalParameter';
@@ -84,7 +85,9 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
         reason.unattainable = true;
       }
     }
-    const key = requirementBlockId(req, ordinal);
+    // A PARTY reason restates its rule only in its NAMED form (Turmoil Redux); the classic engine's
+    // faceless «a specific political situation» says half of it, and hiding the rule there would be a lie.
+    const key = req.type === RequirementType.PARTY && reason.party === undefined ? undefined : requirementBlockId(req, ordinal);
     if (key !== undefined) {
       reason.requirementKey = key;
     }
@@ -100,8 +103,9 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
  * text is generated independently (`buildCardInformation.requirementBlock`),
  * and a type whose generated sentence one day says MORE than the reason must
  * fail CLOSED — showing a rule twice is a blemish, hiding half of one is a
- * lie. Excluded on purpose: CHAIRMAN / PARTY (the reason only says "a
- * specific political situation"), REMOVED_PLANTS and every Moon / Underworld
+ * lie. Excluded on purpose: CHAIRMAN (the reason only says "a specific
+ * political situation" — as does the CLASSIC engine's PARTY reason, which
+ * therefore carries no key although PARTY is listed), REMOVED_PLANTS and every Moon / Underworld
  * type (no templated reason of their own), and anything reaching the generic
  * fallback.
  */
@@ -120,6 +124,9 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   RequirementType.TAGS_OF_ONE_TYPE,
   // «Requires influence N or less» / «Requires N influence» — the whole printed rule (Turmoil Redux TR04).
   RequirementType.INFLUENCE,
+  // «Requires Mars First to be ruling or 2 of your delegates on its resolution» — the whole printed rule,
+  // both roads, in its NAMED Redux form only (TR15; the classic line keeps no key — see the caller).
+  RequirementType.PARTY,
 ]);
 
 /**
@@ -284,13 +291,45 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     return {type: 'count', message: max ? 'Requires influence ${0} or less' : 'Requires ${0} influence', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
-  case RequirementType.CHAIRMAN:
   case RequirementType.PARTY:
-    return {type: 'party', message: 'Requires a specific political situation'};
+    return partyRequirementReason(player, req as PartyRequirement) ?? POLITICAL_SITUATION;
+  case RequirementType.CHAIRMAN:
+    return POLITICAL_SITUATION;
   default:
     return {type: 'generic', message: 'Card requirement not met', current};
   }
 }
+
+/** The classic engine's political requirements (and the chairman, everywhere): upstream's faceless line. */
+const POLITICAL_SITUATION: UnplayableReason = {type: 'party', message: 'Requires a specific political situation'};
+
+/**
+ * A PARTY REQUIREMENT, NAMED (Turmoil Redux — TR15 Martian Census is the set's
+ * first, TR14–TR27 follow): which party, and where the player stands on each
+ * of the rule's two roads — the party does not rule (a reason exists only
+ * while the requirement is unmet), and their delegates on its resolution,
+ * `current` of `params[1]`; or that resolution is not up for a vote at all
+ * (`partyOffVote` — the road is closed, «0 of 2» would be a count to chase).
+ * The numbers are the facade's (`Parliament.access`, the same reading
+ * `satisfiesPartyRequirement` decides by); `undefined` on the classic engine.
+ */
+function partyRequirementReason(player: IPlayer, req: PartyRequirement): UnplayableReason | undefined {
+  const standing = player.game.politics?.partyRequirementStanding(player, req.party);
+  if (standing === undefined) {
+    return undefined;
+  }
+  return {
+    type: 'party',
+    message: PARTY_REQUIREMENT_REASON,
+    params: [standing.party, String(standing.required)],
+    party: standing.party,
+    current: standing.delegates,
+    ...(standing.onVote ? {} : {partyOffVote: true}),
+  };
+}
+
+/** The named party requirement's template — `${0}` the party, `${1}` the delegates the rule asks for. */
+export const PARTY_REQUIREMENT_REASON = 'Requires ${0} to be ruling or ${1} of your delegates on its resolution';
 
 function collectAffordabilityReason(player: IPlayer, card: IProjectCard, out: Array<UnplayableReason>): void {
   const deficit = player.affordabilityDeficit(card);

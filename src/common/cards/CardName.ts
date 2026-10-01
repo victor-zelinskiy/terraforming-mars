@@ -1082,6 +1082,7 @@ export enum CardName {
   COLONY_SPONSORS = 'Colony Sponsors',
   MECH_SPORTS = 'Mech Sports',
   POLITICAL_THINK_TANK = 'Political Think Tank',
+  MARTIAN_CENSUS = 'Martian Census',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

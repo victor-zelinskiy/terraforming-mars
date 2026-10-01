@@ -15,6 +15,7 @@ import type {SkippedEffect} from '../cards/actionPreviews';
 import {Parliament} from './Parliament';
 import {QuestTracker} from './quests/QuestTracker';
 import {placeBotDelegate} from '../automa/AutomaPolitics';
+import type {ICard} from '../cards/ICard';
 
 /** What the step adds to the bare «add N delegates to a resolution». */
 export type PlaceDelegatesOptions = {
@@ -26,6 +27,16 @@ export type PlaceDelegatesOptions = {
    * supply take, none being a NAMED skip (`recordSkippedEffect`).
    */
   support?: number;
+  /**
+   * A PRICE PAID WITH THE DELEGATE (Turmoil Redux TR15 Martian Census / TR24
+   * Venusian Census: «spend 3 data from here to add a delegate to a
+   * resolution»): `count` resources leave `card` INSIDE the answer — after the
+   * reserve is re-read, right before the cube lands. «Paid and placed nothing»
+   * is therefore impossible by construction: an offer the price cannot cover
+   * asks nothing (a named refusal, like an empty reserve), and an answer whose
+   * placement fails charges nothing.
+   */
+  price?: {card: ICard, count: number};
 };
 
 /**
@@ -113,7 +124,24 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     if (reserve <= 0) {
       return {refusal: '${0} cannot add delegates to a resolution: all their delegates are in play'};
     }
+    if (!this.priceCovered()) {
+      return {refusal: '${0} cannot add delegates to a resolution: not enough resources on the card'};
+    }
     return {parliament, parties, count: Math.min(this.quantity, reserve)};
+  }
+
+  /** The price (if any) is on its card right now — re-read at every ask and at the answer. */
+  private priceCovered(): boolean {
+    const price = this.options.price;
+    return price === undefined || price.card.resourceCount >= price.count;
+  }
+
+  /** The price leaves its card through the recorder (the journal, the stats) — called only with a cube about to land. */
+  private payPrice(): void {
+    const price = this.options.price;
+    if (price !== undefined) {
+      this.player.removeResourceFrom(price.card, price.count, {log: true});
+    }
   }
 
   /** The marked prompt, without its answer — the one construction both the live ask and its read-only twin use. */
@@ -165,6 +193,7 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     // bot is placed on the spot — free, from the reserve, every delegate by the bot's own vote rules (a fresh
     // choice per cube, the same door as Party Politics and Lobbying: the journal, the turn step, the ledger).
     if (player.isMarsBot) {
+      this.payPrice();
       for (let i = 0; i < count; i++) {
         placeBotDelegate(game, player, 'reserve', {paid: false});
       }
@@ -183,6 +212,13 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
           game.log('${0} cannot add delegates to a resolution: all their delegates are in play', (b) => b.player(player));
           return undefined;
         }
+        // CHECK → PAY → PLACE, in this one handler: the price is re-read here (a sibling effect may have
+        // moved it since the ask), and an uncovered price places nothing — never a cube bought on credit.
+        if (!this.priceCovered()) {
+          game.log('${0} cannot add delegates to a resolution: not enough resources on the card', (b) => b.player(player));
+          return undefined;
+        }
+        this.payPrice();
         for (let i = 0; i < placed; i++) {
           parliament.placeVote(player, slot, 'reserve');
         }

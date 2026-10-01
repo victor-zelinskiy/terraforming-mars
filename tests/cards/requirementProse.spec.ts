@@ -221,9 +221,13 @@ describe('requirement prose agrees with the requirement graphic', function() {
     for (const statement of statements) {
       const text = statement.block?.text ?? '';
       for (const chip of statement.chips) {
+        // A TAG chip pictures one tag and a PARTY chip one party's EMBLEM (Turmoil Redux, TR15+): the line
+        // must name THAT tag / THAT party — «party» in general would let a line name the wrong one.
         const subject = chip.type === RequirementType.TAG ?
           new RegExp(`\\b${chip.tag as Tag}\\b`, 'i') :
-          EN_SUBJECT[chip.type];
+          chip.type === RequirementType.PARTY && chip.party !== undefined ?
+            new RegExp(`\\b${chip.party}\\b`, 'i') :
+            EN_SUBJECT[chip.type];
         expect(subject, `${label(statement)}: no subject pattern for requirement type '${chip.type}'`).to.not.eq(undefined);
         if (!subject.test(text)) {
           offenders.push(`${label(statement)}: chip pictures ${chip.type}${chip.tag !== undefined ? `/${chip.tag}` : ''}, the line reads «${text}»`);

@@ -9,6 +9,7 @@ import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {testGame} from '../TestGame';
+import {partyRequirementCardsInGame} from '../../src/server/cards/requirements/partyRequirementCards';
 
 // Reveal / deck-check actions (SearchForLife, AsteroidDeflectionSystem) record a
 // transient `player.lastReveal` — the revealed card + whether the condition fired
@@ -178,12 +179,15 @@ describe('Reveal / deck-check actions', () => {
 
     it('actionPreview: a non-tag check, the M€ reward, keepsCard and the pool', () => {
       const card = new PoliticalThinkTank();
-      const [/* game */, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
       const branch = card.actionPreview(player).branches[0];
       expect(branch.reveal?.check).to.deep.equal({icon: 'party-requirement', label: 'Party requirement'});
       expect(branch.reveal?.reward.icon).eq('megacredits');
       expect(branch.reveal?.keepsCard).is.true;
-      expect(branch.reveal?.pool).to.deep.equal({count: 0});
+      // The pool is the game's own composition (the Redux set's party-requirement cards — TR15 the first),
+      // never a literal: the one counter the reveal reads.
+      expect(branch.reveal?.pool).to.deep.equal({count: partyRequirementCardsInGame(game)});
+      expect(branch.reveal?.pool?.count, 'the set now holds a card with a party requirement').gte(1);
     });
   });
 

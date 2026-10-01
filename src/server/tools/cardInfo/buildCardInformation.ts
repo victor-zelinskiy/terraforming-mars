@@ -275,6 +275,15 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
       `Requires that you have at least ${n} Influence.`;
     break;
   }
+  case RequirementType.PARTY: {
+    // Turmoil Redux (TR15 — the set's first party requirement; TR14–TR27 follow): the scan's
+    // own sentence, its «there» named — the delegates stand on the PARTY'S RESOLUTION in the
+    // Voting Area (rulebook p.13). A card-granted party effect is not a road (FAQ p.19), so the
+    // line names exactly two. The hand's reason (`unplayableReasons` → `PARTY_REQUIREMENT_REASON`)
+    // restates it with the «now» of each road.
+    en = `Requires ${descriptor.party} to be ruling or that you have 2 delegates on its resolution.`;
+    break;
+  }
   case RequirementType.TAGS_OF_ONE_TYPE: {
     // Turmoil Redux (TR01): the most tags of any ONE type — no single tag to
     // name, so no qualifier; the rule line says «any one type» as printed.

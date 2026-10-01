@@ -40,5 +40,10 @@
     "1 VP for each mech resource on this card.": "1 ПО за каждый мех на этой карте.",
 
     "Political Think Tank": "Политический аналитический центр",
-    "Action: Reveal the top card of the projects deck. If it has a party requirement, take it into hand and gain 5 M€. Otherwise discard it.": "Действие: вскройте верхнюю карту колоды проектов. Если у неё есть требование партии, возьмите её в руку и получите 5 M€. Иначе сбросьте её."
+    "Action: Reveal the top card of the projects deck. If it has a party requirement, take it into hand and gain 5 M€. Otherwise discard it.": "Действие: вскройте верхнюю карту колоды проектов. Если у неё есть требование партии, возьмите её в руку и получите 5 M€. Иначе сбросьте её.",
+
+    "Martian Census": "Марсианская перепись",
+    "Effect: Whenever ANY player places a city on Mars, add a data resource to this card.": "Эффект: каждый раз, когда ЛЮБОЙ игрок размещает город на Марсе, положите на эту карту 1 единицу данных.",
+    "Action: Add 1 data resource here.": "Действие: положите на эту карту 1 единицу данных.",
+    "Action: Spend 3 data from here to add a delegate to a resolution.": "Действие: потратьте 3 единицы данных с этой карты, чтобы добавить делегата на резолюцию."
 }
