@@ -424,6 +424,16 @@ export class EventRecorder {
   }
 
   /**
+   * A CARD EFFECT MOVED A COLONY TILE'S TRACK (Turmoil Redux TR07 Colony
+   * Sponsors): recorded under the live scope, so the fact joins the chain of
+   * the play that caused it and names that play's card. Written only by
+   * `deferredActions/MaximizeColonyTrack`.
+   */
+  public recordColonyTrackMoved(player: IPlayer, colony: ColonyName, before: number, after: number): void {
+    this.record({type: 'colony-track-moved', player: player.color, impact: {colonyTrackMove: {colony, before, after}}, visibility: 'journal'});
+  }
+
+  /**
    * NO SILENT LOSS, the live half: an effect of `player`'s that could not
    * apply (no holder, no target). Recorded under the live scope, so the fact
    * joins the play's own chain — the journal row and the notification name it

@@ -943,6 +943,18 @@ export type SelectColonyModel = BaseInputModel & {
    * dock free: the trade is still on offer).
    */
   fleetDocks?: ReadonlyArray<FleetDockOfferModel>;
+  /**
+   * STRUCTURAL «this pick MOVES THE CHOSEN TILE'S TRACK, and here is where
+   * each marker would land» (Turmoil Redux TR07 Colony Sponsors — «move its
+   * marker to the highest position»): ONE entry per CANDIDATE, the marker's
+   * position now (`before`) and after the pick (`after`), both 0-based track
+   * cells. The SERVER's projection — the client draws the ghost marker, the
+   * «+N» and the trade income at `after` from it, and never computes «the top
+   * minus where it stands» or decides who is a candidate. Shared by every
+   * future «move the chosen colony's track» pick (a sister card reads the
+   * same marker). Absent on every other colony pick.
+   */
+  trackMoves?: ReadonlyArray<import('../parliament/colonyTrackAdvance').ColonyTrackMove>;
 }
 
 /**

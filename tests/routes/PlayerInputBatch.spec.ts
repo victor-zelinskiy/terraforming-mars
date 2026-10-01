@@ -10,6 +10,10 @@ import {cast} from '../../src/common/utils/utils';
 import {SelectParty} from '../../src/server/inputs/SelectParty';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {CardName} from '../../src/common/cards/CardName';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {ColonyName} from '../../src/common/colonies/ColonyName';
+import {Luna} from '../../src/server/colonies/Luna';
+import {Ceres} from '../../src/server/colonies/Ceres';
 
 describe('PlayerInputBatch.reconcileBatchResponse', () => {
   const orWrap: InputResponse = {type: 'or', index: 1, response: {type: 'option'}};
@@ -149,5 +153,41 @@ describe('PlayerInputBatch — the addressed party tail', () => {
     expect(picked).to.deep.eq([PartyName.MARS]);
     expect(() => grant().input.process({...tail, extra: 1} as unknown as InputResponse)).to.throw('Not a valid SelectPartyResponse');
     expect(() => grant().input.process({type: 'party', partyName: PartyName.UNITY, stagedFor: CardName.POLITICAL_DONATION})).to.throw('Invalid party selected');
+  });
+});
+
+/**
+ * THE ADDRESSED COLONY TAIL (Turmoil Redux TR07 — the staged colony): the
+ * third form of the colony answer. The route reshapes wrappers only, so the
+ * address survives it; the input accepts `{colonyName, stagedFor}` as it
+ * accepts a bare tile; a DOCK is never staged. Who the tail may LAND on is
+ * `deferredInputBatch`'s decision (§ addressed staged colony).
+ */
+describe('PlayerInputBatch — the addressed colony tail', () => {
+  const tail: InputResponse = {type: 'colony', colonyName: ColonyName.LUNA, stagedFor: CardName.ANTS};
+  const pick = () => {
+    const picked: Array<ColonyName> = [];
+    const input = new SelectColony('Select a colony track to move to its highest position', 'Select', [new Luna(), new Ceres()]).andThen((colony) => {
+      picked.push(colony.name);
+      return undefined;
+    });
+    return {input, picked};
+  };
+
+  it('the reconciler leaves it UNCHANGED against its own prompt — the address is not a wrapper', () => {
+    expect(reconcileBatchResponse(tail, pick().input)).to.eq(tail);
+  });
+
+  it('the input accepts all three forms\' tile answers, and refuses a dock beside an address', () => {
+    const {input, picked} = pick();
+    input.process(tail);
+    expect(picked).to.deep.eq([ColonyName.LUNA]);
+    const plain = pick();
+    plain.input.process({type: 'colony', colonyName: ColonyName.CERES});
+    expect(plain.picked).to.deep.eq([ColonyName.CERES]);
+    expect(() => pick().input.process({type: 'colony', fleetDock: CardName.ANTS, stagedFor: CardName.ANTS} as unknown as InputResponse))
+      .to.throw('Not a valid SelectColonyResponse');
+    expect(() => pick().input.process({...tail, extra: 1} as unknown as InputResponse)).to.throw('Not a valid SelectColonyResponse');
+    expect(() => pick().input.process({type: 'colony', colonyName: ColonyName.EUROPA, stagedFor: CardName.ANTS})).to.throw('Colony Europa not found');
   });
 });

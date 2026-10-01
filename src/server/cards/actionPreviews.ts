@@ -25,6 +25,7 @@ import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCar
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
+import {MaximizeColonyTrack, skippedColonyTrack} from '../deferredActions/MaximizeColonyTrack';
 import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
@@ -355,6 +356,31 @@ export function deltaAdvanceStep(offer: DeltaAdvanceOffer): ActionPreviewStep {
 export function delegateGrantStep(card: ICard, grant: PlaceDelegatesOnResolution): ActionPreviewStep | undefined {
   const prompt = grant.previewSelectParty();
   return prompt === undefined ? undefined : {kind: 'delegateGrant', staged: {prompt, sourceCard: card.name}};
+}
+
+/**
+ * THIS PLAY MOVES A CHOSEN COLONY TILE'S TRACK — declared, not described.
+ *
+ * The fourth sibling of {@link delegateGrantStep}: a card that sets a tile's
+ * marker by being played (Turmoil Redux TR07 Colony Sponsors) does not ask
+ * «which tile» in the composer — it enters the ONE colony grid, hosted inside
+ * the workspace the card is played from, and the play is committed on the
+ * tile's stage (a staged colony: nothing is sent before that confirm). `step`
+ * is the very step the card's `bespokePlay` defers — asked here for the prompt
+ * it WOULD raise (`previewSelectColony`, with its `trackMoves` projection).
+ *
+ * With no tile to move (every active track at its top) there is no door: the
+ * branch carries the NAMED skip instead — the same label and cause the live
+ * step records (`skippedColonyTrack`), so the promise and the record cannot
+ * read apart. The card stays playable (its requirement is a colony of one's own).
+ */
+export function colonyPickStep(card: ICard, step: MaximizeColonyTrack): ActionPreviewStep {
+  const prompt = step.previewSelectColony();
+  if (prompt === undefined) {
+    const lost = skippedColonyTrack();
+    return warningNote(lost.reason, {skipped: lost.skipped});
+  }
+  return {kind: 'colonyPick', staged: {prompt, sourceCard: card.name}};
 }
 
 /** The pseudo-icons of the Agenda walk's chips (the client draws a styled badge, as for `tr` / `cards`). */

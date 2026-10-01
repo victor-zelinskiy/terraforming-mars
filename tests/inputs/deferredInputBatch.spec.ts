@@ -37,7 +37,13 @@ import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {Phase} from '../../src/common/Phase';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
-import {isSelectPartyResponse} from '../../src/common/inputs/InputResponse';
+import {isSelectColonyResponse, isSelectPartyResponse} from '../../src/common/inputs/InputResponse';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {MaximizeColonyTrack} from '../../src/server/deferredActions/MaximizeColonyTrack';
+import {BuildColony} from '../../src/server/deferredActions/BuildColony';
+import {Luna} from '../../src/server/colonies/Luna';
+import {Ceres} from '../../src/server/colonies/Ceres';
+import {Europa} from '../../src/server/colonies/Europa';
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {
   clearBatchTail,
@@ -653,6 +659,174 @@ describe('deferredInputBatch', () => {
       expect(isSelectPartyResponse({type: 'party', partyName: M, stagedFor: CardName.ANTS})).is.true;
       expect(isSelectPartyResponse({type: 'party', partyName: M, extra: 1} as unknown as InputResponse)).is.false;
       expect(isSelectPartyResponse({type: 'party', stagedFor: CardName.ANTS} as unknown as InputResponse)).is.false;
+    });
+  });
+
+  describe('addressed staged colony', () => {
+    type Staged = {game: IGame, player: TestPlayer, card: IProjectCard, luna: Luna, ceres: Ceres, europa: Europa};
+
+    /**
+     * A colonies table (Luna at 2, Ceres at 3, Europa at 1) and a card in hand
+     * whose play defers the shared «move the chosen tile's marker to its top»
+     * step — behind `before`, a prompt the same play raises AHEAD of it.
+     */
+    function stagedGame(before?: (player: IPlayer, state: Staged) => void): Staged {
+      const [game, player] = testGame(2, {coloniesExtension: true});
+      const luna = new Luna();
+      const ceres = new Ceres();
+      const europa = new Europa();
+      game.colonies = [luna, ceres, europa];
+      luna.trackPosition = 2;
+      ceres.trackPosition = 3;
+      europa.trackPosition = 1;
+      const state = {game, player, luna, ceres, europa} as unknown as Staged;
+      const card = fakeCard({
+        name: 'A card that sets a colony track' as CardName,
+        cost: 5,
+        play: (p: IPlayer) => {
+          before?.(p, state);
+          p.game.defer(new MaximizeColonyTrack(p, {kind: 'card', card: card.name}));
+          return undefined;
+        },
+      });
+      state.card = card;
+      player.cardsInHand = [card];
+      player.megaCredits = 50;
+      player.takeAction();
+      return state;
+    }
+
+    function tailOf(state: Staged, colony: ColonyName): InputResponse {
+      return {type: 'colony', colonyName: colony, stagedFor: state.card.name};
+    }
+
+    /** Another giver's colony question — a BUILD — raised by the same play ahead of the card's own. */
+    function interposeBuild(p: IPlayer) {
+      p.game.defer(new BuildColony(p), Priority.COST);
+    }
+
+    /** A two-way choice the play raises first (any `or` a triggered effect would ask). */
+    function interposeChoice(onAnswer?: (state: Staged) => void) {
+      return (p: IPlayer, state: Staged) => {
+        p.defer(() => new OrOptions(
+          new SelectOption('one').andThen(() => {
+            onAnswer?.(state);
+            return undefined;
+          }),
+          new SelectOption('two'),
+        ), Priority.COST);
+      };
+    }
+
+    it('lands at once when nothing interposes: the marker stands at the top', () => {
+      const state = stagedGame();
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.LUNA)]));
+      expect(state.luna.trackPosition).eq(6);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      expect(state.player.getWaitingFor() instanceof SelectColony, 'the tile is never asked again').is.false;
+    });
+
+    it('a BUILD in front of the card\'s own question does NOT eat the tail — it parks untried and lands after', () => {
+      const state = stagedGame(interposeBuild);
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.LUNA)]));
+      const build = cast(state.player.getWaitingFor(), SelectColony);
+      expect(build.choiceContext?.source.card, 'the build names no card of ours').is.undefined;
+      expect(state.luna.colonies, 'no colony was built by the staged answer').deep.eq([]);
+      expect(state.luna.trackPosition).eq(2);
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      // A drain while the build stands leaves the tail parked, untried.
+      drainBatchTail(state.player);
+      expect(state.luna.colonies).deep.eq([]);
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      // The player answers the build for real (Ceres); the tile then lands on its own prompt.
+      state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+      drainBatchTail(state.player);
+      expect(state.ceres.colonies).deep.eq([state.player.id]);
+      expect(state.luna.trackPosition, 'the staged tile went to its top').eq(6);
+      expect(state.ceres.trackPosition, 'the build moved its own track only by the build rule').eq(3);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      expect(state.player.getWaitingFor() instanceof SelectColony).is.false;
+    });
+
+    it('PARKS behind a prompt of another type and auto-lands once it is answered', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.EUROPA)]));
+      cast(state.player.getWaitingFor(), OrOptions);
+      expect(parkedBatchTailLength(state.player)).eq(1);
+      expect(parkedStagedPlacement(state.player), 'a staged colony is not a staged CELL').is.undefined;
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+      expect(state.europa.trackPosition).eq(6);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+    });
+
+    it('the track MOVED while parked but the tile is still a candidate — it lands, the steps re-read at the answer', () => {
+      const state = stagedGame(interposeChoice((s) => {
+        s.luna.trackPosition = 4;
+      }));
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.LUNA)]));
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+      expect(state.luna.trackPosition).eq(6);
+      const moved = state.game.events.events.filter((e) => e.type === 'colony-track-moved');
+      expect(moved.map((e) => e.impact.colonyTrackMove)).deep.eq([{colony: ColonyName.LUNA, before: 4, after: 6}]);
+    });
+
+    it('the tile REACHED its top while parked: the tail is dropped and the question stands live — never a fall', () => {
+      const state = stagedGame(interposeChoice((s) => {
+        s.luna.trackPosition = 6;
+      }));
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.LUNA)]));
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+      expect(parkedBatchTailLength(state.player), 'stale — dropped, never held for a later prompt').eq(0);
+      const live = cast(state.player.getWaitingFor(), SelectColony);
+      expect(live.choiceContext?.source.card).eq(state.card.name);
+      expect(live.colonies.map((c) => c.name)).deep.eq([ColonyName.CERES, ColonyName.EUROPA]);
+    });
+
+    it('a manual answer to its own prompt SUPERSEDES the parked tile', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.LUNA)]));
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      const live = cast(state.player.getWaitingFor(), SelectColony);
+      expect(live.choiceContext?.source.card).eq(state.card.name);
+      expireSupersededStagedTail(state.player);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+      drainBatchTail(state.player);
+      expect(state.ceres.trackPosition).eq(6);
+      expect(state.luna.trackPosition, 'the superseded pick never lands').eq(2);
+    });
+
+    it('expires with the action it was collected for', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, ColonyName.LUNA)]));
+      expect(parkedBatchTailLength(state.player)).eq(1);
+      clearBatchTail(state.player);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+    });
+
+    it('an UNADDRESSED colony answer replays positionally, exactly as before', () => {
+      // …onto the pick it was (positionally) meant for:
+      const direct = stagedGame();
+      replayBatch(direct.player, playBatch(direct.player, direct.card, [{type: 'colony', colonyName: ColonyName.LUNA}]));
+      expect(direct.luna.trackPosition).eq(6);
+      // …and onto whatever `SelectColony` stands first — which is WHY a staged door must address its tail.
+      const build = stagedGame(interposeBuild);
+      replayBatch(build.player, playBatch(build.player, build.card, [{type: 'colony', colonyName: ColonyName.LUNA}]));
+      expect(build.luna.colonies, 'the positional answer BUILT a colony').deep.eq([build.player.id]);
+    });
+
+    it('the wire validator accepts the three forms and nothing else', () => {
+      expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA})).is.true;
+      expect(isSelectColonyResponse({type: 'colony', fleetDock: CardName.ANTS})).is.true;
+      expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, stagedFor: CardName.ANTS})).is.true;
+      expect(isSelectColonyResponse({type: 'colony', fleetDock: CardName.ANTS, stagedFor: CardName.ANTS} as unknown as InputResponse), 'a dock is never staged').is.false;
+      expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, fleetDock: CardName.ANTS} as unknown as InputResponse)).is.false;
+      expect(isSelectColonyResponse({type: 'colony', stagedFor: CardName.ANTS} as unknown as InputResponse)).is.false;
     });
   });
 

@@ -1,5 +1,5 @@
 import type {IPlayer} from '../IPlayer';
-import {InputResponse, isOrOptionsResponse, SelectPartyResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isOrOptionsResponse, SelectColonyResponse, SelectPartyResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
 import type {PlayerInput} from '../PlayerInput';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
@@ -8,6 +8,7 @@ import {OrOptions} from './OrOptions';
 import {SelectSpace} from './SelectSpace';
 import {SelectCard} from './SelectCard';
 import {SelectParty} from './SelectParty';
+import {SelectColony} from './SelectColony';
 
 /**
  * THE PRE-COLLECTED BATCH — replay, and the TAIL THAT HAS NOT LANDED YET.
@@ -243,13 +244,16 @@ function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boole
 
 /**
  * The staged address of a response, when it carries one — a CELL picked before
- * the play (`space`) or a RESOLUTION picked before it (`party`, the staged
- * vote of a card that places a delegate by being played).
+ * the play (`space`), a RESOLUTION picked before it (`party`, the staged
+ * vote of a card that places a delegate by being played) or a COLONY TILE
+ * picked before it (`colony`, the staged track of a card that moves a chosen
+ * tile's marker by being played — TR07 Colony Sponsors).
  */
 function stagedAddress(response: InputResponse): CardName | undefined {
   switch (response.type) {
   case 'space': return (response as SelectSpaceResponse).stagedFor;
   case 'party': return (response as SelectPartyResponse).stagedFor;
+  case 'colony': return (response as SelectColonyResponse).stagedFor;
   default: return undefined;
   }
 }
@@ -277,6 +281,14 @@ function stagedCellAddress(response: InputResponse): CardName | undefined {
  * is a `SelectParty` too (`source === 'chairman-seat'`), and «Greens» answered
  * there would choose which resolution GIVES UP a delegate; a colony's grant
  * and the vote's own paid pick are party prompts of other givers.
+ *
+ * A COLONY TILE's address is that card's own colony pick: a `SelectColony`
+ * whose `choiceContext.source.card` is the address (`MaximizeColonyTrack`).
+ * Every other colony question — a build, a trade's destination, Aridor's new
+ * tile — names another giver (or none), and «Luna» answered there would build
+ * a colony or spend a trade. No baseline is needed: the candidates are fixed
+ * by the prompt and a track that moved meanwhile is the step's own named
+ * skip, while `SelectColony.process` refuses a tile no longer offered.
  */
 function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boolean {
   const address = stagedAddress(response);
@@ -286,6 +298,10 @@ function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boole
   if (response.type === 'party') {
     return !(waitingFor instanceof SelectParty) ||
       waitingFor.votePrompt?.source !== 'grant' ||
+      waitingFor.choiceContext?.source.card !== address;
+  }
+  if (response.type === 'colony') {
+    return !(waitingFor instanceof SelectColony) ||
       waitingFor.choiceContext?.source.card !== address;
   }
   if (!(waitingFor instanceof SelectSpace)) {
@@ -356,7 +372,8 @@ function stagedParkStale(player: IPlayer, response: InputResponse): boolean {
 /**
  * The player is about to answer a prompt MANUALLY that a parked staged answer
  * was addressed to (an opponent's request advanced the queue past our drain
- * window, so the placement — or the delegate grant — surfaced live). Their
+ * window, so the placement — the delegate grant, the colony pick — surfaced
+ * live). Their
  * live answer supersedes the parked plan — expire it, or the drain would land
  * the stale answer on the SAME card's NEXT same-shaped prompt (a two-ocean
  * card's second ocean). Called by the single-input route BEFORE processing.

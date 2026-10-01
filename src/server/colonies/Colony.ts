@@ -7,7 +7,7 @@ import {DrawCards} from '../deferredActions/DrawCards';
 import {GiveColonyBonus} from '../deferredActions/GiveColonyBonus';
 import {IncreaseColonyTrack} from '../deferredActions/IncreaseColonyTrack';
 import {LogHelper} from '../LogHelper';
-import {MAX_COLONIES_PER_TILE, MAX_COLONY_TRACK_POSITION} from '../../common/constants';
+import {MAX_COLONIES_PER_TILE} from '../../common/constants';
 import {PlaceOceanTile} from '../deferredActions/PlaceOceanTile';
 import {IPlayer} from '../IPlayer';
 import {PlayerId} from '../../common/Types';
@@ -25,7 +25,7 @@ import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
 import {ColonyBonusOrdinal, IColony, TradeOptions, TradeTerms, tradeTermsOf, TradeTrackPlan} from './IColony';
-import {ColonyMetadata, colonyMetadata, colonyCardResources, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome} from '../../common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyMetadata, colonyCardResources, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome, trackTop} from '../../common/colonies/ColonyMetadata';
 import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
@@ -100,7 +100,9 @@ export abstract class Colony implements IColony {
   }
 
   public increaseTrack(value: number = 1): void {
-    this.trackPosition = Math.min(this.trackPosition + value, MAX_COLONY_TRACK_POSITION);
+    // The tile's own top (`trackTop` — the last printed cell), the same reading
+    // «move its marker to the highest position» sets (TR07 Colony Sponsors).
+    this.trackPosition = Math.min(this.trackPosition + value, trackTop(this.metadata));
   }
 
   public decreaseTrack(value: number = 1): void {
@@ -226,7 +228,7 @@ export abstract class Colony implements IColony {
     const terms = tradeTermsOf(termsIn);
     const current = this.trackPosition;
     const tradeOffset = player.colonies.tradeOffset + terms.bonusTradeOffset;
-    const max = Math.min(current + tradeOffset, MAX_COLONY_TRACK_POSITION);
+    const max = Math.min(current + tradeOffset, trackTop(this.metadata));
     const reach = max - current;
 
     // The steps the colony's advance policy lets a trade LAND on: a `yes`

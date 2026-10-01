@@ -7,6 +7,7 @@ import {FleetDockOfferModel, SelectColonyModel} from '../../common/models/Player
 import {coloniesToModel} from '../models/ModelUtils';
 import {IPlayer} from '../IPlayer';
 import {InputError} from './InputError';
+import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 
 export class SelectColony extends BasePlayerInput<IColony> {
   // When true, show just the tile, and none of the cubes on top.
@@ -45,6 +46,14 @@ export class SelectColony extends BasePlayerInput<IColony> {
   /** The handler of a dock answer — the twin of `cb` for the second response form. */
   public onFleetDock?: (card: CardName) => PlayerInput | undefined;
 
+  /**
+   * WHERE EACH CANDIDATE'S MARKER WOULD LAND — the pick moves the chosen
+   * tile's track (TR07 Colony Sponsors: to its top; `MaximizeColonyTrack`).
+   * Published as the model's `trackMoves` marker so the client draws the
+   * projection instead of computing it. Empty on every other colony pick.
+   */
+  public trackMoves: ReadonlyArray<ColonyTrackMove> = [];
+
   constructor(
     title: string | Message,
     buttonLabel: string = 'Save',
@@ -79,6 +88,10 @@ export class SelectColony extends BasePlayerInput<IColony> {
     // reason: the pick is nested in the trade action's AndOptions.
     if (this.fleetDocks.length > 0) {
       model.fleetDocks = this.fleetDocks;
+    }
+    // The track projection rides the input's own toModel too (nesting-safe).
+    if (this.trackMoves.length > 0) {
+      model.trackMoves = this.trackMoves;
     }
     return model;
   }

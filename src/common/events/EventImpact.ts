@@ -143,6 +143,12 @@ export type EventImpact = {
    * event per walk, written after the last step.
    */
   agenda?: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>; reason: AgendaAdvanceReason};
+  /**
+   * A CARD EFFECT MOVED A COLONY TILE'S TRACK (`colony-track-moved`, Turmoil
+   * Redux TR07): the tile and the marker's 0-based position before and after.
+   * A position fact, never a delta.
+   */
+  colonyTrackMove?: {colony: ColonyName; before: number; after: number};
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
 };

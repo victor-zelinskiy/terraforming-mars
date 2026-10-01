@@ -81,6 +81,19 @@ export type GameEventType =
    */
   | 'fleet-docked'
   /**
+   * A CARD EFFECT MOVED A COLONY TILE'S TRACK (Turmoil Redux TR07 Colony
+   * Sponsors — «move its marker to the highest position»; written only by
+   * `deferredActions/MaximizeColonyTrack`). `impact.colonyTrackMove` names the
+   * tile and the marker's position before and after; `player` is the one whose
+   * effect it was, the card rides the event's `source`. The track is nobody's
+   * stock, so no delta names it, and the log line sits inside a chain that has
+   * rows of its own (the play's payment) where a text-only line is hidden —
+   * hence the typed fact: the journal's row and a rival's notification read
+   * «Трек колонии · Луна 3 → 7». The trade's own pre-trade advance is NOT this
+   * event (its income says it).
+   */
+  | 'colony-track-moved'
+  /**
    * NO SILENT LOSS, the live half: an effect the engine could NOT apply — no
    * card can hold the resource, no opponent can be hit. `impact.skipped` names
    * WHICH effect, WHY, and the magnitude lost, in the SAME words the play

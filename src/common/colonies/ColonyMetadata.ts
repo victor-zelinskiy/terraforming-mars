@@ -158,6 +158,18 @@ export function tradeBenefitAt(metadata: ColonyMetadata, position: number): Trad
 }
 
 /**
+ * THE HIGHEST (RIGHT-MOST) POSITION of a tile's colony track — the last cell
+ * its trade income prints. The ONE reading of «the top»: the engine's clamp
+ * (`Colony.increaseTrack`), «move its marker to the highest position» (Turmoil
+ * Redux TR07 Colony Sponsors, `MaximizeColonyTrack`) and every client surface
+ * that draws where the marker would land. Every tile in play prints seven
+ * cells today (top = 6), but a reader asks THIS, never a constant.
+ */
+export function trackTop(metadata: Pick<ColonyMetadata, 'trade'>): number {
+  return metadata.trade.quantity.length - 1;
+}
+
+/**
  * The FIXED part of the trade income — what EVERY trade here pays before the
  * marker's bonus (see {@link FixedTradeIncome}); undefined for a tile whose
  * whole income is the marker's. The one reading, beside `tradeBenefitAt`.

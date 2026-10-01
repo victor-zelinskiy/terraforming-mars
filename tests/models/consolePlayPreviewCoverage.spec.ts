@@ -29,7 +29,9 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
  *                  spendHeat / tabbedTargets / a `delegateGrant` DOOR — the
  *                  staged vote: the composer's commit opens the Parliament's
  *                  vote mode and the resolution rides the batch as its
- *                  addressed tail).
+ *                  addressed tail / a `colonyPick` DOOR — the staged colony:
+ *                  the commit opens the colony grid and the tile rides the
+ *                  batch as its addressed tail).
  *   - 'followup' — an honest post-submit follow-up (board / colony placement /
  *                  note / an UNOWNED multi-select — the documented, safe
  *                  exceptions, ridden by the native flow).
@@ -47,6 +49,12 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
   // gap — the console turns the commit into the staged vote (`stagedPlay`'s
   // resolution target), so the answer is collected BEFORE the one submit.
   if (step.kind === 'delegateGrant') {
+    return 'inline';
+  }
+  // A colony-track pick by PLAYING the card (TR07): the same staged door —
+  // the composer's commit opens the colony grid in the hand's zone and the
+  // tile rides the batch as its addressed `colony` tail.
+  if (step.kind === 'colonyPick') {
     return 'inline';
   }
   // A walk of the Agenda marker by PLAYING the card (TR04): a SHOW step — the

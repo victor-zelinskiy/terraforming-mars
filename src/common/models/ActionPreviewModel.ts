@@ -5,7 +5,7 @@ import {Color} from '../Color';
 import {Message} from '../logs/Message';
 import {TileType} from '../TileType';
 import {Units} from '../Units';
-import {PlayerInputModel, SelectCardModel, SelectPartyModel} from './PlayerInputModel';
+import {PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 import {EffectForecast} from './EffectForecastModel';
 
@@ -402,6 +402,21 @@ export type ActionPreviewStep =
    */
   | {kind: 'delegateGrant', staged: StagedVoteModel}
   /**
+   * THIS PLAY MOVES A CHOSEN COLONY TILE'S TRACK — and the tile is picked in
+   * the Colonies, never in the composer (Turmoil Redux TR07 Colony Sponsors:
+   * «choose 1 colony track, move its marker to the highest position»).
+   *
+   * The fourth staged target, structural for the same reason as
+   * `delegateGrant`: the console reads it to turn the composer's commit into a
+   * NAVIGATION («Выбрать колонию») into the colony grid, hosted inside the
+   * workspace the card is played from — a STAGED COLONY: nothing is sent until
+   * the tile is confirmed on its stage, and that confirm posts the one batch
+   * with the colony answer as its ADDRESSED tail
+   * (`SelectColonyResponse.stagedFor`). Absent when no tile can move — the
+   * branch then carries the named skip warning instead (no door is drawn).
+   */
+  | {kind: 'colonyPick', staged: StagedColonyModel}
+  /**
    * THIS PLAY WALKS THE AGENDA MARKER (Turmoil Redux TR04 Minority
    * Representation) — a SHOW step, not a choice: the composer collects
    * nothing for it and the play's one POST carries the walk's record back.
@@ -546,6 +561,21 @@ export type StagedPlacementModel = {
  */
 export type StagedVoteModel = {
   prompt: SelectPartyModel;
+  sourceCard: CardName;
+};
+
+/**
+ * The staged twin of a card's COLONY PICK — everything the console's colony
+ * grid and the tile's stage need to run the pick BEFORE the play is submitted.
+ * `prompt` is, field for field, the `SelectColony` the commit WILL raise
+ * (`MaximizeColonyTrack.previewSelectColony()` — the same title, candidates,
+ * disabled tiles with their reasons, the `trackMoves` projection and
+ * `choiceContext`), so the staged door and the live one are one prompt read
+ * twice; there is no `promptId` (no server prompt exists yet — the answer
+ * rides the play batch). `sourceCard` is the tail's ADDRESS.
+ */
+export type StagedColonyModel = {
+  prompt: SelectColonyModel;
   sourceCard: CardName;
 };
 
