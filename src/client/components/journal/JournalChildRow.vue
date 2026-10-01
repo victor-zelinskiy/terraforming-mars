@@ -95,6 +95,8 @@
               class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(vm.political.resolution) }}</span>
         <span v-else-if="vm.political !== undefined && vm.political.kind === 'agenda'"
               class="journal-child-row__tile journal-em">{{ agendaLabel(vm.political.from, vm.political.to, vm.political.level) }}</span>
+        <span v-else-if="vm.political !== undefined && vm.political.kind === 'colonyTrack'"
+              class="journal-child-row__tile journal-em">{{ colonyTrackLabel(vm.political.colony, vm.political.before, vm.political.after) }}</span>
         <span v-else-if="vm.political !== undefined"
               class="journal-child-row__tile journal-em">{{ supportLabel(vm.political.party, vm.political.total) }}</span>
       </span>
@@ -171,6 +173,10 @@ export default defineComponent({
     /** «Карьера 1 → 3 · Влияние 2» — the position fact and the level the walk set (the chip beside it counts the steps). */
     agendaLabel(from: number, to: number, level: number): string {
       return `${translateTextWithParams('Agenda track ${0} → ${1}', [String(from), String(to)])} · ${translateText('Influence')} ${level}`;
+    },
+    /** «Трек колонии · Луна 3 → 7» — the tile's own 1-based readout (the chip beside it counts the steps). */
+    colonyTrackLabel(colony: string, before: number, after: number): string {
+      return `${translateText('Colony track')} · ${translateText(colony)} ${before + 1} → ${after + 1}`;
     },
     /** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
     supportLabel(party: PartyName, total: number): string {

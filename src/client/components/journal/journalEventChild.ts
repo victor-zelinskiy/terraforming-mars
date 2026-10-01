@@ -12,6 +12,7 @@ import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
 import {DELEGATE_ICON, NEUTRAL_DELEGATE_ICON, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {TRADE_FLEET_ICON} from '@/common/colonies/tradeFleet';
+import {ColonyName} from '@/common/colonies/ColonyName';
 
 /**
  * The NAME of a parliament-sourced event (Turmoil Redux), shared by the journal
@@ -98,7 +99,9 @@ export type JournalChildVM = {
     | {kind: 'resolution'; resolution: string}
     | {kind: 'support'; party: PartyName; total: number}
     /** A WALK of the Agenda track (`agenda-advanced`, TR04): from → to and the influence level the walk set. */
-    | {kind: 'agenda'; from: number; to: number; level: number};
+    | {kind: 'agenda'; from: number; to: number; level: number}
+    /** A colony TILE's track moved by a card effect (`colony-track-moved`, TR07): the tile, 0-based before → after. */
+    | {kind: 'colonyTrack'; colony: ColonyName; before: number; after: number};
   /**
    * An effect that could NOT apply (`effect-skipped`): WHICH (`label`), WHY
    * (`reason`), and the magnitude lost as a chip of its own. Deliberately
@@ -108,6 +111,9 @@ export type JournalChildVM = {
    */
   skipped?: {label: string; reason: string; chip?: JournalImpactChip};
 };
+
+/** The colony TILE's own glyph as a chip icon (`iconClassFor` → the printed pill). */
+export const COLONY_TILE_ICON = 'colony-tile';
 
 const UNIT_KEYS: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
 
@@ -420,6 +426,16 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       push(`agenda|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'agenda', from: agenda.from, to: agenda.to, level: influenceAtAgenda(agenda.to)}},
       [{icon: 'agenda', text: signed(agenda.to - agenda.from)}]);
+      continue;
+    }
+    if (e.type === 'colony-track-moved' && e.impact.colonyTrackMove !== undefined) {
+      // A COLONY TRACK MOVED BY A CARD (TR07 Colony Sponsors): its OWN row under the card — the chip is the
+      // STEPS («+4», the printed colony-tile pill), the label the POSITION fact on the tile («Трек колонии ·
+      // Луна 3 → 7», the tile's own 1-based readout). The track is nobody's stock, so nothing else says it.
+      const move = e.impact.colonyTrackMove;
+      push(`colonyTrack|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'colonyTrack', colony: move.colony, before: move.before, after: move.after}},
+      [{icon: COLONY_TILE_ICON, text: signed(move.after - move.before)}]);
       continue;
     }
     if (e.type === 'fleet-docked') {

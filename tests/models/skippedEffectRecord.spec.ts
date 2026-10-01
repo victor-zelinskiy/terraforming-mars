@@ -38,6 +38,9 @@ import {SkyDocks} from '../../src/server/cards/colonies/SkyDocks';
 import {FLEET_LIMIT_REASON, GAIN_TRADE_FLEET_LABEL, TRADE_FLEET_ICON} from '../../src/server/colonies/tradeFleetGain';
 import {MAX_FLEET_SIZE} from '../../src/common/constants';
 import {Phase} from '../../src/common/Phase';
+import {ColonySponsors} from '../../src/server/cards/turmoilRedux/ColonySponsors';
+import {COLONY_TRACK_LABEL, EVERY_COLONY_TRACK_AT_TOP_REASON} from '../../src/server/deferredActions/MaximizeColonyTrack';
+import {trackTop} from '../../src/common/colonies/ColonyMetadata';
 
 /**
  * NO SILENT LOSS — THE LIVE HALF, as a CLASS.
@@ -167,6 +170,17 @@ const SCENARIOS: ReadonlyArray<Scenario> = [
       player.colonies.setFleetSize(MAX_FLEET_SIZE);
     },
     expected: [{label: GAIN_TRADE_FLEET_LABEL, reason: FLEET_LIMIT_REASON, effect: {direction: 'gain', icon: TRADE_FLEET_ICON, amount: 1}}],
+  },
+  {
+    // A target-dependent loss with no magnitude: the steps are the chosen tile's, and there is no tile.
+    name: 'Colony Sponsors (the shared «set the chosen colony track to its top») — every active track at its top',
+    card: () => new ColonySponsors(),
+    arrange: (game) => {
+      for (const colony of game.colonies) {
+        colony.trackPosition = trackTop(colony.metadata);
+      }
+    },
+    expected: [{label: COLONY_TRACK_LABEL, reason: EVERY_COLONY_TRACK_AT_TOP_REASON}],
   },
   {
     name: 'Virus — the only plants are PROTECTED: the cause says so',

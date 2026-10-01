@@ -31,6 +31,8 @@ const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'ven
 const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {
   'tr': 'rating', 'rating': 'rating', 'cards': 'cards', 'delegate': 'delegate', 'neutral-delegate': 'neutral-delegate',
   'agenda': 'agenda-step', 'influence': 'influence',
+  // `colony-tile` (Turmoil Redux TR07): the printed COLONY TILE pill — the journal's «a track moved» chip.
+  'colony-tile': 'colony-tile',
 };
 // The `GlobalParameter` enum uses the PLURAL 'oceans', but the icon class is the
 // singular `wgt-icon--ocean` (the ocean TILE art). Normalise here — the single

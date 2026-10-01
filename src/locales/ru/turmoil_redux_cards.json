@@ -29,5 +29,10 @@
 
     "Water Hauling": "Перевозка воды",
     "Effect: Once per generation, when you trade, you can send the trade fleet to this card to place an ocean tile.": "Эффект: раз в поколение, торгуя, вы можете отправить торговый флот на эту карту и разместить тайл океана.",
-    "Gain an extra trade fleet.": "Получите дополнительный торговый флот."
+    "Gain an extra trade fleet.": "Получите дополнительный торговый флот.",
+
+    "Colony Sponsors": "Спонсоры колоний",
+    "Requires that you have a colony in play. Choose 1 colony track. Move its marker to the highest (right-most) position.": "Требует, чтобы у вас была колония. Выберите 1 трек колонии и передвиньте его маркер на высшую (крайнюю правую) позицию.",
+    "SET": "ВЫСТАВИТЬ",
+    "TO MAX": "НА МАКСИМУМ"
 }

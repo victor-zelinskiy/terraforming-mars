@@ -33,6 +33,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade.png'});
   });
 
+  it('the COLONY TILE is its own printed pill (never the colony cube), in a holder that keeps its proportion', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.COLONY_TILE))).to.deep.equal({kind: 'img', url: 'assets/misc/colony-tile.png', mod: 'pill'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.COLONY_TILE))).to.not.deep.equal(mechItemIcon(itemNode(CardRenderItemType.COLONIES)));
+  });
+
   it('trade fleet is the trade canvas PRE-INVERTED — an asset, never a filter (the console strips every filter)', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_FLEET))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade-fleet.png'});
   });

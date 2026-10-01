@@ -225,7 +225,6 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   // board's own special-tile art, never the raw item-type placeholder.
   [CardRenderItemType.EMPTY_TILE_SPECIAL]: `${TILES}/special.png`,
   [CardRenderItemType.HAZARD_TILE]: `${TILES}/hazard.png`,
-  [CardRenderItemType.COLONY_TILE]: `${TILES}/colony.png`,
 
   // Colonies expansion — the trade-track colony icon + the trade token.
   [CardRenderItemType.COLONIES]: `${TILES}/colony.png`,
@@ -501,6 +500,13 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     const tag = secondary !== undefined && (Object.values(Tag) as Array<string>).includes(secondary) ? secondary as Tag : undefined;
     return tag === undefined ? {kind: 'vpCard'} : {kind: 'vpCard', tag};
   }
+  case CardRenderItemType.COLONY_TILE:
+    // The printed COLONY TILE glyph (the pill of a tile: track bars + the
+    // planet's limb — Turmoil Redux TR07 «SET [tile] TO MAX», Aridor, Early
+    // Colonization, Maria, We Grow As One, Prospecting) — its own asset, never
+    // the colony CUBE (`COLONIES`) it used to borrow. Not square: the holder
+    // keeps its proportion (`pcard-ic--pill`), a squeezed pill being a defect.
+    return {kind: 'img', url: `${MISC}/colony-tile.png`, mod: 'pill'};
   case CardRenderItemType.TRADE_FLEET:
     // The trade canvas INVERTED — the fork's fleet marker — as a PRE-INVERTED
     // asset (the one the fleet chip flies too): the console strips every

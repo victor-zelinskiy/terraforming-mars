@@ -1197,6 +1197,12 @@
   width: calc(var(--pcard-mech-icon) * 0.62);
   height: calc(var(--pcard-mech-icon) * 0.62);
 }
+/* The COLONY TILE pill (`assets/misc/colony-tile.png`, 256×154): the holder
+   takes the asset's own proportion at the row's icon height — a square box
+   with `contain` would print it at 60 % size, a stretched one would squeeze it. */
+.pcard-ic--pill {
+  width: calc(var(--pcard-mech-icon) * 1.66);
+}
 .pcard-mi__digit {
   font-size: var(--pcard-mech-font);
   color: #f3e9d2;

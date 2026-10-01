@@ -9,6 +9,7 @@ import {VectorComputations} from './VectorComputations';
 import {PoliticalDonation} from './PoliticalDonation';
 import {MinorityRepresentation} from './MinorityRepresentation';
 import {WaterHauling} from './WaterHauling';
+import {ColonySponsors} from './ColonySponsors';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -58,5 +59,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The grey ▲ at the bottom left: the card needs Colonies (it IS a destination of the trade action —
     // a fleet dock, `colonies/FleetDock.ts`). The purple Turmoil symbol below it is the module itself.
     [CardName.WATER_HAULING]: {Factory: WaterHauling, compatibility: 'colonies'},
+    // The grey ▲ at the bottom left: the card needs Colonies (it moves a colony TILE's track, and its
+    // requirement is a colony of one's own). The purple Turmoil symbol below it is the module itself.
+    [CardName.COLONY_SPONSORS]: {Factory: ColonySponsors, compatibility: 'colonies'},
   },
 });
