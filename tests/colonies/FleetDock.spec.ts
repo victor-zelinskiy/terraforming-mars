@@ -541,8 +541,8 @@ describe('FleetDock — a card as a destination of the trade', () => {
     it('`CardModel.fleetDocked` is set while the fleet stands on the card, for every viewer, and absent otherwise', () => {
       expect(cardsToModel(player, [dock])[0].fleetDocked).is.undefined;
       dockFleet(player, dock);
-      expect(cardsToModel(player, [dock])[0].fleetDocked).is.true;
-      expect(cardsToModel(opponent, [dock])[0].fleetDocked, 'public').is.true;
+      expect(cardsToModel(player, [dock])[0].fleetDocked, 'the livery is the owner\'s').eq(player.color);
+      expect(cardsToModel(opponent, [dock])[0].fleetDocked, 'public — and still the colour of the OWNER, whoever asks').eq(player.color);
       game.generation++;
       expect(cardsToModel(player, [dock])[0].fleetDocked, 'the next generation').is.undefined;
       expect(fleetDockOffers(player)[0].available).is.true;

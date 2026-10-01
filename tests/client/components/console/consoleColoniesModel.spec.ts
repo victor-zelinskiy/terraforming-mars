@@ -15,8 +15,12 @@ import {
   consoleColoniesUi,
   resetConsoleColoniesUi,
   switchColonyFocusIntent,
+  openFleetDockFocus,
+  colonyDockCursor,
+  fleetDockUi,
 } from '@/client/console/consoleColoniesModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {CardName} from '@/common/cards/CardName';
 
 describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
   // Module state is BUNDLE-SHARED under mochapack: a leaked open focus stage
@@ -24,6 +28,32 @@ describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
   afterEach(() => {
     resetColonyFocus();
     resetConsoleColoniesUi();
+  });
+
+  describe('the FLEET-DOCK stage (TR06 Water Hauling) — the same focus state, the other destination', () => {
+    it('opens on the CARD — the trade intent, no colony — and a colony descent clears it', () => {
+      openFleetDockFocus(CardName.WATER_HAULING);
+      expect(colonyFocusState.open).to.eq(true);
+      expect(colonyFocusState.dock).to.eq(CardName.WATER_HAULING);
+      expect(colonyFocusState.colonyName).to.eq('');
+      expect(colonyFocusState.intent).to.eq('trade');
+      openColonyFocus(ColonyName.LUNA, 'trade');
+      expect(colonyFocusState.dock).to.eq('');
+    });
+
+    it('closing the stage forgets the card; a full reset also returns the cursor to the grid and the bar to its default', () => {
+      openFleetDockFocus(CardName.WATER_HAULING);
+      colonyDockCursor.active = true;
+      colonyDockCursor.index = 1;
+      fleetDockUi.primaryLabel = 'Select';
+      closeColonyFocus();
+      expect(colonyFocusState.dock).to.eq('');
+      expect(colonyDockCursor.active, 'a fold keeps the cursor where it was').to.eq(true);
+      resetColonyFocus();
+      expect(colonyDockCursor.active).to.eq(false);
+      expect(colonyDockCursor.index).to.eq(0);
+      expect(fleetDockUi.primaryLabel).to.eq('Trade');
+    });
   });
 
   describe('count-aware grid layouts (the smart composition — unchanged)', () => {

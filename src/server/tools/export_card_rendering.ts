@@ -139,6 +139,14 @@ class CardProcessor {
       clientCard.grantsBonusActions = card.grantsBonusActions;
     }
 
+    // The card is a FLEET DOCK (a destination of its owner's trade action —
+    // `colonies/FleetDock.ts`). Exported so the colony workspace can stand a
+    // dock's tile from the public tableau OUTSIDE the trade window, where no
+    // prompt marker names it.
+    if (card.fleetDock !== undefined) {
+      clientCard.fleetDock = true;
+    }
+
     if (card.requirements) {
       clientCard.requirements = card.requirements;
     }

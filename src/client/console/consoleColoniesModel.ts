@@ -14,6 +14,7 @@
 
 import {reactive} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {CardName} from '@/common/cards/CardName';
 import {WorkspacePhase, backVerbFor, WorkspaceBackVerb} from '@/client/console/consoleWorkspaceFlow';
 
 export type ColonyGridLayout = 'solo' | 'duo' | 'trio' | 'four' | 'five' | 'six' | 'catalog';
@@ -136,6 +137,48 @@ export const consoleColoniesUi = reactive({
   composerMixAdjustable: false,
 });
 
+/**
+ * THE FLEET-DOCK STAGE's live mirror for the command bar (Turmoil Redux TR06 —
+ * a trade whose fleet goes to a CARD). The stage speaks ONE primary verb whose
+ * label follows the cursor (A selects another payment path, opens the M€
+ * payment, or — on the chosen path — trades), so the bar reads the label the
+ * stage publishes instead of guessing it.
+ */
+export const fleetDockUi = reactive({
+  /** The stage's substep: '' = the rows, 'lanes' = the M€ payment, 'mix' = the Delta Works composition. */
+  sub: '' as '' | 'lanes' | 'mix',
+  /** A's label right now (an i18n key — «Trade» / «Select» / «Payment» / «Continue to payment»). */
+  primaryLabel: 'Trade',
+  /** A does something right now (a trade the server refuses keeps it dead, the reason on the stage). */
+  primaryEnabled: false,
+  /** A on the chosen path commits the trade — the bar lights it. */
+  primaryCommits: false,
+});
+
+export function resetFleetDockUi(): void {
+  fleetDockUi.sub = '';
+  fleetDockUi.primaryLabel = 'Trade';
+  fleetDockUi.primaryEnabled = false;
+  fleetDockUi.primaryCommits = false;
+}
+
+/**
+ * The overview cursor's SECOND ZONE — the «ПРИЧАЛЫ» column (`fleetDockModel`
+ * steps it). The grid tile stays in `consoleState.colonyIndex`, untouched while
+ * the cursor stands on a dock: it is the tile ◀ walks back to.
+ */
+export const colonyDockCursor = reactive({
+  /** The cursor stands on a dock (not on a colony tile). */
+  active: false,
+  /** The dock under the cursor (the column's order). */
+  index: 0,
+});
+
+export function resetColonyDockCursor(): void {
+  colonyDockCursor.active = false;
+  colonyDockCursor.index = 0;
+}
+
 export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.inspectOpen = false;
   consoleColoniesUi.composerSub = '';
@@ -184,8 +227,15 @@ export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus'
 export const colonyFocusState = reactive({
   /** The focus stage is open (the browse grid is parked behind it). */
   open: false,
-  /** The colony descended into ('' while browsing). */
+  /** The colony descended into ('' while browsing, and while the stage is a DOCK's). */
   colonyName: '' as ColonyName | '',
+  /**
+   * The FLEET-DOCK CARD descended into ('' otherwise) — a trade whose fleet
+   * goes to a card of the viewer's own (Turmoil Redux TR06 Water Hauling).
+   * Exactly one of `colonyName` / `dock` names the stage's subject; the intent
+   * is always 'trade' (a dock is nothing but a trade destination).
+   */
+  dock: '' as CardName | '',
   /** Which verb opened the stage (see ColonyFocusIntent). */
   intent: 'trade' as ColonyFocusIntent,
   /**
@@ -205,11 +255,20 @@ export const colonyFocusState = reactive({
 export function openColonyFocus(colony: ColonyName, intent: ColonyFocusIntent): void {
   colonyFocusState.open = true;
   colonyFocusState.colonyName = colony;
+  colonyFocusState.dock = '';
   colonyFocusState.intent = intent;
   colonyFocusState.committing = false;
 }
 
-/** The stage names its own crumb tail (never draws its own header). */
+/** Enter the FLEET-DOCK stage for `card` (the descend from the docks column). */
+export function openFleetDockFocus(card: CardName): void {
+  colonyFocusState.open = true;
+  colonyFocusState.colonyName = '';
+  colonyFocusState.dock = card;
+  colonyFocusState.intent = 'trade';
+  colonyFocusState.committing = false;
+}
+
 /**
  * WHERE THE FLEET DOCK BERTHS when the colony screen is a STEP of another
  * workspace.
@@ -257,6 +316,7 @@ export function switchColonyFocusIntent(intent: ColonyFocusIntent): void {
 export function closeColonyFocus(): void {
   colonyFocusState.open = false;
   colonyFocusState.colonyName = '';
+  colonyFocusState.dock = '';
   colonyFocusState.stage = '';
   colonyFocusState.committing = false;
 }
@@ -269,6 +329,8 @@ export function markColonyFocusCommitting(): void {
 /** Full reset (section close / game switch / test cleanup). */
 export function resetColonyFocus(): void {
   closeColonyFocus();
+  resetColonyDockCursor();
+  resetFleetDockUi();
 }
 
 /**

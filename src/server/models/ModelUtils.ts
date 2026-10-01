@@ -96,9 +96,10 @@ export function cardsToModel(
       model.standardProjectPreview = buildStandardProjectPreview(player, card, calculatedCost ?? 0);
     }
     // The fleet standing on a fleet-dock card this generation — public state,
-    // read off the card itself (never off who asks).
+    // read off the card itself (never off who asks): the livery is the card
+    // OWNER's, since a dock takes only its owner's fleet.
     if (isFleetDocked(card, player.game.generation)) {
-      model.fleetDocked = true;
+      model.fleetDocked = (player.game.getCardPlayerOrUndefined(card.name) ?? player).color;
     }
     if (card.isDisabled) {
       model.isDisabled = true;

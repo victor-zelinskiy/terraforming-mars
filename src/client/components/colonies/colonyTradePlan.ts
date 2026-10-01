@@ -32,7 +32,7 @@ import {Color} from '@/common/Color';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {Payment} from '@/common/inputs/Payment';
 import {
-  ColonyTradeFollowUpModel, ColonyTradeFollowUpRole, ColonyTradePreviewModel,
+  ColonyTradeFollowUpModel, ColonyTradeFollowUpRole, ColonyTradePreviewModel, TradePaymentPreviewModel,
 } from '@/common/models/ColonyTradePreviewModel';
 import {SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 
@@ -77,11 +77,19 @@ function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Arra
 }
 
 /**
+ * What `tradeSteps` reads — the part a COLONY's preview and a fleet DOCK's
+ * preview share: the fee's own two prompts and the destination's follow-ups.
+ * (A trade whose fleet goes to a card pays the same fee and may ask the same
+ * kind of question — `FleetDockPreviewModel`.)
+ */
+export type TradeStepsPreview = TradePaymentPreviewModel & {followUps: ReadonlyArray<ColonyTradeFollowUpModel>};
+
+/**
  * The interactive steps the confirm surface must collect BEFORE submitting,
  * in live prompt order. `useMegacredits` = the player picked the M€ payment
  * path (the only path whose payment can itself prompt).
  */
-export function tradeSteps(preview: ColonyTradePreviewModel | undefined, useMegacredits: boolean, useEnergy = false): Array<TradeStep> {
+export function tradeSteps(preview: TradeStepsPreview | undefined, useMegacredits: boolean, useEnergy = false): Array<TradeStep> {
   if (preview === undefined) {
     return [];
   }
@@ -190,17 +198,30 @@ export function trackChoiceResponse(steps: number, chosen: number): InputRespons
   return {type: 'or', index, response: {type: 'option'}};
 }
 
-export type TradeBatchArgs = {
+/**
+ * WHERE THE TRADE GOES — a colony tile, or a fleet-dock CARD of the player's
+ * own (Turmoil Redux TR06 Water Hauling and its sisters). Exactly one of the
+ * two: the wire form of the colony answer (`SelectColonyResponse`).
+ */
+export type TradeBatchDestination = {colonyName: ColonyName, fleetDock?: undefined} | {fleetDock: CardName, colonyName?: undefined};
+
+export type TradeBatchArgs = TradeBatchDestination & {
   /** OR indices from the action-menu root to the trade AndOptions. */
   tradePath: ReadonlyArray<number>;
   /** The chosen index within the inner "Pay trade fee" OrOptions. */
   paymentIndex: number;
-  colonyName: ColonyName;
   /** The interactive steps, in `tradeSteps` order. */
   steps: ReadonlyArray<TradeStep>;
   /** Captured values by step index (payment: Payment, trackChoice: number, cardTarget: CardName). */
   captures: Readonly<Record<number, unknown>>;
 };
+
+/** The answer to the trade's destination pick — a colony tile or a fleet-dock card. */
+export function tradeDestinationResponse(destination: TradeBatchDestination): InputResponse {
+  return destination.fleetDock !== undefined ?
+    {type: 'colony', fleetDock: destination.fleetDock} :
+    {type: 'colony', colonyName: destination.colonyName};
+}
 
 /**
  * The ONE ordered response array for PlayerInputBatch: the wrapped trade
@@ -214,7 +235,7 @@ export function buildTradeBatch(args: TradeBatchArgs): Array<InputResponse> {
     type: 'and',
     responses: [
       {type: 'or', index: args.paymentIndex, response: {type: 'option'}},
-      {type: 'colony', colonyName: args.colonyName},
+      tradeDestinationResponse(args),
     ],
   };
   for (let i = args.tradePath.length - 1; i >= 0; i--) {

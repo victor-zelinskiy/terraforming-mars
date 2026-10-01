@@ -14,7 +14,7 @@
  */
 
 import {Message} from '@/common/logs/Message';
-import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {FleetDockOfferModel, PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
@@ -356,6 +356,13 @@ export type TradeColonyContext = {
   paymentOptions: ReadonlyArray<SelectOptionModel>,
   disabledPayments: NonNullable<OrOptionsModel['disabledOptions']>,
   colonies: ReadonlyArray<string>,
+  /**
+   * The trade's OTHER destinations — the viewer's fleet-dock cards with the
+   * server's verdict (the pick's `fleetDocks` marker; Turmoil Redux TR06 Water
+   * Hauling and its sisters). Empty when the player owns none. A context with
+   * NO colony and an available dock is a live trade window.
+   */
+  docks: ReadonlyArray<FleetDockOfferModel>,
 };
 
 export function findTradeColonyContext(
@@ -377,6 +384,7 @@ export function findTradeColonyContext(
       paymentOptions: payOr.options.filter((o): o is SelectOptionModel => o.type === 'option'),
       disabledPayments: payOr.disabledOptions ?? [],
       colonies: (selectColony as PlayerInputModel & {type: 'colony'}).coloniesModel.map((c) => c.name),
+      docks: (selectColony as PlayerInputModel & {type: 'colony'}).fleetDocks ?? [],
     };
   }
   const options = childOptions(wf);

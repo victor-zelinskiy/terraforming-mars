@@ -84,20 +84,43 @@
           <!-- The premium tile grid. The scroller + `margin: auto` wrapper is
                the anti-clip contract: content centres when it fits and scrolls
                FROM THE TOP when it doesn't. -->
+          <div class="con-colonies__body">
           <div class="con-colonies__scroll" ref="scroll">
             <div class="con-colonies__grid" ref="grid" :style="gridStyle">
               <div v-for="(colony, i) in colonies"
                    :key="colony.name"
                    class="con-colonies__slot"
-                   :class="{'con-colonies__slot--focused': i === index}"
-                   :ref="i === index ? 'selectedSlot' : undefined">
+                   :class="{'con-colonies__slot--focused': i === index && !dockCursorOn}"
+                   :ref="i === index && !dockCursorOn ? 'selectedSlot' : undefined">
                 <ConsoleColonyTile :colony="colony"
                                    :tradeOffset="tradeOffset"
-                                   :focused="i === index"
+                                   :focused="i === index && !dockCursorOn"
                                    :justDocked="colony.name === dockedColony"
                                    :status="tileStatus(colony)" />
               </div>
             </div>
+          </div>
+          <!-- «ПРИЧАЛЫ» — the viewer's FLEET DOCKS (Turmoil Redux TR06 Water
+               Hauling and its sisters: a card that is a destination of the trade
+               action). NOT a slot of the planet grid — the grid's layouts are
+               designed per tile count — but a narrow column of its own at the
+               right edge, under the fleet dock in the header: «your ships, and
+               where else they go». Stands only while the viewer owns a dock; a
+               rival's dock never stands here (only its owner may trade with it).
+               The tile IS the card (the premium face, the fleet on its ▲). -->
+          <aside v-if="docks.length > 0" class="con-colonies__docks" ref="docksCol" data-colonies-docks
+                 :style="{'--con-dock-zoom': String(dockZoom)}">
+            <div class="con-colonies__docks-title">{{ $t('Docks') }}</div>
+            <div v-for="(dock, i) in docks"
+                 :key="dock.card"
+                 class="con-colonies__dockslot"
+                 :class="{'con-colonies__dockslot--focused': dockCursorOn && i === dockCursor.index}"
+                 :ref="dockCursorOn && i === dockCursor.index ? 'selectedDock' : undefined">
+              <ConsoleFleetDockTile :dock="dock"
+                                    :status="dockTileStatus(dock)"
+                                    :focused="dockCursorOn && i === dockCursor.index" />
+            </div>
+          </aside>
           </div>
 
           <!-- COMPACT STATUS RAIL — ONE line, fixed height: the quick summary
@@ -108,7 +131,22 @@
                already states perfectly (its availability dot, its reward
                cells) is NOT repeated — a BLOCKED colony swaps the consequence
                for the ONE honest reason instead of adding a second badge. -->
-          <footer v-if="focusedMeta !== undefined" class="con-colonies__rail">
+          <!-- The FOCUSED DOCK's rail: the card's name · what the trade brings
+               (the server's chips) · or the ONE reason it is not a destination. -->
+          <footer v-if="focusedDock !== undefined" class="con-colonies__rail" data-colonies-dock-rail>
+            <span class="con-colonies__rail-name">{{ $t(focusedDock.card) }}</span>
+            <template v-if="focusedDockReason !== ''">
+              <span class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + (dockTileStatus(focusedDock).kind === 'docked' ? 'inactive' : 'blocked')">
+                <span aria-hidden="true">{{ dockTileStatus(focusedDock).kind === 'docked' ? '○' : '✕' }}</span>
+                <span>{{ focusedDockReason }}</span>
+              </span>
+            </template>
+            <template v-else-if="focusedDockChips.length > 0">
+              <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+              <ActionEffectChip v-for="(chip, ci) in focusedDockChips" :key="'dc' + ci" class="con-colonies__rail-chip" :effect="chip" />
+            </template>
+          </footer>
+          <footer v-else-if="focusedMeta !== undefined" class="con-colonies__rail">
             <span class="con-colonies__rail-name">{{ $t(colonies[index] !== undefined ? colonies[index].name : '') }}</span>
             <span v-if="railMode === 'trade'" class="con-colonies__rail-track">{{ focusedTrackDisplay }}</span>
 
@@ -281,6 +319,31 @@
                                    @pick-confirm="$emit('pick-confirm')"
                                    @cancel="closeFocus()" />
         </transition>
+        <!-- ── THE FLEET-DOCK STAGE — a trade whose fleet goes to a CARD. The
+             same region, the same descend phrase (the same hooks), the card
+             the carried object. ── -->
+        <transition :css="false"
+                    @enter="onFocusEnter" @leave="onFocusLeave"
+                    @enter-cancelled="onFocusEnterCancelled" @leave-cancelled="onFocusLeaveCancelled">
+          <ConsoleFleetDockStage v-if="focusState.open && focusState.dock !== '' && focusDockView !== undefined"
+                                 ref="dockStage"
+                                 :card="focusDockView.card"
+                                 :model="focusDockView.model"
+                                 :available="focusDockAvailable"
+                                 :blockReason="focusDockBlockReason"
+                                 :blockTone="focusDockBlockTone"
+                                 :options="tradePaymentOptions"
+                                 :disabledOptions="tradeDisabledPayments"
+                                 :preview="dockPreview"
+                                 :offerEffects="focusDockView.offer?.effects ?? []"
+                                 :thisPlayer="thisPlayer"
+                                 :freeFleets="viewerFreeFleets"
+                                 :pickMode="pick !== undefined"
+                                 @confirm="$emit('dock-confirm', $event)"
+                                 @inspect="$emit('dock-inspect', focusDockView.card)"
+                                 @flow-complete="$emit('dock-flow-complete', $event)"
+                                 @cancel="closeFocus()" />
+        </transition>
       </div>
     </div>
   </div>
@@ -315,6 +378,7 @@ import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
   colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus, switchColonyFocusIntent,
+  colonyDockCursor, openFleetDockFocus, resetColonyDockCursor,
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -328,7 +392,12 @@ import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
-import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
+import {fetchColonyTradePreview, fetchFleetDockPreview} from '@/client/components/colonies/colonyTradePreviewFetch';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
+import {
+  FleetDockReasonInput, FleetDockTileStatus, FleetDockView, fleetDockReason, fleetDockTileStatus,
+} from '@/client/console/colonyTrade/fleetDockModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
@@ -340,6 +409,9 @@ import ConsoleColonyFleetBar, {ColonyFleetChip} from '@/client/components/consol
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ConsoleColonyFocusStage from '@/client/components/console/ConsoleColonyFocusStage.vue';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
+import ConsoleFleetDockTile from '@/client/components/console/ConsoleFleetDockTile.vue';
+import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockStage.vue';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -421,7 +493,7 @@ const COMPLETION_SETTLE_MS = 300;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ColonyFleetIcon, BenefitGlyph, PlayerCube},
+  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -472,8 +544,15 @@ export default defineComponent({
      * d-pad, focus stage and every capture are untouched.
      */
     embedded: {type: Boolean, default: false},
+    /**
+     * The viewer's FLEET DOCKS (`fleetDockModel.fleetDockViews` — Turmoil Redux
+     * TR06 Water Hauling and its sisters): the «ПРИЧАЛЫ» column. Empty = no
+     * column at all. The live verdict rides each view's `offer` (the pick's
+     * marker); the column never derives availability itself.
+     */
+    docks: {type: Array as PropType<ReadonlyArray<FleetDockView>>, default: () => []},
   },
-  emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter'],
+  emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter', 'dock-confirm', 'dock-inspect', 'dock-flow-complete'],
   data() {
     return {
       /** The grant's colony, LATCHED for the hosted vote's whole life: the prompt moves on at the submit while the cubes still fly. */
@@ -511,6 +590,13 @@ export default defineComponent({
       stopResizeObs: undefined as (() => void) | undefined,
       /** The completion dwell (a breathing beat, never a gate). */
       completeTimer: undefined as number | undefined,
+      /** The overview cursor's docks zone (module state — the shell steps it). */
+      dockCursor: colonyDockCursor,
+      /** The dock stage's server preview (`?dock=`), re-asked on every state move. */
+      dockPreview: undefined as FleetDockPreviewModel | undefined,
+      dockPreviewSeq: 0,
+      /** The docks column's card zoom (solved by `fit` from the column's own room). */
+      dockZoom: 0.5,
     };
   },
   computed: {
@@ -557,6 +643,11 @@ export default defineComponent({
       }
       if (this.focusState.open && this.focusState.colonyName !== '') {
         return this.focusState.colonyName;
+      }
+      // A FLEET DOCK's stage: the card is the carried object — «КОЛОНИИ ›
+      // ПЕРЕВОЗКА ВОДЫ › ТОРГОВЛЯ».
+      if (this.focusState.open && this.focusState.dock !== '') {
+        return this.focusState.dock;
       }
       if (this.revealEmbedActive && this.outcomeState.sourceCard !== '') {
         return this.outcomeState.sourceCard;
@@ -756,6 +847,61 @@ export default defineComponent({
       return this.focusState.open ?
         '[data-embed-slot="colonies-focus-reveal"]' :
         '[data-embed-slot="colonies-reveal"]';
+    },
+    // ── The FLEET DOCKS (the «ПРИЧАЛЫ» column — fleetDockModel) ────────────
+    /** The cursor stands on a dock (the column exists and the zone is active). */
+    dockCursorOn(): boolean {
+      return this.dockCursor.active && this.docks.length > 0;
+    },
+    viewerPlayer(): PublicPlayerModel | undefined {
+      return this.players.find((p) => p.color === this.viewerColor);
+    },
+    /** The viewer's free fleets — the same arithmetic as the fleet dock's chips. */
+    viewerFreeFleets(): number {
+      return this.viewerPlayer === undefined ? 0 : this.freeFleetsFor(this.viewerPlayer);
+    },
+    /** Every destination the OPEN window offers: the colonies and the available docks. */
+    tradeWindowDestinations(): ReadonlyArray<string> {
+      const docks = this.docks.filter((d) => d.offer?.available === true).map((d) => d.card as string);
+      return [...this.tradeable, ...docks];
+    },
+    focusedDock(): FleetDockView | undefined {
+      return this.dockCursorOn ? this.docks[Math.min(this.dockCursor.index, this.docks.length - 1)] : undefined;
+    },
+    /** The focused dock's ONE reason (its tile's refusal), translated; '' when it is a destination. */
+    focusedDockReason(): string {
+      const dock = this.focusedDock;
+      if (dock === undefined) {
+        return '';
+      }
+      const status = this.dockTileStatus(dock);
+      return status.kind === 'free' ? '' : translateText(status.text);
+    },
+    /** What the trade brings — the marker's chips (the server's `current → resulting`). */
+    focusedDockChips(): ReadonlyArray<ActionEffect> {
+      return this.focusedDock?.offer?.effects ?? [];
+    },
+    focusDockView(): FleetDockView | undefined {
+      const card = this.focusState.dock;
+      return card === '' ? undefined : this.docks.find((d) => d.card === card);
+    },
+    /** The server offers this dock right now (the pick's marker — never derived here). */
+    focusDockAvailable(): boolean {
+      return this.focusDockView?.offer?.available === true;
+    },
+    focusDockReason(): ColonyTradeReason | undefined {
+      const dock = this.focusDockView;
+      return dock === undefined || this.focusDockAvailable ? undefined : fleetDockReason(dock, this.dockReasonInput(this.myTurn, this.awaitingInput));
+    },
+    /** The stage's ONE reason (an English key — the colony ladder's, the turn included). */
+    focusDockBlockReason(): string {
+      if (this.focusDockAvailable || this.focusDockView === undefined) {
+        return '';
+      }
+      return this.focusDockReason?.key ?? 'Trade unavailable';
+    },
+    focusDockBlockTone(): 'warning' | 'danger' {
+      return this.focusDockReason?.blocker.tone === 'warning' ? 'warning' : 'danger';
     },
     // ── The focus stage's inputs ───────────────────────────────────────────
     focusColonyModel(): ColonyModel | undefined {
@@ -1027,6 +1173,13 @@ export default defineComponent({
         void this.loadFocusPreview(name);
       }
     },
+    // The DOCK stage's preview follows the descended-into card — and the state.
+    'focusState.dock'(card: string) {
+      this.dockPreview = undefined;
+      if (card !== '') {
+        void this.loadDockPreview(card);
+      }
+    },
     // …and follows the GAME STATE: a response that moved the world (an undo,
     // a mid-turn effect) re-pulls the preview for the SAME colony, so the
     // stage's candidate lists — and through them every captured pick — are
@@ -1038,6 +1191,15 @@ export default defineComponent({
       if (name !== '' && !colonyTradeState.active) {
         void this.loadFocusPreview(name);
       }
+      // The dock's preview is a verdict about the whole state: re-asked on every
+      // move (the stage pins its receipt at the commit, so the answer's re-pricing
+      // never reaches a trade already on the wire).
+      if (this.focusState.dock !== '') {
+        void this.loadDockPreview(this.focusState.dock);
+      }
+    },
+    docks() {
+      this.scheduleFit();
     },
     // OWNERSHIP ≠ READINESS (embed rule 4): publish the zone's selector only
     // once the element genuinely stands (`flush: 'post'`), retract before it
@@ -1149,6 +1311,7 @@ export default defineComponent({
      * real box) — never a second copy of the seat's own CSS width.
      */
     fit(): void {
+      this.fitDocks();
       const scroll = this.$refs.scroll as HTMLElement | null | undefined;
       const root = this.$el as HTMLElement | null | undefined;
       const count = this.colonies.length;
@@ -1342,6 +1505,83 @@ export default defineComponent({
       }
       return {kind: 'none', text: ''};
     },
+    /** The ladder's input for a dock — the window's destinations, the viewer's free fleets, the turn. */
+    dockReasonInput(myTurn: boolean, awaitingInput: boolean): FleetDockReasonInput {
+      return {
+        tradeable: this.tradeWindowDestinations,
+        viewerColor: this.viewerColor ?? ('' as Color),
+        availableFleets: this.viewerFreeFleets,
+        myTurn,
+        awaitingInput,
+      };
+    },
+    /** A dock tile's status — the SAME ladder as a colony tile (the turn never reads on a tile). */
+    dockTileStatus(dock: FleetDockView): FleetDockTileStatus {
+      return fleetDockTileStatus(dock, this.dockReasonInput(false, false));
+    },
+    async loadDockPreview(card: string): Promise<void> {
+      if (this.playerId === '') {
+        return;
+      }
+      const seq = ++this.dockPreviewSeq;
+      const preview = await fetchFleetDockPreview(this.playerId, card as FleetDockView['card']);
+      if (seq === this.dockPreviewSeq && preview !== undefined && preview.card === this.focusState.dock) {
+        this.dockPreview = preview;
+      }
+    },
+    /**
+     * Descend into the FOCUSED DOCK (A on its tile): the same phrase as a
+     * colony — the tile's rect is the unfold's origin, and the CARD is the
+     * carried object (its face FLIPs into the stage's hero, the descend
+     * hooks reading it as the stage's carried identity).
+     */
+    enterDockFocus(): void {
+      const dock = this.focusedDock;
+      if (dock === undefined || this.focusState.open) {
+        return;
+      }
+      const slot = this.$refs.selectedDock as HTMLElement | Array<HTMLElement> | undefined;
+      const el = Array.isArray(slot) ? slot[0] : slot;
+      const tile = el?.querySelector<HTMLElement>('.con-fleetdock-tile');
+      const face = tile?.querySelector<HTMLElement>('[data-fleet-dock-face]');
+      const rectOf = (node: HTMLElement | null | undefined) => {
+        const r = node?.getBoundingClientRect();
+        return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+      };
+      armColonyFocusOrigin(rectOf(tile), rectOf(face));
+      openFleetDockFocus(dock.card);
+    },
+    /** The shell ACCEPTED the dock's confirm — the stage becomes its own receipt. */
+    holdDockStage(): void {
+      (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.holdPresentation();
+    },
+    /** A refused submit gives the dock's stage back as it was. */
+    releaseDockStage(): void {
+      (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.releasePresentation();
+    },
+    /**
+     * THE DOCKS COLUMN'S FIT — the cards take the column's WIDTH and share its
+     * HEIGHT (one face per dock, a status line under each); the column's width
+     * is a token, so the planet grid's own fit measures what is left.
+     */
+    fitDocks(): void {
+      const col = this.$refs.docksCol as HTMLElement | undefined;
+      const n = this.docks.length;
+      if (col === undefined || col === null || n === 0) {
+        return;
+      }
+      const w = col.clientWidth;
+      const h = col.clientHeight;
+      if (w <= 0 || h <= 0) {
+        return;
+      }
+      const title = col.querySelector<HTMLElement>('.con-colonies__docks-title')?.offsetHeight ?? 0;
+      const status = col.querySelector<HTMLElement>('.con-fleetdock-tile__status')?.offsetHeight ?? 0;
+      const gap = parseFloat(getComputedStyle(col).rowGap) || 0;
+      const perH = (h - title - n * (status + gap) - gap) / n;
+      const zoom = Math.min(w / 320, perH / 460);
+      this.dockZoom = Math.max(0.2, Math.floor(zoom * 1000) / 1000);
+    },
     scrollSelectedIntoView(): void {
       const slot = this.$refs.selectedSlot as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
@@ -1419,6 +1659,10 @@ export default defineComponent({
     /** The shell routes the pad here while the focus stage — the action
      *  stage OR the dossier — is open. */
     handleFocusIntent(intent: GamepadIntent): void {
+      if (this.focusState.dock !== '') {
+        (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.handleIntent(intent);
+        return;
+      }
       if (this.focusState.intent === 'inspect') {
         const dossier = this.$refs.inspectStage as InstanceType<typeof ConsoleColonyInspect> | undefined;
         dossier?.handleIntent(intent);
@@ -1563,8 +1807,10 @@ export default defineComponent({
     }
     // …and the hand step's frame slot, for the same reason.
     setWorkspaceFrameSlot('colonies', '');
-    // Leaving the section closes the flow: reopening always lands on browse.
+    // Leaving the section closes the flow: reopening always lands on browse
+    // (and on the grid — the docks column's cursor is part of the visit).
     closeColonyFocus();
+    resetColonyDockCursor();
     resetColonyFocusMotion();
   },
 });

@@ -48,4 +48,13 @@ export type ClientCard = Readonly<{
    *  the start flow can DECLARE its bonus chapter before the card is played,
    *  exactly like `hasFirstAction` declares the corp's. */
   grantsBonusActions?: number;
+  /**
+   * This card is a FLEET DOCK — a destination of its owner's trade action
+   * (Turmoil Redux TR06 Water Hauling and its sisters: «when you trade, you
+   * can send the trade fleet to this card»). Generated from the card's own
+   * `fleetDock` declaration. The LIVE verdict (may the fleet go there now) is
+   * the trade prompt's `fleetDocks` marker — this only says the card is one,
+   * so its tile can stand in the colony workspace outside the trade window.
+   */
+  fleetDock?: true;
 }>

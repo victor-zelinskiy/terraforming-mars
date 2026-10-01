@@ -1,6 +1,7 @@
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {ColonyTradeFollowUpModel} from '../../common/models/ColonyTradePreviewModel';
 import {FleetDockOfferModel} from '../../common/models/PlayerInputModel';
+import {FLEET_DOCK_BUSY_REASON} from '../../common/colonies/fleetDock';
 import {ICard} from '../cards/ICard';
 import {IPlayer} from '../IPlayer';
 
@@ -72,8 +73,8 @@ export type FleetDock = {
 /** A card that IS a fleet dock. */
 export type FleetDockCard = ICard & {fleetDock: FleetDock};
 
-/** The shared blocker: one fleet per generation stands on the card. */
-export const FLEET_DOCK_BUSY_REASON = 'The trade fleet is already on this card this generation';
+/** The shared blocker: one fleet per generation stands on the card (`common/colonies/fleetDock.ts` — the client reads the public state in the same words). */
+export {FLEET_DOCK_BUSY_REASON};
 
 /** One dock with the server's verdict — the trade's destination pick carries these. */
 export type FleetDockOffer = {

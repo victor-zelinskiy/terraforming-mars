@@ -1,0 +1,251 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE FLEET DOCK — a trade whose destination is a CARD (Turmoil Redux TR06
+   Water Hauling and its sisters TR26 / TR27). Three surfaces, one object:
+
+   · «ПРИЧАЛЫ» — a narrow column right of the colony grid (NOT a slot of it:
+     the grid's layouts are designed per tile count). Its width is a TOKEN, so
+     the grid's own fit measures what is left; its cards share its height
+     (`ConsoleColoniesSection.fitDocks` → `--con-dock-zoom`).
+   · the dock TILE — the card's own premium face + one status line.
+   · the dock STAGE — the colony focus stage's neighbour: the card as the hero,
+     the trade (shared payment rows) and its result as the work column.
+
+   rem-authored (1rem = 20 logical px); console-safe materials only (no
+   `filter`, no `text-shadow` — the paint baseline strips them).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── THE COLUMN ───────────────────────────────────────────────────────────── */
+.con-colonies__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: .9rem;
+
+    > .con-colonies__scroll { min-width: 0; }
+}
+.con-colonies__docks {
+    --con-colonies-docks-w: 8rem;
+    flex: 0 0 var(--con-colonies-docks-w);
+    width: var(--con-colonies-docks-w);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 0 .8rem;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+html.con-profile-handheld .con-colonies__docks { --con-colonies-docks-w: 7rem; }
+.con-colonies__docks-title {
+    align-self: stretch;
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .12rem;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 82%);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-bottom: .15rem;
+    border-bottom: .05rem solid fade(@con-cyan, 18%);
+}
+.con-colonies__dockslot { position: relative; flex: 0 0 auto; }
+
+/* The rail's chips (a focused dock: «→ [океан] 3 → 4 · [РТ] +1»). */
+.con-colonies__rail-chip { flex: 0 0 auto; }
+
+/* ── THE TILE ─────────────────────────────────────────────────────────────── */
+.con-fleetdock-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .3rem;
+    border-radius: .55rem;
+    transition: transform calc(150ms * var(--motion-scale, 1)) ease;
+
+    &__face {
+        zoom: var(--con-dock-zoom, .5);
+        border-radius: .6rem;
+        box-shadow: 0 0 0 .05rem fade(@con-cyan, 18%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.45);
+        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease;
+    }
+    &--focused { transform: translateY(-.15rem); }
+    &--focused &__face {
+        box-shadow: 0 0 0 .2rem fade(@con-cyan, 92%), 0 0 1.6rem fade(@con-cyan, 30%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.55);
+    }
+    /* A refused dock stays OPAQUE (it is over the board) — muted, never see-through. */
+    &--blocked:not(&--focused) &__face { box-shadow: 0 0 0 .05rem fade(@con-text, 14%), 0 .3rem 1rem rgba(0, 0, 0, 0.5); }
+
+    &__status {
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        height: 1.3rem;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 0 .45rem;
+        border-radius: 49.95rem;
+        background: rgba(12, 20, 30, 0.9);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
+        font-size: .58rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        white-space: nowrap;
+        overflow: hidden;
+
+        &--free { color: @con-mint; }
+        &--docked { color: @con-text; box-shadow: inset 0 0 0 .05rem fade(@con-text, 22%); }
+        &--blocked { color: @con-amber; box-shadow: inset 0 0 0 .05rem fade(@con-amber, 32%); }
+    }
+    &__status-mark { flex: 0 0 auto; font-size: .5rem; }
+    &__status-ship.colony-fleet-icon { flex: 0 0 auto; width: .9rem; height: .9rem; }
+    &__status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* ── THE STAGE ────────────────────────────────────────────────────────────── */
+.con-fleetdock {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 1.4rem;
+    padding: .6rem 1rem .6rem .6rem;
+    box-sizing: border-box;
+    border-radius: .7rem;
+    background: rgba(8, 14, 22, 0.94);
+    z-index: 4;
+
+    &__edge {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
+        pointer-events: none;
+    }
+    &__hero {
+        flex: 0 0 42%;
+        max-width: 22rem;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &__face { zoom: var(--con-fleetdock-zoom, 1); }
+    &__card {
+        border-radius: .6rem;
+        box-shadow: 0 .6rem 2rem rgba(0, 0, 0, 0.55);
+        transform-origin: 50% 50%;
+        transition:
+            opacity calc(300ms * var(--motion-scale, 1)) ease,
+            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(.4, 0, .2, 1);
+    }
+    /* THE CARD'S DEPARTURE IS A BEAT: it recedes on its own (the fleet mark,
+       which sits ON its face, rides away with it) before the workspace goes. */
+    &--leaving &__card {
+        opacity: 0;
+        transform: translateY(-.6rem) scale(.96);
+    }
+    &__main {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    &__scroll {
+        flex: 0 1 auto;
+        min-height: 0;
+        max-height: 100%;
+    }
+    &__verdict {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        margin-bottom: .6rem;
+        padding: .45rem .7rem;
+        border-radius: .45rem;
+        font-size: .78rem;
+        font-weight: 700;
+        color: @con-amber;
+        background: rgba(30, 20, 8, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 34%);
+
+        &--warning { color: @con-text; box-shadow: inset 0 0 0 .05rem fade(@con-text, 24%); background: rgba(16, 22, 30, 0.6); }
+    }
+    &__config,
+    &__sub {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+    }
+    &__result {
+        margin-top: .9rem;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+    }
+    &__chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .4rem .5rem;
+    }
+    &__note {
+        font-size: .72rem;
+        color: @con-text-dim;
+    }
+}
+
+/* ── THE FLEET ON THE CARD (premiumFleetDock.ts) ─────────────────────────────
+   The ▲ of a dock card's printed trade effect carries a MARK SLOT: absolute
+   (the face never moves for a fleet), always laid out (the flight's measured
+   landing anchor), and the fleet that stands on the card sits in it in its
+   owner's livery — on every host that draws the face. */
+.pcard-fleet {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--pcard-mech-icon) * 0.9);
+    height: calc(var(--pcard-mech-icon) * 0.9);
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 1;
+
+    .colony-fleet-icon { width: 100%; height: 100%; }
+
+    /* A dark seat under the ship — it reads over the bright ▲ with no filter. */
+    &--docked::before {
+        content: '';
+        position: absolute;
+        inset: -18%;
+        border-radius: 50%;
+        background: radial-gradient(circle at 50% 52%, rgba(3, 7, 13, 0.78) 0%, rgba(3, 7, 13, 0.4) 50%, transparent 70%);
+        z-index: -1;
+    }
+}
+
+/* The effects explorer's plate: «Флот на карте · вернётся в следующем поколении». */
+.con-efx__plate-state {
+    flex-shrink: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .04rem .4rem;
+    border-radius: 49.95rem;
+    background: rgba(10, 18, 28, 0.72);
+    box-shadow: inset 0 0 0 .05rem fade(@con-text, 22%);
+    font-size: .58rem;
+    font-weight: 700;
+    color: @con-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    .con-efx__plate-ship.colony-fleet-icon { flex: 0 0 auto; width: .85rem; height: .85rem; }
+}

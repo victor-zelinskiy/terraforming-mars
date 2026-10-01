@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   allStepsCaptured,
   buildTradeBatch,
+  tradeDestinationResponse,
   cardResourceIcons,
   colonyOwnerBonusDrawsCards,
   colonyOwnerCounts,
@@ -125,6 +126,33 @@ describe('colonyTradePlan', () => {
       {type: 'card', cards: [CardName.TARDIGRADES]},
       {type: 'card', cards: [CardName.GHG_PRODUCING_BACTERIA]},
     ]);
+  });
+
+  it('buildTradeBatch sends a trade to a FLEET DOCK in the colony answer\'s second form — the card, never a colony (TR06)', () => {
+    const batch = buildTradeBatch({
+      tradePath: [1],
+      paymentIndex: 0,
+      fleetDock: CardName.WATER_HAULING,
+      steps: [],
+      captures: {},
+    });
+    expect(batch).to.deep.eq([{
+      type: 'or', index: 1, response: {
+        type: 'and',
+        responses: [
+          {type: 'or', index: 0, response: {type: 'option'}},
+          {type: 'colony', fleetDock: CardName.WATER_HAULING},
+        ],
+      },
+    }]);
+    expect(JSON.stringify(batch)).to.not.include('colonyName');
+    expect(tradeDestinationResponse({fleetDock: CardName.WATER_HAULING})).to.deep.eq({type: 'colony', fleetDock: CardName.WATER_HAULING});
+    expect(tradeDestinationResponse({colonyName: ColonyName.LUNA})).to.deep.eq({type: 'colony', colonyName: ColonyName.LUNA});
+  });
+
+  it('a dock\'s preview raises the SAME fee steps as a colony\'s (the M€ payment) — the reward\'s note is no step', () => {
+    const steps = tradeSteps({megacreditsPayment: PAYMENT, followUps: [{kind: 'note', role: 'tradeReward', note: 'placeOcean'}]}, true);
+    expect(steps.map((step) => step.kind)).to.deep.eq(['payment']);
   });
 
   it('buildTradeBatch truncates at the first uncaptured step', () => {

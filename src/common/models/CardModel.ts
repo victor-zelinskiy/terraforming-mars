@@ -1,3 +1,4 @@
+import {Color} from '../Color';
 import {Units} from '../Units';
 import {CardName} from '../cards/CardName';
 import {Resource} from '../Resource';
@@ -55,8 +56,13 @@ export interface CardModel {
      * table for every seat); absent — never `false` — on every other card and
      * on a free dock. NOT a used ACTION: the card has none, and it must not
      * read as «activated».
+     *
+     * The value is the fleet's OWNER colour (a dock takes only its owner's
+     * fleet), so the face can paint the ship in that livery on every host —
+     * a tableau, an inspector, a rival's table — without the host knowing
+     * whose card it is drawing.
      */
-    fleetDocked?: true;
+    fleetDocked?: Color;
     // When this card is a DISABLED candidate in a SelectCard prompt (it's a
     // relevant target but can't be picked right now — e.g. no resources on it),
     // a user-facing reason. Shown as a badge/popover in the premium card picker.

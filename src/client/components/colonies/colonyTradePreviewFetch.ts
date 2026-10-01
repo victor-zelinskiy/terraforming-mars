@@ -1,6 +1,7 @@
 import {paths} from '@/common/app/paths';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
+import {CardName} from '@/common/cards/CardName';
+import {ColonyTradePreviewModel, FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 
@@ -25,4 +26,19 @@ export function fetchColonyTradePreview(
   const offset = pathOffset > 0 ? `&offset=${encodeURIComponent(String(pathOffset))}` : '';
   const url = `${apiUrl(paths.API_GAME_COLONY_TRADE_PREVIEW)}?id=${encodeURIComponent(playerId)}&colony=${encodeURIComponent(colony)}${offset}`;
   return fetchPreview<ColonyTradePreviewModel>(url);
+}
+
+/**
+ * The same route asked about a trade whose destination is a fleet-dock CARD
+ * of the viewer's own (`?dock=<card>` — the dock twin of the colony preview:
+ * the fee's own prompts, the server's verdict, the reward's chips and what it
+ * will ask). `undefined` on any failure and on the server's 204 (the card left
+ * the tableau, or is no dock) — the stage then stands on the pick's marker.
+ */
+export function fetchFleetDockPreview(playerId: string, card: CardName): Promise<FleetDockPreviewModel | undefined> {
+  if (playerId === '') {
+    return Promise.resolve(undefined);
+  }
+  const url = `${apiUrl(paths.API_GAME_COLONY_TRADE_PREVIEW)}?id=${encodeURIComponent(playerId)}&dock=${encodeURIComponent(card)}`;
+  return fetchPreview<FleetDockPreviewModel>(url);
 }

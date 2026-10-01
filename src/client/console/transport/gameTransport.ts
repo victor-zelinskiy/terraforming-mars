@@ -82,7 +82,9 @@ import {
   detectTradeFleet,
   endTradeFleet,
   runTradeFleet,
+  tradeFleetState,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
+import {seedFleetDockHold} from '@/client/console/colonyTrade/fleetDockScene';
 import {
   abortColonyTrade,
   detectColonyTrade,
@@ -563,6 +565,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   seedNomadMoveRewardHold();
   seedColonyBuildRewardHold();
   seedColonyTradeRewardHold();
+  // A trade whose fleet landed on a DOCK CARD (TR06 Water Hauling): the
+  // card's own scene holds the reward's placement until the workspace has
+  // left — seeded here, in the apply block, and only while the dock's stage
+  // stands (`fleetDockScene.ts`).
+  seedFleetDockHold(tradeFleetState.active ? tradeFleetState.card : '');
   seedHydroMarkerRewardHold();
   // The «Фора» window's gains — the ONE seeder that needs BOTH views: a claim
   // is armed at the press, but the window's AUTO-resolve is only knowable by

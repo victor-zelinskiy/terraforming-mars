@@ -142,6 +142,21 @@ describe('turnIntents', () => {
     expect(ctx?.disabledPayments).to.have.length(1);
     expect(ctx?.colonies).to.deep.eq(['Luna', 'Triton']);
     expect(findTradeColonyContext(undefined)).to.eq(undefined);
+    expect(ctx?.docks, 'no dock marker → no docks').to.deep.eq([]);
+  });
+
+  it('carries the pick\'s FLEET-DOCK marker as the trade\'s other destinations — a window with no colony is still live (TR06)', () => {
+    const dock = {card: 'Water Hauling', available: true, effects: []};
+    const trade: any = {
+      type: 'and', title: 'Trade with a colony tile',
+      options: [
+        {type: 'or', title: 'Pay trade fee', options: [option('Pay 3 energy')]},
+        {type: 'colony', title: 'Select colony', coloniesModel: [], fleetDocks: [dock]},
+      ],
+    };
+    const ctx = findTradeColonyContext(or('Take your next action', [trade]) as PlayerInputModel);
+    expect(ctx?.colonies).to.deep.eq([]);
+    expect(ctx?.docks).to.deep.eq([dock]);
   });
 
   it('finds the hydro advance path', () => {

@@ -316,7 +316,7 @@ describe('WaterHauling', () => {
       trade(t, byIcon('energy'));
       placeOcean(t);
       const played = () => Server.getPlayerModel(t.p2).players.find((p) => p.color === t.p1.color)!.tableau.find((c) => c.name === CardName.WATER_HAULING)!;
-      expect(played().fleetDocked, 'public: a rival sees the fleet on the card').is.true;
+      expect(played().fleetDocked, 'public: a rival sees the fleet on the card, in its owner\'s livery').eq(t.p1.color);
       // The generation turns: the fleets come home, the stamp is simply stale.
       t.game.generation++;
       t.p1.colonies.returnTradeFleets();

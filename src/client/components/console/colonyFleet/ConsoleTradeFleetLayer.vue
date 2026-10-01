@@ -21,11 +21,17 @@
 import {defineComponent} from 'vue';
 import ColonyFleetIcon, {FleetShipState} from '@/client/components/colonies/ColonyFleetIcon.vue';
 import {
-  registerTradeFleetHandle, setTradeFleetPhase, tradeFleetState,
+  registerTradeFleetHandle, setTradeFleetLaunchPending, setTradeFleetPhase, tradeFleetState,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {runTradeFleetFlight, FleetPhaseName} from '@/client/console/colonyFleet/tradeFleetDirector';
+import {probeTick} from '@/client/console/probeTick';
 
-/** Read a fresh, stable rect for a launch/berth anchor (bounded rAF probe). */
+/**
+ * Read a fresh, stable rect for a launch/berth anchor (a bounded probe). Ticks
+ * on `probeTick` — the next frame OR a short timer — never on a bare rAF: on a
+ * quiet or slow compositor (a 4K headless frame, a throttled handheld) a rAF
+ * probe outlived the server's answer and the flight never started.
+ */
 function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
   return new Promise((done) => {
     let tries = 0;
@@ -42,12 +48,12 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
       }
       last = sig;
       if (tries < 40) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(ok ? r : undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 
@@ -81,13 +87,17 @@ export default defineComponent({
       if (!tradeFleetState.active || typeof window === 'undefined') {
         return;
       }
+      // THE MEASUREMENT WINDOW: a director is about to exist, and the gate waits
+      // for it (`setTradeFleetLaunchPending`) — every exit below closes it.
+      setTradeFleetLaunchPending(true);
       // Wait for the ship element to mount (v-if flips with `active`).
       await this.$nextTick();
       const ship = this.$refs.ship as HTMLElement | undefined;
       if (ship === undefined || ship === null) {
+        setTradeFleetLaunchPending(false);
         return;
       }
-      const colony = tradeFleetState.colonyName;
+      const target = tradeFleetState.target;
       // Resolve the launch anchor (the fleet dock's own pad — always top
       // right, alive through the focus descent) + the berth. The FOCUS
       // STAGE's ORBITAL berth on the hero planet leads when the stage is up
@@ -100,15 +110,17 @@ export default defineComponent({
       // nothing while the visible tile berth was never tried.
       const [from, to] = await Promise.all([
         stableRect(() => document.querySelector<HTMLElement>('[data-fleet-launch]')),
-        stableRect(() => this.berthEl(colony)),
+        stableRect(() => (target?.kind === 'card' ? this.cardBerthEl(target.card) : this.berthEl(target?.colonyName ?? ''))),
       ]);
       if (!tradeFleetState.active) {
+        setTradeFleetLaunchPending(false);
         return; // aborted while probing
       }
       if (from === undefined || to === undefined) {
         // No believable anchors (edge layout): skip the visual, but the
         // controller phases still advance so the gate resolves on dock.
         setTradeFleetPhase('approach');
+        setTradeFleetLaunchPending(false);
         return;
       }
       const handle = runTradeFleetFlight({
@@ -119,6 +131,7 @@ export default defineComponent({
         onPhase: (phase: FleetPhaseName) => setTradeFleetPhase(phase),
       });
       registerTradeFleetHandle(handle);
+      setTradeFleetLaunchPending(false);
     },
     esc(name: string): string {
       return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
@@ -139,6 +152,29 @@ export default defineComponent({
         }
       }
       return fallback;
+    },
+    /**
+     * A FLEET-DOCK CARD's berth (Turmoil Redux TR06 — a trade whose fleet goes
+     * to a card): the fleet lands ON THE ▲ of the card's printed effect, the
+     * mark slot the premium face reserves there (`[data-fleet-berth="card:…"]`,
+     * always laid out, empty while the dock is free). The ladder is MEASURED:
+     * the hero face on the dock stage leads (the trade resolves there), the
+     * dock's own tile in the «ПРИЧАЛЫ» column follows; with neither standing
+     * there is no flight (the phases still advance — the gate resolves), and
+     * never a document-wide guess (a card face in some other surface is not
+     * where this trade is happening).
+     */
+    cardBerthEl(card: string): HTMLElement | null {
+      const key = this.esc('card:' + card);
+      for (const sel of [`.con-fleetdock [data-fleet-berth="${key}"]`, `.con-colonies__docks [data-fleet-berth="${key}"]`]) {
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 2 && r.height > 2) {
+            return el;
+          }
+        }
+      }
+      return null;
     },
   },
   beforeUnmount() {

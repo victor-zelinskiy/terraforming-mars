@@ -264,6 +264,10 @@
                                 :thisPlayer="thisPlayer"
                                 :playerId="playerView.id"
                                 :viewVersion="`${playerView.game.gameAge}|${playerView.game.undoCount}`"
+                                :docks="colonyDocks"
+                                @dock-confirm="onFleetDockConfirm($event)"
+                                @dock-inspect="inspectFleetDock($event)"
+                                @dock-flow-complete="onFleetDockFlowComplete($event)"
                                 @trade-confirm="onColonyTradeComposerConfirm($event)"
                                 @build-confirm="onColonyBuildConfirm($event)"
                                 @flow-complete="onColonyFlowComplete"
@@ -1892,8 +1896,11 @@ import {CardType} from '@/common/cards/CardType';
 import {
   colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
   colonyFocusState, closeColonyFocus, openColonyFocus, resetColonyFocus, ColonyFocusIntent,
-  colonyRailIsCatalog as railIsCatalog,
+  colonyRailIsCatalog as railIsCatalog, colonyDockCursor, fleetDockUi, resetColonyDockCursor,
 } from '@/client/console/consoleColoniesModel';
+import {colonyCursorStep, FleetDockView, fleetDockViews} from '@/client/console/colonyTrade/fleetDockModel';
+import {releaseFleetDockHoldWhenGone, endFleetDockScene, fleetDockSceneState} from '@/client/console/colonyTrade/fleetDockScene';
+import type {FleetDockConfirmPayload} from '@/client/components/console/ConsoleFleetDockStage.vue';
 import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
 import {consolePlayCardUi, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
@@ -1908,7 +1915,7 @@ import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
 import {forecastStageText} from '@/client/console/consoleEffectForecast';
-import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, tradeDestinationResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -6672,6 +6679,22 @@ export default defineComponent({
     tradeableColonyNames(): ReadonlyArray<string> {
       return this.tradeColonyContext?.colonies ?? [];
     },
+    /**
+     * THE «ПРИЧАЛЫ» COLUMN (Turmoil Redux TR06 Water Hauling and its sisters —
+     * a card that is a destination of its owner's trade action): the viewer's
+     * dock cards, with the live pick's verdict when a trade window is open (the
+     * main door's AndOptions, or a card door's bare SelectColony). Only where a
+     * TRADE is the act: a build / setup / add-tile pick is a different verb,
+     * and the column is no part of it.
+     */
+    colonyDocks(): ReadonlyArray<FleetDockView> {
+      const pick = this.colonyPick;
+      if (this.colonyRailIsCatalog || (pick !== undefined && pick.buttonLabel !== 'trade')) {
+        return [];
+      }
+      const offers = this.tradeColonyContext?.docks ?? (pick !== undefined ? (this.colonyModel?.fleetDocks ?? []) : []);
+      return fleetDockViews(this.thisPlayer.tableau, (name) => getCard(name)?.fleetDock === true, offers);
+    },
     /** The viewer's FREE trade fleets (mirrors ConsoleColoniesSection.freeFleetsFor:
      *  the MORE restrictive of used-trade-fleets and physically-deployed). */
     viewerFreeFleets(): number {
@@ -7190,6 +7213,10 @@ export default defineComponent({
     colonyFollowUpLive(): boolean {
       return this.colonyPromptRaw || this.colonyTradeState.active ||
         this.tradeFleetState.active || isColonyBuildActive() ||
+        // A DOCK's scene (TR06) owns its own ending — the card answers, reads and
+        // leaves, then the workspace goes through the guarded conclusion; nothing
+        // may settle the frame under it.
+        fleetDockSceneState.holding ||
         workspaceOutcomeState.host === 'colonies' ||
         this.colonyResolutionLive ||
         this.colonyGrantStepLive || workspaceFrameHost('parliament') === 'colonies';
@@ -8356,6 +8383,30 @@ export default defineComponent({
         return consolePlayCardUi.commands.length > 0 ?
           [...consolePlayCardUi.commands] :
           [{control: 'confirm', label: 'Play now'}, {control: 'back', label: 'Cancel'}];
+      }
+      if (this.colonyFocusOpen && this.colonyFocus.dock !== '') {
+        // THE FLEET-DOCK STAGE publishes its ONE primary verb (A selects a path,
+        // opens the payment, or trades) — the bar reads it, never guesses.
+        if (fleetDockUi.sub === 'lanes') {
+          return [
+            {control: 'triggerR', label: 'Max'},
+            {control: 'confirm', label: 'Done', enabled: fleetDockUi.primaryEnabled},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        if (fleetDockUi.sub === 'mix') {
+          return [
+            {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
+            {control: 'confirm', label: 'Trade', enabled: fleetDockUi.primaryEnabled, highlight: fleetDockUi.primaryEnabled},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        return [
+          {control: 'confirm', label: fleetDockUi.primaryLabel, enabled: fleetDockUi.primaryEnabled,
+            highlight: fleetDockUi.primaryEnabled && fleetDockUi.primaryCommits},
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Back'},
+        ];
       }
       if (this.colonyFocusOpen) {
         // The COLONY FOCUS STAGE mirrors its live state (consoleColoniesUi) —
@@ -11898,11 +11949,13 @@ export default defineComponent({
           serves: ['colony'], anchor,
         });
       }
-      // Land on the first PICKABLE tile so A is meaningful immediately.
+      // Land on the first PICKABLE tile so A is meaningful immediately —
+      // or on a free DOCK when the pick offers no colony at all (TR06).
       const pick = this.colonyPick;
       const first = pick !== undefined ?
         this.coloniesForRail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
       this.consoleState.colonyIndex = first !== -1 ? first : 0;
+      this.landColonyCursorOnTradeable();
     },
     /**
      * A CARD ACTION WALKED INTO THE TRADE. The frame is already pushed (the
@@ -11913,6 +11966,26 @@ export default defineComponent({
     onCardActionsColonyStep(): void {
       const first = this.coloniesForRail.findIndex((c) => this.tradeableColonyNames.includes(c.name));
       this.consoleState.colonyIndex = first !== -1 ? first : 0;
+      this.landColonyCursorOnTradeable();
+    },
+    /**
+     * THE TRADE WITH NO COLONY BUT A FREE DOCK (rule 5 of TR06): the window is
+     * live — the server's pick names the dock — so the overview opens with the
+     * cursor ON the dock, where A is meaningful. Any tradeable colony keeps the
+     * cursor on the grid, exactly as before.
+     */
+    landColonyCursorOnTradeable(): void {
+      resetColonyDockCursor();
+      // The live colony set: a card door's bare pick names its own, the main door its trade window's.
+      const liveColonies = this.colonyPick !== undefined ? this.colonyPick.selectable : this.tradeableColonyNames;
+      if (liveColonies.length > 0) {
+        return;
+      }
+      const dock = this.colonyDocks.findIndex((d) => d.offer?.available === true);
+      if (dock !== -1) {
+        colonyDockCursor.active = true;
+        colonyDockCursor.index = dock;
+      }
     },
     /**
      * PLUTO COMES HOME. A trade/build payout needs its own surface back: the
@@ -13520,6 +13593,7 @@ export default defineComponent({
         // carries a `prompt` anchor and hands the screen back instead).
         enterWorkspace('colonies');
         this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
+        this.landColonyCursorOnTradeable();
         break;
       case 'hydro':
         // The section's own mount decides RESUME vs FRESH (a still-fresh
@@ -13882,7 +13956,11 @@ export default defineComponent({
         // verbs lead to two different surfaces now, so the bar's choice is
         // real (an earlier iteration had dropped X because both led to the
         // same stage).
-        if (this.consoleState.section === 'colonies') {
+        if (this.consoleState.section === 'colonies' && colonyDockCursor.active && this.colonyDocks.length > 0) {
+          // A DOCK IS A CARD: X is the card's own inspection (the live model —
+          // the fleet on its ▲ included), never a colony dossier.
+          this.inspectFleetDock(this.colonyDocks[Math.min(colonyDockCursor.index, this.colonyDocks.length - 1)].card);
+        } else if (this.consoleState.section === 'colonies') {
           this.enterColonyFocus('inspect');
         } else if (this.consoleState.section === 'hand') {
           this.zoomHandCard();
@@ -13944,7 +14022,16 @@ export default defineComponent({
         // 2D stepping over the premium tile grid (layout-aware columns).
         const count = this.coloniesForRail.length;
         const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
-        this.consoleState.colonyIndex = colonyNavStep(dir, this.consoleState.colonyIndex, count, cols);
+        // …and the «ПРИЧАЛЫ» column to its right: ▶ from a row's last tile
+        // enters it, ◀ returns to that very tile (`colonyCursorStep`).
+        const next = colonyCursorStep(dir, {
+          zone: colonyDockCursor.active ? 'docks' : 'grid',
+          index: this.consoleState.colonyIndex,
+          dock: colonyDockCursor.index,
+        }, count, cols, this.colonyDocks.length, colonyNavStep);
+        this.consoleState.colonyIndex = next.index;
+        colonyDockCursor.active = next.zone === 'docks';
+        colonyDockCursor.index = next.dock;
         return;
       }
       // Hand grid: delegate to the section — it owns the plan (cols), the
@@ -15724,6 +15811,20 @@ export default defineComponent({
      * the full dossier, which beats a bare refusal notice).
      */
     confirmColonySelection(): void {
+      // A ON A DOCK — the dock's own stage (a trade whose fleet goes to the
+      // card). Same guards as the colony descent; the stage carries the
+      // server's verdict and its one reason.
+      if (colonyDockCursor.active && this.colonyDocks.length > 0) {
+        if (this.colonyFocus.open || isTradeFleetActive() || colonyTradeState.active) {
+          return;
+        }
+        if (this.actionBlockedReason !== '' && !this.postGame) {
+          this.showNotice(this.actionBlockedReason);
+          return;
+        }
+        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.enterDockFocus();
+        return;
+      }
       // THE OVERVIEW SELECTS; THE FOCUS STAGE RESOLVES (iteration 2). A on
       // the grid never performs an irreversible action any more — every verb
       // descends into the ONE detail surface, where the destination, the
@@ -15854,6 +15955,8 @@ export default defineComponent({
     onColonyPickConfirm(): void {
       const pick = this.colonyPick;
       const name = this.colonyFocus.colonyName;
+      // (A dock's bare pick answers through `onFleetDockConfirm` — the stage's
+      // own confirm; this path is the colony tiles'.)
       if (pick === undefined || name === '') {
         return;
       }
@@ -16068,6 +16171,79 @@ export default defineComponent({
         }
       }
       this.submitBatch(batch);
+    },
+    /**
+     * THE FLEET-DOCK STAGE's ONE confirm (Turmoil Redux TR06 — a trade whose
+     * fleet goes to a CARD). The same guards as the colony composer (a fleet in
+     * flight owns the moment), the same ONE batch builder with the other
+     * destination (`{fleetDock}` — the second form of the colony answer), the
+     * same flight with a CARD target. No colony transaction is armed (there is
+     * no colony manifest) and no outcome is claimed (the reward is a PLACEMENT,
+     * which the dock's own scene hands to the board).
+     *
+     * A card door's BARE pick (`SelectColony` with the dock marker — the fee
+     * already paid by the card) answers `{type: 'colony', fleetDock}` alone.
+     */
+    onFleetDockConfirm(payload: FleetDockConfirmPayload): void {
+      const card = this.colonyFocus.dock;
+      if (card === '' || isTradeFleetActive() || colonyTradeState.active) {
+        return;
+      }
+      const ctx = this.tradeColonyContext;
+      const pick = this.colonyPick;
+      const offer = (ctx?.docks ?? this.colonyModel?.fleetDocks ?? []).find((d) => d.card === card);
+      if (offer === undefined || !offer.available) {
+        return;
+      }
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      if (ctx === undefined && pick?.buttonLabel === 'trade') {
+        closeConsoleLayers();
+        this.consoleState.task.deferred = false;
+        section?.holdDockStage();
+        armTradeFleet({kind: 'card', card}, this.thisPlayer.color);
+        this.submit(tradeDestinationResponse({fleetDock: card}));
+        return;
+      }
+      if (ctx === undefined) {
+        return;
+      }
+      const batch = buildTradeBatch({
+        tradePath: ctx.path,
+        paymentIndex: payload.paymentIndex,
+        fleetDock: card,
+        steps: payload.steps,
+        captures: payload.captures,
+      });
+      section?.holdDockStage();
+      armTradeFleet({kind: 'card', card}, this.thisPlayer.color);
+      this.submitBatch(batch);
+    },
+    /** X on a dock (its tile, or its stage): the card itself, in the shared viewer — the live model, the fleet on its ▲. */
+    inspectFleetDock(card: CardName): void {
+      const model = this.thisPlayer.tableau.find((c) => c.name === card);
+      openConsoleCardZoom([model ?? {name: card}], 0);
+    },
+    /**
+     * THE DOCK'S SCENE IS OVER (the card answered, read, left): the workspace
+     * leaves as ONE surface through the ONE guarded conclusion — never a
+     * `goBoardHome()` in the open — and the scene's hold falls at the END of
+     * that leave (its root element leaving the document), so the ocean's
+     * placement stands up over a clean board. A conclusion the flow refuses
+     * (a step still owed) leaves the hold to its honest end: the placement is
+     * admitted where it stands.
+     */
+    onFleetDockFlowComplete(root: Element | null | undefined): void {
+      // The stage is NOT folded first: it departs WITH the workspace, in one motion.
+      const rootKind = workspaceStackRootKind();
+      const concluded = rootKind === undefined || this.concludeWorkspaceFlowOrOwe(rootKind);
+      if (concluded) {
+        releaseFleetDockHoldWhenGone(root);
+      } else {
+        // The flow still owes a step: the stage (its card already gone) folds
+        // back to the overview, and the placement is admitted where it stands.
+        closeColonyFocus();
+        endFleetDockScene('conclusion-held');
+      }
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7
     //    COMPOSED repeat appends the ProjInsp/Viron-parity batch tail) ─────

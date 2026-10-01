@@ -43,6 +43,8 @@
     </template>
     <!-- honest fallback chip for unmapped vocabulary -->
     <span v-else class="pcard-mi__chip">{{ fallbackLabel }}</span>
+    <!-- The fleet dock's mark slot — mounted on the ▲ of a printed trade only (PremiumFleetMark). -->
+    <PremiumFleetMark v-if="isTradeNode()" />
   </span>
 
   <!-- SYMBOL -->
@@ -137,6 +139,7 @@ import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import NomadToken from '@/client/components/NomadToken.vue';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
+import PremiumFleetMark from './PremiumFleetMark.vue';
 
 type CorpBoxLike = {rows: Array<Array<ItemType>>};
 
@@ -147,7 +150,7 @@ type CorpBoxLike = {rows: Array<Array<ItemType>>};
  */
 export default defineComponent({
   name: 'PremiumMechNode',
-  components: {PlayerCube, NomadToken, PremiumVpCardGlyph},
+  components: {PlayerCube, NomadToken, PremiumVpCardGlyph, PremiumFleetMark},
   props: {
     node: {
       type: [Object, String] as unknown as () => ItemType,
@@ -427,6 +430,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The ▲ of a printed trade — the only node a fleet-dock face hangs its mark on (a method: no effect per node). */
+    isTradeNode(): boolean {
+      return this.itemNode?.type === CardRenderItemType.TRADE;
+    },
     renderable(row: ReadonlyArray<ItemType>): Array<ItemType> {
       return renderableNodes(row);
     },

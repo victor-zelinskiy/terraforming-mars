@@ -119,7 +119,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 </template>
 
 <script lang="ts">
-import {defineComponent, nextTick} from 'vue';
+import {computed, defineComponent, nextTick} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
@@ -144,6 +144,7 @@ import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
 import PremiumResolutionFace from './PremiumResolutionFace.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
 import {cardNumberDisplayState} from './cardNumberDisplay';
+import {PCARD_FLEET_DOCK_KEY, PremiumFleetDockFace} from './premiumFleetDock';
 
 export type PremiumCardTier = 'thumb' | 'normal' | 'full';
 
@@ -294,12 +295,37 @@ export default defineComponent({
       default: undefined,
     },
   },
+  /**
+   * THE FLEET DOCK, as the face's own state (Turmoil Redux TR06 Water Hauling
+   * and its sisters): the ▲ of the printed effect carries a mark slot, and the
+   * trade fleet standing on the card sits IN it, in its owner's livery. Handed
+   * to the mechanics plate through one injection — the plate draws the node,
+   * the card knows what stands on it — so every host that draws the face
+   * (the dock stage, the docks column, «Разыграно», the inspector, a rival's
+   * table) shows the fleet without knowing whose card it is drawing.
+   */
+  provide() {
+    return {
+      [PCARD_FLEET_DOCK_KEY]: computed((): PremiumFleetDockFace | undefined => this.fleetDockFace),
+    };
+  },
   data() {
     return {
       showZoom: false,
     };
   },
   computed: {
+    /** The face is a fleet dock: the static manifest flag + the live model's public fleet. */
+    fleetDockFace(): PremiumFleetDockFace | undefined {
+      if (this.vmOverride !== undefined) {
+        return undefined;
+      }
+      const card = getCardOrThrow(this.cardName);
+      if (card.fleetDock !== true) {
+        return undefined;
+      }
+      return {card: this.cardName, color: this.card?.fleetDocked};
+    },
     /** The player opted into printed card numbers (default off — technical information). */
     showCardNumber(): boolean {
       return cardNumberDisplayState.enabled;

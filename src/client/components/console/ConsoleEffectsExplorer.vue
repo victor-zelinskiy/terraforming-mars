@@ -248,6 +248,13 @@
                       <span class="con-efx__res-icon" :class="plateChip(g)?.icon" aria-hidden="true"></span>
                       <b>{{ plateChip(g)?.count }}</b>
                     </span>
+                    <!-- A FLEET DOCK with the trade fleet standing on it (TR06 Water
+                         Hauling): the card's STATE, not a used action — it never
+                         dims like a disabled card. -->
+                    <span v-if="fleetDockedOn(g.cardName) !== undefined" class="con-efx__plate-state" data-efx-fleet-docked>
+                      <ColonyFleetIcon class="con-efx__plate-ship" :color="fleetDockedOn(g.cardName) ?? 'neutral'" />
+                      <span v-i18n>Trade fleet docked · returns next generation</span>
+                    </span>
                   </div>
                   <div class="con-efx__slots" :class="{'con-efx__slots--pair': g.wide && columns === 2}">
                     <button v-for="tile in g.tiles" :key="tile.key" type="button"
@@ -457,6 +464,7 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 
 type ExplorerTile = EffectsTileVm<EffectEntry>;
 type ScrollAreaRef = InstanceType<typeof ConsoleScrollArea> & {
@@ -496,7 +504,7 @@ type ForecastQuestion = {
 
 export default defineComponent({
   name: 'ConsoleEffectsExplorer',
-  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon},
   directives: {stripEffectPrefix},
   props: {
     /** The inspected seat's tableau (or any future host's card set). In the
@@ -936,6 +944,10 @@ export default defineComponent({
     },
     tileDescTier(tile: ExplorerTile): string {
       return actionDescTier(translateText(this.tileDesc(tile)).replace(/^(Effect|Действие|Эффект):\s*/i, ''));
+    },
+    /** The trade fleet standing on a fleet-dock card (its owner's livery) — public state. */
+    fleetDockedOn(cardName: CardName): Color | undefined {
+      return this.cards.find((c) => c.name === cardName)?.fleetDocked;
     },
     plateChip(g: EffectsGroupVm<EffectEntry>): {icon: string, count: number} | undefined {
       const resourceType = getCard(g.cardName)?.resourceType;

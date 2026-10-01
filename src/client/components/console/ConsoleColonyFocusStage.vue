@@ -309,81 +309,21 @@
               <!-- The heading belongs to the ROWS, not to the mode: past the
                    commit the server takes the options away and a bare
                    «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
-              <div v-if="tradeConfigLive && visiblePayEntries.length + visibleDisabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
-              <div v-for="entry in tradeConfigLive ? visiblePayEntries : []" :key="'p' + entry.index"
-                   class="con-colfocus__payrow"
-                   :class="{
-                     'con-colfocus__payrow--focused': isFocused('pay', entry.index),
-                     'con-colfocus__payrow--chosen': payIdx === entry.index,
-                     // THE FEE IS FIXED by the entry (a card action walked in
-                     // here), and a fixed fee is not a list: the other paths
-                     // are not merely unpickable, they are unreachable, so
-                     // showing them would be a menu that refuses every item.
-                     // They are filtered out entirely — see `visiblePayEntries`.
-                     'con-colfocus__payrow--locked': lockedPayIdx === entry.index,
-                   }"
-                   :ref="isFocused('pay', entry.index) ? 'focusedEl' : undefined">
-                <span class="con-colfocus__payrow-pick" aria-hidden="true">
-                  <span v-if="payIdx === entry.index" class="con-colfocus__payrow-dot"></span>
-                </span>
-                <!-- The FLEXIBLE family declares itself BEFORE any step: the
-                     ⚡/🔩 icon pair (never a lone energy icon over a family
-                     steel may pay) — present exactly while the Delta Works
-                     substitution is live in this trade. -->
-                <template v-if="entry.index === energyEntryIdx && energyMixLive">
-                  <i class="con-colfocus__payrow-icon resource_icon resource_icon--energy con-task__opt-res" aria-hidden="true"></i>
-                  <span class="con-colfocus__payrow-slash" aria-hidden="true">/</span>
-                  <i class="con-colfocus__payrow-icon resource_icon resource_icon--steel con-task__opt-res" aria-hidden="true"></i>
-                </template>
-                <i v-else-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
-                <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
-                <!-- The CHOSEN flexible family shows its compact draft
-                     («⚡2 + 🔩1») in place of the stale energy-only delta;
-                     with several valid mixes the NEXT STEP is named honestly
-                     — the composition itself is edited on the payment
-                     substep, never inline in this list. -->
-                <template v-if="entry.index === payIdx && energyMixInfo !== undefined">
-                  <span class="con-colfocus__payrow-mix">
-                    <i class="resource_icon resource_icon--energy" aria-hidden="true"></i><b>{{ (energyMixInfo.cost ?? 0) - tradeSteelMix }}</b>
-                    <span aria-hidden="true">+</span>
-                    <i class="resource_icon resource_icon--steel" aria-hidden="true"></i><b>{{ tradeSteelMix }}</b>
-                  </span>
-                  <span v-if="tradeMixAdjustable" class="con-colfocus__payrow-next">{{ $t('Next: payment composition') }}</span>
-                </template>
-                <span v-else-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
-              </div>
-              <div v-for="(d, i) in tradeConfigLive ? visibleDisabledEntries : []" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
-                <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
-                <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
-                <span class="con-colfocus__payrow-title">{{ d.title }}</span>
-                <span class="con-colfocus__payrow-reason">{{ d.reason }}</span>
-              </div>
-              <!-- PAST THE COMMIT the server takes the options away, but the
-                   stage is still resolving the move the player made ON IT —
-                   so it keeps showing WHAT WAS CHOSEN. Blanking the zone here
-                   left a hole under a flying reward and read as the screen
-                   forgetting the decision the moment it was taken. -->
-              <div v-if="tradeConfigLive && heldPayment !== undefined && visiblePayEntries.length === 0"
-                   class="con-colfocus__payrow con-colfocus__payrow--chosen con-colfocus__payrow--locked">
-                <span class="con-colfocus__payrow-pick" aria-hidden="true">
-                  <span class="con-colfocus__payrow-dot"></span>
-                </span>
-                <i v-if="heldPayment.iconClass !== ''" class="con-colfocus__payrow-icon" :class="heldPayment.iconClass" aria-hidden="true"></i>
-                <span class="con-colfocus__payrow-title">{{ heldPayment.title }}</span>
-                <!-- A mix commit keeps showing the ACTUAL composition it was
-                     paid with — never the energy-first preview the family's
-                     row advertised before the dial. -->
-                <span v-if="heldPayment.mix !== undefined" class="con-colfocus__payrow-mix">
-                  <template v-if="heldPayment.mix.energy > 0">
-                    <i class="resource_icon resource_icon--energy" aria-hidden="true"></i><b>{{ heldPayment.mix.energy }}</b>
-                  </template>
-                  <span v-if="heldPayment.mix.energy > 0 && heldPayment.mix.steel > 0" aria-hidden="true">+</span>
-                  <template v-if="heldPayment.mix.steel > 0">
-                    <i class="resource_icon resource_icon--steel" aria-hidden="true"></i><b>{{ heldPayment.mix.steel }}</b>
-                  </template>
-                </span>
-                <span v-else-if="heldPayment.preview !== ''" class="con-colfocus__payrow-delta">{{ heldPayment.preview }}</span>
-              </div>
+              <!-- THE ROWS THEMSELVES are the shared component — the fleet-dock stage
+                   (a trade whose fleet goes to a CARD) draws the very same ones
+                   from the same model (`tradePayModel.ts`). -->
+              <ConsoleTradePayRows ref="payRows"
+                                   :heading="tradeConfigLive && visiblePayEntries.length + visibleDisabledEntries.length > 0"
+                                   :rows="tradeConfigLive ? visiblePayEntries : []"
+                                   :disabled="tradeConfigLive ? visibleDisabledEntries : []"
+                                   :chosenIndex="payIdx"
+                                   :lockedIndex="lockedPayIdx"
+                                   :focusedIndex="focusedPayIndex"
+                                   :energyIndex="energyEntryIdx"
+                                   :energyMixLive="energyMixLive"
+                                   :mix="payRowMix"
+                                   :mixAdjustable="tradeMixAdjustable"
+                                   :held="tradeConfigLive ? heldPayment : undefined" />
 
               <template v-if="stepRows.length > 0">
                 <div class="con-colfocus__sec-title con-colfocus__sec-title--steps">{{ $t('Your choices') }}</div>
@@ -789,6 +729,10 @@ import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
+import ConsoleTradePayRows from '@/client/components/console/ConsoleTradePayRows.vue';
+import {
+  TradePayEntry, tradePayDisabledEntries, tradePayEntries, visibleTradePayDisabled, visibleTradePayRows,
+} from '@/client/console/colonyTrade/tradePayModel';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
@@ -799,14 +743,12 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-type PayEntry = {
-  title: string,
-  iconClass: string,
-  preview: string,
-  /** The Delta Works mix PINNED at the commit boundary — the held row keeps
-   *  showing the composition the move was actually paid with. */
-  mix?: {energy: number, steel: number},
-};
+/** One usable payment path as the shared row draws it (`tradePayModel.ts`). */
+type PayEntry = TradePayEntry;
+/** The row's icon: the shared option icon, sized like every sprite on this stage. */
+function payIconClass(icon: string): string {
+  return iconClassFor(icon) + ' con-task__opt-res';
+}
 type StepRow = {
   key: string,
   kind: 'payment' | 'trackChoice' | 'cardTarget',
@@ -884,7 +826,7 @@ type HeldView = {
 export default defineComponent({
   name: 'ConsoleColonyFocusStage',
   components: {
-    BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel,
+    BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
     ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleColonyTrackInstrument, ConsolePlanetDisc,
   },
   props: {
@@ -1391,28 +1333,22 @@ export default defineComponent({
     presentedPreview(): ColonyTradePreviewModel | undefined {
       return this.pinnedConfig !== undefined ? this.pinnedConfig.preview : this.preview;
     },
+    // THE ROW MODEL IS SHARED (`tradePayModel.ts`) — the fleet-dock stage reads
+    // the same one, so a payment path can never be drawn two ways.
     payEntries(): Array<PayEntry> {
-      return this.presentedOptions.map((o) => {
-        const meta = o.metadata;
-        const res = meta?.resource;
-        return {
-          title: textOf(o.title),
-          iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) + ' con-task__opt-res' : '',
-          preview: res !== undefined ? `${res.current} → ${res.resulting}` : '',
-        };
-      });
+      return tradePayEntries(this.presentedOptions, textOf, payIconClass);
     },
     disabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
-      return this.presentedDisabled.map((d) => {
-        const rec = d as {title?: string | Message, label?: string | Message, reason?: string | Message, metadata?: {icon?: string, resource?: {current: number}}};
-        const current = rec.metadata?.resource?.current;
-        const title = textOf(rec.title ?? rec.label);
-        return {
-          title: current !== undefined ? `${title} · ${current}` : title,
-          iconClass: rec.metadata?.icon !== undefined ? iconClassFor(rec.metadata.icon) + ' con-task__opt-res' : '',
-          reason: textOf(rec.reason),
-        };
-      });
+      return tradePayDisabledEntries(this.presentedDisabled, textOf, payIconClass);
+    },
+    /** The pay row under the cursor (the server's option index), `-1` while the cursor is elsewhere. */
+    focusedPayIndex(): number {
+      return this.sub === undefined && this.focused?.zone === 'pay' ? this.focused.index : -1;
+    },
+    /** The chosen flexible family's draft as the row prints it («⚡2 + 🔩1»). */
+    payRowMix(): {energy: number, steel: number} | undefined {
+      const mix = this.energyMixInfo;
+      return mix === undefined ? undefined : {energy: (mix.cost ?? 0) - this.tradeSteelMix, steel: this.tradeSteelMix};
     },
     /**
      * THE PATHS THE PLAYER CAN ACTUALLY TAKE.
@@ -1433,15 +1369,11 @@ export default defineComponent({
       // over a move that has already been made is an offer the player cannot
       // take, and — when the server has already re-offered the trade — one
       // whose numbers describe a DIFFERENT transaction.
-      if (this.configPinned) {
-        return [];
-      }
-      const rows = this.payEntries.map((entry, index) => ({...entry, index}));
-      return this.lockedPayIdx >= 0 ? rows.filter((r) => r.index === this.lockedPayIdx) : rows;
+      return visibleTradePayRows(this.payEntries, this.lockedPayIdx, this.configPinned);
     },
     /** …and a REFUSED path is equally irrelevant once the fee is fixed. */
     visibleDisabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
-      return this.lockedPayIdx >= 0 || this.configPinned ? [] : this.disabledEntries;
+      return [...visibleTradePayDisabled(this.disabledEntries, this.lockedPayIdx, this.configPinned)];
     },
     /**
      * THE FEE IS FIXED — this trade was entered from a card's own action, so
@@ -3007,7 +2939,9 @@ export default defineComponent({
     scrollFocusedIntoView(): void {
       void this.$nextTick(() => {
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
-        const node = Array.isArray(el) ? el[0] : el;
+        // A focused PAY row lives in the shared rows component — it hands its own element over.
+        const payRow = (this.$refs.payRows as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
+        const node = payRow ?? (Array.isArray(el) ? el[0] : el);
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
