@@ -332,6 +332,12 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     await expect.poll(() => motionAttr(page), {timeout: 20_000}).toBe('enact');
     await press(page, 'Enter', 60);
     await expect.poll(() => stageAttr(page), {timeout: 40_000}).toBe('results');
+    // The results PAGE stands ~0.5 s before its BEAT (the body unfolds first, then the director plays it): «at
+    // rest» inside that window is a walk that has not played the page YET, and a probe read there never saw the
+    // stage — a race the 1 s poll above decided by its phase (a ±20 ms shift of the enactment flipped it, TR04).
+    // The beat has to have STARTED before its rest means anything.
+    await expect.poll(() => page.evaluate(() => (window as unknown as {__sitProbe: Probe}).__sitProbe.samples.some((s) => s.motion === 'results')),
+      {timeout: 20_000, intervals: [50], message: 'the results page played its beat'}).toBe(true);
     await waitAtRest(page, 20_000);
     const probe = await readProbe(page);
     const order = probe.samples.map((s) => s.motion).filter((m) => m !== '').filter((m, i, all) => i === 0 || all[i - 1] !== m);

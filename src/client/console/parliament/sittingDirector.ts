@@ -434,8 +434,11 @@ function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   // the glide as airborne until its landing — the bonus then leaves the reached step. Its lead rides the clock
   // «дожать» fires at once (as the master's own call did before the walk became one phrase): a press mid-lead
   // moves the marker NOW; the glide itself plays to its lock, as ever.
+  // …and it starts WITH the beat, not on the master's first tick: the lead's clock and the master's then read the
+  // same ticker time, so the marker leaves on the very tick the master's own `call` at 150 ms used to send it (a
+  // `call` at 0.01 started the lead one tick late: +28 ms on the beat, measured A/B against the v4 window).
   runState.pending++;
-  tl.call(() => walk(record, {
+  walk(record, {
     beat: scheduleHurriedParliamentBeat,
     onLanded: () => {
       sittingMotion.agendaSegment = undefined;
@@ -443,7 +446,7 @@ function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
       launchAgendaBonus(runState, ctx);
       runState.pending = Math.max(0, runState.pending - 1);
     },
-  }), undefined, 0.01);
+  });
   return (s(AGENDA_SEGMENT_MS) + s(AGENDA_GLIDE_BUDGET_MS)) * k;
 }
 
