@@ -541,6 +541,58 @@ went to the composer parked underneath while the player was demonstrably driving
 the colony grid on top of it. `workspaceStackTopAxis()` is the one answer —
 the same rule presence already uses.
 
+## THE FLEET DOCK — a trade whose destination is a CARD (TR06, 2026-10-01)
+
+Turmoil Redux TR06 Water Hauling (and its sisters TR26 UNMI Liner, TR27 Aurora
+Station) make a CARD a destination of its owner's trade action — read «по своду»:
+the ordinary fee of the chosen path, the fleet of THAT trade goes to the card,
+the reward is the card's (an ocean). Full contract:
+`docs/TURMOIL_REDUX_WATER_HAULING.md`. What it changed in this flow:
+
+- **The destination is an abstraction, the paths never learn the word «dock».**
+  `ITradeDestination` (`tradeSource` · `tradeBlockedReason` · `trade`) is what
+  every one of the nine `IColonyTrader` paths names in its log, records its
+  discount against and trades with; `IColony` is one (byte-for-byte as before),
+  `FleetDockDestination(card)` the other. «A trade happened» is two calls —
+  `reportTrade` (the chairman quest) and `payTradeFlatBonuses` (Venus Trade Hub)
+  — the colony keeps them where they were, the dock makes them around the
+  landing.
+- **One pick, two answers.** Every door goes through `tradeDestinationPick`: a
+  `SelectColony` carrying the `fleetDocks` marker (`[{card, available, reason?,
+  effects}]`); the answer is `{type: 'colony', colonyName}` or `{type: 'colony',
+  fleetDock}` — exactly one. A pick with ZERO colonies and a free dock is a
+  legal prompt, and the trade gate counts docks (`tradeBlockedReason`,
+  `potentialTradeCount`); Darkside Smugglers' Union and Collegium Copernicus ask
+  `canTrade({colonyOnly: true})` so a dock never opens them an empty pick.
+- **The client batch has ONE builder**: `buildTradeBatch({fleetDock})` →
+  `tradeDestinationResponse`. No colony transaction is armed (there is no colony
+  manifest), no outcome is claimed.
+- **The payment rows are ONE component and ONE model** — `ConsoleTradePayRows`
+  over `tradePayModel` — drawn by the colony focus stage AND the dock stage;
+  a second copy of either is how the two would drift.
+- **The flight has a TARGET** (`TradeFleetTarget` — a colony or a card). The
+  colony half stays `tradeFleetState.colonyName`, so no colony reader changed;
+  a card target lands on the ▲ of the card's printed effect
+  (`[data-fleet-berth="card:<name>"]`, the premium face's mark slot), the
+  dock's tile in the «ПРИЧАЛЫ» column the fallback, no rect — no flight.
+- ⚠️ **A gate that resolves before its director exists commits the view under
+  a ship still on its pad.** Measured at 4K headless: the server answered in
+  ~200 ms while the layer was still probing its anchors (a rAF probe on a slow
+  frame), `runTradeFleet` found no handle and let the gate go after 120 ms — the
+  fleet never flew, the mark appeared on the berth from nowhere. The layer now
+  announces its measuring window (`setTradeFleetLaunchPending`), the gate waits
+  for the director inside it (`LAUNCH_WAIT_MS`), and the probe ticks on
+  `probeTick`. A colony trade had the same race; its frames and timings are
+  unchanged — only the case where the flight vanished is gone.
+- **A trade that ends in a PLACEMENT holds the board until the workspace is
+  gone.** A colony trade folds back to the overview; the dock's reward is an
+  ocean, and a placement admitted the instant the view applies rises under a
+  workspace still on screen. `fleetDockScene.ts` seeds a BLOCKING hold
+  (`'trade-fleet-dock'`) in the same block as the apply, only while the dock's
+  stage stands; the card answers (the action-commit impulse on «▲ : [ocean]»),
+  reads, leaves as a beat, the workspace leaves through the ONE guarded
+  conclusion, and the hold falls when the workspace root leaves the document.
+
 ## Guards
 
 - Server: `tests/colonies/ColonyTradeManifest.spec.ts` (manifest fields,

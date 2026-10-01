@@ -154,6 +154,7 @@ import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
 import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/PoliticalScience';
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
+import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
 import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
@@ -1087,6 +1088,35 @@ parliamentFixture('minority-representation', {
         parliament.influence(p1) !== 1 || parliament.rulingParty() !== PartyName.GREENS || parties.includes(PartyName.GREENS) ||
         parliament.quest?.source !== GENEROUS_FUNDING_ID || parliament.quest.completedBy !== undefined || parliament.questProgressOf(p1) !== 2) {
       throw new Error(`the minority-representation fixture expected a playable card, blue on step 1 (influence 1), red on step 3, the Greens ruling by Generous Funding with blue at 2 of 3 on its quest — got playable=${card !== undefined && p1.canPlay(card)} agenda=${parliament.agendaOf(p1)}/${parliament.agendaOf(p2)} influence=${parliament.influence(p1)} ruling=${parliament.rulingParty()} parties=${parties.join(',')} quest=${parliament.quest?.source}:${parliament.questProgressOf(p1)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR06 · WATER HAULING — a trade whose destination is a CARD (docs/TURMOIL_REDUX_WATER_HAULING.md):
+//    blue's action phase with the card in its tableau and the card's own extra fleet (TWO free
+//    fleets — the dock and a colony in one generation, each with its own fee), 6 energy (two fees) and
+//    nothing else to pay with (the energy path is the fee, the M€ and titanium paths stand
+//    refused with their reasons). SIX colonies open (the fullest grid the column stands beside), the oceans far from 9. A QUIET
+//    government (the Industrialists by Central Power Grid) — the ocean's TR triggers nothing the
+//    probe would have to account for. ──
+parliamentFixture('water-hauling', {
+  stopAt: 'vote',
+  megacredits: [0, 30],
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    // SIX colony tiles: the docks column has to stand beside the fullest in-game grid (3 × 2).
+    game.colonies = [new Luna(), new Europa(), new Callisto(), new Ceres(), new Io(), new Miranda()];
+    p1.playedCards.push(new WaterHauling());
+    p1.colonies.increaseFleetSize();
+    p1.energy = 6;
+    p1.titanium = 0;
+    p1.heat = 0;
+  },
+  expect: ({game, p1, parliament}) => {
+    const dock = p1.playedCards.get(CardName.WATER_HAULING);
+    if (dock === undefined || p1.colonies.getFleetSize() !== 2 || p1.colonies.freeTradeFleets() !== 2 ||
+        p1.colonies.potentialTradeCount() < 2 || !game.canAddOcean() || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the water-hauling fixture expected the dock in the tableau, two free fleets, trades on offer, room for an ocean and the Industrialists ruling — got dock=${dock !== undefined} fleets=${p1.colonies.getFleetSize()}/${p1.colonies.freeTradeFleets()} trades=${p1.colonies.potentialTradeCount()} oceans=${game.board.getOceanSpaces().length} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

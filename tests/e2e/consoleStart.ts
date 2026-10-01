@@ -2339,6 +2339,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR04 Minority Representation: blue's action phase with the card in hand, 10 M€, blue's marker on step 1 and red's on
   // step 3, a «gain 1 TR» chairman quest open (docs/TURMOIL_REDUX_MINORITY_REPRESENTATION.md).
   'minority-representation' |
+  // TR06 Water Hauling: blue's action phase with the dock in its tableau, two free fleets, 6 energy (two fees) and no other fee;
+  // six colonies open, a quiet government (docs/TURMOIL_REDUX_WATER_HAULING.md).
+  'water-hauling' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
