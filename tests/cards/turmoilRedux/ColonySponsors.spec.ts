@@ -141,7 +141,7 @@ describe('ColonySponsors', () => {
 
     it('a tile with nobody\'s cube — and one with a docked fleet — is a candidate (the track is the tile\'s)', () => {
       const t = table();
-      t.pluto.visitor = t.p2.color;
+      t.pluto.visitor = t.p2.id;
       const prompt = play(t);
       expect(prompt.colonies.map((c) => c.name)).includes(ColonyName.PLUTO_REDUX);
       expect(t.pluto.colonies).deep.eq([]);
