@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {unplayableReasonCompact, unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
+import {unplayableReasonCompact, unplayableReasonEmblem, unplayableReasonLine, unplayableReasonText} from '@/client/components/handCards/unplayableReasonFormat';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 
 /**
@@ -28,6 +29,43 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonLine(ceiling)).eq('Requires influence 1 or less · Now: 2');
     const floor: UnplayableReason = {type: 'count', message: 'Requires ${0} influence', params: ['2'], current: 1, requirement: true};
     expect(unplayableReasonCompact(floor)).eq('Influence 1/2');
+  });
+
+  /*
+   * A NAMED PARTY REQUIREMENT (Turmoil Redux — TR15 the set's first): the party is read by its parliament name
+   * (never the raw English param) and its EMBLEM on a rail; the line states both roads with their «now», and
+   * a resolution that is not up for a vote is a CLOSED road — never «0 of 2».
+   */
+  describe('a PARTY requirement', () => {
+    const base: UnplayableReason = {
+      type: 'party', message: 'Requires ${0} to be ruling or ${1} of your delegates on its resolution',
+      params: [PartyName.MARS, '2'], party: PartyName.MARS, current: 1, requirement: true,
+    };
+
+    it('the rule speaks the parliament name for the party (the key, not the raw param)', () => {
+      expect(unplayableReasonText(base)).eq('Requires party name: Mars First to be ruling or 2 of your delegates on its resolution');
+    });
+
+    it('the line: «not ruling · your delegates on its resolution: 1 of 2»', () => {
+      expect(unplayableReasonLine(base)).eq('party name: Mars First is not ruling · your delegates on its resolution: 1 of 2');
+    });
+
+    it('the compact counter: «1/2», read with the party emblem', () => {
+      expect(unplayableReasonCompact(base)).eq('1/2');
+      expect(unplayableReasonEmblem(base)).eq('assets/parties/redux/mars-first.png');
+    });
+
+    it('its resolution is not up for a vote: the CLOSED road is named, in the line and on the rail', () => {
+      const off: UnplayableReason = {...base, current: 0, partyOffVote: true};
+      expect(unplayableReasonLine(off)).eq('party name: Mars First is not ruling · its resolution is not up for a vote');
+      expect(unplayableReasonCompact(off)).eq('Not in the vote');
+    });
+
+    it('the classic engine keeps its faceless line — no emblem, no counter', () => {
+      const classic: UnplayableReason = {type: 'party', message: 'Requires a specific political situation', requirement: true};
+      expect(unplayableReasonEmblem(classic)).eq(undefined);
+      expect(unplayableReasonCompact(classic)).eq('Requires a specific political situation');
+    });
   });
 
   it('the Hydronetwork precedent keeps its counter, and an unknown count message keeps the full line', () => {

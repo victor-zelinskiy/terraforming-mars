@@ -32,7 +32,7 @@
 import {UnplayableReason, UnplayableReasonType} from '@/common/cards/UnplayableReason';
 import {blockerForReason} from '@/common/availability/AvailabilityBlocker';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {reasonUnit, unplayableReasonCompact, unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
+import {reasonUnit, unplayableReasonCompact, unplayableReasonEmblem, unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 
 export type CardAvailabilityContext = 'draft' | 'play';
 
@@ -63,6 +63,13 @@ export interface CardAvailabilityReasonView {
    * counter shape. The fullscreen panel keeps `text`; a rail renders this.
    */
   compact: string;
+  /**
+   * The badge the COMPACT form is read with — a named PARTY requirement's
+   * emblem (Turmoil Redux: «[emblem] 1/2»), the same badge the card's plate
+   * prints (`unplayableReasonEmblem`). Absent for every other reason: their
+   * compact form carries its own label.
+   */
+  emblem?: string;
   /** This individual reason's own voice (a turn note stays amber under a red headline). */
   severity: CardAvailabilitySeverity;
   tone: CardAvailabilityTone;
@@ -152,6 +159,10 @@ function reasonView(r: UnplayableReason, severity: CardAvailabilitySeverity): Ca
     severity,
     tone: TONES[severity],
   };
+  const emblem = unplayableReasonEmblem(r);
+  if (emblem !== undefined) {
+    view.emblem = emblem;
+  }
   const modifiers = modifierNote(r);
   if (modifiers !== undefined) {
     view.modifiers = modifiers;

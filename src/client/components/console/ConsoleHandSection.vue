@@ -330,7 +330,8 @@
            its own amber voice under the red verdict. -->
       <template v-else>
         <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
-        <span v-for="r in playReasonRows" :key="r.key" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ r.compact }}</span>
+        <span v-for="r in playReasonRows" :key="r.key" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">
+          <img v-if="r.emblem !== undefined" class="con-reason-emblem" :src="r.emblem" alt="" data-reason-emblem />{{ r.compact }}</span>
       </template>
       <!-- GIVE-UP modes (sale / select) additionally speak the card's FUTURE
            value in the shared draft voice — «what can I still play?» is what

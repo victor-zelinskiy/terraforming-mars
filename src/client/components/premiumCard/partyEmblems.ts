@@ -1,5 +1,5 @@
 import {PartyName} from '@/common/turmoil/PartyName';
-import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 
 /**
  * The party emblems (Turmoil Redux): the fork's own 512px badge set in one
@@ -19,6 +19,16 @@ const PARTY_EMBLEM: Readonly<Record<ReduxParty, string>> = {
 
 export function partyEmblemUrl(party: ReduxParty): string {
   return PARTY_EMBLEM[party];
+}
+
+/**
+ * The EMBLEM a PARTY REQUIREMENT is drawn by (the card's MIN plate, the hand's
+ * compact counter «[emblem] 1/2») — this same table, never a second one. Only
+ * a party of the Redux six has one; a classic Turmoil party (Kelvinists, …)
+ * answers `undefined` and keeps its text label.
+ */
+export function requirementPartyEmblem(party: PartyName): string | undefined {
+  return (REDUX_PARTIES as ReadonlyArray<PartyName>).includes(party) ? PARTY_EMBLEM[party as ReduxParty] : undefined;
 }
 
 /** The party's accent colour (the workspace's tiles, the vote stage's kicker). */

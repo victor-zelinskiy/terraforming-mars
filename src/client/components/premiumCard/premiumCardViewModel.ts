@@ -25,6 +25,7 @@ import {PremiumTheme, premiumThemeFor} from './premiumCardTheme';
 import {buildMechanics, collectDroppedProse, MechanicsVM} from './mechanicsModel';
 import {tagClusterPlan, TagClusterPlan} from './tagLayout';
 import {standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
+import {requirementPartyEmblem} from './partyEmblems';
 
 export type PremiumCostVM = {
   printed: number;
@@ -243,6 +244,8 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   [RequirementType.TAG]: {value: (d) => d.count ?? 1},
   [RequirementType.PRODUCTION]: {value: (d) => d.count ?? 1},
   [RequirementType.REMOVED_PLANTS]: {value: () => 0, iconUrl: `${RES}/plant.png`, binary: true},
+  // A PARTY is drawn by its EMBLEM (Turmoil Redux, TR15+ — the scan prints the party's emblem in the MIN plate);
+  // the icon is per party, resolved in `normalizeRequirement`. A party with no emblem keeps the text label.
   [RequirementType.PARTY]: {value: () => 0, binary: true},
   [RequirementType.CHAIRMAN]: {value: () => 0, iconUrl: `${MISC}/chairman.png`, binary: true},
   [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
@@ -271,6 +274,9 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
   }
   if (type === RequirementType.PRODUCTION && descriptor.production !== undefined) {
     iconUrl = standardResourceIconUrl(descriptor.production);
+  }
+  if (type === RequirementType.PARTY && descriptor.party !== undefined) {
+    iconUrl = requirementPartyEmblem(descriptor.party);
   }
   // Exotic requirement with neither an icon nor a bespoke branch → keep the
   // meaning as a text label (never silently dropped).

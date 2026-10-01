@@ -8,16 +8,57 @@
  */
 
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 
 /** The measurement unit implied by a reason's message (°C / % / none). */
 export function reasonUnit(r: UnplayableReason): string {
   return r.message.includes('%') ? '%' : (r.message.includes('°C') ? '°C' : '');
 }
 
+/**
+ * The params a reason renders with. A NAMED PARTY reason (Turmoil Redux —
+ * `UnplayableReason.party`) carries the party's English NAME in `params[0]`
+ * only for the template; the player reads the parliament's own name for it
+ * (`partyNameKey` — «Марс вперёд», never the upstream «Марс вперед»).
+ */
+function reasonParamsOf(r: UnplayableReason): Array<string> {
+  const params = [...(r.params ?? [])];
+  if (r.party !== undefined && params.length > 0) {
+    params[0] = translateText(partyNameKey(r.party));
+  }
+  return params;
+}
+
 /** The translated requirement text, e.g. "Требуется температура -8°C". */
 export function unplayableReasonText(r: UnplayableReason): string {
-  return translateTextWithParams(r.message, [...(r.params ?? [])]);
+  return translateTextWithParams(r.message, reasonParamsOf(r));
+}
+
+/**
+ * A PARTY REQUIREMENT'S «NOW», road by road (Turmoil Redux — TR15 the first
+ * card, TR14–TR27 after it): the party does not rule (a reason exists only
+ * while the requirement is unmet), and the player's delegates on its
+ * resolution N of 2 — or that resolution is not up for a vote at all, a
+ * closed road rather than a count to chase. Every number is the server's.
+ */
+function partyReasonLine(r: UnplayableReason & {party: PartyName}): string {
+  const party = translateText(partyNameKey(r.party));
+  const road = r.partyOffVote === true ?
+    translateText('its resolution is not up for a vote') :
+    translateTextWithParams('your delegates on its resolution: ${0} of ${1}', [String(r.current ?? 0), r.params?.[1] ?? '2']);
+  return `${translateTextWithParams('${0} is not ruling', [party])} · ${road}`;
+}
+
+/**
+ * The EMBLEM a reason is drawn with on a one-row rail — a named PARTY reason
+ * only (the compact counter «[emblem] 1/2» reads the party by its badge, the
+ * same badge the card's plate prints). `undefined` for every other reason.
+ */
+export function unplayableReasonEmblem(r: UnplayableReason): string | undefined {
+  return r.party === undefined ? undefined : requirementPartyEmblem(r.party);
 }
 
 /** The translated "Сейчас: N" badge, WITH the implied unit (e.g. "Сейчас: -18°C"). */
@@ -31,6 +72,9 @@ export function unplayableReasonNow(r: UnplayableReason): string {
  * reason carries a current value, the unit-suffixed "now" badge.
  */
 export function unplayableReasonLine(r: UnplayableReason): string {
+  if (r.party !== undefined) {
+    return partyReasonLine({...r, party: r.party});
+  }
   const text = unplayableReasonText(r);
   return r.current === undefined ? text : `${text} · ${unplayableReasonNow(r)}`;
 }
@@ -108,6 +152,11 @@ function compactLabelKey(r: UnplayableReason): string | undefined {
  * whenever the counter shape is not honest for this reason.
  */
 export function unplayableReasonCompact(r: UnplayableReason): string {
+  // A named PARTY reason: the emblem names the party (`unplayableReasonEmblem`), the counter is
+  // the delegates road — «1/2» — or, when its resolution is not up for a vote, that closed road.
+  if (r.party !== undefined) {
+    return r.partyOffVote === true ? translateText('Not in the vote') : `${r.current ?? 0}/${r.params?.[1] ?? '2'}`;
+  }
   const label = compactLabelKey(r);
   const bound = r.effectiveCount ?? Number(r.params?.[0]);
   if (label === undefined || r.current === undefined || !Number.isFinite(bound)) {

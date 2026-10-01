@@ -107,6 +107,13 @@ const CANON: Record<string, string> = {
   '+${0} of ${1} · neutral supply: ${2}': '+${0} из ${1} · нейтральных в запасе: ${2}',
   'area is full': 'область заполнена',
   'no neutral delegates left': 'нейтральных не осталось',
+  // A PARTY REQUIREMENT (TR15 Martian Census — the set's first; glossary § 5): the rule and its «now» speak the
+  // access line's own words — «правит», «два ваших делегата на её резолюции», «на голосовании» — and the party
+  // by its parliament name («Марс вперёд»).
+  'Requires ${0} to be ruling or ${1} of your delegates on its resolution': 'Требуется: «${0}» правит или ${1} ваших делегата на её резолюции',
+  '${0} is not ruling': '«${0}» не правит',
+  'your delegates on its resolution: ${0} of ${1}': 'ваших делегатов на её резолюции: ${0} из ${1}',
+  'its resolution is not up for a vote': 'её резолюции нет на голосовании',
   'Turmoil Redux requires Colonies': '«Кризис: Возвращение» требует дополнение «Колонии»',
   'Redux resolutions showcase': 'Витрина резолюций «Кризис: Возвращение»',
 };

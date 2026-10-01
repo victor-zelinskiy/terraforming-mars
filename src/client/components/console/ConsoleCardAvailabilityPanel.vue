@@ -23,7 +23,8 @@
         <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
         <span class="con-cardavail__title">{{ view.title }}</span>
       </span>
-      <span v-if="view !== undefined && view.primary !== undefined" class="con-cardavail__text">{{ view.primary.compact }}</span>
+      <span v-if="view !== undefined && view.primary !== undefined" class="con-cardavail__text">
+        <img v-if="view.primary.emblem !== undefined" class="con-reason-emblem" :src="view.primary.emblem" alt="" data-reason-emblem />{{ view.primary.compact }}</span>
       <span v-if="view !== undefined && view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
     </template>
     <!-- LINE: a name-less one-liner for embedding INSIDE an existing status /
@@ -38,7 +39,8 @@
         <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
         <span class="con-cardavail__title">{{ view.title }}</span>
       </span>
-      <span v-if="view.primary !== undefined" class="con-cardavail__text">{{ view.primary.compact }}</span>
+      <span v-if="view.primary !== undefined" class="con-cardavail__text">
+        <img v-if="view.primary.emblem !== undefined" class="con-reason-emblem" :src="view.primary.emblem" alt="" data-reason-emblem />{{ view.primary.compact }}</span>
       <span v-if="view.extraCount > 0" class="con-cardavail__more">{{ moreLabel }}</span>
     </template>
     <!-- PANEL: the fullscreen aside under «ПРАВИЛА» — the same glass and

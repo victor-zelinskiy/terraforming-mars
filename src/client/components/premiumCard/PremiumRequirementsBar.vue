@@ -7,10 +7,12 @@
         <span v-if="i > 0" class="pcard-req__sep" aria-hidden="true"></span>
         <span class="pcard-req" :class="{'pcard-req--binary': req.isBinary}">
           <!-- binary requirement (party / chairman / plants-removed): icon-only
-               with an optional «minus» overlay, or a text label for the party. -->
+               with an optional «minus» overlay — a Redux party by its EMBLEM,
+               a party with no emblem (classic Turmoil) by a text label. -->
           <template v-if="req.isBinary">
             <span v-if="req.negation" class="pcard-req__minus" aria-hidden="true">−</span>
-            <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
+            <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)"
+                  :data-req-party="req.party">
               <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
             </span>
             <span v-else class="pcard-req__label">{{ binaryLabel(req) }}</span>
@@ -95,11 +97,20 @@ export default defineComponent({
     isWideIcon(req: NormalizedRequirement): boolean {
       return req.type === RequirementType.VENUS || req.type === RequirementType.OXYGEN;
     },
+    /**
+     * A PARTY's EMBLEM (Turmoil Redux — the scan prints the party's badge in
+     * the MIN plate): a round seal with its own rim, so it takes no contact
+     * shade and sits a step larger than a formula icon — it is the whole
+     * statement, there is no number beside it.
+     */
+    isEmblem(req: NormalizedRequirement): boolean {
+      return req.type === RequirementType.PARTY && req.iconUrl !== undefined;
+    },
     socketClass(req: NormalizedRequirement): Record<string, boolean> {
-      return {'pcard-req__socket--wide': this.isWideIcon(req)};
+      return {'pcard-req__socket--wide': this.isWideIcon(req), 'pcard-req__socket--emblem': this.isEmblem(req)};
     },
     iconClass(req: NormalizedRequirement): Record<string, boolean> {
-      return {'pcard-req__icon--wide': this.isWideIcon(req)};
+      return {'pcard-req__icon--wide': this.isWideIcon(req), 'pcard-req__icon--emblem': this.isEmblem(req)};
     },
     binaryLabel(req: NormalizedRequirement): string {
       if (req.party !== undefined) {

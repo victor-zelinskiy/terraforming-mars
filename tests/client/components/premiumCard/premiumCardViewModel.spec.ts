@@ -14,6 +14,9 @@ import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {Size} from '@/common/cards/render/Size';
 import {effectParts} from '@/client/components/premiumCard/mechanicsModel';
 import {buildPremiumCardViewModel, normalizeRequirement, vpVariantOf} from '@/client/components/premiumCard/premiumCardViewModel';
+import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {REDUX_PARTIES} from '@/common/parliament/ParliamentTypes';
 import {isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
 import {tagClusterPlan} from '@/client/components/premiumCard/tagLayout';
 import {cardArtUrl, premiumCardArt, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
@@ -494,6 +497,22 @@ describe('normalizeRequirement', () => {
     expect(oneType.tag, 'no single tag names the rule').to.eq(undefined);
     expect(oneType.isBinary).to.eq(false);
     expect(oneType.label).to.eq(undefined);
+  });
+
+  it('a PARTY (Turmoil Redux, TR15+) draws the EMBLEM of the party — the badge the parliament plaques wear, never the name', () => {
+    const mars = normalizeRequirement({party: PartyName.MARS});
+    expect(mars.type).to.eq(RequirementType.PARTY);
+    expect(mars.isBinary, 'a binary statement: no number').to.eq(true);
+    expect(mars.iconUrl, 'the ONE emblem table the plaques read').to.eq(partyEmblemUrl(PartyName.MARS));
+    expect(mars.iconUrl).to.eq('assets/parties/redux/mars-first.png');
+    expect(mars.party).to.eq(PartyName.MARS);
+    for (const party of REDUX_PARTIES) {
+      expect(normalizeRequirement({party}).iconUrl, party).to.eq(partyEmblemUrl(party));
+    }
+    // A party with no emblem (the classic engine's Kelvinists) keeps its text label on the plate.
+    const kelvinists = normalizeRequirement({party: PartyName.KELVINISTS});
+    expect(kelvinists.iconUrl).to.eq(undefined);
+    expect(kelvinists.isBinary).to.eq(true);
   });
 });
 
