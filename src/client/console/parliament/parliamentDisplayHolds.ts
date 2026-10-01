@@ -123,6 +123,15 @@ export type ParliamentDisplayHolds = {
   rulerSettling: ReduxParty | undefined;
   /** The old CHAIRMAN QUEST (closed, with its outcome), until the new one unfolds. */
   questBefore: QuestBefore | undefined;
+  /**
+   * THE QUEST AS IT STOOD BEFORE A WALK (TR04 Minority Representation): a card that walks the Agenda marker
+   * pays a TR step on the way, and that TR may close the chairman quest — the server answers with the quest
+   * already «✓ Выполнено». Until the walk's rewards have LANDED the government keeps the quest as it stood:
+   * OPEN, still racing, at its old progress — the result never stands over a marker that has not moved. NOT
+   * part of the sitting's enactment (a walk is not a sitting: `enactmentHeld` does not read it, and it never
+   * reads the quest closed); seeded and released by `agendaWalk.ts` alone.
+   */
+  questWalkBefore: ParliamentQuestVm | undefined;
 };
 
 export function emptyParliamentHolds(): ParliamentDisplayHolds {
@@ -131,6 +140,7 @@ export function emptyParliamentHolds(): ParliamentDisplayHolds {
     pile: undefined, renewalReturns: new Map(), departed: new Set(), renewalSeeded: false,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
     agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerBeforeByCard: undefined, rulerSettling: undefined, questBefore: undefined,
+    questWalkBefore: undefined,
   };
 }
 

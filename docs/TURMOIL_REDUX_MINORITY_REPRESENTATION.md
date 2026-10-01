@@ -144,7 +144,12 @@ agendaWalkStep(walk): {kind: 'agendaWalk', walk}    // SHOW-шаг превью 
    блок, что apply): запись `reason: 'card'` зрителя с выросшим `seq` → хост = `agendaWalkHostFor()`: (а) спуск
    руки → `'hand'`; (б) Парламент известен → `'parliament'`; (в) никого → холдов НЕ сеять (состояние обновляется,
    РТ тикает чипом дельты, журнал и нотификация рассказывают). Посев = `agendaAwaits = {player, from, to}` + очередь
-   бонусов + `agendaWalkFlow.owed = {…record, host}`; reduced motion ничего не держит.
+   бонусов + **задание председателя, как оно стояло** (`questWalkBefore` — только если ответ его изменил: РТ шага
+   двинул прогресс или закрыл его; `questBeforeWalk` строит вид тем же `buildParliamentView`, какой шаг его закрыл —
+   не вычисляется) + `agendaWalkFlow.owed = {…record, host}`; reduced motion ничего не держит. Правительство рисует
+   задание ОТКРЫТЫМ со старым прогрессом (2/3), пока награды ходьбы не сели; `releaseAgendaWalkQuest()` — на
+   `read` (после награды последнего шага), остальные концовки — `releaseAgendaWalkHolds`. Это НЕ `questBefore`
+   заседания: тот рисует задание ЗАКРЫТЫМ и читается `enactmentHeld`.
 3. **ВХОД** (`ConsoleShell.enterAgendaWalkStep`, на фазе `closing` сцены посадки при `owed.host === 'hand'`): рука →
    `committed`, `pushWorkspaceFrame({kind: 'parliament', stage: AGENDA_WALK_STEP_STAGE ('Agenda track'), phase:
    'executing', serves: [], anchor: {type: 'always'}, nest, sourceCard})`; RELEASE как у TR03 — сцена посадки и

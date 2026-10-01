@@ -44,6 +44,7 @@ import {AgendaAdvanceStep} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {parliamentHolds} from './parliamentDisplayHolds';
+import {buildParliamentView, ParliamentQuestVm} from './consoleParliamentModel';
 import {AgendaBonusOwed, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
 
 /** WHO PLAYS the walk: the hand that hosts the Parliament as a step, or a Parliament standing on its own. */
@@ -186,10 +187,39 @@ export function seedAgendaWalkHolds(before: PlayerViewModel | undefined, after: 
   flushAgendaBonus('re-seed');
   parliamentHolds.agendaAwaits = {player: record.player, from: record.from, to: record.to};
   queueAgendaBonuses(agendaWalkBonuses(record, after.game.generation));
+  // …and the chairman quest a step's TR moved keeps its old face until the walk's rewards have landed.
+  parliamentHolds.questWalkBefore = questBeforeWalk(before, after);
   agendaWalkFlow.owed = {...record, seq: advance.seq, card: advance.card, generation: after.game.generation, host};
   agendaWalkFlow.live = false;
   agendaWalkFlow.beat = '';
   agendaWalkFlow.landed = [];
+}
+
+/**
+ * THE QUEST BEFORE THE WALK (pure): the chairman quest as it stood in
+ * `before`, when the answer CHANGED it (a step's TR advanced a progress or
+ * closed it) — the government shows it until the walk's rewards have landed.
+ * `undefined` when the walk left the quest as it was, or the quest itself is
+ * another one (a new generation's): nothing to hold. Built by the quest's own
+ * view builder from the server's numbers — which step moved it is never
+ * re-derived here.
+ */
+export function questBeforeWalk(before: PlayerViewModel | undefined, after: PlayerViewModel): ParliamentQuestVm | undefined {
+  const beforeModel = parliamentOf(before);
+  const was = beforeModel?.quest;
+  const now = parliamentOf(after)?.quest;
+  if (before === undefined || beforeModel === undefined || was === undefined || now === undefined ||
+      was.source !== now.source || was.generation !== now.generation) {
+    return undefined;
+  }
+  const seats = new Set([...Object.keys(was.progress), ...Object.keys(now.progress)]);
+  const changed = was.completedBy !== now.completedBy || [...seats].some((seat) => (was.progress[seat] ?? 0) !== (now.progress[seat] ?? 0));
+  return changed ? buildParliamentView(beforeModel, after.thisPlayer?.color, before.players).quest : undefined;
+}
+
+/** The walk's rewards have landed: the chairman quest reads the server's answer now (its tick plays on the change). */
+export function releaseAgendaWalkQuest(): void {
+  parliamentHolds.questWalkBefore = undefined;
 }
 
 /** Every hold this flow seeded, released at once (the flow ends, the section unmounts, the motion is cut). */
@@ -197,6 +227,7 @@ export function releaseAgendaWalkHolds(why: string): void {
   if (agendaWalkFlow.owed !== undefined) {
     parliamentHolds.agendaAwaits = undefined;
   }
+  releaseAgendaWalkQuest();
   flushAgendaBonus(why);
   Object.assign(agendaWalkFlow, freshFlow());
 }

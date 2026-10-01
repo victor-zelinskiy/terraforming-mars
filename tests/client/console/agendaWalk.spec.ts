@@ -7,7 +7,7 @@ import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/Parliamen
 import {markerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {
   agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, agendaWalkLiveIn, agendaWalkOwedTo, detectAgendaWalk, dropAgendaWalkPromise,
-  promiseAgendaWalk, releaseAgendaWalkHolds, resetAgendaWalkFlow, seedAgendaWalkHolds,
+  promiseAgendaWalk, questBeforeWalk, releaseAgendaWalkHolds, releaseAgendaWalkQuest, resetAgendaWalkFlow, seedAgendaWalkHolds,
 } from '@/client/console/parliament/agendaWalk';
 import {
   AGENDA_BEAT_GAP_MS, AGENDA_SEGMENT_MS, AGENDA_WALK_HOLD_BASE_MS, AGENDA_WALK_HOLD_STEP_MS, AgendaWalkBeatScheduler, AgendaWalkLeg, agendaWalkBudgetMs,
@@ -130,6 +130,31 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       expect(agendaWalkFlow.promised).is.undefined;
       expect(parliamentHolds.agendaAwaits).is.undefined;
       expect(parliamentRewardState.agendaBonuses).deep.eq([]);
+    });
+
+    it('the CHAIRMAN QUEST the walk\'s TR closed keeps its old face — open, at its old progress — until the walk\'s rewards have landed; a quest the walk left alone holds nothing', () => {
+      const quest = (progress: Record<string, number>, completedBy?: Color, generation = 3) => ({
+        definition: {goal: {kind: 'tr'}, count: 3}, source: 'starter', generation, progress, ...(completedBy === undefined ? {} : {completedBy}),
+      });
+      const before = view(model({lastAdvance: {seq: 4, player: RED, from: 0, to: 1, steps: [{to: 1}], reason: 'phase', generation: 2}, quest: quest({blue: 2})} as never));
+      const after = view(model({lastAdvance: WALK, quest: quest({blue: 3}, BLUE)} as never));
+      handDescended();
+      seedAgendaWalkHolds(before, after);
+      const held = parliamentHolds.questWalkBefore;
+      expect(held, 'the quest the walk closed is held').is.not.undefined;
+      expect(held?.completedBy, '…open — never «✓ Выполнено» over a marker that has not moved').is.undefined;
+      expect(held?.progress.find((row) => row.color === BLUE)?.value, '…at its old progress').eq(2);
+      releaseAgendaWalkQuest();
+      expect(parliamentHolds.questWalkBefore, 'the rewards landed: the server\'s answer reads').is.undefined;
+      // Every other ending lets it go too (the section unmounts, the motion is cut).
+      seedAgendaWalkHolds(before, view(model({lastAdvance: {...WALK, seq: 6}, quest: quest({blue: 3}, BLUE)} as never)));
+      expect(parliamentHolds.questWalkBefore).is.not.undefined;
+      releaseAgendaWalkHolds('unmount');
+      expect(parliamentHolds.questWalkBefore).is.undefined;
+      // Nothing to hold: the walk left the quest as it was, or the quest is another generation's.
+      expect(questBeforeWalk(view(model({quest: quest({blue: 1})} as never)), view(model({quest: quest({blue: 1})} as never)))).is.undefined;
+      expect(questBeforeWalk(view(model({quest: quest({blue: 2}, undefined, 2)} as never)), after)).is.undefined;
+      expect(questBeforeWalk(undefined, after), 'a first view has nothing to move from').is.undefined;
     });
 
     it('the bonuses of a walk, in the walk\'s order: a TR step holds a rating, a card step parks a reveal, an influence step owes nothing', () => {

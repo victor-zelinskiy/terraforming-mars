@@ -203,7 +203,7 @@ import {
 } from '@/client/console/parliament/sittingDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
-import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {agendaWalkFlow, releaseAgendaWalkHolds, releaseAgendaWalkQuest} from '@/client/console/parliament/agendaWalk';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
@@ -1506,6 +1506,9 @@ export default defineComponent({
               if (!agendaWalkFlow.live) {
                 return;
               }
+              // Every reward has landed: the chairman quest the walk's TR closed reads its answer NOW — inside the
+              // read beat, where the player sees the consequence of the walk on the very surface it played on.
+              releaseAgendaWalkQuest();
               agendaWalkFlow.beat = 'read';
               this.walkReadBeat?.kill();
               this.walkReadBeat = scheduleParliamentBeat(AGENDA_WALK_READ_MS, () => {

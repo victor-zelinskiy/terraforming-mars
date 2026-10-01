@@ -222,10 +222,17 @@ export default defineComponent({
     rulerShown(): ReduxParty {
       return this.holds.rulerBefore ?? this.view.rulingParty;
     },
-    /** THE QUEST AS SHOWN: the previous quest (closed) until the new one unfolds. */
+    /**
+     * THE QUEST AS SHOWN: the previous quest (closed) until the new one unfolds; during a card's walk of the
+     * Agenda track (TR04), the quest as it stood before the walk (OPEN, its old progress) until the walk's
+     * rewards have landed — the TR a step pays is what closes it.
+     */
     questShown(): ParliamentQuestVm | undefined {
       const before = this.holds.questBefore;
-      return before !== undefined ? before.quest : this.view.quest;
+      if (before !== undefined) {
+        return before.quest;
+      }
+      return this.holds.questWalkBefore ?? this.view.quest;
     },
     chairmanShown(): Color | undefined {
       // «ПРЕДСЕДАТЕЛЬСТВО»: the office has changed on the server and NOT on

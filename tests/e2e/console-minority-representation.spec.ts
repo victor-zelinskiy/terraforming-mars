@@ -100,6 +100,8 @@ type Probe = {
   chip: Array<[number, number, number]>;
   /** The marker's proxy in flight: [ms, x, y] per task sample. */
   proxy: Array<[number, number, number]>;
+  /** The chairman quest in the government, while visible: `open` or `done` («✓ Выполнено»). */
+  quest: Series;
   /** The first ms a mandatory plate stood. */
   plateAt: number | undefined;
   /** The cubes on step 3 at the last sample. */
@@ -112,7 +114,7 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
     const w = window as unknown as {__tr04: Probe};
     const p: Probe = {
       samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
-      degraded: [], stranded: false, cube: [], cubeDrawn: [], tr: [], inf: [], band: [], beat: [], chip: [], proxy: [], plateAt: undefined, cubesOn3: [],
+      degraded: [], stranded: false, cube: [], cubeDrawn: [], tr: [], inf: [], band: [], beat: [], chip: [], proxy: [], quest: [], plateAt: undefined, cubesOn3: [],
     };
     w.__tr04 = p;
     const t0 = Date.now();
@@ -122,7 +124,9 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
         series.push([Date.now() - t0, value]);
       }
     };
-    const visible = (el: HTMLElement | null): boolean => {
+    // `minOpacity`: the default reads «seen at full presence»; a tier the walk pose RECEDES (the government at .5 —
+    // still read, as the 4K frame shows) is «painted» from a far lower floor.
+    const visible = (el: HTMLElement | null, minOpacity = 0.5): boolean => {
       if (el === null) {
         return false;
       }
@@ -138,7 +142,7 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
         }
         opacity *= Number(cs.opacity);
       }
-      return opacity > 0.5;
+      return opacity > minOpacity;
     };
     const sample = (tick: boolean) => {
       p.samples++;
@@ -202,6 +206,12 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
       if (proxy !== null && visible(proxy)) {
         const r = proxy.getBoundingClientRect();
         p.proxy.push([Date.now() - t0, Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]);
+      }
+      // THE CHAIRMAN QUEST the walked TR closes: open while the marker walks, «✓ Выполнено» only once the walk has landed.
+      // (It stands in the government — the tier the walk pose recedes to .5: painted, read, not «full presence».)
+      const quest = document.querySelector<HTMLElement>('[data-parl-quest]');
+      if (quest !== null && visible(quest, 0.05)) {
+        note(p.quest, quest.classList.contains('con-parl__quest--done') ? 'done' : 'open');
       }
       note(p.tr, text(document.querySelector('.con-res .con-score__value--tr')));
       note(p.inf, text(document.querySelector('.con-parl [data-parl-influence]')));
@@ -323,7 +333,7 @@ for (const preset of PRESETS) {
       expect(after.game.parliament.quest?.completedBy, 'the walked TR closed the «gain 1 TR» quest').toBe(viewer);
 
       const probe = await readProbe(page);
-      const dump = JSON.stringify({steps: probe.steps, cube: probe.cube, cubeDrawn: probe.cubeDrawn, tr: probe.tr, inf: probe.inf, band: probe.band, beat: probe.beat, plateAt: probe.plateAt,
+      const dump = JSON.stringify({steps: probe.steps, cube: probe.cube, cubeDrawn: probe.cubeDrawn, tr: probe.tr, inf: probe.inf, band: probe.band, beat: probe.beat, quest: probe.quest, plateAt: probe.plateAt,
         chip: probe.chip.length, proxy: probe.proxy.length, cubesOn3: probe.cubesOn3});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/minority-representation-${preset.id}.json`, JSON.stringify(probe, null, 1));
@@ -371,6 +381,14 @@ for (const preset of PRESETS) {
       expect(probe.chip.length, `the rating chip was seen in flight (${dump})`).toBeGreaterThan(0);
       expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(2);
       expect(probe.cubesOn3.sort(), `two cubes stood on ③ at the end — blue's beside red's (${dump})`).toEqual([rival(after).color, viewer].sort());
+
+      // ── B4. the chairman quest the walked TR closed: OPEN while the marker walks, «✓ Выполнено» only after the TR
+      // has ticked and the marker has reached ③ — the answer's quest is held as it stood until the walk has landed.
+      expect(probe.quest[0]?.[1], `the quest read OPEN when the Parliament rose (${dump})`).toBe('open');
+      const questDone = at(probe.quest, 'done');
+      expect(questDone, `the quest closed on screen (${dump})`).toBeDefined();
+      expect(questDone!, `…only after the rating had ticked — the TR is what closes it (${dump})`).toBeGreaterThanOrEqual(rated!);
+      expect(questDone!, `…and after the marker had reached ③ (${dump})`).toBeGreaterThanOrEqual(on3!);
 
       // ── B5. the quest's gate rose only AFTER the marker had settled (never over the walking cube) ──
       const done = at(probe.beat, 'done');
