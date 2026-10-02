@@ -10,7 +10,7 @@
        into the reveal result's «Источник» slot on the phase handoff. -->
   <div ref="rootEl" class="con-composer con-composer--stage"
        :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn,
-                'con-composer--parlstep': parliamentSetupParked}"
+                'con-composer--parlrise': parliamentStepOn, 'con-composer--parlstep': parliamentSetupParked}"
        role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
@@ -813,7 +813,6 @@ import {playCommitVerb, playDoorNextStepKey, playDoorOf} from '@/client/console/
 import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
-import {probeTick} from '@/client/console/probeTick';
 import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
@@ -1078,9 +1077,6 @@ export type ComposerOutcome =
  * card (TR15: «3 data from here»), never the delegate leaving the reserve (that is the vote's, not the card's
  * price). Undefined when the branch costs nothing of its own.
  */
-/** The longest the setup waits for a hosted Parliament step to begin rising before it lets go regardless. */
-const PARLIAMENT_RISE_WAIT_MS = 1500;
-
 function stagedVoteReceiptOf(branch: ActionPreviewBranch): StagedReceipt | undefined {
   const cost = branch.effects.find((e) => e.direction === 'cost' && e.icon !== DELEGATE_ICON);
   return cost === undefined ? undefined : {amount: cost.amount, icon: cost.icon};
@@ -4339,90 +4335,38 @@ export default defineComponent({
       this.parliamentSetupFades = [];
     },
     /**
-     * RELEASE — the setup lets go ON THE SPOT while the Parliament rises out of the same rect (its own CSS entry,
-     * `.con-parl--embedded`): one surface advancing, never a swap. Once the fade has run the setup is PARKED
-     * (`visibility: hidden` — it keeps its box, its state and its captures).
+     * RELEASE — the setup lets go ON THE SPOT while the Parliament rises out of the same rect: one surface advancing,
+     * never a swap. Once let go, the setup is PARKED (`visibility: hidden` — it keeps its box, its state and its
+     * captures), so nothing of it can surface again under the step or under the workspace's leave.
      *
-     * ⚠️ THE RELEASE WAITS FOR THE RISE. The section mounts at the push, but its entry (`backwards`) holds it at
-     * opacity 0 until the first frame it can paint — measured ≈ 550 ms after the mount on a cold table (the
-     * three resolution faces, their fit, their art). A setup that let go at the push left the column EMPTY for
-     * that whole window. So the setup stands until the step's root BEGINS to rise, and the two cross.
-     *
-     * The rise is heard, not polled: the root's own `animationstart` fires in the very frame its entry leaves the
-     * pending phase, and the fade starts there. A `probeTick` poll alone lagged that frame by two or three ticks
-     * on a loaded 4K runner — measured: the root at 0.87 opacity with the setup still at 1, so for ~150 ms the
-     * whole Parliament stood over a fully lit setup (`console-martian-census` § the setup never shows under a
-     * standing Parliament). The poll stays as the net — an entry that never fires its event (no animation, a
-     * root that mounted already rising), bounded by `PARLIAMENT_RISE_WAIT_MS`.
+     * ⚠️ THE TWO MOTIONS ARE ONE STYLE CHANGE, NOT A SCRIPTED CHASE. The step rises by its CSS entry
+     * (`.con-parl--embedded`, a compositor animation that sits pending until the heavy mount yields its first
+     * frame — measured 200+ ms on a cold table). Every scripted follower lagged it: a fade started at the push
+     * left the column EMPTY for that window; one started on a `probeTick` poll or from the root's own
+     * `animationstart` still waited a main-thread frame or two to commit, and on a loaded 4K runner the whole
+     * Parliament stood over a fully lit setup for 50–250 ms (`console-martian-census` § the setup never shows
+     * under a standing Parliament). So the release is CSS too — `con-composer--parlrise` (the same
+     * `parliamentStepOn` that publishes the zone) — and both entries are committed in the SAME frame, pending
+     * together, starting together. The script only PARKS the setup on its own `animationend`.
      */
     releaseSetupForParliament(): void {
       this.cancelSetupFades();
       const token = ++this.parliamentReleaseToken;
-      if (consoleReducedMotionActive()) {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (consoleReducedMotionActive() || root === undefined) {
         this.parliamentSetupParked = true;
         return;
       }
-      const startedAt = performance.now();
-      let released = false;
-      let heard: HTMLElement | null = null;
-      const onRise = (event: AnimationEvent): void => {
-        if (event.target === heard) {
-          letGo();
-        }
-      };
-      const unlisten = (): void => {
-        heard?.removeEventListener('animationstart', onRise);
-        heard = null;
-      };
-      const letGo = (): void => {
-        unlisten();
-        if (released || token !== this.parliamentReleaseToken || !this.parliamentStepOn) {
+      const onEnd = (event: AnimationEvent): void => {
+        if (event.animationName !== 'con-composer-setup-release') {
           return;
         }
-        released = true;
-        const layers = this.setupLayers();
-        if (layers.length === 0 || typeof layers[0].animate !== 'function') {
+        root.removeEventListener('animationend', onEnd);
+        if (token === this.parliamentReleaseToken && this.parliamentStepOn) {
           this.parliamentSetupParked = true;
-          return;
         }
-        const fades = layers.map((el) => el.animate([{opacity: 1}, {opacity: 0}],
-          {duration: consoleMotionMs(STAGED_STEP_RELEASE_MS), easing: 'ease-out', fill: 'forwards'}));
-        // RAW, and the ownership question is the TOKEN: `data` hands back a Proxy, so «is this still my fade?»
-        // asked by identity is always «no» — the release never parked, the setup hung at the fade's `forwards`
-        // fill, and the first cancel (the leave) brought it back UNDER the Parliament.
-        this.parliamentSetupFades = markRaw(fades);
-        void Promise.all(fades.map((fade) => fade.finished.catch(() => undefined))).then(() => {
-          if (token !== this.parliamentReleaseToken) {
-            return; // a later edge (B, the end) took over
-          }
-          if (this.parliamentStepOn) {
-            this.parliamentSetupParked = true;
-          }
-          this.cancelSetupFades();
-        });
       };
-      const waitForRise = (): void => {
-        if (released || token !== this.parliamentReleaseToken || !this.parliamentStepOn) {
-          unlisten();
-          return;
-        }
-        const root = this.$refs.rootEl as HTMLElement | undefined;
-        const step = root?.querySelector<HTMLElement>('.con-composer__parlzone .con-parl') ?? null;
-        if (step !== null && step !== heard) {
-          unlisten();
-          heard = step;
-          step.addEventListener('animationstart', onRise);
-        }
-        const rising = step !== null && Number(getComputedStyle(step).opacity) > 0;
-        if (rising || performance.now() - startedAt > PARLIAMENT_RISE_WAIT_MS) {
-          letGo();
-          return;
-        }
-        probeTick(waitForRise);
-      };
-      // At once, not on the next tick: the root is in the DOM by now (a `post` watcher), and its entry may start in
-      // the very next frame — a listener attached a tick late would miss that frame's `animationstart`.
-      waitForRise();
+      root.addEventListener('animationend', onEnd);
     },
     /** RETURN — B out of the vote: the setup un-parks and surfaces where it stood, the cursor on the variant left. */
     restoreSetupFromParliament(): void {

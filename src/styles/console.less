@@ -32160,6 +32160,18 @@ html.console-mode {
     > * { flex: 1; min-height: 0; min-width: 0; }
 }
 .con-composer--parlstep .con-composer__actright > :not(.con-composer__parlzone) { visibility: hidden; }
+/* THE RELEASE IS THE STEP'S ENTRY SEEN FROM BELOW: a CSS animation on the same class flip that publishes the zone, so
+   it is committed in the SAME frame as the Parliament's `con-parl-step-in` and starts with it — a scripted fade lagged
+   that compositor entry by a main-thread frame or more and the whole Parliament stood over a lit setup. Shorter than
+   the rise (200 vs 240 ms): the setup is gone before the step stands whole. `forwards` holds it at 0 until the
+   composer parks it on this animation's `animationend` (visibility, above). */
+.con-composer--parlrise .con-composer__actright > :not(.con-composer__parlzone) {
+    animation: con-composer-setup-release calc(200ms * var(--motion-scale, 1)) ease-out forwards;
+}
+@keyframes con-composer-setup-release {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
 .con-composer__fxlayer {
     position: absolute; inset: 0;
     z-index: 3;
