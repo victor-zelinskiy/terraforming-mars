@@ -57,6 +57,12 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
   if (step.kind === 'colonyPick') {
     return 'inline';
   }
+  // A support-AREA pick by PLAYING the card (TR12): the same staged door — the
+  // composer's commit opens the Parliament's support-area mode in the hand's
+  // zone and the party rides the batch as its addressed `party` tail.
+  if (step.kind === 'supportDiscard') {
+    return 'inline';
+  }
   // A walk of the Agenda marker by PLAYING the card (TR04): a SHOW step — the
   // composer collects nothing, the play's one POST carries the walk's record,
   // and the console hosts the Parliament in the hand's own zone to play it.

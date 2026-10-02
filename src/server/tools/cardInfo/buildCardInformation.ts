@@ -284,6 +284,12 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     en = `Requires ${descriptor.party} to be ruling or that you have 2 delegates on its resolution.`;
     break;
   }
+  case RequirementType.CHAIRMAN: {
+    // Turmoil Redux (TR12 — the set's first): the scan's own sentence. The hand's reason
+    // (`unplayableReasons` → `CHAIRMAN_REQUIREMENT_REASON`) restates it with who holds the seat now.
+    en = 'Requires you to be Chairman.';
+    break;
+  }
   case RequirementType.TAGS_OF_ONE_TYPE: {
     // Turmoil Redux (TR01): the most tags of any ONE type — no single tag to
     // name, so no qualifier; the rule line says «any one type» as printed.

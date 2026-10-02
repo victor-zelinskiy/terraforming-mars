@@ -1084,6 +1084,7 @@ export enum CardName {
   POLITICAL_THINK_TANK = 'Political Think Tank',
   MARTIAN_CENSUS = 'Martian Census',
   CONSTRUCTION_MECHS = 'Construction Mechs',
+  PARTY_SANCTIONS = 'Party Sanctions',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

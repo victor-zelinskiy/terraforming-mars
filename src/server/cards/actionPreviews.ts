@@ -26,6 +26,7 @@ import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActi
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {MaximizeColonyTrack, skippedColonyTrack} from '../deferredActions/MaximizeColonyTrack';
+import {DiscardPopularSupport, skippedSupportDiscard} from '../parliament/DiscardPopularSupport';
 import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
@@ -381,6 +382,32 @@ export function colonyPickStep(card: ICard, step: MaximizeColonyTrack): ActionPr
     return warningNote(lost.reason, {skipped: lost.skipped});
   }
   return {kind: 'colonyPick', staged: {prompt, sourceCard: card.name}};
+}
+
+/**
+ * THIS PLAY STRIPS A CHOSEN POPULAR SUPPORT AREA — declared, not described.
+ *
+ * The sibling of {@link delegateGrantStep} for an AREA instead of a
+ * resolution (Turmoil Redux TR12 Party Sanctions): the card does not ask
+ * «which party» in the composer — it enters the Parliament's SUPPORT-AREA
+ * mode, hosted inside the workspace the card is played from, and the play is
+ * committed there (nothing is sent before that confirm). `step` is the very
+ * step the card's `bespokePlay` defers — asked here for the prompt it WOULD
+ * raise (`previewSelectParty`, with the `supportPrompt` projection of all six
+ * areas).
+ *
+ * With every area empty there is no door: the branch carries the NAMED skip
+ * instead — the same label and cause the live step records
+ * (`skippedSupportDiscard`), so the promise and the record cannot read apart.
+ * The card stays playable (its requirement is the chair, not a stock).
+ */
+export function supportDiscardStep(card: ICard, step: DiscardPopularSupport): ActionPreviewStep {
+  const prompt = step.previewSelectParty();
+  if (prompt === undefined) {
+    const lost = skippedSupportDiscard();
+    return warningNote(lost.reason, {skipped: lost.skipped});
+  }
+  return {kind: 'supportDiscard', staged: {prompt, sourceCard: card.name}};
 }
 
 /** The pseudo-icons of the Agenda walk's chips (the client draws a styled badge, as for `tr` / `cards`). */

@@ -14,6 +14,7 @@ import {MechSports} from './MechSports';
 import {PoliticalThinkTank} from './PoliticalThinkTank';
 import {MartianCensus} from './MartianCensus';
 import {ConstructionMechs} from './ConstructionMechs';
+import {PartySanctions} from './PartySanctions';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -79,5 +80,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // twin for Building / City tags: the second mech payment pool (`constructionMechs`), and the second card
     // with a PARTY REQUIREMENT (Mars First).
     [CardName.CONSTRUCTION_MECHS]: {Factory: ConstructionMechs},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
+    // first card with a CHAIRMAN requirement and the first that strips a Popular Support area.
+    [CardName.PARTY_SANCTIONS]: {Factory: PartySanctions},
   },
 });

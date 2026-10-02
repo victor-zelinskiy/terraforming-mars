@@ -437,6 +437,22 @@ export type ActionPreviewStep =
    */
   | {kind: 'colonyPick', staged: StagedColonyModel}
   /**
+   * THIS PLAY STRIPS A CHOSEN POPULAR SUPPORT AREA — and the area is picked
+   * in the Parliament, never in the composer (Turmoil Redux TR12 Party
+   * Sanctions: «discard all neutral delegates from ONE Popular Support Area
+   * of your choice»).
+   *
+   * The staged door's sibling of `delegateGrant`, structural for the same
+   * reason: the console reads it to turn the composer's commit into a
+   * NAVIGATION («Выбрать партию») into the Parliament's SUPPORT-AREA mode,
+   * hosted inside the workspace the card is played from — nothing is sent
+   * until the area is confirmed there, and that confirm posts the one batch
+   * with the party answer as its ADDRESSED tail
+   * (`SelectPartyResponse.stagedFor`). Absent when every area is empty — the
+   * branch then carries the named skip warning instead (no door is drawn).
+   */
+  | {kind: 'supportDiscard', staged: StagedSupportModel}
+  /**
    * THIS PLAY WALKS THE AGENDA MARKER (Turmoil Redux TR04 Minority
    * Representation) — a SHOW step, not a choice: the composer collects
    * nothing for it and the play's one POST carries the walk's record back.
@@ -580,6 +596,20 @@ export type StagedPlacementModel = {
  * more than one must first thread its count into that projection.
  */
 export type StagedVoteModel = {
+  prompt: SelectPartyModel;
+  sourceCard: CardName;
+};
+
+/**
+ * The staged twin of a card's POPULAR SUPPORT AREA pick — everything the
+ * console's Parliament needs to run the pick BEFORE the play is submitted.
+ * `prompt` is, field for field, the `SelectParty` the commit WILL raise
+ * (`DiscardPopularSupport.previewSelectParty()` — the same title, candidates,
+ * the `supportPrompt` projection of all six areas and `choiceContext`), so the
+ * staged door and the live one are one prompt read twice. `sourceCard` is the
+ * tail's ADDRESS.
+ */
+export type StagedSupportModel = {
   prompt: SelectPartyModel;
   sourceCard: CardName;
 };
