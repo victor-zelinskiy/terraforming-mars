@@ -116,3 +116,55 @@
   оплаты. С титаном на планшете дорожек ≥ 2 → LT-редактор вместо инлайн-пилюль — норма.
 - **Спутник ДОП. РЕСУРСЫ**: бейдж «5» с контекстом «Космос», только пока EVA Mechs в tableau.
 - Вкладки «Flagged» в `?effectsPlayground` / `?actionsPlayground` — TR09 там нет.
+
+## 6. Второй пул: Construction Mechs (TR17, 2026-10-02)
+
+TR17 «Строительные мехи» — близнец этой карты с другими метками оплаты: то же действие (1 энергия → мех на эту
+карту), а мехами с неё платят за карту с меткой **Строительства ИЛИ Города** (по 5 M€). Требование — партия «Марс
+вперёд» (класс TR15, кода у карты нет). Файл: `src/server/cards/turmoilRedux/ConstructionMechs.ts`, спек
+`tests/cards/turmoilRedux/ConstructionMechs.spec.ts`.
+
+**Почему отдельная единица `constructionMechs`, а не обобщённый `mechs`.** Каждая платёжная единица называет ровно
+одну карту (`CARD_FOR_SPENDABLE_RESOURCE` — `satisfies Record<SpendableCardResource, CardName>`). На этом стоят
+`pay()` (с какой карты снять и чьим именем записать «потрачено как оплата»), `getSpendable`, прогноз
+(`paymentValuesOf`), рельс (`railMcBadges`) и все клиентские таблицы — они читают таблицу как ФУНКЦИЮ. «Мехи на любой
+карте с эффектом оплаты» сделали бы её отношением: при двух источниках `pay({mechs: 3})` не знает, сколько снять с
+каждой карты, а метки оплаты у пулов разные (Космос ≠ Строительство/Город), так что «мех» перестал бы быть одной
+ценой одной возможности. Вторая единица прошла ворклист §3 строка в строку, и компилятор сам заставил громкие точки.
+
+**Точки единицы** (громкие — компилятор; молчащие — по таблице §3):
+
+| Точка | Значение |
+| --- | --- |
+| `Spendable.ts` | `'constructionMechs'` в `SPENDABLE_CARD_RESOURCES`; `CARD_FOR_SPENDABLE_RESOURCE.constructionMechs = CONSTRUCTION_MECHS` |
+| `Payment.ts` | `DEFAULT_PAYMENT_VALUES.constructionMechs = MECHS_VALUE` (одна константа на оба пула); `EMPTY`; `of` |
+| `Player.ts` | `paymentOptionsForCard`: `BUILDING ∨ CITY`; `maxSpendable`; `payingAmount.usable`; `pay()` → `removeResourcesOnCard(CONSTRUCTION_MECHS, …)` |
+| `PlayerInputModel.ts` ×2, `SelectCardToPlay` / `SelectPayment.toModel` | `constructionMechs: getSpendable(…)` |
+| `SelectPaymentDeferred` | `constructionMechs: false` (отложенный счёт — не розыгрыш карты) |
+| `effectForecast.paymentValuesOf` | итерирует сама — без правок (спек: значение 5 при Metal Research) |
+| `paymentModelUtils` | `GENERIC_PAYMENT_ORDER`: после `'mechs'`, `floodgateSteel` по-прежнему последняя; модель стандартного проекта |
+| `paymentPlan.ts` | `projectCardPaymentOptions` (`BUILDING ∨ CITY`), `PAY_UNIT_LABELS` = `'Mechs'`, `PAY_UNIT_ICONS` = `'mech'`, **`PAY_UNIT_SOURCE_LABELS`** + `paymentLaneLabel` |
+| `railValueModel.ts` | `CONTEXT_FOR_CARD_UNIT.constructionMechs = 'building-or-city'` (новый контекст) + aria-ключ в `ConsoleResourcePanel.MC_CONTEXT_KEYS` |
+| десктоп-остатки | `PaymentRowV2`, `PaymentFormV2`, `PaymentWidgetMixin` |
+| тесты | `ConsolePartyActionComposerBill.spec.ts` (рукописная модель) |
+
+**Две дорожки мехов на одной панели называют карты.** Карта с метками Космоса и Строительства (Космический лифт) при
+обеих картах-пулах в табло открывает обе единицы. Подпись дорожки по-прежнему — имя РЕСУРСА («Мехи»), но если на ОДНОЙ
+панели две дорожки читались бы одним словом, каждая называет свою карту: «Мехи · Мехи ВКД» / «Мехи · Строительные
+мехи» (`paymentLaneLabel(unit, lanes)` в `buildPaymentView`; таблица `PAY_UNIT_SOURCE_LABELS`). Одна дорожка — «Мехи».
+Тот же выбор подписи делает aria чипа мехов на рельсе: спутник ДОП. РЕСУРСЫ группирует по ТИПУ ресурса, поэтому мехи
+обоих пулов (и Мех-спорта) — ОДИН чип с ОДНОЙ монетой «5» (ставка одна) и двумя фактами; aria называет оба пула с их
+контекстами и «платёжную часть запаса» (мехи Мех-спорта — хранение, не деньги). Двух монет нет и не должно быть: монета
+— это ставка, а не пул.
+
+**Порядок сева на карте Строительства.** Сталь игрока сеется ПЕРВОЙ (тонкий шаг 2 M€), мех добирает остаток; пост-проход
+`computeDefaultPayment` срезает переплату в пользу M€. Закреплено `paymentPlan.spec` § constructionMechs: 9 M€ / 2 стали /
+мехи → 2 стали + 1 мех (точно); 8 M€ / 4 стали → мех не трогается; в игре (кадр 3a) 8 M€ / 2 стали / 5 мехов / 5 M€ →
+2 стали + 4 M€, мех остаётся (5 > остатка 4 — переплата). Решение §4 (мех — обычный жадный источник) не меняется: у
+мехов TR17 второго применения нет.
+
+**Гард полноты единиц** (`paymentPlan.spec` § every card-bound payment unit is complete): для КАЖДОЙ
+`SpendableCardResource` — подпись не равна ключу, спрайт `card-resource-<icon>` совпадает с классом ресурса СВОЕЙ карты
+(`cardResourceCSS[getCard(enabler).resourceType]`), у рельса есть контекст; единицы с одинаковой подписью различаются на
+одной панели (`paymentLaneLabel`). Третья карта-пул уже существующего ресурса не пропустит ни одной молчащей точки —
+гард упадёт с именем единицы.
