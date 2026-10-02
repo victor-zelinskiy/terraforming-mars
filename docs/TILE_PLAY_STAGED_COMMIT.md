@@ -562,6 +562,22 @@ TR15 «Марсианская перепись» (`docs/TURMOIL_REDUX_MARTIAN_CE
 и он сам отпускает и паркует свою настройку. Владение анимацией отпускания спрашивается ТОКЕНОМ: реактивное поле
 возвращает Proxy, и проверка по идентичности не парковала настройку никогда — на уходе она проступала под Парламентом.
 
+## 9-octies. ТА ЖЕ ЦЕЛЬ — ОБЛАСТЬ ПОДДЕРЖКИ (STAGED SUPPORT AREA, TR12, 2026-10-02)
+
+TR12 «Партийные санкции» (`docs/TURMOIL_REDUX_PARTY_SANCTIONS.md`) выбирает ПАРТИЮ-ОБЛАСТЬ, а не резолюцию — и пятой
+цели хранилище НЕ получило. Партийный пик — одна цель (`target.kind: 'resolution'`, тот же `StagedVoteModel {prompt:
+SelectPartyModel, sourceCard}`, тот же адресованный хвост `{type: 'party', partyName, stagedFor}`); РЕЖИМ Парламента
+решает маркер промпта (`votePrompt` → голосование, `supportPrompt` → выбор области), дверь композера — одна
+(`PlayDoor {kind: 'parliament', mode}`).
+
+| цель \ поток | `play` (рука) | `action` |
+| --- | --- | --- |
+| `resolution` · маркер `supportPrompt` | **TR12**: режим `support` в зоне руки, A «Разыграть карту», квитанция `{2, megacredits}`, два такта на одной позе (сброс → шаг Карьеры) | — (нет карты) |
+
+Обобщено: `stagedMismatch` (`supportPrompt` — второй карточный партийный вопрос), `settleStagedVote` (RE-ASKED — по
+обоим маркерам), стадия кадра `partyStepStageOf(prompt)` («ГОЛОСОВАНИЕ» / «САНКЦИИ»), живая дверь в маршрутизации
+`party`. Обещание исхода — `promiseSupportDiscard` в `commitStagedVote`; холды — в apply-блоке.
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.

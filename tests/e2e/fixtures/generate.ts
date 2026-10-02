@@ -136,6 +136,7 @@ import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns'
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
+import {REDUX_PARTIES} from '../../../src/common/parliament/ParliamentTypes';
 import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 import {Space} from '../../../src/server/boards/Space';
 import {ArtificialLake} from '../../../src/server/cards/base/ArtificialLake';
@@ -159,6 +160,7 @@ import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling'
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
+import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
@@ -1193,7 +1195,9 @@ function moveToDeckTop(game: IGame, name: CardName): void {
 //    reorders the top — memory e2e-fixture-generator-powergrid-break):
 //      · `political-think-tank` — Martian Census on top (TR15 — requires Mars First, the set's first card with a
 //        party requirement): a MATCH, from the Redux deck's own pool (the card is MOVED to the top, never copied);
-//      · `political-think-tank-miss` — the dealt top card, asserted to carry NO party requirement: a MISS.
+//      · `political-think-tank-miss` — Imported GHG on top (no party requirement): a MISS. Pinned by NAME, never
+//        «the dealt top card»: every card the set ships re-deals the seeded deck (TR12 put Martian Census on top and
+//        the miss read as a match), so the arrangement may not depend on the deal.
 //    A quiet government (the Industrialists by Central Power Grid), as every recent Redux card table. ──
 for (const variant of ['match', 'miss'] as const) {
   const name = variant === 'match' ? 'political-think-tank' : 'political-think-tank-miss';
@@ -1203,9 +1207,7 @@ for (const variant of ['match', 'miss'] as const) {
     arrange: ({game, p1, parliament}) => {
       seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
       p1.playedCards.push(new PoliticalThinkTank());
-      if (variant === 'match') {
-        moveToDeckTop(game, CardName.MARTIAN_CENSUS);
-      }
+      moveToDeckTop(game, variant === 'match' ? CardName.MARTIAN_CENSUS : CardName.IMPORTED_GHG);
     },
     expect: ({game, p1}) => {
       const card = p1.tableau.get(CardName.POLITICAL_THINK_TANK);
@@ -1243,6 +1245,42 @@ parliamentFixture('martian-census', {
         !parliament.lobby.has(p1.id) || parliament.reserve(p1) < 2 ||
         parties[0] !== PartyName.INDUSTRIALISTS || parties[1] !== PartyName.MARS || parties[2] !== PartyName.GREENS) {
       throw new Error(`the martian-census fixture expected the card in blue's tableau with 3 data (unused), the lobby cube, a reserve of 2+, slots [Industrialists, Mars First, Greens] — got card=${card?.resourceCount} used=${p1.actionsThisGeneration.has(CardName.MARTIAN_CENSUS)} lobby=${parliament.lobby.has(p1.id)} reserve=${parliament.reserve(p1)} parties=${parties.join(',')}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR12 · PARTY SANCTIONS — the SUPPORT-AREA mode, the staged party pick of an AREA
+//    (docs/TURMOIL_REDUX_PARTY_SANCTIONS.md): blue's action phase with the card in hand and 10 M€, blue IN THE
+//    CHAIR (the card's requirement), blue's Agenda marker on step 3 — the card's one step lands on step 4, a TR step.
+//    A QUIET government (the Industrialists by Central Power Grid) and three resolutions of the other parties.
+//    SYNTHETIC, for the frames «3 → 0» and «Область пуста»: Mars First's support area holds 3 neutral delegates,
+//    the Scientists' 1, every other area 0 — no sitting has been held yet, so no engine path put them there (the
+//    TR03 fixture's precedent); the ledger stays whole (the supply is 14 − 4). The card is the game's own copy. ──
+parliamentFixture('party-sanctions', {
+  stopAt: 'vote',
+  megacredits: [10, 30],
+  agenda: [3, 1],
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 1, AQUIFER_CONTEST_ID);
+    seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+    for (const party of REDUX_PARTIES) {
+      parliament.popularSupport.set(party, 0);
+    }
+    parliament.popularSupport.set(PartyName.MARS, 3);
+    parliament.popularSupport.set(PartyName.SCIENTISTS, 1);
+    parliament.chairman = p1.id;
+    moveToDeckTop(game, CardName.PARTY_SANCTIONS);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as PartySanctions);
+  },
+  expect: ({game, parliament, p1}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.PARTY_SANCTIONS);
+    if (card === undefined || !p1.canPlay(card) || !parliament.isChairman(p1) || parliament.agendaOf(p1) !== 3 ||
+        parliament.popularSupportOf(PartyName.MARS) !== 3 || parliament.popularSupportOf(PartyName.SCIENTISTS) !== 1 ||
+        parliament.totalPopularSupport() !== 4 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the party-sanctions fixture expected a playable card, blue in the chair on Agenda step 3, support Mars First 3 · Scientists 1 and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} chair=${parliament.chairman} agenda=${parliament.agendaOf(p1)} support=${parliament.popularSupportOf(PartyName.MARS)}/${parliament.popularSupportOf(PartyName.SCIENTISTS)}/${parliament.totalPopularSupport()} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

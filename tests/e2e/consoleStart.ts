@@ -2353,6 +2353,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // free delegate in the lobby, a full reserve; the voting area pinned [Industrialists · Mars First · Greens]
   // (docs/TURMOIL_REDUX_MARTIAN_CENSUS.md).
   'martian-census' |
+  // TR12 Party Sanctions: blue in the chair with the card in hand, the Agenda marker on step 3, support Mars First 3 ·
+  // Scientists 1 (synthetic), a quiet government (docs/TURMOIL_REDUX_PARTY_SANCTIONS.md).
+  'party-sanctions' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
