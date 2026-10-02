@@ -307,12 +307,14 @@ for (const profile of PROFILES) {
 
       await openThinkTank(page);
       const stage = page.locator('.con-cardactions__stagewrap .con-composer--stage');
-      // No card of the kind in this game: the composition says 0 and the warning says why — the action stays armed.
-      await expect(stage.locator('[data-reveal-pool]')).toHaveAttribute('data-reveal-pool', '0');
-      await expect(stage.locator('[data-reveal-pool]')).toHaveClass(/con-composer__next--pool-empty/);
-      await expect(stage.locator('.con-composer__warn')).toContainText('Сейчас условие невыполнимо');
+      // The Redux deck holds a card of the kind now (TR15 Martian Census, and every TR card with a party requirement
+      // after it): the composition counts it and nothing warns «impossible» — the top card is simply not one of them.
+      // (The zero pool and its warning are pinned by the composer's unit spec.)
+      await expect(stage.locator('[data-reveal-pool]')).toHaveAttribute('data-reveal-pool', /^[1-9]\d*$/);
+      await expect(stage.locator('[data-reveal-pool]')).not.toHaveClass(/con-composer__next--pool-empty/);
+      await expect(stage, 'a pool with cards in it is never «impossible»').not.toContainText('Сейчас условие невыполнимо');
       await expect(page.locator('.con-composer__cta--ready'), 'revealing and discarding is a legal move').toBeVisible();
-      await shoot(page, `${profile.tag}-04-setup-zero`);
+      await shoot(page, `${profile.tag}-04-setup-pool`);
 
       await armProbe(page, '__none__');
       await press(page, 'Enter', 800);

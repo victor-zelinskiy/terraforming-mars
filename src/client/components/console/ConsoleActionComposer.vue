@@ -4346,8 +4346,14 @@ export default defineComponent({
      * ⚠️ THE RELEASE WAITS FOR THE RISE. The section mounts at the push, but its entry (`backwards`) holds it at
      * opacity 0 until the first frame it can paint — measured ≈ 550 ms after the mount on a cold table (the
      * three resolution faces, their fit, their art). A setup that let go at the push left the column EMPTY for
-     * that whole window. So the setup stands until the step's root has visibly begun to rise (its computed
-     * opacity leaves 0), then the two cross — sampled on `probeTick`, bounded by `PARLIAMENT_RISE_WAIT_MS`.
+     * that whole window. So the setup stands until the step's root BEGINS to rise, and the two cross.
+     *
+     * The rise is heard, not polled: the root's own `animationstart` fires in the very frame its entry leaves the
+     * pending phase, and the fade starts there. A `probeTick` poll alone lagged that frame by two or three ticks
+     * on a loaded 4K runner — measured: the root at 0.87 opacity with the setup still at 1, so for ~150 ms the
+     * whole Parliament stood over a fully lit setup (`console-martian-census` § the setup never shows under a
+     * standing Parliament). The poll stays as the net — an entry that never fires its event (no animation, a
+     * root that mounted already rising), bounded by `PARLIAMENT_RISE_WAIT_MS`.
      */
     releaseSetupForParliament(): void {
       this.cancelSetupFades();
@@ -4357,7 +4363,23 @@ export default defineComponent({
         return;
       }
       const startedAt = performance.now();
+      let released = false;
+      let heard: HTMLElement | null = null;
+      const onRise = (event: AnimationEvent): void => {
+        if (event.target === heard) {
+          letGo();
+        }
+      };
+      const unlisten = (): void => {
+        heard?.removeEventListener('animationstart', onRise);
+        heard = null;
+      };
       const letGo = (): void => {
+        unlisten();
+        if (released || token !== this.parliamentReleaseToken || !this.parliamentStepOn) {
+          return;
+        }
+        released = true;
         const layers = this.setupLayers();
         if (layers.length === 0 || typeof layers[0].animate !== 'function') {
           this.parliamentSetupParked = true;
@@ -4380,11 +4402,17 @@ export default defineComponent({
         });
       };
       const waitForRise = (): void => {
-        if (token !== this.parliamentReleaseToken || !this.parliamentStepOn) {
+        if (released || token !== this.parliamentReleaseToken || !this.parliamentStepOn) {
+          unlisten();
           return;
         }
         const root = this.$refs.rootEl as HTMLElement | undefined;
         const step = root?.querySelector<HTMLElement>('.con-composer__parlzone .con-parl') ?? null;
+        if (step !== null && step !== heard) {
+          unlisten();
+          heard = step;
+          step.addEventListener('animationstart', onRise);
+        }
         const rising = step !== null && Number(getComputedStyle(step).opacity) > 0;
         if (rising || performance.now() - startedAt > PARLIAMENT_RISE_WAIT_MS) {
           letGo();
@@ -4392,7 +4420,9 @@ export default defineComponent({
         }
         probeTick(waitForRise);
       };
-      probeTick(waitForRise);
+      // At once, not on the next tick: the root is in the DOM by now (a `post` watcher), and its entry may start in
+      // the very next frame — a listener attached a tick late would miss that frame's `animationstart`.
+      waitForRise();
     },
     /** RETURN — B out of the vote: the setup un-parks and surfaces where it stood, the cursor on the variant left. */
     restoreSetupFromParliament(): void {
