@@ -10362,17 +10362,22 @@ html.console-mode {
 
         &--open { grid-template-rows: 1fr; }
     }
+    /* CLOSED IS ZERO TALL. A 0fr row still keeps its item's PADDING (it is
+       never content), so a top padding here left a .3rem sliver of the red
+       rim under the bar on EVERY legal cell of every placement. The vertical
+       padding belongs to the open well only. */
     &__reason {
         overflow: hidden;
         min-height: 0;
         margin: 0 .15rem;
-        padding: .3rem .45rem 0;
+        padding: 0 .45rem;
         border-left: .15rem solid fade(@con-red, 65%);
         .con-read-text();
         font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
         line-height: 1.35;
         color: #f0c9c5;
     }
+    &__reason-well--open > .con-context__reason { padding-top: .3rem; }
 
     /* ── 3 · THE DOSSIER BODY — sections by intent, ONE natural flow ──
        (Iteration 3: the bottom-pinned «standing» zone is gone — it held two

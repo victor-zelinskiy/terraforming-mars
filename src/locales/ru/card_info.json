@@ -474,6 +474,7 @@
     "Building card with VP ≥ 0 played: draw a card": "Карта Строительства с ПО ≥ 0: возьмите карту",
     "Data added to any card: +1 M€ each": "Данные на любую карту: +1 M€ за единицу",
     "Place a city tile ON A NON-RESERVED SPACE ADJACENT TO ONE OF YOUR CITIES, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ РЯДОМ С ОДНИМ ИЗ ВАШИХ ГОРОДОВ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ.",
+    "Place a city tile ON A NON-RESERVED SPACE, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ.",
     "You may raise the colony track before trading": "Перед торговлей можно поднять трек колонии",
     "Space cards cost 4 M€ less": "Карты космоса дешевле на 4 M€",
     "New tag type in play: +1 M€ production": "Новый тип метки: +1 производство M€",

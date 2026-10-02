@@ -17,6 +17,7 @@ import {ConstructionMechs} from './ConstructionMechs';
 import {PartySanctions} from './PartySanctions';
 import {AdministrationDistrict} from './AdministrationDistrict';
 import {MartianFiber} from './MartianFiber';
+import {SponsoredSettlement} from './SponsoredSettlement';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -91,5 +92,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. Meat
     // Industry's twin for data (+1 M€ per data added to any of your cards), the set's fourth data holder.
     [CardName.MARTIAN_FIBER]: {Factory: MartianFiber},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. TR16's younger
+    // sister: the same city ignoring other placement restrictions, without the adjacency; +2 M€ production.
+    [CardName.SPONSORED_SETTLEMENT]: {Factory: SponsoredSettlement},
   },
 });

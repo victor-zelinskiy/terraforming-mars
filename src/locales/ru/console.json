@@ -155,6 +155,7 @@
     "next to an ocean": "рядом с океаном",
     "next to at least 2 other cities": "рядом с двумя городами",
     "adjacent to one of your cities, ignoring other placement restrictions": "рядом с вашим городом · прочие ограничения не действуют",
+    "on a non-reserved space, ignoring other placement restrictions": "на незарезервированной клетке · прочие ограничения не действуют",
     "on a volcanic area": "на вулканической зоне",
     "on a steel or titanium bonus area": "на клетке с бонусом стали или титана",
     "No playable cards": "Нет карт для розыгрыша",
