@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {mechItemIcon, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {mechItemIcon, tagIconStyle, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {Tag} from '@/common/cards/Tag';
 import {
   ICardRenderItem,
   ICardRenderTile,
@@ -219,5 +220,23 @@ describe('premiumCardIcons.tileIcon', () => {
   it('an unmapped tile falls back to the generic special canvas', () => {
     const spec = tileIcon(tileNode(TileType.RED_CITY));
     expect(spec.base).to.match(/tiles\/special\.png$/);
+  });
+});
+
+describe('premiumCardIcons.tagIconStyle', () => {
+  it('zooms the planet spheres (Earth, Mars) so they fill their box like every other tag', () => {
+    for (const tag of [Tag.EARTH, Tag.MARS]) {
+      const style = tagIconStyle(tag);
+      expect(style.backgroundImage, tag).to.eq(`url(assets/tags/${tag}.png)`);
+      expect(style.backgroundSize, tag).to.eq('118%');
+    }
+  });
+
+  it('leaves a full-bleed or self-ringed tag at the surface size', () => {
+    for (const tag of [Tag.PLANT, Tag.MOON, Tag.BUILDING, Tag.SCIENCE, Tag.VENUS]) {
+      const style = tagIconStyle(tag);
+      expect(style.backgroundImage, tag).to.eq(`url(assets/tags/${tag}.png)`);
+      expect(style, tag).to.not.have.property('backgroundSize');
+    }
   });
 });

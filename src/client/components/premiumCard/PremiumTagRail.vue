@@ -12,7 +12,7 @@
     <span v-for="(tag, i) in tags"
           :key="i"
           class="pcard-tag"
-          :style="{backgroundImage: `url(${tagUrl(tag)})`, zIndex: tags.length - i}"></span>
+          :style="{...tagStyle(tag), zIndex: String(tags.length - i)}"></span>
   </div>
 </template>
 
@@ -20,7 +20,7 @@
 import {defineComponent} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import {TagClusterPlan} from './tagLayout';
-import {tagIconUrl} from './premiumCardIcons';
+import {tagIconStyle} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumTagRail',
@@ -35,8 +35,8 @@ export default defineComponent({
     },
   },
   methods: {
-    tagUrl(tag: Tag): string {
-      return tagIconUrl(tag);
+    tagStyle(tag: Tag): Record<string, string> {
+      return tagIconStyle(tag);
     },
   },
 });

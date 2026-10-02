@@ -36,6 +36,7 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {Trees} from '../../../src/server/cards/base/Trees';
 import {Fish} from '../../../src/server/cards/base/Fish';
 import {IGame} from '../../../src/server/IGame';
+import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
 import {toName} from '../../../src/common/utils/utils';
@@ -157,7 +158,7 @@ import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/Min
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
-import {WildlifeDome} from '../../../src/server/cards/turmoil/WildlifeDome';
+import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
@@ -1163,12 +1164,35 @@ parliamentFixture('colony-sponsors', {
     parliament.assertLedger(game);
   },
 });
+/**
+ * Move THE card of this name to the top of the project deck — out of wherever the deal left it (the draw pile,
+ * the discard, a hand, a dealt / draft pool): the game keeps ONE instance of every card, so a fixture that wants
+ * a set card on top takes the game's own copy instead of pushing a second.
+ */
+function moveToDeckTop(game: IGame, name: CardName): void {
+  const pools: Array<Array<IProjectCard>> = [game.projectDeck.drawPile, game.projectDeck.discardPile];
+  for (const player of game.players) {
+    pools.push(player.cardsInHand, player.dealtProjectCards, player.draftedCards, player.draftHand);
+  }
+  let card: IProjectCard | undefined;
+  for (const pool of pools) {
+    const i = pool.findIndex((c) => c.name === name);
+    if (i !== -1) {
+      card = pool.splice(i, 1)[0];
+    }
+  }
+  if (card === undefined) {
+    throw new Error(`moveToDeckTop: ${name} is nowhere in the game`);
+  }
+  game.projectDeck.drawPile.push(card);
+}
+
 // ── TR13 · POLITICAL THINK TANK — the third deck check and the first that KEEPS the revealed card: blue's action
 //    phase with the card in its tableau (its action unused) and 12 M€. The deck's TOP is pinned AFTER the deal (the
 //    deal draws from the top; `customProjectCards` would deal the card into a hand and `Deck.shuffle(cardsOnTop)`
 //    reorders the top — memory e2e-fixture-generator-powergrid-break):
-//      · `political-think-tank` — Wildlife Dome on top (requires the Greens): a MATCH. ⚠️ SYNTHETIC: no card of the
-//        Redux deck carries a party requirement yet (TR14–TR27 will) — replace it with the first TR card that does;
+//      · `political-think-tank` — Martian Census on top (TR15 — requires Mars First, the set's first card with a
+//        party requirement): a MATCH, from the Redux deck's own pool (the card is MOVED to the top, never copied);
 //      · `political-think-tank-miss` — the dealt top card, asserted to carry NO party requirement: a MISS.
 //    A quiet government (the Industrialists by Central Power Grid), as every recent Redux card table. ──
 for (const variant of ['match', 'miss'] as const) {
@@ -1180,19 +1204,49 @@ for (const variant of ['match', 'miss'] as const) {
       seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
       p1.playedCards.push(new PoliticalThinkTank());
       if (variant === 'match') {
-        game.projectDeck.drawPile.push(new WildlifeDome()); // SYNTHETIC — see above
+        moveToDeckTop(game, CardName.MARTIAN_CENSUS);
       }
     },
     expect: ({game, p1}) => {
       const card = p1.tableau.get(CardName.POLITICAL_THINK_TANK);
       const top = game.projectDeck.drawPile[game.projectDeck.drawPile.length - 1];
-      const matchOk = variant === 'match' ? top?.name === CardName.WILDLIFE_DOME : top !== undefined && !hasPartyRequirement(top);
+      const matchOk = variant === 'match' ? top?.name === CardName.MARTIAN_CENSUS : top !== undefined && !hasPartyRequirement(top);
       if (card === undefined || p1.actionsThisGeneration.has(CardName.POLITICAL_THINK_TANK) || p1.megaCredits !== 12 || !matchOk) {
         throw new Error(`the ${name} fixture expected the card in blue's tableau (unused), 12 M€ and the ${variant} top — got card=${card !== undefined} used=${p1.actionsThisGeneration.has(CardName.POLITICAL_THINK_TANK)} mc=${p1.megaCredits} top=${top?.name}`);
       }
     },
   });
 }
+
+// ── TR15 · MARTIAN CENSUS — the STAGED ACTION VOTE (the vote's fourth door: a blue card's ACTION places the
+//    delegate). Blue's action phase with «Марсианская перепись» in its tableau holding 3 data (branch B is live),
+//    its action unused, the free delegate in the lobby and a full reserve (the card's delegate leaves the RESERVE —
+//    the lobby's cube must still stand after the commit). The voting area is pinned as TR03's: the Industrialists'
+//    card first, Mars First's second, the Greens' third (the Greens rule by the starting rule). The card is the
+//    game's own copy, taken out of wherever the deal put it. ──
+parliamentFixture('martian-census', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    moveToDeckTop(game, CardName.MARTIAN_CENSUS);
+    const census = game.projectDeck.drawPile.pop() as MartianCensus;
+    census.resourceCount = 3;
+    p1.playedCards.push(census);
+  },
+  expect: ({game, parliament, p1}) => {
+    const card = p1.tableau.get(CardName.MARTIAN_CENSUS);
+    const parties = parliament.slots.map((s) => parliament.resolutionOf(s.instance).party);
+    if (card === undefined || card.resourceCount !== 3 || p1.actionsThisGeneration.has(CardName.MARTIAN_CENSUS) ||
+        !parliament.lobby.has(p1.id) || parliament.reserve(p1) < 2 ||
+        parties[0] !== PartyName.INDUSTRIALISTS || parties[1] !== PartyName.MARS || parties[2] !== PartyName.GREENS) {
+      throw new Error(`the martian-census fixture expected the card in blue's tableau with 3 data (unused), the lobby cube, a reserve of 2+, slots [Industrialists, Mars First, Greens] — got card=${card?.resourceCount} used=${p1.actionsThisGeneration.has(CardName.MARTIAN_CENSUS)} lobby=${parliament.lobby.has(p1.id)} reserve=${parliament.reserve(p1)} parties=${parties.join(',')}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
 
 // Generation 2 has just begun: the results scene moves the card from its voting
 // slot into the government and flies red's production gain from the card to the rail.

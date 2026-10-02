@@ -72,6 +72,35 @@ export function tagIconUrl(tag: Tag): string {
   return `${TAGS}/${tag}.png`;
 }
 
+/*
+ * The tag art whose disc does NOT fill its PNG. Every other tag fills its
+ * square edge to edge (plant / moon / crime …) or ends in its OWN silver ring
+ * (building / space / science …), which the face shows inside its gold ring on
+ * purpose. Earth and Mars are bare planet spheres with a transparent margin of
+ * ~8% on each side (alpha bbox 535 / 538 of 640), so at `cover` / `contain`
+ * they sat a size smaller than their neighbours, with a dark gap inside the
+ * medallion ring. Zoom = 640 / bbox, so the sphere lands at the box edge.
+ * Re-measure when a tag PNG is replaced.
+ */
+const TAG_ART_FILL: Partial<Record<Tag, number>> = {
+  [Tag.EARTH]: 1.18,
+  [Tag.MARS]: 1.18,
+};
+
+/**
+ * A tag icon as an inline style — the art plus, for a planet sphere, the zoom
+ * that seats it like every other tag. Every face surface that prints a tag
+ * draws it in a square, centred box, so a percentage size is exact there.
+ */
+export function tagIconStyle(tag: Tag): Record<string, string> {
+  const fill = TAG_ART_FILL[tag];
+  const style: Record<string, string> = {backgroundImage: `url(${tagIconUrl(tag)})`};
+  if (fill !== undefined) {
+    style.backgroundSize = `${Math.round(fill * 100)}%`;
+  }
+  return style;
+}
+
 /**
  * THE COUNTED OBJECT of a «for every X you have» rule, as a DRAWING
  * (`PremiumCountGlyph.vue`). It lives with the face's icon vocabulary because

@@ -19,7 +19,7 @@
   -->
   <span class="pvpcard" :data-vp-card-tag="tag" aria-hidden="true">
     <span class="pvpcard__cover"></span>
-    <span v-if="tagUrl !== undefined" class="pvpcard__tag" :style="{backgroundImage: `url(${tagUrl})`}"></span>
+    <span v-if="tagStyle !== undefined" class="pvpcard__tag" :style="tagStyle"></span>
     <span class="pvpcard__vp"><span class="pvpcard__vp-mark">{{ $t('VP') }}</span></span>
   </span>
 </template>
@@ -27,7 +27,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
-import {tagIconUrl} from './premiumCardIcons';
+import {tagIconStyle} from './premiumCardIcons';
 
 export default defineComponent({
   name: 'PremiumVpCardGlyph',
@@ -36,8 +36,8 @@ export default defineComponent({
     tag: {type: String as PropType<Tag | undefined>, default: undefined},
   },
   computed: {
-    tagUrl(): string | undefined {
-      return this.tag === undefined ? undefined : tagIconUrl(this.tag);
+    tagStyle(): Record<string, string> | undefined {
+      return this.tag === undefined ? undefined : tagIconStyle(this.tag);
     },
   },
 });

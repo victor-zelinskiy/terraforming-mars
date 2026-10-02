@@ -12,8 +12,8 @@ import {
  * miss). ONE spec for the one new mechanic: «вердикт отдаёт карту».
  *
  * STATE IS DECLARED: `political-think-tank` (blue: the card in the tableau, its
- * action unused, 12 M€; the deck's top pinned after the deal to Wildlife Dome —
- * a party requirement — ⚠️ SYNTHETIC: no Redux card carries one yet) and
+ * action unused, 12 M€; the deck's top pinned after the deal to Martian Census —
+ * TR15, Mars First: the Redux deck's own copy, moved to the top) and
  * `political-think-tank-miss` (the dealt top card, no party requirement).
  *
  * The claims are about ORDER, read by ONE probe (`MutationObserver` +
@@ -35,7 +35,7 @@ import {
 
 const OUT = path.resolve('screenshots', 'political-think-tank');
 const CARD = 'Political Think Tank';
-const KEPT = 'Wildlife Dome';
+const KEPT = 'Martian Census';
 
 type Wire = Record<string, any>;
 
@@ -221,7 +221,7 @@ for (const profile of PROFILES) {
       expect(posts.length - postsBefore, 'A sends exactly ONE POST').toBe(1);
       await expect(verdict).toContainText('Условие выполнено');
       await expect(verdict.locator('[data-verdict-row="check"] .pprq')).toHaveCount(1);
-      await expect(verdict.locator('.con-verdict__found--yes'), 'the verdict NAMES the party it found').toContainText('Зелёные');
+      await expect(verdict.locator('.con-verdict__found--yes'), 'the verdict NAMES the party it found').toContainText('Марс вперёд');
       await expect(verdict.locator('[data-verdict-row="reward"] .action-effect-chip'), 'card + M€').toHaveCount(2);
       await expect(verdict.locator('[data-reveal-reward-stock="megacredits"]')).toHaveCount(1);
       await expect(verdict.locator('.con-verdict__fate--hand')).toContainText('в руку');

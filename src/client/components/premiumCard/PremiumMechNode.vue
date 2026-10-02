@@ -38,7 +38,7 @@
       <span v-for="i in repeats" :key="i" class="pcard-ic" :class="iconModClass" :style="iconStyle">
         <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside">{{ insideText }}</span>
       </span>
-      <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :style="{backgroundImage: `url(${bubbleUrl})`}"></span>
+      <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :style="bubbleStyle"></span>
       <!-- «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the
            requirements plate in miniature, drawn, not an image -->
       <span v-else-if="isReqBubble" class="pcard-mi__bubble pcard-mi__bubble--req"></span>
@@ -135,7 +135,7 @@ import {
   isICardRenderTile,
 } from '@/common/cards/render/Types';
 import {effectKindOf, effectParts, EffectParts, itemRepeats, partLines, renderableNodes} from './mechanicsModel';
-import {mechItemIcon, MechIconSpec, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
+import {mechItemIcon, MechIconSpec, tagIconStyle, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -222,6 +222,10 @@ export default defineComponent({
       return icon?.kind === 'img' && icon.mod !== undefined ? `pcard-ic--${icon.mod}` : undefined;
     },
     iconStyle(): Record<string, string> {
+      const item = this.itemNode;
+      if (this.iconUrl !== undefined && item?.type === CardRenderItemType.TAG && item.tag !== undefined) {
+        return tagIconStyle(item.tag);
+      }
       return this.iconUrl !== undefined ? {backgroundImage: `url(${this.iconUrl})`} : {};
     },
     /** Localized text plate (prelude / award / milestone / global requirements). */
@@ -329,6 +333,14 @@ export default defineComponent({
         return undefined;
       }
       return String(Math.abs(item.amount));
+    },
+    /** The secondary-tag bubble — a tag through the ONE tag style, so a planet sphere seats like the rest. */
+    bubbleStyle(): Record<string, string> {
+      const secondary = this.itemNode?.secondaryTag;
+      if (secondary !== undefined && (Object.values(Tag) as Array<string>).includes(secondary)) {
+        return tagIconStyle(secondary as Tag);
+      }
+      return this.bubbleUrl !== undefined ? {backgroundImage: `url(${this.bubbleUrl})`} : {};
     },
     bubbleUrl(): string | undefined {
       const secondary = this.itemNode?.secondaryTag;

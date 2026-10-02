@@ -2346,9 +2346,13 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // its top, Titan inactive, Europa and Io candidates; a quiet government (docs/TURMOIL_REDUX_COLONY_SPONSORS.md).
   'colony-sponsors' |
   // TR13 Political Think Tank: blue's action phase with the card in its tableau (action unused), 12 M€; the deck's TOP is
-  // pinned after the deal — Wildlife Dome (a party requirement: a MATCH — SYNTHETIC, no Redux card carries one yet) or,
-  // in the -miss table, the dealt top card (no party requirement: a MISS) (docs/claude/turmoil-redux-cards-progress.md).
+  // pinned after the deal — Martian Census (TR15 — Mars First, a MATCH, the game's own copy moved to the top) or, in the
+  // -miss table, the dealt top card (no party requirement: a MISS) (docs/claude/turmoil-redux-cards-progress.md).
   'political-think-tank' | 'political-think-tank-miss' |
+  // TR15 Martian Census: blue's action phase with the card in its tableau holding 3 data (branch B live, unused), the
+  // free delegate in the lobby, a full reserve; the voting area pinned [Industrialists · Mars First · Greens]
+  // (docs/TURMOIL_REDUX_MARTIAN_CENSUS.md).
+  'martian-census' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |

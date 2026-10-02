@@ -63,7 +63,7 @@
   <span v-else-if="glyph.kind === 'tags'" class="pcglyph pcglyph--tags" :data-count-tags="glyph.tags.join(' ')" aria-hidden="true">
     <template v-for="(tag, i) in glyph.tags" :key="tag">
       <span v-if="i > 0" class="pcglyph__plus">+</span>
-      <span class="pcglyph__tag" :data-count-tag="tag" :style="{backgroundImage: `url(${tagUrlOf(tag)})`}"></span>
+      <span class="pcglyph__tag" :data-count-tag="tag" :style="tagStyleOf(tag)"></span>
     </template>
   </span>
   <span v-else-if="glyph.kind === 'type-card'" class="pcglyph pcglyph--type-card" :data-count-card-type="glyph.cardType" aria-hidden="true">
@@ -76,7 +76,7 @@
     <span v-if="sparkOf(glyph.tile)" class="pcard-sym pcard-sym--asterix pcglyph__spark">*</span>
   </span>
   <span v-else class="pcglyph" :data-count-tag="glyph.tag" aria-hidden="true">
-    <span class="pcglyph__tag" :style="{backgroundImage: `url(${tagUrlOf(glyph.tag)})`}"></span>
+    <span class="pcglyph__tag" :style="tagStyleOf(glyph.tag)"></span>
   </span>
 </template>
 
@@ -89,7 +89,7 @@ import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resol
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
 import {
   cardTypeBandMod, CountedObjectGlyph, countedCardCoverUrl, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, countedTileSpark,
-  standardResourceIconUrl, tagIconUrl,
+  standardResourceIconUrl, tagIconStyle,
 } from './premiumCardIcons';
 
 export default defineComponent({
@@ -109,8 +109,8 @@ export default defineComponent({
     },
   },
   methods: {
-    tagUrlOf(tag: Tag): string {
-      return tagIconUrl(tag);
+    tagStyleOf(tag: Tag): Record<string, string> {
+      return tagIconStyle(tag);
     },
     tileUrlOf(tile: BoardCountedTile): string {
       return countedTileIconUrl(tile);

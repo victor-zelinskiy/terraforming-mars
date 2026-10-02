@@ -539,6 +539,29 @@ stagedColonyOf(arm?) / stagedHostedTarget(arm?)
 ⚠ Ловушка этой цели: секция колоний сама сворачивает стейдж на снятие претензии розыгрыша (`completeFlow`) — через тик
 после ответа, т. е. ДО хода. Staged-дверь и должный/идущий ход теперь это исключают.
 
+## 9-septies. ЦЕЛИ × ПОТОКИ — staged-дверь ДЕЙСТВИЯ в резолюцию (STAGED ACTION VOTE, TR15, 2026-10-02)
+
+Хранилище — ОДНО, и у него две независимые оси: ЧТО выбирается (`target.kind`) и ОТКУДА пришёл розыгрыш (`flow`).
+TR15 «Марсианская перепись» (`docs/TURMOIL_REDUX_MARTIAN_CENSUS.md`) — первая встреча `flow: 'action'` с хостируемой
+целью: ветка B действия («3 data → делегат на резолюцию») — дверь в Парламент, стоящий ВНУТРИ «Действий карт».
+
+| цель \ поток | `play` (рука) | `action` (действие синей карты) |
+| --- | --- | --- |
+| `cell` | §9-bis: поле, ритуал посадки, played-hero | §9-ter: поле, `actionRestore`, без ритуала |
+| `resolution` | §9-quinquies (TR03): Парламент в зоне руки `hand-play`, A «Разыграть карту», квитанция `{cost, megacredits}` | **TR15**: Парламент в зоне композера `action-parliament`, A «Подтвердить», квитанция `{3, data}`, ACTION COMMIT на герое, капсула тикает на отрыве куба |
+| `colony` | §9-sexies (TR07): колонии в зоне руки | — (нет карты; дверь торговли действием — отдельный путь `colonyTrade`, `docs/COLONY_TRADE_FLOW.md`) |
+
+Обобщено, не скопировано: `stagedStepHost(arm)` (поток решает хост: `play` → `hand`, `action` → `card-actions`, клетка —
+не хост) · `enterStagedHostedStep` (ветка `action` — только плечо + кадр; RELEASE делает композер-хост) ·
+`commitStagedTail` (ветка `action`: `card-actions → executing`, без претензии исхода) · свидетель коммита по потоку
+(`actionsThisGeneration` вместо таблицы) · `settleStagedVote` (RE-ASKED — хост из `stagedStepHost`) · `endStagedVote`
+(маршрут по потоку → `endCardActionsWithHostedStep`) · `cancelStagedPlay` (ветка `action × resolution`) ·
+`StagedReceipt {amount, icon}` (квитанция — чип стоимости для обеих дверей) · `stagedDoorVerb(flow)` (глагол A).
+
+⚠ Ловушка этой встречи: хост действия — КОМПОНЕНТ, который остаётся смонтированным под шагом (B возвращает ту же ветку),
+и он сам отпускает и паркует свою настройку. Владение анимацией отпускания спрашивается ТОКЕНОМ: реактивное поле
+возвращает Proxy, и проверка по идентичности не парковала настройку никогда — на уходе она проступала под Парламентом.
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.

@@ -39,6 +39,7 @@ import {RequirementType} from '@/common/cards/RequirementType';
 import {translateText} from '@/client/directives/i18n';
 import {NormalizedRequirement} from './premiumCardViewModel';
 import PremiumRequirementOperator from './PremiumRequirementOperator.vue';
+import {tagIconStyle} from './premiumCardIcons';
 
 /**
  * The requirements PLATE — ONE clean, flat copper banner that is part of the
@@ -91,6 +92,9 @@ export default defineComponent({
   },
   methods: {
     iconStyle(req: NormalizedRequirement): Record<string, string> {
+      if (req.type === RequirementType.TAG && req.tag !== undefined) {
+        return tagIconStyle(req.tag);
+      }
       return req.iconUrl !== undefined ? {backgroundImage: `url(${req.iconUrl})`} : {};
     },
     /** Oxygen / Venus icons are horizontal chips — a wider socket + icon. */
