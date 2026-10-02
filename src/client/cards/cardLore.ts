@@ -48,16 +48,6 @@ export const LORE_HEADING_KEY = 'FROM THE ARCHIVES';
 export const LORE_FALLBACK_KEY = 'No archive entry is available.';
 
 /**
- * Cards whose PRINTED face carries no flavour quote at all (the rules text
- * fills the whole lower box) — so the honest archive block for them IS the
- * fallback notice, and an entry would have to be invented. The lore coverage
- * guards exempt exactly this set, and fail the moment one of its cards gains
- * an entry. Each one was read on its scan and on its printable sheet:
- *  - Administration District (TR16, sheet 10-18).
- */
-export const CARDS_WITHOUT_PRINTED_LORE: ReadonlySet<CardName> = new Set([CardName.ADMINISTRATION_DISTRICT]);
-
-/**
  * Typographic tiers. A one-liner («Сорок два.») and a corporation's paragraph
  * need different optical compensation — the block never scrolls or truncates,
  * so the TEXT adapts instead. Measured on the LOCALIZED string (a translation

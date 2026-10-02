@@ -8,7 +8,6 @@ import {RequirementType} from '@/common/cards/RequirementType';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
-import {CARDS_WITHOUT_PRINTED_LORE} from '@/client/cards/cardLore';
 import {GameModule} from '@/common/cards/GameModule';
 import {isICardRenderEffect, isICardRenderSymbol, isICardRenderItem, isICardRenderCorpBoxAction, isICardRenderCorpBoxEffect, isICardRenderCorpBoxEffectAction} from '@/common/cards/render/Types';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
@@ -719,9 +718,7 @@ describe('card lore coverage — project + prelude + corporation', () => {
     const cards = getCards((c) =>
       SCOPE.has(c.module) &&
       LORE_CARD_TYPES.has(c.type) &&
-      !NEVER_DEALT.has(c.name) &&
-      // A card that prints no quote has nothing to cover (cardLore.ts; its own guard is in cardLore.spec).
-      !CARDS_WITHOUT_PRINTED_LORE.has(c.name),
+      !NEVER_DEALT.has(c.name),
     );
     expect(cards.length).to.be.greaterThan(490);
     const cardsByNumber = new Map<string, Array<string>>();

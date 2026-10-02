@@ -9,7 +9,6 @@ import {translateText} from '@/client/directives/i18n';
 import {
   buildCardLoreModel,
   cardLoreSource,
-  CARDS_WITHOUT_PRINTED_LORE,
   loreLengthTier,
   loreScriptForLocale,
   resetLoreWarnings,
@@ -261,15 +260,8 @@ describe('cardLore', () => {
       return getCards((c) =>
         SCOPE.has(c.module) &&
         LORE_CARD_TYPES.has(c.type) &&
-        !NEVER_DEALT.has(c.name) &&
-        !CARDS_WITHOUT_PRINTED_LORE.has(c.name));
+        !NEVER_DEALT.has(c.name));
     }
-
-    it('a card that prints no quote has no archive entry to fall short of (never an invented one)', () => {
-      for (const name of CARDS_WITHOUT_PRINTED_LORE) {
-        expect(cardLoreSource(name), `${name} prints no quote — a lore entry for it would be invented`).is.undefined;
-      }
-    });
 
     it('no in-scope card falls back', () => {
       const cards = inScope();

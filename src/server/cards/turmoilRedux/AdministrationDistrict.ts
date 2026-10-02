@@ -51,7 +51,10 @@ export function isBuildingCardWithNonNegativeVpIcon(card: ICard): boolean {
  * the face draws it with the premium «Building card with a VP icon» glyph
  * (`vpCard`, Architecture Award's — one drawing for one concept). The PLAY
  * row: «[city tile]*». The purple Turmoil symbol at the bottom left is the
- * module itself (no `compatibility`). No lore printed.
+ * module itself (no `compatibility`). The scan prints NO flavour quote: the
+ * archive entry («TR16» in `lore_texts.json`) is written for the fork, to the
+ * art and the mechanics — the registry of such entries is
+ * `docs/claude/turmoil-redux-invented-lore.md`.
  *
  * RULE READINGS (pinned by tests/cards/turmoilRedux/AdministrationDistrict.spec.ts):
  *  1. The requirement is `{party: MARS}` — the TR15 class (emblem, named

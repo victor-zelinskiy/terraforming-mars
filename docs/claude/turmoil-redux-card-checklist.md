@@ -44,8 +44,9 @@
   + thumb). Нестандартный размер — только с `--force`.
 - **Лор**: EN в `assets/text/lore_texts.json` под ключом `TR##`; RU в `src/locales/ru/lore_texts.json`
   под ключом = английский текст. Паритет — `tests/client/components/card/cardLore.spec.ts` (скоуп
-  `turmoilRedux`; красный = имя карты). Цитаты на скане НЕТ (TR16, TR14) → строка в
-  `CARDS_WITHOUT_PRINTED_LORE` (`src/client/cards/cardLore.ts` — один список для обоих гардов лора), лор не выдумывать.
+  `turmoilRedux`; красный = имя карты). Цитаты на скане НЕТ → лор ПРИДУМАН под арт и механику и лежит в реестре
+  `docs/claude/turmoil-redux-invented-lore.md` (TR14, TR25, TR39, TR44, TR47, TR49, TR52, замена Political Alliance):
+  взять оттуда, отметить статус, в шапке карты сказать, что запись придумана. Исключений из гардов лора нет.
 - **RU-имя и тексты графики** — `src/locales/ru/turmoil_redux_cards.json`: имя карты, ключи с префиксом
   `Action: …` / `Effect: …` (клиент срезает префикс). Голос — как у соседей в `cards.json`
   («потратьте 1 энергию, чтобы…»).
