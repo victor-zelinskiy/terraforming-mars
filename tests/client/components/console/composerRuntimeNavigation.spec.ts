@@ -75,7 +75,7 @@ function factory(repeatPickDisabled: boolean) {
 describe('runtime-navigation steps — a plan defers the door', () => {
   it('the kind set is declared once and read structurally', () => {
     expect([...RUNTIME_NAVIGATION_STEP_KINDS].sort())
-      .to.deep.equal(['boardPlacement', 'colonyTrade', 'deltaAdvance']);
+      .to.deep.equal(['boardPlacement', 'colonyTrade', 'delegateGrant', 'deltaAdvance']);
     expect(isRuntimeNavigationStep({kind: 'colonyTrade', card: 'X'} as any)).to.equal(true);
     expect(isRuntimeNavigationStep({kind: 'input', input: {type: 'amount'}} as any)).to.equal(false);
     expect(runtimeNavigationSteps(PAD_PREVIEW.branches[1]).length).to.equal(1);

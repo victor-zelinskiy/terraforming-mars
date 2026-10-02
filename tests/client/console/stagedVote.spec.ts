@@ -47,7 +47,7 @@ const MENU = {
 } as unknown as PlayerInputModel;
 
 function arm(target: StagedPlayArm['target']): StagedPlayArm {
-  return {flow: 'play', cardName: CardName.POLITICAL_DONATION, isEvent: false, batch: [{type: 'projectCard'}], target, draws: 0, deckCheck: false, yieldedStack: false, receipt: 4};
+  return {flow: 'play', cardName: CardName.POLITICAL_DONATION, isEvent: false, batch: [{type: 'projectCard'}], target, draws: 0, deckCheck: false, yieldedStack: false, receipt: {amount: 4, icon: 'megacredits'}};
 }
 
 describe('stagedPlay — the third target: a RESOLUTION', () => {

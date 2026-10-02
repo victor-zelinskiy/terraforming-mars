@@ -139,6 +139,7 @@
                                :awaitingInput="awaitingInput" :bridge="bridge" :voteTile="voteTile" :winningSlot="winningSlot"
                                :benchSource="benchSource" :benchWarn="benchWarn" :canActNow="canActNow" :canVoteNow="canVoteNow"
                                :cardReceipt="stagedVote !== undefined ? stagedReceipt : undefined"
+                               :stagedFlow="stagedFlow"
                                @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)"
                                @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)" />
     </div>
@@ -151,6 +152,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {StagedReceipt} from '@/client/console/stagedPlay';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -267,8 +269,10 @@ export default defineComponent({
      * path; nothing has been sent, and the confirm is the play's one submit (the shell's funnel).
      */
     stagedVote: {type: Object as PropType<StagedVoteModel | undefined>, default: undefined},
-    /** …and the card's price as the play composer settled it — the mode's locked receipt. */
-    stagedReceipt: {type: Number as PropType<number | undefined>, default: undefined},
+    /** …and what the commit charges for the card, as the composer settled it — the mode's locked receipt. */
+    stagedReceipt: {type: Object as PropType<StagedReceipt | undefined>, default: undefined},
+    /** …and the FLOW the staged door commits: a card's play (TR03) or a blue card's action (TR15 — A «Подтвердить»). */
+    stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
   },
   emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
   data() {
@@ -691,6 +695,7 @@ export default defineComponent({
           count: this.bridge.grant.count,
           // Staged only BEFORE the press: past it the door is committed like any other.
           staged: this.bridge.grant.staged === true && parliamentFlow.voteSnapshot === undefined,
+          stagedFlow: this.stagedFlow,
           source: this.bridge.grant.card !== undefined,
         },
       });

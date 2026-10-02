@@ -150,7 +150,7 @@ function cardDoorPanel(resolution: IClientResolution, row: VoteSupportProjection
     slot, resolution, model, subject: BLUE, rival: opts.rival, tableau: [], name: resolution.text.name, winning: false,
     // A GRANT's delegate leaves the reserve, free — whatever the viewer's own vote would cost.
     source: 'reserve', cost: 0, facts, numbers: {votesBefore: slot.totalVotes, votesAfter: slot.totalVotes + 1, mineBefore: mine, mineAfter: mine + 1},
-    grant: {count: 1, card: true, receipt: opts.receipt ? 4 : undefined},
+    grant: {count: 1, card: true, receipt: opts.receipt ? {amount: 4, icon: 'megacredits'} : undefined},
     support: {row: {...row, party: resolution.party}, landed: 0},
   });
 }
@@ -161,7 +161,7 @@ describe('voteInfoOf — a CARD\'s door (the staged vote) on the panel', () => {
   it('the block says whose delegates these are, from where and by what — and carries the locked receipt only while staged', () => {
     const staged = cardDoorPanel(dealt[0], FULL, {edge: false, receipt: true});
     expect(staged.vote).to.deep.include({kicker: GRANT_KICKER, door: 'card', grant: true, source: 'reserve', cost: 0, count: 1});
-    expect(staged.vote.receipt).to.deep.eq({cost: 4});
+    expect(staged.vote.receipt).to.deep.eq({amount: 4, icon: 'megacredits'});
     expect(staged.support).to.deep.include({current: 0, resulting: 3, amount: '+3'});
     const live = cardDoorPanel(dealt[0], FULL, {edge: false, receipt: false});
     expect(live.vote.door).to.eq('card');

@@ -53,10 +53,24 @@ export type ParliamentCommandsInput = {
      * is the PLAY's own commit («Разыграть карту») and B is one reversible level back to the composer («Назад»).
      */
     staged?: boolean,
+    /**
+     * …and the staged door is a blue card's ACTION (TR15 — «3 data → a delegate»), not a play: A is the action's own
+     * commit verb («Подтвердить»), never «Разыграть карту» — nothing is being played.
+     */
+    stagedFlow?: 'play' | 'action',
     /** The giver is a CARD: L3 «Источник» opens it over the mode (X belongs to the selected resolution). */
     source?: boolean,
   };
 };
+
+/**
+ * THE STAGED DOOR'S A — the flow's own commit verb, the one the composer would have carried had the card
+ * asked nothing: a PLAY's «Разыграть карту» (TR03), an ACTION's «Подтвердить» (TR15). One verb for one act,
+ * read by the bar and by the mode's own confirm alike.
+ */
+export function stagedDoorVerb(flow: 'play' | 'action' | undefined): string {
+  return flow === 'action' ? 'Confirm' : 'Play card';
+}
 
 /** The law's verb: advertised whenever an enacted resolution has an action — lit only when it can be taken now. */
 function resolutionActionCommand(input: ParliamentCommandsInput): ConsoleCommand | undefined {
@@ -122,8 +136,8 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   case 'vote': {
     const grant = input.grant;
     const staged = grant?.staged === true;
-    // A STAGED door's A is the PLAY's commit — the existing «Разыграть карту», never a second verb for it.
-    const verb = staged ? 'Play card' : (grant !== undefined && grant.count > 1 ? 'Send the delegates' : 'Send the delegate');
+    // A STAGED door's A is the FLOW's commit — the play's «Разыграть карту», the action's «Подтвердить».
+    const verb = staged ? stagedDoorVerb(grant?.stagedFlow) : (grant !== undefined && grant.count > 1 ? 'Send the delegates' : 'Send the delegate');
     const cmds: Array<ConsoleCommand> = [
       {control: 'confirm', label: verb, enabled: input.canVoteNow, highlight: input.canVoteNow},
       {control: 'secondary', label: 'Inspect'},

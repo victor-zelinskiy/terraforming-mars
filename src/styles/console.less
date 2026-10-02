@@ -32145,6 +32145,21 @@ html.console-mode {
    frame: the two states are stacked layers of ONE zone. ── */
 .con-composer__playright,
 .con-composer__actright { position: relative; }
+/* THE PARLIAMENT STEP (Turmoil Redux TR15 — a blue card's action that places a delegate): a LAYER of the
+   decision column, never a row or a swap. The vote mode is teleported into it and owns the column's whole
+   rect (CONTEXT MUST NOT SHRINK WHAT IT IS CONTEXT FOR); the hero column beside it keeps the source card.
+   The zone is always mounted (empty and inert outside the step), so a leaving Parliament always has its
+   room to dissolve in. The setup it covers is PARKED — hidden, never unmounted (B returns to it whole). */
+.con-composer__parlzone {
+    position: absolute; inset: 0;
+    z-index: 4;
+    display: flex; flex-direction: column;
+    min-height: 0; min-width: 0;
+    pointer-events: none;
+    &--on { pointer-events: auto; }
+    > * { flex: 1; min-height: 0; min-width: 0; }
+}
+.con-composer--parlstep .con-composer__actright > :not(.con-composer__parlzone) { visibility: hidden; }
 .con-composer__fxlayer {
     position: absolute; inset: 0;
     z-index: 3;

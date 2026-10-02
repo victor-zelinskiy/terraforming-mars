@@ -353,6 +353,7 @@
                                   :awaitingInput="awaitingInput"
                                   :stagedVote="parliamentStagedVote"
                                   :stagedReceipt="parliamentStagedReceipt"
+                                  :stagedFlow="parliamentStagedFlow"
                                   @submit="submitParliament($event)"
                                   @staged-back="cancelStagedPlay()"
                                   @inspect-source="inspectParliamentSource($event)"
@@ -381,8 +382,11 @@
       <!-- v-show while a client hand pick is out (SRR link pick): the Action
            Center + its composer stay mounted so every capture survives (the
            director recognizes the pick bridge and never animates it). -->
+      <!-- `cardActionsLeaveHook` is the director's own leave (`surfaceLeaveHook`) — and, when the workspace ends
+           WITH a hosted Parliament step (TR15's staged action vote), the step rides that ONE motion (its release
+           is handed to the end of it, never a second fade multiplying the first). -->
       <transition :css="false" appear
-                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter="surfaceEnterHook" @leave="cardActionsLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
         <!-- COLLAPSE, not close: past the commit boundary B parks the whole
              stack, and the committed decision keeps living inside it — same
@@ -415,6 +419,7 @@
                             @submit-batch="onCardActionsSubmitBatch"
                             @submit-party="onCardActionsSubmitParty"
                             @staged-placement="onCardActionsStagedPlacement"
+                            @staged-vote="onCardActionsStagedVote"
                             @reveal-ack="onCardActionsRevealAck"
                             @flow-complete="onCardActionsFlowComplete"
                             @collapse="onCardActionsCollapse"
@@ -2156,12 +2161,14 @@ import {
   stagedVoteOf,
   stagedColonyOf,
   stagedHostedTarget,
+  stagedStepHost,
+  STAGED_STEP_RELEASE_MS,
   armStagedPlay,
   armStagedSeal,
   markStagedPlayCommitting,
   clearStagedPlay,
 } from '@/client/console/stagedPlay';
-import type {PlayComposerDraft, StagedPlayArm} from '@/client/console/stagedPlay';
+import type {PlayComposerDraft, StagedPlayArm, StagedReceipt} from '@/client/console/stagedPlay';
 import type {AgendaWalkModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {
   clearColonyTrackMove, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove, registerColonyTrackMoveHost,
@@ -2226,8 +2233,8 @@ const OWED_CONCLUSION_FORCE_MS = 8000;
 const PARLIAMENT_LEAVE_NET_MS = 900;
 /** A HOSTED Parliament step's leave — a dissolve in place inside its host's zone (the embed contract strips the band phrase). */
 const PARLIAMENT_STEP_LEAVE_MS = 240;
-/** The staged vote's RELEASE: the landing scene (the «Разыграно» stage + the landed card's proxy) lets go in place while the Parliament rises. */
-const STAGED_VOTE_RELEASE_MS = 200;
+/** The staged vote's RELEASE: the landing scene (the «Разыграно» stage + the landed card's proxy) lets go in place while the Parliament rises — the ONE release beat every staged host shares (`stagedPlay.ts`). */
+const STAGED_VOTE_RELEASE_MS = STAGED_STEP_RELEASE_MS;
 
 /**
  * WHICH PROMPTS A CARD PLAY'S CLAIM ANSWERS FOR — the card questions its own
@@ -2247,6 +2254,12 @@ const STAGED_VOTE_RELEASE_MS = 200;
  */
 const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
   new Set<TaskKind>(['deckSelect', 'cardSelect', 'payment']);
+
+/** A staged PLAY's locked receipt — the card's price in M€ as the composer settled it (TR03 / TR07). */
+function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
+  const cost = pending.input.cards.find((c) => c.name === pending.cardName)?.calculatedCost;
+  return cost === undefined ? undefined : {amount: cost, icon: 'megacredits'};
+}
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -2378,9 +2391,11 @@ export default defineComponent({
       parliamentEmbedLatch: '',
       /** The staged door the section last served, LATCHED for its leave: the arm is cleared in the very write
        *  that ends the step, and a leaving mode re-read as the viewer's own lobby vote re-words itself mid-fade. */
-      stagedVoteLatch: undefined as {vote: StagedVoteModel, receipt: number | undefined} | undefined,
+      stagedVoteLatch: undefined as {vote: StagedVoteModel, receipt: StagedReceipt | undefined, flow: 'play' | 'action'} | undefined,
       /** The hand is ending WITH a hosted step that was its whole screen — its one leave is a dissolve (`handLeaveHook`). */
       handDissolveArmed: false,
+      /** …and «Действия карт» is ending WITH its hosted Parliament step (TR15): the step rides `cardActionsLeaveHook`. */
+      cardActionsDissolveArmed: false,
       /** …and the hosted Parliament's release rides that dissolve instead of fading on its own under it. */
       parliamentLeaveRelease: undefined as (() => void) | undefined,
       /**
@@ -5601,7 +5616,7 @@ export default defineComponent({
       return stagedVoteOf(stagedPlayState.arm);
     },
     /** …and the card's price as the composer settled it — the mode's locked receipt. */
-    stagedVoteReceipt(): number | undefined {
+    stagedVoteReceipt(): StagedReceipt | undefined {
       return this.stagedVoteModel === undefined ? undefined : stagedPlayState.arm?.receipt;
     },
     /**
@@ -5613,9 +5628,15 @@ export default defineComponent({
     parliamentStagedVote(): StagedVoteModel | undefined {
       return this.stagedVoteModel ?? (this.parliamentLeaving ? this.stagedVoteLatch?.vote : undefined);
     },
-    parliamentStagedReceipt(): number | undefined {
+    parliamentStagedReceipt(): StagedReceipt | undefined {
       return this.stagedVoteModel !== undefined ? this.stagedVoteReceipt :
         (this.parliamentLeaving ? this.stagedVoteLatch?.receipt : undefined);
+    },
+    /** …and the FLOW the staged door commits (a play — TR03; a card's action — TR15: A «Подтвердить»), latched the same way. */
+    parliamentStagedFlow(): 'play' | 'action' {
+      const flow = this.stagedVoteModel !== undefined ? stagedPlayState.arm?.flow :
+        (this.parliamentLeaving ? this.stagedVoteLatch?.flow : undefined);
+      return flow ?? 'play';
     },
     /**
      * THE STAGED VOTE'S COMMIT WAS REFUSED (the transport's abort battery
@@ -6059,8 +6080,10 @@ export default defineComponent({
     stagedHandCard(): CardName | undefined {
       // …and while a STAGED VOTE stands: the composer is gone (the Parliament
       // took its zone) but the card has not left the hand — it is «being played».
+      // (A PLAY's arm only: an ACTION's card is on the table, never in the hand.)
       return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard ??
-        (this.stagedVoteModel !== undefined || this.stagedColonyModel !== undefined ? stagedPlayState.arm?.cardName : undefined);
+        ((this.stagedVoteModel !== undefined || this.stagedColonyModel !== undefined) && stagedPlayState.arm?.flow === 'play' ?
+          stagedPlayState.arm.cardName : undefined);
     },
     /**
      * TRUE exactly when the held departing-play slot can be released: the
@@ -8049,13 +8072,15 @@ export default defineComponent({
         }
         return hydroDeeper && isDeltaRewardPickActive() ? 'Reward selection' : 'Repeat action';
       }
-      if ((this.stagedVoteModel !== undefined && workspaceFrameHost('parliament') === 'hand') ||
+      const stagedHost = stagedStepHost();
+      if ((this.stagedVoteModel !== undefined && stagedHost !== undefined && workspaceFrameHost('parliament') === stagedHost) ||
           (this.stagedColonyModel !== undefined && workspaceFrameHost('colonies') === 'hand')) {
         // A STAGED VOTE stands: the bar reads as it will for the step's whole
         // life (a hosted step's convention — its host's root), from the frame
         // the step is pushed. The handoff's few frames otherwise walked it
         // through the composer's stage name and the landing scene's «Разыграно».
-        return workspaceFrameRoot('hand');
+        // (The host is the FLOW's: the hand for a play, «Действия карт» for an action — TR15.)
+        return workspaceFrameRoot(stagedHost ?? 'hand');
       }
       if (this.pendingPlayCard !== undefined) {
         // Inside the hand workspace the bar names the STAGE, not the surface —
@@ -10454,7 +10479,7 @@ export default defineComponent({
       flush: 'sync',
       handler(vote: StagedVoteModel | undefined): void {
         if (vote !== undefined) {
-          this.stagedVoteLatch = {vote, receipt: stagedPlayState.arm?.receipt};
+          this.stagedVoteLatch = {vote, receipt: stagedPlayState.arm?.receipt, flow: stagedPlayState.arm?.flow ?? 'play'};
         }
       },
     },
@@ -10487,7 +10512,7 @@ export default defineComponent({
       // too would multiply the two alphas — the Parliament gone before its own
       // frame — so the release is handed to the host's leave (the net above
       // still bounds it).
-      if (this.handDissolveArmed) {
+      if (this.handDissolveArmed || this.cardActionsDissolveArmed) {
         this.parliamentLeaveRelease = release;
         return;
       }
@@ -10779,8 +10804,10 @@ export default defineComponent({
       }
       const section = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
       section?.resetSubmitting();
-      setWorkspaceFramePhase('hand', 'configure');
-      if (workspaceOutcomeState.host === 'hand') {
+      // The step's HOST takes its decision back — the hand's play, «Действия карт»'s action (TR15).
+      const host = stagedStepHost() ?? 'hand';
+      setWorkspaceFramePhase(host, 'configure');
+      if (host === 'hand' && workspaceOutcomeState.host === 'hand') {
         releaseWorkspaceOutcome('staged-vote-refused');
       }
     },
@@ -14462,6 +14489,13 @@ export default defineComponent({
           this.endHandWithHostedStep();
           return;
         }
+        // …and a card ACTION's live door hosted by «Действия карт» (TR15 — a staged tail the server re-asked, a
+        // reload, the live grant of a commit made outside the staged boundary) ends the action it was a step of:
+        // a finished action LEAVES, never folds back to the composer it was confirmed in.
+        if (workspaceFrameHost('parliament') === 'card-actions') {
+          this.endCardActionsWithHostedStep();
+          return;
+        }
         popWorkspaceFrame();
         return;
       }
@@ -15436,7 +15470,7 @@ export default defineComponent({
           pending,
           draft: payload.composerDraft,
           yieldedStack: false,
-          receipt: pending.input.cards.find((c) => c.name === pending.cardName)?.calculatedCost,
+          receipt: playReceiptOf(pending),
         };
         // The ritual is the warm-up window: the table's illustrations are
         // decoded while the card lands, so the vote rises with its pictures in.
@@ -15462,7 +15496,7 @@ export default defineComponent({
           pending,
           draft: payload.composerDraft,
           yieldedStack: false,
-          receipt: pending.input.cards.find((c) => c.name === pending.cardName)?.calculatedCost,
+          receipt: playReceiptOf(pending),
         };
         void this.beginStagedPlayLanding(pending, isEvent, arm);
         return;
@@ -18970,6 +19004,15 @@ export default defineComponent({
      */
     async enterStagedHostedStep(arm: StagedPlayArm, frame: Parameters<typeof pushWorkspaceFrame>[0]): Promise<void> {
       armStagedPlay(arm);
+      if (arm.flow === 'action') {
+        // A CARD ACTION's step (TR15 — the staged action vote): the ACTION COMPOSER is the host's own step zone
+        // (`[data-embed-slot="action-parliament"]`, a layer of its decision column). It stays MOUNTED under the
+        // step — B returns to the very variant, every capture intact — and RELEASES its setup in place itself
+        // the moment the step is pushed (its `parliamentStepOn` edge), while the Parliament rises out of the same
+        // rect by its own CSS entry. No ritual precedes it (an action lands no card), so nothing else lets go.
+        pushWorkspaceFrame(frame);
+        return;
+      }
       // The descent is REVERSIBLE again (the ceremony set `executing`): the
       // decision now standing is the step's, and B walks back from it.
       setWorkspaceFramePhase('hand', 'configure');
@@ -19092,6 +19135,14 @@ export default defineComponent({
         return;
       }
       markStagedPlayCommitting();
+      if (arm.flow === 'action') {
+        // A CARD ACTION's commit (TR15): no play outcome to claim (the action draws nothing). The host crosses its
+        // commit boundary — a second A and every B are absorbed — and the composer standing under the step plays
+        // the card's ACTION COMMIT off this very edge (`stagedVoteCommitMine`).
+        setWorkspaceFramePhase('card-actions', 'executing');
+        this.submitBatch([...arm.batch, response]);
+        return;
+      }
       claimPlayOutcome(arm.cardName, arm.draws);
       // The execution beat the claim withholds its surface for has ALREADY
       // played (the card landed before the step) — report it at once.
@@ -19188,7 +19239,11 @@ export default defineComponent({
       if (arm === undefined) {
         return;
       }
-      const played = this.playerView.thisPlayer.tableau.some((c) => c.name === arm.cardName);
+      // «Our commit is in» — a PLAY's card on the table, an ACTION recorded as used this generation (its card is
+      // on the table the whole time, so tableau membership could never witness it).
+      const me = this.playerView.thisPlayer;
+      const played = arm.flow === 'action' ?
+        me.actionsThisGeneration.includes(arm.cardName) : me.tableau.some((c) => c.name === arm.cardName);
       if (stagedPlayState.committing || played) {
         this.settleStagedVote(arm);
         return;
@@ -19215,6 +19270,7 @@ export default defineComponent({
       const reAsked = wf?.type === 'party' && wf.votePrompt?.source === 'grant' &&
         wf.choiceContext?.source.kind === 'card' && wf.choiceContext.source.card === arm.cardName;
       if (reAsked) {
+        const host = stagedStepHost(arm) ?? 'hand';
         clearStagedPlay();
         // The door is LIVE from here on: nothing of the staged one may come
         // back for this section's eventual leave (the latch is a leave's, and
@@ -19222,7 +19278,7 @@ export default defineComponent({
         this.stagedVoteLatch = undefined;
         setWorkspaceFrameServes('parliament', ['party']);
         setWorkspaceFramePhase('parliament', 'committed');
-        setWorkspaceFramePhase('hand', 'committed');
+        setWorkspaceFramePhase(host, 'committed');
         const frame = workspaceStackTop();
         if (frame !== undefined && frame.kind === 'parliament') {
           frame.anchor = {type: 'prompt', promptType: 'party'};
@@ -19242,8 +19298,57 @@ export default defineComponent({
     },
     /** The staged vote's step and the play it belonged to end together — the hand's one guarded conclusion takes the whole stack. */
     endStagedVote(): void {
+      const flow = stagedPlayState.arm?.flow;
       clearStagedPlay();
+      if (flow === 'action') {
+        this.endCardActionsWithHostedStep();
+        return;
+      }
       this.endHandWithHostedStep();
+    },
+    /**
+     * A PARLIAMENT STEP HOSTED BY «ДЕЙСТВИЯ КАРТ» IS OVER (TR15 — the staged action vote's cube has landed, its
+     * answer is parked, or a live door it became has been answered), and with it the ACTION it was a step of. A
+     * finished action LEAVES — the one guarded conclusion takes the whole stack, never a fold back to the
+     * composer it was confirmed in. When the conclusion takes the workspace, the two leave as ONE surface: the
+     * Parliament rides the workspace's own dissolve (`cardActionsLeaveHook`), its release handed to the end of
+     * it. When the conclusion HOLDS (something of the action is still owed), the step lets go in place and the
+     * owed conclusion re-fires when the hold falls.
+     */
+    endCardActionsWithHostedStep(): void {
+      // The commit beat's plan belongs to this action; no awaiting handoff will consume it.
+      releaseActionCommit();
+      const top = workspaceStackTop();
+      if (top !== undefined && top.kind === 'parliament' && workspaceFrameHost('parliament') === 'card-actions') {
+        popWorkspaceFrame();
+      }
+      this.concludeWorkspaceFlowOrOwe('card-actions');
+      this.cardActionsDissolveArmed = !workspaceFrameKnown('card-actions');
+      // The hook consumes the flag inside the flush that drops the workspace; a flush that never called it may not
+      // leave the flag — or the step's handed-over release — behind.
+      void this.$nextTick(() => {
+        if (this.cardActionsDissolveArmed) {
+          this.cardActionsDissolveArmed = false;
+          this.parliamentLeaveRelease?.();
+        }
+      });
+    },
+    /**
+     * «ДЕЙСТВИЯ КАРТ»'s ONE LEAVE HOOK — the director's own leave, unchanged for every ordinary ending. Armed by
+     * `endCardActionsWithHostedStep`, the hosted Parliament (teleported INTO this workspace's composer) rides the
+     * same motion and is released when it ends.
+     */
+    cardActionsLeaveHook(el: Element, done: () => void): void {
+      const armed = this.cardActionsDissolveArmed;
+      this.cardActionsDissolveArmed = false;
+      if (!armed) {
+        surfaceLeaveHook(el, done);
+        return;
+      }
+      surfaceLeaveHook(el, () => {
+        done();
+        this.parliamentLeaveRelease?.();
+      });
     },
     /**
      * A PARLIAMENT STEP HOSTED BY THE HAND IS OVER, and with it the play it was
@@ -19390,6 +19495,42 @@ export default defineComponent({
       this.enterStagedPlacement(arm);
     },
     /**
+     * THE STAGED ACTION VOTE (Turmoil Redux TR15 — «3 data from here → a delegate on a resolution»): the ACTION
+     * flow's resolution door. The batch parks (the head ACTIVATES the card), and the Parliament is pushed as a
+     * STEP of «Действия карт» — into the composer's own layer — through the ONE staged entry
+     * (`enterStagedHostedStep`). The vote mode's confirm is the action's one POST (`commitStagedTail`, the
+     * addressed `party` tail), B there walks back to the composer, the three honest outcomes are the play's.
+     */
+    onCardActionsStagedVote(payload: {batch: ReadonlyArray<unknown>, staged: StagedVoteModel, cardName: CardName, nodeIndex: number, receipt: StagedReceipt | undefined}): void {
+      if (stagedPlayActive()) {
+        return;
+      }
+      const arm: StagedPlayArm = {
+        flow: 'action',
+        cardName: payload.cardName,
+        isEvent: false,
+        batch: payload.batch,
+        target: {kind: 'resolution', vote: payload.staged},
+        draws: 0,
+        deckCheck: false,
+        ...(payload.receipt === undefined ? {} : {receipt: payload.receipt}),
+        actionRestore: {cardName: payload.cardName, nodeIndex: payload.nodeIndex, composer: undefined},
+        yieldedStack: false,
+      };
+      preloadResolutionArt((this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution));
+      void this.enterStagedHostedStep(arm, {
+        kind: 'parliament',
+        subject: '',
+        stage: DELEGATE_GRANT_STEP_STAGE,
+        phase: 'configure',
+        // It serves no prompt — none exists yet; a re-asked grant earns `party` in `settleStagedVote`.
+        serves: [],
+        anchor: {type: 'always'},
+        nest: workspaceFrameKnown('parliament'),
+        sourceCard: arm.cardName,
+      });
+    },
+    /**
      * B out of a staged placement: nothing was ever sent, so this is a pure
      * client restore — the workspace comes back at the same depth and the
      * composer re-seats every capture from the parked draft. The play is
@@ -19398,6 +19539,16 @@ export default defineComponent({
     cancelStagedPlay(): void {
       const arm = stagedPlayState.arm;
       if (arm === undefined || stagedPlayState.committing) {
+        return;
+      }
+      if (arm.flow === 'action' && arm.target.kind === 'resolution') {
+        // B OUT OF A STAGED ACTION VOTE (TR15) — one level: the Parliament's frame leaves (its hosted dissolve
+        // in place) and the composer it stood in — never unmounted — lets its setup come back, the variant and
+        // every capture intact. Nothing was sent, so there is nothing to undo.
+        if (workspaceStackTop()?.kind === 'parliament' && workspaceFrameHost('parliament') === 'card-actions') {
+          popWorkspaceFrame();
+        }
+        clearStagedPlay();
         return;
       }
       if (arm.flow === 'action') {

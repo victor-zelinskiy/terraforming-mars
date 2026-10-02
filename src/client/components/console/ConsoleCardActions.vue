@@ -53,7 +53,7 @@
                      :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
                        (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
                      :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
-                     :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted || partyCommitted">
+                     :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted || parliamentStepCommitted || partyCommitted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -104,7 +104,7 @@
         <template #deep>
           <span class="con-cardactions__deepslot">
             <transition name="con-cardactions-swap">
-              <span v-if="!colonyStepHosted && composer !== undefined && focusVariantTotal > 1" key="variant"
+              <span v-if="!colonyStepHosted && !parliamentStepHosted && composer !== undefined && focusVariantTotal > 1" key="variant"
                     class="con-cardactions__stat con-cardactions__stat--variant">
                 <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
               </span>
@@ -475,6 +475,7 @@
                                :repeatPickDisabled="repeat"
                                @confirm="onComposerConfirm"
                                @staged-placement="onComposerStagedPlacement"
+                               @staged-vote="onComposerStagedVote"
                                @colony-trade="onComposerColonyTrade"
                                @delta-advance="onComposerDeltaAdvance"
                                @cancel="onComposerCancel"
@@ -545,7 +546,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
-import {ActionPreview, StagedPlacementModel} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
@@ -587,6 +588,7 @@ import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
+import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
 import {effectForecastOpen, forecastStageText} from '@/client/console/consoleEffectForecast';
@@ -728,7 +730,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'submit-party', 'staged-placement', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
+  emits: ['close', 'submit-batch', 'submit-party', 'staged-placement', 'staged-vote', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
   data() {
     return {
       consoleCardActionsUi,
@@ -1148,6 +1150,11 @@ export default defineComponent({
       if (this.colonyStepHosted) {
         return this.colonyStepStage;
       }
+      // …and a PARLIAMENT step (TR15 — the vote of a card's action): the mode's own stage, handed up by the
+      // section — «ДЕЙСТВИЯ КАРТ › МАРСИАНСКАЯ ПЕРЕПИСЬ › ГОЛОСОВАНИЕ». Root and card name stay put; only the tail moves.
+      if (this.parliamentStepHosted) {
+        return workspaceFrameStage('parliament');
+      }
       // A PARTY's / the LAW's drawn batch presents in the party composer's own
       // zone (its claim, not the card composer's outcome record): the tail is
       // the draw's — «ДОБОР КАРТ» — or the name the re-homed surface published.
@@ -1218,6 +1225,14 @@ export default defineComponent({
     /** A colony step is hosted in the composer's outcome zone. */
     colonyStepHosted(): boolean {
       return workspaceFrameHost('colonies') === 'card-actions';
+    },
+    /** A PARLIAMENT step (a card action's vote — TR15) is hosted in the composer's decision column. */
+    parliamentStepHosted(): boolean {
+      return workspaceFrameHost('parliament') === 'card-actions';
+    },
+    /** …its stage marker turns AMBER past the commit (the mode's A) — the frame's own phase, never its presence. */
+    parliamentStepCommitted(): boolean {
+      return this.parliamentStepHosted && isCommitted(workspaceFramePhase('parliament') ?? 'browse');
     },
     /** …hosted by the UNITY party door specifically (the party composer's zone). */
     unityStepHosted(): boolean {
@@ -2849,6 +2864,39 @@ export default defineComponent({
         cardName: comp.cardName,
         nodeIndex: comp.nodeIndex,
         composerDraft: payload.composerDraft,
+      });
+    },
+    /**
+     * THE STAGED ACTION VOTE (Turmoil Redux TR15): the composer's delegate-placing branch hands the decision to
+     * the Parliament standing INSIDE it instead of submitting. This surface only assembles the byte-identical
+     * batch (the confirm path's own re-walk) and relays UP — the shell owns the staged store, the step's frame
+     * and the one submit (the mode's A). No claim, no commit beat, no awaiting handoff: nothing has been sent.
+     */
+    onComposerStagedVote(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, staged: StagedVoteModel, receipt: StagedReceipt | undefined}): void {
+      const comp = this.composer;
+      if (comp === undefined) {
+        return;
+      }
+      const perform = findPerformActionCard(this.playerView.waitingFor);
+      if (perform === undefined) {
+        console.warn('Staged vote: SelectCard not found in waitingFor tree');
+        this.closeComposer();
+        return;
+      }
+      const batch = buildActionBatch({
+        performPath: perform.path,
+        cardName: comp.cardName,
+        branchIndex: payload.branchIndex,
+        preResponses: payload.preResponses,
+        optionResponse: payload.optionResponse,
+        stepResponses: payload.stepResponses,
+      });
+      this.$emit('staged-vote', {
+        batch,
+        staged: payload.staged,
+        cardName: comp.cardName,
+        nodeIndex: comp.nodeIndex,
+        receipt: payload.receipt,
       });
     },
     onComposerCancel(): void {

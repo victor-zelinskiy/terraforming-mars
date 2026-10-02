@@ -26,6 +26,7 @@
  * a fact here: the ribbon of cubes under the card IS that fact. A fact's
  * NOTE (the tie rule, «two of your delegates») is the inspector's line.
  */
+import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
@@ -68,7 +69,7 @@ export const VOTE_KICKER = 'Your vote';
 export const GRANT_KICKER = 'Your delegates';
 /** «ИЗ РЕЗЕРВА · ПО КАРТЕ» — the source line of a delegate a CARD's own play places (TR03): free, and the card is what pays. */
 export const CARD_DOOR_SOURCE = 'from the reserve · by the card';
-/** …and its locked RECEIPT: the card's price as the composer settled it («Карта · 4 M€» — changed only through B). */
+/** …and its locked RECEIPT: what the commit charges for the card («Карта · 4 M€» for a play, «Карта · 3 [data]» for an action — changed only through B). */
 export const CARD_DOOR_RECEIPT = 'Card';
 /** The kicker of the party's support block — the glossary's own term. */
 export const SUPPORT_KICKER = 'Popular support';
@@ -262,8 +263,11 @@ export type VoteInfoVm = {
      * `card` whose own play places the delegate (TR03) — the source line and the receipt follow it.
      */
     door: 'vote' | 'grant' | 'card';
-    /** A `card` door's locked receipt — what the composer settled for the card (M€ equivalent); undefined elsewhere. */
-    receipt?: {cost: number};
+    /**
+     * A `card` door's locked receipt — what the commit will charge for the card, as the composer settled it:
+     * a PLAY's price in M€ (TR03), an ACTION's own cost chip (TR15: 3 data off the card). Undefined elsewhere.
+     */
+    receipt?: StagedReceipt;
     /** The panel's facts: the leader, the winning state, and the party effect ONLY on its edge. */
     facts: ReadonlyArray<VoteFactVm>;
     /** Every fact — the inspector's full reading. */
@@ -479,8 +483,8 @@ export type VoteInfoInput = {
     count: number,
     /** The delegate is placed by a CARD (TR03 — its own play, staged or met live): «из резерва · по карте». */
     card?: boolean,
-    /** A STAGED card door's receipt: the card's price as the composer settled it (absent once the card is paid). */
-    receipt?: number,
+    /** A STAGED card door's receipt: what the commit charges for the card (absent once the card is paid). */
+    receipt?: StagedReceipt,
   };
   /** The grant also pays the selected card's PARTY: the server's row and how many of its cubes have landed. */
   support?: {row: VoteSupportProjection, landed: number};
@@ -502,7 +506,7 @@ export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
       count: input.grant?.count ?? 1,
       grant: input.grant !== undefined,
       door: input.grant === undefined ? 'vote' : (card ? 'card' : 'grant'),
-      ...(receipt === undefined ? {} : {receipt: {cost: receipt}}),
+      ...(receipt === undefined ? {} : {receipt}),
       facts: panelFactsOf(input.facts),
       all: input.facts,
       numbers: input.numbers,
@@ -637,10 +641,11 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   }
   strings.push(text(vm.vote.kicker));
   if (vm.vote.door === 'card') {
-    // A card's own door: «из резерва · по карте» and, while staged, the locked receipt «Карта · N M€».
+    // A card's own door: «из резерва · по карте» and, while staged, the locked receipt «Карта · N [icon]» (an icon
+    // for the unit — M€ for a play, the card's resource for an action — so the only word is the key).
     strings.push(text(CARD_DOOR_SOURCE));
     if (vm.vote.receipt !== undefined) {
-      strings.push(text(CARD_DOOR_RECEIPT), 'M€');
+      strings.push(text(CARD_DOOR_RECEIPT));
     }
   } else if (vm.vote.source === 'lobby') {
     strings.push(text('from the lobby · free'));

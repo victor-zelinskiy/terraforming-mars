@@ -22,6 +22,13 @@
  * the one batch with the party answer as the ADDRESSED tail. One store, one
  * `stagedPlayActive()`, one abort battery — the target is what differs.
  *
+ * …AND THE RESOLUTION DOOR HAS A SECOND FLOW: a blue card's ACTION that
+ * places a delegate (Turmoil Redux TR15 Martian Census — «3 data from here →
+ * a delegate on a resolution»). The batch's head is the ACTION (`flow:
+ * 'action'`), the vote mode stands INSIDE «Действия карт» (the composer
+ * hosts it beside its source card, `[data-embed-slot="action-parliament"]`),
+ * and its confirm posts the same addressed `party` tail.
+ *
  * …AND A FOURTH: a COLONY TILE (the STAGED COLONY of a card that moves a chosen
  * tile's track by being played: Turmoil Redux TR07 Colony Sponsors,
  * docs/TURMOIL_REDUX_COLONY_SPONSORS.md). «Выбрать колонию» submits nothing:
@@ -69,6 +76,9 @@ export type PlayComposerDraft = {
   focusIdx: number;
 };
 
+/** A staged door's locked receipt: an amount and the icon it is counted in (`megacredits`, a card resource). */
+export type StagedReceipt = {amount: number, icon: string};
+
 /**
  * WHAT the staged step picks before the one submit — exactly one of:
  *  · a CELL (`cell`): the board runs the pick, the space rides the batch's tail;
@@ -100,8 +110,12 @@ export type StagedPlayArm = {
    *  the cell confirm (+ the space tail for a non-fixed placement). */
   batch: ReadonlyArray<unknown>;
   target: StagedPlayTarget;
-  /** PLAY flow: the card's price as the composer settled it (M€) — the staged vote's locked receipt. */
-  receipt?: number;
+  /**
+   * The staged door's LOCKED RECEIPT — what the commit will charge for the card, as the composer settled
+   * it: the PLAY's price in M€ (TR03), or the ACTION's own cost chip (TR15: «Карта · 3 data»). Read by the
+   * vote mode beside the delegate's source; the mode cannot change it, B walks back to the composer.
+   */
+  receipt?: StagedReceipt;
   /** The play's immediate gains (composer-extracted) — the card-seal beat's
    *  reward wave. Play flow only. */
   rewards?: ReadonlyArray<ResourceTransferSpec>;
@@ -155,6 +169,25 @@ export function stagedColonyOf(arm: StagedPlayArm | undefined = stagedPlayState.
 export function stagedHostedTarget(arm: StagedPlayArm | undefined = stagedPlayState.arm): boolean {
   return arm?.target.kind === 'resolution' || arm?.target.kind === 'colony';
 }
+
+/**
+ * THE WORKSPACE A HOSTED STAGED STEP STANDS IN — the flow decides it: a PLAY's
+ * step stands in the hand it is played from (TR03 / TR07), an ACTION's in
+ * «Действия карт» (TR15). One answer for the entry, the commit, B and the end.
+ */
+export function stagedStepHost(arm: StagedPlayArm | undefined = stagedPlayState.arm): 'hand' | 'card-actions' | undefined {
+  if (!stagedHostedTarget(arm)) {
+    return undefined;
+  }
+  return arm?.flow === 'action' ? 'card-actions' : 'hand';
+}
+
+/**
+ * THE RELEASE of a staged step's entry — the surface the step rises over (the hand's landing scene and
+ * composer, the action composer's setup) lets go IN PLACE in this many ms while the step surfaces out of the
+ * same rect by its own CSS entry. One number for every host.
+ */
+export const STAGED_STEP_RELEASE_MS = 200;
 
 export function armStagedPlay(arm: StagedPlayArm): void {
   stagedPlayState.arm = arm;

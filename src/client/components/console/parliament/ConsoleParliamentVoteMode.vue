@@ -222,11 +222,12 @@
                 </div>
                 <!-- THE RECEIPT of a staged card door: the card's price as the composer settled it — LOCKED here
                      (the mode cannot change it; B walks back to the composer, which can). -->
-                <div v-if="voteInfo.vote.receipt !== undefined" class="con-parl__info-receipt" data-parl-vote-receipt data-parl-vote-late :data-receipt-cost="voteInfo.vote.receipt.cost">
+                <div v-if="voteInfo.vote.receipt !== undefined" class="con-parl__info-receipt" data-parl-vote-receipt data-parl-vote-late
+                     :data-receipt-cost="voteInfo.vote.receipt.amount" :data-receipt-icon="voteInfo.vote.receipt.icon">
                   <span class="con-parl__info-receipt-key">{{ $t(cardDoorReceipt) }}</span>
                   <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
-                  <b class="con-parl__info-src-num">{{ voteInfo.vote.receipt.cost }}</b>
-                  <i class="con-parl__info-src-mc resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+                  <b class="con-parl__info-src-num">{{ voteInfo.vote.receipt.amount }}</b>
+                  <i class="con-parl__info-src-mc" :class="receiptIconClass" aria-hidden="true"></i>
                 </div>
                 <!-- The SHARED fact row (ConsoleVoteFactRow) — the same markup the fullscreen inspector's footer prints. -->
                 <div class="con-parl__facts">
@@ -295,6 +296,9 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {COLONY_TRACK_SUMMARY_KEY} from '@/client/console/parliament/colonyTrackModel';
 import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/console/parliament/tileRemovalModel';
 import {offTurnReason} from '@/client/console/offTurnReason';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {StagedReceipt} from '@/client/console/stagedPlay';
+import {stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {
@@ -360,10 +364,16 @@ export default defineComponent({
     canActNow: {type: Boolean, default: false},
     canVoteNow: {type: Boolean, default: false},
     /**
-     * A STAGED card door's receipt — the card's price as the composer settled it (the shell hands it in
-     * from the staged-play store). Undefined for every other door: the card is already paid, or there is none.
+     * A STAGED card door's receipt — what the commit charges for the card, as the composer settled it (the
+     * shell hands it in from the staged-play store): a play's price in M€, an action's own cost chip. Undefined
+     * for every other door: the card is already paid, or there is none.
      */
-    cardReceipt: {type: Number as PropType<number | undefined>, default: undefined},
+    cardReceipt: {type: Object as PropType<StagedReceipt | undefined>, default: undefined},
+    /**
+     * WHICH FLOW the staged door commits — a card's PLAY (TR03: A «Разыграть карту», the play's own verb) or a
+     * blue card's ACTION (TR15: A «Подтвердить», the action's own commit verb). Read only while staged.
+     */
+    stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
   },
   emits: ['notice', 'inspect', 'send', 'flow-complete'],
   data() {
@@ -435,12 +445,16 @@ export default defineComponent({
       return parliamentFlow.voteSnapshot?.door === 'card' || (parliamentFlow.voteSnapshot === undefined && this.bridge.grant?.card !== undefined);
     },
     /** The staged card door's receipt: the shell's before the press, the snapshot's through the landing; none once the card is paid (a live door). */
-    receiptCost(): number | undefined {
+    receiptChip(): StagedReceipt | undefined {
       const snap = parliamentFlow.voteSnapshot;
       if (snap !== undefined) {
         return snap.receipt;
       }
       return this.stagedDoor ? this.cardReceipt : undefined;
+    },
+    /** The receipt's unit, drawn by the console's ONE icon resolver (M€ for a play, the card's resource for an action). */
+    receiptIconClass(): string {
+      return iconClassFor(this.voteInfo?.vote.receipt?.icon);
     },
     /**
      * THE SUPPORT ROW of the selected card's party: the press's own snapshot once it is made (the places
@@ -485,7 +499,7 @@ export default defineComponent({
         numbers: this.voteNumbers,
         // A grant's block keeps saying «ваши делегаты» through the landing (the prompt is gone by then, the snapshot remembers).
         grant: this.grantUp || this.cardDoor || (parliamentFlow.voteSnapshot?.count ?? 1) > 1 ?
-          {count: this.voteCount, card: this.cardDoor, receipt: this.receiptCost} :
+          {count: this.voteCount, card: this.cardDoor, receipt: this.receiptChip} :
           undefined,
         support: this.supportRow === undefined ? undefined : {row: this.supportRow, landed: parliamentFlow.supportLanded},
       });
@@ -616,9 +630,9 @@ export default defineComponent({
         if (!this.canVoteNow) {
           return this.voteBlockedText;
         }
-        // A STAGED door's confirm is the PLAY's own commit — the existing «Разыграть карту», the very verb the
-        // composer would have carried had the card asked nothing (one verb for one act; never a second key).
-        return translateText(this.stagedDoor ? 'Play card' : (several ? 'Send the delegates' : 'Send the delegate'));
+        // A STAGED door's confirm is the FLOW's own commit — a play's «Разыграть карту», an action's «Подтвердить»:
+        // the very verb the composer would have carried had the card asked nothing (one verb for one act).
+        return translateText(this.stagedDoor ? stagedDoorVerb(this.stagedFlow) : (several ? 'Send the delegates' : 'Send the delegate'));
       }
     },
     voteBlockedText(): string {
@@ -1008,7 +1022,7 @@ export default defineComponent({
       // Read BEFORE the snapshot stands (they switch to it the moment it does): the door's own facts, remembered
       // through the landing — the prompt that stated them is gone with the answer.
       const support = this.supportRow;
-      const receipt = this.receiptCost;
+      const receipt = this.receiptChip;
       const byCard = this.cardDoor;
       parliamentFlow.supportHeld = 0;
       parliamentFlow.supportLanded = 0;
@@ -1063,10 +1077,15 @@ export default defineComponent({
       // delegate is not on the table yet): nothing landed, so nothing flies; the step LEAVES WHOLE and the
       // delegate and the support arrive with the ordinary update once the server's drain lands them.
       if (parliamentFlow.voteSnapshot?.door === 'card') {
-        // …but only once the PLAY is on the table. A key that moved for somebody else's reason while
-        // the staged commit is still on the wire is not this door's answer: keep waiting for it.
+        // …but only once the COMMIT is real: the play on the table, the action recorded as used. A key that
+        // moved for somebody else's reason while the staged commit is still on the wire is not this door's
+        // answer: keep waiting for it. (An action's card is on the table the whole time — tableau membership
+        // could never witness its commit.)
         const card = grant?.card;
-        if (grant?.staged === true && card !== undefined && !this.playerView.thisPlayer.tableau.some((c) => c.name === card)) {
+        const me = this.playerView.thisPlayer;
+        const committed = card !== undefined && (this.stagedFlow === 'action' ?
+          me.actionsThisGeneration.includes(card) : me.tableau.some((c) => c.name === card));
+        if (grant?.staged === true && card !== undefined && !committed) {
           return;
         }
         this.$emit('flow-complete', 'vote');

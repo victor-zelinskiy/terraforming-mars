@@ -41,7 +41,7 @@ const PROMPT = {
 const STAGED: StagedColonyModel = {prompt: PROMPT, sourceCard: CardName.COLONY_SPONSORS};
 
 function arm(target: StagedPlayArm['target']): StagedPlayArm {
-  return {flow: 'play', cardName: CardName.COLONY_SPONSORS, isEvent: false, batch: [{type: 'projectCard'}], target, draws: 0, deckCheck: false, yieldedStack: false, receipt: 5};
+  return {flow: 'play', cardName: CardName.COLONY_SPONSORS, isEvent: false, batch: [{type: 'projectCard'}], target, draws: 0, deckCheck: false, yieldedStack: false, receipt: {amount: 5, icon: 'megacredits'}};
 }
 
 function branch(steps: ActionPreviewBranch['steps']): ActionPreviewBranch {

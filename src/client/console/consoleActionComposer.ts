@@ -238,10 +238,10 @@ export function canConfirm(
 // ── RUNTIME-NAVIGATION STEPS — doors, not fields ───────────────────────────
 
 /**
- * Three of the preview's step kinds are not choices the composer can CAPTURE —
+ * Four of the preview's step kinds are not choices the composer can CAPTURE —
  * they are DOORS its confirm walks through. `colonyTrade` hands the player to a
  * colony, `deltaAdvance` to the Hydronetwork track, `boardPlacement` to the
- * board. What each of them needs (which colony, which cell, which destination)
+ * board, `delegateGrant` to the Parliament's vote mode (TR15). What each of them needs (which colony, which cell, which destination)
  * does not exist as data at configure time; it exists as another surface, and
  * the player answers it THERE.
  *
@@ -268,6 +268,9 @@ export function canConfirm(
  */
 export const RUNTIME_NAVIGATION_STEP_KINDS = [
   'colonyTrade', 'deltaAdvance', 'boardPlacement',
+  // A delegate placed by the action (Turmoil Redux TR15): the resolution is chosen in the Parliament standing
+  // inside this workspace — a door; a plan leaves it to the copy's own live grant.
+  'delegateGrant',
 ] as const;
 
 export type RuntimeNavigationStepKind = typeof RUNTIME_NAVIGATION_STEP_KINDS[number];

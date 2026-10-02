@@ -9,7 +9,8 @@
        unit of the AWAITING handoff; the source card is the ANCHOR that FLIPs
        into the reveal result's «Источник» slot on the phase handoff. -->
   <div ref="rootEl" class="con-composer con-composer--stage"
-       :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn}"
+       :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn,
+                'con-composer--parlstep': parliamentSetupParked}"
        role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
@@ -715,6 +716,21 @@
       </transition>
       </template><!-- /decision column (non-reveal) -->
 
+      <!-- ── THE PARLIAMENT STEP — the vote mode stands HERE, as a step of this
+           action (`card-actions ⊃ parliament`, one teleported instance): a blue
+           card's action that places a delegate (Turmoil Redux TR15 «3 data →
+           a delegate on a resolution» — a STAGED ACTION VOTE: nothing is sent
+           before the mode's confirm). A LAYER of the decision column, never a
+           swap: the setup lets go IN PLACE while the Parliament rises out of
+           the same rect, and B lets the setup come back to the very variant
+           the player left — this composer never unmounts. The hero column (the
+           source card) stays: the commit's impulse runs its printed row, and
+           its data tick on the card the moment the cube lifts. Always rendered
+           (empty and inert outside the step), so a leaving Parliament always
+           has its zone to dissolve in. -->
+      <div class="con-composer__parlzone" :class="{'con-composer__parlzone--on': parliamentStepOn}"
+           data-embed-slot="action-parliament"></div>
+
       </div><!-- /__actright -->
       </div><!-- /__actmain -->
 
@@ -783,7 +799,7 @@
  * the parent assembles the byte-identical batch. A Viron repeat-action step
  * hands off via `repeat-pick`.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {focusCommandRun, FocusRowKind} from '@/client/console/consoleActionFlow';
@@ -791,7 +807,13 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
-import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
+import {playCommitVerb, playDoorNextStepKey, playDoorOf} from '@/client/console/consolePlayCardComposer';
+import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
+import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
+import {probeTick} from '@/client/console/probeTick';
 import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
@@ -848,7 +870,7 @@ import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, 
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
-import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -1051,6 +1073,19 @@ export type ComposerOutcome =
    */
   | {kind: 'draw'};
 
+/**
+ * A STAGED ACTION VOTE's locked receipt — what the commit charges for the card: the branch's own COST chip on the
+ * card (TR15: «3 data from here»), never the delegate leaving the reserve (that is the vote's, not the card's
+ * price). Undefined when the branch costs nothing of its own.
+ */
+/** The longest the setup waits for a hosted Parliament step to begin rising before it lets go regardless. */
+const PARLIAMENT_RISE_WAIT_MS = 1500;
+
+function stagedVoteReceiptOf(branch: ActionPreviewBranch): StagedReceipt | undefined {
+  const cost = branch.effects.find((e) => e.direction === 'cost' && e.icon !== DELEGATE_ICON);
+  return cost === undefined ? undefined : {amount: cost.amount, icon: cost.icon};
+}
+
 export default defineComponent({
   name: 'ConsoleActionComposer',
   components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
@@ -1104,7 +1139,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'staged-placement', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
+  emits: ['confirm', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
   data() {
     return {
       /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
@@ -1162,6 +1197,20 @@ export default defineComponent({
       playedTargetWidth: 0,
       playedTargetHeight: 0,
       submitting: false,
+      /** The setup column is PARKED under a hosted Parliament step (released in place, hidden — never unmounted). */
+      parliamentSetupParked: false,
+      /** The release / return fades of the setup column (cancelled by the opposite edge). */
+      parliamentSetupFades: [] as Array<Animation>,
+      /** The running release's identity — a later edge (B, the end) voids a release still waiting for the rise. */
+      parliamentReleaseToken: 0,
+      /**
+       * THE DATA ON THE CARD AS THE PLAYER PRESSED A (a staged action vote): the hero's capsule reads it until the
+       * cube LIFTS OFF the reserve — the price is paid with the delegate, so the count drops on that motion, never
+       * on the packet. Undefined outside such a commit.
+       */
+      stagedVoteDataHeld: undefined as number | undefined,
+      /** A staged action vote of THIS card has been confirmed in the Parliament (its step leaves with the workspace). */
+      stagedVoteSent: false,
       /** The reveal phase's visual stage: face down → face first shown
        *  (mid-flip; the status yields to the outcome) → settled (the REAL
        *  card owns the slot). */
@@ -1738,6 +1787,9 @@ export default defineComponent({
      *  gain beat lands, the live tableau value everywhere else. */
     displayedStoredCount(): number {
       const live = this.storedResource?.count ?? 0;
+      if (this.stagedVoteDataHeld !== undefined) {
+        return this.stagedVoteDataHeld;
+      }
       if (this.deckCheckOn && !this.revealGainApplied && this.revealResBaseline !== undefined) {
         return this.revealResBaseline;
       }
@@ -1968,6 +2020,10 @@ export default defineComponent({
           // and the fee is charged there. Say so: the whole point of the flow
           // is that A here costs the player nothing yet.
           out.push(noteRow(translateText('Payment and confirmation happen on the chosen colony.')));
+        } else if (step.kind === 'delegateGrant') {
+          // The resolution is chosen in the Parliament (TR15 — the play door's own row, one key for both doors):
+          // the step's NAME, never a guess about its result.
+          out.push(noteRow(translateText(playDoorNextStepKey({kind: 'parliament', staged: step.staged}) ?? '')));
         } else if (step.kind === 'note' && step.noteKind !== 'warning') {
           out.push(noteRow(step.text !== undefined ? textOf(step.text) : translateText('An additional choice')));
         }
@@ -2167,6 +2223,37 @@ export default defineComponent({
     deltaEntryDoor(): DeltaAdvanceOffer | undefined {
       return this.navigationDeferred ? undefined : this.deltaEntryOffer;
     },
+    /**
+     * THIS BRANCH PLACES A DELEGATE — the server's own `delegateGrant` door (TR15 Martian Census: «3 data from
+     * here → a delegate on a resolution»), classified by the ONE door reader the play composer uses
+     * (`playDoorOf`). A plan does not walk through it (a repeat's copy is asked the resolution live).
+     */
+    voteEntryDoor(): StagedVoteModel | undefined {
+      const door = this.navigationDeferred ? undefined : playDoorOf(this.selectedBranch);
+      return door?.kind === 'parliament' ? door.staged : undefined;
+    },
+    /**
+     * THE PARLIAMENT STANDS IN THIS COMPOSER — a vote step of THIS action, hosted in the decision column's own
+     * layer (`[data-embed-slot="action-parliament"]`): the staged door's vote mode, or the live grant the server
+     * raised for this card. OWNER only: the nested repeat-pick instance never hosts.
+     */
+    parliamentStepOn(): boolean {
+      return this.publishCommands && workspaceFrameHost('parliament') === 'card-actions';
+    },
+    /** The staged ACTION vote of THIS card is past its commit (the mode's A was pressed, the batch is on the wire). */
+    stagedVoteCommitMine(): boolean {
+      const arm = stagedPlayState.arm;
+      return stagedPlayState.committing && arm?.flow === 'action' && arm.cardName === this.entry.cardName &&
+        stagedVoteOf(arm) !== undefined;
+    },
+    /**
+     * THE DELEGATE HAS LEFT THE RESERVE — the vote mode's landing has started and the cube is no longer standing
+     * on the bench (`sourceLeavingCount` falls on the flight's departure, or at once when nothing can fly). The
+     * card's data are the price paid WITH that cube, so the capsule drops on this edge.
+     */
+    stagedVoteCubeGone(): boolean {
+      return parliamentFlow.stage === 'landed' && parliamentFlow.sourceLeavingCount === 0;
+    },
     /** The live trade prompt this branch would enter (server-authoritative). */
     tradeEntryContext(): TradeColonyContext | undefined {
       return this.tradeEntryCard === undefined ?
@@ -2268,6 +2355,10 @@ export default defineComponent({
       if (this.tradeEntryDoor !== undefined) {
         return 'Choose a colony';
       }
+      // A VOTE door (TR15): «Выбрать резолюцию» — the play door's own verb (`playCommitVerb`), one classification.
+      if (this.voteEntryDoor !== undefined) {
+        return playCommitVerb({kind: 'parliament', staged: this.voteEntryDoor});
+      }
       // Nor does an advance branch: the destination, its requirements and its
       // reward are studied ON the track, and the one confirm is there.
       return this.deltaEntryDoor !== undefined ? 'Open the Hydronetwork' : this.commitLabel;
@@ -2347,6 +2438,59 @@ export default defineComponent({
     // The COLONIES STEP zone — same discipline (embed rule 4: `flush:'post'`
     // so the element genuinely stands before the teleport looks for it,
     // retract on the way out).
+    // THE PARLIAMENT STEP's zone — the colony step's discipline (embed rule 4: `flush: 'post'`, so the layer
+    // genuinely stands before the teleport looks for it; retracted on the way out) — plus the SETUP's own phrase:
+    // it lets go IN PLACE as the Parliament rises out of the same rect, and comes back the same way on B.
+    // THE DOOR IS OPEN: warm the voting area's art while the player configures, so the vote mode rises with its
+    // pictures in (the play door warms it during its landing ritual — an action has no ritual).
+    voteEntryDoor(door: StagedVoteModel | undefined): void {
+      if (door !== undefined) {
+        preloadResolutionArt((this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution));
+      }
+    },
+    parliamentStepOn: {
+      flush: 'post' as const,
+      handler(on: boolean, was: boolean) {
+        setWorkspaceFrameSlot('card-actions', on ? '[data-embed-slot="action-parliament"]' : '');
+        setWorkspaceFrameSourceCard('card-actions', on ? this.entry.cardName : '');
+        if (on) {
+          this.releaseSetupForParliament();
+        } else if (was && !this.stagedVoteSent) {
+          // B out of the vote (nothing was sent): the setup returns to the variant the player left. A SENT vote's
+          // step ends WITH this workspace — the setup stays parked under its leave.
+          this.restoreSetupFromParliament();
+        }
+      },
+    },
+    // THE MODE'S A FOR THIS CARD (a staged action vote): the commit is this card's — its beat plays on the hero
+    // (the impulse runs the variant's printed row onto its delegate), the CTA locks, and the capsule keeps the data
+    // the player pressed with until the cube lifts off the reserve. A refusal (the transport's abort battery
+    // cleared `committing` with the arm standing) gives everything back; the flow's end releases the hold.
+    stagedVoteCommitMine(now: boolean, was: boolean): void {
+      if (now && !was) {
+        this.stagedVoteSent = true;
+        this.stagedVoteDataHeld = this.storedResource?.count;
+        this.submitting = true;
+        const branch = this.selectedBranch;
+        if (branch !== undefined) {
+          this.playCommitBeat(branch);
+        }
+        return;
+      }
+      if (was && !now) {
+        this.stagedVoteDataHeld = undefined;
+        const arm = stagedPlayState.arm;
+        if (stagedVoteOf(arm) !== undefined && arm?.cardName === this.entry.cardName) {
+          this.stagedVoteSent = false;
+          this.submitting = false;
+        }
+      }
+    },
+    stagedVoteCubeGone(gone: boolean): void {
+      if (gone && this.stagedVoteSent) {
+        this.stagedVoteDataHeld = undefined;
+      }
+    },
     colonyStepOn: {
       flush: 'post' as const,
       handler(on: boolean) {
@@ -2547,6 +2691,13 @@ export default defineComponent({
       setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-colonies"]');
       setWorkspaceFrameSourceCard('card-actions', this.entry.cardName);
     }
+    // …and the same for a Parliament step already standing (a restored park): the zone is republished and the
+    // setup comes back already parked — there is no release to replay.
+    if (this.parliamentStepOn) {
+      setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-parliament"]');
+      setWorkspaceFrameSourceCard('card-actions', this.entry.cardName);
+      this.parliamentSetupParked = true;
+    }
   },
   beforeUnmount() {
     this.clearBeatDelay();
@@ -2562,11 +2713,12 @@ export default defineComponent({
     if (this.publishCommands) {
       setWorkspaceOutcomeSlot('');
     }
-    // Same for the colonies-step zone (embed rule 4, the retract half).
-    if (this.colonyStepOn) {
+    // Same for the colonies-step zone (embed rule 4, the retract half) — and the Parliament step's.
+    if (this.colonyStepOn || this.parliamentStepOn) {
       setWorkspaceFrameSlot('card-actions', '');
       setWorkspaceFrameSourceCard('card-actions', '');
     }
+    this.cancelSetupFades();
     resetOutcomeOrigin();
     if (this.revealGainPopTimer !== undefined) {
       window.clearTimeout(this.revealGainPopTimer);
@@ -4177,6 +4329,134 @@ export default defineComponent({
       }
       return [];
     },
+    /** The decision column's setup — every layer of it but the Parliament's own zone. */
+    setupLayers(): Array<HTMLElement> {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      return Array.from(root?.querySelectorAll<HTMLElement>('.con-composer__actright > :not(.con-composer__parlzone)') ?? []);
+    },
+    cancelSetupFades(): void {
+      this.parliamentSetupFades.forEach((fade) => fade.cancel());
+      this.parliamentSetupFades = [];
+    },
+    /**
+     * RELEASE — the setup lets go ON THE SPOT while the Parliament rises out of the same rect (its own CSS entry,
+     * `.con-parl--embedded`): one surface advancing, never a swap. Once the fade has run the setup is PARKED
+     * (`visibility: hidden` — it keeps its box, its state and its captures).
+     *
+     * ⚠️ THE RELEASE WAITS FOR THE RISE. The section mounts at the push, but its entry (`backwards`) holds it at
+     * opacity 0 until the first frame it can paint — measured ≈ 550 ms after the mount on a cold table (the
+     * three resolution faces, their fit, their art). A setup that let go at the push left the column EMPTY for
+     * that whole window. So the setup stands until the step's root has visibly begun to rise (its computed
+     * opacity leaves 0), then the two cross — sampled on `probeTick`, bounded by `PARLIAMENT_RISE_WAIT_MS`.
+     */
+    releaseSetupForParliament(): void {
+      this.cancelSetupFades();
+      const token = ++this.parliamentReleaseToken;
+      if (consoleReducedMotionActive()) {
+        this.parliamentSetupParked = true;
+        return;
+      }
+      const startedAt = performance.now();
+      const letGo = (): void => {
+        const layers = this.setupLayers();
+        if (layers.length === 0 || typeof layers[0].animate !== 'function') {
+          this.parliamentSetupParked = true;
+          return;
+        }
+        const fades = layers.map((el) => el.animate([{opacity: 1}, {opacity: 0}],
+          {duration: consoleMotionMs(STAGED_STEP_RELEASE_MS), easing: 'ease-out', fill: 'forwards'}));
+        // RAW, and the ownership question is the TOKEN: `data` hands back a Proxy, so «is this still my fade?»
+        // asked by identity is always «no» — the release never parked, the setup hung at the fade's `forwards`
+        // fill, and the first cancel (the leave) brought it back UNDER the Parliament.
+        this.parliamentSetupFades = markRaw(fades);
+        void Promise.all(fades.map((fade) => fade.finished.catch(() => undefined))).then(() => {
+          if (token !== this.parliamentReleaseToken) {
+            return; // a later edge (B, the end) took over
+          }
+          if (this.parliamentStepOn) {
+            this.parliamentSetupParked = true;
+          }
+          this.cancelSetupFades();
+        });
+      };
+      const waitForRise = (): void => {
+        if (token !== this.parliamentReleaseToken || !this.parliamentStepOn) {
+          return;
+        }
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const step = root?.querySelector<HTMLElement>('.con-composer__parlzone .con-parl') ?? null;
+        const rising = step !== null && Number(getComputedStyle(step).opacity) > 0;
+        if (rising || performance.now() - startedAt > PARLIAMENT_RISE_WAIT_MS) {
+          letGo();
+          return;
+        }
+        probeTick(waitForRise);
+      };
+      probeTick(waitForRise);
+    },
+    /** RETURN — B out of the vote: the setup un-parks and surfaces where it stood, the cursor on the variant left. */
+    restoreSetupFromParliament(): void {
+      this.parliamentReleaseToken++;
+      this.cancelSetupFades();
+      this.parliamentSetupParked = false;
+      if (consoleReducedMotionActive()) {
+        return;
+      }
+      void this.$nextTick(() => {
+        const layers = this.setupLayers();
+        if (layers.length === 0 || typeof layers[0].animate !== 'function') {
+          return;
+        }
+        this.parliamentSetupFades = markRaw(layers.map((el) => el.animate([{opacity: 0}, {opacity: 1}],
+          {duration: consoleMotionMs(STAGED_STEP_RELEASE_MS), easing: 'ease-out'})));
+      });
+    },
+    /**
+     * ── ACTION COMMIT — the universal activation beat, for THIS branch. Armed and MEASURED synchronously at the
+     *    press (the reward-wave origins are the live icon rects; the flight must never depend on this stage
+     *    outliving the answer). Played by the composer's own confirm — and by a STAGED ACTION VOTE's confirm in
+     *    the Parliament standing in this composer (TR15): the press is the mode's A, the beat is this card's.
+     */
+    playCommitBeat(branch: ActionPreviewBranch): void {
+      // BOTH read the captures: a branch whose result is chosen in a step
+      // («любой стандартный ресурс») has no chips of its own, so the category
+      // and the reward wave are only knowable once the answer is in hand.
+      // A captured STAGE-REWARD claim (Dutch Mountains) contributes the
+      // claimed stage's own transfers/category the same way — through the
+      // one reward view every hydro landing uses, structural off the track.
+      const stageDraft = this.stageRewardDraft;
+      const stageSpecs = stageDraft !== undefined ?
+        deltaRewardCommitSpecs(stageDraft, this.playerView) : [];
+      const stageFollowUp = stageDraft !== undefined ? HYDRO_STAGES[stageDraft.position]?.followUp : undefined;
+      const baseKind = commitKindForBranch(branch, this.captured);
+      const kind = stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
+        (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
+      const specs = [...commitRewardSpecs(this.entry.cardName, branch, this.captured), ...stageSpecs];
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
+      const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
+      const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
+      const srcRect = wrap?.getBoundingClientRect();
+      armActionCommit({
+        sourceCard: this.entry.cardName,
+        kind,
+        specs,
+        origins,
+        sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
+          {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.72} : undefined,
+      });
+      this.commitHandle = runActionCommitMotion({
+        cardWrapEl: wrap,
+        ctaEl: root?.querySelector<HTMLElement>('.con-composer__cta') ?? undefined,
+        actionNode: this.actionGraphicNode,
+        kind,
+        firstResource: specs[0]?.resource,
+        // The draw's causality: the impulse lands on the printed card-draw
+        // icon and the HUD deck ANSWERS — right before the physical pull.
+        onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,
+        onSettled: markActionCommitSettled,
+      });
+    },
     /**
      * WHERE THIS BRANCH LEADS, if anywhere — the branch's own runtime-navigation
      * step kind, published on the row.
@@ -4236,6 +4516,25 @@ export default defineComponent({
         this.$emit('delta-advance', {offer: this.deltaEntryOffer, branchIndex: branch.index});
         return;
       }
+      // ── THE VOTE'S FOURTH DOOR (Turmoil Redux TR15 — a blue card's ACTION places the delegate). The branch
+      //    commits NOTHING here: no data spent, no card marked used, no request. The Parliament's vote mode stands
+      //    up INSIDE this composer (a staged step of the action) and its confirm is the action's ONE POST — this
+      //    batch with the resolution as its ADDRESSED tail. B there walks back to this very variant, every capture
+      //    intact (this composer never unmounts). No commit beat here — it plays on the mode's A. The SAME v1
+      //    boundary as the staged cell: a card-actions-ROOTED flow; anywhere else the action commits as usual
+      //    and the grant is met LIVE, hosted by the nearest live step.
+      if (this.voteEntryDoor !== undefined && this.publishCommands && this.repeatResult === undefined &&
+          this.stageRewardDraft === undefined && workspaceStackRootKind() === 'card-actions') {
+        this.$emit('staged-vote', {
+          branchIndex: branch.index,
+          preResponses: orderedPreResponses(this.preview, this.capturedPre),
+          optionResponse: this.capturedOption,
+          stepResponses: orderedStepResponses(branch, this.captured),
+          staged: this.voteEntryDoor,
+          receipt: stagedVoteReceiptOf(branch),
+        });
+        return;
+      }
       this.submitting = true;
       // STAGED PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md): a branch whose Mars
       // placement the SERVER marked stage-able hands the screen to the BOARD
@@ -4278,44 +4577,7 @@ export default defineComponent({
       //    the answer). The nested repeat-pick composer only CAPTURES a
       //    choice — no server activation, no commit beat there.
       if (this.publishCommands) {
-        // BOTH read the captures: a branch whose result is chosen in a step
-        // («любой стандартный ресурс») has no chips of its own, so the category
-        // and the reward wave are only knowable once the answer is in hand.
-        // A captured STAGE-REWARD claim (Dutch Mountains) contributes the
-        // claimed stage's own transfers/category the same way — through the
-        // one reward view every hydro landing uses, structural off the track.
-        const stageDraft = this.stageRewardDraft;
-        const stageSpecs = stageDraft !== undefined ?
-          deltaRewardCommitSpecs(stageDraft, this.playerView) : [];
-        const stageFollowUp = stageDraft !== undefined ? HYDRO_STAGES[stageDraft.position]?.followUp : undefined;
-        const baseKind = commitKindForBranch(branch, this.captured);
-        const kind = stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
-          (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
-        const specs = [...commitRewardSpecs(this.entry.cardName, branch, this.captured), ...stageSpecs];
-        const root = this.$refs.rootEl as HTMLElement | undefined;
-        const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
-        const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
-        const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
-        const srcRect = wrap?.getBoundingClientRect();
-        armActionCommit({
-          sourceCard: this.entry.cardName,
-          kind,
-          specs,
-          origins,
-          sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
-            {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.72} : undefined,
-        });
-        this.commitHandle = runActionCommitMotion({
-          cardWrapEl: wrap,
-          ctaEl: root?.querySelector<HTMLElement>('.con-composer__cta') ?? undefined,
-          actionNode: this.actionGraphicNode,
-          kind,
-          firstResource: specs[0]?.resource,
-          // The draw's causality: the impulse lands on the printed card-draw
-          // icon and the HUD deck ANSWERS — right before the physical pull.
-          onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,
-          onSettled: markActionCommitSettled,
-        });
+        this.playCommitBeat(branch);
       }
       this.$emit('confirm', {
         branchIndex: branch.index,

@@ -1,4 +1,5 @@
 import {reactive} from 'vue';
+import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
 import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -151,8 +152,8 @@ export type VoteSnapshot = {
    * confirm stays «Разыграть карту» through the landing). Absent = the vote / an effect's grant.
    */
   door?: 'card',
-  /** A STAGED card door's receipt (the card's price as the composer settled it) — read through the landing. */
-  receipt?: number,
+  /** A STAGED card door's receipt (what the commit charged for the card — M€ or the action's own cost chip) — read through the landing. */
+  receipt?: StagedReceipt,
   /**
    * THE PARTY'S SUPPORT this press also pays («then up to N neutral delegates to the chosen resolution's
    * party»): the server's row for the SELECTED card's party as it stood at the press. The block reads it
