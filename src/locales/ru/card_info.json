@@ -471,6 +471,8 @@
     "Production raised: gain that resource too": "Рост производства: получите и сам ресурс",
     "Your Venus requirements are ±2 steps": "Ваши требования Венеры: ±2 деления",
     "Card of 20+ M€ played: draw a card": "Карта от 20 M€: возьмите карту",
+    "Building card with VP ≥ 0 played: draw a card": "Карта Строительства с ПО ≥ 0: возьмите карту",
+    "Place a city tile ON A NON-RESERVED SPACE ADJACENT TO ONE OF YOUR CITIES, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ РЯДОМ С ОДНИМ ИЗ ВАШИХ ГОРОДОВ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ.",
     "You may raise the colony track before trading": "Перед торговлей можно поднять трек колонии",
     "Space cards cost 4 M€ less": "Карты космоса дешевле на 4 M€",
     "New tag type in play: +1 M€ production": "Новый тип метки: +1 производство M€",

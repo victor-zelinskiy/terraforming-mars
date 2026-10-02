@@ -64,6 +64,8 @@ export type PlacementIllegalReason =
   | 'not-enough-adjacent-oceans'
   | 'requires-adjacent-greenery'
   | 'requires-adjacent-city'
+  // A city IGNORING the other placement rules, but next to one of the player's OWN (TR16 Administration District).
+  | 'not-adjacent-to-your-city'
   | 'requires-adjacent-ocean'
   | 'requires-2-adjacent-cities'
   | 'ocean-requires-adjacent-greenery'
@@ -119,6 +121,7 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'not-enough-adjacent-oceans': 'Needs at least 2 adjacent ocean tiles',
   'requires-adjacent-greenery': 'Must be adjacent to a greenery',
   'requires-adjacent-city': 'Must be adjacent to a city',
+  'not-adjacent-to-your-city': 'Must be adjacent to one of your cities',
   'requires-adjacent-ocean': 'Must be adjacent to an ocean',
   'requires-2-adjacent-cities': 'Must be adjacent to at least 2 cities',
   'ocean-requires-adjacent-greenery': 'Ocean must be adjacent to a greenery',

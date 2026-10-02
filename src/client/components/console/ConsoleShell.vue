@@ -2086,7 +2086,7 @@ import {albumLayoutState, setAlbumLayoutRecomposer} from '@/client/console/conso
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {StageHost, useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
+import {awaitingViewerInput, handPlayWindowClosed, offTurnReason} from '@/client/console/offTurnReason';
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
 // old save, a test fixture) — the live price always comes from the server.
 import {AWARD_COSTS, MILESTONE_COST} from '@/common/constants';
@@ -6656,12 +6656,17 @@ export default defineComponent({
       return this.actionBlockedReason !== '' || this.awaitingInput ?
         'Finish your current action first' : 'Not your turn to take any actions';
     },
-    /** The play WINDOW is closed — no live play offer, or a decision is
-     *  already owed. THE discriminator for whether the turn note joins a
-     *  card's availability view (hand verdict bar + fullscreen panel read
-     *  the same flag, so their reason lists match row for row). */
+    /** The play WINDOW is closed — a decision is already owed, or no play
+     *  is offered away from the action menu (`handPlayWindowClosed`). THE
+     *  discriminator for whether the turn note joins a card's availability
+     *  view (hand verdict bar + fullscreen panel read the same flag, so their
+     *  reason lists match row for row). */
     handTurnWindowClosed(): boolean {
-      return this.playAction === undefined || this.actionBlockedReason !== '';
+      return handPlayWindowClosed({
+        playOffered: this.playAction !== undefined,
+        atActionMenu: taskFor(this.playerView)?.kind === 'actionMenu',
+        actionBlocked: this.actionBlockedReason !== '',
+      });
     },
     /** True when the hand grid is the surface the right stick should scroll —
      *  in the hand section with nothing layered on top (a play-confirm / task /

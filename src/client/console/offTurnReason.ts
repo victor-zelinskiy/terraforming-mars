@@ -48,3 +48,24 @@ export function awaitingViewerInput(view: PlayerViewModel): boolean {
 export function offTurnReason(awaitingInput: boolean): string {
   return awaitingInput ? FINISH_CURRENT_ACTION : NOT_YOUR_TURN;
 }
+
+/**
+ * Is the hand's PLAY WINDOW closed — i.e. does the turn note (the reason
+ * above) join a hand card's own reasons (the hand verdict bar AND the
+ * fullscreen panel read this one flag)?
+ *
+ * Closed when a decision is already owed (`actionBlocked` — the shell's one
+ * `actionBlockedReason`), or when the server offers no play AND the viewer is
+ * not standing at the action menu (an opponent's turn, a mandatory
+ * sub-prompt). The trap: `Player.getActions` simply OMITS «Play project card»
+ * when nothing in hand is playable, so «no play offer» alone read as «the
+ * window is closed» on the viewer's own free turn — and every card stood with
+ * its true rules reason PLUS «Сначала завершите текущее действие», with
+ * nothing to finish. The ACTION MENU standing IS the open window.
+ */
+export function handPlayWindowClosed(input: {playOffered: boolean, atActionMenu: boolean, actionBlocked: boolean}): boolean {
+  if (input.actionBlocked) {
+    return true;
+  }
+  return !input.playOffered && !input.atActionMenu;
+}
