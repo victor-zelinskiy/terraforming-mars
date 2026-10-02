@@ -209,7 +209,34 @@
            denser for a beat and settles. A one-shot ended by its own animationend: no pulse, no repeat,
            and nothing around it moves. */
         &--landed { animation: con-pseal-support-land calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
+        /* A STANDING CUBE THE PRESS BEING DECIDED WOULD SEND AWAY (TR12 «САНКЦИИ», the cursor on a candidate): the
+           cube fades and the place wears a DASHED outline — the incoming place's grammar read backwards; the dash,
+           not a colour, is what tells it from a cube that stays. */
+        &--outgoing { outline: .06rem dashed fade(@con-amber, 90%); outline-offset: -.06rem; .player-cube { opacity: .38; } }
+        /* THE LIFT-OFF (TR12): the ONE place whose cube just left for the common supply answers once — its
+           material thins and settles empty. A one-shot ended by its own animationend; nothing around it moves. */
+        &--left { animation: con-pseal-support-left calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
     }
+    /* THE SUPPORT-AREA MODE's reading (TR12 «САНКЦИИ») in the state row's place: a candidate's «3 → 0» in the
+       roll call's tracked accent, a refused area's ONE reason in the quiet register (never amber — an empty
+       area is a fact, not a warning). */
+    &__pick {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .18rem;
+        font-size: .64rem;
+        font-weight: 800;
+        letter-spacing: .06em;
+        font-variant-numeric: tabular-nums;
+        color: fade(@con-parl-silver, 95%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        &--refused { font-size: .56rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 62%); }
+    }
+    &__pick-arrow { opacity: .55; font-weight: 600; }
     /* THE ROLL CALL's word (v3 В3): the scene's own reading of this party, in the state row's place — a
        compact tracked accent that carries by weight, never by colour alone. */
     &__roll {
@@ -305,3 +332,9 @@
     100% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
 }
 html.con-fx-lite .con-pseal__support-place--landed { animation: none; }
+/* …and the lift-off's (TR12): the place lets its cube go and thins for a beat before it reads empty. */
+@keyframes con-pseal-support-left {
+    0% { box-shadow: inset 0 0 0 .1rem rgba(226, 232, 240, 0.85); }
+    100% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3); }
+}
+html.con-fx-lite .con-pseal__support-place--left { animation: none; }

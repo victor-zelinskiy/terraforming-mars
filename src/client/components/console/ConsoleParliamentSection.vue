@@ -29,6 +29,7 @@
              'con-parl--sitting': sittingUp,
              'con-parl--sitting-field': flow.sittingField,
              'con-parl--walk': walkUp,
+             'con-parl--support': supportUp,
              ['con-parl--zone-' + flow.zone]: true,
            }"
            ref="rootEl"
@@ -48,6 +49,7 @@
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
            :data-parl-grant-degraded="flow.grantDegraded !== '' ? flow.grantDegraded : undefined"
+           :data-parl-support-degraded="supportDegraded !== '' ? supportDegraded : undefined"
            data-motion-panel>
     <!-- EMBEDDED (a step of another workspace — the delegate grant of the Redux
          Venus, hosted inside the colonies): the host draws the crumb (embed
@@ -81,6 +83,14 @@
                                      :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
         <ConsoleParliamentVotingArea :view="view" :model="model" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
                                      :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
+        <!-- «САНКЦИИ» (TR12): the support-area mode's reading stands in the VOTING AREA's own cell — the cards
+             recede under it (nothing flies to or from them in this flow); the plaques it is about stay in place. -->
+        <ConsoleParliamentSupportMode v-if="supportUp" ref="supportMode"
+                                      :view="view" :playerView="pv" :viewerColor="viewerColor" :bridge="bridge"
+                                      :cardReceipt="stagedVote !== undefined ? stagedReceipt : undefined" :stagedFlow="stagedFlow"
+                                      @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
+                                      @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)"
+                                      @play-walk="playSupportWalk($event)" />
       </div>
 
       <!-- ══ MIDDLE ZONE — ЛЕНТА и ТЕЛО («Заседание v5»), and that is its only anatomy in every mode.
@@ -93,7 +103,7 @@
            SEAT pick is a body of its own too (a decision, nothing flying). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
         <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" />
+                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" />
 
         <div class="con-parl__bodyzone" data-parl-body>
         <div class="con-parl__parties-tier" ref="partiesTierEl"
@@ -101,7 +111,7 @@
              :data-parl-row-shown="rowParked ? undefined : ''"
              :aria-hidden="rowParked ? 'true' : undefined">
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
-                                    :awaitingInput="awaitingInput" />
+                                    :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" />
         </div>
 
         <!-- ── THE READING PANEL — the chairman SEAT pick and the sitting's READING stages unfold in place
@@ -166,6 +176,7 @@ import ConsoleParliamentAgenda from '@/client/components/console/parliament/Cons
 import ConsoleParliamentVoteMode from '@/client/components/console/parliament/ConsoleParliamentVoteMode.vue';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
+import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -175,7 +186,7 @@ import {
   ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
-  armGrantVoteFlow, consoleParliamentUi, notePlayedSittingStage, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
+  armGrantVoteFlow, armSupportPickFlow, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
@@ -206,6 +217,10 @@ import {
 import {probeTick} from '@/client/console/probeTick';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {agendaWalkFlow, releaseAgendaWalkHolds, releaseAgendaWalkQuest} from '@/client/console/parliament/agendaWalk';
+import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
+import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
+import {BandSupport} from '@/client/console/parliament/parliamentBand';
+import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
@@ -248,6 +263,7 @@ export default defineComponent({
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
     ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting,
+    ConsoleParliamentSupportMode,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -642,6 +658,35 @@ export default defineComponent({
     walkUp(): boolean {
       return parliamentFlow.stage === 'walk';
     },
+    /** «САНКЦИИ» — the SUPPORT-AREA mode stands (its pick, its press in flight, or its answer playing — TR12). */
+    supportUp(): boolean {
+      return parliamentSupportUp();
+    },
+    /** The support-area pick's projection — the bridge's (live or staged), or the mode's latch past the press. */
+    supportMeta(): SupportPromptMeta | undefined {
+      return this.bridge.supportPick?.meta ?? parliamentFlow.supportMeta;
+    },
+    /** A discard's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
+    supportDegraded(): string {
+      return supportDiscardFlow.degraded;
+    },
+    /** «САНКЦИИ»'s band line: the stage, the plaque under the cursor (the chosen one past the press), what leaves it. */
+    supportBand(): BandSupport | undefined {
+      if (!this.supportUp) {
+        return undefined;
+      }
+      const f = parliamentFlow;
+      const party = f.supportSnapshot?.party ?? (f.zone === 'ruler' ? (parliamentHolds.rulerBefore ?? this.view.rulingParty) : this.view.parties[f.partyIndex]?.party);
+      const area = supportAreaOf(this.supportMeta, party);
+      return {
+        stage: f.supportStage,
+        party,
+        leaving: area === undefined ? 0 : Math.max(0, area.current - area.resulting),
+        available: area?.available === true,
+        ...(area?.reason === undefined ? {} : {reason: area.reason}),
+        committed: f.supportCommitted || f.supportLive || f.stage === 'submitting',
+      };
+    },
     /** The walk's own beat, published on the root — read by the e2e probe, never by the product. */
     walkBeat(): string {
       return agendaWalkFlow.live ? agendaWalkFlow.beat : '';
@@ -691,6 +736,12 @@ export default defineComponent({
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
         voteSubjects: this.voteSubjectCount,
+        support: this.bridge.supportPick === undefined && !this.supportUp ? undefined : {
+          staged: this.bridge.supportPick?.staged === true && !parliamentFlow.supportCommitted,
+          stagedFlow: this.stagedFlow,
+          source: this.bridge.supportPick?.card !== undefined,
+          available: supportAreaOf(this.supportMeta, parliamentFlow.zone === 'ruler' ? this.view.rulingParty : this.view.parties[parliamentFlow.partyIndex]?.party)?.available === true,
+        },
         grant: this.bridge.grant === undefined ? undefined : {
           count: this.bridge.grant.count,
           // Staged only BEFORE the press: past it the door is committed like any other.
@@ -1028,6 +1079,27 @@ export default defineComponent({
       },
     },
     /**
+     * A SUPPORT-AREA PICK (TR12 Party Sanctions) — staged (the card's door, hosted in the hand) or live (re-asked,
+     * a reload): the mode opens on it. At SETUP the flow is ARMED before the first render, so the surface is born
+     * in its pose and the overview never shows; arriving over a standing overview it opens there. The cursor
+     * starts on the ring's first area on offer — a cursor, never a selection.
+     */
+    'bridge.supportPick': {
+      immediate: true,
+      handler(pick: ParliamentPromptBridge['supportPick']): void {
+        if (pick === undefined || parliamentFlow.stage !== 'browse') {
+          return;
+        }
+        const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+        const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
+        const start = supportStartParty(pick.meta, order);
+        const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
+        armSupportPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
+          supportStepStageOf(pick.meta), pick.staged !== true, pick.meta);
+        setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+      },
+    },
+    /**
      * THE CRUMB, handed UP. Declared LAST on purpose: every `immediate` watcher
      * above that opens a stage at SETUP (the sitting, a seat pick, a delegate
      * grant's vote) has already done so, and the first name this surface
@@ -1056,6 +1128,9 @@ export default defineComponent({
   },
   mounted() {
     setParliamentRootEl(this.$refs.rootEl as HTMLElement | undefined);
+    // «САНКЦИИ» (TR12): the apply block seeds a discard's holds only while this section's support-area mode
+    // stands to fly them.
+    registerSupportDiscardHost(() => parliamentSupportUp());
     // A sitting already holding the field at mount (a reload, a restore) has
     // no entrance to play — the overview is parked at once.
     parliamentFlow.sittingField = this.sittingField;
@@ -1133,6 +1208,7 @@ export default defineComponent({
     setWorkspaceFrameStage('parliament', '');
   },
   unmounted() {
+    registerSupportDiscardHost(undefined);
     setParliamentRootEl(undefined);
     resetParliamentFlow();
   },
@@ -1148,6 +1224,10 @@ export default defineComponent({
         this.clearSubmitTimer();
         if (f.stageBeforeSubmit === 'vote') {
           this.voteMode()?.answerAfterSubmit();
+          return;
+        }
+        if (f.stageBeforeSubmit === 'support') {
+          (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.answerAfterSubmit();
           return;
         }
         if (f.stageBeforeSubmit === 'quest') {
@@ -1318,6 +1398,16 @@ export default defineComponent({
           this.$emit('collapse');
           return;
         }
+        if (f.stage === 'support') {
+          // «САНКЦИИ» (TR12): a STAGED door is ONE reversible level — back to the play composer, every capture
+          // intact; a LIVE door is mandatory («Свернуть» — the whole hosting stack parks); past the press a beat
+          // is in flight and B says nothing.
+          if (f.supportCommitted) {
+            return;
+          }
+          this.$emit(this.bridge.supportPick?.staged === true ? 'staged-back' : 'collapse');
+          return;
+        }
         if (f.stage === 'vote') {
           // A STAGED door (a card's own play — nothing sent yet): B is ONE
           // reversible level — back to the play composer, every capture intact.
@@ -1352,6 +1442,9 @@ export default defineComponent({
       switch (f.stage) {
       case 'vote':
         this.voteMode()?.handleIntent(intent);
+        return;
+      case 'support':
+        (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.handleIntent(intent);
         return;
       case 'seat':
         (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
@@ -1484,56 +1577,83 @@ export default defineComponent({
      * clock; the whole walk holds an animation hold sized to its steps.
      */
     openWalkFlow(): void {
+      this.startOwedWalk();
+      parliamentFlow.zone = 'government';
+      this.openStage('walk');
+      void this.$nextTick(() => probeTick(() => this.playOwedWalk(() => this.endWalkFlow())));
+    },
+    /** The walk the answer carried becomes the section's subject (the band grows its chips, the conclusion reads it live). */
+    startOwedWalk(): void {
       agendaWalkFlow.live = true;
       agendaWalkFlow.beat = 'walk';
       agendaWalkFlow.landed = [];
-      parliamentFlow.zone = 'government';
-      this.openStage('walk');
-      void this.$nextTick(() => probeTick(() => {
-        const root = this.$refs.rootEl as HTMLElement | undefined;
-        const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
-        const owed = agendaWalkFlow.owed;
-        if (root === undefined || agenda === undefined || owed === undefined || !agendaWalkFlow.live) {
-          this.endWalkFlow();
-          return;
-        }
-        this.walkHold?.release();
-        this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
-        const generation = owed.generation;
-        void agenda.playAgendaWalk(owed, {
-          rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
-          onStep: (leg: AgendaWalkLeg) => {
-            agendaWalkFlow.landed.push(leg.step);
-          },
-          onLanded: () => {
-            // The LAST step's reward, off the settled marker; then the read.
-            deliverAgendaStepReward(root, generation, owed.to, () => {
-              if (!agendaWalkFlow.live) {
-                return;
-              }
-              // Every reward has landed: the chairman quest the walk's TR closed reads its answer NOW — inside the
-              // read beat, where the player sees the consequence of the walk on the very surface it played on.
-              releaseAgendaWalkQuest();
-              agendaWalkFlow.beat = 'read';
-              this.walkReadBeat?.kill();
-              this.walkReadBeat = scheduleParliamentBeat(AGENDA_WALK_READ_MS, () => {
-                this.walkReadBeat = undefined;
-                if (agendaWalkFlow.live) {
-                  this.endWalkFlow();
-                }
-              });
-            });
-          },
-        });
-      }));
     },
-    /** The walk is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
-    endWalkFlow(): void {
+    /**
+     * «САНКЦИИ»'s SECOND BEAT (TR12): the card's Agenda step after its cubes have left the area — the SAME walk,
+     * played on the support pose as it stands (no pose change between the two beats: law 8). `done` is the
+     * mode's continuation once the step's reward has landed and been read.
+     */
+    playSupportWalk(done: () => void): void {
+      this.startOwedWalk();
+      this.playOwedWalk(() => {
+        this.finishOwedWalk();
+        done();
+      });
+    },
+    /**
+     * THE ONE WALK of an owed card record, on the mounted DOM: the tier walks the marker leg by leg, each
+     * INTERMEDIATE step's reward delivered from that very step and waited for; the LAST step's reward follows the
+     * settle; then one read beat, and `onDone` — the caller decides what the end of the walk means (the walk pose
+     * ends its flow, the support-area mode its own).
+     */
+    playOwedWalk(onDone: () => void): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
+      const owed = agendaWalkFlow.owed;
+      if (root === undefined || agenda === undefined || owed === undefined || !agendaWalkFlow.live) {
+        onDone();
+        return;
+      }
+      this.walkHold?.release();
+      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
+      const generation = owed.generation;
+      void agenda.playAgendaWalk(owed, {
+        rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
+        onStep: (leg: AgendaWalkLeg) => {
+          agendaWalkFlow.landed.push(leg.step);
+        },
+        onLanded: () => {
+          // The LAST step's reward, off the settled marker; then the read.
+          deliverAgendaStepReward(root, generation, owed.to, () => {
+            if (!agendaWalkFlow.live) {
+              return;
+            }
+            // Every reward has landed: the chairman quest the walk's TR closed reads its answer NOW — inside the
+            // read beat, where the player sees the consequence of the walk on the very surface it played on.
+            releaseAgendaWalkQuest();
+            agendaWalkFlow.beat = 'read';
+            this.walkReadBeat?.kill();
+            this.walkReadBeat = scheduleParliamentBeat(AGENDA_WALK_READ_MS, () => {
+              this.walkReadBeat = undefined;
+              if (agendaWalkFlow.live) {
+                onDone();
+              }
+            });
+          });
+        },
+      });
+    },
+    /** The owed walk is over: its hold lets go, its read beat is cut, the flow reads «done». */
+    finishOwedWalk(): void {
       this.walkReadBeat?.kill();
       this.walkReadBeat = undefined;
       this.walkHold?.release();
       this.walkHold = undefined;
       agendaWalkFlow.beat = 'done';
+    },
+    /** The walk is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
+    endWalkFlow(): void {
+      this.finishOwedWalk();
       this.$emit('flow-complete', 'walk');
     },
     /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
@@ -1970,6 +2090,7 @@ export default defineComponent({
       if (f.stage === 'submitting') {
         f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;
         f.voteSnapshot = undefined;
+        f.supportSnapshot = undefined;
         this.seatFrom = undefined;
         if (f.stage !== 'landed' && f.stage !== 'paying') {
           freezeParliamentFit(false);

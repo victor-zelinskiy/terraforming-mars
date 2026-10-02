@@ -23,6 +23,7 @@ import {inputTitleText} from '@/client/console/turnIntents';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
 import {promptSourceResolution} from '@/client/console/promptSource';
+import {supportStepStageOf} from '@/client/console/parliament/supportPickModel';
 
 /**
  * `distribute` — the card-target chassis in LAYOUT MODE: N units of one card
@@ -345,6 +346,17 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
 export const DELEGATE_GRANT_STEP_STAGE = 'Voting';
 
 /**
+ * The crumb tail of a hosted PARTY PICK — the Parliament's own word for the
+ * mode that serves it: a delegate grant's VOTE («ГОЛОСОВАНИЕ») or a card's
+ * SUPPORT-AREA pick (TR12 — «САНКЦИИ», by what the pick does to the area).
+ * Keyed on the prompt's structural marker; one answer for the staged door's
+ * frame and the live door's.
+ */
+export function partyStepStageOf(prompt: PlayerInputModel | undefined): string {
+  return prompt?.supportPrompt !== undefined ? supportStepStageOf(prompt.supportPrompt) : DELEGATE_GRANT_STEP_STAGE;
+}
+
+/**
  * The crumb tail of a hosted AGENDA WALK (Turmoil Redux TR04 — a card that
  * walks the marker by being played): the track's own word, the one the tier's
  * kicker and the band print (`AGENDA_WALK_STAGE_KEY`). NOT a row of
@@ -411,6 +423,11 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
   // marker: the chairman-seat pick is the same input type and nobody's step.
   if (kind === 'party' && wf?.votePrompt?.source === 'grant') {
     return DELEGATE_GRANT_STEP_STAGE;
+  }
+  // …and a card's SUPPORT-AREA pick (TR12 Party Sanctions, `supportPrompt`): the Parliament's support-area mode,
+  // inside the flow that raised it, under that mode's own word.
+  if (kind === 'party' && wf?.supportPrompt !== undefined) {
+    return partyStepStageOf(wf);
   }
   return FOLLOW_UP_STEP_STAGES[kind];
 }

@@ -232,6 +232,70 @@
     &--walk {
         .con-parl__top, .con-parl__parties-tier { opacity: .5; transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out; }
     }
+    /* «САНКЦИИ» — the SUPPORT-AREA mode (TR12): the six party PLAQUES are the objects — the opposition row and the
+       ruler's tile in the government stand at full strength and in place; the VOTING AREA recedes fully under the
+       mode's reading panel (it takes the area's own cell, so nothing re-solves), and the government's other
+       blocks (the enacted card, the quest) recede around the ruler's tile. Opacity only — every tier keeps its
+       box, the Agenda track keeps its place and its full strength (the second beat plays on it, law 8). */
+    &--support {
+        .con-parl__top > .con-parl__gov { grid-column: 1; grid-row: 1; }
+        .con-parl__top > .con-parl__voting { grid-column: 2; grid-row: 1; opacity: 0; pointer-events: none; transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out; }
+        .con-parl__gov-head, .con-parl__gov-carry, .con-parl__gov-empty, .con-parl__ruler-kicker, .con-parl__ruler-own, .con-parl__quest {
+            opacity: .42;
+            transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out;
+        }
+    }
+    /* THE MODE'S READING PANEL — the voting area's cell, the vote panel's own glass; a fixed box (the cell is the
+       grid's answer), its body crossfading in place as the cursor walks the plaques. */
+    &__support {
+        grid-column: 2;
+        grid-row: 1;
+        position: relative;
+        z-index: 2;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        padding: .6rem .85rem .6rem;
+        border-radius: .75rem;
+        background: linear-gradient(170deg, rgba(30, 20, 52, 0.985), rgba(12, 10, 22, 0.99));
+        box-shadow: 0 0 0 .06rem rgba(201, 198, 214, 0.3), 0 .9rem 2rem rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        animation: con-parl-step-in calc(240ms * var(--motion-scale, 1)) ease-out backwards;
+        transition: box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--committed, &--live { box-shadow: 0 0 0 .06rem fade(@con-amber, 55%), 0 .9rem 2rem rgba(0, 0, 0, 0.5); }
+    }
+    &__support-stage { position: relative; flex: 1 1 auto; min-height: 0; }
+    /* The body is CENTRED in the cell: the party, the area as places + «N → 0» at reading size, the rule, the
+       receipt — one composed block, never a list pinned to the top of a tall panel. */
+    &__support-body {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: .9rem;
+        min-width: 0; padding: 0 .6rem;
+    }
+    &__support-head { display: flex; align-items: center; justify-content: center; gap: .7rem; min-width: 0; }
+    &__support-emblem { width: 2.6rem; height: 2.6rem; flex-shrink: 0; object-fit: contain; }
+    &__support-name {
+        font-size: 1.45rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--parl-accent, @con-text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    &__support-area {
+        display: flex; flex-direction: column; align-items: center; gap: .55rem; min-width: 0;
+        padding: .8rem 1rem .9rem; border-radius: .65rem;
+        background: rgba(0, 0, 0, 0.3); box-shadow: inset 0 0 0 .05rem fade(@con-parl-silver, 22%);
+        text-align: center;
+    }
+    &__support-kicker { opacity: .75; }
+    &__support-row { display: flex; align-items: center; justify-content: center; gap: 1.2rem; min-width: 0; }
+    &__support-places { gap: .28rem; }
+    &__support-places .con-pseal__support-place { width: 1.6rem; height: 1.6rem; border-radius: .3rem; }
+    &__support-num { display: inline-flex; align-items: baseline; gap: .45rem; font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+    &__support-after { color: @con-parl-silver; }
+    &__support-rule, &__support-reason { max-width: 34rem; font-size: .84rem; line-height: 1.3; color: fade(@con-text, 86%); }
+    &__support-reason { text-transform: uppercase; letter-spacing: .1em; font-size: .72rem; color: fade(@con-text, 66%); }
+    &__support-receipt { align-self: center; border-top: none; padding-top: 0; }
+    &__support-cta { margin-top: auto; }
     &__toolbar {
         flex-shrink: 0;
         display: flex;

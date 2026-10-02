@@ -105,6 +105,7 @@ import {seedParliamentSittingHolds} from '@/client/console/parliament/parliament
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
 import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleModeState} from '@/client/console/consoleModeState';
@@ -599,6 +600,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // paying step's bonus owed — ONLY when the hand that played the card (or an open Parliament) is there to
   // play it; seeded after the quest's for the same reason as the quest's after the ledger's.
   seedAgendaWalkHolds(currentView(), newView);
+  // …and a STRIPPED POPULAR SUPPORT AREA (TR12 Party Sanctions — «discard all neutral delegates from ONE area»): the
+  // promised area keeps its cubes on the plaque and the common supply its old count until the mode that confirmed it
+  // flies them — ONLY while that mode stands (a hold nobody plays would freeze the area).
+  seedSupportDiscardHolds(currentView(), newView);
   // …and a CHOSEN COLONY TRACK's move (TR07 Colony Sponsors — «move its marker to the highest position»):
   // the promised tile held on its old cell until the stage it was confirmed on plays the glide — ONLY while
   // that stage stands (a hold nobody plays would freeze the track).

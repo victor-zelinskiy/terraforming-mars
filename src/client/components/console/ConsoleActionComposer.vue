@@ -2023,7 +2023,7 @@ export default defineComponent({
         } else if (step.kind === 'delegateGrant') {
           // The resolution is chosen in the Parliament (TR15 — the play door's own row, one key for both doors):
           // the step's NAME, never a guess about its result.
-          out.push(noteRow(translateText(playDoorNextStepKey({kind: 'parliament', staged: step.staged}) ?? '')));
+          out.push(noteRow(translateText(playDoorNextStepKey({kind: 'parliament', staged: step.staged, mode: 'vote'}) ?? '')));
         } else if (step.kind === 'note' && step.noteKind !== 'warning') {
           out.push(noteRow(step.text !== undefined ? textOf(step.text) : translateText('An additional choice')));
         }
@@ -2357,7 +2357,7 @@ export default defineComponent({
       }
       // A VOTE door (TR15): «Выбрать резолюцию» — the play door's own verb (`playCommitVerb`), one classification.
       if (this.voteEntryDoor !== undefined) {
-        return playCommitVerb({kind: 'parliament', staged: this.voteEntryDoor});
+        return playCommitVerb({kind: 'parliament', staged: this.voteEntryDoor, mode: 'vote'});
       }
       // Nor does an advance branch: the destination, its requirements and its
       // reward are studied ON the track, and the one confirm is there.

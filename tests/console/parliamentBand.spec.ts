@@ -5,7 +5,7 @@ import {CardResource} from '@/common/CardResource';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {
-  BandChip, BandContext, BandRewardReading, bandRewardTakes, BandSitting, parliamentBandLine,
+  BandChip, BandContext, BandRewardReading, bandRewardTakes, BandSitting, BandSupport, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 
 /*
@@ -123,6 +123,30 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
     it('outranks the overview and the quest (a walk is never live during either)', () => {
       const walk = parliamentBandLine({standing: {votes: 2, player: RED, resolution: {resolution: ARCHITECTURE, party: PartyName.MARS}}, quest: {beat: 'task', player: RED}, walk: {player: BLUE, landed: []}});
       expect(walk.kicker).eq('Agenda track');
+    });
+  });
+
+  describe('САНКЦИИ — the support-area mode (TR12): the plaque under the cursor and what leaves it', () => {
+    const support = (over: Partial<BandSupport>): BandSupport => ({stage: 'Sanctions', party: PartyName.MARS, leaving: 3, available: true, committed: false, ...over});
+
+    it('a candidate: «[emblem] [cube] −3» under the stage\'s own kicker, cyan until A, amber past it', () => {
+      const open = parliamentBandLine({standing: {votes: 0}, support: support({})});
+      expect(open.kicker).eq('Sanctions');
+      expect(open.chips).deep.eq([{kind: 'supportDelta', party: PartyName.MARS, amount: 3}]);
+      expect(open.committed).is.false;
+      const pressed = parliamentBandLine({standing: {votes: 0}, support: support({committed: true})});
+      expect(pressed.committed).is.true;
+      expect(pressed.key, 'the commit crossfades the line once').not.eq(open.key);
+    });
+
+    it('a refused area: the party and its ONE reason in the quiet register — never a «−0»', () => {
+      const refused = parliamentBandLine({standing: {votes: 0}, support: support({party: PartyName.REDS, leaving: 0, available: false, reason: 'The support area is empty'})});
+      expect(refused.chips).deep.eq([{kind: 'party', party: PartyName.REDS}, {kind: 'label', key: 'The support area is empty', tone: 'quiet'}]);
+    });
+
+    it('the walk that follows it in the same flow outranks it — the step is then the beat on the table', () => {
+      const both = parliamentBandLine({standing: {votes: 0}, support: support({committed: true}), walk: {player: BLUE, landed: []}});
+      expect(both.kicker).eq('Agenda track');
     });
   });
 

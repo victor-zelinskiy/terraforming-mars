@@ -257,7 +257,7 @@ describe('consolePlayCardComposer — the DOOR (a step the composer leads to, ne
 
   it('a `delegateGrant` step is the PARLIAMENT door: the CTA and the bar say «Выбрать резолюцию», the next step is named', () => {
     const door = playDoorOf(branch([{kind: 'delegateGrant', staged: STAGED}]));
-    expect(door).to.deep.eq({kind: 'parliament', staged: STAGED});
+    expect(door, 'the vote mode of the ONE parliament door (TR12 added the support mode beside it)').to.deep.eq({kind: 'parliament', staged: STAGED, mode: 'vote'});
     expect(playCommitVerb(door)).to.eq('Choose the resolution');
     expect(playDoorNextStepKey(door)).to.eq('Resolution — chosen in the Parliament');
     expect(playPrimaryVerb({focused: 'cta', primary: {kind: 'ready'}, doorVerb: playCommitVerb(door)})).to.deep.eq({label: 'Choose the resolution', enabled: true});

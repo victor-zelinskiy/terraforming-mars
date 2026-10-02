@@ -1,9 +1,10 @@
 import {reactive} from 'vue';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
-import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {SITTING_SUBJECT_KEY} from '@/client/console/parliament/consoleSittingFlow';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 
 /*
  * THE PARLIAMENT WORKSPACE'S FLOW STATE (Turmoil Redux) — two records.
@@ -134,9 +135,16 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
  * whose stage is the server's step (`consoleSittingFlow`); `walk` — a CARD's
  * walk of the Agenda track shown as the OUTCOME of its play («КАРЬЕРА», TR04:
  * the Parliament hosted in the hand's own zone, the marker step by step, then
- * the surface leaves — `agendaWalk`), past the commit and absorbing input.
+ * the surface leaves — `agendaWalk`), past the commit and absorbing input;
+ * `support` — the SUPPORT-AREA mode (TR12 Party Sanctions, «САНКЦИИ»): the
+ * cursor walks the six party plaques, A commits the pick, and the SAME stage
+ * plays the answer in place (`supportCommitted` — the cubes leave the area,
+ * then the card's Agenda step), the pose never changing between the two.
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support';
+
+/** The SUPPORT-AREA mode's outcome beat ('' before A): the cubes leaving the area · the card's Agenda step · the read · over. */
+export type SupportBeat = '' | 'sent' | 'discard' | 'walk' | 'read' | 'done';
 
 /**
  * The vote's numbers at the SUBMIT — the mode reads these until the delegate
@@ -234,6 +242,19 @@ function freshFlow() {
      * hand the card over (one DOM instance, teleported).
      */
     sittingField: false,
+    /**
+     * THE SUPPORT-AREA MODE (TR12): its stage name (the crumb's tail and the band's kicker — `SUPPORT_STEP_STAGES`
+     * by what the pick does), the press is in and its answer plays on this very stage (`supportCommitted`), the
+     * door is the server's LIVE prompt rather than a staged one (re-asked, a reload — B «Свернуть», the crumb
+     * amber), the beat of the outcome, and the area the press chose with what stood in it at the press.
+     */
+    supportStage: '',
+    supportCommitted: false,
+    supportLive: false,
+    supportBeat: '' as SupportBeat,
+    supportSnapshot: undefined as {party: ReduxParty, current: number} | undefined,
+    /** The pick's projection as the mode opened on it — LATCHED: a live door's prompt is gone with its answer. */
+    supportMeta: undefined as SupportPromptMeta | undefined,
   };
 }
 
@@ -275,6 +296,33 @@ export function armGrantVoteFlow(slotIndex: number): void {
   f.supportHeld = 0;
   f.supportLanded = 0;
   f.grantDegraded = '';
+}
+
+/**
+ * ARM THE SUPPORT-AREA MODE BEFORE THE FIRST RENDER (TR12) — the section mounts
+ * straight into its pose (the staged door hosted in the hand, a live door met
+ * on a reload): the cursor stands on `cursor` (the ring's first area on offer —
+ * a cursor, never a selection), the crumb names `stage` from the first render.
+ * The ruler's tile is the `ruler` zone, the five of the row the `parties` zone
+ * (the overview's own cursor, so the plaques' focus reads one record).
+ */
+export function armSupportPickFlow(cursor: {zone: 'parties' | 'ruler', partyIndex: number}, stage: string, live: boolean, meta: SupportPromptMeta): void {
+  const f = parliamentFlow;
+  f.supportMeta = meta;
+  f.zone = cursor.zone;
+  f.partyIndex = Math.max(0, cursor.partyIndex);
+  f.stage = 'support';
+  f.supportStage = stage;
+  f.supportCommitted = false;
+  f.supportLive = live;
+  f.supportBeat = '';
+  f.supportSnapshot = undefined;
+}
+
+/** The SUPPORT-AREA mode stands (its pick, its press in flight, or its answer playing). */
+export function parliamentSupportUp(): boolean {
+  const f = parliamentFlow;
+  return f.stage === 'support' || (f.stage === 'submitting' && f.stageBeforeSubmit === 'support');
 }
 
 /** The chairman's delegate has landed on the seat mark: it flashes once (a CSS one-shot; the government clears the flag on `animationend`). */
@@ -329,9 +377,13 @@ export function parliamentCrumbSubject(questLive = false): string {
   case 'submitting':
     return parliamentFlow.stageBeforeSubmit === 'vote' ? 'Voting' :
       parliamentFlow.stageBeforeSubmit === 'sitting' ? SITTING_SUBJECT_KEY :
-        parliamentFlow.stageBeforeSubmit === 'quest' ? CHAIRMAN_QUEST_SUBJECT_KEY : 'Parliament overview';
+        parliamentFlow.stageBeforeSubmit === 'quest' ? CHAIRMAN_QUEST_SUBJECT_KEY :
+          parliamentFlow.stageBeforeSubmit === 'support' ? parliamentFlow.supportStage : 'Parliament overview';
   case 'sitting': return SITTING_SUBJECT_KEY;
   case 'quest': return CHAIRMAN_QUEST_SUBJECT_KEY;
+  // The SUPPORT-AREA mode is a mode like the vote: its own name is the subject («ПАРЛАМЕНТ › САНКЦИИ»), and hosted
+  // it is handed UP as the host's tail («КАРТЫ В РУКЕ › ПАРТИЙНЫЕ САНКЦИИ › САНКЦИИ»).
+  case 'support': return parliamentFlow.supportStage;
   default: return 'Parliament overview';
   }
 }
@@ -363,7 +415,10 @@ export const AGENDA_WALK_STAGE_KEY = 'Agenda track';
 export function parliamentCrumbCommitted(questLive = false): boolean {
   const stage = parliamentFlow.stage;
   return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' || stage === 'walk' ||
-    (stage === 'seat' && questLive);
+    (stage === 'seat' && questLive) ||
+    // The support-area mode: cyan while its pick is open, amber once A is pressed — or while it serves a LIVE door,
+    // which the player must answer (the commit of the flow that raised it is behind them).
+    (stage === 'support' && (parliamentFlow.supportCommitted || parliamentFlow.supportLive));
 }
 
 /** The stage's CONTENT identity — a submit keeps the stage it left on screen (busy). */

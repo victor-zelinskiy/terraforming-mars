@@ -540,6 +540,16 @@ function kindSummary(
         openKey: 'Open the vote',
       };
     }
+    // A card's SUPPORT-AREA pick (Turmoil Redux TR12 — «discard all neutral delegates from ONE area»): the
+    // Parliament's support-area mode, served inside the flow that raised it; the server's title names the act.
+    if (wf?.supportPrompt !== undefined) {
+      return {
+        kickerKey: 'Parliament',
+        ask: ask(wf, 'Select a Popular Support Area to discard its neutral delegates'),
+        returnKey: 'Return to the Parliament',
+        openKey: 'Open the Parliament',
+      };
+    }
     // The Mars Parliament's chairman seat (Turmoil Redux): the quest is done
     // and every delegate stands on a resolution — one of them gives a delegate
     // up. Served inside the Parliament workspace.

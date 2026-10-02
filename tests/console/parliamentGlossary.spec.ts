@@ -114,6 +114,17 @@ const CANON: Record<string, string> = {
   '${0} is not ruling': '«${0}» не правит',
   'your delegates on its resolution: ${0} of ${1}': 'ваших делегатов на её резолюции: ${0} из ${1}',
   'its resolution is not up for a vote': 'её резолюции нет на голосовании',
+  // THE SUPPORT-AREA MODE (TR12 Party Sanctions — glossary § 9-bis): the composer's door is a navigation verb, the
+  // stage names what the pick does («САНКЦИИ»), the candidate's rule says where the cubes go and what does NOT change,
+  // an empty area is a fact in the quiet register, and the chairman requirement names who holds the seat now.
+  'Choose the party': 'Выбрать партию',
+  'Popular support area — chosen in the Parliament': 'Область поддержки — выбор в Парламенте',
+  'Sanctions': 'Санкции',
+  'The neutral delegates return to the common supply. The resolutions keep their votes.': 'Нейтральные делегаты уходят в общий запас. Голоса на резолюциях не меняются.',
+  'The support area is empty': 'Область пуста',
+  'Requires you to be the chairman': 'Требуется быть председателем',
+  'chairman now: ${0}': 'председатель сейчас: ${0}',
+  'the chair is vacant': 'кресло свободно',
   'Turmoil Redux requires Colonies': '«Кризис: Возвращение» требует дополнение «Колонии»',
   'Redux resolutions showcase': 'Витрина резолюций «Кризис: Возвращение»',
 };
@@ -142,6 +153,9 @@ const THIRD_PERSON_KEYS: ReadonlyArray<string> = [
   'no neutral delegates left',
   '${0} → ${1} of ${2}',
   'Neutral delegates in a party\'s Popular Support become votes on that party\'s next resolution. They do not vote on this one.',
+  // …and the support it LOSES (TR12): the area is the party's, the cubes go back to nobody's supply.
+  'The neutral delegates return to the common supply. The resolutions keep their votes.',
+  'The support area is empty',
 ];
 
 /** The second person in RU (no `` — JS word boundaries are ASCII-only and never fire beside Cyrillic). */

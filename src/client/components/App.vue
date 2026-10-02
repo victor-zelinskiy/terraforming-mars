@@ -354,6 +354,7 @@ import {seedParliamentSittingHolds} from '@/client/console/parliament/parliament
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
@@ -789,6 +790,8 @@ export default defineComponent({
             seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and «КАРЬЕРА»'s (a card's walk whose answer arrived through a poll / WS frame — the same block as the apply).
             seedAgendaWalkHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a stripped support area (TR12) whose answer arrived through this frame (a parked tail landing later).
+            seedSupportDiscardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).
             seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.

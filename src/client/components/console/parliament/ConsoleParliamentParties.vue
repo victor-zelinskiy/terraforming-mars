@@ -35,6 +35,8 @@
                               :ruling="p.party === rulerSettled"
                               :rulesByCard="rulerSettledByCard"
                               :roll="rollWord(p.party)"
+                              :pick="pickOf(p.party)"
+                              :supportOutgoing="outgoingOf(p.party, i)"
                               :reason="focusedIndex === i ? partyLine : ''"
                               :reasonTone="partyLineTone" />
         </div>
@@ -49,7 +51,10 @@ import {Message} from '@/common/logs/Message';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import {translateMessage, translateText} from '@/client/directives/i18n';
-import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentFlow, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
+import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
+import {supportAreaOf} from '@/client/console/parliament/supportPickModel';
+import {supportDiscardStanding} from '@/client/console/parliament/supportDiscard';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportStatusKey} from '@/client/console/parliament/supportScene';
 import {ParliamentPartyVm, PartyActionStateVm, PartyStateVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -69,6 +74,11 @@ export default defineComponent({
     partyActionStates: {type: Array as PropType<ReadonlyArray<PartyActionStateVm>>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     awaitingInput: {type: Boolean, default: false},
+    /**
+     * THE SUPPORT-AREA MODE's projection (TR12 Party Sanctions — the server's six areas): every plaque reads
+     * «N → 0» or its refusal, the focused candidate outlines the cubes that would leave. Undefined outside the mode.
+     */
+    supportMeta: {type: Object as PropType<SupportPromptMeta | undefined>, default: undefined},
   },
   data() {
     return {
@@ -124,7 +134,8 @@ export default defineComponent({
     },
     /** The focused tile's index in `view.parties`: the row's cursor, or the ruler when the government's tile is the focus zone. */
     focusedIndex(): number {
-      if (parliamentFlow.stage !== 'browse') {
+      // The overview's cursor — and the SUPPORT-AREA mode's (TR12), which walks the same six plaques by the same record.
+      if (parliamentFlow.stage !== 'browse' && !parliamentSupportUp()) {
         return -1;
       }
       if (parliamentFlow.zone === 'ruler') {
@@ -134,7 +145,8 @@ export default defineComponent({
     },
     partyLine(): string {
       const index = this.focusedIndex;
-      if (index === -1) {
+      // In the support-area mode the plaque's row reads the AREA (`pick`) — never the party action's state.
+      if (index === -1 || parliamentSupportUp()) {
         return '';
       }
       const state = this.partyActionStates[index];
@@ -201,7 +213,26 @@ export default defineComponent({
      * has not moved onto its fresh card yet) and minus what has not ARRIVED yet (the support beat's cubes in the air).
      */
     supportShown(p: ParliamentPartyVm): number {
-      return Math.max(0, Math.min(3, p.support + (parliamentHolds.support.get(p.party) ?? 0) - (parliamentHolds.supportIncoming.get(p.party) ?? 0)));
+      // …PLUS the cubes a support-area pick (TR12) emptied that have not LIFTED off this plaque yet.
+      return Math.max(0, Math.min(3, p.support + (parliamentHolds.support.get(p.party) ?? 0) - (parliamentHolds.supportIncoming.get(p.party) ?? 0) +
+        supportDiscardStanding(p.party)));
+    },
+    /** The support-area mode's reading of a plaque — the server's row (undefined outside the mode). */
+    pickOf(party: ReduxParty): {current: number, resulting: number, available: boolean, reason?: string} | undefined {
+      if (this.supportMeta === undefined || !parliamentSupportUp()) {
+        return undefined;
+      }
+      const area = supportAreaOf(this.supportMeta, party);
+      return area === undefined ? undefined :
+        {current: area.current, resulting: area.resulting, available: area.available, ...(area.reason === undefined ? {} : {reason: area.reason})};
+    },
+    /** The cubes the FOCUSED candidate would send away — outlined while the pick is open, never past the press. */
+    outgoingOf(party: ReduxParty, index: number): number {
+      if (index !== this.focusedIndex || parliamentFlow.stage !== 'support' || parliamentFlow.supportCommitted) {
+        return 0;
+      }
+      const area = supportAreaOf(this.supportMeta, party);
+      return area?.available === true ? Math.max(0, area.current - area.resulting) : 0;
     },
     reasonText(reason: string | Message): string {
       return typeof reason === 'string' ? translateText(reason) : translateMessage(reason);

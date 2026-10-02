@@ -86,7 +86,7 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     it('the rail: the chairman badge and the holder (or «vacant»)', () => {
       expect(unplayableReasonEmblem(held)).eq('assets/misc/chairman.png');
       expect(unplayableReasonCompact(held)).eq('Rival');
-      expect(unplayableReasonCompact(vacant)).eq('Vacant');
+      expect(unplayableReasonCompact(vacant)).eq('Seat empty');
     });
   });
 

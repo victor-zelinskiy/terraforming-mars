@@ -1165,9 +1165,14 @@
   "Requires you to be the chairman": "Требуется быть председателем",
   "chairman now: ${0}": "председатель сейчас: ${0}",
   "the chair is vacant": "кресло свободно",
-  "Vacant": "Свободно",
   "Select a Popular Support Area to discard its neutral delegates": "Выберите область народной поддержки, из которой уйдут нейтральные делегаты",
   "The support area is empty": "Область пуста",
   "Every Popular Support area is empty": "Все области народной поддержки пусты",
-  "${0} discarded ${1} neutral delegate(s) from the Popular Support of ${2} (0/${3})": "${0} сбрасывает ${1} {нейтрального делегата|нейтральных делегатов|нейтральных делегатов} из Народной поддержки «${2}» (0/${3})"
+  "${0} discarded ${1} neutral delegate(s) from the Popular Support of ${2} (0/${3})": "${0} сбрасывает ${1} {нейтрального делегата|нейтральных делегатов|нейтральных делегатов} из Народной поддержки «${2}» (0/${3})",
+  "Choose the party": "Выбрать партию",
+  "Popular support area — chosen in the Parliament": "Область поддержки — выбор в Парламенте",
+  "Sanctions": "Санкции",
+  "The neutral delegates return to the common supply. The resolutions keep their votes.": "Нейтральные делегаты уходят в общий запас. Голоса на резолюциях не меняются.",
+  "Sanctions applied": "Санкции применены",
+  "Agenda — the marker walks 1 step in the Parliament": "Карьера — маркер пройдёт 1 шаг в Парламенте"
 }

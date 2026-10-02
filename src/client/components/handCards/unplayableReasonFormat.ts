@@ -178,7 +178,7 @@ export function unplayableReasonCompact(r: UnplayableReason): string {
   }
   // The named CHAIRMAN reason: the badge names the seat (`unplayableReasonEmblem`), the text who holds it.
   if (r.chairmanNow !== undefined) {
-    return r.chairmanNow === 'vacant' ? translateText('Vacant') : r.chairmanNow.name;
+    return r.chairmanNow === 'vacant' ? translateText('Seat empty') : r.chairmanNow.name;
   }
   const label = compactLabelKey(r);
   const bound = r.effectiveCount ?? Number(r.params?.[0]);

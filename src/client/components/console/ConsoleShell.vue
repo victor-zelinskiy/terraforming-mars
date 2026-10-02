@@ -1696,6 +1696,7 @@ import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTie
 import {parliamentVoteSubject} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {agendaWalkFlow, agendaWalkLiveIn, agendaWalkOwedTo, dropAgendaWalkPromise, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
+import {clearSupportDiscard, promiseSupportDiscard} from '@/client/console/parliament/supportDiscard';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
@@ -1947,7 +1948,7 @@ import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -10804,6 +10805,8 @@ export default defineComponent({
       }
       const section = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
       section?.resetSubmitting();
+      // A refused support-area pick (TR12) promised nothing that happened.
+      clearSupportDiscard();
       // The step's HOST takes its decision back — the hand's play, «Действия карт»'s action (TR15).
       const host = stagedStepHost() ?? 'hand';
       setWorkspaceFramePhase(host, 'configure');
@@ -17652,7 +17655,10 @@ export default defineComponent({
         // ГОЛОСОВАНИЕ»), past its commit (B = «Свернуть»). A grant met with no
         // live flow to host it (a reload, a resumed session) opens the
         // Parliament on its own, where the mode serves it just the same.
-        if (this.playerView.waitingFor?.votePrompt?.source === 'grant') {
+        // …and a card's SUPPORT-AREA pick met LIVE (TR12 — re-asked, a reload, a play outside the staged boundary)
+        // stands the same way: the Parliament's support-area mode, inside the flow that raised it.
+        const partyStep = this.playerView.waitingFor?.votePrompt?.source === 'grant' || this.playerView.waitingFor?.supportPrompt !== undefined;
+        if (partyStep) {
           const host = workspaceHostForStep();
           if (host !== undefined && host !== 'parliament') {
             if (workspaceFrameHost('parliament') === host) {
@@ -17660,7 +17666,7 @@ export default defineComponent({
             }
             setWorkspaceFramePhase(host, 'committed');
             pushWorkspaceFrame({
-              kind: 'parliament', subject: '', stage: DELEGATE_GRANT_STEP_STAGE, phase: 'committed',
+              kind: 'parliament', subject: '', stage: followUpStepStage('party', this.playerView.waitingFor) ?? DELEGATE_GRANT_STEP_STAGE, phase: 'committed',
               serves: ['party'], anchor: {type: 'prompt', promptType: 'party'},
               // The Unity door's trade (parliament ⊃ card-actions ⊃ colonies) meets a
               // Parliament frame already below: the step NESTS a second one rather
@@ -18953,7 +18959,9 @@ export default defineComponent({
       await this.enterStagedHostedStep(arm, {
         kind: 'parliament',
         subject: '',
-        stage: DELEGATE_GRANT_STEP_STAGE,
+        // The staged party pick's MODE names the step: a resolution («ГОЛОСОВАНИЕ») or a support area (TR12 —
+        // «САНКЦИИ»); the prompt's own marker says which.
+        stage: partyStepStageOf(stagedVoteOf(arm)?.prompt),
         phase: 'configure',
         // It serves no prompt — none exists yet; a re-asked grant earns `party`
         // in `settleStagedVote`.
@@ -19097,6 +19105,12 @@ export default defineComponent({
      * armed: the landing ritual was the play's, and it has already been seen.
      */
     commitStagedVote(response: InputResponse): void {
+      // A SUPPORT-AREA pick (TR12): the area this press empties is PROMISED — its cubes are held on the plaque and
+      // out of the pool by the apply block's seed, and the mode plays them off on the stage it was confirmed on.
+      const staged = stagedVoteOf(stagedPlayState.arm);
+      if (staged?.prompt.supportPrompt !== undefined && response.type === 'party' && isReduxParty(response.partyName)) {
+        promiseSupportDiscard({party: response.partyName, card: staged.sourceCard});
+      }
       this.commitStagedTail(response);
     },
     /**
@@ -19267,7 +19281,8 @@ export default defineComponent({
      */
     settleStagedVote(arm: StagedPlayArm): void {
       const wf = this.playerView.waitingFor;
-      const reAsked = wf?.type === 'party' && wf.votePrompt?.source === 'grant' &&
+      // The card's own party question stands LIVE again — its delegate grant (TR03 / TR15) or its area pick (TR12).
+      const reAsked = wf?.type === 'party' && (wf.votePrompt?.source === 'grant' || wf.supportPrompt !== undefined) &&
         wf.choiceContext?.source.kind === 'card' && wf.choiceContext.source.card === arm.cardName;
       if (reAsked) {
         const host = stagedStepHost(arm) ?? 'hand';
@@ -19300,6 +19315,8 @@ export default defineComponent({
     endStagedVote(): void {
       const flow = stagedPlayState.arm?.flow;
       clearStagedPlay();
+      // A support-area pick's own holds (TR12) end with the step that played them — idempotent.
+      clearSupportDiscard();
       if (flow === 'action') {
         this.endCardActionsWithHostedStep();
         return;

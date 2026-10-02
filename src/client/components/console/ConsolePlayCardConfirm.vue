@@ -1680,7 +1680,14 @@ export default defineComponent({
         } else if (s.kind === 'delegateGrant') {
           // THE DOOR's own row: the name of the step («Резолюция — выбор в Парламенте»), never a guess
           // about what it will pay — the support of a party depends on the resolution not yet chosen.
-          const key = playDoorNextStepKey({kind: 'parliament', staged: s.staged});
+          const key = playDoorNextStepKey({kind: 'parliament', staged: s.staged, mode: 'vote'});
+          if (key !== undefined) {
+            out.push(noteRow(translateText(key)));
+          }
+        } else if (s.kind === 'supportDiscard') {
+          // THE SUPPORT-AREA DOOR's own row (TR12): «Область поддержки — выбор в Парламенте» — what leaves which
+          // area is read on each plaque in the Parliament («3 → 0»), never guessed here before the area is chosen.
+          const key = playDoorNextStepKey({kind: 'parliament', staged: s.staged, mode: 'support'});
           if (key !== undefined) {
             out.push(noteRow(translateText(key)));
           }
@@ -1694,7 +1701,10 @@ export default defineComponent({
         } else if (s.kind === 'agendaWalk') {
           // THE SHOW STEP's own row (TR04): the name of the coming stage and what the marker will do there —
           // from the server's own reading of the walk, the cut at the track's end named («1 из 2 · конец трека»).
-          out.push(noteRow(translateTextWithParams('Agenda — the marker walks ${0} steps in the Parliament', [String(s.walk.walked)])));
+          // ONE step reads in its own words (TR12): the plural key's RU line is written for 2+ («2 шага»).
+          out.push(noteRow(s.walk.walked === 1 ?
+            translateText('Agenda — the marker walks 1 step in the Parliament') :
+            translateTextWithParams('Agenda — the marker walks ${0} steps in the Parliament', [String(s.walk.walked)])));
           if (s.walk.walked < s.walk.printed) {
             out.push(noteRow(translateTextWithParams('${0} of ${1} · end of the track', [String(s.walk.walked), String(s.walk.printed)])));
           }

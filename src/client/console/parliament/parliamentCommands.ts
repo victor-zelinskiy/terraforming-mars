@@ -61,6 +61,17 @@ export type ParliamentCommandsInput = {
     /** The giver is a CARD: L3 «Источник» opens it over the mode (X belongs to the selected resolution). */
     source?: boolean,
   };
+  /**
+   * THE SUPPORT-AREA MODE (TR12 Party Sanctions, «САНКЦИИ»): A commits the pick of the plaque under the cursor —
+   * a STAGED door's flow verb («Разыграть карту»), a live door's «Выбрать» — lit only on an area on offer (a
+   * refused plaque carries its reason); B is «Назад» on a staged door, «Свернуть» on a live one.
+   */
+  support?: {
+    staged: boolean,
+    stagedFlow?: 'play' | 'action',
+    source: boolean,
+    available: boolean,
+  };
 };
 
 /**
@@ -174,6 +185,27 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   }
   case 'quest':
     return input.quest?.done === true ? [{control: 'confirm', label: 'Close', highlight: true}] : [];
+  case 'support': {
+    // Past the press the answer plays on this stage (the cubes, the Agenda step): a STATUS, never a verb — the bar
+    // echoes the busy confirm (the landing's precedent) and offers nothing until the flow leaves by itself. An empty
+    // list would fall back to «На поле», a verb the absorbed beat does not honour.
+    if (parliamentFlow.supportCommitted) {
+      return [{control: 'confirm', label: 'Performing…', enabled: false}];
+    }
+    const support = input.support;
+    const cmds: Array<ConsoleCommand> = [
+      {
+        control: 'confirm', label: support?.staged === true ? stagedDoorVerb(support.stagedFlow) : 'Select',
+        enabled: support?.available === true, highlight: support?.available === true,
+      },
+      {control: 'secondary', label: 'Inspect'},
+    ];
+    if (support?.source === true) {
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+    }
+    cmds.push(support?.staged === true ? back : {control: 'back', label: 'Minimize'});
+    return cmds;
+  }
   // A card's WALK (TR04): the outcome of a play made elsewhere — nothing to confirm (the composer's preview already
   // said «1 → 3 · +1 РТ»), nothing to go back to; the flow leaves by itself once the marker has settled.
   case 'walk':

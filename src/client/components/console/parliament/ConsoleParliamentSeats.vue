@@ -104,6 +104,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {supportDiscardPoolHeld} from '@/client/console/parliament/supportDiscard';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {BenchSource, RIBBON_CUBE, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
@@ -171,8 +172,10 @@ export default defineComponent({
     neutralSupplyShown(): number {
       // …PLUS the cubes a grant's support has not LIFTED yet (`supportHeld`): the answer already took them
       // out of the supply, the bench keeps painting and counting each until its proxy stands over it.
-      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0)) +
-        parliamentFlow.supportHeld;
+      // …and MINUS the cubes a support-area pick (TR12) sent back that have not LANDED here yet: the answer already
+      // put them in the supply, the pool counts each on its touchdown.
+      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0) -
+        supportDiscardPoolHeld()) + parliamentFlow.supportHeld;
     },
     /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
     deckShown(): number {

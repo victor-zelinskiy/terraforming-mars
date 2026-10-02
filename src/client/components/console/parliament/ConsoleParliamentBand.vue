@@ -132,6 +132,15 @@
               </span>
               <span class="con-band__text con-band__text--quiet">{{ $t(chip.reason) }}</span>
             </span>
+            <!-- A PARTY'S SUPPORT LEAVING (TR12 «САНКЦИИ»): the emblem, the neutral cube, the count — the cubes the press
+                 sends back to the common supply. -->
+            <span v-else-if="chip.kind === 'supportDelta'" class="con-band__chip con-band__chip--support" data-parl-band-chip="supportDelta"
+                  :data-parl-band-support="chip.party" :data-parl-band-support-delta="chip.amount">
+              <img class="con-band__emblem" :src="emblemUrl(chip.party)" alt="" />
+              <b class="con-band__text">{{ $t(partyNameKey(chip.party)) }}</b>
+              <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
+              <b class="con-band__num">−{{ chip.amount }}</b>
+            </span>
             <span v-else-if="chip.kind === 'awaiting'" class="con-band__chip con-band__chip--await" data-parl-band-chip="awaiting" data-sit-awaiting>
               <span class="con-band__text con-band__text--dim">{{ $t('Waiting for the other seats') }}</span>
               <span v-for="c in chip.seats" :key="c" class="con-band__seat">
@@ -166,7 +175,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {
-  BandLine, BandQuest, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandWalk, parliamentBandLine,
+  BandLine, BandQuest, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandSupport, BandWalk, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
@@ -199,10 +208,12 @@ export default defineComponent({
     /** The sitting is the zone's subject right now (the section's own flow state). */
     sittingUp: {type: Boolean, default: false},
     stage: {type: String as PropType<SittingStage>, default: 'verdict'},
+    /** «САНКЦИИ»'s own context — the support-area mode's cursor and its press (undefined outside the mode). */
+    support: {type: Object as PropType<BandSupport | undefined>, default: undefined},
   },
   computed: {
     line(): BandLine {
-      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, standing: this.standing});
+      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, support: this.support, standing: this.standing});
     },
     /**
      * «КАРЬЕРА»'s own context — a card's walk, live in this section: the seat and the steps LANDED so far.

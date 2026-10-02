@@ -86,7 +86,7 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
-import {consoleParliamentUi, parliamentFlow, parliamentRootEl} from '@/client/console/parliament/consoleParliamentFlow';
+import {consoleParliamentUi, parliamentFlow, parliamentRootEl, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {AgendaVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -204,6 +204,11 @@ export default defineComponent({
         return;
       }
       if (parliamentFlow.stage === 'sitting' || advance.reason === 'phase') {
+        return;
+      }
+      // «САНКЦИИ» (TR12): the support-area mode plays the card's step ITSELF, after the area's cubes have left — the
+      // printed order (the discard, then the step) on one pose; a walk started here would race the discard.
+      if (parliamentSupportUp()) {
         return;
       }
       const record: AgendaWalkRecordLike = {player: advance.player, from: advance.from, to: advance.to, steps: advance.steps};

@@ -102,7 +102,12 @@ export type BandChip =
    */
   | {kind: 'tracks', steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string}
   /** The seats the phase is still waiting for. */
-  | {kind: 'awaiting', seats: ReadonlyArray<Color>};
+  | {kind: 'awaiting', seats: ReadonlyArray<Color>}
+  /**
+   * A PARTY'S POPULAR SUPPORT LEAVING (TR12 Party Sanctions): the party's emblem, the neutral cube and the
+   * count that returns to the common supply («[emblem] [cube] −3») — the server's own `current − resulting`.
+   */
+  | {kind: 'supportDelta', party: ReduxParty, amount: number};
 
 /** THE LINE: one kicker, one ordered set of chips, and the identity its crossfade is keyed on. */
 export type BandLine = {
@@ -247,6 +252,19 @@ export type BandWalk = {
   landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number}>;
 };
 
+/**
+ * «САНКЦИИ» — the SUPPORT-AREA mode (TR12): the stage's own word, the plaque under the cursor and what the
+ * press would send back to the common supply (or why that area is refused). Cyan until A, amber after it.
+ */
+export type BandSupport = {
+  stage: string;
+  party: ReduxParty | undefined;
+  leaving: number;
+  available: boolean;
+  reason?: string;
+  committed: boolean;
+};
+
 export type BandContext = {
   /** `undefined` outside a live sitting the viewer takes part in — the overview's line. */
   sitting?: BandSitting;
@@ -254,6 +272,8 @@ export type BandContext = {
   quest?: BandQuest;
   /** `undefined` outside a card's walk — it outranks the overview and the quest (a walk is never live during either). */
   walk?: BandWalk;
+  /** `undefined` outside the support-area mode — a walk that follows it in the same flow outranks it (the walk is the beat on the table then). */
+  support?: BandSupport;
   standing: BandStanding;
 };
 
@@ -271,6 +291,9 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
   if (sitting === undefined) {
     if (ctx.walk !== undefined) {
       return walkLine(ctx.walk);
+    }
+    if (ctx.support !== undefined) {
+      return supportLine(ctx.support);
     }
     return ctx.quest === undefined ? overviewLine(ctx.standing) : questLine(ctx.quest);
   }
@@ -301,6 +324,30 @@ function walkLine(walk: BandWalk): BandLine {
     chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus})});
   }
   return {kicker: 'Agenda track', key: `walk:${walk.player}:${walk.landed.map((s) => s.to).join(',')}`, chips, committed: true};
+}
+
+/**
+ * САНКЦИИ — the support-area mode: the plaque under the cursor and the cubes the press sends back to the
+ * common supply («[emblem] [cube] −3»), or the plaque's own refusal in the quiet register. The key follows
+ * the cursor (one crossfade per plaque) and the commit (cyan → amber), and stands still between them.
+ */
+function supportLine(support: BandSupport): BandLine {
+  const chips: Array<BandChip> = [];
+  const party = support.party;
+  if (party !== undefined) {
+    if (support.available && support.leaving > 0) {
+      chips.push({kind: 'supportDelta', party, amount: support.leaving});
+    } else {
+      chips.push({kind: 'party', party});
+      chips.push({kind: 'label', key: support.reason ?? 'The support area is empty', tone: 'quiet'});
+    }
+  }
+  return {
+    kicker: support.stage,
+    key: `support:${party ?? ''}:${support.available ? support.leaving : 'x'}:${support.committed ? 'c' : 'o'}`,
+    chips,
+    committed: support.committed,
+  };
 }
 
 /**

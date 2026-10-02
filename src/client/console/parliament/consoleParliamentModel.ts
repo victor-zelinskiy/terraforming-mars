@@ -24,7 +24,7 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -744,7 +744,37 @@ export type ParliamentPromptBridge = {
    * reserve fell short (equal to `count` otherwise).
    */
   grant: GrantBridge | undefined;
+  /**
+   * A stand-alone `SelectParty` that picks a POPULAR SUPPORT AREA (`supportPrompt` — Turmoil Redux TR12
+   * Party Sanctions): the Parliament's SUPPORT-AREA mode serves it, the cursor on the party plaques. Live
+   * (the server's own prompt) or staged (the play preview's `supportDiscard` door) — one shape.
+   */
+  supportPick: SupportPickBridge | undefined;
 };
+
+/**
+ * A SUPPORT-AREA pick as the mode reads it — the grant's twin for an AREA: LIVE
+ * (the server's prompt — re-asked, a reload, a play outside the staged
+ * boundary: the plain party answer) or STAGED (the play preview's door, nothing
+ * sent: the ADDRESSED tail of the play batch, `stagedFor`). `meta` is the
+ * server's per-area projection; the mode computes nothing of its own.
+ */
+export type SupportPickBridge = {
+  model: SelectPartyModel;
+  meta: SupportPromptMeta;
+  /** The GIVER is a card — the door's L3 «Источник» and the tail's address. */
+  card?: CardName;
+  staged?: boolean;
+};
+
+function supportPickOf(model: SelectPartyModel, staged: boolean): SupportPickBridge | undefined {
+  const meta = model.supportPrompt;
+  if (meta === undefined) {
+    return undefined;
+  }
+  const card = model.choiceContext?.source.kind === 'card' ? model.choiceContext.source.card : undefined;
+  return {model, meta, ...(card === undefined ? {} : {card}), ...(staged ? {staged: true} : {})};
+}
 
 /**
  * A DELEGATE GRANT as the vote mode reads it — ONE shape for both of its
@@ -795,7 +825,7 @@ function grantBridgeOf(model: SelectPartyModel, staged: boolean): GrantBridge | 
  * live grant standing means the server is past whatever was staged.
  */
 export function parliamentPromptBridge(wf: PlayerInputModel | undefined, staged?: StagedVoteModel): ParliamentPromptBridge {
-  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined};
+  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined, supportPick: undefined};
   if (wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'chairman-seat') {
     bridge.seat = wf;
     return bridge;
@@ -804,8 +834,19 @@ export function parliamentPromptBridge(wf: PlayerInputModel | undefined, staged?
     bridge.grant = grantBridgeOf(wf, false);
     return bridge;
   }
+  // …and a LIVE support-area pick (TR12 — re-asked, a reload): the mode serves the server's own prompt.
+  if (wf !== undefined && wf.type === 'party' && wf.supportPrompt !== undefined) {
+    bridge.supportPick = supportPickOf(wf, false);
+    return bridge;
+  }
+  // The staged door's ONE store carries either party pick — a resolution (TR03 / TR15) or an area (TR12); its
+  // prompt's marker says which, and the mode follows the marker (never a second staged target).
   if (staged !== undefined) {
-    bridge.grant = grantBridgeOf(staged.prompt, true);
+    if (staged.prompt.supportPrompt !== undefined) {
+      bridge.supportPick = supportPickOf(staged.prompt, true);
+    } else {
+      bridge.grant = grantBridgeOf(staged.prompt, true);
+    }
   }
   if (wf === undefined || wf.type !== 'or') {
     return bridge;
@@ -917,6 +958,22 @@ export function grantResponse(bridge: ParliamentPromptBridge, party: PartyName):
   }
   if (grant.staged === true && grant.card !== undefined) {
     return {type: 'party', partyName: party, stagedFor: grant.card};
+  }
+  return {type: 'party', partyName: party};
+}
+
+/**
+ * A SUPPORT-AREA pick's answer (TR12). LIVE — the stand-alone party prompt. STAGED — the same answer ADDRESSED
+ * to the card (`stagedFor`): it lands only on that card's own area pick, never on a chairman seat that jumped the
+ * queue (`server/inputs/deferredInputBatch.ts`). A party the prompt does not offer has no answer.
+ */
+export function supportPickResponse(bridge: ParliamentPromptBridge, party: PartyName): InputResponse | undefined {
+  const pick = bridge.supportPick;
+  if (pick === undefined || !pick.model.parties.includes(party)) {
+    return undefined;
+  }
+  if (pick.staged === true && pick.card !== undefined) {
+    return {type: 'party', partyName: party, stagedFor: pick.card};
   }
   return {type: 'party', partyName: party};
 }
