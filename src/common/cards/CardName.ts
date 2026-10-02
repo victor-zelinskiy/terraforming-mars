@@ -1086,6 +1086,7 @@ export enum CardName {
   CONSTRUCTION_MECHS = 'Construction Mechs',
   PARTY_SANCTIONS = 'Party Sanctions',
   ADMINISTRATION_DISTRICT = 'Administration District',
+  MARTIAN_FIBER = 'Martian Fiber',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

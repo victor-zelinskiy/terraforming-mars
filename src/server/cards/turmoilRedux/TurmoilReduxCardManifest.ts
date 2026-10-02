@@ -16,6 +16,7 @@ import {MartianCensus} from './MartianCensus';
 import {ConstructionMechs} from './ConstructionMechs';
 import {PartySanctions} from './PartySanctions';
 import {AdministrationDistrict} from './AdministrationDistrict';
+import {MartianFiber} from './MartianFiber';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -87,5 +88,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
     // first city IGNORING OTHER PLACEMENT RESTRICTIONS (`boards/ignoreRestrictionsCity.ts`), Mars First's plate.
     [CardName.ADMINISTRATION_DISTRICT]: {Factory: AdministrationDistrict},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. Meat
+    // Industry's twin for data (+1 M€ per data added to any of your cards), the set's fourth data holder.
+    [CardName.MARTIAN_FIBER]: {Factory: MartianFiber},
   },
 });

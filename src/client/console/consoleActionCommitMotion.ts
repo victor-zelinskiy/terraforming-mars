@@ -29,6 +29,8 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';
+import {CardResource} from '@/common/CardResource';
+import {cardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
 import type {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -89,6 +91,20 @@ const ICON_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = {
   'graphene': ['graphene'],
 };
 
+/**
+ * A CARD resource needs no row above: the preview names it by the very key its sprite is filed under
+ * (`cardResourceIconUrl` — `assets/resources/<key>.png`), so its needle is that URL. The mech / fighter /
+ * graphene rows were this hole patched one card at a time; data (TR18 Martian Fiber, TR15's «→ [data]»)
+ * was the next — and the impulse silently degraded to the plate.
+ */
+const CARD_RESOURCE_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = Object.fromEntries(
+  Object.values(CardResource).map((resource) => [resource.toLowerCase().replaceAll(' ', '-'), [cardResourceIconUrl(resource)]]));
+
+/** The sprite-URL needles a result icon of `key` is recognised by (undefined = no icon to find). */
+export function iconNeedlesFor(key: string): ReadonlyArray<string> | undefined {
+  return ICON_NEEDLES[key] ?? CARD_RESOURCE_NEEDLES[key];
+}
+
 export type ActionCommitAnchors = {
   /** The card's visual body (the mechanical-fix target). */
   cardEl: HTMLElement;
@@ -99,7 +115,7 @@ export type ActionCommitAnchors = {
 };
 
 function iconMatches(el: HTMLElement, key: string): boolean {
-  const needles = ICON_NEEDLES[key];
+  const needles = iconNeedlesFor(key);
   if (needles === undefined) {
     return false;
   }

@@ -55,5 +55,10 @@
 
     "Administration District": "Административный район",
     "Effect: After you play a Building card that has a NON-NEGATIVE VP icon, draw a card.": "Эффект: каждый раз после того, как вы разыгрываете карту Строительства с НЕОТРИЦАТЕЛЬНЫМ значком ПО, возьмите карту.",
-    "Requires Mars First to be ruling or that you have 2 delegates there. Place a city tile ON A NON-RESERVED SPACE ADJACENT TO ONE OF YOUR CITIES, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ РЯДОМ С ОДНИМ ИЗ ВАШИХ ГОРОДОВ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ."
+    "Requires Mars First to be ruling or that you have 2 delegates there. Place a city tile ON A NON-RESERVED SPACE ADJACENT TO ONE OF YOUR CITIES, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ РЯДОМ С ОДНИМ ИЗ ВАШИХ ГОРОДОВ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ.",
+
+    "Martian Fiber": "Марсианское оптоволокно",
+    "Effect: Whenever you add a data resource to ANY card, also gain 1 M€.": "Эффект: каждый раз, когда вы кладёте единицу данных на ЛЮБУЮ карту, получайте также 1 M€.",
+    "Action: Add 1 data resource to this card.": "Действие: положите на эту карту 1 единицу данных.",
+    "1 VP per 2 data resources here.": "1 ПО за каждые 2 единицы данных на этой карте."
 }

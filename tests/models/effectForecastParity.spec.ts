@@ -38,6 +38,7 @@ import {ArcticAlgae} from '../../src/server/cards/base/ArcticAlgae';
 import {NeptunianPowerConsultants} from '../../src/server/cards/promo/NeptunianPowerConsultants';
 import {PolderTechDutch} from '../../src/server/cards/promo/PolderTechDutch';
 import {Herbivores} from '../../src/server/cards/base/Herbivores';
+import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
 
 /**
  * THE EFFECT FORECAST ↔ EXECUTION PARITY GUARD.
@@ -86,9 +87,13 @@ function inScopeReactors(): Array<Factory> {
   return out;
 }
 
-/** Trigger plays with NO prompt of their own — so the only prompt on the table is the reactor's. */
+/**
+ * Trigger plays with NO prompt of their own — so the only prompt on the table is the reactor's.
+ * Vector Computations is the pool's DATA grant: its own play puts 2 data on itself (TR18 Martian Fiber).
+ */
 const TRIGGERS: ReadonlyArray<new () => IProjectCard> = [
   Research, NitriteReducingBacteria, Bushes, Pets, ImportedNitrogen, IoMiningIndustries, NoctisFarming, Livestock,
+  VectorComputations,
 ];
 
 /** Extra STATES of a reactor that flip its answer (the same predicates the live hook reads). */
@@ -213,6 +218,10 @@ describe('effect-forecast ↔ execution parity', function() {
       for (const variant of variants) {
         for (const foreign of foreignToo ? [false, true] : [false]) {
           for (const T of TRIGGERS) {
+            // A card already on the table is never played a second time (Vector Computations is both).
+            if (new T().name === probe.name) {
+              continue;
+            }
             const suffix = `-${probe.name}-${variant.label}-${foreign ? 'foreign' : 'own'}-${T.name}`.replace(/\s+/g, '');
             // The forecast, on a table arranged exactly like the one played below.
             const forecastTable = arrange(F, foreign, variant.arrange, `${suffix}-fc`);
