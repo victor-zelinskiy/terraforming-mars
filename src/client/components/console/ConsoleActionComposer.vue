@@ -852,7 +852,7 @@ import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsEx
 import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {
-  ForecastBranchInfo, VariantReaction, forecastLayerAvailable, forecastRowPresent, variantReactionChips,
+  ForecastBranchInfo, VariantReaction, forecastForFixedBranch, forecastLayerAvailable, forecastRowPresent, variantReactionChips,
 } from '@/client/console/effectForecastModel';
 import {
   closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, openEffectForecastLayer,
@@ -1263,7 +1263,10 @@ export default defineComponent({
     },
     // ── THE EFFECT FORECAST (rides inside the action preview) ───────────
     forecast(): EffectForecast | undefined {
-      return this.preview?.forecast;
+      const forecast = this.preview?.forecast;
+      // A variant FIXED at entry (one option of several, no branch row): that option IS this operation,
+      // so its reactions join the «Сработает» row and the layer instead of «depends on your choice».
+      return this.branches.length > 1 && this.positions.length === 1 ? forecastForFixedBranch(forecast, this.positions[0]) : forecast;
     },
     forecastRowShown(): boolean {
       return forecastRowPresent(this.forecast);

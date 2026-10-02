@@ -29,6 +29,7 @@ import {
   forecastMetaLine,
   forecastOrderBand,
   forecastRowPresent,
+  forecastForFixedBranch,
   forecastSectionChips,
   groupOfFact,
   variantReactionChips,
@@ -329,6 +330,37 @@ describe('effectForecastModel', () => {
       expect(v.chips.map((c) => [c.effect.amount, c.asks, c.facts])).to.deep.eq([[2, false, 2], [1, true, 1]]);
       expect(v.more).to.eq(0);
       expect(v.total).to.eq(3);
+    });
+  });
+
+  describe('a FIXED option (a variant picked in the browse grid) — its facts are the operation\'s', () => {
+    const tied = (id: string, pos: number, chosen: NonNullable<EffectForecastFact['condition']>['chosen'], over: Parameters<typeof fact>[0] = {}) =>
+      fact({id, certainty: 'conditional', condition: {text: 'why', state: 'depends', branchPos: pos, chosen}, ...over});
+
+    it('restores the chosen option\'s degree and own condition, drops the other options — the row and the layer then read it as received', () => {
+      const shared = fact({id: 's', effects: [gain('graphene', 1)]});
+      const f = forecast([shared], {byBranch: {
+        0: [tied('m', 0, {certainty: 'exact'}, {effects: [gain('megacredits', 1)]})],
+        1: [tied('o', 1, {certainty: 'asks', condition: {text: 'Only on Mars', state: 'met'}}, {effects: [gain('plants', 2)], alternatives: []})],
+      }});
+      // Before: the variant's M€ is no chip of the row, and the layer says «depends».
+      expect(compactForecastChips(f).chips.map((c) => c.kind === 'own' ? c.effect.icon : c.kind)).to.deep.eq(['graphene']);
+      const zero = forecastForFixedBranch(f, 0)!;
+      expect(zero.byBranch).is.undefined;
+      expect(zero.facts.map((x) => [x.id, x.certainty, x.condition])).to.deep.eq([['s', 'exact', undefined], ['m', 'exact', undefined]]);
+      expect(compactForecastChips(zero).chips.map((c) => c.kind === 'own' ? c.effect.icon : c.kind)).to.deep.eq(['graphene', 'megacredits']);
+      expect(forecastGroups(zero).map((g) => g.id)).to.deep.eq(['receive']);
+      const one = forecastForFixedBranch(f, 1)!;
+      expect(one.facts[1]).to.deep.include({id: 'o', certainty: 'asks', condition: {text: 'Only on Mars', state: 'met'}});
+    });
+
+    it('a degree that already said «will not run» stays it; a colliding id is re-keyed; no byBranch → the forecast as it is', () => {
+      const f = forecast([fact({id: 'dup'})], {byBranch: {2: [tied('dup', 2, {certainty: 'skipped'}, {certainty: 'skipped'})]}});
+      const fixed = forecastForFixedBranch(f, 2)!;
+      expect(fixed.facts.map((x) => [x.id, x.certainty])).to.deep.eq([['dup', 'exact'], ['2:dup', 'skipped']]);
+      const plain = forecast([fact({id: 'p'})]);
+      expect(forecastForFixedBranch(plain, 0)).to.eq(plain);
+      expect(forecastForFixedBranch(undefined, 0)).is.undefined;
     });
   });
 

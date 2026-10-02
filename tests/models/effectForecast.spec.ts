@@ -28,6 +28,8 @@ import {SaturnSystems} from '../../src/server/cards/corporation/SaturnSystems';
 import {IoMiningIndustries} from '../../src/server/cards/base/IoMiningIndustries';
 import {MediaGroup} from '../../src/server/cards/base/MediaGroup';
 import {MeatIndustry} from '../../src/server/cards/promo/MeatIndustry';
+import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {MartianFiber} from '../../src/server/cards/turmoilRedux/MartianFiber';
 import {Livestock} from '../../src/server/cards/base/Livestock';
 import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
 import {ArcticAlgae} from '../../src/server/cards/base/ArcticAlgae';
@@ -476,7 +478,33 @@ describe('effectForecast (engine)', () => {
     expect(asBranchFact({...base, certainty: 'unknown'}, 1)).to.include({certainty: 'unknown'});
     expect(asBranchFact({...base, certainty: 'exact'}, 1)).to.include({certainty: 'conditional'});
     expect(asBranchFact({...base, certainty: 'asks'}, 1)).to.include({certainty: 'conditional'});
-    expect(asBranchFact({...base, certainty: 'deferred'}, 1).condition).to.deep.eq({text: 'An ocean tile is placed', state: 'depends', branchPos: 1});
+    expect(asBranchFact({...base, certainty: 'deferred'}, 1).condition).to.deep.eq({
+      text: 'An ocean tile is placed', state: 'depends', branchPos: 1, chosen: {certainty: 'deferred'},
+    });
+  });
+
+  it('a fact tied to an option keeps what it IS once chosen — its own degree and its own condition (a fixed variant restores them)', () => {
+    const source = {kind: 'card' as const, name: CardName.MARTIAN_FIBER, owner: 'blue' as never, channel: 'resource-added' as const};
+    const base = {id: 'y', source, recipient: {kind: 'you' as const}, timing: 'immediate' as const, effects: [], reason: 'You add data to a card'};
+    expect(asBranchFact({...base, certainty: 'exact'}, 0).condition?.chosen).to.deep.eq({certainty: 'exact'});
+    const own = {text: 'Only on Mars', state: 'met' as const};
+    expect(asBranchFact({...base, certainty: 'asks', condition: own}, 2).condition).to.deep.eq({
+      text: 'Only on Mars', state: 'depends', branchPos: 2, chosen: {certainty: 'asks', condition: own},
+    });
+  });
+
+  it('TR15 «+1 data here» on a table with TR18: the M€ is TIED to that option — and once the option is chosen it is exact', () => {
+    const [, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    const census = new MartianCensus();
+    player.playedCards.push(census, new MartianFiber());
+    const forecast = effectForecastForAction(player, census, actionPreview(player, census));
+    expect(forecast.facts.filter((f) => f.source.name === CardName.MARTIAN_FIBER), 'not the operation\'s until the option is chosen').to.deep.eq([]);
+    const tied = forecast.byBranch?.[0]?.find((f) => f.source.name === CardName.MARTIAN_FIBER);
+    expect(tied?.certainty).eq('conditional');
+    expect(tied?.condition).to.deep.include({state: 'depends', branchPos: 0});
+    expect(tied?.condition?.chosen?.certainty).eq('exact');
+    expect(tied?.effects[0]).to.include({icon: Resource.MEGACREDITS, amount: 1});
+    expect(forecast.byBranch?.[1]?.some((f) => f.source.name === CardName.MARTIAN_FIBER) ?? false, 'the delegate option adds no data').is.false;
   });
 
   it('splits shared and own tiles as MULTISETS: what every available option places is the play\'s, the remainder stays the option\'s', () => {

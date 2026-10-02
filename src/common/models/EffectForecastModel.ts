@@ -115,6 +115,14 @@ export type EffectForecastCondition = {
   /** For `depends`: the POSITION of the branch in `ActionPreview.branches`
    *  this fact is tied to (the same index the composer's cursor uses). */
   branchPos?: number;
+  /**
+   * For `depends`: what the fact IS once that option is chosen — tying a fact
+   * to an option folds every live degree into `conditional` and replaces its
+   * own condition, so both are kept here. A composer whose option is FIXED (a
+   * variant the player picked in the browse grid) restores them: there, the
+   * option IS the operation (`forecastForFixedBranch`).
+   */
+  chosen?: {certainty: EffectForecastCertainty, condition?: EffectForecastCondition};
 };
 
 export type EffectForecastAlternative = {

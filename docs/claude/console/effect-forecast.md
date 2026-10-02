@@ -233,6 +233,13 @@ the server runner):
 - **The variant reactions** — `variantReactionChips`: ONLY `byBranch[pos]`,
   the same bare deltas merged by the same key (own → asked → other seats),
   `VARIANT_REACTION_CAP = 2` + «+N», with `total` for the aria reading.
+- **A FIXED option is the operation** — `forecastForFixedBranch(forecast, pos)`:
+  an action composer entered on ONE variant of several branches (no «ИЛИ»
+  row, so no option card to carry its reactions) folds that branch's facts into
+  `facts`, restored to what they are once chosen (`condition.chosen` — the
+  degree and own condition `asBranchFact` keeps), and drops the other options.
+  Without it TR15's «+1 data here» showed no «Сработает» for TR18's +1 M€ and
+  the layer read «Если выберете «»» about a choice already made (TR18 journal).
 - **The WHEN vocabulary** — `timingLabel(timing, operation)`: an immediate
   reaction is «сразу после розыгрыша» for a play and «сразу после выполнения»
   for an action (`'Right after the action'`); every other moment reads the

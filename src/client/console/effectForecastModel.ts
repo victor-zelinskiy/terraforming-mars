@@ -322,6 +322,32 @@ export function variantReactionChips(forecast: EffectForecast | undefined, branc
   return {chips: chips.slice(0, VARIANT_REACTION_CAP), more: chips.length - VARIANT_REACTION_CAP, total};
 }
 
+/**
+ * The forecast of an operation whose option is FIXED — a variant the player
+ * picked in the browse grid, one branch of several. That option's facts ARE
+ * the operation's, restored to what they are once it is chosen
+ * (`condition.chosen`), and the other options' facts are no part of it.
+ * Without it the action composer drew no «Сработает» for the variant (its
+ * reactions live in `byBranch`, and there is no option card to carry them)
+ * and the layer read «Если выберете «»» about a choice already made.
+ */
+export function forecastForFixedBranch(forecast: EffectForecast | undefined, pos: number): EffectForecast | undefined {
+  if (forecast?.byBranch === undefined) {
+    return forecast;
+  }
+  const ids = new Set(forecast.facts.map((f) => f.id));
+  const chosen = (forecast.byBranch[pos] ?? []).map((fact): EffectForecastFact => {
+    const {condition, ...rest} = fact;
+    const back = condition?.chosen;
+    const id = ids.has(fact.id) ? `${pos}:${fact.id}` : fact.id;
+    if (back === undefined) {
+      return condition === undefined ? {...rest, id} : {...rest, id, condition};
+    }
+    return back.condition === undefined ? {...rest, id, certainty: back.certainty} : {...rest, id, certainty: back.certainty, condition: back.condition};
+  });
+  return {...forecast, facts: [...forecast.facts, ...chosen], byBranch: undefined};
+}
+
 // ── The payment head's discount tail (§5.4) ─────────────────────────────────
 
 export type DiscountTail = {base: number, final: number, saved: number};

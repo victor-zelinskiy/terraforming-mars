@@ -604,7 +604,11 @@ export function asBranchFact(fact: EffectForecastFact, pos: number): EffectForec
   return {
     ...fact,
     certainty: keep ? fact.certainty : 'conditional',
-    condition: {text: fact.condition?.text ?? fact.reason, state: 'depends', branchPos: pos},
+    condition: {
+      text: fact.condition?.text ?? fact.reason, state: 'depends', branchPos: pos,
+      // What the fact is once the option IS chosen — a composer whose option is fixed restores it.
+      chosen: fact.condition === undefined ? {certainty: fact.certainty} : {certainty: fact.certainty, condition: fact.condition},
+    },
   };
 }
 
