@@ -85,9 +85,9 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
         reason.unattainable = true;
       }
     }
-    // A PARTY reason restates its rule only in its NAMED form (Turmoil Redux); the classic engine's
+    // A PARTY / CHAIRMAN reason restates its rule only in its NAMED form (Turmoil Redux); the classic engine's
     // faceless «a specific political situation» says half of it, and hiding the rule there would be a lie.
-    const key = req.type === RequirementType.PARTY && reason.party === undefined ? undefined : requirementBlockId(req, ordinal);
+    const key = reason.message === POLITICAL_SITUATION.message ? undefined : requirementBlockId(req, ordinal);
     if (key !== undefined) {
       reason.requirementKey = key;
     }
@@ -103,9 +103,9 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
  * text is generated independently (`buildCardInformation.requirementBlock`),
  * and a type whose generated sentence one day says MORE than the reason must
  * fail CLOSED — showing a rule twice is a blemish, hiding half of one is a
- * lie. Excluded on purpose: CHAIRMAN (the reason only says "a specific
- * political situation" — as does the CLASSIC engine's PARTY reason, which
- * therefore carries no key although PARTY is listed), REMOVED_PLANTS and every Moon / Underworld
+ * lie. Excluded on purpose: the CLASSIC engine's PARTY and CHAIRMAN reasons
+ * (they only say "a specific political situation", so they carry no key
+ * although both types are listed for their named Redux form), REMOVED_PLANTS and every Moon / Underworld
  * type (no templated reason of their own), and anything reaching the generic
  * fallback.
  */
@@ -127,6 +127,9 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   // «Requires Mars First to be ruling or 2 of your delegates on its resolution» — the whole printed rule,
   // both roads, in its NAMED Redux form only (TR15; the classic line keeps no key — see the caller).
   RequirementType.PARTY,
+  // «Requires you to be the chairman» — the whole printed rule, in its NAMED Redux form only (TR12; the
+  // classic line keeps no key — see the caller).
+  RequirementType.CHAIRMAN,
 ]);
 
 /**
@@ -294,7 +297,7 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
   case RequirementType.PARTY:
     return partyRequirementReason(player, req as PartyRequirement) ?? POLITICAL_SITUATION;
   case RequirementType.CHAIRMAN:
-    return POLITICAL_SITUATION;
+    return chairmanRequirementReason(player) ?? POLITICAL_SITUATION;
   default:
     return {type: 'generic', message: 'Card requirement not met', current};
   }
@@ -327,6 +330,30 @@ function partyRequirementReason(player: IPlayer, req: PartyRequirement): Unplaya
     ...(standing.onVote ? {} : {partyOffVote: true}),
   };
 }
+
+/**
+ * THE CHAIRMAN REQUIREMENT, NAMED (Turmoil Redux — TR12 Party Sanctions is the
+ * set's first): the rule in its own words, and who holds the seat NOW — a
+ * reason exists only while the player does not, so the «now» is another seat
+ * or an empty chair. The holder is the facade's (`politics.chairman()`, the
+ * same reading `ChairmanRequirement.satisfies` decides by); `undefined` on the
+ * classic engine, whose line stays upstream's.
+ */
+function chairmanRequirementReason(player: IPlayer): UnplayableReason | undefined {
+  const politics = player.game.politics;
+  if (politics?.engine !== 'redux') {
+    return undefined;
+  }
+  const holder = politics.chairman();
+  return {
+    type: 'party',
+    message: CHAIRMAN_REQUIREMENT_REASON,
+    chairmanNow: holder === undefined || holder === 'NEUTRAL' ? 'vacant' : {name: holder.name, color: holder.color},
+  };
+}
+
+/** The named chairman requirement's text — the scan's own sentence. */
+export const CHAIRMAN_REQUIREMENT_REASON = 'Requires you to be the chairman';
 
 /** The named party requirement's template — `${0}` the party, `${1}` the delegates the rule asks for. */
 export const PARTY_REQUIREMENT_REASON = 'Requires ${0} to be ruling or ${1} of your delegates on its resolution';

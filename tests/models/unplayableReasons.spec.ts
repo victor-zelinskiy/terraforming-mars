@@ -5,7 +5,10 @@ import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {CardName} from '../../src/common/cards/CardName';
 import {MAX_TEMPERATURE} from '../../src/common/constants';
-import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../src/server/models/unplayableReasons';
+import {CHAIRMAN_REQUIREMENT_REASON, PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../src/server/models/unplayableReasons';
+import {BannedDelegate} from '../../src/server/cards/turmoil/BannedDelegate';
+import {fakeCard} from '../TestingUtils';
+import {CardRequirementDescriptor} from '../../src/common/cards/CardRequirementDescriptor';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -361,6 +364,50 @@ describe('unplayableReasons', () => {
         const [/* game */, player] = testGame(2, {turmoilExtension: true});
         player.megaCredits = 100;
         const reasons = unplayableReasons(player, new MartianCensus()).filter((r) => r.type === 'party');
+        expect(reasons).deep.eq([{type: 'party', message: 'Requires a specific political situation', requirement: true}]);
+      });
+    });
+
+    /*
+     * THE CHAIRMAN REQUIREMENT (Turmoil Redux — TR12 Party Sanctions the first): the reason NAMES the rule
+     * and who holds the seat now (a seat, or an empty chair) — and only that named form restates the rule
+     * (`req:Chairman`); the classic engine's faceless line addresses nothing, so its rule stays printed.
+     */
+    describe('a CHAIRMAN requirement', () => {
+      const chairmanCard = () => fakeCard({cost: 2, requirements: [{chairman: true} as CardRequirementDescriptor]});
+
+      function redux() {
+        const [game, player, other] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        player.megaCredits = 100;
+        return {game, player, other, parliament: game.parliament!};
+      }
+
+      it('the chair is vacant: the rule, «vacant», the rules-block address', () => {
+        const {player, parliament} = redux();
+        parliament.chairman = undefined;
+        expect(unplayableReasons(player, chairmanCard())).deep.eq([{
+          type: 'party', message: CHAIRMAN_REQUIREMENT_REASON, chairmanNow: 'vacant', requirement: true, requirementKey: 'req:Chairman',
+        }]);
+      });
+
+      it('another seat holds it: the holder by name and colour', () => {
+        const {player, other, parliament} = redux();
+        parliament.chairman = other.id;
+        expect(unplayableReasons(player, chairmanCard())[0]).deep.include({
+          message: CHAIRMAN_REQUIREMENT_REASON, chairmanNow: {name: other.name, color: other.color},
+        });
+      });
+
+      it('the player holds the seat: no reason at all', () => {
+        const {player, parliament} = redux();
+        parliament.chairman = player.id;
+        expect(unplayableReasons(player, chairmanCard())).deep.eq([]);
+      });
+
+      it('the CLASSIC engine keeps upstream\'s line and addresses no rules block', () => {
+        const [/* game */, player] = testGame(2, {turmoilExtension: true});
+        player.megaCredits = 100;
+        const reasons = unplayableReasons(player, new BannedDelegate()).filter((r) => r.type === 'party');
         expect(reasons).deep.eq([{type: 'party', message: 'Requires a specific political situation', requirement: true}]);
       });
     });

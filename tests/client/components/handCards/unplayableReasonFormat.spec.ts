@@ -68,6 +68,28 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     });
   });
 
+  /*
+   * THE NAMED CHAIRMAN REQUIREMENT (Turmoil Redux — TR12 the set's first): the rule, then who holds the seat
+   * now — on the rail, the chairman's badge and the holder's name.
+   */
+  describe('a CHAIRMAN requirement', () => {
+    const held: UnplayableReason = {
+      type: 'party', message: 'Requires you to be the chairman', chairmanNow: {name: 'Rival', color: 'red'}, requirement: true,
+    };
+    const vacant: UnplayableReason = {...held, chairmanNow: 'vacant'};
+
+    it('the line: the rule · who holds the seat now', () => {
+      expect(unplayableReasonLine(held)).eq('Requires you to be the chairman · chairman now: Rival');
+      expect(unplayableReasonLine(vacant)).eq('Requires you to be the chairman · the chair is vacant');
+    });
+
+    it('the rail: the chairman badge and the holder (or «vacant»)', () => {
+      expect(unplayableReasonEmblem(held)).eq('assets/misc/chairman.png');
+      expect(unplayableReasonCompact(held)).eq('Rival');
+      expect(unplayableReasonCompact(vacant)).eq('Vacant');
+    });
+  });
+
   it('the Hydronetwork precedent keeps its counter, and an unknown count message keeps the full line', () => {
     expect(unplayableReasonCompact({type: 'count', message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: ['4'], current: 3})).eq('Hydronetwork 3/4');
     const unknown: UnplayableReason = {type: 'count', message: 'Not enough resources on this card', current: 2};

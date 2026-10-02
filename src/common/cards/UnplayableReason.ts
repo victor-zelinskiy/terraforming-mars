@@ -1,6 +1,7 @@
 import {Tag} from './Tag';
 import {Resource} from '../Resource';
 import {PartyName} from '../turmoil/PartyName';
+import {Color} from '../Color';
 
 /**
  * A single, structured reason a project card in hand can't be played right
@@ -84,6 +85,15 @@ export interface UnplayableReason {
    * «0 of 2» — a count nobody can chase.
    */
   partyOffVote?: boolean;
+  /**
+   * For the CHAIRMAN requirement, NAMED (Turmoil Redux — TR12 Party Sanctions
+   * is the set's first): who holds the chairman's seat right now — a seat's
+   * name and colour, or `vacant`. The line reads «председатель сейчас: …» /
+   * «кресло свободно» from it; the hand's compact form names the holder beside
+   * the chairman badge. Absent on the classic engine's reason, which keeps
+   * upstream's faceless line.
+   */
+  chairmanNow?: {name: string; color: Color} | 'vacant';
   /** The player's current value, shown as a muted "now: N" badge. */
   current?: number;
   /**

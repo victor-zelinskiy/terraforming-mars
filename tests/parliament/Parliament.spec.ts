@@ -232,6 +232,28 @@ describe('Parliament', () => {
       expect(parliament.totalPopularSupport()).eq(PARLIAMENT_NEUTRAL_DELEGATES);
       expect(parliament.neutralSupply()).eq(0);
     });
+
+    it('discarding an area returns ALL its neutral delegates to the supply — and nothing else moves (TR12)', () => {
+      const [game, p1, , parliament] = reduxGame();
+      REDUX_PARTIES.forEach((party) => parliament.popularSupport.set(party, 0));
+      parliament.addPopularSupport(PartyName.REDS, 3);
+      parliament.addPopularSupport(PartyName.GREENS, 1);
+      parliament.slots[0].votes.push({owner: 'NEUTRAL', seq: ++parliament.voteSeq});
+      const supply = parliament.neutralSupply();
+      const neutralVotes = parliament.neutralVotes();
+      const reserve = parliament.reserve(p1);
+
+      expect(parliament.discardPopularSupport(PartyName.REDS)).eq(3);
+      expect(parliament.popularSupportOf(PartyName.REDS)).eq(0);
+      expect(parliament.neutralSupply(), 'the supply is derived: the area emptied IS the return').eq(supply + 3);
+      expect(parliament.popularSupportOf(PartyName.GREENS), 'another area is untouched').eq(1);
+      expect(parliament.neutralVotes(), 'neutral votes on resolutions are not support').eq(neutralVotes);
+      expect(parliament.reserve(p1)).eq(reserve);
+      parliament.assertLedger(game);
+
+      expect(parliament.discardPopularSupport(PartyName.REDS), 'an empty area returns nothing').eq(0);
+      expect(parliament.neutralSupply()).eq(supply + 3);
+    });
   });
 
   describe('serialization', () => {

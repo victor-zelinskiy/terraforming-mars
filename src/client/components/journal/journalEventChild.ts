@@ -445,7 +445,8 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       push(`fleet|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: []}, [{icon: TRADE_FLEET_ICON, text: '−1'}]);
       continue;
     }
-    if (e.type === 'popular-support-gained' && e.impact.popularSupport !== undefined) {
+    // …and its pair (TR12 Party Sanctions): the same row, the chip signed «−N», the area's total after it.
+    if ((e.type === 'popular-support-gained' || e.type === 'popular-support-discarded') && e.impact.popularSupport !== undefined) {
       push(`support|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'support', party: e.impact.popularSupport.party, total: e.impact.popularSupport.total}}, impactChips(e.impact));
       continue;

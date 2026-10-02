@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, SupportPromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -163,6 +163,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public deltaBonusPrompt: DeltaBonusPromptMeta | undefined;
   public resourceGainPrompt: ResourceGainPromptMeta | undefined;
   public votePrompt: VotePromptMeta | undefined;
+  public supportPrompt: SupportPromptMeta | undefined;
   public votePayment: VotePaymentMeta | undefined;
   public partyActionPrompt: PartyActionPromptMeta | undefined;
   public resolutionActionPrompt: ResolutionActionPromptMeta | undefined;
@@ -363,6 +364,15 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  {@link VotePromptMeta}. */
   public markVotePrompt(meta: VotePromptMeta): this {
     this.votePrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectParty` as the pick of a Turmoil Redux POPULAR SUPPORT
+   *  AREA (chainable): what the answer does to each party's area. Built by
+   *  `parliament/DiscardPopularSupport` — the one producer. See
+   *  {@link SupportPromptMeta}. */
+  public markSupportPrompt(meta: SupportPromptMeta): this {
+    this.supportPrompt = meta;
     return this;
   }
 

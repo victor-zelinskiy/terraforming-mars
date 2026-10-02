@@ -244,8 +244,9 @@ function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boole
 
 /**
  * The staged address of a response, when it carries one — a CELL picked before
- * the play (`space`), a RESOLUTION picked before it (`party`, the staged
- * vote of a card that places a delegate by being played) or a COLONY TILE
+ * the play (`space`), a RESOLUTION or a POPULAR SUPPORT AREA picked before it
+ * (`party`, the staged vote of a card that places a delegate by being played —
+ * TR03 — or the staged area of a card that strips one — TR12) or a COLONY TILE
  * picked before it (`colony`, the staged track of a card that moves a chosen
  * tile's marker by being played — TR07 Colony Sponsors).
  */
@@ -274,13 +275,16 @@ function stagedCellAddress(response: InputResponse): CardName | undefined {
  * 0°C ocean, a Hellas placement-bonus ocean) leaves it undefined — which is
  * exactly what makes the two distinguishable at all.
  *
- * A RESOLUTION's address is the delegate GRANT of that very card: a
- * `SelectParty` marked `votePrompt.source === 'grant'` whose
- * `choiceContext.source.card` is the address (`PlaceDelegatesOnResolution`).
- * The type alone is as blind here as it was for cells — the chairman's seat
- * is a `SelectParty` too (`source === 'chairman-seat'`), and «Greens» answered
- * there would choose which resolution GIVES UP a delegate; a colony's grant
- * and the vote's own paid pick are party prompts of other givers.
+ * A PARTY's address is that very card's own party question — one of the two
+ * CARD-OWNED `SelectParty` shapes whose `choiceContext.source.card` is the
+ * address: the delegate GRANT (`votePrompt.source === 'grant'`,
+ * `PlaceDelegatesOnResolution` — the resolution the delegate goes to) or the
+ * POPULAR SUPPORT AREA pick (`supportPrompt`, `DiscardPopularSupport` — TR12
+ * Party Sanctions, the area whose neutral delegates go). The type alone is as
+ * blind here as it was for cells — the chairman's seat is a `SelectParty` too
+ * (`source === 'chairman-seat'`), and «Greens» answered there would choose
+ * which resolution GIVES UP a delegate; a colony's grant and the vote's own
+ * paid pick are party prompts of other givers.
  *
  * A COLONY TILE's address is that card's own colony pick: a `SelectColony`
  * whose `choiceContext.source.card` is the address (`MaximizeColonyTrack`).
@@ -297,7 +301,7 @@ function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boole
   }
   if (response.type === 'party') {
     return !(waitingFor instanceof SelectParty) ||
-      waitingFor.votePrompt?.source !== 'grant' ||
+      !(waitingFor.votePrompt?.source === 'grant' || waitingFor.supportPrompt !== undefined) ||
       waitingFor.choiceContext?.source.card !== address;
   }
   if (response.type === 'colony') {

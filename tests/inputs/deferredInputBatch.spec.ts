@@ -46,6 +46,8 @@ import {Ceres} from '../../src/server/colonies/Ceres';
 import {Europa} from '../../src/server/colonies/Europa';
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {DiscardPopularSupport} from '../../src/server/parliament/DiscardPopularSupport';
+import {REDUX_PARTIES} from '../../src/common/parliament/ParliamentTypes';
 import {
   clearBatchTail,
   drainBatchTail,
@@ -725,6 +727,92 @@ describe('deferredInputBatch', () => {
         expect(votes(state, M)).eq(1);
         expect(votes(state, G), 'the seat\'s answer placed nothing').eq(0);
         expect(state.census.resourceCount).eq(0);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+      });
+    });
+
+    /*
+     * …AND THE PARTY MAY BE A POPULAR SUPPORT AREA (Turmoil Redux TR12 Party Sanctions: «discard all neutral
+     * delegates from ONE Popular Support Area of your choice»). The same addressed tail — the card's own party
+     * question is now the AREA pick (`supportPrompt`, `DiscardPopularSupport`) — and the same refusals: the
+     * chairman's seat in front of it parks the tail, never answers it.
+     */
+    describe('…a POPULAR SUPPORT AREA (a card that strips one)', () => {
+      type Sanction = Staged & {walked: number};
+
+      function sanctionGame(interpose?: (p: IPlayer, state: Staged) => void): Sanction {
+        const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        game.phase = Phase.ACTION;
+        const parliament = game.parliament!;
+        ([G, M, I] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+        for (const party of REDUX_PARTIES) {
+          parliament.popularSupport.set(party, 0);
+        }
+        parliament.popularSupport.set(M, 3);
+        parliament.popularSupport.set(G, 1);
+        const state = {game, player, parliament, seatAnswers: [], walked: 0} as unknown as Sanction;
+        const card = fakeCard({
+          name: 'A card that strips an area' as CardName,
+          cost: 2,
+          play: (p: IPlayer) => {
+            interpose?.(p, state);
+            p.game.defer(new DiscardPopularSupport(p, {kind: 'card', card: card.name}, () => {
+              state.walked++;
+            }));
+            return undefined;
+          },
+        });
+        state.card = card;
+        player.cardsInHand = [card];
+        player.megaCredits = 50;
+        player.takeAction();
+        return state;
+      }
+
+      it('lands at once: the area empties, the continuation runs, nothing is asked again', () => {
+        const state = sanctionGame();
+        const supply = state.parliament.neutralSupply();
+        replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+        expect(state.parliament.popularSupportOf(M)).eq(0);
+        expect(state.parliament.popularSupportOf(G)).eq(1);
+        expect(state.parliament.neutralSupply()).eq(supply + 3);
+        expect(state.walked, 'the card\'s next effect ran inside the same answer').eq(1);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectParty, 'the area is never asked again').is.false;
+      });
+
+      it('the CHAIRMAN\'S SEAT in front of the area pick does NOT eat the tail — it parks, then lands', () => {
+        const state = sanctionGame(interposeSeat);
+        replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+        const seat = cast(state.player.getWaitingFor(), SelectParty);
+        expect(seat.votePrompt?.source).eq('chairman-seat');
+        expect(state.seatAnswers).deep.eq([]);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+        expect(state.parliament.popularSupportOf(M), 'nothing discarded while the tail is parked').eq(3);
+
+        state.player.process({type: 'party', partyName: G});
+        drainBatchTail(state.player);
+        expect(state.seatAnswers).deep.eq([G]);
+        expect(state.parliament.popularSupportOf(M)).eq(0);
+        expect(state.parliament.popularSupportOf(G), 'the seat\'s answer discarded nothing').eq(1);
+        expect(state.walked).eq(1);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+      });
+
+      it('ANOTHER card\'s area pick is another giver\'s question: the tail parks past it', () => {
+        const state = sanctionGame((p) => {
+          p.game.defer(new DiscardPopularSupport(p, {kind: 'card', card: CardName.ANTS}), Priority.COST);
+        });
+        replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state, M)]));
+        const other = cast(state.player.getWaitingFor(), SelectParty);
+        expect(other.choiceContext?.source.card).eq(CardName.ANTS);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+        expect(state.parliament.popularSupportOf(M)).eq(3);
+
+        state.player.process({type: 'party', partyName: G});
+        drainBatchTail(state.player);
+        expect(state.parliament.popularSupportOf(G), 'the other pick went where the player sent it').eq(0);
+        expect(state.parliament.popularSupportOf(M), 'the staged pick where it was staged').eq(0);
         expect(parkedBatchTailLength(state.player)).eq(0);
       });
     });

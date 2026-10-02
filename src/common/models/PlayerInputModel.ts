@@ -491,6 +491,38 @@ export type VotePromptMeta = {
 export type VoteSupportProjection = {party: PartyName} & SupportRoom;
 
 /**
+ * EXPLICIT marker that a `SelectParty` picks a POPULAR SUPPORT AREA, not a
+ * resolution (Turmoil Redux TR12 Party Sanctions: «discard all neutral
+ * delegates from ONE Popular Support Area of your choice»). The console's
+ * Parliament reads it (never the title) to open its SUPPORT-AREA mode — the
+ * cursor walks the party plaques, not the three voting slots.
+ *
+ * `areas` holds ONE row per party of the parliament, in the table's order —
+ * the candidates AND the refused ones — so the client prints «N → 0» and each
+ * refusal's reason without computing anything: `current` is what stands in the
+ * area now, `resulting` what the answer leaves, `available` whether the party
+ * is on offer (the prompt's `parties` are exactly the available rows), and
+ * `reason` the ONE named cause of a refusal. The giver rides
+ * `choiceContext.source` (the card — and the staged tail's address).
+ * Serialized on `SelectParty.toModel` (nesting-safe), never centrally.
+ */
+export type SupportPromptMeta = {
+  /** What the pick does to the chosen area — `discard`: every neutral delegate in it returns to the common supply. */
+  source: 'discard';
+  areas: ReadonlyArray<SupportAreaProjection>;
+};
+
+/** One party's row of `SupportPromptMeta.areas` — the SERVER's projection of the answer. */
+export type SupportAreaProjection = {
+  party: PartyName;
+  current: number;
+  resulting: number;
+  available: boolean;
+  /** The ONE reason a refused area is refused (an English i18n key). Absent on a candidate. */
+  reason?: string;
+};
+
+/**
  * EXPLICIT marker that a `SelectPayment` is the BILL of a Turmoil Redux vote
  * from the reserve (the delegate moves only once it is settled). The console
  * hosts the payment INSIDE the vote step it belongs to — and rebuilds that
@@ -661,6 +693,9 @@ export type BaseInputModel = {
   /** Explicit "this SelectParty is the Turmoil Redux VOTE" marker (see
    *  {@link VotePromptMeta}). Serialized on `SelectParty.toModel`. */
   votePrompt?: VotePromptMeta;
+  /** Explicit "this SelectParty picks a Turmoil Redux POPULAR SUPPORT AREA"
+   *  marker (see {@link SupportPromptMeta}). Serialized on `SelectParty.toModel`. */
+  supportPrompt?: SupportPromptMeta;
   /** Explicit "this SelectPayment settles a Turmoil Redux VOTE from the
    *  reserve" marker (see {@link VotePaymentMeta}). Serialized on `SelectPayment.toModel`. */
   votePayment?: VotePaymentMeta;

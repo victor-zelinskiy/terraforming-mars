@@ -133,6 +133,8 @@ export type EventImpact = {
   /**
    * Neutral delegates an EFFECT added to a party's Popular Support
    * (`popular-support-gained`): how many landed and what the area holds now.
+   * SIGNED: its pair `popular-support-discarded` (TR12) carries `gained` < 0 —
+   * how many left the area for the common supply — and `total` after it.
    */
   popularSupport?: {party: PartyName; gained: number; total: number};
   /**

@@ -1161,5 +1161,13 @@
   "${0} gains 1 M€ from the Agenda track instead of a card": "${0} получает 1 M€ с трека Карьеры вместо карты",
   "${0} placed the city tile from ${1} on top of its city": "${0} ставит тайл города с ${1} поверх своего города",
   "Unreachable for MarsBot": "недостижимо для бота",
-  "MarsBot votes, completes chairman quests and takes the winner's reward. An enacted resolution never pays it.": "Бот голосует, выполняет задания председателя и получает награду победителю голосования. Принятые резолюции ему не платят."
+  "MarsBot votes, completes chairman quests and takes the winner's reward. An enacted resolution never pays it.": "Бот голосует, выполняет задания председателя и получает награду победителю голосования. Принятые резолюции ему не платят.",
+  "Requires you to be the chairman": "Требуется быть председателем",
+  "chairman now: ${0}": "председатель сейчас: ${0}",
+  "the chair is vacant": "кресло свободно",
+  "Vacant": "Свободно",
+  "Select a Popular Support Area to discard its neutral delegates": "Выберите область народной поддержки, из которой уйдут нейтральные делегаты",
+  "The support area is empty": "Область пуста",
+  "Every Popular Support area is empty": "Все области народной поддержки пусты",
+  "${0} discarded ${1} neutral delegate(s) from the Popular Support of ${2} (0/${3})": "${0} сбрасывает ${1} {нейтрального делегата|нейтральных делегатов|нейтральных делегатов} из Народной поддержки «${2}» (0/${3})"
 }

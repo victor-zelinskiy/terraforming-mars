@@ -414,6 +414,16 @@ export class EventRecorder {
   }
 
   /**
+   * …AND ITS PAIR: AN EFFECT DISCARDED NEUTRAL DELEGATES FROM A PARTY'S
+   * POPULAR SUPPORT (Turmoil Redux TR12 Party Sanctions) — `count` returned to
+   * the common supply, the area holds `total` after it. The same impact, the
+   * delta signed negative. Written only by `parliament/DiscardPopularSupport`.
+   */
+  public recordPopularSupportDiscarded(player: IPlayer, party: PartyName, count: number, total: number): void {
+    this.record({type: 'popular-support-discarded', player: player.color, impact: {popularSupport: {party, gained: -count, total}}, visibility: 'journal'});
+  }
+
+  /**
    * A TRADE FLEET LANDED ON A CARD (Turmoil Redux — a fleet dock: TR06 Water
    * Hauling and its sisters). Recorded under the card's own source inside the
    * trade's chain, so the journal's row and the rival's notification name the

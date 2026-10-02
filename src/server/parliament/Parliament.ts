@@ -687,6 +687,20 @@ export class Parliament {
     return room.gained;
   }
 
+  /**
+   * Return EVERY neutral delegate of a party's support area to the common
+   * supply (Turmoil Redux TR12 Party Sanctions). Returns how many left. The
+   * supply is DERIVED (`neutralSupply` = 14 − neutral votes − all support), so
+   * emptying the area IS the return — there is no second counter to move.
+   * Neutral delegates standing on resolutions (votes) are not support and are
+   * never touched here.
+   */
+  public discardPopularSupport(party: ReduxParty): number {
+    const count = this.popularSupportOf(party);
+    this.popularSupport.set(party, 0);
+    return count;
+  }
+
   /** Move every neutral delegate of a party's support area onto `slot` as votes (rulebook p.12). */
   public moveSupportToSlot(party: ReduxParty, slot: Slot): number {
     const count = this.popularSupportOf(party);

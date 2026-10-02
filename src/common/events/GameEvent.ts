@@ -72,6 +72,15 @@ export type GameEventType =
    */
   | 'popular-support-gained'
   /**
+   * …AND ITS PAIR: NEUTRAL DELEGATES DISCARDED FROM A PARTY'S POPULAR SUPPORT
+   * BY AN EFFECT (Turmoil Redux TR12 Party Sanctions — «discard all neutral
+   * delegates from ONE Popular Support Area»). The same `impact.popularSupport`
+   * shape with a NEGATIVE `gained` (how many returned to the common supply) and
+   * the area's `total` after it (0), so the journal row and the rival's chip
+   * read it exactly like a gain. The card rides the event's `source`.
+   */
+  | 'popular-support-discarded'
+  /**
    * A TRADE FLEET WAS SENT TO A CARD (Turmoil Redux — a fleet dock: TR06 Water
    * Hauling and its sisters TR26 / TR27). `player` is the trader (always the
    * card's owner — FAQ p.19), `target.card` and the event's `source` name the

@@ -33,6 +33,9 @@ export class SelectParty extends BasePlayerInput<PartyName> {
     if (this.votePrompt !== undefined) {
       model.votePrompt = this.votePrompt;
     }
+    if (this.supportPrompt !== undefined) {
+      model.supportPrompt = this.supportPrompt;
+    }
     return model;
   }
 

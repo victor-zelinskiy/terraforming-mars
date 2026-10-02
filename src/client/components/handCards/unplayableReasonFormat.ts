@@ -53,11 +53,27 @@ function partyReasonLine(r: UnplayableReason & {party: PartyName}): string {
 }
 
 /**
+ * THE CHAIRMAN REQUIREMENT'S «NOW» (Turmoil Redux — TR12 the first card): a
+ * reason exists only while the player does not hold the seat, so the «now» is
+ * who does — or that the chair is empty. The holder is the server's.
+ */
+function chairmanNowText(now: NonNullable<UnplayableReason['chairmanNow']>): string {
+  return now === 'vacant' ? translateText('the chair is vacant') : translateTextWithParams('chairman now: ${0}', [now.name]);
+}
+
+/** The chairman's badge — the same one the card's requirement plate prints (`premiumCardViewModel`). */
+const CHAIRMAN_EMBLEM = 'assets/misc/chairman.png';
+
+/**
  * The EMBLEM a reason is drawn with on a one-row rail — a named PARTY reason
- * only (the compact counter «[emblem] 1/2» reads the party by its badge, the
- * same badge the card's plate prints). `undefined` for every other reason.
+ * (the compact counter «[emblem] 1/2» reads the party by its badge, the same
+ * badge the card's plate prints) or the named CHAIRMAN reason («[chairman]
+ * Синий» — the badge, then who holds the seat). `undefined` for every other.
  */
 export function unplayableReasonEmblem(r: UnplayableReason): string | undefined {
+  if (r.chairmanNow !== undefined) {
+    return CHAIRMAN_EMBLEM;
+  }
   return r.party === undefined ? undefined : requirementPartyEmblem(r.party);
 }
 
@@ -74,6 +90,9 @@ export function unplayableReasonNow(r: UnplayableReason): string {
 export function unplayableReasonLine(r: UnplayableReason): string {
   if (r.party !== undefined) {
     return partyReasonLine({...r, party: r.party});
+  }
+  if (r.chairmanNow !== undefined) {
+    return `${unplayableReasonText(r)} · ${chairmanNowText(r.chairmanNow)}`;
   }
   const text = unplayableReasonText(r);
   return r.current === undefined ? text : `${text} · ${unplayableReasonNow(r)}`;
@@ -156,6 +175,10 @@ export function unplayableReasonCompact(r: UnplayableReason): string {
   // the delegates road — «1/2» — or, when its resolution is not up for a vote, that closed road.
   if (r.party !== undefined) {
     return r.partyOffVote === true ? translateText('Not in the vote') : `${r.current ?? 0}/${r.params?.[1] ?? '2'}`;
+  }
+  // The named CHAIRMAN reason: the badge names the seat (`unplayableReasonEmblem`), the text who holds it.
+  if (r.chairmanNow !== undefined) {
+    return r.chairmanNow === 'vacant' ? translateText('Vacant') : r.chairmanNow.name;
   }
   const label = compactLabelKey(r);
   const bound = r.effectiveCount ?? Number(r.params?.[0]);
