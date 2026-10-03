@@ -4,7 +4,7 @@ import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {AndOptions} from '../inputs/AndOptions';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {ENERGY_TRADE_COST, MC_TRADE_COST, TITANIUM_TRADE_COST} from '../../common/constants';
-import {TradeTerms} from '../colonies/IColony';
+import {IColony, TradeTerms} from '../colonies/IColony';
 import {ITradeDestination} from '../colonies/ITradeDestination';
 import {availableFleetDocks} from '../colonies/FleetDock';
 import {tradeDestinationPick, tradeThrough} from '../colonies/tradeDoor';
@@ -276,31 +276,51 @@ export class Colonies {
       .setButtonLabel('Trade');
   }
 
-  public getPlayableColonies(allowDuplicate: boolean = false, canAffordOptions: number | CanAffordOptions = 0) {
-    const options: CanAffordOptions = typeof canAffordOptions === 'number' ? {cost: canAffordOptions} : canAffordOptions;
+  /**
+   * THE ONE READING of «may this player build a colony on this tile»:
+   * `undefined` when they may, else the ONE reason (an English i18n key), the
+   * conditions asked in order. `getPlayableColonies` filters by it,
+   * `BuildColony` names its disabled tiles by it, and a tile that is about to
+   * ENTER the game is projected by it (`ReplaceColonyTile` — Turmoil Redux
+   * TR10's «place a colony on it, if possible»): `active` overrides the tile's
+   * own flag for a tile judged BEFORE it entered (its activity is decided at
+   * the entry — `ColoniesHandler.colonyTileWillEnterActive`).
+   *
+   * The last two are TR-affordability the client cannot compute: building on
+   * Europa raises a global parameter and Leavitt raises TR directly (Pharmacy
+   * Union), so the player must afford that TR gain where it is taxed.
+   */
+  public buildBlockedReason(colony: IColony, options: {
+    allowDuplicate?: boolean,
+    canAffordOptions?: number | CanAffordOptions,
+    active?: boolean,
+  } = {}): string | undefined {
+    const canAffordOptions = options.canAffordOptions ?? 0;
+    const afford: CanAffordOptions = typeof canAffordOptions === 'number' ? {cost: canAffordOptions} : canAffordOptions;
+    if ((options.active ?? colony.isActive) === false) {
+      return 'Colony is inactive';
+    }
+    if (colony.isFull()) {
+      return 'Colony is full';
+    }
+    if (options.allowDuplicate !== true && colony.colonies.includes(this.player.id)) {
+      return 'You already have a colony here';
+    }
+    if (colony.name === ColonyName.EUROPA && !this.player.canAfford({...afford, tr: {oceans: 1}})) {
+      return 'Cannot afford the TR increase to build here';
+    }
+    if (colony.name === ColonyName.LEAVITT) {
+      const pharmacyUnion = this.player.tableau.get(CardName.PHARMACY_UNION);
+      if ((pharmacyUnion?.resourceCount ?? 0) > 0 && !this.player.canAfford({...afford, tr: {tr: 1}})) {
+        return 'Cannot afford the TR increase to build here';
+      }
+    }
+    return undefined;
+  }
 
+  public getPlayableColonies(allowDuplicate: boolean = false, canAffordOptions: number | CanAffordOptions = 0) {
     return this.player.game.colonies
-      .filter((colony) => {
-        if (colony.isActive === false) {
-          return false;
-        }
-        if (colony.isFull()) {
-          return false;
-        }
-        if (!allowDuplicate && colony.colonies.includes(this.player.id)) {
-          return false;
-        }
-        if (colony.name === ColonyName.EUROPA && !this.player.canAfford({...options, tr: {oceans: 1}})) {
-          return false;
-        }
-        if (colony.name === ColonyName.LEAVITT) {
-          const pharmacyUnion = this.player.tableau.get(CardName.PHARMACY_UNION);
-          if ((pharmacyUnion?.resourceCount ?? 0) > 0 && !this.player.canAfford({...options, tr: {tr: 1}})) {
-            return false;
-          }
-        }
-        return true;
-      });
+      .filter((colony) => this.buildBlockedReason(colony, {allowDuplicate, canAffordOptions}) === undefined);
   }
 
   public getVictoryPoints(): number {

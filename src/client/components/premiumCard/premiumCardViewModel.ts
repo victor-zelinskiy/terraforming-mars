@@ -38,7 +38,7 @@ export type NormalizedRequirement = {
   type: RequirementType;
   comparator: 'min' | 'max';
   value: number;
-  suffix: '' | '%' | '°C';
+  suffix: '' | '%' | '°C' | '+';
   /** Resolved icon asset URL (undefined → the text label carries the meaning). */
   iconUrl?: string;
   tag?: Tag;
@@ -51,6 +51,12 @@ export type NormalizedRequirement = {
   all: boolean;
   /** Fallback label when no icon exists (exotic expansion requirements). */
   label?: string;
+  /**
+   * PRINTED AS TEXT, the way the scan prints it — «GEN 4+» (Turmoil Redux
+   * TR10): the label is an i18n key, and a floor draws «N+» instead of the ≥
+   * glyph (a ceiling keeps the glyph: «GEN ≤ N»).
+   */
+  plain: boolean;
 };
 
 /**
@@ -228,7 +234,7 @@ const TILES = 'assets/tiles';
 const RES = 'assets/resources';
 const MISC = 'assets/misc';
 
-type RequirementRender = {value: (d: CardRequirementDescriptor) => number, iconUrl?: string, suffix?: '%' | '°C', binary?: boolean, label?: string};
+type RequirementRender = {value: (d: CardRequirementDescriptor) => number, iconUrl?: string, suffix?: '%' | '°C', binary?: boolean, label?: string, plain?: boolean};
 
 const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = {
   [RequirementType.OXYGEN]: {value: (d) => d.oxygen ?? 0, iconUrl: `${GLOBALS}/oxygen.png`, suffix: '%'},
@@ -263,6 +269,9 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // Turmoil Redux (TR04): the influence badge — the SAME asset the Agenda track's node and every resolution's
   // payout formula draw (`con-parl__inf-icon`), so «influence» is one symbol everywhere; `max` draws the bar.
   [RequirementType.INFLUENCE]: {value: (d) => d.influence ?? d.count ?? 1, iconUrl: `${MISC}/influence.png`},
+  // Turmoil Redux (TR10): the game's clock has no icon — the scan prints the plate as TEXT, «GEN 4+», and so
+  // does the face: the label (the endgame's own «Gen» key) and the number with a «+» for the floor.
+  [RequirementType.GENERATION]: {value: (d) => d.generation ?? d.count ?? 1, label: 'Gen', plain: true},
 };
 
 export function normalizeRequirement(descriptor: CardRequirementDescriptor): NormalizedRequirement {
@@ -280,12 +289,13 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
   }
   // Exotic requirement with neither an icon nor a bespoke branch → keep the
   // meaning as a text label (never silently dropped).
-  const label = (render === undefined) ? type : (descriptor.text ?? undefined);
+  const label = (render === undefined) ? type : (render.label ?? descriptor.text ?? undefined);
+  const plain = render?.plain === true;
   return {
     type,
     comparator: descriptor.max === true ? 'max' : 'min',
     value: render?.value(descriptor) ?? descriptor.count ?? 1,
-    suffix: render?.suffix ?? '',
+    suffix: plain && descriptor.max !== true ? '+' : render?.suffix ?? '',
     iconUrl,
     tag: descriptor.tag,
     party: descriptor.party,
@@ -293,6 +303,7 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
     negation: type === RequirementType.REMOVED_PLANTS,
     all: descriptor.all === true,
     label,
+    plain,
   };
 }
 

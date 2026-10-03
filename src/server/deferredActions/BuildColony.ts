@@ -1,7 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {SelectColony} from '../inputs/SelectColony';
 import {IColony} from '../colonies/IColony';
-import {ColonyName} from '../../common/colonies/ColonyName';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
@@ -61,30 +60,18 @@ export class BuildColony extends DeferredAction<IColony> {
       });
   }
 
-  /** Why an in-play colony can't be built on now (mirrors getPlayableColonies). */
+  /**
+   * Why an in-play colony can't be built on now — the build's ONE reason
+   * function (`Colonies.buildBlockedReason`, the very predicate
+   * `getPlayableColonies` filters by), so a disabled tile is named by the
+   * condition that actually excluded it.
+   */
   private disabledReason(colony: IColony): string {
-    if (colony.isActive === false) {
-      return 'Colony is inactive';
-    }
-    if (colony.isFull()) {
-      return 'Colony is full';
-    }
-    if (this.options?.allowDuplicate !== true && colony.colonies.includes(this.player.id)) {
-      return 'You already have a colony here';
-    }
-    // The only remaining playable-filter rejections are TR-affordability ones
-    // the client can't compute: building Europa raises a global parameter and
-    // Leavitt raises TR directly, so the player must afford that TR gain (the
-    // Reds tax, when in effect). Which parameter is obvious from the tile.
-    if (colony.name === ColonyName.EUROPA || colony.name === ColonyName.LEAVITT) {
-      return 'Cannot afford the TR increase to build here';
-    }
-    // Unreachable for the rule-driven list (the branches above are exhaustive
-    // over getPlayableColonies' filters, and Europa/Leavitt are the whole set
-    // of TR-costed colonies). It only fires when the CALLER passed a custom
-    // `colonies` subset, where the exclusion is that card's own rule and this
-    // deferred action genuinely cannot name it — so it states no cause it hasn't
+    // It answers `undefined` only when the CALLER passed a custom `colonies`
+    // subset: the exclusion is then that card's own rule and this deferred
+    // action genuinely cannot name it — so it states no cause it hasn't
     // verified rather than guessing one.
-    return 'Cannot build on this colony right now';
+    return this.player.colonies.buildBlockedReason(colony, {allowDuplicate: this.options?.allowDuplicate}) ??
+      'Cannot build on this colony right now';
   }
 }

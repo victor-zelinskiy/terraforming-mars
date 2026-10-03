@@ -4,6 +4,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {CeoCard} from './CeoCard';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {inplaceShuffle} from '../../utils/shuffle';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class Maria extends CeoCard {
   constructor() {
@@ -35,6 +36,7 @@ export class Maria extends CeoCard {
 
     this.isDisabled = true;
     ColoniesHandler.addColonyTile(player, {
+      cause: cardSource(this),
       colonies: availableColonies.slice(0, count), cb: (colony) => {
         if (colony.isActive) {
           colony.addColony(player);

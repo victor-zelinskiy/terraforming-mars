@@ -8,6 +8,8 @@ import {coloniesToModel} from '../models/ModelUtils';
 import {IPlayer} from '../IPlayer';
 import {InputError} from './InputError';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
+import {ColonyRosterPrompt} from '../../common/colonies/ColonyRoster';
+import {ColonyName} from '../../common/colonies/ColonyName';
 
 export class SelectColony extends BasePlayerInput<IColony> {
   // When true, show just the tile, and none of the cubes on top.
@@ -54,6 +56,22 @@ export class SelectColony extends BasePlayerInput<IColony> {
    */
   public trackMoves: ReadonlyArray<ColonyTrackMove> = [];
 
+  /**
+   * THIS PICK CHANGES THE ROSTER — a tile enters the game, leaves it, or is
+   * replaced in its slot (`ColonyRosterPrompt`: Aridor's catalog, the solo
+   * setup trim, TR10's replacement). Published as the model's `rosterChange`
+   * marker: who may leave (and why not), whether each entering tile wakes up
+   * active, whether the colony the effect builds lands. Absent on every other
+   * colony pick.
+   */
+  public rosterChange: ColonyRosterPrompt | undefined = undefined;
+  /**
+   * The handler of a REPLACEMENT answer (`{colonyName, replaces}`) — the twin
+   * of `cb` for the fourth response form: `incoming` is one of `colonies` (the
+   * reserve), `outgoing` a tile the marker lists as able to leave.
+   */
+  public onReplace?: (incoming: IColony, outgoing: ColonyName) => PlayerInput | undefined;
+
   constructor(
     title: string | Message,
     buttonLabel: string = 'Save',
@@ -93,6 +111,10 @@ export class SelectColony extends BasePlayerInput<IColony> {
     if (this.trackMoves.length > 0) {
       model.trackMoves = this.trackMoves;
     }
+    // …and so does the roster marker (the staged twin reads this same model).
+    if (this.rosterChange !== undefined) {
+      model.rosterChange = this.rosterChange;
+    }
     return model;
   }
 
@@ -130,6 +152,29 @@ export class SelectColony extends BasePlayerInput<IColony> {
     if (colony === undefined) {
       throw new InputError(`Colony ${input.colonyName} not found`);
     }
+    // A REPLACEMENT is answered with both tiles and with nothing less; every
+    // other pick refuses a `replaces` it never asked about.
+    if (this.rosterChange?.kind === 'replace') {
+      return this.processReplacement(colony, input.replaces);
+    }
+    if (input.replaces !== undefined) {
+      throw new InputError('This colony pick does not replace a colony tile');
+    }
     return this.cb(colony);
+  }
+
+  /** The fourth response form: `incoming` takes the slot of `replaces`. Refused BEFORE anything changes. */
+  private processReplacement(incoming: IColony, replaces: ColonyName | undefined): PlayerInput | undefined {
+    if (replaces === undefined) {
+      throw new InputError('No colony tile to replace selected');
+    }
+    const outgoing = this.rosterChange?.outgoing?.find((tile) => tile.colony === replaces);
+    if (outgoing === undefined || this.onReplace === undefined) {
+      throw new InputError(`Colony ${replaces} cannot be replaced`);
+    }
+    if (outgoing.reason !== undefined) {
+      throw new InputError(outgoing.reason);
+    }
+    return this.onReplace(incoming, replaces);
   }
 }

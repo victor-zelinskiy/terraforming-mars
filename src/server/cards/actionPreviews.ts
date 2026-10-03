@@ -18,14 +18,13 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
-import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel} from '../../common/models/PlayerInputModel';
+import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
-import {MaximizeColonyTrack, skippedColonyTrack} from '../deferredActions/MaximizeColonyTrack';
 import {DiscardPopularSupport, skippedSupportDiscard} from '../parliament/DiscardPopularSupport';
 import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
 import {SelectAmount} from '../inputs/SelectAmount';
@@ -372,16 +371,31 @@ export function delegateGrantStep(card: ICard, grant: PlaceDelegatesOnResolution
  *
  * With no tile to move (every active track at its top) there is no door: the
  * branch carries the NAMED skip instead — the same label and cause the live
- * step records (`skippedColonyTrack`), so the promise and the record cannot
- * read apart. The card stays playable (its requirement is a colony of one's own).
+ * step records (`previewSkip()`), so the promise and the record cannot read
+ * apart. The card stays playable (its requirement is a colony of one's own).
+ *
+ * ANY colony step enters by this door ({@link ColonyPickSource}): what the
+ * pick DOES is said by the prompt's own marker (`trackMoves` → the track,
+ * `rosterChange` → the roster — Turmoil Redux TR10 Fringe Colony,
+ * `ReplaceColonyTile`), never by a second staged target.
  */
-export function colonyPickStep(card: ICard, step: MaximizeColonyTrack): ActionPreviewStep {
+export function colonyPickStep(card: ICard, step: ColonyPickSource): ActionPreviewStep {
   const prompt = step.previewSelectColony();
   if (prompt === undefined) {
-    const lost = skippedColonyTrack();
+    const lost = step.previewSkip();
     return warningNote(lost.reason, {skipped: lost.skipped});
   }
   return {kind: 'colonyPick', staged: {prompt, sourceCard: card.name}};
+}
+
+/**
+ * A step that asks «which colony tile» by being played, as the play preview
+ * reads it: the prompt it WOULD raise (read-only, field for field the live
+ * one) and, where it would raise none, the NAMED skip it would record.
+ */
+export interface ColonyPickSource {
+  previewSelectColony(): SelectColonyModel | undefined;
+  previewSkip(): {reason: string, skipped: SkippedEffect};
 }
 
 /**

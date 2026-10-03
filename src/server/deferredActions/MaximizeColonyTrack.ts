@@ -128,6 +128,11 @@ export class MaximizeColonyTrack extends DeferredAction<undefined> {
     return model;
   }
 
+  /** The named skip the preview promises where `previewSelectColony()` has no prompt — the cause `execute()` records. */
+  public previewSkip(): {reason: string, skipped: SkippedEffect} {
+    return skippedColonyTrack();
+  }
+
   public execute(): SelectColony | undefined {
     const player = this.player;
     const {candidates, disabled} = this.offer();

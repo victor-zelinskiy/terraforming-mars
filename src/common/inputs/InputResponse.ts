@@ -163,7 +163,7 @@ export function isSelectAmountResponse(response: InputResponse): response is Sel
 }
 
 /**
- * The answer to a colony pick — in ONE of three forms:
+ * The answer to a colony pick — in ONE of four forms:
  *  · `colonyName` — a colony tile (every colony pick);
  *  · `fleetDock` — a CARD the trade fleet is sent to instead of a colony
  *    (Turmoil Redux TR06 Water Hauling and its sisters). Valid only on a
@@ -178,20 +178,31 @@ export function isSelectAmountResponse(response: InputResponse): response is Sel
  *    pick). `stagedFor` names the card whose own pick this answers; the batch
  *    replay applies it ONLY to a colony prompt whose `choiceContext.source.card`
  *    is that card and PARKS it past everything else. A dock is never staged:
- *    `fleetDock` beside `stagedFor` is not an answer.
+ *    `fleetDock` beside `stagedFor` is not an answer;
+ *  · `colonyName` + `replaces` (+ `stagedFor`) — THE REPLACEMENT: ONE question,
+ *    ONE answer naming BOTH tiles (Turmoil Redux TR10 Fringe Colony).
+ *    `colonyName` is the reserve tile that ENTERS, `replaces` the tile in play
+ *    that LEAVES and whose slot it takes. Valid only on a pick whose roster
+ *    marker is `{kind: 'replace'}` (`SelectColonyModel.rosterChange`) — there
+ *    it is the ONLY valid form, and `replaces` must be a tile the marker lists
+ *    as able to leave. Two prompts («remove», then «add») would leave a table
+ *    with a hole between them; this form has no such state. A dock is never a
+ *    replacement: `replaces` beside `fleetDock` is not an answer.
  */
 export type SelectColonyResponse =
-  | {type: 'colony', colonyName: ColonyName, fleetDock?: undefined, stagedFor?: CardName}
-  | {type: 'colony', fleetDock: CardName, colonyName?: undefined, stagedFor?: undefined};
+  | {type: 'colony', colonyName: ColonyName, fleetDock?: undefined, replaces?: ColonyName, stagedFor?: CardName}
+  | {type: 'colony', fleetDock: CardName, colonyName?: undefined, replaces?: undefined, stagedFor?: undefined};
 
 export function isSelectColonyResponse(response: InputResponse): response is SelectColonyResponse {
   // EXACTLY one shape — the same exact-key check a space answer uses
-  // (`isSelectSpaceResponse`): a tile and a dock at once, neither, or a dock
-  // with an address is not an answer.
+  // (`isSelectSpaceResponse`): a tile and a dock at once, neither, a dock with
+  // an address or a dock with a replaced tile is not an answer.
   return response.type === 'colony' &&
     (matches(response, ['type', 'colonyName']) ||
       matches(response, ['type', 'colonyName', 'stagedFor']) ||
-      matches(response, ['type', 'fleetDock']));
+      matches(response, ['type', 'fleetDock']) ||
+      matches(response, ['type', 'colonyName', 'replaces']) ||
+      matches(response, ['type', 'colonyName', 'replaces', 'stagedFor']));
 }
 
 export interface SelectPaymentResponse {

@@ -3,6 +3,7 @@ import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
+import {ColonyRosterChange} from '../colonies/ColonyRoster';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
 import {PartyName} from '../turmoil/PartyName';
 import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
@@ -151,6 +152,12 @@ export type EventImpact = {
    * A position fact, never a delta.
    */
   colonyTrackMove?: {colony: ColonyName; before: number; after: number};
+  /**
+   * THE COLONY ROSTER CHANGED (`colony-roster-changed`): which tile entered,
+   * which left, and the slot of the table it happened in — see
+   * {@link ColonyRosterChange}. A fact about the TABLE, never a delta.
+   */
+  colonyRoster?: ColonyRosterChange;
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
 };

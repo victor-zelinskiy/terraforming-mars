@@ -31,6 +31,14 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonCompact(floor)).eq('Influence 1/2');
   });
 
+  it('«generation» (Turmoil Redux, TR10) reads as one counter — the clock of the game against the printed floor, «Gen 2/4»', () => {
+    const floor: UnplayableReason = {type: 'count', message: 'Requires generation ${0} or later', params: ['4'], current: 2, requirement: true};
+    expect(unplayableReasonCompact(floor)).eq('Gen 2/4');
+    expect(unplayableReasonLine(floor)).eq('Requires generation 4 or later · Now: 2');
+    const ceiling: UnplayableReason = {type: 'count', message: 'Requires generation ${0} or less', params: ['2'], current: 3, requirement: true};
+    expect(unplayableReasonCompact(ceiling)).eq('Gen 3/≤2');
+  });
+
   /*
    * A NAMED PARTY REQUIREMENT (Turmoil Redux — TR15 the set's first): the party is read by its parliament name
    * (never the raw English param) and its EMBLEM on a rail; the line states both roads with their «now», and

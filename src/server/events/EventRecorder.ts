@@ -7,6 +7,7 @@ import {SpaceId} from '../../common/Types';
 import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {ColonyRosterChange} from '../../common/colonies/ColonyRoster';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
@@ -441,6 +442,18 @@ export class EventRecorder {
    */
   public recordColonyTrackMoved(player: IPlayer, colony: ColonyName, before: number, after: number): void {
     this.record({type: 'colony-track-moved', player: player.color, impact: {colonyTrackMove: {colony, before, after}}, visibility: 'journal'});
+  }
+
+  /**
+   * THE COLONY ROSTER CHANGED — a tile entered the game, left it, or was
+   * replaced in its slot. Recorded under the live scope (the card or the
+   * corporation whose effect it was); `source` names the giver where no scope
+   * is live (the solo setup trim is the game's own rule). `player` is absent
+   * for a change nobody made. Written only by the roster's three writers
+   * (`ColoniesHandler.seatColonyTile` / `retireColonyTile` / `replaceColonyTile`).
+   */
+  public recordColonyRosterChanged(player: IPlayer | undefined, change: ColonyRosterChange, source?: EventSource): void {
+    this.record({type: 'colony-roster-changed', player: player?.color, source, impact: {colonyRoster: change}, visibility: 'journal'});
   }
 
   /**

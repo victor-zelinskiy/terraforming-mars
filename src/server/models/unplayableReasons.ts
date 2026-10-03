@@ -124,6 +124,8 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   RequirementType.TAGS_OF_ONE_TYPE,
   // «Requires influence N or less» / «Requires N influence» — the whole printed rule (Turmoil Redux TR04).
   RequirementType.INFLUENCE,
+  // «Requires generation N or later» — the whole printed rule (Turmoil Redux TR10).
+  RequirementType.GENERATION,
   // «Requires Mars First to be ruling or 2 of your delegates on its resolution» — the whole printed rule,
   // both roads, in its NAMED Redux form only (TR15; the classic line keeps no key — see the caller).
   RequirementType.PARTY,
@@ -292,6 +294,11 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     // counter reads to draw «≤» (`MAX_REQUIREMENT_MARKERS`) — without it the
     // counter would print «≥» over a ceiling.
     return {type: 'count', message: max ? 'Requires influence ${0} or less' : 'Requires ${0} influence', params: [String(required)], current};
+  case RequirementType.GENERATION:
+    // The table's clock — `current` is the generation being played («now: 2»).
+    // A COUNT, never `type: 'tag'`. The MAX form carries «or less» (the compact
+    // hand counter's «≤» marker); no card prints it yet.
+    return {type: 'count', message: max ? 'Requires generation ${0} or less' : 'Requires generation ${0} or later', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
     return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
   case RequirementType.PARTY:

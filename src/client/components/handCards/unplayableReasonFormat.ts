@@ -144,6 +144,9 @@ const COUNT_MESSAGE_LABELS: Readonly<Record<string, string>> = {
   // (the «or less» marker of the max template draws the «≤»).
   'Requires influence ${0} or less': 'Influence',
   'Requires ${0} influence': 'Influence',
+  // Turmoil Redux (TR10) — «Пок. 2/4»: the game's clock against the printed floor (the endgame's own «Gen» key).
+  'Requires generation ${0} or later': 'Gen',
+  'Requires generation ${0} or less': 'Gen',
 };
 
 /** The compact counter's label (an English i18n key), or undefined when the

@@ -515,7 +515,8 @@ function populateCount(requirement: CardRequirementDescriptor): CardRequirementD
     requirement.deltaPosition ??
     requirement.delegatesOnResolutions ??
     requirement.tagsOfOneType ??
-    requirement.influence;
+    requirement.influence ??
+    requirement.generation;
 
   return requirement;
 }

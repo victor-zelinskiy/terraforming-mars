@@ -991,6 +991,20 @@ export type SelectColonyModel = BaseInputModel & {
    * same marker). Absent on every other colony pick.
    */
   trackMoves?: ReadonlyArray<import('../parliament/colonyTrackAdvance').ColonyTrackMove>;
+  /**
+   * STRUCTURAL «this pick CHANGES THE COLONY ROSTER» — a tile enters the game
+   * (`add`: Aridor's catalog), leaves it (`remove`: the solo setup trim) or is
+   * replaced in its slot (`replace`: Turmoil Redux TR10 Fringe Colony). The
+   * SERVER's projection of every candidate: who may leave and the ONE reason
+   * for each who may not, whether each entering tile would be active, whether
+   * the colony the effect builds on it lands. The client draws all of it and
+   * decides none of it — in particular it never reads a catalog tile's own
+   * `isActive` (a tile shown bare is serialized inactive whatever it is). Its
+   * presence makes the pick's act `roster`. For `replace` the selectable
+   * `coloniesModel` is the RESERVE and the answer names both tiles
+   * (`{colonyName, replaces}`). See `common/colonies/ColonyRoster.ts`.
+   */
+  rosterChange?: import('../colonies/ColonyRoster').ColonyRosterPrompt;
 }
 
 /**

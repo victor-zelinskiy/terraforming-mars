@@ -39,6 +39,14 @@ export const TEMPERATURE_BONUS_FOR_HEAT_2 = -20;
 // Colonies
 export const MAX_COLONY_TRACK_POSITION = 6;
 export const MAX_COLONIES_PER_TILE = 3;
+/**
+ * The MarsBot table's colony rule (Adding Expansions p.4): «all Colony tiles
+ * (including Titan, Enceladus, and Miranda) start with their tracker on the
+ * highlighted second step» — every tile is active, its marker on this cell.
+ * Read by the setup AND by a tile that enters the game later (C30's added
+ * tile, a replaced tile), so the table has one rule for both.
+ */
+export const MARSBOT_COLONY_TRACK_START = 2;
 export const MAX_FLEET_SIZE = 4;
 export const MC_TRADE_COST = 9;
 export const ENERGY_TRADE_COST = 3;

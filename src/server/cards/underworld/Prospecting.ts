@@ -5,6 +5,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {PreludeCard} from '../prelude/PreludeCard';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class Prospecting extends PreludeCard {
   constructor() {
@@ -29,6 +30,7 @@ export class Prospecting extends PreludeCard {
 
   public override bespokePlay(player: IPlayer) {
     ColoniesHandler.addColonyTile(player, {
+      cause: cardSource(this),
       activateableOnly: true,
       cb: (colony) => {
         if (colony.isActive) {

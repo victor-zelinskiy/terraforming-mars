@@ -81,9 +81,8 @@ const OR_OPTIONS_ALLOWLIST: Readonly<Record<string, string>> = {
 
 /** The same contract for the two Select shapes the audit swept. */
 const SELECT_TARGET_ALLOWLIST: Readonly<Record<string, string>> = {
-  // The add-a-tile catalog: `SelectColony.purpose = addNewColonyToGame` IS its
-  // structural marker, and the colonies section serves it natively.
-  'colonies/ColoniesHandler.ts': 'SelectColony.purpose is the structural marker; section-served',
+  // (Empty since the colony ROSTER got its marker: the add-a-tile catalog now
+  // carries `rosterChange` and its giver — `ColoniesHandler.addColonyTile`.)
 };
 
 type Violation = {file: string, reason: string};

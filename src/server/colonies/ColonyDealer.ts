@@ -146,8 +146,11 @@ export class ColonyDealer {
 
   public restore(activeColonies: Array<IColony>): void {
     this.colonies = [...activeColonies];
+    // Sorted by name, exactly as the deal left it (`drawColonies`) and as a
+    // retired tile rejoins it (`ColoniesHandler.retireColonyTile`): the reserve
+    // reads the same live and after a load.
     this.discardedColonies = this.gameColonies.filter((c) => {
       return !activeColonies.some((ac) => ac.name === c.name);
-    });
+    }).sort((a, b) => (a.name > b.name) ? 1 : -1);
   }
 }

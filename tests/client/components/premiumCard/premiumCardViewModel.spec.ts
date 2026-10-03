@@ -487,6 +487,23 @@ describe('normalizeRequirement', () => {
     expect(normalizeRequirement({influence: 2}).comparator, 'the floor form').to.eq('min');
   });
 
+  it('«generation» (Turmoil Redux, TR10) is printed as TEXT, the way the scan prints it — «GEN 4+»: a label, the number, a «+» for the floor', () => {
+    const generation = normalizeRequirement({generation: 4});
+    expect(generation.type).to.eq(RequirementType.GENERATION);
+    expect(generation.value).to.eq(4);
+    expect(generation.comparator).to.eq('min');
+    expect(generation.iconUrl, 'the clock has no icon').to.eq(undefined);
+    expect(generation.label, 'an i18n key — the «Gen» the endgame already prints').to.eq('Gen');
+    expect(generation.plain).to.eq(true);
+    expect(generation.suffix, 'the floor is «4+», never the ≥ glyph').to.eq('+');
+    expect(generation.isBinary).to.eq(false);
+    const ceiling = normalizeRequirement({generation: 2, max: true});
+    expect(ceiling.comparator).to.eq('max');
+    expect(ceiling.suffix, 'a ceiling keeps the ≤ glyph and prints no «+»').to.eq('');
+    // Every other kind is not plain — its label (when it has one) is a raw type name.
+    expect(normalizeRequirement({oxygen: 5}).plain).to.eq(false);
+  });
+
   it('«tags of any one type» (Turmoil Redux, TR01) draws the printed «?» disc and its number', () => {
     const oneType = normalizeRequirement({tagsOfOneType: 10});
     expect(oneType.type).to.eq(RequirementType.TAGS_OF_ONE_TYPE);

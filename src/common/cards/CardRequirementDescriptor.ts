@@ -63,6 +63,10 @@ export type CardRequirementDescriptor = {
    *  influence bonus, the tableau's own hooks — `PoliticalOps.influence`); with
    *  `max` — no more than N (TR04 Minority Representation prints «max 1»). */
   influence?: number,
+  /** Requires the game to be in generation N or later (with `max` — N or
+   *  earlier). The table's clock, nobody's stock: TR10 Fringe Colony prints
+   *  «GEN 4+» — «this can only be played during generation 4 or later». */
+  generation?: number,
 
   // The Moon
   habitatTiles?: number,
@@ -146,6 +150,8 @@ export function requirementType(descriptor: CardRequirementDescriptor): Requirem
     return RequirementType.TAGS_OF_ONE_TYPE;
   } else if (descriptor.influence !== undefined) {
     return RequirementType.INFLUENCE;
+  } else if (descriptor.generation !== undefined) {
+    return RequirementType.GENERATION;
   } else {
     throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
   }

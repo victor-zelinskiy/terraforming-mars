@@ -31,6 +31,7 @@ import {UndergroundTokenRequirement} from './UndergroundTokenRequirement';
 import {DeltaPositionRequirement} from './DeltaPositionRequirement';
 import {DelegatesOnResolutionsRequirement} from './DelegatesOnResolutionsRequirement';
 import {InfluenceRequirement} from './InfluenceRequirement';
+import {GenerationRequirement} from './GenerationRequirement';
 import {TagsOfOneTypeRequirement} from './TagsOfOneTypeRequirement';
 
 export class CardRequirements {
@@ -123,6 +124,8 @@ export class CardRequirements {
       return new DelegatesOnResolutionsRequirement({...descriptor, count: descriptor.delegatesOnResolutions});
     } else if (descriptor.influence !== undefined) {
       return new InfluenceRequirement({...descriptor, count: descriptor.influence});
+    } else if (descriptor.generation !== undefined) {
+      return new GenerationRequirement({...descriptor, count: descriptor.generation});
     } else if (descriptor.tagsOfOneType !== undefined) {
       return new TagsOfOneTypeRequirement({...descriptor, count: descriptor.tagsOfOneType});
     } else {

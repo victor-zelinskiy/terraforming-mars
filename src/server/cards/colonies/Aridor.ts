@@ -12,6 +12,7 @@ import {ICard} from '../ICard';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class Aridor extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -60,7 +61,7 @@ export class Aridor extends CorporationCard implements ICorporationCard {
   public override initialAction(player: IPlayer) {
     ColoniesHandler.addColonyTile(
       player,
-      {title: 'Aridor first action - Select colony tile to add'},
+      {cause: cardSource(this), title: 'Aridor first action - Select colony tile to add'},
     );
     return undefined;
   }

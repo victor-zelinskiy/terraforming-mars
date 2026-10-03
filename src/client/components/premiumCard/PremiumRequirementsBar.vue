@@ -22,8 +22,9 @@
             <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
               <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
             </span>
-            <span v-else class="pcard-req__label">{{ req.label }}</span>
-            <PremiumRequirementOperator :comparator="req.comparator" />
+            <span v-else class="pcard-req__label">{{ formulaLabel(req) }}</span>
+            <!-- a PLAIN requirement («GEN 4+») prints its floor as «N+», never the ≥ glyph -->
+            <PremiumRequirementOperator v-if="!(req.plain && req.comparator === 'min')" :comparator="req.comparator" />
             <span class="pcard-req__value">{{ req.value
               }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
           </template>
@@ -115,6 +116,13 @@ export default defineComponent({
     },
     iconClass(req: NormalizedRequirement): Record<string, boolean> {
       return {'pcard-req__icon--wide': this.isWideIcon(req), 'pcard-req__icon--emblem': this.isEmblem(req)};
+    },
+    /** A plain requirement's label is an i18n key (the scan's own word); an exotic type keeps its raw name. */
+    formulaLabel(req: NormalizedRequirement): string {
+      if (req.label === undefined) {
+        return '';
+      }
+      return req.plain ? translateText(req.label) : req.label;
     },
     binaryLabel(req: NormalizedRequirement): string {
       if (req.party !== undefined) {

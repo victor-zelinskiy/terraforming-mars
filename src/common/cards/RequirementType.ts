@@ -27,6 +27,8 @@ export enum RequirementType {
     TAGS_OF_ONE_TYPE = 'Tags of one type',
     /** The player's WHOLE influence — the Agenda track's level plus every bonus (TR04 prints «max 1»). */
     INFLUENCE = 'Influence',
+    /** The game's GENERATION number — «can only be played during generation N or later» (TR10 prints «GEN 4+»). */
+    GENERATION = 'Generation',
 
     // The Moon
     HABITAT_RATE = 'Habitat rate',

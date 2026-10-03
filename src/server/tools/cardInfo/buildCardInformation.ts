@@ -275,6 +275,16 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
       `Requires that you have at least ${n} Influence.`;
     break;
   }
+  case RequirementType.GENERATION: {
+    // Turmoil Redux (TR10): the game's clock, in the scan's own words («This
+    // can only be played during generation 4 or later»); the ceiling form
+    // phrases the comparator through `comparator(max)` like every countable.
+    const n = descriptor.generation ?? descriptor.count ?? 1;
+    en = max ?
+      `Can only be played while the generation is ${cmp} ${n}.` :
+      `Can only be played during generation ${n} or later.`;
+    break;
+  }
   case RequirementType.PARTY: {
     // Turmoil Redux (TR15 — the set's first party requirement; TR14–TR27 follow): the scan's
     // own sentence, its «there» named — the delegates stand on the PARTY'S RESOLUTION in the

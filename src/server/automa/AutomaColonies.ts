@@ -1,4 +1,5 @@
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {MARSBOT_COLONY_TRACK_START} from '../../common/constants';
 import {Resource} from '../../common/Resource';
 import {CardResource} from '../../common/CardResource';
 import {shippingAreaFor} from '../../common/automa/ShippingBoardData';
@@ -28,7 +29,7 @@ export class AutomaColonies {
   public static setupColonies(game: IGame): void {
     for (const colony of game.colonies) {
       colony.isActive = true;
-      colony.trackPosition = 2;
+      colony.trackPosition = MARSBOT_COLONY_TRACK_START;
     }
   }
 

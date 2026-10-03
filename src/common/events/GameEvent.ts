@@ -103,6 +103,18 @@ export type GameEventType =
    */
   | 'colony-track-moved'
   /**
+   * THE COLONY ROSTER CHANGED — a colony TILE entered the game, left it, or
+   * was replaced in its slot (Aridor's first action, MarsBot's C30 setup, the
+   * solo setup trim, Turmoil Redux TR10 Fringe Colony). Written only by the
+   * roster's three writers (`ColoniesHandler.seatColonyTile` /
+   * `retireColonyTile` / `replaceColonyTile`). `impact.colonyRoster` names the
+   * change (`ColonyRosterChange`); `player` is the one whose effect it was
+   * (absent for a setup rule), the giver rides the event's `source`. The table
+   * is nobody's stock, so no delta names it — hence the typed fact the journal
+   * row, a rival's notification and the console's roster ceremony all read.
+   */
+  | 'colony-roster-changed'
+  /**
    * NO SILENT LOSS, the live half: an effect the engine could NOT apply — no
    * card can hold the resource, no opponent can be hit. `impact.skipped` names
    * WHICH effect, WHY, and the magnitude lost, in the SAME words the play

@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {reconcileBatchResponse} from '../../src/server/routes/PlayerInputBatch';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
-import {InputResponse} from '../../src/common/inputs/InputResponse';
+import {InputResponse, isSelectColonyResponse} from '../../src/common/inputs/InputResponse';
 import {Factorum} from '../../src/server/cards/promo/Factorum';
 import {testGame} from '../TestGame';
 import {runAllActions} from '../TestingUtils';
@@ -189,5 +189,88 @@ describe('PlayerInputBatch — the addressed colony tail', () => {
       .to.throw('Not a valid SelectColonyResponse');
     expect(() => pick().input.process({...tail, extra: 1} as unknown as InputResponse)).to.throw('Not a valid SelectColonyResponse');
     expect(() => pick().input.process({type: 'colony', colonyName: ColonyName.EUROPA, stagedFor: CardName.ANTS})).to.throw('Colony Europa not found');
+  });
+});
+
+/**
+ * THE REPLACEMENT (Turmoil Redux TR10 — the roster): the FOURTH form of the
+ * colony answer, `{colonyName, replaces}` with or without the staged address.
+ * The validator accepts exactly FIVE key sets; a replacement is the ONLY form
+ * a `replace` prompt takes, and no other prompt takes it. Who the addressed
+ * tail may LAND on is `deferredInputBatch`'s decision.
+ */
+describe('PlayerInputBatch — the replacement colony answer', () => {
+  const replacement = (): {input: SelectColony, swapped: Array<[ColonyName, ColonyName]>} => {
+    const swapped: Array<[ColonyName, ColonyName]> = [];
+    const input = new SelectColony('Select a colony tile to remove and a new colony tile to replace it', 'Replace colony tile', [new Luna()]);
+    input.rosterChange = {
+      kind: 'replace',
+      outgoing: [{colony: ColonyName.CERES}, {colony: ColonyName.EUROPA, reason: 'This colony tile has colonies on it'}],
+      incoming: [{colony: ColonyName.LUNA, entersActive: true}],
+    };
+    input.onReplace = (incoming, outgoing) => {
+      swapped.push([incoming.name, outgoing]);
+      return undefined;
+    };
+    return {input, swapped};
+  };
+
+  it('the five key sets — and nothing else — are a colony answer', () => {
+    const valid: Array<InputResponse> = [
+      {type: 'colony', colonyName: ColonyName.LUNA},
+      {type: 'colony', colonyName: ColonyName.LUNA, stagedFor: CardName.ANTS},
+      {type: 'colony', fleetDock: CardName.ANTS},
+      {type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES},
+      {type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES, stagedFor: CardName.ANTS},
+    ];
+    for (const response of valid) {
+      expect(isSelectColonyResponse(response), JSON.stringify(response)).is.true;
+    }
+    const invalid = [
+      {type: 'colony'},
+      {type: 'colony', replaces: ColonyName.CERES},
+      {type: 'colony', fleetDock: CardName.ANTS, replaces: ColonyName.CERES},
+      {type: 'colony', fleetDock: CardName.ANTS, stagedFor: CardName.ANTS},
+      {type: 'colony', colonyName: ColonyName.LUNA, fleetDock: CardName.ANTS},
+      {type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES, extra: 1},
+    ];
+    for (const response of invalid) {
+      expect(isSelectColonyResponse(response as unknown as InputResponse), JSON.stringify(response)).is.false;
+    }
+  });
+
+  it('the reconciler leaves the addressed replacement UNCHANGED against its own prompt', () => {
+    const tail: InputResponse = {type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES, stagedFor: CardName.ANTS};
+    expect(reconcileBatchResponse(tail, replacement().input)).to.eq(tail);
+  });
+
+  it('a replace prompt takes both tiles, with or without the address', () => {
+    const plain = replacement();
+    plain.input.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES});
+    expect(plain.swapped).to.deep.eq([[ColonyName.LUNA, ColonyName.CERES]]);
+    const addressed = replacement();
+    addressed.input.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES, stagedFor: CardName.ANTS});
+    expect(addressed.swapped).to.deep.eq([[ColonyName.LUNA, ColonyName.CERES]]);
+  });
+
+  it('…and refuses an answer without `replaces`, a tile outside its list and a tile that cannot leave', () => {
+    expect(() => replacement().input.process({type: 'colony', colonyName: ColonyName.LUNA})).to.throw('No colony tile to replace selected');
+    expect(() => replacement().input.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.IO}))
+      .to.throw('Colony Io cannot be replaced');
+    expect(() => replacement().input.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.EUROPA}))
+      .to.throw('This colony tile has colonies on it');
+    expect(() => replacement().input.process({type: 'colony', colonyName: ColonyName.TITAN, replaces: ColonyName.CERES}))
+      .to.throw('Colony Titan not found');
+  });
+
+  it('every OTHER colony pick refuses a `replaces` it never asked about', () => {
+    const picked: Array<ColonyName> = [];
+    const input = new SelectColony('Select where to build a colony', 'Build', [new Luna(), new Ceres()]).andThen((colony) => {
+      picked.push(colony.name);
+      return undefined;
+    });
+    expect(() => input.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES}))
+      .to.throw('This colony pick does not replace a colony tile');
+    expect(picked).to.deep.eq([]);
   });
 });
