@@ -2345,6 +2345,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR07 Colony Sponsors: blue's action phase with the card in hand, 10 M€, blue's colony on Luna (track at cell 3), Ceres at
   // its top, Titan inactive, Europa and Io candidates; a quiet government (docs/TURMOIL_REDUX_COLONY_SPONSORS.md).
   'colony-sponsors' |
+  // TR10 Fringe Colony: blue's action phase in generation 4 with the card in hand, 30 M€; Ceres and Europa empty, Io with
+  // red's colony, Callisto with red's fleet; Luna and Titan in the reserve (docs/TURMOIL_REDUX_FRINGE_COLONY.md).
+  'fringe-colony' |
   // TR13 Political Think Tank: blue's action phase with the card in its tableau (action unused), 12 M€; the deck's TOP is
   // pinned after the deal — Martian Census (TR15 — Mars First, a MATCH, the game's own copy moved to the top) or, in the
   // -miss table, the dealt top card (no party requirement: a MISS) (docs/claude/turmoil-redux-cards-progress.md).

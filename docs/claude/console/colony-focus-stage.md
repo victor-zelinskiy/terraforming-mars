@@ -478,6 +478,15 @@ One scene, genuinely different priorities:
   panel appeared exactly when the player could not act, which made the screen
   change genre at the worst moment.
 * **pick** — the server's verb, plainly, from the hero verdict and the A chip.
+* **roster** (2026-10-03, `docs/COLONY_ROSTER_CEREMONY.md`) — the pick CHANGES THE ROSTER (a tile replaced, added or
+  removed). Not a seventh composition: the section maps it to **build** (a colony lands by the same answer — the
+  berths first, the destination pulsing, the cube lands in the stage's own seat) or **pick**, and hands the stage a
+  `roster` prop with what only this act has: the PROJECTION pose of the entering planet (`--roster-projected` — the
+  dashed orbit ON the disc, the disc a step short of its place; dropped by the ceremony's dock), the OUTGOING SEAT
+  (the leaving tile's small disc, `position: absolute` in the hero column — zero layout) and the three facts in the
+  result rail («Снимается» · «Приходит — войдёт активной / неактивной» · «Колония: слот N» or the ONE reason). The
+  hero's state line says how the tile will ENTER until it docks. The ceremony plays on this stage with the commit
+  held; the fold HOME is re-aimed at the slot of the table (`retargetColonyFocusHome`).
 
 ---
 

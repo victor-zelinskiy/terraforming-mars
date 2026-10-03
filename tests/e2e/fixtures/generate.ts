@@ -158,6 +158,7 @@ import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/Politica
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
+import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
@@ -1162,6 +1163,41 @@ parliamentFixture('colony-sponsors', {
         !track(ColonyName.LUNA)?.colonies.includes(p1.id) || track(ColonyName.CERES)?.trackPosition !== 6 ||
         track(ColonyName.TITAN)?.isActive !== false || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the colony-sponsors fixture expected a playable card, 10 M€, Luna at 2 with blue's colony, Ceres at its top, Titan inactive and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} mc=${p1.megaCredits} luna=${track(ColonyName.LUNA)?.trackPosition} ceres=${track(ColonyName.CERES)?.trackPosition} titan=${track(ColonyName.TITAN)?.isActive} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR10 · FRINGE COLONY — the COLONY ROSTER's first card (docs/COLONY_ROSTER_CEREMONY.md,
+//    docs/TURMOIL_REDUX_FRINGE_COLONY.md): blue's action phase in GENERATION 4 with the card in hand and 30 M€.
+//    In play: Ceres and Europa EMPTY (the candidates to leave), Io with RED's colony («На плитке есть колонии»),
+//    Callisto with RED's fleet («На плитке стоит торговый флот»). The reserve is what a load rebuilds — every
+//    pool tile not in play: Luna (active by its class — the colony lands) and Titan (inactive: no floater card is
+//    in play — SYNTHETIC only in that nobody may hold one; asserted below). A QUIET government. ──
+parliamentFixture('fringe-colony', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const ceres = new Ceres();
+    const io = new Io();
+    const callisto = new Callisto();
+    const europa = new Europa();
+    game.colonies = [ceres, io, callisto, europa];
+    io.colonies.push(p2.id);
+    callisto.visitor = p2.id;
+    p2.colonies.usedTradeFleets = 1;
+    game.generation = 4;
+    p1.cardsInHand.push(new FringeColony());
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.FRINGE_COLONY);
+    const tile = (name: ColonyName) => game.colonies.find((c) => c.name === name);
+    const floaterHolder = game.players.some((p) => [...p.tableau].some((c) => c.resourceType === CardResource.FLOATER));
+    if (card === undefined || !p1.canPlay(card) || game.generation < 4 || p1.megaCredits !== 30 ||
+        tile(ColonyName.CERES)?.colonies.length !== 0 || tile(ColonyName.IO)?.colonies.length !== 1 ||
+        tile(ColonyName.CALLISTO)?.visitor === undefined || tile(ColonyName.LUNA) !== undefined || tile(ColonyName.TITAN) !== undefined ||
+        floaterHolder || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the fringe-colony fixture expected a playable card in generation 4+, 30 M€, Ceres empty, Io with a colony, Callisto with a fleet, Luna and Titan out of play, no floater card and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} gen=${game.generation} mc=${p1.megaCredits} ceres=${tile(ColonyName.CERES)?.colonies.length} io=${tile(ColonyName.IO)?.colonies.length} callisto=${tile(ColonyName.CALLISTO)?.visitor} floater=${floaterHolder} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

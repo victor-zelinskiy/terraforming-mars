@@ -578,6 +578,27 @@ SelectPartyModel, sourceCard}`, тот же адресованный хвост 
 обоим маркерам), стадия кадра `partyStepStageOf(prompt)` («ГОЛОСОВАНИЕ» / «САНКЦИИ»), живая дверь в маршрутизации
 `party`. Обещание исхода — `promiseSupportDiscard` в `commitStagedVote`; холды — в apply-блоке.
 
+## 9-novies. ТА ЖЕ ЦЕЛЬ — СОСТАВ КОЛОНИЙ (STAGED ROSTER, TR10, 2026-10-03)
+
+TR10 «Окраинная колония» (`docs/TURMOIL_REDUX_FRINGE_COLONY.md`, фреймворк — `docs/COLONY_ROSTER_CEREMONY.md`) меняет
+СОСТАВ плиток колоний — и пятой цели хранилище НЕ получило. Цель — та же `{kind: 'colony', pick}`, дверь композера — та
+же `colonies`; РЕЖИМ решает маркер промпта (закон §9-octies): `trackMoves` → трек, **`rosterChange` → состав**.
+
+| цель × маркер \ поток | `play` (рука) |
+| --- | --- |
+| `colony` · `trackMoves` | §9-sexies (TR07): сетка → стейдж `track`, хвост `{colony, colonyName, stagedFor}` |
+| `colony` · `rosterChange {kind: 'replace'}` | **TR10**: стол («кто уходит») → каталог резерва («кто приходит») → стейдж `roster`; A «Разыграть карту»; хвост **`{colony, colonyName, replaces, stagedFor}`** — четвёртая форма ответа, ОДИН вопрос и ОДИН ответ на оба выбора |
+
+Обобщено, не скопировано: `enterStagedColony` (рейка и первый кандидат читают маркер), `commitStagedTail` (хвост —
+любой `InputResponse`), `settleStagedColony` (LANDED — церемония состава уже сыграна гейтом транспорта при удержанном
+коммите, остаётся LANDING: `landColonyRoster` → `endStagedColony`; RE-ASKED — армирование снято, черновик уходящей
+плитки остаётся; PARKED — уход без церемонии), `cancelStagedPlay` (черновик сброшен). Глагол двери и строка шага —
+`playCommitVerb` / `playDoorNextStepKey` по маркеру («Выбрать плитку» · «Плитка колонии — замена в «Колониях»»).
+
+⚠ Ловушка этой встречи: промпт staged-двери ПЕРЕЖИВАЕТ ответ на всю церемонию (плечо снимает `endStagedColony`), а
+по нему рейка — каталог резерва. Стейдж обязан сложиться в слот СТОЛА, поэтому `colonyRailIsCatalog` ложно с момента,
+когда изменение отвечено (`colonyRosterState.receipt`), а статусы плиток квитанции не читают устаревший пик.
+
 ## 10. План реализации (этапы отдельной задачи)
 
 1. **Сервер, превью:** `previewSelectSpace` у четырёх `Place*` деферов + `placements[]` в `cardPlayPreview`; pre-play cost-контекст в `board-cell-preview`; CORS-allowlist; спеки.
