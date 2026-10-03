@@ -13,6 +13,7 @@ import {DELEGATE_ICON, NEUTRAL_DELEGATE_ICON, influenceAtAgenda} from '@/common/
 import {PartyName} from '@/common/turmoil/PartyName';
 import {TRADE_FLEET_ICON} from '@/common/colonies/tradeFleet';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {ColonyRosterChange} from '@/common/colonies/ColonyRoster';
 
 /**
  * The NAME of a parliament-sourced event (Turmoil Redux), shared by the journal
@@ -101,7 +102,9 @@ export type JournalChildVM = {
     /** A WALK of the Agenda track (`agenda-advanced`, TR04): from → to and the influence level the walk set. */
     | {kind: 'agenda'; from: number; to: number; level: number}
     /** A colony TILE's track moved by a card effect (`colony-track-moved`, TR07): the tile, 0-based before → after. */
-    | {kind: 'colonyTrack'; colony: ColonyName; before: number; after: number};
+    | {kind: 'colonyTrack'; colony: ColonyName; before: number; after: number}
+    /** THE COLONY ROSTER changed (`colony-roster-changed`): a tile entered, left, or was replaced in its slot. */
+    | {kind: 'colonyRoster'; change: ColonyRosterChange};
   /**
    * An effect that could NOT apply (`effect-skipped`): WHICH (`label`), WHY
    * (`reason`), and the magnitude lost as a chip of its own. Deliberately
@@ -436,6 +439,18 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       push(`colonyTrack|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'colonyTrack', colony: move.colony, before: move.before, after: move.after}},
       [{icon: COLONY_TILE_ICON, text: signed(move.after - move.before)}]);
+      continue;
+    }
+    if (e.type === 'colony-roster-changed' && e.impact.colonyRoster !== undefined) {
+      // THE COLONY ROSTER CHANGED (Aridor, the solo trim, TR10 Fringe Colony): its OWN row under the giver. The
+      // label names the tiles («− Церера · + Ио»); the chip is the NET count of tiles in play — «+1» for an
+      // addition, «−1» for a removal, none for a replacement (the table keeps its size; a pill sums chips, and
+      // «−1 +1» of one icon would read as nothing happening).
+      const change = e.impact.colonyRoster;
+      const net = change.kind === 'add' ? 1 : change.kind === 'remove' ? -1 : 0;
+      push(`colonyRoster|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'colonyRoster', change}},
+      net === 0 ? [] : [{icon: COLONY_TILE_ICON, text: signed(net)}]);
       continue;
     }
     if (e.type === 'fleet-docked') {

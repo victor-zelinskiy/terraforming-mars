@@ -33,6 +33,7 @@ import {Payment} from '../../../src/common/inputs/Payment';
 import {replayBatch} from '../../../src/server/inputs/deferredInputBatch';
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {RequirementType} from '../../../src/common/cards/RequirementType';
+import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 
 /**
  * TR10 — FRINGE COLONY: «This can only be played during generation 4 or
@@ -323,6 +324,20 @@ describe('FringeColony', () => {
       expect(names(t)).deep.eq([ColonyName.IO, ColonyName.EUROPA, ColonyName.LUNA, ColonyName.TITAN]);
       expect(t.io.colonies).deep.eq([t.p1.id]);
       expect(t.p1.getWaitingFor() instanceof SelectColony).is.false;
+    });
+  });
+
+  describe('what the TABLE is told — the journal row', () => {
+    it('one row under the card names both tiles; a replacement moves no count, so it carries no chip', () => {
+      const t = table();
+      play(t);
+      answer(t, ColonyName.IO, ColonyName.CERES);
+      const changed = t.game.events.events.find((e) => e.type === 'colony-roster-changed')!;
+      const chain = t.game.events.events.filter((e) => e.correlationId === changed.correlationId);
+      const rows = buildEventChildren(chain, changed.correlationId!, t.p1.color);
+      const row = rows.find((r) => r.political?.kind === 'colonyRoster');
+      expect(row?.political).deep.eq({kind: 'colonyRoster', change: {kind: 'replace', removed: ColonyName.CERES, added: ColonyName.IO, slot: 0}});
+      expect(row?.chips).deep.eq([]);
     });
   });
 

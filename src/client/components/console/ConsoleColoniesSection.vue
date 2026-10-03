@@ -18,8 +18,13 @@
            // which is how the Hydronetwork came back cropped into half a band
            // while this surface was still playing its leave.
            'con-colonies--scene': sceneOverlay,
+           // THE RECEIPT of a finished roster change: the stage folded home and the grid states the result —
+           // no cursor, no verbs (the flow is past its commit; it leaves by itself).
+           'con-colonies--receipt': rosterReceiptOn,
          },
        ]"
+       :data-colony-roster-degraded="rosterState.degraded !== '' ? rosterState.degraded : undefined"
+       :data-colony-roster-beat="rosterState.live ? rosterState.beat : undefined"
        :data-colony-mode="pick !== undefined ? 'pick' : 'browse'"
        :style="{'--coltile-scale': String(tileScale), '--con-colonies-seat': seatReservePx + 'px'}">
     <div class="con-colonies__frame">
@@ -97,6 +102,7 @@
                                    :projectedPosition="tileProjection(colony)"
                                    :focused="i === index && !dockCursorOn"
                                    :justDocked="colony.name === dockedColony"
+                                   :orbit="rosterState.orbit === colony.name"
                                    :status="tileStatus(colony)" />
               </div>
             </div>
@@ -146,6 +152,14 @@
               <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
               <ActionEffectChip v-for="(chip, ci) in focusedDockChips" :key="'dc' + ci" class="con-colonies__rail-chip" :effect="chip" />
             </template>
+          </footer>
+          <!-- THE RECEIPT's rail (a finished roster change): ONE line — what left, what came, whether the colony
+               stands. A result, never an offer: it carries no verb. -->
+          <footer v-else-if="rosterReceiptOn" class="con-colonies__rail" data-colony-roster-receipt>
+            <span class="con-colonies__rail-receipt">
+              <span class="con-colonies__rail-receipt-mark" aria-hidden="true">✓</span>
+              <span>{{ rosterReceiptText }}</span>
+            </span>
           </footer>
           <footer v-else-if="focusedMeta !== undefined" class="con-colonies__rail">
             <span class="con-colonies__rail-name">{{ $t(colonies[index] !== undefined ? colonies[index].name : '') }}</span>
@@ -456,6 +470,8 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 import {sourceSeatReservePx} from '@/client/console/consoleWsStageLayout';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {colonyRosterState} from '@/client/console/colonyRoster/consoleColonyRoster';
+import {colonyRosterChangeText} from '@/common/colonies/ColonyRoster';
 import {
   armColonyFocusOrigin,
   armColonyFocusHandoff,
@@ -611,6 +627,8 @@ export default defineComponent({
       resolutionUi: colonyResolutionUi,
       /** A chosen track's move (TR07), mirrored: the stage it was confirmed on plays it, so nothing folds it before. */
       trackMoveFlow: colonyTrackMoveFlow,
+      /** THE ROSTER CEREMONY's state (a tile replaced / added / removed): the free orbit, the receipt, the confession. */
+      rosterState: colonyRosterState,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
       /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
@@ -642,6 +660,20 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The grid stands as the RECEIPT of a finished roster change (the stage has folded home). */
+    rosterReceiptOn(): boolean {
+      return this.rosterState.receipt !== undefined && !this.rosterState.live && !this.focusState.open;
+    },
+    /** «− Церера · + Ио · колония построена» — the change in the roster's own words, then the colony. */
+    rosterReceiptText(): string {
+      const receipt = this.rosterState.receipt;
+      if (receipt === undefined) {
+        return '';
+      }
+      const kind = receipt.removed !== undefined && receipt.added !== undefined ? 'replace' : (receipt.added !== undefined ? 'add' : 'remove');
+      const text = colonyRosterChangeText({kind, removed: receipt.removed, added: receipt.added, slot: 0}, (name) => translateText(name));
+      return receipt.built ? `${text} · ${translateText('Colony built')}` : text;
+    },
     /** The focused tile's card resource(s) — the ONE list the rail's glyph and the «lost» reading take (several for the Redux Vesta). */
     cardResourceKinds(): ReadonlyArray<CardResource> {
       return this.focusedMeta === undefined ? [] : colonyCardResources(this.focusedMeta);

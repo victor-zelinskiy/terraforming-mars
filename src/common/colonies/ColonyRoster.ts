@@ -77,6 +77,22 @@ export type ColonyRosterPrompt = {
   incoming?: ReadonlyArray<ColonyRosterIncoming>;
 };
 
+/**
+ * THE CHANGE IN WORDS — «− Ceres · + Io» (the leaving tile first, as the table
+ * reads it): the journal row, a rival's notification and the stage's receipt
+ * all say it through this one function; `name` is the caller's translation.
+ */
+export function colonyRosterChangeText(change: ColonyRosterChange, name: (colony: ColonyName) => string): string {
+  const parts: Array<string> = [];
+  if (change.removed !== undefined) {
+    parts.push(`− ${name(change.removed)}`);
+  }
+  if (change.added !== undefined) {
+    parts.push(`+ ${name(change.added)}`);
+  }
+  return parts.join(' · ');
+}
+
 /** Is `build` a colony that LANDS (as opposed to a named skip)? */
 export function rosterBuildLands(build: ColonyRosterBuild | undefined): build is {slot: number} {
   return build !== undefined && 'slot' in build;

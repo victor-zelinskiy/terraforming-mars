@@ -32,6 +32,7 @@ import {Enceladus} from '../../src/server/colonies/Enceladus';
 import {Server} from '../../src/server/models/ServerModel';
 import {SelectColonyModel} from '../../src/common/models/PlayerInputModel';
 import {testAutomaGame} from '../automa/AutomaTestGame';
+import {buildEventChildren} from '../../src/client/components/journal/journalEventChild';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -296,6 +297,17 @@ describe('the colony roster — one writer', () => {
       expect(rosterEvents(game)[0].source).deep.eq({kind: 'system'});
       const line = game.gameLog.find((m) => m.message === 'You discarded ${0}');
       expect(line?.data.map((d) => d.value)).deep.eq([ColonyName.EUROPA]);
+    });
+
+    it('the journal reads an addition as «+1» colony tile and a removal as «−1», each naming its tile', () => {
+      ColoniesHandler.seatColonyTile(game, player, io);
+      ColoniesHandler.retireColonyTile(game, player, europa);
+      const rows = rosterEvents(game).map((e) => buildEventChildren([e], -1, player.color)[0]);
+      expect(rows.map((r) => r.political)).deep.eq([
+        {kind: 'colonyRoster', change: {kind: 'add', added: ColonyName.IO, slot: 2}},
+        {kind: 'colonyRoster', change: {kind: 'remove', removed: ColonyName.EUROPA, slot: 1}},
+      ]);
+      expect(rows.map((r) => r.chips)).deep.eq([[{icon: 'colony-tile', text: '+1'}], [{icon: 'colony-tile', text: '−1'}]]);
     });
 
     it('MarsBot\'s Aridor (C30): its setup is a roster event of the BOT, and the tile sits by the table\'s rule', () => {

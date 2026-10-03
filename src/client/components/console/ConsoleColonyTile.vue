@@ -16,7 +16,9 @@
          'con-coltile--ok': status.kind === 'ok',
          'con-coltile--just-docked': justDocked,
          'con-coltile--marker-gliding': markerGliding,
+         'con-coltile--orbit': orbit,
        }"
+       :data-colony-orbit="orbit ? '' : undefined"
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
       <span class="con-coltile__name">{{ $t(colony.name) }}</span>
@@ -69,11 +71,17 @@
                size it lands at on EVERY profile — the old contract measured
                the whole cell and multiplied by a fraction calibrated for one
                cell size, which the handheld profile's smaller cell broke. -->
-          <span class="con-coltile__build-seat" data-colony-build-seat>
+          <span class="con-coltile__build-seat" data-colony-build-seat
+                :class="{'con-coltile__build-seat--projected': projectsCube(idx)}"
+                :data-colony-projected-cube="projectsCube(idx) ? projectedCube : undefined">
             <PlayerCube v-if="colony.colonies[idx] !== undefined"
                         :color="colony.colonies[idx]"
                         :size="cubeSize" />
             <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResources="cardResourceKinds" />
+            <!-- THE PROJECTED CUBE (a roster pick that also builds — TR10): the player's colony this pick would
+                 place, a ghost in the berth it would take, over the build reward it would pay. The server's
+                 projection (`ColonyRosterIncoming.build`), never a client guess. -->
+            <span v-if="projectsCube(idx)" class="con-coltile__ghost-cube" :class="'player_translucent_bg_color_' + projectedCube" aria-hidden="true"></span>
           </span>
         </div>
       </div>
@@ -199,6 +207,19 @@ export default defineComponent({
     status: {
       type: Object as PropType<ConsoleColonyTileStatus>,
       default: (): ConsoleColonyTileStatus => ({kind: 'none', text: ''}),
+    },
+    /**
+     * THE FREE ORBIT (the roster ceremony): this slot's planet has not docked yet — the tile is its own box with
+     * a dashed ring where the disc will stand. The slot exists before its object.
+     */
+    orbit: {type: Boolean, default: false},
+    /** THE PROJECTED CUBE: the colour of the colony a roster pick would build on this tile ('' = none), and its berth. */
+    projectedCube: {type: String, default: ''},
+    projectedCubeSlot: {type: Number, default: 0},
+  },
+  methods: {
+    projectsCube(idx: number): boolean {
+      return this.projectedCube !== '' && idx === this.projectedCubeSlot && this.colony.colonies[idx] === undefined;
     },
   },
   computed: {

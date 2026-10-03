@@ -1,0 +1,180 @@
+/*
+ * THE COLONY ROSTER CEREMONY — a colony tile entering the game, leaving it, or
+ * being replaced in its slot (docs/COLONY_ROSTER_CEREMONY.md).
+ *
+ * The MOTION is the director's (`colonyRosterDirector.ts` — the planet's disc
+ * and the tile's layers, by opacity and the disc's own transform). This file
+ * owns only the POSES the reactive state holds between beats:
+ *
+ *  · the FREE ORBIT — a slot whose tile has left and whose successor has not
+ *    docked yet: the tile's exact box, a quiet plate, a thin dashed ring where
+ *    the disc will stand, no words;
+ *  · the stage's PROJECTION pose — the entering planet before the press: the
+ *    dashed orbit around a disc a step short of its place;
+ *  · the stage's OUTGOING SEAT — the small disc of the tile that leaves;
+ *  · the PROJECTED CUBE — the player's colony the pick would build, drawn as a
+ *    ghost in the berth it would take;
+ *  · the RECEIPT — the grid once the stage has folded home: no cursor.
+ *
+ * Console-safe materials only (gradients, box-shadow, opacity); nothing here
+ * carries a state through `filter` or `text-shadow`.
+ */
+
+/* ── THE FREE ORBIT — the slot exists before its object ─────────────────── */
+.con-coltile--orbit {
+    /* The plate steps back; the cursor ring never stands on an empty slot. */
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 12%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.3);
+
+    .con-coltile__planet-berth::after {
+        content: '';
+        position: absolute;
+        inset: -.12rem;
+        border-radius: 50%;
+        border: .06rem dashed fade(@con-cyan, 62%);
+        pointer-events: none;
+        animation: con-roster-orbit-in calc(140ms * var(--motion-scale, 1)) ease-out backwards;
+    }
+}
+
+@keyframes con-roster-orbit-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ── THE PROJECTED CUBE — «your colony would stand here» ────────────────── */
+.con-coltile__build-seat--projected {
+    position: relative;
+
+    .con-coltile__ghost-cube {
+        position: absolute;
+        inset: 12%;
+        border-radius: .2rem;
+        border: .06rem dashed var(--roster-cube, fade(@con-text, 70%));
+        background: fade(@con-text, 8%);
+        pointer-events: none;
+    }
+    /* The reward glyph the build would pay stays readable under the ghost. */
+    .benefit-glyph { opacity: 0.55; }
+}
+
+/* ── THE RECEIPT — the grid after the landing: a result, not a decision ──── */
+.con-colonies--receipt {
+    .con-colonies__slot--focused .con-coltile {
+        /* The landed tile is marked by the calm amber of a committed result — never the cursor's cyan. */
+        box-shadow: inset 0 0 0 .1rem fade(@con-amber, 78%), 0 0 1.1rem fade(@con-amber, 20%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.55);
+        transform: none;
+    }
+    .con-colonies__rail-receipt {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        color: @con-text;
+        font-weight: 700;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .con-colonies__rail-receipt-mark { color: @con-amber; }
+}
+
+/* ── THE STAGE — the roster act ─────────────────────────────────────────── */
+.con-colfocus--roster {
+    /* THE OUTGOING SEAT: the tile that leaves, small, in the corner of the hero column — absolute, zero layout
+       (the hero column's children are identical in every phase). */
+    .con-colfocus__rosterseat {
+        position: absolute;
+        left: .2rem;
+        bottom: .2rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .2rem .55rem .2rem .2rem;
+        border-radius: 2rem;
+        background: fade(#03070d, 62%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 38%);
+        pointer-events: none;
+        z-index: 2;
+
+        .con-planet { --con-planet-size: 1.9rem; }
+    }
+    .con-colfocus__rosterseat-caption {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.15;
+        min-width: 0;
+    }
+    .con-colfocus__rosterseat-kicker {
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-amber;
+    }
+    .con-colfocus__rosterseat-name {
+        font-size: .8rem;
+        font-weight: 700;
+        color: @con-text;
+        white-space: nowrap;
+    }
+
+    /* THE FACTS — what happens if the player confirms NOW: three lines, each once. */
+    .con-colfocus__rosterfacts {
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+    }
+    .con-colfocus__rosterfact {
+        display: grid;
+        grid-template-columns: 6.2rem minmax(0, 1fr);
+        column-gap: .6rem;
+        align-items: baseline;
+    }
+    .con-colfocus__rosterfact-label {
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    .con-colfocus__rosterfact-value {
+        font-size: .92rem;
+        font-weight: 700;
+        color: @con-text;
+        min-width: 0;
+    }
+    .con-colfocus__rosterfact-note {
+        display: block;
+        font-size: .78rem;
+        font-weight: 600;
+        color: @con-text-dim;
+    }
+    .con-colfocus__rosterfact--lost .con-colfocus__rosterfact-value { color: @con-amber; }
+    .con-colfocus__rosterfact--ok .con-colfocus__rosterfact-value { color: @con-mint; }
+}
+
+/* THE PROJECTION POSE — before the press the entering planet has not docked: the dashed orbit stands around a
+   disc a step short of its place. Dropped by the ceremony's dock (`--docked`), in the frame the disc lands. */
+.con-colfocus--roster-projected {
+    .con-colfocus__hero .con-planet {
+        transform: translateY(-8px) scale(0.9);
+        transform-origin: 50% 50%;
+    }
+    .con-colfocus__hero .con-colfocus__planet-orbit {
+        opacity: 1;
+    }
+}
+.con-colfocus__planet-orbit {
+    position: absolute;
+    inset: -.35rem;
+    border-radius: 50%;
+    border: .07rem dashed fade(@con-cyan, 58%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-coltile--orbit .con-coltile__planet-berth::after { animation: none; }
+    .con-colfocus__planet-orbit { transition: none; }
+}

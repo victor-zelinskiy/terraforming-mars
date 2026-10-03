@@ -179,13 +179,17 @@ export function verifyColonyBuild(
 ): {slotIndex: number} | undefined {
   const prev = prevColonies.find((c) => c.name === colonyName);
   const next = newColonies.find((c) => c.name === colonyName);
-  if (prev === undefined || next === undefined) {
+  if (next === undefined) {
     return undefined;
   }
-  if (next.colonies.length !== prev.colonies.length + 1) {
+  // A TILE THAT ENTERED THE GAME WITH THIS VERY ANSWER (Turmoil Redux TR10 Fringe Colony: «replace it with a new
+  // colony tile… and place a colony on it») is not in the previous table at all — it arrived with nobody on it,
+  // so the cube the answer carries is its first.
+  const before = prev === undefined ? 0 : prev.colonies.length;
+  if (next.colonies.length !== before + 1) {
     return undefined;
   }
-  const slotIndex = prev.colonies.length;
+  const slotIndex = before;
   if (next.colonies[slotIndex] !== viewerColor) {
     return undefined;
   }

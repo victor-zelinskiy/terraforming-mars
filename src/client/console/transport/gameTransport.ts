@@ -107,6 +107,9 @@ import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairma
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
 import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
+import {
+  colonyRosterState, detectColonyRosterChange, disarmColonyRoster, runColonyRosterCeremony, seedColonyRosterHolds,
+} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -258,6 +261,8 @@ export const transportHolds = reactive({
   cardDiscard: false,
   tilePlacementHero: false,
   colonyBuild: false,
+  /** The colony ROSTER ceremony of the player's own flow (a tile replaced / added / removed — TR10, Aridor, the solo trim). */
+  colonyRoster: false,
   nomadMove: false,
   resolutionPayout: false,
 });
@@ -270,7 +275,7 @@ export function transportHolding(): boolean {
   const h = transportHolds;
   return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
-    h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild ||
+    h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild || h.colonyRoster ||
     h.nomadMove || h.resolutionPayout;
 }
 
@@ -608,6 +613,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // the promised tile held on its old cell until the stage it was confirmed on plays the glide — ONLY while
   // that stage stands (a hold nobody plays would freeze the track).
   seedColonyTrackMoveHolds(currentView(), newView);
+  // …and a CHANGED COLONY ROSTER somebody else caused (a tile replaced / added / removed while this screen shows
+  // the colony grid): the table as presented stays the old one until the grid has played the planet out and in.
+  // The player's OWN change was played by its gate above with the commit held, and is never seeded again.
+  seedColonyRosterHolds(currentView(), newView);
   // …and ANOTHER SEAT'S DELEGATE that arrived with this response (a rival's
   // vote, MarsBot's Party Politics / Lobbying): its ribbon cube is hidden
   // and its flight queued in this very block, or it paints before it flies.
@@ -1047,6 +1056,24 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          * (building doesn't end the turn), so it composes here — never in
          * the staged path.
          */
+        /*
+         * Console COLONY-ROSTER gate (the player's OWN change of the table —
+         * TR10 Fringe Colony, Aridor's first action, the solo setup trim).
+         * VERIFY the answer carries the armed change; HOLD the commit while
+         * the stage plays it (the leaving planet lets go, the new one
+         * docks). Composed BEFORE the build hero: a colony built by the same
+         * answer lands on the planet that has just docked.
+         */
+        const colonyRosterBuilds = colonyRosterState.armed?.builds === true;
+        const colonyRosterEvent = detectColonyRosterChange(currentView(), newView);
+        if (colonyRosterEvent !== undefined) {
+          transportHolds.colonyRoster = true;
+          try {
+            await runColonyRosterCeremony(colonyRosterEvent, colonyRosterBuilds);
+          } finally {
+            transportHolds.colonyRoster = false;
+          }
+        }
         const colonyBuildEvent = detectColonyBuild(currentView(), newView);
         if (colonyBuildEvent !== undefined) {
           transportHolds.colonyBuild = true;
@@ -1258,6 +1285,10 @@ function abortAllConsoleTransactions(): void {
   abortStagedPlayCommit();
   // …and a chosen colony track's move (TR07): the answer was refused, nothing moved — no promise, no hold.
   clearColonyTrackMove();
+  // …and a colony ROSTER change (TR10, Aridor, the solo trim): the answer was refused — no arm, no ceremony; the
+  // draft of the leaving tile stays (the player is still choosing).
+  transportHolds.colonyRoster = false;
+  disarmColonyRoster();
   // …and the nomad move: the camp never lifts off, nothing is collected.
   transportHolds.nomadMove = false;
   abortNomadMove();

@@ -115,6 +115,16 @@ describe('colonyBuildModel', () => {
       expect(verifyColonyBuild(prev, next, ColonyName.LUNA, 'red')).to.eq(undefined);
     });
 
+    it('a tile that ENTERED with this very answer (TR10 — replaced, then built on) proves its first slot', () => {
+      // Io is not in the previous table at all: it arrived with nobody on it, so the cube is its first.
+      const prev = [colony(ColonyName.LUNA, [])];
+      const next = [colony(ColonyName.IO, ['red'])];
+      expect(verifyColonyBuild(prev, next, ColonyName.IO, 'red')).to.deep.eq({slotIndex: 0});
+      // …and a tile that entered with a RIVAL's cube, or with none, proves nothing.
+      expect(verifyColonyBuild(prev, [colony(ColonyName.IO, ['blue'])], ColonyName.IO, 'red')).to.eq(undefined);
+      expect(verifyColonyBuild(prev, [colony(ColonyName.IO, [])], ColonyName.IO, 'red')).to.eq(undefined);
+    });
+
     it('refuses an unknown / missing colony', () => {
       const prev = [colony(ColonyName.LUNA, [])];
       const next = [colony(ColonyName.LUNA, ['red'])];

@@ -352,6 +352,7 @@ import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemot
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
+import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
@@ -796,6 +797,9 @@ export default defineComponent({
             seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.
             seedRevealRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a COLONY ROSTER somebody else changed (a tile replaced / added / removed): held at the old table
+            // while the colony grid on screen plays the planet out and in — only when that grid stands.
+            seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {

@@ -2175,6 +2175,10 @@ import {
   clearColonyTrackMove, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove, registerColonyTrackMoveHost,
 } from '@/client/console/colonyTrade/colonyTrackMove';
 import {trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
+import {
+  colonyRosterState, hurryColonyRoster, isColonyRosterInputLocked, presentedColonyRoster, registerColonyRosterHost,
+} from '@/client/console/colonyRoster/consoleColonyRoster';
+import {reanchorColonyCursor} from '@/client/console/colonyRoster/colonyRosterModel';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -5577,7 +5581,17 @@ export default defineComponent({
       if (this.colonyRailIsCatalog && model !== undefined) {
         return model.coloniesModel;
       }
-      return this.game.colonies;
+      // THE PRESENTED ROSTER (`consoleColonyRoster`): while somebody else's change of the table is being played on
+      // this grid, the table stands as it stood — the ONE reader of «which tiles are on the grid».
+      return presentedColonyRoster(this.game.colonies);
+    },
+    /**
+     * THE RAIL BY NAME — what the cursor is anchored to. The cursor is stored as a position, so a tile seated
+     * BEFORE it (an addition is sorted in by name) silently moved the focus onto another colony; the watcher on
+     * this string re-anchors it to the colony it stood on (`reanchorColonyCursor`).
+     */
+    colonyRailNames(): string {
+      return this.coloniesForRail.map((c) => c.name).join('|');
     },
     /** SelectColony pay-on-commit cancel (Build Colony std project). */
     colonyCancellable(): boolean {
@@ -10792,6 +10806,20 @@ export default defineComponent({
      * `committing` with the arm standing): the stage is a door again on the same
      * tile, the hand's beat ends, the claim made at the press answers for nothing.
      */
+    /** THE CURSOR IS A NAME: the table under it changed → it follows its colony (or the successor of one that left). */
+    colonyRailNames(next: string, prev: string): void {
+      const names = next === '' ? [] : next.split('|');
+      this.consoleState.colonyIndex = reanchorColonyCursor(prev === '' ? [] : prev.split('|'), names, this.consoleState.colonyIndex);
+      // THE TILE UNDER AN OPEN STAGE / DOSSIER LEFT THE TABLE (somebody else replaced or removed it): the surface
+      // has no subject any more — it folds honestly and says why, instead of standing open over nothing with the
+      // grid parked beneath it. The player's OWN change is not this case: its ceremony owns the stage until it ends.
+      const subject = this.colonyFocus.colonyName;
+      if (this.colonyFocus.open && subject !== '' && !names.includes(subject) &&
+          !colonyRosterState.live && colonyRosterState.armed === undefined && colonyRosterState.receipt === undefined) {
+        closeColonyFocus();
+        this.showNotice(translateTextWithParams('The ${0} colony tile was removed from the table', [translateText(subject)]));
+      }
+    },
     stagedColonyCommitting(now: boolean, was: boolean): void {
       if (now || !was || this.stagedColonyModel === undefined) {
         return;
@@ -12492,6 +12520,15 @@ export default defineComponent({
       // and for a mandatory prompt between two colony-bonus draws (Pluto's
       // draw→discard pairing), so the transaction can never wedge the pad.
       if (isColonyTradeInputLocked()) {
+        return true;
+      }
+      // THE COLONY ROSTER CEREMONY (a tile replaced / added / removed): the planet is leaving or docking — the pad
+      // is the ceremony's. A does not act: it PRESSES THE BEAT THROUGH (final poses at once), never a second
+      // submit and never a skipped state. Bounded by the ceremony's own named hold.
+      if (isColonyRosterInputLocked()) {
+        if (intent.kind === 'press' && action === 'primary') {
+          hurryColonyRoster();
+        }
         return true;
       }
       // DECK DRAW: the deck is dealing itself out — a bounded, self-playing
@@ -20739,6 +20776,10 @@ export default defineComponent({
   mounted() {
     // A CHOSEN TRACK's move (TR07) is seeded only while the stage that will play it stands — the shell knows.
     registerColonyTrackMoveHost((colony) => workspaceFrameKnown('colonies') && this.colonyFocus.open && this.colonyFocus.colonyName === colony);
+    // A ROSTER change somebody else made is played on the colony GRID — only while that grid is what the player is
+    // looking at: the colonies frame on top, browsing (no stage, no dossier), the in-game table on the rail.
+    registerColonyRosterHost(() => this.consoleState.section === 'colonies' && workspaceFrameRenders('colonies') &&
+      !this.colonyFocus.open && !this.colonyRailIsCatalog && !colonyTradeState.active && !isColonyBuildActive());
     // The e2e readiness probe (`window.__conReady`) — read-only snapshots of
     // the holds/transport/stack facts this shell already stands on. Installed
     // here so the aggregator adds no new edges to any import graph.
@@ -21079,6 +21120,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     registerColonyTrackMoveHost(undefined);
+    registerColonyRosterHost(undefined);
     this.offIntent?.();
     this.offWsPresence?.();
     this.offHydroWitnesses?.();
