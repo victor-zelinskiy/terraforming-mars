@@ -139,15 +139,20 @@ step)` (параметр обобщён до `ColonyPickSource`): пятой sta
 `tests/colonies/ColonyRoster.spec.ts`, `tests/deferredActions/ReplaceColonyTile.spec.ts`,
 `tests/inputs/deferredInputBatch.spec.ts` § the replacement, `tests/routes/PlayerInputBatch.spec.ts` § the replacement,
 `tests/console/colonyRosterModel.spec.ts`, `tests/client/console/colonyRoster.spec.ts`, e2e
-`tests/e2e/console-fringe-colony.spec.ts` (фикстура `fringe-colony`, fhd + tv4k).
+`tests/e2e/console-fringe-colony.spec.ts` (фикстура `fringe-colony`, fhd + tv4k) и
+`tests/e2e/console-colony-roster.spec.ts` (Aridor — добавление плитки на том же пути, fhd + tv4k).
 
 ## 8. Что НЕ сделано в v1 (записано, не спрятано)
 
 - **Зритель не прогнан в e2e и не смотрен глазами.** Посев и такты сетки (DEPART → RESEAT → ARRIVE) покрыты юнитами
   контроллера; спека «второй игрок стоит на сетке, первый играет TR10» нет.
-- **Aridor и соло-сетап не прогнаны руками / e2e на новом пути.** Код общий (`kind: 'add'` / `'remove'` идут тем же
-  `onColonyRosterConfirm` → гейт → LANDING), но раскадровок «до / после» нет; драйвер `consoleStart.ts` по-прежнему
-  обходит Aridor.
+- **Aridor прогнан e2e, соло-сетап — нет.** `tests/e2e/console-colony-roster.spec.ts` (fhd + tv4k, реальная соло-игра с
+  `customCorporationsList: ['Aridor']`) ведёт первое действие через стартовый воркспейс: каталог резерва (плиток стола на
+  нём нет), статус входа на каждой плитке, стейдж `data-colony-roster="add"` в позе проекции, «Добавить плитку» → на
+  сервере ровно +1 плитка, шаг колоний уходит, стартовый поток доходит до поля, деградаций нет. Кадры стейджа и поля
+  после A смотрены на fhd. ЧЕГО В СПЕКЕ НЕТ: порядка тактов ARRIVE / LANDING на стартовом воркспейсе (проба TR10 их
+  меряет только для замены) и раскадровки «до» со старым путём. **Соло-сетап (`kind: 'remove'`) не прогнан ни руками, ни
+  e2e** — код общий (`onColonyRosterConfirm` → гейт → LANDING), но на экране его никто не видел.
 - **Слоя полётов `ConsoleColonyRosterLayer.vue` нет.** Диск анимируется на своём месте (в глубину / из глубины), планету
   из каталожной плитки в героя несёт существующий FLIP спуска, из героя в слот — существующая складка. Отдельного
   прокси-диска «из источника в измеренный слот» нет.
