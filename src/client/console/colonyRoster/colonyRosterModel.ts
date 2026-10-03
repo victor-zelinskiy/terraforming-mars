@@ -142,6 +142,33 @@ export function rosterStageReading(
   return reading;
 }
 
+/**
+ * What the STAGE is handed for a roster act: the kind, the tile that leaves (a replacement / a removal), the
+ * server's reading, the verb the A chip speaks and the crumb's stage (both i18n keys).
+ */
+export type ColonyRosterStageView = {
+  kind: ColonyRosterPrompt['kind'];
+  leaves?: ColonyName;
+  reading: RosterStageReading;
+  verbKey: string;
+  stageKey: string;
+};
+
+/** The roster pick as the GRID and the section read it: the server's marker, the level standing, the draft. */
+export type ColonyRosterPickView = {
+  prompt: ColonyRosterPrompt;
+  level: RosterLevel;
+  /** A replacement's chosen leaving tile (level `incoming` only). */
+  outgoing?: ColonyName;
+};
+
+/** The A chip's verb and the crumb's stage for a roster act — one table, by the kind. */
+export const ROSTER_KIND_COPY: Readonly<Record<ColonyRosterPrompt['kind'], {verb: string, stage: string}>> = {
+  add: {verb: 'Add the tile', stage: 'Addition'},
+  remove: {verb: 'Remove the tile', stage: 'Removal'},
+  replace: {verb: 'Replace the tile', stage: 'Replacement'},
+};
+
 // ── THE CEREMONY'S BEATS ────────────────────────────────────────────────────
 //
 // Base durations (through `motionMs()` at the call site). The grammar is one,

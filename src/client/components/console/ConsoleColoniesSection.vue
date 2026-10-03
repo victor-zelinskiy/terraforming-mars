@@ -103,6 +103,7 @@
                                    :focused="i === index && !dockCursorOn"
                                    :justDocked="colony.name === dockedColony"
                                    :orbit="rosterState.orbit === colony.name"
+                                   :projectedCube="tileProjectedCube(colony)"
                                    :status="tileStatus(colony)" />
               </div>
             </div>
@@ -168,7 +169,28 @@
             <!-- ── A CHOSEN TRACK's pick (TR07): «3/7 → 7/7» · «торговля здесь: [now] → [after]», or the ONE
                  reason (at the top / not active). The rail says only what the tile cannot: the tile shows the
                  ghost and «+N», the rail the trade this move buys. ── -->
-            <template v-if="railMode === 'track'">
+            <!-- ── A ROSTER pick: the level's own sentence. «Who leaves»: what choosing this tile does, or the ONE
+                 reason it cannot leave. «Who enters»: the tile that leaves LEADS (stable context), then how this
+                 one would enter and whether the colony stands — the server's projection, read off the marker. ── -->
+            <template v-if="railMode === 'roster'">
+              <template v-if="pick !== undefined && pick.roster !== undefined && pick.roster.level === 'outgoing'">
+                <span v-if="railBlocked" class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + focusedStatus.kind" data-colonies-rail-roster="refused">
+                  <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
+                </span>
+                <template v-else>
+                  <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+                  <span class="con-colonies__rail-note" data-colonies-rail-roster="leaves">{{ rosterLeaveNote }}</span>
+                </template>
+              </template>
+              <template v-else>
+                <span v-if="pick !== undefined && pick.roster !== undefined && pick.roster.outgoing !== undefined" class="con-colonies__rail-muted" data-colonies-rail-roster="leaving">
+                  {{ $t('Leaves') }} ● {{ $t(pick.roster.outgoing) }}
+                </span>
+                <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+                <span class="con-colonies__rail-note" data-colonies-rail-roster="enters">{{ focusedStatus.text }}</span>
+              </template>
+            </template>
+            <template v-else-if="railMode === 'track'">
               <template v-if="focusedTrackReading !== undefined">
                 <span class="con-colonies__rail-track" data-colonies-rail-track>{{ focusedTrackReading.before.display }} → {{ focusedTrackReading.after.display }}</span>
                 <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
@@ -336,7 +358,8 @@
           <ConsoleColonyFocusStage v-if="focusState.open && focusState.intent !== 'inspect' && focusColonyModel !== undefined"
                                    ref="focusStage"
                                    :colony="focusColonyModel"
-                                   :intent="focusState.intent"
+                                   :intent="stageIntent"
+                                   :roster="stageRoster"
                                    :actionAvailable="focusActionAvailable"
                                    :blockReason="focusBlockReason"
                                    :blockTone="focusBlockTone"
@@ -470,8 +493,14 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 import {sourceSeatReservePx} from '@/client/console/consoleWsStageLayout';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
-import {colonyRosterState} from '@/client/console/colonyRoster/consoleColonyRoster';
-import {colonyRosterChangeText} from '@/common/colonies/ColonyRoster';
+import {colonyRosterState, setColonyRosterLanding} from '@/client/console/colonyRoster/consoleColonyRoster';
+import {playReseatIn, playReseatOut} from '@/client/console/colonyRoster/colonyRosterDirector';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {colonyRosterChangeText, rosterBuildLands} from '@/common/colonies/ColonyRoster';
+import {
+  ColonyRosterPickView, ColonyRosterStageView, ROSTER_KIND_COPY, rosterIncomingOf, rosterStageReading,
+} from '@/client/console/colonyRoster/colonyRosterModel';
+import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {
   armColonyFocusOrigin,
   armColonyFocusHandoff,
@@ -481,6 +510,8 @@ import {
   colonyFocusEnterCancelledHook,
   colonyFocusLeaveCancelledHook,
   resetColonyFocusMotion,
+  retargetColonyFocusHome,
+  armColonyFocusQuickExit,
 } from '@/client/console/consoleColonyFocusMotion';
 
 /** PICK MODE (T4 — a server SelectColony drives the grid): the shell owns it. */
@@ -510,6 +541,12 @@ export type ConsoleColonyPick = {
    * Absent on a live server prompt.
    */
   staged?: boolean,
+  /**
+   * THE PICK CHANGES THE ROSTER (the server's `SelectColonyModel.rosterChange` — a tile enters, leaves, or is
+   * replaced in its slot): the marker, the LEVEL standing («who leaves» on the table / «who enters» on the
+   * reserve) and a replacement's chosen leaving tile. Its presence makes the act `roster` (`colonyPickIntent`).
+   */
+  roster?: ColonyRosterPickView,
 };
 
 /** The focus stage's confirm payload (forwarded verbatim to the shell). */
@@ -629,6 +666,10 @@ export default defineComponent({
       trackMoveFlow: colonyTrackMoveFlow,
       /** THE ROSTER CEREMONY's state (a tile replaced / added / removed): the free orbit, the receipt, the confession. */
       rosterState: colonyRosterState,
+      /** The stage's colony model as last seen on the rail — kept for a tile the answer removed (see `focusColonyModel`). */
+      focusModelLatch: undefined as ColonyModel | undefined,
+      /** …and the roster act's reading as last derived from the prompt (the answer takes the prompt away). */
+      rosterStageLatch: undefined as ColonyRosterStageView | undefined,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
       /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
@@ -715,6 +756,13 @@ export default defineComponent({
       if (this.parliamentStepHosted && (this.grantColony !== '' || this.grantSubject !== '')) {
         return this.grantColony !== '' ? this.grantColony : this.grantSubject;
       }
+      // A REPLACEMENT names BOTH tiles from the moment the leaving one is chosen: «ЭНЦЕЛАД» on the catalog,
+      // «ЭНЦЕЛАД → ТИТАН» on the stage — the tail only ever gains (translated here: the pair is not one key).
+      const leaving = this.pick?.roster?.outgoing ?? (this.rosterStageLatch?.kind === 'replace' ? this.rosterStageLatch.leaves : undefined);
+      if (leaving !== undefined && (this.pick?.roster !== undefined || this.rosterBusy)) {
+        return this.focusState.open && this.focusState.colonyName !== '' ?
+          `${translateText(leaving)} → ${translateText(this.focusState.colonyName)}` : leaving;
+      }
       if (this.focusState.open && this.focusState.colonyName !== '') {
         return this.focusState.colonyName;
       }
@@ -759,6 +807,12 @@ export default defineComponent({
       }
       if (this.revealEmbedActive) {
         return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
+      }
+      // A ROSTER pick's grid names its level: «СНЯТИЕ» while the leaving tile is chosen, then the act's own stage
+      // («ЗАМЕНА» / «ДОБАВЛЕНИЕ») on the reserve — the same word the stage keeps.
+      const roster = this.pick?.roster;
+      if (roster !== undefined) {
+        return roster.level === 'outgoing' ? ROSTER_KIND_COPY.remove.stage : ROSTER_KIND_COPY[roster.prompt.kind].stage;
       }
       return '';
     },
@@ -984,7 +1038,18 @@ export default defineComponent({
       if (this.focusState.colonyName === '') {
         return undefined;
       }
-      return this.colonies.find((c) => c.name === this.focusState.colonyName);
+      const found = this.focusModelOnRail;
+      // A REMOVAL of one's own (the solo trim): the answer takes the stage's tile OFF the table while the stage is
+      // still saying goodbye to it — the model it stood on is kept until the roster flow ends.
+      return found ?? (this.rosterBusy ? this.focusModelLatch : undefined);
+    },
+    /** The stage's colony as it stands on the rail right now (undefined once the table lost it). */
+    focusModelOnRail(): ColonyModel | undefined {
+      return this.focusState.colonyName === '' ? undefined : this.colonies.find((c) => c.name === this.focusState.colonyName);
+    },
+    /** A roster change of the player's own is on the wire, playing, or being read as a receipt. */
+    rosterBusy(): boolean {
+      return this.rosterState.armed !== undefined || this.rosterState.live || this.rosterState.receipt !== undefined;
     },
     focusTradeable(): boolean {
       const model = this.focusColonyModel;
@@ -1001,10 +1066,43 @@ export default defineComponent({
       if (this.focusState.intent === 'trade') {
         return this.focusTradeable;
       }
-      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track') {
+      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster') {
         return this.pick !== undefined && this.pick.selectable.includes(model.name);
       }
       return false;
+    },
+    /**
+     * THE STAGE'S COMPOSITION for the act. A ROSTER act wears the build's (the berths first, the destination
+     * pulsing — a colony lands by the same answer) or the plain pick's, and carries its own reading beside it.
+     */
+    stageIntent(): ColonyFocusIntent {
+      if (this.focusState.intent !== 'roster') {
+        return this.focusState.intent;
+      }
+      return this.stageRoster?.reading.build?.lands === true ? 'build' : 'pick';
+    },
+    /** The roster act as the stage reads it — pinned at the press (the answer takes the prompt away mid-ceremony). */
+    stageRoster(): ColonyRosterStageView | undefined {
+      if (this.focusState.intent !== 'roster') {
+        return undefined;
+      }
+      const roster = this.pick?.roster;
+      const model = this.focusColonyModel;
+      if (roster === undefined || model === undefined) {
+        return this.rosterStageLatch;
+      }
+      const name = model.name as ColonyName;
+      const kind = roster.prompt.kind;
+      const leaves = kind === 'remove' ? name : roster.outgoing;
+      const copy = ROSTER_KIND_COPY[kind];
+      return {
+        kind,
+        leaves,
+        reading: rosterStageReading(roster.prompt, leaves, kind === 'remove' ? undefined : name, (colony) => colonyCardResources(getColony(colony))),
+        // A STAGED door's A is the PLAY's one submit — it speaks the play's verb; a live door the roster's own.
+        verbKey: this.pick?.staged === true ? 'Play card' : copy.verb,
+        stageKey: copy.stage,
+      };
     },
     /** The server's projected move of the focused colony (a `track` pick only — TR07). */
     focusTrackMove(): ColonyTrackMove | undefined {
@@ -1060,7 +1158,7 @@ export default defineComponent({
       }
       if (this.pick !== undefined) {
         // A pick refused THIS colony: the server's own reason.
-        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track') {
+        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster') {
           return this.pickReasonFor(model.name);
         }
         // Mid-pick the trade window simply is not open — the stage's verdict
@@ -1155,12 +1253,22 @@ export default defineComponent({
     /** Which rail the compact readout shows: a SelectColony pick titled
      *  'Build' grants a settlement + placement bonus (NOT trade); other picks
      *  are identity-only; no pick ⇒ the trade rail. */
-    railMode(): 'trade' | 'build' | 'select' | 'track' {
+    railMode(): 'trade' | 'build' | 'select' | 'track' | 'roster' {
       if (this.pick === undefined) {
         return 'trade';
       }
       const intent = colonyPickIntent(this.pick);
-      return intent === 'build' ? 'build' : (intent === 'track' ? 'track' : 'select');
+      return intent === 'build' ? 'build' : (intent === 'track' ? 'track' : (intent === 'roster' ? 'roster' : 'select'));
+    },
+    /** «будет снята · на её место — плитка из резерва (N)» — what choosing the focused tile to leave does. */
+    rosterLeaveNote(): string {
+      const roster = this.pick?.roster;
+      if (roster === undefined) {
+        return '';
+      }
+      const reserve = roster.prompt.incoming?.length ?? 0;
+      return roster.prompt.kind === 'remove' ? translateText('leaves the game') :
+        translateTextWithParams('leaves the game · a reserve tile takes its place (${0})', [String(reserve)]);
     },
     /** The focused tile's projected move, read for the rail (a `track` pick's candidate only). */
     focusedTrackReading(): ColonyTrackMoveReading | undefined {
@@ -1219,6 +1327,36 @@ export default defineComponent({
     },
     index() {
       void this.$nextTick(() => this.scrollSelectedIntoView());
+    },
+    // THE ROSTER FLOW'S LATCHES: what the stage stood on, kept past the answer that takes it away (the prompt,
+    // and — for a removal — the tile itself). Dropped when the flow is over and the stage is closed.
+    focusModelOnRail: {
+      immediate: true,
+      handler(model: ColonyModel | undefined): void {
+        if (model !== undefined) {
+          this.focusModelLatch = model;
+        }
+      },
+    },
+    stageRoster: {
+      immediate: true,
+      handler(view: ColonyRosterStageView | undefined): void {
+        if (view !== undefined && this.pick?.roster !== undefined) {
+          this.rosterStageLatch = view;
+        }
+      },
+    },
+    rosterBusy(busy: boolean): void {
+      if (!busy && !this.focusState.open) {
+        this.focusModelLatch = undefined;
+        this.rosterStageLatch = undefined;
+      }
+    },
+    'focusState.open'(open: boolean): void {
+      if (!open && !this.rosterBusy) {
+        this.focusModelLatch = undefined;
+        this.rosterStageLatch = undefined;
+      }
     },
     /**
      * HAND THE CRUMB UP. Embedded, this section draws no header of its own —
@@ -1534,6 +1672,11 @@ export default defineComponent({
         translateText(reason.key);
     },
     tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
+      // A ROSTER change is answered and playing / standing as its receipt: the grid is a RESULT — no tile is being
+      // offered or refused any more (a staged door's prompt outlives the answer, and its «not pickable» is stale).
+      if (this.rosterState.receipt !== undefined) {
+        return {kind: 'none', text: ''};
+      }
       // The trade transaction narrates its own beats on the traded tile —
       // a short unobtrusive caption in the EXISTING status line (never a
       // toast): reward → bonus → the colony update.
@@ -1542,6 +1685,16 @@ export default defineComponent({
         return {kind: 'ok', text: beat};
       }
       if (this.pick !== undefined) {
+        // A RESERVE tile of a roster pick states HOW IT WOULD ENTER — the server's projection, never the bare
+        // tile's own flag (a catalog model is serialized inactive whatever it is): active or not, and whether the
+        // colony the effect builds would stand. The candidate stays selectable either way.
+        const entry = this.pick.roster?.level === 'incoming' ? rosterIncomingOf(this.pick.roster.prompt, colony.name) : undefined;
+        if (entry !== undefined) {
+          const noColony = entry.build !== undefined && !rosterBuildLands(entry.build);
+          const text = translateText(entry.entersActive ? 'Enters active' : 'Enters inactive') +
+            (noColony ? ` · ${translateText('no colony')}` : '');
+          return {kind: entry.entersActive ? 'ok' : 'inactive', text};
+        }
         // A pickable colony is the NORMAL case in a pick — the focus ring and
         // the command bar already say so. Only a refusal earns a line.
         if (this.isPickable(colony.name)) {
@@ -1685,6 +1838,76 @@ export default defineComponent({
      * the build-slot row — so each physically continues into its expanded
      * counterpart (never a new unrelated detail page).
      */
+    /** The colour of the colony a roster pick would BUILD on this reserve tile ('' = none) — the server's projection. */
+    tileProjectedCube(colony: ColonyModel): string {
+      const roster = this.pick?.roster;
+      if (roster === undefined || roster.level !== 'incoming') {
+        return '';
+      }
+      return rosterBuildLands(rosterIncomingOf(roster.prompt, colony.name)?.build) ? (this.viewerColor ?? '') : '';
+    },
+    /**
+     * THE LANDING's destination (the roster's own flow): the stage folds HOME into the slot `name` now holds on
+     * the table — re-measured here, AFTER the grid's fit, at REST (the parked layer's recede transform is taken
+     * off for the read and put back in the same task: nothing paints in between). `false` when the tile cannot
+     * be measured — the fold then lets go where it stands.
+     */
+    retargetFocusHome(name: string): boolean {
+      const grid = this.$refs.grid as HTMLElement | null | undefined;
+      const tile = grid?.querySelector<HTMLElement>(`[data-test="con-colony-${name.replace(/["\\]/g, '\\$&')}"]`);
+      const browse = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__browse');
+      if (tile === null || tile === undefined) {
+        armColonyFocusQuickExit();
+        return false;
+      }
+      const held = browse?.style.transform ?? '';
+      if (browse !== null && browse !== undefined) {
+        browse.style.transform = 'none';
+      }
+      const rect = restingRectOf(tile);
+      if (browse !== null && browse !== undefined) {
+        browse.style.transform = held;
+      }
+      if (rect.width < 10 || rect.height < 10) {
+        armColonyFocusQuickExit();
+        return false;
+      }
+      retargetColonyFocusHome(rect);
+      return true;
+    },
+    /**
+     * A ROSTER PICK CHANGES ITS LEVEL (the table ⇄ the reserve) — the rail's population changes, and that is
+     * a RESEAT, never a swap: the tiles' content lets go, `apply` changes the level (the rail re-renders dark),
+     * and the new tiles surface. Opacity only — text under a `zoom` never travels and never scales. The pad is
+     * the beat's (`landing`); reduced motion and an unmeasurable grid apply at once.
+     */
+    async reseatRosterLevel(apply: () => void): Promise<void> {
+      const grid = this.$refs.grid as HTMLElement | null | undefined;
+      if (grid === undefined || grid === null || consoleReducedMotionActive() || this.rosterState.landing) {
+        apply();
+        return;
+      }
+      setColonyRosterLanding(true);
+      try {
+        await new Promise<void>((resolve) => {
+          playReseatOut(grid, resolve);
+        });
+        apply();
+        await this.$nextTick();
+        const next = this.$refs.grid as HTMLElement | null | undefined;
+        if (next !== undefined && next !== null) {
+          await new Promise<void>((resolve) => {
+            playReseatIn(next, null, resolve);
+          });
+        }
+      } finally {
+        setColonyRosterLanding(false);
+      }
+    },
+    /** A removal's stage has nothing to fold into — it lets go where it stands. */
+    releaseFocusInPlace(): void {
+      armColonyFocusQuickExit();
+    },
     enterFocus(intent: ColonyFocusIntent): void {
       const colony = this.colonies[this.index];
       if (colony === undefined || this.focusState.open) {
@@ -1732,6 +1955,11 @@ export default defineComponent({
       // `endStagedColony`), and the move — owed or in flight — plays on THIS stage first. Folding here (the play's
       // own claim releasing a tick after the answer) sent the marker to the tile behind a closed stage.
       if (this.pick?.staged === true || this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live) {
+        return;
+      }
+      // A ROSTER change owns its own ending too: the ceremony, then the LANDING into the slot, then the receipt's
+      // read — the shell's `landColonyRoster` folds this stage home; nothing may fold it earlier.
+      if (this.rosterBusy) {
         return;
       }
       this.completeTimer = window.setTimeout(() => {

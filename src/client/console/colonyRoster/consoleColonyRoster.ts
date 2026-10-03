@@ -81,6 +81,8 @@ export const colonyRosterState = reactive({
   docked: false,
   /** OWN FLOW, after the commit: what the grid states while it stands as a receipt (no cursor, no verbs). */
   receipt: undefined as ColonyRosterReceipt | undefined,
+  /** OWN FLOW: the LANDING is playing — the stage folds home into the slot and the receipt is read (input: none). */
+  landing: false,
   /** Why the last ceremony could not be flown ('' = it flew). CONFESSED on the section root. */
   degraded: '',
 });
@@ -114,7 +116,12 @@ registerAnimationHoldSupplier('colony-roster', () => colonyRosterState.live, {
 
 /** The pad is the ceremony's: every verb is `none` (A hurries it through). */
 export function isColonyRosterInputLocked(): boolean {
-  return colonyRosterState.live;
+  return colonyRosterState.live || colonyRosterState.landing;
+}
+
+/** The shell's LANDING beat (the stage folding home, the receipt's read) — the pad stays the ceremony's through it. */
+export function setColonyRosterLanding(on: boolean): void {
+  colonyRosterState.landing = on;
 }
 
 /** A change is confirmed and its answer has not been played yet (the stage is pinned). */
@@ -424,6 +431,7 @@ export function clearColonyRoster(): void {
   abortColonyRoster();
   colonyRosterState.armed = undefined;
   colonyRosterState.receipt = undefined;
+  colonyRosterState.landing = false;
   colonyRosterState.seatGone = false;
   colonyRosterState.docked = false;
   colonyRosterDraft.outgoing = undefined;

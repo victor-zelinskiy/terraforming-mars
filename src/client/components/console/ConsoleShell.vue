@@ -1586,7 +1586,7 @@
  * P0: everything ends in gameTransport.submitInput()/submitBatch() with payloads
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
-import {defineComponent, PropType, ref} from 'vue';
+import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWatch} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
@@ -2176,9 +2176,13 @@ import {
 } from '@/client/console/colonyTrade/colonyTrackMove';
 import {trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
 import {
-  colonyRosterState, hurryColonyRoster, isColonyRosterInputLocked, presentedColonyRoster, registerColonyRosterHost,
+  armColonyRosterChange, clearColonyRoster, colonyRosterDraft, colonyRosterPending, colonyRosterState, disarmColonyRoster,
+  hurryColonyRoster, isColonyRosterInputLocked, presentedColonyRoster, registerColonyRosterHost, setColonyRosterLanding,
 } from '@/client/console/colonyRoster/consoleColonyRoster';
-import {reanchorColonyCursor} from '@/client/console/colonyRoster/colonyRosterModel';
+import {
+  ROSTER_READ_MS, RosterLevel, reanchorColonyCursor, rosterDraftStands, rosterIncomingOf, rosterLeavable, rosterLevel,
+} from '@/client/console/colonyRoster/colonyRosterModel';
+import {rosterBuildLands} from '@/common/colonies/ColonyRoster';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -2202,6 +2206,8 @@ const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
 /** P17: px per full-deflection frame for the right-stick console scroll
  *  (mirrors the DOM engine's SCROLL_STEP_PX so the feel is identical). */
 const CONSOLE_SCROLL_STEP_PX = 24;
+/** The roster's LANDING: the stage's fold home into the slot (the focus motion's own fold + the grid breathing back), base ms. */
+const COLONY_ROSTER_LANDING_MS = 420;
 
 /** The MA workspace commit backstop: a submit whose verdict never arrives
  *  (lost response) restores the reversible detail with an honest reason —
@@ -2643,6 +2649,8 @@ export default defineComponent({
       maFocusSafetyTimer: undefined as number | undefined,
       notice: '',
       noticeTimer: undefined as number | undefined,
+      /** Where the colony cursor lands on the NEXT rail (a roster pick's level change names it; '' = follow the colony). */
+      colonyCursorTarget: '',
       offIntent: undefined as (() => void) | undefined,
       /** Release fn of the held 'mandatory-choice' presentation lease. */
       releasePresentationLease: undefined as (() => void) | undefined,
@@ -5539,6 +5547,29 @@ export default defineComponent({
       }
       const label = model.buttonLabel;
       const buttonLabel = label !== undefined && label !== '' && !['Save', 'Confirm', 'Ok'].includes(label) ? label : 'Select';
+      // A ROSTER PICK (`rosterChange` — a tile enters, leaves, or is replaced): the grid asks ONE question per
+      // level, and both the candidates and the reasons are the SERVER's lists — «who leaves» reads `outgoing`
+      // (the table, each refused tile with its ONE reason), «who enters» the prompt's own reserve tiles.
+      const roster = model.rosterChange;
+      const level = this.colonyRosterLevel;
+      if (roster !== undefined && level !== undefined) {
+        const leaving = level === 'outgoing';
+        if (leaving) {
+          for (const tile of roster.outgoing ?? []) {
+            if (tile.reason !== undefined) {
+              reasons[tile.colony] = translateText(tile.reason);
+            }
+          }
+        }
+        return {
+          selectable: leaving ? rosterLeavable(roster) : model.coloniesModel.map((c) => c.name),
+          reasons,
+          buttonLabel,
+          labelKey: leaving ? 'Remove the tile' : (roster.kind === 'add' ? 'Add the tile' : 'Replace the tile'),
+          roster: {prompt: roster, level, ...(this.colonyRosterOutgoing !== undefined ? {outgoing: this.colonyRosterOutgoing} : {})},
+          ...(this.playerView.waitingFor?.type !== 'colony' && this.stagedColonyModel !== undefined ? {staged: true} : {}),
+        };
+      }
       return {
         selectable: model.coloniesModel.map((c) => c.name),
         reasons,
@@ -5569,7 +5600,23 @@ export default defineComponent({
      * asked about them (nothing may — they have no track, no cubes, no trade).
      */
     colonyRailIsCatalog(): boolean {
-      return railIsCatalog(this.colonyModel?.purpose, this.shellTask?.kind === 'colony');
+      // «The colony task put this rail up» is asked the way `colonyPick` asks it: the shell's own task, OR a
+      // host workspace serving the prompt (under the start scene `shellTask` is legitimately gated — the catalog
+      // inside `start ⊃ colonies` then railed the tiles IN PLAY), OR the staged door's prompt.
+      const colonyTask = this.shellTask?.kind === 'colony' || workspaceFrameHost('colonies') !== undefined ||
+        (this.playerView.waitingFor?.type !== 'colony' && this.stagedColonyModel !== undefined);
+      // …and only while the pick is still a QUESTION: once the roster change is answered and playing (its receipt
+      // exists) the rail is the TABLE again — a staged door's prompt outlives the answer by the whole ceremony, and
+      // the stage must fold home into a slot of the table, never back into the reserve it was chosen from.
+      return colonyRosterState.receipt === undefined && railIsCatalog(this.colonyModel?.purpose, colonyTask, this.colonyRosterLevel);
+    },
+    /** A REPLACEMENT's chosen leaving tile — only while the server's marker still lists it as able to leave. */
+    colonyRosterOutgoing(): ColonyName | undefined {
+      return rosterDraftStands(this.colonyModel?.rosterChange, colonyRosterDraft.outgoing) ? colonyRosterDraft.outgoing : undefined;
+    },
+    /** THE LEVEL of a roster pick: «who leaves» (the table) or «who enters» (the reserve) — undefined for any other pick. */
+    colonyRosterLevel(): RosterLevel | undefined {
+      return rosterLevel(this.colonyModel?.rosterChange, this.colonyRosterOutgoing);
     },
     /**
      * The rail source: the add-a-tile catalog lists ONLY the offered tiles;
@@ -5579,7 +5626,17 @@ export default defineComponent({
     coloniesForRail(): ReadonlyArray<ColonyModel> {
       const model = this.colonyModel;
       if (this.colonyRailIsCatalog && model !== undefined) {
-        return model.coloniesModel;
+        // A RESERVE tile is shown AS IT WOULD ENTER: the bare catalog model is serialized inactive whatever it is,
+        // so the server's own projection (`rosterChange.incoming[].entersActive`) is what every reader of the
+        // tile's activity gets — the grid, the stage and the dossier alike.
+        const roster = model.rosterChange;
+        if (roster === undefined) {
+          return model.coloniesModel;
+        }
+        return model.coloniesModel.map((c) => {
+          const entry = rosterIncomingOf(roster, c.name);
+          return entry === undefined ? c : {...c, isActive: entry.entersActive};
+        });
       }
       // THE PRESENTED ROSTER (`consoleColonyRoster`): while somebody else's change of the table is being played on
       // this grid, the table stands as it stood — the ONE reader of «which tiles are on the grid».
@@ -7320,7 +7377,9 @@ export default defineComponent({
         this.colonyResolutionLive ||
         this.colonyGrantStepLive || workspaceFrameHost('parliament') === 'colonies' ||
         // A CHOSEN TRACK's move (TR07) the answer carried: the stage it was confirmed on plays it first.
-        this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live;
+        this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live ||
+        // A ROSTER change of the player's own: armed, playing on the stage, or still landing as a receipt.
+        colonyRosterPending() || colonyRosterState.landing;
     },
     /**
      * A COLONY'S OWN DELEGATE GRANT STANDS (Turmoil Redux — the Redux Venus:
@@ -8566,6 +8625,18 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        if (intent === 'roster') {
+          // THE ROSTER ACT's stage: A is the confirm — «Разыграть карту» on the staged door (it IS the play's one
+          // submit), the act's own verb on a live one («Заменить плитку» / «Добавить плитку» / «Убрать плитку»);
+          // L3 the source card; B one level back. Past the press the ceremony owns the pad.
+          const staged = this.colonyPick?.staged === true;
+          return [
+            {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),
+              enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            ...(this.colonyEmbedSourceCard !== undefined ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (intent === 'build') {
           // A BUILD THAT COMPOSES speaks the trade's grammar: its placement
           // bonus needs a card, so A opens that decision and X commits. With
@@ -8941,7 +9012,8 @@ export default defineComponent({
             ...(this.colonyEmbedSourceCard !== undefined ?
               [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
             // A STAGED door (TR07) is one reversible level: B walks back to the composer, nothing to minimize.
-            {control: 'back', label: pick.staged === true ? 'Back' : (this.colonyCancellable ? 'Cancel' : 'Minimize')},
+            // …and so is a replacement's RESERVE level: B walks back to «which tile leaves».
+            {control: 'back', label: pick.staged === true || pick.roster?.outgoing !== undefined ? 'Back' : (this.colonyCancellable ? 'Cancel' : 'Minimize')},
           ];
         }
         return [
@@ -10806,10 +10878,21 @@ export default defineComponent({
      * `committing` with the arm standing): the stage is a door again on the same
      * tile, the hand's beat ends, the claim made at the press answers for nothing.
      */
+    /** A roster pick's DRAFT belongs to the prompt that asked: no roster question standing and no flow of its own → no draft. */
+    colonyRosterLevel(level: RosterLevel | undefined): void {
+      if (level === undefined && !colonyRosterPending() && colonyRosterState.receipt === undefined) {
+        colonyRosterDraft.outgoing = undefined;
+      }
+    },
     /** THE CURSOR IS A NAME: the table under it changed → it follows its colony (or the successor of one that left). */
     colonyRailNames(next: string, prev: string): void {
       const names = next === '' ? [] : next.split('|');
-      this.consoleState.colonyIndex = reanchorColonyCursor(prev === '' ? [] : prev.split('|'), names, this.consoleState.colonyIndex);
+      // A LEVEL CHANGE of a roster pick names where the cursor lands on the new rail (the first reserve tile; the
+      // tile un-chosen by B) — the old rail's focus has no meaning on it.
+      const target = this.colonyCursorTarget;
+      this.colonyCursorTarget = '';
+      this.consoleState.colonyIndex = target !== '' && names.includes(target) ? names.indexOf(target) :
+        reanchorColonyCursor(prev === '' ? [] : prev.split('|'), names, this.consoleState.colonyIndex);
       // THE TILE UNDER AN OPEN STAGE / DOSSIER LEFT THE TABLE (somebody else replaced or removed it): the surface
       // has no subject any more — it folds honestly and says why, instead of standing open over nothing with the
       // grid parked beneath it. The player's OWN change is not this case: its ceremony owns the stage until it ends.
@@ -12012,6 +12095,13 @@ export default defineComponent({
      * already over (Europa's build ocean inside the sitting: the frame was aside while its chain ended).
      */
     settleColonyFollowUp(): void {
+      // A ROSTER change of the player's own ends with its LANDING: the stage folds home into the slot the tile now
+      // holds, the grid stands as the receipt, and only then does the frame hand the screen on (this very method,
+      // called again by the landing's end).
+      if (colonyRosterState.receipt !== undefined) {
+        void this.landColonyRoster();
+        return;
+      }
       // A visit the PLAYER made stays exactly where it is; a frame the PROMPT
       // pushed hands the screen back once its demand is met. That distinction
       // is the frame's own anchor, not a flag somebody has to clear.
@@ -14600,6 +14690,16 @@ export default defineComponent({
         this.collapseWorkspace();
         return;
       }
+      // A REPLACEMENT's RESERVE CATALOG (the roster pick's second level): B is ONE level — back to «which tile
+      // leaves», the leaving tile un-chosen and the cursor on it. Staged and live doors alike; nothing was sent.
+      if (this.consoleState.section === 'colonies' && !this.colonyFocusOpen && this.colonyRosterOutgoing !== undefined && !colonyRosterPending()) {
+        const back = this.colonyRosterOutgoing;
+        void this.reseatColonyRosterLevel(() => {
+          this.colonyCursorTarget = back;
+          colonyRosterDraft.outgoing = undefined;
+        });
+        return;
+      }
       // A STAGED COLONY's grid (TR07): B is ONE level — the composer comes back
       // (nothing was sent). Past the commit a beat is in flight: B is absorbed.
       if (stagedColonyOf(stagedPlayState.arm) !== undefined && this.consoleState.section === 'colonies' && !this.colonyFocusOpen) {
@@ -16049,6 +16149,26 @@ export default defineComponent({
         if (isColonyBuildActive()) {
           return; // a build hero is already flying — never re-enter
         }
+        // A REPLACEMENT's FIRST level — «which tile leaves»: A CHOOSES it (nothing is sent, nothing is auto-picked:
+        // a single candidate is still pressed) and the grid walks one level deeper, onto the reserve. A tile that
+        // cannot leave says why.
+        if (pick.roster !== undefined && pick.roster.prompt.kind === 'replace' && pick.roster.level === 'outgoing') {
+          const focused = this.coloniesForRail[this.consoleState.colonyIndex];
+          if (focused === undefined) {
+            return;
+          }
+          if (!pick.selectable.includes(focused.name)) {
+            this.showNotice(pick.reasons[focused.name] ?? 'Unavailable right now');
+            return;
+          }
+          const leaving = focused.name as ColonyName;
+          const first = this.colonyModel?.coloniesModel[0]?.name ?? '';
+          void this.reseatColonyRosterLevel(() => {
+            this.colonyCursorTarget = first;
+            colonyRosterDraft.outgoing = leaving;
+          });
+          return;
+        }
         this.enterColonyFocus(colonyPickIntent(pick));
         return;
       }
@@ -16083,6 +16203,11 @@ export default defineComponent({
       if (selected === undefined || !pick.selectable.includes(selected.name)) {
         return;
       }
+      // A ROSTER act wearing the build's composition (a replacement that also builds): its own ONE confirm.
+      if (pick.roster !== undefined) {
+        this.onColonyRosterConfirm();
+        return;
+      }
       // THE ATOMIC COMMIT of a build hosted by the STD-PROJECTS flow: this is
       // the single press that spends the project's cost (pay-on-commit), so
       // BOTH frames cross the boundary together — B stops meaning «отмена» and
@@ -16114,33 +16239,7 @@ export default defineComponent({
       // STRUCTURAL — derived from the colony's own build benefit, so a colony
       // that grants no cards claims nothing and `reconcileWorkspaceOutcome`
       // has nothing to drop.
-      {
-        const buildKinds: Array<'draw' | 'pick'> = [];
-        if (colonyBuildDrawsCards(getColony(selected.name as ColonyName), slotIndex)) {
-          buildKinds.push('draw');
-        }
-        // `pick` — the same late-prompt defense the trade paths carry: a
-        // build whose slot bonus lands ON a card (Titan's floaters) keeps
-        // any unbatched target prompt inside this workspace.
-        if (colonyBuildAsksCardTarget(getColony(selected.name as ColonyName), slotIndex)) {
-          buildKinds.push('pick');
-        }
-        if (buildKinds.length > 0) {
-          claimWorkspaceOutcome('colonies', selected.name, buildKinds);
-          markWorkspaceOutcomeArrivalDone();
-          // …and the BEAT is not owed either — exactly as on the trade paths.
-          // THE COVER-LIFT SCENE OWNS THIS PAYOUT'S PACING: the build bonus
-          // separates from the slot's own printed card glyph and flies into
-          // the reveal's real slots, which it can only measure once that
-          // reveal is MOUNTED. Leaving the beat pending held the surface for
-          // the whole 2.6 s backstop, so the scene found no slots, degraded,
-          // and the cards then appeared out of nothing when the backstop
-          // fired — the reported «при строительстве карты просто появляются».
-          // The hold exists to protect a beat nobody else is playing; here
-          // somebody is.
-          markWorkspaceOutcomeBeatDone();
-        }
-      }
+      this.claimColonyBuildOutcome(selected.name as ColonyName, slotIndex);
       // The BUILD's own pre-collected tail — byte-identical to answering the
       // live prompts one at a time (`stepResponse`, the trade's own builder),
       // truncated at the first uncaptured step so a diverged decision still
@@ -16177,6 +16276,11 @@ export default defineComponent({
       }
       const selected = this.coloniesForRail.find((c) => c.name === name);
       if (selected === undefined || !pick.selectable.includes(selected.name)) {
+        return;
+      }
+      // A ROSTER act (a tile replaced / added / removed): its own ONE confirm — staged and live doors alike.
+      if (pick.roster !== undefined) {
+        this.onColonyRosterConfirm();
         return;
       }
       // A STAGED COLONY (TR07): A on the stage is the PLAY's one submit — the parked batch with this tile as its
@@ -19023,8 +19127,11 @@ export default defineComponent({
       closeColonyFocus();
       resetColonyDockCursor();
       const pick = stagedColonyOf(arm);
+      // A fresh door: no leaving tile is chosen yet (a replacement starts on «which tile leaves»).
+      colonyRosterDraft.outgoing = undefined;
+      const leavable = rosterLeavable(pick?.prompt.rosterChange);
       const first = pick === undefined ? -1 : this.coloniesForRailOf(pick.prompt).findIndex((c) =>
-        pick.prompt.coloniesModel.some((m) => m.name === c.name));
+        pick.prompt.rosterChange?.kind === 'replace' ? leavable.includes(c.name as ColonyName) : pick.prompt.coloniesModel.some((m) => m.name === c.name));
       this.consoleState.colonyIndex = Math.max(0, first);
       await this.enterStagedHostedStep(arm, {
         kind: 'colonies',
@@ -19039,7 +19146,156 @@ export default defineComponent({
     },
     /** The rail a staged pick will show — the in-game colonies (a track pick is never an add-a-tile catalog). */
     coloniesForRailOf(prompt: SelectColonyModel): ReadonlyArray<ColonyModel> {
-      return prompt.purpose === 'addNewColonyToGame' ? prompt.coloniesModel : this.game.colonies;
+      // A REPLACEMENT opens on the TABLE («which tile leaves»), though its prompt is a catalog one.
+      return prompt.purpose === 'addNewColonyToGame' && prompt.rosterChange?.kind !== 'replace' ? prompt.coloniesModel : this.game.colonies;
+    },
+    /** A roster pick's level change is the section's RESEAT (content lets go → the rail changes → content surfaces); no section — at once. */
+    reseatColonyRosterLevel(apply: () => void): Promise<void> {
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      if (section === undefined) {
+        apply();
+        return Promise.resolve();
+      }
+      return section.reseatRosterLevel(apply);
+    },
+    /**
+     * THE ROSTER ACT'S ONE CONFIRM (A on the stage) — a tile is added, removed, or replaced (and built on). The
+     * stage pins what it shows, the change is ARMED for the transport's gate (`consoleColonyRoster` — the
+     * ceremony plays on this stage with the commit held), a colony the same answer builds arms the build hero on
+     * the stage's own berth, and the answer goes out: the staged door's as the play's ADDRESSED tail (the one
+     * POST), a live door's as the prompt's own response. A replacement names BOTH tiles in ONE answer.
+     */
+    onColonyRosterConfirm(): void {
+      const pick = this.colonyPick;
+      const roster = pick?.roster;
+      const name = this.colonyFocus.colonyName;
+      if (pick === undefined || roster === undefined || name === '' || colonyRosterPending() || isColonyBuildActive()) {
+        return;
+      }
+      if (!pick.selectable.includes(name)) {
+        return;
+      }
+      const kind = roster.prompt.kind;
+      const outgoing = kind === 'replace' ? roster.outgoing : undefined;
+      if (kind === 'replace' && outgoing === undefined) {
+        return;
+      }
+      const staged = pick.staged === true ? stagedColonyOf(stagedPlayState.arm) : undefined;
+      if (pick.staged === true && (staged === undefined || stagedPlayState.committing)) {
+        return;
+      }
+      const build = kind === 'replace' ? rosterIncomingOf(roster.prompt, name)?.build : undefined;
+      const builds = rosterBuildLands(build);
+      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      markColonyFocusCommitting();
+      setWorkspaceFramePhase('colonies', 'committed');
+      this.consoleState.task.deferred = false;
+      armColonyRosterChange({
+        kind,
+        ...(kind === 'remove' ? {removed: name} : {added: name}),
+        ...(outgoing !== undefined ? {removed: outgoing} : {}),
+        builds,
+      });
+      if (rosterBuildLands(build)) {
+        // The colony the same answer builds: the cube lands in the stage's own berth, AFTER the planet has docked.
+        armColonyBuild(name, build.slot, this.thisPlayer.color);
+        if (staged === undefined) {
+          this.claimColonyBuildOutcome(name, build.slot);
+        }
+      }
+      const response: InputResponse = outgoing !== undefined ?
+        {type: 'colony', colonyName: name, replaces: outgoing} : {type: 'colony', colonyName: name};
+      if (staged !== undefined) {
+        this.commitStagedTail({...response, stagedFor: staged.sourceCard} as InputResponse);
+        return;
+      }
+      this.submit(response);
+    },
+    /**
+     * THE BUILD'S EMBEDDED OUTCOME — a build whose placement bonus DRAWS (Pluto) or lands ON a card (Titan) keeps
+     * its follow-up inside the colony workspace. STRUCTURAL: derived from the colony's own build benefit, so a
+     * colony that grants no cards claims nothing. (The cover-lift scene owns the payout's pacing: the arrival and
+     * the beat are reported done at claim time.)
+     */
+    claimColonyBuildOutcome(colony: ColonyName, slotIndex: number): void {
+      const kinds: Array<'draw' | 'pick'> = [];
+      if (colonyBuildDrawsCards(getColony(colony), slotIndex)) {
+        kinds.push('draw');
+      }
+      if (colonyBuildAsksCardTarget(getColony(colony), slotIndex)) {
+        kinds.push('pick');
+      }
+      if (kinds.length > 0) {
+        claimWorkspaceOutcome('colonies', colony, kinds);
+        markWorkspaceOutcomeArrivalDone();
+        // …and the BEAT is not owed either — exactly as on the trade paths. THE COVER-LIFT SCENE OWNS THIS PAYOUT'S
+        // PACING: the build bonus separates from the slot's own printed card glyph and flies into the reveal's real
+        // slots, which it can only measure once that reveal is MOUNTED. Leaving the beat pending held the surface
+        // for the whole 2.6 s backstop, so the scene found no slots, degraded, and the cards then appeared out of
+        // nothing — the reported «при строительстве карты просто появляются».
+        markWorkspaceOutcomeBeatDone();
+      }
+    },
+    /**
+     * THE LANDING of a roster change the player made — the tile takes its final place. The ceremony played on the
+     * stage with the commit held; the build's own beats (the cube, its reward, a follow-up it owes) have finished.
+     * Now the rail is the TABLE again: its one fit lands under the parked stage, the fold's home is re-aimed at
+     * the slot the tile holds there (a destination is solved before it is aimed at), and the stage folds HOME by
+     * the existing phrase. The grid stands as a RECEIPT — no cursor, no verbs, input `none` — for one read, and
+     * the flow goes on: a staged play ends with its step, any other door hands the screen forward.
+     */
+    async landColonyRoster(): Promise<void> {
+      if (colonyRosterState.landing) {
+        return;
+      }
+      setColonyRosterLanding(true);
+      const settle = (get: () => boolean) => new Promise<void>((resolve) => {
+        if (!get()) {
+          resolve();
+          return;
+        }
+        const stop = vueWatch(get, (busy) => {
+          if (!busy) {
+            stop();
+            resolve();
+          }
+        });
+      });
+      const frames = () => new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      });
+      const dwell = (ms: number) => new Promise<void>((resolve) => {
+        window.setTimeout(resolve, motionMs(ms));
+      });
+      // The ceremony and the build's own scene first (a staged door's version move can arrive a tick before the
+      // cube's handoff ends).
+      await settle(() => colonyRosterState.live || isColonyBuildActive());
+      const receipt = colonyRosterState.receipt;
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      await vueNextTick();
+      await frames();
+      if (receipt !== undefined && this.colonyFocus.open && section !== undefined) {
+        if (receipt.added !== undefined) {
+          // The slot the tile now holds is where the result stands: the fold's «pressed tile» and the receipt's mark.
+          const slot = this.coloniesForRail.findIndex((c) => c.name === receipt.added);
+          if (slot !== -1) {
+            this.consoleState.colonyIndex = slot;
+            await vueNextTick();
+          }
+          section.retargetFocusHome(receipt.added);
+        } else {
+          section.releaseFocusInPlace();
+        }
+        closeColonyFocus();
+        await dwell(COLONY_ROSTER_LANDING_MS + ROSTER_READ_MS);
+      }
+      const staged = stagedColonyOf(stagedPlayState.arm) !== undefined;
+      clearColonyRoster();
+      if (staged) {
+        this.endStagedColony();
+        return;
+      }
+      this.settleColonyFollowUp();
     },
     /**
      * THE ONE STAGED HANDOFF TO A STEP OF THE HAND (the vote's Parliament, TR03;
@@ -19244,6 +19500,8 @@ export default defineComponent({
       if (reAsked) {
         clearStagedPlay();
         clearColonyTrackMove();
+        // (A roster arm goes with the staged door; the draft of the leaving tile stays — the level stands live.)
+        disarmColonyRoster();
         colonyFocusState.committing = false;
         (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
         setWorkspaceFrameServes('colonies', ['colony']);
@@ -19253,6 +19511,12 @@ export default defineComponent({
         if (frame !== undefined && frame.kind === 'colonies') {
           frame.anchor = {type: 'prompt', promptType: 'colony'};
         }
+        return;
+      }
+      // LANDED as a ROSTER change (TR10): the gate played it on the stage with the commit held — what is left is
+      // the LANDING (the stage folds home into the slot, the receipt is read), then the step and the play end.
+      if (colonyRosterState.receipt !== undefined || colonyRosterState.live) {
+        void this.landColonyRoster();
         return;
       }
       if (colonyTrackMoveFlow.live) {
@@ -19282,6 +19546,7 @@ export default defineComponent({
       const pick = this.colonyPick;
       clearStagedPlay();
       clearColonyTrackMove();
+      clearColonyRoster();
       this.endHandWithHostedStep(pick);
     },
     /**
@@ -19600,6 +19865,8 @@ export default defineComponent({
       if (arm === undefined || stagedPlayState.committing) {
         return;
       }
+      // (A roster pick's draft — the tile chosen to leave — belongs to the door that is being walked out of.)
+      colonyRosterDraft.outgoing = undefined;
       if (arm.flow === 'action' && arm.target.kind === 'resolution') {
         // B OUT OF A STAGED ACTION VOTE (TR15) — one level: the Parliament's frame leaves (its hosted dissolve
         // in place) and the composer it stood in — never unmounted — lets its setup come back, the variant and

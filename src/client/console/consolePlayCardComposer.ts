@@ -275,7 +275,8 @@ export function playCommitVerb(door: PlayDoor | undefined): string {
   switch (door?.kind) {
   case 'board': return 'Play on the board';
   case 'parliament': return door.mode === 'support' ? 'Choose the party' : 'Choose the resolution';
-  case 'colonies': return 'Choose the colony';
+  // The colony door's MODE is said by the staged prompt's own marker: a roster pick chooses a TILE (TR10).
+  case 'colonies': return door.staged.prompt.rosterChange !== undefined ? 'Choose the tile' : 'Choose the colony';
   default: return 'Play card';
   }
 }
@@ -288,7 +289,8 @@ export function playCommitVerb(door: PlayDoor | undefined): string {
 export function playDoorNextStepKey(door: PlayDoor | undefined): string | undefined {
   switch (door?.kind) {
   case 'parliament': return door.mode === 'support' ? 'Popular support area — chosen in the Parliament' : 'Resolution — chosen in the Parliament';
-  case 'colonies': return 'Colony track — chosen in the Colonies';
+  case 'colonies': return door.staged.prompt.rosterChange !== undefined ?
+    'Colony tile — replaced in the Colonies' : 'Colony track — chosen in the Colonies';
   default: return undefined;
   }
 }

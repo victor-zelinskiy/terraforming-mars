@@ -124,11 +124,13 @@
         flex-direction: column;
         gap: .55rem;
     }
+    /* Stacked: the label over its value — the rail is narrow, and a two-column row broke «Войдёт активной»
+       across two lines. */
     .con-colfocus__rosterfact {
-        display: grid;
-        grid-template-columns: 6.2rem minmax(0, 1fr);
-        column-gap: .6rem;
-        align-items: baseline;
+        display: flex;
+        flex-direction: column;
+        gap: .12rem;
+        min-width: 0;
     }
     .con-colfocus__rosterfact-label {
         font-size: .68rem;
@@ -166,7 +168,7 @@
 }
 .con-colfocus__planet-orbit {
     position: absolute;
-    inset: -.35rem;
+    inset: -.4rem;
     border-radius: 50%;
     border: .07rem dashed fade(@con-cyan, 58%);
     opacity: 0;

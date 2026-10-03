@@ -179,6 +179,16 @@ export function armColonyFocusHandoff(): void {
   handoffLeaveArmed = true;
 }
 
+/**
+ * THE FOLD'S HOME IS RE-AIMED (the roster's LANDING): the stage opened from one tile — a reserve tile in the
+ * catalog — and folds into ANOTHER box: the slot the tile now holds on the table. The caller measures that slot
+ * at rest (after the grid's one fit, under the parked layer) and hands it here; the corner radius is kept.
+ * A destination is solved before it is aimed at.
+ */
+export function retargetColonyFocusHome(rect: Rect): void {
+  unfoldedFrom = {rect, radius: unfoldedFrom?.radius};
+}
+
 /** Game-switch / unmount boundary. */
 export function resetColonyFocusMotion(): void {
   unfoldedFrom = undefined;

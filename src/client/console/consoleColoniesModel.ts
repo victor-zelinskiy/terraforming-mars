@@ -59,8 +59,13 @@ export function colonyGridLayout(count: number, catalogMode: boolean): ColonyGri
 export function colonyRailIsCatalog(
   purpose: 'selectExistingColony' | 'addNewColonyToGame' | undefined,
   isColonyTask: boolean,
+  /**
+   * A ROSTER pick's level (`colonyRosterModel.rosterLevel`): a REPLACEMENT is a catalog prompt whose first
+   * question — «which tile leaves» — is asked on the TABLE; only its second stands on the reserve.
+   */
+  rosterLevel?: 'outgoing' | 'incoming',
 ): boolean {
-  return isColonyTask && purpose === 'addNewColonyToGame';
+  return isColonyTask && purpose === 'addNewColonyToGame' && rosterLevel !== 'outgoing';
 }
 
 /** Columns per layout — drives both CSS and the d-pad 2D stepping. */
@@ -228,17 +233,29 @@ export function resetConsoleColoniesUi(): void {
  *              trade HERE pays now and after («торговля здесь»). A confirms,
  *              like a pick; the move itself plays on this stage after the
  *              answer (`colonyTrackMove`).
+ *  'roster'  — the pick CHANGES THE ROSTER (the server's `rosterChange`
+ *              marker: a tile enters the game, leaves it, or is replaced in
+ *              its slot — Aridor, the solo trim, TR10 Fringe Colony). The
+ *              stage is the build's / the pick's composition (a colony the
+ *              effect builds lands in the berth row) plus the roster's own
+ *              reading: who leaves, who arrives and how it enters, whether
+ *              the colony stands. A confirms; the ceremony plays on this
+ *              stage with the commit held (`consoleColonyRoster`).
  */
-export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus' | 'track';
+export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus' | 'track' | 'roster';
 
 /**
  * THE ACT OF A SERVER COLONY PICK — the one derivation the grid's A, the
  * dossier's A and the stage read: a pick that moves a track (its `trackMoves`
- * marker) is `track`, a build is `build`, anything else is a plain `pick`.
+ * marker) is `track`, a pick that changes the roster (its `rosterChange`
+ * marker) is `roster`, a build is `build`, anything else is a plain `pick`.
  */
-export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: ReadonlyArray<unknown>}): ColonyFocusIntent {
+export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: ReadonlyArray<unknown>, roster?: unknown}): ColonyFocusIntent {
   if (pick.trackMoves !== undefined) {
     return 'track';
+  }
+  if (pick.roster !== undefined) {
+    return 'roster';
   }
   return pick.buttonLabel === 'Build' ? 'build' : 'pick';
 }

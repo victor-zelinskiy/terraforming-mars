@@ -183,14 +183,12 @@ export function playHeroDepart(stage: HTMLElement, onDone: () => void): RosterMo
 /**
  * ARRIVE at the STAGE's scale — the hero stood in its PROJECTION pose (the
  * dashed orbit, the disc a step short of its place: CSS, `--projected`). It
- * docks: the disc settles to size on the heaviest ease, the orbit closes (the
- * stage drops the pose on this handle's `onDocked`), one pass of light runs
- * along the track left to right, the words arrive last.
+ * docks: the disc settles to size on the heaviest ease and the orbit closes
+ * (the stage drops the pose on this handle's `onDocked`); a short rest follows
+ * before the next beat (the cube) may start.
  */
 export function playStageArrive(stage: HTMLElement, onDocked: () => void, onDone: () => void): RosterMotionHandle {
   const disc = stage.querySelector<HTMLElement>('.con-colfocus__hero .con-planet');
-  const cells = all(stage, '[data-colony-track-cell]');
-  const late = all(stage, '[data-roster-late]');
   let docked = false;
   const dock = (): void => {
     if (!docked) {
@@ -204,13 +202,10 @@ export function playStageArrive(stage: HTMLElement, onDocked: () => void, onDone
       tl.fromTo(disc, {scale: 0.9, y: -8}, {scale: 1, y: 0, duration: s(460), ease: 'power3.inOut', transformOrigin: '50% 50%'}, s(80));
     }
     tl.call(dock, undefined, s(540));
-    if (cells.length > 0) {
-      tl.fromTo(cells, {opacity: 0.35}, {opacity: 1, duration: s(160), ease: 'power2.out', stagger: {each: 0.03, from: 'start'}}, s(520));
-    }
-    if (late.length > 0) {
-      tl.fromTo(late, {opacity: 0}, {opacity: 1, duration: s(ROSTER_ARRIVE_MS - 760), ease: 'power2.out'}, s(760));
-    }
-  }, [...(disc === null ? [] : [disc]), ...cells, ...late], () => {
+    // (Nothing ELSE is re-animated: the track and the facts stood lit before the press — dimming them to bring
+    // them back would be a blink. The dock is the beat; the stage's own state line answers it by the class flip.)
+    tl.to({}, {duration: s(ROSTER_ARRIVE_MS - 540)}, s(540));
+  }, disc === null ? [] : [disc], () => {
     dock();
     onDone();
   });

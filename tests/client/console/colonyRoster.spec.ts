@@ -8,6 +8,10 @@ import {
   runColonyRosterCeremony, seedColonyRosterHolds,
 } from '@/client/console/colonyRoster/consoleColonyRoster';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {CardName} from '@/common/cards/CardName';
+import {StagedColonyModel} from '@/common/models/ActionPreviewModel';
+import {colonyPickIntent, colonyRailIsCatalog} from '@/client/console/consoleColoniesModel';
+import {PlayDoor, playCommitVerb, playDoorNextStepKey} from '@/client/console/consolePlayCardComposer';
 
 const {CERES, EUROPA, LUNA, IO} = ColonyName;
 
@@ -130,5 +134,55 @@ describe('consoleColonyRoster — the roster ceremony\'s controller', () => {
       expect(colonyRosterState.live).is.false;
       expect(presentedColonyRoster(REPLACED.game.colonies).map((c) => c.name)).deep.eq([IO, EUROPA, LUNA]);
     });
+  });
+});
+
+/**
+ * THE ROSTER PICK's routing — the act, the rail and the composer's door are
+ * all decided by the prompt's own MARKER (`rosterChange`), never by a fifth
+ * staged target or a title.
+ */
+describe('the roster pick — the act, the rail, the composer\'s door', () => {
+  const STAGED_REPLACE = {
+    prompt: {
+      type: 'colony', title: 'Select a colony tile to remove and a new colony tile to replace it', buttonLabel: 'Replace colony tile',
+      purpose: 'addNewColonyToGame',
+      coloniesModel: [{name: IO}],
+      rosterChange: {kind: 'replace', outgoing: [{colony: CERES}], incoming: [{colony: IO, entersActive: true, build: {slot: 0}}]},
+    },
+    sourceCard: CardName.FRINGE_COLONY,
+  } as unknown as StagedColonyModel;
+  const STAGED_TRACK = {
+    prompt: {type: 'colony', title: '', buttonLabel: 'Select', coloniesModel: [{name: LUNA}], trackMoves: [{colony: LUNA, before: 2, after: 6}]},
+    sourceCard: CardName.COLONY_SPONSORS,
+  } as unknown as StagedColonyModel;
+
+  it('a pick that carries the roster marker is the `roster` act; a track pick and a build keep theirs', () => {
+    expect(colonyPickIntent({buttonLabel: 'Replace colony tile', roster: {}})).eq('roster');
+    expect(colonyPickIntent({buttonLabel: 'Add colony tile', roster: {}})).eq('roster');
+    expect(colonyPickIntent({buttonLabel: 'Select', trackMoves: []})).eq('track');
+    expect(colonyPickIntent({buttonLabel: 'Build'})).eq('build');
+    expect(colonyPickIntent({buttonLabel: 'Select'})).eq('pick');
+  });
+
+  it('the LEVEL decides the rail: a replacement asks «who leaves» on the table and «who enters» on the reserve', () => {
+    // An addition (Aridor) and any pre-roster catalog prompt: the reserve.
+    expect(colonyRailIsCatalog('addNewColonyToGame', true, 'incoming')).is.true;
+    expect(colonyRailIsCatalog('addNewColonyToGame', true, undefined)).is.true;
+    // A replacement's first level — a catalog PROMPT, the TABLE on the rail.
+    expect(colonyRailIsCatalog('addNewColonyToGame', true, 'outgoing')).is.false;
+    // A removal rails the table (its prompt was never a catalog one); no colony task — no catalog.
+    expect(colonyRailIsCatalog('selectExistingColony', true, 'outgoing')).is.false;
+    expect(colonyRailIsCatalog('addNewColonyToGame', false, 'incoming')).is.false;
+  });
+
+  it('the composer\'s door is the SAME colony door — its words follow the prompt\'s marker', () => {
+    const roster: PlayDoor = {kind: 'colonies', staged: STAGED_REPLACE};
+    const track: PlayDoor = {kind: 'colonies', staged: STAGED_TRACK};
+    expect(playCommitVerb(roster)).eq('Choose the tile');
+    expect(playDoorNextStepKey(roster)).eq('Colony tile — replaced in the Colonies');
+    // TR07's door is word for word what it was.
+    expect(playCommitVerb(track)).eq('Choose the colony');
+    expect(playDoorNextStepKey(track)).eq('Colony track — chosen in the Colonies');
   });
 });

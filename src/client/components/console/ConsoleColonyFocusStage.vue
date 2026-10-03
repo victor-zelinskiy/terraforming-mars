@@ -78,8 +78,14 @@
             stay visible at once. */
          'con-colfocus--carding': cardlandVisible && intent !== 'build',
          'con-colfocus--carding-rail': cardlandVisible && intent === 'build',
+         /* THE ROSTER ACT (a tile replaced / added / removed): the build's or the
+            pick's composition plus the roster's own reading. Before the dock the
+            entering planet stands in its PROJECTION pose. */
+         'con-colfocus--roster': roster !== undefined,
+         'con-colfocus--roster-projected': rosterProjected,
        }]"
        :data-colony-intent="intent"
+       :data-colony-roster="roster !== undefined ? roster.kind : undefined"
        :data-colony-track-degraded="intent === 'track' && trackMoveFlow.degraded !== '' ? trackMoveFlow.degraded : undefined"
        :style="fitNeedPx > 0 ? {'--colfocus-need': fitNeedPx + 'px'} : undefined">
     <div class="con-colfocus__surface" data-unfold-surface>
@@ -118,10 +124,24 @@
                   aria-hidden="true">
               <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
             </span>
+            <!-- THE ORBIT of a planet that has not docked yet (the roster's projection pose) — a dashed ring
+                 around the DISC itself (inside it: a circle, never the wrap's box), closed by the ceremony's
+                 dock. Absolute: zero layout. -->
+            <span v-if="roster !== undefined" class="con-colfocus__planet-orbit" aria-hidden="true"></span>
           </ConsolePlanetDisc>
           <span class="con-colfocus__state" :class="colony.isActive ? 'con-colfocus__state--on' : 'con-colfocus__state--off'"
                 data-unfold-late>
-            {{ $t(colony.isActive ? 'Active colony' : 'Not active yet') }}
+            {{ $t(heroStateKey) }}
+          </span>
+        </div>
+        <!-- THE OUTGOING SEAT (a replacement): the tile that LEAVES, small, in the corner of the hero column —
+             absolute, zero layout. The ceremony's first beat lets it go (`seatGone`). -->
+        <div v-if="roster !== undefined && roster.kind === 'replace' && roster.leaves !== undefined && !rosterState.seatGone"
+             class="con-colfocus__rosterseat" data-roster-outgoing-seat :data-roster-outgoing="roster.leaves">
+          <ConsolePlanetDisc :colony="roster.leaves" />
+          <span class="con-colfocus__rosterseat-caption" data-roster-seat-caption>
+            <span class="con-colfocus__rosterseat-kicker">{{ $t('Leaves') }}</span>
+            <span class="con-colfocus__rosterseat-name">{{ $t(roster.leaves) }}</span>
           </span>
         </div>
         <!-- WHAT THIS COLONY IS, in the vocabulary of what is happening. On a
@@ -166,7 +186,7 @@
              data-unfold-late>
           <template v-if="presentAvailable">
             <span class="con-coltile__status-dot" aria-hidden="true"></span>
-            <span>{{ $t(intent === 'build' ? 'Build here' : intent === 'track' ? 'Can select' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
+            <span>{{ $t(roster !== undefined ? roster.verbKey : intent === 'build' ? 'Build here' : intent === 'track' ? 'Can select' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
           </template>
           <!-- The turn gate is not a refusal: every trade rule is satisfied and
                the colony would take the fleet — it is simply not this player's
@@ -471,7 +491,43 @@
              marker where it stands, and where it will stand. The owners' bonus does not depend on the track
              and is not printed; a tile's fixed income part stands at both ends. The readout above it is the
              tile's own («3/7 → 7/7»): it flips on the landing, and the «after» end answers once then. -->
-        <template v-if="intent === 'track' && trackReading !== undefined">
+        <!-- THE ROSTER ACT — what happens if the player confirms NOW: three facts, each once (the server's
+             projection, `ColonyRosterPrompt`): who leaves, who arrives and how it enters, whether the colony
+             stands. The berth row above already shows WHERE the cube lands; this states that it does. -->
+        <template v-if="roster !== undefined">
+          <div class="con-colfocus__rsec con-colfocus__rsec--lead con-colfocus__rosterfacts" data-colony-roster-facts>
+            <div v-if="roster.reading.leaves !== undefined" class="con-colfocus__rosterfact" data-roster-fact="leaves">
+              <span class="con-colfocus__rosterfact-label">{{ $t('Leaves') }}</span>
+              <span class="con-colfocus__rosterfact-value">{{ $t(roster.reading.leaves) }}</span>
+            </div>
+            <div v-if="roster.reading.arrives !== undefined" class="con-colfocus__rosterfact"
+                 :class="roster.reading.arrives.entersActive ? 'con-colfocus__rosterfact--ok' : 'con-colfocus__rosterfact--lost'"
+                 data-roster-fact="arrives" :data-roster-enters="roster.reading.arrives.entersActive ? 'active' : 'inactive'">
+              <span class="con-colfocus__rosterfact-label">{{ $t('Arrives') }}</span>
+              <span class="con-colfocus__rosterfact-value">
+                {{ $t(roster.reading.arrives.colony) }}
+                <span class="con-colfocus__rosterfact-note">{{ rosterEntryNote }}</span>
+              </span>
+            </div>
+            <div v-if="roster.reading.build !== undefined" class="con-colfocus__rosterfact"
+                 :class="roster.reading.build.lands ? 'con-colfocus__rosterfact--ok' : 'con-colfocus__rosterfact--lost'"
+                 data-roster-fact="build" :data-roster-build="roster.reading.build.lands ? 'lands' : 'skipped'">
+              <span class="con-colfocus__rosterfact-label">{{ $t('Colony') }}</span>
+              <span v-if="roster.reading.build.lands" class="con-colfocus__rosterfact-value">
+                {{ rosterBuildSlotText }}
+                <span v-if="rosterGrantQty > 0" class="con-colfocus__rglyph">
+                  <b v-if="rosterGrantQty > 1">{{ rosterGrantQty }}</b>
+                  <BenefitGlyph :benefit="buildBenefit" :idx="roster.reading.build.slot" :cardResources="cardResourceKinds" />
+                </span>
+              </span>
+              <span v-else class="con-colfocus__rosterfact-value">
+                {{ $t('The colony will not be built') }}
+                <span class="con-colfocus__rosterfact-note">{{ $t(roster.reading.build.reason) }}</span>
+              </span>
+            </div>
+          </div>
+        </template>
+        <template v-else-if="intent === 'track' && trackReading !== undefined">
           <div class="con-colfocus__rsec con-colfocus__rsec--lead" data-colony-track-reading>
             <div class="con-colfocus__trackpos" data-colony-track-readout data-unfold-late>
               <ConsoleFlipValue :value="markerPosition" :text="markerDisplay" accent="cyan" />
@@ -769,6 +825,8 @@ import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
 import {ColonyTrackMoveReading, colonyTrackMoveReading, TrackMoveBenefit, TrackMoveEnd} from '@/client/console/colonyTrade/colonyTrackMoveModel';
 import {colonyTrackMoveFlow} from '@/client/console/colonyTrade/colonyTrackMove';
+import {colonyRosterState} from '@/client/console/colonyRoster/consoleColonyRoster';
+import {ColonyRosterStageView} from '@/client/console/colonyRoster/colonyRosterModel';
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -918,6 +976,12 @@ export default defineComponent({
      * are drawn from it; the stage computes none of it.
      */
     trackMove: {type: Object as PropType<ColonyTrackMove | undefined>, default: undefined},
+    /**
+     * THE ROSTER ACT (`intent` is then the build's or the pick's — the section maps it): this pick replaces,
+     * adds or removes a colony tile. The SERVER's reading of what confirming does (`rosterStageReading`), the
+     * tile that leaves, the verb and the crumb's stage; the stage computes none of it.
+     */
+    roster: {type: Object as PropType<ColonyRosterStageView | undefined>, default: undefined},
   },
   emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset', 'inspect'],
   data() {
@@ -965,6 +1029,8 @@ export default defineComponent({
       /** The ONE track mechanism's wave (a chosen track's move plays here — TR07) and its flow, mirrored for tracking. */
       colonyTrackWaveState,
       trackMoveFlow: colonyTrackMoveFlow,
+      /** The roster ceremony's poses (the seat gone, the hero docked). */
+      rosterState: colonyRosterState,
       workspaceOutcomeState,
       /** The remote-entry context (module reactive, mirrored for tracking). */
       bonusEntry: colonyBonusEntry,
@@ -1210,6 +1276,10 @@ export default defineComponent({
       return this.intent === 'bonus';
     },
     resultTitle(): string {
+      // A ROSTER act states its own subject — the build's «Build outcome» would name half of it.
+      if (this.roster !== undefined) {
+        return 'Outcome';
+      }
       if (this.intent === 'build') {
         return 'Build outcome';
       }
@@ -1348,6 +1418,41 @@ export default defineComponent({
         return this.colonyTradeState.settledCell;
       }
       return this.colonyTrackWaveState.settled[this.colony.name] ?? -1;
+    },
+    /** THE PROJECTION POSE: the entering planet has not docked yet (dropped by the ceremony's dock, and past the commit). */
+    rosterProjected(): boolean {
+      // (NOT `pastCommit`: the pose must stand from the press THROUGH the answer — the dock is what ends it.)
+      return this.roster !== undefined && this.roster.kind !== 'remove' && !this.rosterState.docked;
+    },
+    /** The hero's state line: an ENTERING tile says how it will enter (the server's projection); any other, how it stands. */
+    heroStateKey(): string {
+      const arrives = this.roster?.reading.arrives;
+      if (arrives !== undefined && !this.rosterState.docked) {
+        return arrives.entersActive ? 'Enters active' : 'Enters inactive';
+      }
+      return this.colony.isActive ? 'Active colony' : 'Not active yet';
+    },
+    /** «войдёт активной» / «войдёт неактивной — нужна карта с [ресурс]» — the entry, in the server's projection. */
+    rosterEntryNote(): string {
+      const arrives = this.roster?.reading.arrives;
+      if (arrives === undefined) {
+        return '';
+      }
+      if (arrives.entersActive) {
+        return translateText('Enters active');
+      }
+      const needs = arrives.needs.map((resource) => translateText(resource)).join(' / ');
+      return needs === '' ? translateText('Enters inactive') : translateTextWithParams('Enters inactive — needs a card with ${0}', [needs]);
+    },
+    /** «слот 1» — the berth the colony lands in (1-based, as the berth row counts). */
+    rosterBuildSlotText(): string {
+      const build = this.roster?.reading.build;
+      return build !== undefined && build.lands ? translateTextWithParams('Berth ${0}', [String(build.slot + 1)]) : '';
+    },
+    /** The build grant the landing colony pays (the tile's own printed reward for that berth). */
+    rosterGrantQty(): number {
+      const build = this.roster?.reading.build;
+      return build !== undefined && build.lands ? (this.metadata.build.quantity[build.slot] ?? 0) : 0;
     },
     buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const b = this.metadata.build;
@@ -2469,6 +2574,11 @@ export default defineComponent({
       // advances («…› ТОРГОВЛЯ» → «…› ЦЕЛЬ НАГРАДЫ»), and B walks it back.
       if (this.sub === 'targets') {
         setColonyFocusStage('Reward target');
+        return;
+      }
+      // THE ROSTER ACT names its own stage («ЗАМЕНА» / «ДОБАВЛЕНИЕ» / «СНЯТИЕ») — whichever composition it wears.
+      if (this.roster !== undefined) {
+        setColonyFocusStage(this.roster.stageKey);
         return;
       }
       if (this.intent === 'build') {
