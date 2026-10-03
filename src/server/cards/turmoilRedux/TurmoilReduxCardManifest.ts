@@ -18,6 +18,7 @@ import {PartySanctions} from './PartySanctions';
 import {AdministrationDistrict} from './AdministrationDistrict';
 import {MartianFiber} from './MartianFiber';
 import {SponsoredSettlement} from './SponsoredSettlement';
+import {FringeColony} from './FringeColony';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -95,5 +96,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. TR16's younger
     // sister: the same city ignoring other placement restrictions, without the adjacency; +2 M€ production.
     [CardName.SPONSORED_SETTLEMENT]: {Factory: SponsoredSettlement},
+    // The grey ▲ at the bottom left: the card needs Colonies (it REPLACES a colony tile and builds on the new
+    // one — the colony roster's first card, `docs/COLONY_ROSTER_CEREMONY.md`). The purple Turmoil symbol below
+    // it is the module itself. The set's first GENERATION requirement («GEN 4+»).
+    [CardName.FRINGE_COLONY]: {Factory: FringeColony, compatibility: 'colonies'},
   },
 });

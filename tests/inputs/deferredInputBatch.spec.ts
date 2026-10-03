@@ -44,6 +44,10 @@ import {BuildColony} from '../../src/server/deferredActions/BuildColony';
 import {Luna} from '../../src/server/colonies/Luna';
 import {Ceres} from '../../src/server/colonies/Ceres';
 import {Europa} from '../../src/server/colonies/Europa';
+import {Io} from '../../src/server/colonies/Io';
+import {Titan} from '../../src/server/colonies/Titan';
+import {ReplaceColonyTile} from '../../src/server/deferredActions/ReplaceColonyTile';
+import {COLONY_TILE_HAS_COLONIES_REASON, ColoniesHandler} from '../../src/server/colonies/ColoniesHandler';
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {DiscardPopularSupport} from '../../src/server/parliament/DiscardPopularSupport';
@@ -983,10 +987,123 @@ describe('deferredInputBatch', () => {
       expect(build.luna.colonies, 'the positional answer BUILT a colony').deep.eq([build.player.id]);
     });
 
-    it('the wire validator accepts the three forms and nothing else', () => {
+    /*
+     * THE REPLACEMENT (Turmoil Redux TR10 Fringe Colony) — the fourth form of
+     * the colony answer rides the SAME addressed branch: `{colonyName,
+     * replaces, stagedFor}` lands only on the card's own `replace` prompt.
+     */
+    describe('the replacement — {colonyName, replaces, stagedFor}', () => {
+      type Swap = {game: IGame, player: TestPlayer, other: TestPlayer, card: IProjectCard, luna: Luna, ceres: Ceres, europa: Europa, io: Io};
+
+      /** In play: Luna, Ceres, Europa (all empty). The reserve: Io. A card whose play defers the shared replacement step. */
+      function swapGame(before?: (player: IPlayer, state: Swap) => void): Swap {
+        const [game, player, other] = testGame(2, {coloniesExtension: true});
+        const luna = new Luna();
+        const ceres = new Ceres();
+        const europa = new Europa();
+        const io = new Io();
+        game.colonies = [luna, ceres, europa];
+        game.discardedColonies = [io];
+        const state = {game, player, other, luna, ceres, europa, io} as unknown as Swap;
+        const card = fakeCard({
+          name: 'A card that replaces a colony tile' as CardName,
+          cost: 5,
+          play: (p: IPlayer) => {
+            before?.(p, state);
+            p.game.defer(new ReplaceColonyTile(p, {kind: 'card', card: card.name}, {build: true}));
+            return undefined;
+          },
+        });
+        state.card = card;
+        player.cardsInHand = [card];
+        player.megaCredits = 50;
+        player.takeAction();
+        return state;
+      }
+
+      function swapTail(state: Swap, replaces: ColonyName): InputResponse {
+        return {type: 'colony', colonyName: ColonyName.IO, replaces, stagedFor: state.card.name};
+      }
+
+      function names(state: Swap): Array<ColonyName> {
+        return state.game.colonies.map((c) => c.name);
+      }
+
+      it('lands at once when nothing interposes: the tile is swapped in place and the colony built — never asked again', () => {
+        const state = swapGame();
+        replayBatch(state.player, playBatch(state.player, state.card, [swapTail(state, ColonyName.CERES)]));
+        expect(names(state)).deep.eq([ColonyName.LUNA, ColonyName.IO, ColonyName.EUROPA]);
+        expect(state.io.colonies).deep.eq([state.player.id]);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectColony).is.false;
+      });
+
+      it('a BUILD in front of the card\'s own question does NOT eat the tail — it parks untried and lands after', () => {
+        const state = swapGame(interposeBuild);
+        replayBatch(state.player, playBatch(state.player, state.card, [swapTail(state, ColonyName.CERES)]));
+        const build = cast(state.player.getWaitingFor(), SelectColony);
+        expect(build.rosterChange, 'another giver\'s colony question').is.undefined;
+        expect(names(state), 'nothing was replaced by the staged answer').deep.eq([ColonyName.LUNA, ColonyName.CERES, ColonyName.EUROPA]);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+
+        // The player builds on Luna for real; the card's own question is then asked and the tail lands on it.
+        state.player.process({type: 'colony', colonyName: ColonyName.LUNA});
+        drainBatchTail(state.player);
+        expect(state.luna.colonies).deep.eq([state.player.id]);
+        expect(names(state)).deep.eq([ColonyName.LUNA, ColonyName.IO, ColonyName.EUROPA]);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectColony).is.false;
+      });
+
+      it('the outgoing tile was TAKEN while parked: the tail is dropped and the question stands live with its reason — never a fall', () => {
+        const state = swapGame(interposeBuild);
+        replayBatch(state.player, playBatch(state.player, state.card, [swapTail(state, ColonyName.CERES)]));
+        // The interposed build lands on the very tile the staged answer wanted to remove.
+        state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+        drainBatchTail(state.player);
+        expect(parkedBatchTailLength(state.player), 'stale — dropped, never held for a later prompt').eq(0);
+        const live = cast(state.player.getWaitingFor(), SelectColony);
+        expect(live.choiceContext?.source.card).eq(state.card.name);
+        expect(live.rosterChange?.outgoing?.find((tile) => tile.colony === ColonyName.CERES)?.reason).eq(COLONY_TILE_HAS_COLONIES_REASON);
+        expect(names(state)).deep.eq([ColonyName.LUNA, ColonyName.CERES, ColonyName.EUROPA]);
+      });
+
+      it('the incoming tile LEFT the reserve while parked: dropped, the question stands live', () => {
+        const state = swapGame(interposeChoice((s) => {
+          // A sibling effect seats Io into the game during the interloper.
+          const swap = s as unknown as Swap;
+          ColoniesHandler.seatColonyTile(swap.game, swap.other, swap.io);
+          swap.game.discardedColonies.push(new Titan());
+        }) as unknown as (player: IPlayer, state: Swap) => void);
+        replayBatch(state.player, playBatch(state.player, state.card, [swapTail(state, ColonyName.CERES)]));
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        drainBatchTail(state.player);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        const live = cast(state.player.getWaitingFor(), SelectColony);
+        expect(live.colonies.map((c) => c.name), 'the reserve as it stands now').deep.eq([ColonyName.TITAN]);
+        expect(names(state)).includes(ColonyName.CERES);
+      });
+
+      it('a manual answer to its own prompt SUPERSEDES the parked replacement', () => {
+        const state = swapGame(interposeChoice() as unknown as (player: IPlayer, state: Swap) => void);
+        replayBatch(state.player, playBatch(state.player, state.card, [swapTail(state, ColonyName.CERES)]));
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        cast(state.player.getWaitingFor(), SelectColony);
+        expireSupersededStagedTail(state.player);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        state.player.process({type: 'colony', colonyName: ColonyName.IO, replaces: ColonyName.EUROPA});
+        drainBatchTail(state.player);
+        expect(names(state), 'the live answer, not the superseded one').deep.eq([ColonyName.LUNA, ColonyName.CERES, ColonyName.IO]);
+      });
+    });
+
+    it('the wire validator accepts the four forms and nothing else', () => {
       expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA})).is.true;
       expect(isSelectColonyResponse({type: 'colony', fleetDock: CardName.ANTS})).is.true;
       expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, stagedFor: CardName.ANTS})).is.true;
+      expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES})).is.true;
+      expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES, stagedFor: CardName.ANTS})).is.true;
+      expect(isSelectColonyResponse({type: 'colony', fleetDock: CardName.ANTS, replaces: ColonyName.CERES} as unknown as InputResponse), 'a dock is never a replacement').is.false;
       expect(isSelectColonyResponse({type: 'colony', fleetDock: CardName.ANTS, stagedFor: CardName.ANTS} as unknown as InputResponse), 'a dock is never staged').is.false;
       expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, fleetDock: CardName.ANTS} as unknown as InputResponse)).is.false;
       expect(isSelectColonyResponse({type: 'colony', stagedFor: CardName.ANTS} as unknown as InputResponse)).is.false;

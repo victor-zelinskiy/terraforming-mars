@@ -41,6 +41,8 @@ import {Phase} from '../../src/common/Phase';
 import {ColonySponsors} from '../../src/server/cards/turmoilRedux/ColonySponsors';
 import {COLONY_TRACK_LABEL, EVERY_COLONY_TRACK_AT_TOP_REASON} from '../../src/server/deferredActions/MaximizeColonyTrack';
 import {trackTop} from '../../src/common/colonies/ColonyMetadata';
+import {FringeColony} from '../../src/server/cards/turmoilRedux/FringeColony';
+import {COLONY_TILE_LABEL, NO_VACANT_COLONY_TILE_REASON} from '../../src/server/deferredActions/ReplaceColonyTile';
 
 /**
  * NO SILENT LOSS — THE LIVE HALF, as a CLASS.
@@ -181,6 +183,17 @@ const SCENARIOS: ReadonlyArray<Scenario> = [
       }
     },
     expected: [{label: COLONY_TRACK_LABEL, reason: EVERY_COLONY_TRACK_AT_TOP_REASON}],
+  },
+  {
+    // The roster's replacement with nothing to replace: a tile is not an amount, so no magnitude.
+    name: 'Fringe Colony (the shared «replace a colony tile») — every tile in play carries a colony',
+    card: () => new FringeColony(),
+    arrange: (game, _player, opponent) => {
+      for (const colony of game.colonies) {
+        colony.colonies.push(opponent.id);
+      }
+    },
+    expected: [{label: COLONY_TILE_LABEL, reason: NO_VACANT_COLONY_TILE_REASON}],
   },
   {
     name: 'Virus — the only plants are PROTECTED: the cause says so',
