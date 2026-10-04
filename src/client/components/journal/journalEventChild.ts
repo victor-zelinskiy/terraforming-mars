@@ -87,6 +87,11 @@ export type JournalChildVM = {
   /** tile-placed extras. */
   space?: SpaceId;
   tileLabel?: string;
+  /**
+   * The COLONY TILE the tile was laid on (`EventImpact.colonyTile` — a hosted cell, TR22 Nova City). Such a cell is
+   * not on the Mars board: the row names the colony tile and offers NO map locator.
+   */
+  colonyTile?: ColonyName;
   /** copied-action extra. */
   copiedCard?: CardName;
   /**
@@ -412,6 +417,7 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
         chips: [],
         space: e.space,
         tileLabel: e.tile !== undefined ? tileTypeToString[e.tile] : undefined,
+        ...(e.impact.colonyTile !== undefined ? {colonyTile: e.impact.colonyTile} : {}),
       }, []);
       continue;
     }

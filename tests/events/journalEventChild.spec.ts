@@ -73,6 +73,25 @@ describe('journal event-driven children', () => {
     expect(rows[0].space).to.eq('03');
     expect(rows[0].source).to.deep.eq({kind: 'label', label: 'Placement'});
     expect(rows[0].tileLabel).to.be.a('string');
+    expect(rows[0].colonyTile, 'a tile on the Mars board names no colony tile').to.be.undefined;
+  });
+
+  it('a tile laid ON A COLONY TILE (TR22) names that tile — the row can then say where it lies instead of offering the map', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.NOVA_CITY}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'tile-placed', player: 'red', impact: {tilesPlaced: 1, colonyTile: ColonyName.LUNA}, space: '79', tile: TileType.CITY, correlationId: 1, parentId: 1}),
+      // Pets answers a city wherever it is laid — its row is the ordinary one.
+      ev({id: 3, type: 'effect-triggered', source: {kind: 'card', card: CardName.PETS}, player: 'red', correlationId: 1, parentId: 1}),
+      ev({id: 4, type: 'card-resource-changed', source: {kind: 'card', card: CardName.PETS}, player: 'red', impact: {cardResources: [{cardResource: CardResource.ANIMAL, target: CardName.PETS, amount: 1}]}, correlationId: 1, parentId: 3}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    const placed = rows.find((r) => r.space !== undefined);
+    expect(placed?.colonyTile).to.eq(ColonyName.LUNA);
+    expect(placed?.space).to.eq('79');
+    expect(placed?.source).to.deep.eq({kind: 'label', label: 'Placement'});
+    expect(placed?.tileLabel).to.be.a('string');
+    expect(rows.filter((r) => r.colonyTile !== undefined), 'only the placement row carries the colony tile').to.have.length(1);
+    expect(rows.find((r) => r.source.kind === 'card')?.chips[0]).to.deep.include({icon: CardResource.ANIMAL, text: '+1'});
   });
 
   it('shows the action card itself as the source of its own result', () => {

@@ -20,7 +20,7 @@
 seatColonyTile(game, player, tile, cause?: EventSource): void                  // вход: push + sort по имени + активация + лог + событие
 retireColonyTile(game, player | undefined, tile, cause?: EventSource): void    // уход: остальные смыкают ряд; в резерв — КАК В КОРОБКЕ
 replaceColonyTile(game, player, outgoing, incoming, cause?: EventSource): void // АТОМАРНО, тот же индекс, без sort, ОДНА строка журнала
-colonyTileOccupiedReason(colony): string | undefined                           // «no colonies, tiles, or trade fleets on it»: колония → флот
+colonyTileOccupiedReason(colony): string | undefined                           // «no colonies, tiles, or trade fleets on it»: колония → ТАЙЛ → флот
 colonyTileIsVacant(colony): boolean
 colonyTileWillEnterActive(colony, game): boolean                               // ОДНО чтение «войдёт активной» (и проекция, и вход)
 ```
@@ -34,6 +34,11 @@ colonyTileWillEnterActive(colony, game): boolean                               /
   'remove' | 'replace', removed?, added?, slot}` (`src/common/colonies/ColonyRoster.ts`), журнально-видимое, под живым
   скоупом; `cause` называет источник там, где скоупа нет (соло-сетап — `{kind: 'system'}`).
 - Тексты логов Aridor / сетапа не менялись; замена пишет `'${0} replaced the ${1} colony tile with ${2}'`.
+- **Клауза «TILES» занята (TR22 Nova City, 2026-10-04).** На плитке колонии может лежать ТАЙЛ (`IColony.tiles` — город
+  Nova City; `docs/TURMOIL_REDUX_NOVA_CITY.md`): такая плитка не уходит из игры. Причины `colonyTileOccupiedReason`
+  стоят в ПЕЧАТНОМ порядке — колонии → тайлы (`COLONY_TILE_HAS_TILE_REASON`) → флот; пропуск «некому уйти» говорит
+  «колония, тайл или торговый флот». Связь «плитка ↔ тайл» пишет один писатель
+  (`ColoniesHandler.placeCityOnColonyTile`), со своим гардом исходников (`tests/colonies/ColonyCity.spec.ts`).
 
 ## 2. Маркер `rosterChange` — проекция, которую клиент не выводит сам
 
@@ -110,6 +115,11 @@ step)` (параметр обобщён до `ColonyPickSource`): пятой sta
    один раз — по завершению И по прерыванию; A во время церемонии «дожимает» такт (`hurryColonyRoster`).
 10. **Нечем мерить — признаться**: `data-colony-roster-degraded` на корне секции; reduced motion — конечные позы.
 11. **Presented-состав один**: `presentedColonyRoster(colonies)` — единственный читатель списка плиток сетки.
+12. **«Сетка — квитанция» — ОДНО чтение для каждого потока, который складывает свой стейдж домой** (2026-10-04, TR22):
+    `ConsoleColoniesSection.receiptOn` = квитанция состава ∨ квитанция города на плитке. Каждый читатель «промпт
+    staged-двери ещё вопрос?» обязан гаснуть по своему ответу — состав по `colonyRosterState.receipt`, город по
+    `colonyCityAnswered()` (призраки проекции, статус кандидатов, «рейл = каталог»): промпт двери ПЕРЕЖИВАЕТ ответ на
+    всю сцену.
 
 ### 5.3 Такты (базовые мс, через `motionMs()`)
 

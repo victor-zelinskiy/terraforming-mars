@@ -110,6 +110,7 @@ import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/c
 import {
   colonyRosterState, detectColonyRosterChange, disarmColonyRoster, runColonyRosterCeremony, seedColonyRosterHolds,
 } from '@/client/console/colonyRoster/consoleColonyRoster';
+import {detectColonyCity, disarmColonyCity, runColonyCity, seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -263,6 +264,8 @@ export const transportHolds = reactive({
   colonyBuild: false,
   /** The colony ROSTER ceremony of the player's own flow (a tile replaced / added / removed — TR10, Aridor, the solo trim). */
   colonyRoster: false,
+  /** A CITY landing on a colony tile in the player's own flow (TR22 Nova City) — the commit is held to the frame of contact. */
+  colonyCity: false,
   nomadMove: false,
   resolutionPayout: false,
 });
@@ -275,7 +278,7 @@ export function transportHolding(): boolean {
   const h = transportHolds;
   return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
-    h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild || h.colonyRoster ||
+    h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild || h.colonyRoster || h.colonyCity ||
     h.nomadMove || h.resolutionPayout;
 }
 
@@ -617,6 +620,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // the colony grid): the table as presented stays the old one until the grid has played the planet out and in.
   // The player's OWN change was played by its gate above with the commit held, and is never seeded again.
   seedColonyRosterHolds(currentView(), newView);
+  // …and a CITY that came to lie on a colony tile (TR22 Nova City) which nobody on this screen played — a rival's, or
+  // the player's own PARKED tail landing later: withheld on its seat and landed there, ONLY while a measurable seat
+  // of that tile stands on screen. The player's OWN landing was played by its gate with the commit held to the
+  // contact, and is never seeded again.
+  seedColonyCityHolds(currentView(), newView);
   // …and ANOTHER SEAT'S DELEGATE that arrived with this response (a rival's
   // vote, MarsBot's Party Politics / Lobbying): its ribbon cube is hidden
   // and its flight queued in this very block, or it paints before it flies.
@@ -1088,6 +1096,24 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             transportHolds.colonyRoster = false;
           }
         }
+        /*
+         * Console COLONY-CITY gate (the player's OWN city laid on a colony
+         * tile — TR22 Nova City). VERIFY the answer carries exactly the armed
+         * tile on the armed colony tile; HOLD the commit while the piece
+         * materializes above its seat and descends. The gate opens AT THE
+         * FRAME OF CONTACT — the commit applies under the proxy, so every
+         * counter a trigger moves ticks after the touch by itself; the cube,
+         * the count and the read play past the gate under the scene's own hold.
+         */
+        const colonyCityEvent = detectColonyCity(currentView(), newView);
+        if (colonyCityEvent !== undefined) {
+          transportHolds.colonyCity = true;
+          try {
+            await runColonyCity(colonyCityEvent);
+          } finally {
+            transportHolds.colonyCity = false;
+          }
+        }
         const colonyBuildEvent = detectColonyBuild(currentView(), newView);
         if (colonyBuildEvent !== undefined) {
           transportHolds.colonyBuild = true;
@@ -1303,6 +1329,9 @@ function abortAllConsoleTransactions(): void {
   // draft of the leaving tile stays (the player is still choosing).
   transportHolds.colonyRoster = false;
   disarmColonyRoster();
+  // …and a city on a colony tile (TR22): the answer was refused — no arm, no landing, the door stands as it was.
+  transportHolds.colonyCity = false;
+  disarmColonyCity();
   // …and the nomad move: the camp never lifts off, nothing is collected.
   transportHolds.nomadMove = false;
   abortNomadMove();

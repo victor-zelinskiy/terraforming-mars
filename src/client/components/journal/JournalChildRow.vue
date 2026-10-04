@@ -13,8 +13,12 @@
       </span>
       <span class="journal-child-row__arrow" aria-hidden="true">→</span>
       <span class="journal-child-row__impacts">
-        <span v-if="vm.tileLabel" class="journal-child-row__tile journal-em" v-i18n>{{ vm.tileLabel }}</span>
-        <button type="button"
+        <!-- A tile laid ON A COLONY TILE (TR22): the row names the colony tile — the cell is not on the Mars board, so
+             there is nothing to show on the map. -->
+        <span v-if="vm.colonyTile !== undefined" class="journal-child-row__tile journal-em" data-journal-colony-tile>{{ colonyTileLabel(vm.tileLabel, vm.colonyTile) }}</span>
+        <span v-else-if="vm.tileLabel" class="journal-child-row__tile journal-em" v-i18n>{{ vm.tileLabel }}</span>
+        <button v-if="vm.colonyTile === undefined"
+                type="button"
                 class="journal-token journal-token--space"
                 :aria-label="$t('Show on map')"
                 @click.stop.prevent="showOnMap(vm.space)">
@@ -187,6 +191,10 @@ export default defineComponent({
       return `${translateText('Colony track')} · ${translateText(colony)} ${before + 1} → ${after + 1}`;
     },
     /** «Плитка колонии · − Церера · + Ио» — the roster's change by the tiles' own names (the leaving one first). */
+    /** «город — на плитке колонии «Луна»» — a tile laid on a colony tile (the tile's own word, then where it lies). */
+    colonyTileLabel(tile: string | undefined, colony: string): string {
+      return translateTextWithParams('${0} — on the ${1} colony tile', [translateText(tile ?? 'city'), translateText(colony)]);
+    },
     colonyRosterLabel(change: ColonyRosterChange): string {
       return `${translateText('Colony tile')} · ${colonyRosterChangeText(change, translateText)}`;
     },

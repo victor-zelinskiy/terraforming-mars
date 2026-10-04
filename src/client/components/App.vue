@@ -353,6 +353,7 @@ import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRe
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
+import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
@@ -804,6 +805,8 @@ export default defineComponent({
             // …and a COLONY ROSTER somebody else changed (a tile replaced / added / removed): held at the old table
             // while the colony grid on screen plays the planet out and in — only when that grid stands.
             seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a CITY somebody laid on a colony tile (TR22): landed on its seat — only when a seat of that tile stands.
+            seedColonyCityHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {

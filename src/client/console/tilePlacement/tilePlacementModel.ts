@@ -35,6 +35,7 @@ import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType, CITY_TILES, HAZARD_TILES} from '@/common/TileType';
 import {stackTopTile} from '@/common/boards/cityStack';
+import {isHostedSpace} from '@/common/boards/hostedSpaces';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /**
@@ -878,6 +879,11 @@ export function detectFreshPlacements(
     if (prev.id !== next.id) {
       continue;
     }
+    // A HOSTED cell (`common/boards/hostedSpaces.ts` — a city laid on a colony tile, TR22) has no place on the
+    // board: nothing may fly at it, and nothing may wait for a board to show it. Its host plays the arrival.
+    if (isHostedSpace(next.id)) {
+      continue;
+    }
     if (next.tileType === undefined || HAZARD_TILES.has(next.tileType)) {
       continue;
     }
@@ -921,6 +927,10 @@ export function detectFreshRemovals(
     const prev = prevSpaces[i];
     const next = newSpaces[i];
     if (prev.id !== next.id || prev.tileType === undefined || next.tileType !== undefined || HAZARD_TILES.has(prev.tileType)) {
+      continue;
+    }
+    // …and a hosted cell has no departure scene on the board either (see `detectFreshPlacements`).
+    if (isHostedSpace(next.id)) {
       continue;
     }
     out.push({spaceId: prev.id, tileType: prev.tileType, color: prev.color});

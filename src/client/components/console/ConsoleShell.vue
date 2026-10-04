@@ -1402,6 +1402,8 @@
          cube takes the vacated place
          (consoleColonyBuild.ts / colonyBuildDirector.ts). -->
     <ConsoleColonyBuildLayer />
+    <!-- A CITY LANDS ON A COLONY TILE (TR22 Nova City) — the scene's fixed stage: one tile proxy, one cube. -->
+    <ConsoleColonyCityLayer />
 
     <!-- The SHARED RESOURCE-TRANSFER stage — every "receiving resources"
          chip (the sale's M€ payout, a played card's reward beat, a placed
@@ -2046,6 +2048,7 @@ import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemot
 import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
+import ConsoleColonyCityLayer from '@/client/components/console/colonyCity/ConsoleColonyCityLayer.vue';
 import {abortColonyBuild, armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
@@ -2203,6 +2206,10 @@ import {
   ROSTER_READ_MS, RosterLevel, reanchorColonyCursor, rosterDraftStands, rosterIncomingOf, rosterLeavable, rosterLevel,
 } from '@/client/console/colonyRoster/colonyRosterModel';
 import {rosterBuildLands} from '@/common/colonies/ColonyRoster';
+import {
+  armColonyCity, clearColonyCity, colonyCityPending, colonyCitySceneDone, colonyCityState, disarmColonyCity, hurryColonyCity,
+  isColonyCityInputLocked, setColonyCityHoming,
+} from '@/client/console/colonyCity/consoleColonyCity';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -2366,6 +2373,7 @@ export default defineComponent({
     ConsoleCityPayoutLayer,
     ConsoleNomadMoveLayer,
     ConsoleColonyBuildLayer,
+    ConsoleColonyCityLayer,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -7472,7 +7480,9 @@ export default defineComponent({
         // A CHOSEN TRACK's move (TR07) the answer carried: the stage it was confirmed on plays it first.
         this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live ||
         // A ROSTER change of the player's own: armed, playing on the stage, or still landing as a receipt.
-        colonyRosterPending() || colonyRosterState.landing;
+        colonyRosterPending() || colonyRosterState.landing ||
+        // A CITY laid on a colony tile (TR22): armed, landing on the stage, or the stage folding home to its receipt.
+        colonyCityPending() || colonyCityState.homing;
     },
     /**
      * A COLONY'S OWN DELEGATE GRANT STANDS (Turmoil Redux — the Redux Venus:
@@ -8380,6 +8390,11 @@ export default defineComponent({
       // itself out). The trade-reward gate is PHASE-aware: it frees the pad
       // for the reveal take and for a Pluto discard between bonus draws.
       if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
+        return [];
+      }
+      // A CITY LANDING ON A COLONY TILE (TR22) and its homing beat (the stage folds home, the grid stands as a
+      // receipt): the pad is the scene's — the bar advertises nothing.
+      if (isColonyCityInputLocked()) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -12208,6 +12223,11 @@ export default defineComponent({
         void this.landColonyRoster();
         return;
       }
+      // …and so does a CITY laid on a colony tile (TR22): the stage folds home with its seat, the grid is read once.
+      if (colonyCityState.receipt !== undefined) {
+        void this.landColonyCity();
+        return;
+      }
       // A visit the PLAYER made stays exactly where it is; a frame the PROMPT
       // pushed hands the screen back once its demand is met. That distinction
       // is the frame's own anchor, not a flag somebody has to clear.
@@ -12729,6 +12749,14 @@ export default defineComponent({
       if (isColonyRosterInputLocked()) {
         if (intent.kind === 'press' && action === 'primary') {
           hurryColonyRoster();
+        }
+        return true;
+      }
+      // A CITY LANDING ON A COLONY TILE (TR22): the piece is in the air, or the stage is folding home — the pad is
+      // the scene's. A PRESSES IT THROUGH (final poses at once): never a second submit, never a skipped state.
+      if (isColonyCityInputLocked()) {
+        if (intent.kind === 'press' && action === 'primary') {
+          hurryColonyCity();
         }
         return true;
       }
@@ -16415,6 +16443,18 @@ export default defineComponent({
         this.commitStagedColony(selected.name as ColonyName);
         return;
       }
+      // A LIVE pick that LAYS A CITY on the chosen tile (TR22's live door — a re-ask, a reload, a play outside the
+      // hand): the stage stays, pinned; the landing is ARMED for the transport's gate and plays on this stage with
+      // the commit held to the contact. The same scene as the staged door — only A's verb and B differ.
+      if (pick.tileSite !== undefined) {
+        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+        markColonyFocusCommitting();
+        setWorkspaceFramePhase('colonies', 'committed');
+        armColonyCity({colony: selected.name as ColonyName, space: pick.tileSite.space, color: pick.tileSite.color, card: pick.tileSite.card});
+        this.consoleState.task.deferred = false;
+        this.submit(colonyResponse(selected.name));
+        return;
+      }
       // A LIVE pick that MOVES the chosen tile's track (TR07's live door): the stage stays, pinned, and plays the
       // move once the answer carries it (the follow-up stays live through it); the same reading as the staged door.
       if (pick.trackMoves !== undefined) {
@@ -19424,6 +19464,45 @@ export default defineComponent({
       this.settleColonyFollowUp();
     },
     /**
+     * HOME — the end of a city's landing on a colony tile (TR22), the roster landing's own grammar. The scene played
+     * on the stage (the commit applied at the contact; the cube, the count and the read followed under the scene's
+     * hold). Now the stage folds HOME into its tile by the existing phrase — the city's seat rides it as the carried
+     * object into its box in the tile's head — and the grid stands as a RECEIPT (no cursor, no verbs, input `none`)
+     * for one read. Then the flow goes on: a staged play ends with its step, any other door hands the screen forward.
+     */
+    async landColonyCity(): Promise<void> {
+      if (colonyCityState.homing) {
+        return;
+      }
+      setColonyCityHoming(true);
+      const frames = () => new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      });
+      const dwell = (ms: number) => new Promise<void>((resolve) => {
+        window.setTimeout(resolve, motionMs(ms));
+      });
+      // The scene first — through its read (resolved at once when none is playing; it never rejects).
+      await colonyCitySceneDone();
+      const receipt = colonyCityState.receipt;
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      await vueNextTick();
+      await frames();
+      if (receipt !== undefined && this.colonyFocus.open && section !== undefined) {
+        // The fold's home is the tile the city now lies on — re-measured at rest (a destination is solved before it
+        // is aimed at); a tile that cannot be measured lets the stage go where it stands.
+        section.retargetFocusHome(receipt.colony);
+        closeColonyFocus();
+        await dwell(COLONY_ROSTER_LANDING_MS + ROSTER_READ_MS);
+      }
+      const staged = stagedColonyOf(stagedPlayState.arm) !== undefined;
+      clearColonyCity();
+      if (staged) {
+        this.endStagedColony();
+        return;
+      }
+      this.settleColonyFollowUp();
+    },
+    /**
      * THE ONE STAGED HANDOFF TO A STEP OF THE HAND (the vote's Parliament, TR03;
      * the colonies, TR07). The batch parks, the step's frame is pushed INTO the
      * hand's own stage zone (the one section instance, embedded), and the
@@ -19557,6 +19636,12 @@ export default defineComponent({
       if (move !== undefined) {
         promiseColonyTrackMove({colony, card: arm.cardName, before: move.before, after: move.after});
       }
+      // A CITY ON THE CHOSEN TILE (TR22): the landing is ARMED for the transport's gate — an answer that carries
+      // exactly this tile plays it on this stage with the commit held to the contact; any other answer drops the arm.
+      const site = staged.prompt.tileSite;
+      if (site !== undefined) {
+        armColonyCity({colony, space: site.space, color: site.color, card: site.card});
+      }
       this.commitStagedTail({type: 'colony', colonyName: colony, stagedFor: staged.sourceCard});
     },
     /**
@@ -19628,6 +19713,8 @@ export default defineComponent({
         clearColonyTrackMove();
         // (A roster arm goes with the staged door; the draft of the leaving tile stays — the level stands live.)
         disarmColonyRoster();
+        // (…and so does a city's arm: the live door's own A arms it again.)
+        disarmColonyCity();
         colonyFocusState.committing = false;
         (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
         setWorkspaceFrameServes('colonies', ['colony']);
@@ -19643,6 +19730,13 @@ export default defineComponent({
       // the LANDING (the stage folds home into the slot, the receipt is read), then the step and the play end.
       if (colonyRosterState.receipt !== undefined || colonyRosterState.live) {
         void this.landColonyRoster();
+        return;
+      }
+      // LANDED as a CITY on the tile (TR22): the gate played the landing with the commit held to the contact — the
+      // rest of the scene is still on stage; what is left is HOME (the stage folds into its tile, the receipt is
+      // read), then the step and the play end.
+      if (colonyCityState.receipt !== undefined) {
+        void this.landColonyCity();
         return;
       }
       if (colonyTrackMoveFlow.live) {
@@ -19673,6 +19767,8 @@ export default defineComponent({
       clearStagedPlay();
       clearColonyTrackMove();
       clearColonyRoster();
+      // (A PARKED city: the arm goes with the step — the tile arrives with the ordinary update, as a watcher's.)
+      clearColonyCity();
       this.endHandWithHostedStep(pick);
     },
     /**

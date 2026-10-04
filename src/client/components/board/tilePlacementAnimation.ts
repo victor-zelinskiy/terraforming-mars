@@ -34,6 +34,7 @@
 
 import {SpaceId} from '@/common/Types';
 import {SpaceModel} from '@/common/models/SpaceModel';
+import {isHostedSpace} from '@/common/boards/hostedSpaces';
 import {TileType, HAZARD_TILES} from '@/common/TileType';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -310,6 +311,11 @@ export function shouldHoldForTilePlacement(
     if (oldSpace.id !== newSpace.id) {
       continue;
     }
+    // A HOSTED cell (a city laid on a colony tile — TR22) is drawn by its host, never by the board: the board's
+    // drop has no element to play on, so the commit must not wait for it.
+    if (isHostedSpace(newSpace.id)) {
+      continue;
+    }
     if (oldSpace.tileType === undefined && newSpace.tileType !== undefined) {
       return true;
     }
@@ -338,7 +344,7 @@ export function applyTilePlacementPreview(
   for (let i = 0; i < len; i++) {
     const oldSpace = oldSpaces[i];
     const newSpace = newSpaces[i];
-    if (oldSpace.id !== newSpace.id) {
+    if (oldSpace.id !== newSpace.id || isHostedSpace(newSpace.id)) {
       continue;
     }
     if (oldSpace.tileType === undefined && newSpace.tileType !== undefined) {

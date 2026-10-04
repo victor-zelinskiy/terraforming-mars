@@ -110,11 +110,9 @@
           :style="departCubeStyle"></player-cube>
         <div v-if="tilePlacementState.move !== undefined" ref="departTouch" class="con-tileplace__touch"></div>
       </div>
-      <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">
-        <div class="con-tileplace__edge" :class="artClass"></div>
-        <div class="con-tileplace__art" :class="artClass"></div>
-        <div ref="touch" class="con-tileplace__touch"></div>
-      </div>
+      <!-- THE ARRIVING TILE — the shared proxy anatomy (ConsoleTileProxy: edge · art · touch), the same piece a
+           tile laid on a colony tile flies (ConsoleColonyCityLayer). -->
+      <ConsoleTileProxy v-if="artClass !== ''" ref="tile" :artClass="artClass" />
       <div v-for="b in tilePlacementState.bonusProxies"
            :key="b.id"
            class="con-tileplace__bonus"
@@ -170,11 +168,7 @@
           :style="remoteDepartCubeStyle"></player-cube>
         <div v-if="remotePlacementState.move" ref="remoteDepartTouch" class="con-tileplace__touch"></div>
       </div>
-      <div v-if="remoteArtClass !== ''" ref="remoteTile" class="con-tileplace__tile con-tileplace__tile--remote">
-        <div class="con-tileplace__edge" :class="remoteArtClass"></div>
-        <div class="con-tileplace__art" :class="remoteArtClass"></div>
-        <div ref="remoteTouch" class="con-tileplace__touch"></div>
-      </div>
+      <ConsoleTileProxy v-if="remoteArtClass !== ''" ref="remoteTile" class="con-tileplace__tile--remote" :artClass="remoteArtClass" />
       <!-- The VIEWER's own tiles answering a REMOTE placement (Ares owner
            income) — the same warm wake, then the M€ chip flies to the rail. -->
       <div v-for="w in remotePlacementState.aresSources" :key="'rares-' + w.id"
@@ -204,6 +198,7 @@ import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector
 import {OCEAN_COIN_SPARKS, TIER_DUST_MOTES} from '@/client/console/tilePlacement/tilePlacementModel';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsoleTileProxy, {tileProxyEls} from '@/client/components/console/tilePlacement/ConsoleTileProxy.vue';
 
 /** Vue 3 leaves a template ref as `null` once its element has rendered and
  *  then been removed (`v-if` off) — the same guard the tile ref uses. */
@@ -215,6 +210,7 @@ export default defineComponent({
   name: 'ConsoleTilePlacementLayer',
   components: {
     'player-cube': PlayerCube,
+    ConsoleTileProxy,
   },
   data() {
     return {
@@ -384,10 +380,11 @@ export default defineComponent({
         // no real tile art (St. Joseph's cathedral lands on an existing city,
         // so `artClass === ''` and the tile div is not rendered). `!tile`
         // covers both null and undefined; a bare `=== undefined` NPE'd.
-        const tile = this.$refs.tile as HTMLElement | undefined;
-        if (!tile || !tile.isConnected) {
+        const proxy = tileProxyEls((this.$refs.tile as {$el?: HTMLElement} | null | undefined)?.$el);
+        if (proxy === undefined) {
           return undefined;
         }
+        const tile = proxy.tile;
         const bonusIcons: Array<HTMLElement> = [];
         for (const b of tilePlacementState.bonusProxies) {
           const el = this.bonusEls.get(b.id);
@@ -404,8 +401,8 @@ export default defineComponent({
         }
         return {
           tile,
-          edge: tile.querySelector<HTMLElement>('.con-tileplace__edge') ?? undefined,
-          touch: this.$refs.touch as HTMLElement | undefined,
+          edge: proxy.edge,
+          touch: proxy.touch,
           shadow: this.$refs.shadow as HTMLElement | undefined,
           bonusIcons,
           aresPulses,
@@ -417,10 +414,11 @@ export default defineComponent({
         };
       },
       remoteEls: (): TileStageEls | undefined => {
-        const tile = this.$refs.remoteTile as HTMLElement | undefined;
-        if (!tile || !tile.isConnected) {
+        const proxy = tileProxyEls((this.$refs.remoteTile as {$el?: HTMLElement} | null | undefined)?.$el);
+        if (proxy === undefined) {
           return undefined;
         }
+        const tile = proxy.tile;
         const aresPulses: Array<HTMLElement> = [];
         for (const w of remotePlacementState.aresSources) {
           const pulse = this.remoteAresPulseEls.get(w.id);
@@ -430,8 +428,8 @@ export default defineComponent({
         }
         return {
           tile,
-          edge: tile.querySelector<HTMLElement>('.con-tileplace__edge') ?? undefined,
-          touch: this.$refs.remoteTouch as HTMLElement | undefined,
+          edge: proxy.edge,
+          touch: proxy.touch,
           shadow: this.$refs.remoteShadow as HTMLElement | undefined,
           bonusIcons: [],
           aresPulses,

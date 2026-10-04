@@ -2,8 +2,10 @@ import {expect} from 'chai';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType} from '@/common/TileType';
+import {SpaceName} from '@/common/boards/SpaceName';
+import {applyTilePlacementPreview, shouldHoldForTilePlacement} from '@/client/components/board/tilePlacementAnimation';
 import {
-  placementBonuses, verifyPlacement, applySpacePreview, detectFreshPlacements,
+  placementBonuses, verifyPlacement, applySpacePreview, detectFreshPlacements, detectFreshRemovals,
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
   TILE_START_SCALE, TILE_FLIGHT_MS, TILE_SETTLE_MS,
   OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
@@ -320,6 +322,31 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       const prev = [space('05')];
       const next = [space('99', {tileType: TileType.CITY, color: 'red'})];
       expect(detectFreshPlacements(prev, next)).to.deep.eq([]);
+    });
+
+    // A HOSTED cell (a city laid on a colony tile — TR22 Nova City, cell 79) has no place on the board: the
+    // remote stage would queue its flight and wait for a visible board under a hold. Its host plays the arrival.
+    it('a HOSTED cell is never a placement on the board — and an ordinary one beside it is byte for byte as before', () => {
+      const prev = [space('05'), space(SpaceName.NOVA_CITY), space(SpaceName.GANYMEDE_COLONY)];
+      const next = [
+        space('05', {tileType: TileType.CITY, color: 'red'}),
+        space(SpaceName.NOVA_CITY, {tileType: TileType.CITY, color: 'blue'}),
+        space(SpaceName.GANYMEDE_COLONY, {tileType: TileType.CITY, color: 'blue'}),
+      ];
+      expect(detectFreshPlacements(prev, next)).to.deep.eq([
+        {spaceId: '05', tileType: TileType.CITY, color: 'red'},
+        // Ganymede HAS a place beside the planet — it stays a board placement.
+        {spaceId: SpaceName.GANYMEDE_COLONY, tileType: TileType.CITY, color: 'blue'},
+      ]);
+      // …and the board's own commit hold does not wait for a drop that has no element to play on.
+      expect(shouldHoldForTilePlacement([space(SpaceName.NOVA_CITY)], [space(SpaceName.NOVA_CITY, {tileType: TileType.CITY, color: 'blue'})])).to.eq(false);
+      expect(shouldHoldForTilePlacement([space('05')], [space('05', {tileType: TileType.CITY, color: 'red'})])).to.eq(true);
+      const shown = [space(SpaceName.NOVA_CITY), space('05')];
+      applyTilePlacementPreview(shown, [space(SpaceName.NOVA_CITY, {tileType: TileType.CITY, color: 'blue'}), space('05', {tileType: TileType.CITY, color: 'red'})]);
+      expect(shown[0].tileType, 'the hosted cell is not pre-applied').to.eq(undefined);
+      expect(shown[1].tileType).to.eq(TileType.CITY);
+      // A tile leaving a hosted cell has no departure scene on the board either.
+      expect(detectFreshRemovals([space(SpaceName.NOVA_CITY, {tileType: TileType.CITY, color: 'blue'})], [space(SpaceName.NOVA_CITY)])).to.deep.eq([]);
     });
 
     it('collects an OCEAN → cover replacement WITH the water it lands on', () => {
