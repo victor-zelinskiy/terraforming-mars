@@ -2356,6 +2356,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // free delegate in the lobby, a full reserve; the voting area pinned [Industrialists · Mars First · Greens]
   // (docs/TURMOIL_REDUX_MARTIAN_CENSUS.md).
   'martian-census' |
+  // TR23 Habitat Science: blue's action phase with the card in its tableau holding 4 data (the action live), colonies on
+  // Luna · Titan · Miranda · Pluto, ONE floater holder (Dirigibles), a hand of three; the ledger reads Luna · Miranda ·
+  // Pluto · Titan — the order the engine pays (docs/TURMOIL_REDUX_HABITAT_SCIENCE.md).
+  'habitat-science' |
   // TR14 Re-settlement: blue's action phase with the card in hand, 20 M€ and Mars First's access by delegates; blue's city on
   // 16 (one greenery) may move — to 24 (a plant, an ocean, two greeneries) among others — its city on 62 is walled in
   // (docs/TURMOIL_REDUX_RE_SETTLEMENT.md).

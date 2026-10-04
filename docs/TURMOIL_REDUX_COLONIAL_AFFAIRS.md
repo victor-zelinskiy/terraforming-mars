@@ -240,3 +240,27 @@ ${0} микробов · животных · ресурсов (карты Вен
 - Фикстуры сгенерированы при каталоге, где уже есть RX08 (незакоммиченная работа соседней сессии): в колоде
   фикстуры лежит `RDX_UNITY_COLONIZATION_FUNDING`; e2e-сервер обязан знать её (сборка сервера из текущего
   дерева), иначе `load-game` отвечает 400.
+
+## 10. Счёт ПО КУБУ, общий модуль и общая волна (TR23, 2026-10-04)
+
+Сдача TR23 «Наука обитаемости» (`docs/TURMOIL_REDUX_HABITAT_SCIENCE.md`) вынесла правило «все ваши бонусы колоний» в
+общий слой — RX07 теперь стоит на нём, а не рядом с ним.
+
+- **По кубу, не по тайлу.** Утверждение «a player never holds two cubes on one tile» было НЕВЕРНО (`SpacePortColony`,
+  `ResearchColony` строят поверх своего куба). Плитки и кубы игрока даёт ОДНО чтение —
+  `ownColonyBonuses(game, player): [{colony, cubes}]` (`src/server/colonies/allColonyBonuses.ts`, группировка
+  `ColoniesHandler.coloniesOf`). Шаги резолюции берут `cubes`: величина = `k × cubes × q`; запись несёт `multiplier: k`
+  (формула резолюции прежняя) и `cubes` при `cubes > 1`; модель `ParliamentPlayerModel.colonyBonuses` — `cubes` на строку;
+  `colonyLedgerRows` множит на `entry.cubes` (`row.multiplier = k × cubes`). **При одном кубе все числа, записи, адреса
+  и тексты прежние** — спек `ColonialAffairs.spec.ts` («два куба на Луне при k = 3 → 12 M€» — новый; остальные без правок),
+  e2e `console-parliament-colonial.spec.ts`.
+- **Слияние повторов остаётся законом РЕЗОЛЮЦИИ** (×k — одна запись, одна раскладка, один приём); карта платит по кубу и
+  без слияния (`gainAllColonyBonuses`).
+- **Запись реестра** — `ColonyLedgerEntryModel` переехала в `common/models/ColonyBonusLedgerModel.ts` (+ `cubes`,
+  необязательные `asks` / `skipped` — их заполняет только чтение карты).
+- **Волна «строки платят по очереди»** — `src/client/console/colonyLedger/colonyLedgerWave.ts`: `flyLedgerRows(run, then)`
+  с областью строк (`scope`) на входе; `sittingDirector.flyRows` зовёт её со `scope = '[data-parl-sitting]'`, композер
+  действия карты — со своей. Числа (`LEDGER_ROW_GAP_MS` 140, `LEDGER_READ_MS` 1400) объявлены в общем модуле один раз и
+  не менялись. Юнит: `tests/client/console/colonyLedgerWave.spec.ts`.
+- **Реестр вне Парламента** — `cardColonyLedgerOf` рядом с `colonyLedgerOf` на тех же строках; компонент
+  `ConsoleColonyLedger` один (контексты `preview | paying | paid` — чтение карты; парламентские контексты не тронуты).

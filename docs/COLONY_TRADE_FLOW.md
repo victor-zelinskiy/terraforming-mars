@@ -312,6 +312,27 @@ player cannot connect to the trade.
   colony source + exactly one card), or the card rendered BESIDE its own zone
   and the cardless active zone showed a false taken-✓ socket. An active zone
   with no entry now renders the empty socket WITHOUT the ✓, always.
+- **…AND SINCE TR23 THE OUT-OF-TRADE PAYER IS NAMED (`via`).** A bonus a CARD
+  pays («gain all your colony bonuses» — TR23 Habitat Science's action,
+  Productive Outpost, Yvonne; one server module, `colonies/allColonyBonuses.ts`)
+  is no longer anonymous: `IColony.giveColonyBonus(player, {ordinal, via})`
+  stamps the paying card on everything the bonus raises — the draw's source is
+  `{type: 'colony', colonyName, via}`, a resource target is asked with
+  `autoSelect: false` and `cause {kind: 'colony', name, via}`, and Pluto's
+  discard carries `{source: {kind: 'card', card: via}, colonyRepeat: {colonyName,
+  index, total}}` **INSTEAD of the `colonyBonus` marker**. That marker is what
+  routes a discard into the COLONY workspace's resolution; a card's payout is a
+  step of the workspace the card was pressed in (`workspaceClaimsColonyReveal`
+  reads `via === sourceCard`), so `colonyResolutionEvidenceFor`,
+  `colonyBonusCardPickOf` and `revealColonyOf` all answer «not mine» for it and
+  the segmentless-zone fallback above never sees such a batch. Nothing of the
+  TRADE's own path changed: `GiveColonyBonus` passes `{inTrade: true, ordinal,
+  trader}` and no `via`; the trader's and the detached recipients' markers,
+  order and delivery are byte-for-byte the old ones (`Colony.spec`, the Pluto /
+  Miranda trade specs, `colonyResolution.spec.ts` § `via`). The ordinal is now
+  honest outside a trade too — two cubes read «1 of 2» / «2 of 2», where
+  Productive Outpost and Yvonne used to say «1 of 1» twice. Contract:
+  `docs/TURMOIL_REDUX_HABITAT_SCIENCE.md` §3, §5.
 - **CLIENT — one ZONE per colony, exactly one live.** `bonusZones(meta)`
   (`colonyBonusDiscardStep.ts`, pure) derives the whole strip from the marker
   alone — zones before `index` are `done`, `index` is `active`, the rest

@@ -132,6 +132,7 @@ import {AsteroidHollowing} from '../../../src/server/cards/promo/AsteroidHollowi
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
+import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScience';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {Parliament} from '../../../src/server/parliament/Parliament';
@@ -1515,6 +1516,52 @@ parliamentFixture('party-sanctions', {
         parliament.popularSupportOf(PartyName.MARS) !== 3 || parliament.popularSupportOf(PartyName.SCIENTISTS) !== 1 ||
         parliament.totalPopularSupport() !== 4 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the party-sanctions fixture expected a playable card, blue in the chair on Agenda step 3, support Mars First 3 · Scientists 1 and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} chair=${parliament.chairman} agenda=${parliament.agendaOf(p1)} support=${parliament.popularSupportOf(PartyName.MARS)}/${parliament.popularSupportOf(PartyName.SCIENTISTS)}/${parliament.totalPopularSupport()} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR23 · HABITAT SCIENCE — «THE LEDGER PAYS» (docs/TURMOIL_REDUX_HABITAT_SCIENCE.md): blue's action phase with the
+//    card IN ITS TABLEAU holding 4 data (the action live, unused) and a colony on each of four tiles whose printed
+//    bonuses are the four shapes of a payout — Luna (2 M€: a plain gain), Titan (1 floater onto a card: a TARGET,
+//    one holder in the tableau — Dirigibles — so the «no auto-select» step is the single-candidate one), Miranda
+//    (1 card: a take) and Pluto («take 1, then discard 1»: a take and a discard). Red holds a colony on Luna too
+//    (never paid). The ledger's order is the engine's: Luna · Miranda · Pluto · Titan — Titan stands SECOND on the
+//    table and is paid LAST (its target waits behind Pluto's discard). A hand of three, so the discard is a
+//    question. A quiet government (the Industrialists by Central Power Grid); the card is a fresh copy. ──
+parliamentFixture('habitat-science', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const luna = new Luna();
+    const titan = new Titan();
+    const miranda = new Miranda();
+    const pluto = new Pluto();
+    for (const colony of [luna, titan, miranda, pluto]) {
+      colony.isActive = true;
+    }
+    game.colonies = [luna, titan, miranda, pluto];
+    luna.colonies.push(p1.id, p2.id);
+    titan.colonies.push(p1.id);
+    miranda.colonies.push(p1.id);
+    pluto.colonies.push(p1.id);
+    const card = new HabitatScience();
+    card.resourceCount = 4;
+    p1.playedCards.push(card, new Dirigibles());
+    // A hand to discard FROM: with a single card Pluto's discard decides itself and asks nothing.
+    while (p1.cardsInHand.length < 3) {
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+    }
+    p1.cardsInHand.length = 3;
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.playedCards.get(CardName.HABITAT_SCIENCE) as HabitatScience | undefined;
+    const ledger = card === undefined ? [] : (card.actionPreview(p1).branches[0].colonyBonuses?.entries ?? []).map((e) => e.colony);
+    if (card === undefined || card.resourceCount !== 4 || !card.canAct(p1) || p1.megaCredits !== 20 || p1.cardsInHand.length !== 3 ||
+        ledger.join(',') !== [ColonyName.LUNA, ColonyName.MIRANDA, ColonyName.PLUTO, ColonyName.TITAN].join(',') ||
+        game.colonies.length !== 4 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the habitat-science fixture expected the card in play with 4 data and a live action, 20 M€, a hand of 3, the ledger Luna · Miranda · Pluto · Titan and the Industrialists ruling — got data=${card?.resourceCount} canAct=${card?.canAct(p1)} mc=${p1.megaCredits} hand=${p1.cardsInHand.length} ledger=${ledger.join(' · ')} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

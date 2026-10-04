@@ -1757,3 +1757,101 @@ unchanged'`, `'On the tile'`, `'${0} — on the ${1} colony tile'`, `'City on a 
 - Скачок планеты на границе коммита у `track` / `roster` и «ТРЕК» в крошке после B — существующее, починено только
   для `city`.
 - Решения владельца 1–11 и рост диска героя стейджа на fhd / Deck ждут подтверждения.
+
+## TR23 · Habitat Science — 2026-10-04
+
+**Что это.** «Наука обитаемости»: «2 data с этой карты → ВСЕ ВАШИ БОНУСЫ КОЛОНИЙ» (+ при розыгрыше «1 data за каждую
+колонию в игре»). Первое ДЕЙСТВИЕ КАРТЫ, которое платит бонусы колоний, — и первое, чей workspace владеет всей выплатой:
+добор Миранды, пара Плутона, цель Титана — шаги «Действий карт». До нажатия результат читается РЕЕСТРОМ (строка на свою
+плитку, в порядке выплаты движка), после — те же строки ПЛАТЯТ по очереди из своего значка. Контракт —
+`docs/TURMOIL_REDUX_HABITAT_SCIENCE.md`; RX07 на общем слое — `TURMOIL_REDUX_COLONIAL_AFFAIRS.md` §10; плательщик вне
+торговли — `COLONY_TRADE_FLOW.md` § OUT-OF-TRADE; flow действия — `CONSOLE_BLUE_ACTION_PARITY.md` ит. 28.
+Промпт: `docs/claude/prompts/project-tr23-habitat-science.md`.
+
+**Коммиты (не пушено).** `fd9357dbdc` (1/4 общий серверный слой «все бонусы колоний», `via`, счёт по кубу) ·
+`318cf06601` (2/4 карта, лицо, локаль, лор, арт) · 3/4 клиент (реестр вне Парламента, композер, общая волна, сцена
+«реестр платит», заявка `via`, юниты) · 4/4 e2e, фикстура, документы. Разрез 1/2 отличается от промпта: карта уехала из
+коммита 1 в коммит 2 (с лицом и локалью) — иначе коммит 1 не был бы зелёным (гарды лица / лора / локали требуют всё разом).
+
+**Сигнатуры.**
+- Сервер (`src/server/colonies/allColonyBonuses.ts`): `ownColonyBonuses(game, player)` · `gainAllColonyBonuses(player,
+  {via?, times?})` · `allColonyBonusesLedger(player, opts)` · `allColonyBonusesEffects(player, opts)`;
+  `IColony.giveColonyBonus(player, {inTrade?, ordinal?, trader?, via?})`; `ActionPreviewBranch.colonyBonuses?`;
+  `AllColonyBonusesModel` / `ColonyLedgerEntryModel {…, cubes, asks?, skipped?}`; `countedResourceBasis` (основание
+  «Колонии в игре: N» у декларативного `addResources` со счётчиком).
+- Атрибуция: `CardDrawRevealSource {type: 'colony', colonyName, via?}` · `ChoiceContextSource {kind: 'colony', name, via?}`
+  · сброс `{source: {kind: 'card', card: via}, colonyRepeat}`.
+- Клиент: `cardColonyLedgerOf(model, context)` · `colonyLedgerAskKey` · `flyLedgerRows(run, then)` /
+  `ledgerBonusIconOrigins` · `armColonyBonusPayout(card, rows, spent, model)` · `seedColonyBonusPayoutHolds(before, after)`
+  · `colonyBonusPayoutParksReveal(source)` · `payoutRowSettled` / `payoutServerOwes` / `payoutDiscardDue` / `payoutUntaken`
+  · `ComposerOutcome {kind: 'ledger'}` · слоты `workspace-reveal` / `action-hand` в `.con-composer__ledgerzone`.
+
+**Что обобщено (не скопировано).** Правило «все бонусы колоний» — один серверный модуль для четырёх печатающих его
+вещей (TR23, Productive Outpost, Ивонн, RX07); волна «строки платят» — одна функция для заседания и композера; реестр —
+один компонент и одни строки для Парламента и карты; запись реестра — одна модель.
+
+**Найдено по дороге (каждое — отдельный класс).**
+- Порядок выплаты — НЕ «запас, потом шаги в порядке стола» (допущение промпта), а очередь движка: Луна · Миранда · Плутон ·
+  Титан (ресурс на карту — последним, за парами). Реестр показывает реальный порядок; паритет «реестр = выплата» на трёх
+  столах — спеком.
+- Сервер поднимает сброс Плутона в ответе на САМО нажатие: «должен ≠ подошёл» (`payoutDiscardDue`), иначе рука и крошка
+  «СБРОС» вставали над летящим чипом Луны.
+- Ворота прибытия заявки открывает тот, кто сажает карты: сцена колоды не открывала их для партии колонии — «A Взять»
+  глох до 5-секундного бэкстопа.
+- План восстановления из парка не знал о выплате: после «Свернуть → вернуться» поток не уходил на поле (workspace стоял
+  «Выполнено»). Теперь стадия пересаживается по записи выплаты.
+- Плашка, обнимающая содержимое, сдвигала реестр на нажатии (блок «Выбранная карта» сворачивается) — высота поверхности
+  закрепляется замером на нажатии.
+- Пробник: сэмпл таймера между кадрами голодного рендерера (4K) читает opacity 0 у поверхности, которая уже возвращается —
+  `getAnimations()` отличает «возвращается» от «пусто».
+- Дверь РОЗЫГРЫША (Productive Outpost): одиночное взятие складывало workspace под партией-соседкой (Плутон после Миранды)
+  — заявка перевооружается на соседку с тем же `via` (`onWorkspaceResultDetached`).
+
+**Гэпы.** Реестр и сцена в композере РОЗЫГРЫША не построены (решение №7: сброс Плутона у Productive Outpost объявляется
+плашкой и отвечается в руке, не шагом того же flow); поздняя цель и бонус-выбор — своим обычным экраном; пустая колода —
+движок бросает (как раньше); чипы строк, не вылетевшие до «Свернуть», отпускаются без полёта. Полный список — документ
+карты §9.
+
+**Тесты (итоговое дерево, перед коммитами 3–4).** `npm run lint` 0 (eslint + i18n-аудит + vue-tsc) · `build:test` 0 ·
+`make:cards` — missing translations 0 / needs curation 0 · `make:json` 0 · `test:client` **6586** passing, 0 failing ·
+`test:server` **14615** passing, 1 pending, 0 failing. Гарды e2e (`e2eLiveness`, `e2eDriverGuard`, `e2eFixturesLoad`) — 131
+passing.
+
+**e2e** (свой снапшот `.e2e-tr23`, `--workers=1 --retries=0`): `console-habitat-science.spec.ts` fhd + tv4k,
+`--repeat-each=4` — **8 / 8**; на итоговой сборке ещё `--repeat-each=2` — 4 / 4. Регрессия на том же снапшоте
+(`--workers=3`, 27 спеков: `aaa-driver-canary`, `console-parliament-colonial`, `console-colony-venus-redux`,
+`console-colony-miranda-bonus`, `console-colony-pluto-embed`, `console-pluto-bonus-discard`,
+`console-pluto-two-colony-sequence`, `console-colony-remote-bonus`, `console-reveal-remote-bonus-collision`,
+`console-multi-effect-sequence`, `console-effect-decision-embed`, `console-martian-census`, `console-play-draw-embed`,
+`console-blue-action-purchase` / `-receive`, `console-card-trade-entry`, `console-repeat-pick`,
+`console-repeat-reveal-embed`, `console-viron-repeat-draw`, `console-self-target`, `console-political-think-tank`,
+`console-card-discard`, `console-effect-forecast`, `console-hand-play-return`, `console-delta-card-advance`,
+`console-venus-bonus-park`, `console-sponsor-play-outcome`) — **58 passed · 1 skipped** (давний `test.fixme` второго цикла
+Плутона) **· 0 failed**. Полный набор снят ДО двух последних правок клиента (такт фиксации
+ветки-реестра без волны наград; тип `root` волны); на итоговой сборке перегнаны собственный спек карты и восемь ближайших
+(`aaa-driver-canary`, `console-parliament-colonial`, `console-blue-action-receive` / `-purchase`, `console-martian-census`,
+`console-play-draw-embed`, `console-pluto-bonus-discard`, `console-viron-repeat-draw`) — **13 / 13**.
+
+**A/B волны RX07** (общая `flyLedgerRows` против замыкания `flyRows`; сборка «до» — снапшот `.e2e-tr23-before`,
+`67e786ef84`; по 3 прогона, fhd, мс):
+
+| интервал | до | после |
+| --- | --- | --- |
+| строка помечена → первый чип | 7 / 6 / 6 | 8 / 5 / 6 |
+| первый чип → тик M€ | 775 / 768 / 763 | 776 / 766 / 771 |
+| первый чип → последний сэмпл чипа | 1087 / 1097 / 1081 | 1092 / 1097 / 1097 |
+| тик → «получено» | 0 / 0 / 0 | 0 / 0 / 0 |
+| «получено» → раскладка Титана | 346 / 364 / 356 | 349 / 364 / 360 |
+| строка помечена → раскладка | 1128 / 1137 / 1126 | 1133 / 1134 / 1136 |
+
+**Кадры** (git-ignored `screenshots/`): `habitat-science/{fhd,tv4k}/01…08` + раскадровка CDP `habitat-science/fhd/story`
+(457 кадров, «ПОСЛЕ»); «ДО» — `tr23-explore/outpost-before` (778 кадров: Productive Outpost из руки на сборке
+`67e786ef84`); реестр на 1 / 7 строк × fhd / 4K / Deck — `tr23-explore/*-variant-{one,seven}.png` (превью переписано
+на проводе: «× 2», строка-пропуск; обрезок и скролла нет ни в одном из шести кадров, `[console-overflow]` 0);
+«Свернуть → вернуться» посреди выплаты — `tr23-explore/fhd-collapse-*`.
+
+**Не снято / не проверено.** Витрина лица EN / RU отдельным кадром (лицо видно героем композера в RU); кадр композера
+розыгрыша «+N data · Колонии в игре: N» и N = 0; кадр отключённого действия «Колоний нет» (правило — юнит-спеком);
+кадр RX07 с двумя кубами на тайле (числа — юнит-спеком); журнал действия — проверен e2e по событиям (`journal-events`),
+не кадром; раскадровка reduced motion — прогон пройден (поток доходит до поля), кадры не разобраны. Ивонн (CEO, `times: 2`)
+на клиенте не прогонялась вживую.
