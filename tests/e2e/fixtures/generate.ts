@@ -163,6 +163,8 @@ import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/Politic
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
+import {NovaCity} from '../../../src/server/cards/turmoilRedux/NovaCity';
+import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
 import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
 import {cityMoveOffer} from '../../../src/server/boards/cityMove';
@@ -1431,6 +1433,52 @@ parliamentFixture('arboretum', {
         facts.holders !== `${CardName.VECTOR_COMPUTATIONS},${CardName.MARTIAN_FIBER}` || facts.data !== 6 || facts.oxygen !== 1 ||
         facts.reactions?.megacredits !== 4) {
       throw new Error(`the arboretum fixture expected a playable card, G (${ARBORETUM_SITE.g}) legal beside 4 city tiers, Z (${ARBORETUM_SITE.z}) legal beside none, two holders, and a dry run landing 2 → 6 data with +4 M€ — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR22 · NOVA CITY — a city laid ON A COLONY TILE, the staged colony door's third mode
+//    (docs/TURMOIL_REDUX_NOVA_CITY.md): blue's action phase with the card in hand and 30 M€, Unity's access by TWO
+//    of blue's delegates on its resolution (Colonization Funding in slot 0 — the requirement's second road), a QUIET
+//    government (the Industrialists by Central Power Grid). «Ganymede Colony» already stands for blue (a space city
+//    of its own: the count reads «1 → 2», the card's VP 4) and Pets is in the tableau (the placement's trigger: +1
+//    animal after the contact). The table is the seat's coexistence matrix: Luna — blue's colony AND red's FLEET;
+//    Ceres — three colonies; Titan — INACTIVE (a lawful place; SYNTHETIC: set explicitly, no floater card is in
+//    play); Europa and Io — plain. ──
+parliamentFixture('nova-city', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 0, COLONIZATION_FUNDING_ID);
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+    parliament.placeVote(p1, parliament.slots[0], 'lobby');
+    const luna = new Luna();
+    const ceres = new Ceres();
+    const titan = new Titan();
+    const europa = new Europa();
+    const io = new Io();
+    game.colonies = [luna, ceres, titan, europa, io];
+    luna.colonies.push(p1.id);
+    luna.visitor = p2.id;
+    ceres.colonies.push(p2.id, p1.id, p2.id);
+    titan.isActive = false;
+    // A space city of blue's own, placed before the play: «Космические города 1 → 2».
+    const ganymede = new GanymedeColony();
+    p1.playedCards.push(ganymede, new Pets());
+    game.simpleAddTile(p1, game.board.getSpaceOrThrow(SpaceName.GANYMEDE_COLONY), {tileType: TileType.CITY, card: CardName.GANYMEDE_COLONY});
+    p1.cardsInHand.push(new NovaCity());
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.NOVA_CITY);
+    const tile = (name: ColonyName) => game.colonies.find((c) => c.name === name);
+    const cell = game.board.spaces.find((s) => s.id === SpaceName.NOVA_CITY);
+    if (card === undefined || !p1.canPlay(card) || p1.megaCredits !== 30 || cell === undefined || cell.tile !== undefined ||
+        game.board.getCitiesOffMars(p1).length !== 1 || tile(ColonyName.LUNA)?.visitor !== p2.id ||
+        tile(ColonyName.CERES)?.colonies.length !== 3 || tile(ColonyName.TITAN)?.isActive !== false ||
+        parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the nova-city fixture expected a playable card (Unity's access by two delegates), 30 M€, the hosted cell empty, one space city of blue's own, red's fleet on Luna, three colonies on Ceres, Titan inactive and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} mc=${p1.megaCredits} cell=${cell === undefined ? 'missing' : (cell.tile === undefined ? 'empty' : 'taken')} spaceCities=${game.board.getCitiesOffMars(p1).length} lunaFleet=${tile(ColonyName.LUNA)?.visitor} ceres=${tile(ColonyName.CERES)?.colonies.length} titan=${tile(ColonyName.TITAN)?.isActive} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

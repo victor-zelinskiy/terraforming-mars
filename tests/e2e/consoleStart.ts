@@ -2364,6 +2364,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // (2 data) and Martian Fiber in the tableau; the cell 17 beside blue's city 16, red's 11 and red's stack of two on 24
   // (4 data), the cell 48 beside no city (docs/TURMOIL_REDUX_ARBORETUM.md).
   'arboretum' |
+  // TR22 Nova City: blue's action phase with the card in hand, 30 M€, Unity's access by two delegates; «Ganymede Colony»
+  // stands (one space city of blue's own) and Pets is on the table; Luna — blue's colony and RED's fleet, Ceres — three
+  // colonies, Titan inactive, Europa and Io plain (docs/TURMOIL_REDUX_NOVA_CITY.md).
+  'nova-city' |
   // TR12 Party Sanctions: blue in the chair with the card in hand, the Agenda marker on step 3, support Mars First 3 ·
   // Scientists 1 (synthetic), a quiet government (docs/TURMOIL_REDUX_PARTY_SANCTIONS.md).
   'party-sanctions' |

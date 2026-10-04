@@ -172,6 +172,12 @@ export function playCityLanding(els: ColonyCityStageEls, opts: CityLandingOpts, 
     q: 1,
     duration: land,
     ease: 'none',
+    // NEVER LAZY. A tween's first render is lazy by default — deferred, with its `onUpdate`, to the END of the tick.
+    // On a renderer whose FIRST tick of this timeline already lies past the contact (a hitch; measured on a loaded
+    // 4K run — frames 250–300 ms apart against a 304 ms fall) every child initializes in that one tick, so the
+    // touch's relative settle read the HANGING `y` as its start before this pose was written — and the piece was
+    // left a lift above its seat, touched, until the beat's end. Rendered at once, the pose is written first.
+    lazy: false,
     onUpdate: () => {
       if (contacted) {
         // Past the contact the piece is the TOUCH beat's (its settle owns `y`) — the fall no longer poses it.
