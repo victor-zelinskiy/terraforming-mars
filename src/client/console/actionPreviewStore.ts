@@ -32,6 +32,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {AllColonyBonusesModel} from '@/common/models/ColonyBonusLedgerModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -292,10 +293,21 @@ export function branchOutcomeClaimPlan(
   if (branch?.reveal !== undefined) {
     kinds.push('deck-check');
   }
-  if (expectedCards > 0) {
+  // «ALL YOUR COLONY BONUSES» (the branch's `colonyBonuses` ledger — TR23 Habitat
+  // Science): a row that hands cards over DRAWS, whether or not a chip says so
+  // — Pluto's «take 1, then discard 1» is «decided after the confirm» and wears
+  // no `cards` chip at all, yet its batch is this action's as surely as a
+  // plain draw's. `expectedCards` stays the chips' (the prepared arrival of the
+  // composer's own beat); a ledger's cards come off the deck row by row.
+  if (expectedCards > 0 || ledgerDraws(branch?.colonyBonuses)) {
     kinds.push('draw', 'pick');
   }
   return {kinds, expectedCards};
+}
+
+/** Does this ledger hand cards over — a take (Miranda) or Pluto's pair — on a row that can land? */
+export function ledgerDraws(model: AllColonyBonusesModel | undefined): boolean {
+  return (model?.entries ?? []).some((row) => row.skipped === undefined && (row.asks === 'draw' || row.asks === 'draw-discard'));
 }
 
 /** The cached previews as the Map the pure model consumes. */

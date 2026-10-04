@@ -10,7 +10,11 @@
        into the reveal result's «Источник» slot on the phase handoff. -->
   <div ref="rootEl" class="con-composer con-composer--stage"
        :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn,
-                'con-composer--parlrise': parliamentStepOn, 'con-composer--parlstep': parliamentSetupParked}"
+                'con-composer--parlrise': parliamentStepOn, 'con-composer--parlstep': parliamentSetupParked,
+                'con-composer--ledgerflow': ledgerPaying, 'con-composer--ledgerstep': ledgerStepOn,
+                'con-composer--ledgerresumed': ledgerPaying && ledgerResumed}"
+       :data-colony-ledger-flow="ledgerPaying ? ledgerFlowStage : undefined"
+       :data-colony-ledger-degraded="ledgerDegraded ? '' : undefined"
        role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
@@ -99,7 +103,10 @@
            data-outcome-zone
            data-embed-slot="action-colonies"></div>
 
-      <template v-else-if="outcome !== undefined">
+      <!-- (A LEDGER outcome — «all your colony bonuses», TR23 — is NOT a swap of this column: the configuration
+           surface below STAYS and its ledger pays row by row; the flow's steps stand as LAYERS above it, in the
+           ledger zone at the foot of this column.) -->
+      <template v-else-if="outcome !== undefined && outcome.kind !== 'ledger'">
 
       <!-- ── DRAW — the action pulled cards off the deck. This zone is the
            TELEPORT TARGET the shell's ONE ConsoleRevealOverlay re-homes into
@@ -207,7 +214,7 @@
            (`data-unfold-item`). The hero card stands beside it, carried. -->
       <!-- data-forecast-browse: the surface the R3 «Эффекты» layer parks in
            place (consoleForecastFocusMotion) — every capture survives. -->
-      <div class="con-composer__surface" data-unfold-surface data-forecast-browse>
+      <div class="con-composer__surface" data-unfold-surface data-forecast-browse ref="surfaceEl" :style="ledgerSurfaceStyle">
 
       <!-- ── WHAT THIS ACTION DOES — the operation's own sentence, and the
            surface's semantic lead: the player reads the RULE, then what it
@@ -270,6 +277,22 @@
                             :class="{'con-forecast--descend': forecastPulse}"
                             :forecast="forecast"
                             @open="openForecastLayer()" />
+      </div>
+
+      <!-- ── THE LEDGER — «all your colony bonuses» as the BODY of this action's result (TR23 Habitat Science).
+           The chips above answer «how much» (one parameter — one vector); the ledger answers «from where»: a row
+           per colony the player owns, in the order the engine pays them — the planet, its printed bonus, «× N» for
+           a tile with several cubes, the word of the step a row will raise, the refusal of a row that cannot land.
+           THE SAME DOM pays after the press: the rows go from «promised» to «paying» to «received» where they
+           stand, each wave born on its own row's printed bonus (`data-colony-bonus`) — never remounted, never
+           re-ordered. The flow's steps (the take, the discard) stand as layers ABOVE it and it comes back after
+           each (`con-composer--ledgerstep`). `data-colony-ledger-scope` is the wave's lookup scope. ── -->
+      <div v-if="ledgerReading !== undefined" class="con-composer__ledger" data-unfold-item data-colony-ledger-scope="card">
+        <ConsoleColonyLedger :reading="ledgerReading"
+                             size="normal"
+                             :kicker="ledgerKicker"
+                             :activeColony="ledgerActiveColony"
+                             :landedColonies="ledgerLanded" />
       </div>
 
       <!-- ── The decision surface ─────────────────────────────────────── -->
@@ -671,19 +694,20 @@
              that is not looking at the pixels. -->
         <div class="con-composer__cta"
              :class="{
-               'con-composer__cta--off': !ctaDockReady && !submitting,
-               'con-composer__cta--ready': ctaDockReady && !submitting,
-               'con-composer__cta--focused': ctaFocused && commitReady && !submitting,
-               'con-composer__cta--held': !commitReady && !submitting,
-               'con-composer__cta--waiting': submitting,
+               'con-composer__cta--off': !ctaDockReady && !ctaBusy,
+               'con-composer__cta--ready': ctaDockReady && !ctaBusy,
+               'con-composer__cta--focused': ctaFocused && commitReady && !ctaBusy,
+               'con-composer__cta--held': !commitReady && !ctaBusy,
+               'con-composer__cta--waiting': ctaBusy,
+               'con-composer__cta--done': ledgerSettled,
              }"
-             :aria-disabled="!commitReady || submitting ? 'true' : 'false'"
+             :aria-disabled="!commitReady || ctaBusy ? 'true' : 'false'"
              :ref="ctaFocused && commitReady ? 'focusedEl' : undefined"
              @click="submit">
           <!-- The glyph appears only with the press it stands for. -->
-          <GamepadGlyph v-if="!submitting && commitReady" control="confirm" class="con-composer__cta-glyph" />
-          <span v-else-if="submitting" class="con-composer__cta-wait" aria-hidden="true"></span>
-          <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : ctaDockLabel) }}</span>
+          <GamepadGlyph v-if="!ctaBusy && commitReady" control="confirm" class="con-composer__cta-glyph" />
+          <span v-else-if="ctaBusy && !ledgerSettled" class="con-composer__cta-wait" aria-hidden="true"></span>
+          <span class="con-composer__cta-label">{{ $t(ledgerSettled ? 'Completed' : ctaBusy ? 'Performing…' : ctaDockLabel) }}</span>
         </div>
       </div>
 
@@ -731,6 +755,18 @@
            has its zone to dissolve in. -->
       <div class="con-composer__parlzone" :class="{'con-composer__parlzone--on': parliamentStepOn}"
            data-embed-slot="action-parliament"></div>
+
+      <!-- ── THE LEDGER FLOW'S STEPS (TR23 — «the ledger pays»): the take of a row's drawn card and the hand's
+           discard (Pluto's pair) stand HERE, as LAYERS of the decision column over the parked ledger — one
+           teleported instance each (the shell's reveal into `workspace-reveal`, the hand frame into
+           `action-hand`), never a swap of the column. A layer stack in ONE cell: a departing step paints through
+           its leave beside the returning ledger. Always rendered (empty and inert outside a step), so a step always
+           has its zone before its teleport looks for it. ── -->
+      <div class="con-composer__ledgerzone" :class="{'con-composer__ledgerzone--on': ledgerStepOn}" data-colony-ledger-zone>
+        <div v-if="ledgerPaying" class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
+             data-outcome-zone data-embed-slot="workspace-reveal"></div>
+        <div class="con-composer__ledgerlayer" data-embed-slot="action-hand"></div>
+      </div>
 
       </div><!-- /__actright -->
       </div><!-- /__actmain -->
@@ -800,7 +836,7 @@
  * the parent assembles the byte-identical batch. A Viron repeat-action step
  * hands off via `repeat-pick`.
  */
-import {defineComponent, markRaw, PropType} from 'vue';
+import {ComponentPublicInstance, defineComponent, markRaw, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {focusCommandRun, FocusRowKind} from '@/client/console/consoleActionFlow';
@@ -871,6 +907,19 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {gsap} from 'gsap';
+import {vueRoot} from '@/client/components/vueRoot';
+import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
+import {cardColonyLedgerOf, COLONY_LEDGER_KICKER, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {AllColonyBonusesModel} from '@/common/models/ColonyBonusLedgerModel';
+import {flyLedgerRows, LEDGER_READ_MS, LEDGER_ROW_GAP_MS} from '@/client/console/colonyLedger/colonyLedgerWave';
+import {
+  colonyBonusPayout, colonyBonusPayoutOf, finishColonyBonusPayout, markPayoutRowLanded, nextPayoutRow, PayoutFacts,
+  PayoutRow, payoutRowSettled, payoutServerOwes, payoutUntaken,
+} from '@/client/console/colonyLedger/colonyBonusPayout';
+import {releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {choiceSourceView} from '@/client/console/promptSource';
+import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -1071,7 +1120,20 @@ export type ComposerOutcome =
    * the same input gate — and which presenter the shell re-homed into it is
    * the shell's business, not a second state for the workspace to track.
    */
-  | {kind: 'draw'};
+  | {kind: 'draw'}
+  /**
+   * «THE LEDGER PAYS» (TR23 Habitat Science — «gain all your colony bonuses»):
+   * the action is committed and its ledger pays row by row. The ONE outcome
+   * that does not replace the decision column: the configuration surface
+   * stays (its ledger is the very DOM the player read before the press) and
+   * the steps of the payout stand as layers above it.
+   */
+  | {kind: 'ledger'};
+
+/** Where the action composer's ledger stands — the scope the shared wave looks its rows up under. */
+const CARD_LEDGER_SCOPE = '[data-colony-ledger-scope="card"]';
+/** A walk that has not moved for this long while the SERVER owes it nothing is ended, named (the stall net). */
+const LEDGER_STALL_MS = 9000;
 
 /**
  * A STAGED ACTION VOTE's locked receipt — what the commit charges for the card: the branch's own COST chip on the
@@ -1085,7 +1147,7 @@ function stagedVoteReceiptOf(branch: ActionPreviewBranch): StagedReceipt | undef
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
+  components: {ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1136,7 +1198,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
+  emits: ['confirm', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
   data() {
     return {
       /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
@@ -1194,6 +1256,21 @@ export default defineComponent({
       playedTargetWidth: 0,
       playedTargetHeight: 0,
       submitting: false,
+      /** THE LEDGER as the player read it at the press — frozen, so the paying rows can never re-order under a refetched preview. */
+      ledgerFrozen: undefined as AllColonyBonusesModel | undefined,
+      /** The surface's height AT THE PRESS (its own used value) — the box the paying ledger keeps ('' — not pinned). */
+      ledgerSurfaceHeight: '',
+      /** This stage MOUNTED into a payout already running (a restored park): the decisions the press carried are not
+       *  this instance's to show — its rows are put away, the ledger and the dock speak. */
+      ledgerResumed: false,
+      /** The module record of the payout (path-watcher mirror — the walk's facts). */
+      colonyBonusPayout,
+      /** The reveal queue (the walk reads which of the payout's cards are still untaken). */
+      drawnCardsState,
+      /** The walk's clocks — on GSAP's own time (the row gap, the read, the stall net), killed on unmount. */
+      ledgerGap: undefined as gsap.core.Tween | undefined,
+      ledgerRead: undefined as gsap.core.Tween | undefined,
+      ledgerStall: undefined as gsap.core.Tween | undefined,
       /** The setup column is PARKED under a hosted Parliament step (released in place, hidden — never unmounted). */
       parliamentSetupParked: false,
       /** The release / return fades of the setup column (cancelled by the opposite edge). */
@@ -1766,7 +1843,8 @@ export default defineComponent({
     },
     /** The outcome stage owns the column (any flavour) — drives the phrase. */
     outcomeStageOn(): boolean {
-      return this.outcome !== undefined;
+      // (A LEDGER outcome keeps the configuration surface — its ledger IS the stage; nothing is released.)
+      return this.outcome !== undefined && this.outcome.kind !== 'ledger';
     },
     /** A re-homed surface has landed in the zone (drives the REVEAL half). */
     outcomeContentIn(): boolean {
@@ -1845,6 +1923,11 @@ export default defineComponent({
       if (this.deckCheckOn) {
         return focusCommandRun(this.revealStage === 'settled' && this.revealPayload !== undefined ?
           {state: 'reveal-shown'} : {state: 'reveal-pending'});
+      }
+      if (this.ledgerPaying) {
+        // «THE LEDGER PAYS»: the rows pay by themselves — nothing to press between the steps (a step publishes
+        // its own contract while it has the column), and the bar says which beat this is.
+        return [{control: 'confirm', label: this.ledgerSettled ? 'Completed' : 'Performing…', enabled: false}];
       }
       if (this.submitting) {
         return focusCommandRun({state: 'awaiting'});
@@ -2232,6 +2315,101 @@ export default defineComponent({
       const door = this.navigationDeferred ? undefined : playDoorOf(this.selectedBranch);
       return door?.kind === 'parliament' ? door.staged : undefined;
     },
+    // ── «THE LEDGER PAYS» (TR23 Habitat Science — «gain all your colony bonuses») ─────────────────────────────
+    /** The server's ledger of this branch — the frozen one past the press. */
+    ledgerModel(): AllColonyBonusesModel | undefined {
+      // A stage RESTORED mid-payout has no press of its own: the module record kept the ledger the player read
+      // (a refetched preview of an action already performed is not that ledger).
+      return this.ledgerFrozen ?? (this.ledgerPaying ? colonyBonusPayout.model : undefined) ?? this.selectedBranch?.colonyBonuses;
+    },
+    /** THIS composer's action is being paid (the module record names its card). OWNER only. */
+    ledgerPaying(): boolean {
+      return this.publishCommands && colonyBonusPayoutOf(this.entry.cardName);
+    },
+    /**
+     * THE SURFACE KEEPS ITS BOX WHILE THE LEDGER PAYS. The press folds the chosen target's card block into its
+     * one-line receipt, and a plate that hugs its content would shrink and re-centre — moving the ledger, the very
+     * rows the wave leaves from, in the frame the first chip is born. The height the surface had at the press is
+     * its floor for the flow's life; the room the receipt gave back stays as air above the dock.
+     */
+    ledgerSurfaceStyle(): Record<string, string> | undefined {
+      return this.ledgerPaying && this.ledgerSurfaceHeight !== '' ? {minHeight: this.ledgerSurfaceHeight} : undefined;
+    },
+    /** Every row has paid (the read beat and after) — the dock reads «Выполнено». */
+    ledgerSettled(): boolean {
+      return this.ledgerPaying && (colonyBonusPayout.reading || colonyBonusPayout.done);
+    },
+    /**
+     * THE COMMIT DOCK IS BUSY — the submit is in flight, or this action's ledger is paying. Past the press the
+     * surface keeps EVERY block where it stood (the ledger is the wave's source and may not move a pixel; the
+     * chosen target stays as its receipt), and the dock, in place, reads the flow: «Выполняется…» → «Выполнено».
+     */
+    ctaBusy(): boolean {
+      return this.submitting || this.ledgerPaying;
+    },
+    /** `paying` (rows in turn) · `reading` (the receipt) · `done` — published on the root for the probes. */
+    ledgerFlowStage(): string {
+      return colonyBonusPayout.done ? 'done' : colonyBonusPayout.reading ? 'reading' : colonyBonusPayout.answered ? 'paying' : 'sent';
+    },
+    ledgerDegraded(): boolean {
+      return this.ledgerPaying && colonyBonusPayout.degraded;
+    },
+    ledgerReading(): ColonyLedgerReading | undefined {
+      const model = this.ledgerModel;
+      if (model === undefined) {
+        return undefined;
+      }
+      const context = !this.ledgerPaying ? 'preview' : (colonyBonusPayout.reading || colonyBonusPayout.done ? 'paid' : 'paying');
+      return cardColonyLedgerOf(model, context);
+    },
+    ledgerKicker(): string {
+      return COLONY_LEDGER_KICKER;
+    },
+    /** The rows whose payout has LANDED — what a row reads «received» off (the touchdown, never the answer). */
+    ledgerLanded(): ReadonlySet<string> | undefined {
+      return this.ledgerPaying ? new Set(colonyBonusPayout.landed) : undefined;
+    },
+    ledgerActiveColony(): string | undefined {
+      return this.ledgerPaying && colonyBonusPayout.active !== '' ? colonyBonusPayout.active : undefined;
+    },
+    /** The walk stands on a row that hands cards over — its batch may present in this composer's draw layer. */
+    ledgerDrawTurn(): boolean {
+      if (!this.ledgerPaying) {
+        return false;
+      }
+      const row = colonyBonusPayout.rows.find((r) => r.colony === colonyBonusPayout.active);
+      return row !== undefined && (row.kind === 'draw' || row.kind === 'pairs') && row.state === 'paying';
+    },
+    /** The embedded take is ON SCREEN in the draw layer (the claim presents). */
+    ledgerDrawOn(): boolean {
+      return this.ledgerPaying && workspaceOutcomeState.host === 'card-actions' && workspaceOutcomeState.stage === 'presenting';
+    },
+    /** The hand stands in the hand layer (Pluto's discard — `card-actions ⊃ hand`). */
+    ledgerHandOn(): boolean {
+      return this.ledgerPaying && workspaceFrameHost('hand') === 'card-actions';
+    },
+    /** A STEP of the payout has the column: the ledger is parked under it (and comes back after it). */
+    ledgerStepOn(): boolean {
+      return this.ledgerDrawOn || this.ledgerHandOn;
+    },
+    /** A request is in flight — the next fact of the walk is on its way. */
+    ledgerRequestInFlight(): boolean {
+      return vueRoot(this as ComponentPublicInstance).isServerSideRequestInProgress === true;
+    },
+    /** Every fact the walk moves on, as ONE change key (a path watcher needs a value, not an identity). */
+    ledgerTick(): string {
+      if (!this.ledgerPaying) {
+        return '';
+      }
+      const rows = colonyBonusPayout.rows.map((r) => `${r.colony}:${r.state}:${r.ready ? 1 : 0}:${colonyBonusPayout.drawn[r.colony] ?? 0}:${this.ledgerUntaken(r.colony)}`).join(',');
+      const wf = this.playerView.waitingFor;
+      return [
+        colonyBonusPayout.answered ? 'a' : '-', colonyBonusPayout.flying ? 'f' : '-', colonyBonusPayout.reading ? 'r' : '-',
+        colonyBonusPayout.done ? 'd' : '-', this.ledgerStepOn ? 's' : '-', this.ledgerRequestInFlight ? 'q' : '-',
+        wf?.type ?? '', wf?.discardPrompt?.colonyRepeat?.index ?? '', this.playerView.game.gameAge, rows,
+      ].join('|');
+    },
+
     /**
      * THE PARLIAMENT STANDS IN THIS COMPOSER — a vote step of THIS action, hosted in the decision column's own
      * layer (`[data-embed-slot="action-parliament"]`): the staged door's vote mode, or the live grant the server
@@ -2447,6 +2625,28 @@ export default defineComponent({
       if (door !== undefined) {
         preloadResolutionArt((this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution));
       }
+    },
+    // «THE LEDGER PAYS»: the draw layer is the claim's zone ONLY while the walk stands on a row that hands cards
+    // over — published post-flush (the layer genuinely stands before the teleport looks for it), retracted the
+    // moment the row settles. Until then the claim holds the batch with NO zone: it renders nowhere (the embed
+    // contract's «claimed but not ready»), never as a band over the ledger. OWNER only.
+    ledgerDrawTurn: {
+      flush: 'post' as const,
+      handler(on: boolean, was: boolean) {
+        if (!this.publishCommands || (!on && !was)) {
+          return;
+        }
+        setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
+      },
+    },
+    // …and every fact the walk moves on re-asks it (post-flush: a row's wave measures the ledger's own cells).
+    ledgerTick: {
+      flush: 'post' as const,
+      handler(key: string) {
+        if (key !== '') {
+          this.advanceLedgerPayout();
+        }
+      },
     },
     parliamentStepOn: {
       flush: 'post' as const,
@@ -2691,6 +2891,22 @@ export default defineComponent({
       setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-colonies"]');
       setWorkspaceFrameSourceCard('card-actions', this.entry.cardName);
     }
+    // …and a LEDGER PAYOUT already running for this card (a restored park): the frozen ledger is the record's own
+    // rows' order, the draw layer's zone is republished if the walk stands on a draw row, and the walk is re-asked.
+    if (this.ledgerPaying) {
+      this.submitting = true;
+      this.ledgerResumed = true;
+      // The walk stands where it stood: a row waiting on its step (a take, a discard) is the row paying NOW — the
+      // unmount put the mark away with the stage.
+      const standing = nextPayoutRow();
+      if (standing !== undefined && standing.state === 'paying' && (standing.kind === 'draw' || standing.kind === 'pairs')) {
+        colonyBonusPayout.active = standing.colony;
+      }
+      if (this.ledgerDrawTurn) {
+        setWorkspaceOutcomeSlot('[data-embed-slot="workspace-reveal"]');
+      }
+      void this.$nextTick(() => this.advanceLedgerPayout());
+    }
     // …and the same for a Parliament step already standing (a restored park): the zone is republished and the
     // setup comes back already parked — there is no release to replay.
     if (this.parliamentStepOn) {
@@ -2700,6 +2916,21 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.killLedgerClocks();
+    // THE LEDGER LEAVES THE SCREEN with this stage (a collapse, the flow's end): a row whose chips could only be
+    // born on it is released honestly — the counter ticks now, late, never lost. The rows the SERVER still owes
+    // an answer for (a take, a discard) keep waiting in the module record.
+    if (this.ledgerPaying && !colonyBonusPayout.done) {
+      for (const row of colonyBonusPayout.rows) {
+        if (row.kind === 'chips' && row.ready && row.state !== 'paid') {
+          row.specs.forEach((spec) => releasePanelRewardHold(spec));
+          row.state = 'paid';
+          markPayoutRowLanded(row.colony);
+        }
+      }
+      colonyBonusPayout.flying = false;
+      colonyBonusPayout.active = '';
+    }
     this.clearBeatDelay();
     this.commitHandle?.kill();
     this.commitHandle = undefined;
@@ -2844,6 +3075,14 @@ export default defineComponent({
       return displayNameForColor(this.playerView.players, color as Color);
     },
     choiceTitle(c: ComposerChoice): string {
+      // A step asked BY A COLONY (a card paying «all your colony bonuses» — one pick per cube) names its TILE,
+      // «КОЛОНИЯ · Титан»: the prompt's title («Add resource to this card») is the same sentence for every tile,
+      // and the ledger above lists them by name. The source is the step's own structural marker
+      // (`choiceContext`, the one the live question would carry) — read through the ONE source model.
+      const source = choiceSourceView(c.input.choiceContext?.source);
+      if (source !== undefined && source.kindKey === 'Colony' && typeof source.name === 'string' && source.name !== '') {
+        return `${translateText(source.kindKey)} · ${translateText(source.name)}`;
+      }
       const t = textOf(c.input.title);
       return t !== '' ? t : translateText(CHOICE_KIND_LABEL[c.kind] ?? 'Choose an option');
     },
@@ -4389,6 +4628,161 @@ export default defineComponent({
           {duration: consoleMotionMs(STAGED_STEP_RELEASE_MS), easing: 'ease-out'})));
       });
     },
+    // ── «THE LEDGER PAYS» — the walk (the plan and the state are `colonyLedger/colonyBonusPayout.ts`) ─────────
+    /** Untaken cards of the payout's own batches for `colony` (the reveal queue's truth). */
+    ledgerUntaken(colony: string): number {
+      return payoutUntaken(colony);
+    },
+    ledgerFacts(): PayoutFacts {
+      return {
+        waitingFor: this.playerView.waitingFor,
+        untaken: (colony: string) => this.ledgerUntaken(colony),
+        inFlight: this.ledgerRequestInFlight,
+      };
+    },
+    killLedgerClocks(): void {
+      this.ledgerGap?.kill();
+      this.ledgerRead?.kill();
+      this.ledgerStall?.kill();
+      this.ledgerGap = undefined;
+      this.ledgerRead = undefined;
+      this.ledgerStall = undefined;
+    },
+    /** The next step, one row gap later — on the animation clock, never a wall clock. */
+    queueLedgerAdvance(): void {
+      this.ledgerGap?.kill();
+      this.ledgerGap = markRaw(gsap.delayedCall(consoleMotionMs(LEDGER_ROW_GAP_MS) / 1000, () => {
+        this.ledgerGap = undefined;
+        this.advanceLedgerPayout();
+      }));
+    },
+    /**
+     * THE STALL NET: the walk is waiting on something only the server can bring (a resource parked behind a
+     * discard, a batch on its way). Bounded and honest — if nothing moved for the whole window AND the server owes
+     * the walk nothing (no prompt of the payout's, no untaken batch, no request in flight), the walk ends where it
+     * stands: every hold released, the flow free to leave, the confession on the root. A player reading a card is
+     * never a stall (the server owes → the net re-arms).
+     */
+    armLedgerStall(): void {
+      this.ledgerStall?.kill();
+      this.ledgerStall = markRaw(gsap.delayedCall(LEDGER_STALL_MS / 1000, () => {
+        this.ledgerStall = undefined;
+        if (!this.ledgerPaying || colonyBonusPayout.done) {
+          return;
+        }
+        if (payoutServerOwes(this.ledgerFacts()) || this.ledgerStepOn) {
+          this.armLedgerStall();
+          return;
+        }
+        console.warn('[colony-ledger] the payout stalled with nothing owed — ended', JSON.stringify(colonyBonusPayout.rows.map((r) => `${r.colony}:${r.kind}:${r.state}`)));
+        finishColonyBonusPayout(true);
+        this.$emit('ledger-done');
+      }));
+    },
+    /**
+     * ONE STEP OF THE WALK. The rows pay strictly in the ledger's order (the engine's own): a chips row flies its
+     * wave from its printed bonus once the server has applied it; a draw / pairs row is paid by its STEP (the take,
+     * the discard) and settles on server facts; then one read of the whole ledger, and the flow leaves.
+     */
+    advanceLedgerPayout(): void {
+      if (!this.ledgerPaying || !colonyBonusPayout.answered || colonyBonusPayout.flying ||
+          colonyBonusPayout.reading || this.ledgerGap !== undefined) {
+        return;
+      }
+      if (colonyBonusPayout.done) {
+        // A payout that ended while this stage was away (a restored park): the flow leaves.
+        this.$emit('ledger-done');
+        return;
+      }
+      // A step has the column: the ledger is parked under it — nothing is born on a row nobody can see.
+      if (this.ledgerStepOn) {
+        return;
+      }
+      const row = nextPayoutRow();
+      if (row === undefined) {
+        this.beginLedgerRead();
+        return;
+      }
+      if (row.kind === 'chips') {
+        if (!row.ready) {
+          // Not on the server yet (a resource onto a card lands behind Pluto's discard): the seeder re-asks.
+          colonyBonusPayout.active = '';
+          this.armLedgerStall();
+          return;
+        }
+        this.flyLedgerRow(row);
+        return;
+      }
+      if (row.kind === 'draw' || row.kind === 'pairs') {
+        row.state = 'paying';
+        colonyBonusPayout.active = row.colony;
+        if (payoutRowSettled(row, this.ledgerFacts())) {
+          row.state = 'paid';
+          markPayoutRowLanded(row.colony);
+          colonyBonusPayout.active = '';
+          this.queueLedgerAdvance();
+          return;
+        }
+        this.armLedgerStall();
+        return;
+      }
+      // A benefit with no chip and no step of this flow (a discount, a loss): paid with the answer.
+      row.state = 'paid';
+      markPayoutRowLanded(row.colony);
+      this.queueLedgerAdvance();
+    },
+    /** A chips row's wave: born on the row's printed bonus, landing on the rail — the counter ticks on the touchdown. */
+    flyLedgerRow(row: PayoutRow): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const card = this.entry.cardName;
+      const landed = (): void => {
+        row.state = 'paid';
+        markPayoutRowLanded(row.colony);
+        colonyBonusPayout.flying = false;
+        colonyBonusPayout.active = '';
+        this.queueLedgerAdvance();
+      };
+      row.state = 'paying';
+      this.ledgerStall?.kill();
+      this.ledgerStall = undefined;
+      if (consoleReducedMotionActive() || root === undefined) {
+        // No flights: the counters and «received» at once.
+        row.specs.forEach((spec) => releasePanelRewardHold(spec));
+        landed();
+        return;
+      }
+      colonyBonusPayout.flying = true;
+      flyLedgerRows({
+        root,
+        scope: CARD_LEDGER_SCOPE,
+        rows: [{colony: row.colony, specs: row.specs}],
+        finished: () => !colonyBonusPayoutOf(card),
+        onRow: (colony) => {
+          if (colony !== '') {
+            colonyBonusPayout.active = colony;
+          }
+        },
+        onArrive: (spec) => releasePanelRewardHold(spec),
+        onRelease: (r) => {
+          // The ledger could not be measured: the counters tick honestly, and the stage confesses it.
+          r.specs.forEach((spec) => releasePanelRewardHold(spec));
+          colonyBonusPayout.degraded = true;
+        },
+      }, landed);
+    },
+    /** Every row has paid: the ledger stands for ONE read (RX07's own beat), then the flow leaves. */
+    beginLedgerRead(): void {
+      this.ledgerStall?.kill();
+      this.ledgerStall = undefined;
+      colonyBonusPayout.active = '';
+      colonyBonusPayout.reading = true;
+      this.ledgerRead = markRaw(gsap.delayedCall(consoleMotionMs(LEDGER_READ_MS) / 1000, () => {
+        this.ledgerRead = undefined;
+        colonyBonusPayout.reading = false;
+        colonyBonusPayout.done = true;
+        this.$emit('ledger-done');
+      }));
+    },
     /**
      * ── ACTION COMMIT — the universal activation beat, for THIS branch. Armed and MEASURED synchronously at the
      *    press (the reward-wave origins are the live icon rects; the flight must never depend on this stage
@@ -4406,10 +4800,16 @@ export default defineComponent({
       const stageSpecs = stageDraft !== undefined ?
         deltaRewardCommitSpecs(stageDraft, this.playerView) : [];
       const stageFollowUp = stageDraft !== undefined ? HYDRO_STAGES[stageDraft.position]?.followUp : undefined;
-      const baseKind = commitKindForBranch(branch, this.captured);
-      const kind = stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
+      // «ALL YOUR COLONY BONUSES» (TR23): the result is printed as TEXT and is paid by the LEDGER below — row by
+      // row, each from its own printed bonus. The commit carries NO reward of its own (a wave «from the card»
+      // would fly the very gains the rows are about to pay, from the wrong place, and hold the rail twice) and
+      // it answers no deck (a draw is a row's step, several beats away): the impulse runs the printed row, lands
+      // on the result's own text, and the ledger's first row takes the weight.
+      const ledgerBranch = branch.colonyBonuses !== undefined;
+      const baseKind = ledgerBranch ? 'generic' : commitKindForBranch(branch, this.captured);
+      const kind = ledgerBranch ? 'generic' : stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
         (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
-      const specs = [...commitRewardSpecs(this.entry.cardName, branch, this.captured), ...stageSpecs];
+      const specs = ledgerBranch ? [] : [...commitRewardSpecs(this.entry.cardName, branch, this.captured), ...stageSpecs];
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
@@ -4471,7 +4871,7 @@ export default defineComponent({
         this.flashBlockingRequirement();
         return;
       }
-      if (branch === undefined || !this.commitReady || this.submitting || this.preview === undefined) {
+      if (branch === undefined || !this.commitReady || this.ctaBusy || this.preview === undefined) {
         return;
       }
       // ── THE SECOND DOOR. A colony-trade branch commits NOTHING here: no
@@ -4546,6 +4946,12 @@ export default defineComponent({
           return;
         }
       }
+      // «ALL YOUR COLONY BONUSES»: the ledger is FROZEN as the player read it — the rows that pay are these rows,
+      // and so is the surface's box (measured NOW, in the layout the player pressed in).
+      this.ledgerFrozen = branch.colonyBonuses;
+      const surface = this.$refs.surfaceEl as HTMLElement | undefined;
+      this.ledgerSurfaceHeight = branch.colonyBonuses !== undefined && surface !== undefined && typeof getComputedStyle === 'function' ?
+        getComputedStyle(surface).height : '';
       // Capture the configuration surface's box NOW — the outcome unfolds from
       // it, and by the time that zone mounts this surface is already gone.
       armOutcomeOrigin(this.$refs.rootEl as HTMLElement | undefined);

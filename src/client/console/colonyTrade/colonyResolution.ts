@@ -333,21 +333,30 @@ export function colonyBonusCollectOf(wf: PlayerInputModel | undefined): ColonyBo
  *
  * A prompt carrying a `discardPrompt` is excluded by construction: the discard
  * half of Pluto's bonus is the same input type and has its own owner.
+ *
+ * …and so is a bonus a CARD pays (`source.via` — «gain all your colony
+ * bonuses»: Habitat Science, Productive Outpost): that pick is a step of the
+ * workspace the card was pressed in, never a payout of the colony workspace.
  */
 export function colonyBonusCardPickOf(wf: PlayerInputModel | undefined): {colonyName: string} | undefined {
   if (wf === undefined || wf.type !== 'card' || wf.discardPrompt !== undefined) {
     return undefined;
   }
   const source = wf.choiceContext?.source;
-  if (source?.kind !== 'colony' || typeof source.name !== 'string' || source.name === '') {
+  if (source?.kind !== 'colony' || source.via !== undefined || typeof source.name !== 'string' || source.name === '') {
     return undefined;
   }
   return {colonyName: source.name};
 }
 
-/** A COLONY-sourced reveal batch's colony name ('' for anything else). */
+/**
+ * A COLONY-sourced reveal batch's colony name ('' for anything else) — the
+ * colony RESOLUTION's own evidence, so a batch a CARD paid (`via`) answers
+ * '' here: it belongs to that card's workspace and must never light the
+ * colony workspace's resolution (see `workspaceClaimsColonyReveal`).
+ */
 export function revealColonyOf(source: CardDrawRevealSource | undefined): string {
-  return source?.type === 'colony' ? source.colonyName : '';
+  return source?.type === 'colony' && source.via === undefined ? source.colonyName : '';
 }
 
 /** Is this colony-sourced batch an OWNER-BONUS wave (vs trade income)? */
@@ -450,7 +459,7 @@ export function colonyResolutionFocusIntent(s: ColonyResolutionSignals, colony: 
     return 'bonus';
   }
   const source = s.revealSource;
-  if (source?.type === 'colony' && source.colonyName === colony && source.trade === undefined) {
+  if (source?.type === 'colony' && source.colonyName === colony && source.trade === undefined && source.via === undefined) {
     return 'build';
   }
   return 'trade';

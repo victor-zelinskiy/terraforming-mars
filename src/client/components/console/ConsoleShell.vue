@@ -1993,6 +1993,11 @@ import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
+import {
+  COLONY_LEDGER_STAGE,
+  colonyBonusPayout, colonyBonusPayoutArmed, colonyBonusPayoutLive, colonyBonusPayoutOf, colonyBonusPayoutParksReveal,
+  finishColonyBonusPayout, payoutDiscardDue, payoutPromptColony, payoutUntaken, resetColonyBonusPayout,
+} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
@@ -4583,11 +4588,17 @@ export default defineComponent({
       // that reaches the step: its one honest presentation is the cover
       // lifting off that step, on a track the player can see. Released by
       // the sitting director at the glide's landing (or the ledger's idle net).
+      // …and a CARD's colony-bonus payout («the ledger pays», TR23): a row's drawn
+      // batch waits for ITS TURN in the ledger — the rows before it are still
+      // paying, and its take stands in the workspace's own draw layer only once
+      // the walk reaches it. Scoped to the batch (`via` = the paying card),
+      // released by the walk, bounded by its stall net.
       const ev = currentRevealEvent();
       return ev !== undefined &&
         !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source) &&
         !boardBeatParksReveal(ev.source) &&
-        !parliamentParksReveal(ev.source);
+        !parliamentParksReveal(ev.source) &&
+        !colonyBonusPayoutParksReveal(ev.source);
     },
     /**
      * The reveal modal's MANDATORY closing step, when the pending prompt is the
@@ -5017,7 +5028,49 @@ export default defineComponent({
      *  (The take paths release with `force` — the consumed artifact is the
      *  licence — so this never wedges a finished flow open.) */
     workspaceOutcomeServingNow(): boolean {
-      return this.workspaceOutcomePromptServed || this.workspaceOutcomeBatchServed;
+      // …and a claim that IS a live ledger payout's (TR23): it spans the whole
+      // payout — the gaps between a row's take and its discard, and between two
+      // pairs, hold nothing the two halves above can see, yet the next batch of
+      // the same press is on its way. The payout's own end (`done`) lifts it.
+      return this.workspaceOutcomePromptServed || this.workspaceOutcomeBatchServed || this.ledgerPayoutClaimed;
+    },
+    /**
+     * «THE LEDGER PAYS» HOLDS THIS CLAIM (TR23 Habitat Science — «gain all your
+     * colony bonuses»): the action workspace's live claim is the armed payout's
+     * own, and the payout is not over. Keyed on the CARD the server names on
+     * every artifact of the payout (`via`), never on «some payout exists».
+     */
+    ledgerPayoutClaimed(): boolean {
+      return workspaceOutcomeState.host === 'card-actions' && colonyBonusPayoutLive() &&
+        colonyBonusPayoutOf(workspaceOutcomeState.sourceCard);
+    },
+    /**
+     * THE PAYOUT'S DISCARD IS OWED TO THIS LIVE ACTION WORKSPACE — Pluto's
+     * «take 1, then discard 1» paid by a card: the server's own markers (the
+     * discard's source is the paying card, `colonyRepeat` names the tile), the
+     * armed payout, the frame on screen. It is a STEP of the action
+     * (`card-actions ⊃ hand`), never an interruption to announce and never the
+     * colony workspace's (that is the `colonyBonus` marker's routing).
+     */
+    ledgerDiscardStepOwed(): boolean {
+      const wf = this.playerView.waitingFor;
+      return colonyBonusPayoutLive() && wf?.discardPrompt !== undefined &&
+        payoutPromptColony(wf, colonyBonusPayout.sourceCard) !== undefined &&
+        workspaceFrameMounted('card-actions') && taskFor(this.playerView)?.kind === 'handSelect';
+    },
+    /**
+     * …AND IT IS DUE — the walk stands on that tile's row and the pair's card has
+     * been taken (`payoutDiscardDue`). The server raises the discard with the
+     * press's own answer, while rows ahead of it are still paying: OWED keeps it
+     * from being announced or opened anywhere else, DUE is what opens the hand.
+     */
+    ledgerDiscardStepDue(): boolean {
+      return this.ledgerDiscardStepOwed &&
+        payoutDiscardDue({waitingFor: this.playerView.waitingFor, untaken: payoutUntaken, inFlight: false});
+    },
+    /** The payout's workspace is gone for good (not parked): nobody is left to play it. */
+    ledgerPayoutOrphaned(): boolean {
+      return colonyBonusPayoutArmed() && !workspaceFrameKnown('card-actions');
     },
     /**
      * THE ADOPTION VERDICT for the pending drawn batch (`consoleOutcomeAdoption`
@@ -5206,6 +5259,14 @@ export default defineComponent({
       // Outside the start flow (the mid-game merger chain) it stays an
       // interruptive beat and the confirm modal serves it, exactly as before.
       if (task?.kind === 'corpFirstAction' && corpFirstActionInStartFlow(this.playerView)) {
+        task = undefined;
+      }
+      // «THE LEDGER PAYS» (TR23): the discard of a card's colony-bonus payout is
+      // a STEP of the action workspace whose ledger is paying — raised by the
+      // server with the press's own answer, rows before its turn. It is never
+      // an interruption: no plate, no beacon over the workspace that owes it,
+      // no gate on a door the walk itself opens (`ledgerDiscardStepDue`).
+      if (task?.kind === 'handSelect' && this.ledgerDiscardStepOwed) {
         task = undefined;
       }
       // The EXTERNAL-DRAW take is ONE demand for the whole batch: every take
@@ -8308,6 +8369,11 @@ export default defineComponent({
         // …unless a SECTION-projecting workspace is standing INSIDE it (a
         // hosted colony step): the bar belongs to the surface the player is
         // driving, which is the same rule input routing uses.
+        // «THE LEDGER PAYS» (TR23): past the press the stage is the ledger's —
+        // the crumb's own word (its steps publish their own while they stand).
+        if (colonyBonusPayoutArmed() && workspaceFrameMounted('card-actions')) {
+          return COLONY_LEDGER_STAGE;
+        }
         const phase = focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' : 'setup');
         // The composer's R3 «Эффекты» layer — one voice with the crumb's
         // composed tail (pre-translated; `$t` passes an unknown key through).
@@ -10567,6 +10633,24 @@ export default defineComponent({
     // presentation clears, open the serving surface so the still-pending prompt
     // isn't left with NO surface (the stranded guard). Respects an explicit
     // defer (the player chose to inspect the board).
+    /**
+     * A LEDGER PAYOUT WITH NOBODY LEFT TO PLAY IT (TR23): its action workspace
+     * is gone — not parked, gone (the game moved on, a reset). Whatever the
+     * rail still holds is released at once and the record is dropped: a hold
+     * nobody will ever land is a counter frozen for good.
+     */
+    ledgerPayoutOrphaned(orphaned: boolean): void {
+      if (orphaned) {
+        finishColonyBonusPayout();
+        resetColonyBonusPayout();
+      }
+    },
+    /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
+    ledgerDiscardStepDue(due: boolean): void {
+      if (due && !this.consoleForegroundBusy && !this.consoleState.task.deferred) {
+        this.openLedgerDiscardStep();
+      }
+    },
     consoleForegroundBusy(busy: boolean, wasBusy: boolean): void {
       // Don't auto-open an interruptive task that is still GATED (announced,
       // not yet opened via B) — it waits for the player's press, not for the
@@ -11808,7 +11892,11 @@ export default defineComponent({
               // A SelectColony follow-up standing INSIDE the action workspace:
               // the composer stays and hosts the colonies step — dismissing it
               // here would tear down the very frame the step lands in.
-              workspaceFrameHasNested('card-actions');
+              workspaceFrameHasNested('card-actions') ||
+              // «THE LEDGER PAYS» (TR23): the action's whole result is its ledger
+              // paying row by row IN the composer — a payout of plain gains
+              // raises no claim at all, so the armed payout is the verdict.
+              colonyBonusPayoutArmed();
             if (claimedInFrame) {
               clearAwaitingHandoff();
               // The workspace's own stages carry the outcome from here — the
@@ -17897,6 +17985,12 @@ export default defineComponent({
         this.openPartyDiscardStep();
         return;
       }
+      // …and so is the discard of a CARD's colony-bonus payout (TR23 — Pluto's
+      // pair): a step of the action workspace whose ledger is paying.
+      if (task.kind === 'handSelect' && this.ledgerDiscardStepOwed) {
+        this.openLedgerDiscardStep();
+        return;
+      }
       closeConsoleLayers();
       if (task.kind === 'awardFunding') {
         // THE FIRST ACTION'S OWN FUNDING STAGE. Raised while the START
@@ -18147,6 +18241,47 @@ export default defineComponent({
         this.openPartyDiscardStep();
       }
     },
+    /**
+     * «THE LEDGER PAYS» — a batch of the payout was taken. The claim stays for
+     * the rest of the payout (re-armed: its next batch may be a response away),
+     * and a discard the same row owes (Pluto's pair) is the NEXT STEP of the
+     * very action that drew the card: the take is its acknowledgement, so the
+     * mandatory beat is acknowledged here and the hand opens inside the action
+     * workspace once the intake has landed the card (`consoleForegroundBusy`'s
+     * falling edge; now, if it already has) — never announced, never lateral.
+     */
+    continueLedgerPayoutAfterTake(): void {
+      const next = drawnCardsState.events.find((e) =>
+        !e.dismissed && e.cards.length - e.takenIndices.size > 0 && workspaceClaimsColonyReveal(e.source));
+      retainWorkspaceOutcomeForNextBatch(next?.cards.length ?? 0);
+      if (this.ledgerDiscardStepOwed) {
+        this.consoleState.task.deferred = false;
+        if (!this.consoleForegroundBusy) {
+          this.openLedgerDiscardStep();
+        }
+      }
+    },
+    /**
+     * The hand as the payout's «СБРОС» step of the live action workspace
+     * (idempotent). Opens only when the discard is DUE — its pair's card taken,
+     * its row paying; until then the door stays shut and nothing else may open
+     * for that prompt (the three callers: the take, the foreground's falling
+     * edge, the `ledgerDiscardStepDue` rising edge).
+     */
+    openLedgerDiscardStep(): void {
+      if (!this.ledgerDiscardStepDue) {
+        return;
+      }
+      if (workspaceFrameKnown('hand')) {
+        this.focusFirstSelectableHandCard();
+        return;
+      }
+      this.openHandWorkspace();
+      if (workspaceFrameHost('hand') === 'card-actions') {
+        setWorkspaceFrameStage('hand', 'Discarding');
+      }
+      this.focusFirstSelectableHandCard();
+    },
     /** The hand as a STEP of the live action workspace (idempotent). */
     openPartyDiscardStep(): void {
       if (!this.partyDiscardStepOwed) {
@@ -18257,6 +18392,14 @@ export default defineComponent({
       // edge (the colonyResolutionLive watcher) — releasing per batch is what
       // used to fold the workspace between the reveal and the discard.
       if (host === 'colonies' && this.colonyResolutionLive) {
+        return;
+      }
+      // …and A LEDGER PAYOUT outlives every one of its batches (TR23): the take
+      // is one row's half — its discard, the next pair, the rows after it are
+      // still this claim's. It re-arms for whatever comes next and ends with
+      // the payout (`onLedgerDone` in the action workspace).
+      if (this.ledgerPayoutClaimed) {
+        this.continueLedgerPayoutAfterTake();
         return;
       }
       // …and a PLAY'S CHAIN outlives its batch the same way: the press also
@@ -18396,7 +18539,9 @@ export default defineComponent({
         // telling its story before the Parliament takes the zone.
         owedStep: (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'hand' && agendaWalkOwedTo('hand')),
         // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
-        outcomeLive: mine || (kind === 'hand' && agendaWalkLiveIn('hand')),
+        // …and a LEDGER still paying inside it (TR23 — «all your colony bonuses»):
+        // the rows in turn, a take, a discard, the read — the flow's own body.
+        outcomeLive: mine || (kind === 'hand' && agendaWalkLiveIn('hand')) || (kind === 'card-actions' && colonyBonusPayoutLive()),
         // The second half of a pick-then-pay and a DRAW & SELECT still standing
         // in our zone are both this activation, still being answered — and so
         // is any prompt this FRAME earned the right to serve.
@@ -18641,6 +18786,11 @@ export default defineComponent({
       if (host === 'colonies' && this.colonyResolutionLive) {
         return;
       }
+      // …and a LEDGER PAYOUT's (TR23) — both ends of the take must hold.
+      if (this.ledgerPayoutClaimed) {
+        this.continueLedgerPayoutAfterTake();
+        return;
+      }
       // …and so does a play chain still owing its EFFECT DECISION (this fires
       // at the intake's staged seam, BEFORE `drawn-complete` — both ends of
       // the take must hold, or the first one folds the workspace under it).
@@ -18655,6 +18805,21 @@ export default defineComponent({
       if (this.partyDiscardStepOwed) {
         releaseWorkspaceOutcome('result-detached', {force: true});
         this.armPartyDiscardStep();
+        return;
+      }
+      // ONE PRESS, SEVERAL BATCHES OF ONE CARD — a PLAY that pays «all your
+      // colony bonuses» (Productive Outpost: Miranda's card, then Pluto's; each
+      // batch names the card that paid it, `via`): the claim re-arms for the
+      // queued sibling instead of folding under it — `drawn-complete`'s own law
+      // («THE CHAIN HAS ANOTHER BATCH QUEUED»), stated at this seam too, which
+      // fires FIRST for a single-card take. Judged by the sibling's own source,
+      // never by «some batch exists»: a foreign delivery keeps its own surface.
+      const taken = currentRevealEvent()?.id;
+      const sibling = drawnCardsState.events.find((e) =>
+        e.id !== taken && !e.dismissed && e.cards.length - e.takenIndices.size > 0 &&
+        e.source?.type === 'colony' && e.source.via !== undefined && workspaceClaimsColonyReveal(e.source));
+      if (sibling !== undefined) {
+        retainWorkspaceOutcomeForNextBatch(sibling.cards.length);
         return;
       }
       // FORCED — same licence as `drawn-complete`: the result's detach is the
@@ -18884,6 +19049,10 @@ export default defineComponent({
           // discard is a handSelect the workspace itself hosts, never «the
           // server asked for something else».
           (workspaceOutcomeState.host === 'colonies' && this.colonyResolutionLive) ||
+          // The LEDGER claim spans the card's whole payout (TR23): a row's batch
+          // parked for its turn, the discard between a pair's halves, the next
+          // pair on its way — none of it is «the server asked for something else».
+          this.ledgerPayoutClaimed ||
           // The HYDRO claim spans the advance's own resolution: the marker
           // gate delays the view (nothing is «asked» until the token locks),
           // the deck pick's closing beats outlive its prompt, and a PARKED
@@ -21340,7 +21509,8 @@ export default defineComponent({
     // …and the QUEUE skips what the park holds: a parked Venus draw must not
     // wall the workspace's own batch behind it (drawnCardsState — the queue
     // park), the same verdict `rawDrawnRevealPending` subtracts.
-    this.releaseRevealQueuePark = registerRevealQueuePark((source) => boardBeatParksReveal(source));
+    // …and a ledger row's batch whose turn has not come (`colonyBonusPayoutParksReveal` — TR23).
+    this.releaseRevealQueuePark = registerRevealQueuePark((source) => boardBeatParksReveal(source) || colonyBonusPayoutParksReveal(source));
     // …and the ledger's redrive rides the shell's GUARDED drain (the one
     // that folds board cinematics + the read admission in) — the bare
     // module drain is only the desktop/test default.
@@ -21562,7 +21732,9 @@ export default defineComponent({
     // …and the parliament's Agenda CARD park is the third (same law, same shape).
     this.releaseRevealParkSupplier = registerRevealParkSupplier(
       (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source) ||
-        boardBeatParksReveal(source) || parliamentParksReveal(source));
+        boardBeatParksReveal(source) || parliamentParksReveal(source) ||
+        // …and the ledger payout's (a row's batch waiting for its turn — the fourth member, same law).
+        colonyBonusPayoutParksReveal(source));
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [

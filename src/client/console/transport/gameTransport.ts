@@ -175,6 +175,7 @@ import {
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
+import {resetColonyBonusPayout, seedColonyBonusPayoutHolds} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {abortBotAttackCommit} from '@/client/console/botAttack/botAttackState';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 // The GAME START WORKSPACE holds the deployment across prompt gaps. While it
@@ -632,6 +633,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // …and a DECK-CHECK VERDICT that pays a stock reward (TR13 «+5 M€»): the rail
   // keeps the pre-reward number until the verdict's «OK» flies the chip in.
   seedRevealRewardHold(currentView(), newView);
+  // …and a CARD's COLONY-BONUS PAYOUT («the ledger pays» — TR23 Habitat Science): every chips row of the ledger the
+  // player pressed on keeps its pre-payout number on the rail until its own chip lands — the supply rows with the
+  // press's answer, a resource onto a card with the response that actually carries it. Armed at the press only.
+  seedColonyBonusPayoutHolds(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {
@@ -1341,6 +1346,8 @@ function abortAllConsoleTransactions(): void {
   // …and the blue-action COMMIT: the activation was rejected — the beat
   // tears down, the composer's CTA unlocks (abortNonce), the captures stay.
   abortConsoleActionCommit();
+  // …and the ledger payout that press armed (TR23): the activation never happened — nothing is owed, nothing is held.
+  resetColonyBonusPayout();
   abortBotAttackCommit(); // …and the MarsBot attack — the commit row re-opens
 }
 

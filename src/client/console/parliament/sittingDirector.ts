@@ -77,6 +77,7 @@ import {descendCascade, descendFlipFrom} from '@/client/console/surfaceMotion/wo
 import {resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {flyLedgerRows, LEDGER_READ_MS, LEDGER_ROW_GAP_MS, LedgerWaveRow} from '@/client/console/colonyLedger/colonyLedgerWave';
 import {AgendaMove, ParliamentViewVm} from './consoleParliamentModel';
 import {SittingStage} from './consoleSittingFlow';
 import {enactedCardEl} from './consoleResolutionPayout';
@@ -149,10 +150,6 @@ const REWARD_REVEAL_MS = 260;
 /** The carrier card's ACTION COMMIT impulse hands the wave off at `COMMIT_HANDOFF_AT_MS` (≈460); the wave itself ≈ pop + arc + settle. */
 const REWARD_IMPULSE_MS = 460;
 const REWARD_WAVE_MS = 900;
-/** Between two LEDGER ROWS' waves (Colonial Affairs): the next tile pays only once the previous one's chips have landed. */
-const LEDGER_ROW_GAP_MS = 140;
-/** The LEDGER read after the last hosted step: four rows and their states, read before the page turns. */
-const LEDGER_READ_MS = 1400;
 /** The ruling party's answer leaves its plaque once the resolution's own chips have landed — surfaces in turn. */
 const REACTION_GAP_MS = 120;
 /** A LEVY's breath (a budget): the loss has left the rail and landed on the law before the payout starts back — one paragraph, three parts in turn. */
@@ -941,48 +938,31 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
    * THE LEDGER'S ROWS PAY IN TURN, in the server's order: the row is marked, its chips leave the printed bonus
    * of that tile (its own icon in the cell), land on their rail rows — the counter ticks on the touchdown — and
    * only then the next tile pays. A row that is not on screen (the ledger folded under a step, a reload) releases
-   * its holds at once: the counter ticks, honestly late, never lost.
+   * its holds at once: the counter ticks, honestly late, never lost. The wave itself is the SHARED one
+   * (`colonyLedger/colonyLedgerWave.ts` — a card paying the same bonuses plays it in its own composer); the
+   * sitting hands in its records and its row mark.
    */
-  const flyRows = (index: number, then: () => void): void => {
-    const group = rows[index];
-    if (group === undefined) {
-      sittingMotion.colonyRow = '';
-      then();
-      return;
-    }
-    if (runState.finished) {
-      rows.slice(index).forEach((g) => release(g.rewards));
-      sittingMotion.colonyRow = '';
-      then();
-      return;
-    }
-    const selector = ledgerRowBonusSelector(group.colony);
-    const cell = root.querySelector<HTMLElement>(selector);
-    if (cell === null || cell.getBoundingClientRect().width < 4) {
-      release(group.rewards);
-      flyRows(index + 1, then);
-      return;
-    }
-    sittingMotion.colonyRow = group.colony;
-    const specs = group.rewards.map((r) => r.spec);
-    const bySpec = new Map<ResourceTransferSpec, OwedReward>(group.rewards.map((r) => [r.spec, r]));
-    const wave = runResourceTransfers({
-      specs,
-      origins: ledgerBonusIconOrigins(cell, specs),
-      source: {selectors: [selector]},
-      arrival: 'auto',
-      onArrive: (spec) => {
-        const reward = bySpec.get(spec);
-        if (reward !== undefined) {
-          markRewardLanded(reward);
-        }
-      },
-    });
-    trackWave(runState, wave);
-    void wave.then(() => {
-      void nextTick(() => probeTick(() => flyRows(index + 1, then)));
-    });
-  };
+  const rewardOfSpec = new Map<ResourceTransferSpec, OwedReward>(
+    rows.flatMap((g) => g.rewards.map((r): [ResourceTransferSpec, OwedReward] => [r.spec, r])));
+  const rewardsOf = (row: LedgerWaveRow): Array<OwedReward> =>
+    row.specs.map((spec) => rewardOfSpec.get(spec)).filter((r): r is OwedReward => r !== undefined);
+  const flyRows = (then: () => void): void => flyLedgerRows({
+    root,
+    scope: SITTING_LEDGER_SCOPE,
+    rows: rows.map((g) => ({colony: g.colony, specs: g.rewards.map((r) => r.spec)})),
+    finished: () => runState.finished,
+    onRow: (colony) => {
+      sittingMotion.colonyRow = colony;
+    },
+    onArrive: (spec) => {
+      const reward = rewardOfSpec.get(spec);
+      if (reward !== undefined) {
+        markRewardLanded(reward);
+      }
+    },
+    onRelease: (row) => release(rewardsOf(row)),
+    track: (wave) => trackWave(runState, wave),
+  }, then);
   const flyReactions = () => {
     if (reactions.length === 0) {
       return;
@@ -1022,7 +1002,7 @@ function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
         firstResource: first?.spec.resource,
         onHandoff: () => {
           handedOff = true;
-          const afterOwn = () => flyRows(0, () => {
+          const afterOwn = () => flyRows(() => {
             void nextTick(() => probeTick(flyReactions));
           });
           // THE GAINS IN TURN: one wave per record in the server's order — the next leaves only once the
@@ -1110,19 +1090,8 @@ function ledgerRowGroups(rewards: ReadonlyArray<OwedReward>): Array<{colony: str
   return out;
 }
 
-/** The bonus cell of `colony`'s ledger row — the place the player read the printed bonus in, the chips' birthplace. */
-function ledgerRowBonusSelector(colony: string): string {
-  const name = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(colony) : colony.replace(/"/g, '\\"');
-  return `[data-parl-sitting] [data-colony-row="${name}"] [data-colony-bonus]`;
-}
-
-/** The birth points on a ledger row's bonus cell: the printed unit icon of the cell (one per row), else the cell itself. */
-function ledgerBonusIconOrigins(cell: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
-  const icon = cell.querySelector<HTMLElement>('.con-cledger__unit');
-  const r = (icon ?? cell).getBoundingClientRect();
-  const point: TransferPoint | undefined = r.width > 4 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
-  return specs.map(() => point);
-}
+/** WHERE the sitting's ledger stands — the scope its rows are looked up under (the reward stage's body). */
+const SITTING_LEDGER_SCOPE = '[data-parl-sitting]';
 
 // ── ОБНОВЛЕНИЕ ─────────────────────────────────────────────────────────────
 

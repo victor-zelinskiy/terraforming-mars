@@ -32386,6 +32386,60 @@ html.console-mode {
     from { opacity: 1; }
     to { opacity: 0; }
 }
+/* ── THE LEDGER IN THE ACTION COMPOSER («all your colony bonuses» — TR23 Habitat Science) ─────────────────────
+   The body of the action's result, between the formula and the decisions: the chips above answer «how much», the
+   ledger answers «from where». The same plate the configuration surface uses for a decision block, sized by its
+   content — the rows are one line each and nothing in it scrolls. */
+.con-composer__ledger {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: min(50rem, 100%);
+    align-self: flex-start;
+    margin-top: .55rem;
+    padding: .5rem .75rem .55rem;
+    border-radius: .6rem;
+    background: rgba(8, 14, 22, 0.5);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 16%);
+}
+/* PAST THE PRESS THE SURFACE KEEPS EVERY BLOCK: the decision rows stay as the receipt of what was chosen (the
+   target a row's resource goes to) and the commit dock stays in place, reading the flow — so the ledger does not
+   move a pixel between «promised» and «paying» (it is the wave's source and the player's place). The dock's
+   closing word is calm: no wait mark, the ready tint. */
+.con-composer__cta--done { color: var(--con-good, #7be0a8); }
+/* A stage RESTORED mid-payout (a park coming back) never saw the press: the decisions that press carried are not
+   this instance's to restate, so its rows stay in the layout, unseen — the ledger and the dock speak. */
+.con-composer--ledgerresumed .con-composer__scroll { visibility: hidden; }
+/* THE PAYOUT'S STEPS — LAYERS of the decision column over the parked ledger: the take of a row's drawn card and
+   the hand's discard, one teleported instance each, in ONE grid cell (a departing step paints through its leave
+   beside the returning ledger — «they never coexist» is true of the decision, not of the DOM). Always mounted,
+   inert outside a step. */
+.con-composer__ledgerzone {
+    position: absolute; inset: 0;
+    z-index: 4;
+    display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    min-height: 0; min-width: 0;
+    pointer-events: none;
+    &--on { pointer-events: auto; }
+}
+.con-composer__ledgerlayer {
+    grid-area: 1 / 1;
+    display: flex; flex-direction: column;
+    min-height: 0; min-width: 0;
+    > * { flex: 1; min-height: 0; min-width: 0; }
+}
+/* A STEP HAS THE COLUMN: the surface — the ledger with it — lets go IN PLACE under the rising step and comes back
+   when the step leaves. ONE class flip for both directions (a CSS transition the compositor starts with the step's
+   own entry — never a scripted chase); `visibility` follows the fade out and leads the fade in, so the parked
+   surface takes no input and no focus, and it is never unmounted: its rows keep their state. */
+.con-composer--ledgerflow .con-composer__actright > .con-composer__surface {
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out, visibility 0s linear 0s;
+}
+.con-composer--ledgerstep .con-composer__actright > .con-composer__surface {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out, visibility 0s linear calc(200ms * var(--motion-scale, 1));
+}
 .con-composer__fxlayer {
     position: absolute; inset: 0;
     z-index: 3;

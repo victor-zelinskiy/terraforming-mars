@@ -18,8 +18,20 @@
     `colonyLedgerModel.ts`, the states are the server's own records, the
     multiplier is the one shared formula. A row's «received» is the flight's
     landing (the stage hands it in), never the record's arrival.
+
+    …AND THE SAME LEDGER OUTSIDE THE PARLIAMENT: a CARD that pays «all your
+    colony bonuses» (TR23 Habitat Science's action, Productive Outpost's play)
+    reads it in its own composer — `cardColonyLedgerOf`, contexts `preview` ·
+    `paying` · `paid`. A card has no influence, so there is no multiplier line;
+    a row's «× N» is its CUBES and is printed only above one (with its total);
+    a pending row wears the WORD of what it will ask after the press («card
+    choice», «take the card», «card → discard»); a row that cannot land is
+    refused in the amber register with the server's reason; and the sums are
+    NOT repeated — the composer's ordinary effect chips answer «how much», the
+    ledger answers «from where». A row reads «received» on its own landing
+    (`landedColonies`), the only receipt a card's payout has.
   -->
-  <div class="con-cledger" :class="['con-cledger--' + size, 'con-cledger--' + reading.context, {'con-cledger--empty': reading.empty}]"
+  <div class="con-cledger" :class="['con-cledger--' + size, 'con-cledger--' + reading.context, {'con-cledger--empty': reading.empty, 'con-cledger--card': card}]"
        data-colony-ledger
        :data-colony-ledger-context="reading.context"
        :data-colony-ledger-multiplier="reading.multiplier"
@@ -28,9 +40,9 @@
        :data-colony-ledger-empty="reading.empty ? '' : undefined">
     <span v-if="kicker !== undefined" class="con-cledger__kicker">{{ $t(kicker) }}</span>
     <!-- THE MULTIPLIER — the yield block's own line («×3», the win's suffix). -->
-    <ConsoleInfluenceYield v-if="reading.yields.length > 0"
+    <ConsoleInfluenceYield v-if="yields.length > 0"
                            class="con-cledger__k"
-                           :yields="reading.yields"
+                           :yields="yields"
                            :oneNumber="reading.context === 'vote'"
                            :formula="false"
                            :captions="false"
@@ -63,10 +75,13 @@
             <template v-for="(cls, k) in unitClasses(row.bonus)" :key="k"><small v-if="k > 0" class="con-cledger__or" aria-hidden="true">{{ $t('or') }}</small><i class="con-cledger__unit" :class="cls" aria-hidden="true"></i></template>
           </template>
         </span>
-        <span class="con-cledger__times" data-colony-row-times>× {{ row.multiplier }}</span>
+        <!-- «× N» and the total. A CARD's row prints them only when it pays MORE THAN ONCE (two cubes on the
+             tile) — a single payout is already whole in the bonus cell; the cells stay (the grid's columns). -->
+        <span class="con-cledger__times" data-colony-row-times><template v-if="repeatsShown(row)">× {{ row.multiplier }}</template></span>
         <!-- THE ROW'S TOTAL — Pluto's is the number of PAIRS; a description-only benefit repeats. -->
         <span class="con-cledger__total" data-colony-row-sum>
-          <template v-if="row.bonus.kind === 'draw-discard' || (row.bonus.kind === 'hud' && row.bonus.resource === undefined)">
+          <template v-if="!repeatsShown(row)"></template>
+          <template v-else-if="row.bonus.kind === 'draw-discard' || (row.bonus.kind === 'hud' && row.bonus.resource === undefined)">
             <span class="con-cledger__eq" aria-hidden="true">=</span>
             <b class="con-cledger__num con-cledger__num--sum">{{ row.total }}</b>
             <span class="con-cledger__times-word">{{ timesWord(row.total) }}</span>
@@ -81,15 +96,23 @@
              row (empty while pending): the row is `display: contents` in a six-column grid, and a row one cell
              short shifts every row after it by one cell (measured: «Миранда» printed at the end of Titan's line). -->
         <span class="con-cledger__state"
-              :class="{'con-cledger__state--skipped': rowState(row) === 'skipped', 'con-cledger__state--received': rowState(row) === 'received'}"
-              :data-colony-row-reason="rowState(row) === 'skipped' ? '' : undefined">
+              :class="{
+                'con-cledger__state--skipped': rowState(row) === 'skipped',
+                'con-cledger__state--received': rowState(row) === 'received',
+                'con-cledger__state--asks': rowState(row) === 'pending' && askKey(row) !== undefined,
+              }"
+              :data-colony-row-reason="rowState(row) === 'skipped' ? '' : undefined"
+              :data-colony-row-asks="rowState(row) === 'pending' ? row.asks : undefined">
           <template v-if="rowState(row) === 'skipped'">✕ {{ $t(row.skipped ?? 'Skipped') }}</template>
           <template v-else-if="rowState(row) === 'received'">✓ {{ $t('Received') }}</template>
+          <!-- A CARD's pending row: the word of the step it will raise after the press. -->
+          <template v-else-if="askKey(row) !== undefined">{{ $t(askKey(row)) }}</template>
         </span>
       </div>
     </div>
     <!-- THE SUMS BY UNIT — what the ledger comes to (a skipped row adds nothing). -->
-    <div v-if="!reading.empty && sums.length > 0" class="con-cledger__totals" data-colony-ledger-totals>
+    <!-- (Not in a CARD's reading: the composer's own effect chips are the sums — one parameter, one vector.) -->
+    <div v-if="!reading.empty && !card && sums.length > 0" class="con-cledger__totals" data-colony-ledger-totals>
       <span class="con-cledger__totals-kicker">{{ $t(totalKey) }}</span>
       <span v-for="sum in sums" :key="sum.key" class="con-cledger__sum" :data-colony-ledger-sum="sum.key">
         <b class="con-cledger__num">{{ sum.text }}</b>
@@ -104,7 +127,8 @@
 import {defineComponent, PropType} from 'vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {ColonyLedgerBonus, ColonyLedgerRow} from '@/common/parliament/colonyLedger';
-import {colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {colonyLedgerAskKey, colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading, isCardLedgerContext} from '@/client/console/parliament/colonyLedgerModel';
+import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReadingPerson} from '@/client/console/parliament/influenceYieldModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -134,6 +158,13 @@ export default defineComponent({
     landedColonies: {type: Object as PropType<ReadonlySet<string> | undefined>, default: undefined},
   },
   computed: {
+    /** A CARD's reading (`preview` · `paying` · `paid`) — no multiplier line, no sums, receipts by landing. */
+    card(): boolean {
+      return isCardLedgerContext(this.reading.context);
+    },
+    yields(): ReadonlyArray<InfluenceYield> {
+      return this.reading.yields ?? [];
+    },
     emptyKey(): string {
       return colonyLedgerEmptyKey(this.person);
     },
@@ -176,10 +207,22 @@ export default defineComponent({
     timesWord(n: number): string {
       return resolvePluralGroups(translateText(this.timesKey), getPreferences().lang, n);
     },
+    /** Are the row's «× N» and its total printed? Always for a resolution (k is the reading); for a card only above one. */
+    repeatsShown(row: ColonyLedgerRow): boolean {
+      return !this.card || row.multiplier > 1;
+    },
+    /** The word a CARD's pending row wears for the step it will raise (undefined elsewhere). */
+    askKey(row: ColonyLedgerRow): string | undefined {
+      return this.card ? colonyLedgerAskKey(row.asks) : undefined;
+    },
     /** The state the row reads in: a recorded skip, a landed payout, else pending. */
     rowState(row: ColonyLedgerRow): 'pending' | 'received' | 'skipped' {
       if (row.state === 'skipped') {
         return 'skipped';
+      }
+      // A CARD's payout keeps no record: a row's receipt is its own landing, and nothing else.
+      if (this.card) {
+        return this.landedColonies !== undefined && this.landedColonies.has(row.colony) ? 'received' : 'pending';
       }
       if (row.state !== 'paid') {
         return 'pending';

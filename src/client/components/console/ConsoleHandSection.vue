@@ -817,11 +817,13 @@ export default defineComponent({
       if (intent === undefined) {
         return '';
       }
-      if (intent.card !== undefined) {
-        return translateText(intent.card);
-      }
+      // A COLONY's bonus leads with the colony, whoever pays it: its planet stands beside the name, and a CARD
+      // that pays it (TR23 — the discard's source is that card) is already the crumb's subject one line above.
       if (intent.colonyName !== undefined) {
         return translateText(intent.colonyName);
+      }
+      if (intent.card !== undefined) {
+        return translateText(intent.card);
       }
       if (intent.partyName !== undefined) {
         return translateTextWithParams('Party action of ${0}', [translateText(intent.partyName)]);

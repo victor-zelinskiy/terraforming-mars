@@ -101,6 +101,7 @@ import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePl
 import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {agendaTrackOnScreen, isAgendaReveal, isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
+import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
 import {probeTick} from '@/client/console/probeTick';
@@ -309,9 +310,13 @@ export default defineComponent({
       // reaches the step) is «not yet» in the same sense: released at the
       // glide's landing, on a track the player sees — never dealt off the
       // deck over the announce plate.
+      // …and a batch of a CARD's colony-bonus payout («the ledger pays», TR23) whose
+      // row has not come up yet: the rows before it are still paying on the
+      // ledger — the deck deals it when the walk stands on its row.
       const waiting = remoteColonyBonusHold(this.playerView.waitingFor, e.source) ||
         hydroStepQueuedFor(e.source) ||
         parliamentParksReveal(e.source) ||
+        colonyBonusPayoutParksReveal(e.source) ||
         (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source));
       const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
       return v === undefined ? undefined : {v, e};
@@ -813,7 +818,13 @@ export default defineComponent({
       // ARRIVED — the real cards release under the proxies in this phase.
       // Open the claim's arrival gate NOW (its 5 s backstop is a failure
       // path, not the schedule).
-      if (workspaceClaimsDrawReveal(currentRevealEvent()?.source)) {
+      // …and so has a COLONY batch a workspace claimed and THIS scene dealt (a
+      // card's «all your colony bonuses» — the take standing in the action
+      // composer's ledger zone): nobody else will say its card has landed. The
+      // colony workspace's own claims open their gate at the claim (their
+      // scenes carry the input lock), so for them this is a no-op.
+      const arrived = currentRevealEvent()?.source;
+      if (workspaceClaimsDrawReveal(arrived) || workspaceClaimsColonyReveal(arrived)) {
         markWorkspaceOutcomeArrivalDone();
       }
       // …and the tray dissolves in the same breath, over the berth it just

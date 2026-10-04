@@ -181,8 +181,9 @@ export function resolveOutcomeAdoption(ctx: OutcomeAdoptionCtx): OutcomeAdoption
   if (ctx.boardSceneOwns || ctx.tradeSceneOwns) {
     return {kind: 'none'};
   }
+  // A colony batch a CARD paid (`via`) is keyed by that card — the claim's own key (`workspaceClaimsColonyReveal`).
   const name = ctx.source?.type === 'card' ? ctx.source.cardName :
-    ctx.source?.type === 'colony' ? ctx.source.colonyName : undefined;
+    ctx.source?.type === 'colony' ? (ctx.source.via ?? ctx.source.colonyName) : undefined;
   if (name === undefined || name === '' || ctx.adoptionHost === undefined) {
     // A `tile` / `globalParameter` / unattributed batch keeps its standalone
     // presenters — the board pickup is the modal's one legitimate home.

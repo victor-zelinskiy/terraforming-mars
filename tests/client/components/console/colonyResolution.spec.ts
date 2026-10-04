@@ -15,6 +15,7 @@ import {
   colonyBonusEntry,
   colonyBonusEntryArmed,
   colonyBonusCardPickOf,
+  colonyBonusDiscardOf,
   colonyResolutionColony,
   colonyResolutionEvidenceFor,
   colonyResolutionFocusIntent,
@@ -166,6 +167,27 @@ describe('colonyResolution', () => {
     // A card pick from anywhere else is nobody's colony business.
     expect(colonyBonusCardPickOf({type: 'card'} as never)).to.eq(undefined);
     expect(colonyBonusCardPickOf({type: 'option'} as never)).to.eq(undefined);
+  });
+
+  /**
+   * A COLONY BONUS A CARD PAID (`via` — TR23 Habitat Science, Productive
+   * Outpost) is a step of the workspace that card was pressed in. None of its
+   * three artifacts — the drawn batch, the resource target, Pluto's discard —
+   * may light the COLONY workspace's resolution.
+   */
+  it('a bonus a CARD paid (`via`) is nobody\'s colony resolution: not its batch, not its target, not its discard', () => {
+    const viaSource = {type: 'colony', colonyName: 'Pluto', via: 'Habitat Science'} as CardDrawRevealSource;
+    expect(revealColonyOf(viaSource), 'the batch names no colony resolution').to.eq('');
+    expect(colonyResolutionEvidenceFor({...IDLE, revealSource: viaSource})).to.eq(false);
+    expect(colonyResolutionLiveFor({...IDLE, revealSource: viaSource})).to.eq(false);
+
+    const target = {type: 'card', choiceContext: {source: {kind: 'colony', name: 'Titan', via: 'Habitat Science'}, mode: 'reward'}};
+    expect(colonyBonusCardPickOf(target as never), 'the target is the card\'s step').to.eq(undefined);
+
+    // The discard carries `colonyRepeat` and the card as its source — NOT `colonyBonus`, the one marker that routes here.
+    const discard = {type: 'card', discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: 'Habitat Science'}, colonyRepeat: {colonyName: 'Pluto', index: 1, total: 2}}};
+    expect(colonyBonusDiscardOf(discard as never)).to.eq(undefined);
+    expect(colonyResolutionEvidenceFor({...IDLE, discardMeta: colonyBonusDiscardOf(discard as never)})).to.eq(false);
   });
 
   it('classifies the reveal source', () => {

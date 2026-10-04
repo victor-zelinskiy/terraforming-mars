@@ -9,7 +9,7 @@ import {ColonyLedgerEntryModel, ParliamentEnactedModel, ParliamentEnactOutcomeMo
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
-import {colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
+import {cardColonyLedgerOf, colonyLedgerAskKey, colonyLedgerOf, isCardLedgerContext} from '@/client/console/parliament/colonyLedgerModel';
 import {familyOf} from '@/client/console/parliament/resolutionFamily';
 import {voteReadingOf, voteInfoBudget, voteInfoOf, VOTE_INFO_LIMITS} from '@/client/console/parliament/voteInfoModel';
 import {ParliamentPartyVm, ParliamentSlotVm, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -134,6 +134,70 @@ describe('colonyLedgerModel', () => {
     expect(reading.empty).is.true;
     expect(reading.multiplier).eq(3);
     expect(reading.yields[0].skipped).eq('You have no colonies');
+  });
+});
+
+/**
+ * THE LEDGER OF A CARD (TR23 Habitat Science's action — «gain all your colony bonuses»): the same rows outside the
+ * Parliament. No resolution, no influence, no record: the entries are the server's (`ActionPreviewBranch
+ * .colonyBonuses`, in the order the engine pays), a row's repeats are its cubes, and what it asks / why it cannot
+ * land ride the entry.
+ */
+describe('cardColonyLedgerOf — the ledger of a card, outside the Parliament', () => {
+  const MIRANDA: ColonyLedgerEntryModel = {colony: ColonyName.MIRANDA, grant: {benefit: ColonyBenefit.DRAW_CARDS, quantity: 1}, description: 'Draw 1 card', cubes: 1, asks: 'draw'};
+
+  it('reads the server\'s rows IN THE ORDER GIVEN — never re-sorted — with no effect, no yields and no win forecast', () => {
+    const reading = cardColonyLedgerOf({entries: [LUNA, MIRANDA, {...PLUTO, asks: 'draw-discard'}, {...TITAN, asks: 'card'}]});
+    expect(reading.context).eq('preview');
+    expect(reading.effect).is.undefined;
+    expect(reading.yields).is.undefined;
+    expect(reading.winMultiplier).is.undefined;
+    expect(reading.multiplier, 'a card pays once per cube').eq(1);
+    expect(reading.empty).is.false;
+    expect(reading.rows.map((r) => r.colony)).deep.eq([ColonyName.LUNA, ColonyName.MIRANDA, ColonyName.PLUTO, ColonyName.TITAN]);
+    expect(reading.rows.map((r) => r.asks)).deep.eq([undefined, 'draw', 'draw-discard', 'card']);
+    expect(reading.rows.every((r) => r.state === 'pending')).is.true;
+  });
+
+  it('a tile with TWO cubes is one row paid twice («× 2», the total doubled); one cube reads «× 1» — which the component does not print', () => {
+    const reading = cardColonyLedgerOf({entries: [{...LUNA, cubes: 2}, {...PLUTO, cubes: 2, asks: 'draw-discard'}, TITAN]});
+    expect(reading.rows.map((r) => [r.colony, r.cubes, r.multiplier, r.total])).deep.eq([
+      [ColonyName.LUNA, 2, 2, 4],
+      [ColonyName.PLUTO, 2, 2, 2],
+      [ColonyName.TITAN, 1, 1, 1],
+    ]);
+  });
+
+  it('a row the server refused is SKIPPED with its reason before anything is paid, and adds nothing to the sums', () => {
+    const reading = cardColonyLedgerOf({entries: [LUNA, {...TITAN, skipped: {reason: 'No card can hold floaters', amount: 1}}]});
+    expect(reading.rows[1]).deep.include({state: 'skipped', skipped: 'No card can hold floaters'});
+    expect(reading.rows[1].asks, 'a refused row asks nothing').is.undefined;
+    expect(reading.totals.cardResources).deep.eq([]);
+    expect(reading.totals.stock).deep.eq([{resource: Resource.MEGACREDITS, amount: 2}]);
+  });
+
+  it('the composer\'s phase is the context: preview → paying → paid; `times` (Yvonne) is the multiplier', () => {
+    expect(cardColonyLedgerOf({entries: [LUNA]}, 'paying').context).eq('paying');
+    expect(cardColonyLedgerOf({entries: [LUNA]}, 'paid').context).eq('paid');
+    const twice = cardColonyLedgerOf({entries: [LUNA], times: 2});
+    expect(twice.multiplier).eq(2);
+    expect(twice.rows[0]).deep.include({multiplier: 2, total: 4});
+    expect(isCardLedgerContext('preview') && isCardLedgerContext('paying') && isCardLedgerContext('paid')).is.true;
+    expect(isCardLedgerContext('vote') || isCardLedgerContext('resolving') || isCardLedgerContext('applied')).is.false;
+  });
+
+  it('no colonies: the ledger says so in words (`empty`), never an empty box', () => {
+    const reading = cardColonyLedgerOf({entries: []});
+    expect(reading.empty).is.true;
+    expect(reading.rows).deep.eq([]);
+  });
+
+  it('the word of the step a pending row will raise', () => {
+    expect(colonyLedgerAskKey('card')).eq('card choice');
+    expect(colonyLedgerAskKey('draw')).eq('take the card');
+    expect(colonyLedgerAskKey('draw-discard')).eq('card → discard');
+    expect(colonyLedgerAskKey('choice')).eq('your choice');
+    expect(colonyLedgerAskKey(undefined)).is.undefined;
   });
 });
 

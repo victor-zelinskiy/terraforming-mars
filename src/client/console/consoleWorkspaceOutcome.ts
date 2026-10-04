@@ -771,10 +771,23 @@ export function workspaceClaimsRevealSource(source: CardDrawRevealSource | undef
  * re-homes to the start's own zone (`consoleOutcomeAdoption`). Pinned, the
  * re-homed claim stopped answering for its own batch and the payout rose as
  * the standalone «Получены карты» band over the workspace that owned it.
+ *
+ * …AND A BONUS A CARD PAID IS THAT CARD'S (`via`). «Gain all your colony
+ * bonuses» (TR23 Habitat Science's action, Productive Outpost's play) pays a
+ * colony's printed bonus OUTSIDE any trade, and the server names the paying
+ * card on the batch — `{type: 'colony', colonyName, via}`. The key is then
+ * the CARD (`via === sourceCard`), the same name the workspace claimed under
+ * at the press: the batch presents in the workspace the card was pressed in,
+ * and the colony's own workspace never answers for it. A colony batch WITHOUT
+ * `via` (a trade, a build, a foreign trade's delivery) keeps the colony's
+ * name as its key — a card's claim does not reach it.
  */
 export function workspaceClaimsColonyReveal(source: CardDrawRevealSource | undefined): boolean {
-  return workspaceOutcomeAdmits('draw') &&
-    source?.type === 'colony' &&
+  if (!workspaceOutcomeAdmits('draw') || source?.type !== 'colony') {
+    return false;
+  }
+  return source.via !== undefined ?
+    source.via === workspaceOutcomeState.sourceCard :
     source.colonyName === workspaceOutcomeState.sourceCard;
 }
 

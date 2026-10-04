@@ -481,7 +481,8 @@
                                @cancel="onComposerCancel"
                                @inspect-source="onInspectSource"
                                @commands="onComposerCommands"
-                               @reveal-ack="onRevealAck" />
+                               @reveal-ack="onRevealAck"
+                               @ledger-done="onLedgerDone" />
         <!-- A PARTY ACTION (Turmoil Redux): the shared party composer stands
              in the same stage — same descend phrase, same command bar, and its
              confirm is the server's own nested response. -->
@@ -548,7 +549,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
-import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex} from '@/client/console/actionPreviewStore';
+import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -614,6 +615,7 @@ import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
   claimWorkspaceOutcome,
+  markWorkspaceOutcomeBeatDone,
   markWorkspaceOutcomePresenting,
   workspaceOutcomeBeatPending,
   releaseWorkspaceOutcome,
@@ -625,6 +627,7 @@ import {
   WorkspaceOutcomeScope,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow/deltaRewardEntry';
+import {armColonyBonusPayout, COLONY_LEDGER_STAGE, colonyBonusPayoutOf, payoutDiscardDue, payoutRowsOf, payoutUntaken} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsolePartyActionComposer, {PartyActionResult, PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
@@ -682,6 +685,9 @@ const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHea
 
 /** Scroll step for the right-stick list scroll (mirrors the shell). */
 const SCROLL_STEP_PX = 40;
+/** «THE LEDGER PAYS» (TR23): the crumb's tail while the rows pay, and the word of the discard it owes (Pluto's pair). */
+const LEDGER_STAGE = COLONY_LEDGER_STAGE;
+const LEDGER_DISCARD_STAGE = 'Discarding';
 
 /** The focus stage's draft identity — the ONE flow-draft type
  *  (consoleActionFlow.ActionFlowDraft): card + variant (+ the Viron repeat
@@ -1165,6 +1171,20 @@ export default defineComponent({
       const kind = this.outcomeFlow?.kind;
       if (kind === 'deck-check') {
         return focusKicker('reveal');
+      }
+      // «THE LEDGER PAYS» (TR23 — «all your colony bonuses»): past the commit the tail is the ledger's own word
+      // («… › БОНУСЫ КОЛОНИЙ»), and each step of the payout names itself as it takes the column — the embedded
+      // take through the claim's published phase («ДОБОР КАРТ»), Pluto's discard the moment it is DUE — its
+      // pair's card taken, the row paying (`payoutDiscardDue`, the very fact the hand's door opens on; the
+      // server raises that prompt with the press's own answer, rows before its turn, so its mere presence names
+      // nothing). The hand, once it stands, hands the same word up — see `handStepHosted`.
+      if (kind === 'ledger') {
+        if (workspaceOutcomeState.stage === 'presenting') {
+          const named = workspaceOutcomeState.phaseKey;
+          return named !== '' ? named : focusKicker('draw');
+        }
+        return payoutDiscardDue({waitingFor: this.playerView.waitingFor, untaken: payoutUntaken, inFlight: false}) ?
+          LEDGER_DISCARD_STAGE : LEDGER_STAGE;
       }
       if (kind === undefined) {
         // The composer's R3 «Эффекты» layer is a level INSIDE the setup: the
@@ -1933,6 +1953,20 @@ export default defineComponent({
         clearCardColonyTrade();
         consoleCardActionsUi.draft = undefined;
       }
+      // «THE LEDGER PAYS» RESTORED MID-PAYOUT (TR23 — a park coming back, whichever seat rebuilt the composer: the
+      // hosted discard step, the claim, or the bare draft): the stage is the LEDGER's. The module record outlived
+      // the park (the frozen rows, what has landed); without the flow's own record here the crumb would read
+      // «НАСТРОЙКА» over a paying ledger and the walk's end would have nobody to conclude the flow.
+      // (Only on a genuine restore — a list opened by hand beside a minimized flow, or a repeat instance, adopts nothing.)
+      if (this.composer === undefined && plan.kind === 'none' && !this.repeat && !this.collapsed &&
+          draft !== undefined && colonyBonusPayoutOf(draft.cardName) &&
+          this.entries.some((e) => e.cardName === draft.cardName)) {
+        this.composer = {cardName: draft.cardName, nodeIndex: draft.nodeIndex};
+      }
+      if (this.composer !== undefined && this.composer.party === undefined && this.composer.resolution === undefined &&
+          colonyBonusPayoutOf(this.composer.cardName)) {
+        this.outcomeFlow = {kind: 'ledger'};
+      }
     }
     // A HAND STEP hosted BEFORE this mount (a restore mid-discard): the
     // change-watcher cannot fire true→true, so the zone is republished here —
@@ -2410,6 +2444,21 @@ export default defineComponent({
      * activation (a step standing inside, a prompt held for our zone), so only
      * the shell decides between «leave» and «stay» — `workspaceConclusionFor`.
      */
+    /**
+     * «THE LEDGER PAYS» IS OVER — every row has paid and the ledger has stood for its read. The claim (when a row
+     * handed cards over) has nothing left to answer for and goes through the GUARDED funnel (never forced: a
+     * batch or a prompt still served refuses it, and the conclusion is then owed, not lost); the flow leaves
+     * through the one guarded conclusion — to the board, never back to the browse grid.
+     */
+    onLedgerDone(): void {
+      if (this.outcomeFlow?.kind !== 'ledger') {
+        return;
+      }
+      if (workspaceOutcomeState.host === 'card-actions' && workspaceOutcomeClaimed()) {
+        releaseWorkspaceOutcome('ledger-done');
+      }
+      void this.$nextTick(() => this.concludeFlow());
+    },
     concludeFlow(): void {
       // The repeat instance is not a workspace: it resolves back to the source
       // composer through its own bridge and owns no frame to conclude.
@@ -2726,7 +2775,30 @@ export default defineComponent({
       // The claim is raised SYNCHRONOUSLY, before the response can land, so no
       // standalone presenter can grab the artifact for even one frame.
       const branch = previewBranchByIndex(this.composerPreview, payload.branchIndex);
-      if (payload.repeat === undefined) {
+      if (payload.repeat === undefined && payload.stageReward === undefined && branch?.colonyBonuses !== undefined) {
+        // ── «THE LEDGER PAYS» (TR23 Habitat Science — «gain all your colony bonuses»). The branch carries the
+        //    server's LEDGER, so its outcome is that ledger paying row by row IN THIS STAGE: the plan is frozen
+        //    here (the rows as read, the targets as chosen — never recomputed), the transport seeds the rail's
+        //    holds in the apply block, and the composer walks the rows. The claim is the batch's key (`via` =
+        //    this card) and is raised only when a row hands cards over; a ledger of plain gains needs none — the
+        //    armed payout itself keeps the stage (the shell's awaiting resolve and conclusion read it).
+        const ledger = branch.colonyBonuses;
+        const targets = payload.stepResponses
+          .filter((r): r is {type: 'card', cards: ReadonlyArray<CardName>} => (r as {type?: string} | undefined)?.type === 'card')
+          .map((r) => r.cards[0])
+          .filter((name): name is CardName => name !== undefined);
+        const spent = branch.effects.find((e) => e.direction === 'cost' && e.note === 'on this card')?.amount ?? 0;
+        armColonyBonusPayout(comp.cardName,
+          payoutRowsOf(ledger, targets, (card) => getCard(card)?.resourceType),
+          spent, ledger);
+        if (ledgerDraws(ledger)) {
+          claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], comp.nodeIndex, 0, 'card');
+          // No execution beat of this composer's is owed: the cards come off the deck row by row, dealt by the
+          // deck's own scene into the take standing in the ledger's draw layer.
+          markWorkspaceOutcomeBeatDone();
+        }
+        this.outcomeFlow = {kind: 'ledger'};
+      } else if (payload.repeat === undefined) {
         // HOW MANY cards + which kinds, from the ONE structural derivation
         // (`branchOutcomeClaimPlan`). The batch arrival has to know the count
         // BEFORE the first frame (N cards leave the pile, N slots are

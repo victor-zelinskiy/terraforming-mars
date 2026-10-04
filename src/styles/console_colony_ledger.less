@@ -95,6 +95,8 @@
         justify-self: start;
         &--received { color: fade(@con-parl-mint, 92%); }
         &--skipped { color: fade(@con-amber, 92%); }
+        /* A CARD's pending row: the word of the step it will raise — a quiet cyan «to do», never a verdict. */
+        &--asks { color: fade(@con-cyan, 88%); }
     }
     /* THE ROW NOW PAYING — one row, marked by weight and a mint seam; nothing pulses (the motion taste laws). */
     &__row--active > * { color: @con-text; }
@@ -121,6 +123,15 @@
     &__sum { display: inline-flex; align-items: center; gap: .14rem; line-height: 1; white-space: nowrap; }
     &__sum &__num { color: @con-parl-mint; }
     &__unit--pair { opacity: .9; }
+
+    /* A CARD'S READING (outside the Parliament): a refusal may take the line it needs — the reason is the
+       row's whole message there («No card can hold floaters»), never an ellipsis. */
+    &--card &__state--skipped { white-space: normal; overflow: visible; line-height: 1.15; }
+    /* A CARD's ledger PAYS in place: its state column reserves the widest step word («карта → сброс»), so the plate
+       keeps one width from «promised» through «received» — a row's word changing must not move the plate's edge. */
+    &--card &__state { min-width: 5.6rem; }
+    /* …and a skipped single payout has no total to strike: its printed bonus is the size that is lost. */
+    &--card &__row--skipped &__bonus &__num { text-decoration: line-through; text-decoration-thickness: .06rem; color: fade(@con-amber, 88%); }
 
     /* SIZES. */
     &--compact {

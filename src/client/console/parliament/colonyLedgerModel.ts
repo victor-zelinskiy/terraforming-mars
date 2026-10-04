@@ -15,17 +15,36 @@ import {Color} from '@/common/Color';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
+import {AllColonyBonusesModel, ColonyBonusAsk} from '@/common/models/ColonyBonusLedgerModel';
 import {ColonyLedgerRow, ColonyLedgerTotals, colonyLedgerRows, colonyLedgerTotals, recordedMultiplierOf} from '@/common/parliament/colonyLedger';
 import {colonyBonusesEffectOf} from './resolutionFamily';
 import {enactedYieldsOf, ReadingPerson, voteYieldsOf} from './influenceYieldModel';
 
+/**
+ * WHO reads the ledger, and when:
+ *  · a RESOLUTION's — `vote` (the card is up for the vote: estimate + the win's forecast), `resolving` (the
+ *    payout is being made), `applied` (recorded);
+ *  · a CARD's («gain all your colony bonuses» paid by Habitat Science / Productive Outpost — the reading outside
+ *    the Parliament): `preview` (before the press — every row promised), `paying` (the rows pay in turn),
+ *    `paid` (the ledger stands as a receipt).
+ */
+export type ColonyLedgerContext = 'vote' | 'resolving' | 'applied' | 'preview' | 'paying' | 'paid';
+
+/** Is this a CARD's reading (no influence, no records — the rows' receipts are the scene's own landings)? */
+export function isCardLedgerContext(context: ColonyLedgerContext): boolean {
+  return context === 'preview' || context === 'paying' || context === 'paid';
+}
+
 export type ColonyLedgerReading = {
-  effect: InfluenceScaledEffect;
-  /** `vote` — the card is up for the vote (estimate + the win's forecast); `resolving` — the payout is being made; `applied` — recorded. */
-  context: 'vote' | 'resolving' | 'applied';
-  /** The multiplier's readings, in the yield block's own shape (the estimate and, apart, the win's forecast; or the fixed record). */
-  yields: ReadonlyArray<InfluenceYield>;
-  /** k — the multiplier the rows stand on (the estimate's / the record's). */
+  /** The scaled effect a RESOLUTION's ledger multiplies by — absent for a card's reading. */
+  effect?: InfluenceScaledEffect;
+  context: ColonyLedgerContext;
+  /**
+   * The multiplier's readings, in the yield block's own shape (the estimate and, apart, the win's forecast; or
+   * the fixed record). Absent / empty for a card's reading: a card pays once per cube, there is no «× k» line.
+   */
+  yields?: ReadonlyArray<InfluenceYield>;
+  /** k — the multiplier the rows stand on (the estimate's / the record's; a card's «times» — 1, Yvonne's 2). */
   multiplier: number;
   /** k if the viewer wins the vote, when it differs (the vote only). */
   winMultiplier?: number;
@@ -34,6 +53,9 @@ export type ColonyLedgerReading = {
   /** The seat has no cube anywhere — the ledger says so in words, never an empty box. */
   empty: boolean;
 };
+
+/** A RESOLUTION's reading: the effect and its yields are always there. */
+export type ResolutionColonyLedgerReading = ColonyLedgerReading & {effect: InfluenceScaledEffect, yields: ReadonlyArray<InfluenceYield>};
 
 function seatOf(model: ParliamentModel | undefined, viewer: Color | undefined): ParliamentPlayerModel | undefined {
   if (model === undefined || viewer === undefined) {
@@ -63,7 +85,7 @@ export function colonyLedgerOf(
   model: ParliamentModel | undefined,
   viewer: Color | undefined,
   opts: {enacted?: boolean, live?: boolean} = {},
-): ColonyLedgerReading | undefined {
+): ResolutionColonyLedgerReading | undefined {
   const effect = resolution === undefined ? undefined : colonyBonusesEffectOf(resolution);
   const seat = seatOf(model, viewer);
   if (resolution === undefined || effect === undefined || seat === undefined) {
@@ -85,11 +107,37 @@ export function colonyLedgerOf(
   const forecast = yields.find((y) => y.context === 'forecast');
   const multiplier = estimate?.amount ?? 0;
   const rows = colonyLedgerRows(entries, multiplier);
-  const reading: ColonyLedgerReading = {effect, context: 'vote', yields, multiplier, rows, totals: colonyLedgerTotals(rows), empty: entries.length === 0};
+  const reading: ResolutionColonyLedgerReading = {effect, context: 'vote', yields, multiplier, rows, totals: colonyLedgerTotals(rows), empty: entries.length === 0};
   if (forecast?.amount !== undefined && forecast.amount !== multiplier) {
     reading.winMultiplier = forecast.amount;
   }
   return reading;
+}
+
+/**
+ * THE LEDGER OF A CARD — «gain all your colony bonuses» paid by a card's action or play (TR23 Habitat Science,
+ * Productive Outpost), read outside the Parliament: the neighbour of `colonyLedgerOf` on the very same rows
+ * (`colonyLedgerRows` / `colonyLedgerBonusOf`). The entries are the SERVER's (`ActionPreviewBranch.colonyBonuses`
+ * — in the order the engine pays them, each with what it will ask and what cannot land); there is no influence
+ * and no record, so there is no multiplier line: a row's «× N» is its cubes (× the card's `times`), printed only
+ * when above one. `context` is the composer's own fact: `preview` before the press, `paying` while the rows pay
+ * in turn, `paid` once the ledger stands as a receipt.
+ */
+export function cardColonyLedgerOf(model: AllColonyBonusesModel, context: 'preview' | 'paying' | 'paid' = 'preview'): ColonyLedgerReading {
+  const times = model.times ?? 1;
+  const rows = colonyLedgerRows(model.entries, times);
+  return {context, multiplier: times, rows, totals: colonyLedgerTotals(rows), empty: model.entries.length === 0};
+}
+
+/** The word a pending row of a CARD's ledger wears for what it will ask after the press (an i18n key). */
+export function colonyLedgerAskKey(asks: ColonyBonusAsk | undefined): string | undefined {
+  switch (asks) {
+  case 'card': return 'card choice';
+  case 'draw': return 'take the card';
+  case 'draw-discard': return 'card → discard';
+  case 'choice': return 'your choice';
+  default: return undefined;
+  }
 }
 
 /** The i18n keys of the ledger's own words — one place, the glossary's. */

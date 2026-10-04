@@ -487,6 +487,48 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     });
   });
 
+  /**
+   * A COLONY BONUS A CARD PAID (`via` — «gain all your colony bonuses»: TR23
+   * Habitat Science's action). The batch is still the colony's (the planet
+   * names it), but its KEY is the paying card — the name the action workspace
+   * claimed under at the press. Structural on the server's own member: never
+   * `scope: 'chain'`, never «a colony batch exists».
+   */
+  describe('a colony bonus paid by a CARD (`via`)', () => {
+    const HS = 'Habitat Science';
+    const via = (colonyName: string, card: string): CardDrawRevealSource =>
+      ({type: 'colony', colonyName, via: card} as CardDrawRevealSource);
+
+    it('the card\'s action workspace owns the batch its own press paid — for every colony of the payout', () => {
+      claimWorkspaceOutcome('card-actions', HS, ['draw']);
+      expect(workspaceClaimsColonyReveal(via('Miranda', HS))).to.eq(true);
+      expect(workspaceClaimsColonyReveal(via('Pluto', HS))).to.eq(true);
+    });
+
+    it('…never another card\'s payout, and never a colony batch WITHOUT `via` (a foreign trade\'s delivery, a build)', () => {
+      claimWorkspaceOutcome('card-actions', HS, ['draw']);
+      expect(workspaceClaimsColonyReveal(via('Pluto', 'Productive Outpost'))).to.eq(false);
+      expect(workspaceClaimsColonyReveal({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource)).to.eq(false);
+      expect(workspaceClaimsColonyReveal({type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'Pluto:g3:a1', role: 'bonus'}} as CardDrawRevealSource)).to.eq(false);
+    });
+
+    it('the COLONY workspace\'s claim does not reach a batch a card paid on its own tile', () => {
+      claimWorkspaceOutcome('colonies', 'Pluto', ['draw']);
+      expect(workspaceClaimsColonyReveal(via('Pluto', HS))).to.eq(false);
+      expect(workspaceClaimsColonyReveal({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource), 'its own payout is still its own').to.eq(true);
+    });
+
+    it('it is a COLONY batch, not a card draw: the composer\'s own arrival beat does not claim it (the deck\'s scene deals it)', () => {
+      claimWorkspaceOutcome('card-actions', HS, ['draw']);
+      expect(workspaceClaimsDrawReveal(via('Miranda', HS))).to.eq(false);
+    });
+
+    it('a claim that does not admit a draw owns no batch at all', () => {
+      claimWorkspaceOutcome('card-actions', HS, ['deck-check']);
+      expect(workspaceClaimsColonyReveal(via('Miranda', HS))).to.eq(false);
+    });
+  });
+
   describe('RETAIN for a queued sibling batch (one press, several reveals)', () => {
     it('re-arms the SAME lease: host / kinds / scope / slot survive, the arrival resets', () => {
       claimWorkspaceOutcome('hydro', AI_CENTRAL, ['draw', 'pick'], 2, 4, 'chain');
