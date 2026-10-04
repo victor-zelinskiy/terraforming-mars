@@ -1093,6 +1093,7 @@ export enum CardName {
   RE_SETTLEMENT = 'Re-settlement',
   ARBORETUM = 'Arboretum',
   NOVA_CITY = 'Nova City',
+  HABITAT_SCIENCE = 'Habitat Science',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

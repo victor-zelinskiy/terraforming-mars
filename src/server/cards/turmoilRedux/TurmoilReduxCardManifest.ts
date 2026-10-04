@@ -23,6 +23,7 @@ import {MartianRoads} from './MartianRoads';
 import {ReSettlement} from './ReSettlement';
 import {Arboretum} from './Arboretum';
 import {NovaCity} from './NovaCity';
+import {HabitatScience} from './HabitatScience';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -119,5 +120,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // first tile on a colony tile, `docs/TURMOIL_REDUX_NOVA_CITY.md`). The purple Turmoil symbol below it is
     // the module itself. The set's first card under Unity's plate; «2 VP per space city you own».
     [CardName.NOVA_CITY]: {Factory: NovaCity, compatibility: 'colonies'},
+    // The grey ▲ at the bottom left: the card needs Colonies (it counts the colonies in play and its action pays
+    // «all your colony bonuses» — the set's first card that does, `docs/TURMOIL_REDUX_HABITAT_SCIENCE.md`). The
+    // purple Turmoil symbol below it is the module itself. Unity's plate.
+    [CardName.HABITAT_SCIENCE]: {Factory: HabitatScience, compatibility: 'colonies'},
   },
 });
