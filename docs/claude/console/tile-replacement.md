@@ -146,6 +146,101 @@ cell's OWN rules, and the frame of contact is one synchronous write (`stackConta
 duplicate `@stack-step` / `@stack-scale` in `board.less` (the proxy must land where
 the board will paint) — change one, change both; the model spec pins the numbers.
 
+## The FOURTH case: a MOVE (Turmoil Redux — Re-settlement, TR14)
+
+`Re-settlement` takes the player's own city on Mars off its cell and puts it on
+a NEIGHBOURING one. The pick declares it (`placementEffect: 'move'`; the answer
+names both cells — `{spaceId, movedFrom}`), `ConsoleBoardInput.saveMove` arms
+with `movedFrom`, and `verifyPlacement(prev, next, id, {movedFrom})` reads
+exactly that PAIR (`verifyMove`): B «empty → a city of the owner who held A» (a
+tile that left whole is the SAME tile; a stack's top tier lands as a plain
+city), A «a city → empty» or «the same city one tier lower». A declared move
+the response does not show is REFUSED — never read as a plain landing on B.
+
+It is neither a landing nor a departure, and it borrows neither's signature:
+
+```
+[picking]   two levels of ONE prompt (board-placement-flow.md § A MOVE): the
+            city is lifted (presentation only), the cell is locked, A commits
+   ↓ A      (the one POST — the tail names both cells)
+[moving]    HANDOFF (0) — ONE proxy (the `depart` twin, wearing the source's
+            art, its owner cube and a touch overlay) is posed 1:1 over the real
+            tile on A — its box IS the destination hex, scaled to the source
+            rect — and in the SAME synchronous turn `applyVacatePreview` makes
+            the real cell what the server left there: a bare hex with its
+            printed bonus, or the same stack one tier lower. Nothing is seen
+            to change. The pick's own pose lets go (the section reads the
+            scene: `sceneOwnsMove`); the vector stays, to be eaten.
+            LIFT (0 → 200) — straight up ≈ 10 board px, scale → 1.08, the
+            thickness decompresses, the ground shadow separates; A's printed
+            icons surface under it (the removal's own one-shot).
+            CARRY (200 → 620) — one low arc across the shared edge, in-out;
+            the shadow travels on the ground a touch behind; the vector is
+            eaten from its tail (`.con-bmove--eaten`); A settles ONCE
+            (`markCellVacated`) when the tile has cleared its contour (35 %);
+            B's printed icons pre-lift at the landing's own fraction.
+            LANDING (620 → 770) — lowered into the board's scale, the shadow
+            tightening to contact, the thickness compresses, one brightness
+            pass, a damped settle — no bounce.
+[landed]    the REAL tile paints under the settled proxy (`applySpacePreview`),
+            its cube at rest — it rode the tile, there is no drop — and the
+            proxy is GONE the next painted frame (`removeMoveProxy`): show,
+            then remove — never a dissolve.
+[rewarding] the landing's own beats, unchanged (`endTilePlacement`): the cell's
+            icons, the water, Ares, the law's wave, the card's seal wave.
+```
+
+Never: an arrival «from the table», a tilt, a fade, a thrown cube, a frame with
+two cities or with none.
+
+**One clock, one writer.** `playTileMove` drives the proxy from ONE progress
+tween (`render(t)` computes the pose of every beat from the move's own clock and
+the resting pose is WRITTEN at the end). The first cut chained three tweens plus
+relative settle tweens on the element — and on a slow renderer (the 4K profile,
+a handful of frames per scene) the proxy was measured resting one LIFT above the
+destination, the real tile then appearing a whole lift below it. A pose computed
+from the clock cannot skip or reorder a beat however long a frame is.
+
+**A stack source is «the crane, reversed».** The proxy is the TOP TIER in its
+lifted rect (`moveSourceRect` → `stackLandingRect`), the lift is strictly
+vertical, and the real cell answers through `cityStackScene`'s mirrors of
+`contact` / `loading`: **`released`** (the counter already reads the lower height
+and ticks; at height 1 it has named «×1» and goes) and **`unloading`** (a cell
+that is no longer a stack returns its tile from the stack's scale to the full
+hex) — set by `stackRelease(id)` in the handoff turn, cleared by
+`clearStackRelease(id)` with the scene. CSS one-shots on the cell's own rules,
+for the reason the tier's landing gives.
+
+**The remote stage plays the same move.** An opponent's Re-settlement, or the
+viewer's own PARKED pin landing a response later, shows up in the diff as a
+removal and a landing. They are paired ONLY by the server's record
+(`game.tileMoves` → `tileMoveRecords.pairTileMoves`: a record is honoured when
+this very diff bears it out — `verifyMove` again — and consumed once by `seq`),
+queued as ONE event and played by `moveRemote` with the same director: A keeps
+painting the city that left (`holdRemoteReveal(from, prevTile, prevColor)` — tile
+AND owner cube; a stack keeps its former height through `holdStackHeight`) until
+the proxy takes it over, B stays hidden until the touchdown. No record → the two
+changes keep their separate beats. `stageRemoteTileEvents` skips BOTH cells of
+the viewer's own live hero, and the hero claims its own record at detect.
+
+**Degrades.** No stage / no measurable hex → both cells take their final poses
+in one turn and the layer root carries `data-tile-move-degraded` for the scene's
+length (the e2e demands its absence). Reduced motion is not a degrade: final
+poses + the stack's tick, `TILE_REDUCED_MS`. An abort mid-carry leaves A vacated
+and the commit paints B — a city is never lost.
+
+**Not covered.** A move ONTO an Ares hazard: `verifyMove` demands an empty
+destination (a hazard built over keeps its own cleanup sequence), so the hero
+unwinds and the board plays a lift on A plus the hazard cleanup on B — two
+beats, not one object.
+
+Guards: `tests/client/components/console/tileMoveScene.spec.ts` (the pair, the
+pinned numbers — beside a pin of the landing's, the removal's and the tier's —
+the geometry of one object, the records, the hero transaction, the remote
+stage) and e2e `console-re-settlement.spec.ts` (two profiles, both clients: one
+proxy, a centre that never turns back, never two cities or none, `--vacated`
+before the landing, the bonus counter after it).
+
 ## Where else this shape appears
 
 The engine's tile→tile replacements are a **closed set**: the two cards above, plus

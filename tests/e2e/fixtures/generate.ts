@@ -161,6 +161,10 @@ import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySpons
 import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
+import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
+import {cityMoveOffer} from '../../../src/server/boards/cityMove';
+import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
+import {SpaceId} from '../../../src/common/Types';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
@@ -1281,6 +1285,69 @@ parliamentFixture('martian-census', {
         !parliament.lobby.has(p1.id) || parliament.reserve(p1) < 2 ||
         parties[0] !== PartyName.INDUSTRIALISTS || parties[1] !== PartyName.MARS || parties[2] !== PartyName.GREENS) {
       throw new Error(`the martian-census fixture expected the card in blue's tableau with 3 data (unused), the lobby cube, a reserve of 2+, slots [Industrialists, Mars First, Greens] — got card=${card?.resourceCount} used=${p1.actionsThisGeneration.has(CardName.MARTIAN_CENSUS)} lobby=${parliament.lobby.has(p1.id)} reserve=${parliament.reserve(p1)} parties=${parties.join(',')}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR14 · RE-SETTLEMENT — a city MOVES to a neighbouring cell (docs/TURMOIL_REDUX_RE_SETTLEMENT.md): blue's action
+//    phase with «Переселение» in hand, 20 M€ and Mars First's access BY DELEGATES (two of blue's on its resolution —
+//    the Greens rule by the starting rule). The board is ARRANGED on Tharsis, never dealt:
+//      · city X (blue, cell 16) with ONE greenery beside it (cell 17 — 1 VP) and free land around: it may move;
+//      · the cell B beside it (24): a printed PLANT, a real OCEAN next to it (33) and TWO greeneries next to it (17, 25)
+//        — one move that pays a cell bonus and the ocean's 2 M€ and reads «ПО города 1 → 2» in the dossier;
+//      · city Y (blue, cell 62) with every land neighbour built over (red's greeneries on 56 / 57 / 61): it has nowhere
+//        to go — offered DISABLED with its own reason, never hidden;
+//      · red owns tiles on the field — the second client watches the move from there.
+//    The ids are the e2e spec's own constants (`tests/e2e/console-re-settlement.spec.ts`); the engine's reading of the
+//    arrangement is asserted below, so a board change fails HERE, by name. ──
+const RE_SETTLEMENT_SITE = {x: '16', b: '24', ocean: '33', groves: ['17', '25'], y: '62', wall: ['56', '57', '61']} as const;
+parliamentFixture('re-settlement', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    for (const id of [RE_SETTLEMENT_SITE.x, RE_SETTLEMENT_SITE.y]) {
+      cell(id).tile = {tileType: TileType.CITY};
+      cell(id).player = p1;
+    }
+    for (const id of RE_SETTLEMENT_SITE.groves) {
+      cell(id).tile = {tileType: TileType.GREENERY};
+      cell(id).player = p1;
+    }
+    for (const id of RE_SETTLEMENT_SITE.wall) {
+      cell(id).tile = {tileType: TileType.GREENERY};
+      cell(id).player = p2;
+    }
+    cell(RE_SETTLEMENT_SITE.ocean).tile = {tileType: TileType.OCEAN};
+    p1.cardsInHand.push(new ReSettlement());
+  },
+  expect: ({game, parliament, p1}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.RE_SETTLEMENT);
+    const offer = cityMoveOffer(p1);
+    const source = offer.sources[0];
+    const b = game.board.getSpaceOrThrow(RE_SETTLEMENT_SITE.b as SpaceId);
+    const groves = (id: string) => game.board.getAdjacentSpaces(game.board.getSpaceOrThrow(id as SpaceId)).filter(Board.isGreenerySpace).length;
+    const facts = {
+      playable: card !== undefined && p1.canPlay(card) !== false,
+      sources: offer.sources.map((s) => s.from.id).join(','),
+      destinations: source?.to.map((s) => s.id).join(',') ?? '',
+      disabled: offer.disabledSources.map((d) => `${d.space.id}:${d.reason}`).join(','),
+      bonus: b.bonus.join(','),
+      ocean: game.board.getAdjacentSpaces(b).some((s) => s.tile?.tileType === TileType.OCEAN),
+      grovesAtX: groves(RE_SETTLEMENT_SITE.x),
+      grovesAtB: groves(RE_SETTLEMENT_SITE.b),
+      money: p1.megaCredits,
+    };
+    if (!facts.playable || facts.sources !== RE_SETTLEMENT_SITE.x || source.to.length < 2 || !source.to.some((s) => s.id === RE_SETTLEMENT_SITE.b) ||
+        facts.disabled !== `${RE_SETTLEMENT_SITE.y}:no-space-to-move` || b.bonus.length !== 1 || b.bonus[0] !== SpaceBonus.PLANT || !facts.ocean ||
+        facts.grovesAtX !== 1 || facts.grovesAtB !== 2 || facts.money < 7) {
+      throw new Error(`the re-settlement fixture expected a playable card, ONE movable city (${RE_SETTLEMENT_SITE.x}) reaching ${RE_SETTLEMENT_SITE.b} and at least one more cell, the city on ${RE_SETTLEMENT_SITE.y} disabled «no-space-to-move», a plant on ${RE_SETTLEMENT_SITE.b} beside an ocean, 1 → 2 greeneries — got ${JSON.stringify(facts)}`);
     }
     parliament.assertLedger(game);
   },

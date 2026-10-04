@@ -161,6 +161,53 @@ both loops are 0%/100%-symmetric).
 - The baseline hex contour gained an ~8 % interior well (board.less) — cells
   read as surveyed basins, separating the field from the terrain.
 
+## A MOVE — the source level, the pickup pose, the vector (TR14 Re-settlement)
+
+A prompt carrying `tileMove` (`placementEffect: 'move'`) is ONE server question
+read at TWO levels — which city leaves, where it lands — and the level is module
+state, not a shell branch (`tilePlacement/placementMove.ts`):
+
+| | city level (`placementMoveState.from === undefined`) | cell level (a city is lifted) |
+| --- | --- | --- |
+| legal cells | the cities that may move (`tileMove.sources`) | that city's `to`, in the server's order |
+| refusals | a city that may not — its ONE reason (`disabledSources`); every other cell «not your city» | the prompt's own + `source.illegal` (a sibling city's cell) |
+| reticle | **`--pickup`**: a ring around the REAL tile, no ghost (a tile over a tile would be a second object); the focused city lifts 2 px | the ordinary projection (the `arrives` tile + cube) |
+| A | «Взять город» — ONE press in both confirm modes, pure presentation | lock → «Подтвердить переселение» (the two-phase machine, untouched) |
+| B | cancel the whole flow (when cancellable) | «Другой город» — the city is put down |
+
+`moveLevelPrompt(prompt, from, boardIds)` derives the level's prompt from the
+marker alone — the client computes no adjacency and no «is it my city» — and
+both readers (the binder's `topLevelSpaceInput`, the shell's
+`placementSpaceModel`) take it from there. The machine in `placementFlow.ts`
+(dwell, release gate) is unchanged: a lifted city is not a phase of it.
+
+On the field, once a city is lifted (all board px-space, transform / opacity
+only, none of it a loop):
+- **the origin** — the real tile STAYS (nothing has happened yet) and turns
+  quieter under a dashed contour (`.board-space--move-source`,
+  `.con-bmove-origin`); it is never hidden before the confirm;
+- **the vector** — one thin line with a chevron from the origin toward the
+  focused legal cell, re-aimed by the reticle's own 120 ms glide (the running
+  angle turns the short way); amber and heavier at the lock;
+- **the relation layer** never marks the cell being left.
+
+The cursor follows the level: lifted → the city's FIRST destination (a focus,
+never a choice); put down → back on the city. The bar is the pure
+`placementCommands({…, moveLevel})`; the dossier reads the SOURCE at the city
+level («ЭТОТ ГОРОД») and the destination with «ПРЕЖНЯЯ КЛЕТКА» and the city's VP
+as one vector at the cell level. The preview is asked with `from=` (and
+`staged=1` for a staged play).
+
+At the commit the hero takes over (`tile-replacement.md` § THE FOURTH case): the
+pose lets go for the scene's whole length (`sceneOwnsMove`) and the vector is
+eaten behind the travelling tile (`--eaten` — one class, CSS one-shots whose
+delay / duration mirror `MOVE_LIFT_MS` / `MOVE_CARRY_MS`).
+
+e2e: drive the city level with `walkToSpace` + ONE `Enter` (verified by the
+board's own `con-board--move-pick` → `--move-lifted`), the cell with
+`walkToSpace` + the two-press commit. `placeTile` is wrong here — its first
+press would lift whatever city the cursor stands on.
+
 ## e2e driving (the drivers changed!)
 
 `placeTile` in `consoleStart.ts` presses Enter TWICE per cell attempt (lock →
