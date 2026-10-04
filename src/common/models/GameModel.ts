@@ -1,6 +1,7 @@
 import {GameOptionsModel} from './GameOptionsModel';
 import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../boards/TileMove';
+import {CardAdjacencyPayoutModel} from './CardAdjacencyPayoutModel';
 import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
@@ -39,6 +40,11 @@ export type GameModel = {
    *  remote stage plays one tile carried across. Presentation only; each
    *  client consumes a record once by `seq`. See `TileMoveRecordModel`. */
   tileMoves?: ReadonlyArray<TileMoveRecordModel>;
+  /** Latest PER-NEIGHBOUR CARD PAYOUTS (Turmoil Redux TR21 Arboretum): which
+   *  neighbouring cities paid how many units onto which card — the board
+   *  scene's script for the paid seat and every other viewer alike.
+   *  Presentation only; consumed once by `seq`. See `CardAdjacencyPayoutModel`. */
+  cardAdjacencyPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>;
   awards: ReadonlyArray<FundedAwardModel>;
   colonies: ReadonlyArray<ColonyModel>;
   discardedColonies: ReadonlyArray<ColonyName>;

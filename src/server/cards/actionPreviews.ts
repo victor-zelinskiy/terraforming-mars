@@ -24,6 +24,7 @@ import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
+import type {SelectResourceTarget} from '../deferredActions/SelectResourceTarget';
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {DiscardPopularSupport, skippedSupportDiscard} from '../parliament/DiscardPopularSupport';
@@ -167,6 +168,24 @@ export function addToCardStep(player: IPlayer, resource: CardResource | undefine
     // does to the card's points, so no caller can forget to ask.
     vpBox: targetVictoryPoints(player, target.getCards(), count),
   };
+}
+
+/**
+ * The TARGET of a reward whose amount the CELL decides — the preview twin of
+ * `SelectResourceTarget` (Arboretum's «1 data for each adjacent city»): the
+ * SAME instance the play defers is asked for its read-only `SelectCard`, so
+ * the pre-collected pick and the live prompt cannot read apart. NO `amount`
+ * — the number does not exist before the cell; the input's own marker carries
+ * `amountBasis`, and the candidate reads «+1 for each adjacent city». No `vpBox`
+ * either: a VP reading needs the number. `undefined` when no card can hold the
+ * resource (the caller states the loss instead).
+ */
+export function resourceTargetStep(step: SelectResourceTarget): ActionPreviewStep | undefined {
+  const model = step.previewSelectCard();
+  if (model === undefined) {
+    return undefined;
+  }
+  return {kind: 'input', input: model, cardResource: cardResourceIcon(step.resource)};
 }
 
 /**

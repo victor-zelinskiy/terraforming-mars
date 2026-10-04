@@ -7,6 +7,8 @@ import {BoardFact, BoardFactDelta, BoardFactRecipient} from '../../common/boards
 import {BASE_OCEAN_TILES} from '../../common/TileType';
 import {PlacementPreviewContext} from '../boards/PlacementPreviewContext';
 import {cardResourceIcon} from './actionPreviews';
+import {SpaceId} from '../../common/Types';
+import {EffectForecastFact, forecastSourceIsCardless} from '../../common/models/EffectForecastModel';
 
 /**
  * Thin, stable BUILDERS for the two co-located placement hooks
@@ -57,6 +59,14 @@ type FactOptions = {
   /** Defaults to the current player; a trigger on someone else's card passes theirs. */
   recipient?: BoardFactRecipient;
   severity?: BoardFact['severity'];
+  /**
+   * The cells that DO the counting — a card's reward that depends on its
+   * neighbourhood (Arboretum: the adjacent cities that pay the data) names
+   * them, so the board's relation layer lights exactly them, from the very
+   * call that computed the number. The engine's own facts carry the same
+   * field (`BoardFact.spaces`); a card hook now can too.
+   */
+  spaces?: ReadonlyArray<SpaceId>;
 };
 
 function baseFact(card: ICard, suffix: string, title: string | Message, options?: FactOptions): BoardFact {
@@ -70,6 +80,7 @@ function baseFact(card: ICard, suffix: string, title: string | Message, options?
     description: options?.description,
     params: options?.params,
     source: cardSource(card),
+    ...(options?.spaces !== undefined && options.spaces.length > 0 ? {spaces: options.spaces} : {}),
   };
 }
 
@@ -189,6 +200,40 @@ export function victoryPoints(
     timing: 'endgame',
     severity: options?.severity ?? 'positive',
     vp: {from: 0, to: amount},
+  };
+}
+
+/**
+ * What the TABLE answers to a grant the card makes on THIS cell — an effect
+ * forecast fact (`effectForecast.grantReactionFacts`, the composer's own
+ * second-order pass) restated in the dossier's vocabulary: a trigger of the
+ * reacting card («Сработает»), its chip, its owner. The forecast decides who
+ * reacts and with what; this only changes the shape, never the numbers.
+ */
+export function forecastReaction(fact: EffectForecastFact): BoardFact | undefined {
+  const chip = fact.effects[0];
+  if (chip === undefined || forecastSourceIsCardless(fact.source)) {
+    return undefined;
+  }
+  const recipient: BoardFactRecipient = fact.recipient.kind === 'you' ? {kind: 'current-player'} : {kind: 'player', color: fact.recipient.color};
+  return {
+    id: `reaction-${fact.id}`,
+    category: 'card-trigger',
+    reaction: true,
+    timing: 'immediate',
+    severity: chip.direction === 'gain' ? 'positive' : 'warning',
+    recipient,
+    title: fact.reason,
+    source: {type: 'card', id: fact.source.name, label: fact.source.name},
+    delta: {
+      icon: chip.icon,
+      amount: chip.amount,
+      direction: chip.direction,
+      ...(chip.current !== undefined ? {current: chip.current} : {}),
+      ...(chip.resulting !== undefined ? {resulting: chip.resulting} : {}),
+      ...(chip.unit !== undefined ? {unit: chip.unit} : {}),
+      ...(chip.note === 'production' ? {production: true} : {}),
+    },
   };
 }
 

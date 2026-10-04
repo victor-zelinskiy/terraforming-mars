@@ -97,6 +97,7 @@ import {DiscordId} from './server/auth/discord';
 import {AlliedParty} from '../common/turmoil/Types';
 import {PlayedCards} from './cards/PlayedCards';
 import {From} from './logs/From';
+import type {CardResourceBasis} from '../common/events/EventImpact';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
 
 const THROW_STATE_ERRORS = Boolean(process.env.THROW_STATE_ERRORS);
@@ -829,7 +830,7 @@ export class Player implements IPlayer {
     }
   }
 
-  public addResourceTo(card: ICard, options: number | {qty?: number, log: boolean, logZero?: boolean, from?: From} = 1): void {
+  public addResourceTo(card: ICard, options: number | {qty?: number, log: boolean, logZero?: boolean, from?: From, basis?: CardResourceBasis} = 1): void {
     const count = typeof(options) === 'number' ? options : (options.qty ?? 1);
 
     if (card.resourceCount !== undefined) {
@@ -842,7 +843,9 @@ export class Player implements IPlayer {
       }
     }
 
-    this.game?.events?.recordCardResourceDelta(this, card, count, typeof(options) !== 'number' ? options.from : undefined);
+    this.game?.events?.recordCardResourceDelta(this, card, count,
+      typeof(options) !== 'number' ? options.from : undefined,
+      typeof(options) !== 'number' ? options.basis : undefined);
     // Turmoil Redux: the chairman quest (resources added to cards).
     ParliamentHandler.onCardResourceAdded(this, card, count);
 

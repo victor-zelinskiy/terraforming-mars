@@ -1,4 +1,4 @@
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {PlacementType} from '../boards/PlacementType';
@@ -7,6 +7,18 @@ import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
 import {CardName} from '../../common/cards/CardName';
 import {TileType} from '../../common/TileType';
+
+/**
+ * THE CELLS A CARD'S GREENERY MAY GO TO — the engine's set for `on` with the
+ * Red City exclusion: the ONE derivation `execute` asks, and the one a
+ * bespoke greenery card's gate and its staged twin ask (Arboretum, TR21) —
+ * so a card that keeps the placed cell never re-states the greenery rule.
+ * `canAffordOptions` folds in the unpaid card's own cost (the staged play).
+ */
+export function greeneryTargets(player: IPlayer, on: PlacementType = 'greenery', canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
+  const board = player.game.board;
+  return board.filterSpacesAroundRedCity(board.getAvailableSpacesForType(player, on, canAffordOptions));
+}
 
 export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -20,9 +32,7 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
   }
 
   public execute() {
-    const board = this.player.game.board;
-    const spacesForType = board.getAvailableSpacesForType(this.player, this.on);
-    const filtered = board.filterSpacesAroundRedCity(spacesForType);
+    const filtered = greeneryTargets(this.player, this.on);
     if (filtered.length === 0) {
       this.cb(undefined);
       return undefined;

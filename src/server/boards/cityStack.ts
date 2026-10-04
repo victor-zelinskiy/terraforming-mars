@@ -33,6 +33,29 @@ export function countCityTiers(spaces: ReadonlyArray<Space>): number {
   return countCityTiersOfCells(spaces);
 }
 
+/** The least a neighbourhood count needs of a board — its adjacency (structural: this module must not load the board classes). */
+type Neighbourhood = {getAdjacentSpaces(space: Space): ReadonlyArray<Space>};
+
+/**
+ * The CITY CELLS beside `space`, in the board's adjacency order — of ANY
+ * owner (a neutral solo city, the Capital, an Ocean City, New Holland), a
+ * stack listed ONCE: the cells a neighbourhood count stands on, and the cells
+ * a dossier lights for it.
+ */
+export function adjacentCitySpaces(board: Neighbourhood, space: Space): ReadonlyArray<Space> {
+  return board.getAdjacentSpaces(space).filter((adjacent) => cityTiersOfCell(adjacent) > 0);
+}
+
+/**
+ * HOW MANY CITIES stand beside `space` — the stacks summed: the quantity a
+ * «per adjacent city» rule pays and scores by (Commercial District's VP — the
+ * `cities` countable with `nextToThis`; Arboretum's data, TR21). Two cities on
+ * one cell are two cities here, exactly as everywhere a number is asked.
+ */
+export function adjacentCityTiers(board: Neighbourhood, space: Space): number {
+  return countCityTiersOfCells(adjacentCitySpaces(board, space));
+}
+
 /** What `liftTopCity` took off a cell — everything the city carries to its next cell. */
 export type LiftedCity = {
   /** The tile that travels: the cell's own tile for a single city, a plain CITY for the top tier of a stack. */

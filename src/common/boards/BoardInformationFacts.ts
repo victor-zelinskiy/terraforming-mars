@@ -144,6 +144,23 @@ export type BoardFact = {
    */
   spaces?: ReadonlyArray<SpaceId>;
   delta?: BoardFactDelta;
+  /**
+   * The delta lands on the CARD the player chose BEFORE the cell — a reward
+   * whose amount the cell decides and whose target a step of the same play
+   * picked first (Turmoil Redux TR21 Arboretum: «+3 data · for 3 adjacent
+   * cities» onto the chosen card). The server cannot know that pick (the
+   * staged play has not been sent); the client resolves it from its own
+   * staged answer and prints that card's `before → after` beside the delta —
+   * two server numbers added, no rule computed. Names the resource icon.
+   */
+  landsOnChosenCard?: {resource: string};
+  /**
+   * A SECOND-ORDER reaction: another card ANSWERING what this placement makes
+   * the card grant (Martian Fiber's M€ for Arboretum's data) — the effect
+   * forecast's own grant pass restated for the cell. The dossier groups it as
+   * «Сработает», the composers' word for the same thing.
+   */
+  reaction?: boolean;
   vp?: {from: number, to: number};
   /**
    * A COUNT this placement advances (milestone / award standing), rendered as a

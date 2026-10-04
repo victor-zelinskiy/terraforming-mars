@@ -27,6 +27,7 @@ import {Turmoil} from './turmoil/Turmoil';
 import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../common/boards/TileMove';
+import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {MoonData} from './moon/MoonData';
 import {SeededRandom} from '../common/utils/Random';
 import {PathfindersData} from './pathfinders/PathfindersData';
@@ -153,6 +154,16 @@ export interface IGame extends Logger {
    * a restart loses only the animation, never the rule.
    */
   tileMoves: Array<TileMoveRecordModel>;
+  /**
+   * Bounded ring of the latest PER-NEIGHBOUR CARD PAYOUTS (Turmoil Redux TR21
+   * Arboretum): which neighbours paid how many units onto which card — the
+   * scene's whole script, read alike by the paid seat and every other viewer.
+   * See `CardAdjacencyPayoutModel`. Not serialized: a restart loses only the
+   * animation, never the rule.
+   */
+  cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel>;
+  /** Publish one payout into `cardAdjacencyPayouts` (the ring's `seq` law). */
+  recordCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void;
   moonData: MoonData | undefined;
   pathfindersData: PathfindersData | undefined;
   underworldData: UnderworldData;

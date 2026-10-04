@@ -1,7 +1,7 @@
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
-import {LiftedCity, countCityTiers, liftTopCity} from './cityStack';
+import {LiftedCity, adjacentCitySpaces, adjacentCityTiers, liftTopCity} from './cityStack';
 import {CityMoveOffer, cityMoveOffer, cityMoveReasoner} from './cityMove';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceType} from '../../common/boards/SpaceType';
@@ -1044,8 +1044,11 @@ function specialTileAdjacencyVpFacts(
       oceans.map((s) => s.id))];
   }
   if (tileType === TileType.COMMERCIAL_DISTRICT) {
-    const cities = board.getAdjacentSpaces(space).filter(Board.isCitySpace);
-    return [adjacencyVpFact(`${idPrefix}-commercial`, recipient, cities.length,
+    // The QUANTITY its card scores (`Counter`: `cities` with `nextToThis`) —
+    // a stack beside the district is as many cities as it has tiers; the
+    // lit cells stay the cells.
+    const cities = adjacentCitySpaces(board, space);
+    return [adjacencyVpFact(`${idPrefix}-commercial`, recipient, adjacentCityTiers(board, space),
       future ? 'Commercial District will score for adjacent cities' : 'Commercial District scores for adjacent cities',
       future ?
         'Scores +1 VP per adjacent city at game end (any player\'s, including cities placed next to it later).' :
@@ -1187,21 +1190,21 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
     // The recipient GROUP names the owner, so a description repeating "for its
     // owner" adds nothing the layout doesn't carry. A NEUTRAL city (a solo
     // game's setup city) scores NOBODY — promising it a VP was false, and the
-    // client rendered the recipient as a raw «NEUTRAL».
-    for (const adj of board.getAdjacentSpaces(space)) {
-      if (Board.isCitySpace(adj)) {
-        const ownerColor = adj.player?.color ?? adj.coOwner?.color;
-        if (ownerColor !== undefined && ownerColor !== 'neutral') {
-          out.push({
-            ...vpFact(
-              `place-greenery-city-${adj.id}`,
-              'city-greenery-scoring',
-              'Adjacent city scores at game end',
-              recipientFor(player, ownerColor),
-              0, 1),
-            spaces: [adj.id],
-          });
-        }
+    // client rendered the recipient as a raw «NEUTRAL». A STACK scores the
+    // greenery once PER TIER (`calculateVictoryPoints` — «each city in the
+    // stack scores separately»), so its owner gets as many VP as it has tiers.
+    for (const adj of adjacentCitySpaces(board, space)) {
+      const ownerColor = adj.player?.color ?? adj.coOwner?.color;
+      if (ownerColor !== undefined && ownerColor !== 'neutral') {
+        out.push({
+          ...vpFact(
+            `place-greenery-city-${adj.id}`,
+            'city-greenery-scoring',
+            'Adjacent city scores at game end',
+            recipientFor(player, ownerColor),
+            0, Board.cityTiersOf(adj)),
+          spaces: [adj.id],
+        });
       }
     }
   }
@@ -1871,11 +1874,6 @@ function commercialDistrictsBeside(board: Board, cells: ReadonlyArray<Space>): R
     }
   }
   return [...seen.values()];
-}
-
-/** How many CITIES stand beside `district` — the stacks summed, the quantity its card scores (`Counter`: `cities` with `nextToThis`). */
-function adjacentCityTiers(board: Board, district: Space): number {
-  return countCityTiers(board.getAdjacentSpaces(district).filter(Board.isCitySpace));
 }
 
 /**

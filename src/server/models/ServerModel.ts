@@ -171,6 +171,7 @@ export class Server {
       aresData: game.aresData,
       aresAdjacencyGrants: game.aresAdjacencyGrants.length > 0 ? game.aresAdjacencyGrants : undefined,
       tileMoves: game.tileMoves.length > 0 ? game.tileMoves : undefined,
+      cardAdjacencyPayouts: game.cardAdjacencyPayouts.length > 0 ? game.cardAdjacencyPayouts : undefined,
       awards: this.getAwards(game),
       colonies: coloniesToModel(game, game.colonies, false, true),
       deckSize: game.projectDeck.drawPile.length,

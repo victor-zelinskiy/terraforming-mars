@@ -7,6 +7,7 @@ import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
 import type {DeltaBlockadeProjectionModel} from './DeltaBlockadeModel';
 import type {DeltaEspionageProjectionModel} from './DeltaEspionageModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
+import type {AdjacencyAmountBasis} from './CardAdjacencyPayoutModel';
 import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
@@ -856,7 +857,19 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
  * or accepts. Serialized on `SelectCard.toModel` (nesting-safe), not centrally.
  */
 export type ResourceGainPromptMeta = {
-  amount: number;
+  /**
+   * How many land. ABSENT for a pick made BEFORE its amount exists — a card
+   * whose reward depends on the cell chosen after the pick (Arboretum: «1 data
+   * for each adjacent city»): `amountBasis` then says what the number will
+   * count, and no reader may guess one.
+   */
+  amount?: number;
+  /**
+   * WHAT the amount counts when it is not known yet (`amount` absent): the
+   * candidate reads «+1 for each adjacent city», never a number. See
+   * `AdjacencyAmountBasis`.
+   */
+  amountBasis?: AdjacencyAmountBasis;
   /**
    * Icon key of the card resource being added ('animal', 'microbe', …) — the
    * ONE kind the pick adds. Absent when the pick spans SEVERAL kinds (Medical

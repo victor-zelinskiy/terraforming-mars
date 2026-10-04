@@ -10,6 +10,16 @@ import {PartyName} from '../turmoil/PartyName';
 import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
 
 /**
+ * WHY a card-resource amount is what it is, when a RULE counted it — «1 data
+ * for each adjacent city» paid 3 (Turmoil Redux TR21 Arboretum):
+ * `{count: 3, unitKey: 'adjacent {city|cities}'}`. The journal prints «· for 3
+ * adjacent cities» beside the chip, so the number explains itself. `unitKey`
+ * is an English i18n key whose plural group agrees with `count`; shared by
+ * every later «for each X» payout — never a per-card field.
+ */
+export type CardResourceBasis = {count: number; unitKey: string};
+
+/**
  * FACTUAL impact of a {@link GameEvent}. Facts only — never an estimated
  * "M€ equivalent" valuation. Turning facts into a value score is a SEPARATE
  * layer (see `valuation()` in the client analytics), so the persisted stream
@@ -24,7 +34,7 @@ export type EventImpact = {
   /** Production change (signed). */
   production?: Partial<Units>;
   /** Card-resource (microbe/animal/floater/asteroid/…) additions/removals. */
-  cardResources?: ReadonlyArray<{cardResource: CardResource; target?: CardName; amount: number}>;
+  cardResources?: ReadonlyArray<{cardResource: CardResource; target?: CardName; amount: number; basis?: CardResourceBasis}>;
   /** Terraform Rating change (signed). */
   tr?: number;
   /** Global-parameter steps moved (temperature/oxygen/oceans/venus). */

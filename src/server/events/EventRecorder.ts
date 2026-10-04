@@ -13,7 +13,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
-import {EventImpact, SkippedEffectFact} from '../../common/events/EventImpact';
+import {CardResourceBasis, EventImpact, SkippedEffectFact} from '../../common/events/EventImpact';
 import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
@@ -643,7 +643,7 @@ export class EventRecorder {
     }, this.current);
   }
 
-  public recordCardResourceDelta(player: IPlayer, card: ICard, amount: number, from?: From): void {
+  public recordCardResourceDelta(player: IPlayer, card: ICard, amount: number, from?: From, basis?: CardResourceBasis): void {
     if (amount === 0 || card.resourceType === undefined) {
       return;
     }
@@ -664,7 +664,8 @@ export class EventRecorder {
     this.record({
       type: 'card-resource-changed',
       source, player: player.color,
-      impact: {cardResources: [{cardResource: card.resourceType, target: card.name, amount}]},
+      // `basis` — the count a rule paid by («for each adjacent city», TR21): the journal's «· for 3 adjacent cities».
+      impact: {cardResources: [{cardResource: card.resourceType, target: card.name, amount, ...(basis !== undefined ? {basis} : {})}]},
       tags: ['card-impact'],
     });
   }

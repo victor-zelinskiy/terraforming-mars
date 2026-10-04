@@ -16,7 +16,8 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import {isPlanetaryTag} from '../pathfinders/PathfindersData';
 import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
 import {marsBotOf} from '../automa/AutomaUtil';
-import {ActionEffect, ActionPreview, ActionPreviewBranch} from '../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
+import {SelectCardModel} from '../../common/models/PlayerInputModel';
 import {
   EffectForecast,
   EffectForecastCertainty,
@@ -370,6 +371,46 @@ function grantFacts(
     }
   }
   return facts;
+}
+
+/**
+ * THE SECOND-ORDER PASS FOR A CELL — what the table answers to a grant a card
+ * makes BECAUSE OF THE CELL under the cursor (Arboretum's «+N data for N
+ * adjacent cities»: Martian Fiber pays N M€). The placement dossier's card
+ * hook hands its own chip here and gets back the very facts the composer's
+ * forecast would state for the same grant — the same reactors, the same
+ * `grantForecast` twins, never a table of «who reacts to data». Read-only.
+ */
+export function grantReactionFacts(player: IPlayer, card: ICard, effects: ReadonlyArray<ActionEffect>): Array<EffectForecastFact> {
+  return grantFacts(player, player, card, grantsOf(effects), {operation: 'play', card, tiles: []});
+}
+
+/**
+ * A grant whose AMOUNT THE CELL DECIDES — a target step carrying `amountBasis`
+ * and no amount (Arboretum: «1 data for each adjacent city»). The reactors to
+ * «a resource was added» WILL fire, but how much they pay does not exist
+ * before the cell: they are asked through the same `grantForecast` twins with
+ * ONE unit, and each answer is stated in the Forestry form — DEFERRED, after
+ * the placement, with no chip (a number would be a guess). The reacting card
+ * and its reason stay; the cell's dossier then states the number per cell.
+ */
+function basisGrantFacts(player: IPlayer, card: ICard, steps: ReadonlyArray<ActionPreviewStep>, ctx: EffectForecastContext): Array<EffectForecastFact> {
+  const out: Array<EffectForecastFact> = [];
+  for (const step of steps) {
+    if (step.kind !== 'input' || step.input.type !== 'card') {
+      continue;
+    }
+    const meta = (step.input as SelectCardModel).resourceGainPrompt;
+    const resource = meta?.cardResource !== undefined ? cardResourceForIcon(meta.cardResource) : undefined;
+    if (meta?.amountBasis === undefined || meta.amount !== undefined || resource === undefined) {
+      continue;
+    }
+    for (const fact of grantFacts(player, player, card, [{kind: 'cardResource', resource, amount: 1, target: 'any'}], ctx)) {
+      out.push(fact.certainty === 'unknown' ? fact :
+        {...fact, certainty: 'deferred', timing: 'after-placement', effects: [], note: 'For every unit — how many depends on the cell'});
+    }
+  }
+  return out;
 }
 
 function grantsOf(effects: ReadonlyArray<ActionEffect>): Array<EffectForecastGrant> {
@@ -752,6 +793,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
     const effects = branches[0]?.available === false ? [] : (branches[0]?.effects ?? []);
     ownEffects.push(...effects);
     facts.push(...grantFacts(player, player, card, grantsOf(effects), ctx));
+    facts.push(...basisGrantFacts(player, card, branches[0]?.available === false ? [] : (branches[0]?.steps ?? []), ctx));
     facts.push(...tileFacts(player, card, branches[0]?.available === false ? [] : sharedTiles, ctx));
   } else {
     // The tiles every option places are the PLAY's: their reactions stand in

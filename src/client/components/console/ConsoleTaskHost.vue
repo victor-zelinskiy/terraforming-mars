@@ -991,7 +991,8 @@ export default defineComponent({
     sourceYield(): InfluenceYield | undefined {
       const id = this.sourceView?.resolution;
       const meta = this.cardModel?.resourceGainPrompt;
-      if (id === undefined || meta === undefined || this.activeTask.kind !== 'cardSelect') {
+      // A pick made BEFORE its amount exists (`amountBasis`, no `amount`) has no yield to read yet.
+      if (id === undefined || meta?.amount === undefined || this.activeTask.kind !== 'cardSelect') {
         return undefined;
       }
       // The pick names its ONE kind, or the kinds it spans — either finds the effect whose unit lists any of them.

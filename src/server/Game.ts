@@ -67,6 +67,7 @@ import {AresHandler} from './ares/AresHandler';
 import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
+import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {GameSetup, normalizeBoardName} from './GameSetup';
 import {GameCards} from './GameCards';
 import {GlobalParameter} from '../common/GlobalParameter';
@@ -193,6 +194,7 @@ export class Game implements IGame, Logger {
   public aresData: AresData | undefined;
   public aresAdjacencyGrants: Array<AresAdjacencyGrantModel> = []; // Not serialized (presentation manifest ring)
   public tileMoves: Array<TileMoveRecordModel> = []; // Not serialized (presentation ring — see IGame.tileMoves)
+  public cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel> = []; // Not serialized (presentation ring — see IGame.cardAdjacencyPayouts)
   public moonData: MoonData | undefined;
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
@@ -2373,6 +2375,21 @@ export class Game implements IGame, Logger {
    * never a leak; `seq` derives from the serialized `gameAge`, so it stays
    * monotonic across a restart and a client consumes each move exactly once.
    */
+  /**
+   * PUBLISH a card's per-neighbour payout (Turmoil Redux TR21 Arboretum — the
+   * data its neighbouring cities paid onto the chosen card) for the board's
+   * scene: the same bounded ring as `recordTileMove`, the same `seq` law.
+   * Called by the payout itself, after the units landed.
+   */
+  public recordCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void {
+    const base = this.gameAge * 100;
+    const n = this.cardAdjacencyPayouts.filter((p) => p.seq >= base).length;
+    this.cardAdjacencyPayouts.push({...payout, seq: base + Math.min(n, 99)});
+    while (this.cardAdjacencyPayouts.length > 8) {
+      this.cardAdjacencyPayouts.shift();
+    }
+  }
+
   private recordTileMove(move: Omit<TileMoveRecordModel, 'seq'>): void {
     const base = this.gameAge * 100;
     const n = this.tileMoves.filter((m) => m.seq >= base).length;

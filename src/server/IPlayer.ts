@@ -44,6 +44,7 @@ import {Message} from '../common/logs/Message';
 import {DiscordId} from './server/auth/discord';
 import {PlayedCards} from './cards/PlayedCards';
 import {From} from './logs/From';
+import type {CardResourceBasis} from '../common/events/EventImpact';
 import {Tag} from '../common/cards/Tag';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
 
@@ -503,7 +504,7 @@ export interface IPlayer {
   /**
    * Add resources to this player's played card
    */
-  addResourceTo(card: ICard, options?: number | {qty?: number, log: boolean, logZero?: boolean, from?: From}): void;
+  addResourceTo(card: ICard, options?: number | {qty?: number, log: boolean, logZero?: boolean, from?: From, basis?: CardResourceBasis}): void;
 
   /**
    * Returns the set of cards in play that have actual resources on them.

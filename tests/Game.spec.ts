@@ -866,6 +866,9 @@ describe('Game', () => {
       // The Ares adjacency presentation manifest — a bounded transient ring
       // (a restart loses only the animation, never the money).
       'aresAdjacencyGrants',
+      // The per-neighbour card payout ring (TR21 Arboretum) — the same law: a
+      // restart loses only the scene, never the data (the journal keeps it).
+      'cardAdjacencyPayouts',
       'createdTime',
       'discardedColonies',
       'doubleDownPrelude',

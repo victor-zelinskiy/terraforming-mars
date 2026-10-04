@@ -233,5 +233,8 @@
   "City stack: ×${0} → ×${1}": "Стопка городов: ×${0} → ×${1}",
   "Only the top tier moves — the cities under it stay.": "Уходит только верхний ярус — города под ним остаются.",
   "The space is freed": "Клетка освобождается",
-  "Its placement bonus goes again to whoever places a tile there next.": "Её бонус размещения снова получит тот, кто займёт её следующим."
+  "Its placement bonus goes again to whoever places a tile there next.": "Её бонус размещения снова получит тот, кто займёт её следующим.",
+  "For ${0} adjacent {city|cities}": "За ${0} {соседний город|соседних города|соседних городов}",
+  "No adjacent cities — no data from this tile": "Соседних городов нет — данных не будет",
+  "No card can hold the data — it is lost": "Данные некуда положить — они пропадут"
 }
