@@ -21,12 +21,19 @@ import {
   formulaFor,
   formulaOperandsText,
   formulaTagIcon,
+  formulaGlyph,
+  formulaCountedCities,
   formulaText,
   remainderText,
   shortfallText,
 } from '@/client/console/scoreExplorerModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Tag} from '@/common/cards/Tag';
+import {SpaceName} from '@/common/boards/SpaceName';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {simpleColonyModel} from '@/common/models/ColonyModel';
+import {TileType} from '@/common/TileType';
+import {CardName} from '@/common/cards/CardName';
 
 /*
  * THE SCORE EXPLORER arranges the ONE scoring policy (segment table +
@@ -446,6 +453,53 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
       expect(formulaTagIcon(per({}))).to.match(/building\.png$/);
       expect(formulaTagIcon(per({unit: 'resources', tag: undefined}))).to.eq(undefined);
       expect(formulaTagIcon({kind: 'fixed', vp: 1})).to.eq(undefined);
+    });
+
+    // «2 VP per SPACE CITY you own» (Turmoil Redux TR22 Nova City): a count of a NAMED place speaks its
+    // own noun, draws the counted object RX08's readings draw, and NAMES the cities behind the number.
+    describe('a «per space city» formula (TR22 Nova City)', () => {
+      const spaceCities = (over: Partial<Extract<ScoreFormula, {kind: 'per'}>> = {}): ScoreFormula => per({
+        each: 2, per: 1, counted: 2, vp: 4, unit: 'cities', tag: undefined, remainder: undefined,
+        where: 'offmars', countedSpaces: [SpaceName.GANYMEDE_COLONY, SpaceName.NOVA_CITY], ...over,
+      });
+      const colonies = [
+        {...simpleColonyModel(ColonyName.CERES)},
+        {...simpleColonyModel(ColonyName.LUNA), tiles: [{spaceId: SpaceName.NOVA_CITY, tileType: TileType.CITY, color: 'blue' as const, card: CardName.NOVA_CITY}]},
+      ];
+      const name = (key: string) => `«${key}»`;
+
+      it('the noun is «space cities», never the «cities in play» of an every-city rule', () => {
+        expect(formulaText(spaceCities())).to.eq('2 × 2 VP = 4 VP · space cities');
+        expect(formulaText(spaceCities({where: undefined, countedSpaces: undefined}))).to.eq('2 × 2 VP = 4 VP · cities in play');
+        expect(formulaOperandsText(spaceCities()), 'the composer\'s operands carry no noun').to.eq('2 × 2 VP');
+      });
+
+      it('the glyph is the COUNTED OBJECT — the space city — and a tag formula keeps its medallion', () => {
+        expect(formulaGlyph(spaceCities())).to.deep.eq({kind: 'counted', glyph: {kind: 'tile', tile: 'spaceCity'}});
+        expect(formulaTagIcon(spaceCities()), 'no tag is counted').to.eq(undefined);
+        expect(formulaGlyph(per({}))).to.deep.include({kind: 'tag'});
+        expect(formulaGlyph(per({unit: 'cities', tag: undefined})), 'an every-city rule has no glyph of its own').to.eq(undefined);
+        expect(formulaGlyph({kind: 'fixed', vp: 1})).to.eq(undefined);
+      });
+
+      it('the counted cities are NAMED by the board layer — a city on a colony tile names its tile', () => {
+        expect(formulaCountedCities(spaceCities(), colonies, name)).to.deep.eq(['«Ganymede Colony»', '«Nova City» («Luna»)']);
+        // The hosted cell without its link (an older model): the cell's own name alone.
+        expect(formulaCountedCities(spaceCities(), [], name)).to.deep.eq(['«Ganymede Colony»', '«Nova City»']);
+        // No cells — no list (every other formula).
+        expect(formulaCountedCities(per({}), colonies, name)).to.deep.eq([]);
+        expect(formulaCountedCities({kind: 'fixed', vp: 1}, colonies, name)).to.deep.eq([]);
+      });
+
+      it('formulaFor carries the place and the cells off the server\'s mechanics — and adds neither key to any other row', () => {
+        expect(formulaFor({
+          cardName: 'Nova City', victoryPoint: 4, kind: 'conditional',
+          mechanics: {shape: 'per', each: 2, per: 1, counted: 2, unit: 'cities', where: 'offmars', countedSpaces: [SpaceName.GANYMEDE_COLONY, SpaceName.NOVA_CITY]},
+        })).to.deep.eq({
+          kind: 'per', vp: 4, counted: 2, each: 2, per: 1, unit: 'cities', tag: undefined, adjacent: undefined, all: undefined, remainder: undefined,
+          where: 'offmars', countedSpaces: [SpaceName.GANYMEDE_COLONY, SpaceName.NOVA_CITY],
+        });
+      });
     });
 
     it('formulaFor reads a PROJECTION exactly as a breakdown row (TR20: 7 Building tags → 2 VP, 1 past the step)', () => {

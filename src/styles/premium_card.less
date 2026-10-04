@@ -2132,6 +2132,30 @@
   margin-left: 1px;
   filter: none;
 }
+/* The subject icon WITH A CORNER («2 / [city ◦ Space]» — «per SPACE city», TR22
+   Nova City): the mechanics rows' own bubble (`.pcard-mi__bubble`), scaled to
+   the badge's 17px icon — the row's `--pcard-mech-icon` is not the badge's
+   size. The wrapper takes the hair of air the bare icon had, and reserves the
+   bubble's overhang INSIDE the plate (the «wide» plate grows ≈4px, well under
+   its 75px rim). */
+.pcard__vp-dyn .pcard-mi {
+  margin-left: 1px;
+  gap: 0;
+}
+.pcard__vp-dyn .pcard-mi .pcard-ic { margin-left: 0; }
+.pcard__vp-dyn .pcard-mi--bubbled { margin-right: 4px; }
+.pcard__vp-dyn .pcard-mi__bubble {
+  top: -4px;
+  right: -5px;
+  width: 11px;
+  height: 11px;
+}
+.pcard__vp-dyn .pcard-mi__bubble--tile {
+  top: -4px;
+  right: -6px;
+  width: 10px;
+  height: 11px;
+}
 /* ── the RELATION operator ────────────────────────────────────────────
    «/» = per, «:» = if. This single glyph is what turns two adjacent symbols
    into a formula, so it is INK, not a divider: full engraving colour, heavier

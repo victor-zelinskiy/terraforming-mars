@@ -40,7 +40,10 @@ import {
 import {LiveScoreCategory, LiveScoreModel} from '@/client/console/liveScoreModel';
 import type {InfoRouteId} from '@/client/console/infoRoute';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {tagIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {CountedObjectGlyph, tagIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
+import {ColonyModel} from '@/common/models/ColonyModel';
+import {SpaceId} from '@/common/Types';
 
 // ── shared shapes ──────────────────────────────────────────────────────────
 
@@ -485,6 +488,10 @@ export type ScoreFormula =
       kind: 'per', vp: number,
       counted: number, each: number, per: number,
       unit: CardVpUnit, tag?: Tag, adjacent?: boolean, all?: boolean,
+      /** `unit === 'cities'` of a NAMED place (`offmars` = the space cities — TR22 Nova City). */
+      where?: 'onmars' | 'offmars' | 'everywhere',
+      /** …and the very cells the server counted (`CardVpMechanics.countedSpaces`), in the board's order. */
+      countedSpaces?: ReadonlyArray<SpaceId>,
       /** Units still short of the next VP step (per > 1 only). */
       remainder?: number,
     }
@@ -527,7 +534,7 @@ export function formulaFor(d: CardVictoryPointsDetail): ScoreFormula {
   case 'per': {
     const per = m.per ?? 1;
     const counted = m.counted ?? 0;
-    return {
+    const formula: Extract<ScoreFormula, {kind: 'per'}> = {
       kind: 'per',
       vp: d.victoryPoint,
       counted,
@@ -539,6 +546,14 @@ export function formulaFor(d: CardVictoryPointsDetail): ScoreFormula {
       all: m.all,
       remainder: per > 1 ? counted % per : undefined,
     };
+    // A count of a NAMED place carries its place and its cells (TR22 — the space cities).
+    if (m.where !== undefined) {
+      formula.where = m.where;
+    }
+    if (m.countedSpaces !== undefined) {
+      formula.countedSpaces = m.countedSpaces;
+    }
+    return formula;
   }
   case 'special':
     return {kind: 'special', vp: d.victoryPoint, counted: m.counted};
@@ -565,13 +580,28 @@ const UNIT_NOUN: Readonly<Partial<Record<CardVpUnit, string>>> = {
   'moon-road': 'Moon roads',
 };
 
+/**
+ * The noun of what a `per` formula counts. A count of a NAMED place speaks
+ * its own noun — «space cities» for `offmars` (TR22 Nova City), never the
+ * «cities in play» of an every-city rule.
+ */
+function unitNounOf(f: Extract<ScoreFormula, {kind: 'per'}>): string | undefined {
+  if (f.unit === 'resources') {
+    return undefined;
+  }
+  if (f.unit === 'cities' && f.where === 'offmars') {
+    return 'space cities';
+  }
+  return UNIT_NOUN[f.unit];
+}
+
 /** The formula in the row's own words — never one universal sentence. */
 export function formulaText(f: ScoreFormula): string {
   switch (f.kind) {
   case 'fixed':
     return translateTextWithParams('Printed VP: ${0}', [String(f.vp)]);
   case 'per': {
-    const noun = f.unit === 'resources' ? undefined : UNIT_NOUN[f.unit];
+    const noun = unitNounOf(f);
     const unitTail = noun !== undefined ? ` · ${translateText(noun)}` : '';
     const args = (parts: Array<string | number>) => parts.map(String);
     if (f.per === 1 && f.each === 1) {
@@ -635,9 +665,59 @@ export function shortfallText(f: ScoreFormula): string {
   return '';
 }
 
-/** The counted tag's icon (a `per` formula over tags), else undefined. */
+/**
+ * THE FORMULA'S GLYPH — what is counted, drawn: a tag's medallion (a `per`
+ * formula over tags), or the COUNTED OBJECT the Parliament's readings already
+ * draw (`PremiumCountGlyph`) — the space city for a «per space city» rule,
+ * the very glyph RX08 Colonization Funding counts by. `undefined` where the
+ * formula has no drawing of its own.
+ */
+export type FormulaGlyph =
+  | {kind: 'tag', url: string}
+  | {kind: 'counted', glyph: CountedObjectGlyph};
+
+export function formulaGlyph(f: ScoreFormula): FormulaGlyph | undefined {
+  if (f.kind !== 'per') {
+    return undefined;
+  }
+  if (f.tag !== undefined) {
+    return {kind: 'tag', url: tagIconUrl(f.tag)};
+  }
+  if (f.unit === 'cities' && f.where === 'offmars') {
+    return {kind: 'counted', glyph: {kind: 'tile', tile: 'spaceCity'}};
+  }
+  return undefined;
+}
+
+/** The counted tag's icon (a `per` formula over tags), else undefined — the tag half of {@link formulaGlyph}. */
 export function formulaTagIcon(f: ScoreFormula): string | undefined {
-  return f.kind === 'per' && f.tag !== undefined ? tagIconUrl(f.tag) : undefined;
+  const glyph = formulaGlyph(f);
+  return glyph?.kind === 'tag' ? glyph.url : undefined;
+}
+
+/**
+ * WHICH CITIES WERE COUNTED — the cells of a «per city of a named place»
+ * formula, each by the name THE BOARD INFORMATION LAYER gives it (the
+ * reserved areas' own titles — «Ganymede Colony», the Venus areas, «Nova
+ * City»), the same words RX08's reading prints. A city that lies ON A COLONY
+ * TILE (a hosted cell — `ColonyModel.tiles`) is followed by that tile's name:
+ * «Nova City (Luna)». A cell the layer does not name is skipped — nothing
+ * here christens a cell. Empty for every formula that carries no cells.
+ */
+export function formulaCountedCities(f: ScoreFormula, colonies: ReadonlyArray<ColonyModel>, nameOf: (key: string) => string): Array<string> {
+  if (f.kind !== 'per' || f.countedSpaces === undefined) {
+    return [];
+  }
+  const out: Array<string> = [];
+  for (const spaceId of f.countedSpaces) {
+    const cell = getSpecialCellInfo(spaceId);
+    if (cell === undefined) {
+      continue;
+    }
+    const host = colonies.find((colony) => colony.tiles?.some((tile) => tile.spaceId === spaceId));
+    out.push(host === undefined ? nameOf(cell.title) : `${nameOf(cell.title)} (${nameOf(host.name)})`);
+  }
+  return out;
 }
 
 /**

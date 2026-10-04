@@ -193,6 +193,8 @@
                 <span class="con-vpx__row-name">{{ rowDisplayName(row) }}</span>
                 <span class="con-vpx__row-formula">
                   <img v-if="formulaTagIcon(row) !== undefined" class="con-vpx__tagicon" :src="formulaTagIcon(row)" alt="" aria-hidden="true">
+                  <!-- the COUNTED OBJECT of a «per space city» rule — the glyph the Parliament's readings draw -->
+                  <PremiumCountGlyph v-else-if="formulaCountGlyphs(row).length > 0" class="con-vpx__countglyph" :glyph="formulaCountGlyphs(row)[0]" />
                   <i v-else-if="rowResourceIcon(row) !== ''" class="con-vpx__resicon" :class="rowResourceIcon(row)" aria-hidden="true"></i>
                   {{ formulaText(row) }}
                 </span>
@@ -214,6 +216,12 @@
               <div class="con-vpx__preview-meta">
                 <div class="con-vpx__preview-name">{{ currentRow !== undefined ? rowDisplayName(currentRow) : '' }}</div>
                 <div v-if="currentRow !== undefined" class="con-vpx__preview-formula">{{ formulaText(currentRow) }}</div>
+                <!-- WHICH cities the rule counted (a «per city of a named place» formula) — by the board layer's own names -->
+                <div v-if="currentRow !== undefined && countedCities(currentRow).length > 0" class="con-vpx__preview-cells" data-vpx-counted-cities>
+                  <template v-for="(city, ci) in countedCities(currentRow)" :key="city">
+                    <template v-if="ci > 0"> · </template><span class="con-vpx__preview-cells-name">{{ city }}</span>
+                  </template>
+                </div>
                 <div v-if="currentRow !== undefined && currentRow.resources !== undefined" class="con-vpx__preview-res">
                   <i :class="rowResourceIcon(currentRow)" aria-hidden="true"></i>
                   <span>×{{ currentRow.resources }}</span>
@@ -329,7 +337,11 @@ import {
   formulaText as scoreFormulaText,
   remainderText as scoreRemainderText,
   formulaTagIcon as scoreFormulaTagIcon,
+  formulaGlyph as scoreFormulaGlyph,
+  formulaCountedCities as scoreFormulaCountedCities,
 } from '@/client/console/scoreExplorerModel';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
+import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {getAward, getMilestone} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
@@ -362,7 +374,7 @@ import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'ConsoleScoreExplorer',
-  components: {Card, ConsoleScrollArea},
+  components: {Card, ConsoleScrollArea, PremiumCountGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -719,6 +731,19 @@ export default defineComponent({
     },
     formulaTagIcon(row: ScoreCardRow): string | undefined {
       return scoreFormulaTagIcon(row.formula);
+    },
+    /**
+     * The counted OBJECT of a formula that counts no tag (a «per space city» rule) —
+     * `scoreExplorerModel.formulaGlyph`. A list of none or one: the template indexes
+     * it under its own length guard, so the glyph is never an `undefined` prop.
+     */
+    formulaCountGlyphs(row: ScoreCardRow): Array<CountedObjectGlyph> {
+      const glyph = scoreFormulaGlyph(row.formula);
+      return glyph?.kind === 'counted' ? [glyph.glyph] : [];
+    },
+    /** The cities a «per city of a named place» rule counted, by name — a city on a colony tile names its tile. */
+    countedCities(row: ScoreCardRow): Array<string> {
+      return scoreFormulaCountedCities(row.formula, this.playerView.game.colonies, translateText);
     },
     rowResourceIcon(row: ScoreCardRow): string {
       const type = row.resourceType;

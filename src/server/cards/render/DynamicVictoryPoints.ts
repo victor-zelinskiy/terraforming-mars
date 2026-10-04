@@ -27,10 +27,18 @@ export function oceans(points: number, target: number): CardRenderDynamicVictory
     asterisk: true,
   };
 }
-export function cities(points: number, target: number, any: boolean = false, asterisk: boolean = false): CardRenderDynamicVictoryPoints {
+/**
+ * «N VP per city». `secondaryTag` prints the corner bubble on the city tile —
+ * `Tag.SPACE` for «per SPACE city» (Turmoil Redux TR22 Nova City), the same
+ * bubble a mechanics row's `city({secondaryTag: Tag.SPACE})` wears.
+ */
+export function cities(points: number, target: number, any: boolean = false, asterisk: boolean = false, secondaryTag?: Tag): CardRenderDynamicVictoryPoints {
   const item = new CardRenderItem(CardRenderItemType.CITY);
   item.size = Size.SMALL;
   item.anyPlayer = any;
+  if (secondaryTag !== undefined) {
+    item.secondaryTag = secondaryTag;
+  }
   return {
     item,
     points: points,

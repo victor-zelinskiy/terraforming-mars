@@ -22,6 +22,7 @@ import {FringeColony} from './FringeColony';
 import {MartianRoads} from './MartianRoads';
 import {ReSettlement} from './ReSettlement';
 import {Arboretum} from './Arboretum';
+import {NovaCity} from './NovaCity';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -114,5 +115,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // first card whose reward THE CELL DECIDES: a greenery, then 1 data on ANY card per adjacent city
     // (`cards/adjacentCityPayout.ts`, docs/TURMOIL_REDUX_ARBORETUM.md), Mars First's plate.
     [CardName.ARBORETUM]: {Factory: Arboretum},
+    // The grey ▲ at the bottom left: the card needs Colonies (its city is placed ON A COLONY TILE — the set's
+    // first tile on a colony tile, `docs/TURMOIL_REDUX_NOVA_CITY.md`). The purple Turmoil symbol below it is
+    // the module itself. The set's first card under Unity's plate; «2 VP per space city you own».
+    [CardName.NOVA_CITY]: {Factory: NovaCity, compatibility: 'colonies'},
   },
 });

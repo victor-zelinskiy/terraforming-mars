@@ -13,6 +13,12 @@
       per K                      →  «1 / 3 [microbe]»   — N per EVERY K
       conditional (one-or-more)  →  «[science] : 3»     — a flat N behind a threshold
       vermin                     →  «−1 / [city]»
+
+    THE SUBJECT ICON MAY WEAR A CORNER — its render item's `secondaryTag`
+    («2 / [city with the SPACE bubble]» — Turmoil Redux TR22 Nova City, «per
+    SPACE city»). The corner is the mechanics rows' own (`secondaryBubbleOf` +
+    the `.pcard-mi__bubble` markup of PremiumMechNode) — never a second drawing.
+    An icon with no corner keeps the bare `.pcard-ic` it always had.
   -->
   <div class="pcard__vp" :class="'pcard__vp--' + variant" :aria-label="ariaText">
     <!-- fixed VP -->
@@ -34,7 +40,11 @@
       flat 3, not 3 per science resource).
     -->
     <span v-else-if="vp.relation === 'conditional'" class="pcard__vp-dyn">
-      <span v-if="itemIconUrl !== undefined" class="pcard-ic" :style="{backgroundImage: `url(${itemIconUrl})`}"></span>
+      <span v-if="itemIconUrl !== undefined && bubble === undefined" class="pcard-ic" :style="{backgroundImage: `url(${itemIconUrl})`}"></span>
+      <span v-else-if="itemIconUrl !== undefined" class="pcard-mi pcard-mi--bubbled">
+        <span class="pcard-ic" :style="{backgroundImage: `url(${itemIconUrl})`}"></span>
+        <span class="pcard-mi__bubble" :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile'}" :style="bubbleStyle"></span>
+      </span>
       <span class="pcard__vp-op pcard__vp-colon">:</span>
       <span class="pcard__vp-value" :class="{'pcard__vp-value--negative': vp.points < 0}">{{ pointsText }}</span>
       <span class="pcard__vp-asterisk">*</span>
@@ -47,7 +57,11 @@
         <span class="pcard__vp-op pcard__vp-slash">/</span>
         <span v-if="vp.per > 1" class="pcard__vp-value">{{ vp.per }}</span>
       </template>
-      <span v-if="itemIconUrl !== undefined" class="pcard-ic" :style="{backgroundImage: `url(${itemIconUrl})`}"></span>
+      <span v-if="itemIconUrl !== undefined && bubble === undefined" class="pcard-ic" :style="{backgroundImage: `url(${itemIconUrl})`}"></span>
+      <span v-else-if="itemIconUrl !== undefined" class="pcard-mi pcard-mi--bubbled">
+        <span class="pcard-ic" :style="{backgroundImage: `url(${itemIconUrl})`}"></span>
+        <span class="pcard-mi__bubble" :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile'}" :style="bubbleStyle"></span>
+      </span>
       <span v-if="vp.asterisk" class="pcard__vp-asterisk">*</span>
     </span>
   </div>
@@ -56,7 +70,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {PremiumVpVM, PremiumVpVariant, vpVariantOf} from './premiumCardViewModel';
-import {mechItemIcon} from './premiumCardIcons';
+import {mechItemIcon, secondaryBubbleOf, SecondaryBubbleSpec, tagIconStyle} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
@@ -100,6 +114,21 @@ export default defineComponent({
       }
       const icon = mechItemIcon(this.vp.item);
       return icon?.kind === 'img' ? icon.url : undefined;
+    },
+    /** The subject icon's corner mark — the mechanics rows' ONE function, read off the same render item. */
+    bubble(): SecondaryBubbleSpec | undefined {
+      if (this.vp.kind !== 'dynamic' || this.vp.item === undefined || this.itemIconUrl === undefined) {
+        return undefined;
+      }
+      return secondaryBubbleOf(this.vp.item);
+    },
+    /** …seated exactly as a mechanics row seats it: a tag through the ONE tag style. */
+    bubbleStyle(): Record<string, string> {
+      const bubble = this.bubble;
+      if (bubble === undefined) {
+        return {};
+      }
+      return bubble.tag !== undefined ? tagIconStyle(bubble.tag) : {backgroundImage: `url(${bubble.url})`};
     },
     cityIconStyle(): Record<string, string> {
       return {backgroundImage: 'url(assets/tiles/city.png)'};

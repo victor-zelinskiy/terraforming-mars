@@ -502,5 +502,8 @@
     "Multi-step advance: collect every step's reward": "Ход на несколько шагов: награда каждого шага",
     "Any Hydronetwork step: +1 heat each": "Любой шаг по треку Гидросети: +1 тепло",
     "Place a greenery tile and raise oxygen 1 step.": "Разместите тайл озеленения и поднимите кислород на 1 шаг.",
-    "Add 1 data resource to ANY card for each city adjacent to this tile.": "Добавьте 1 единицу данных на ЛЮБУЮ карту за каждый город рядом с этим тайлом."
+    "Add 1 data resource to ANY card for each city adjacent to this tile.": "Добавьте 1 единицу данных на ЛЮБУЮ карту за каждый город рядом с этим тайлом.",
+    "Requires Unity to be ruling or that you have 2 delegates on its resolution.": "Требуется: «Союз» правит или 2 ваших делегата на его резолюции.",
+    "Place a city ON A COLONY TILE in play.": "Разместите город НА ПЛИТКЕ КОЛОНИИ в игре.",
+    "2 VP per space city you own (any city that is not on Mars).": "2 ПО за каждый ваш космический город (любой город не на Марсе)."
 }

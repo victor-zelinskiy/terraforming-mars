@@ -10,6 +10,11 @@ import {calculateVictoryPoints, cardVictoryPointsAtPlay} from '../../src/server/
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {tilesOfPlay} from '../../src/server/models/effectForecast';
+import {SpaceName} from '../../src/common/boards/SpaceName';
+import {TileType} from '../../src/common/TileType';
+import {NovaCity} from '../../src/server/cards/turmoilRedux/NovaCity';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {TestPlayer} from '../TestPlayer';
 import {testGame} from '../TestGame';
@@ -34,15 +39,24 @@ import {RouteTestScaffolding} from '../routes/RouteTestScaffolding';
  * is the score explorer's own row of that card AFTER the play: one form of
  * data (`CardVictoryPointsDetail`), one counting (the engine's `Counter`).
  *
- * The parity guard plays EVERY in-scope card whose VP count tags, on a table
- * where the player already holds matching tags AND the two tags the VP count
- * must refuse (a WILD tag, a played EVENT with the same tag), and demands the
- * projection equal the breakdown row after the play — byte for byte. A
- * mismatch is printed by card name.
+ * The parity guard plays EVERY in-scope card of the two projected classes —
+ * VP per TAG, and VP per OWN CITY OF A NAMED PLACE (`cities.where` with
+ * `all: false` — TR22 Nova City's «2 VP per space city you own») — and demands
+ * the projection equal the breakdown row after the play, byte for byte. A tag
+ * card is played on a table where the player already holds matching tags AND
+ * the two tags the VP count must refuse (a WILD tag, a played EVENT with the
+ * same tag); a city card on a table with a space city of the player's own, a
+ * rival's, and a city on Mars. A mismatch is printed by card name.
  */
 const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 
-function tagVpCardsInScope(): Array<ICard> {
+/** VP per city of the player's OWN, of a named place, not «next to this» — the second projected class. */
+function countsOwnCitiesOfAPlace(card: ICard): boolean {
+  const vp = card.victoryPoints;
+  return typeof vp === 'object' && vp.cities?.where !== undefined && vp.all === false && vp.nextToThis === undefined;
+}
+
+function projectedCardsInScope(): Array<ICard> {
   const out: Array<ICard> = [];
   for (const manifest of ALL_MODULE_MANIFESTS) {
     if (!SCOPE.has(manifest.module)) {
@@ -51,12 +65,25 @@ function tagVpCardsInScope(): Array<ICard> {
     for (const entry of Object.values(manifest.projectCards)) {
       const card = new entry.Factory();
       const vp = card.victoryPoints;
-      if (typeof vp === 'object' && vp.tag !== undefined) {
+      if ((typeof vp === 'object' && vp.tag !== undefined) || countsOwnCitiesOfAPlace(card)) {
         out.push(card);
       }
     }
   }
   return out;
+}
+
+/** The projection exactly as the route asks it: over the tiles THIS play puts down (the forecast's own list). */
+function projectionOf(player: TestPlayer, card: ICard) {
+  return cardVictoryPointsAtPlay(player, card, tilesOfPlay(player, card, cardPlayPreview(player, card as IProjectCard)));
+}
+
+/** A space city of the player's own (Ganymede), a rival's (Phobos), and the player's city on Mars — the count takes the first only. */
+function arrangeCities(player: TestPlayer, rival: TestPlayer): void {
+  const game = player.game;
+  game.simpleAddTile(player, game.board.getSpaceOrThrow(SpaceName.GANYMEDE_COLONY), {tileType: TileType.CITY, card: CardName.GANYMEDE_COLONY});
+  game.simpleAddTile(rival, game.board.getSpaceOrThrow(SpaceName.PHOBOS_SPACE_HAVEN), {tileType: TileType.CITY, card: CardName.PHOBOS_SPACE_HAVEN});
+  game.simpleAddTile(player, game.board.getAvailableSpacesOnLand(player)[0], {tileType: TileType.CITY});
 }
 
 /** A key-order-free rendering, so «the same row» means the same data, not the same construction order. */
@@ -90,6 +117,8 @@ function answerPrompts(player: TestPlayer): string | undefined {
       input.cb(input.cards.slice(0, Math.max(1, input.config.min)));
     } else if (input instanceof OrOptions) {
       input.options[0].cb();
+    } else if (input instanceof SelectColony) {
+      input.cb(input.colonies[0]);
     } else {
       return input.constructor.name;
     }
@@ -98,21 +127,25 @@ function answerPrompts(player: TestPlayer): string | undefined {
 }
 
 describe('cardVictoryPointsAtPlay — the play composer\'s VP projection', () => {
-  it('PARITY: for every in-scope «per tags» card the projection before the play IS the score row after it', () => {
-    const cards = tagVpCardsInScope();
+  it('PARITY: for every in-scope card of the projected classes the projection before the play IS the score row after it', () => {
+    const cards = projectedCardsInScope();
     const names = cards.map((c) => c.name);
-    expect(names, 'the corpus the guard was written against (base\'s Jovian three + TR20)').to.include.members([
+    expect(names, 'the corpus the guard was written against (base\'s Jovian three + TR20 + TR22)').to.include.members([
       CardName.GANYMEDE_COLONY, CardName.IO_MINING_INDUSTRIES, CardName.WATER_IMPORT_FROM_EUROPA, CardName.MARTIAN_ROADS,
+      CardName.NOVA_CITY,
     ]);
-    expect(cards.length, 'anti-vacuous floor').to.be.at.least(3);
+    expect(cards.length, 'anti-vacuous floor').to.be.at.least(4);
 
     const mismatches: Array<string> = [];
     for (const card of cards) {
-      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
-      const tag = (card.victoryPoints as {tag: Tag}).tag;
-      arrange(player, tag, 4);
+      const [game, player, rival] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      if (countsOwnCitiesOfAPlace(card)) {
+        arrangeCities(player, rival);
+      } else {
+        arrange(player, (card.victoryPoints as {tag: Tag}).tag, 4);
+      }
       player.megaCredits = 100;
-      const projected = cardVictoryPointsAtPlay(player, card);
+      const projected = projectionOf(player, card);
       if (projected === undefined) {
         mismatches.push(`${card.name}: no projection`);
         continue;
@@ -155,6 +188,36 @@ describe('cardVictoryPointsAtPlay — the play composer\'s VP projection', () =>
     const card = new MartianRoads();
     expect(cardVictoryPointsAtPlay(player, card)).deep.include({victoryPoint: 0});
     expect(cardVictoryPointsAtPlay(player, card)?.mechanics).deep.include({counted: 1, per: 3});
+  });
+
+  it('TR22 on that table: Ganymede + its own city = 2 space cities → 4 VP, the rival\'s and the Mars city refused, the cells NAMED', () => {
+    const [/* game */, player, rival] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    arrangeCities(player, rival);
+    const card = new NovaCity();
+    player.cardsInHand.push(card);
+    expect(projectionOf(player, card)).deep.eq({
+      cardName: CardName.NOVA_CITY,
+      victoryPoint: 4,
+      kind: 'conditional',
+      mechanics: {
+        shape: 'per', each: 2, per: 1, counted: 2, unit: 'cities', where: 'offmars',
+        countedSpaces: [SpaceName.GANYMEDE_COLONY, SpaceName.NOVA_CITY],
+      },
+    });
+  });
+
+  it('…and WITHOUT the tiles of the play the projection counts only what stands (the route always hands them over)', () => {
+    const [/* game */, player, rival] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    arrangeCities(player, rival);
+    expect(cardVictoryPointsAtPlay(player, new NovaCity())).deep.include({victoryPoint: 2});
+  });
+
+  it('a placed city whose CELL is not chosen yet cannot be listed — the projection stays silent', () => {
+    const [/* game */, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    const landing = {tileType: TileType.CITY, count: 1, countsAsCity: true, countsAsOcean: false, countsAsGreenery: false, placementType: 'city', offMars: true};
+    expect(cardVictoryPointsAtPlay(player, new NovaCity(), [landing])).is.undefined;
+    // A tile the rule does not count (a city on Mars) is no obstacle.
+    expect(cardVictoryPointsAtPlay(player, new NovaCity(), [{...landing, offMars: false}])).deep.include({victoryPoint: 0});
   });
 
   it('every OTHER VP shape stays «by condition»: the play itself may still move the number', () => {

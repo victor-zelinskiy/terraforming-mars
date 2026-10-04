@@ -318,6 +318,31 @@ describe('PremiumCard', () => {
       expect(vp.text().replace(/\s+/g, '')).to.eq('1/');
     });
 
+    it('«N per each» of a SUBJECT WITH A CORNER wears the mechanics rows\' own bubble (TR22 Nova City — «2 / [city ◦ Space]»)', () => {
+      const vp = badge(CardName.NOVA_CITY);
+      expect(vp.findAll('.pcard__vp-value').map((n) => n.text())).to.deep.eq(['2']);
+      expect(vp.find('.pcard__vp-slash').text()).to.eq('/');
+      // ONE icon — the city — inside the mech-item wrapper, with ONE bubble: the Space tag, seated by the one tag style.
+      expect(vp.findAll('.pcard-ic').length).to.eq(1);
+      expect(vp.find('.pcard-ic').attributes('style')).to.contain('city.png');
+      const bubbles = vp.findAll('.pcard-mi__bubble');
+      expect(bubbles.length).to.eq(1);
+      expect(bubbles[0].attributes('style')).to.contain('space');
+      expect(bubbles[0].classes(), 'a round tag bubble, not the tile hex').to.not.include('pcard-mi__bubble--tile');
+      expect(vp.find('.pcard-mi').classes()).to.include('pcard-mi--bubbled');
+      // The operator never dangles and no denominator is invented.
+      expect(vp.text().replace(/\s+/g, '')).to.eq('2/');
+      // The mechanics row prints the PLAIN city — the corner is the badge's alone.
+      const face = mount(PremiumCard, {props: {card: model(CardName.NOVA_CITY)}});
+      expect(face.findAll('.pcard__mech .pcard-mi__bubble, .pcard-mech-group .pcard-mi__bubble').length).to.eq(0);
+    });
+
+    it('a subject WITHOUT a corner keeps the bare icon — no wrapper, no bubble', () => {
+      const vp = badge(CardName.WATER_IMPORT_FROM_EUROPA);
+      expect(vp.find('.pcard-mi').exists()).to.eq(false);
+      expect(vp.find('.pcard-mi__bubble').exists()).to.eq(false);
+    });
+
     it('«N per every K» keeps the denominator', () => {
       const vp = badge(CardName.ANTS);
       expect(vp.findAll('.pcard__vp-value').map((n) => n.text())).to.deep.eq(['1', '2']);

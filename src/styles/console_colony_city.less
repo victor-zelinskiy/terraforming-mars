@@ -1,0 +1,34 @@
+/*
+ * A CITY ON A COLONY TILE (Turmoil Redux TR22 Nova City —
+ * docs/TURMOIL_REDUX_NOVA_CITY.md).
+ *
+ * This file owns what the card brought to the console:
+ *
+ *  · the SCORE's reading of «per space city» — the counted object's glyph in a
+ *    score row and the list of the cities that were counted (§ SCORE);
+ *
+ * Console-safe materials only (gradients, box-shadow, opacity, transform);
+ * nothing here carries a state through `filter` or `text-shadow`.
+ */
+
+/* ── SCORE — «2 × 2 ПО = 4 ПО · космические города» ─────────────────────── */
+
+/* The counted object's glyph in a score row (`formulaGlyph` → `PremiumCountGlyph`):
+   the tag medallion's own box, so a «per tag» row and a «per space city» row
+   keep one rhythm. */
+.con-vpx__countglyph {
+    --pvpcard-size: 1.15rem;
+    flex: 0 0 auto;
+}
+
+/* WHICH cities were counted — under the focused row's formula: one calm line
+   that may wrap (the preview column is the place with room; the row itself
+   stays one line). */
+.con-vpx__preview-cells {
+    font-size: .85rem;
+    line-height: 1.3;
+    color: @con-text-dim;
+}
+.con-vpx__preview-cells-name {
+    color: @con-text;
+}

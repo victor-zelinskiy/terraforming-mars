@@ -404,7 +404,8 @@ export abstract class Card implements ICard {
     } else if (vps.tag !== undefined) {
       properties.metadata.victoryPoints = DynamicVictoryPoints.tag(vps.tag, each, per);
     } else if (vps.cities !== undefined) {
-      properties.metadata.victoryPoints = DynamicVictoryPoints.cities(each, per, vps.all);
+      // «Per SPACE city» prints the city tile with the Space bubble in its corner (TR22 Nova City).
+      properties.metadata.victoryPoints = DynamicVictoryPoints.cities(each, per, vps.all, false, vps.cities.where === 'offmars' ? Tag.SPACE : undefined);
     } else if (vps.colonies !== undefined) {
       properties.metadata.victoryPoints = DynamicVictoryPoints.colonies(each, per, vps.all);
     } else if (vps.moon !== undefined) {

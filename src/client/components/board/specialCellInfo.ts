@@ -303,6 +303,15 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Only the Maxwell Base tile can be placed here. Maxwell Base is placed using a specific project card.',
     placement: 'bottom',
   },
+  // A HOSTED cell (`common/boards/hostedSpaces.ts`): its place is a colony tile, never the board — the entry gives
+  // the cell its NAME for the readings that list counted cities (RX08's, the score explorer's), no board hover.
+  {
+    id: 'nova_city',
+    spaceId: SpaceName.NOVA_CITY, // '79'
+    title: 'Nova City',
+    description: 'The Nova City tile lies on a colony tile. Nova City is placed using a specific project card.',
+    placement: 'right',
+  },
 ];
 
 function spaceKey(spaceId: SpaceId, boardName?: BoardName): string {

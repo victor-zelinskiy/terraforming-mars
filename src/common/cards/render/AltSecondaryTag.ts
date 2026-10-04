@@ -28,8 +28,10 @@ export enum AltSecondaryTag {
   // Fork: «a tile ON MARS» — the pink hex the Turmoil Redux set prints in the
   // corner of a tile glyph (TR14 Re-settlement: «remove a city tile you own on
   // Mars»). The premium face seats the owner's own hex asset as the corner,
-  // unmasked (`secondaryBubbleOf` → `shape: 'tile'`). TR22 will bring its
-  // «in space» twin.
+  // unmasked (`secondaryBubbleOf` → `shape: 'tile'`). It has NO «in space»
+  // twin: TR22 Nova City's scan prints the «space city» corner as the round
+  // SPACE-TAG bubble — the existing `secondaryTag: Tag.SPACE` (Venera Base's
+  // city), not a new entry here.
   MARS_TILE = 'mars-tile',
 
   // used in Faraday CEO

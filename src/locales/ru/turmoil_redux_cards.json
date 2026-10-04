@@ -76,5 +76,8 @@
     "Arboretum": "Дендрарий",
     "Requires Mars First to be ruling or that you have 2 delegates there. Place a greenery tile and raise oxygen 1 step. Add 1 data resource to ANY card for each city adjacent to this tile.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Разместите тайл озеленения и поднимите кислород на 1 шаг. Добавьте 1 единицу данных на ЛЮБУЮ карту за каждый город рядом с этим тайлом.",
     "Select the card for the data — 1 for each adjacent city": "Выберите карту для данных — по 1 за каждый соседний город",
-    "No card can hold data — the data for adjacent cities will have nowhere to go": "Нет карты, которая держит данные, — данные за соседние города будет некуда положить"
+    "No card can hold data — the data for adjacent cities will have nowhere to go": "Нет карты, которая держит данные, — данные за соседние города будет некуда положить",
+
+    "Nova City": "Нова-Сити",
+    "Requires Unity to be ruling or that you have 2 delegates there. Place a city ON A COLONY TILE in play. 2 VP per space city you own. (Any city that's not on Mars.)": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Разместите город НА ПЛИТКЕ КОЛОНИИ в игре. 2 ПО за каждый ваш космический город. (Любой город не на Марсе.)"
 }
