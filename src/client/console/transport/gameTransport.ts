@@ -762,6 +762,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // repeats the engine's bonuses, Forestry Support makes the
             // neighbouring groves pay): the law's own wave.
             lawPayout: newView.lastPlacementLawPayout,
+            // …and the server's move ring: a MOVE the hero plays claims its
+            // own record, so the remote stage can never replay it.
+            tileMoves: newView.game?.tileMoves,
           });
         if (tileHeroEvent !== undefined) {
           transportHolds.tilePlacementHero = true;
@@ -839,6 +842,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               gamePhase: newView.game?.phase,
               viewerColor: newView.thisPlayer?.color,
               aresGrants: newView.game?.aresAdjacencyGrants,
+              tileMoves: newView.game?.tileMoves,
             });
             // …and a nomad camp that moved in the batch (a concurrent human's
             // move riding the bot's turns): commit hidden, hop at reveal.
@@ -908,6 +912,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           gamePhase: newView.game?.phase,
           viewerColor: newView.thisPlayer?.color,
           aresGrants: newView.game?.aresAdjacencyGrants,
+          // …and the server's word that a removal + a landing are ONE move (TR14
+          // — a parked pin landing, a concurrent human's move): never paired by geometry.
+          tileMoves: newView.game?.tileMoves,
         });
         // …and a REMOTE nomad hop riding the viewer's own submit response (a
         // concurrent human's move that resolved while the POST was in

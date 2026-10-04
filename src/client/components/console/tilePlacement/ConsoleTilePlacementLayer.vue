@@ -32,7 +32,8 @@
   <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0 || groveBeatState.chips.length > 0"
        class="con-tileplace con-flight-to-board" aria-hidden="true"
        :data-tile-phase="tilePlacementState.active ? tilePlacementState.phase : undefined"
-       :data-law-wave="tilePlacementState.lawWave ? '1' : undefined">
+       :data-law-wave="tilePlacementState.lawWave ? '1' : undefined"
+       :data-tile-move-degraded="tilePlacementState.moveDegraded || remotePlacementState.moveDegraded ? '1' : undefined">
     <!-- OCEAN ADJACENCY — the SHARED payout beat (adjacencyPayoutBeat.ts).
          Deliberately OUTSIDE the tile-scene block: the very same water pays a
          Mars Nomads camp that merely MOVES onto the cell, and that hop has no
@@ -92,8 +93,13 @@
            the arriving proxy (art + thickness edge), plus the OWNER MARKER,
            which leaves on the tile it was marking; its box is posed by the
            director and the cube is placed from the live hex, so the twin
-           stays in its socket under any board zoom. -->
-      <div v-if="departArtClass !== ''" ref="depart" class="con-tileplace__tile con-tileplace__tile--depart">
+           stays in its socket under any board zoom.
+           A MOVE (TR14 Re-settlement) flies THIS proxy and no other: it is the
+           one object that travels from the city's cell to the armed one — so
+           it also wears the touch overlay (it LANDS), and names itself for the
+           probes (`data-tile-move`). The arriving proxy below stays unposed. -->
+      <div v-if="departArtClass !== ''" ref="depart" class="con-tileplace__tile con-tileplace__tile--depart"
+           :data-tile-move="tilePlacementState.move !== undefined ? 'own' : undefined">
         <div ref="departEdge" class="con-tileplace__edge" :class="departArtClass"></div>
         <div class="con-tileplace__art" :class="departArtClass"></div>
         <player-cube
@@ -102,6 +108,7 @@
           :color="tilePlacementState.departingCube.color"
           :size="tilePlacementState.departingCube.size"
           :style="departCubeStyle"></player-cube>
+        <div v-if="tilePlacementState.move !== undefined" ref="departTouch" class="con-tileplace__touch"></div>
       </div>
       <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">
         <div class="con-tileplace__edge" :class="artClass"></div>
@@ -148,9 +155,20 @@
            a board event every viewer sees alike): the twin of the tile taken OFF
            the cell, posed 1:1 over it by the director as the real cell blanks,
            then lifted away. The same anatomy as the own hero's departure. -->
-      <div v-if="remoteDepartArtClass !== ''" ref="remoteDepart" class="con-tileplace__tile con-tileplace__tile--depart con-tileplace__tile--remote">
+      <!-- …and the ONE object of a remote MOVE (an opponent's Re-settlement, the
+           viewer's own parked pin landing): the same twin, carrying the owner
+           cube that rides the city, lowered onto the destination. -->
+      <div v-if="remoteDepartArtClass !== ''" ref="remoteDepart" class="con-tileplace__tile con-tileplace__tile--depart con-tileplace__tile--remote"
+           :data-tile-move="remotePlacementState.move ? 'remote' : undefined">
         <div ref="remoteDepartEdge" class="con-tileplace__edge" :class="remoteDepartArtClass"></div>
         <div class="con-tileplace__art" :class="remoteDepartArtClass"></div>
+        <player-cube
+          v-if="remotePlacementState.departingCube !== undefined"
+          class="board-owner-cube"
+          :color="remotePlacementState.departingCube.color"
+          :size="remotePlacementState.departingCube.size"
+          :style="remoteDepartCubeStyle"></player-cube>
+        <div v-if="remotePlacementState.move" ref="remoteDepartTouch" class="con-tileplace__touch"></div>
       </div>
       <div v-if="remoteArtClass !== ''" ref="remoteTile" class="con-tileplace__tile con-tileplace__tile--remote">
         <div class="con-tileplace__edge" :class="remoteArtClass"></div>
@@ -261,6 +279,14 @@ export default defineComponent({
      *  board's zoom, which a fixed proxy does not inherit. */
     departCubeStyle(): Record<string, string> {
       const c = tilePlacementState.departingCube;
+      return c === undefined ? {} : {
+        right: `${c.right}px`,
+        bottom: `${c.bottom}px`,
+      };
+    },
+    /** …and the same socket on the REMOTE stage's travelling proxy (a move somebody else made). */
+    remoteDepartCubeStyle(): Record<string, string> {
+      const c = remotePlacementState.departingCube;
       return c === undefined ? {} : {
         right: `${c.right}px`,
         bottom: `${c.bottom}px`,
@@ -386,6 +412,7 @@ export default defineComponent({
           splash: this.$refs.splash as HTMLElement | undefined,
           depart: connected(this.$refs.depart as HTMLElement | undefined),
           departEdge: connected(this.$refs.departEdge as HTMLElement | undefined),
+          departTouch: connected(this.$refs.departTouch as HTMLElement | undefined),
           dust: connected(this.$refs.dust as HTMLElement | undefined),
         };
       },
@@ -413,6 +440,7 @@ export default defineComponent({
           // scene, every viewer's); a placement never does.
           depart: connected(this.$refs.remoteDepart as HTMLElement | undefined),
           departEdge: connected(this.$refs.remoteDepartEdge as HTMLElement | undefined),
+          departTouch: connected(this.$refs.remoteDepartTouch as HTMLElement | undefined),
         };
       },
     });

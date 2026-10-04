@@ -259,7 +259,7 @@ function bucketFor(e: GameEvent): JournalChildBucket {
   if (e.type === 'effect-skipped') {
     return 'skipped';
   }
-  if (e.type === 'tile-placed') {
+  if (e.type === 'tile-placed' || e.type === 'tile-moved') {
     return 'placement';
   }
   if (e.type === 'copied-action') {
@@ -401,6 +401,19 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       // Each placed tile is its OWN row (never merged) — keyed by event id.
       push(`placement|${e.id}`, {
         source: {kind: 'label', label: 'Placement'},
+        player, bucket,
+        chips: [],
+        space: e.space,
+        tileLabel: e.tile !== undefined ? tileTypeToString[e.tile] : undefined,
+      }, []);
+      continue;
+    }
+    if (e.type === 'tile-moved') {
+      // A MOVE (TR14 Re-settlement) is its own row too: the tile that travelled and the cell it CAME TO. Nothing was
+      // placed (`tilesPlaced` did not grow) — the row says so by its label; what the new cell paid follows as the
+      // ordinary reward rows.
+      push(`move|${e.id}`, {
+        source: {kind: 'label', label: 'Tile relocation'},
         player, bucket,
         chips: [],
         space: e.space,

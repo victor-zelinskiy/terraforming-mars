@@ -36,6 +36,17 @@
  * notification pipeline. The bonuses simply stay visible until touchdown
  * and are covered by the landed tile, like any pre-existing tile.
  *
+ * A MOVE (Turmoil Redux — TR14 Re-settlement) is ONE event of this queue,
+ * never «a removal here + a landing there»: the SERVER names the pair
+ * (`game.tileMoves` — `tileMoveRecords.pairTileMoves`, a record honoured only
+ * when this very diff shows the declared pair, consumed once by `seq`), and
+ * `moveRemote` plays it with the hero's own director — one proxy born over
+ * the city on A, lifted, carried across the shared edge, lowered onto B. A
+ * keeps painting the city that left (tile, cube, a stack's full height) until
+ * the proxy takes it over; B stays hidden until the touchdown. The viewer's
+ * own PARKED pin lands this way too. No record (an old save, a restart) → the
+ * two changes keep their separate beats — the pair is never guessed.
+ *
  * DESKTOP SAFETY: every staging entry point gates on
  * `consoleModeState.enabled`, so on desktop the queue never fills and the
  * generic placement animation keeps its exact behaviour.
@@ -57,7 +68,13 @@ import {
   TILE_DEPART_MS, TILE_DEPART_SCALE, TILE_DEPART_TILT_DEG, TILE_DEPART_FADE_T, TILE_DEPART_BREATH_MS, departureLiftPx,
   OCEAN_PULSE_MS, OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_SPLASH_MS, oceanEdgePoint, oceanShoreDirection,
+  MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSourceRect, departingCubePose, DepartingCubePose, VerifiedMove,
 } from '@/client/console/tilePlacement/tilePlacementModel';
+import {claimTileMove, pairTileMoves} from '@/client/console/tilePlacement/tileMoveRecords';
+import {stackRelease, clearStackRelease} from '@/client/console/tilePlacement/cityStackScene';
+import {TileMoveRecordModel} from '@/common/boards/TileMove';
+import {SpaceId} from '@/common/Types';
+import {probeTick} from '@/client/console/probeTick';
 import {
   AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
   claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
@@ -67,6 +84,7 @@ import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
   playAresSourcePulses, playCoverSplash, seatTileProxy,
   placeDepartProxy, playTileDeparture,
+  placeMoveProxy, playTileMove, removeMoveProxy,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {boardSpaceEpoch, waitBoardGeometryStable} from '@/client/console/boardSpaceGeometry';
 import {
@@ -74,6 +92,7 @@ import {
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, markCellVacated,
+  holdStackHeight, releaseStackHeight,
 } from '@/client/console/tilePlacement/remoteRevealHold';
 import {
   holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
@@ -139,6 +158,14 @@ export const remotePlacementState = reactive({
   /** The tile a REMOVAL takes OFF the cell (Water Export's ocean): the
    *  departure proxy's art — set for the lift, cleared once it is gone. */
   departingTile: undefined as TileType | undefined,
+  /** A MOVE is on stage: the departing proxy is the ONE object that travels
+   *  (it carries the owner cube and lands — so it wears a touch overlay). */
+  move: false,
+  /** The owner marker riding a MOVE's proxy (the twin's socket for the live hex). */
+  departingCube: undefined as DepartingCubePose | undefined,
+  /** A move could not be played as one carried object (no measurable hex, no
+   *  stage) — both cells went straight to their final poses. A probe's witness. */
+  moveDegraded: false,
   aresExtension: false,
   /** The VIEWER's own tiles answering the current remote placement (the
    *  Ares owner-income beat) — staged wakes, empty otherwise. */
@@ -146,7 +173,18 @@ export const remotePlacementState = reactive({
   nonce: 0,
 });
 
+/** A MOVE's other half, as the server's record + this diff proved it: the cell the city left. */
+type RemoteMove = VerifiedMove & {
+  /** The record's consumption key — claimed when the event is queued. */
+  seq: number,
+};
+
 type RemoteEvent = FreshPlacement & {
+  /**
+   * The tile on `spaceId` did not come from the supply: it TRAVELLED from
+   * `move.from` (TR14 Re-settlement). ONE event, ONE proxy — `moveRemote`.
+   */
+  move?: RemoteMove,
   /**
    * The tile LEAVES the cell instead of landing on it (a REMOVAL — Water
    * Export's ocean, the Reds' action): `tileType` is then the departing
@@ -225,6 +263,9 @@ export type RemoteStageOpts = {
   /** The SERVER's Ares adjacency manifest ring (`game.aresAdjacencyGrants`)
    *  — the owner-income beat's authority, consumed once per grant. */
   aresGrants?: ReadonlyArray<AresAdjacencyGrantModel>,
+  /** The SERVER's move ring (`game.tileMoves`) — the only authority that a
+   *  removal and a landing in one diff are ONE relocation. */
+  tileMoves?: ReadonlyArray<TileMoveRecordModel>,
 };
 
 export function stageRemotePlacements(
@@ -240,9 +281,24 @@ export function stageRemotePlacements(
   // stage — a LIFT instead of a flight. A removal is a board event: the
   // chooser's own answer and an observer's poll stage it through this one
   // path, so nobody sees a silent pop-out.
+  // …and a MOVE the server declared and this diff bears out: its two cells
+  // leave the ordinary lists and ride ONE event. (A record the diff does not
+  // show is not this response's move — nothing is paired by geometry.)
+  const moves = pairTileMoves(prevSpaces, newSpaces, opts?.tileMoves);
+  const moved = new Set<string>();
+  for (const m of moves) {
+    moved.add(m.record.from);
+    moved.add(m.record.to);
+  }
   stageRemoteTileEvents([
-    ...detectFreshPlacements(prevSpaces, newSpaces),
-    ...detectFreshRemovals(prevSpaces, newSpaces).map((r) => ({...r, removal: true})),
+    ...moves.map((m) => ({
+      spaceId: m.record.to,
+      tileType: m.landed.tileType,
+      color: m.landed.color,
+      move: {...m.landed.moves, seq: m.record.seq},
+    })),
+    ...detectFreshPlacements(prevSpaces, newSpaces).filter((p) => !moved.has(p.spaceId)),
+    ...detectFreshRemovals(prevSpaces, newSpaces).filter((r) => !moved.has(r.spaceId)).map((r) => ({...r, removal: true})),
   ], opts);
 }
 
@@ -252,7 +308,7 @@ export function stageRemotePlacements(
  * same synchronous block as the mutation that commits the tiles.
  */
 export function stageRemoteTileEvents(
-  events: ReadonlyArray<FreshPlacement & {removal?: boolean}>,
+  events: ReadonlyArray<FreshPlacement & {removal?: boolean, move?: RemoteMove}>,
   opts?: RemoteStageOpts,
 ): void {
   if (events.length === 0 || typeof window === 'undefined' || !consoleModeState.enabled) {
@@ -266,11 +322,41 @@ export function stageRemoteTileEvents(
   }
   let queued = false;
   for (const e of events) {
-    if (tilePlacementState.active && tilePlacementState.spaceId === e.spaceId) {
-      continue; // the viewer's OWN armed hero owns that space
+    // The viewer's OWN armed hero owns its space — and, for a MOVE, BOTH of
+    // them: the cell the city left is the hero's too (else the scene would be
+    // followed by a second, foreign lift on a cell it has already vacated).
+    if (ownHeroOwns(e.spaceId) || (e.move !== undefined && ownHeroOwns(e.move.from))) {
+      continue;
     }
-    if (isRemoteRevealHeld(e.spaceId) || queue.some((q) => q.spaceId === e.spaceId)) {
+    if (isRemoteRevealHeld(e.spaceId) || queue.some((q) => q.spaceId === e.spaceId || q.move?.from === e.spaceId)) {
       continue; // already staged (a poll/submit double-report of one tile)
+    }
+    if (e.move !== undefined) {
+      const move = e.move;
+      if (!claimTileMove(move.seq)) {
+        continue; // this client has played (or is playing) that record
+      }
+      // A — the committed cell is what the city LEFT (a bare hex, or the stack
+      // one tier lower), so it keeps painting what stood there — tile, owner
+      // cube, every tier — until the proxy takes it over 1:1.
+      if (move.stack === undefined) {
+        holdRemoteReveal(move.from, move.tileType, move.color);
+      } else {
+        holdStackHeight(move.from, move.stack.from);
+      }
+      // B — hidden until the touchdown; its cube is the one riding the proxy.
+      holdRemoteReveal(e.spaceId);
+      if (e.color !== undefined) {
+        holdCubeForHeroPlacement(e.spaceId);
+      }
+      queue.push({
+        ...e,
+        aresExtension: opts?.aresExtension === true,
+        own: e.color !== undefined && e.color === opts?.viewerColor,
+        income: claimIncome(e.spaceId, opts),
+      });
+      queued = true;
+      continue;
     }
     if (e.removal === true) {
       // A REMOVAL: the committed cell is EMPTY, so the hold keeps painting the
@@ -295,23 +381,11 @@ export function stageRemoteTileEvents(
       // phase already in flight, so the cube waits for its explicit drop.
       holdCubeForHeroPlacement(e.spaceId);
     }
-    // The viewer's own share of this placement's Ares adjacency payouts
-    // (usually: THEIR tile earned owner income from a foreign build). The
-    // panel hold MUST be seeded here — the same synchronous block as the
-    // commit — or Vue flushes a frame with a phantom −N chip.
-    let income: ReadonlyArray<AresAdjacencyFlight> = [];
-    const grant = latestAresGrantFor(opts?.aresGrants, e.spaceId);
-    if (grant !== undefined && opts?.viewerColor !== undefined && claimAresGrant(grant.seq)) {
-      income = viewerAresAdjacencyFlights(grant, opts.viewerColor);
-      if (income.length > 0) {
-        beginPanelRewardHold(income.map((f) => f.spec));
-      }
-    }
     queue.push({
       ...e,
       aresExtension: opts?.aresExtension === true,
       own: e.color !== undefined && e.color === opts?.viewerColor,
-      income,
+      income: claimIncome(e.spaceId, opts),
     });
     queued = true;
   }
@@ -319,6 +393,30 @@ export function stageRemoteTileEvents(
     armStageSafety();
     void drainQueue();
   }
+}
+
+/** A cell of the viewer's OWN live hero: the armed one — and, for a move, the one its city left. */
+function ownHeroOwns(spaceId: string): boolean {
+  return tilePlacementState.active &&
+    (tilePlacementState.spaceId === spaceId || tilePlacementState.move?.from === spaceId);
+}
+
+/**
+ * The viewer's own share of a placement's Ares adjacency payouts (usually:
+ * THEIR tile earned owner income from a foreign build). The panel hold MUST be
+ * seeded here — the same synchronous block as the commit — or Vue flushes a
+ * frame with a phantom −N chip.
+ */
+function claimIncome(spaceId: string, opts: RemoteStageOpts | undefined): ReadonlyArray<AresAdjacencyFlight> {
+  const grant = latestAresGrantFor(opts?.aresGrants, spaceId);
+  if (grant === undefined || opts?.viewerColor === undefined || !claimAresGrant(grant.seq)) {
+    return [];
+  }
+  const income = viewerAresAdjacencyFlights(grant, opts.viewerColor);
+  if (income.length > 0) {
+    beginPanelRewardHold(income.map((f) => f.spec));
+  }
+  return income;
 }
 
 /**
@@ -335,6 +433,7 @@ export function abortRemotePlacements(): void {
   }
   for (const ev of queue) {
     releaseRemoteReveal(ev.spaceId);
+    releaseMoveSource(ev);
     if (ev.color !== undefined) {
       restCubeForHeroPlacement(ev.spaceId);
     }
@@ -347,8 +446,26 @@ export function abortRemotePlacements(): void {
   remotePlacementState.waitingForBoard = false;
   remotePlacementState.tileType = undefined;
   remotePlacementState.departingTile = undefined;
+  clearMoveStage();
   remotePlacementState.aresSources = [];
   clearStageSafety();
+}
+
+/** A move's SOURCE cell shows what was committed: the held city, its cube, its former height and the release answer all go. */
+function releaseMoveSource(ev: RemoteEvent): void {
+  if (ev.move === undefined) {
+    return;
+  }
+  releaseRemoteReveal(ev.move.from);
+  releaseStackHeight(ev.move.from);
+  clearStackRelease(ev.move.from);
+}
+
+/** The stage's own move state (the proxy's cube, its «it lands» marker, the degrade witness). */
+function clearMoveStage(): void {
+  remotePlacementState.move = false;
+  remotePlacementState.departingCube = undefined;
+  remotePlacementState.moveDegraded = false;
 }
 
 // ── internals ───────────────────────────────────────────────────────────────
@@ -363,7 +480,9 @@ async function drainQueue(): Promise<void> {
     while (queue.length > 0 && epoch === myEpoch) {
       const ev = queue[0];
       try {
-        if (ev.removal === true) {
+        if (ev.move !== undefined) {
+          await moveRemote(ev, ev.move, myEpoch);
+        } else if (ev.removal === true) {
           await liftRemote(ev, myEpoch);
         } else {
           await flyRemote(ev, myEpoch);
@@ -372,6 +491,7 @@ async function drainQueue(): Promise<void> {
         if (epoch === myEpoch) {
           // Whatever happened, the COMMITTED cell must be visible (a tile, or the bare hex it became).
           releaseRemoteReveal(ev.spaceId);
+          releaseMoveSource(ev);
           queue.shift();
         }
       }
@@ -382,8 +502,123 @@ async function drainQueue(): Promise<void> {
       remotePlacementState.active = false;
       remotePlacementState.tileType = undefined;
       remotePlacementState.departingTile = undefined;
+      clearMoveStage();
       clearStageSafety();
     }
+  }
+}
+
+/**
+ * THE MOVE — one relocation on the shared remote stage (TR14 Re-settlement):
+ * an opponent's city, or the viewer's own PARKED pin landing a response later.
+ * The hero's own beats and the hero's own director (`playTileMove`), on a
+ * board that is watchable and standing still:
+ *   1. the proxy is posed 1:1 over the city A is still painting, and the holds
+ *      on A are RELEASED in that same synchronous turn — the real cell becomes
+ *      what was committed (a bare hex, or the stack one tier lower, its counter
+ *      ticking down) under a proxy that looks exactly like what stood there;
+ *   2. LIFT → CARRY → LANDING: level, material, the owner cube riding the
+ *      tile; A settles once when the tile has cleared its contour;
+ *   3. CONTACT: B's hold is released — the committed city paints under the
+ *      settled proxy with its cube at rest — and the proxy goes the frame after.
+ * Then the viewer's own tiles answer (Ares owner income), as for any landing.
+ * Degrades to both cells at their committed poses wherever the stage cannot
+ * stand — named (`moveDegraded`), never a hidden city.
+ */
+async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): Promise<void> {
+  remotePlacementState.waitingForBoard = boardCovered();
+  try {
+    await awaitWatchableBoard(myEpoch);
+  } finally {
+    remotePlacementState.waitingForBoard = false;
+  }
+  if (epoch !== myEpoch) {
+    return;
+  }
+  await waitBoardGeometryStable({alive: () => epoch === myEpoch});
+  if (epoch !== myEpoch) {
+    return;
+  }
+  const dest = measureBoardHexRect(ev.spaceId);
+  const sourceHex = measureBoardHexRect(move.from);
+  if (dest === undefined || sourceHex === undefined) {
+    await degradeMove(ev, myEpoch);
+    return;
+  }
+  const ui = conUiScale();
+  remotePlacementState.active = true;
+  remotePlacementState.tileType = ev.tileType;
+  remotePlacementState.departingTile = move.tileType;
+  remotePlacementState.departingCube = departingCubePose(move.color, dest);
+  remotePlacementState.move = true;
+  remotePlacementState.aresExtension = ev.aresExtension;
+  remotePlacementState.nonce++;
+  await nextTick(); // the layer mounts the proxy
+  if (epoch !== myEpoch) {
+    return;
+  }
+  const els = tileStageRemoteEls();
+  if (els === undefined || !placeMoveProxy(els, moveSourceRect(sourceHex, move.stack?.from ?? 1), dest)) {
+    await degradeMove(ev, myEpoch);
+    return;
+  }
+  // THE HANDOFF: the proxy stands 1:1 over the city, so the real source cell
+  // may become what was committed NOW — nothing is seen to change.
+  releaseRemoteReveal(move.from);
+  releaseStackHeight(move.from);
+  if (move.stack !== undefined) {
+    stackRelease(move.from as SpaceId);
+  }
+  await playTileMove(els, {
+    source: moveSourceRect(sourceHex, move.stack?.from ?? 1),
+    dest,
+    uiScale: ui,
+    liftMs: motionMs(MOVE_LIFT_MS),
+    carryMs: motionMs(MOVE_CARRY_MS),
+    landMs: motionMs(MOVE_LAND_MS),
+    onCleared: () => {
+      if (epoch === myEpoch && move.stack === undefined) {
+        markCellVacated(move.from);
+      }
+    },
+  });
+  if (epoch !== myEpoch) {
+    return; // aborted mid-move — abort already revealed everything
+  }
+  // CONTACT: the committed city becomes visible under the settled proxy, its
+  // cube at rest (it rode the tile — there is no drop), and the proxy goes on
+  // the next painted frame. Show, then remove — never a fade.
+  releaseRemoteReveal(ev.spaceId);
+  if (ev.color !== undefined) {
+    restCubeForHeroPlacement(ev.spaceId);
+  }
+  await nextTick();
+  await new Promise<void>((resolve) => probeTick(() => resolve()));
+  if (epoch !== myEpoch) {
+    return;
+  }
+  removeMoveProxy(els);
+  remotePlacementState.departingTile = undefined;
+  remotePlacementState.departingCube = undefined;
+  remotePlacementState.move = false;
+  clearStackRelease(move.from as SpaceId);
+  if (ev.income.length > 0) {
+    await runRemoteAresIncomeBeat(ev, dest, ui, myEpoch);
+  }
+}
+
+/** A move with no stage to stand on: both cells show what was committed, and the degrade names itself for one beat. */
+async function degradeMove(ev: RemoteEvent, myEpoch: number): Promise<void> {
+  degradeReveal(ev);
+  releaseMoveSource(ev);
+  remotePlacementState.departingTile = undefined;
+  remotePlacementState.departingCube = undefined;
+  remotePlacementState.move = false;
+  remotePlacementState.active = true; // the stage root mounts — the witness below is readable
+  remotePlacementState.moveDegraded = true;
+  await wait(60);
+  if (epoch === myEpoch) {
+    remotePlacementState.moveDegraded = false;
   }
 }
 

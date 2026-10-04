@@ -20,20 +20,50 @@
  * legacy-flag remount; keyed by space id (per the board's own vocabulary).
  */
 import {reactive} from 'vue';
+import {Color} from '@/common/Color';
 import {TileType} from '@/common/TileType';
 
 const held = reactive(new Map<string, TileType | undefined>());
+/** The OWNER the held previous tile keeps showing (a MOVE's source: the city
+ *  that left stands there, cube and all, until its proxy takes it over). */
+const heldColors = reactive(new Map<string, Color>());
+/** A STACK's height as it stood before the commit (a MOVE off a stack: the
+ *  cell keeps painting every tier until the proxy takes the top one). */
+const heldStackHeights = reactive(new Map<string, number>());
 
 /** Hide the space's committed tile until its flight lands. `prevTileType`
- *  (an ocean being covered) keeps painting in its place meanwhile. */
-export function holdRemoteReveal(spaceId: string, prevTileType?: TileType): void {
+ *  (an ocean being covered) keeps painting in its place meanwhile — with
+ *  `prevColor`, so does its owner cube. */
+export function holdRemoteReveal(spaceId: string, prevTileType?: TileType, prevColor?: Color): void {
   held.set(spaceId, prevTileType);
+  if (prevColor !== undefined) {
+    heldColors.set(spaceId, prevColor);
+  }
 }
 
 /** The touchdown (or any degrade path): the committed tile becomes visible.
  *  Idempotent — releasing an un-held space is a no-op. */
 export function releaseRemoteReveal(spaceId: string): void {
   held.delete(spaceId);
+  heldColors.delete(spaceId);
+}
+
+/** The owner cube a HELD space keeps showing (undefined = whatever the model says). */
+export function heldPrevColorOf(spaceId: string): Color | undefined {
+  return heldColors.get(spaceId);
+}
+
+/** Keep painting the stack at `height` (its height BEFORE the commit) until the scene releases it. */
+export function holdStackHeight(spaceId: string, height: number): void {
+  heldStackHeights.set(spaceId, height);
+}
+
+export function releaseStackHeight(spaceId: string): void {
+  heldStackHeights.delete(spaceId);
+}
+
+export function heldStackHeightOf(spaceId: string): number | undefined {
+  return heldStackHeights.get(spaceId);
 }
 
 /** BoardSpace's render gate (ORed into its `placementCleared`). */
@@ -50,6 +80,8 @@ export function heldPrevTileOf(spaceId: string): TileType | undefined {
 /** Abort / game-switch: every held tile becomes visible at once. */
 export function clearRemoteRevealHolds(): void {
   held.clear();
+  heldColors.clear();
+  heldStackHeights.clear();
 }
 
 /*

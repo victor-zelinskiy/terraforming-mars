@@ -600,6 +600,12 @@ export default defineComponent({
         console.warn('[board-input] a move saved with no city lifted — ignored');
         return;
       }
+      // THE FOURTH CASE of the one arm: the pick DECLARES the pair, which is
+      // what licenses the hero to read «the city left `from` · a city stands on
+      // `spaceId`» as ONE relocation. A staged play whose tail PARKS proves no
+      // such pair in its response — the arm then unwinds with zero trace and
+      // the landing, when it comes, is the remote stage's (by the server's record).
+      armTilePlacement({spaceId, movedFrom: from});
       this.onsave({type: 'space', spaceId, movedFrom: from});
     },
   },

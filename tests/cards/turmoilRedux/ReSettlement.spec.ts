@@ -32,6 +32,7 @@ import {AltSecondaryTag} from '../../../src/common/cards/render/AltSecondaryTag'
 import {CardRenderItemType} from '../../../src/common/cards/render/CardRenderItemType';
 import {ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
 import {aggregateByPlayer} from '../../../src/common/events/aggregate';
+import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 import {cast} from '../../../src/common/utils/utils';
 import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
 import {addOcean, runAllActions} from '../../TestingUtils';
@@ -374,6 +375,15 @@ describe('ReSettlement', () => {
     expect(moved[0].source, 'attributed to the card whose effect it was').deep.include({kind: 'card', card: CardName.RE_SETTLEMENT});
     expect(aggregateByPlayer(t.game.events.events).get(t.p1.color)?.tilesPlaced ?? 0).eq(placedBefore);
     expect(t.game.gameLog.slice(logBefore).filter((l) => l.message === '${0} moved their city · ${1} → ${2}')).has.length(1);
+
+    // THE JOURNAL draws it as a row of its own — the tile and the cell it came to, named a relocation, never a placement.
+    const root = t.game.events.events.find((e) => e.type === 'action' && e.source?.kind === 'card' && e.source.card === CardName.RE_SETTLEMENT);
+    expect(root, 'the scope the play opened').is.not.undefined;
+    const rows = buildEventChildren(t.game.events.events.filter((e) => e.correlationId === root!.id), root!.id, t.p1.color);
+    const row = rows.find((r) => r.source.kind === 'label' && r.source.label === 'Tile relocation');
+    expect(row, `the journal's rows: ${rows.map((r) => JSON.stringify(r.source)).join(' ')}`).is.not.undefined;
+    expect(row).deep.include({bucket: 'placement', space: to.id, tileLabel: 'city'});
+    expect(rows.some((r) => r.source.kind === 'label' && r.source.label === 'Placement'), 'no «Placement» row — nothing was placed').is.false;
   });
 
   it('rule 13 — with TR16 in the tableau the play draws a card (a Building card with 1 VP), and the forecast says so first', () => {

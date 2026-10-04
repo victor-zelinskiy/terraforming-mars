@@ -63,6 +63,26 @@
  *   sitting's receipt says so after. Reduced motion / an unmeasurable board:
  *   the paint with its tick, one short beat.
  *
+ *   A MOVE (Turmoil Redux — TR14 Re-settlement: "remove your city tile on
+ *   Mars and place it on an adjacent space") is the FOURTH legal case of the
+ *   same arm, declared the same way: the pick names the city that travels
+ *   (`movedFrom`), which licenses `verifyPlacement` to read exactly that PAIR
+ *   of diffs — the city left A, a city of the same owner stands on B — as ONE
+ *   relocation. The scene is neither a landing nor a departure: ONE proxy is
+ *   born 1:1 over the real tile on A (the real cell becoming, in that same
+ *   synchronous turn, what the server left there — a bare hex with its printed
+ *   bonus, or the same stack one tier lower), LIFTS straight up, is CARRIED
+ *   across the shared edge on one low arc — level and material the whole way,
+ *   its owner cube riding on it — and is LOWERED onto B with the landing's own
+ *   contact. A settles once when the tile has cleared it; B pays exactly what a
+ *   landing pays, through the very same reward beats (the server placed a city
+ *   there — `addTile`). Nothing arrives «from the table», nothing tilts or
+ *   dissolves, no cube is thrown: it never left its tile. A stack source is
+ *   «the crane, reversed» (`cityStackScene` `released` / `unloading`).
+ *   Reduced motion / an unmeasurable board: both cells at their final poses,
+ *   one short beat. Contract: docs/claude/console/tile-replacement.md § THE
+ *   FOURTH CASE.
+ *
  * Ownership map:
  *   - phases / geometry / bonus extraction → tilePlacementModel (pure);
  *   - GSAP work on the stage              → tilePlacementDirector;
@@ -93,7 +113,8 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {
   TilePlacementPhase, PlacementBonus, TileRect,
-  placementBonuses, verifyPlacement, findSpace, applySpacePreview,
+  placementBonuses, verifyPlacement, findSpace, applySpacePreview, applyVacatePreview,
+  MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSceneMs, moveSourceRect,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
   TILE_DEPART_MS, TILE_DEPART_SCALE, TILE_DEPART_TILT_DEG, TILE_DEPART_FADE_T,
   TILE_DEPART_REVEAL_T, TILE_DEPART_BREATH_MS, departureLiftPx, departingCubePose, DepartingCubePose,
@@ -105,7 +126,11 @@ import {
   TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_DUST_MS, TIER_SETTLE_MS,
   stackLandingRect, tierHoverPoint,
 } from '@/client/console/tilePlacement/tilePlacementModel';
-import {beginStackLoad, stackContact, clearStackScene} from '@/client/console/tilePlacement/cityStackScene';
+import {beginStackLoad, stackContact, clearStackScene, stackRelease, clearStackRelease} from '@/client/console/tilePlacement/cityStackScene';
+import {markCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
+import {claimTileMove, tileMoveRecordFor} from '@/client/console/tilePlacement/tileMoveRecords';
+import {TileMoveRecordModel} from '@/common/boards/TileMove';
+import {probeTick} from '@/client/console/probeTick';
 import {
   setPlacementHiddenTiles, clearPlacementHiddenTiles,
 } from '@/client/components/board/placementRenderState';
@@ -125,6 +150,7 @@ import {
   playAresSourcePulses, playCoverSplash,
   placeDepartProxy, playTileDeparture,
   playTierApproach, playTierDescent, playStackDust,
+  placeMoveProxy, playTileMove, removeMoveProxy,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -187,6 +213,16 @@ export const tilePlacementState = reactive({
    *  detect (server-proven), it selects the crane descent over the ordinary
    *  landing and is what the counter ticks between. Undefined otherwise. */
   stack: undefined as {from: number, to: number} | undefined,
+  /** A MOVE (TR14 Re-settlement): the cell the city LEFT and — when that cell
+   *  was a stack — its height before and after. Set at detect (server-proven);
+   *  it selects the relocation over the ordinary landing, and its presence is
+   *  what the board section reads to let the pick's vector be eaten behind
+   *  the tile. Undefined otherwise. */
+  move: undefined as {from: SpaceId, stack?: {from: number, to: number}} | undefined,
+  /** The move could NOT be played as one carried object (no measurable hex, no
+   *  stage): both cells went straight to their final poses. A probe's witness
+   *  (`data-tile-move-degraded`) — reduced motion is not a degrade. */
+  moveDegraded: false,
   aresExtension: false,
   /** The printed stock-bonus icons that rise + pay out after the commit. */
   bonusProxies: [] as Array<BonusProxy>,
@@ -239,6 +275,14 @@ let armedReplacing = false;
 /** The armed pick is a DECLARED city TIER (the prompt's `placementType:
  *  'city-tier'`). Only such an arm may read a stack growing as a landing. */
 let armedStacking = false;
+/** The armed pick DECLARED a move: the cell of the city that travels (the
+ *  answer's `movedFrom`). Only such an arm may read the pair «left A · stands
+ *  on B» as a relocation. */
+let armedMovedFrom: string | undefined;
+/** A move's SOURCE hex, measured at detect — raw, while the city still stands on it. */
+let moveSourceHex: TileRect | undefined;
+/** The source cell's printed-icon container we set the one-shot surfacing class on. */
+let vacatedBonusEl: HTMLElement | undefined;
 /** TRUE while THIS transaction is the one hiding the armed cell's tile
  *  (the removal window). Released the moment the new tile paints. */
 let clearedCellHeld = false;
@@ -331,6 +375,9 @@ export function armTilePlacement(opts: {
   /** The prompt DECLARED a city TIER (`placementType: 'city-tier'`): the tile
    *  lands ON TOP of the player's own city — the crane descent, no bonus. */
   stacking?: boolean,
+  /** The pick DECLARED a MOVE (`placementEffect: 'move'`): the cell of the city
+   *  that travels to `spaceId` — one proxy carried across the shared edge. */
+  movedFrom?: string,
 }): void {
   // A confirm that lands while Planet Focus is still GROWING the board
   // snaps the transition to its settled state NOW — the detect measures the
@@ -353,6 +400,8 @@ export function armTilePlacement(opts: {
   cubeHeld = false;
   armedReplacing = opts.replacing === true;
   armedStacking = opts.stacking === true;
+  clearMoveScene();
+  armedMovedFrom = opts.movedFrom;
   clearStackScene();
   tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
@@ -395,6 +444,9 @@ export function detectTilePlacement(
      *  (`thisPlayer.lastPlacementLawPayout`): accepted only when it names the
      *  space WE armed — the law's wave never re-derives what a law did. */
     lawPayout?: PlacementLawPayoutModel,
+    /** The SERVER's move ring (`game.tileMoves`): the record of THIS move is
+     *  claimed here, so the remote stage can never replay what the hero played. */
+    tileMoves?: ReadonlyArray<TileMoveRecordModel>,
   },
 ): {spaceId: string} | undefined {
   if (!tilePlacementState.active || claimed) {
@@ -407,7 +459,7 @@ export function detectTilePlacement(
   }
   const spaceId = tilePlacementState.spaceId;
   const landed = prevSpaces !== undefined && newSpaces !== undefined ?
-    verifyPlacement(prevSpaces, newSpaces, spaceId, {replacing: armedReplacing, stacking: armedStacking}) : undefined;
+    verifyPlacement(prevSpaces, newSpaces, spaceId, {replacing: armedReplacing, stacking: armedStacking, movedFrom: armedMovedFrom}) : undefined;
   if (landed === undefined) {
     abortTilePlacement();
     return undefined;
@@ -418,6 +470,21 @@ export function detectTilePlacement(
   tilePlacementState.aresExtension = opts?.aresExtension === true;
   landedColor = landed.color;
   hexRect = measureBoardHexRect(spaceId);
+  if (landed.moves !== undefined) {
+    // A MOVE: the city that stood on `from` is the object — its art and its
+    // owner cube ride the one proxy (the twin's socket is derived from the
+    // proxy's own box, which is the DESTINATION hex). The source is measured
+    // RAW, now, while the city still stands on it. The server's record of this
+    // move is claimed: the hero plays it, the remote stage never will.
+    tilePlacementState.move = {from: landed.moves.from, stack: landed.moves.stack};
+    tilePlacementState.departingTile = landed.moves.tileType;
+    tilePlacementState.departingCube = departingCubePose(landed.moves.color, hexRect);
+    moveSourceHex = measureBoardHexRect(landed.moves.from);
+    const record = tileMoveRecordFor(opts?.tileMoves, landed.moves.from, spaceId);
+    if (record !== undefined) {
+      claimTileMove(record.seq);
+    }
+  }
   if (landed.stacks !== undefined) {
     // A CITY TIER pays the cell NOTHING again — no printed bonus, no water,
     // no neighbour, no law's wave (the server's own reading: the first city
@@ -480,7 +547,10 @@ export function runTilePlacement(
     runResolve = resolve;
     // The budget covers the LONGEST landing this transaction may play: the ordinary flight, or a city
     // tier's swing + hang + lowering + contact + settle (the crane is slower than the arc by design).
-    const longest = Math.max(TILE_FLIGHT_MS + TILE_SETTLE_MS, TIER_APPROACH_MS + TIER_HOVER_MS + TIER_DESCENT_MS + TIER_CONTACT_MS + TIER_SETTLE_MS);
+    const longest = Math.max(
+      TILE_FLIGHT_MS + TILE_SETTLE_MS,
+      TIER_APPROACH_MS + TIER_HOVER_MS + TIER_DESCENT_MS + TIER_CONTACT_MS + TIER_SETTLE_MS,
+      moveSceneMs());
     sceneSafety = window.setTimeout(() => {
       freeRunGate(); // rAF stall — force the gate open, degrade gracefully
     }, motionMs(longest) + 3000);
@@ -495,8 +565,9 @@ async function executeApproach(
   if (!tilePlacementState.active) {
     return;
   }
-  const departing = tilePlacementState.departingTile !== undefined;
-  tilePlacementState.phase = departing ? 'departing' : 'approaching';
+  const move = tilePlacementState.move;
+  const departing = move === undefined && tilePlacementState.departingTile !== undefined;
+  tilePlacementState.phase = move !== undefined ? 'moving' : departing ? 'departing' : 'approaching';
   // The removal window closes in the SAME synchronous turn the new tile
   // paints: the cell must never be simultaneously "cleared" and carrying its
   // replacement (that would blank the tile that just landed).
@@ -505,14 +576,35 @@ async function executeApproach(
     applySpacePreview(prevSpaces, newSpaces, tilePlacementState.spaceId);
   };
 
+  // A MOVE's other half: the source cell becomes what the server left there
+  // (a bare hex, or the same stack one tier lower — and then its counter ticks
+  // down in this very turn). The pick's own «leaving from here» pose has let
+  // go already — the board section releases it the moment this scene owns the
+  // move (`phase` left `armed`), without touching the pick's state.
+  const vacateSource = () => {
+    if (move === undefined) {
+      return;
+    }
+    applyVacatePreview(prevSpaces, newSpaces, move.from);
+    if (move.stack !== undefined) {
+      stackRelease(move.from);
+    }
+  };
+
   const stack = tilePlacementState.stack;
   if (tilePlacementState.reducedMotion || hexRect === undefined || typeof document === 'undefined') {
     // Reduced / unmeasurable: the tile appears in place with a short
     // controlled beat — same commit semantics, no proxies. A city tier keeps
-    // its one informational beat: the counter ticks at the paint.
+    // its one informational beat: the counter ticks at the paint. A move puts
+    // BOTH cells at their final poses in one turn — never a frame with two
+    // cities, never one with none.
     if (stack !== undefined) {
       stackContact(tilePlacementState.spaceId as SpaceId);
     }
+    if (move !== undefined && !tilePlacementState.reducedMotion) {
+      tilePlacementState.moveDegraded = true;
+    }
+    vacateSource();
     paintRealTile();
     tilePlacementState.phase = 'landed';
     await wait(tilePlacementState.reducedMotion ? TILE_REDUCED_MS : 60);
@@ -520,6 +612,10 @@ async function executeApproach(
   }
   await nextTick(); // the layer mounts the proxy
   if (!tilePlacementState.active) {
+    return;
+  }
+  if (move !== undefined) {
+    await runMove(hexRect, move, vacateSource, paintRealTile);
     return;
   }
   if (stack !== undefined) {
@@ -682,6 +778,98 @@ async function runTierDescent(hex: TileRect, tiers: number, paintRealTile: () =>
     dropCubeForHeroPlacement(spaceId);
   }
   await wait(motionMs(TIER_SETTLE_MS));
+}
+
+/**
+ * THE MOVE (Turmoil Redux — TR14 Re-settlement): the fourth legal case of the
+ * arm. One object from A to B — see the model's § THE MOVE for the grammar.
+ *
+ *   HANDOFF (0)  the proxy is posed 1:1 over the real tile on A and, in that
+ *                same synchronous turn, the real cell becomes what the server
+ *                left there (`vacateSource`): nothing is seen to change. A
+ *                stack's counter ticks down in this turn — the frame its top
+ *                tier stops painting. One tick later A's printed icons exist,
+ *                and they SURFACE under the lifting tile (the removal's own
+ *                one-shot); B's printed icons are taken over by their proxies.
+ *   LIFT → CARRY → LANDING  `playTileMove`: one timeline. A settles once
+ *                (`--vacated`) when the tile has cleared its contour; B's
+ *                icons pre-lift at the landing's own fraction of the carry.
+ *   CONTACT      the REAL tile paints under the settled proxy — owner cube at
+ *                rest on it (it rode the tile; there is no drop) — and the
+ *                proxy is gone the frame after. No dissolve.
+ *
+ * The reward beats that follow are the landing's own (`endTilePlacement`).
+ * Degrades at every step: no stage / no source rect → both cells at their
+ * final poses, the degrade named (`moveDegraded`); an abort mid-carry leaves
+ * A vacated and the commit paints B — a city is never lost.
+ */
+async function runMove(
+  hex: TileRect,
+  move: {from: SpaceId, stack?: {from: number, to: number}},
+  vacateSource: () => void,
+  paintRealTile: () => void,
+): Promise<void> {
+  const els = stage?.els();
+  const ui = conUiScale();
+  const source = moveSourceHex === undefined ? undefined : moveSourceRect(moveSourceHex, move.stack?.from ?? 1);
+  if (els === undefined || source === undefined || !placeMoveProxy(els, source, hex)) {
+    tilePlacementState.moveDegraded = true;
+    vacateSource();
+    paintRealTile();
+    tilePlacementState.phase = 'landed';
+    await wait(60);
+    return;
+  }
+  // THE HANDOFF — same synchronous turn as the pose above.
+  vacateSource();
+  await nextTick(); // A repaints: a bare hex with its printed icons, or the lower stack
+  if (!tilePlacementState.active) {
+    return;
+  }
+  const liftMs = motionMs(MOVE_LIFT_MS);
+  const carryMs = motionMs(MOVE_CARRY_MS);
+  if (move.stack === undefined) {
+    // The bare hex SURFACES under the lifting tile (the removal's own one-shot).
+    revealVacatedBonuses(move.from, Math.round(liftMs * TILE_DEPART_REVEAL_T));
+  }
+  if (els.bonusIcons.length > 0) {
+    // B's printed icons: the same takeover + displacement as for any landing —
+    // they rise while the tile comes down on them, never covered.
+    placeBonusProxies(els.bonusIcons);
+    holdRealBonuses();
+    bonusesHovering = true;
+    playBonusPreLift(els.bonusIcons, {
+      delayMs: liftMs + Math.round(carryMs * BONUS_PRELIFT_START_T),
+      riseMs: motionMs(BONUS_RISE_MS),
+      hoverPx: Math.round(BONUS_HOVER_PX * ui),
+    });
+  }
+  await playTileMove(els, {
+    source,
+    dest: hex,
+    uiScale: ui,
+    liftMs,
+    carryMs,
+    landMs: motionMs(MOVE_LAND_MS),
+    onCleared: () => {
+      // The tile has left A's contour: the vacated cell settles once. A stack
+      // answered already (its counter, its base) — it is not vacated.
+      if (tilePlacementState.active && move.stack === undefined) {
+        markCellVacated(move.from);
+      }
+    },
+  });
+  if (!tilePlacementState.active) {
+    return; // aborted mid-move — abort already cleaned up; the commit paints B
+  }
+  // CONTACT: the real tile paints under the settled proxy (identical geometry,
+  // its cube at rest — the hero paints outside the armed window), and the
+  // proxy goes on the next painted frame. Show, then remove — never a fade.
+  paintRealTile();
+  tilePlacementState.phase = 'landed';
+  await nextTick();
+  await new Promise<void>((resolve) => probeTick(() => resolve()));
+  removeMoveProxy(els);
 }
 
 /**
@@ -1098,6 +1286,8 @@ export function abortTilePlacement(): void {
   armedStacking = false;
   // A cell caught mid-load must not be left «loading» (its counter would lie) or «contact» (its jolt would replay).
   clearStackScene();
+  // …and a move caught mid-carry leaves no state of its own behind (the source's release, its surfacing icons).
+  clearMoveScene();
   tilePlacementState.stack = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
@@ -1141,6 +1331,8 @@ function finish(): void {
   armedStacking = false;
   // The tier has settled: the cell's contact state (the tick, the jolt) has played — release it.
   clearStackScene();
+  // …and so has a move's source (the counter's tick down, the base's return, the surfaced icons).
+  clearMoveScene();
   tilePlacementState.stack = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
@@ -1243,6 +1435,38 @@ function clearBonusReveal(): void {
   revealedBonusEl?.classList.remove('con-tileplace-reveal');
   revealedBonusEl?.style.removeProperty('--con-tileplace-reveal-delay');
   revealedBonusEl = undefined;
+}
+
+/** A MOVE's source: the printed icons of the cell the city left SURFACE under
+ *  the lifting tile — the same one-shot as the removal's, on the OTHER cell
+ *  (the armed one is the destination). Nobody is paid by them: they are simply
+ *  there again. */
+function revealVacatedBonuses(spaceId: string, delayMs: number): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const el = document.querySelector<HTMLElement>(`.board-space[data_space_id="${escapeId(spaceId)}"] .board-space-bonuses`);
+  if (el === null) {
+    return;
+  }
+  vacatedBonusEl = el;
+  el.style.setProperty('--con-tileplace-reveal-delay', `${delayMs}ms`);
+  el.classList.add('con-tileplace-reveal');
+}
+
+/** Everything a move marks outside the armed cell — released at finish, abort and the next arm. */
+function clearMoveScene(): void {
+  vacatedBonusEl?.classList.remove('con-tileplace-reveal');
+  vacatedBonusEl?.style.removeProperty('--con-tileplace-reveal-delay');
+  vacatedBonusEl = undefined;
+  const move = tilePlacementState.move;
+  if (move !== undefined) {
+    clearStackRelease(move.from);
+  }
+  tilePlacementState.move = undefined;
+  tilePlacementState.moveDegraded = false;
+  moveSourceHex = undefined;
+  armedMovedFrom = undefined;
 }
 
 /** The live rect of a board hex (post pan/zoom truth) — shared with the

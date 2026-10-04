@@ -736,6 +736,8 @@ export default defineComponent({
               gamePhase: model.game.phase,
               viewerColor: (model as PlayerViewModel).thisPlayer?.color,
               aresGrants: model.game.aresAdjacencyGrants,
+              // …and the server's word that a removal + a landing are ONE move (TR14).
+              tileMoves: model.game.tileMoves,
             });
             // …and a REMOTE nomad hop (another player moved the camp — this
             // poll path is how it arrives; an undo restore lands here too and

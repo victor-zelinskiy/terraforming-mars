@@ -16,10 +16,13 @@
            contour on the lifted city's cell (the real tile stays — nothing has
            happened yet — only quieter). THE VECTOR: one thin line with a
            chevron from that cell toward the focused destination; it firms up
-           amber at the lock. Both yield to the hero scene with the reticle. -->
+           amber at the lock. The origin yields to the hero scene with the
+           reticle; the vector stays for the scene's own length and is EATEN
+           behind the travelling tile (`--eaten` — one class, a CSS one-shot
+           timed by the scene's own lift and carry). -->
       <div v-if="moveOriginPos !== undefined" class="con-bmove-origin" :style="moveOriginStyle" aria-hidden="true"></div>
       <div v-if="moveVector !== undefined" class="con-bmove"
-           :class="{'con-bmove--locked': placementFlowState.phase !== 'navigate'}"
+           :class="{'con-bmove--locked': placementFlowState.phase !== 'navigate' || sceneMove !== undefined, 'con-bmove--eaten': sceneMove !== undefined}"
            :style="moveVector" aria-hidden="true">
         <span class="con-bmove__line"></span>
         <span class="con-bmove__head"></span>
@@ -468,7 +471,8 @@ export default defineComponent({
         'con-board--locked': this.placementActive && this.placementFlowState.phase !== 'navigate',
         // A MOVE's two levels: picking the city / a city lifted.
         'con-board--move-pick': this.placementActive && this.movePick,
-        'con-board--move-lifted': this.placementActive && this.moveFrom !== undefined,
+        // …the «leaving from here» pose lets go the moment the SCENE owns the move: the proxy is the object now.
+        'con-board--move-lifted': this.placementActive && this.moveFrom !== undefined && !this.sceneOwnsMove,
         'con-board--pfocus': phase === 'entering' || phase === 'active' || phase === 'exit-prep',
         'con-board--pfocus-anim': phase === 'entering' || phase === 'exit-prep' || phase === 'exiting',
         'con-board--pfocus-settled': phase === 'active',
@@ -584,13 +588,38 @@ export default defineComponent({
       const pos = this.moveOriginPos;
       return pos === undefined ? {} : {transform: `translate(${pos.x}px, ${pos.y}px)`};
     },
-    /** The vector's geometry: from the lifted city's centre toward the focused LEGAL destination (board px). */
-    moveVectorGeometry(): {x: number, y: number, length: number, angle: number} | undefined {
-      if (this.moveOriginPos === undefined || !this.selectedAvailable) {
+    /**
+     * THE SCENE OWNS THE MOVE — from the moment the hero verified the server's
+     * word to the end of its transaction (the landing AND its rewards): the
+     * pick's own «leaving from here» pose is released for that whole time. The
+     * city is the proxy's, then the destination's — the cell it left is never
+     * dimmed again while the pick's state is still winding down.
+     */
+    sceneOwnsMove(): boolean {
+      const scene = this.tilePlacementState;
+      return scene.active && scene.move !== undefined && scene.phase !== 'armed' && scene.phase !== 'failed';
+    },
+    /**
+     * …and WHILE THE ONE PROXY TRAVELS, the two cells of the relocation, straight
+     * from the transaction: the vector stays standing so the tile can eat it.
+     * Undefined otherwise — reduced motion included (nothing travels, so there
+     * is nothing to eat).
+     */
+    sceneMove(): {from: string, to: string} | undefined {
+      const scene = this.tilePlacementState;
+      if (!this.sceneOwnsMove || scene.move === undefined || scene.phase !== 'moving' || scene.reducedMotion) {
         return undefined;
       }
-      const a = this.cellIntrinsicCentre(this.moveFrom);
-      const b = this.cellIntrinsicCentre(this.cursorSpaceId);
+      return {from: scene.move.from, to: scene.spaceId};
+    },
+    /** The vector's geometry: from the lifted city's centre toward the focused LEGAL destination (board px). */
+    moveVectorGeometry(): {x: number, y: number, length: number, angle: number} | undefined {
+      const scene = this.sceneMove;
+      if (scene === undefined && (this.moveOriginPos === undefined || !this.selectedAvailable)) {
+        return undefined;
+      }
+      const a = this.cellIntrinsicCentre(scene?.from ?? this.moveFrom);
+      const b = this.cellIntrinsicCentre(scene?.to ?? this.cursorSpaceId);
       if (a === undefined || b === undefined) {
         return undefined;
       }

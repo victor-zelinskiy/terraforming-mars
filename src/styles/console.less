@@ -5696,8 +5696,32 @@ html.con-section-leaving .con-strat {
     border-top-width: 2.2px; /* keep-px: board px-space */
     border-right-width: 2.2px; /* keep-px: board px-space */
 }
+/* THE SCENE EATS IT: once the hero owns the move the line is consumed from its
+   TAIL (the origin's side) behind the travelling tile and the chevron goes at
+   the landing. One class, CSS one-shots — the delays and durations mirror the
+   scene's own lift (200) and carry (420): ⚠ `MOVE_LIFT_MS` / `MOVE_CARRY_MS`
+   (tilePlacementModel) — change one, change both. `both` fill: the line stands
+   whole through the lift and stays eaten after the carry. */
+.con-bmove--eaten {
+    animation: none;
+}
+.con-bmove--eaten .con-bmove__line {
+    transform-origin: 100% 50%;
+    animation: con-bmove-eat calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.645, 0.045, 0.355, 1) calc(200ms * var(--motion-scale, 1)) both;
+}
+.con-bmove--eaten .con-bmove__head {
+    animation: con-bmove-head-out calc(120ms * var(--motion-scale, 1)) ease-in calc(500ms * var(--motion-scale, 1)) both;
+}
 @keyframes con-bmove-in {
     from { opacity: 0; }
+}
+@keyframes con-bmove-eat {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+@keyframes con-bmove-head-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
 
 

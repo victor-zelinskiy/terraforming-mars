@@ -1121,6 +1121,39 @@
 	.board-space--stack-loading > [class*="board-space-tile--"],
 	.board-space--stack-loading::before { transition: none; }
 }
+/* ── THE TIER'S DEPARTURE — «the crane, reversed» (a MOVE off a stack; `cityStackScene` `released` /
+   `unloading`, the mirrors of `contact` / `loading`). Both are set in the frame the top tier stops
+   painting on the cell (the scene's proxy has taken it over), so nothing is seen to jump:
+   RELEASED — the counter already reads the LOWER height and ticks once; at height 1 it has named
+   «×1» and goes (a single city carries no counter).
+   UNLOADING — the load is gone: a cell that is no longer a stack returns its tile from the stack's
+   scale to the full hex. A stack that stays a stack moves nothing — its remaining tiers stand exactly
+   where they were painted. One-shot keyframes, compositor-only; reduced motion keeps the number. */
+.board-space--stack-release > .board-stack__count {
+	animation: board-stack-tick calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1;
+}
+.board-space--stack-release:not(.board-space--stack) > .board-stack__count {
+	animation: board-stack-untick calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1 both;
+}
+.board-space--stack-unloading:not(.board-space--stack) > [class*="board-space-tile--"] {
+	animation: board-stack-unload calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1 both;
+	transform-origin: 50% 50%;
+}
+@keyframes board-stack-untick {
+	0% { transform: scale(1); opacity: 1; }
+	18% { transform: scale(1.38); opacity: 1; }
+	52% { transform: scale(1); opacity: 1; }
+	100% { transform: scale(1); opacity: 0; }
+}
+@keyframes board-stack-unload {
+	0% { transform: scale(@stack-scale); }
+	100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.board-space--stack-release > .board-stack__count { animation: none; }
+	.board-space--stack-release:not(.board-space--stack) > .board-stack__count { animation: none; opacity: 0; }
+	.board-space--stack-unloading:not(.board-space--stack) > [class*="board-space-tile--"] { animation: none; }
+}
 
 .board-stack__count {
 	position: absolute;

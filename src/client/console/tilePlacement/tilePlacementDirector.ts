@@ -22,6 +22,8 @@ import {
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
   TILE_SETTLE_PX, TILE_TOUCH_MS,
   TIER_CRUISE_SCALE, tierDescentScaleAt, dustMoteVector,
+  MovePose, movePlan, moveLiftPose, moveCarryPose, moveLandPose, moveShadowAt,
+  MOVE_VACATED_T, MOVE_SHADOW_LAG, MOVE_DESCENT_T,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -55,6 +57,9 @@ export type TileStageEls = {
   /** The DUST ring of a city-tier touchdown (Skyscrapers): the motes around
    *  the hex, posed by the director at contact. Absent → no dust. */
   dust?: HTMLElement | undefined,
+  /** The surface-acceptance overlay INSIDE the departing proxy — present only
+   *  when that proxy is a MOVE's (it lands, so it is accepted by the surface). */
+  departTouch?: HTMLElement | undefined,
 };
 
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
@@ -209,6 +214,203 @@ export function playTileDeparture(els: TileStageEls, opts: TileDepartureOpts): P
       tl.to(els.shadow, {scale: 1.16, autoAlpha: 0, duration: secs * 0.86, ease: 'power1.out'}, 0);
     }
   }, opts.departMs + 400);
+}
+
+export type TileMoveOpts = {
+  /** The rect the proxy is born over: the source hex — or a stack's top tier in its lifted rect. */
+  source: TileRect,
+  /** The live destination hex: the landing geometry AND the proxy's own box. */
+  dest: TileRect,
+  uiScale: number,
+  liftMs: number,
+  carryMs: number,
+  landMs: number,
+  /** The tile has cleared the source cell's contour (the carry's `MOVE_VACATED_T`) — fired once. */
+  onCleared?: () => void,
+};
+
+/** The live move timeline per proxy — a move tweens a plain progress object, which `killTweensOf(element)` cannot reach. */
+const moveTimelines = new WeakMap<HTMLElement, gsap.core.Timeline>();
+
+/**
+ * THE MOVE's proxy (TR14 Re-settlement — the fourth case): the DEPART twin,
+ * posed 1:1 over the real tile it takes over — its box is the DESTINATION hex
+ * (so the touchdown is a scale-1 identity), scaled to the source rect, seated,
+ * level, fully material. The caller turns the real source cell into what the
+ * server left there in this same synchronous turn — the swap is invisible.
+ * The ground shadow parks under the source, still unseen: a seated tile casts
+ * none. Returns false on degenerate geometry (the caller degrades).
+ */
+export function placeMoveProxy(els: TileStageEls, source: TileRect, dest: TileRect): boolean {
+  if (els.depart === undefined || source.w < 8 || source.h < 8 || dest.w < 8 || dest.h < 8) {
+    return false;
+  }
+  const plan = movePlan(source, dest);
+  gsap.set(els.depart, {
+    width: dest.w,
+    height: dest.h,
+    x: plan.from.x - dest.w / 2,
+    y: plan.from.y - dest.h / 2,
+    scale: plan.sourceScale,
+    rotation: 0,
+    transformOrigin: 'center center',
+    autoAlpha: 1,
+  });
+  if (els.departEdge !== undefined) {
+    gsap.set(els.departEdge, {y: 1}); // seated thickness — the lift decompresses it
+  }
+  if (els.departTouch !== undefined) {
+    gsap.set(els.departTouch, {autoAlpha: 0});
+  }
+  if (els.shadow !== undefined) {
+    gsap.set(els.shadow, {
+      width: dest.w,
+      height: dest.h * 0.5,
+      x: plan.from.x - dest.w / 2,
+      y: plan.from.y - dest.h / 2 + dest.h * 0.42,
+      scale: moveShadowAt(0).scale * plan.sourceScale,
+      autoAlpha: 0,
+      transformOrigin: 'center center',
+    });
+  }
+  return true;
+}
+
+/**
+ * THE MOVE (awaited): ONE object, three beats, never tilted and never faded.
+ *   LIFT    — straight up off the source: the thickness decompresses as the
+ *             contact breaks, the scale grows to the carried size, the ground
+ *             shadow separates and softens;
+ *   CARRY   — one low arc across the shared edge, in-out; the shadow travels
+ *             on the ground a touch behind the tile; `onCleared` fires once
+ *             the tile has left the source's contour;
+ *   LANDING — lowered into the board's scale, the shadow tightening to
+ *             contact, then the landing's own contact: the thickness
+ *             compresses, one quiet brightness pass, a microscopic damped
+ *             settle — no bounce.
+ * Resolves at rest, on completion AND on interruption; the caller paints the
+ * real tile under the settled proxy and removes the proxy the frame after.
+ */
+export function playTileMove(els: TileStageEls, opts: TileMoveOpts): Promise<void> {
+  const proxy = els.depart;
+  if (proxy === undefined) {
+    return Promise.resolve();
+  }
+  const plan = movePlan(opts.source, opts.dest);
+  const w = opts.dest.w;
+  const h = opts.dest.h;
+  const lift = opts.liftMs / 1000;
+  const carry = opts.carryMs / 1000;
+  const land = opts.landMs / 1000;
+  const descent = land * MOVE_DESCENT_T;
+  const contact = Math.max(0.04, land - descent);
+  const touchAt = lift + carry + descent;
+  const total = touchAt + contact;
+  const settlePx = Math.max(1.5, Math.round(TILE_SETTLE_PX * 0.6 * opts.uiScale));
+  const easeOut = gsap.parseEase('power2.out');
+  const easeInOut = gsap.parseEase('power2.inOut');
+  const easeIn = gsap.parseEase('power2.in');
+  let cleared = false;
+  const clear = () => {
+    if (!cleared) {
+      cleared = true;
+      opts.onCleared?.();
+    }
+  };
+  // The shadow lies ON THE GROUND: under the tile's foot, never lifted with it.
+  const ground = (x: number, y: number, scale: number, alpha: number) => {
+    if (els.shadow !== undefined) {
+      gsap.set(els.shadow, {x: x - w / 2, y: y - h / 2 + h * 0.42, scale, autoAlpha: alpha});
+    }
+  };
+  /*
+   * THE WHOLE MOVE AS A FUNCTION OF ITS OWN CLOCK — one writer for the proxy's
+   * pose. Three chained tweens (one per beat, plus relative settle tweens on
+   * the element) were MEASURED to leave the tile hanging at the carry's last
+   * pose on a slow renderer (the 4K profile, a handful of frames per scene):
+   * the proxy rested one lift above the hex and the real tile then appeared a
+   * whole lift below it. A pose computed from the clock cannot skip or reorder
+   * a beat however long a frame is, and the resting pose is WRITTEN at the end
+   * — never inferred from the last tick.
+   */
+  const render = (t: number) => {
+    let p: MovePose;
+    if (t < lift) {
+      const q = easeOut(t / lift);
+      p = moveLiftPose(plan, q);
+      const sh = moveShadowAt(q);
+      ground(plan.from.x, plan.from.y, sh.scale * plan.sourceScale, sh.alpha * q);
+    } else if (t < lift + carry) {
+      const q = easeInOut((t - lift) / carry);
+      p = moveCarryPose(plan, q);
+      // The shadow follows on the ground with a lag that vanishes at both ends.
+      const qs = q - MOVE_SHADOW_LAG * 4 * q * (1 - q);
+      const sh = moveShadowAt(1);
+      ground(
+        plan.from.x + (plan.to.x - plan.from.x) * qs,
+        plan.from.y + (plan.to.y - plan.from.y) * qs,
+        sh.scale * (plan.sourceScale + (1 - plan.sourceScale) * q),
+        sh.alpha);
+      if (q >= MOVE_VACATED_T) {
+        clear();
+      }
+    } else if (t < touchAt) {
+      clear();
+      const q = easeIn((t - lift - carry) / descent);
+      p = moveLandPose(plan, q);
+      const sh = moveShadowAt(1 - q);
+      ground(plan.to.x, plan.to.y, sh.scale, sh.alpha);
+    } else {
+      clear();
+      // The settle: the mass is felt once — down and back, damped, never a bounce.
+      const s = Math.min(1, (t - touchAt) / contact);
+      const bump = s < 0.4 ? easeOut(s / 0.4) : 1 - easeOut((s - 0.4) / 0.6);
+      p = moveLandPose(plan, 1);
+      p.y += settlePx * bump;
+      const sh = moveShadowAt(0);
+      ground(plan.to.x, plan.to.y, sh.scale, sh.alpha);
+    }
+    gsap.set(proxy, {x: p.x - w / 2, y: p.y - h / 2, scale: p.scale, rotation: 0});
+  };
+  return guarded((done) => {
+    const clock = {t: 0};
+    const tl = gsap.timeline({
+      onComplete: () => {
+        render(total); // AT REST, exactly on the destination hex
+        done();
+      },
+      onInterrupt: done,
+    });
+    moveTimelines.set(proxy, tl);
+    tl.to(clock, {t: total, duration: total, ease: 'none', onUpdate: () => render(clock.t)}, 0);
+    // The thickness: the contact breaks first (it is what was holding the tile down) and compresses again at the touch.
+    if (els.departEdge !== undefined) {
+      tl.to(els.departEdge, {y: 3, duration: lift * 0.6, ease: 'power2.out'}, 0);
+      tl.to(els.departEdge, {y: 1, duration: Math.min(0.09, contact), ease: 'power2.out'}, touchAt);
+    }
+    // The surface accepts it: one quiet brightness pass inside the contact window.
+    if (els.departTouch !== undefined) {
+      tl.to(els.departTouch, {autoAlpha: 0.22, duration: contact * 0.35, ease: 'power1.in'}, touchAt);
+      tl.to(els.departTouch, {autoAlpha: 0, duration: contact * 0.65, ease: 'power1.out'}, touchAt + contact * 0.35);
+    }
+  }, opts.liftMs + opts.carryMs + opts.landMs + 400);
+}
+
+/**
+ * THE MOVE's handoff: the real tile is already painted underneath with the
+ * identical geometry, so the proxy simply GOES — no dissolve (two identical
+ * copies cannot crossfade into anything but a ghost); the ground shadow, which
+ * the real board does not draw, thins out on its own.
+ */
+export function removeMoveProxy(els: TileStageEls): void {
+  if (els.depart !== undefined) {
+    moveTimelines.get(els.depart)?.kill();
+    moveTimelines.delete(els.depart);
+    gsap.set(els.depart, {autoAlpha: 0});
+  }
+  if (els.shadow !== undefined) {
+    gsap.to(els.shadow, {autoAlpha: 0, duration: 0.11, ease: 'power1.out'});
+  }
 }
 
 export type TileFlightOpts = {
@@ -777,10 +979,16 @@ export function killTileTweens(els: TileStageEls): void {
     gsap.killTweensOf(els.edge);
   }
   if (els.depart !== undefined) {
+    // A move drives its proxy through a progress tween on a plain object — kill the timeline that owns it.
+    moveTimelines.get(els.depart)?.kill();
+    moveTimelines.delete(els.depart);
     gsap.killTweensOf(els.depart);
   }
   if (els.departEdge !== undefined) {
     gsap.killTweensOf(els.departEdge);
+  }
+  if (els.departTouch !== undefined) {
+    gsap.killTweensOf(els.departTouch);
   }
   if (els.touch !== undefined) {
     gsap.killTweensOf(els.touch);

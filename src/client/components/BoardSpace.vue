@@ -24,16 +24,18 @@
     </template>
     <template v-if="tileView === 'show'">
       <player-cube
-        v-if="space.color !== undefined && cubePhase !== 'hidden'"
+        v-if="cubeColor !== undefined && cubePhase !== 'hidden'"
         class="board-owner-cube"
-        :color="space.color"
+        :color="cubeColor"
         :size="12"
         :animate-in="cubePhase === 'dropping'"></player-cube>
       <!-- The stack's COUNTER: the height, named — «two» and «three» must be told apart at a glance,
            never guessed from the pile's thickness. Lower-left, the owner cube's mirror. While a tier
            HANGS over this cell (the landing scene's `loading`) it already shows the current height
-           («×1»), so the tick at contact reads 1 → 2 — the frame the real tile paints. -->
-      <span v-if="(stackHeight > 1 || stackLoading) && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
+           («×1»), so the tick at contact reads 1 → 2 — the frame the real tile paints. The mirror for a
+           tier that LEFT (a move's `released`): the counter names the lower height once more — «×1»
+           included — ticks, and at height 1 goes. -->
+      <span v-if="(stackHeight > 1 || stackLoading || stackReleased) && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
       <template v-if="space.gagarin !== undefined">
         <div v-if="space.gagarin === 0" class='gagarin'></div>
         <div v-else class='gagarin visited'></div>
@@ -74,14 +76,15 @@ import NomadToken from '@/client/components/NomadToken.vue';
 import UndergroundToken from '@/client/components/underworld/UndergroundToken.vue';
 import {TileView} from '@/client/components/board/TileView';
 import {SpaceModel} from '@/common/models/SpaceModel';
+import {Color} from '@/common/Color';
 import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
-import {isRemoteRevealHeld, heldPrevTileOf} from '@/client/console/tilePlacement/remoteRevealHold';
+import {isRemoteRevealHeld, heldPrevTileOf, heldPrevColorOf, heldStackHeightOf} from '@/client/console/tilePlacement/remoteRevealHold';
 import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
-import {stackLoadingAt, stackContactAt} from '@/client/console/tilePlacement/cityStackScene';
+import {stackLoadingAt, stackContactAt, stackReleasedAt, stackUnloadingAt} from '@/client/console/tilePlacement/cityStackScene';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 
 type Data = {
@@ -230,15 +233,32 @@ export default defineComponent({
       if (stackContactAt(this.space.id)) {
         css += ' board-space--stack-contact';
       }
+      // …and their mirrors — a MOVE took the top tier off this cell: the counter ticks down, the base returns to the full hex.
+      if (this.stackReleased) {
+        css += ' board-space--stack-release';
+      }
+      if (stackUnloadingAt(this.space.id)) {
+        css += ' board-space--stack-unloading';
+      }
       return css;
+    },
+    /** A move just lifted the top tier off THIS cell (the scene's `released`). */
+    stackReleased(): boolean {
+      return stackReleasedAt(this.space.id);
     },
     /** A city tier is descending onto THIS cell (the landing scene's `loading`). */
     stackLoading(): boolean {
       return stackLoadingAt(this.space.id);
     },
-    /** The city STACK's height (Skyscrapers) — 1 for any ordinary cell. */
+    /** The city STACK's height (Skyscrapers) — 1 for any ordinary cell. A MOVE somebody else made off this
+     *  stack keeps the height it HAD until the scene's proxy takes the top tier over (`heldStackHeightOf`). */
     stackHeight(): number {
-      return this.space.stackHeight ?? 1;
+      return heldStackHeightOf(this.space.id) ?? this.space.stackHeight ?? 1;
+    },
+    /** The owner marker: the model's — or, on a cell still painting a city that has LEFT it (a remote move's
+     *  held source), that city's own. */
+    cubeColor(): Color | undefined {
+      return this.space.color ?? heldPrevColorOf(this.space.id);
     },
     /** The lower tiers drawn under the top tile, nearest first (`--stack-k` 1 = right under it); at most two. */
     tierLayers(): ReadonlyArray<number> {

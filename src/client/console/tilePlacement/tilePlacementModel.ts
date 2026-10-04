@@ -51,6 +51,7 @@ export type TilePlacementPhase =
   | 'idle'
   | 'armed' // space pick submitted — nothing visual yet
   | 'departing' // remove-and-replace: the doomed tile lifts off the cell
+  | 'moving' // a MOVE: the one proxy carries the city from its cell to the armed one
   | 'approaching' // server success proven; the tile flies to the hex
   | 'landed' // touchdown + settle done; real tile painted under the proxy
   | 'rewarding' // post-commit: printed bonuses materialize + pay out
@@ -312,6 +313,127 @@ export function dustMoteVector(i: number, count: number, hexW: number): {dx: num
 }
 
 /**
+ * THE MOVE — the FOURTH legal case of the arm (Turmoil Redux — TR14
+ * Re-settlement: «remove your city tile on Mars and place it on an ADJACENT
+ * space»). The pick DECLARES it (it names the city that moves — `movedFrom`),
+ * so `verifyPlacement` may read exactly that PAIR of diffs — the city left A,
+ * a city of the same owner stands on B — as ONE relocation; an undeclared
+ * pair is refused like any other unexplained change.
+ *
+ * A move is neither a landing nor a departure and it borrows neither's
+ * signature: the tile does not arrive «from the table», and it never tilts or
+ * dissolves the way a tile that LEAVES THE GAME does. ONE proxy is born 1:1
+ * over the real tile on A and stays level and material the whole way:
+ *
+ *   LIFT     0 → 200    straight up (≈ 10 board px), scale 1 → 1.08; the bare
+ *                       hex of A surfaces under it with its printed bonus;
+ *   CARRY    200 → 620  one low arc across the shared edge to B, in-out; the
+ *                       ground shadow follows a touch behind; A settles once
+ *                       (`--vacated`) when the tile has cleared its contour;
+ *                       B's printed icons pre-lift as for any landing;
+ *   LANDING  620 → 770  lowered into the board's scale, the shadow tightens to
+ *                       contact, the landing's own settle (no bounce); the
+ *                       real tile paints UNDER the proxy and the proxy is gone
+ *                       the next frame — the owner cube rode the tile.
+ *
+ * A STACK source is «the crane, reversed» — the mirror of the tier's landing:
+ * the proxy is the TOP TIER in its lifted rect (`stackLandingRect`), the lift
+ * is strictly vertical, and the real cell answers through `cityStackScene`.
+ */
+/** The lift off A (the bare hex surfaces under it). */
+export const MOVE_LIFT_MS = 200;
+/** The carry across the shared edge. */
+export const MOVE_CARRY_MS = 420;
+/** The lowering onto B + the contact settle. */
+export const MOVE_LAND_MS = 150;
+/** The lift's height in BOARD px (the cell is authored 46×51) — it rides the live hex's scale. */
+export const MOVE_LIFT_PX = 10;
+/** The carried scale: lifted off the plane — never «picked up to the camera». */
+export const MOVE_CARRY_SCALE = 1.08;
+/** How much higher than the lift the arc's apex rides, as a fraction of the hex height — a LOW arc. */
+export const MOVE_ARC_RISE = 0.14;
+/** Where in the carry the tile has cleared A's contour: the vacated cell settles once. */
+export const MOVE_VACATED_T = 0.35;
+/** How far behind the tile its ground shadow travels, as a share of the carry. */
+export const MOVE_SHADOW_LAG = 0.08;
+/** The lowering's share of the landing window; the rest is the contact settle. */
+export const MOVE_DESCENT_T = 0.6;
+
+/** The whole relocation, lift to rest (ms @ motion scale 1). */
+export function moveSceneMs(): number {
+  return MOVE_LIFT_MS + MOVE_CARRY_MS + MOVE_LAND_MS;
+}
+
+/** The rect a move STARTS from: the hex itself — or, for a stack, where the board paints its TOP tier. */
+export function moveSourceRect(hex: TileRect, tiers: number): TileRect {
+  return tiers > 1 ? stackLandingRect(hex, tiers) : hex;
+}
+
+/**
+ * ONE relocation's geometry. The proxy's box IS the destination hex, so the
+ * touchdown is a scale-1 identity with the real tile; over the source it is
+ * scaled to the source rect (1 for a plain city on an equal hex, the stack's
+ * scale for a top tier).
+ */
+export type MovePlan = {
+  from: TransferPoint,
+  to: TransferPoint,
+  sourceScale: number,
+  liftPx: number,
+  arcPx: number,
+};
+
+export function movePlan(source: TileRect, dest: TileRect): MovePlan {
+  return {
+    from: {x: source.x + source.w / 2, y: source.y + source.h / 2},
+    to: {x: dest.x + dest.w / 2, y: dest.y + dest.h / 2},
+    sourceScale: dest.w > 0 ? source.w / dest.w : 1,
+    liftPx: MOVE_LIFT_PX * (dest.h / BOARD_HEX_H_PX),
+    arcPx: dest.h * MOVE_ARC_RISE,
+  };
+}
+
+/** The proxy's CENTRE and scale at one instant of a move. */
+export type MovePose = {x: number, y: number, scale: number};
+
+/** LIFT (q 0..1): straight up — x fixed, y monotone, the scale growing to the carried size. */
+export function moveLiftPose(plan: MovePlan, q: number): MovePose {
+  const k = clamp(0, 1, q);
+  return {
+    x: plan.from.x,
+    y: plan.from.y - plan.liftPx * k,
+    scale: plan.sourceScale * (1 + (MOVE_CARRY_SCALE - 1) * k),
+  };
+}
+
+/** CARRY (q 0..1): lifted-over-A → lifted-over-B on one low arc; the centre's travel along the chord is monotone. */
+export function moveCarryPose(plan: MovePlan, q: number): MovePose {
+  const k = clamp(0, 1, q);
+  const fromScale = plan.sourceScale * MOVE_CARRY_SCALE;
+  return {
+    x: plan.from.x + (plan.to.x - plan.from.x) * k,
+    y: plan.from.y + (plan.to.y - plan.from.y) * k - plan.liftPx - plan.arcPx * 4 * k * (1 - k),
+    scale: fromScale + (MOVE_CARRY_SCALE - fromScale) * k,
+  };
+}
+
+/** LANDING (q 0..1): straight down onto B, lowered INTO the board's scale — exactly 1 at contact. */
+export function moveLandPose(plan: MovePlan, q: number): MovePose {
+  const k = clamp(0, 1, q);
+  return {
+    x: plan.to.x,
+    y: plan.to.y - plan.liftPx * (1 - k),
+    scale: MOVE_CARRY_SCALE - (MOVE_CARRY_SCALE - 1) * k,
+  };
+}
+
+/** The ground shadow under a tile `height` (0 = seated, 1 = fully lifted): it separates and softens with the lift. */
+export function moveShadowAt(height: number): {scale: number, alpha: number} {
+  const k = clamp(0, 1, height);
+  return {scale: 0.86 + 0.2 * k, alpha: 0.5 - 0.18 * k};
+}
+
+/**
  * The OWNER MARKER travels with the tile it was marking, so the departing
  * proxy carries a twin of the cell's cube. The board's own placement is
  * authored in px against the UNSCALED hex (`.board-space` 46×51,
@@ -568,6 +690,69 @@ export function findSpace(spaces: ReadonlyArray<SpaceModel>, id: string): SpaceM
   return spaces.find((s) => s.id === id);
 }
 
+/** What one verified placement is — and which of the arm's legal cases it turned out to be. */
+export type VerifiedPlacement = {
+  tileType: TileType,
+  color: Color | undefined,
+  covers?: TileType,
+  replaces?: {tileType: TileType, color: Color | undefined},
+  /** A city TIER: the stack's height before and after (the counter's «1 → 2»). */
+  stacks?: {from: number, to: number},
+  /** A MOVE: the cell the city LEFT, what stood there, and — for a stack — its height before and after («2 → 1»). */
+  moves?: VerifiedMove,
+};
+
+export type VerifiedMove = {
+  from: SpaceId,
+  /** The tile that stood on the source cell — the proxy's art (a stack's top tier wears the cell's own art). */
+  tileType: TileType,
+  color: Color | undefined,
+  /** The source was a STACK: only its top tier left. */
+  stack?: {from: number, to: number},
+};
+
+/**
+ * THE MOVE's proof — exactly the declared pair, nothing looser:
+ *   B (`to`)   EMPTY → a city of the owner who held A; a tile that left whole
+ *              is the SAME tile (a Capital stays the Capital), a stack's top
+ *              tier lands as a plain city;
+ *   A (`from`) a city → EMPTY, or the same city one tier lower.
+ * Anything else (the destination was not empty, the owner differs, the source
+ * did not change, a hazard on either side) is not this move.
+ */
+export function verifyMove(
+  prevSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+  from: string,
+  to: string,
+): VerifiedPlacement | undefined {
+  const a = findSpace(prevSpaces, from);
+  const a2 = findSpace(newSpaces, from);
+  const b = findSpace(prevSpaces, to);
+  const b2 = findSpace(newSpaces, to);
+  if (a === undefined || a2 === undefined || b === undefined || b2 === undefined || from === to) {
+    return undefined;
+  }
+  if (a.tileType === undefined || !CITY_TILES.has(a.tileType) || a.color === undefined) {
+    return undefined;
+  }
+  if (b.tileType !== undefined || b2.tileType === undefined || !CITY_TILES.has(b2.tileType) || b2.color !== a.color) {
+    return undefined;
+  }
+  const before = a.stackHeight ?? 1;
+  if (a2.tileType === undefined) {
+    // The tile left WHOLE: the very same tile stands on B.
+    return before === 1 && b2.tileType === a.tileType ?
+      {tileType: b2.tileType, color: b2.color, moves: {from: a.id, tileType: a.tileType, color: a.color}} : undefined;
+  }
+  // The top TIER left: the same city one tier lower, a plain city on B.
+  const after = a2.stackHeight ?? 1;
+  if (a2.tileType !== a.tileType || a2.color !== a.color || before < 2 || after !== before - 1 || b2.tileType !== TileType.CITY) {
+    return undefined;
+  }
+  return {tileType: b2.tileType, color: b2.color, moves: {from: a.id, tileType: a.tileType, color: a.color, stack: {from: before, to: after}}};
+}
+
 /**
  * The server-authoritative success proof: the armed space went EMPTY →
  * TILED in this response — or OCEAN → an Ares ocean cover (Ocean City /
@@ -603,15 +788,19 @@ export function verifyPlacement(
      * change, so a server correction can never be mistaken for a landing.
      */
     stacking?: boolean,
+    /**
+     * The pick DECLARED a MOVE (TR14 Re-settlement): the answer named the city
+     * that travels (`movedFrom`). Only then may the PAIR «the city left that
+     * cell · a city of the same owner stands on this one» be read as ONE
+     * relocation — and nothing else may: a declared move that the response
+     * does not show exactly is refused, like every undeclared change.
+     */
+    movedFrom?: string,
   },
-): {
-  tileType: TileType,
-  color: Color | undefined,
-  covers?: TileType,
-  replaces?: {tileType: TileType, color: Color | undefined},
-  /** A city TIER: the stack's height before and after (the counter's «1 → 2»). */
-  stacks?: {from: number, to: number},
-} | undefined {
+): VerifiedPlacement | undefined {
+  if (opts?.movedFrom !== undefined) {
+    return verifyMove(prevSpaces, newSpaces, opts.movedFrom, spaceId);
+  }
   const prev = findSpace(prevSpaces, spaceId);
   const next = findSpace(newSpaces, spaceId);
   if (prev === undefined || next === undefined) {
@@ -765,5 +954,39 @@ export function applySpacePreview(
   // new tier under the settled proxy and the counter ticks in that frame.
   if (next.stackHeight !== undefined) {
     prev.stackHeight = next.stackHeight;
+  }
+  // …and so does a cathedral that TRAVELLED with its city (a move): painted in
+  // the frame its tile is, never a beat later on a cell that was already whole.
+  if (next.cathedral !== undefined) {
+    prev.cathedral = next.cathedral;
+  }
+}
+
+/**
+ * The MIRROR of `applySpacePreview` for the cell a MOVE leaves: copy JUST the
+ * source cell's tile state onto the displayed view — in the same synchronous
+ * turn the proxy takes the tile over — so the real cell underneath is already
+ * what the server left there: a bare hex with its printed bonus, or the same
+ * stack one tier lower. Everything a tile carries goes with it (owner, height,
+ * a cathedral, a co-owner); nothing else about the cell is touched. The
+ * generic placement animation stays unarmed, exactly as for the landing.
+ */
+export function applyVacatePreview(
+  prevSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+  spaceId: string,
+): void {
+  const prev = findSpace(prevSpaces, spaceId);
+  const next = findSpace(newSpaces, spaceId);
+  if (prev === undefined || next === undefined) {
+    return;
+  }
+  const carried = ['tileType', 'color', 'stackHeight', 'rotated', 'cathedral', 'coOwner'] as const;
+  for (const key of carried) {
+    if (next[key] === undefined) {
+      delete prev[key];
+    } else {
+      (prev as Record<string, unknown>)[key] = next[key];
+    }
   }
 }
