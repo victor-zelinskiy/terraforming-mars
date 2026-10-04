@@ -5,6 +5,7 @@ import {Space} from '../boards/Space';
 import {PlacementType} from '../boards/PlacementType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {stagedMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
+import type {CityMoveOffer} from '../boards/cityMove';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
@@ -1049,6 +1050,17 @@ export function placementPreview(
       hideExistingTile?: boolean,
       /** Reserved on-grid cell (Noctis City): confirm-only, no space tail. */
       fixed?: boolean,
+      /**
+       * A MOVE (Turmoil Redux TR14 Re-settlement): the play lifts one of the
+       * player's cities and lands it on an adjacent cell — the staged pick is
+       * TWO cells of one decision. The hook passes the SAME offer the live
+       * step builds (`MoveCityTile.offer` → `boards/cityMove.cityMoveOffer`)
+       * as a function of the unpaid card's affordability plan; `spaces` must
+       * be that offer's destinations. The staged model then carries the
+       * `tileMove` marker and declares `placementEffect: 'move'`, exactly as
+       * the live prompt does.
+       */
+      move?: (canAffordOptions: CanAffordOptions | undefined) => CityMoveOffer,
     },
   } = {},
 ): ActionPreview {
@@ -1076,6 +1088,7 @@ export function placementPreview(
       hideExistingTile: opts.staged.hideExistingTile,
       fixed: opts.staged.fixed,
       canAffordOptions,
+      ...(opts.staged.move !== undefined ? {tileMove: opts.staged.move(canAffordOptions), placementEffect: 'move' as const} : {}),
     });
     if (staged !== undefined) {
       last.staged = staged;

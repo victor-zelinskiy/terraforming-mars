@@ -1125,6 +1125,13 @@ export type SelectSpaceModel = BaseInputModel & {
    * derived client-side.
    */
   followUpPlacements?: ReadonlyArray<{tileType?: import('../TileType').TileType}>;
+  /**
+   * A MOVE prompt (`placementEffect: 'move'`): which of the player's cities
+   * may travel and where each may go — see `TileMovePromptModel`. `spaces` is
+   * the union of every city's destinations; the answer names the city too
+   * (`SelectSpaceResponse.movedFrom`).
+   */
+  tileMove?: import('../boards/TileMove').TileMovePromptModel;
 }
 
 /**
@@ -1144,10 +1151,17 @@ export type SelectSpaceModel = BaseInputModel & {
  *     cell's bonuses were paid at the placement and are not returned, nobody
  *     loses TR, and the parameter the tile counted for drops by one. The
  *     console reads it to arm the DEPARTURE scene instead of a landing.
+ *   - `'move'` — a tile the player OWNS travels from its cell to this one
+ *     (Turmoil Redux TR14 Re-settlement). Everything a placement gives is
+ *     given on the destination (`Game.moveCityTile` lands the tile through
+ *     `addTile`: the cell's bonus, ocean adjacency, Ares, every «tile placed»
+ *     trigger), and the cell it left is freed — so the preview is asked about
+ *     a PAIR of cells, and the prompt carries which pairs exist (`tileMove`).
+ *     The number of tiles on the board does not change.
  * The placement preview reads it so it can never promise what the commit
  * suppresses.
  */
-export type PlacementEffect = 'tile' | 'bonus-only' | 'marker' | 'remove';
+export type PlacementEffect = 'tile' | 'bonus-only' | 'marker' | 'remove' | 'move';
 
 /**
  * OPTIONAL conversion context for a SelectAmount whose semantics are "spend X

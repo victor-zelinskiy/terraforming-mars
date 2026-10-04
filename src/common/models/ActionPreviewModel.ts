@@ -592,6 +592,15 @@ export type StagedPlacementModel = {
    *  multi-tile card's first cell is the commit boundary, the rest are live
    *  prompts). The dossier announces them during the staged pick. */
   followUpPlacements?: ReadonlyArray<{tileType?: TileType}>;
+  /**
+   * Mirror of `SelectSpaceModel.tileMove` (Turmoil Redux TR14 Re-settlement):
+   * the staged pick is a MOVE — which of the player's cities may travel and
+   * where each may go. `spaces` is the union of their destinations and
+   * `placementEffect` is `'move'`; the staged tail then names BOTH cells
+   * (`{spaceId, movedFrom, stagedFor}`). Built by the SAME offer the live step
+   * raises, with the unpaid card's price folded in.
+   */
+  tileMove?: import('../boards/TileMove').TileMovePromptModel;
 };
 
 /**

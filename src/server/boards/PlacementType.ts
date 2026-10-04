@@ -24,4 +24,12 @@ export type PlacementType =
    * reads). Nothing lands and nothing is granted; the prompt says so through
    * `placementEffect: 'remove'`.
    */
-  'ocean-removal';
+  'ocean-removal' |
+  /**
+   * A CITY MOVE (Turmoil Redux TR14 Re-settlement): a city of the player's own
+   * on Mars travels to a cell adjacent to the one it stands on. The legal
+   * cells are every destination SOME movable city has (`boards/cityMove.ts`);
+   * which city reaches which cell is the prompt's `tileMove` marker, and the
+   * prompt says what the pick does through `placementEffect: 'move'`.
+   */
+  'city-move';

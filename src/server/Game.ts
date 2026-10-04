@@ -66,6 +66,7 @@ import {RandomMAOptionType} from '../common/ma/RandomMAOptionType';
 import {AresHandler} from './ares/AresHandler';
 import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
+import {TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
 import {GameSetup, normalizeBoardName} from './GameSetup';
 import {GameCards} from './GameCards';
 import {GlobalParameter} from '../common/GlobalParameter';
@@ -88,8 +89,11 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {IGame, ParameterMoveOptions, Score, SpaceBonusGrant} from './IGame';
+import {AddTileOptions, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
+import {liftTopCity} from './boards/cityStack';
+import {cityStandsOnOcean, isOwnCityOnMars} from './boards/cityMove';
+import {cityIgnoringRestrictions} from './boards/ignoreRestrictionsCity';
 import {UnderworldData} from './underworld/UnderworldData';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {SendDelegateToArea} from './deferredActions/SendDelegateToArea';
@@ -188,6 +192,7 @@ export class Game implements IGame, Logger {
   public turmoil: Turmoil | undefined;
   public aresData: AresData | undefined;
   public aresAdjacencyGrants: Array<AresAdjacencyGrantModel> = []; // Not serialized (presentation manifest ring)
+  public tileMoves: Array<TileMoveRecordModel> = []; // Not serialized (presentation ring — see IGame.tileMoves)
   public moonData: MoonData | undefined;
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
@@ -2035,11 +2040,18 @@ export class Game implements IGame, Logger {
   // party passives and the enacted law (told `stacked`), every card's
   // `onTilePlaced` (Tharsis Republic, Pets, Immigrant City, Rover Construction),
   // the MarsBot corporation, and the recorder's own `tile-placed` event.
+  //
+  // `options.moved` (Turmoil Redux TR14 Re-settlement — set ONLY by
+  // `moveCityTile`): the tile is not a new one, it TRAVELLED here from
+  // `moved.from`. Everything above still happens — a move IS a placement of
+  // the tile on its new cell — and exactly two things differ, both in
+  // `simpleAddTile`: the log line says «moved», and the recorder writes
+  // `tile-moved` in place of `tile-placed` (so «tiles placed» does not grow).
   public addTile(
     player: IPlayer,
     space: Space,
     tile: Tile,
-    options?: {stacking?: boolean}): void {
+    options?: AddTileOptions): void {
     const stacking = options?.stacking === true;
     // Part 1, basic validation checks.
 
@@ -2093,7 +2105,7 @@ export class Game implements IGame, Logger {
     if (stacking) {
       this.simpleAddCityTier(player, space);
     } else {
-      this.simpleAddTile(player, space, tile);
+      this.simpleAddTile(player, space, tile, options?.moved);
     }
     // Turmoil Redux: the chairman quest sees the placement (eligibility is the tracker's).
     ParliamentHandler.onTileAdded(player, space, tile, BoardType.MARS);
@@ -2266,7 +2278,7 @@ export class Game implements IGame, Logger {
     }
   }
 
-  public simpleAddTile(player: IPlayer, space: Space, tile: Tile) {
+  public simpleAddTile(player: IPlayer, space: Space, tile: Tile, moved?: TileMoveOrigin) {
     space.tile = tile;
     // A fresh tile object on the cell is one tile: whatever stack stood here is gone with the tile it stood on.
     // Removed rather than set to undefined: an absent key IS height 1 (the serializer omits it), and a key that
@@ -2279,8 +2291,95 @@ export class Game implements IGame, Logger {
     } else {
       space.player = player;
     }
+    if (moved !== undefined) {
+      // A MOVE (`moveCityTile`): the tile is the one that left `moved.from` — a relocation, never a second tile.
+      LogHelper.logTileMove(player, moved.from, space);
+      const fact: TileMoveFact = {from: moved.from.id, to: space.id, tileType: tile.tileType};
+      if (tile.card !== undefined) {
+        fact.card = tile.card;
+      }
+      if (moved.stack !== undefined) {
+        fact.stack = moved.stack;
+      }
+      this.events.recordTileMoved(player, fact);
+      return;
+    }
     LogHelper.logTilePlacement(player, space, tile.tileType);
     this.events.recordTilePlaced(player, space, tile.tileType);
+  }
+
+  /**
+   * A CITY OF THE PLAYER'S OWN MOVES to an adjacent cell (Turmoil Redux TR14
+   * Re-settlement) — THE ONE PLACE a tile changes cells. Everything about the
+   * move is decided here, so the next «move a tile» card inherits it whole.
+   *
+   * THE ORDER IS LOAD-BEARING — the old cell is freed BEFORE the tile lands:
+   *  1. VALIDATE against the ONE reading of the rule (`boards/cityMove.ts`:
+   *     a city of the player's own on Mars, not the «city and ocean» tile, the
+   *     destination among ITS destinations) — before anything is touched, so a
+   *     refusal leaves the board exactly as it was.
+   *  2. LIFT the top city off `from` (`liftTopCity`): a stack gives up its top
+   *     tier and keeps its base; a single city leaves whole — tile, card, Ares
+   *     adjacency, co-owner — and the cell is bare land with no owner. Done
+   *     first because the landing's neighbours must not see a city still
+   *     standing on `from`: Philares, a Commercial District, and the Capital's
+   *     own adjacency, which would otherwise be paid to the Capital itself.
+   *  3. LAND it on `to` through the engine's own `addTile` — the Ares costs,
+   *     the cell's printed bonus, the ocean adjacency, the Ares neighbours, the
+   *     party passive and the enacted law, the chairman quest, every card's
+   *     `onTilePlaced`, the MarsBot corporation. A move IS a placement of a
+   *     city tile on the new cell (the fork's own precedent: a Skyscrapers
+   *     tier); nothing is paid by arithmetic of this function's own.
+   *  4. RE-SEAT what a single tile carries besides itself: its Ares adjacency
+   *     (after the landing, as `PlaceTile` does), its co-owner, and a
+   *     St. Joseph cathedral standing on it (the list holds cell ids, so the id
+   *     is rewritten; a stack's cathedral stays with the base).
+   *  5. PUBLISH the move for the board's remote stage (`tileMoves`).
+   *
+   * What follows without a line of code here, and is pinned by specs instead:
+   * the number of cities does not change (Mayor, Metropolist, Landlord read
+   * the board), the awards of PLACE and every adjacency VP recount by the new
+   * cell, the freed cell pays its printed bonus again to whoever takes it next.
+   */
+  public moveCityTile(player: IPlayer, from: Space, to: Space): void {
+    if (!isOwnCityOnMars(player, from) || cityStandsOnOcean(from)) {
+      throw new Error('Not a city of yours that can be moved: ' + from.id);
+    }
+    if (!cityIgnoringRestrictions(player, {adjacentTo: from}).some((space) => space.id === to.id)) {
+      throw new Error(`The city on ${from.id} cannot be moved to ${to.id}`);
+    }
+    const lifted = liftTopCity(from);
+    const single = lifted.tiers.after === 0;
+    const cathedral = single ? this.stJosephCathedrals.indexOf(from.id) : -1;
+
+    this.addTile(player, to, lifted.tile, {
+      moved: lifted.tiers.before > 1 ? {from, stack: lifted.tiers} : {from},
+    });
+
+    if (lifted.adjacency !== undefined) {
+      to.adjacency = lifted.adjacency;
+    }
+    if (lifted.coOwner !== undefined) {
+      to.coOwner = lifted.coOwner;
+    }
+    if (cathedral >= 0) {
+      this.stJosephCathedrals[cathedral] = to.id;
+    }
+    this.recordTileMove({from: from.id, to: to.id, tileType: lifted.tile.tileType, color: player.color});
+  }
+
+  /**
+   * Bounded ring, the `aresAdjacencyGrants` law: enough for one busy response,
+   * never a leak; `seq` derives from the serialized `gameAge`, so it stays
+   * monotonic across a restart and a client consumes each move exactly once.
+   */
+  private recordTileMove(move: Omit<TileMoveRecordModel, 'seq'>): void {
+    const base = this.gameAge * 100;
+    const n = this.tileMoves.filter((m) => m.seq >= base).length;
+    this.tileMoves.push({...move, seq: base + Math.min(n, 99)});
+    while (this.tileMoves.length > 8) {
+      this.tileMoves.shift();
+    }
   }
 
   /**

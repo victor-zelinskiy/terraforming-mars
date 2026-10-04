@@ -250,7 +250,9 @@ export interface PlayerViewModel extends ViewModel {
   // «committed, cell reserved, one more prompt first» from «the tail was
   // dropped — the placement will be re-asked live», and an F5 mid-chain
   // re-derives the same fact. Absent in the common case.
-  stagedPlacementPending?: {card: CardName, spaceId: SpaceId};
+  // `movedFrom` — the pin is a MOVE (TR14): the cell the city leaves, so the
+  // client holds BOTH cells and plays one relocation when the pin lands.
+  stagedPlacementPending?: {card: CardName, spaceId: SpaceId, movedFrom?: SpaceId};
   // Batches of cards the player just drew via an in-game effect / tile bonus,
   // awaiting the player's "take" acknowledgement in the reveal modal. Empty in
   // the common case. See CardDrawRevealModel.

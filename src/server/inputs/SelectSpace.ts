@@ -10,6 +10,8 @@ import {SpaceId} from '../../common/Types';
 import {PlacementType} from '../boards/PlacementType';
 import {TileType} from '../../common/TileType';
 import {CardName} from '../../common/cards/CardName';
+import {PlayerInput} from '../PlayerInput';
+import {CityMoveOffer, cityMovePromptModel, findCityMove} from '../boards/cityMove';
 
 export class SelectSpace extends BasePlayerInput<Space> {
   /**
@@ -98,6 +100,21 @@ export class SelectSpace extends BasePlayerInput<Space> {
   public followUpPlacements?: ReadonlyArray<{tileType?: TileType}>;
 
   /**
+   * A MOVE prompt (Turmoil Redux TR14 Re-settlement — `placementEffect:
+   * 'move'`): which of the player's cities may travel and where each may go
+   * (`boards/cityMove.cityMoveOffer`). `spaces` is the union of every city's
+   * destinations; the marker rides this input's own `toModel` (nesting-safe,
+   * like every placement marker). The answer must name BOTH cells
+   * (`movedFrom` + `spaceId`) and is handed to {@link onMove} — the plain
+   * `cb(space)` is never called for a move, because one cell does not say
+   * which city came to it.
+   */
+  public tileMove?: CityMoveOffer;
+
+  /** The move's own answer handler — see {@link tileMove}. */
+  public onMove?: (from: Space, to: Space) => PlayerInput | undefined;
+
+  /**
    * Optional cancel handler for a CANCELLABLE placement (see `placementContext`).
    * When the client submits a `CancelResponse` AND this prompt is cancellable,
    * `process` invokes this instead of placing — the pay-on-commit standard
@@ -144,6 +161,9 @@ export class SelectSpace extends BasePlayerInput<Space> {
     if (this.placementContext !== undefined) {
       model.placementContext = this.placementContext;
     }
+    if (this.tileMove !== undefined) {
+      model.tileMove = cityMovePromptModel(this.tileMove);
+    }
     return model;
   }
 
@@ -160,6 +180,21 @@ export class SelectSpace extends BasePlayerInput<Space> {
     }
     if (!isSelectSpaceResponse(input)) {
       throw new InputError('Not a valid SelectSpaceResponse');
+    }
+    if (this.tileMove !== undefined) {
+      // A MOVE names both cells, and the pair must be one the offer holds:
+      // the city among those that may travel, the cell among ITS destinations.
+      if (input.movedFrom === undefined) {
+        throw new InputError('A move must name the city that moves');
+      }
+      const move = findCityMove(this.tileMove, input.movedFrom, input.spaceId);
+      if (move === undefined || this.onMove === undefined) {
+        throw new InputError('This city cannot be moved to that space');
+      }
+      return this.onMove(move.source.from, move.to);
+    }
+    if (input.movedFrom !== undefined) {
+      throw new InputError('This placement does not move a tile');
     }
     const space = this.spaces.find((space) => space.id === input.spaceId);
     if (space === undefined) {

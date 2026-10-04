@@ -66,6 +66,11 @@ export type PlacementIllegalReason =
   | 'requires-adjacent-city'
   // A city IGNORING the other placement rules, but next to one of the player's OWN (TR16 Administration District).
   | 'not-adjacent-to-your-city'
+  // A city MOVING to a cell next to the one it stands on (TR14 Re-settlement): a free cell that is not its neighbour…
+  | 'not-adjacent-to-the-city'
+  // …and the two reasons a city of the player's own cannot be the one that moves.
+  | 'no-space-to-move'
+  | 'city-stands-on-ocean'
   | 'requires-adjacent-ocean'
   | 'requires-2-adjacent-cities'
   | 'ocean-requires-adjacent-greenery'
@@ -122,6 +127,9 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'requires-adjacent-greenery': 'Must be adjacent to a greenery',
   'requires-adjacent-city': 'Must be adjacent to a city',
   'not-adjacent-to-your-city': 'Must be adjacent to one of your cities',
+  'not-adjacent-to-the-city': 'Must be adjacent to the city being moved',
+  'no-space-to-move': 'No free adjacent space to move this city to',
+  'city-stands-on-ocean': 'A city over an ocean can only stand on an ocean',
   'requires-adjacent-ocean': 'Must be adjacent to an ocean',
   'requires-2-adjacent-cities': 'Must be adjacent to at least 2 cities',
   'ocean-requires-adjacent-greenery': 'Ocean must be adjacent to a greenery',

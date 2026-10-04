@@ -26,6 +26,7 @@ import {ICard} from './cards/ICard';
 import {Turmoil} from './turmoil/Turmoil';
 import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
+import {TileMoveRecordModel} from '../common/boards/TileMove';
 import {MoonData} from './moon/MoonData';
 import {SeededRandom} from '../common/utils/Random';
 import {PathfindersData} from './pathfinders/PathfindersData';
@@ -76,6 +77,16 @@ export type SpaceBonusGrant =
  * A LOWERING ignores the flag: it never paid anything to begin with.
  */
 export type ParameterMoveOptions = {unrewarded?: boolean};
+
+/**
+ * WHERE A LANDING TILE TRAVELLED FROM (Turmoil Redux TR14 Re-settlement — set
+ * only by `Game.moveCityTile`): the cell it left, and, when that cell was a
+ * Skyscrapers stack, the height it was left at.
+ */
+export type TileMoveOrigin = {from: Space, stack?: {before: number, after: number}};
+
+/** The options of `IGame.addTile` — see the method. */
+export type AddTileOptions = {stacking?: boolean, moved?: TileMoveOrigin};
 
 export interface IGame extends Logger {
   readonly id: GameId;
@@ -134,6 +145,14 @@ export interface IGame extends Logger {
    * Not serialized: a restart loses only the animation, never the money.
    */
   aresAdjacencyGrants: Array<AresAdjacencyGrantModel>;
+  /**
+   * Bounded ring of the latest TILE MOVES (Turmoil Redux TR14 Re-settlement):
+   * the server's word that a removal on one cell and a landing on another are
+   * ONE relocation, so the board's remote stage plays one tile carried across
+   * instead of a lift and a drop — see `TileMoveRecordModel`. Not serialized:
+   * a restart loses only the animation, never the rule.
+   */
+  tileMoves: Array<TileMoveRecordModel>;
   moonData: MoonData | undefined;
   pathfindersData: PathfindersData | undefined;
   underworldData: UnderworldData;
@@ -263,7 +282,7 @@ export interface IGame extends Logger {
    * This only applies to the Mars board. See MoonExpansion.addTile for placing
    * a tile on The Moon.
    */
-  addTile(player: IPlayer, space: Space, tile: Tile, options?: {stacking?: boolean}): void;
+  addTile(player: IPlayer, space: Space, tile: Tile, options?: AddTileOptions): void;
   /**
    * A CITY TIER onto the player's own city on Mars (Turmoil Redux —
    * Skyscrapers): the cell's stack grows by one. Validated and fanned out by
@@ -276,7 +295,16 @@ export interface IGame extends Logger {
    *
    * This only applies to the Mars board.
    */
-  simpleAddTile(player: IPlayer, space: Space, tile: Tile): void;
+  simpleAddTile(player: IPlayer, space: Space, tile: Tile, moved?: TileMoveOrigin): void;
+  /**
+   * A city of the player's own MOVES from `from` to the adjacent `to`
+   * (Turmoil Redux TR14 Re-settlement) — the one place a tile changes cells:
+   * the top city is lifted off `from` (a stack keeps its base), landed on `to`
+   * through `addTile` (bonuses, costs and every «tile placed» trigger as for
+   * any placement), and recorded as ONE `tile-moved` event. Throws — before
+   * touching anything — on a pair the rule does not allow.
+   */
+  moveCityTile(player: IPlayer, from: Space, to: Space): void;
   /**
    * Gives all the bonuses a player may gain when placing a tile on a space.
    *

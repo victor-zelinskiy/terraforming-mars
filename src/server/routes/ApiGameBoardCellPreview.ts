@@ -14,13 +14,15 @@ import {BoardPlacementKind} from '../../common/boards/BoardInformationFacts';
 import {TileType} from '../../common/TileType';
 import {CardName} from '../../common/cards/CardName';
 import {PlacementEffect} from '../../common/models/PlayerInputModel';
+import {Space} from '../boards/Space';
+import {movableCities} from '../boards/cityMove';
 
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
-  'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland', 'city-tier', 'ocean-removal',
+  'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland', 'city-tier', 'ocean-removal', 'city-move',
 ];
 
-const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker', 'remove'];
+const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker', 'remove', 'move'];
 
 const CARD_NAMES: ReadonlySet<string> = new Set(Object.values(CardName));
 
@@ -144,7 +146,26 @@ export class ApiGameBoardCellPreview extends Handler {
       // subject is not an error (see `responses.noPreview` doctrine).
       const canAffordOptions = ctx.url.searchParams.get('staged') === '1' ?
         stagedCanAffordOptions(player, id, sourceCard) : undefined;
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect, canAffordOptions}));
+      // `from=<spaceId>` → a CITY MOVE's destination reading (`kind=city-move`,
+      // Turmoil Redux TR14): the cell the city LEAVES, `space` being the cell it
+      // would come to. Without it the same kind reads `space` as the SOURCE —
+      // the city under the cursor. The city named is a SUBJECT resolved against
+      // live state: once it can no longer move (the board changed under a
+      // version-keyed prefetch) the answer is «no preview», never an error.
+      let movedFrom: Space | undefined;
+      const fromParam = ctx.url.searchParams.get('from');
+      if (kindParam === 'city-move' && fromParam !== null) {
+        if (!isSpaceId(fromParam)) {
+          responses.badRequest(req, res, 'invalid from parameter');
+          return;
+        }
+        movedFrom = game.board.spaces.find((candidate) => candidate.id === fromParam);
+        if (movedFrom === undefined || !movableCities(player, canAffordOptions).some((city) => city.from.id === fromParam)) {
+          responses.noPreview(res, 'the city named cannot move');
+          return;
+        }
+      }
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect, canAffordOptions, movedFrom}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

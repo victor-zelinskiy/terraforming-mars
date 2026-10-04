@@ -9,6 +9,7 @@ import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
 import {oneWayDifference} from '../../common/utils/utils';
 import {countCityTiers} from './cityStack';
+import {cityMoveDestinations, cityMoveOffer} from './cityMove';
 import {Tile} from '../Tile';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
@@ -120,6 +121,8 @@ export class MarsBoard extends Board {
       return filtered;
     }
     case 'city-tier': return this.getAvailableSpacesForCityTier(player);
+    // A CITY MOVE (TR14): every cell SOME city of the player's may travel to.
+    case 'city-move': return cityMoveDestinations(cityMoveOffer(player, canAffordOptions));
     default: throw new Error('unknown type ' + type);
     }
   }
@@ -618,6 +621,10 @@ export class MarsBoard extends Board {
     if (placementType === 'city-tier') {
       return 'not-your-city';
     }
+    // A CITY MOVE (TR14) reads as a land placement from here on: the generic
+    // pipeline names the occupied / reserved / unaffordable cell, and the
+    // move's own reason (a free cell that is no neighbour of the city) is the
+    // prompt's custom reasoner — `boards/cityMove.ts`.
     // Already-placed tiles. A REAL tile (non-hazard) always blocks placement →
     // 'occupied'. An Ares hazard is the exception: a PROTECTED hazard blocks
     // ('protected-hazard'), but an UNPROTECTED hazard does NOT — a new tile can be

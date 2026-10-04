@@ -4,6 +4,7 @@ import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {ColonyRosterChange} from '../colonies/ColonyRoster';
+import {TileMoveFact} from '../boards/TileMove';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
 import {PartyName} from '../turmoil/PartyName';
 import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
@@ -158,6 +159,13 @@ export type EventImpact = {
    * {@link ColonyRosterChange}. A fact about the TABLE, never a delta.
    */
   colonyRoster?: ColonyRosterChange;
+  /**
+   * A TILE MOVED BETWEEN TWO CELLS (`tile-moved`, Turmoil Redux TR14): the
+   * cell it left, the cell it came to, the tile, and the stack it left
+   * shorter — see {@link TileMoveFact}. A position fact, never a delta: it
+   * does NOT count as a tile placed.
+   */
+  tileMove?: TileMoveFact;
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
 };

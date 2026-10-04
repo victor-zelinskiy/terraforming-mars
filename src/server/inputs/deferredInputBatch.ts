@@ -3,7 +3,7 @@ import {InputResponse, isOrOptionsResponse, SelectColonyResponse, SelectPartyRes
 import type {PlayerInput} from '../PlayerInput';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
-import {TileType} from '../../common/TileType';
+import {tiersOf} from '../../common/boards/cityStack';
 import {OrOptions} from './OrOptions';
 import {SelectSpace} from './SelectSpace';
 import {SelectCard} from './SelectCard';
@@ -326,28 +326,49 @@ function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boole
  * spawned by the interloper ocean's own placement, a tile landed on it)
  * carries a toll the player never saw.
  *
+ * A MOVE (TR14 Re-settlement — the answer names `movedFrom` too) pins TWO
+ * cells and records both: the cell the city leaves (its tile AND its height —
+ * a stack that lost or gained a tier is not the stack the player lifted the
+ * top of) and the cell it comes to. Either one changing drops the tail.
+ *
  * Weak and never serialized, exactly like the park itself; first park wins
  * (later re-parks of the same entry must not refresh the reference point).
  */
-const stagedParkBaselines = new WeakMap<IPlayer, Map<SpaceId, TileType | 'empty'>>();
+const stagedParkBaselines = new WeakMap<IPlayer, Map<SpaceId, string>>();
+
+/** What stands on a cell, as the baseline compares it: the tile and how many of it (`empty` for none). */
+function cellSignature(player: IPlayer, spaceId: SpaceId): string | undefined {
+  const space = player.game.board.spaces.find((s) => s.id === spaceId);
+  if (space === undefined) {
+    return undefined;
+  }
+  return space.tile === undefined ? 'empty' : `${space.tile.tileType}x${tiersOf(space)}`;
+}
+
+/** Every cell an addressed staged response pins: the cell picked, and — for a move — the cell the city leaves. */
+function stagedCellsOf(response: InputResponse): ReadonlyArray<SpaceId> {
+  if (stagedCellAddress(response) === undefined) {
+    return [];
+  }
+  const space = response as SelectSpaceResponse;
+  return space.movedFrom === undefined ? [space.spaceId] : [space.movedFrom, space.spaceId];
+}
 
 function recordStagedParkBaselines(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
   for (const r of responses) {
     // Cells only: a staged RESOLUTION needs no baseline — the voting area's
     // membership cannot change inside an action, and `SelectParty.process`
     // validates the party against the live prompt.
-    if (stagedCellAddress(r) === undefined) {
-      continue;
-    }
-    const spaceId = (r as SelectSpaceResponse).spaceId;
-    const map = stagedParkBaselines.get(player) ?? new Map<SpaceId, TileType | 'empty'>();
-    if (!map.has(spaceId)) {
-      const space = player.game.board.spaces.find((s) => s.id === spaceId);
-      if (space !== undefined) {
-        map.set(spaceId, space.tile?.tileType ?? 'empty');
+    for (const spaceId of stagedCellsOf(r)) {
+      const map = stagedParkBaselines.get(player) ?? new Map<SpaceId, string>();
+      if (!map.has(spaceId)) {
+        const signature = cellSignature(player, spaceId);
+        if (signature !== undefined) {
+          map.set(spaceId, signature);
+        }
       }
+      stagedParkBaselines.set(player, map);
     }
-    stagedParkBaselines.set(player, map);
   }
 }
 
@@ -357,20 +378,19 @@ function recordStagedParkBaselines(player: IPlayer, responses: ReadonlyArray<Inp
  * `process` still validates membership and refuses an illegal cell.
  */
 function stagedParkStale(player: IPlayer, response: InputResponse): boolean {
-  const address = stagedCellAddress(response);
-  if (address === undefined) {
+  const baselines = stagedParkBaselines.get(player);
+  if (baselines === undefined) {
     return false;
   }
-  const spaceId = (response as SelectSpaceResponse).spaceId;
-  const baseline = stagedParkBaselines.get(player)?.get(spaceId);
-  if (baseline === undefined) {
-    return false;
-  }
-  const space = player.game.board.spaces.find((s) => s.id === spaceId);
-  if (space === undefined) {
-    return false;
-  }
-  return (space.tile?.tileType ?? 'empty') !== baseline;
+  // ANY pinned cell that changed — a move's two cells are one pick.
+  return stagedCellsOf(response).some((spaceId) => {
+    const baseline = baselines.get(spaceId);
+    if (baseline === undefined) {
+      return false;
+    }
+    const now = cellSignature(player, spaceId);
+    return now !== undefined && now !== baseline;
+  });
 }
 
 /**
@@ -406,13 +426,18 @@ export function expireSupersededStagedTail(player: IPlayer): void {
  * interloper» from «the tail was dropped and the placement will be re-asked»,
  * and an F5 mid-chain re-derives the same fact instead of losing it.
  */
-export function parkedStagedPlacement(player: IPlayer): {card: CardName, spaceId: SpaceId} | undefined {
+export function parkedStagedPlacement(player: IPlayer): {card: CardName, spaceId: SpaceId, movedFrom?: SpaceId} | undefined {
   const entry = parkedTails.get(player)?.find((r) => stagedCellAddress(r) !== undefined);
   if (entry === undefined) {
     return undefined;
   }
   const space = entry as SelectSpaceResponse;
-  return {card: space.stagedFor as CardName, spaceId: space.spaceId};
+  const pending: {card: CardName, spaceId: SpaceId, movedFrom?: SpaceId} = {card: space.stagedFor as CardName, spaceId: space.spaceId};
+  if (space.movedFrom !== undefined) {
+    // A parked MOVE (TR14): the pin holds the cell the city leaves too.
+    pending.movedFrom = space.movedFrom;
+  }
+  return pending;
 }
 
 /**

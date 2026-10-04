@@ -1,5 +1,6 @@
 import {GameOptionsModel} from './GameOptionsModel';
 import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
+import {TileMoveRecordModel} from '../boards/TileMove';
 import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
@@ -33,6 +34,11 @@ export type GameModel = {
   /** Latest Ares adjacency payouts (presentation manifest for the console
    *  placement scenes; public facts — the log already names every payout). */
   aresAdjacencyGrants?: ReadonlyArray<AresAdjacencyGrantModel>;
+  /** Latest TILE MOVES (Turmoil Redux TR14): the server's word that a removal
+   *  on one cell and a landing on another are ONE relocation — the board's
+   *  remote stage plays one tile carried across. Presentation only; each
+   *  client consumes a record once by `seq`. See `TileMoveRecordModel`. */
+  tileMoves?: ReadonlyArray<TileMoveRecordModel>;
   awards: ReadonlyArray<FundedAwardModel>;
   colonies: ReadonlyArray<ColonyModel>;
   discardedColonies: ReadonlyArray<ColonyName>;

@@ -879,6 +879,9 @@ describe('Game', () => {
       'monsInsuranceOwner',
       'resettable',
       'rng',
+      // The tile-move presentation ring (TR14 Re-settlement) — the same law as
+      // `aresAdjacencyGrants`: a restart loses only the animation, never the rule.
+      'tileMoves',
       'underworldDraftEnabled',
     ];
     const serializedValuesNotInGame: Array<keyof SerializedGame> = [

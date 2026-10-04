@@ -50,6 +50,17 @@ export class LogHelper {
     this.logBoardTileAction(player, space, tileTypeToString[tileType] + ' tile');
   }
 
+  /**
+   * A city MOVED between two cells (Turmoil Redux TR14 Re-settlement — the one
+   * line `Game.moveCityTile` writes in place of «placed city tile»). Both cells
+   * ride as SPACE tokens («show on map»), detached from the sentence by the
+   * middot for the same reason `logBoardTileAction` detaches its one.
+   */
+  static logTileMove(player: IPlayer, from: Space, to: Space) {
+    player.game.log('${0} moved their city · ${1} → ${2}', (b) =>
+      b.player(player).space(from).space(to));
+  }
+
   static logBoardTileAction(player: IPlayer, space: Space, description: string, action: string = 'placed') {
     // Skip off-grid tiles
     if (space.x === -1 && space.y === -1) {

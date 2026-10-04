@@ -219,5 +219,19 @@
   "Party effect: 2 M€ for each TR step you gain": "Эффект партии: 2 M€ за каждый полученный шаг РТ",
   "Party effect: your M€ production rises with your plant or heat production": "Эффект партии: производство M€ растёт вместе с производством растений или тепла",
   "Party effect: 1 steel for each tile you place on Mars": "Эффект партии: 1 сталь за каждый тайл на Марсе",
-  "Party effect: draw a card for each city you place on Mars": "Эффект партии: 1 карта за каждый город на Марсе"
+  "Party effect: draw a card for each city you place on Mars": "Эффект партии: 1 карта за каждый город на Марсе",
+
+  "Spaces to move to: ${0}": "Клеток для переселения: ${0}",
+  "Scores now: ${0} VP": "Сейчас приносит: ${0} ПО",
+  "Only the top tier moves — the stack stays: ×${0} → ×${1}": "Уйдёт только верхний ярус — стопка остаётся: ×${0} → ×${1}",
+  "City VP": "ПО города",
+  "Unchanged: ${0} VP": "Без изменений: ${0} ПО",
+  "At the new space": "у новой клетки",
+  "At the former space": "у прежней",
+  "Commercial District loses an adjacent city": "Коммерческий район теряет соседний город",
+  "Commercial District gains an adjacent city": "Коммерческий район получает соседний город",
+  "City stack: ×${0} → ×${1}": "Стопка городов: ×${0} → ×${1}",
+  "Only the top tier moves — the cities under it stay.": "Уходит только верхний ярус — города под ним остаются.",
+  "The space is freed": "Клетка освобождается",
+  "Its placement bonus goes again to whoever places a tile there next.": "Её бонус размещения снова получит тот, кто займёт её следующим."
 }

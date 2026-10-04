@@ -89,11 +89,23 @@ export interface SelectSpaceResponse {
    * unchanged for them.
    */
   stagedFor?: CardName;
+  /**
+   * A MOVE (Turmoil Redux TR14 Re-settlement — a prompt carrying
+   * `SelectSpaceModel.tileMove`): the cell the city LEAVES, `spaceId` being the
+   * cell it comes to. ONE answer names both, so the server never holds a
+   * «lifted, not placed» state — a move is never two prompts and never two
+   * tails. Required by a move prompt, refused by every other.
+   */
+  movedFrom?: SpaceId;
 }
 
 export function isSelectSpaceResponse(response: InputResponse): response is SelectSpaceResponse {
+  // Exactly these four key sets: a cell, a staged cell, a move, a staged move.
   return response.type === 'space' &&
-    (matches(response, ['type', 'spaceId']) || matches(response, ['type', 'spaceId', 'stagedFor']));
+    (matches(response, ['type', 'spaceId']) ||
+      matches(response, ['type', 'spaceId', 'stagedFor']) ||
+      matches(response, ['type', 'spaceId', 'movedFrom']) ||
+      matches(response, ['type', 'spaceId', 'movedFrom', 'stagedFor']));
 }
 
 /**

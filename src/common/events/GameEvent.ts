@@ -33,6 +33,15 @@ export type GameEventType =
   | 'cards-drawn'
   | 'card-revealed' // a PUBLIC reveal / show / search (counts only, never names)
   | 'tile-placed'
+  /**
+   * A TILE MOVED from one cell to another (Turmoil Redux TR14 Re-settlement):
+   * recorded IN PLACE OF `tile-placed` by the one mover (`Game.moveCityTile`),
+   * under the card's own scope. `space` / `tile` are the DESTINATION and what
+   * landed there (so everything that reads «a tile came to rest here» reads
+   * it), `impact.tileMove` names both cells (`TileMoveFact`). No `tilesPlaced`:
+   * the tile is not a new one.
+   */
+  | 'tile-moved'
   | 'delta-position-changed' // ONE committed Hydronetwork move (signed steps; both directions)
   | 'delta-blockade-changed' // a Modular Floodgates blockade placed against / expired for a player
   | 'vp-granted'
@@ -224,7 +233,7 @@ export type GameEvent = {
   source?: EventSource;
   /** For cross-player effects (attacks/steals) or copy targets. */
   target?: {player?: Color; card?: CardName};
-  /** For `tile-placed`: the board space (for "show on map") + the tile type. */
+  /** For `tile-placed` / `tile-moved`: the board space (for "show on map") + the tile type. */
   space?: SpaceId;
   tile?: TileType;
   /** For `effect-triggered`: the kind of event that fired the effect. */

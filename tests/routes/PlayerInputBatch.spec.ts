@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {reconcileBatchResponse} from '../../src/server/routes/PlayerInputBatch';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
-import {InputResponse, isSelectColonyResponse} from '../../src/common/inputs/InputResponse';
+import {InputResponse, isSelectColonyResponse, isSelectSpaceResponse} from '../../src/common/inputs/InputResponse';
 import {Factorum} from '../../src/server/cards/promo/Factorum';
 import {testGame} from '../TestGame';
 import {runAllActions} from '../TestingUtils';
@@ -11,6 +11,7 @@ import {SelectParty} from '../../src/server/inputs/SelectParty';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {CardName} from '../../src/common/cards/CardName';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {Luna} from '../../src/server/colonies/Luna';
 import {Ceres} from '../../src/server/colonies/Ceres';
@@ -272,5 +273,44 @@ describe('PlayerInputBatch — the replacement colony answer', () => {
     expect(() => input.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES}))
       .to.throw('This colony pick does not replace a colony tile');
     expect(picked).to.deep.eq([]);
+  });
+});
+
+/**
+ * THE MOVE (Turmoil Redux TR14 Re-settlement): the THIRD form of the space
+ * answer, `{spaceId, movedFrom}` with or without the staged address. The
+ * validator accepts exactly FOUR key sets; who the addressed tail may LAND on
+ * is `deferredInputBatch`'s decision, what a move prompt does with the two
+ * cells is `SelectSpace.process`'s (tests/deferredActions/MoveCityTile.spec.ts).
+ */
+describe('PlayerInputBatch — the move space answer', () => {
+  it('the four key sets — and nothing else — are a space answer', () => {
+    const valid: Array<InputResponse> = [
+      {type: 'space', spaceId: '03'},
+      {type: 'space', spaceId: '03', stagedFor: CardName.ANTS},
+      {type: 'space', spaceId: '03', movedFrom: '04'},
+      {type: 'space', spaceId: '03', movedFrom: '04', stagedFor: CardName.ANTS},
+    ];
+    for (const response of valid) {
+      expect(isSelectSpaceResponse(response), JSON.stringify(response)).is.true;
+    }
+    const invalid = [
+      {type: 'space'},
+      {type: 'space', movedFrom: '04'},
+      {type: 'space', stagedFor: CardName.ANTS},
+      {type: 'space', movedFrom: '04', stagedFor: CardName.ANTS},
+      {type: 'space', spaceId: '03', movedFrom: '04', extra: 1},
+      {type: 'space', spaceId: '03', movedTo: '04'},
+    ];
+    for (const response of invalid) {
+      expect(isSelectSpaceResponse(response as unknown as InputResponse), JSON.stringify(response)).is.false;
+    }
+  });
+
+  it('the reconciler leaves an addressed move UNCHANGED against a bare space prompt', () => {
+    const tail: InputResponse = {type: 'space', spaceId: '03', movedFrom: '04', stagedFor: CardName.ANTS};
+    const [game] = testGame(1);
+    const prompt = new SelectSpace('Select space', [game.board.getSpaceOrThrow('03')]);
+    expect(reconcileBatchResponse(tail, prompt)).to.eq(tail);
   });
 });

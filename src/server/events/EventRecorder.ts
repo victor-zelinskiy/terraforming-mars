@@ -8,6 +8,7 @@ import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyRosterChange} from '../../common/colonies/ColonyRoster';
+import {TileMoveFact} from '../../common/boards/TileMove';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
@@ -470,6 +471,18 @@ export class EventRecorder {
   /** Record a tile placement (carries the space for "show on map" + the tile type). */
   public recordTilePlaced(player: IPlayer, space: Space, tile: TileType): void {
     this.record({type: 'tile-placed', player: player.color, impact: {tilesPlaced: 1}, space: space.id, tile, tags: ['terraforming']});
+  }
+
+  /**
+   * A TILE MOVED from one cell to another (Turmoil Redux TR14 Re-settlement):
+   * recorded IN PLACE OF `tile-placed`, under the live scope (the card whose
+   * effect it was). `space` / `tile` are the destination's, so «show on map»
+   * and the trigger attribution read the landing; `impact.tileMove` names both
+   * cells. No `tilesPlaced` — a moved tile is not a new one. Journal-visible.
+   * Written only by `Game.moveCityTile` (through `simpleAddTile`).
+   */
+  public recordTileMoved(player: IPlayer, move: TileMoveFact): void {
+    this.record({type: 'tile-moved', player: player.color, impact: {tileMove: move}, space: move.to, tile: move.tileType, visibility: 'journal', tags: ['terraforming']});
   }
 
   /**

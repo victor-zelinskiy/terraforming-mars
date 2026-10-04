@@ -1,6 +1,8 @@
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
+import {LiftedCity, countCityTiers, liftTopCity} from './cityStack';
+import {CityMoveOffer, cityMoveOffer, cityMoveReasoner} from './cityMove';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTypeToString} from '../../common/TileType';
@@ -138,7 +140,16 @@ export function boardCellPreview(
     tileType?: TileType,
     sourceCard?: CardName,
     placementEffect?: PlacementEffect,
-    canAffordOptions?: CanAffordOptions}): BoardPlacementPreview {
+    canAffordOptions?: CanAffordOptions,
+    /**
+     * A CITY MOVE (`kind: 'city-move'`, Turmoil Redux TR14): the cell the city
+     * LEAVES. Absent → the SOURCE reading of `space` (may this city move, and
+     * where); present → the DESTINATION reading of `space` for that city.
+     */
+    movedFrom?: Space}): BoardPlacementPreview {
+  if (kind === 'city-move') {
+    return cityMovePreview(player, space, options);
+  }
   const board = player.game.board;
   const cleared = options?.cleared === true;
   // A CITY TIER (Skyscrapers) lands on the player's own city: the cell is
@@ -1459,24 +1470,45 @@ function arcadianCommunityFact(player: IPlayer, space: Space, covering: boolean,
  * information the player wants before, not after.
  */
 function milestoneAwardFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
-  const game = player.game;
   if (ctx.tileType === undefined) {
     return [];
   }
-  const out: Array<BoardFact> = [];
-  const milestones = game.milestones.filter((m) => !game.milestoneClaimed(m));
-  const before = {
-    milestones: milestones.map((m) => m.getScore(player)),
-    awards: game.awards.map((a) => a.getScore(player)),
+  const before = progressScores(player);
+  const after = withHypotheticalTile(player, space, ctx, () => progressScores(player));
+  return progressFacts(player, before, after);
+}
+
+/** The player's standing on every UNCLAIMED milestone and every award — the two columns `progressFacts` compares. */
+type ProgressScores = {milestones: ReadonlyArray<number>, awards: ReadonlyArray<number>};
+
+function openMilestones(player: IPlayer) {
+  const game = player.game;
+  return game.milestones.filter((m) => !game.milestoneClaimed(m));
+}
+
+/** Read the real `getScore`s against the board as it stands RIGHT NOW (possibly a hypothesis the caller installed). */
+function progressScores(player: IPlayer): ProgressScores {
+  return {
+    milestones: openMilestones(player).map((m) => m.getScore(player)),
+    awards: player.game.awards.map((a) => a.getScore(player)),
   };
-  const after = withHypotheticalTile(player, space, ctx, () => ({
-    milestones: milestones.map((m) => m.getScore(player)),
-    awards: game.awards.map((a) => a.getScore(player)),
-  }));
-  milestones.forEach((milestone, i) => {
+}
+
+/**
+ * The milestones / awards whose standing MOVES between two readings. A
+ * placement can only add, so by default only a rise is reported; a MOVE
+ * (`losses`) takes a tile off one cell as it puts it on another, and an award
+ * of PLACE can fall — reported too, in the warning tone, because a silent
+ * loss of standing is exactly what the panel exists to prevent.
+ */
+function progressFacts(player: IPlayer, before: ProgressScores, after: ProgressScores, options?: {losses?: boolean}): Array<BoardFact> {
+  const game = player.game;
+  const moved = (from: number, to: number) => options?.losses === true ? to !== from : to > from;
+  const out: Array<BoardFact> = [];
+  openMilestones(player).forEach((milestone, i) => {
     const from = before.milestones[i];
     const to = after.milestones[i];
-    if (to <= from) {
+    if (!moved(from, to)) {
       return;
     }
     const threshold = milestone.getThreshold?.(game) ?? (milestone as {threshold?: number}).threshold;
@@ -1485,7 +1517,7 @@ function milestoneAwardFacts(player: IPlayer, space: Space, ctx: PlacementPrevie
       id: `milestone-${milestone.name}`,
       category: 'milestone-progress',
       timing: 'future',
-      severity: claimable ? 'premium' : 'info',
+      severity: to < from ? 'warning' : claimable ? 'premium' : 'info',
       recipient: {kind: 'current-player'},
       title: milestone.name,
       // Only the CLAIMABLE case earns a line — "Milestone progress" under a
@@ -1498,14 +1530,14 @@ function milestoneAwardFacts(player: IPlayer, space: Space, ctx: PlacementPrevie
   game.awards.forEach((award, i) => {
     const from = before.awards[i];
     const to = after.awards[i];
-    if (to <= from) {
+    if (!moved(from, to)) {
       return;
     }
     out.push({
       id: `award-${award.name}`,
       category: 'milestone-progress',
       timing: 'future',
-      severity: 'info',
+      severity: to < from ? 'warning' : 'info',
       recipient: {kind: 'current-player'},
       title: award.name,
       progress: {from, to},
@@ -1533,6 +1565,10 @@ function withHypotheticalTile<T>(player: IPlayer, space: Space, ctx: PlacementPr
   const savedTile = space.tile;
   const savedPlayer = space.player;
   const savedHeight = space.stackHeight;
+  // A cell nothing ever stood on has NO `tile` / `player` key at all — the
+  // restore below must leave it that way, not with a key holding undefined.
+  const hadTile = Object.prototype.hasOwnProperty.call(space, 'tile');
+  const hadPlayer = Object.prototype.hasOwnProperty.call(space, 'player');
   try {
     if (ctx.stacking) {
       // Mirrors `Game.simpleAddCityTier`: the cell keeps its tile and its
@@ -1547,8 +1583,16 @@ function withHypotheticalTile<T>(player: IPlayer, space: Space, ctx: PlacementPr
     }
     return read();
   } finally {
-    space.tile = savedTile;
-    space.player = savedPlayer;
+    if (hadTile) {
+      space.tile = savedTile;
+    } else {
+      delete space.tile;
+    }
+    if (hadPlayer) {
+      space.player = savedPlayer;
+    } else {
+      delete space.player;
+    }
     // Restore the KEY, not just the value: an absent stackHeight must stay absent (the shape a reload produces).
     if (savedHeight === undefined) {
       delete space.stackHeight;
@@ -1564,6 +1608,350 @@ const UNOWNED_TILES: ReadonlySet<TileType> = new Set([
   TileType.MARTIAN_NATURE_WONDERS,
   TileType.REY_SKYWALKER,
 ]);
+
+// ---------------------------------------------------------------------------
+// A CITY MOVE (Turmoil Redux TR14 Re-settlement) — the two readings of a move
+// ---------------------------------------------------------------------------
+
+/**
+ * THE PREVIEW OF A MOVE is asked about a PAIR of cells, and has two readings:
+ *
+ *  · no `movedFrom` — THE SOURCE (the city under the cursor on the «which city»
+ *    level): may it move, where to (`spaces` = its destinations, so the field
+ *    lights them), what it scores where it stands, and — for a stack — that
+ *    only the top tier leaves. A city that cannot move states its ONE reason.
+ *  · with `movedFrom` — THE DESTINATION: everything an ordinary city placement
+ *    on this cell would say, read against the board AS IT WILL BE — the city
+ *    already lifted off its old cell — plus what the OLD cell stops giving.
+ *
+ * Who may move and where is `boards/cityMove.ts` (the one reading the prompt
+ * and the commit use); the hypothesis is `liftTopCity` itself — the commit's
+ * own lift, run and exactly undone.
+ */
+function cityMovePreview(
+  player: IPlayer,
+  space: Space,
+  options: {movedFrom?: Space, sourceCard?: CardName, canAffordOptions?: CanAffordOptions} | undefined): BoardPlacementPreview {
+  const offer = cityMoveOffer(player, options?.canAffordOptions);
+  const from = options?.movedFrom;
+  return from === undefined ?
+    cityMoveSourcePreview(player, space, offer) :
+    cityMoveDestinationPreview(player, from, space, offer, options);
+}
+
+/** The endgame VP ONE city tile scores on `space`: +1 per adjacent greenery, and the Capital's own +1 per adjacent ocean. */
+function cityScoringCells(board: Board, space: Space, tileType: TileType): ReadonlyArray<Space> {
+  const adjacent = board.getAdjacentSpaces(space);
+  const greeneries = adjacent.filter(Board.isGreenerySpace);
+  return tileType === TileType.CAPITAL ? [...greeneries, ...adjacent.filter(Board.isOceanSpace)] : greeneries;
+}
+
+/** THE SOURCE reading — see {@link cityMovePreview}. */
+function cityMoveSourcePreview(player: IPlayer, space: Space, offer: CityMoveOffer): BoardPlacementPreview {
+  const board = player.game.board;
+  const source = offer.sources.find((candidate) => candidate.from.id === space.id);
+  const disabled = offer.disabledSources.find((entry) => entry.space.id === space.id);
+  const facts: Array<BoardFact> = [];
+  if (source !== undefined) {
+    facts.push({
+      id: 'move-reach', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
+      title: 'Spaces to move to: ${0}',
+      params: [String(source.to.length)],
+      spaces: source.to.map((to) => to.id),
+    });
+  }
+  if ((source !== undefined || disabled !== undefined) && space.tile !== undefined) {
+    const tiers = Board.tiersOf(space);
+    // What the tile that would TRAVEL scores here: a stack's top tier is a plain city.
+    const travels = tiers > 1 ? TileType.CITY : space.tile.tileType;
+    facts.push({
+      id: 'move-scores-now', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
+      title: 'Scores now: ${0} VP',
+      params: [String(cityScoringCells(board, space, travels).length)],
+    });
+    if (tiers > 1) {
+      facts.push({
+        id: 'move-stack', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
+        title: 'Only the top tier moves — the stack stays: ×${0} → ×${1}',
+        params: [String(tiers), String(tiers - 1)],
+      });
+    }
+  }
+  const preview = classifyPlacementFacts(facts, player, space.id, 'city-move', source !== undefined);
+  // Lifting a city puts nothing down yet — the «nothing else happens» line must not name a tile.
+  preview.placesTile = false;
+  if (source === undefined) {
+    preview.illegalReason = disabled?.reason ?? 'not-your-city';
+  }
+  return preview;
+}
+
+/** THE DESTINATION reading — see {@link cityMovePreview}. */
+function cityMoveDestinationPreview(
+  player: IPlayer,
+  from: Space,
+  to: Space,
+  offer: CityMoveOffer,
+  options: {sourceCard?: CardName, canAffordOptions?: CanAffordOptions} | undefined): BoardPlacementPreview {
+  const board = player.game.board;
+  const source = offer.sources.find((candidate) => candidate.from.id === from.id);
+  if (source === undefined) {
+    // The city named cannot move (any more) — nothing may be promised about a move that does not exist.
+    const preview = classifyPlacementFacts([], player, to.id, 'city-move', false);
+    preview.illegalReason = 'unavailable';
+    return preview;
+  }
+  if (to.id === from.id) {
+    // The cursor stands on the city being moved: it cannot move onto itself, and there is no «move» to describe.
+    const preview = classifyPlacementFacts([], player, to.id, 'city-move', false);
+    preview.illegalReason = 'occupied';
+    return preview;
+  }
+  const legal = source.to.some((space) => space.id === to.id);
+  const arrives = source.arrives;
+
+  // ── read against the board AS IT STANDS (before the lift) ────────────────
+  const progressBefore = progressScores(player);
+  const districts = commercialDistrictsBeside(board, [from, to]);
+  const districtsBefore = districts.map((district) => adjacentCityTiers(board, district));
+
+  const facts = withCityLifted(from, (lifted): Array<BoardFact> => {
+    // `to` is read exactly as an ordinary city placement reads its cell — with the old cell already vacated.
+    const covering = Board.hasRealTile(to);
+    const ctx = previewContext('city-move', arrives, false, covering, to.tile !== undefined, 'tile');
+    const out: Array<BoardFact> = [];
+    out.push(...placementCostFacts(player, to, ctx, options?.canAffordOptions));
+    out.push(...printedBonusFacts(to, ctx.bonusesCovered));
+    if (onMarsGrid(board, to)) {
+      const ocean = oceanAdjacencyFact(player, to);
+      if (ocean !== undefined) {
+        out.push(ocean);
+      }
+    }
+    // The lift took the travelling tile's own Ares adjacency with it, so the
+    // Capital is never promised its own bonus for landing beside itself.
+    out.push(...aresAdjacencyFacts(player, to));
+    out.push(...sourceCardFacts(player, to, options?.sourceCard, ctx));
+    out.push(...tileTriggerFacts(player, to, ctx));
+    out.push(...arcadianCommunityFact(player, to, covering, ctx));
+    out.push(...partyReactionFacts(player, to, ctx, out));
+    out.push(...resolutionPassiveFacts(player, to, ctx, out));
+    out.push(...cityMoveScoringFacts(board, from, to, arrives));
+    // Milestones / awards and the neighbours that count cities: read with the tile LANDED too.
+    const landed = withHypotheticalTile(player, to, ctx, () => ({
+      progress: progressScores(player),
+      districts: districts.map((district) => adjacentCityTiers(board, district)),
+    }));
+    out.push(...commercialDistrictFacts(player, districts, districtsBefore, landed.districts));
+    out.push(...cityDepartureFacts(from, lifted));
+    out.push(...progressFacts(player, progressBefore, landed.progress, {losses: true}));
+    const deflection = deflectionPlacementFact(player, to);
+    if (deflection !== undefined) {
+      out.push(deflection);
+    }
+    out.push(...specialZoneFacts(player, to, {includePlacementRules: true}));
+    return out;
+  });
+
+  const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, to.id, 'city-move', legal);
+  preview.placesTile = true;
+  if (!legal) {
+    preview.illegalReason = source.illegal.find((entry) => entry.spaceId === to.id)?.reason ??
+      (cityMoveReasoner(player, offer)(to) ?? board.illegalReasonFor(player, 'city-move', to, options?.canAffordOptions));
+  }
+  return preview;
+}
+
+/**
+ * Run `read` against the board with the TOP CITY LIFTED off `from` — the
+ * first half of the move, by the commit's own `liftTopCity` — then put the
+ * cell back EXACTLY as it was: the same tile object, owner, co-owner, Ares
+ * adjacency and stack height, and the same KEYS (an absent `stackHeight` /
+ * `adjacency` / `coOwner` stays absent — the shape a reload produces).
+ * Nothing inside `read` may mutate.
+ */
+function withCityLifted<T>(from: Space, read: (lifted: LiftedCity) => T): T {
+  const saved = {
+    tile: from.tile,
+    player: from.player,
+    stackHeight: Object.prototype.hasOwnProperty.call(from, 'stackHeight') ? {value: from.stackHeight} : undefined,
+    adjacency: Object.prototype.hasOwnProperty.call(from, 'adjacency') ? {value: from.adjacency} : undefined,
+    coOwner: Object.prototype.hasOwnProperty.call(from, 'coOwner') ? {value: from.coOwner} : undefined,
+  };
+  try {
+    return read(liftTopCity(from));
+  } finally {
+    from.tile = saved.tile;
+    from.player = saved.player;
+    if (saved.stackHeight === undefined) {
+      delete from.stackHeight;
+    } else {
+      from.stackHeight = saved.stackHeight.value;
+    }
+    if (saved.adjacency === undefined) {
+      delete from.adjacency;
+    } else {
+      from.adjacency = saved.adjacency.value;
+    }
+    if (saved.coOwner === undefined) {
+      delete from.coOwner;
+    } else {
+      from.coOwner = saved.coOwner.value;
+    }
+  }
+}
+
+/**
+ * THE HYPOTHESIS OF A MOVE, whole: the top city lifted off `from` AND standing
+ * on `to` — what the board reads as once `Game.moveCityTile` has run. The
+ * destination preview composes the same two halves (it reads some facts
+ * between them); this is the form a caller that needs only «the board after
+ * the move» takes. Restores both cells exactly.
+ */
+export function withHypotheticalMove<T>(player: IPlayer, from: Space, to: Space, read: () => T): T {
+  return withCityLifted(from, (lifted) => {
+    const ctx = previewContext('city-move', lifted.tile.tileType, false, Board.hasRealTile(to), to.tile !== undefined, 'tile');
+    return withHypotheticalTile(player, to, ctx, read);
+  });
+}
+
+/**
+ * THE MOVING CITY'S OWN ENDGAME VP — ONE parameter, so ONE vector. The city
+ * scores `from`'s neighbours today and will score `to`'s; a neighbour of BOTH
+ * cells keeps scoring and is no part of the change. The two members share the
+ * pool («City VP» from the same current value) and each names its side as its
+ * `reason`, so the panel merges them into one `current → resulting` with «at
+ * the new space +2 · at the former space −1» under it — never two rows. Each
+ * member names its own cells: the ones the city STARTS scoring, and the ones
+ * it STOPS scoring (a `tile-departure` — a loss must read as one on the field).
+ */
+function cityMoveScoringFacts(board: Board, from: Space, to: Space, arrives: TileType): Array<BoardFact> {
+  const before = cityScoringCells(board, from, arrives);
+  const after = cityScoringCells(board, to, arrives);
+  const beforeIds = new Set(before.map((space) => space.id));
+  const afterIds = new Set(after.map((space) => space.id));
+  const gained = after.filter((space) => !beforeIds.has(space.id));
+  const lost = before.filter((space) => !afterIds.has(space.id));
+  const current = before.length;
+  if (gained.length === 0 && lost.length === 0) {
+    return [{
+      id: 'move-city-vp', category: 'city-greenery-scoring', timing: 'endgame', severity: 'info', recipient: {kind: 'current-player'},
+      title: 'City VP',
+      description: 'Unchanged: ${0} VP',
+      params: [String(current)],
+    }];
+  }
+  const out: Array<BoardFact> = [];
+  if (gained.length > 0) {
+    out.push({
+      ...vpFact('move-city-vp-gain', 'city-greenery-scoring', 'City VP', {kind: 'current-player'}, current, current + gained.length),
+      reason: 'At the new space',
+      spaces: gained.map((space) => space.id),
+    });
+  }
+  if (lost.length > 0) {
+    out.push({
+      ...vpFact('move-city-vp-loss', 'tile-departure', 'City VP', {kind: 'current-player'}, current, current - lost.length),
+      severity: 'warning',
+      reason: 'At the former space',
+      spaces: lost.map((space) => space.id),
+    });
+  }
+  return out;
+}
+
+/** The Commercial Districts standing beside any of `cells` — every one whose count of adjacent cities a move between them can change. */
+function commercialDistrictsBeside(board: Board, cells: ReadonlyArray<Space>): ReadonlyArray<Space> {
+  const seen = new Map<SpaceId, Space>();
+  for (const cell of cells) {
+    for (const adj of board.getAdjacentSpaces(cell)) {
+      if (adj.tile?.tileType === TileType.COMMERCIAL_DISTRICT) {
+        seen.set(adj.id, adj);
+      }
+    }
+  }
+  return [...seen.values()];
+}
+
+/** How many CITIES stand beside `district` — the stacks summed, the quantity its card scores (`Counter`: `cities` with `nextToThis`). */
+function adjacentCityTiers(board: Board, district: Space): number {
+  return countCityTiers(board.getAdjacentSpaces(district).filter(Board.isCitySpace));
+}
+
+/**
+ * A neighbour that SCORES PER ADJACENT CITY (Commercial District) recounts by
+ * the move: one fewer beside the old cell, one more beside the new. Addressed
+ * to the district's OWNER — another player's lands under «Other players», the
+ * mover's own in their endgame block. A district beside both cells is not
+ * mentioned: its count does not change.
+ */
+function commercialDistrictFacts(
+  player: IPlayer,
+  districts: ReadonlyArray<Space>,
+  before: ReadonlyArray<number>,
+  after: ReadonlyArray<number>): Array<BoardFact> {
+  const out: Array<BoardFact> = [];
+  districts.forEach((district, i) => {
+    const owner = district.player?.color;
+    if (owner === undefined || owner === 'neutral' || before[i] === after[i]) {
+      return;
+    }
+    const loss = after[i] < before[i];
+    const own = owner === player.color;
+    out.push({
+      // Only the mover's OWN loss is a departure in the field's sense (a cost to them); another player's recount is scoring.
+      ...vpFact(`move-commercial-${district.id}`, loss && own ? 'tile-departure' : 'future-scoring',
+        loss ? 'Commercial District loses an adjacent city' : 'Commercial District gains an adjacent city',
+        recipientFor(player, owner), before[i], after[i]),
+      // A loss to oneself is a warning, a gain to an opponent is one too (`vpFact`'s own rule) — a loss to an opponent is neither.
+      severity: loss ? (own ? 'warning' : 'info') : (own ? 'positive' : 'warning'),
+      spaces: [district.id],
+    });
+  });
+  return out;
+}
+
+/**
+ * WHAT THE FORMER CELL IS LEFT AS — the standing facts of the departure:
+ *  · a STACK keeps its base and stands one tier shorter;
+ *  · a single city frees the cell: it is bare land again, and its printed
+ *    bonus goes to whoever places a tile there next (a property of the cell —
+ *    the freed cell's own bonus icons ride the fact as chips addressed to
+ *    nobody, so no gain is promised to the mover).
+ */
+function cityDepartureFacts(from: Space, lifted: LiftedCity): Array<BoardFact> {
+  if (lifted.tiers.after > 0) {
+    return [{
+      id: 'move-stack', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
+      title: 'City stack: ×${0} → ×${1}',
+      params: [String(lifted.tiers.before), String(lifted.tiers.after)],
+      description: 'Only the top tier moves — the cities under it stay.',
+      spaces: [from.id],
+    }];
+  }
+  const bonuses = countBonuses(from.bonus);
+  const freed: BoardFact = {
+    id: 'move-vacated', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'nobody'},
+    title: 'The space is freed',
+    ...(bonuses.length > 0 ? {description: 'Its placement bonus goes again to whoever places a tile there next.'} : {}),
+    spaces: [from.id],
+  };
+  // The freed cell's own printed icons, as chips addressed to NOBODY — what the next tile there will collect.
+  const chips = bonuses.map(([bonus, count]): BoardFact => {
+    const described = describeSpaceBonus(bonus, count);
+    return {
+      id: `move-vacated-${bonus}`,
+      category: 'tile-move',
+      timing: 'rule',
+      severity: 'info',
+      recipient: {kind: 'nobody'},
+      title: described.title,
+      delta: described.delta,
+      spaces: [from.id],
+    };
+  });
+  return [freed, ...chips];
+}
 
 // ---------------------------------------------------------------------------
 // Ares facts (adapted — inert when the module is off)

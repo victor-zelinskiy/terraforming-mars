@@ -10,6 +10,7 @@ import {StagedPlacementModel} from '../../common/models/ActionPreviewModel';
 import {CardName} from '../../common/cards/CardName';
 import {committedPlacement} from '../inputs/placementContext';
 import {toID} from '../../common/utils/utils';
+import {CityMoveOffer, cityMovePromptModel} from './cityMove';
 
 /**
  * Construct a SelectSpace for a Mars-board placement with `illegalSpaces`
@@ -103,6 +104,12 @@ export function createMarsSelectSpace(
      * cannot pay BOTH the project and the removal reads as merely `unavailable`.
      */
     canAffordOptions?: CanAffordOptions,
+    /**
+     * A MOVE prompt's offer (`SelectSpace.tileMove`, Turmoil Redux TR14): which
+     * cities may travel and where. `legalSpaces` must be the union of their
+     * destinations (`cityMoveDestinations`); the caller sets `onMove`.
+     */
+    tileMove?: CityMoveOffer,
   },
 ): SelectSpace {
   const illegalSpaces = player.game.board.computeIllegalReasons(
@@ -126,6 +133,9 @@ export function createMarsSelectSpace(
   selectSpace.followUpPlacements = options?.followUpPlacements;
   if (options?.hideExistingTile === true) {
     selectSpace.hiddenTiles = legalSpaces.map(toID);
+  }
+  if (options?.tileMove !== undefined) {
+    selectSpace.tileMove = options.tileMove;
   }
   return selectSpace;
 }
@@ -180,6 +190,9 @@ export function stagedMarsSelectSpace(
     /** The SAME play's later placements (mirror of the live prompt's
      *  `followUpPlacements`) — the dossier's plan line during the staged pick. */
     followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
+    /** Mirror of the live prompt's `tileMove` (TR14) — the SAME offer, built
+     *  with the SAME `canAffordOptions`; `spaces` is its destinations. */
+    tileMove?: CityMoveOffer,
   },
 ): StagedPlacementModel | undefined {
   const board = player.game.board;
@@ -212,6 +225,9 @@ export function stagedMarsSelectSpace(
   }
   if (options.followUpPlacements !== undefined && options.followUpPlacements.length > 0) {
     model.followUpPlacements = options.followUpPlacements;
+  }
+  if (options.tileMove !== undefined) {
+    model.tileMove = cityMovePromptModel(options.tileMove);
   }
   return model;
 }

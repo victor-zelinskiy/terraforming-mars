@@ -9,6 +9,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {TileType} from '../../src/common/TileType';
 import {SpaceType} from '../../src/common/boards/SpaceType';
 import {AcquiredCompany} from '../../src/server/cards/base/AcquiredCompany';
+import {statusCode} from '../../src/common/http/statusCode';
 import {use} from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 use(chaiAsPromised);
@@ -245,6 +246,92 @@ describe('ApiGameBoardCellPreview', () => {
       expect(player.cardsInHand.length).to.eq(hand);
       expect(game.deferredActions.length).to.eq(deferred);
       expect(JSON.stringify(game.aresData)).to.eq(aresBefore);
+    });
+  });
+
+  describe('a city move (kind=city-move)', () => {
+    // A MOVE is asked about a PAIR of cells (Turmoil Redux TR14): without
+    // `from` the cell is read as the SOURCE (the city under the cursor), with
+    // `from` as the DESTINATION of that city. The city named is a subject
+    // resolved against live state — once it cannot move, the answer is 204.
+    async function moveGame() {
+      const [game, player, opponent] = testGame(2);
+      await scaffolding.ctx.gameLoader.add(game);
+      const free = (s: {spaceType: SpaceType, tile?: unknown, player?: unknown, id: string}) =>
+        s.spaceType === SpaceType.LAND && s.tile === undefined && s.player === undefined && s.id !== game.board.noctisCitySpaceId;
+      const from = game.board.spaces.find((s) => free(s) && game.board.getAdjacentSpaces(s).length === 6 && game.board.getAdjacentSpaces(s).every(free))!;
+      game.simpleAddTile(player, from, {tileType: TileType.CITY});
+      const to = game.board.getAdjacentSpaces(from)[0];
+      return {game, player, opponent, from, to};
+    }
+
+    const url = (playerId: string, spaceId: string, from?: string) =>
+      `/api/game/board-cell-preview?id=${playerId}&space=${spaceId}&kind=city-move&effect=move` + (from === undefined ? '' : `&from=${from}`);
+
+    it('without `from`: the SOURCE reading of the city under the cursor', async () => {
+      const {player, from} = await moveGame();
+      scaffolding.url = url(player.id, from.id);
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+      const preview = JSON.parse(res.content);
+      expect(preview.kind).eq('city-move');
+      expect(preview.legal).eq(true);
+      expect(preview.ruleFacts.map((f: {id: string}) => f.id)).to.include.members(['move-reach', 'move-scores-now']);
+    });
+
+    it('with `from`: the DESTINATION reading of that city', async () => {
+      const {player, from, to} = await moveGame();
+      scaffolding.url = url(player.id, to.id, from.id);
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+      const preview = JSON.parse(res.content);
+      expect(res.statusCode).eq(statusCode.ok);
+      expect(preview.space).eq(to.id);
+      expect(preview.legal).eq(true);
+      expect(preview.placesTile).eq(true);
+      expect(preview.ruleFacts.some((f: {id: string}) => f.id === 'move-vacated'), 'the former cell is part of the reading').eq(true);
+    });
+
+    it('204 when the city named cannot move — an expired subject is not an error', async () => {
+      const {game, player, opponent, from, to} = await moveGame();
+      // The board moved under a prefetch: every neighbour of the city was taken.
+      game.board.getAdjacentSpaces(from).forEach((s) => game.simpleAddTile(opponent, s, {tileType: TileType.GREENERY}));
+      scaffolding.url = url(player.id, to.id, from.id);
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+      expect(res.statusCode).eq(statusCode.noContent);
+      expect(res.content).eq('');
+      expect(res.headers.get('X-No-Preview')).eq('the city named cannot move');
+    });
+
+    it('204 for a `from` that is no city of theirs, 400 for a malformed one', async () => {
+      const {player, to} = await moveGame();
+      scaffolding.url = url(player.id, to.id, to.id);
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+      expect(res.statusCode, 'an empty cell names no city').eq(statusCode.noContent);
+
+      const bad = new MockResponse();
+      scaffolding.url = url(player.id, to.id, 'not-a-space');
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, bad);
+      expect(bad.statusCode).eq(statusCode.badRequest);
+    });
+
+    it('`from` is read only for a move: an ordinary placement ignores it', async () => {
+      const {player, from, to} = await moveGame();
+      const plain = new MockResponse();
+      scaffolding.url = `/api/game/board-cell-preview?id=${player.id}&space=${to.id}&kind=greenery`;
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, plain);
+      scaffolding.url = `/api/game/board-cell-preview?id=${player.id}&space=${to.id}&kind=greenery&from=${from.id}`;
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+      expect(JSON.parse(res.content)).to.deep.equal(JSON.parse(plain.content));
+    });
+
+    it('a move request mutates no game state', async () => {
+      const {game, player, from, to} = await moveGame();
+      const before = JSON.stringify(game.board.serialize());
+      const events = game.events.events.length;
+      scaffolding.url = url(player.id, to.id, from.id);
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+      expect(JSON.stringify(game.board.serialize())).eq(before);
+      expect(game.events.events.length).eq(events);
+      expect(game.tileMoves).deep.eq([]);
     });
   });
 });

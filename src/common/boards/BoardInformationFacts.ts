@@ -25,7 +25,7 @@ import {PlacementIllegalReason} from '../inputs/PlacementIllegalReason';
 /** Mirrors `src/server/boards/PlacementType.ts` (kept in common so models + client share it). */
 export type BoardPlacementKind =
   'land' | 'ocean' | 'greenery' | 'city' | 'away-from-cities' | 'isolated' |
-  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier' | 'ocean-removal';
+  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier' | 'ocean-removal' | 'city-move';
 
 /**
  * WHO receives a fact's effect. The single most important field — the UI groups
@@ -73,7 +73,15 @@ export type BoardFactCategory =
   | 'ares-adjacency-bonus'
   | 'hazard-penalty'
   | 'hazard-cleanup'
-  | 'ocean-upgrade';
+  | 'ocean-upgrade'
+  // A TILE MOVING between two cells (Turmoil Redux TR14 Re-settlement):
+  // `tile-move` — the standing facts of the move itself (which cells a city can
+  // reach, the cell it frees, the stack it leaves shorter); `tile-departure` —
+  // what the FORMER cell stops giving (the greeneries the city no longer
+  // scores, a neighbour that loses an adjacent city). A departure is a loss
+  // and must read as one on the field.
+  | 'tile-move'
+  | 'tile-departure';
 
 export type BoardFactSource = {
   type:
