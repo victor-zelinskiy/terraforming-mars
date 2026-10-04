@@ -95,10 +95,7 @@ const MANUAL: Partial<Record<CardName, Classification>> = {
   // DP11: deploys a standing advancement ban against another player
   // (DeltaProjectExpansion.placeBlockade → delta-blockade-changed).
   [CardName.MODULAR_FLOODGATES]: {kind: 'cross-player', families: ['track-blockade'], why: 'blocks a foreign player\'s Hydronetwork advancement; delta-blockade-changed carries victim + attacker'},
-  // The venus payout is an ENGINE special case (Game.increaseVenusScaleLevel
-  // pays the owner with from: {card: APHRODITE}) — the card class itself has
-  // no code, so the structural classifier cannot see it.
-  [CardName.APHRODITE]: {kind: 'cross-player', families: ['reactive-owner-payout'], why: 'engine-level payout on any player\'s venus raise (Game.ts)'},
+  // (Aphrodite needs no row since TR24: its payout is the card's own `onGlobalParameterRaised`, a REACTIVE_HOOK.)
 };
 
 // ── Structural classifier ───────────────────────────────────────────────────
@@ -293,8 +290,8 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
    * are EXHAUSTIVE over the enums — a new bonus card / corporation fails
    * `npm run build:test` until classified. Delivery correctness for
    * 'touches-humans' rides the SHARED chokepoints (the tile fan-out, colony
-   * hooks, GiveColonyBonus, the sanctioned human tag reactions, the Aphrodite
-   * engine payout) — all evented under the 'automa-turn' scope, and, since the
+   * hooks, GiveColonyBonus, the sanctioned human tag reactions, the scale-raise
+   * dispatcher — Aphrodite, Venusian Census) — all evented under the 'automa-turn' scope, and, since the
    * drain-before-finish fix, either snapshot-visible in the turn script's
    * impact steps (non-interactive) or narrated by an explicit attack step
    * (interactive). Proofs: S10/S18 + bonusCardAttackEvents.spec + the
@@ -371,7 +368,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [MarsBotCorpId.C25_VIRON]: botOnly,
       [MarsBotCorpId.C26_CELESTIC]: botOnly,
       [MarsBotCorpId.C27_MORNING_STAR]: botOnly,
-      [MarsBotCorpId.C28_APHRODITE]: botOnly, // pays the BOT; the human Aphrodite payout is the engine's
+      [MarsBotCorpId.C28_APHRODITE]: botOnly, // pays the BOT; the human Aphrodite pays through its own card hook
       [MarsBotCorpId.C29_MANUTECH]: botOnly,
       [MarsBotCorpId.C30_ARIDOR]: botOnly,
       [MarsBotCorpId.C31_ARKLIGHT]: botOnly,
