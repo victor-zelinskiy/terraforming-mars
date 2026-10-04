@@ -99,6 +99,7 @@ returning `ReadonlyArray<EffectForecastFact>`; the analog of
 | `cardPlayedForecast(cardOwner, activePlayer, playedCard, ctx)` | `onCardPlayed` / `onCardPlayedByAnyPlayer` | every seat's tableau in generation order, the played card included («including this») |
 | `grantForecast(cardOwner, activePlayer, grant, ctx)` | `onProductionGain` / `onResourceAdded` | the branch's own `ActionEffect` chips, translated to `EffectForecastGrant` — never a re-parse of the behavior |
 | `tilePlacedForecast(cardOwner, activePlayer, tile, ctx)` | `onTilePlaced` | every seat's reactors, once per tile the play / action places |
+| `grantForecast(cardOwner, activePlayer, {kind: 'global'}, ctx)` | `onGlobalParameterIncrease` (the raiser's own, rewarded) / `onGlobalParameterRaised` (whoever raised — TR24) | the SCALE PASS: the raiser's own reactors first, then EVERY seat's in generation order |
 | `MarsBotCorp.humanCardPlayedForecast(game, player, card, ctx)` | `onHumanCardPlayed` | the bot's corporation (`AutomaCorporations.humanCardPlayedForecast`) |
 
 `EffectForecastContext` (`cards/EffectForecastContext.ts`): the operation
@@ -142,6 +143,17 @@ tableau. A multi-branch preview fills `byBranch[pos]` per available
 branch with `certainty: 'conditional'` (an `unknown` stays `unknown`).
 `FORECAST_HOOK_PAIRS` is the engine's declared «live hook → forecast hook»
 table, and the coverage guard's law.
+
+**A SCALE RAISE IS A GRANT IN STEPS** (TR24 Venusian Census, 2026-10-04). A global chip becomes `{kind: 'global',
+parameter, steps}` where `steps` = (resulting − current) / the scale's step (`scaleStepsOf`, the step read from
+`actionPreviews.globalParameterStepSize` — the same table the chip was written with): Venus «+4 %» is two steps, the same
+chip clamped at 28 → 30 is ONE, a maxed scale grants nothing — the very number the engine pays its reactors with. It is
+offered by `scaleRaiseFacts` (inside `grantFacts`) to the reactors the live engine calls, in its order: the RAISER's own
+`onGlobalParameterIncrease` cards (Homeostasis Bureau), then EVERY seat's `onGlobalParameterRaised` cards (Aphrodite,
+Venusian Census — `Game.globalParameterRaised`), each fact addressed to its reactor's owner; a hooked reactor with no twin
+is one honest `unknown`. Both hooks are rows of `FORECAST_HOOK_PAIRS`; the parity pool raises Venus (Spin-Inducing
+Asteroid) and the temperature (Nitrogen-Rich Asteroid). A surface with no forecast channel (the standard projects' rows,
+the Redux Venus trade stage) promises nothing — contract: `docs/TURMOIL_REDUX_VENUSIAN_CENSUS.md` §2.4.
 
 **What will NOT happen is not forecast** (the «неприменимо» audit, 2026-09-13).
 The engine reads the operation the RUNTIME will make, never the printed one:

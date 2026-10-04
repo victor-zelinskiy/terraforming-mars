@@ -162,6 +162,7 @@ import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySpons
 import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
+import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCensus';
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
 import {NovaCity} from '../../../src/server/cards/turmoilRedux/NovaCity';
@@ -1562,6 +1563,43 @@ parliamentFixture('habitat-science', {
         ledger.join(',') !== [ColonyName.LUNA, ColonyName.MIRANDA, ColonyName.PLUTO, ColonyName.TITAN].join(',') ||
         game.colonies.length !== 4 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the habitat-science fixture expected the card in play with 4 data and a live action, 20 M€, a hand of 3, the ledger Luna · Miranda · Pluto · Titan and the Industrialists ruling — got data=${card?.resourceCount} canAct=${card?.canAct(p1)} mc=${p1.megaCredits} hand=${p1.cardsInHand.length} ledger=${ledger.join(' · ')} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR24 · VENUSIAN CENSUS — «THE SCALE STEP PAYS» (docs/TURMOIL_REDUX_VENUSIAN_CENSUS.md): a Redux + VENUS NEXT
+//    table. Blue holds «Венерианская перепись» in its tableau with 1 data (the satellite's data cell stands) and
+//    Spin-Inducing Asteroid in hand with 20 M€; Venus at 8 % — the 8 % card bonus is behind, and neither raise of the
+//    journey reaches 16 % (8 → 10 by red's «Air Scrapping», 10 → 14 by blue's asteroid): no threshold cover in this
+//    fixture (the 8 % pairing is pinned by the drain's unit). RED IS ON THE MOVE with 30 M€ — blue's turn was handed
+//    over before blue acted (no pass), so red's standard project and «End Turn» bring blue's turn back with its two
+//    actions. A quiet government (the Industrialists by Central Power Grid). Both cards are the game's own copies. ──
+parliamentFixture('venusian-census', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  // The Venus tables' own pair (UNMI / PhoboLog): red's first move must be its OWN choice — Aridor's pending
+  // corporation action would stand in front of it.
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    moveToDeckTop(game, CardName.VENUSIAN_CENSUS);
+    const census = game.projectDeck.drawPile.pop() as VenusianCensus;
+    census.resourceCount = 1;
+    p1.playedCards.push(census);
+    moveToDeckTop(game, CardName.SPIN_INDUCING_ASTEROID);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop()!);
+    setVenusScaleLevel(game, 8);
+    p1.clearWaitingFor();
+    game.playerIsFinishedTakingActions();
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const census = p1.tableau.get(CardName.VENUSIAN_CENSUS);
+    const asteroid = p1.cardsInHand.find((c) => c.name === CardName.SPIN_INDUCING_ASTEROID);
+    if (census === undefined || census.resourceCount !== 1 || asteroid === undefined || p1.megaCredits !== 20 ||
+        game.getVenusScaleLevel() !== 8 || game.activePlayer.id !== p2.id || !(p2.getWaitingFor() instanceof OrOptions) ||
+        p2.megaCredits !== 30 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the venusian-census fixture expected the census with 1 data in blue's tableau, the asteroid in blue's hand, 20 M€, Venus 8 %, red on the move with the action menu and 30 M€, the Industrialists ruling — got census=${census?.resourceCount} asteroid=${asteroid !== undefined} mc=${p1.megaCredits} venus=${game.getVenusScaleLevel()} active=${game.activePlayer.color} red=${p2.getWaitingFor()?.constructor.name}/${p2.megaCredits} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

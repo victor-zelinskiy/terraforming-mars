@@ -1855,3 +1855,83 @@ passing.
 кадр RX07 с двумя кубами на тайле (числа — юнит-спеком); журнал действия — проверен e2e по событиям (`journal-events`),
 не кадром; раскадровка reduced motion — прогон пройден (поток доходит до поля), кадры не разобраны. Ивонн (CEO, `times: 2`)
 на клиенте не прогонялась вживую.
+
+## TR24 · Venusian Census — 2026-10-04
+
+**Что это.** «Венерианская перепись»: «после каждого шага Венеры +2 data сюда» + действие TR15 дословно («+1 data» ИЛИ
+«3 data → делегат на резолюцию»). Первая карта набора с меткой Венеры и `compatibility: 'venus'`; первая карта форка, чей
+эффект отвечает на ШАГ ШКАЛЫ, кто бы его ни сделал, — и первая, чья награда рождается у МАРКЕРА шкалы. Контракт «шаг шкалы
+платит карте» — `docs/TURMOIL_REDUX_VENUSIAN_CENSUS.md`; сестра — `TURMOIL_REDUX_MARTIAN_CENSUS.md` (общие ряды действия);
+прогноз — `docs/claude/console/effect-forecast.md` § A SCALE RAISE IS A GRANT IN STEPS. Промпт:
+`docs/claude/prompts/project-tr24-venusian-census.md`.
+
+**Коммиты (не пушено).** `85f0f6457a` (1/4 общий серверный слой: хук, диспетчер, Aphrodite на нём, прогноз в шагах,
+кольцо) · `d01b2df71e` (2/4 карта, лицо, общие ряды действия, локаль, лор, арт) · `7412f84558` (3/4 клиент: сцена «шаг шкалы
+платит», член слива парка, юниты) · 4/4 e2e, фикстура, документы. Разрез 1/2 как у TR23: карта уехала из коммита 1 в
+коммит 2 (с лицом и локалью) — иначе гарды лица / лора / локали красные. Промпт-файл попал в коммит 2 (его застейджила
+автоматика клона).
+
+**Сигнатуры.**
+- Сервер: `ICard.onGlobalParameterRaised(cardOwner, raise: GlobalParameterRaise {parameter, steps, by, before, after})` ·
+  `IGame.globalParameterRaised(parameter, steps, by, {before, after})` · `IGame.scaleStepRewards` /
+  `publishScaleStepReward(reward)` · `cards/scaleStepReward.recordScaleStepReward(owner, card, raise, gain)` ·
+  `ScaleStepRewardModel {seq, parameter, steps, before, after, owner, card, gain, by?}` · `GameModel.scaleStepRewards?` ·
+  `actionPreviews.globalParameterStepSize(scale)` · `effectForecast.scaleStepsOf` / `scaleRaiseFacts` · `censusActionRows(b)`.
+  Отличие от промпта: у подъёма есть `before` / `after` (записи кольца нужен глайд, а уровень шкалы внутри диспетчера ещё не
+  обновлён — карта не угадывает порядок строк `Game.ts`).
+- Клиент: `scaleMarkerArrival.ts` (`noteScaleMarkerMoving` / `noteScaleMarkerSettled` / `scaleMarkerArrived`;
+  `data-scale-marker`, `data-scale-marker-at`) · `scaleStepRewardModel.ts` (`freshScaleStepRewards`, `scaleStepTokenSpecs`,
+  `scaleStepHoldSpec`, `scaleStepTokenOrigins`) · `scaleStepRewardBeat.ts` (`seedScaleStepRewardHolds(before, after)`,
+  `scaleStepRewardState`, `scaleStepRewardsQuiet`, `abortScaleStepRewards` / `resetScaleStepRewards`) ·
+  `boardBeatPark.registerBoardBeatStoryMember(id, {busy, quiet})` / `boardBeatBoardWatchable` / `boardBeatHoldsParam` ·
+  `resourceTransferModel.touchdownTickAt` / `TOUCHDOWN_TICK_GAP_MS` · `ConsoleScaleStepRewardLayer.vue` (`.con-scalepay`).
+
+**Что обобщено и чем доказано, что соседи не изменились.**
+- Aphrodite на хуке: числа на всех путях (свой / чужой / МП / `unrewarded` / потолок / понижение) — `Aphrodite.spec` (+6);
+  RX12 `GasExport.spec` и `MarsBotAphrodite.spec` зелёные без правок; меняется только атрибуция (родитель `effect-triggered`
+  владельца). **A/B «ДО / ПОСЛЕ»** (Aphrodite у синего, красный по API «Очистка воздуха», синий на поле, fhd, по 3 прогона,
+  мс от посылки): глайд маркера 257–273 → 625–641 «до» и 257 → 625–626 «после» (не изменился); M€ синего «до» тикали на
+  **154–161 мс — раньше, чем маркер тронулся**; «после» — монеты у маркера 829–845, чип 1376–1413, тик 2151–2176 (на касании).
+  Кадры: `screenshots/venusian-census/ab/.e2e-tr24-before/frames`, `…/ab/.e2e-tr24/frames` (+ `report.json`).
+- Venus Contract (`prelude2`) — не тронут (вне скоупа; его старый хук работает как раньше). Homeostasis Bureau получил
+  близнеца прогноза (+3 M€ за шаг СВОЕЙ температуры) — живой хук не тронут, `HomeostasisBureau.spec` +2.
+- Парк и крышка 8 %: незанятый член слива не меняет НИЧЕГО (юнит «a member that is NOT busy changes nothing — the window is
+  exactly the scale beat»); e2e `console-venus-bonus-park` зелёный; связка «жетоны → крышка» — юнитом члена.
+- Действие TR15: ни строки поведения; лицо TR15 — побайтное сравнение `renderData` с билдером до выноса; e2e
+  `console-martian-census` зелёный.
+- Каденция тика TR21 переехала в модель переноса (`touchdownTickAt`, правило то же); e2e `console-arboretum` зелёный.
+
+**Найдено по дороге.**
+- Латентный дефект прогноза: грант `global` нёс ПРОЦЕНТЫ / градусы и не знал среза потолка — до TR24 у него не было ни одного
+  потребителя. Теперь шаги.
+- Homeostasis Bureau (promo, в скоупе) реагировал на свой подъём температуры без прогноза — ворклист закрыт близнецом.
+- Тикер GSAP запускает все созревшие `delayedCall` одной задачей: два отпускания холда в одном рендере — «4 → 6» на 4K.
+  Каденция тиков теперь — задача на тик (`setTimeout`), анимация жетонов — на часах GSAP.
+- Уведомление «вы получили +2 data» (лента) приходило, пока маркер ещё ехал: холд ленты на время ОЖИДАНИЯ сцены над видимой
+  доской (`scale-step-reward-pending`); под workspace лента течёт (закон ленты).
+- Арт: владелец положил свой `Mars Arts/TR24.png` (город-платформа в облаках) — арт скана чужой (McQuarrie / Lucasfilm).
+- Фикстура: у Aridor (пара столов Redux по умолчанию) висит первое действие корпорации — красный не может начать со
+  стандартного проекта; взята пара Venus-столов (UNMI / PhoboLog).
+
+**Гэпы (без раскопок).** Слой причины уведомления говорит «за шаг глобального параметра», не «за шаг Венеры» (параметр не
+протянут в `ViewerImpactCause`); прогноза нет в строке стандартного проекта «Очистка воздуха», в стейдже торговли с
+Redux-Венерой и в чтении голоса RX12; заседание (RX12 / шаг победителя Венерой) и подъём MarsBot глазами не прогонялись —
+закреплены юнитами и устройством слива; кадр «Сработает» ЧУЖОЙ переписи и у потолка — юнитами, не кадром; монета Aphrodite —
+чип на шаг («+2»), не на каждый M€ (решение модели, не подтверждено).
+
+**Тесты (итоговое дерево).** `npm run lint` 0 · `build:test` 0 · `make:cards` 0 / 0 / 0 · `make:json` 0 · `test:server`
+**14669** passing, 1 pending, 0 failing · `test:client` **6598** passing, 0 failing · гарды e2e (`e2eLiveness`,
+`e2eDriverGuard`, `e2eFixturesLoad`) 132 passing. Чеклист §3 — ворклисты пусты (`effectForecastCoverage` закрыт
+близнецами, `ALLOWED` пуст).
+
+**e2e** (свой снапшот `.e2e-tr24`, `--workers=1 --retries=0`): `console-venusian-census.spec.ts` fhd + tv4k,
+`--repeat-each=4` — **8 / 8**; на итоговой сборке ещё `--repeat-each=2` — 4 / 4; разово и на Deck (1280×800, handheld) —
+зелёный. Регрессия на том же снапшоте (`--workers=2`): `aaa-driver-canary`, `console-arboretum` (×2), `zz-nomads-visual`,
+`console-martian-census` (×2), `console-parliament-gas`, `console-venus-bonus-park`, `console-scale-marker`,
+`console-play-scale-conclusion`, `console-colony-venus-trade`, `console-effect-forecast` — **17 / 17**.
+
+**Кадры** (git-ignored `screenshots/venusian-census/`): лицо EN / RU и сестра (`face/`); `{fhd,tv4k,deck}/01…04` (после
+подъёма красного у синего и у красного, «Сработает» +4 в композере, слой R3 «Венерианская перепись · 3 → 7», после
+астероида); раскадровки CDP `story-red-air-scrapping`, `story-red-air-scrapping-red-view`, `story-blue-asteroid` (fhd, deck);
+журнал синего и красного (`journal/`); reduced motion — прогон (жетонов 0, чипов 0, счётчик 1 → 3 через 4 мс после того,
+как маркер встал на 10, деграда нет).

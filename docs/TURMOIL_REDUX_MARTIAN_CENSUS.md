@@ -3,7 +3,8 @@
 Тринадцатая карта проектов набора (2026-10-02). Три вещи впервые: **требование ПАРТИИ** в Redux (`{party: MARS}` —
 причина называет партию и обе дороги), **действие синей карты, которое ставит делегата** (ресурс карты — цена гранта),
 и **STAGED ACTION VOTE** — четвёртая дверь голосования: та же staged-дверь резолюции, что у розыгрыша TR03, но открытая
-из «Действий карт». Действие общее с TR24 «Венерианская перепись» (`censusAction.ts`, TR24 здесь НЕ реализован).
+из «Действий карт». Действие общее с TR24 «Венерианская перепись» (`censusAction.ts`; сестра сдана 2026-10-04 —
+`docs/TURMOIL_REDUX_VENUSIAN_CENSUS.md`: её эффект отвечает на шаг шкалы, действие — ни строки нового).
 
 Промпт: `docs/claude/prompts/project-tr15-martian-census.md`. Соседи: `docs/TURMOIL_REDUX_POLITICAL_DONATION.md` (TR03 —
 шаг `PlaceDelegatesOnResolution`, staged-дверь резолюции, закон 22), `docs/TILE_PLAY_STAGED_COMMIT.md` §9-septies
@@ -75,7 +76,9 @@ export function censusAction(player: IPlayer, card: ICard): PlayerInput | undefi
 export function censusActionPreview(player: IPlayer, card: ICard): ActionPreview;               // две ветки, B с delegateGrantStep
 ```
 
-Файл карты называет только своё (триггер, требование, метки) и зовёт эти функции с собой — TR24 повторит тот же вызов.
+Файл карты называет только своё (триггер, требование, метки) и зовёт эти функции с собой — TR24 делает тот же вызов.
+**Два печатных ряда действия тоже общие** — `censusActionRows(b)` (TR24): каждая перепись рисует свой эффект и зовёт её;
+`VenusianCensus.spec` пересобирает билдер TR15 до выноса и сравнивает `renderData` побайтно (лицо TR15 не изменилось).
 **`PlaceDelegatesOnResolution` получил опцию `price?: {card, count}`**: `offer()` отказывает, если цены нет; в ответе —
 перечитать резерв → проверить цену → `payPrice()` (снятие с журналом) → `placeVote`; ветка бота платит так же. В файле
 карты нет ни `SelectParty`, ни `placeVote`.
