@@ -162,6 +162,9 @@ import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony'
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
+import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
+import {Game} from '../../../src/server/Game';
+import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
 import {cityMoveOffer} from '../../../src/server/boards/cityMove';
 import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
 import {SpaceId} from '../../../src/common/Types';
@@ -1348,6 +1351,86 @@ parliamentFixture('re-settlement', {
         facts.disabled !== `${RE_SETTLEMENT_SITE.y}:no-space-to-move` || b.bonus.length !== 1 || b.bonus[0] !== SpaceBonus.PLANT || !facts.ocean ||
         facts.grovesAtX !== 1 || facts.grovesAtB !== 2 || facts.money < 7) {
       throw new Error(`the re-settlement fixture expected a playable card, ONE movable city (${RE_SETTLEMENT_SITE.x}) reaching ${RE_SETTLEMENT_SITE.b} and at least one more cell, the city on ${RE_SETTLEMENT_SITE.y} disabled «no-space-to-move», a plant on ${RE_SETTLEMENT_SITE.b} beside an ocean, 1 → 2 greeneries — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR21 · ARBORETUM — a card reward THE CELL DECIDES (docs/TURMOIL_REDUX_ARBORETUM.md): blue's action phase with
+//    «Дендрарий» in hand, 30 M€ and Mars First's access BY DELEGATES (two of blue's on its resolution — the Greens rule
+//    by the starting rule). Blue's tableau: Vector Computations (2 data) and Martian Fiber (0 data, +1 M€ per data) —
+//    TWO data holders, so the composer's target step is a real choice. The board is ARRANGED on Tharsis, never dealt:
+//      · the RICH cell G (17, no printed bonus) beside THREE city cells: blue's own (16), red's (11) and red's STACK
+//        of two (24) — 1 + 1 + 2 = 4 data, Martian Fiber +4 M€;
+//      · the QUIET cell Z (48), legal through blue's greenery on 54 and beside no city at all — «no adjacent cities».
+//    The ids are the e2e spec's own constants (`tests/e2e/console-arboretum.spec.ts`); the engine's reading is
+//    asserted below — and a DRY RUN on a deserialized copy plays the card into G, so a rule change fails HERE. ──
+const ARBORETUM_SITE = {g: '17', own: '16', foreign: '11', stack: '24', z: '48', grove: '54'} as const;
+parliamentFixture('arboretum', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    cell(ARBORETUM_SITE.own).tile = {tileType: TileType.CITY};
+    cell(ARBORETUM_SITE.own).player = p1;
+    for (const id of [ARBORETUM_SITE.foreign, ARBORETUM_SITE.stack]) {
+      cell(id).tile = {tileType: TileType.CITY};
+      cell(id).player = p2;
+    }
+    cell(ARBORETUM_SITE.stack).stackHeight = 2;
+    cell(ARBORETUM_SITE.grove).tile = {tileType: TileType.GREENERY};
+    cell(ARBORETUM_SITE.grove).player = p1;
+    moveToDeckTop(game, CardName.VECTOR_COMPUTATIONS);
+    const vector = game.projectDeck.drawPile.pop() as IProjectCard;
+    vector.resourceCount = 2;
+    moveToDeckTop(game, CardName.MARTIAN_FIBER);
+    const fiber = game.projectDeck.drawPile.pop() as IProjectCard;
+    p1.playedCards.push(vector, fiber);
+    moveToDeckTop(game, CardName.ARBORETUM);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as Arboretum);
+  },
+  expect: ({game, parliament, p1}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.ARBORETUM);
+    const legal = game.board.getAvailableSpacesForGreenery(p1).map((s) => s.id);
+    const tiers = (id: string) => adjacentCityTiers(game.board, game.board.getSpaceOrThrow(id as SpaceId));
+    // THE DRY RUN — the real play on a copy: the target, then the rich cell.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const before = {mc: blue.megaCredits, oxygen: copy.getOxygenLevel()};
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.ARBORETUM)!);
+    runAllActions(copy);
+    const pick = blue.getWaitingFor();
+    const holders = pick instanceof SelectCard ? pick.cards.map((c) => c.name).join(',') : `no pick (${pick?.type})`;
+    if (pick instanceof SelectCard) {
+      blue.process({type: 'card', cards: [CardName.VECTOR_COMPUTATIONS]});
+      runAllActions(copy);
+    }
+    const ask = blue.getWaitingFor();
+    if (ask instanceof SelectSpace) {
+      blue.process({type: 'space', spaceId: ARBORETUM_SITE.g as SpaceId});
+      runAllActions(copy);
+    }
+    const facts = {
+      playable: card !== undefined && p1.canPlay(card) !== false,
+      legalG: legal.includes(ARBORETUM_SITE.g as SpaceId),
+      legalZ: legal.includes(ARBORETUM_SITE.z as SpaceId),
+      tiersG: tiers(ARBORETUM_SITE.g),
+      tiersZ: tiers(ARBORETUM_SITE.z),
+      holders,
+      data: blue.tableau.get(CardName.VECTOR_COMPUTATIONS)?.resourceCount,
+      mc: blue.megaCredits - before.mc,
+      oxygen: copy.getOxygenLevel() - before.oxygen,
+      reactions: copy.cardAdjacencyPayouts.at(-1)?.reactions,
+    };
+    if (!facts.playable || !facts.legalG || !facts.legalZ || facts.tiersG !== 4 || facts.tiersZ !== 0 ||
+        facts.holders !== `${CardName.VECTOR_COMPUTATIONS},${CardName.MARTIAN_FIBER}` || facts.data !== 6 || facts.oxygen !== 1 ||
+        facts.reactions?.megacredits !== 4) {
+      throw new Error(`the arboretum fixture expected a playable card, G (${ARBORETUM_SITE.g}) legal beside 4 city tiers, Z (${ARBORETUM_SITE.z}) legal beside none, two holders, and a dry run landing 2 → 6 data with +4 M€ — got ${JSON.stringify(facts)}`);
     }
     parliament.assertLedger(game);
   },

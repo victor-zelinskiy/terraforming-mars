@@ -2360,6 +2360,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // 16 (one greenery) may move — to 24 (a plant, an ocean, two greeneries) among others — its city on 62 is walled in
   // (docs/TURMOIL_REDUX_RE_SETTLEMENT.md).
   're-settlement' |
+  // TR21 Arboretum: blue's action phase with the card in hand, 30 M€, Mars First's access by delegates; Vector Computations
+  // (2 data) and Martian Fiber in the tableau; the cell 17 beside blue's city 16, red's 11 and red's stack of two on 24
+  // (4 data), the cell 48 beside no city (docs/TURMOIL_REDUX_ARBORETUM.md).
+  'arboretum' |
   // TR12 Party Sanctions: blue in the chair with the card in hand, the Agenda marker on step 3, support Mars First 3 ·
   // Scientists 1 (synthetic), a quiet government (docs/TURMOIL_REDUX_PARTY_SANCTIONS.md).
   'party-sanctions' |

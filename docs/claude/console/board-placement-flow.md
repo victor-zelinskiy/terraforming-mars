@@ -129,7 +129,13 @@ both loops are 0%/100%-symmetric).
   client-side re-derivation. Five tones, form + colour (never colour alone):
   `ocean` (cool contour+wash) · `score` (green) · `reward` (soft gold) ·
   `penalty` (dashed warm-red contour — wins every conflict; a cost may never
-  be masked) · `event` (faint pale rim, the quietest voice). Each wash is
+  be masked) · `event` (faint pale rim, the quietest voice). **One cell, one
+  tone — precedence `penalty > ocean > reward > score > event`** (`TONE_RANK`):
+  a cell that PAYS NOW outranks one that SCORES AT THE END. TR21 Arboretum is
+  the case that fixed the order — one's own city beside the greenery both pays
+  its data this turn (the card's cell-decided reward, `reward`) and scores the
+  greenery at the game's end (`score`); the payment is the decision, the VP the
+  footnote, so the city lights gold (2026-10-04; before it, `score` won). Each wash is
   BIASED toward the shared edge with the focused cell (`--rel-x/--rel-y` from
   the intrinsic position cache — no per-step layout reads); a far participant
   gets `con-rel--far` and stays quieter than any true neighbour. A d-pad step
