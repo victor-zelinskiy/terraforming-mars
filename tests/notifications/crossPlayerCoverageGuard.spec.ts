@@ -114,6 +114,7 @@ const REACTIVE_HOOKS = [
   'onNonCardTagAddedByAnyPlayer',
   'deltaMovementBonus',
   'onMarsBotMicrobeAdvancement',
+  'onGlobalParameterRaised',
 ] as const;
 
 /** Source tokens that PROVE a cross-player mutation and name its family.

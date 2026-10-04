@@ -28,6 +28,7 @@ import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
+import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
 import {MoonData} from './moon/MoonData';
 import {SeededRandom} from '../common/utils/Random';
 import {PathfindersData} from './pathfinders/PathfindersData';
@@ -164,6 +165,22 @@ export interface IGame extends Logger {
   cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel>;
   /** Publish one payout into `cardAdjacencyPayouts` (the ring's `seq` law). */
   recordCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void;
+  /**
+   * Bounded ring of the latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian
+   * Census, Aphrodite): what a card answering «each time the scale is
+   * terraformed» paid its owner — see `ScaleStepRewardModel`. Not serialized:
+   * a restart loses only the animation, never the rule.
+   */
+  scaleStepRewards: Array<ScaleStepRewardModel>;
+  /** Publish one payout into `scaleStepRewards` (the ring's `seq` law) — called only by `cards/scaleStepReward.recordScaleStepReward`. */
+  publishScaleStepReward(reward: Omit<ScaleStepRewardModel, 'seq'>): void;
+  /**
+   * THE ONE DISPATCHER of «a global parameter scale went up»
+   * (`ICard.onGlobalParameterRaised`): every seat's tableau in generation
+   * order, each call inside `events.withEffect(owner, card, 'global-parameter')`.
+   * Called by the three scale functions only; nothing when `steps <= 0`.
+   */
+  globalParameterRaised(parameter: GlobalParameter, steps: number, by: IPlayer | undefined, level: {before: number, after: number}): void;
   moonData: MoonData | undefined;
   pathfindersData: PathfindersData | undefined;
   underworldData: UnderworldData;

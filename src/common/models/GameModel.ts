@@ -2,6 +2,7 @@ import {GameOptionsModel} from './GameOptionsModel';
 import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../boards/TileMove';
 import {CardAdjacencyPayoutModel} from './CardAdjacencyPayoutModel';
+import {ScaleStepRewardModel} from './ScaleStepRewardModel';
 import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
@@ -45,6 +46,12 @@ export type GameModel = {
    *  scene's script for the paid seat and every other viewer alike.
    *  Presentation only; consumed once by `seq`. See `CardAdjacencyPayoutModel`. */
   cardAdjacencyPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>;
+  /** Latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian Census, Aphrodite):
+   *  a card that answers «each time the scale is terraformed» paid its owner —
+   *  the board scene's script (tokens born at the scale's marker) for the paid
+   *  seat and every other viewer alike. Presentation only; consumed once by
+   *  `seq`. See `ScaleStepRewardModel`. */
+  scaleStepRewards?: ReadonlyArray<ScaleStepRewardModel>;
   awards: ReadonlyArray<FundedAwardModel>;
   colonies: ReadonlyArray<ColonyModel>;
   discardedColonies: ReadonlyArray<ColonyName>;

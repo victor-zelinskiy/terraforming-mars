@@ -7,6 +7,10 @@ import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {Tag} from '../../../common/cards/Tag';
 import {GlobalParameter} from '../../../common/GlobalParameter';
+import {EffectForecastGrant} from '../EffectForecastContext';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class HomeostasisBureau extends Card implements IProjectCard {
   constructor() {
@@ -36,5 +40,15 @@ export class HomeostasisBureau extends Card implements IProjectCard {
     if (parameter === GlobalParameter.TEMPERATURE) {
       player.stock.add(Resource.MEGACREDITS, 3 * steps, {log: true});
     }
+  }
+
+  /** The forecast twin of `onGlobalParameterIncrease`: YOUR temperature raise (its STEPS) pays 3 M€ per step. */
+  public grantForecast(cardOwner: IPlayer, _activePlayer: IPlayer, grant: EffectForecastGrant): ReadonlyArray<EffectForecastFact> {
+    if (grant.kind !== 'global' || grant.parameter !== GlobalParameter.TEMPERATURE || grant.steps <= 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'global-parameter'),
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, 3 * grant.steps)],
+      'You raise the temperature')];
   }
 }

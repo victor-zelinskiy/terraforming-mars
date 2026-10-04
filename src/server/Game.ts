@@ -69,6 +69,8 @@ import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
+import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
+import {GlobalParameterRaise} from './cards/GlobalParameterRaise';
 import {GameSetup, normalizeBoardName} from './GameSetup';
 import {GameCards} from './GameCards';
 import {GlobalParameter} from '../common/GlobalParameter';
@@ -196,6 +198,7 @@ export class Game implements IGame, Logger {
   public aresAdjacencyGrants: Array<AresAdjacencyGrantModel> = []; // Not serialized (presentation manifest ring)
   public tileMoves: Array<TileMoveRecordModel> = []; // Not serialized (presentation ring — see IGame.tileMoves)
   public cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel> = []; // Not serialized (presentation ring — see IGame.cardAdjacencyPayouts)
+  public scaleStepRewards: Array<ScaleStepRewardModel> = []; // Not serialized (presentation ring — see IGame.scaleStepRewards)
   public moonData: MoonData | undefined;
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
@@ -1777,6 +1780,9 @@ export class Game implements IGame, Logger {
     if (!government) {
       this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.OXYGEN, steps);
     }
+    // «Each time the scale is terraformed» — outside the reward gate (see the Venus scale).
+    this.globalParameterRaised(GlobalParameter.OXYGEN, steps, rewarded ? player : undefined,
+      {before: this.oxygenLevel, after: this.oxygenLevel + steps});
     if (this.oxygenLevel < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
       this.oxygenLevel + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
       if (player.isMarsBot && this.temperature >= constants.MAX_TEMPERATURE) {
@@ -1893,14 +1899,14 @@ export class Game implements IGame, Logger {
       this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.VENUS, steps);
     }
 
-    // Check for Aphrodite corporation
-    const aphrodite = this.players.find((player) => player.tableau.has(CardName.APHRODITE));
-    if (aphrodite !== undefined) {
-      aphrodite.stock.add(Resource.MEGACREDITS, 2 * steps, {log: true, from: {card: CardName.APHRODITE}});
-    }
+    // «Whenever Venus is terraformed 1 step» — Aphrodite, Venusian Census and
+    // their kin answer HERE, OUTSIDE the reward gate: the World Government
+    // and a resolution's world move terraform too (`globalParameterRaised`).
+    this.globalParameterRaised(GlobalParameter.VENUS, steps, rewarded ? player : undefined,
+      {before: this.venusScaleLevel, after: this.venusScaleLevel + steps * 2});
     // … and the BOT's own Aphrodite (C28), which is not a card in a tableau.
-    // Deliberately HERE, beside its human twin and OUTSIDE the SOLAR guard
-    // above: both entities print one rule, and the printed «or the card
+    // Deliberately HERE, beside its human twin's dispatch and OUTSIDE the SOLAR
+    // guard above: both entities print one rule, and the printed «or the card
     // Government Intervention» is exactly what this position buys.
     if (this.automa !== undefined) {
       AutomaCorporations.onVenusIncreased(this, steps);
@@ -1977,6 +1983,9 @@ export class Game implements IGame, Logger {
     if (!government) {
       this.events.recordGlobalParameterChange(rewarded ? player : undefined, GlobalParameter.TEMPERATURE, steps);
     }
+    // «Each time the scale is terraformed» — outside the reward gate (see the Venus scale).
+    this.globalParameterRaised(GlobalParameter.TEMPERATURE, steps, rewarded ? player : undefined,
+      {before: this.temperature, after: this.temperature + steps * 2});
 
     // BONUS FOR OCEAN TILE AT 0 — deliberately OUTSIDE the reward gate, exactly
     // where the World Government's phase leaves it: the ocean of 0 °C is placed
@@ -2390,6 +2399,48 @@ export class Game implements IGame, Logger {
     this.cardAdjacencyPayouts.push({...payout, seq: base + Math.min(n, 99)});
     while (this.cardAdjacencyPayouts.length > 8) {
       this.cardAdjacencyPayouts.shift();
+    }
+  }
+
+  /**
+   * PUBLISH what one scale step paid a card's owner (Turmoil Redux TR24
+   * Venusian Census, Aphrodite) for the board's scene: the same bounded ring
+   * and `seq` law as `recordCardAdjacencyPayout`. Written by ONE function,
+   * `cards/scaleStepReward.recordScaleStepReward`, on the card's payout.
+   */
+  public publishScaleStepReward(reward: Omit<ScaleStepRewardModel, 'seq'>): void {
+    const base = this.gameAge * 100;
+    const n = this.scaleStepRewards.filter((r) => r.seq >= base).length;
+    this.scaleStepRewards.push({...reward, seq: base + Math.min(n, 99)});
+    while (this.scaleStepRewards.length > 8) {
+      this.scaleStepRewards.shift();
+    }
+  }
+
+  /**
+   * THE ONE DISPATCHER of «a global parameter scale went up» — Aphrodite's
+   * «whenever Venus is terraformed 1 step» and every card of its kind
+   * (Turmoil Redux TR24 Venusian Census). Called by the three scale functions
+   * at Aphrodite's historical position: after the rewarded branch, OUTSIDE its
+   * guard — so the World Government's phase and a resolution's unrewarded
+   * world move (RX12 Gas Export) reach every reactor too. Every seat in
+   * generation order, every card of its tableau (corporations included), each
+   * call wrapped like the sibling any-player fan-outs (`Player.ts`
+   * `onIncreaseTerraformRatingByAnyPlayer`): a foreign owner's payout records
+   * as THEIR effect inside this action's chain.
+   */
+  public globalParameterRaised(parameter: GlobalParameter, steps: number, by: IPlayer | undefined, level: {before: number, after: number}): void {
+    if (steps <= 0) {
+      return;
+    }
+    const raise: GlobalParameterRaise = {parameter, steps, by, before: level.before, after: level.after};
+    for (const cardOwner of this.playersInGenerationOrder) {
+      for (const card of cardOwner.tableau) {
+        if (card.onGlobalParameterRaised === undefined) {
+          continue;
+        }
+        this.events.withEffect(cardOwner, card, 'global-parameter', () => card.onGlobalParameterRaised?.(cardOwner, raise));
+      }
     }
   }
 

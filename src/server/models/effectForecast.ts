@@ -29,7 +29,7 @@ import {
   EffectForecastSource,
 } from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
-import {cardResourceIcon, drawGain, productionChange, stockGain} from '../cards/actionPreviews';
+import {cardResourceIcon, drawGain, globalParameterStepSize, productionChange, stockGain} from '../cards/actionPreviews';
 import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '../../common/inputs/Spendable';
@@ -207,6 +207,24 @@ function cardResourceForIcon(icon: string): CardResource | undefined {
   return cardResourceByIcon.get(icon);
 }
 
+/**
+ * The STEPS a global chip makes — never its percent / degree amount: a Venus
+ * chip «+4 %» is two steps, a temperature «+2 °C» one, and a raise the ceiling
+ * cuts (`globalGain` clamps `resulting`) makes only the steps up to it — Venus
+ * at 28 % «raised by 2» is ONE step, the very number the engine pays its
+ * reactors with (`Game.increaseVenusScaleLevel`). The oceans count tiles.
+ */
+function scaleStepsOf(effect: ActionEffect, parameter: GlobalParameter): number {
+  const scale = parameter === GlobalParameter.OXYGEN ? 'oxygen' :
+    parameter === GlobalParameter.TEMPERATURE ? 'temperature' :
+      parameter === GlobalParameter.VENUS ? 'venus' : undefined;
+  if (scale === undefined) {
+    return effect.amount;
+  }
+  const delta = effect.current !== undefined && effect.resulting !== undefined ? effect.resulting - effect.current : effect.amount;
+  return Math.floor(delta / globalParameterStepSize(scale));
+}
+
 /** ONE chip → the grant the second-order hooks see (undefined = a cost, a gain
  *  that changes NOTHING — a parameter already at its cap reads `current ===
  *  resulting` — or nothing a hook reacts to). */
@@ -225,7 +243,8 @@ export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undef
   }
   const parameter = GLOBAL_ICONS[effect.icon];
   if (parameter !== undefined) {
-    return {kind: 'global', parameter, steps: effect.amount};
+    const steps = scaleStepsOf(effect, parameter);
+    return steps > 0 ? {kind: 'global', parameter, steps} : undefined;
   }
   if (STANDARD_ICONS.has(effect.icon)) {
     const resource = effect.icon as Resource;
@@ -364,10 +383,75 @@ function grantFacts(
         continue;
       }
       for (const fact of reactor.grantForecast(recipient, active, grant, ctx)) {
-        const recipientOf = forecast.recipientOf(active, recipient);
-        facts.push(inherit === undefined ?
-          {...fact, recipient: recipientOf} :
-          {...fact, recipient: recipientOf, certainty: fact.certainty === 'exact' ? inherit.certainty : fact.certainty, timing: inherit.timing, sequence: inherit.sequence ?? fact.sequence});
+        facts.push(addressed(fact, active, recipient, inherit));
+      }
+    }
+  }
+  facts.push(...scaleRaiseFacts(recipient, active, card, grants, ctx, inherit));
+  return facts;
+}
+
+type GrantInheritance = {certainty: EffectForecastCertainty, timing: EffectForecastFact['timing'], sequence?: number};
+
+/** A second-order fact addressed to its reactor's OWNER, inheriting a cascade's certainty / timing / sequence. */
+function addressed(fact: EffectForecastFact, active: IPlayer, owner: IPlayer, inherit: GrantInheritance | undefined): EffectForecastFact {
+  const recipient = forecast.recipientOf(active, owner);
+  return inherit === undefined ?
+    {...fact, recipient} :
+    {...fact, recipient, certainty: fact.certainty === 'exact' ? inherit.certainty : fact.certainty, timing: inherit.timing, sequence: inherit.sequence ?? fact.sequence};
+}
+
+/**
+ * THE SCALE PASS — a `global` grant (the operation raises a scale by N STEPS)
+ * offered to the reactors the live engine calls for it, in the engine's order
+ * (`Game.increaseVenusScaleLevel` / `increaseTemperature` /
+ * `increaseOxygenLevel`): the RAISER's own played cards first
+ * (`onGlobalParameterIncrease` — inside the reward gate, an own raise only:
+ * Homeostasis Bureau), then EVERY seat's tableau in generation order
+ * (`onGlobalParameterRaised` — `Game.globalParameterRaised`, whoever raised:
+ * Aphrodite, Venusian Census), each fact addressed to its reactor's owner.
+ * Through the same `grantForecast` twins as the other grants — never a table of
+ * «who reacts to Venus». A reactor with the live hook and no twin is an honest
+ * `unknown`, once per card. The oceans are no scale step (no dispatch).
+ */
+function scaleRaiseFacts(
+  raiser: IPlayer,
+  active: IPlayer,
+  card: ICard,
+  grants: ReadonlyArray<EffectForecastGrant>,
+  ctx: EffectForecastContext,
+  inherit: GrantInheritance | undefined,
+): Array<EffectForecastFact> {
+  const raises = grants.filter((g) => g.kind === 'global' && g.parameter !== GlobalParameter.OCEANS);
+  if (raises.length === 0) {
+    return [];
+  }
+  const facts: Array<EffectForecastFact> = [];
+  const unknownNamed = new Set<string>();
+  const ask = (reactor: ICard, owner: IPlayer): void => {
+    if (reactor.grantForecast === undefined) {
+      const key = `${owner.color}|${reactor.name}`;
+      if (!unknownNamed.has(key)) {
+        unknownNamed.add(key);
+        facts.push(unknownFor(reactor, owner, active, 'global-parameter', 'This card reacts to the gain, but its result is not described'));
+      }
+      return;
+    }
+    for (const grant of raises) {
+      for (const fact of reactor.grantForecast(owner, active, grant, ctx)) {
+        facts.push(addressed(fact, active, owner, inherit));
+      }
+    }
+  };
+  for (const reactor of reactorsOf(raiser, active, card)) {
+    if (reactor.onGlobalParameterIncrease !== undefined) {
+      ask(reactor, raiser);
+    }
+  }
+  for (const owner of raiser.game.playersInGenerationOrder) {
+    for (const reactor of reactorsOf(owner, active, card)) {
+      if (reactor.onGlobalParameterRaised !== undefined) {
+        ask(reactor, owner);
       }
     }
   }
@@ -919,4 +1003,7 @@ export const FORECAST_HOOK_PAIRS: ReadonlyArray<{live: keyof ICard, forecast: ke
   {live: 'onProductionGain', forecast: 'grantForecast'},
   {live: 'onResourceAdded', forecast: 'grantForecast'},
   {live: 'onTilePlaced', forecast: 'tilePlacedForecast'},
+  // A scale raise is a `global` grant: the raiser's own rewarded reactors and every seat's «whoever raised».
+  {live: 'onGlobalParameterIncrease', forecast: 'grantForecast'},
+  {live: 'onGlobalParameterRaised', forecast: 'grantForecast'},
 ];

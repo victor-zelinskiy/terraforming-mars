@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
+import {TestPlayer} from '../TestPlayer';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {Resource} from '../../src/common/Resource';
 import {CardName} from '../../src/common/cards/CardName';
@@ -30,6 +31,10 @@ import {MediaGroup} from '../../src/server/cards/base/MediaGroup';
 import {MeatIndustry} from '../../src/server/cards/promo/MeatIndustry';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {MartianFiber} from '../../src/server/cards/turmoilRedux/MartianFiber';
+import {Aphrodite} from '../../src/server/cards/venusNext/Aphrodite';
+import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
+import {HomeostasisBureau} from '../../src/server/cards/promo/HomeostasisBureau';
+import {SpinInducingAsteroid} from '../../src/server/cards/venusNext/SpinInducingAsteroid';
 import {Livestock} from '../../src/server/cards/base/Livestock';
 import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
 import {ArcticAlgae} from '../../src/server/cards/base/ArcticAlgae';
@@ -571,6 +576,41 @@ describe('effectForecast (engine)', () => {
     expect(grantOfEffect({direction: 'gain', icon: 'microbe', amount: 3, note: 'to a card'})).to.deep.eq({kind: 'cardResource', resource: 'Microbe', amount: 3, target: 'any'});
     expect(grantOfEffect({direction: 'cost', icon: 'steel', amount: 2, note: 'production'})).to.be.undefined;
     expect(grantOfEffect({direction: 'gain', icon: 'tr', amount: 1})).to.deep.eq({kind: 'tr', amount: 1});
+  });
+
+  it('a SCALE chip grants its STEPS, never its percent / degrees — and only the steps the ceiling leaves (TR24)', () => {
+    // Venus «+4 %» from 10 % is two steps; temperature «+2 °C» one; oxygen «+1 %» one.
+    expect(grantOfEffect({direction: 'gain', icon: 'venus', amount: 4, current: 10, resulting: 14, unit: '%'})).deep.eq({kind: 'global', parameter: 'venus', steps: 2});
+    expect(grantOfEffect({direction: 'gain', icon: 'temperature', amount: 2, current: -20, resulting: -18, unit: '°C'})).deep.eq({kind: 'global', parameter: 'temperature', steps: 1});
+    expect(grantOfEffect({direction: 'gain', icon: 'oxygen', amount: 1, current: 3, resulting: 4, unit: '%'})).deep.eq({kind: 'global', parameter: 'oxygen', steps: 1});
+    // «+4 %» asked at 28 %: the chip is clamped to 30 — ONE step, the number the engine pays its reactors.
+    expect(grantOfEffect({direction: 'gain', icon: 'venus', amount: 4, current: 28, resulting: 30, unit: '%'})).deep.eq({kind: 'global', parameter: 'venus', steps: 1});
+    // At the maximum: no grant at all.
+    expect(grantOfEffect({direction: 'gain', icon: 'venus', amount: 2, current: 30, resulting: 30, unit: '%'})).to.be.undefined;
+    // The oceans count tiles (no scale step).
+    expect(grantOfEffect({direction: 'gain', icon: 'oceans', amount: 2, current: 3, resulting: 5})).deep.eq({kind: 'global', parameter: 'oceans', steps: 2});
+  });
+
+  it('the SCALE PASS asks EVERY seat\'s «whoever raised» reactors, and only the raiser\'s own rewarded ones (TR24)', () => {
+    const scaleFacts = (player: TestPlayer, card: SpinInducingAsteroid | NitrogenRichAsteroid) => {
+      player.megaCredits = 40;
+      player.cardsInHand.push(card);
+      return playForecast(player, card).facts.filter((f) => f.source.channel === 'global-parameter');
+    };
+    // A Venus raise (2 steps): Aphrodite answers wherever she sits — the raiser's own seat AND a foreign one.
+    const [/* game */, player, opponent] = testGame(2, {venusNextExtension: true});
+    player.playedCards.push(new Aphrodite());
+    opponent.playedCards.push(new Aphrodite(), new HomeostasisBureau());
+    const venus = scaleFacts(player, new SpinInducingAsteroid());
+    expect(venus.map((f) => [f.source.name, f.recipient.kind, f.certainty])).deep.eq([
+      [CardName.APHRODITE, 'you', 'exact'],
+      [CardName.APHRODITE, 'player', 'exact'],
+    ]);
+    expect(venus.map((f) => f.effects[0].amount), 'two steps × 2 M€, per owner').deep.eq([4, 4]);
+    // A temperature raise: Homeostasis Bureau answers only its OWNER's raise (inside the reward gate).
+    expect(scaleFacts(player, new NitrogenRichAsteroid())).deep.eq([]);
+    const own = scaleFacts(opponent, new NitrogenRichAsteroid());
+    expect(own.map((f) => [f.source.name, f.recipient.kind])).deep.eq([[CardName.HOMEOSTASIS_BUREAU, 'you']]);
   });
 
   it('reads the tiles a branch will place off its board placement steps (markers place nothing)', () => {

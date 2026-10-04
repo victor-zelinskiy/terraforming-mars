@@ -76,5 +76,12 @@ export type EffectForecastGrant =
   | {kind: 'stock', resource: Resource, amount: number}
   | {kind: 'cardResource', resource: CardResource, amount: number, target: 'self' | 'any'}
   | {kind: 'tr', amount: number}
+  /**
+   * The operation RAISES a scale: `steps` are SCALE STEPS actually made (a
+   * Venus chip «+4 %» is 2, a raise the ceiling cuts counts only the steps up to
+   * it — `effectForecast.scaleStepsOf`); the oceans count tiles. Offered to the
+   * raiser's `onGlobalParameterIncrease` reactors and to EVERY seat's
+   * `onGlobalParameterRaised` reactors (`effectForecast.scaleRaiseFacts`).
+   */
   | {kind: 'global', parameter: GlobalParameter, steps: number}
   | {kind: 'cards', amount: number};

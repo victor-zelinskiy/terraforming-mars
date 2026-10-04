@@ -35,6 +35,7 @@ import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
 import type {FleetDock} from '../colonies/FleetDock';
+import type {GlobalParameterRaise} from './GlobalParameterRaise';
 
 /*
  * Represents a card which has an action that itself allows a player
@@ -268,7 +269,26 @@ export interface ICard {
    */
   onIncreaseTerraformRatingByAnyPlayer?(cardOwner: IPlayer, player: IPlayer, steps: number): void;
   onIncreaseTerraformRating?: never;
+  /**
+   * The PLAYER'S OWN rewarded raise (Venus Contract, Homeostasis Bureau): called
+   * for the raising player's played cards only, inside the engine's reward
+   * gate — never for the World Government's phase or an unrewarded world move.
+   * A card that answers «each time the scale is terraformed», whoever raised
+   * it, uses {@link onGlobalParameterRaised} instead.
+   */
   onGlobalParameterIncrease?(player: IPlayer, parameter: GlobalParameter, steps: number): void;
+  /**
+   * A GLOBAL PARAMETER SCALE WAS RAISED — by ANY player, MarsBot, the World
+   * Government or a resolution's world move (Aphrodite: «whenever Venus is
+   * terraformed 1 step»; Turmoil Redux TR24 Venusian Census). ONE dispatcher,
+   * `Game.globalParameterRaised`, walks every seat's tableau in generation
+   * order (corporations included) and wraps each call in
+   * `events.withEffect(cardOwner, card, 'global-parameter')`, so a payout to a
+   * foreign owner records as THEIR effect. Called only for steps actually made
+   * (`raise.steps > 0`); never for a lowering, never for an ocean. Its forecast
+   * twin is `grantForecast` on a `{kind: 'global'}` grant, asked at every seat.
+   */
+  onGlobalParameterRaised?(cardOwner: IPlayer, raise: GlobalParameterRaise): void;
 
   /**
    * Optional callback when a resource is added to this card.

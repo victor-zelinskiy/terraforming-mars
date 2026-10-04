@@ -103,6 +103,16 @@ const GLOBAL_META = {
   venus: {step: 2, min: 0, max: MAX_VENUS_SCALE, unit: '%', get: (p: IPlayer) => p.game.getVenusScaleLevel()},
 } as const;
 
+/**
+ * The size of ONE STEP of a global parameter scale in its own units (oxygen
+ * 1 %, temperature 2 °C, Venus 2 %) — the arithmetic `globalGain` writes its
+ * chips with, read back by whoever must count STEPS from a chip's percent /
+ * degree delta (the effect forecast's `global` grant).
+ */
+export function globalParameterStepSize(parameter: 'oxygen' | 'temperature' | 'venus'): number {
+  return GLOBAL_META[parameter].step;
+}
+
 /** Raise a global parameter by `steps` increments (current → resulting, clamped). */
 export function globalGain(player: IPlayer, parameter: 'oxygen' | 'temperature' | 'venus', steps: number): ActionEffect {
   const m = GLOBAL_META[parameter];

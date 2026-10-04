@@ -39,6 +39,8 @@ import {NeptunianPowerConsultants} from '../../src/server/cards/promo/NeptunianP
 import {PolderTechDutch} from '../../src/server/cards/promo/PolderTechDutch';
 import {Herbivores} from '../../src/server/cards/base/Herbivores';
 import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
+import {SpinInducingAsteroid} from '../../src/server/cards/venusNext/SpinInducingAsteroid';
+import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
 
 /**
  * THE EFFECT FORECAST ↔ EXECUTION PARITY GUARD.
@@ -90,10 +92,12 @@ function inScopeReactors(): Array<Factory> {
 /**
  * Trigger plays with NO prompt of their own — so the only prompt on the table is the reactor's.
  * Vector Computations is the pool's DATA grant: its own play puts 2 data on itself (TR18 Martian Fiber).
+ * Spin-Inducing Asteroid is the pool's VENUS raise (2 steps — Aphrodite, TR24 Venusian Census) and
+ * Nitrogen-Rich Asteroid its TEMPERATURE raise (Homeostasis Bureau): a scale step is a `global` grant.
  */
 const TRIGGERS: ReadonlyArray<new () => IProjectCard> = [
   Research, NitriteReducingBacteria, Bushes, Pets, ImportedNitrogen, IoMiningIndustries, NoctisFarming, Livestock,
-  VectorComputations,
+  VectorComputations, SpinInducingAsteroid, NitrogenRichAsteroid,
 ];
 
 /** Extra STATES of a reactor that flip its answer (the same predicates the live hook reads). */
@@ -213,7 +217,8 @@ describe('effect-forecast ↔ execution parity', function() {
     let cases = 0;
     for (const F of reactors) {
       const probe = new F();
-      const foreignToo = probe.onCardPlayedByAnyPlayer !== undefined;
+      // «Any player plays» and «the scale is raised, whoever raised it» both pay a FOREIGN owner.
+      const foreignToo = probe.onCardPlayedByAnyPlayer !== undefined || probe.onGlobalParameterRaised !== undefined;
       const variants = [{label: 'default', arrange: undefined as ((r: ICard) => void) | undefined}, ...(VARIANTS[probe.name] ?? [])];
       for (const variant of variants) {
         for (const foreign of foreignToo ? [false, true] : [false]) {
