@@ -552,6 +552,9 @@ describe('premium face coverage guard', () => {
     CardName.TRANS_NEPTUNE_PROBE,
     CardName.LUXURY_FOODS,
     CardName.RESEARCH_COORDINATION,
+    // TR20: the card's whole text is the Mars First requirement + «1 VP for every 3 Building tags» — the plate
+    // and the VP badge say both; there is no effect row on the scan to iconify.
+    CardName.MARTIAN_ROADS,
   ]);
 
   it('builds every in-scope premium card', () => {
@@ -725,8 +728,11 @@ describe('card lore coverage — project + prelude + corporation', () => {
   }
 
   it('every lore text ends with terminal punctuation', () => {
+    // ONE narrow form beyond plain punctuation: a sung line closes with its
+    // music note (TR20 «♪ … home... ♪») — the note is taken off exactly ONCE
+    // and what it closes must still end in terminal punctuation.
     const missingPunctuation = Object.entries(LORE_BY_CARD_NUMBER)
-      .filter(([, text]) => !/[.!?…]$/.test(text.trim()))
+      .filter(([, text]) => !/[.!?…]$/.test(text.trim().replace(/\s*♪$/, '')))
       .map(([cardNumber]) => cardNumber);
     expect(missingPunctuation, `lore texts without terminal punctuation:\n${missingPunctuation.join('\n')}`).to.deep.eq([]);
   });

@@ -19,6 +19,7 @@ import {AdministrationDistrict} from './AdministrationDistrict';
 import {MartianFiber} from './MartianFiber';
 import {SponsoredSettlement} from './SponsoredSettlement';
 import {FringeColony} from './FringeColony';
+import {MartianRoads} from './MartianRoads';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -100,5 +101,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // one — the colony roster's first card, `docs/COLONY_ROSTER_CEREMONY.md`). The purple Turmoil symbol below
     // it is the module itself. The set's first GENERATION requirement («GEN 4+»).
     [CardName.FRINGE_COLONY]: {Factory: FringeColony, compatibility: 'colonies'},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
+    // first card with NO effect graphic: Mars First's plate, two tags and «1 VP for every 3 Building tags».
+    [CardName.MARTIAN_ROADS]: {Factory: MartianRoads},
   },
 });

@@ -1089,6 +1089,7 @@ export enum CardName {
   MARTIAN_FIBER = 'Martian Fiber',
   SPONSORED_SETTLEMENT = 'Sponsored Settlement',
   FRINGE_COLONY = 'Fringe Colony',
+  MARTIAN_ROADS = 'Martian Roads',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
