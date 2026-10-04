@@ -69,6 +69,7 @@ const SINGULAR: Readonly<Record<PlacementShape, string>> = {
   greenery: 'Place the greenery tile',
   special: 'Place the special tile',
   colony: 'Choose where to build a colony',
+  move: 'Move your city',
 };
 const PLURAL: Readonly<Record<PlacementShape, string>> = {
   generic: 'Place ${0} tiles',
@@ -77,6 +78,8 @@ const PLURAL: Readonly<Record<PlacementShape, string>> = {
   greenery: 'Place ${0} greenery tiles',
   special: 'Place ${0} special tiles',
   colony: 'Choose where to build ${0} colonies',
+  // Defensive only: no card moves several cities in one step today.
+  move: 'Move ${0} of your cities',
 };
 /** A special tile that HAS a name. Each language picks its own word order — EN
  *  reads «Place the Solar Farm special tile», RU «разместите особый тайл «…»» —
@@ -86,7 +89,7 @@ const SPECIAL_NAMED = 'Place the ${0} special tile';
  *  (`behavior.tile` carries no count), but the name must survive if one ever does. */
 const SPECIAL_NAMED_PLURAL = 'Place the ${0} special tile (×${1})';
 
-type PlacementShape = 'generic' | 'city' | 'ocean' | 'greenery' | 'special' | 'colony';
+type PlacementShape = 'generic' | 'city' | 'ocean' | 'greenery' | 'special' | 'colony' | 'move';
 
 /** The ordinary tiles that have their own localized noun («тайл океана»). */
 const ORDINARY_SHAPE: Partial<Record<TileType, PlacementShape>> = {
@@ -188,6 +191,13 @@ export function placementRow(
 }
 
 function shapeOf(step: BoardPlacementStep, special: boolean): PlacementShape {
+  // A MOVE (Turmoil Redux TR14 Re-settlement) — the step names itself
+  // (`placementType: 'city-move'`): a tile the player already owns travels, so
+  // «place the city tile» would promise a second city. The tile's icon stays
+  // the city's (the step still carries `tileType`).
+  if (step.placementType === 'city-move') {
+    return 'move';
+  }
   // A colony is built off-Mars: no tile, so neither a name nor "special".
   if (step.tileType === undefined) {
     return step.placementType === 'colony' ? 'colony' : 'generic';

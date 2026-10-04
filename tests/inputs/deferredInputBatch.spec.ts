@@ -52,6 +52,9 @@ import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {DiscardPopularSupport} from '../../src/server/parliament/DiscardPopularSupport';
 import {REDUX_PARTIES} from '../../src/common/parliament/ParliamentTypes';
+import {MoveCityTile} from '../../src/server/deferredActions/MoveCityTile';
+import {Space} from '../../src/server/boards/Space';
+import {SpaceType} from '../../src/common/boards/SpaceType';
 import {
   clearBatchTail,
   drainBatchTail,
@@ -1107,6 +1110,149 @@ describe('deferredInputBatch', () => {
       expect(isSelectColonyResponse({type: 'colony', fleetDock: CardName.ANTS, stagedFor: CardName.ANTS} as unknown as InputResponse), 'a dock is never staged').is.false;
       expect(isSelectColonyResponse({type: 'colony', colonyName: ColonyName.LUNA, fleetDock: CardName.ANTS} as unknown as InputResponse)).is.false;
       expect(isSelectColonyResponse({type: 'colony', stagedFor: CardName.ANTS} as unknown as InputResponse)).is.false;
+    });
+  });
+
+  /**
+   * AN ADDRESSED MOVE (Turmoil Redux TR14 Re-settlement): the staged tail names
+   * TWO cells — `{spaceId, movedFrom, stagedFor}` — and lands only on the move
+   * prompt of the card it names. The park pins both cells: either one changing
+   * while an interloper is answered drops the tail and the move is asked live.
+   */
+  describe('addressed staged move (two cells)', () => {
+    type Staged = {game: IGame, player: TestPlayer, opponent: TestPlayer, card: IProjectCard, from: Space, to: Space, other: Space};
+
+    function interiorLand(game: IGame): Space {
+      const board = game.board;
+      const plain = (s: Space) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.player === undefined && s.id !== board.noctisCitySpaceId;
+      return board.spaces.find((space) => plain(space) && board.getAdjacentSpaces(space).length === 6 && board.getAdjacentSpaces(space).every(plain))!;
+    }
+
+    /** A city of the player's own, and a card in hand whose play defers the shared move step — behind `before`. */
+    function stagedGame(before?: (player: IPlayer, state: Staged) => void): Staged {
+      const [game, player, opponent] = testGame(2);
+      const from = interiorLand(game);
+      game.simpleAddTile(player, from, {tileType: TileType.CITY});
+      const [to, other] = game.board.getAdjacentSpaces(from);
+      const state = {game, player, opponent, from, to, other} as Staged;
+      const card = fakeCard({
+        name: 'A card that moves a city' as CardName,
+        cost: 4,
+        play: (p: IPlayer) => {
+          before?.(p, state);
+          p.game.defer(new MoveCityTile(p, {kind: 'card', card: card.name}));
+          return undefined;
+        },
+      });
+      state.card = card;
+      player.cardsInHand = [card];
+      player.megaCredits = 50;
+      player.takeAction();
+      return state;
+    }
+
+    function tailOf(state: Staged): InputResponse {
+      return {type: 'space', spaceId: state.to.id, movedFrom: state.from.id, stagedFor: state.card.name};
+    }
+
+    /** A two-way choice the play raises first (any `or` a triggered effect would ask). */
+    function interposeChoice(onAnswer?: (state: Staged) => void) {
+      return (p: IPlayer, state: Staged) => {
+        p.defer(() => new OrOptions(
+          new SelectOption('one').andThen(() => {
+            onAnswer?.(state);
+            return undefined;
+          }),
+          new SelectOption('two'),
+        ), Priority.COST);
+      };
+    }
+
+    /** A bonus placement the play raises first — a `space` prompt with NO source card. */
+    function interposeBonusSpace(p: IPlayer, state: Staged) {
+      p.defer(() => new SelectSpace('Select space for ocean tile', [state.to, state.other]).andThen(() => undefined), Priority.COST);
+    }
+
+    const moved = (state: Staged) => state.from.tile === undefined && state.to.tile?.tileType === TileType.CITY;
+
+    it('lands at once when nothing interposes: the city stands on the new cell — never asked again', () => {
+      const state = stagedGame();
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state)]));
+      expect(moved(state)).is.true;
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      expect(state.player.getWaitingFor() instanceof SelectSpace).is.false;
+      expect(state.game.events.events.filter((e) => e.type === 'tile-moved')).has.length(1);
+    });
+
+    it('PARKS behind a prompt that jumped the queue, publishes BOTH cells, and auto-lands once it is answered', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state)]));
+      cast(state.player.getWaitingFor(), OrOptions);
+      expect(parkedBatchTailLength(state.player), 'parked, untried').eq(1);
+      expect(parkedStagedPlacement(state.player)).deep.eq({card: state.card.name, spaceId: state.to.id, movedFrom: state.from.id});
+      expect(state.from.tile?.tileType, 'nothing moved yet').eq(TileType.CITY);
+
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+
+      expect(moved(state)).is.true;
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      expect(parkedStagedPlacement(state.player)).is.undefined;
+      expect(state.player.getWaitingFor() instanceof SelectSpace, 'the move is never re-asked').is.false;
+    });
+
+    it('a BONUS placement in front does NOT eat the tail, though the cell is legal for it', () => {
+      const state = stagedGame(interposeBonusSpace);
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state)]));
+      const bonus = cast(state.player.getWaitingFor(), SelectSpace);
+      expect(bonus.sourceCard, 'another giver\'s question').is.undefined;
+      expect(state.to.tile, 'the pin was not consumed').is.undefined;
+      expect(parkedBatchTailLength(state.player)).eq(1);
+
+      state.player.process({type: 'space', spaceId: state.other.id});
+      drainBatchTail(state.player);
+
+      expect(moved(state)).is.true;
+      expect(parkedBatchTailLength(state.player)).eq(0);
+    });
+
+    it('the DESTINATION was taken while parked: the tail is dropped and the move is asked live', () => {
+      const state = stagedGame(interposeChoice((s) => s.game.simpleAddTile(s.opponent, s.to, {tileType: TileType.GREENERY})));
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state)]));
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      const live = cast(state.player.getWaitingFor(), SelectSpace);
+      expect(live.sourceCard).eq(state.card.name);
+      expect(live.tileMove?.sources.map((s) => s.from.id)).deep.eq([state.from.id]);
+      expect(state.from.tile?.tileType, 'the city stayed where it was').eq(TileType.CITY);
+    });
+
+    it('the SOURCE changed while parked — a tier was built onto the city — the tail is dropped though the pair is still legal', () => {
+      const state = stagedGame(interposeChoice((s) => s.game.addCityTier(s.player, s.from)));
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state)]));
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      drainBatchTail(state.player);
+
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      const live = cast(state.player.getWaitingFor(), SelectSpace);
+      expect(live.sourceCard).eq(state.card.name);
+      expect(state.to.tile, 'a stack is not the city the player picked up').is.undefined;
+      expect(state.from.stackHeight).eq(2);
+    });
+
+    it('a manual answer to its own prompt SUPERSEDES the parked move', () => {
+      const state = stagedGame(interposeChoice());
+      replayBatch(state.player, playBatch(state.player, state.card, [tailOf(state)]));
+      // The interloper is answered through a request that never drains (another seat's): the move stands live.
+      state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+      cast(state.player.getWaitingFor(), SelectSpace);
+      expireSupersededStagedTail(state.player);
+      expect(parkedBatchTailLength(state.player)).eq(0);
+      state.player.process({type: 'space', spaceId: state.other.id, movedFrom: state.from.id});
+      expect(state.other.tile?.tileType).eq(TileType.CITY);
+      expect(state.to.tile).is.undefined;
     });
   });
 

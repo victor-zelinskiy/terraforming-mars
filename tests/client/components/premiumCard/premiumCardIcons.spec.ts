@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {mechItemIcon, tagIconStyle, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {mechItemIcon, secondaryBubbleOf, tagIconStyle, tagIconUrl, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Tag} from '@/common/cards/Tag';
 import {
   ICardRenderItem,
@@ -74,6 +75,24 @@ describe('premiumCardIcons.mechItemIcon', () => {
   it('a card WITH a VP icon (Turmoil Redux) is the composed glyph carrying the tag it prints — never a bare tag', () => {
     expect(mechItemIcon({...itemNode(CardRenderItemType.VP_CARD, 1), secondaryTag: 'building'} as ICardRenderItem)).to.deep.equal({kind: 'vpCard', tag: 'building'});
     expect(mechItemIcon(itemNode(CardRenderItemType.VP_CARD, 1))).to.deep.equal({kind: 'vpCard'});
+  });
+
+  it('the CORNER of an item is ONE mapping: a tag seats as a tag, an asset as its asset, the «on Mars» tile mark as an unmasked hex', () => {
+    const corner = (type: CardRenderItemType, secondaryTag: Tag | AltSecondaryTag) =>
+      secondaryBubbleOf({...itemNode(type), secondaryTag} as ICardRenderItem);
+    expect(secondaryBubbleOf(itemNode(CardRenderItemType.CITY)), 'no secondary tag — no corner').is.undefined;
+    expect(corner(CardRenderItemType.CARDS, Tag.SPACE)).to.deep.equal({url: tagIconUrl(Tag.SPACE), tag: Tag.SPACE});
+    expect(corner(CardRenderItemType.MEGACREDITS, AltSecondaryTag.TITANIUM)).to.deep.equal({url: 'assets/resources/titanium.png'});
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.FLOATER)).to.deep.equal({url: 'assets/resources/floater.png'});
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.DIVERSE)).to.deep.equal({url: 'assets/tags/diverse.png'});
+    // The oxygen greenery bakes its O₂ into the tile asset — a bubble would double it; elsewhere it is a corner.
+    expect(corner(CardRenderItemType.GREENERY, AltSecondaryTag.OXYGEN)).is.undefined;
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.OXYGEN)).to.deep.equal({url: 'assets/global-parameters/oxygen.png'});
+    // Drawn another way (the copper bar, the card-type band): no image corner.
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.REQ)).is.undefined;
+    expect(corner(CardRenderItemType.CARDS, AltSecondaryTag.BLUE)).is.undefined;
+    // TR14 Re-settlement — «remove a city tile you own ON MARS»: the set's pink hex, never under the round mask.
+    expect(corner(CardRenderItemType.CITY, AltSecondaryTag.MARS_TILE)).to.deep.equal({url: 'assets/misc/mars-tile.png', shape: 'tile'});
   });
 
   it('a card with a requirement of ANY party (Turmoil Redux TR13) is the drawn plate glyph — never a text plate, never a party', () => {

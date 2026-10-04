@@ -1619,6 +1619,20 @@
   background-position: center;
   box-shadow: 0 0 0 1px var(--pcard-gold-deep), 0 1px 2px rgba(0, 0, 0, 0.7);
 }
+/* A TILE corner («a tile ON MARS» — AltSecondaryTag.MARS_TILE, Turmoil Redux
+   TR14): the printed mark is a HEX carrying its own outline, so the round
+   mask, the cover crop and the gold ring of a tag bubble would each cut it.
+   It sits on the tile's own top-right shoulder, as on the scan. */
+.pcard-mi__bubble--tile {
+  top: -7px;
+  right: -9px;
+  width: calc(var(--pcard-mech-icon) * 0.56);
+  height: calc(var(--pcard-mech-icon) * 0.62);
+  border-radius: 0;
+  background-size: contain;
+  background-repeat: no-repeat;
+  box-shadow: none;
+}
 /* «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the premium
    requirements plate in miniature — a copper bar, drawn, no asset. */
 .pcard-mi__bubble--req {

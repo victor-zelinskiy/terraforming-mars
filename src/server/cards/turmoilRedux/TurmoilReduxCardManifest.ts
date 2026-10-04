@@ -20,6 +20,7 @@ import {MartianFiber} from './MartianFiber';
 import {SponsoredSettlement} from './SponsoredSettlement';
 import {FringeColony} from './FringeColony';
 import {MartianRoads} from './MartianRoads';
+import {ReSettlement} from './ReSettlement';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -104,5 +105,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
     // first card with NO effect graphic: Mars First's plate, two tags and «1 VP for every 3 Building tags».
     [CardName.MARTIAN_ROADS]: {Factory: MartianRoads},
+    // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
+    // first card that MOVES a tile: one's own city travels to an adjacent non-reserved cell
+    // (`Game.moveCityTile`, `docs/TURMOIL_REDUX_RE_SETTLEMENT.md`), Mars First's plate.
+    [CardName.RE_SETTLEMENT]: {Factory: ReSettlement},
   },
 });

@@ -25,6 +25,13 @@ export enum AltSecondaryTag {
   // accepted). Both renderers draw it as the corner bubble on the M€ square.
   TITANIUM = 'titanium',
 
+  // Fork: «a tile ON MARS» — the pink hex the Turmoil Redux set prints in the
+  // corner of a tile glyph (TR14 Re-settlement: «remove a city tile you own on
+  // Mars»). The premium face seats the owner's own hex asset as the corner,
+  // unmasked (`secondaryBubbleOf` → `shape: 'tile'`). TR22 will bring its
+  // «in space» twin.
+  MARS_TILE = 'mars-tile',
+
   // used in Faraday CEO
   DIVERSE = 'diverse',
 

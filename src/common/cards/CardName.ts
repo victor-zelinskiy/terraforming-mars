@@ -1090,6 +1090,7 @@ export enum CardName {
   SPONSORED_SETTLEMENT = 'Sponsored Settlement',
   FRINGE_COLONY = 'Fringe Colony',
   MARTIAN_ROADS = 'Martian Roads',
+  RE_SETTLEMENT = 'Re-settlement',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

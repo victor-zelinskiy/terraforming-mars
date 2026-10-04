@@ -75,6 +75,17 @@ describe('consolePlacementNextStep', () => {
     expect(d.special).to.be.false;
   });
 
+  it('a MOVE names itself: «переселите свой город» — never «разместите тайл города», the city icon kept', () => {
+    const move = step({placementType: 'city-move', tileType: TileType.CITY, constraint: 'to an adjacent non-reserved space, ignoring other placement restrictions'});
+    const d = describeTilePlacement(move, ru);
+    expect(d.key).to.equal('Move your city');
+    expect(d.label).to.equal('переселите свой город');
+    expect(d.tileType, 'the row still draws the city tile').to.equal(TileType.CITY);
+    expect(d.special).to.be.false;
+    const row = placementRow(move, ru, (text) => ru(typeof text === 'string' ? text : text.message));
+    expect(row.full).to.equal('переселите свой город — на соседнюю незарезервированную клетку · прочие ограничения не действуют');
+  });
+
   it('an OCEAN tile names its type', () => {
     const d = describeTilePlacement(step({placementType: 'ocean', tileType: TileType.OCEAN}), ru);
     expect(d.label).to.equal('разместите тайл океана');
@@ -270,6 +281,7 @@ describe('consolePlacementNextStep', () => {
       step({tileType: TileType.GREENERY, count: 2}), step({tileType: 9999 as TileType, count: 2}),
       step({tileType: TileType.SOLAR_FARM, count: 2}),
       step({placementType: 'colony'}), step({placementType: 'colony', count: 2}),
+      step({placementType: 'city-move', tileType: TileType.CITY}), step({placementType: 'city-move', tileType: TileType.CITY, count: 2}),
     ];
     for (const c of cases) {
       assertTranslated(describeTilePlacement(c, en).key);

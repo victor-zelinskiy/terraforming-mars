@@ -69,5 +69,8 @@
     "This can only be played during generation 4 or later. Remove from play a colony tile that has NO COLONIES, TILES, OR TRADE FLEETS ON IT. Replace it with a new colony tile of your choice, and place a colony on it, if possible.": "Можно разыграть только в поколении 4 или позже. Уберите из игры плитку колонии, на которой НЕТ КОЛОНИЙ, ТАЙЛОВ И ТОРГОВЫХ ФЛОТОВ. Замените её новой плиткой колонии по вашему выбору и поставьте на неё колонию, если возможно.",
 
     "Martian Roads": "Марсианские дороги",
-    "Requires Mars First to be ruling or that you have 2 delegates there. 1 VP for every 3 Building tags you have.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. 1 ПО за каждые 3 метки Строительства."
+    "Requires Mars First to be ruling or that you have 2 delegates there. 1 VP for every 3 Building tags you have.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. 1 ПО за каждые 3 метки Строительства.",
+
+    "Re-settlement": "Переселение",
+    "Requires Mars First to be ruling or that you have 2 delegates there. Remove a city tile you own on Mars and place it in an ADJACENT, NON-RESERVED, unoccupied space, ignoring other placement restrictions. (You gain the placement bonus of that space, including adjacency bonuses.)": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Снимите свой тайл города на Марсе и разместите его на СОСЕДНЕЙ, НЕЗАРЕЗЕРВИРОВАННОЙ свободной клетке, игнорируя прочие ограничения размещения. (Вы получаете бонус размещения этой клетки, включая бонусы соседства.)"
 }

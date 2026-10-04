@@ -1070,7 +1070,8 @@ export function placementPreview(
   // structured placement step so one presenter owns the wording.
   const last = opts.text !== undefined ?
     noteStep(kind, opts.text) :
-    boardPlacementStep(kind === 'colony' ? 'colony' : placementTypeOf(opts.tile), {
+    // A MOVE names itself on the step (`'city-move'`): the «ДАЛЕЕ» row then says «move your city», never «place a city tile».
+    boardPlacementStep(kind === 'colony' ? 'colony' : opts.staged?.move !== undefined ? 'city-move' : placementTypeOf(opts.tile), {
       tileType: opts.tile,
       count: opts.count,
       constraint: opts.constraint,

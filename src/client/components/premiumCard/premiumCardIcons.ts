@@ -469,6 +469,47 @@ export function expansionIconUrl(module: GameModule | 'automa'): string | undefi
 }
 
 /**
+ * THE CORNER MARK a render item wears — its `secondaryTag`, drawn top-right of
+ * the icon. `tag`: a real tag, seated through the ONE tag style (a planet
+ * sphere seats like the rest). `shape: 'tile'`: the mark is a printed HEX
+ * with its own outline («a tile ON MARS» — TR14 Re-settlement), so the host
+ * must not put it under the round bubble mask, crop it to cover, or ring it
+ * in gold. `undefined`: no corner (no secondary tag, one drawn another way —
+ * the REQ bar, the card-type bands — or one baked into the icon's own asset,
+ * the oxygen greenery).
+ */
+export type SecondaryBubbleSpec = {url: string, tag?: Tag, shape?: 'tile'};
+
+export function secondaryBubbleOf(item: ICardRenderItem): SecondaryBubbleSpec | undefined {
+  const secondary = item.secondaryTag;
+  if (secondary === undefined) {
+    return undefined;
+  }
+  if ((Object.values(Tag) as Array<string>).includes(secondary)) {
+    return {url: tagIconUrl(secondary as Tag), tag: secondary as Tag};
+  }
+  switch (secondary) {
+  case AltSecondaryTag.OXYGEN:
+    // The oxygen-raising greenery uses the O₂-BAKED asset (greenery.png) — a
+    // separate bubble would double the symbol.
+    return item.type === CardRenderItemType.GREENERY ? undefined : {url: 'assets/global-parameters/oxygen.png'};
+  case AltSecondaryTag.FLOATER:
+    return {url: `${RES}/floater.png`};
+  case AltSecondaryTag.TITANIUM:
+    // «payable with titanium» — the titanium corner on a Parliament bill's M€ price (Trade Industries).
+    return {url: `${RES}/titanium.png`};
+  case AltSecondaryTag.DIVERSE:
+    // «a card with a NEW tag» (Faraday) — the diverse-tag marker.
+    return {url: `${TAGS}/diverse.png`};
+  case AltSecondaryTag.MARS_TILE:
+    // «a tile ON MARS» (Turmoil Redux — TR14): the set's pink hex, the owner's own asset.
+    return {url: 'assets/misc/mars-tile.png', shape: 'tile'};
+  default:
+    return undefined;
+  }
+}
+
+/**
  * Resolve the icon for a render item. Structural types (TEXT / PLATE / NBSP)
  * are the component's business and must not reach this function.
  */

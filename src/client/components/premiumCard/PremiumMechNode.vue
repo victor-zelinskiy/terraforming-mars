@@ -38,7 +38,7 @@
       <span v-for="i in repeats" :key="i" class="pcard-ic" :class="iconModClass" :style="iconStyle">
         <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside">{{ insideText }}</span>
       </span>
-      <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :style="bubbleStyle"></span>
+      <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile'}" :style="bubbleStyle"></span>
       <!-- «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the
            requirements plate in miniature, drawn, not an image -->
       <span v-else-if="isReqBubble" class="pcard-mi__bubble pcard-mi__bubble--req"></span>
@@ -135,7 +135,7 @@ import {
   isICardRenderTile,
 } from '@/common/cards/render/Types';
 import {effectKindOf, effectParts, EffectParts, itemRepeats, partLines, renderableNodes} from './mechanicsModel';
-import {mechItemIcon, MechIconSpec, tagIconStyle, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
+import {mechItemIcon, MechIconSpec, secondaryBubbleOf, SecondaryBubbleSpec, tagIconStyle, tileIcon, TileIconSpec} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -334,42 +334,20 @@ export default defineComponent({
       }
       return String(Math.abs(item.amount));
     },
+    /** The corner mark this item wears — the ONE mapping (`premiumCardIcons.secondaryBubbleOf`). */
+    bubble(): SecondaryBubbleSpec | undefined {
+      return this.itemNode === undefined ? undefined : secondaryBubbleOf(this.itemNode);
+    },
     /** The secondary-tag bubble — a tag through the ONE tag style, so a planet sphere seats like the rest. */
     bubbleStyle(): Record<string, string> {
-      const secondary = this.itemNode?.secondaryTag;
-      if (secondary !== undefined && (Object.values(Tag) as Array<string>).includes(secondary)) {
-        return tagIconStyle(secondary as Tag);
+      const bubble = this.bubble;
+      if (bubble === undefined) {
+        return {};
       }
-      return this.bubbleUrl !== undefined ? {backgroundImage: `url(${this.bubbleUrl})`} : {};
+      return bubble.tag !== undefined ? tagIconStyle(bubble.tag) : {backgroundImage: `url(${bubble.url})`};
     },
     bubbleUrl(): string | undefined {
-      const secondary = this.itemNode?.secondaryTag;
-      if (secondary === undefined) {
-        return undefined;
-      }
-      if ((Object.values(Tag) as Array<string>).includes(secondary)) {
-        return tagIconUrl(secondary as Tag);
-      }
-      if (secondary === AltSecondaryTag.OXYGEN) {
-        // The oxygen-raising greenery uses the O₂-BAKED asset (greenery.png)
-        // — a separate bubble would double the symbol.
-        if (this.itemNode?.type === CardRenderItemType.GREENERY) {
-          return undefined;
-        }
-        return 'assets/global-parameters/oxygen.png';
-      }
-      if (secondary === AltSecondaryTag.FLOATER) {
-        return 'assets/resources/floater.png';
-      }
-      if (secondary === AltSecondaryTag.TITANIUM) {
-        // «payable with titanium» — the titanium corner on a Parliament bill's M€ price (Trade Industries).
-        return 'assets/resources/titanium.png';
-      }
-      if (secondary === AltSecondaryTag.DIVERSE) {
-        // «a card with a NEW tag» (Faraday) — the diverse-tag marker.
-        return 'assets/tags/diverse.png';
-      }
-      return undefined;
+      return this.bubble?.url;
     },
     /** «Card with a requirement» (Xavier) — a drawn copper bar, no asset. */
     isReqBubble(): boolean {
