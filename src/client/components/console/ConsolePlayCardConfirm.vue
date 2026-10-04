@@ -259,11 +259,23 @@
                      row is "label: [inline chips]"; a VP row is "label: +N". -->
                 <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
                      :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
-                              {'con-composer__rescat--event-tags': sec.eventTags}]">
+                              {'con-composer__rescat--event-tags': sec.eventTags,
+                               'con-composer__rescat--vpformula': sec.formula !== undefined}]">
                   <span class="con-composer__rescat-glyph" aria-hidden="true">{{ sec.penalty ? '⚠' : rescatGlyph(sec.kind) }}</span>
                   <span class="con-composer__rescat-text"
                   >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
-                  ><template v-else-if="sec.kind === 'tags'">:</template></span>
+                  ><template v-else-if="sec.kind === 'tags'">:</template
+                  ><span v-if="sec.formula !== undefined" class="con-composer__rescat-qual">&nbsp;{{ $t('now') }}</span></span>
+                  <!-- THE SERVER'S VP PROJECTION («per tags» cards): the formula
+                       behind the number, through the score explorer's own
+                       formatter — the number is printed ONCE (above), the
+                       formula carries its operands only. One line; a long
+                       localization cuts by an ellipsis in this box. -->
+                  <span v-if="sec.formula !== undefined" class="con-composer__rescat-formula" data-vp-formula
+                  >· <img v-if="formulaTagIcon(sec.formula) !== undefined" class="con-composer__rescat-vptag"
+                          :src="formulaTagIcon(sec.formula)" alt="" aria-hidden="true"
+                  >{{ formulaOperandsText(sec.formula) }}<template v-if="shortfallText(sec.formula) !== ''"
+                  > · {{ shortfallText(sec.formula) }}</template></span>
                   <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
                     <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
                   </span>
@@ -717,6 +729,7 @@ import ConsolePlayedReceivingStage from '@/client/components/console/played/Cons
 //  builder written twice explains the same mechanic two ways the first time a
 //  step shape changes.)
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
+import {formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
@@ -1599,6 +1612,9 @@ export default defineComponent({
           hasAction: cardHasAction(this.cardName),
           hasEffect: cardHasPassiveEffect(this.cardName),
           victoryPoints: meta?.victoryPoints,
+          // The server's VP projection rides the preview (a «per tags» card
+          // only) — rendered as given, never counted here.
+          vpProjection: this.preview?.cardVictoryPoints,
           isEvent: meta?.type === CardType.EVENT,
           // Odyssey makes an event's tags count like any other card's.
           eventTagsCounted: this.thisPlayer.tableau.some((c) => c.name === CardName.ODYSSEY),
@@ -2304,6 +2320,10 @@ export default defineComponent({
     },
     /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
     tileIconStyle,
+    /** The VP projection's formula — the score explorer's ONE formatter. */
+    formulaTagIcon,
+    formulaOperandsText,
+    shortfallText,
     vpDetail(sec: PlayResultSection): string {
       if (sec.variable === true) {
         // «по условию» — the same fact as «зависит от условий» in a third of

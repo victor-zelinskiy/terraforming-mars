@@ -17,6 +17,7 @@ import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../../src/server/m
 import {hasPartyRequirement, requiredPartyOf} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {resolutionCountUnitsOf} from '../../../src/server/parliament/resolutions/ResolutionCounts';
 import {victoryPointsIconOf} from '../../../src/common/cards/victoryPointsIcon';
+import {calculateVictoryPoints, cardVictoryPointsAtPlay} from '../../../src/server/game/calculateVictoryPoints';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
@@ -142,6 +143,20 @@ describe('MartianRoads', () => {
       expect(t.card.getVictoryPoints(t.p1), 'in hand: the Counter adds the unplayed card\'s own tag').eq(1);
       play(t);
       expect(t.card.getVictoryPoints(t.p1), 'in the tableau').eq(1);
+    });
+
+    it('the play composer\'s projection is the VP after the play — and the score explorer\'s row', () => {
+      const t = table();
+      playBuildingCards(t.p1, 6);
+      t.p1.cardsInHand.push(t.card);
+      const projected = cardVictoryPointsAtPlay(t.p1, t.card);
+      expect(projected).deep.eq({
+        cardName: CardName.MARTIAN_ROADS, victoryPoint: 2, kind: 'conditional',
+        mechanics: {shape: 'per', each: 1, per: 3, counted: 7, unit: 'tags', tag: Tag.BUILDING},
+      });
+      play(t);
+      expect(t.card.getVictoryPoints(t.p1)).eq(projected?.victoryPoint);
+      expect(calculateVictoryPoints(t.p1).detailsCards.find((d) => d.cardName === CardName.MARTIAN_ROADS)).deep.eq(projected);
     });
 
     it('rule 4 — a WILD tag does not count (it would in an action\'s count)', () => {

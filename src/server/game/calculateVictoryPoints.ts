@@ -13,7 +13,9 @@ import {FundedAward} from '../awards/FundedAward';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaScoring} from '../automa/AutomaScoring';
 import {CardName} from '../../common/cards/CardName';
-import {CardVictoryPointsKind, CardVpMechanics, CardVpUnit, CityVpDetail, TerraformRatingBreakdown, TRSourceEntry} from '../../common/game/VictoryPointsBreakdown';
+import {
+  CardVictoryPointsDetail, CardVictoryPointsKind, CardVpMechanics, CardVpUnit, CityVpDetail, TerraformRatingBreakdown, TRSourceEntry,
+} from '../../common/game/VictoryPointsBreakdown';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '../../common/parliament/winnerReward';
 import {Counter} from '../behavior/Counter';
 
@@ -149,8 +151,11 @@ function classifyCardVictoryPoints(card: ICard, vp: number): CardVictoryPointsKi
  * `floor(counted × each / per) === victoryPoint` holds by construction —
  * wild-tag substitution, MarsBot track tags and adjacency all stay the
  * engine's own counting. READ-ONLY (the Counter mutates nothing).
+ *
+ * Exported for the play's VP projection (`cardVictoryPointsAtPlay` below) —
+ * one read, never a copy.
  */
-function computeCardVpMechanics(player: IPlayer, card: ICard): CardVpMechanics | undefined {
+export function computeCardVpMechanics(player: IPlayer, card: ICard): CardVpMechanics | undefined {
   const decl = card.victoryPoints;
   if (typeof decl === 'number') {
     return {shape: 'fixed'};
@@ -202,6 +207,33 @@ function computeCardVpMechanics(player: IPlayer, card: ICard): CardVpMechanics |
     return mechanics;
   }
   return undefined;
+}
+
+/**
+ * THE PLAY'S VP PROJECTION — what a card will score the MOMENT IT LANDS, said
+ * BEFORE the press (the play composer's VP row, `ActionPreview
+ * .cardVictoryPoints`). The same three reads the score explorer's row of the
+ * card is made of AFTER the play — `getVictoryPoints`, the family, the
+ * mechanics — so «how the card will count in the tableau» and «how it counts
+ * now» are one form of data (`CardVictoryPointsDetail`).
+ *
+ * ONLY the «per tags» class (`unit === 'tags'`, no `nextToThis`): a tag count
+ * moves at the play by nothing but the card's OWN tags, which the `Counter`
+ * already adds for a card not yet in the tableau (`cardIsUnplayed`). VP for
+ * resources, cities, adjacency, colonies or a bespoke `special` answer
+ * `undefined` — the play itself may still move them, and a number before the
+ * press would be a guess («по условию» stays the honest reading).
+ *
+ * READ-ONLY. Parity with the score row after the play is guarded corpus-wide
+ * (tests/models/cardVictoryPointsAtPlay.spec.ts).
+ */
+export function cardVictoryPointsAtPlay(player: IPlayer, card: ICard): CardVictoryPointsDetail | undefined {
+  const mechanics = computeCardVpMechanics(player, card);
+  if (mechanics?.shape !== 'per' || mechanics.unit !== 'tags' || mechanics.adjacent === true) {
+    return undefined;
+  }
+  const victoryPoint = card.getVictoryPoints(player);
+  return {cardName: card.name, victoryPoint, kind: classifyCardVictoryPoints(card, victoryPoint), mechanics};
 }
 
 export function calculateVictoryPoints(player: IPlayer) {

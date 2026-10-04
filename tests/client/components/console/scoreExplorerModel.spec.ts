@@ -17,6 +17,13 @@ import {
   scoreGridNavigate,
   scoreStagePath,
   ScoreCardLookup,
+  ScoreFormula,
+  formulaFor,
+  formulaOperandsText,
+  formulaTagIcon,
+  formulaText,
+  remainderText,
+  shortfallText,
 } from '@/client/console/scoreExplorerModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Tag} from '@/common/cards/Tag';
@@ -396,6 +403,57 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     const pen = buildPenaltyFacts(b);
     expect(pen.rows.map((r) => r.value), 'every loss named — Vermin AND the clock').to.deep.eq([-2, -2]);
     expect(pen.rows[1].label).to.eq('Escape Velocity');
+  });
+
+  // ── the formula's words — ONE formatter, two hosts ───────────────────────
+  // Moved here out of ConsoleScoreExplorer.vue (TR20): the explorer reads it
+  // byte for byte as it printed, and the play composer's VP projection speaks
+  // the same formula (operands only — the number is printed beside it once).
+  describe('the formula\'s words (the score explorer AND the play composer)', () => {
+    const per = (over: Partial<Extract<ScoreFormula, {kind: 'per'}>>): ScoreFormula =>
+      ({kind: 'per', vp: 2, counted: 7, each: 1, per: 3, unit: 'tags', tag: Tag.BUILDING, remainder: 1, ...over});
+
+    it('the explorer\'s sentence per shape — unchanged by the move', () => {
+      expect(formulaText({kind: 'fixed', vp: 3})).to.eq('Printed VP: 3');
+      expect(formulaText(per({}))).to.eq('7 / 3 = 2 VP · matching tags');
+      expect(formulaText(per({each: 1, per: 1, counted: 3, vp: 3, remainder: undefined}))).to.eq('3 × 1 VP = 3 VP · matching tags');
+      expect(formulaText(per({each: 2, per: 1, counted: 2, vp: 4, unit: 'cities', tag: undefined, remainder: undefined}))).to.eq('2 × 2 VP = 4 VP · cities in play');
+      expect(formulaText(per({each: 2, per: 3, counted: 7, vp: 4}))).to.eq('7 × 2 / 3 = 4 VP · matching tags');
+      expect(formulaText(per({unit: 'resources', tag: undefined}))).to.eq('7 / 3 = 2 VP');
+      expect(formulaText({kind: 'special', vp: 1, counted: 4})).to.eq('Special scoring · 4 stored');
+      expect(formulaText({kind: 'special', vp: 1})).to.eq('Special scoring');
+      expect(formulaText({kind: 'fact', vp: 12, label: 'x'})).to.eq('');
+    });
+
+    it('the remainder (explorer) and its other face, the shortfall (composer) — only past a step, per > 1', () => {
+      expect(remainderText(per({}))).to.eq('1 toward the next VP');
+      expect(shortfallText(per({}))).to.eq('2 more to the next VP');
+      expect(remainderText(per({counted: 6, vp: 2, remainder: 0}))).to.eq('');
+      expect(shortfallText(per({counted: 6, vp: 2, remainder: 0}))).to.eq('');
+      expect(shortfallText(per({per: 1, each: 1, remainder: undefined}))).to.eq('');
+      expect(shortfallText({kind: 'fixed', vp: 1})).to.eq('');
+    });
+
+    it('the operands without the result — the number is said once, by the host', () => {
+      expect(formulaOperandsText(per({}))).to.eq('7 / 3');
+      expect(formulaOperandsText(per({each: 1, per: 1, counted: 3, vp: 3, remainder: undefined}))).to.eq('3 × 1 VP');
+      expect(formulaOperandsText(per({each: 2, per: 1, counted: 2, vp: 4, remainder: undefined}))).to.eq('2 × 2 VP');
+      expect(formulaOperandsText(per({each: 2, per: 3}))).to.eq('7 × 2 / 3');
+      expect(formulaOperandsText({kind: 'fixed', vp: 1})).to.eq('');
+    });
+
+    it('the counted tag\'s icon, else none', () => {
+      expect(formulaTagIcon(per({}))).to.match(/building\.png$/);
+      expect(formulaTagIcon(per({unit: 'resources', tag: undefined}))).to.eq(undefined);
+      expect(formulaTagIcon({kind: 'fixed', vp: 1})).to.eq(undefined);
+    });
+
+    it('formulaFor reads a PROJECTION exactly as a breakdown row (TR20: 7 Building tags → 2 VP, 1 past the step)', () => {
+      expect(formulaFor({
+        cardName: 'Martian Roads', victoryPoint: 2, kind: 'conditional',
+        mechanics: {shape: 'per', each: 1, per: 3, counted: 7, unit: 'tags', tag: Tag.BUILDING},
+      })).to.deep.eq({kind: 'per', vp: 2, counted: 7, each: 1, per: 3, unit: 'tags', tag: Tag.BUILDING, adjacent: undefined, all: undefined, remainder: 1});
+    });
   });
 
   // ── the crumb + the grid ─────────────────────────────────────────────────

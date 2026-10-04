@@ -293,7 +293,6 @@ import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
-import {Tag} from '@/common/cards/Tag';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -327,6 +326,9 @@ import {
   ScoreTile,
   scoreGridNavigate,
   TrProvenanceModel,
+  formulaText as scoreFormulaText,
+  remainderText as scoreRemainderText,
+  formulaTagIcon as scoreFormulaTagIcon,
 } from '@/client/console/scoreExplorerModel';
 import {getAward, getMilestone} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
@@ -354,20 +356,9 @@ import {
 } from '@/client/console/surfaceMotion/workspaceDescend';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {tagIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import Card from '@/client/components/card/CardFace.vue';
-
-/** The unit noun of a `per` formula (i18n keys — the «what is counted» tail). */
-const UNIT_NOUN: Readonly<Record<string, string>> = {
-  'tags': 'matching tags',
-  'cities': 'cities in play',
-  'oceans': 'oceans placed',
-  'colonies': 'colonies built',
-  'moon-mine': 'Moon mines',
-  'moon-road': 'Moon roads',
-};
 
 export default defineComponent({
   name: 'ConsoleScoreExplorer',
@@ -718,46 +709,16 @@ export default defineComponent({
       }
       return translateText(row.cardName);
     },
-    /** The formula in the row's own words — never one universal sentence. */
+    /** The formula in the row's own words — the ONE formatter
+     *  (`scoreExplorerModel.formulaText`), shared with the play composer. */
     formulaText(row: ScoreCardRow): string {
-      const f = row.formula;
-      switch (f.kind) {
-      case 'fixed':
-        return translateTextWithParams('Printed VP: ${0}', [String(f.vp)]);
-      case 'per': {
-        const unitTail = f.unit === 'resources' ? '' : (UNIT_NOUN[f.unit] !== undefined ? ` · ${translateText(UNIT_NOUN[f.unit])}` : '');
-        const args = (parts: Array<string | number>) => parts.map(String);
-        if (f.per === 1 && f.each === 1) {
-          return translateTextWithParams('${0} × 1 VP = ${1} VP', args([f.counted, f.vp])) + unitTail;
-        }
-        if (f.each === 1) {
-          return translateTextWithParams('${0} / ${1} = ${2} VP', args([f.counted, f.per, f.vp])) + unitTail;
-        }
-        if (f.per === 1) {
-          return translateTextWithParams('${0} × ${1} VP = ${2} VP', args([f.counted, f.each, f.vp])) + unitTail;
-        }
-        return translateTextWithParams('${0} × ${1} / ${2} = ${3} VP', args([f.counted, f.each, f.per, f.vp])) + unitTail;
-      }
-      case 'special':
-        return f.counted !== undefined ?
-          translateTextWithParams('Special scoring · ${0} stored', [String(f.counted)]) :
-          translateText('Special scoring');
-      case 'fact':
-        return '';
-      default:
-        return '';
-      }
+      return scoreFormulaText(row.formula);
     },
     remainderText(row: ScoreCardRow): string {
-      const f = row.formula;
-      if (f.kind === 'per' && f.remainder !== undefined && f.remainder > 0) {
-        return translateTextWithParams('${0} toward the next VP', [String(f.remainder)]);
-      }
-      return '';
+      return scoreRemainderText(row.formula);
     },
     formulaTagIcon(row: ScoreCardRow): string | undefined {
-      const f = row.formula;
-      return f.kind === 'per' && f.tag !== undefined ? tagIconUrl(f.tag as Tag) : undefined;
+      return scoreFormulaTagIcon(row.formula);
     },
     rowResourceIcon(row: ScoreCardRow): string {
       const type = row.resourceType;

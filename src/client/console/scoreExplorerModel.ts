@@ -19,6 +19,9 @@
  *
  * PURE: no Vue / DOM / i18n — labels are English i18n KEYS (card names ARE
  * keys), templates are `${0}`-parameterised keys the component translates.
+ * ONE exception, by design: the FORMULA's words (`formulaText` & co.) are
+ * translated here, because two hosts speak them — the score explorer and the
+ * play composer's VP projection — and a formula must be phrased once.
  */
 import {Tag} from '@/common/cards/Tag';
 import {
@@ -36,6 +39,8 @@ import {
 } from '@/client/console/endgame/consoleEndgameModel';
 import {LiveScoreCategory, LiveScoreModel} from '@/client/console/liveScoreModel';
 import type {InfoRouteId} from '@/client/console/infoRoute';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {tagIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 // ── shared shapes ──────────────────────────────────────────────────────────
 
@@ -507,7 +512,10 @@ export type CardGroupTableModel = {
 /** What the table needs to know about a card beyond the breakdown row. */
 export type ScoreCardLookup = (name: string) => {exists: boolean, resourceType?: string} | undefined;
 
-function formulaFor(d: CardVictoryPointsDetail): ScoreFormula {
+/** The typed formula of one breakdown row — the score explorer's table AND
+ *  the play composer's VP projection (the same `CardVictoryPointsDetail`,
+ *  read before the play) build it here. */
+export function formulaFor(d: CardVictoryPointsDetail): ScoreFormula {
   const m: CardVpMechanics | undefined = d.mechanics;
   if (m === undefined) {
     // An older model without mechanics — state the result, claim no formula.
@@ -537,6 +545,99 @@ function formulaFor(d: CardVictoryPointsDetail): ScoreFormula {
   default:
     return {kind: 'special', vp: d.victoryPoint};
   }
+}
+
+// ── THE FORMULA'S WORDS — one formatter for every host ────────────────────
+//
+// The score explorer's row («7 / 3 = 2 ПО · подходящие метки») and the play
+// composer's VP projection («+2 сейчас · [метка] 7 / 3 · ещё 2 до следующего
+// ПО») phrase ONE `ScoreFormula` through these functions. They are this
+// module's one translated corner — kept beside `formulaFor` so a formula can
+// never be worded twice.
+
+/** The unit noun of a `per` formula (i18n keys — the «what is counted» tail). */
+const UNIT_NOUN: Readonly<Partial<Record<CardVpUnit, string>>> = {
+  'tags': 'matching tags',
+  'cities': 'cities in play',
+  'oceans': 'oceans placed',
+  'colonies': 'colonies built',
+  'moon-mine': 'Moon mines',
+  'moon-road': 'Moon roads',
+};
+
+/** The formula in the row's own words — never one universal sentence. */
+export function formulaText(f: ScoreFormula): string {
+  switch (f.kind) {
+  case 'fixed':
+    return translateTextWithParams('Printed VP: ${0}', [String(f.vp)]);
+  case 'per': {
+    const noun = f.unit === 'resources' ? undefined : UNIT_NOUN[f.unit];
+    const unitTail = noun !== undefined ? ` · ${translateText(noun)}` : '';
+    const args = (parts: Array<string | number>) => parts.map(String);
+    if (f.per === 1 && f.each === 1) {
+      return translateTextWithParams('${0} × 1 VP = ${1} VP', args([f.counted, f.vp])) + unitTail;
+    }
+    if (f.each === 1) {
+      return translateTextWithParams('${0} / ${1} = ${2} VP', args([f.counted, f.per, f.vp])) + unitTail;
+    }
+    if (f.per === 1) {
+      return translateTextWithParams('${0} × ${1} VP = ${2} VP', args([f.counted, f.each, f.vp])) + unitTail;
+    }
+    return translateTextWithParams('${0} × ${1} / ${2} = ${3} VP', args([f.counted, f.each, f.per, f.vp])) + unitTail;
+  }
+  case 'special':
+    return f.counted !== undefined ?
+      translateTextWithParams('Special scoring · ${0} stored', [String(f.counted)]) :
+      translateText('Special scoring');
+  case 'fact':
+    return '';
+  default:
+    return '';
+  }
+}
+
+/**
+ * The formula's OPERANDS without its result — «7 / 3», «3 × 1 ПО» — for a
+ * host that states the number beside it (the play composer's «+2 · 7 / 3»):
+ * the number is printed ONCE. The unit is the host's tag icon, so no noun
+ * tail. Empty for every shape but `per`.
+ */
+export function formulaOperandsText(f: ScoreFormula): string {
+  if (f.kind !== 'per') {
+    return '';
+  }
+  if (f.per === 1 && f.each === 1) {
+    return translateTextWithParams('${0} × 1 VP', [String(f.counted)]);
+  }
+  if (f.each === 1) {
+    return `${f.counted} / ${f.per}`;
+  }
+  if (f.per === 1) {
+    return translateTextWithParams('${0} × ${1} VP', [String(f.counted), String(f.each)]);
+  }
+  return `${f.counted} × ${f.each} / ${f.per}`;
+}
+
+/** «N toward the next VP» — the units already gathered past the last step (per > 1, remainder > 0). */
+export function remainderText(f: ScoreFormula): string {
+  if (f.kind === 'per' && f.remainder !== undefined && f.remainder > 0) {
+    return translateTextWithParams('${0} toward the next VP', [String(f.remainder)]);
+  }
+  return '';
+}
+
+/** «ещё N до следующего ПО» — the units still SHORT of the next VP step (the
+ *  other face of the same remainder; per > 1, remainder > 0). */
+export function shortfallText(f: ScoreFormula): string {
+  if (f.kind === 'per' && f.remainder !== undefined && f.remainder > 0) {
+    return translateTextWithParams('${0} more to the next VP', [String(f.per - f.remainder)]);
+  }
+  return '';
+}
+
+/** The counted tag's icon (a `per` formula over tags), else undefined. */
+export function formulaTagIcon(f: ScoreFormula): string | undefined {
+  return f.kind === 'per' && f.tag !== undefined ? tagIconUrl(f.tag) : undefined;
 }
 
 /**

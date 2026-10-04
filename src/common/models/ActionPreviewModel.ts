@@ -8,6 +8,7 @@ import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 import {EffectForecast} from './EffectForecastModel';
+import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
 
 /**
@@ -84,6 +85,18 @@ export type ActionPreview = {
    * no «Сработает» row.
    */
   forecast?: EffectForecast;
+  /**
+   * THE CARD'S OWN VICTORY POINTS AT THE PLAY — the number a «per tags» card
+   * scores the moment it lands, and the formula behind it, in the score
+   * explorer's own form (`calculateVictoryPoints.cardVictoryPointsAtPlay`:
+   * the card's own tags counted by the engine's `Counter`). Attached by the
+   * card-play preview ROUTE beside `forecast` (same request, same cache).
+   * Absent for every other VP shape — resources, cities, adjacency, colonies,
+   * `special`: the play itself may still move those, and the composer keeps
+   * «по условию». Never on an action preview (a blue card is already in the
+   * tableau).
+   */
+  cardVictoryPoints?: CardVictoryPointsDetail;
 };
 
 /**

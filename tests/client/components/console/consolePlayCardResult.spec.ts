@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {derivePlayResultSections, isFallbackOnlyResult, PlayCardResultMeta, PlayResultContext} from '@/client/console/consolePlayCardResult';
 import {Tag} from '@/common/cards/Tag';
+import {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
 
 /**
  * The «РЕЗУЛЬТАТ» block of the console play composer must NEVER be empty: a blue
@@ -76,6 +77,41 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(vp?.text).to.equal('Victory points');
     expect(vp?.variable).to.equal(true);
     expect(vp?.detail).to.be.undefined;
+  });
+
+  describe('the SERVER\'s VP projection («per tags» — `ActionPreview.cardVictoryPoints`)', () => {
+    const roads = (victoryPoint: number, counted: number): CardVictoryPointsDetail => ({
+      cardName: 'Martian Roads', victoryPoint, kind: 'conditional',
+      mechanics: {shape: 'per', each: 1, per: 3, counted, unit: 'tags', tag: Tag.BUILDING},
+    });
+    const countable = {tag: Tag.BUILDING, per: 3};
+
+    it('with a projection the row carries the NUMBER and the formula — never «by condition»', () => {
+      const vp = derivePlayResultSections(meta({victoryPoints: countable, vpProjection: roads(2, 7)}), noImmediate).find((s) => s.kind === 'vp');
+      expect(vp?.text).to.equal('Victory points');
+      expect(vp?.detail).to.equal('+2');
+      expect(vp?.variable).to.not.equal(true);
+      expect(vp?.formula).to.deep.include({kind: 'per', counted: 7, per: 3, vp: 2, remainder: 1, tag: Tag.BUILDING});
+    });
+
+    it('a ZERO is an answer: the row stays, reading «0» and its formula', () => {
+      const vp = derivePlayResultSections(meta({victoryPoints: countable, vpProjection: roads(0, 1)}), noImmediate).find((s) => s.kind === 'vp');
+      expect(vp, 'not hidden like a printed 0').to.not.equal(undefined);
+      expect(vp?.detail).to.equal('0');
+      expect(vp?.formula).to.deep.include({counted: 1, per: 3, remainder: 1});
+    });
+
+    it('without a projection a countable VP stays «by condition», byte for byte as before', () => {
+      const vp = derivePlayResultSections(meta({victoryPoints: countable}), noImmediate).find((s) => s.kind === 'vp');
+      expect(vp).to.deep.equal({kind: 'vp', text: 'Victory points', variable: true});
+    });
+
+    it('a printed VP and a penalty ignore the projection field entirely', () => {
+      const fixed = derivePlayResultSections(meta({victoryPoints: 2, vpProjection: roads(5, 15)}), noImmediate).find((s) => s.kind === 'vp');
+      expect(fixed).to.deep.equal({kind: 'vp', text: 'Victory points', detail: '+2'});
+      const penalty = derivePlayResultSections(meta({victoryPoints: -1}), noImmediate).find((s) => s.kind === 'vp');
+      expect(penalty).to.deep.equal({kind: 'vp', text: 'Penalty', detail: '-1', penalty: true});
+    });
   });
 
   it('a 0-VP card shows no VP line', () => {

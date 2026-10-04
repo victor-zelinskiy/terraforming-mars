@@ -33783,6 +33783,20 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     }
     &__rescat-text { font-weight: 600; }
     &__rescat-text b { color: @con-mint; font-weight: 800; font-variant-numeric: tabular-nums; }
+    /* THE VP PROJECTION («per tags» — `ActionPreview.cardVictoryPoints`): ONE
+       line, never taller than its siblings. The label and its number keep
+       their width; the formula yields by an ellipsis in its OWN box — a plain
+       block flex item, because `text-overflow` never paints on a flex box. */
+    &__rescat--vpformula { flex-wrap: nowrap; }
+    &__rescat--vpformula > .con-composer__rescat-text { flex: 0 0 auto; white-space: nowrap; }
+    &__rescat-qual { font-weight: 500; color: @con-text-dim; }
+    &__rescat-formula {
+        flex: 0 1 auto; min-width: 0;
+        overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+        font-weight: 600; color: @con-text-dim; font-variant-numeric: tabular-nums;
+    }
+    /* The counted tag — the formula's unit (the score explorer's own art). */
+    &__rescat-vptag { display: inline-block; width: 1.15em; height: 1.15em; margin-right: .25em; vertical-align: -.22em; }
     &__rescat-tags { display: inline-flex; align-items: center; gap: .3rem; }
     /* Override the legacy `.resource-tag` base (34px sprite in a 30px box, -2px
        offset, +5px bottom margin) — in this 26px inline-flex row those made the

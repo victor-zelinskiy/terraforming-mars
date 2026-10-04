@@ -11,7 +11,9 @@
  * overlay's 100%-client extraction):
  *   - a NEW ACTIVE ACTION (the card gains a repeatable blue-card action),
  *   - a PERMANENT EFFECT (an ongoing passive rule),
- *   - VICTORY POINTS at game end (fixed / conditional),
+ *   - VICTORY POINTS at game end (fixed / conditional — a «per tags» card
+ *     reads the SERVER's projection, `ActionPreview.cardVictoryPoints`:
+ *     the number and its formula, never a client count),
  *   - the TAGS the card adds (strategic contribution),
  *   - an honest FALLBACK when nothing computable remains — so a preview gap
  *     reads as "applied after confirming" instead of a broken empty box.
@@ -26,6 +28,8 @@
 
 import {Tag} from '@/common/cards/Tag';
 import {CountableVictoryPoints} from '@/common/cards/CountableVictoryPoints';
+import {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
+import {formulaFor, ScoreFormula} from '@/client/console/scoreExplorerModel';
 
 export type PlayResultCategory = 'action' | 'effect' | 'vp' | 'tags' | 'fallback';
 
@@ -40,6 +44,10 @@ export type PlayResultSection = {
   variable?: boolean;
   /** A NEGATIVE fixed VP — shown as a "Penalty: -N VP" line, not "Victory points". */
   penalty?: boolean;
+  /** The SERVER's VP projection for a «per tags» card: `detail` is the number
+   *  the card scores the moment it lands (a zero included), and this is the
+   *  formula behind it — rendered through the score explorer's own formatter. */
+  formula?: ScoreFormula;
   /** The printed tags this card adds (for the `tags` section chips). */
   tags?: ReadonlyArray<Tag>;
   /** TRUE for an EVENT card's tags — they only fire "on-tag" triggers at play
@@ -57,6 +65,9 @@ export type PlayCardResultMeta = {
   /** The card draws at least one passive ongoing effect (`cardHasPassiveEffect`). */
   hasEffect: boolean;
   victoryPoints?: number | 'special' | CountableVictoryPoints;
+  /** The play preview's `cardVictoryPoints` (server-built, «per tags» cards
+   *  only): the VP the card will score once played, with its mechanics. */
+  vpProjection?: CardVictoryPointsDetail;
   /** The card is an EVENT (red). By the rules an event's tags are NOT added to
    *  the persistent tag count — they only fire "on-tag" triggers at play time,
    *  then the card is discarded face-down. So the result must NOT claim the
@@ -93,7 +104,7 @@ export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResu
   if (meta.hasEffect) {
     out.push({kind: 'effect', text: 'Permanent effect'});
   }
-  const vp = victoryPointSection(meta.victoryPoints);
+  const vp = victoryPointSection(meta.victoryPoints, meta.vpProjection);
   if (vp !== undefined) {
     out.push(vp);
   }
@@ -116,7 +127,7 @@ export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResu
   return out;
 }
 
-function victoryPointSection(vp: PlayCardResultMeta['victoryPoints']): PlayResultSection | undefined {
+function victoryPointSection(vp: PlayCardResultMeta['victoryPoints'], projection: CardVictoryPointsDetail | undefined): PlayResultSection | undefined {
   if (vp === undefined) {
     return undefined;
   }
@@ -132,8 +143,18 @@ function victoryPointSection(vp: PlayCardResultMeta['victoryPoints']): PlayResul
     }
     return {kind: 'vp', text: 'Victory points', detail: `+${vp}`};
   }
-  // 'special' or a CountableVictoryPoints (per-resource / per-tag / conditional)
-  // — the exact endgame value can't be known now, so state it honestly.
+  // THE SERVER'S PROJECTION — a «per tags» card: the number it scores the
+  // moment it lands (its own tags counted by the engine) and the formula
+  // behind it, in the score explorer's own form. A ZERO is an answer, never a
+  // reason to hide the row: for a card whose whole value is its VP,
+  // «0 · [метка] 1 / 3 · ещё 2 до следующего ПО» IS the reading.
+  if (projection?.mechanics?.shape === 'per') {
+    const n = projection.victoryPoint;
+    return {kind: 'vp', text: 'Victory points', detail: n > 0 ? `+${n}` : `${n}`, formula: formulaFor(projection)};
+  }
+  // 'special' or a CountableVictoryPoints the play may still move (resources,
+  // cities, adjacency, colonies) — the exact endgame value can't be known now,
+  // so state it honestly.
   return {kind: 'vp', text: 'Victory points', variable: true};
 }
 
