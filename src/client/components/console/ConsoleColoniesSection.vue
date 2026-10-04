@@ -20,9 +20,11 @@
            'con-colonies--scene': sceneOverlay,
            // THE RECEIPT of a finished roster change: the stage folded home and the grid states the result —
            // no cursor, no verbs (the flow is past its commit; it leaves by itself).
-           'con-colonies--receipt': rosterReceiptOn,
+           'con-colonies--receipt': receiptOn,
          },
        ]"
+       :data-colony-city-degraded="cityState.degraded !== '' ? cityState.degraded : undefined"
+       :data-colony-city-beat="cityState.live ? cityState.beat : undefined"
        :data-colony-roster-degraded="rosterState.degraded !== '' ? rosterState.degraded : undefined"
        :data-colony-roster-beat="rosterState.live ? rosterState.beat : undefined"
        :data-colony-mode="pick !== undefined ? 'pick' : 'browse'"
@@ -104,6 +106,7 @@
                                    :justDocked="colony.name === dockedColony"
                                    :orbit="rosterState.orbit === colony.name"
                                    :projectedCube="tileProjectedCube(colony)"
+                                   :cityProjection="tileCityProjection(colony)"
                                    :status="tileStatus(colony)" />
               </div>
             </div>
@@ -156,10 +159,12 @@
           </footer>
           <!-- THE RECEIPT's rail (a finished roster change): ONE line — what left, what came, whether the colony
                stands. A result, never an offer: it carries no verb. -->
-          <footer v-else-if="rosterReceiptOn" class="con-colonies__rail" data-colony-roster-receipt>
+          <footer v-else-if="receiptOn" class="con-colonies__rail"
+                  :data-colony-roster-receipt="rosterReceiptOn ? '' : undefined"
+                  :data-colony-city-receipt="cityReceiptOn ? '' : undefined">
             <span class="con-colonies__rail-receipt">
               <span class="con-colonies__rail-receipt-mark" aria-hidden="true">✓</span>
-              <span>{{ rosterReceiptText }}</span>
+              <span>{{ receiptText }}</span>
             </span>
           </footer>
           <footer v-else-if="focusedMeta !== undefined" class="con-colonies__rail">
@@ -189,6 +194,34 @@
                 <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
                 <span class="con-colonies__rail-note" data-colonies-rail-roster="enters">{{ focusedStatus.text }}</span>
               </template>
+            </template>
+            <!-- ── A CITY ON THE CHOSEN TILE (TR22): «[город] встанет на плитку · Космические города 1 → 2 · ПО +4» —
+                 the server's projection off the `tileSite` marker (one marker for every candidate). ── -->
+            <template v-else-if="railMode === 'city'">
+              <template v-if="focusedCityReading !== undefined">
+                <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+                <span class="con-colonies__rail-cell" data-colonies-rail-city>
+                  <PremiumCountGlyph class="con-colonies__rail-cityglyph" :glyph="spaceCityGlyph" />
+                  <span class="con-colonies__rail-label">{{ $t('lands on this tile') }}</span>
+                </span>
+                <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
+                <span class="con-colonies__rail-cell con-colonies__rail-cell--get" data-colonies-rail-city-count>
+                  <span class="con-colonies__rail-label">{{ $t('Space cities') }}</span>
+                  <b>{{ focusedCityReading.cities.before }}</b>
+                  <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+                  <b>{{ focusedCityReading.cities.after }}</b>
+                </span>
+                <template v-if="focusedCityReading.victoryPoints !== undefined">
+                  <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
+                  <span class="con-colonies__rail-cell con-colonies__rail-cell--get" data-colonies-rail-city-vp>
+                    <span class="con-colonies__rail-label">{{ $t('VP') }}</span>
+                    <b>+{{ focusedCityReading.victoryPoints }}</b>
+                  </span>
+                </template>
+              </template>
+              <span v-else-if="railBlocked" class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + focusedStatus.kind">
+                <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
+              </span>
             </template>
             <template v-else-if="railMode === 'track'">
               <template v-if="focusedTrackReading !== undefined">
@@ -344,6 +377,7 @@
                                 :viewerColor="viewerColor"
                                 :playerId="catalog ? '' : playerId"
                                 :tradeOffset="tradeOffset"
+                                :cityProjection="tileCityProjection(focusColonyModel)"
                                 :actIntent="inspectActIntent"
                                 :actionAvailable="inspectActionAvailable"
                                 :blockReason="inspectBlockReason"
@@ -360,6 +394,7 @@
                                    :colony="focusColonyModel"
                                    :intent="stageIntent"
                                    :roster="stageRoster"
+                                   :city="stageCity"
                                    :actionAvailable="focusActionAvailable"
                                    :blockReason="focusBlockReason"
                                    :blockTone="focusBlockTone"
@@ -445,6 +480,11 @@ import {
 import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
 import {ColonyTrackMoveReading, colonyTrackMoveReading, trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
 import {colonyTrackMoveFlow} from '@/client/console/colonyTrade/colonyTrackMove';
+import {ColonyTileSite} from '@/common/colonies/ColonyTileSite';
+import {ColonyCityReceipt, colonyCityOwnSceneLive, colonyCityState, endWatchedColonyCity} from '@/client/console/colonyCity/consoleColonyCity';
+import {COLONY_CITY_STAGE, ColonyCityReading, ColonyCityStageView, colonyCityReading} from '@/client/console/colonyCity/colonyCityModel';
+import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
@@ -536,6 +576,12 @@ export type ConsoleColonyPick = {
    */
   trackMoves?: ReadonlyArray<ColonyTrackMove>,
   /**
+   * THE PICK PLACES A TILE ON THE CHOSEN COLONY TILE (TR22 Nova City — the server's `SelectColonyModel.tileSite`):
+   * the tile, its hosted cell and the projection of the count and the card's VP — ONE marker for every candidate.
+   * Its presence makes the act `city` (`colonyPickIntent`).
+   */
+  tileSite?: ColonyTileSite,
+  /**
    * The pick is a STAGED door (TR07's staged colony): nothing is on the wire
    * yet — the stage's A is the PLAY's one submit and B walks one level back.
    * Absent on a live server prompt.
@@ -586,7 +632,7 @@ const COMPLETION_SETTLE_MS = 300;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube},
+  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -670,6 +716,18 @@ export default defineComponent({
       focusModelLatch: undefined as ColonyModel | undefined,
       /** …and the roster act's reading as last derived from the prompt (the answer takes the prompt away). */
       rosterStageLatch: undefined as ColonyRosterStageView | undefined,
+      /** A CITY's landing on a colony tile (TR22): the scene's state — the receipt, the confession. */
+      cityState: colonyCityState,
+      /** …and the city act's reading as last derived from the prompt (the answer takes the prompt away mid-scene). */
+      cityStageLatch: undefined as ColonyCityStageView | undefined,
+      /** …and the name the «city» DOOR's grid wore before the descent — B from the stage walks the tail back to it. */
+      cityDoorStage: '',
+      /**
+       * A LANDED city's receipt, kept for as long as the door's pick stands on THIS surface. The shell clears the
+       * scene's state when the read ends, while the section still rides its host's dissolve with the staged pick
+       * latched — without this the ghosts and the pick's rail came back for the last frames of the leave.
+       */
+      cityReceiptLatch: undefined as ColonyCityReceipt | undefined,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
       /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
@@ -704,6 +762,74 @@ export default defineComponent({
     /** The grid stands as the RECEIPT of a finished roster change (the stage has folded home). */
     rosterReceiptOn(): boolean {
       return this.rosterState.receipt !== undefined && !this.rosterState.live && !this.focusState.open;
+    },
+    /** The grid stands as the RECEIPT of a city just laid on a colony tile (TR22 — the stage has folded home). */
+    cityReceiptOn(): boolean {
+      return this.cityReceipt !== undefined && !this.cityState.live && !this.focusState.open;
+    },
+    /** The receipt of a landed city: the scene's own while it stands, then this surface's copy (see `cityReceiptLatch`). */
+    cityReceipt(): ColonyCityReceipt | undefined {
+      return this.cityState.receipt ?? this.cityReceiptLatch;
+    },
+    /** A «city» door's pick stands on this surface (live, staged, or latched through the host's dissolve). */
+    cityDoorStands(): boolean {
+      return this.pick?.tileSite !== undefined;
+    },
+    /**
+     * THE GRID IS A RECEIPT — one reading for every flow that folds its stage home and lets the grid state the
+     * result (a roster change, a city laid on a tile): no cursor, no verbs, the landed tile in the calm amber.
+     */
+    receiptOn(): boolean {
+      return this.rosterReceiptOn || this.cityReceiptOn;
+    },
+    receiptText(): string {
+      if (this.rosterReceiptOn) {
+        return this.rosterReceiptText;
+      }
+      const receipt = this.cityReceipt;
+      if (receipt === undefined) {
+        return '';
+      }
+      const city = receipt.card !== undefined ? translateText(receipt.card) : translateText('City');
+      return translateTextWithParams('${0} — on the ${1} colony tile', [city, translateText(receipt.colony)]);
+    },
+    /**
+     * A city act of the player's own is ANSWERED (on the wire, playing, homing or standing as its receipt): the
+     * door's prompt has outlived its answer — no tile is offered, refused or projected any more.
+     */
+    cityAnswered(): boolean {
+      // (A WATCHER's landing is not an answer of this player's: it takes no status line and no rail away.)
+      return this.cityState.armed !== undefined || colonyCityOwnSceneLive() || this.cityState.homing || this.cityReceipt !== undefined;
+    },
+    /** The counted object of the «city» rail — the space city RX08's readings draw. */
+    spaceCityGlyph(): CountedObjectGlyph {
+      return {kind: 'tile', tile: 'spaceCity'};
+    },
+    /** The focused tile's reading of a «city» pick (a candidate's only) — the server's marker, phrased. */
+    focusedCityReading(): ColonyCityReading | undefined {
+      const colony = this.colonies[this.index];
+      const site = this.pick?.tileSite;
+      if (colony === undefined || site === undefined || !this.isPickable(colony.name)) {
+        return undefined;
+      }
+      return colonyCityReading(site, colony.name as ColonyName);
+    },
+    /** The city act as the stage reads it — pinned at the press (the answer takes the prompt away mid-scene). */
+    stageCity(): ColonyCityStageView | undefined {
+      if (this.focusState.intent !== 'city') {
+        return undefined;
+      }
+      const site = this.pick?.tileSite;
+      const model = this.focusColonyModel;
+      if (site === undefined || model === undefined) {
+        return this.cityStageLatch;
+      }
+      return {
+        reading: colonyCityReading(site, model.name as ColonyName),
+        // A STAGED door's A is the PLAY's one submit — it speaks the play's verb; a live door the server's own.
+        verbKey: this.pick?.staged === true ? 'Play card' : (this.pick?.labelKey ?? 'Select'),
+        stageKey: COLONY_CITY_STAGE,
+      };
     },
     /** «− Церера · + Ио · колония построена» — the change in the roster's own words, then the colony. */
     rosterReceiptText(): string {
@@ -766,6 +892,12 @@ export default defineComponent({
       if (this.focusState.open && this.focusState.colonyName !== '') {
         return this.focusState.colonyName;
       }
+      // A CITY's receipt (TR22): the stage has folded home and the result still belongs to its tile — the tail
+      // keeps «ЛУНА · ГОРОД» while the grid is read (it only ever moves forward past the commit).
+      const cityTile = this.cityReceipt?.colony ?? this.cityState.armed?.colony;
+      if (this.cityAnswered && cityTile !== undefined) {
+        return cityTile;
+      }
       // A FLEET DOCK's stage: the card is the carried object — «КОЛОНИИ ›
       // ПЕРЕВОЗКА ВОДЫ › ТОРГОВЛЯ».
       if (this.focusState.open && this.focusState.dock !== '') {
@@ -803,7 +935,19 @@ export default defineComponent({
       if (this.focusState.open) {
         // A CHOSEN TRACK's stage names itself from the descent on (the stage publishes «Трек» a flush later — the
         // tail must not animate through «ЛУНА · ВЫБОР КОЛОНИИ» on the way).
+        // (A «city» stage — TR22 — the same way: never through «ЛУНА · ВЫБОР КОЛОНИИ».)
+        if (this.focusState.stage === '' && this.focusState.intent === 'city') {
+          return COLONY_CITY_STAGE;
+        }
         return this.focusState.stage !== '' ? this.focusState.stage : (this.focusState.intent === 'track' ? 'Track' : '');
+      }
+      // A «CITY» act with its stage closed: ANSWERED — the grid is the receipt of «… · ГОРОД»; still a QUESTION (B
+      // from the stage) — the grid is the door again and the tail walks BACK to the name the door wore.
+      if (this.cityAnswered) {
+        return COLONY_CITY_STAGE;
+      }
+      if (this.pick?.tileSite !== undefined && this.cityDoorStage !== '') {
+        return this.cityDoorStage;
       }
       if (this.revealEmbedActive) {
         return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
@@ -1066,7 +1210,7 @@ export default defineComponent({
       if (this.focusState.intent === 'trade') {
         return this.focusTradeable;
       }
-      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster') {
+      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster' || this.focusState.intent === 'city') {
         return this.pick !== undefined && this.pick.selectable.includes(model.name);
       }
       return false;
@@ -1076,6 +1220,11 @@ export default defineComponent({
      * pulsing — a colony lands by the same answer) or the plain pick's, and carries its own reading beside it.
      */
     stageIntent(): ColonyFocusIntent {
+      // A CITY act wears the plain pick's composition (a short panel, no configuration; the working half stands as
+      // it is — the city touches none of it) and carries its own reading beside it (`stageCity`).
+      if (this.focusState.intent === 'city') {
+        return 'pick';
+      }
       if (this.focusState.intent !== 'roster') {
         return this.focusState.intent;
       }
@@ -1158,7 +1307,7 @@ export default defineComponent({
       }
       if (this.pick !== undefined) {
         // A pick refused THIS colony: the server's own reason.
-        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster') {
+        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster' || this.focusState.intent === 'city') {
           return this.pickReasonFor(model.name);
         }
         // Mid-pick the trade window simply is not open — the stage's verdict
@@ -1253,12 +1402,15 @@ export default defineComponent({
     /** Which rail the compact readout shows: a SelectColony pick titled
      *  'Build' grants a settlement + placement bonus (NOT trade); other picks
      *  are identity-only; no pick ⇒ the trade rail. */
-    railMode(): 'trade' | 'build' | 'select' | 'track' | 'roster' {
+    railMode(): 'trade' | 'build' | 'select' | 'track' | 'roster' | 'city' {
       if (this.pick === undefined) {
         return 'trade';
       }
       const intent = colonyPickIntent(this.pick);
-      return intent === 'build' ? 'build' : (intent === 'track' ? 'track' : (intent === 'roster' ? 'roster' : 'select'));
+      if (intent === 'build' || intent === 'track' || intent === 'roster' || intent === 'city') {
+        return intent;
+      }
+      return 'select';
     },
     /** «будет снята · на её место — плитка из резерва (N)» — what choosing the focused tile to leave does. */
     rosterLeaveNote(): string {
@@ -1352,10 +1504,38 @@ export default defineComponent({
         this.rosterStageLatch = undefined;
       }
     },
+    stageCity: {
+      immediate: true,
+      handler(view: ColonyCityStageView | undefined): void {
+        if (view !== undefined && this.pick?.tileSite !== undefined) {
+          this.cityStageLatch = view;
+        }
+      },
+    },
+    'cityState.receipt'(receipt: ColonyCityReceipt | undefined): void {
+      if (receipt !== undefined && this.cityDoorStands) {
+        this.cityReceiptLatch = {...receipt};
+      }
+    },
+    cityDoorStands(stands: boolean): void {
+      if (!stands) {
+        this.cityReceiptLatch = undefined;
+      }
+    },
+    cityAnswered(answered: boolean): void {
+      if (!answered && !this.focusState.open) {
+        this.cityStageLatch = undefined;
+      }
+    },
     'focusState.open'(open: boolean): void {
+      // A watcher's landing was measured on the surface that has just changed — it ends in its final poses.
+      endWatchedColonyCity();
       if (!open && !this.rosterBusy) {
         this.focusModelLatch = undefined;
         this.rosterStageLatch = undefined;
+      }
+      if (!open && !this.cityAnswered) {
+        this.cityStageLatch = undefined;
       }
     },
     /**
@@ -1674,7 +1854,7 @@ export default defineComponent({
     tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
       // A ROSTER change is answered and playing / standing as its receipt: the grid is a RESULT — no tile is being
       // offered or refused any more (a staged door's prompt outlives the answer, and its «not pickable» is stale).
-      if (this.rosterState.receipt !== undefined) {
+      if (this.rosterState.receipt !== undefined || this.cityAnswered) {
         return {kind: 'none', text: ''};
       }
       // The trade transaction narrates its own beats on the traded tile —
@@ -1838,6 +2018,17 @@ export default defineComponent({
      * the build-slot row — so each physically continues into its expanded
      * counterpart (never a new unrelated detail page).
      */
+    /**
+     * The colour of the city a «city» pick would lay on this tile ('' = no such door, or not a candidate) — the
+     * server's `tileSite` marker. The seat itself stops reading it once the door is answered (`colonyCityAnswered`).
+     */
+    tileCityProjection(colony: ColonyModel): Color | '' {
+      const site = this.pick?.tileSite;
+      if (site === undefined || this.cityAnswered || !this.isPickable(colony.name)) {
+        return '';
+      }
+      return site.color;
+    },
     /** The colour of the colony a roster pick would BUILD on this reserve tile ('' = none) — the server's projection. */
     tileProjectedCube(colony: ColonyModel): string {
       const roster = this.pick?.roster;
@@ -1919,11 +2110,17 @@ export default defineComponent({
       const planet = tile?.querySelector<HTMLElement>('.con-coltile__planet-berth');
       const track = tile?.querySelector<HTMLElement>('.con-coltile__track');
       const slots = tile?.querySelector<HTMLElement>('.con-coltile__build');
+      // The CITY'S SEAT — the fifth carried object (its box is always laid out, an empty seat included).
+      const seat = tile?.querySelector<HTMLElement>('.con-coltile__head [data-colony-city-seat]');
+      if (intent === 'city' && workspaceFrameStage('colonies') !== COLONY_CITY_STAGE) {
+        // The door's own name, kept for the way back (the stage is about to hand «ГОРОД» up over it).
+        this.cityDoorStage = workspaceFrameStage('colonies');
+      }
       const rectOf = (node: HTMLElement | null | undefined) => {
         const r = node?.getBoundingClientRect();
         return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
       };
-      armColonyFocusOrigin(rectOf(tile), rectOf(planet), rectOf(track), rectOf(slots));
+      armColonyFocusOrigin(rectOf(tile), rectOf(planet), rectOf(track), rectOf(slots), rectOf(seat));
       openColonyFocus(colony.name as ColonyName, intent);
     },
     /** Fold back to the browse surface (B / cancel) — PRE-commit only. */
@@ -1960,6 +2157,11 @@ export default defineComponent({
       // A ROSTER change owns its own ending too: the ceremony, then the LANDING into the slot, then the receipt's
       // read — the shell's `landColonyRoster` folds this stage home; nothing may fold it earlier.
       if (this.rosterBusy) {
+        return;
+      }
+      // A CITY's landing (TR22) owns its own ending as well: the scene, then the stage folding HOME, then the
+      // receipt's read — the shell's `landColonyCity`; nothing may fold the stage under the piece.
+      if (this.cityAnswered) {
         return;
       }
       this.completeTimer = window.setTimeout(() => {
@@ -2012,11 +2214,12 @@ export default defineComponent({
       const planet = dossier?.querySelector<HTMLElement>('[data-colony-focus-planet]');
       const track = dossier?.querySelector<HTMLElement>('[data-colony-focus-track]');
       const slots = dossier?.querySelector<HTMLElement>('[data-colony-focus-slots]');
+      const seat = dossier?.querySelector<HTMLElement>('[data-colony-city-seat]');
       const rectOf = (node: HTMLElement | null | undefined) => {
         const r = node?.getBoundingClientRect();
         return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
       };
-      armColonyFocusOrigin(rectOf(surface), rectOf(planet), rectOf(track), rectOf(slots));
+      armColonyFocusOrigin(rectOf(surface), rectOf(planet), rectOf(track), rectOf(slots), rectOf(seat));
       armColonyFocusHandoff();
       switchColonyFocusIntent(intent);
     },
@@ -2028,9 +2231,9 @@ export default defineComponent({
     tileProjection(colony: ColonyModel): number {
       return trackMoveOf(this.pick?.trackMoves, colony.name)?.after ?? -1;
     },
-    /** X on a `track` stage — the colony's dossier, the act kept (A on the dossier leads back to it). */
+    /** X on a `track` / `city` stage — the colony's dossier, the act kept (A on the dossier leads back to it). */
     onStageInspect(): void {
-      if (this.focusState.open && this.focusState.intent === 'track') {
+      if (this.focusState.open && (this.focusState.intent === 'track' || this.focusState.intent === 'city')) {
         switchColonyFocusIntent('inspect');
       }
     },
@@ -2128,6 +2331,8 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    // A watcher's landing has no seat left to land on.
+    endWatchedColonyCity();
     this.stopResizeObs?.();
     this.stopResize?.();
     if (this.completeTimer !== undefined) {

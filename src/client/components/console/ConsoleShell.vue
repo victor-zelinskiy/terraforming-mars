@@ -5601,6 +5601,9 @@ export default defineComponent({
         labelKey: buttonLabel === 'trade' ? 'Trade' : buttonLabel,
         // A pick that MOVES the chosen tile's track (TR07) — the server's projection, read by the grid and the stage.
         ...(model.trackMoves !== undefined ? {trackMoves: model.trackMoves} : {}),
+        // A pick that LAYS A TILE on the chosen colony tile (TR22) — the server's projection again: the seat's ghost on
+        // every candidate, the count «now → after» and the card's VP are read off this marker, never computed here.
+        ...(model.tileSite !== undefined ? {tileSite: model.tileSite} : {}),
         // …and whether it is the STAGED door (nothing on the wire yet) or a live server prompt.
         ...(this.playerView.waitingFor?.type !== 'colony' && this.stagedColonyModel !== undefined ? {staged: true} : {}),
       };
@@ -8752,6 +8755,18 @@ export default defineComponent({
         if (intent === 'track') {
           // A CHOSEN TRACK's stage (TR07): A is the confirm — «Разыграть карту» on the staged door (it IS the
           // play's one submit), the server's verb on a live one; X reads the colony's dossier; L3 the source card.
+          const staged = this.colonyPick?.staged === true;
+          return [
+            {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),
+              enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'secondary', label: 'Inspect'},
+            ...(this.colonyEmbedSourceCard !== undefined ? [{control: 'stickL' as GlyphControl, label: 'Source'}] : []),
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        if (intent === 'city') {
+          // A CITY ON THE CHOSEN TILE (TR22): A is the confirm — «Разыграть карту» on the staged door (it IS the play's
+          // one submit), the server's verb on a live one; X reads the colony's dossier; L3 the source card.
           const staged = this.colonyPick?.staged === true;
           return [
             {control: 'confirm', label: staged ? 'Play card' : (this.colonyPick?.labelKey ?? 'Select'),

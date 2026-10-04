@@ -535,23 +535,53 @@ export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise
       },
     }, 0);
     // CONTACT — all in one beat, inside the settle window:
-    const touchAt = opts.flightMs / 1000;
-    if (els.edge !== undefined) {
-      // The thickness compresses: airborne 3px → seated 1px.
-      tl.to(els.edge, {y: 1, duration: 0.1, ease: 'power2.out'}, touchAt);
-    }
-    if (els.touch !== undefined) {
-      // The surface accepts it: one quiet brightness pass, never a flash.
-      tl.to(els.touch, {autoAlpha: 0.22, duration: (TILE_TOUCH_MS * 0.35) / 1000, ease: 'power1.in'}, touchAt);
-      tl.to(els.touch, {autoAlpha: 0, duration: (TILE_TOUCH_MS * 0.65) / 1000, ease: 'power1.out'});
-    }
-    // The settle: microscopic damped weight — felt, not seen.
-    tl.to(els.tile, {y: `+=${settlePx}`, duration: 0.07, ease: 'power1.out'}, touchAt);
-    tl.to(els.tile, {y: `-=${settlePx}`, duration: Math.max(0.09, opts.settleMs / 1000 - 0.07), ease: 'power2.out'}, touchAt + 0.07);
-    if (els.shadow !== undefined) {
-      tl.to(els.shadow, {autoAlpha: 0.5, duration: 0.12, ease: 'power1.out'}, touchAt);
-    }
+    addTileTouch(tl, els, {at: opts.flightMs / 1000, settlePx, settleMs: opts.settleMs});
   }, opts.flightMs + opts.settleMs + 400);
+}
+
+/** What a tile's CONTACT is played on: the proxy, its thickness, its touch overlay, the ground shadow under it. */
+export type TileTouchEls = Pick<TileStageEls, 'tile' | 'edge' | 'touch' | 'shadow'>;
+
+export type TileTouchOpts = {
+  /** Where on the timeline the piece TOUCHES, in seconds. */
+  at: number,
+  /** The settle's depth in real px (already scaled — see `TILE_SETTLE_PX`). */
+  settlePx: number,
+  /** The settle window, real ms. */
+  settleMs: number,
+  /** The ground shadow's alpha in contact (the board's 0.5 by default; a host whose shadow is its own states it). */
+  shadowAlpha?: number,
+};
+
+/**
+ * THE TOUCH OF A TILE — the one contact beat every landing of a tile speaks:
+ * the thickness edge compresses (airborne 3px → seated 1px), one quiet
+ * brightness pass crosses the face (the surface accepts it — never a flash),
+ * the piece settles by a microscopic damped weight (felt, not seen) and the
+ * ground shadow snaps to contact. No bounce, no ripple, no glow.
+ *
+ * Shared by the Mars landing hero (`playTileFlight`) and a tile laid on a
+ * colony tile (`colonyCityDirector` — Turmoil Redux TR22 Nova City): a piece
+ * does not change the way it lands by what it is laid on. The tweens are added
+ * to the CALLER's timeline at `at`.
+ */
+export function addTileTouch(tl: gsap.core.Timeline, els: TileTouchEls, opts: TileTouchOpts): void {
+  const touchAt = opts.at;
+  if (els.edge !== undefined) {
+    // The thickness compresses: airborne 3px → seated 1px.
+    tl.to(els.edge, {y: 1, duration: 0.1, ease: 'power2.out'}, touchAt);
+  }
+  if (els.touch !== undefined) {
+    // The surface accepts it: one quiet brightness pass, never a flash.
+    tl.to(els.touch, {autoAlpha: 0.22, duration: (TILE_TOUCH_MS * 0.35) / 1000, ease: 'power1.in'}, touchAt);
+    tl.to(els.touch, {autoAlpha: 0, duration: (TILE_TOUCH_MS * 0.65) / 1000, ease: 'power1.out'});
+  }
+  // The settle: microscopic damped weight — felt, not seen.
+  tl.to(els.tile, {y: `+=${opts.settlePx}`, duration: 0.07, ease: 'power1.out'}, touchAt);
+  tl.to(els.tile, {y: `-=${opts.settlePx}`, duration: Math.max(0.09, opts.settleMs / 1000 - 0.07), ease: 'power2.out'}, touchAt + 0.07);
+  if (els.shadow !== undefined) {
+    tl.to(els.shadow, {autoAlpha: opts.shadowAlpha ?? 0.5, duration: 0.12, ease: 'power1.out'}, touchAt);
+  }
 }
 
 export type TierApproachOpts = {

@@ -274,7 +274,9 @@
                   <span v-if="sec.formula !== undefined" class="con-composer__rescat-formula" data-vp-formula
                   >· <img v-if="formulaTagIcon(sec.formula) !== undefined" class="con-composer__rescat-vptag"
                           :src="formulaTagIcon(sec.formula)" alt="" aria-hidden="true"
-                  >{{ formulaOperandsText(sec.formula) }}<template v-if="shortfallText(sec.formula) !== ''"
+                  ><PremiumCountGlyph v-for="(glyph, gi) in formulaCountGlyphs(sec.formula)" :key="'vg' + gi"
+                                      class="con-composer__rescat-vpglyph" :glyph="glyph" data-vp-glyph
+                  />{{ formulaOperandsText(sec.formula) }}<template v-if="shortfallText(sec.formula) !== ''"
                   > · {{ shortfallText(sec.formula) }}</template></span>
                   <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
                     <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
@@ -730,7 +732,9 @@ import ConsolePlayedReceivingStage from '@/client/components/console/played/Cons
 //  builder written twice explains the same mechanic two ways the first time a
 //  step shape changes.)
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
-import {formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
+import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
+import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
@@ -851,7 +855,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -2325,6 +2329,11 @@ export default defineComponent({
     formulaTagIcon,
     formulaOperandsText,
     shortfallText,
+    /** …and its counted OBJECT when the unit is no tag (a space city — TR22): the score explorer's own glyph, 0 or 1. */
+    formulaCountGlyphs(formula: ScoreFormula): Array<CountedObjectGlyph> {
+      const glyph = formulaGlyph(formula);
+      return glyph?.kind === 'counted' ? [glyph.glyph] : [];
+    },
     vpDetail(sec: PlayResultSection): string {
       if (sec.variable === true) {
         // «по условию» — the same fact as «зависит от условий» in a third of

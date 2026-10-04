@@ -183,6 +183,23 @@ density). The legacy per-planet `background-size` / `background-position` in
 `colonies.less` — tuned for the 150 px crops, effective only on the debug
 `/cards` page — are deleted for the eleven base planets.
 
+### 2.4-bis WHAT LIES ON THE TILE — the city's seat and ONE line of fact (2026-10-04, TR22)
+A colony tile can carry a TILE (`ColonyModel.tiles` — the city of TR22 Nova City;
+`docs/TURMOIL_REDUX_NOVA_CITY.md`). The dossier shows it twice, each once:
+
+* **the SEAT** — `ConsoleColonyCitySeat` (`.con-colcity`), the same component the grid tile and the focus stage
+  render, a child of the hero disc on the same side as on the stage (lower LEFT — the fleet's orbit is lower right),
+  `position: absolute`, zero layout. While a «city» pick stands and this colony is a candidate it wears the
+  projection (`cityProjection`, handed down by the section);
+* **the FACT, in words** — ONE line in the ACT column, above the act block: «На плитке: [город] Нова-Сити ·
+  <игрок>» (`.con-colinspect__ontile`, `data-colony-on-tile`). It appears with the SEATED piece (the seat's own
+  presented reading), never before its landing. **Never in the rules panel**: its law is the tile's three printed
+  rules, and a city is a fact about the table, not a rule of the tile.
+
+A «city» act's block states the act («Размещение города» · the verdict) and prints NO «ВЫ ПОЛУЧИТЕ» — that section is
+the TRADE's reward package. The seat is the fifth carried object of the dossier → stage hand-off
+(`enterFocusFromInspect` arms its rect beside the planet's, the track's and the berths').
+
 ### 2.5 LORE lives IN THE COLONY'S METADATA
 `ColonyMetadata.lore?: string`, set in each base colony class next to its
 `trade.description` (`src/server/colonies/Luna.ts` …). It rides

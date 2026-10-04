@@ -19029,8 +19029,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     /* THE HERO PLANET — the stage's visual anchor: the shared planet disc
        (ConsolePlanetDisc, `--lit`: key light, terminator, atmosphere rim),
-       GROWN. The host owns only the size and the orbital berth. */
-    &__planet {
+       GROWN. The host owns only the size and the orbital berth. (`.con-planet` is
+       the specificity: the shared disc's own default — declared LATER in this
+       file — otherwise wins, and the hero stood at the medallion's 3rem on the
+       standard and handheld profiles; the TV profile's override hid it.) */
+    &__planet.con-planet {
         --con-planet-size: 10.9rem;
     }
     /* THE ORBITAL BERTH — the fleet's live landing anchor while the stage is

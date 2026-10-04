@@ -83,8 +83,11 @@
             entering planet stands in its PROJECTION pose. */
          'con-colfocus--roster': roster !== undefined,
          'con-colfocus--roster-projected': rosterProjected,
+         /* THE CITY ACT (a city laid on this colony tile — TR22): the pick's composition, the working half
+            standing as it is, plus the city's own reading in the result rail. */
+         'con-colfocus--city': city !== undefined,
        }]"
-       :data-colony-intent="intent"
+       :data-colony-intent="city !== undefined ? 'city' : intent"
        :data-colony-roster="roster !== undefined ? roster.kind : undefined"
        :data-colony-track-degraded="intent === 'track' && trackMoveFlow.degraded !== '' ? trackMoveFlow.degraded : undefined"
        :style="fitNeedPx > 0 ? {'--colfocus-need': fitNeedPx + 'px'} : undefined">
@@ -128,6 +131,11 @@
                  around the DISC itself (inside it: a circle, never the wrap's box), closed by the ceremony's
                  dock. Absolute: zero layout. -->
             <span v-if="roster !== undefined" class="con-colfocus__planet-orbit" aria-hidden="true"></span>
+            <!-- THE CITY'S SEAT (TR22) — at the disc's lower LEFT (the fleet's orbit is its lower right), absolute:
+                 zero layout, so the hero column's children are the same in every phase. It stands in EVERY act
+                 (a trade, a build, a pick): a city on the tile is part of what the colony IS. In a «city» act it
+                 wears the projection; the landing plays on it. -->
+            <ConsoleColonyCitySeat :colony="colony" :projection="cityProjection" size="stage" />
           </ConsolePlanetDisc>
           <span class="con-colfocus__state" :class="colony.isActive ? 'con-colfocus__state--on' : 'con-colfocus__state--off'"
                 data-unfold-late>
@@ -179,14 +187,18 @@
              trade here?» is not the question the player was brought here to
              answer, and a red «✕ Здесь стоит ваш флот» over a reward they are
              owed is the screen refusing something nobody asked for. -->
-        <div v-if="!pastCommit && !commitLatched && !bonusMode"
+        <!-- …and in the CITY act (TR22) its BOX outlives the commit, unpainted (`--reserved`): the hero column is
+             centred, so a chip that vanished at the press dropped the planet — and the seat the piece is about to
+             land on — by its own height. The place a thing lands on does not move under it. -->
+        <div v-if="(!pastCommit && !commitLatched && !bonusMode) || cityVerdictReserved"
              class="con-colfocus__verdict"
-             :class="presentAvailable ? 'con-colfocus__verdict--ok' :
-               (blockTone === 'warning' ? 'con-colfocus__verdict--notnow' : 'con-colfocus__verdict--no')"
+             :class="[presentAvailable || cityVerdictReserved ? 'con-colfocus__verdict--ok' :
+               (blockTone === 'warning' ? 'con-colfocus__verdict--notnow' : 'con-colfocus__verdict--no'),
+                      {'con-colfocus__verdict--reserved': cityVerdictReserved}]"
              data-unfold-late>
-          <template v-if="presentAvailable">
+          <template v-if="presentAvailable || cityVerdictReserved">
             <span class="con-coltile__status-dot" aria-hidden="true"></span>
-            <span>{{ $t(roster !== undefined ? roster.verbKey : intent === 'build' ? 'Build here' : intent === 'track' ? 'Can select' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
+            <span>{{ $t(city !== undefined ? 'Can place the city here' : roster !== undefined ? roster.verbKey : intent === 'build' ? 'Build here' : intent === 'track' ? 'Can select' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
           </template>
           <!-- The turn gate is not a refusal: every trade rule is satisfied and
                the colony would take the fleet — it is simply not this player's
@@ -494,7 +506,43 @@
         <!-- THE ROSTER ACT — what happens if the player confirms NOW: three facts, each once (the server's
              projection, `ColonyRosterPrompt`): who leaves, who arrives and how it enters, whether the colony
              stands. The berth row above already shows WHERE the cube lands; this states that it does. -->
-        <template v-if="roster !== undefined">
+        <!-- THE CITY ACT — «РАЗМЕЩЕНИЕ ГОРОДА»: what confirming does, read off the server's `tileSite` marker
+             (the stage counts nothing): the city and whose it is, the player's space cities now → after, the
+             card's VP with its formula, and ONE calm line — the city takes no berth and changes nothing about
+             the trade. The count flips and the VP line lights ONCE, on the cube's touchdown. -->
+        <template v-if="city !== undefined">
+          <div class="con-colfocus__rsec con-colfocus__rsec--lead con-colfocus__cityfacts" data-colony-city-facts>
+            <div class="con-colfocus__cityfact" data-city-fact="city">
+              <span class="con-colfocus__cityfact-label" data-unfold-late>{{ $t('City') }}</span>
+              <span class="con-colfocus__cityfact-value">
+                <PremiumCountGlyph class="con-colfocus__cityfact-glyph" :glyph="spaceCityGlyph" />
+                <span>{{ $t(city.reading.card) }}</span>
+                <span v-if="city.reading.color === viewerColor" class="con-colfocus__cityfact-owner">· {{ $t('your city') }}</span>
+              </span>
+            </div>
+            <div class="con-colfocus__cityfact" :class="{'con-colfocus__cityfact--lit': cityCounted}"
+                 data-city-fact="cities" :data-city-counted="cityCounted ? '' : undefined">
+              <span class="con-colfocus__cityfact-label" data-unfold-late>{{ $t('Space cities') }}</span>
+              <span class="con-colfocus__cityfact-value">
+                <ConsoleFlipValue :value="cityCitiesShown" :text="String(cityCitiesShown)" accent="cyan" />
+                <template v-if="!cityCounted">
+                  <span class="con-colfocus__cityfact-arrow" aria-hidden="true">→</span>
+                  <b data-city-after>{{ city.reading.cities.after }}</b>
+                </template>
+              </span>
+            </div>
+            <div v-if="city.reading.victoryPoints !== undefined" class="con-colfocus__cityfact"
+                 :class="{'con-colfocus__cityfact--lit': cityCounted}" data-city-fact="vp">
+              <span class="con-colfocus__cityfact-label" data-unfold-late>{{ $t('Card VP') }}</span>
+              <span class="con-colfocus__cityfact-value">
+                <b data-city-vp>{{ city.reading.victoryPoints }}</b>
+                <span v-if="cityVpFormula !== ''" class="con-colfocus__cityfact-formula">{{ cityVpFormula }}</span>
+              </span>
+            </div>
+            <div class="con-colfocus__citynote" data-city-note data-unfold-late>{{ $t(city.reading.note) }}</div>
+          </div>
+        </template>
+        <template v-else-if="roster !== undefined">
           <div class="con-colfocus__rsec con-colfocus__rsec--lead con-colfocus__rosterfacts" data-colony-roster-facts>
             <div v-if="roster.reading.leaves !== undefined" class="con-colfocus__rosterfact" data-roster-fact="leaves">
               <span class="con-colfocus__rosterfact-label">{{ $t('Leaves') }}</span>
@@ -828,6 +876,12 @@ import {colonyTrackMoveFlow} from '@/client/console/colonyTrade/colonyTrackMove'
 import {colonyRosterState} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {ColonyRosterStageView} from '@/client/console/colonyRoster/colonyRosterModel';
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
+import ConsoleColonyCitySeat from '@/client/components/console/colonyCity/ConsoleColonyCitySeat.vue';
+import {colonyCityState} from '@/client/console/colonyCity/consoleColonyCity';
+import {ColonyCityStageView} from '@/client/console/colonyCity/colonyCityModel';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
+import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
+import {formulaOperandsText} from '@/client/console/scoreExplorerModel';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -938,6 +992,7 @@ export default defineComponent({
   components: {
     BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
     ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
+    ConsoleColonyCitySeat, PremiumCountGlyph,
   },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
@@ -982,6 +1037,12 @@ export default defineComponent({
      * tile that leaves, the verb and the crumb's stage; the stage computes none of it.
      */
     roster: {type: Object as PropType<ColonyRosterStageView | undefined>, default: undefined},
+    /**
+     * THE CITY ACT (`intent` is then the pick's — the section maps it): this pick lays a city on the colony tile
+     * (TR22 Nova City). The SERVER's reading off its `tileSite` marker, the verb and the crumb's stage; the stage
+     * computes none of it.
+     */
+    city: {type: Object as PropType<ColonyCityStageView | undefined>, default: undefined},
   },
   emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset', 'inspect'],
   data() {
@@ -1031,6 +1092,8 @@ export default defineComponent({
       trackMoveFlow: colonyTrackMoveFlow,
       /** The roster ceremony's poses (the seat gone, the hero docked). */
       rosterState: colonyRosterState,
+      /** A city's landing on this tile (TR22): the cube has touched — the count flips. */
+      cityState: colonyCityState,
       workspaceOutcomeState,
       /** The remote-entry context (module reactive, mirrored for tracking). */
       bonusEntry: colonyBonusEntry,
@@ -1275,7 +1338,46 @@ export default defineComponent({
     bonusMode(): boolean {
       return this.intent === 'bonus';
     },
+    /** The colour of the city this act would lay on the tile ('' outside a «city» act) — the seat draws the ghost. */
+    cityProjection(): Color | '' {
+      return this.city?.reading.color ?? '';
+    },
+    /** The counted object of the city's reading — the space city RX08's readings draw. */
+    spaceCityGlyph(): CountedObjectGlyph {
+      return {kind: 'tile', tile: 'spaceCity'};
+    },
+    /** The cube has touched down — the count has flipped and the VP line has lit (the scene's own signal). */
+    cityCounted(): boolean {
+      return this.city !== undefined && this.cityState.counted;
+    },
+    /** The player's space cities AS SHOWN: «before» until the cube lands, «after» from then on (one number that flips). */
+    cityCitiesShown(): number {
+      const cities = this.city?.reading.cities;
+      return cities === undefined ? 0 : (this.cityCounted ? cities.after : cities.before);
+    },
+    /**
+     * The VP's formula in the score's own words («2 × 2 ПО») — the card's PRINTED rate (its declaration) over the
+     * server's count; the one formatter the score explorer and the play composer speak. '' when the card prints
+     * no per-city rate.
+     */
+    cityVpFormula(): string {
+      const reading = this.city?.reading;
+      if (reading === undefined || reading.victoryPoints === undefined) {
+        return '';
+      }
+      const declared = getCard(reading.card)?.victoryPoints;
+      if (typeof declared !== 'object' || declared.cities === undefined) {
+        return '';
+      }
+      return formulaOperandsText({
+        kind: 'per', vp: reading.victoryPoints, counted: reading.cities.after,
+        each: declared.each ?? 1, per: declared.per ?? 1, unit: 'cities',
+      });
+    },
     resultTitle(): string {
+      if (this.city !== undefined) {
+        return 'City placement';
+      }
       // A ROSTER act states its own subject — the build's «Build outcome» would name half of it.
       if (this.roster !== undefined) {
         return 'Outcome';
@@ -1345,6 +1447,11 @@ export default defineComponent({
       if (this.intent === 'track' && this.trackMove !== undefined) {
         return Math.min(this.trackMove.after, this.trackMax);
       }
+      // A CITY laid on the tile (TR22) reads no trade: the track STANDS AS IT IS — a trade's standing offset is not
+      // projected into an act that does not touch the track (no ghost cell, no «+N» caption).
+      if (this.city !== undefined) {
+        return Math.min(this.presented.trackPosition, this.trackMax);
+      }
       const offset = this.colony.isActive ? this.presentedOffset : 0;
       return effectiveTradePosition(this.presented, this.metadata, offset);
     },
@@ -1353,6 +1460,10 @@ export default defineComponent({
      *  (the same `presentedColonyModel` the overview tile reads). */
     markerPosition(): number {
       return Math.min(this.presented.trackPosition, this.trackMax);
+    },
+    /** THE CITY ACT past its commit: the verdict's box stays (unpainted) so the hero column — the seat — stands still. */
+    cityVerdictReserved(): boolean {
+      return this.city !== undefined && !this.bonusMode && (this.pastCommit || this.commitLatched);
     },
     /** How many colonies stand here — the ONE number the reset rule reads. */
     builtCount(): number {
@@ -2221,6 +2332,10 @@ export default defineComponent({
       this.publishStageName();
       this.syncUiMirror();
     },
+    /** The city act arrives / is pinned with the prompt — the crumb's stage follows it. */
+    city() {
+      this.publishStageName();
+    },
     'colony.name'() {
       this.captures = {};
       this.sub = undefined;
@@ -2576,6 +2691,11 @@ export default defineComponent({
         setColonyFocusStage('Reward target');
         return;
       }
+      // THE CITY ACT names its own stage («… › ЛУНА · ГОРОД»).
+      if (this.city !== undefined) {
+        setColonyFocusStage(this.city.stageKey);
+        return;
+      }
       // THE ROSTER ACT names its own stage («ЗАМЕНА» / «ДОБАВЛЕНИЕ» / «СНЯТИЕ») — whichever composition it wears.
       if (this.roster !== undefined) {
         setColonyFocusStage(this.roster.stageKey);
@@ -2787,9 +2907,9 @@ export default defineComponent({
         this.onConfirmPress();
         return;
       case 'inspect':
-        // A CHOSEN TRACK's stage (TR07): X is the console's ordinary «Осмотреть» — the colony's dossier.
-        // The confirm here is A; there is nothing composed for X to commit.
-        if (this.intent === 'track' && this.sub === undefined) {
+        // A CHOSEN TRACK's stage (TR07) and a CITY's (TR22): X is the console's ordinary «Осмотреть» — the colony's
+        // dossier. The confirm here is A; there is nothing composed for X to commit.
+        if ((this.intent === 'track' || this.city !== undefined) && this.sub === undefined) {
           if (!this.pastCommit) {
             this.$emit('inspect');
           }

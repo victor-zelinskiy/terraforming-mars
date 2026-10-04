@@ -6,9 +6,20 @@
  *
  *  · the SCORE's reading of «per space city» — the counted object's glyph in a
  *    score row and the list of the cities that were counted (§ SCORE);
+ *  · THE CITY'S SEAT (`ConsoleColonyCitySeat`, `.con-colcity`) — a colony
+ *    tile's second object and the place that exists before it: its four POSES
+ *    (empty · projected · waiting · seated) and its two one-shot answers, in
+ *    its three hosts (the grid tile's head, the focus stage's hero, the
+ *    dossier's planet zone) (§ SEAT);
+ *  · the «city» act on the grid's rail and on the focus stage's result rail
+ *    (§ ACT);
+ *  · the fixed stage of the landing (`ConsoleColonyCityLayer`,
+ *    `.con-colcityfx`) — the shadow that lies on the seat and the two proxies'
+ *    boxes; the MOTION is the director's (§ SCENE).
  *
  * Console-safe materials only (gradients, box-shadow, opacity, transform);
- * nothing here carries a state through `filter` or `text-shadow`.
+ * nothing here carries a state through `filter` or `text-shadow`, and nothing
+ * loops: a seat does not pulse.
  */
 
 /* ── SCORE — «2 × 2 ПО = 4 ПО · космические города» ─────────────────────── */
@@ -21,6 +32,16 @@
     flex: 0 0 auto;
 }
 
+/* …and the same glyph in the play composer's VP projection («+4 сейчас ·
+   [космогород] 2 × 2 ПО»): the counted tag's inline box (`__rescat-vptag`),
+   so a «per tag» projection and a «per space city» one read alike. */
+.con-composer__rescat-vpglyph {
+    --pvpcard-size: 1.15em;
+    display: inline-flex;
+    margin-right: .25em;
+    vertical-align: -.22em;
+}
+
 /* WHICH cities were counted — under the focused row's formula: one calm line
    that may wrap (the preview column is the place with room; the row itself
    stays one line). */
@@ -31,4 +52,354 @@
 }
 .con-vpx__preview-cells-name {
     color: @con-text;
+}
+
+/* ── SEAT — the city's place on a colony tile ───────────────────────────── */
+
+/* THE BOX. A hex of the board's own proportion (46 × 51), sized by ONE token
+   (`--con-colcity-h`, the hex's height) that each host sets; `--con-colcity-k`
+   is the host's density factor (the handheld's shorter tile head) and scales
+   the hex AND the cube together. The box is ALWAYS laid out — an empty seat is
+   an invisible measurement slot — so no pose can move a neighbour. */
+.con-colcity {
+    --con-colcity-h: 2.5rem;
+    --con-colcity-k: 1;
+    position: relative;
+    display: block;
+    flex: 0 0 auto;
+    height: calc(var(--con-colcity-h) * var(--con-colcity-k));
+    aspect-ratio: 46 / 51;
+    pointer-events: none;
+
+    /* THE TILE — the board's own city art (`board-space-tile--city` supplies
+       the image); here it only takes the seat's box. */
+    &__tile {
+        position: absolute;
+        inset: 0;
+        background-size: 100% 100% !important;
+    }
+
+    /* THE CONTACT SHADOW of a piece that LIES here: a static gradient under
+       the hex's lower half — tight and dark, the pose the landing ends in. */
+    &__shadow {
+        position: absolute;
+        left: -2%;
+        right: -2%;
+        top: 74%;
+        height: 34%;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.7), transparent 70%);
+        opacity: 0.7;
+    }
+
+    /* THE CONTOUR of a seat that is offered (projected) or awaited (waiting):
+       the hex's own outline, dashed — a place, not an object. */
+    &__contour {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+
+        polygon {
+            fill: fade(@con-cyan, 6%);
+            stroke: fade(@con-cyan, 70%);
+            stroke-width: 1.6;
+            stroke-dasharray: 4 3.2;
+            stroke-linejoin: round;
+            vector-effect: non-scaling-stroke;
+        }
+    }
+
+    /* THE CUBE'S BOX — the owner marker's own resting place, in the board's
+       convention (lower right of the hex, inset from its sloped edge). It is
+       exactly the token's size, so the cube proxy is born at the size it lands
+       at; the px token rides the console's `--con-ui-scale` zoom channel (and
+       the host's density factor) like every other PlayerCube seat. */
+    &__cube {
+        /* The box is rem (1rem = the 20 logical px of COLONY_CITY_CUBE_PX.tile) and
+           positioned by the hex's own percentages; the px token INSIDE it carries
+           the zoom (below) — so the box and the token are one size on every profile. */
+        --con-colcity-cube: 1rem;
+        position: absolute;
+        right: 15.2%;
+        bottom: 27.5%;
+        width: calc(var(--con-colcity-cube) * var(--con-colcity-k));
+        height: calc(var(--con-colcity-cube) * var(--con-colcity-k));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        > .player-cube {
+            flex: 0 0 auto;
+            zoom: calc(var(--con-ui-scale, 1) * var(--con-colcity-k));
+        }
+    }
+    &--stage &__cube {
+        --con-colcity-cube: 1.8rem; /* COLONY_CITY_CUBE_PX.stage = 36 */
+    }
+    &--dossier &__cube {
+        --con-colcity-cube: 2rem; /* COLONY_CITY_CUBE_PX.dossier = 40 */
+    }
+
+    /* THE PROJECTION — «a city would stand here»: the art as a ghost and a
+       translucent cube in the viewer's colour under the dashed contour. */
+    &--projected &__tile {
+        opacity: 0.35;
+    }
+    &__ghost-cube {
+        display: block;
+        width: 78%;
+        height: 78%;
+        border-radius: 18%;
+        opacity: 0.55;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35);
+    }
+
+    /* WAITING — the door is answered: the contour alone, a step brighter. */
+    &--waiting &__contour polygon {
+        fill: fade(@con-amber, 7%);
+        stroke: fade(@con-amber, 78%);
+    }
+
+    /* ── the two ONE-SHOT answers ─────────────────────────────────────── */
+
+    /* The contact's answer: ONE contour washing out around the seat — the
+       place acknowledges the piece, once. The place's OWN shape (the hex the
+       dashed contour drew), solid for a moment: never a ring that stays, never
+       a second pass, never a box around a hex. */
+    &__answer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        opacity: 0;
+        transform-origin: 50% 50%;
+        animation: con-colcity-answer calc(420ms * var(--motion-scale, 1)) ease-out both;
+
+        polygon {
+            fill: none;
+            stroke: fade(@con-text, 72%);
+            stroke-width: 1.6;
+            stroke-linejoin: round;
+            vector-effect: non-scaling-stroke;
+        }
+    }
+
+    /* The cube's press: the tile gives by a hair under the cube and returns. */
+    &--press &__tile {
+        animation: con-colcity-press calc(120ms * var(--motion-scale, 1)) ease-out both;
+    }
+}
+
+@keyframes con-colcity-answer {
+    0% { opacity: 0; transform: scale(1.02); }
+    22% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 0; transform: scale(1.16); }
+}
+@keyframes con-colcity-press {
+    0% { transform: scale(0.985); }
+    100% { transform: scale(1); }
+}
+
+/* ── the seat's three HOSTS ──────────────────────────────────────────────── */
+
+/* THE GRID TILE — in the head, between the name and the planet. In flow, a
+   fixed box on EVERY tile: the name yields its width by its own ellipsis. */
+.con-coltile__head > .con-colcity {
+    --con-colcity-h: 2.5rem;
+}
+html.con-profile-handheld .con-coltile__head > .con-colcity {
+    /* The handheld head is 2.6rem (3.2rem elsewhere): the same proportion. */
+    --con-colcity-k: .8125;
+}
+
+/* THE FOCUS STAGE — at the hero disc's lower LEFT (the fleet's orbit is its
+   lower right): absolute, zero layout; it overlaps the disc by less than a
+   quarter of itself. */
+.con-colfocus__planet > .con-colcity {
+    --con-colcity-h: 4.4rem;
+    position: absolute;
+    left: -.95rem;
+    bottom: -.2rem;
+    z-index: 2;
+}
+
+/* THE DOSSIER — the same side of its (larger) disc. */
+.con-colinspect__planet > .con-colcity {
+    --con-colcity-h: 4.8rem;
+    position: absolute;
+    left: calc(var(--con-planet-size) * -.02);
+    bottom: calc(var(--con-planet-size) * .04);
+    z-index: 2;
+}
+
+/* ── ACT — the «city» pick on the rail and on the stage ─────────────────── */
+
+/* The grid rail's reading: «[город] встанет на плитку · Космические города
+   1 → 2 · ПО +4» — the rail's own cells, the city glyph at the label's weight. */
+.con-colonies__rail-cityglyph {
+    --pvpcard-size: 1.1rem;
+    flex: 0 0 auto;
+}
+
+/* The stage's verdict past the commit of a «city» act: its BOX stays, unpainted — the hero column is centred, and a
+   chip that left at the press dropped the planet (and the seat the piece lands on) by its own height. */
+.con-colfocus__verdict--reserved {
+    visibility: hidden;
+}
+
+/* The stage's result rail — «РАЗМЕЩЕНИЕ ГОРОДА»: three facts and one calm note. */
+.con-colfocus__cityfacts {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+}
+.con-colfocus__cityfact {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .8rem;
+    min-width: 0;
+
+    &-label {
+        flex: 0 1 auto;
+        min-width: 0;
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &-value {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: 1.05rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &-arrow { color: @con-text-dim; font-weight: 600; }
+    &-formula {
+        font-size: .8rem;
+        font-weight: 600;
+        color: @con-text-dim;
+    }
+    &-glyph { --pvpcard-size: 1.15rem; }
+    &-owner { font-size: .8rem; font-weight: 600; color: @con-text-dim; }
+
+    /* The count has flipped / the VP line lights — ONCE, on the cube's touchdown. */
+    &--lit &-value {
+        animation: con-colcity-factlit calc(520ms * var(--motion-scale, 1)) ease-out both;
+    }
+}
+.con-colfocus__citynote {
+    margin-top: .2rem;
+    font-size: .75rem;
+    line-height: 1.35;
+    color: @con-text-dim;
+}
+@keyframes con-colcity-factlit {
+    0% { color: @con-mint; transform: scale(1.06); }
+    100% { color: @con-text; transform: scale(1); }
+}
+
+/* THE DOSSIER's fact line — «На плитке: [город] Нова-Сити · <игрок>» — in the act column. */
+.con-colinspect__ontile {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    font-size: .85rem;
+    color: @con-text;
+
+    &-label {
+        flex: 0 0 auto;
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &-glyph { --pvpcard-size: 1.1rem; flex: 0 0 auto; }
+    &-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 700;
+    }
+    &-owner { flex: 0 0 auto; color: @con-text-dim; }
+}
+
+/* ── SCENE — the fixed stage of the landing ─────────────────────────────── */
+
+.con-colcityfx {
+    position: fixed;
+    inset: 0;
+    /* The colony build layer's own level: above the colonies' content, under the
+       resource-transfer chips (11670) and the command bar (11700). */
+    z-index: 11650;
+    pointer-events: none;
+    contain: layout style;
+
+    /* THE SHADOW LIES ON THE SEAT (never under the airborne piece): the director
+       sets its box and drives its spread and darkness. */
+    &__shadow {
+        position: fixed;
+        top: 0;
+        left: 0;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.7), transparent 70%);
+        opacity: 0;
+        will-change: transform, opacity;
+    }
+
+    /* THE CUBE's stage at its measured resting box — the colony build layer's
+       own recipe: mounted invisible, posed airborne by the director. */
+    &__cube {
+        position: fixed;
+        top: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+
+        /* keep-px: the director's motion layers (real-screen-px geometry). */
+        .player-cube__scene,
+        .player-cube__shadow,
+        .player-cube__glow {
+            will-change: transform, opacity;
+        }
+    }
+
+    /* One-shot impact ring at the cube's base (the build layer's, half as loud). */
+    &__ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid rgba(210, 238, 255, 0.4); /* keep-px: hairline on the real-px stage */
+        opacity: 0;
+        will-change: transform, opacity;
+    }
+}
+
+/* ── reduced motion — final poses, ONE answer of the seat ─────────────────
+   The scene itself plays no flight there (the controller lands the final poses);
+   of the CSS one-shots only the seat's ANSWER stays — the press and the fact's
+   flash are motion for its own sake. */
+html.con-reduced-motion {
+    .con-colcity--press .con-colcity__tile,
+    .con-colfocus__cityfact--lit .con-colfocus__cityfact-value {
+        animation-duration: 1ms;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-colcity--press .con-colcity__tile,
+    .con-colfocus__cityfact--lit .con-colfocus__cityfact-value {
+        animation-duration: 1ms;
+    }
 }

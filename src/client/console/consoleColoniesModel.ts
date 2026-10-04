@@ -241,21 +241,35 @@ export function resetConsoleColoniesUi(): void {
  *              reading: who leaves, who arrives and how it enters, whether
  *              the colony stands. A confirms; the ceremony plays on this
  *              stage with the commit held (`consoleColonyRoster`).
+ *  'city'    — the pick PLACES A TILE ON THE CHOSEN COLONY TILE (Turmoil
+ *              Redux TR22 Nova City — the server's `tileSite` marker). The
+ *              stage is the pick's composition and the working half STANDS as
+ *              it is — no track projection, no berth projection: the player
+ *              sees that the city touches none of it. The hero is the planet
+ *              with the CITY'S SEAT in its projection pose, and the result
+ *              rail states the placement (the city, the player's space cities
+ *              now → after, the card's VP). A confirms; the landing plays on
+ *              this stage with the commit held (`consoleColonyCity`).
  */
-export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus' | 'track' | 'roster';
+export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus' | 'track' | 'roster' | 'city';
 
 /**
  * THE ACT OF A SERVER COLONY PICK — the one derivation the grid's A, the
  * dossier's A and the stage read: a pick that moves a track (its `trackMoves`
  * marker) is `track`, a pick that changes the roster (its `rosterChange`
- * marker) is `roster`, a build is `build`, anything else is a plain `pick`.
+ * marker) is `roster`, a pick that places a tile on the chosen colony tile
+ * (its `tileSite` marker) is `city`, a build is `build`, anything else is a
+ * plain `pick`. The marker decides — never the button's label, never a title.
  */
-export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: ReadonlyArray<unknown>, roster?: unknown}): ColonyFocusIntent {
+export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: ReadonlyArray<unknown>, roster?: unknown, tileSite?: unknown}): ColonyFocusIntent {
   if (pick.trackMoves !== undefined) {
     return 'track';
   }
   if (pick.roster !== undefined) {
     return 'roster';
+  }
+  if (pick.tileSite !== undefined) {
+    return 'city';
   }
   return pick.buttonLabel === 'Build' ? 'build' : 'pick';
 }

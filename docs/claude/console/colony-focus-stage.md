@@ -488,6 +488,28 @@ One scene, genuinely different priorities:
   hero's state line says how the tile will ENTER until it docks. The ceremony plays on this stage with the commit
   held; the fold HOME is re-aimed at the slot of the table (`retargetColonyFocusHome`).
 
+* **city** (2026-10-04, `docs/TURMOIL_REDUX_NOVA_CITY.md`) — the pick LAYS A CITY ON THE COLONY TILE (the server's
+  `tileSite` marker — TR22 Nova City). Not an eighth composition: the section maps it to **pick** (a short panel, no
+  configuration) and the working half STANDS AS IT IS — no track projection, no berth projection: the player sees that
+  the city touches none of it. The stage gets a `city` prop with what only this act has: the SEAT in its projection
+  pose and the result rail «РАЗМЕЩЕНИЕ ГОРОДА» (the city and whose it is · the player's space cities `before → after`
+  — one number that flips on the cube's touchdown · the card's VP with the score formatter's formula · one calm line
+  «the city takes no berth, trade and track unchanged»). `data-colony-intent="city"`; the crumb's stage is «ГОРОД»;
+  X reads the dossier (the act kept), L3 the source. The landing plays on this stage with the commit held to the
+  CONTACT (`consoleColonyCity`); the stage then folds HOME and the grid stands as a receipt (the roster's grammar).
+
+### THE CITY'S SEAT — the tile's second object (2026-10-04)
+
+`ConsoleColonyCitySeat` (`.con-colcity`, `console_colony_city.less`) is a child of the hero disc at its lower LEFT
+(the fleet's orbit is its lower right), `position: absolute` — zero layout, so the hero column's children are the same
+in every phase — and it stands in EVERY intent (trade, build, pick, bonus, track, roster): a city on the tile is part
+of what the colony IS. It is the SAME component the grid tile's head and the dossier render, read through ONE
+presented reading (`colonyCitySeatView`: empty · projected · waiting · seated), and it is the FIFTH CARRIED OBJECT of
+the descend phrase (`consoleColonyFocusMotion.carrySeat` — its own FLIP from the tile's head to the hero's shoulder
+on the planet's clock, read under the planet's start pose; the tile's twin goes dark with the planet's twin and FLIPs
+home on the fold). Never a second copy with a fade. It is not a control: no pointer events, no cursor stop, no text, no
+pulse; the owner is named by the CUBE (a ring on the planet is the fleet's language).
+
 ---
 
 ## Where things live
@@ -497,6 +519,7 @@ One scene, genuinely different priorities:
 | Markup + state | `src/client/components/console/ConsoleColonyFocusStage.vue` |
 | The TRADE-TRACK INSTRUMENT (track · marker rail · stop · berths · owner-bonus lane) — **shared with the dossier** (2026-09-27, `docs/claude/console/colony-inspect.md`); the stage passes what it PRESENTS (`markerPosition` / `effectivePosition`) and its beats (`latchCell` / `settledCell` / `buildPreview`) | `src/client/components/console/ConsoleColonyTrackInstrument.vue` |
 | The PLANET DISC (art as a cover disc + the light) — shared with the tile and the dossier; the stage owns only `--con-planet-size` and the orbital berth | `src/client/components/console/ConsolePlanetDisc.vue`, `.con-planet` in `console.less` |
+| The CITY'S SEAT (a city laid on the colony tile — TR22) — shared with the tile and the dossier; the scene of its landing | `src/client/components/console/colonyCity/ConsoleColonyCitySeat.vue`, `src/client/console/colonyCity/`, `src/styles/console_colony_city.less` |
 | Entrance / fold choreography | `src/client/console/consoleColonyFocusMotion.ts` |
 | Styles | `src/styles/console.less` (`.con-colfocus`), `console_tv.less` |
 | The reset rule (pure) | `src/client/components/colonies/colonyTradePlan.ts` |

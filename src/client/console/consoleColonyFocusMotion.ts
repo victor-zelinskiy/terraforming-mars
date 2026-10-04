@@ -117,25 +117,30 @@ const TILE_KEY = 'colony-tile';
 const PLANET_KEY = 'colony-planet';
 const TRACK_KEY = 'colony-track';
 const SLOTS_KEY = 'colony-slots';
+/** The CITY'S SEAT (TR22) — the colony's fourth carried identity: a city laid on the tile travels with its colony. */
+const SEAT_KEY = 'colony-city-seat';
 export const COLONY_PRESS_KEY = 'colony-browse';
 
 type Rect = {left: number, top: number, width: number, height: number};
 
 /** Called by the section right before mounting the focus stage: remember the
- *  pressed tile's rect + the THREE carried identities' rects — the planet
- *  medallion, the compact track strip and the build-slot row. Each FLIPs
- *  into its expanded counterpart: the colony physically continues, it is
- *  never replaced by a new detail page. */
+ *  pressed tile's rect + the carried identities' rects — the planet
+ *  medallion, the compact track strip, the build-slot row and the CITY'S SEAT
+ *  (TR22 — the fifth carried object of the phrase). Each FLIPs into its
+ *  expanded counterpart: the colony physically continues, it is never
+ *  replaced by a new detail page. */
 export function armColonyFocusOrigin(
   tile: Rect | undefined,
   planet: Rect | undefined,
   track?: Rect | undefined,
   slots?: Rect | undefined,
+  seat?: Rect | undefined,
 ): void {
   armDescendRect(TILE_KEY, tile);
   armDescendRect(PLANET_KEY, planet);
   armDescendRect(TRACK_KEY, track);
   armDescendRect(SLOTS_KEY, slots);
+  armDescendRect(SEAT_KEY, seat);
 }
 
 /** The rect (and roundness) the stage unfolded FROM — kept for the fold. */
@@ -256,6 +261,39 @@ function planetRimOf(el: Element): HTMLElement | null {
   return heroPlanetOf(el)?.querySelector<HTMLElement>('.con-planet__rim') ?? null;
 }
 
+/** The city's seat on the stage / the dossier (a child of the hero disc — its geometry is the disc's on every profile). */
+function heroSeatOf(el: Element): HTMLElement | null {
+  return heroPlanetOf(el)?.querySelector<HTMLElement>('[data-colony-city-seat]') ?? null;
+}
+
+/** …and its browse twin in the pressed tile's head. */
+function tileSeatOf(el: Element): HTMLElement | null {
+  return tileOf(el)?.querySelector<HTMLElement>('.con-coltile__head [data-colony-city-seat]') ?? null;
+}
+
+/**
+ * THE SEAT'S OWN FLIP, as a child of the planet that is itself being carried.
+ * Called right after the planet's `fromTo` was added (its start pose is
+ * rendered at once), so the seat's rect is read UNDER that pose: the local
+ * offset and scale that put it exactly on its browse twin's rect are tweened
+ * to rest on the planet's own clock and easing — one object travelling from
+ * the tile's head to the hero's shoulder, never a second copy fading in.
+ */
+function carrySeat(tl: gsap.core.Timeline, seat: HTMLElement | null, from: Rect | undefined, atS: number, durS: number, ease: string): void {
+  if (seat === null || from === undefined || seat.offsetWidth <= 0) {
+    return;
+  }
+  const now = seat.getBoundingClientRect();
+  if (now.width < 1 || now.height < 1) {
+    return;
+  }
+  // Screen px per local px at the planet's START pose (ancestor zoom × the planet's start scale).
+  const k = now.width / seat.offsetWidth;
+  tl.fromTo(seat,
+    {x: (from.left - now.left) / k, y: (from.top - now.top) / k, scale: from.width / now.width, transformOrigin: 'top left'},
+    {x: 0, y: 0, scale: 1, duration: durS, ease, clearProps: 'transform', overwrite: 'auto'}, atS);
+}
+
 function heroTrackOf(el: Element): HTMLElement | null {
   return el.querySelector<HTMLElement>('[data-colony-focus-track]');
 }
@@ -310,6 +348,7 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
   const late = cascadeLateOf(el);
   const content = tileContentOf(el);
   const tilePlanet = tilePlanetOf(el);
+  const tileSeat = tileSeatOf(el);
 
   const tile = tileOf(el);
   // A HAND-OFF (dossier → stage) unfolds from the DOSSIER's rect (armed by the
@@ -358,6 +397,7 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
   const planetRect = takeDescendRect(PLANET_KEY);
   const trackRect = takeDescendRect(TRACK_KEY);
   const slotsRect = takeDescendRect(SLOTS_KEY);
+  const seatRect = takeDescendRect(SEAT_KEY);
   // The stagger is a RHYTHM, not a queue: a colony with many labels must not
   // make the entrance longer than one with few. Cap the whole late wave's
   // spread, so the last word always arrives within the same beat.
@@ -391,6 +431,10 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
     //    object, never a double image).
     if (tilePlanet !== null) {
       gsap.set(tilePlanet, {opacity: 0});
+    }
+    // …and so does the tile's CITY SEAT: the hero's seat is that seat now.
+    if (tileSeat !== null) {
+      gsap.set(tileSeat, {opacity: 0});
     }
     if (browse !== null && !handoff) {
       descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), s(COMMIT_MS - 40));
@@ -431,6 +475,9 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
       }
     };
     carry(heroPlanet, planetRect, s(UNFOLD_AT_MS), PLANET_FLIP_MS, 'power3.inOut');
+    // The CITY'S SEAT rides the planet's own clock — the fifth carried object, from the tile's head to the
+    // hero's shoulder (read under the planet's start pose, which the line above has just rendered).
+    carrySeat(tl, heroSeatOf(el), seatRect, s(UNFOLD_AT_MS), s(PLANET_FLIP_MS), 'power3.inOut');
     carry(heroTrackOf(el), trackRect, s(CARRY_TRACK_AT_MS), PLANET_FLIP_MS - 20, 'power2.inOut');
     carry(heroSlotsOf(el), slotsRect, s(CARRY_SLOTS_AT_MS), PLANET_FLIP_MS - 40, 'power2.inOut');
     // 4b. THE PLANET BECOMES A SPHERE APPROACHING, not a circle enlarging.
@@ -712,6 +759,7 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   const late = cascadeLateOf(el);
   const content = tileContentOf(el);
   const tilePlanet = tilePlanetOf(el);
+  const tileSeat = tileSeatOf(el);
   const home = unfoldedFrom;
   unfoldedFrom = undefined;
   const quick = quickExitArmed;
@@ -774,6 +822,8 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   }
 
   const heroRect = heroPlanet?.getBoundingClientRect();
+  // The hero's seat, read BEFORE the hero goes dark — the rect its browse twin flies home from.
+  const heroSeatRect = heroSeatOf(el)?.getBoundingClientRect();
   const foldMs = FOLD_MS;
   guardedDescend(el, Math.max(PLANET_FLIP_BACK_MS, foldMs) + 160, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
@@ -819,6 +869,19 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
         }
       }
     }
+    // …and the CITY'S SEAT FLIPs home beside it, on the same clock: the hero's seat went dark with the hero, its
+    // browse twin IS the seat now — in its own box in the tile's head.
+    if (tileSeat !== null) {
+      gsap.set(tileSeat, {clearProps: 'opacity'});
+      if (heroSeatRect !== undefined && heroSeatRect.width >= 10) {
+        const from = descendFlipFrom(tileSeat, heroSeatRect);
+        if (from !== undefined) {
+          tl.fromTo(tileSeat,
+            {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
+            {x: 0, y: 0, scale: 1, duration: s(PLANET_FLIP_BACK_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, s(20));
+        }
+      }
+    }
     return tl;
   });
 }
@@ -854,6 +917,10 @@ function restoreBrowse(el: Element): void {
   const tilePlanet = tilePlanetOf(el);
   if (tilePlanet !== null) {
     gsap.set(tilePlanet, {clearProps: 'opacity'});
+  }
+  const tileSeat = tileSeatOf(el);
+  if (tileSeat !== null) {
+    gsap.set(tileSeat, {clearProps: 'transform,opacity'});
   }
   resetTiles(el);
 }

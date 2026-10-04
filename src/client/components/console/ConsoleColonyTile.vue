@@ -22,6 +22,11 @@
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
       <span class="con-coltile__name">{{ $t(colony.name) }}</span>
+      <!-- THE CITY'S SEAT (Turmoil Redux TR22 Nova City) — the tile's SECOND object and the place that exists
+           before it: a fixed box between the name and the planet on EVERY tile (an empty seat is an invisible
+           measurement slot), so neither a projection nor a landed city moves the name, the planet or the dock.
+           The name yields its width by its own ellipsis. -->
+      <ConsoleColonyCitySeat :colony="colony" :projection="cityProjection" size="tile" />
       <!-- Planet medallion + the parked trade fleet DOCKED at its corner:
            an owner-hue ring on the planet + a crisp ship token in the berth
            (replaces the old crude oversized sprite that crowded the planet;
@@ -178,6 +183,8 @@ import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
+import ConsoleColonyCitySeat from '@/client/components/console/colonyCity/ConsoleColonyCitySeat.vue';
+import {Color} from '@/common/Color';
 
 export type ConsoleColonyTileStatus = {
   kind: 'ok' | 'blocked' | 'inactive' | 'none',
@@ -188,7 +195,7 @@ type TrackCell = {index: number, marker: boolean, effective: boolean, passed: bo
 
 export default defineComponent({
   name: 'ConsoleColonyTile',
-  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue, PlayerCube, ConsolePlanetDisc},
+  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue, PlayerCube, ConsolePlanetDisc, ConsoleColonyCitySeat},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     /** The viewer's standing trade offset (Trading Colony etc.). */
@@ -213,6 +220,11 @@ export default defineComponent({
      * a dashed ring where the disc will stand. The slot exists before its object.
      */
     orbit: {type: Boolean, default: false},
+    /**
+     * THE PROJECTED CITY (a «city» pick — the server's `tileSite` marker): the colour of the city the pick would
+     * lay on this tile ('' = no such door, or the tile is not a candidate). The seat draws the ghost.
+     */
+    cityProjection: {type: String as PropType<Color | ''>, default: ''},
     /** THE PROJECTED CUBE: the colour of the colony a roster pick would build on this tile ('' = none), and its berth. */
     projectedCube: {type: String, default: ''},
     projectedCubeSlot: {type: Number, default: 0},

@@ -84,6 +84,16 @@
             <CardLoreAside :model="loreModel" :nonce="loreNonce" />
           </div>
 
+          <!-- WHAT LIES ON THE TILE (TR22 — a city laid on this colony tile): ONE line of fact, in the act column —
+               «На плитке: [город] Нова-Сити · <игрок>». Never in the rules panel (its law is the tile's three
+               printed rules), and only once the piece is really seated (the seat's own presented reading). -->
+          <div v-if="tileOnTile !== undefined" class="con-colinspect__ontile" data-colony-on-tile data-unfold-late>
+            <span class="con-colinspect__ontile-label">{{ $t('On the tile') }}</span>
+            <PremiumCountGlyph class="con-colinspect__ontile-glyph" :glyph="spaceCityGlyph" />
+            <span class="con-colinspect__ontile-name">{{ tileOnTile.name }}</span>
+            <span v-if="tileOnTile.owner !== ''" class="con-colinspect__ontile-owner">· {{ tileOnTile.owner }}</span>
+          </div>
+
           <!-- THE ACT'S READING — what A leads to. The verdict is the
                SERVER's (tone and reason), stated as a fact beside the act's
                name; the reward is the reward package every colony surface
@@ -111,7 +121,7 @@
             </div>
 
             <!-- ВЫ ПОЛУЧИТЕ — the totals at the level the act reads. -->
-            <div class="con-colinspect__act-sec con-colinspect__act-sec--gain">
+            <div v-if="actIntent !== 'city'" class="con-colinspect__act-sec con-colinspect__act-sec--gain">
               <span class="con-colinspect__act-label">{{ $t(readonly ? 'On the current level' : 'You receive') }}</span>
               <template v-for="total in rewardTotals" :key="total.key">
                 <div class="con-colinspect__gain">
@@ -168,6 +178,9 @@
                     aria-hidden="true">
                 <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
               </span>
+              <!-- THE CITY'S SEAT (TR22) — the same side as on the stage (lower left; the fleet's berth is lower
+                   right), absolute: zero layout. The one seat component of the tile and the stage. -->
+              <ConsoleColonyCitySeat :colony="colony" :projection="cityProjection" size="dossier" />
             </ConsolePlanetDisc>
           </div>
           <div class="con-colinspect__status" data-unfold-late>
@@ -320,6 +333,10 @@ import CardLoreAside from '@/client/components/card/CardLoreAside.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
+import ConsoleColonyCitySeat from '@/client/components/console/colonyCity/ConsoleColonyCitySeat.vue';
+import {colonyCitySeatView} from '@/client/console/colonyCity/consoleColonyCity';
+import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
+import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import ConsoleColonyTrackInstrument, {ColonyTrackBonusMath} from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
 
 type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown};
@@ -332,12 +349,14 @@ export default defineComponent({
   name: 'ConsoleColonyInspect',
   components: {
     BenefitGlyph, ColonyFleetIcon, CardLoreAside, ConsoleWsHead, ConsoleScrollArea,
-    ConsolePlanetDisc, ConsoleColonyTrackInstrument,
+    ConsolePlanetDisc, ConsoleColonyTrackInstrument, ConsoleColonyCitySeat, PremiumCountGlyph,
   },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+    /** The colour of the city a standing «city» door would lay on this tile ('' = no such door / not a candidate). */
+    cityProjection: {type: String as PropType<Color | ''>, default: ''},
     /** The viewer's own player id — enables the server target preview. */
     playerId: {type: String, default: ''},
     tradeOffset: {type: Number, default: 0},
@@ -479,8 +498,30 @@ export default defineComponent({
     showAct(): boolean {
       return !this.readonly || this.colony.isActive || this.colony.colonies.length > 0;
     },
-    /** The act's NAME on the block («ТОРГОВЛЯ» / «ПОСТРОЙКА» / the pick's verb). */
+    /** The counted object of the «on the tile» line — the space city RX08's readings draw. */
+    spaceCityGlyph(): CountedObjectGlyph {
+      return {kind: 'tile', tile: 'spaceCity'};
+    },
+    /**
+     * WHAT LIES ON THE TILE, by name — the city's card and its owner. Read through the seat's own presented
+     * reading, so the line appears with the SEATED piece and never before its landing.
+     */
+    tileOnTile(): {name: string, owner: string} | undefined {
+      const view = colonyCitySeatView(this.colony, undefined);
+      if (view.pose !== 'seated') {
+        return undefined;
+      }
+      const player = this.players.find((p) => p.color === view.color);
+      return {
+        name: translateText(view.card ?? 'City'),
+        owner: player !== undefined ? participantDisplayName(player) : '',
+      };
+    },
+    /** The act's NAME on the block («ТОРГОВЛЯ» / «ПОСТРОЙКА» / «РАЗМЕЩЕНИЕ ГОРОДА» / the pick's verb). */
     actTitleKey(): string {
+      if (this.actIntent === 'city') {
+        return 'City placement';
+      }
       if (this.actIntent === 'build') {
         return 'Construction';
       }
@@ -491,6 +532,9 @@ export default defineComponent({
     },
     /** The verdict's word when the act IS offerable — the act's own verb. */
     verdictKey(): string {
+      if (this.actIntent === 'city') {
+        return 'Can place the city here';
+      }
       if (this.actIntent === 'build') {
         return 'Build here';
       }
