@@ -83,5 +83,8 @@
 
     "Habitat Science": "Наука обитаемости",
     "Action: Spend 2 data from here to gain all your Colony Bonuses.": "Действие: потратьте 2 единицы данных с этой карты, чтобы получить бонусы всех ваших колоний.",
-    "Requires Unity to be ruling or that you have 2 delegates there. Add 1 data resource to this card for each colony in play, owned by ANY player.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Положите на эту карту 1 единицу данных за каждую колонию в игре — ЛЮБОГО игрока."
+    "Requires Unity to be ruling or that you have 2 delegates there. Add 1 data resource to this card for each colony in play, owned by ANY player.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Положите на эту карту 1 единицу данных за каждую колонию в игре — ЛЮБОГО игрока.",
+
+    "Venusian Census": "Венерианская перепись",
+    "Effect: After each time Venus is terraformed 1 step, add 2 data resources to this card.": "Эффект: каждый раз после того, как Венера терраформирована на 1 шаг, положите на эту карту 2 единицы данных."
 }

@@ -25,7 +25,9 @@ import {formatMessage} from '../../TestingUtils';
  * that the check reads whether the card HAS one, never whether it is met.
  */
 function reduxTable(): [IGame, TestPlayer, TestPlayer] {
-  const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+  // Venus Next rides along: the set prints party-requirement cards that need it (TR24 Venusian Census,
+  // the Venus Next icon), and «the SET's party-requirement cards» are only all dealt beside it.
+  const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
   game.phase = Phase.ACTION;
   return [game, p1, p2];
 }

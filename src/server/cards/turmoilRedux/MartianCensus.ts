@@ -13,7 +13,7 @@ import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {Size} from '../../../common/cards/render/Size';
 import {CardRenderer} from '../render/CardRenderer';
-import {all, digit} from '../Options';
+import {all} from '../Options';
 import {PlayerInput} from '../../PlayerInput';
 import {Priority} from '../../deferredActions/Priority';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
@@ -25,7 +25,7 @@ import {EffectForecastTile} from '../EffectForecastContext';
 import * as placementPreviews from '../placementPreviews';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
-import {censusAction, censusActionPreview} from './censusAction';
+import {censusAction, censusActionPreview, censusActionRows} from './censusAction';
 
 /**
  * TR15 — MARTIAN CENSUS («Марсианская перепись»), the thirteenth Turmoil Redux
@@ -102,13 +102,7 @@ export class MartianCensus extends Card implements IProjectCard, IActionCard {
           b.effect('Whenever ANY player places a city on Mars, add a data resource to this card.', (eb) => {
             eb.city({size: Size.SMALL, all}).asterix().startEffect.resource(CardResource.DATA);
           }).br;
-          b.action('Add 1 data resource here.', (eb) => {
-            eb.empty().startAction.resource(CardResource.DATA);
-          }).br;
-          b.or().br;
-          b.action('Spend 3 data from here to add a delegate to a resolution.', (eb) => {
-            eb.resource(CardResource.DATA, {amount: 3, digit}).startAction.delegates(1);
-          });
+          censusActionRows(b);
         }),
       },
     });

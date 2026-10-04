@@ -9,6 +9,11 @@ import {effectChoice} from '../../inputs/choiceContext';
 import {PlaceDelegatesOnResolution} from '../../parliament/PlaceDelegatesOnResolution';
 import {POLITICAL_DONATION_NO_DELEGATE_REASON, POLITICAL_DONATION_NO_RESOLUTION_REASON} from './PoliticalDonation';
 import * as actionPreviews from '../actionPreviews';
+import {CardRenderer} from '../render/CardRenderer';
+import {CardResource} from '../../../common/CardResource';
+import {digit} from '../Options';
+
+type Builder = Parameters<Parameters<typeof CardRenderer.builder>[0]>[0];
 
 /**
  * THE CENSUS ACTION — printed word for word on two cards of the Turmoil Redux
@@ -18,7 +23,8 @@ import * as actionPreviews from '../actionPreviews';
  *
  * ONE implementation for both: each card's own file states only what differs
  * (its trigger, its requirement, its tags), and calls these four functions
- * with itself. Nothing here names a card.
+ * with itself. Nothing here names a card. The two printed ACTION ROWS are
+ * shared the same way (`censusActionRows`): both faces print them word for word.
  *
  *  A. +1 data on THIS card. Always available.
  *  B. 3 data off THIS card → 1 delegate onto a resolution of the VOTING AREA —
@@ -34,6 +40,23 @@ import * as actionPreviews from '../actionPreviews';
  * delegate in the reserve (the TR03 keys). A refused B is SHOWN disabled with
  * its reason, never hidden; one live branch is the whole action (no prompt).
  */
+
+/**
+ * THE TWO PRINTED ACTION ROWS — «→ [data] / OR / 3 [data] → [delegate]»,
+ * word for word on both censuses (the scans split the row with a vertical rule
+ * after the card's own effect; the DSL has no vertical divider, so the effect
+ * stands on its own row above this pair). Each card's face draws its effect,
+ * then calls this.
+ */
+export function censusActionRows(b: Builder): void {
+  b.action('Add 1 data resource here.', (eb) => {
+    eb.empty().startAction.resource(CardResource.DATA);
+  }).br;
+  b.or().br;
+  b.action('Spend 3 data from here to add a delegate to a resolution.', (eb) => {
+    eb.resource(CardResource.DATA, {amount: 3, digit}).startAction.delegates(1);
+  });
+}
 
 /** B's printed price — data spent from THIS card. */
 export const CENSUS_DATA_COST = 3;

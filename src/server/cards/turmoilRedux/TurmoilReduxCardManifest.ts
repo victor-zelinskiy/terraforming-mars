@@ -24,6 +24,7 @@ import {ReSettlement} from './ReSettlement';
 import {Arboretum} from './Arboretum';
 import {NovaCity} from './NovaCity';
 import {HabitatScience} from './HabitatScience';
+import {VenusianCensus} from './VenusianCensus';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -124,5 +125,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // «all your colony bonuses» — the set's first card that does, `docs/TURMOIL_REDUX_HABITAT_SCIENCE.md`). The
     // purple Turmoil symbol below it is the module itself. Unity's plate.
     [CardName.HABITAT_SCIENCE]: {Factory: HabitatScience, compatibility: 'colonies'},
+    // The Venus Next icon at the bottom left: the card needs Venus Next (rulebook p.8 — «remove the
+    // appropriate Turmoil Redux cards… the Venus cards in question have a Venus Next icon on them»). The
+    // purple Turmoil symbol below it is the module itself. The set's first Venus tag; Unity's plate; its
+    // effect answers EVERY Venus step (`ICard.onGlobalParameterRaised`, docs/TURMOIL_REDUX_VENUSIAN_CENSUS.md).
+    [CardName.VENUSIAN_CENSUS]: {Factory: VenusianCensus, compatibility: 'venus'},
   },
 });

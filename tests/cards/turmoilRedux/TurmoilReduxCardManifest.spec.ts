@@ -112,17 +112,19 @@ describe('TurmoilReduxCardManifest', () => {
       .map(([name]) => name);
 
     // Colonies ride along in BOTH halves of every comparison: Turmoil Redux
-    // requires Colonies at the creator, so a real table always has them.
+    // requires Colonies at the creator, so a real table always has them. Venus
+    // Next rides in the «on» half: a card printing the Venus Next icon (TR24)
+    // is dealt only beside it (its own gate is pinned in VenusianCensus.spec).
     it('adds the module\'s project cards to the deck when the expansion is on', () => {
-      const names = new GameCards(options({turmoilReduxExpansion: true, coloniesExtension: true})).getProjectCards().map(toName);
+      const names = new GameCards(options({turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true})).getProjectCards().map(toName);
       for (const name of dealtProjectNames) {
         expect(names, `${name} should be dealt with Turmoil Redux on`).to.contain(name);
       }
     });
 
     it('adds nothing to the deck when the expansion is off', () => {
-      const off = new GameCards(options({turmoilReduxExpansion: false, coloniesExtension: true}));
-      const on = new GameCards(options({turmoilReduxExpansion: true, coloniesExtension: true}));
+      const off = new GameCards(options({turmoilReduxExpansion: false, coloniesExtension: true, venusNextExtension: true}));
+      const on = new GameCards(options({turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true}));
       const offNames = off.getProjectCards().map(toName);
 
       for (const name of dealtProjectNames) {
