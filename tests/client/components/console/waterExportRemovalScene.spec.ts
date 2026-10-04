@@ -109,6 +109,8 @@ describe('Water Export — the removal scene and its readings', () => {
     expect(placementKicker({type: 'space', placementEffect: 'remove'} as never)).eq('Tile removal');
     expect(placementKicker({type: 'space', placementEffect: 'tile'} as never)).eq('Tile placement');
     expect(placementKicker({type: 'space', placementEffect: 'marker'} as never)).eq('Marker placement');
+    // …and a MOVE (TR14) is the fourth object: a tile the player owns travels.
+    expect(placementKicker({type: 'space', placementEffect: 'move'} as never)).eq('Tile relocation');
   });
 
   it('the vote panel carries the TABLE\'s part beside the seat\'s reading — declared, outside «for you», never in the net', () => {

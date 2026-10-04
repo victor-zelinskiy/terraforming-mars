@@ -22,7 +22,8 @@
  *    adjacent greenery feeds — possibly an opponent's).
  *  - `reward`  — an immediate Ares-style gain (adjacent tile bonus, the tile
  *    owner's M€).
- *  - `event`   — a positive board-wide planetary consequence (hazard cleanup)
+ *  - `event`   — a positive board-wide planetary consequence (hazard cleanup),
+ *    and a MOVE's standing context (the cells a city can reach)
  *    — rendered most quietly: it is context, not adjacency. (An intensify
  *    event keeps the honest `penalty` voice — those hazards become MORE
  *    taxing; the board section quiets any far participant geometrically,
@@ -67,6 +68,16 @@ export function relationToneOf(fact: BoardFact): PlacementRelationTone {
   case 'placement-cost':
     return 'penalty';
   case 'hazard-cleanup':
+    return 'event';
+  // A MOVE (Turmoil Redux TR14). What the FORMER cell stops giving is a loss
+  // and reads as one — the greeneries the city no longer scores, a district
+  // of the mover's own that loses a city — and a penalty outranks every other
+  // tone, so a loss can never be masked by the gain beside it. The move's
+  // standing facts (the cells a city can reach, the cell it frees) are
+  // context: the quietest voice.
+  case 'tile-departure':
+    return 'penalty';
+  case 'tile-move':
     return 'event';
   default:
     return fact.severity === 'warning' || fact.severity === 'danger' ? 'penalty' : 'reward';

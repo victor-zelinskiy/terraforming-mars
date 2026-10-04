@@ -98,6 +98,34 @@ describe('placementRelations', () => {
     expect(relationToneOf(fact({id: 'f', category: 'card-trigger'}))).to.eq('reward');
   });
 
+  it('a MOVE: what the former cell stops giving is a PENALTY and outranks the gain beside it; its context is the quiet voice', () => {
+    expect(relationToneOf(fact({id: 'l', category: 'tile-departure', severity: 'warning'}))).to.eq('penalty');
+    // Structural: the category decides, not the severity it happens to carry.
+    expect(relationToneOf(fact({id: 'l2', category: 'tile-departure', severity: 'positive'}))).to.eq('penalty');
+    expect(relationToneOf(fact({id: 'm', category: 'tile-move', severity: 'info'}))).to.eq('event');
+    const rels = relationsFromPreview(preview({
+      kind: 'city-move',
+      futureScoringFacts: [
+        fact({id: 'move-city-vp-gain', category: 'city-greenery-scoring', spaces: ['11', '12'] as SpaceId[]}),
+        // 12 is named by both — a greenery cannot be both «starts» and «stops», but a loss may never be masked.
+        fact({id: 'move-city-vp-loss', category: 'tile-departure', severity: 'warning', spaces: ['13', '12'] as SpaceId[]}),
+      ],
+      ruleFacts: [fact({id: 'move-vacated', category: 'tile-move', timing: 'rule', severity: 'info', spaces: ['09'] as SpaceId[]})],
+    }));
+    expect(rels).to.deep.include.members([
+      {spaceId: '11', tone: 'score'},
+      {spaceId: '12', tone: 'penalty'},
+      {spaceId: '13', tone: 'penalty'},
+      {spaceId: '09', tone: 'event'},
+    ]);
+    // The SOURCE reading: the cells a city can reach are context — the quietest tone.
+    const reach = relationsFromPreview(preview({
+      kind: 'city-move',
+      ruleFacts: [fact({id: 'move-reach', category: 'tile-move', timing: 'rule', severity: 'info', spaces: ['14', '15'] as SpaceId[]})],
+    }));
+    expect(reach).to.deep.equal([{spaceId: '14', tone: 'event'}, {spaceId: '15', tone: 'event'}]);
+  });
+
   it('undefined preview → empty', () => {
     expect(relationsFromPreview(undefined)).to.deep.equal([]);
   });

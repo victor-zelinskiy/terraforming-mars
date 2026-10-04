@@ -1929,27 +1929,30 @@ function cityDepartureFacts(from: Space, lifted: LiftedCity): Array<BoardFact> {
       spaces: [from.id],
     }];
   }
-  const bonuses = countBonuses(from.bonus);
+  const bonuses = countBonuses(from.bonus).map(([bonus, count]) => ({bonus, described: describeSpaceBonus(bonus, count)}));
   const freed: BoardFact = {
     id: 'move-vacated', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'nobody'},
     title: 'The space is freed',
     ...(bonuses.length > 0 ? {description: 'Its placement bonus goes again to whoever places a tile there next.'} : {}),
     spaces: [from.id],
   };
-  // The freed cell's own printed icons, as chips addressed to NOBODY — what the next tile there will collect.
-  const chips = bonuses.map(([bonus, count]): BoardFact => {
-    const described = describeSpaceBonus(bonus, count);
-    return {
-      id: `move-vacated-${bonus}`,
-      category: 'tile-move',
-      timing: 'rule',
-      severity: 'info',
-      recipient: {kind: 'nobody'},
-      title: described.title,
-      delta: described.delta,
-      spaces: [from.id],
-    };
-  });
+  // The freed cell's own printed icons ride as chips addressed to NOBODY —
+  // what the next tile there collects, never a gain of the mover's. A cell
+  // that prints ONE kind of bonus (most do) says it on the «freed» line
+  // itself; several kinds take a line each under it.
+  if (bonuses.length === 1 && bonuses[0].described.delta !== undefined) {
+    return [{...freed, delta: bonuses[0].described.delta}];
+  }
+  const chips = bonuses.map(({bonus, described}): BoardFact => ({
+    id: `move-vacated-${bonus}`,
+    category: 'tile-move',
+    timing: 'rule',
+    severity: 'info',
+    recipient: {kind: 'nobody'},
+    title: described.title,
+    delta: described.delta,
+    spaces: [from.id],
+  }));
   return [freed, ...chips];
 }
 

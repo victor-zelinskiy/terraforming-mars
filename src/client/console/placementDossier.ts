@@ -120,6 +120,8 @@ const KIND_TITLE: Partial<Record<BoardPlacementKind, string>> = {
   'city-tier': 'City tier',
   // AN OCEAN REMOVAL (Water Export): the pick names the ocean that LEAVES the board.
   'ocean-removal': 'Ocean',
+  // A CITY MOVE (Re-settlement): the object is the city that travels (a Capital names itself by its tile).
+  'city-move': 'City',
 };
 
 /**
@@ -201,8 +203,9 @@ export function placementIdentity(opts: {
     title = ordinary !== undefined ? translate(ordinary) :
       named !== undefined ? translate(named) :
         translate(KIND_TITLE[opts.placementType ?? 'land'] ?? 'Tile');
-  } else if (opts.placementEffect !== undefined && opts.placementEffect !== 'tile') {
-    // A claim / a camp move puts a MARKER down — no tile, no swatch.
+  } else if (opts.placementEffect !== undefined && opts.placementEffect !== 'tile' && opts.placementEffect !== 'move') {
+    // A claim / a camp move puts a MARKER down — no tile, no swatch. (A MOVE
+    // is not one of them: a real tile travels and lands — the kind names it.)
     title = translate('Marker');
     swatch = undefined;
   } else {
@@ -226,7 +229,8 @@ export function swatchForKind(kind: BoardPlacementKind | undefined): TileType | 
   switch (kind) {
   case 'greenery': return TileType.GREENERY;
   case 'city':
-  case 'city-tier': return TileType.CITY;
+  case 'city-tier':
+  case 'city-move': return TileType.CITY;
   case 'ocean': return TileType.OCEAN;
   default: return undefined;
   }
@@ -271,7 +275,7 @@ function actionLineOf(opts: {
 
 // ── sections ─────────────────────────────────────────────────────────
 
-export type DossierSectionKey = 'effect' | 'gain' | 'others' | 'tile' | 'progress' | 'endgame' | 'rules';
+export type DossierSectionKey = 'effect' | 'gain' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'endgame' | 'rules';
 
 /** One recipient's block inside «Получат другие игроки». */
 export type DossierRecipientGroup = {
@@ -429,7 +433,20 @@ export type DossierRow = {
   /** How many facts this row stands for — rendered as «×N» past 1. */
   count: number;
   delta?: BoardFactDelta;
+  /**
+   * The delta is a statement about the CELL, addressed to nobody (a move's
+   * freed cell: «the next tile here collects this») — drawn as a neutral
+   * «×N» chip, never as a signed gain of the player's.
+   */
+  neutralDelta?: boolean;
   vp?: number;
+  /**
+   * A VP POOL's change-vector (`current → resulting`) — a move's «City VP»:
+   * the city scores one set of neighbours today and another after it lands,
+   * which is ONE parameter moving, not a gain beside a loss. Rendered as the
+   * vector with its members under it; `vp` stays the signed difference.
+   */
+  vpVector?: {from: number, to: number};
   progress?: {from: number, to: number, target?: number};
   /** The compact breakdown of an aggregated value. */
   reasons: ReadonlyArray<DossierReason>;
@@ -460,6 +477,12 @@ function aggregationKey(fact: BoardFact, labelKey: string): string | undefined {
   const d = fact.delta;
   if (d !== undefined && d.current !== undefined) {
     return `d|${d.icon}|${d.production === true}|${d.direction}|${d.current}|${d.unit ?? ''}`;
+  }
+  if (fact.vp !== undefined && fact.reason !== undefined) {
+    // A VP POOL — the same law as a resource pool above: members that move the
+    // SAME score from the SAME current value are one vector, whichever way
+    // each of them pushes (a move's «at the new space +2 · at the former −1»).
+    return `p|${labelKey}|${fact.vp.from}`;
   }
   if (fact.vp !== undefined) {
     // Several adjacent cities are ONE statement about this cell: «Соседние
@@ -511,8 +534,37 @@ export function buildDossierRows(facts: ReadonlyArray<BoardFact>,
   return order.map((key) => {
     const members = groups.get(key) ?? [];
     const head = members[0];
+    if (key.startsWith('p|')) {
+      // A pool reads as a vector even with ONE member — «2 → 4», with its cause under it.
+      return vpPoolRow(key, members, stated);
+    }
     return members.length > 1 ? mergedRow(key, members, stated) : singleRow(head, stated);
   });
+}
+
+/** ONE VP pool: its vector (`current → Σ`), the signed difference, and what makes it up. */
+function vpPoolRow(key: string, members: ReadonlyArray<BoardFact>, stated: ReadonlyArray<BoardFactTiming>): DossierRow {
+  const head = members[0];
+  const worst = members.find((f) => f.severity === 'danger') ??
+    members.find((f) => f.severity === 'warning') ?? head;
+  const from = head.vp?.from ?? 0;
+  const total = members.reduce((acc, f) => acc + ((f.vp?.to ?? 0) - (f.vp?.from ?? 0)), 0);
+  return {
+    key: `agg:${key}`,
+    label: compactTitleKey(head),
+    params: head.params,
+    // The row's tone is the NET's: a pool that ends higher is good news even with a losing member.
+    severity: total < 0 ? worst.severity : head.severity === 'warning' && total >= 0 ? 'positive' : head.severity,
+    count: 1,
+    vp: total,
+    vpVector: {from, to: from + total},
+    reasons: members.map((f, i) => ({
+      key: `${f.id}:${i}`,
+      label: reasonLabel(f),
+      amount: signed((f.vp?.to ?? 0) - (f.vp?.from ?? 0)),
+    })),
+    timingKey: rowTimingKey(head, stated),
+  };
 }
 
 /**
@@ -551,6 +603,8 @@ function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>): Dos
     severity: fact.severity,
     count: 1,
     delta: fact.delta,
+    // A chip on a fact addressed to NOBODY states what the cell holds, not what the player gains.
+    ...(fact.delta !== undefined && fact.recipient.kind === 'nobody' ? {neutralDelta: true} : {}),
     vp: fact.vp !== undefined ? fact.vp.to - fact.vp.from : undefined,
     progress: fact.progress,
     reasons: [],
@@ -617,6 +671,16 @@ const TILE_STANDING_CATEGORIES: ReadonlyArray<BoardFact['category']> =
   ['ares-adjacency-bonus', 'tile-owner-benefit'];
 
 /**
+ * A MOVE's own standing facts (Turmoil Redux TR14 — `tile-move`): on the
+ * destination reading, what the FORMER cell is left as (it is freed and names
+ * the bonus the next tile there collects; a stack stands one tier shorter); on
+ * the source reading, the city under the cursor (where it can go, what it
+ * scores now). Structural — the engine's own category — and never «a field
+ * rule»: it is the other half of the decision.
+ */
+const MOVE_CATEGORY: BoardFact['category'] = 'tile-move';
+
+/**
  * The panel's reading order. THE CELL'S OWN TOLL comes first (a forced loss
  * must never sit below the fold), then the player's result, others' cuts, the
  * placed tile's standing adjacency interaction, standing progress, endgame VP
@@ -652,9 +716,18 @@ export function dossierSections(
   // passive square notes, under one generic head — which is how the Natural
   // Preserve's whole point ended up an ellipsis. The split is by CATEGORY.
   const standing = preview.ruleFacts.filter((f) => TILE_STANDING_CATEGORIES.includes(f.category));
-  const fieldRules = preview.ruleFacts.filter((f) => !TILE_STANDING_CATEGORIES.includes(f.category));
+  const move = preview.ruleFacts.filter((f) => f.category === MOVE_CATEGORY);
+  const fieldRules = preview.ruleFacts.filter((f) => !TILE_STANDING_CATEGORIES.includes(f.category) && f.category !== MOVE_CATEGORY);
   if (standing.length > 0) {
     out.push(section('tile', 'When placed adjacent', standing, ['rule']));
+  }
+  if (move.length > 0) {
+    // The SOURCE reading puts nothing down (`placesTile: false` — a city is only
+    // being pointed at): its facts are the city's own. The DESTINATION
+    // reading's are the cell the city leaves.
+    out.push(preview.placesTile === false ?
+      section('source', 'This city', move, ['rule']) :
+      section('departure', 'Former space', move, ['rule']));
   }
   const progress = preview.progressFacts ?? [];
   if (progress.length > 0) {

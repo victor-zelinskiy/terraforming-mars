@@ -11,6 +11,19 @@
          transform for free. One persistent element that GLIDES between
          hexes; the hero scene taking the cell is what retires it. -->
     <Teleport v-if="cursorHost !== undefined" :to="cursorHost">
+      <!-- A MOVE (Turmoil Redux TR14) — the reticle's own family, same board
+           px-space, same travel glide. THE ORIGIN: a dashed «leaving from here»
+           contour on the lifted city's cell (the real tile stays — nothing has
+           happened yet — only quieter). THE VECTOR: one thin line with a
+           chevron from that cell toward the focused destination; it firms up
+           amber at the lock. Both yield to the hero scene with the reticle. -->
+      <div v-if="moveOriginPos !== undefined" class="con-bmove-origin" :style="moveOriginStyle" aria-hidden="true"></div>
+      <div v-if="moveVector !== undefined" class="con-bmove"
+           :class="{'con-bmove--locked': placementFlowState.phase !== 'navigate'}"
+           :style="moveVector" aria-hidden="true">
+        <span class="con-bmove__line"></span>
+        <span class="con-bmove__head"></span>
+      </div>
       <ConsoleBoardCursor
         v-if="cursorVisible && cursorPos !== undefined"
         :x="cursorPos.x" :y="cursorPos.y"
@@ -18,7 +31,8 @@
         :phase="placementFlowState.phase"
         :tileArtClass="cursorArtClass"
         :cubeColor="cursorCubeColor"
-        :bonusZone="cursorBonusZone" />
+        :bonusZone="cursorBonusZone"
+        :pickup="movePick" />
     </Teleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
          iteration 2) — this component owns the STAGE + selection only. -->
@@ -71,6 +85,8 @@ import {TileType} from '@/common/TileType';
 import type {BonusZone} from '@/client/components/console/ConsoleBoardCursor.vue';
 
 const SELECT_CLASS = 'con-cell-sel';
+/** A MOVE's lifted city — its cell while the player picks where it lands (console.less § the move). */
+const MOVE_SOURCE_CLASS = 'board-space--move-source';
 /** P27: the focused global-parameter TRACK marker (inspection mode). */
 const MARKER_CLASS = 'con-marker-sel';
 
@@ -268,6 +284,13 @@ export default defineComponent({
      * `selectedCellLegal`.
      */
     legalSpaces: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /**
+     * A MOVE's CITY LEVEL (Turmoil Redux TR14 — «which of your cities
+     * leaves»): the reticle rings the REAL tile under it and projects nothing.
+     */
+    movePick: {type: Boolean, default: false},
+    /** A move's LIFTED city (its cell) — the origin of the move's on-field marks; undefined when none is lifted. */
+    moveFrom: {type: String as PropType<string | undefined>, default: undefined},
   },
   data() {
     return {
@@ -279,6 +302,8 @@ export default defineComponent({
       /** The reticle's teleport target (`.board-cont`) — resolved once at
        *  mount; the board never remounts (the console update model). */
       cursorHost: undefined as HTMLElement | undefined,
+      /** The move vector's running angle (deg) — kept continuous so a step across 360° turns the short way. */
+      moveAngle: 0,
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
       fitRaf: 0,
@@ -441,6 +466,9 @@ export default defineComponent({
         // other legal cell so the chosen one dominates without contest.
         'con-board--placing': this.placementActive,
         'con-board--locked': this.placementActive && this.placementFlowState.phase !== 'navigate',
+        // A MOVE's two levels: picking the city / a city lifted.
+        'con-board--move-pick': this.placementActive && this.movePick,
+        'con-board--move-lifted': this.placementActive && this.moveFrom !== undefined,
         'con-board--pfocus': phase === 'entering' || phase === 'active' || phase === 'exit-prep',
         'con-board--pfocus-anim': phase === 'entering' || phase === 'exit-prep' || phase === 'exiting',
         'con-board--pfocus-settled': phase === 'active',
@@ -523,6 +551,11 @@ export default defineComponent({
       if (shape === undefined || shape.placementEffect === 'marker' || shape.placementEffect === 'bonus-only') {
         return '';
       }
+      // A move's CITY LEVEL: the object is the real tile standing on the cell —
+      // a ghost of a tile over a tile would be a second object.
+      if (this.movePick) {
+        return '';
+      }
       const tt = shape.tileType ?? swatchForKind(shape.placementType);
       if (tt === undefined) {
         return '';
@@ -538,6 +571,43 @@ export default defineComponent({
         return undefined;
       }
       return this.playerView.thisPlayer?.color;
+    },
+    /** The lifted city's cell (top-left, board px) while the move's marks may show — they yield with the reticle. */
+    moveOriginPos(): {x: number, y: number} | undefined {
+      if (!this.cursorVisible || this.moveFrom === undefined) {
+        return undefined;
+      }
+      const centre = this.cellIntrinsicCentre(this.moveFrom);
+      return centre === undefined ? undefined : {x: centre.x - 23, y: centre.y - 25.5}; /* keep-px: half a 46×51 hex */
+    },
+    moveOriginStyle(): Record<string, string> {
+      const pos = this.moveOriginPos;
+      return pos === undefined ? {} : {transform: `translate(${pos.x}px, ${pos.y}px)`};
+    },
+    /** The vector's geometry: from the lifted city's centre toward the focused LEGAL destination (board px). */
+    moveVectorGeometry(): {x: number, y: number, length: number, angle: number} | undefined {
+      if (this.moveOriginPos === undefined || !this.selectedAvailable) {
+        return undefined;
+      }
+      const a = this.cellIntrinsicCentre(this.moveFrom);
+      const b = this.cellIntrinsicCentre(this.cursorSpaceId);
+      if (a === undefined || b === undefined) {
+        return undefined;
+      }
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const length = Math.hypot(dx, dy);
+      return length < 1 ? undefined : {x: a.x, y: a.y, length, angle: Math.atan2(dy, dx) * 180 / Math.PI};
+    },
+    moveVector(): Record<string, string> | undefined {
+      const g = this.moveVectorGeometry;
+      if (g === undefined) {
+        return undefined;
+      }
+      return {
+        width: `${g.length.toFixed(1)}px`,
+        transform: `translate(${g.x.toFixed(1)}px, ${g.y.toFixed(1)}px) rotate(${this.moveAngle.toFixed(1)}deg)`,
+      };
     },
   },
   watch: {
@@ -576,6 +646,30 @@ export default defineComponent({
         this.applyRelationMarks();
         this.updateBonusZone();
       },
+    },
+    /**
+     * The LIFTED city's cell wears `board-space--move-source` (its tile turns
+     * quieter — it is «leaving from here», and nothing has happened yet).
+     * Imperative like the spotlight: the board's cells are not this
+     * component's to render.
+     */
+    moveFrom(now: string | undefined, before: string | undefined) {
+      this.cellEl(before)?.classList.remove(MOVE_SOURCE_CLASS);
+      this.cellEl(now)?.classList.add(MOVE_SOURCE_CLASS);
+      // The origin never carries a relation mark of its own (see applyRelationMarks).
+      this.applyRelationMarks();
+    },
+    /** Turn the vector the SHORT way: the running angle moves by the wrapped difference, never by the raw value. */
+    moveVectorGeometry(now: {angle: number} | undefined, before: {angle: number} | undefined) {
+      if (now === undefined) {
+        return;
+      }
+      if (before === undefined) {
+        this.moveAngle = now.angle;
+        return;
+      }
+      const delta = ((now.angle - this.moveAngle) % 360 + 540) % 360 - 180;
+      this.moveAngle += delta;
     },
     /**
      * The RELATION layer follows the focused cell's preview — the same server
@@ -1166,6 +1260,12 @@ export default defineComponent({
       const centre = this.cellIntrinsicCentre(id);
       const adjacentReach = 46 * 1.5; /* keep-px: board px-space — one hex pitch */
       for (const rel of relationsFromPreview(preview)) {
+        // A move's ORIGIN already wears its own pose (the quiet tile, the
+        // dashed contour, the vector's foot) — a second mark on the same hex
+        // would be two voices about one cell.
+        if (rel.spaceId === this.moveFrom) {
+          continue;
+        }
         const el = this.cellEl(rel.spaceId);
         if (el === undefined) {
           continue;
@@ -1467,6 +1567,22 @@ export default defineComponent({
       }
       this.landOn(others[idx]);
     },
+    /**
+     * Put the cursor on `spaceId` — the shell's own move (a move's level
+     * change: onto the lifted city's first destination, back onto the city).
+     * A landing, not a step: the column anchor follows. `false` when the cell
+     * is not on this board's DOM.
+     */
+    focusSpace(spaceId: string): boolean {
+      const el = this.cellEl(spaceId);
+      if (el === undefined) {
+        return false;
+      }
+      const r = el.getBoundingClientRect();
+      this.colAnchor = r.left + r.width / 2;
+      this.select(spaceId);
+      return true;
+    },
     /** A non-strict landing (seed / glide / diagonal) re-anchors the column. */
     landOn(target: BoardCandidate): void {
       this.colAnchor = rectCenter(target.rect).x;
@@ -1542,6 +1658,7 @@ export default defineComponent({
     this.offGeometryProbe?.();
     this.releaseFitSettleHold(); // never strand the curtain on an unmounting stage
     this.clearRelationMarks();
+    this.cellEl(this.moveFrom)?.classList.remove(MOVE_SOURCE_CLASS);
     if (this.lateVerifyTimer !== 0) {
       window.clearTimeout(this.lateVerifyTimer);
     }

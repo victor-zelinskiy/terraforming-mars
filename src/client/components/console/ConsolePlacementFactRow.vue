@@ -45,8 +45,18 @@
         </span>
       </span>
 
+      <!-- A VP POOL's vector — «2 → 3 ПО»: one parameter moving (a move's
+           «City VP»), its members listed under the label, never two rows. -->
+      <span v-if="row.vpVector !== undefined" :key="'vv' + row.vpVector.from + '-' + row.vpVector.to"
+            class="con-dossier-row__vp con-dossier-row__vp--vector"
+            :class="{'con-dossier-row__vp--neg': row.vpVector.to < row.vpVector.from}">
+        <span class="con-dossier-row__cur">{{ row.vpVector.from }}</span>
+        <span class="con-dossier-row__arrow" aria-hidden="true">→</span>
+        <span class="con-dossier-row__res">{{ row.vpVector.to }}</span> <i>{{ $t('VP') }}</i>
+      </span>
+
       <!-- Endgame VP — the gold badge (identity as TYPE: there is no sprite). -->
-      <span v-if="row.vp !== undefined && row.vp !== 0" :key="'vp' + row.vp"
+      <span v-else-if="row.vp !== undefined && row.vp !== 0" :key="'vp' + row.vp"
             class="con-dossier-row__vp" :class="{'con-dossier-row__vp--neg': row.vp < 0}">
         {{ row.vp < 0 ? '−' : '+' }}{{ Math.abs(row.vp) }} <i>{{ $t('VP') }}</i>
       </span>
@@ -102,6 +112,10 @@ export default defineComponent({
       return this.delta?.unit ?? '';
     },
     sign(): string {
+      // A neutral chip states a quantity the cell HOLDS («×2»), not a change of the player's.
+      if (this.row.neutralDelta === true) {
+        return '×';
+      }
       return this.delta?.direction === 'cost' ? '−' : '+';
     },
     /** The rendered value — the update key (see the template note). */
@@ -115,6 +129,9 @@ export default defineComponent({
     deltaToneClass(): string {
       if (this.row.severity === 'danger') {
         return 'con-dossier-row__delta--danger';
+      }
+      if (this.row.neutralDelta === true) {
+        return 'con-dossier-row__delta--neutral';
       }
       return this.delta?.direction === 'cost' ? 'con-dossier-row__delta--cost' : 'con-dossier-row__delta--gain';
     },

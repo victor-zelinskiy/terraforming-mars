@@ -412,4 +412,141 @@ describe('placementDossier', () => {
       expect(rowSourceLabel(base)).to.be.undefined;
     });
   });
+
+  /**
+   * A MOVE (Turmoil Redux TR14 Re-settlement): the same panel reads a pick of
+   * TWO cells. The destination reading gains a section for the cell the city
+   * LEAVES, and the city's VP is one pool — never a gain beside a loss; the
+   * source reading (the «which city» level) is a section of its own.
+   */
+  describe('a move', () => {
+    const fact = (over: Partial<BoardFact>): BoardFact => ({
+      id: 'f', category: 'placement-effect', timing: 'immediate', severity: 'positive',
+      recipient: {kind: 'current-player'}, title: 'f', ...over,
+    });
+    const preview = (over: Partial<BoardPlacementPreview>): BoardPlacementPreview => ({
+      space: '05', kind: 'city-move', legal: true,
+      costFacts: [], immediateFacts: [], recipientFacts: [], warningFacts: [], futureScoringFacts: [], ruleFacts: [],
+      placesTile: true, ...over,
+    });
+    const freed = fact({
+      id: 'move-vacated', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'nobody'},
+      title: 'The space is freed', description: 'Its placement bonus goes again to whoever places a tile there next.',
+      delta: {icon: 'plants', amount: 2, direction: 'gain'}, spaces: ['04'],
+    });
+    const gain = fact({
+      id: 'move-city-vp-gain', category: 'city-greenery-scoring', timing: 'endgame', severity: 'positive',
+      title: 'City VP', reason: 'At the new space', vp: {from: 2, to: 4}, spaces: ['06', '07'],
+    });
+    const loss = fact({
+      id: 'move-city-vp-loss', category: 'tile-departure', timing: 'endgame', severity: 'warning',
+      title: 'City VP', reason: 'At the former space', vp: {from: 2, to: 1}, spaces: ['03'],
+    });
+
+    it('the object is the city that travels — the kind titles «City», a Capital names itself by its tile', () => {
+      expect(identity({placementType: 'city-move', placementEffect: 'move', tileType: TileType.CITY}, ru).title).to.equal(RU['City']);
+      const capital = identity({placementType: 'city-move', placementEffect: 'move', tileType: TileType.CAPITAL});
+      expect(capital.title).to.equal('Capital');
+      expect(capital.tileType).to.equal(TileType.CAPITAL);
+      expect(identity({placementType: 'city-move', placementEffect: 'move'}).tileType, 'the kind alone still draws a city').to.equal(TileType.CITY);
+    });
+
+    it('the DESTINATION reading: the former cell is a section of its own, between «others» and the progress', () => {
+      const p = preview({
+        immediateFacts: [fact({id: 'g'})],
+        recipientFacts: [fact({id: 'o', recipient: {kind: 'player', color: 'red'}})],
+        progressFacts: [fact({id: 'p', category: 'milestone-progress', timing: 'future', progress: {from: 1, to: 0}})],
+        futureScoringFacts: [gain, loss],
+        ruleFacts: [freed, fact({id: 'r', category: 'map-special-zone', timing: 'rule'})],
+      });
+      const sections = dossierSections(p);
+      expect(sections.map((s) => s.key)).to.deep.equal(['gain', 'others', 'departure', 'progress', 'endgame', 'rules']);
+      const departure = sections.find((s) => s.key === 'departure')!;
+      expect(departure.titleKey).to.equal('Former space');
+      expect(RU['Former space'], 'missing RU translation').to.equal('Прежняя клетка');
+      expect(sections.find((s) => s.key === 'rules')!.rows.map((r) => r.key), 'never dumped into the field rules').to.deep.equal(['r']);
+    });
+
+    it('the freed cell\'s bonus is a NEUTRAL chip — what the cell holds, never a gain of the mover\'s', () => {
+      const [row] = buildDossierRows([freed], ['rule']);
+      expect(row.label).to.equal('The space is freed');
+      expect(row.neutralDelta).to.be.true;
+      expect(row.delta).to.deep.include({icon: 'plants', amount: 2});
+      expect(row.note?.text).to.equal('Its placement bonus goes again to whoever places a tile there next.');
+      // An ordinary gain keeps its sign.
+      expect(buildDossierRows([fact({id: 'g', delta: {icon: 'plants', amount: 2, direction: 'gain'}})])[0].neutralDelta).to.be.undefined;
+    });
+
+    it('the city\'s VP is ONE vector with its two members under it — «2 → 3», «+2 · −1»', () => {
+      const rows = buildDossierRows([gain, loss], ['endgame']);
+      expect(rows, 'never two rows for one parameter').to.have.length(1);
+      const row = rows[0];
+      expect(row.label).to.equal('City VP');
+      expect(row.vpVector).to.deep.equal({from: 2, to: 3});
+      expect(row.vp, 'the signed difference').to.equal(1);
+      expect(row.reasons.map((r) => [r.label, r.amount])).to.deep.equal([['At the new space', '+2'], ['At the former space', '−1']]);
+      expect(row.severity, 'a pool that ends higher is good news').to.equal('positive');
+      expect(row.count).to.equal(1);
+      for (const key of ['City VP', 'At the new space', 'At the former space']) {
+        expect(RU[key], `missing RU translation for "${key}"`).to.be.a('string');
+      }
+    });
+
+    it('a pool of ONE member is still a vector with its cause; a pool that ends lower takes the warning tone', () => {
+      const [up] = buildDossierRows([gain], ['endgame']);
+      expect(up.vpVector).to.deep.equal({from: 2, to: 4});
+      expect(up.reasons.map((r) => r.amount)).to.deep.equal(['+2']);
+      const [down] = buildDossierRows([loss], ['endgame']);
+      expect(down.vpVector).to.deep.equal({from: 2, to: 1});
+      expect(down.vp).to.equal(-1);
+      expect(down.severity).to.equal('warning');
+    });
+
+    it('the section head totals the DELTA of the pool, and an ordinary VP statement beside it is not merged in', () => {
+      const other = fact({id: 'place-x', category: 'future-scoring', timing: 'endgame', title: 'Adjacent city scores at game end', vp: {from: 0, to: 1}});
+      const p = preview({futureScoringFacts: [gain, loss, other]});
+      const endgame = dossierSections(p).find((s) => s.key === 'endgame')!;
+      expect(endgame.rows.map((r) => r.key)).to.deep.equal(['agg:p|City VP|2', 'place-x']);
+      expect(endgame.total, '(+2 − 1) + 1').to.equal(2);
+      expect(endgameVpTotal([gain, loss]), 'two members of one pool: the net').to.equal(1);
+    });
+
+    it('«unchanged» is one calm line — a label and a note, no vector, no badge', () => {
+      const [row] = buildDossierRows([fact({
+        id: 'move-city-vp', category: 'city-greenery-scoring', timing: 'endgame', severity: 'info',
+        title: 'City VP', description: 'Unchanged: ${0} VP', params: ['2'],
+      })], ['endgame']);
+      expect(row.vpVector).to.be.undefined;
+      expect(row.vp).to.be.undefined;
+      expect(row.note).to.deep.equal({text: 'Unchanged: ${0} VP', params: ['2']});
+    });
+
+    it('the SOURCE reading (nothing is put down yet) is «This city», never «Former space»', () => {
+      const p = preview({
+        placesTile: false,
+        ruleFacts: [
+          fact({id: 'move-reach', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'}, title: 'Spaces to move to: ${0}', params: ['3'], spaces: ['06', '07', '08']}),
+          fact({id: 'move-scores-now', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'}, title: 'Scores now: ${0} VP', params: ['2']}),
+        ],
+      });
+      const sections = dossierSections(p);
+      expect(sections.map((s) => s.key)).to.deep.equal(['source']);
+      expect(sections[0].titleKey).to.equal('This city');
+      expect(sections[0].rows.map((r) => [r.label, r.params])).to.deep.equal([['Spaces to move to: ${0}', ['3']], ['Scores now: ${0} VP', ['2']]]);
+      expect(dossierEmptyKey(p), 'a city with facts is never «nothing happens»').to.be.undefined;
+      for (const key of ['This city', 'Spaces to move to: ${0}', 'Scores now: ${0} VP']) {
+        expect(RU[key], `missing RU translation for "${key}"`).to.be.a('string');
+      }
+    });
+
+    it('a standing fall of an award reads «1 → 0» in the warning tone, with no micro track', () => {
+      const [row] = buildDossierRows([fact({
+        id: 'award-Estate Dealer', category: 'milestone-progress', timing: 'future', severity: 'warning',
+        title: 'Estate Dealer', progress: {from: 1, to: 0},
+      })]);
+      expect(row.progress).to.deep.equal({from: 1, to: 0});
+      expect(row.severity).to.equal('warning');
+      expect(progressTrack(row.progress)).to.be.undefined;
+    });
+  });
 });

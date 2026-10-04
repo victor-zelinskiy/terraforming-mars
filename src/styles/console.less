@@ -5602,6 +5602,105 @@ html.con-section-leaving .con-strat {
     50% { opacity: 0.55; }
 }
 
+/* ══ A MOVE (Turmoil Redux TR14 Re-settlement) — the reticle's own family ══
+   One of the player's cities travels to a neighbouring cell. Before the one
+   POST the board says it in three quiet marks, all in board px-space
+   (keep-px), all transform / opacity only, none of them a loop:
+
+     · THE PICKUP POSE («which city»): the reticle rings the REAL tile under it
+       and projects nothing — a ghost of a tile over a tile would be a second
+       object; the focused city itself lifts 2 px (the bonus icons' own
+       seat-lift language), a stack lifting only its top tier — the one that
+       would go;
+     · THE ORIGIN («leaving from here»): once a city is lifted its real tile
+       STAYS (nothing has happened yet) and only turns quieter, under a dashed
+       contour — never hidden, never moved;
+     · THE VECTOR: one thin line with a chevron from the origin toward the
+       focused destination, re-aimed by the reticle's own 120 ms glide; at the
+       lock it turns amber and gains weight — the commit boundary's colour. */
+.con-bcur--pickup .con-bcur__ring {
+    inset: -6.5px; /* keep-px: board px-space — a hair wider: it frames a standing tile */
+}
+.con-bcur--pickup .con-bcur__shadow { opacity: 0; }
+.con-board--move-pick .board-space > [class*="board-space-tile--"],
+.con-board--move-pick .board-space > .player-cube.board-owner-cube {
+    transition: translate calc(180ms * var(--motion-scale, 1)) @con-ease-settle;
+}
+.con-board--move-pick .board-space.con-cell-sel.board-space--available > [class*="board-space-tile--"],
+.con-board--move-pick .board-space.con-cell-sel.board-space--available > .player-cube.board-owner-cube {
+    translate: 0 -2px; /* keep-px: board px-space — `translate` composes with a stack's own `transform` */
+}
+.con-board--placing .board-space > [class*="board-space-tile--"],
+.con-board--placing .board-space > .player-cube.board-owner-cube {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-board--move-lifted .board-space.board-space--move-source > [class*="board-space-tile--"] {
+    opacity: 0.5;
+}
+.con-board--move-lifted .board-space.board-space--move-source > .player-cube.board-owner-cube {
+    opacity: 0.72;
+}
+.con-bmove-origin {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 46px; /* keep-px: board px-space — the hex cell box */
+    height: 51px; /* keep-px: board px-space */
+    z-index: 34;
+    pointer-events: none;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,2 43.6,13.8 43.6,37.2 23,49 2.4,37.2 2.4,13.8' fill='none' stroke='%23E8F1FB' stroke-opacity='0.86' stroke-width='1.6' stroke-linejoin='round' stroke-dasharray='4.5 3.2'/></svg>") center/100% 100% no-repeat;
+    animation: con-bmove-in calc(180ms * var(--motion-scale, 1)) ease-out backwards;
+}
+.con-bmove {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 0;
+    z-index: 34;
+    pointer-events: none;
+    transform-origin: 0 0;
+    /* The reticle's own travel: a new destination RE-AIMS the vector mid-glide. */
+    transition: transform calc(120ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: con-bmove-in calc(180ms * var(--motion-scale, 1)) ease-out backwards;
+}
+/* The stroke runs between the two tiles' shoulders — it never crosses the
+   art of either city, and its chevron stands on the shared edge's far side. */
+.con-bmove__line {
+    position: absolute;
+    left: 30%;
+    right: 27%;
+    top: -0.8px; /* keep-px: board px-space */
+    height: 1.6px; /* keep-px: board px-space */
+    border-radius: 1px; /* keep-px: board px-space */
+    background: linear-gradient(90deg, rgba(215, 255, 233, 0.2), rgba(215, 255, 233, 0.92));
+}
+.con-bmove__head {
+    position: absolute;
+    right: 24%;
+    top: -3.4px; /* keep-px: board px-space */
+    width: 6px; /* keep-px: board px-space */
+    height: 6px; /* keep-px: board px-space */
+    border-top: 1.6px solid rgba(215, 255, 233, 0.95); /* keep-px: board px-space */
+    border-right: 1.6px solid rgba(215, 255, 233, 0.95); /* keep-px: board px-space */
+    transform: rotate(45deg);
+}
+/* THE LOCK: the same line, amber and heavier — weight carries the state, not colour alone. */
+.con-bmove--locked .con-bmove__line {
+    top: -1.2px; /* keep-px: board px-space */
+    height: 2.4px; /* keep-px: board px-space */
+    background: linear-gradient(90deg, fade(@con-amber, 35%), @con-amber);
+}
+.con-bmove--locked .con-bmove__head {
+    border-top-color: @con-amber;
+    border-right-color: @con-amber;
+    border-top-width: 2.2px; /* keep-px: board px-space */
+    border-right-width: 2.2px; /* keep-px: board px-space */
+}
+@keyframes con-bmove-in {
+    from { opacity: 0; }
+}
+
+
 /* P27: BOARD INSPECTION MODE — a distinct AMBER "scanner" hex, never
    confusable with the cyan browse / mint-legal / ocean-ready looks. */
 .con-board--inspecting .board-space.con-cell-sel::after {
@@ -10616,6 +10715,9 @@ html.console-mode {
         &--gain { --drow-accent: @con-mint; }
         &--cost { --drow-accent: @con-amber; }
         &--danger { --drow-accent: #ff9f96; }
+        /* A quantity the CELL holds («×2» — a move's freed cell), addressed to
+           nobody: the calm text tone, never the mint of a gain. */
+        &--neutral { --drow-accent: rgba(220, 236, 247, 0.78); }
     }
     &__ico {
         flex: 0 0 auto;
@@ -10681,6 +10783,11 @@ html.console-mode {
             opacity: .85;
         }
         &--neg { color: #ff9f96; }
+        /* A VP POOL's vector («2 → 3 ПО» — a move's «City VP»): the same
+           current → arrow → resulting grammar as a resource pool, in the
+           endgame's own gold (red when the pool ends lower). */
+        &--vector { --drow-accent: @sem-prestige; }
+        &--vector&--neg { --drow-accent: #ff9f96; }
     }
     &__prog {
         display: flex;

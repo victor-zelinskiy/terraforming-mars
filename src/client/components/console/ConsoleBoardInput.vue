@@ -77,6 +77,7 @@ import {
 } from '@/client/console/tilePlacement/placementFlow';
 import {consoleState} from '@/client/console/consoleRouter';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {pickUpMoveSource, placementMoveLevel, placementMoveState} from '@/client/console/tilePlacement/placementMove';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -125,6 +126,37 @@ export default defineComponent({
     onsave: {
       type: Function as unknown as () => (out: SelectSpaceResponse) => void,
       required: true,
+    },
+    /**
+     * A STAGED pick (the cell is chosen before `sourceCard` is paid): the hover
+     * preview asks the server to fold the card's unpaid price into every
+     * affordability fact — the same flag the dossier's fetch sends.
+     */
+    staged: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  watch: {
+    /**
+     * THE LEGAL SET CHANGED UNDER A STANDING BINDER — a MOVE prompt's levels
+     * (which city → which cell; `placementMove.moveLevelPrompt`) are one prompt
+     * read twice, so the binder is not remounted between them: it re-hangs the
+     * highlight, the illegal marks and the per-cell clicks on the new set, and
+     * the availability wave plays once for each level.
+     */
+    'playerinput.spaces'(now: ReadonlyArray<SpaceId>, before: ReadonlyArray<SpaceId>): void {
+      if (now.length === before.length && now.every((id) => before.includes(id))) {
+        return;
+      }
+      this.rewire();
+    },
+    /** …and the per-cell reasons follow the level too (a level change always moves `spaces`, but not vice versa). */
+    'playerinput.illegalSpaces'(): void {
+      if (placementFlowState.phase !== 'committing') {
+        this.removeIllegalTooltips();
+        this.applyIllegalTooltips(this.getSelectableSpaces());
+      }
     },
   },
   data(): DataModel {
@@ -299,6 +331,10 @@ export default defineComponent({
     isClearedTarget(spaceId: SpaceId): boolean {
       return (this.playerinput.hiddenTiles ?? []).includes(spaceId);
     },
+    /** A MOVE's lifted city — the cell the hover / confirm previews are asked about as a destination OF. */
+    movedFrom(): SpaceId | undefined {
+      return placementMoveLevel(this.playerinput) === 'cell' ? placementMoveState.from : undefined;
+    },
     showPreview(spaceId: SpaceId, cell: HTMLElement) {
       if (spaceId === this.previewSpaceId) {
         return;
@@ -312,7 +348,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.previewToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect, this.staged, this.movedFrom()).then((preview) => {
         if (myToken === this.previewToken && this.previewSpaceId === spaceId) {
           this.previewData = preview;
         }
@@ -420,7 +456,33 @@ export default defineComponent({
         tile.onclick = () => this.onTileSelected(tile);
       }
     },
+    /**
+     * Re-hang the wiring on a NEW legal set (a move prompt's level change):
+     * the old set's clicks are detached first — `wireBoard` only attaches —
+     * and the played wave is cleared so the new set's own wave may play.
+     */
+    rewire() {
+      for (const tile of this.getSelectableSpaces()) {
+        tile.onclick = null;
+      }
+      this.spaces = new Set(this.playerinput.spaces);
+      this.clearHover();
+      this.clearAvailabilityWave();
+      this.wireBoard();
+    },
     onTileSelected(tile: HTMLElement) {
+      // A MOVE's CITY LEVEL (Turmoil Redux TR14): the click LIFTS the city —
+      // one press of pure presentation in BOTH confirm modes (nothing is sent,
+      // B puts it down). The legal set then becomes that city's destinations
+      // (the `playerinput.spaces` watcher re-hangs the wiring), and from there
+      // the pick is an ordinary placement: lock → confirm, or one press.
+      if (placementMoveLevel(this.playerinput) === 'city') {
+        const spaceId = tile.getAttribute('data_space_id') as SpaceId | null;
+        if (spaceId !== null && placementFlowState.phase !== 'committing') {
+          pickUpMoveSource(spaceId);
+        }
+        return;
+      }
       // TWO-PHASE CONFIRM (the console default, placementFlow.ts): the pad
       // path locks in the shell BEFORE ever clicking, so a click landing
       // here is either the pad's verified COMMIT (locked + released +
@@ -468,7 +530,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.confirmToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect, this.staged, this.movedFrom()).then((preview) => {
         if (myToken === this.confirmToken) {
           this.confirmPreview = preview;
         }
@@ -495,6 +557,10 @@ export default defineComponent({
       // The transport gate then verifies the server's word before anything
       // visual happens — a refused pick unwinds with zero trace.
       const effect = this.playerinput.placementEffect ?? 'tile';
+      if (effect === 'move') {
+        this.saveMove(this.spaceId);
+        return;
+      }
       if (effect === 'bonus-only') {
         armNomadMove({toSpaceId: this.spaceId});
       } else if (effect === 'remove') {
@@ -520,6 +586,21 @@ export default defineComponent({
         });
       }
       this.onsave({type: 'space', spaceId: this.spaceId});
+    },
+    /**
+     * A MOVE's answer (`placementEffect: 'move'`, Turmoil Redux TR14): ONE
+     * response names both cells — the city that leaves and the cell it comes
+     * to — because the server never holds a «lifted, not placed» state. The
+     * lifted city is the move level's own state; a save with none is a
+     * programming error upstream (the cell level cannot exist without it).
+     */
+    saveMove(spaceId: SpaceId) {
+      const from = placementMoveState.from;
+      if (from === undefined) {
+        console.warn('[board-input] a move saved with no city lifted — ignored');
+        return;
+      }
+      this.onsave({type: 'space', spaceId, movedFrom: from});
     },
   },
   mounted() {

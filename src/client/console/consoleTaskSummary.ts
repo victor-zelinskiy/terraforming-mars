@@ -195,6 +195,10 @@ export function placementKicker(wf: PlayerInputModel | undefined): string {
   if (effect === 'remove') {
     return 'Tile removal';
   }
+  // A MOVE (`'move'` — Turmoil Redux TR14): a tile the player owns travels to another cell.
+  if (effect === 'move') {
+    return 'Tile relocation';
+  }
   return effect === undefined || effect === 'tile' ? 'Tile placement' : 'Marker placement';
 }
 

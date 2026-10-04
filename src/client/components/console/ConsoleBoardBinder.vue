@@ -35,6 +35,7 @@ import {Phase} from '@/common/Phase';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 import {clearIfPhaseLeftCardPick, clearDraftWaitPending} from '@/client/components/draftWaitState';
 import {isConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
+import {isMovePrompt, moveLevelPrompt, placementMoveState} from '@/client/console/tilePlacement/placementMove';
 import {
   TransportRoot,
   startGameTransport,
@@ -120,12 +121,20 @@ export default defineComponent({
     // …): mounts the headless board binder. Nested SelectSpace prompts
     // (inside OrOptions like convert-plants or WGT) are NOT detected here —
     // the console shell hosts its own headless instances for those.
+    //
+    // A MOVE prompt (Turmoil Redux TR14 — `tileMove`) is wired at its current
+    // LEVEL: which city → which cell (`placementMove.moveLevelPrompt`, the one
+    // derivation the shell's own resolver reads too). Every other prompt is
+    // passed through as the very object the server sent.
     topLevelSpaceInput(): SelectSpaceModel | undefined {
       const wf = this.waitingfor;
       if (wf === undefined || wf.type !== 'space') {
         return undefined;
       }
-      return wf;
+      if (!isMovePrompt(wf)) {
+        return wf;
+      }
+      return moveLevelPrompt(wf, placementMoveState.from, this.playerView.game.spaces.map((space) => space.id));
     },
     /*
      * CONSOLE PROMPT ADMISSION: the console holds a server placement behind a

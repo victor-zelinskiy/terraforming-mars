@@ -292,11 +292,25 @@ describe('cityMovePreview', () => {
       from.bonus = [SpaceBonus.PLANT, SpaceBonus.PLANT];
       const preview = boardCellPreview(p1, to, 'city-move', {movedFrom: from});
       const freed = preview.ruleFacts.filter((f) => f.id.startsWith('move-vacated'));
-      expect(freed.map((f) => f.id)).deep.eq(['move-vacated', `move-vacated-${SpaceBonus.PLANT}`]);
-      expect(freed.every((f) => f.category === 'tile-move' && f.recipient.kind === 'nobody')).is.true;
-      expect(freed.every((f) => f.spaces?.length === 1 && f.spaces[0] === from.id), 'each names the cell it is about').is.true;
-      expect(freed[1].delta).deep.include({icon: 'plants', amount: 2});
+      expect(freed.map((f) => f.id), 'one kind of bonus rides the «freed» line itself').deep.eq(['move-vacated']);
+      expect(freed[0].category).eq('tile-move');
+      expect(freed[0].recipient.kind, 'addressed to nobody').eq('nobody');
+      expect(freed[0].spaces, 'it names the cell it is about').deep.eq([from.id]);
+      expect(freed[0].delta).deep.include({icon: 'plants', amount: 2});
       expect(preview.immediateFacts.some((f) => f.delta?.icon === 'plants'), 'never a gain of the mover\'s').is.false;
+
+      // Several kinds of bonus: the «freed» line, then a chip line for each.
+      from.bonus = [SpaceBonus.STEEL, SpaceBonus.DRAW_CARD];
+      const mixed = boardCellPreview(p1, to, 'city-move', {movedFrom: from}).ruleFacts.filter((f) => f.id.startsWith('move-vacated'));
+      expect(mixed.map((f) => f.id)).deep.eq(['move-vacated', `move-vacated-${SpaceBonus.STEEL}`, `move-vacated-${SpaceBonus.DRAW_CARD}`]);
+      expect(mixed[0].delta).is.undefined;
+      expect(mixed.every((f) => f.recipient.kind === 'nobody' && f.spaces?.[0] === from.id)).is.true;
+
+      // No bonus at all: the cell is freed, and that is the whole statement.
+      from.bonus = [];
+      const bare = boardCellPreview(p1, to, 'city-move', {movedFrom: from}).ruleFacts.filter((f) => f.id.startsWith('move-vacated'));
+      expect(bare).has.length(1);
+      expect(bare[0].description).is.undefined;
     });
 
     it('the former cell: a stack stands one tier shorter and keeps its base', () => {

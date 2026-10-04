@@ -27,7 +27,10 @@
        the commit boundary's own colour grammar;
      - committing: the locked pose holds, breathing quietly, until the hero
        scene takes the cell (the shell unmounts this the moment the
-       tile-placement transaction owns the visual).
+       tile-placement transaction owns the visual);
+     - pickup (a MOVE's «which city» level): the ring around the REAL tile on
+       the cell, no projection — a ghost of a tile over a tile would be a
+       second object. The host passes no art for it.
 
     Paint budget: transform/opacity/box-shadow only (the console strips
     `filter`/`text-shadow` permanently); the one INFINITE loop (`__pulse`)
@@ -85,6 +88,13 @@ export default defineComponent({
      *  QUIET ZONE: the projection is masked down under it so the reward the
      *  player is weighing always reads above the incoming tile. */
     bonusZone: {type: Object as PropType<BonusZone | undefined>, default: undefined},
+    /**
+     * THE PICKUP POSE (a move's «which city» level, Turmoil Redux TR14): the
+     * cell under the reticle already holds the OBJECT — a real tile — so the
+     * reticle projects nothing and rings it a little wider, leaving the tile's
+     * own lift (console.less) to say «this one».
+     */
+    pickup: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -121,6 +131,7 @@ export default defineComponent({
         // Travel is a NAVIGATE-only pose: a lock freezes the reticle on its
         // cell, so a phase change mid-glide must not keep it airborne.
         'con-bcur--travel': this.traveling && this.phase === 'navigate',
+        'con-bcur--pickup': this.pickup && this.legal && this.phase === 'navigate',
       };
     },
     /** One key so a diagonal step arms exactly one settle cycle. */

@@ -125,6 +125,8 @@
                            :placementShape="placementShape"
                            :cellPreview="selectedCellPreview"
                            :legalSpaces="placementSpaceModel?.spaces ?? []"
+                           :movePick="placementMoveLevelNow === 'city'"
+                           :moveFrom="placementMoveFrom"
                            :inspecting="consoleState.inspecting" />
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board
@@ -1490,9 +1492,10 @@
            synthetic SelectSpace built from the preview's StagedPlacementModel.
            The confirm posts the parked batch (+ the space tail); B restores
            the composer with nothing ever sent. -->
-      <console-board-input v-if="stagedPlayPrompt !== undefined"
+      <console-board-input v-if="stagedPlayLevelPrompt !== undefined"
                            :playerView="playerView"
-                           :playerinput="stagedPlayPrompt"
+                           :playerinput="stagedPlayLevelPrompt"
+                           :staged="placementStaged"
                            :onsave="onStagedPlaySpacePicked" />
     </div>
 
@@ -2022,6 +2025,19 @@ import {
   resetPlacementFlow,
   unlockPlacementCell,
 } from '@/client/console/tilePlacement/placementFlow';
+import {
+  moveFirstDestination,
+  moveFocusTile,
+  moveLevelPrompt,
+  moveSourceOf,
+  pickUpMoveSource,
+  placementMoveLevel,
+  placementMoveState,
+  putDownMoveSource,
+  resetPlacementMove,
+  PlacementMoveLevel,
+} from '@/client/console/tilePlacement/placementMove';
+import {placementCommands} from '@/client/console/tilePlacement/placementCommands';
 import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
@@ -5741,7 +5757,23 @@ export default defineComponent({
         placementEffect: p.placementEffect,
         placementContext: {cancellable: true, source: {kind: 'card', card: p.sourceCard}},
         followUpPlacements: p.followUpPlacements,
+        // A staged MOVE (TR14): which city reaches which cell — the same marker the live prompt carries.
+        tileMove: p.tileMove,
       };
+    },
+    /**
+     * The staged prompt AT ITS LEVEL — what the staged binder is wired to. For
+     * a move it is «which city» until one is lifted, then «which cell»
+     * (`placementMove.moveLevelPrompt`); for every other staged placement it
+     * is `stagedPlayPrompt` itself.
+     */
+    stagedPlayLevelPrompt(): SelectSpaceModel | undefined {
+      const prompt = this.stagedPlayPrompt;
+      return prompt === undefined ? undefined : moveLevelPrompt(prompt, placementMoveState.from, this.boardSpaceIds);
+    },
+    /** Every cell id of this board — a move's city level names the reason of each cell that is no city of the player's. */
+    boardSpaceIds(): ReadonlyArray<SpaceId> {
+      return this.playerView.game.spaces.map((space) => space.id);
     },
     /**
      * The server's top-level `SelectSpace` is being HELD behind a cinematic
@@ -5842,12 +5874,40 @@ export default defineComponent({
      * split resolver missed the nested one and left that placement with a blank
      * title and no illegal reason.
      */
-    placementSpaceModel() {
+    placementSpaceModel(): SelectSpaceModel | undefined {
+      const raw = this.placementRawSpaceModel;
+      // A MOVE prompt (Turmoil Redux TR14 — `tileMove`) is read AT ITS LEVEL by
+      // every placement reader: which city (the legal cells are the cities
+      // that may move) → which cell (the lifted city's destinations). The two
+      // levels are one prompt read twice (`placementMove.ts`); any other
+      // prompt comes back as the very same object.
+      return raw === undefined ? undefined : moveLevelPrompt(raw, placementMoveState.from, this.boardSpaceIds);
+    },
+    /** The space prompt as it was asked — before a move's level is applied (the marker's own lists live here). */
+    placementRawSpaceModel(): SelectSpaceModel | undefined {
       const wf = this.playerView.waitingFor;
       if (wf?.type === 'space') {
         return wf;
       }
       return this.convertPlantsPrompt ?? this.taskSpacePrompt ?? this.stagedPlayPrompt;
+    },
+    /** A move's level right now — `city` (which city leaves) / `cell` (where it lands); undefined for any other placement. */
+    placementMoveLevelNow(): PlacementMoveLevel | undefined {
+      return this.placementActive ? placementMoveLevel(this.placementRawSpaceModel, placementMoveState.from) : undefined;
+    },
+    /** The city the player has LIFTED (its cell) — only while the prompt still offers it. */
+    placementMoveFrom(): SpaceId | undefined {
+      return this.placementMoveLevelNow === 'cell' ? placementMoveState.from : undefined;
+    },
+    /**
+     * The placement is a STAGED PLAY's (the cell is picked before the card is
+     * paid) — its previews ask the server to fold the card's unpaid price into
+     * every affordability fact (`staged=1`). A play only: an ACTION's card is
+     * already on the table, and its own cost is not the card's price.
+     */
+    placementStaged(): boolean {
+      const raw = this.placementRawSpaceModel;
+      return raw !== undefined && raw === this.stagedPlayPrompt && stagedPlayState.arm?.flow === 'play';
     },
     /**
      * PLANET FOCUS target — should the enlarged placement stage be up?
@@ -5896,7 +5956,8 @@ export default defineComponent({
         return '';
       }
       const cleared = (prompt.hiddenTiles ?? []).includes(id as SpaceId) ? 'c' : '';
-      return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}|${prompt.sourceCard ?? ''}`;
+      // A move's lifted city and the staged flag change what the server answers for the SAME cell.
+      return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}|${prompt.sourceCard ?? ''}|${this.placementMoveFrom ?? ''}|${this.placementStaged ? 's' : ''}`;
     },
     /** What this cell pick actually PUTS DOWN — a tile, or a marker (a claim /
      *  a camp move). The key comes from the ONE prompt-copy source. */
@@ -5926,7 +5987,11 @@ export default defineComponent({
         [...(prompt.followUpPlacements ?? []), ...pinned] :
         prompt.followUpPlacements;
       return {
-        tileType: prompt.tileType,
+        // A MOVE names the tile by the cell in focus: what LANDS once a city
+        // is lifted (a Capital arrives as a Capital, a stack's top tier as a
+        // plain city), the focused city's own tile before that.
+        tileType: moveFocusTile(this.placementRawSpaceModel, placementMoveState.from, this.consoleState.boardSpaceId as SpaceId | undefined) ??
+          prompt.tileType,
         placementType: prompt.placementType,
         placementEffect: prompt.placementEffect,
         sourceCard: prompt.sourceCard,
@@ -6762,7 +6827,13 @@ export default defineComponent({
     bannerText(): string {
       if (this.placementActive) {
         // P20: the inspect-all toggle owns the prompt while active.
-        return translateText(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Choose a location on the board');
+        if (this.consoleState.freeRoam) {
+          return translateText('Inspecting all cells');
+        }
+        // A MOVE asks two things in turn — the banner names the one being asked.
+        const level = this.placementMoveLevelNow;
+        return translateText(level === 'city' ? 'Choose your city' :
+          level === 'cell' ? 'Choose an adjacent space' : 'Choose a location on the board');
       }
       if (this.consoleState.fallbackActive) {
         // A demoted premium/desktop scope owns the screen. It used to read a
@@ -8879,53 +8950,19 @@ export default defineComponent({
       if (this.placementActive) {
         // P21: the placement footer is CONTEXT-ONLY and one-line by
         // contract — LT/RT keep working globally (Info / Actions) but
-        // never occupy this bar; a NON-cancellable B is not an action, so
-        // it is not a hint (the panel + the B-toast explain mandatory).
-        //
-        // The bar is the ONE home of every placement verb (the panel renders
-        // no controller prompts at all), so the four verbs must SURVIVE the
-        // TV fit model: the L3/R3 hints carry explicit priorities below the
-        // droppable default — under pressure the generic d-pad hint (the
-        // board's highlighted cells already teach navigation) drops first,
-        // never a verb with no other home. «Источник» is deliberately the
-        // short label here: «Осмотреть источник» was what the 4K fit dropped.
-        const flowPhase = this.placementFlowState.phase;
-        // A COMMIT ON THE WIRE: one calm status, no live verbs — every press
-        // is absorbed by the flow anyway, and the bar must say so.
-        if (flowPhase === 'committing') {
-          return [
-            {control: 'confirm', label: 'Placing the tile', enabled: false},
-          ];
-        }
-        // THE LOCKED PHASE: the bar relabels to the second half of the
-        // decision — A confirms THE choice, B steps back to cell choice.
-        // The whole-flow cancel stays one more B away (back hierarchy).
-        if (flowPhase === 'locked') {
-          return [
-            {control: 'confirm', label: 'Confirm placement', enabled: true, highlight: true},
-            {control: 'back', label: 'Change cell'},
-            ...(this.placementSourceInspectable ?
-              [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}] : []),
-          ];
-        }
-        const cmds: Array<ConsoleCommand> = [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm',
-            label: this.placementFlowState.twoStep ? 'Select cell' : 'Place here',
-            enabled: this.selectedCellLegal,
-            highlight: this.selectedCellLegal},
-          // L3 — the SOURCE card fullscreen, the same verb it carries on every
-          // other surface in the shell. It replaced «next available cell», a
-          // jump that duplicated what the d-pad already does over a board whose
-          // legal cells are highlighted.
-          ...(this.placementSourceInspectable ?
-            [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}] : []),
-          {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells', priority: 2},
-        ];
-        if (this.placementCancellable) {
-          cmds.push({control: 'back', label: 'Cancel placement'});
-        }
-        return cmds;
+        // never occupy this bar. The bar is the ONE home of every placement
+        // verb (the panel renders no controller prompts at all); WHICH verbs
+        // stand at each phase — and at each LEVEL of a move — is the pure
+        // `placementCommands` (tilePlacement/placementCommands.ts, spec'd).
+        return placementCommands({
+          phase: this.placementFlowState.phase,
+          twoStep: this.placementFlowState.twoStep,
+          legal: this.selectedCellLegal,
+          cancellable: this.placementCancellable,
+          freeRoam: this.consoleState.freeRoam,
+          sourceInspectable: this.placementSourceInspectable,
+          moveLevel: this.placementMoveLevelNow,
+        });
       }
       if (this.consoleState.sale.active) {
         const n = this.consoleState.sale.selected.length;
@@ -11013,6 +11050,35 @@ export default defineComponent({
       } else {
         resetPlacementFlow();
       }
+      // …and a MOVE's lifted city belongs to the placement it was lifted in.
+      resetPlacementMove();
+    },
+    /**
+     * A MOVE's LEVEL CHANGE (Turmoil Redux TR14): the cursor follows the city.
+     * Lifted → it lands on the city's FIRST destination in the server's own
+     * order (clockwise from the east) — a focus, never a choice: the lock is
+     * still two presses away. Put down → it returns to the city, so «another
+     * city» starts from the one just held. Pad and mouse take this one path.
+     */
+    placementMoveFrom(now: SpaceId | undefined, before: SpaceId | undefined) {
+      const target = now !== undefined ? moveFirstDestination(this.placementRawSpaceModel, now) : before;
+      if (target === undefined || !this.placementActive) {
+        return;
+      }
+      const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+      if (board?.focusSpace(target) !== true) {
+        this.consoleState.boardSpaceId = target;
+      }
+    },
+    /**
+     * THE OFFER MOVED under a lifted city (a live move prompt re-read after an
+     * off-turn update): a city the prompt no longer lets move is put down — a
+     * stale lift may never offer destinations.
+     */
+    placementRawSpaceModel(raw: SelectSpaceModel | undefined) {
+      if (placementMoveState.from !== undefined && moveSourceOf(raw, placementMoveState.from) === undefined) {
+        resetPlacementMove();
+      }
     },
     /**
      * THE WORLD MOVED under a standing placement (the server's own change
@@ -11068,7 +11134,11 @@ export default defineComponent({
           const arm = stagedPlayState.arm;
           const parked = this.playerView.stagedPlacementPending;
           if (arm !== undefined && parked !== undefined && parked.card === arm.cardName) {
-            beginStagedPin({cardName: arm.cardName, spaceId: parked.spaceId, tileType: stagedPlacementOf(arm)?.tileType});
+            beginStagedPin({
+              cardName: arm.cardName, spaceId: parked.spaceId, tileType: stagedPlacementOf(arm)?.tileType,
+              // A parked MOVE holds the cell the city leaves too (the server's own word).
+              ...(parked.movedFrom !== undefined ? {movedFrom: parked.movedFrom} : {}),
+            });
           }
           discardYieldedStack();
           clearStagedPlay();
@@ -11088,6 +11158,8 @@ export default defineComponent({
       }
       if (phase === 'committing') {
         resetPlacementFlow();
+        // The commit landed straight into a CHAINED placement — a new decision; nothing stays lifted.
+        resetPlacementMove();
         return;
       }
       void this.$nextTick(() => {
@@ -12524,7 +12596,12 @@ export default defineComponent({
       }
       const spaceId = id as SpaceId;
       const cleared = (prompt.hiddenTiles ?? []).includes(spaceId);
-      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard, prompt.placementEffect).then((preview) => {
+      // `staged` — the unpaid card's price folds into every affordability fact
+      // (the route always could; no client ever sent it, so a staged dossier
+      // judged «affordable» against the whole wallet). `movedFrom` — a move's
+      // lifted city: the cell is read as that city's DESTINATION.
+      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard, prompt.placementEffect,
+        this.placementStaged, this.placementMoveFrom).then((preview) => {
         if (token === this.cellPreviewToken) {
           this.cellPreview = preview;
         }
@@ -14339,6 +14416,14 @@ export default defineComponent({
             this.showNotice('Cannot place here');
             return;
           }
+          // A MOVE's CITY LEVEL (Turmoil Redux TR14): A LIFTS the focused
+          // city — one press in BOTH confirm modes, pure presentation (nothing
+          // is sent; B puts it down). The legal set becomes that city's
+          // destinations and the pick continues as an ordinary placement.
+          if (this.placementMoveLevelNow === 'city') {
+            pickUpMoveSource(targetId as SpaceId);
+            return;
+          }
           // TWO-PHASE CONFIRM (the console default): the first press LOCKS
           // the cell — pure presentation, nothing is submitted, no event
           // exists yet. The second, separately-released press commits.
@@ -14776,6 +14861,12 @@ export default defineComponent({
         }
         if (this.placementFlowState.phase === 'locked') {
           unlockPlacementCell();
+          return;
+        }
+        // A MOVE with a city lifted: B puts it down — back to «which city»,
+        // still nothing sent. The whole-flow cancel is one more B away.
+        if (this.placementMoveLevelNow === 'cell') {
+          putDownMoveSource();
           return;
         }
         if (this.placementCancellable) {
@@ -19778,7 +19869,7 @@ export default defineComponent({
      * transport abort battery (rollback to the locked cell + re-armed
      * onclicks + `abortStagedPlayCommit`), so the play stays cancellable.
      */
-    onStagedPlaySpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
+    onStagedPlaySpacePicked(spaceResponse: {type: 'space', spaceId: string, movedFrom?: string}): void {
       const arm = stagedPlayState.arm;
       const placement = stagedPlacementOf(arm);
       if (arm === undefined || placement === undefined || stagedPlayState.committing) {
@@ -19867,6 +19958,8 @@ export default defineComponent({
       }
       // (A roster pick's draft — the tile chosen to leave — belongs to the door that is being walked out of.)
       colonyRosterDraft.outgoing = undefined;
+      // …and so does a move's lifted city.
+      resetPlacementMove();
       if (arm.flow === 'action' && arm.target.kind === 'resolution') {
         // B OUT OF A STAGED ACTION VOTE (TR15) — one level: the Parliament's frame leaves (its hosted dissolve
         // in place) and the composer it stood in — never unmounted — lets its setup come back, the variant and

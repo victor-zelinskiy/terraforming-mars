@@ -240,7 +240,13 @@ let pendingSeal: StagedSeal | undefined;
 // The pin MIRRORS the server fact — it resolves on version moves, never on a
 // client clock.
 
-export type StagedPinInfo = {cardName: CardName, spaceId: string, tileType?: TileType};
+export type StagedPinInfo = {
+  cardName: CardName,
+  spaceId: string,
+  tileType?: TileType,
+  /** A parked MOVE (TR14): the cell the city leaves — the pin holds BOTH cells, and its landing is one relocation. */
+  movedFrom?: string,
+};
 
 export const stagedPinState = reactive({
   pin: undefined as StagedPinInfo | undefined,

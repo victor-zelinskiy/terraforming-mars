@@ -82,11 +82,21 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   }
 }
 
-function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false): string {
-  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}:${staged ? 's' : ''}`;
+function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId): string {
+  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}:${staged ? 's' : ''}:${movedFrom ?? ''}`;
 }
 
-function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false): string | undefined {
+/**
+ * The board-cell-preview URL for one cell. Exported for its spec
+ * (tests/client/console/boardCellPreviewUrl.spec.ts): the two parameters a
+ * client once forgot to send — `staged` and a move's `from` — change what the
+ * server answers, so «is it on the wire» is pinned, not assumed.
+ */
+export function buildBoardCellUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId): string | undefined {
+  return buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged, movedFrom);
+}
+
+function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId): string | undefined {
   const cfg = boardInfoState.cfg;
   if (cfg.participantId === undefined) {
     return undefined;
@@ -128,6 +138,13 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   // card; the server falls back to the live answer when it can't gate it.
   if (staged) {
     params.set('staged', '1');
+  }
+  // A MOVE (Turmoil Redux TR14): the cell the city LEAVES. With it the server
+  // reads `space` as the DESTINATION of that city (the cell as a placement,
+  // with the old cell already vacated, plus what the old cell stops giving);
+  // without it, as the SOURCE — the city under the cursor.
+  if (movedFrom !== undefined) {
+    params.set('from', movedFrom);
   }
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
@@ -190,6 +207,10 @@ export function clearBoardCellHover(spaceId: SpaceId): void {
  * paid): affordability facts fold the card's own unpaid cost in. Part of the
  * cache key — a staged and a live preview of the same cell answer differently
  * and must never share an entry.
+ *
+ * `movedFrom` — a MOVE's lifted city (`kind: 'city-move'`): the same cell reads
+ * as a SOURCE without it and as a DESTINATION of that city with it, so it is
+ * part of the cache key too.
  */
 export function fetchBoardCellPreview(
   spaceId: SpaceId,
@@ -198,13 +219,14 @@ export function fetchBoardCellPreview(
   tileType?: number,
   sourceCard?: CardName,
   placementEffect?: PlacementEffect,
-  staged?: boolean): Promise<BoardPlacementPreview | undefined> {
-  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true);
+  staged?: boolean,
+  movedFrom?: SpaceId): Promise<BoardPlacementPreview | undefined> {
+  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true, movedFrom);
   const cached = previewCache.get(key);
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true);
+  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true, movedFrom);
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }
