@@ -160,6 +160,15 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // The art the TOP of the cell wears when it differs from the cell's own
+    // tile: a plain city over a special city (a stack — the Capital is the
+    // base, underneath; see `common/boards/cityStack.ts`). Art only: the
+    // tile's identity (description, hazard state, the placement baseline)
+    // stays the cell's own.
+    topArt: {
+      type: Number as unknown as () => TileType | undefined,
+      default: undefined,
+    },
   },
   data(): Data {
     return {
@@ -220,9 +229,10 @@ export default defineComponent({
             return css + ' board-space-tile--' + prevClass;
           }
         }
-        let cssClass: string | undefined = tileTypeToCssClass[this.tileType];
-        if (this.aresExtension && tileTypeToCssClassAresOverride.has(this.tileType)) {
-          cssClass = tileTypeToCssClassAresOverride.get(this.tileType);
+        const art = this.topArt ?? this.tileType;
+        let cssClass: string | undefined = tileTypeToCssClass[art];
+        if (this.aresExtension && tileTypeToCssClassAresOverride.has(art)) {
+          cssClass = tileTypeToCssClassAresOverride.get(art);
         }
         // Special case Crashlanding rotation
         if (this.tileType === TileType.CRASHLANDING && this.space.rotated === true) {

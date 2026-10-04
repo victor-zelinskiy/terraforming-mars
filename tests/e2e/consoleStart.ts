@@ -2451,18 +2451,23 @@ export async function bootFixtureSeats(
   page: Page,
   request: APIRequestContext,
   fixture: FixtureName,
-  /** `keepColony`: a solo opening REMOVES one colony tile through a live pick — steer the pick off the one the spec needs alive. */
-  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt', keepColony?: string} = {},
+  /**
+   * `keepColony`: a solo opening REMOVES one colony tile through a live pick — steer the pick off the one the spec needs alive.
+   * `arrange`: ONE declared difference from the generated fixture (a tile's kind, a stack's height), applied to the
+   * serialized game before it is posted — the engine still judges it, the game rides the real deserialize path.
+   */
+  opts: {query?: string, waitRounds?: number, landing?: 'board' | 'prompt', keepColony?: string, arrange?: (serialized: Record<string, unknown>) => void} = {},
 ): Promise<{playerId: string, seats: Array<string>}> {
   const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
   const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  opts.arrange?.(serialized);
   const res = await request.post('/api/dev/load-game', {data: serialized});
   expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
   const model = await res.json() as {players: Array<{id: string}>};
   const seats = model.players.map((p) => p.id);
   const playerId = seats[0];
   try {
-    test.info().annotations.push({type: 'game', description: `fixture=${fixture} player=${playerId}`});
+    test.info().annotations.push({type: 'game', description: `fixture=${fixture}${opts.arrange === undefined ? '' : ' (arranged)'} player=${playerId}`});
   } catch {
     // outside a running test — nothing to annotate
   }

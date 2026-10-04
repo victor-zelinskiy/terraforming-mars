@@ -146,6 +146,60 @@ cell's OWN rules, and the frame of contact is one synchronous write (`stackConta
 duplicate `@stack-step` / `@stack-scale` in `board.less` (the proxy must land where
 the board will paint) — change one, change both; the model spec pins the numbers.
 
+### THE TRUTHFUL STACK — a pile is drawn as the pieces lie (owner's ruling, 2026-10-04)
+
+A stack is built ONE way: a **plain city tile** is put on top of a city that
+already stands. So the top of a pile is a plain city and the cell's own tile —
+a Capital, an Ocean City — is its **BASE**; the engine agrees (`liftTopCity`
+takes `{tileType: CITY}` off a pile and never changes the base's kind). The first
+cut drew the whole pile in the cell's art — a Capital under a tier read as two
+Capitals — and a tier leaving it flew «as a Capital» and landed as a plain city:
+a piece changing its kind in the frame of the landing. A piece cannot change its
+kind by being carried.
+
+Two pure functions in `common/boards/cityStack.ts` are the ONE answer, read by
+the picture, the tier that lands and the tier that leaves alike:
+
+- **`stackTopTile(tileType, stackHeight)`** — the piece on top: the tile itself
+  for a single tile, `CITY` for any pile of cities;
+- **`stackBuriedTile(tileType, stackHeight)`** — the special tile lying UNDER a
+  tier (`undefined` for a single tile and for a pile of plain cities).
+
+What reads them:
+
+- `BoardSpace.vue` — the top tile wears `stackTopTile` (`BoardSpaceTile`'s
+  `topArt`; `space.tileType` stays the cell's truth for everything else), the
+  LOWEST drawn tier wears the cell's own art (`tierArtClassOf`), every tier
+  between is a plain city;
+- **the buried tile's MARK** (`.board-stack__under`, `[data-stack-under]`) — a
+  miniature of the real tile's art on a dark hex plate, nested in the cell's
+  lower vertex: inside the hex, clear of the counter (a pill) and of the owner
+  cube (shapes, not boxes — the e2e measures the hex against the pill). A single
+  Capital and a pile of plain cities carry none. Static — information never
+  animates. The art is cropped to its inner 84 % so the pixels go to what tells
+  one city from another;
+- **the counter's offset is a fact of the cell's OWN tile**
+  (`.board-space--stack-special`), never of the height: it stands in one place
+  through the landing («×1» → «×2», the mark appearing at contact) and the
+  departure («×2» → «×1», the mark going);
+- `verifyPlacement(…, {stacking})` — the tier that LANDS is `stackTopTile(next)`:
+  the proxy over a Capital is a plain city;
+- `verifyMove` — the tier that LEAVES is `stackTopTile(prev)`: the proxy is the
+  plain city from its first frame to its last, and «a Capital arriving off its
+  own stack» is refused.
+
+⚠ **The Capital's art in this fork differs from a plain city's by a star and a
+skyline** — at 1080p the miniature says «a special city lies under» by its
+PRESENCE more than by its detail; which one is the dossier's job (the cell's own
+line names the tile).
+
+Guards: `tests/boards/cityStackPieces.spec.ts` (the two functions + their
+agreement with `liftTopCity`), `BoardSpace.spec.ts` § a stack over a SPECIAL
+city, `tilePlacementModel.spec.ts` / `tileMoveScene.spec.ts` (the travelling
+piece), e2e `console-re-settlement.spec.ts` § a stack on a Capital (two profiles:
+the pile at rest, the mark's clearances, the proxy's art across the whole move,
+the server's record).
+
 ## The FOURTH case: a MOVE (Turmoil Redux — Re-settlement, TR14)
 
 `Re-settlement` takes the player's own city on Mars off its cell and puts it on
@@ -163,8 +217,9 @@ It is neither a landing nor a departure, and it borrows neither's signature:
 [picking]   two levels of ONE prompt (board-placement-flow.md § A MOVE): the
             city is lifted (presentation only), the cell is locked, A commits
    ↓ A      (the one POST — the tail names both cells)
-[moving]    HANDOFF (0) — ONE proxy (the `depart` twin, wearing the source's
-            art, its owner cube and a touch overlay) is posed 1:1 over the real
+[moving]    HANDOFF (0) — ONE proxy (the `depart` twin, wearing the art of the
+            PIECE THAT TRAVELS — the tile itself, or a stack's plain top tier —
+            its owner cube and a touch overlay) is posed 1:1 over the real
             tile on A — its box IS the destination hex, scaled to the source
             rect — and in the SAME synchronous turn `applyVacatePreview` makes
             the real cell what the server left there: a bare hex with its
@@ -201,7 +256,8 @@ a handful of frames per scene) the proxy was measured resting one LIFT above the
 destination, the real tile then appearing a whole lift below it. A pose computed
 from the clock cannot skip or reorder a beat however long a frame is.
 
-**A stack source is «the crane, reversed».** The proxy is the TOP TIER in its
+**A stack source is «the crane, reversed».** The proxy is the TOP TIER — the
+plain city it is, whatever the base (§ THE TRUTHFUL STACK) — in its
 lifted rect (`moveSourceRect` → `stackLandingRect`), the lift is strictly
 vertical, and the real cell answers through `cityStackScene`'s mirrors of
 `contact` / `loading`: **`released`** (the counter already reads the lower height

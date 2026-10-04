@@ -5,10 +5,14 @@
          (a pile of tokens); the counter below names the height outright. Drawn
          inside the hex (never onto a neighbour) — the whole pile is scaled to fit
          the cell, the top tile rides the lift. At most two lower tiers are drawn;
-         the counter is the truth for any height. -->
+         the counter is the truth for any height.
+         THE PILE IS DRAWN AS THE PIECES LIE (`common/boards/cityStack.ts`): every
+         tier above the base is a PLAIN city — that is the tile a stack is built
+         with — and the cell's own tile (the Capital, an Ocean City) is the BASE:
+         the lowest drawn tier wears its art, the top wears a plain city's. -->
     <div v-for="k in tierLayers" :key="'tier-' + k"
          class="board-space board-stack__tier"
-         :class="tierArtClass"
+         :class="tierArtClassOf(k)"
          :style="{'--stack-k': k}"
          data-stack-tier></div>
     <board-space-tile
@@ -16,6 +20,7 @@
       :aresExtension="aresExtension"
       :tileView="tileView"
       :placementCleared="placementCleared"
+      :topArt="topArt"
     ></board-space-tile>
     <div class="board-space-text" v-if="text" v-i18n>{{ text }}</div>
     <bonus :bonus="space.bonus" v-if="showBonus"></bonus>
@@ -36,6 +41,13 @@
            tier that LEFT (a move's `released`): the counter names the lower height once more — «×1»
            included — ticks, and at height 1 goes. -->
       <span v-if="(stackHeight > 1 || stackLoading || stackReleased) && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
+      <!-- THE BURIED TILE's mark: a special city under a tier is no longer what the top of the pile shows
+           (the top is a plain city), and only a strip of it peeks out below — so a MINIATURE of the tile
+           lying underneath stands at the foot of the pile, nested in the hex's lower vertex. A single
+           Capital and a pile of plain cities carry none. -->
+      <span v-if="buriedArtClass !== ''" class="board-stack__under" data-stack-under :data-stack-under-tile="buriedArtClass">
+        <i class="board-stack__under-art" :class="buriedArtClass"></i>
+      </span>
       <template v-if="space.gagarin !== undefined">
         <div v-if="space.gagarin === 0" class='gagarin'></div>
         <div v-else class='gagarin visited'></div>
@@ -85,6 +97,8 @@ import {isRemoteRevealHeld, heldPrevTileOf, heldPrevColorOf, heldStackHeightOf} 
 import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
 import {stackLoadingAt, stackContactAt, stackReleasedAt, stackUnloadingAt} from '@/client/console/tilePlacement/cityStackScene';
+import {stackBuriedTile, stackTopTile} from '@/common/boards/cityStack';
+import {TileType} from '@/common/TileType';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 
 type Data = {
@@ -175,6 +189,22 @@ export default defineComponent({
     }
   },
   methods: {
+    artClassOf(tileType: TileType): string {
+      const suffix = tileCssClassOf(tileType, this.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /**
+     * A lower tier's art, by where the piece LIES: the lowest drawn tier is the pile's BASE and wears the cell's own
+     * tile; every tier between it and the top is a plain city (a stack is built by putting plain city tiles on top).
+     */
+    tierArtClassOf(k: number): string {
+      const tileType = this.space.tileType;
+      if (tileType === undefined) {
+        return '';
+      }
+      const base = k === this.tierLayers.length;
+      return this.artClassOf(base ? tileType : stackTopTile(tileType, this.stackHeight));
+    },
     refreshMarkerPlacement(): void {
       if (this.markerTimer !== null) {
         clearTimeout(this.markerTimer);
@@ -225,6 +255,11 @@ export default defineComponent({
       if (this.stackHeight > 1 && !this.placementCleared) {
         css += ' board-space--stack';
       }
+      // A SPECIAL city's cell (the tile a tier would bury): its counter stands clear of the buried tile's mark. A fact
+      // of the cell's own tile, never of the height — so the counter does not move when the mark appears or goes.
+      if (stackBuriedTile(this.space.tileType, 2) !== undefined) {
+        css += ' board-space--stack-special';
+      }
       // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
       // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
       if (this.stackLoading) {
@@ -268,14 +303,25 @@ export default defineComponent({
       const drawn = Math.min(2, this.stackHeight - 1);
       return Array.from({length: drawn}, (_, i) => i + 1);
     },
-    /** The lower tiers wear the TOP tile's own art (a stack is one owner's identical cities). */
-    tierArtClass(): string {
+    /**
+     * The art the TOP of this cell wears when it is NOT the cell's own tile: a plain city, once a tier stands on a
+     * special city (the Capital is underneath then). Undefined for every single tile and for a pile of plain cities.
+     */
+    topArt(): TileType | undefined {
       const tileType = this.space.tileType;
       if (tileType === undefined) {
+        return undefined;
+      }
+      const top = stackTopTile(tileType, this.stackHeight);
+      return top === tileType ? undefined : top;
+    },
+    /** The special tile lying UNDER the tiers — its miniature marks the pile ('' = nothing buried, or nothing drawn). */
+    buriedArtClass(): string {
+      if (this.placementCleared || this.tileView !== 'show') {
         return '';
       }
-      const suffix = tileCssClassOf(tileType, this.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+      const buried = stackBuriedTile(this.space.tileType, this.stackHeight);
+      return buried === undefined ? '' : this.artClassOf(buried);
     },
     /** `--stack-n` drives the lift of the top tile and the step of every tier (board px, under the board's zoom). */
     stackStyle(): Record<string, string> {

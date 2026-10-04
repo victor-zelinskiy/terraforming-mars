@@ -34,6 +34,7 @@ import {GreeneryAdjacencyBonusModel} from '@/common/models/GreeneryAdjacencyBonu
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType, CITY_TILES, HAZARD_TILES} from '@/common/TileType';
+import {stackTopTile} from '@/common/boards/cityStack';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /**
@@ -704,7 +705,8 @@ export type VerifiedPlacement = {
 
 export type VerifiedMove = {
   from: SpaceId,
-  /** The tile that stood on the source cell — the proxy's art (a stack's top tier wears the cell's own art). */
+  /** The tile that TRAVELS — the proxy's art: the cell's own tile when it leaves whole, a plain city for a stack's
+   *  top tier (the Capital underneath never moves, and no piece changes its kind on the way). */
   tileType: TileType,
   color: Color | undefined,
   /** The source was a STACK: only its top tier left. */
@@ -750,7 +752,7 @@ export function verifyMove(
   if (a2.tileType !== a.tileType || a2.color !== a.color || before < 2 || after !== before - 1 || b2.tileType !== TileType.CITY) {
     return undefined;
   }
-  return {tileType: b2.tileType, color: b2.color, moves: {from: a.id, tileType: a.tileType, color: a.color, stack: {from: before, to: after}}};
+  return {tileType: b2.tileType, color: b2.color, moves: {from: a.id, tileType: stackTopTile(a.tileType, before), color: a.color, stack: {from: before, to: after}}};
 }
 
 /**
@@ -812,9 +814,11 @@ export function verifyPlacement(
   if (prev.tileType !== undefined) {
     if (opts?.stacking === true && prev.tileType === next.tileType && CITY_TILES.has(next.tileType)) {
       // A DECLARED tier: the same city, one tier taller — the third legal case.
+      // What LANDS is the tier itself — a plain city tile, whatever the base is
+      // (a Capital stays the Capital, underneath): the proxy wears the piece.
       const from = prev.stackHeight ?? 1;
       const to = next.stackHeight ?? 1;
-      return to === from + 1 ? {tileType: next.tileType, color: next.color, stacks: {from, to}} : undefined;
+      return to === from + 1 ? {tileType: stackTopTile(next.tileType, to), color: next.color, stacks: {from, to}} : undefined;
     }
     if (prev.tileType === next.tileType) {
       return undefined; // nothing changed on the cell — no placement to show

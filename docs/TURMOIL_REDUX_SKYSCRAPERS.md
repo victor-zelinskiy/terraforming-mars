@@ -104,6 +104,12 @@ tileGrant: {tile: 'city', placement: 'own-city', recipients: {winner: true, infl
 
 ## 4. Сцена посадки — см. `docs/claude/console/tile-replacement.md`
 
+**ПРАВДИВАЯ СТОПКА (2026-10-04, решение владельца при сдаче TR14).** Стопка рисуется так, как лежат фишки: ярус —
+ОБЫЧНЫЙ город, тайл клетки (Столица, город над океаном) — ОСНОВАНИЕ; под стопкой на спецтайле стоит его
+мини-значок. Первая сдача RX20 рисовала все ярусы артом клетки (Столица под ярусом читалась двумя Столицами).
+Прокси яруса над Столицей — обычный город (`verifyPlacement` → `stackTopTile`). Контракт —
+`tile-replacement.md` § THE TRUTHFUL STACK.
+
 Арм с `stacking` (`ConsoleBoardInput.saveData` по `placementType === 'city-tier'`), `verifyPlacement`
 принимает рост стопки ровно на 1 на той же клетке (недекларированный рост отвергается),
 `cityStackScene` — два реактивных флага, которые клетка рисует классами (`--stack-loading`,

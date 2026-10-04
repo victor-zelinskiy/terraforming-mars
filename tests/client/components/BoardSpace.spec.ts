@@ -92,5 +92,61 @@ describe('BoardSpace', () => {
       expect(wrapper.findAll('[data-stack-tier]')).to.have.length(0);
       expect(wrapper.find('[data-stack-count]').exists()).to.be.false;
     });
+
+    describe('a stack over a SPECIAL city — the pile is drawn as the pieces lie', () => {
+      function capital(stackHeight: number | undefined, tileView: 'show' | 'hide' = 'show') {
+        return mount(BoardSpace, {
+          ...globalConfig,
+          props: {
+            space: {id: 'm05', bonus: [], x: 2, y: 3, spaceType: SpaceType.LAND, tileType: TileType.CAPITAL, color: 'blue', stackHeight},
+            tileView,
+          },
+        });
+      }
+      const topOf = (wrapper: ReturnType<typeof capital>) => wrapper.find('[data-test="tile"]').classes();
+      const tiersOf = (wrapper: ReturnType<typeof capital>) => wrapper.findAll('[data-stack-tier]').map((t) =>
+        t.classes().find((c) => c.startsWith('board-space-tile--')));
+
+      it('a single Capital wears its own art and carries no mark', () => {
+        const wrapper = capital(undefined);
+        expect(topOf(wrapper)).to.contain('board-space-tile--capital');
+        expect(wrapper.find('[data-stack-under]').exists()).to.be.false;
+      });
+
+      it('a tier on the Capital: the TOP is a plain city, the base tier wears the Capital, a miniature marks what lies under', () => {
+        const wrapper = capital(2);
+        expect(topOf(wrapper), 'the tile on top is the plain city Skyscrapers put there').to.contain('board-space-tile--city');
+        expect(topOf(wrapper), 'never a second Capital').to.not.contain('board-space-tile--capital');
+        expect(tiersOf(wrapper), 'the Capital is the base of the pile').to.deep.eq(['board-space-tile--capital']);
+        const mark = wrapper.find('[data-stack-under]');
+        expect(mark.exists(), 'the buried tile is marked').to.be.true;
+        expect(mark.find('.board-stack__under-art').classes()).to.contain('board-space-tile--capital');
+        expect(wrapper.find('[data-stack-count]').text()).to.eq('×2');
+      });
+
+      it('three tiers: a plain city on top, a plain city between, the Capital at the base', () => {
+        const wrapper = capital(3);
+        expect(topOf(wrapper)).to.contain('board-space-tile--city');
+        expect(tiersOf(wrapper), 'nearest first — the lowest drawn tier is the base').to.deep.eq(['board-space-tile--city', 'board-space-tile--capital']);
+        expect(wrapper.find('[data-stack-under]').exists()).to.be.true;
+      });
+
+      it('a pile of plain cities carries no mark — nothing special lies under it', () => {
+        const wrapper = cell(3);
+        expect(wrapper.findAll('[data-stack-tier]').every((t) => t.classes().includes('board-space-tile--city'))).to.be.true;
+        expect(wrapper.find('[data-stack-under]').exists()).to.be.false;
+      });
+
+      it('a hidden tile view draws no mark either', () => {
+        expect(capital(2, 'hide').find('[data-stack-under]').exists()).to.be.false;
+      });
+
+      it('the counter\'s offset is a fact of the cell\'s OWN tile — it does not move when the mark appears or goes', () => {
+        expect(capital(undefined).classes(), 'a single Capital already stands in the special pose').to.contain('board-space--stack-special');
+        expect(capital(2).classes()).to.contain('board-space--stack-special');
+        expect(cell(2).classes(), 'a pile of plain cities keeps the ordinary counter').to.not.contain('board-space--stack-special');
+        expect(cell(undefined).classes()).to.not.contain('board-space--stack-special');
+      });
+    });
   });
 });

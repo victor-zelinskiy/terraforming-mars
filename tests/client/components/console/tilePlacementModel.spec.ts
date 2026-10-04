@@ -160,12 +160,17 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
         expect(verifyPlacement(grove, groveStack, '05', {stacking: true})).to.be.undefined;
       });
 
-      it('a Capital stacks too (a city tile in every rule) and keeps its own art', () => {
+      it('a Capital stacks too (a city tile in every rule) — and what LANDS on it is a plain city: the Capital is the base', () => {
         const capital = [space('05', {tileType: TileType.CAPITAL, color: 'red'})];
         const capitalStack = [space('05', {tileType: TileType.CAPITAL, color: 'red', stackHeight: 2})];
+        // The proxy wears the piece that travels — the tier Skyscrapers gives is «a city tile», never a second Capital.
         expect(verifyPlacement(capital, capitalStack, '05', {stacking: true})).to.deep.eq({
-          tileType: TileType.CAPITAL, color: 'red', stacks: {from: 1, to: 2},
+          tileType: TileType.CITY, color: 'red', stacks: {from: 1, to: 2},
         });
+        // The cell itself stays the Capital's: the silent paint changes its height, never its tile.
+        applySpacePreview(capital, capitalStack, '05');
+        expect(capital[0].tileType).to.eq(TileType.CAPITAL);
+        expect(capital[0].stackHeight).to.eq(2);
       });
 
       it('the silent paint carries the stack: the displayed cell grows to the server\'s height', () => {

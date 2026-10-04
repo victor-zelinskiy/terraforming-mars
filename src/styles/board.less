@@ -1039,7 +1039,8 @@
 
 /* ── THE CITY STACK (Turmoil Redux — Skyscrapers) ─────────────────────────
    More than one city tile on one cell. The stack must read WITHOUT a cursor:
-     · SILHOUETTE — the lower tiers (`.board-stack__tier`, the same city art)
+     · SILHOUETTE — the lower tiers (`.board-stack__tier`, each wearing the art
+       of the piece that LIES there: plain cities over the cell's own tile)
        paint under the top tile, each stepped DOWN by one tier step, so the
        pile shows its thickness like a stack of tokens; a dark seam on every
        lower tier is the shadow the tile above casts on it;
@@ -1153,6 +1154,50 @@
 	.board-space--stack-release > .board-stack__count { animation: none; }
 	.board-space--stack-release:not(.board-space--stack) > .board-stack__count { animation: none; opacity: 0; }
 	.board-space--stack-unloading:not(.board-space--stack) > [class*="board-space-tile--"] { animation: none; }
+}
+
+/* ── THE BURIED TILE's mark. A stack is drawn as the pieces lie: plain cities on top, the cell's own
+   tile at the BASE — so a special city under a tier (the Capital) is no longer the art the player
+   sees, only a strip of it under the pile. Its MINIATURE stands at the foot of the pile, nested in
+   the hex's lower vertex (a small hex inside the big one's corner — inside the cell, never onto a
+   neighbour; clear of the counter on the left and the owner cube above on the right). The art is the
+   real tile at its authored 46×51 box, scaled down — so a sprite-sheet tile and a hi-res PNG read the
+   same — and CROPPED to its inner 84 %: the tile's own rim is the plate's job, the pixels go to what
+   tells one city from another (the Capital's star stands at the art's top). Static: the mark is
+   information, it never animates. */
+.board-stack__under {
+	position: absolute;
+	left: 16px; /* keep-px: centred on the hex (46 − 14) / 2 */
+	bottom: 1px; /* keep-px: nested in the hex's lower vertex, inside its edges */
+	width: 14px; /* keep-px */
+	height: 15.5px; /* keep-px: the hex's own aspect */
+	z-index: 3;
+	pointer-events: none;
+	/* A dark hex plate under the miniature: the mark reads on any art, by its rim's weight. */
+	background: rgba(8, 12, 22, 0.94);
+	clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+.board-stack__under-art {
+	position: absolute;
+	/* The inner 84 % of the art (8 %…92 %) lands on the plate inside a 0.8 px rim: 12.4 px across. */
+	left: -0.38px; /* keep-px */
+	top: -0.42px; /* keep-px */
+	width: 46px; /* keep-px: the tile's authored box… */
+	height: 51px; /* keep-px */
+	transform: scale(0.321); /* …12.4 / (46 × 0.84) */
+	transform-origin: 0 0;
+	clip-path: polygon(50% 8%, 92% 29%, 92% 71%, 50% 92%, 8% 71%, 8% 29%);
+	pointer-events: none;
+	&::before,
+	&::after {
+		content: none !important;
+	}
+}
+/* A special city's cell lifts its counter clear of the mark. Keyed on the cell's OWN tile, never on the
+   height: the counter stands in one place through the tier's landing («×1» → «×2») and its departure
+   («×2» → «×1»), where the mark appears and goes. */
+.board-space--stack-special > .board-stack__count {
+	bottom: 14.5px; /* keep-px */
 }
 
 .board-stack__count {

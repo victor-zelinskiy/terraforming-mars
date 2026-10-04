@@ -40,6 +40,11 @@ import {TileType} from '../../src/common/TileType';
  * answers it with a steel and a CARD. The card is taken before the flow is
  * judged to have ended on the board.
  *
+ * A second journey per profile pins THE TRUTHFUL STACK — the same fixture with
+ * a Capital under a tier: the pile is drawn as the pieces lie (a plain city on
+ * top, the Capital marked at its foot) and the tier leaves as the plain city it
+ * is. See the test's own header.
+ *
  * `TM_E2E_STORYBOARD=1` additionally writes the scene's frames (a CDP
  * screencast of both clients) under `screenshots/re-settlement/<profile>/story-*` —
  * the acceptance storyboard, not an assertion.
@@ -317,6 +322,82 @@ async function liftCity(page: Page): Promise<void> {
   expect(await moveLevel(page), 'A on the city lifts it').toBe('cell');
 }
 
+type Edges = {l: number, t: number, r: number, b: number};
+type Pile = {
+  /** The art the TOP tile wears, the lower tiers' (nearest first), the buried tile's mark. */
+  top: Array<string>;
+  tiers: Array<string>;
+  under: string | null;
+  underPainted: boolean;
+  count: string | null;
+  cell: Edges;
+  mark?: Edges;
+  counter?: Edges;
+  cube?: Edges;
+};
+
+/** A cell's pile as it is DRAWN: which art each tier wears, the mark of a buried tile, and the boxes of the foot's three members. */
+const pileOf = (page: Page, id: string): Promise<Pile> => page.evaluate((id) => {
+  const cell = document.querySelector(`.board-space[data_space_id="${id}"]`)!;
+  const edges = (el: Element | null) => {
+    if (el === null) {
+      return undefined;
+    }
+    const r = el.getBoundingClientRect();
+    return {l: r.left, t: r.top, r: r.right, b: r.bottom};
+  };
+  const artOf = (el: Element | null) => (el?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--'));
+  const markArt = cell.querySelector('.board-stack__under-art');
+  return {
+    top: artOf(cell.querySelector(':scope > [class*="board-space-tile--"]:not(.board-stack__tier)')),
+    tiers: Array.from(cell.querySelectorAll(':scope > .board-stack__tier')).map((el) => artOf(el).join('+')),
+    under: cell.querySelector('[data-stack-under]')?.getAttribute('data-stack-under-tile') ?? null,
+    underPainted: markArt !== null && getComputedStyle(markArt).backgroundImage !== 'none',
+    count: cell.querySelector('[data-stack-count]')?.textContent?.trim() ?? null,
+    cell: edges(cell)!,
+    mark: edges(cell.querySelector('[data-stack-under]')),
+    counter: edges(cell.querySelector('[data-stack-count]')),
+    cube: edges(cell.querySelector('.board-owner-cube')),
+  };
+}, id);
+
+type Point = [number, number];
+/** The pointy-top hex a board box draws (the cell's own clip, and the mark's). Clockwise on screen. */
+const hexOf = (box: Edges): Array<Point> => {
+  const cx = (box.l + box.r) / 2;
+  const h = box.b - box.t;
+  return [[cx, box.t], [box.r, box.t + h / 4], [box.r, box.t + h * 3 / 4], [cx, box.b], [box.l, box.t + h * 3 / 4], [box.l, box.t + h / 4]];
+};
+/** How far INSIDE a convex polygon a point stands (px; negative = outside). */
+const insideBy = (p: Point, poly: ReadonlyArray<Point>): number => {
+  let min = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    min = Math.min(min, ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / Math.hypot(b[0] - a[0], b[1] - a[1]));
+  }
+  return min;
+};
+const perimeterOf = (poly: ReadonlyArray<Point>, perEdge = 16): Array<Point> => poly.flatMap((a, i) => {
+  const b = poly[(i + 1) % poly.length];
+  return Array.from({length: perEdge}, (_, k): Point => [a[0] + (b[0] - a[0]) * k / perEdge, a[1] + (b[1] - a[1]) * k / perEdge]);
+});
+/** A point's distance OUTSIDE the counter's pill (px; negative = inside it). */
+const outsidePill = (p: Point, box: Edges): number => {
+  const radius = (box.b - box.t) / 2;
+  const nearest = Math.min(Math.max(p[0], box.l + radius), box.r - radius);
+  return Math.hypot(p[0] - nearest, p[1] - (box.t + box.b) / 2) - radius;
+};
+const pillPerimeter = (box: Edges): Array<Point> => {
+  const radius = (box.b - box.t) / 2;
+  const cy = (box.t + box.b) / 2;
+  return Array.from({length: 24}, (_, k): Point => {
+    const angle = Math.PI * 2 * k / 24;
+    return [(Math.cos(angle) >= 0 ? box.r - radius : box.l + radius) + Math.cos(angle) * radius, cy + Math.sin(angle) * radius];
+  });
+};
+const insideBox = (p: Point, box: Edges): boolean => p[0] > box.l && p[0] < box.r && p[1] > box.t && p[1] < box.b;
+
 for (const preset of PRESETS) {
   test.describe(`TR14 Re-settlement · a city moves · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
@@ -571,6 +652,131 @@ for (const preset of PRESETS) {
       expect(overflow, 'no [console-overflow]').toEqual([]);
       expect(pageErrors, 'no page error').toEqual([]);
       expect(redErrors, 'no page error for the opponent').toEqual([]);
+    });
+
+    /**
+     * THE TRUTHFUL STACK — a pile is drawn as the pieces lie, and a piece that moves keeps its kind (the owner's ruling,
+     * 2026-10-04: a tile cannot change its type by being carried). The same fixture with ONE declared difference: the
+     * city on 16 is a CAPITAL with a tier on it («×2»), the walled-in city on 62 a pile of three plain cities.
+     *
+     *   · AT REST: the Capital's pile wears a PLAIN city on top, the Capital at its base, and a miniature of the buried
+     *     tile at its foot — inside the cell's hex, clear of the counter and of the owner cube (shapes, not boxes: the
+     *     mark is a hex and the counter a pill, and their boxes overlap by design); the plain pile carries no mark;
+     *   · BEFORE THE PRESS the dossier says what leaves: only the top tier, «×2 → ×1»;
+     *   · THE MOVE: the one proxy wears a plain city from its first frame to its last; the Capital stays where it stood —
+     *     a single tile again, at the full hex, with no mark and no counter; a plain city stands on the destination;
+     *   · the server agrees: the cell keeps its Capital, the record names a CITY.
+     */
+    test(`a stack on a Capital: a plain city on top, the Capital marked underneath, and the top tier leaves as the plain city it is (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(360_000);
+      const pageErrors: Array<string> = [];
+      page.on('pageerror', (e) => pageErrors.push(e.message));
+
+      const {playerId} = await bootFixtureSeats(page, request, 're-settlement', {
+        query: preset.query,
+        arrange: (serialized) => {
+          const spaces = (serialized as {board: {spaces: Array<{id: string, tile?: {tileType: number}, stackHeight?: number}>}}).board.spaces;
+          const cell = (id: string) => spaces.find((s) => s.id === id)!;
+          cell(X).tile = {tileType: TileType.CAPITAL};
+          cell(X).stackHeight = 2;
+          cell(Y).stackHeight = 3;
+        },
+      });
+      const before = await wireOf(request, playerId);
+      const viewer = before.thisPlayer.color;
+      expect([cellOf(before, X)?.tileType, cellOf(before, X)?.stackHeight], 'the arrangement: a Capital with a tier on it').toEqual([TileType.CAPITAL, 2]);
+      expect([cellOf(before, Y)?.tileType, cellOf(before, Y)?.stackHeight], '…and a pile of three plain cities').toEqual([TileType.CITY, 3]);
+      await settle(page, {timeoutMs: 20_000});
+
+      // ── AT REST: the pile as the pieces lie ──
+      const capital = await pileOf(page, X);
+      expect(capital.top, 'the tile on top is the plain city a stack is built with').toEqual(['board-space-tile--city']);
+      expect(capital.tiers, 'the Capital is the pile\'s base').toEqual(['board-space-tile--capital']);
+      expect(capital.under, 'the buried tile is marked by its own miniature').toBe('board-space-tile--capital');
+      expect(capital.underPainted, 'the miniature paints the tile\'s art').toBe(true);
+      expect(capital.count).toBe('×2');
+      expect(capital.mark, 'the mark has a box').toBeDefined();
+      expect(capital.counter, 'the counter has a box').toBeDefined();
+      expect(capital.cube, 'the owner cube stands on the pile').toBeDefined();
+      const mark = hexOf(capital.mark!);
+      const edge = perimeterOf(mark);
+      expect(Math.min(...mark.map((v) => insideBy(v, hexOf(capital.cell)))), 'the mark stands INSIDE the cell\'s hex — never onto a neighbour').toBeGreaterThan(-0.5);
+      expect(Math.min(...edge.map((p) => outsidePill(p, capital.counter!))), 'the mark stands clear of the counter').toBeGreaterThan(0);
+      expect(Math.max(...pillPerimeter(capital.counter!).map((p) => insideBy(p, mark))), 'the counter stands clear of the mark').toBeLessThan(0);
+      expect(edge.filter((p) => insideBox(p, capital.cube!)), 'the mark stands clear of the owner cube').toEqual([]);
+      const cube = capital.cube!;
+      expect(Math.max(...([[cube.l, cube.t], [cube.r, cube.t], [cube.r, cube.b], [cube.l, cube.b]] as Array<Point>).map((p) => insideBy(p, mark))),
+        'the owner cube stands clear of the mark').toBeLessThan(0);
+
+      const plain = await pileOf(page, Y);
+      expect(plain.top).toEqual(['board-space-tile--city']);
+      expect(plain.tiers, 'a pile of plain cities is plain cities all the way down').toEqual(['board-space-tile--city', 'board-space-tile--city']);
+      expect(plain.under, 'nothing special lies under it — no mark').toBeNull();
+      expect(plain.count).toBe('×3');
+      await shoot(page, preset.id, '10-capital-stack');
+
+      // ── BEFORE THE PRESS: what leaves is the top tier ──
+      await openComposer(page);
+      await playOnTheBoard(page);
+      await expect.poll(() => focusedSpaceId(page), {timeout: 10_000, message: 'the cursor stands on the movable pile'}).toBe(X);
+      await expect(page.locator(panel), 'the source\'s dossier says only the top tier leaves').toContainText(/Уйдёт только верхний ярус/, {timeout: 10_000});
+      await liftCity(page);
+      await walkToSpace(page, B);
+      await expect(page.locator(panel), 'the former cell keeps its pile, one tier lower').toContainText(/Стопка городов:\s*×2\s*→\s*×1/, {timeout: 10_000});
+      await expect(page.locator('.con-bcur__art.board-space-tile--city'), 'the projection is the piece that will arrive: a plain city').toHaveCount(1);
+
+      // ── THE MOVE: the piece keeps its kind, first frame to last ──
+      await page.evaluate(({to}) => {
+        const w = window as unknown as {__piece: {ticks: number, art: Array<string>, landed: boolean}};
+        const probe = {ticks: 0, art: [] as Array<string>, landed: false};
+        w.__piece = probe;
+        const sample = (tick: boolean) => {
+          if (tick) {
+            probe.ticks++;
+          }
+          const proxy = document.querySelector('.con-tileplace__tile[data-tile-move="own"] .con-tileplace__art');
+          const art = (proxy?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--')).join('+');
+          if (art !== '' && !probe.art.includes(art)) {
+            probe.art.push(art);
+          }
+          probe.landed ||= document.querySelector(`.board-space[data_space_id="${to}"] > [class*="board-space-tile--city"]:not(.board-space-tile--placement-cleared)`) !== null;
+        };
+        new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
+        window.setInterval(() => sample(true), 16);
+      }, {to: B});
+      const pieceOf = () => page.evaluate(() => (window as unknown as {__piece: {ticks: number, art: Array<string>, landed: boolean}}).__piece);
+      await press(page, 'Enter', 420); // lock
+      await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
+      await page.keyboard.press('Enter'); // confirm — past the lock's dwell
+      await expect.poll(async () => (await pieceOf()).landed, {timeout: 30_000, message: 'the tier never landed on screen'}).toBe(true);
+      const drawn = page.locator('.con-zoom, .con-reveal');
+      await expect.poll(() => drawn.count(), {timeout: 30_000, message: 'Mars First\'s card never arrived'}).toBeGreaterThan(0);
+      await settle(page, {timeoutMs: 30_000});
+      expect(await pressUntil(page, 'Enter', async () => await drawn.count() === 0, {tries: 4, settleMs: 1500}), 'A takes the drawn card').toBe(true);
+      await settle(page, {timeoutMs: 30_000});
+
+      const piece = await pieceOf();
+      expect(piece.ticks, 'the probe never sampled').toBeGreaterThan(20);
+      expect(piece.art, 'the piece that travels is a PLAIN city from its first frame to its last — never the Capital it stood on').toEqual(['board-space-tile--city']);
+
+      // ── AFTER: the Capital is a single tile again; a plain city stands on the destination ──
+      const left = await pileOf(page, X);
+      expect(left.top, 'the Capital stays where it stood').toEqual(['board-space-tile--capital']);
+      expect(left.tiers).toEqual([]);
+      expect(left.under, 'a single Capital is what the player sees — no mark').toBeNull();
+      expect(left.count, 'a single city carries no counter').toBeNull();
+      const arrived = await pileOf(page, B);
+      expect(arrived.top, 'a plain city stands on the destination').toEqual(['board-space-tile--city']);
+      expect(arrived.tiers).toEqual([]);
+      expect(arrived.under).toBeNull();
+      await shoot(page, preset.id, '11-capital-stack-after');
+
+      const after = await wireOf(request, playerId);
+      expect(cellOf(after, X), 'the cell keeps its Capital').toMatchObject({tileType: TileType.CAPITAL, color: viewer});
+      expect(cellOf(after, X)?.stackHeight, 'a single tile again').toBeUndefined();
+      expect(cellOf(after, B), 'the tier arrived as the plain city it is').toMatchObject({tileType: TileType.CITY, color: viewer});
+      expect((after.game.tileMoves ?? []).filter((m) => m.from === X && m.to === B).map((m) => m.tileType), 'the server\'s record names the piece that travelled').toEqual([TileType.CITY]);
+      expect(pageErrors, 'no page error').toEqual([]);
     });
   });
 }

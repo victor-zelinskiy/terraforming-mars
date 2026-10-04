@@ -127,12 +127,16 @@ describe('TR14 Re-settlement — the MOVE scene', () => {
       expect(verifyMove(two.prev, two.next, A, B)?.moves).deep.eq({from: A, tileType: TileType.CITY, color: 'red', stack: {from: 2, to: 1}});
       const three = stackMove(3);
       expect(verifyMove(three.prev, three.next, A, B)?.moves?.stack).deep.eq({from: 3, to: 2});
-      // A Capital under a tier keeps the cell: its top tier lands as a PLAIN city.
+      // A Capital under a tier keeps the cell. What TRAVELS is the tier — the plain city that lay on top — so the
+      // proxy wears a plain city from the first frame to the last: no piece changes its kind on the way.
       const prev = [space(A, {tileType: TileType.CAPITAL, color: 'red', stackHeight: 2}), space(B)];
       const next = [space(A, {tileType: TileType.CAPITAL, color: 'red'}), space(B, {tileType: TileType.CITY, color: 'red'})];
       expect(verifyMove(prev, next, A, B)).deep.eq({
-        tileType: TileType.CITY, color: 'red', moves: {from: A, tileType: TileType.CAPITAL, color: 'red', stack: {from: 2, to: 1}},
+        tileType: TileType.CITY, color: 'red', moves: {from: A, tileType: TileType.CITY, color: 'red', stack: {from: 2, to: 1}},
       });
+      // …and a Capital that would «arrive» off its own stack is not this move: the base never leaves.
+      const swapped = [space(A, {tileType: TileType.CITY, color: 'red'}), space(B, {tileType: TileType.CAPITAL, color: 'red'})];
+      expect(verifyMove(prev, swapped, A, B)).is.undefined;
     });
 
     it('a declared move the response does NOT show is refused — never read as a plain landing', () => {

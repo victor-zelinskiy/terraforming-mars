@@ -42,3 +42,33 @@ export function countCityTiers(cells: Iterable<StackedCell>): number {
   }
   return total;
 }
+
+/*
+ * WHAT THE TIERS OF A STACK ARE — the physical pieces, not the model's one
+ * `tile` field. A stack is built ONE way: a PLAIN city tile is put on top of a
+ * city that already stands (Skyscrapers gives «a city tile»). So every tier
+ * above the base is a plain city, and the cell's own tile — a city, the
+ * Capital, an Ocean City — is the BASE, at the bottom of the pile. The model
+ * keeps one tile per cell (the base: its card, its scoring, its adjacency);
+ * anything that DRAWS the cell, or a tile joining or leaving the pile, asks
+ * these two readings instead of `tileType`. A piece never changes its kind:
+ * the tier that lands is a plain city, the tier that leaves is that very
+ * plain city, and a Capital under it stays the Capital (`liftTopCity`).
+ */
+
+/** The tile ON TOP of the cell: the cell's own tile — or, once a tier stands on a city, a plain city. */
+export function stackTopTile(tileType: TileType, stackHeight: number | undefined): TileType {
+  return (stackHeight ?? 1) > 1 && CITY_TILES.has(tileType) ? TileType.CITY : tileType;
+}
+
+/**
+ * The SPECIAL tile lying UNDER the tiers (the Capital beneath a plain city) —
+ * the piece the top of the pile no longer shows, so the cell must mark it.
+ * Undefined for a single tile and for a pile of plain cities.
+ */
+export function stackBuriedTile(tileType: TileType | undefined, stackHeight: number | undefined): TileType | undefined {
+  if (tileType === undefined || tileType === TileType.CITY || !CITY_TILES.has(tileType) || (stackHeight ?? 1) <= 1) {
+    return undefined;
+  }
+  return tileType;
+}
