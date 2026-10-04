@@ -10,7 +10,7 @@ import {LogHelper} from '../LogHelper';
 import {MAX_COLONIES_PER_TILE} from '../../common/constants';
 import {PlaceOceanTile} from '../deferredActions/PlaceOceanTile';
 import {IPlayer} from '../IPlayer';
-import {PlayerId} from '../../common/Types';
+import {PlayerId, SpaceId} from '../../common/Types';
 import {PlayerInput} from '../PlayerInput';
 import {Resource} from '../../common/Resource';
 import {ScienceTagCard} from '../cards/community/ScienceTagCard';
@@ -52,6 +52,7 @@ export abstract class Colony implements IColony {
   public visitor: undefined | PlayerId = undefined;
   public colonies: Array<PlayerId> = [];
   public trackPosition: number = 1;
+  public tiles: Array<SpaceId> = [];
   /**
    * Transient (NOT serialized): the tradeId of the trade currently resolving
    * on THIS colony — from `handleTrade` until the finalize deferred that
@@ -897,12 +898,18 @@ export abstract class Colony implements IColony {
   }
 
   public serialize(): SerializedColony {
-    return {
+    const serialized: SerializedColony = {
       name: this.name,
       colonies: this.colonies,
       isActive: this.isActive,
       trackPosition: this.trackPosition,
       visitor: this.visitor,
     };
+    // Written only when something lies on the tile: a tile with nothing on it
+    // serializes exactly as it did before the field existed.
+    if (this.tiles.length > 0) {
+      serialized.tiles = [...this.tiles];
+    }
+    return serialized;
   }
 }

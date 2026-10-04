@@ -6,7 +6,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
 import {cardPlayPreview, previewableCard} from '../models/cardPlayPreview';
-import {effectForecastForPlay} from '../models/effectForecast';
+import {effectForecastForPlay, tilesOfPlay} from '../models/effectForecast';
 import {cardVictoryPointsAtPlay} from '../game/calculateVictoryPoints';
 
 /**
@@ -76,13 +76,14 @@ export class CardPlayPreview extends Handler {
       // THE EFFECT FORECAST rides INSIDE the preview (same route, same cache,
       // same version key — zero new requests): what the rest of the table does
       // in answer to this play, computed by the same code the live hooks read.
-      // The card's own VP projection rides the same way (a «per tags» card
-      // only — see `cardVictoryPointsAtPlay`).
+      // The card's own VP projection rides the same way (a «per tags» card, or
+      // «per own city of a named place» counted over the tiles THIS play puts
+      // down — the forecast's own list; see `cardVictoryPointsAtPlay`).
       const preview = cardPlayPreview(player, card);
       responses.writeJson(res, ctx, {
         ...preview,
         forecast: effectForecastForPlay(player, card, preview),
-        cardVictoryPoints: cardVictoryPointsAtPlay(player, card),
+        cardVictoryPoints: cardVictoryPointsAtPlay(player, card, tilesOfPlay(player, card, preview)),
       });
     } catch (err) {
       console.warn(`unable to build card play preview for ${playerId}`, err);

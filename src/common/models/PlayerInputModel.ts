@@ -1005,6 +1005,17 @@ export type SelectColonyModel = BaseInputModel & {
    */
   trackMoves?: ReadonlyArray<import('../parliament/colonyTrackAdvance').ColonyTrackMove>;
   /**
+   * STRUCTURAL «this pick PLACES A TILE ON THE CHOSEN COLONY TILE» (Turmoil
+   * Redux TR22 Nova City — «place a city ON A COLONY TILE in play»): the tile,
+   * the hosted cell it lands on, whose it is, and the SERVER's projection of
+   * the pick — the player's space cities now and after, and what the placing
+   * card will score. ONE marker for every candidate (the tile and its cell do
+   * not depend on which colony tile is chosen). Its presence makes the act of
+   * the pick «city» (the client's `colonyPickIntent`); the answer is the
+   * ordinary colony response. Absent on every other colony pick.
+   */
+  tileSite?: import('../colonies/ColonyTileSite').ColonyTileSite;
+  /**
    * STRUCTURAL «this pick CHANGES THE COLONY ROSTER» — a tile enters the game
    * (`add`: Aridor's catalog), leaves it (`remove`: the solo setup trim) or is
    * replaced in its slot (`replace`: Turmoil Redux TR10 Fringe Colony). The

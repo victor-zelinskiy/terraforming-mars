@@ -11,4 +11,5 @@ export const expansionSpaceColonies = [
   {name: SpaceName.DYSON_SCREENS, expansion: 'pathfinders', card: CardName.DYSON_SCREENS},
   {name: SpaceName.LUNAR_EMBASSY, expansion: 'pathfinders', card: CardName.LUNAR_EMBASSY},
   {name: SpaceName.VENERA_BASE, expansion: 'pathfinders', card: CardName.VENERA_BASE},
+  {name: SpaceName.NOVA_CITY, expansion: 'turmoilRedux', card: CardName.NOVA_CITY},
 ] as const;

@@ -17,8 +17,10 @@ import {GameEvent} from '../../src/common/events/GameEvent';
 import {
   COLONY_TILE_HAS_COLONIES_REASON,
   COLONY_TILE_HAS_FLEET_REASON,
+  COLONY_TILE_HAS_TILE_REASON,
   ColoniesHandler,
 } from '../../src/server/colonies/ColoniesHandler';
+import {SpaceName} from '../../src/common/boards/SpaceName';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {RemoveColonyFromGame} from '../../src/server/deferredActions/RemoveColonyFromGame';
 import {Aridor} from '../../src/server/cards/colonies/Aridor';
@@ -104,6 +106,16 @@ describe('the colony roster — one writer', () => {
     it('a trade fleet keeps the tile', () => {
       luna.visitor = opponent.id;
       expect(ColoniesHandler.colonyTileOccupiedReason(luna)).eq(COLONY_TILE_HAS_FLEET_REASON);
+    });
+
+    it('a TILE lying on the tile keeps it (TR22\'s city) — the reasons in the PRINTED order: colonies → tiles → fleets', () => {
+      luna.tiles.push(SpaceName.NOVA_CITY);
+      expect(ColoniesHandler.colonyTileOccupiedReason(luna)).eq(COLONY_TILE_HAS_TILE_REASON);
+      expect(ColoniesHandler.colonyTileIsVacant(luna)).is.false;
+      luna.visitor = opponent.id;
+      expect(ColoniesHandler.colonyTileOccupiedReason(luna), 'a tile before a fleet').eq(COLONY_TILE_HAS_TILE_REASON);
+      luna.colonies.push(player.id);
+      expect(ColoniesHandler.colonyTileOccupiedReason(luna), 'a colony before a tile').eq(COLONY_TILE_HAS_COLONIES_REASON);
     });
   });
 

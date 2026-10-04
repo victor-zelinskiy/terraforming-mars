@@ -18,6 +18,8 @@ import {
 } from '../../common/game/VictoryPointsBreakdown';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '../../common/parliament/winnerReward';
 import {Counter} from '../behavior/Counter';
+import {EffectForecastTile} from '../cards/EffectForecastContext';
+import {SpaceId} from '../../common/Types';
 
 // The clean standard starting terraform rating. NEVER a fallback bucket for
 // unclassified TR — any residual goes to a `legacyUnknown` source entry instead.
@@ -204,6 +206,12 @@ export function computeCardVpMechanics(player: IPlayer, card: ICard): CardVpMech
     if (decl.all === true) {
       mechanics.all = true;
     }
+    // «Per city» of a NAMED place (the space cities — TR22 Nova City): the
+    // explanation names the cities, so the Counter's own cells ride along.
+    if (unit === 'cities' && decl.cities?.where !== undefined) {
+      mechanics.where = decl.cities.where;
+      mechanics.countedSpaces = new Counter(player, card).countedCitySpaces(decl).map((space) => space.id);
+    }
     return mechanics;
   }
   return undefined;
@@ -217,23 +225,85 @@ export function computeCardVpMechanics(player: IPlayer, card: ICard): CardVpMech
  * mechanics — so «how the card will count in the tableau» and «how it counts
  * now» are one form of data (`CardVictoryPointsDetail`).
  *
- * ONLY the «per tags» class (`unit === 'tags'`, no `nextToThis`): a tag count
- * moves at the play by nothing but the card's OWN tags, which the `Counter`
- * already adds for a card not yet in the tableau (`cardIsUnplayed`). VP for
- * resources, cities, adjacency, colonies or a bespoke `special` answer
- * `undefined` — the play itself may still move them, and a number before the
- * press would be a guess («по условию» stays the honest reading).
+ * TWO classes, and nothing beside them:
+ *
+ *  · «per tags» (`unit === 'tags'`, no `nextToThis`): a tag count moves at
+ *    the play by nothing but the card's OWN tags, which the `Counter` already
+ *    adds for a card not yet in the tableau (`cardIsUnplayed`).
+ *
+ *  · «per city of the player's OWN, of a NAMED place» (`unit === 'cities'`
+ *    with a declared `where`, `all: false`, no `nextToThis` — Turmoil Redux
+ *    TR22 Nova City, «2 VP per space city you own»): the count moves at the
+ *    play by nothing but the tiles THE PLAY ITSELF places — `placing`, the
+ *    very list the effect forecast reads (`effectForecast.tilesOfPlay`: one
+ *    reading, never a second arithmetic). Every placed tile the rule counts
+ *    must name its CELL (a fixed cell, a hosted one), or the projection stays
+ *    silent: the explanation lists the cities, and a cell not chosen yet
+ *    cannot be listed.
+ *
+ * VP for resources, every-player cities, adjacency, colonies or a bespoke
+ * `special` answer `undefined` — the play itself may still move them, and a
+ * number before the press would be a guess («по условию» stays the honest
+ * reading).
  *
  * READ-ONLY. Parity with the score row after the play is guarded corpus-wide
  * (tests/models/cardVictoryPointsAtPlay.spec.ts).
  */
-export function cardVictoryPointsAtPlay(player: IPlayer, card: ICard): CardVictoryPointsDetail | undefined {
+export function cardVictoryPointsAtPlay(player: IPlayer, card: ICard, placing: ReadonlyArray<EffectForecastTile> = []): CardVictoryPointsDetail | undefined {
   const mechanics = computeCardVpMechanics(player, card);
-  if (mechanics?.shape !== 'per' || mechanics.unit !== 'tags' || mechanics.adjacent === true) {
+  if (mechanics?.shape !== 'per' || mechanics.adjacent === true) {
     return undefined;
   }
-  const victoryPoint = card.getVictoryPoints(player);
-  return {cardName: card.name, victoryPoint, kind: classifyCardVictoryPoints(card, victoryPoint), mechanics};
+  if (mechanics.unit === 'tags') {
+    const victoryPoint = card.getVictoryPoints(player);
+    return {cardName: card.name, victoryPoint, kind: classifyCardVictoryPoints(card, victoryPoint), mechanics};
+  }
+  if (mechanics.unit === 'cities' && mechanics.where !== undefined && mechanics.all !== true && declaresOwnCities(card)) {
+    return ownCitiesAtPlay(player, card, mechanics, placing);
+  }
+  return undefined;
+}
+
+/** `all: false` is DECLARED — without it the Counter reads every player's cities, and a rival's move would change the number. */
+function declaresOwnCities(card: ICard): boolean {
+  const decl = card.victoryPoints;
+  return typeof decl === 'object' && decl.all === false;
+}
+
+/** Does a placed tile count toward a «per city, `where`» rule? */
+function countsAsCityOf(tile: EffectForecastTile, where: 'onmars' | 'offmars' | 'everywhere'): boolean {
+  if (!tile.countsAsCity) {
+    return false;
+  }
+  return where === 'everywhere' || (where === 'offmars') === tile.offMars;
+}
+
+/**
+ * The «own cities of a named place» projection: the Counter's count NOW plus
+ * the tiles this play places that the rule counts, the cells merged in the
+ * board's order — exactly the row the score computes once they stand.
+ */
+function ownCitiesAtPlay(player: IPlayer, card: ICard, mechanics: CardVpMechanics, placing: ReadonlyArray<EffectForecastTile>): CardVictoryPointsDetail | undefined {
+  const where = mechanics.where ?? 'everywhere';
+  const landing = placing.filter((tile) => countsAsCityOf(tile, where));
+  if (landing.some((tile) => tile.space === undefined)) {
+    return undefined;
+  }
+  const cells = new Set<SpaceId>(mechanics.countedSpaces ?? []);
+  let counted = mechanics.counted ?? 0;
+  for (const tile of landing) {
+    if (tile.space !== undefined && !cells.has(tile.space)) {
+      cells.add(tile.space);
+      counted += tile.count;
+    }
+  }
+  const projected: CardVpMechanics = {
+    ...mechanics,
+    counted,
+    countedSpaces: player.game.board.spaces.filter((space) => cells.has(space.id)).map((space) => space.id),
+  };
+  const victoryPoint = Math.floor(counted * (mechanics.each ?? 1) / (mechanics.per ?? 1));
+  return {cardName: card.name, victoryPoint, kind: classifyCardVictoryPoints(card, victoryPoint), mechanics: projected};
 }
 
 export function calculateVictoryPoints(player: IPlayer) {

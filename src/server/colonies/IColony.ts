@@ -1,6 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {PlayerInput} from '../PlayerInput';
-import {PlayerId} from '../../common/Types';
+import {PlayerId, SpaceId} from '../../common/Types';
 import {IGame} from '../IGame';
 import {SerializedColony} from '../SerializedColony';
 import {ColonyMetadata} from '../../common/colonies/ColonyMetadata';
@@ -94,6 +94,14 @@ export interface IColony extends ITradeDestination {
   colonies: Array<PlayerId>;
   trackPosition: number;
   visitor: PlayerId | undefined;
+  /**
+   * WHAT LIES ON THIS TILE besides cubes and a fleet — the cells whose TILE
+   * stands on the colony tile (Turmoil Redux TR22 Nova City: «place a city ON
+   * A COLONY TILE»). The tile says WHERE; the CELL says what and whose
+   * (`space.tile`, `space.player`) — one truth per question. Empty on every
+   * tile nothing was placed on. ONE writer: `ColoniesHandler.placeCityOnColonyTile`.
+   */
+  tiles: Array<SpaceId>;
 
   endGeneration(game: IGame): void;
   increaseTrack(steps?: number): void;

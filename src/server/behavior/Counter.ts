@@ -74,6 +74,36 @@ export class Counter implements ICounter {
     return [];
   }
 
+  /** The city cells a «cities» countable reads, before any `nextToThis` filter — whose, and where. */
+  private cityCells(countable: Exclude<Countable, number>): ReadonlyArray<Space> {
+    const board = this.player.game.board;
+    const p = (countable.all === false) ? this.player : undefined;
+    switch (countable.cities?.where) {
+    case 'offmars':
+      return board.getCitiesOffMars(p);
+    case 'onmars':
+      return board.getCitiesOnMars(p);
+    case 'everywhere':
+    default:
+      return board.getCities(p);
+    }
+  }
+
+  /**
+   * WHICH CITY CELLS a «cities» countable counts — the very cells `count` sums
+   * the tiers of (the same owner filter, the same `where`, the same
+   * `nextToThis`), in the board's order. Read by the score's explanation
+   * (`computeCardVpMechanics` — «which cities were counted»), so the list and
+   * the number are one reading. Empty for a countable that counts no cities.
+   */
+  public countedCitySpaces(countable: Exclude<Countable, number>): ReadonlyArray<Space> {
+    if (countable.cities === undefined) {
+      return [];
+    }
+    const cells = this.cityCells(countable);
+    return countable.nextToThis === undefined ? cells : utils.intersection(cells, this.getAdjacentSpaces(countable));
+  }
+
   public count(countable: Countable, context: 'default' | 'vps' = 'default'): number {
     if (typeof(countable) === 'number') {
       return countable;
@@ -106,18 +136,7 @@ export class Counter implements ICounter {
       // A QUANTITY of cities («per city», «per city next to this»): a stacked
       // city (Skyscrapers) counts every tier — the cells are the instrument,
       // the stacks standing on them are the number.
-      const p = (countable.all === false) ? player : undefined;
-      switch (countable.cities.where) {
-      case 'offmars':
-        sum += countCityTiers(maybeAdjacentSpaces(game.board.getCitiesOffMars(p)));
-        break;
-      case 'onmars':
-        sum += countCityTiers(maybeAdjacentSpaces(game.board.getCitiesOnMars(p)));
-        break;
-      case 'everywhere':
-      default:
-        sum += countCityTiers(maybeAdjacentSpaces(game.board.getCities(p)));
-      }
+      sum += countCityTiers(maybeAdjacentSpaces(this.cityCells(countable)));
     }
 
     if (countable.oceans !== undefined) {

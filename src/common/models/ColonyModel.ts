@@ -1,5 +1,22 @@
 import {ColonyName} from '../colonies/ColonyName';
 import {Color} from '../Color';
+import {CardName} from '../cards/CardName';
+import {TileType} from '../TileType';
+import {SpaceId} from '../Types';
+
+/**
+ * A TILE THAT LIES ON A COLONY TILE (Turmoil Redux TR22 Nova City — «place a
+ * city ON A COLONY TILE»): the cell it stands on (a HOSTED cell of the
+ * board's list — `common/boards/hostedSpaces.ts`), what it is, whose it is
+ * and the card that placed it. Read by the server off the CELL
+ * (`space.tile`, `space.player`); the colony tile only says where.
+ */
+export type ColonyTileOnTileModel = {
+  spaceId: SpaceId;
+  tileType: TileType;
+  color: Color;
+  card?: CardName;
+};
 
 export type ColonyModel = {
   colonies: Array<Color>;
@@ -7,6 +24,8 @@ export type ColonyModel = {
   name: ColonyName;
   trackPosition: number;
   visitor: Color | undefined;
+  /** What lies ON the tile besides cubes and a fleet (see {@link ColonyTileOnTileModel}). Absent when nothing does. */
+  tiles?: ReadonlyArray<ColonyTileOnTileModel>;
 }
 
 export function simpleColonyModel(name: ColonyName): ColonyModel {

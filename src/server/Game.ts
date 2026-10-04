@@ -17,6 +17,7 @@ import {Board} from './boards/Board';
 import {CardName} from '../common/cards/CardName';
 import {ClaimedMilestone, serializeClaimedMilestones, deserializeClaimedMilestones} from './milestones/ClaimedMilestone';
 import {ColonyDealer} from './colonies/ColonyDealer';
+import {ColoniesHandler} from './colonies/ColoniesHandler';
 import {IColony} from './colonies/IColony';
 import {Color} from '../common/Color';
 import {ICorporationCard, isICorporationCard} from './cards/corporation/ICorporationCard';
@@ -2307,7 +2308,9 @@ export class Game implements IGame, Logger {
       return;
     }
     LogHelper.logTilePlacement(player, space, tile.tileType);
-    this.events.recordTilePlaced(player, space, tile.tileType);
+    // A tile placed ON A COLONY TILE (TR22 — the link is written BEFORE the tile lands,
+    // `ColoniesHandler.placeCityOnColonyTile`): the event names the colony tile.
+    this.events.recordTilePlaced(player, space, tile.tileType, ColoniesHandler.colonyTileHosting(this, space.id)?.name);
   }
 
   /**

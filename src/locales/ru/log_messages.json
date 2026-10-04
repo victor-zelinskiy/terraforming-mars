@@ -179,6 +179,7 @@
     "${0} added a disease to ${1} and lost ${2} M€": "${0} добавил болезнь на ${1} и потерял ${2} M€",
     "${0} added a new Colony tile: ${1}": "${0} добавил новую колонию: ${1}",
     "${0} replaced the ${1} colony tile with ${2}": "${0} заменил плитку колонии ${1} на ${2}",
+    "${0} placed a city on the ${1} colony tile": "${0} разместил город на плитке колонии ${1}",
     "${0} automatically removed 3 data from ${1} to draw a card.": "${0} автоматически снял 3 данных с ${1}, чтобы взять карту.",
     "${0} blackmailed ${1} and took 2 corruption.": "${0} шантажировал ${1} и получил 2 коррупции.",
     "${0} blackmailed ${1} and was paid 10 M€.": "${0} шантажировал ${1} и получил 10 M€.",

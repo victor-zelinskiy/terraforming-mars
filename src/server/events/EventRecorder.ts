@@ -468,9 +468,15 @@ export class EventRecorder {
     this.record({type: 'effect-skipped', player: player.color, impact: {skipped}, visibility: 'journal'});
   }
 
-  /** Record a tile placement (carries the space for "show on map" + the tile type). */
-  public recordTilePlaced(player: IPlayer, space: Space, tile: TileType): void {
-    this.record({type: 'tile-placed', player: player.color, impact: {tilesPlaced: 1}, space: space.id, tile, tags: ['terraforming']});
+  /**
+   * Record a tile placement (carries the space for "show on map" + the tile type).
+   * `colonyTile` — the colony tile the tile was placed ON (Turmoil Redux TR22
+   * Nova City; `Game.simpleAddTile` reads it off `IColony.tiles`): the cell is
+   * then a hosted one and the readers name the colony tile, not the map.
+   */
+  public recordTilePlaced(player: IPlayer, space: Space, tile: TileType, colonyTile?: ColonyName): void {
+    const impact: EventImpact = colonyTile === undefined ? {tilesPlaced: 1} : {tilesPlaced: 1, colonyTile};
+    this.record({type: 'tile-placed', player: player.color, impact, space: space.id, tile, tags: ['terraforming']});
   }
 
   /**

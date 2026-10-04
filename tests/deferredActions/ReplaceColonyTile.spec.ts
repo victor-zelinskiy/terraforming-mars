@@ -26,7 +26,8 @@ import {
   REPLACE_COLONY_TILE_TITLE,
   ReplaceColonyTile,
 } from '../../src/server/deferredActions/ReplaceColonyTile';
-import {COLONY_TILE_HAS_COLONIES_REASON, COLONY_TILE_HAS_FLEET_REASON} from '../../src/server/colonies/ColoniesHandler';
+import {COLONY_TILE_HAS_COLONIES_REASON, COLONY_TILE_HAS_FLEET_REASON, COLONY_TILE_HAS_TILE_REASON} from '../../src/server/colonies/ColoniesHandler';
+import {SpaceName} from '../../src/common/boards/SpaceName';
 import {Server} from '../../src/server/models/ServerModel';
 import {SelectColonyModel} from '../../src/common/models/PlayerInputModel';
 import {colonyPickStep} from '../../src/server/cards/actionPreviews';
@@ -106,6 +107,22 @@ describe('ReplaceColonyTile', () => {
       ceres.visitor = opponent.id;
       const prompt = ask();
       expect(prompt.rosterChange?.outgoing?.[0]).deep.eq({colony: ColonyName.CERES, reason: COLONY_TILE_HAS_COLONIES_REASON});
+    });
+
+    it('a tile that carries a TILE (TR22\'s city) cannot leave — the third clause, between the colony and the fleet', () => {
+      // Ceres: only a city on it. Luna: a city AND a fleet — the tile is the reason, the printed order.
+      ceres.tiles.push(SpaceName.NOVA_CITY);
+      luna.tiles.push(SpaceName.NOVA_CITY);
+      const prompt = ask();
+      expect(prompt.rosterChange?.outgoing).deep.eq([
+        {colony: ColonyName.CERES, reason: COLONY_TILE_HAS_TILE_REASON},
+        {colony: ColonyName.EUROPA, reason: COLONY_TILE_HAS_COLONIES_REASON},
+        {colony: ColonyName.LUNA, reason: COLONY_TILE_HAS_TILE_REASON},
+        {colony: ColonyName.TITAN},
+      ]);
+      expect(() => player.process({type: 'colony', colonyName: ColonyName.IO, replaces: ColonyName.CERES}))
+        .to.throw(COLONY_TILE_HAS_TILE_REASON);
+      expect(roster()).deep.eq([]);
     });
 
     it('a SINGLE candidate is still asked — the player names the tile that goes', () => {

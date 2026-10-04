@@ -41,14 +41,15 @@ import * as actionPreviews from '../actionPreviews';
  *  1. The requirement is the game's CLOCK: `game.generation >= 4`. Before the
  *     4th generation the card is unplayable, and the reason names the «now».
  *  2. WHO MAY LEAVE — a tile IN PLAY with no colony on it (anybody's, MarsBot's
- *     cube included) and no trade fleet (`visitor`). «TILES»: nothing in this
- *     fork is placed ON a colony tile, so the clause is empty today — ONE
- *     predicate (`ColoniesHandler.colonyTileOccupiedReason`) a future «on the
- *     tile» mechanic extends. Activity and the track do not matter (an inactive
- *     Titan is a lawful candidate); MarsBot's stock on its Shipping Board is on
- *     the bot's board, not on the tile.
- *  3. WHO MAY NOT stands DISABLED with ONE reason, in order: colonies first,
- *     the fleet second. Never hidden. A single candidate is still CHOSEN.
+ *     cube included), no TILE on it and no trade fleet (`visitor`). «TILES» is
+ *     a tile that lies ON the colony tile (`IColony.tiles` — TR22 Nova City's
+ *     city). ONE predicate (`ColoniesHandler.colonyTileOccupiedReason`).
+ *     Activity and the track do not matter (an inactive Titan is a lawful
+ *     candidate); MarsBot's stock on its Shipping Board is on the bot's board,
+ *     not on the tile.
+ *  3. WHO MAY NOT stands DISABLED with ONE reason, in the PRINTED order:
+ *     colonies first, a tile second, the fleet third. Never hidden. A single
+ *     candidate is still CHOSEN.
  *  4. WHAT ENTERS — any tile of the RESERVE (`game.discardedColonies`: the
  *     table's tiles not dealt into this game), never the tile just removed.
  *     It enters by the engine's rule: active when its class is, or when a card

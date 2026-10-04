@@ -47,6 +47,14 @@ export type EventImpact = {
   vp?: number;
   /** Tiles placed on a board. */
   tilesPlaced?: number;
+  /**
+   * `tile-placed` only — the tile was placed ON A COLONY TILE, and this is the
+   * colony tile (Turmoil Redux TR22 Nova City). The event's `space` is then a
+   * HOSTED cell (`common/boards/hostedSpaces.ts`): it has no place on the
+   * board, so the journal names the colony tile instead of offering «show on
+   * map». Absent for every placement on the board.
+   */
+  colonyTile?: ColonyName;
   /** M€ actually paid (payment events). */
   megacreditsPaid?: number;
   /**

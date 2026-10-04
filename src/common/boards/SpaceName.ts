@@ -18,4 +18,7 @@ export const SpaceName = {
   DYSON_SCREENS: '76',
   LUNAR_EMBASSY: '77',
   VENERA_BASE: '78',
+
+  // Turmoil Redux — a HOSTED cell: its place is a colony tile, never the board (`hostedSpaces.ts`).
+  NOVA_CITY: '79',
 } as const;

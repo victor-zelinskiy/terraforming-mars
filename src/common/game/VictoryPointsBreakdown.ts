@@ -1,4 +1,5 @@
 import {Tag} from '../cards/Tag';
+import {SpaceId} from '../Types';
 
 export type MADetail = {message: string, messageArgs?: Array<string>, victoryPoint: number};
 
@@ -47,6 +48,18 @@ export type CardVpMechanics = {
   resourceType?: string;
   /** Only units adjacent to this card's own tile are counted. */
   adjacent?: true;
+  /**
+   * `unit === 'cities'` with a declared `where` — WHICH cities the rule
+   * counts (`offmars` = the space cities). Absent for «every city».
+   */
+  where?: 'onmars' | 'offmars' | 'everywhere';
+  /**
+   * …and the very CELLS that were counted, in the board's order (the
+   * Counter's own list — the twin of a resolution's `countedSpaces`), so the
+   * explanation can NAME the cities behind the number. Carried only with
+   * `where`.
+   */
+  countedSpaces?: ReadonlyArray<SpaceId>;
   /** Every player's units count, not only the owner's. */
   all?: true;
 };

@@ -16,8 +16,8 @@ export const REPLACE_COLONY_TILE_TITLE = 'Select a colony tile to remove and a n
 /** The skip label — the effect a lost «remove a tile, replace it with a new one» is NAMED by. */
 export const COLONY_TILE_LABEL = 'Colony tile';
 
-/** The cause of the skip when every tile in play carries a colony or a fleet. */
-export const NO_VACANT_COLONY_TILE_REASON = 'Every colony tile has a colony or a trade fleet on it';
+/** The cause of the skip when every tile in play carries a colony, a tile (TR22's city) or a fleet. */
+export const NO_VACANT_COLONY_TILE_REASON = 'Every colony tile has a colony, a tile or a trade fleet on it';
 
 /** The cause of the skip when the box holds no tile to bring in. */
 export const NO_RESERVE_COLONY_TILE_REASON = 'No colony tile is left in the reserve';
@@ -63,7 +63,8 @@ type Offer = {
  * be asked between the removal and the arrival.
  *
  * WHO MAY LEAVE — a tile in play with no colony (anybody's, MarsBot's cube
- * included) and no trade fleet on it (`ColoniesHandler.colonyTileOccupiedReason`);
+ * included), no tile lying on it (TR22 Nova City's city) and no trade fleet
+ * (`ColoniesHandler.colonyTileOccupiedReason`, the printed order);
  * its activity and its track do not matter. A SINGLE candidate is still asked
  * (no auto-select: the player sees which tile goes).
  *

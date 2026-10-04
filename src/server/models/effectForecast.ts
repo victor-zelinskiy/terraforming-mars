@@ -3,6 +3,7 @@ import {IGame} from '../IGame';
 import {ICard} from '../cards/ICard';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {CardName} from '../../common/cards/CardName';
+import {SpaceId} from '../../common/Types';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
@@ -454,8 +455,8 @@ function cascadeFacts(active: IPlayer, card: ICard, first: ReadonlyArray<EffectF
 
 // ── the tile pass ───────────────────────────────────────────────────────────
 
-function tileOf(tileType: TileType | undefined, count: number, placementType: string | undefined, offMars: boolean): EffectForecastTile {
-  return {
+function tileOf(tileType: TileType | undefined, count: number, placementType: string | undefined, offMars: boolean, space?: SpaceId): EffectForecastTile {
+  const tile: EffectForecastTile = {
     tileType,
     count,
     countsAsCity: tileType !== undefined && CITY_TILES.has(tileType),
@@ -464,13 +465,22 @@ function tileOf(tileType: TileType | undefined, count: number, placementType: st
     placementType,
     offMars,
   };
+  if (space !== undefined) {
+    tile.space = space;
+  }
+  return tile;
 }
 
 /**
- * The tiles a branch WILL place: its board placement steps that carry a tile
- * identity (a marker prompt — Land Claim, Mars Nomads — places nothing and
- * fires no trigger), plus the card's RESERVED off-Mars city (placed with no
- * prompt, so it has no step — Ganymede Colony, Phobos Space Haven).
+ * The tiles a branch WILL place — THREE sources:
+ *  · its board placement steps that carry a tile identity (a marker prompt —
+ *    Land Claim, Mars Nomads — places nothing and fires no trigger);
+ *  · the card's RESERVED off-Mars city (placed with no prompt, so it has no
+ *    step — Ganymede Colony, Phobos Space Haven);
+ *  · a COLONY PICK whose prompt carries `tileSite` — the pick places a tile
+ *    ON the chosen colony tile (Turmoil Redux TR22 Nova City): one city, off
+ *    Mars, on the hosted cell the marker names. Whichever colony tile is
+ *    chosen, the tile and its cell are the same, so it is known before the pick.
  */
 export function tilesOfBranch(player: IPlayer, branch: ActionPreviewBranch, behavior: Behavior | undefined): Array<EffectForecastTile> {
   const tiles: Array<EffectForecastTile> = [];
@@ -496,7 +506,13 @@ export function tilesOfBranch(player: IPlayer, branch: ActionPreviewBranch, beha
   const fixed = behavior?.city?.space;
   if (fixed !== undefined) {
     const space = player.game.board.spaces.find((s) => s.id === fixed);
-    tiles.push(tileOf(TileType.CITY, 1, 'city', space?.spaceType === SpaceType.COLONY));
+    tiles.push(tileOf(TileType.CITY, 1, 'city', space?.spaceType === SpaceType.COLONY, fixed));
+  }
+  for (const step of branch.steps) {
+    const site = step.kind === 'colonyPick' ? step.staged.prompt.tileSite : undefined;
+    if (site !== undefined) {
+      tiles.push(tileOf(site.tile, 1, 'city', true, site.space));
+    }
   }
   return tiles;
 }
@@ -763,6 +779,18 @@ export function stripTouchedPools(facts: ReadonlyArray<EffectForecastFact>, own:
   });
 }
 
+/**
+ * Every branch's tiles, and the BRANCH-INDEPENDENT ones: a single branch's
+ * own; with several, the tiles EVERY available branch places.
+ */
+function branchIndependentTiles(player: IPlayer, branches: ReadonlyArray<ActionPreviewBranch>, behavior: Behavior | undefined): {perBranch: Array<Array<EffectForecastTile>>, shared: Array<EffectForecastTile>} {
+  const perBranch = branches.map((b) => tilesOfBranch(player, b, behavior));
+  const shared = branches.length <= 1 ?
+    (perBranch[0] ?? tilesOfBranch(player, {index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}, behavior)) :
+    sharedTilesOf(perBranch, branches.map((b) => b.available));
+  return {perBranch, shared};
+}
+
 function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, operation: 'play' | 'action'): EffectForecast {
   const behavior = operation === 'play' ? card.behavior : card.actionBehavior;
   const branches = preview.branches;
@@ -774,10 +802,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   // option's steps — Imported Hydrogen's ocean, Large Convoy's — so it is the
   // play's, not the option's; a tile only one option places stays that
   // option's).
-  const perBranchTiles = branches.map((b) => tilesOfBranch(player, b, behavior));
-  const sharedTiles = single ?
-    (perBranchTiles[0] ?? tilesOfBranch(player, {index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}, behavior)) :
-    sharedTilesOf(perBranchTiles, branches.map((b) => b.available));
+  const {perBranch: perBranchTiles, shared: sharedTiles} = branchIndependentTiles(player, branches, behavior);
   const ctx: EffectForecastContext = {...baseCtx, tiles: sharedTiles};
 
   // 1. The card-played fan-out (a play only — an action plays no card).
@@ -865,6 +890,17 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
 /** The forecast of PLAYING `card` (a hand card, a prelude, the picked corporation). */
 export function effectForecastForPlay(player: IPlayer, card: ICard, preview: ActionPreview): EffectForecast {
   return buildForecast(player, card, preview, 'play');
+}
+
+/**
+ * THE TILES THE PLAY OF `card` PUTS DOWN whatever the player picks — the very
+ * list the forecast's tile pass reacts to (`buildForecast`: a lone branch's
+ * own tiles; with several, the tiles every available branch places). Exported
+ * for the play's VP projection (`cardVictoryPointsAtPlay`), which must count
+ * the cities the play itself adds by THIS reading, never by its own.
+ */
+export function tilesOfPlay(player: IPlayer, card: ICard, preview: ActionPreview): Array<EffectForecastTile> {
+  return branchIndependentTiles(player, preview.branches, card.behavior).shared;
 }
 
 /** The forecast of ACTIVATING `card`'s action. */

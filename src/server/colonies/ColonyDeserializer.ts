@@ -18,6 +18,7 @@ export class ColonyDeserializer {
       colony.isActive = serialized.isActive;
       colony.trackPosition = serialized.trackPosition;
       colony.visitor = serialized.visitor;
+      colony.tiles = [...(serialized.tiles ?? [])];
     }
     return colony;
   }

@@ -11,11 +11,21 @@ import {Message} from '../../common/logs/Message';
 import {EventSource} from '../../common/events/EventSource';
 import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {MARSBOT_COLONY_TRACK_START} from '../../common/constants';
+import {SpaceId} from '../../common/Types';
+import {Space} from '../boards/Space';
+import {expansionSpaceColonies} from '../../common/boards/expansionSpaceColonies';
 
 /** Rule 3 of the roster: a tile with a colony on it (anybody's — MarsBot's cube too) cannot leave the game. */
 export const COLONY_TILE_HAS_COLONIES_REASON = 'This colony tile has colonies on it';
+/** …nor a tile that carries a TILE (Turmoil Redux TR22 — a city placed on the colony tile). */
+export const COLONY_TILE_HAS_TILE_REASON = 'A tile stands on this colony tile';
 /** …and neither can a tile a trade fleet stands on. */
 export const COLONY_TILE_HAS_FLEET_REASON = 'A trade fleet stands on this colony tile';
+
+/** A city for a colony tile, and no colony tile in the game to carry it (unreachable in Turmoil Redux — written, not assumed). */
+export const NO_COLONY_TILE_IN_PLAY_REASON = 'No colony tile is in play';
+/** The card's own city already stands on a colony tile — its cell is taken (a second copy of the card). */
+export const CITY_ALREADY_ON_COLONY_TILE_REASON = 'This city already stands on a colony tile';
 
 export class ColoniesHandler {
   public static getColony(game: IGame, colonyName: ColonyName, includeDiscardedColonies: boolean = false): IColony {
@@ -179,15 +189,19 @@ export class ColoniesHandler {
    * the ONE reason, the more permanent thing first (a colony outlasts a fleet,
    * which goes home at the end of the generation).
    *
-   * «TILES»: nothing in this fork is placed ON a colony tile (a tile's whole
-   * state is its cubes, its visitor, its track and its activity) — a future
-   * «on the tile» mechanic adds its clause HERE. The track and the activity do
-   * not matter (an inactive Titan with nobody on it may leave), and MarsBot's
-   * stock on its Shipping Board is on the bot's board, not on the tile.
+   * THE PRINTED ORDER IS THE ORDER OF THE REASONS: colonies → tiles → fleets.
+   * «TILES» is a tile that lies ON the colony tile (`IColony.tiles` — Turmoil
+   * Redux TR22 Nova City's city): as permanent as a colony. The track and the
+   * activity do not matter (an inactive Titan with nobody on it may leave),
+   * and MarsBot's stock on its Shipping Board is on the bot's board, not on
+   * the tile.
    */
   public static colonyTileOccupiedReason(colony: IColony): string | undefined {
     if (colony.colonies.length > 0) {
       return COLONY_TILE_HAS_COLONIES_REASON;
+    }
+    if (colony.tiles.length > 0) {
+      return COLONY_TILE_HAS_TILE_REASON;
     }
     if (colony.visitor !== undefined) {
       return COLONY_TILE_HAS_FLEET_REASON;
@@ -294,6 +308,87 @@ export class ColoniesHandler {
     ColoniesHandler.toReserve(game, outgoing);
     game.log('${0} replaced the ${1} colony tile with ${2}', (b) => b.player(player).colony(outgoing).colony(incoming));
     game.events.recordColonyRosterChanged(player, {kind: 'replace', removed: outgoing.name, added: incoming.name, slot}, cause);
+  }
+
+  // ─────────────────── A TILE ON A COLONY TILE — ONE WRITER ───────────────────
+  //
+  // «Place a city ON A COLONY TILE in play» (Turmoil Redux TR22 Nova City).
+  // The city is a REAL city tile of the player on a cell of the board's list
+  // (a `SpaceType.COLONY` cell the builder lays for the card —
+  // `expansionSpaceColonies`), so every counter of cities reads it with no
+  // help; the colony tile only records WHERE it lies (`IColony.tiles`). That
+  // link has ONE writer — `placeCityOnColonyTile` — and (de)serialization
+  // (source-level guard: tests/colonies/ColonyCity.spec.ts).
+  // docs/TURMOIL_REDUX_NOVA_CITY.md.
+
+  /** The colony tile `spaceId`'s tile lies on, when it lies on one. */
+  public static colonyTileHosting(game: IGame, spaceId: SpaceId): IColony | undefined {
+    return game.colonies.find((colony) => colony.tiles.includes(spaceId));
+  }
+
+  /**
+   * THE CELL a card's city on a colony tile occupies — the card's own row of
+   * the builder's table. `undefined` when the card has no such cell or the
+   * game's board does not carry it.
+   */
+  public static colonyTileCitySpace(game: IGame, card: CardName): Space | undefined {
+    const entry = expansionSpaceColonies.find((row) => row.card === card);
+    return entry === undefined ? undefined : game.board.spaces.find((space) => space.id === entry.name);
+  }
+
+  /**
+   * Why `card`'s city cannot be placed on ANY colony tile right now — ONE
+   * reason, in order: the city's own cell is taken (the card was already
+   * played — a fixed cell answers silently in the engine, `Executor`; here it
+   * is named), then «no colony tile is in play». `undefined` when a tile can
+   * be chosen. Read by the card's `canPlay` / `unplayableReason` and
+   * re-asked by the writer.
+   */
+  public static cityOnColonyTileBlockedReason(game: IGame, card: CardName): string | undefined {
+    const space = ColoniesHandler.colonyTileCitySpace(game, card);
+    if (space === undefined || space.tile !== undefined) {
+      return CITY_ALREADY_ON_COLONY_TILE_REASON;
+    }
+    if (game.colonies.length === 0) {
+      return NO_COLONY_TILE_IN_PLAY_REASON;
+    }
+    return undefined;
+  }
+
+  /**
+   * PLACE `cause.card`'s CITY ON A COLONY TILE — the ONE place a tile comes to
+   * lie on a colony tile.
+   *
+   * THE ORDER IS LOAD-BEARING: the link (`colony.tiles`) is written BEFORE the
+   * tile lands, so everything the landing sets off — the `tile-placed` event
+   * (it names the colony tile), every `onTilePlaced` hook, the chairman quest
+   * — already knows WHERE the city is. The city itself is the engine's
+   * (`game.addCity`): a new city tile of the player's, off Mars, with the card
+   * on it from the start (a fixed cell's `behavior.city.space` sets the card
+   * only AFTER the hooks). No placement bonus exists: the cell prints none and
+   * has no neighbours.
+   *
+   * IT IS NOT A COLONY: no cube, no berth, no track step, no build bonus —
+   * the tile's trade and its owners' bonus are untouched.
+   *
+   * `addTile` writes no journal line for an off-board cell
+   * (`LogHelper.logBoardTileAction`), so the placement's own sentence is
+   * written here, after the landing.
+   */
+  public static placeCityOnColonyTile(game: IGame, player: IPlayer, colony: IColony, cause: {card: CardName}): void {
+    if (!game.colonies.includes(colony)) {
+      throw new Error(`Colony tile ${colony.name} is not in the game`);
+    }
+    const space = ColoniesHandler.colonyTileCitySpace(game, cause.card);
+    if (space === undefined) {
+      throw new Error(`${cause.card} has no city cell in this game`);
+    }
+    if (space.tile !== undefined) {
+      throw new Error(`The city cell of ${cause.card} is occupied`);
+    }
+    colony.tiles.push(space.id);
+    game.addCity(player, space, cause.card);
+    game.log('${0} placed a city on the ${1} colony tile', (b) => b.player(player).colony(colony));
   }
 
   /**

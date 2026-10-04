@@ -10,6 +10,7 @@ import {InputError} from './InputError';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {ColonyRosterPrompt} from '../../common/colonies/ColonyRoster';
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {ColonyTileSite} from '../../common/colonies/ColonyTileSite';
 
 export class SelectColony extends BasePlayerInput<IColony> {
   // When true, show just the tile, and none of the cubes on top.
@@ -55,6 +56,14 @@ export class SelectColony extends BasePlayerInput<IColony> {
    * projection instead of computing it. Empty on every other colony pick.
    */
   public trackMoves: ReadonlyArray<ColonyTrackMove> = [];
+
+  /**
+   * THIS PICK PLACES A TILE ON THE CHOSEN COLONY TILE (TR22 Nova City;
+   * `PlaceCityOnColonyTile`). Published as the model's `tileSite` marker: the
+   * tile, its hosted cell and the server's projection of the count and the
+   * card's VP. Absent on every other colony pick.
+   */
+  public tileSite: ColonyTileSite | undefined = undefined;
 
   /**
    * THIS PICK CHANGES THE ROSTER — a tile enters the game, leaves it, or is
@@ -114,6 +123,10 @@ export class SelectColony extends BasePlayerInput<IColony> {
     // …and so does the roster marker (the staged twin reads this same model).
     if (this.rosterChange !== undefined) {
       model.rosterChange = this.rosterChange;
+    }
+    // …and the «a tile lands on the chosen colony tile» marker.
+    if (this.tileSite !== undefined) {
+      model.tileSite = this.tileSite;
     }
     return model;
   }

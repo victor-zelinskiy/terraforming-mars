@@ -21,6 +21,7 @@ import {TerraCimmeriaNovaBoard} from './boards/TerraCimmeriaNovaBoard';
 import {Board} from './boards/Board';
 import {Space} from './boards/Space';
 import {HollandiaBoard} from './boards/HollandiaBoard';
+import {restoreExpansionSpaceColonies} from './boards/BoardBuilder';
 
 type BoardFactory = (new (spaces: ReadonlyArray<Space>) => MarsBoard) & {newInstance: (gameOptions: GameOptions, rng: Random) => MarsBoard};
 
@@ -56,7 +57,9 @@ export class GameSetup {
 
   public static deserializeBoard(players: Array<IPlayer>, gameOptions: GameOptions, d: SerializedGame) {
     const playersForBoard = players.length !== 1 ? players : [players[0], GameSetup.neutralPlayerFor(d.id)];
-    const deserialized = Board.deserialize(d.board, playersForBoard).spaces;
+    // The saved list of cells, plus any expansion space colony the options call
+    // for that the save predates (an old save meets a cell added since — TR22).
+    const deserialized = restoreExpansionSpaceColonies(Board.deserialize(d.board, playersForBoard).spaces, gameOptions);
     const Factory: BoardFactory = boards[gameOptions.boardName];
     return new Factory(deserialized);
   }

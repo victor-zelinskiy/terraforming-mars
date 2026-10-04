@@ -47,6 +47,8 @@ import {Europa} from '../../src/server/colonies/Europa';
 import {Io} from '../../src/server/colonies/Io';
 import {Titan} from '../../src/server/colonies/Titan';
 import {ReplaceColonyTile} from '../../src/server/deferredActions/ReplaceColonyTile';
+import {PlaceCityOnColonyTile} from '../../src/server/deferredActions/PlaceCityOnColonyTile';
+import {SpaceName} from '../../src/common/boards/SpaceName';
 import {COLONY_TILE_HAS_COLONIES_REASON, ColoniesHandler} from '../../src/server/colonies/ColoniesHandler';
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
@@ -1103,6 +1105,130 @@ describe('deferredInputBatch', () => {
         state.player.process({type: 'colony', colonyName: ColonyName.IO, replaces: ColonyName.EUROPA});
         drainBatchTail(state.player);
         expect(names(state), 'the live answer, not the superseded one').deep.eq([ColonyName.LUNA, ColonyName.CERES, ColonyName.IO]);
+      });
+    });
+
+    /*
+     * THE CITY ON A COLONY TILE (Turmoil Redux TR22 Nova City) — the pick that
+     * PLACES A TILE rides the SAME addressed branch and the ORDINARY third
+     * form of the answer: `{colonyName, stagedFor}` lands only on the card's
+     * own `tileSite` prompt. No new response form exists for it.
+     */
+    describe('the city on a colony tile — {colonyName, stagedFor} on a `tileSite` prompt', () => {
+      type Site = {game: IGame, player: TestPlayer, card: IProjectCard, luna: Luna, ceres: Ceres, europa: Europa, io: Io};
+
+      /** In play: Luna, Ceres, Europa. The reserve: Io. A card whose play defers the shared «city on a colony tile» step. */
+      function siteGame(before?: (player: IPlayer, state: Site) => void): Site {
+        const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        const luna = new Luna();
+        const ceres = new Ceres();
+        const europa = new Europa();
+        const io = new Io();
+        game.colonies = [luna, ceres, europa];
+        game.discardedColonies = [io];
+        const state = {game, player, luna, ceres, europa, io} as unknown as Site;
+        const card = fakeCard({
+          // The real card's NAME — the cell is the card's own row of the builder's table.
+          name: CardName.NOVA_CITY,
+          cost: 5,
+          play: (p: IPlayer) => {
+            before?.(p, state);
+            p.game.defer(new PlaceCityOnColonyTile(p, card));
+            return undefined;
+          },
+        });
+        state.card = card;
+        player.cardsInHand = [card];
+        player.megaCredits = 50;
+        player.takeAction();
+        return state;
+      }
+
+      function siteTail(state: Site, colony: ColonyName): InputResponse {
+        return {type: 'colony', colonyName: colony, stagedFor: state.card.name};
+      }
+
+      function cityCell(state: Site): Space {
+        return state.game.board.getSpaceOrThrow(SpaceName.NOVA_CITY);
+      }
+
+      const asSite = (before: unknown) => before as (player: IPlayer, state: Site) => void;
+
+      it('lands at once when nothing interposes: the city lies on the chosen tile — never asked again', () => {
+        const state = siteGame();
+        replayBatch(state.player, playBatch(state.player, state.card, [siteTail(state, ColonyName.LUNA)]));
+        expect(state.luna.tiles).deep.eq([SpaceName.NOVA_CITY]);
+        expect(cityCell(state).tile).deep.eq({tileType: TileType.CITY, card: CardName.NOVA_CITY});
+        expect(cityCell(state).player).eq(state.player);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectColony, 'the tile is never asked again').is.false;
+      });
+
+      it('a BUILD in front of the card\'s own question does NOT eat the tail — it parks untried and lands after', () => {
+        const state = siteGame(asSite(interposeBuild));
+        replayBatch(state.player, playBatch(state.player, state.card, [siteTail(state, ColonyName.LUNA)]));
+        const build = cast(state.player.getWaitingFor(), SelectColony);
+        expect(build.tileSite, 'the build is another giver\'s question').is.undefined;
+        expect(state.luna.colonies, 'no colony was built by the staged answer').deep.eq([]);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+        state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+        drainBatchTail(state.player);
+        expect(state.ceres.colonies).deep.eq([state.player.id]);
+        expect(state.luna.tiles, 'the staged tile carries the city').deep.eq([SpaceName.NOVA_CITY]);
+        expect(state.luna.colonies, 'a city is not a colony').deep.eq([]);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectColony).is.false;
+      });
+
+      it('PARKS behind a prompt of another type and auto-lands once it is answered', () => {
+        const state = siteGame(asSite(interposeChoice()));
+        replayBatch(state.player, playBatch(state.player, state.card, [siteTail(state, ColonyName.EUROPA)]));
+        cast(state.player.getWaitingFor(), OrOptions);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+        expect(cityCell(state).tile, 'nothing landed while parked').is.undefined;
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        drainBatchTail(state.player);
+        expect(state.europa.tiles).deep.eq([SpaceName.NOVA_CITY]);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+      });
+
+      it('the tile was REPLACED while parked (TR10): the tail is dropped and the question stands live with the table as it is', () => {
+        const state = siteGame(asSite(interposeChoice((s) => {
+          const site = s as unknown as Site;
+          ColoniesHandler.replaceColonyTile(site.game, site.player, site.luna, site.io);
+        })));
+        replayBatch(state.player, playBatch(state.player, state.card, [siteTail(state, ColonyName.LUNA)]));
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        drainBatchTail(state.player);
+        expect(parkedBatchTailLength(state.player), 'stale — dropped, never held for a later prompt').eq(0);
+        expect(cityCell(state).tile, 'nothing landed on a tile that left the game').is.undefined;
+        expect(state.luna.tiles).deep.eq([]);
+        const live = cast(state.player.getWaitingFor(), SelectColony);
+        expect(live.choiceContext?.source.card).eq(state.card.name);
+        expect(live.tileSite?.space).eq(SpaceName.NOVA_CITY);
+        expect(live.colonies.map((c) => c.name)).deep.eq([ColonyName.IO, ColonyName.CERES, ColonyName.EUROPA]);
+      });
+
+      it('a manual answer to its own prompt SUPERSEDES the parked tile', () => {
+        const state = siteGame(asSite(interposeChoice()));
+        replayBatch(state.player, playBatch(state.player, state.card, [siteTail(state, ColonyName.LUNA)]));
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        cast(state.player.getWaitingFor(), SelectColony);
+        expireSupersededStagedTail(state.player);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+        drainBatchTail(state.player);
+        expect(state.ceres.tiles).deep.eq([SpaceName.NOVA_CITY]);
+        expect(state.luna.tiles, 'the superseded pick never lands').deep.eq([]);
+      });
+
+      it('a `replaces` on this prompt is refused — the pick places a tile, it replaces none', () => {
+        const state = siteGame();
+        replayBatch(state.player, playBatch(state.player, state.card, []));
+        const live = cast(state.player.getWaitingFor(), SelectColony);
+        expect(() => live.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES}))
+          .to.throw('This colony pick does not replace a colony tile');
+        expect(cityCell(state).tile).is.undefined;
       });
     });
 

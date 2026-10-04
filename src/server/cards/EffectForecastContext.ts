@@ -2,6 +2,7 @@ import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {GlobalParameter} from '../../common/GlobalParameter';
+import {SpaceId} from '../../common/Types';
 import {ICard} from './ICard';
 
 /**
@@ -49,8 +50,17 @@ export type EffectForecastTile = {
    * Haven — `behavior.city.space` names a `SpaceType.COLONY` cell, placed
    * with no prompt). The live hooks that read `space.spaceType` (Tharsis
    * Republic's production step) key on it; a Mars placement is `false`.
+   * Also `true` for a tile placed on a colony tile (Turmoil Redux TR22 Nova
+   * City — its cell is a `SpaceType.COLONY` cell too).
    */
   offMars: boolean;
+  /**
+   * THE CELL, where the placement asks none of the board: a reserved slot
+   * (`behavior.city.space`) or a hosted cell (`tileSite.space`). Absent for a
+   * tile whose cell the player still chooses. Read by the play's VP projection
+   * (`cardVictoryPointsAtPlay` — «which cities will be counted»).
+   */
+  space?: SpaceId;
 };
 
 /**

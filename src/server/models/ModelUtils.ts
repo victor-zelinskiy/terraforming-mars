@@ -1,5 +1,5 @@
 import {CardModel} from '../../common/models/CardModel';
-import {ColonyModel} from '../../common/models/ColonyModel';
+import {ColonyModel, ColonyTileOnTileModel} from '../../common/models/ColonyModel';
 import {Color} from '../../common/Color';
 import {IGame} from '../IGame';
 import {ICard, isIActionCard} from '../cards/ICard';
@@ -158,17 +158,46 @@ export function cardsToModel(
  */
 export function coloniesToModel(game: IGame, colonies: Array<IColony>, showTileOnly: boolean, isActive: boolean = true) : Array<ColonyModel> {
   return colonies.map(
-    (colony): ColonyModel => ({
-      colonies: colony.colonies.map(
-        (playerId): Color => game.getPlayerById(playerId).color,
-      ),
-      isActive: isActive && colony.isActive && showTileOnly === false,
-      name: colony.name,
-      trackPosition: colony.trackPosition,
-      visitor:
-        colony.visitor === undefined ?
-          undefined :
-          game.getPlayerById(colony.visitor).color,
-    }),
+    (colony): ColonyModel => {
+      const model: ColonyModel = {
+        colonies: colony.colonies.map(
+          (playerId): Color => game.getPlayerById(playerId).color,
+        ),
+        isActive: isActive && colony.isActive && showTileOnly === false,
+        name: colony.name,
+        trackPosition: colony.trackPosition,
+        visitor:
+          colony.visitor === undefined ?
+            undefined :
+            game.getPlayerById(colony.visitor).color,
+      };
+      const tiles = colonyTilesOnTile(game, colony);
+      if (tiles.length > 0) {
+        model.tiles = tiles;
+      }
+      return model;
+    },
   );
+}
+
+/**
+ * WHAT LIES ON A COLONY TILE, as the client draws it — read off the CELLS the
+ * tile names (`IColony.tiles`): the tile's kind and its owner are the cell's
+ * own (`space.tile`, `space.player`), never a copy kept on the colony. A cell
+ * that no longer carries a tile is simply not listed.
+ */
+function colonyTilesOnTile(game: IGame, colony: IColony): Array<ColonyTileOnTileModel> {
+  const out: Array<ColonyTileOnTileModel> = [];
+  for (const spaceId of colony.tiles) {
+    const space = game.board.spaces.find((s) => s.id === spaceId);
+    if (space?.tile === undefined || space.player === undefined) {
+      continue;
+    }
+    const entry: ColonyTileOnTileModel = {spaceId, tileType: space.tile.tileType, color: space.player.color};
+    if (space.tile.card !== undefined) {
+      entry.card = space.tile.card;
+    }
+    out.push(entry);
+  }
+  return out;
 }
