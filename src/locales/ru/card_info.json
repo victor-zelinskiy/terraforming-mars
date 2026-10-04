@@ -500,5 +500,7 @@
     "2+ production or track steps at once: gain 2 M€": "2+ шага производства или трека разом: +2 M€",
     "Hydronetwork action or trade: steel as energy": "Действие Гидросети или торговля: сталь как энергия",
     "Multi-step advance: collect every step's reward": "Ход на несколько шагов: награда каждого шага",
-    "Any Hydronetwork step: +1 heat each": "Любой шаг по треку Гидросети: +1 тепло"
+    "Any Hydronetwork step: +1 heat each": "Любой шаг по треку Гидросети: +1 тепло",
+    "Place a greenery tile and raise oxygen 1 step.": "Разместите тайл озеленения и поднимите кислород на 1 шаг.",
+    "Add 1 data resource to ANY card for each city adjacent to this tile.": "Добавьте 1 единицу данных на ЛЮБУЮ карту за каждый город рядом с этим тайлом."
 }

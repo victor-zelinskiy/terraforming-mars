@@ -63,6 +63,12 @@ import {
   parkedStagedPlacement,
   replayBatch,
 } from '../../src/server/inputs/deferredInputBatch';
+import {Arboretum} from '../../src/server/cards/turmoilRedux/Arboretum';
+import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
+import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalScience';
+import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
+import {seatEnacted} from '../parliament/parliamentArrange';
+import {addCity} from '../TestingUtils';
 
 /**
  * A PRE-SELECTED CHOICE MUST NEVER COME BACK AS A LIVE PROMPT.
@@ -1299,5 +1305,60 @@ describe('deferredInputBatch', () => {
     drainBatchTail(player);
     expect(regolith.resourceCount, 'the pre-collected repeat pick landed').eq(1);
     expect(parkedBatchTailLength(player)).eq(0);
+  });
+
+  describe('a card TARGET picked before its cell (TR21 Arboretum)', () => {
+    /** A Redux table, Mars First ruling, two data holders, a free bonus-less cell X with two foreign cities beside it. */
+    function arboretumGame() {
+      const [game, player, other] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      const parliament = game.parliament!;
+      ([PartyName.GREENS, PartyName.MARS, PartyName.INDUSTRIALISTS] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+      seatEnacted(parliament, quietResolutionOf(PartyName.MARS));
+      const card = new Arboretum();
+      const vc = new VectorComputations();
+      const ps = new PoliticalScience();
+      player.playedCards.push(vc, ps);
+      const board = game.board;
+      const free = (s: Space) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.player === undefined && s.id !== board.noctisCitySpaceId;
+      const x = board.spaces.find((s) => free(s) && s.bonus.length === 0 && board.getAdjacentSpaces(s).length === 6 && board.getAdjacentSpaces(s).every(free))!;
+      const ring = board.getAdjacentSpaces(x);
+      addCity(other, ring[0].id);
+      addCity(other, ring[3].id);
+      player.cardsInHand = [card];
+      player.megaCredits = 50;
+      player.takeAction();
+      return {game, player, card, vc, ps, x};
+    }
+
+    it('[play, {card}, {space, stagedFor}] lands WHOLE: the target first, then the cell, the data on the chosen card', () => {
+      const {game, player, card, vc, ps, x} = arboretumGame();
+      replayBatch(player, playBatch(player, card, [
+        {type: 'card', cards: [vc.name]},
+        {type: 'space', spaceId: x.id, stagedFor: card.name},
+      ]));
+      expect(game.board.getSpaceOrThrow(x.id).tile?.tileType).eq(TileType.GREENERY);
+      expect(vc.resourceCount).eq(2);
+      expect(ps.resourceCount).eq(0);
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(player.getWaitingFor() instanceof SelectCard, 'nothing is asked again').is.false;
+    });
+
+    it('the target does NOT steal the cell\'s own data bonus — that pick comes after the cell and stays a live question', () => {
+      const {game, player, card, vc, ps, x} = arboretumGame();
+      game.board.getSpaceOrThrow(x.id).bonus = [SpaceBonus.DATA];
+      replayBatch(player, playBatch(player, card, [
+        {type: 'card', cards: [vc.name]},
+        {type: 'space', spaceId: x.id, stagedFor: card.name},
+      ]));
+      expect(vc.resourceCount, 'the card\'s 2 data landed where the composer said').eq(2);
+      const bonus = cast(player.getWaitingFor(), SelectCard);
+      expect(bonus.title, 'the cell bonus asks its own question').to.not.eq(card.name);
+      expect(bonus.resourceGainPrompt?.amount, 'the bonus is an ordinary «add 1 data»').eq(1);
+      expect(parkedBatchTailLength(player)).eq(0);
+      player.process({type: 'card', cards: [ps.name]});
+      expect(ps.resourceCount).eq(1);
+      expect(vc.resourceCount).eq(2);
+    });
   });
 });
