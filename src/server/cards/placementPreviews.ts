@@ -223,14 +223,17 @@ export function forecastReaction(fact: EffectForecastFact): BoardFact | undefine
     timing: 'immediate',
     severity: chip.direction === 'gain' ? 'positive' : 'warning',
     recipient,
-    title: fact.reason,
-    source: {type: 'card', id: fact.source.name, label: fact.source.name},
+    // ONE line: the reacting card names the row (the dossier reads it under the landing it answers, behind a
+    // «⚡» — the reason «you add data to a card» would only repeat it), and an unlabelled source draws no second chip.
+    title: fact.source.name,
+    source: {type: 'card', id: fact.source.name},
+    // A BARE delta, never the forecast's `current → resulting`: the dossier stands BEFORE the play is paid
+    // (a staged pick), so «30 → 34 M€» would ignore the card's own price — the party effects beside it read
+    // «+4» for the same reason.
     delta: {
       icon: chip.icon,
       amount: chip.amount,
       direction: chip.direction,
-      ...(chip.current !== undefined ? {current: chip.current} : {}),
-      ...(chip.resulting !== undefined ? {resulting: chip.resulting} : {}),
       ...(chip.unit !== undefined ? {unit: chip.unit} : {}),
       ...(chip.note === 'production' ? {production: true} : {}),
     },

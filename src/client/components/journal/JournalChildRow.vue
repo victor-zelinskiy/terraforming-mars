@@ -91,6 +91,11 @@
         </span>
         <!-- WHERE a political chip landed (Turmoil Redux): the resolution a delegate stands on,
              or the party whose Popular Support took the neutral delegates (with its area's fill). -->
+        <!-- A payout a RULE counted (TR21): the card it landed on and its reason — «→ Векторные вычисления · за 3 соседних города». -->
+        <template v-if="vm.basis !== undefined">
+          <JournalCardChip v-if="vm.basis.onCard !== undefined" :name="vm.basis.onCard" />
+          <span class="journal-child-row__tile journal-em" data-journal-basis>{{ basisLabel(vm.basis.count, vm.basis.unitKey) }}</span>
+        </template>
         <span v-if="vm.political !== undefined && vm.political.kind === 'resolution'"
               class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(vm.political.resolution) }}</span>
         <span v-else-if="vm.political !== undefined && vm.political.kind === 'agenda'"
@@ -184,6 +189,10 @@ export default defineComponent({
     /** «Плитка колонии · − Церера · + Ио» — the roster's change by the tiles' own names (the leaving one first). */
     colonyRosterLabel(change: ColonyRosterChange): string {
       return `${translateText('Colony tile')} · ${colonyRosterChangeText(change, translateText)}`;
+    },
+    /** «за 3 соседних города» — the count the rule paid by; the unit's plural group agrees with it. */
+    basisLabel(count: number, unitKey: string): string {
+      return translateTextWithParams('for ${0} ${1}', [String(count), translateText(unitKey)]);
     },
     /** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
     supportLabel(party: PartyName, total: number): string {

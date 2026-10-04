@@ -177,6 +177,25 @@
        identical geometry and choreography — in the canopy's register: a lit
        clearing under the leaves, not water. The palette is the only
        difference, exactly as the Ares wake above. */
+    /* ── A CITY PAYS THE CARD (TR21 Arboretum, «ГОРОДА ПЛАТЯТ») ───────────
+       The same shoreline swell — identical geometry and choreography — in a
+       city's register: lit windows, a cool white-cyan, the colour of the data
+       it sends. One wake per token: a stack of two answers twice. */
+    &__oceanpulse--city {
+        .con-tileplace__oceanpulse-wash {
+            background: radial-gradient(50% 50% at 50% 50%,
+                rgba(232, 246, 255, 0.85) 0%,
+                rgba(132, 196, 236, 0.42) 42%,
+                transparent 74%);
+        }
+        .con-tileplace__oceanpulse-ring {
+            border-color: rgba(226, 244, 255, 0.78);
+            box-shadow:
+                0 0 .5rem rgba(140, 200, 240, 0.5),
+                inset 0 0 .4rem rgba(200, 232, 255, 0.35);
+        }
+    }
+
     &__oceanpulse--grove {
         .con-tileplace__oceanpulse-wash {
             background: radial-gradient(50% 50% at 50% 50%,
@@ -366,6 +385,41 @@
         .con-tileplace__coin-sheen { display: none; }
     }
 
+    /* THE DATA TOKEN a city sends (TR21) — the same condensation anatomy, the
+       framework's own DATA chip as its substance (the sprite on a dark seat),
+       so the handoff into the flight is invisible. */
+    &__oceancoin--data {
+        .con-tileplace__coin-spark {
+            background: radial-gradient(50% 50% at 50% 50%, #fff1e2 0%, #f08a3c 55%, transparent 78%);
+        }
+        .con-tileplace__coin-ring {
+            border-color: rgba(255, 214, 178, 0.9);
+            box-shadow:
+                0 0 .45rem rgba(240, 150, 80, 0.55),
+                inset 0 0 .3rem rgba(255, 228, 206, 0.5);
+        }
+        .con-tileplace__coin-body {
+            background: url('./assets/resources/data.png') center / contain no-repeat;
+        }
+        .con-tileplace__coin-value {
+            position: absolute;
+            right: -.45rem;
+            bottom: -.35rem;
+            min-width: 1.3rem;
+            padding: .08rem .3rem;
+            border-radius: 49.95rem;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(38, 48, 62, 0.98), rgba(14, 20, 28, 0.98));
+            box-shadow:
+                inset 0 0 0 .06rem rgba(190, 215, 240, 0.55),
+                0 .12rem .3rem rgba(0, 0, 0, 0.65);
+            color: #f4f9ff;
+            font-size: .85rem;
+            text-shadow: none;
+        }
+        .con-tileplace__coin-sheen { display: none; }
+    }
+
     /* One short specular pass over the finished face — the mint mark. */
     &__coin-sheen {
         position: absolute;
@@ -419,5 +473,80 @@
     to {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+/* ═══ «ГОРОДА ПЛАТЯТ» — the receiving card of a reward THE CELL DECIDES (TR21)
+   The shell-level stage beside the tile-placement layer, on the same step of
+   the z ladder (under the transfer chips, which fly INTO its capsule). The
+   card is the chosen card's premium face at the thumb tier, posed by the
+   director (transform / opacity only — it rises from the satellite's data
+   cell and goes home to it); its capsule is the counter that ticks on each
+   touchdown, answered by one contact flash. ═══ */
+.con-citypay {
+    position: fixed;
+    inset: 0;
+    z-index: 11650;
+    pointer-events: none;
+    contain: layout style;
+
+    &__card {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        visibility: hidden; /* the director materializes it at the satellite cell */
+        will-change: transform, opacity;
+        border-radius: .4rem;
+        box-shadow: 0 .6rem 1.6rem rgba(0, 0, 0, 0.55), 0 0 0 .08rem rgba(150, 200, 236, 0.28);
+    }
+    &__face {
+        position: relative;
+        /* The premium face is a px design box; the profile scale rides the zoom by contract. */
+        zoom: calc(.46 * var(--con-ui-scale, 1));
+        > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
+    }
+    /* THE READING — «before → now» under the card, the same number the capsule shows, legible from the couch. */
+    &__read {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + .35rem);
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .18rem .6rem .18rem .4rem;
+        border-radius: 49.95rem;
+        white-space: nowrap;
+        background: linear-gradient(180deg, rgba(22, 34, 48, 0.96), rgba(10, 16, 24, 0.96));
+        box-shadow: inset 0 0 0 .06rem rgba(150, 200, 236, 0.4), 0 .2rem .6rem rgba(0, 0, 0, 0.55);
+        color: #e9f3fc;
+        font-size: 1rem;
+        font-variant-numeric: tabular-nums;
+    }
+    &__read-icon {
+        width: 1.15rem;
+        height: 1.15rem;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__read-arrow { color: rgba(150, 192, 224, 0.7); }
+    &__read-to {
+        color: #8ff0c2;
+        font-weight: 800;
+        /* A changed value replays this once (keyed on the number) — the touchdown's own answer. */
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
+    }
+    /* THE CONTACT — re-keyed per touchdown, one shot over the capsule (the premium face's bottom-left). */
+    &__flash {
+        position: absolute;
+        left: 8px;
+        bottom: 42px;
+        width: 84px;
+        height: 46px;
+        border-radius: 12px;
+        pointer-events: none;
+        animation: con-colfocus-landflash calc(560ms * var(--motion-scale, 1)) ease-out both;
     }
 }

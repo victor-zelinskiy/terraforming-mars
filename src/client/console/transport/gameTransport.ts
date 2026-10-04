@@ -765,6 +765,10 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // …and the server's move ring: a MOVE the hero plays claims its
             // own record, so the remote stage can never replay it.
             tileMoves: newView.game?.tileMoves,
+            // …and its per-neighbour card payouts (TR21: the data the cities paid onto the chosen
+            // card) — the hero plays THIS cell's record and claims it; the card's face comes from the tableau.
+            cardPayouts: newView.game?.cardAdjacencyPayouts,
+            viewerCards: newView.thisPlayer?.tableau,
           });
         if (tileHeroEvent !== undefined) {
           transportHolds.tilePlacementHero = true;
@@ -843,6 +847,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               viewerColor: newView.thisPlayer?.color,
               aresGrants: newView.game?.aresAdjacencyGrants,
               tileMoves: newView.game?.tileMoves,
+              cardPayouts: newView.game?.cardAdjacencyPayouts,
             });
             // …and a nomad camp that moved in the batch (a concurrent human's
             // move riding the bot's turns): commit hidden, hop at reveal.
@@ -915,6 +920,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           // …and the server's word that a removal + a landing are ONE move (TR14
           // — a parked pin landing, a concurrent human's move): never paired by geometry.
           tileMoves: newView.game?.tileMoves,
+          // …and the server's per-neighbour card payouts (TR21 — another seat's cities paying their card).
+          cardPayouts: newView.game?.cardAdjacencyPayouts,
         });
         // …and a REMOTE nomad hop riding the viewer's own submit response (a
         // concurrent human's move that resolved while the POST was in

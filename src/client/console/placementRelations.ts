@@ -39,12 +39,17 @@ export type PlacementRelation = {
   tone: PlacementRelationTone;
 };
 
-/** Conflict precedence — LOWER wins. A penalty may never be masked. */
+/**
+ * Conflict precedence — LOWER wins. A penalty may never be masked. A cell that
+ * PAYS NOW outranks a cell that SCORES AT THE END (TR21 Arboretum: one's own
+ * city beside the greenery both pays its data this turn and scores the greenery
+ * at the game's end — the payment is the decision, the VP is the footnote).
+ */
 const TONE_RANK: Record<PlacementRelationTone, number> = {
   penalty: 0,
   ocean: 1,
-  score: 2,
-  reward: 3,
+  reward: 2,
+  score: 3,
   event: 4,
 };
 

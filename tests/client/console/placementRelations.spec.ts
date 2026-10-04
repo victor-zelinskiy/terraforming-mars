@@ -74,6 +74,22 @@ describe('placementRelations', () => {
     expect(rels).to.deep.equal([{spaceId: '21', tone: 'penalty'}]);
   });
 
+  it('a cell that PAYS NOW outranks a cell that SCORES AT THE END (TR21: the player\'s own city beside the greenery)', () => {
+    const rels = relationsFromPreview(preview({
+      immediateFacts: [fact({id: 'card-Arboretum-adjacent-cities', category: 'card-trigger', spaces: ['41', '42'] as SpaceId[]})],
+      futureScoringFacts: [fact({id: 'place-greenery-city-41', category: 'city-greenery-scoring', spaces: ['41'] as SpaceId[]})],
+    }));
+    expect(rels).to.deep.include.members([{spaceId: '41', tone: 'reward'}, {spaceId: '42', tone: 'reward'}]);
+    expect(rels).to.have.length(2);
+    // …in either arrival order, and a penalty still beats both.
+    const flipped = relationsFromPreview(preview({
+      futureScoringFacts: [fact({id: 'place-greenery-city-41', category: 'city-greenery-scoring', spaces: ['41'] as SpaceId[]})],
+      immediateFacts: [fact({id: 'card-Arboretum-adjacent-cities', category: 'card-trigger', spaces: ['41'] as SpaceId[]})],
+      costFacts: [fact({id: 'cost', category: 'placement-penalty', severity: 'danger', spaces: ['41'] as SpaceId[]})],
+    }));
+    expect(flipped).to.deep.equal([{spaceId: '41', tone: 'penalty'}]);
+  });
+
   it('planetary events are the quiet event tone', () => {
     const rels = relationsFromPreview(preview({
       immediateFacts: [fact({id: 'ares-event-dust-storms-recede', category: 'hazard-cleanup', severity: 'premium', spaces: ['31', '32'] as SpaceId[]})],

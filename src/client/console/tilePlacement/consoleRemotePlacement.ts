@@ -80,6 +80,10 @@ import {
   claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
 } from '@/client/console/tilePlacement/aresAdjacencyFlights';
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
+import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel';
+import {claimCityPayout, cityPayoutFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
+import {cityPayoutReactionSpecs, runRemoteCityPayoutBeat} from '@/client/console/tilePlacement/cityDataPayoutBeat';
+import {ResourceTransferSpec, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
   playAresSourcePulses, playCoverSplash, seatTileProxy,
@@ -181,6 +185,14 @@ type RemoteMove = VerifiedMove & {
 
 type RemoteEvent = FreshPlacement & {
   /**
+   * The per-neighbour CARD PAYOUT this placement made (TR21 Arboretum — the
+   * data its cities paid onto somebody's card), claimed at staging: the cities
+   * answer after the landing, their tokens flying to the paid seat's chip — or,
+   * when the seat is the viewer's own (a parked pin landing here), into their
+   * satellite cell, the holds seeded at staging.
+   */
+  cityPayout?: {payout: CardAdjacencyPayoutModel, own: boolean},
+  /**
    * The tile on `spaceId` did not come from the supply: it TRAVELLED from
    * `move.from` (TR14 Re-settlement). ONE event, ONE proxy — `moveRemote`.
    */
@@ -266,6 +278,8 @@ export type RemoteStageOpts = {
   /** The SERVER's move ring (`game.tileMoves`) — the only authority that a
    *  removal and a landing in one diff are ONE relocation. */
   tileMoves?: ReadonlyArray<TileMoveRecordModel>,
+  /** The SERVER's per-neighbour card payout ring (`game.cardAdjacencyPayouts`, TR21) — consumed once per record. */
+  cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
 };
 
 export function stageRemotePlacements(
@@ -386,6 +400,7 @@ export function stageRemoteTileEvents(
       aresExtension: opts?.aresExtension === true,
       own: e.color !== undefined && e.color === opts?.viewerColor,
       income: claimIncome(e.spaceId, opts),
+      cityPayout: claimCityPayoutOf(e.spaceId, opts),
     });
     queued = true;
   }
@@ -419,6 +434,38 @@ function claimIncome(spaceId: string, opts: RemoteStageOpts | undefined): Readon
   return income;
 }
 
+/** The viewer's own holds of a card payout: the satellite's resource count and what the table answered. */
+function cityPayoutHoldSpecs(payout: CardAdjacencyPayoutModel): Array<ResourceTransferSpec> {
+  return [{channel: 'card-resource', resource: cardResourceKey(payout.resource), amount: payout.amount}, ...cityPayoutReactionSpecs(payout)];
+}
+
+/**
+ * THIS placement's card payout record (TR21), claimed once — the own hero
+ * claims its own first, so a record reaching here is somebody else's, or the
+ * viewer's own landing on the remote stage (a parked pin). The viewer's own
+ * holds are seeded here, in the commit's synchronous block (the phantom-chip
+ * contract).
+ */
+function claimCityPayoutOf(spaceId: string, opts: RemoteStageOpts | undefined): RemoteEvent['cityPayout'] {
+  const payout = cityPayoutFor(opts?.cardPayouts, spaceId, undefined);
+  if (payout === undefined || !claimCityPayout(payout.seq)) {
+    return undefined;
+  }
+  const own = payout.color === opts?.viewerColor;
+  if (own) {
+    beginPanelRewardHold(cityPayoutHoldSpecs(payout));
+  }
+  return {payout, own};
+}
+
+/** Release the viewer's own holds of the event's card payout (idempotent per amount — the hold map is additive). */
+function releaseCityPayoutHolds(ev: RemoteEvent): void {
+  if (ev.cityPayout?.own === true) {
+    cityPayoutHoldSpecs(ev.cityPayout.payout).forEach((spec) => releasePanelRewardHold(spec));
+    ev.cityPayout = {...ev.cityPayout, own: false};
+  }
+}
+
 /**
  * ABORT — stage unmount (shell teardown / game switch) or the safety
  * ceiling. Every held tile becomes visible at once, every held cube rests;
@@ -438,6 +485,7 @@ export function abortRemotePlacements(): void {
       restCubeForHeroPlacement(ev.spaceId);
     }
     releaseIncomeHolds(ev); // the committed money shows at once, never stuck
+    releaseCityPayoutHolds(ev);
   }
   queue.length = 0;
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
@@ -792,6 +840,21 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (epoch === myEpoch && ev.income.length > 0) {
     await runRemoteAresIncomeBeat(ev, hex, ui, myEpoch);
   }
+  // …and THE CITIES PAY (TR21): each neighbouring city sends its tokens to the paid seat — their chip in
+  // the status strip, or the viewer's own satellite cell when the payout is theirs.
+  if (epoch === myEpoch && ev.cityPayout !== undefined) {
+    const city = ev.cityPayout;
+    // Handed over, never awaited: the scene waits for the scales' story, which waits for THIS stage to be quiet.
+    void runRemoteCityPayoutBeat({
+      payout: city.payout,
+      tileRect: hex,
+      uiScale: ui,
+      destination: city.own ? undefined : remoteOriginPoint(city.payout.color, ui),
+      release: () => releaseCityPayoutHolds(ev),
+    });
+  } else {
+    releaseCityPayoutHolds(ev);
+  }
 }
 
 /**
@@ -932,6 +995,7 @@ function degradeReveal(ev: RemoteEvent): void {
     restCubeForHeroPlacement(ev.spaceId);
   }
   releaseIncomeHolds(ev); // the income announces via its delta chips alone
+  releaseCityPayoutHolds(ev);
 }
 
 /**

@@ -161,6 +161,7 @@
                              :flowPhase="placementFlowState.phase"
                              :inspectAll="consoleState.freeRoam"
                              :sourceView="placementSourceView"
+                             :chosenTarget="placementChosenTarget"
                              :trackInfo="trackInfo"
                              :trackScale="trackScaleOverview"
                              :lore="selectedCellLore" />
@@ -1383,6 +1384,8 @@
          icons rise through it and hand off to the resource chips
          (consoleTilePlacement.ts / tilePlacementDirector.ts). -->
     <ConsoleTilePlacementLayer />
+    <!-- «ГОРОДА ПЛАТЯТ» (TR21): the cities beside a placed tile pay the card the play chose — shell level, beside the tile stage. -->
+    <ConsoleCityPayoutLayer />
 
     <!-- The MARS NOMADS MOVE stage — the camp module lifts off its cell
          (the contact shadow stays behind and lets go), hops to the adjacent
@@ -2014,6 +2017,7 @@ import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, rele
 import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitRewardSpecs, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
+import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
@@ -2359,6 +2363,7 @@ export default defineComponent({
     ConsolePatentSaleLayer,
     ConsoleResourceTransferLayer,
     ConsoleTilePlacementLayer,
+    ConsoleCityPayoutLayer,
     ConsoleNomadMoveLayer,
     ConsoleColonyBuildLayer,
     CardZoomModal,
@@ -5847,6 +5852,20 @@ export default defineComponent({
      * placing card since the marker existed, and the panel showed none of it:
      * a tile that arrives from a triggered effect had no attribution on screen.
      */
+    /**
+     * The card a reward THE CELL DECIDES will land on, as this staged play chose
+     * it in the composer (Arboretum: the data holder) — with its live count, so
+     * the dossier prints «k → k + N» for every cell from two server numbers.
+     * Only while that staged cell pick stands.
+     */
+    placementChosenTarget(): {name: CardName, count: number} | undefined {
+      const arm = stagedPlayState.arm;
+      if (arm?.cardTarget === undefined || arm.target.kind !== 'cell') {
+        return undefined;
+      }
+      const card = this.thisPlayer.tableau.find((c) => c.name === arm.cardTarget);
+      return {name: arm.cardTarget, count: card?.resources ?? 0};
+    },
     placementSourceView(): PromptSourceView | undefined {
       return this.placementActive ? promptSourceView(this.placementSpaceModel) : undefined;
     },
@@ -15601,7 +15620,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -15666,6 +15685,7 @@ export default defineComponent({
           isEvent,
           batch,
           target: {kind: 'cell', placement: payload.staged},
+          ...(payload.stagedCardTarget !== undefined ? {cardTarget: payload.stagedCardTarget} : {}),
           rewards: payload.rewards,
           draws: payload.draws ?? 0,
           deckCheck: false,

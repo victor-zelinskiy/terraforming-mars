@@ -10704,6 +10704,81 @@ html.console-mode {
            weighing wraps to as many lines as it needs. */
         color: rgba(196, 219, 238, 0.72);
     }
+    /* A row with a LANDING's own lines (`__lines`) gives the reserved value track back: its
+       value column holds ONE reading on the title's line, and the card names under the title are
+       what the player reads. The numbers keep their x — the column is right-aligned, so only its
+       unused left part is returned (a full-width line band would cost the value's own height). */
+    &--landing { grid-template-columns: minmax(0, 1fr) auto; }
+    &__lines { min-width: 0; }
+    /* WHERE THE DELTA LANDS — the chosen card (a reward the cell decides):
+       a mini face, its name, its count moving. One line; the name yields by
+       an ellipsis in its own box, the numbers never. */
+    &__target {
+        display: flex; align-items: center; gap: .32rem;
+        min-width: 0;
+        line-height: 1.15;
+        font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
+        color: rgba(196, 219, 238, 0.82);
+    }
+    &__target-arrow { color: rgba(150, 192, 224, 0.6); flex-shrink: 0; }
+    /* The face stands no taller than the line's own text (a thumbnail of the card's own art
+       and frame), so the landing line never grows the row — the dossier is a HUD that may not
+       scroll (measured at 4K: a .064 face made the line 72px against a 51px title). */
+    &__target-face {
+        flex-shrink: 0;
+        zoom: calc(.04 * var(--con-ui-scale, 1));
+        > :is(.card-container, .pcard) { margin: 0; border-radius: .5rem; }
+    }
+    &__target-name {
+        .con-read-text(600);
+        min-width: 0; flex: 0 1 auto;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        color: #e9f3fc;
+    }
+    &__target-val {
+        display: inline-flex; align-items: center; gap: .2rem;
+        flex-shrink: 0;
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
+    }
+    /* A LINE's own value pieces (the landing, the reaction): the line's font, an icon no taller
+       than its text — never the value column's display digits (measured at 4K: those made the
+       line 60px against its 42px text). */
+    &__line-ico {
+        flex: 0 0 auto;
+        width: 1.05em; height: 1.05em;
+        background-size: contain; background-position: center; background-repeat: no-repeat;
+    }
+    &__line-from { color: rgba(220, 236, 247, 0.55); }
+    &__line-arrow { color: rgba(150, 192, 224, 0.6); }
+    &__line-to { color: @con-mint; font-weight: 700; }
+    /* …and what the TABLE answers to that landing (a reaction — Martian Fiber's
+       M€): ONE line under it, the «⚡» of the composers' «Сработает», the card's
+       name yielding by an ellipsis in its own box, the bare delta never. */
+    &__react {
+        display: flex; align-items: center; gap: .32rem;
+        min-width: 0;
+        line-height: 1.15;
+        font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
+        color: rgba(196, 219, 238, 0.72);
+    }
+    /* The bolt is a glyph of the emoji fallback font, whose ascent would grow the line by a
+       third — its own box is clamped to the line. */
+    &__react-bolt { color: @con-amber; flex-shrink: 0; line-height: 1; font-size: .9em; height: 1em; overflow: hidden; }
+    &__react-name {
+        .con-read-text(500);
+        min-width: 0; flex: 0 1 auto;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    &__react-val {
+        display: inline-flex; align-items: center; gap: .2rem;
+        flex-shrink: 0;
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        color: @con-mint;
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
+    }
     &__src {
         display: inline-block;
         margin-top: .18rem;
@@ -33533,6 +33608,12 @@ html.console-mode {
     }
     &__imp-icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
+    /* THE RATE beside a live count — a reward whose number the cell decides
+       after this pick (Arboretum: «2 · +1 за каждый соседний город»). The count
+       is the card's own (neutral ink, never the mint of a result), the rate is
+       the quiet tail: nothing on this line pretends to know the number. */
+    &__imp-per { color: @con-text-dim; font-weight: 600; }
+    &__imp-count { color: @con-text; }
 }
 
 /* ═══ THE SELF-TARGET PROXY'S RESOURCE READING (ConsoleCardResourceChip.vue) ═══

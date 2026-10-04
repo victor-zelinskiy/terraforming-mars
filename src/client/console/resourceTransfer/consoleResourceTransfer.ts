@@ -321,6 +321,14 @@ export type ResourceTransferRun = {
    * the next prompt until the touchdown.
    */
   inSurface?: boolean;
+  /**
+   * An explicit LANDING POINT for every chip of the run — a payout that goes
+   * to ANOTHER seat (TR21: the data an opponent's neighbouring cities paid,
+   * landing on that seat's chip in the status strip). Absent → each spec's own
+   * home (a panel row, a host card, the satellite cell). Nothing is held or
+   * ticked by such a landing; `onArrive` still fires at the touchdown.
+   */
+  destination?: TransferPoint;
 };
 
 let flightSeq = 0;
@@ -404,7 +412,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   // where it lands — so `from` / `to` are fixed per spec, not per run.
   const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint}> = [];
   for (const [i, e] of specEntries.entries()) {
-    const row = targetPointFor(e.spec);
+    const row = run.destination ?? targetPointFor(e.spec);
     const sourcePoint = e.origin ?? run.source.point ??
       (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
     if (row === undefined || sourcePoint === undefined) {
@@ -677,7 +685,9 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   // additional-resources satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
-    const r = measureRestingRect(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
+    // …the RECEIVING CARD standing by the field (TR21's «cities pay» scene): its capsule is the counter that ticks.
+    const r = measureRestingRect(`.con-citypay [data-played-key="${esc}"] .pcard__res`) ??
+      measureRestingRect(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
       measureRestingRect(`.con-recv [data-played-key="${esc}"]`) ??
       measureRestingRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
       measureRestingRect(`.con-colfocus [data-played-key="${esc}"]`) ??

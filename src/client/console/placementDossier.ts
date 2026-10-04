@@ -275,7 +275,16 @@ function actionLineOf(opts: {
 
 // ── sections ─────────────────────────────────────────────────────────
 
-export type DossierSectionKey = 'effect' | 'gain' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'endgame' | 'rules';
+export type DossierSectionKey = 'effect' | 'gain' | 'reactions' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'endgame' | 'rules';
+
+/**
+ * The card a reward THE CELL DECIDES will land on, as the staged play chose it
+ * before the board (Arboretum: the data holder picked in the composer) — and
+ * its live count. The server cannot know the pick (nothing was sent), so the
+ * shell hands it in and a `landsOnChosenCard` fact prints that card's
+ * `count → count + amount`: two server numbers added, no rule computed.
+ */
+export type DossierChosenTarget = {name: CardName, count: number};
 
 /** One recipient's block inside «Получат другие игроки». */
 export type DossierRecipientGroup = {
@@ -455,6 +464,17 @@ export type DossierRow = {
   /** A source chip, when it adds information the label does not carry. */
   source?: string;
   timingKey?: string;
+  /**
+   * WHERE the delta lands when it lands on the card the player chose before
+   * the cell (`BoardFact.landsOnChosenCard`): that card and its count moving.
+   */
+  target?: {name: CardName, icon: string, from: number, to: number};
+  /**
+   * What the TABLE answers to this very delta (`BoardFact.reaction` — Martian
+   * Fiber's M€ for the data landing on the chosen card): a «⚡» line under the
+   * landing, the consequence read with its cause instead of a section of its own.
+   */
+  reactions?: ReadonlyArray<{key: string, label: string | Message, delta: BoardFactDelta}>;
 };
 
 function signed(n: number): string {
@@ -516,7 +536,7 @@ function reasonLabel(fact: BoardFact): string | Message {
  * one parameter, and BOTH readings were wrong, because the commit lands on 49.
  */
 export function buildDossierRows(facts: ReadonlyArray<BoardFact>,
-  stated: ReadonlyArray<BoardFactTiming> = []): Array<DossierRow> {
+  stated: ReadonlyArray<BoardFactTiming> = [], chosen?: DossierChosenTarget): Array<DossierRow> {
   const order: Array<string> = [];
   const groups = new Map<string, Array<BoardFact>>();
   facts.forEach((fact, i) => {
@@ -538,7 +558,7 @@ export function buildDossierRows(facts: ReadonlyArray<BoardFact>,
       // A pool reads as a vector even with ONE member — «2 → 4», with its cause under it.
       return vpPoolRow(key, members, stated);
     }
-    return members.length > 1 ? mergedRow(key, members, stated) : singleRow(head, stated);
+    return members.length > 1 ? mergedRow(key, members, stated) : singleRow(head, stated, chosen);
   });
 }
 
@@ -583,7 +603,7 @@ function isSkippedTriggerNote(fact: BoardFact): boolean {
     fact.delta === undefined && fact.vp === undefined && fact.progress === undefined;
 }
 
-function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>): DossierRow {
+function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>, chosen?: DossierChosenTarget): DossierRow {
   if (isSkippedTriggerNote(fact)) {
     return {
       key: fact.id,
@@ -611,6 +631,9 @@ function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>): Dos
     note: fact.description !== undefined ? {text: fact.description, params: fact.params} : undefined,
     source: rowSourceLabel(fact),
     timingKey: rowTimingKey(fact, stated),
+    ...(fact.landsOnChosenCard !== undefined && chosen !== undefined && fact.delta !== undefined ? {
+      target: {name: chosen.name, icon: fact.landsOnChosenCard.resource, from: chosen.count, to: chosen.count + fact.delta.amount},
+    } : {}),
   };
 }
 
@@ -688,18 +711,40 @@ const MOVE_CATEGORY: BoardFact['category'] = 'tile-move';
  */
 export function dossierSections(
   preview: BoardPlacementPreview,
-  viewerColor?: Color): Array<DossierSection> {
+  viewerColor?: Color,
+  chosen?: DossierChosenTarget): Array<DossierSection> {
   const out: Array<DossierSection> = [];
   const section = (key: DossierSectionKey, titleKey: string,
     facts: ReadonlyArray<BoardFact>, stated: ReadonlyArray<BoardFactTiming>): DossierSection =>
-    ({key, titleKey, rows: buildDossierRows(facts, stated), stated});
+    ({key, titleKey, rows: buildDossierRows(facts, stated, chosen), stated});
 
   const effect = [...preview.costFacts, ...preview.warningFacts];
   if (effect.length > 0) {
     out.push(section('effect', 'Cell effect', effect, ['cost', 'warning']));
   }
-  if (preview.immediateFacts.length > 0) {
-    out.push(section('gain', 'You receive', preview.immediateFacts, ['immediate', 'on-confirm']));
+  // What the TABLE answers to what this cell makes the card grant (`reaction`
+  // — Martian Fiber's M€ for Arboretum's data) is «Сработает», the composers'
+  // word for the same thing, under the result it answers — never mixed into it.
+  const gains = preview.immediateFacts.filter((f) => f.reaction !== true);
+  const reactions = preview.immediateFacts.filter((f) => f.reaction === true && f.delta !== undefined);
+  // The table's answer is read WITH its cause: under the row whose delta lands on the chosen card (the one
+  // grant the reactions answer today) — a section of its own only when no such row stands. One line, never a
+  // second head: the dossier is a HUD that may not scroll (a 4K panel wraps every sentence twice).
+  const gainSection = gains.length > 0 ? section('gain', 'You receive', gains, ['immediate', 'on-confirm']) : undefined;
+  const landing = gainSection?.rows.find((r) => gains.some((f) => f.id === r.key && f.landsOnChosenCard !== undefined));
+  if (gainSection !== undefined) {
+    if (landing !== undefined && reactions.length > 0) {
+      const rows = gainSection.rows.map((r) => r === landing ? {
+        ...r,
+        reactions: reactions.map((f) => ({key: f.id, label: compactTitleKey(f), delta: f.delta as BoardFactDelta})),
+      } : r);
+      out.push({...gainSection, rows});
+    } else {
+      out.push(gainSection);
+    }
+  }
+  if (reactions.length > 0 && landing === undefined) {
+    out.push(section('reactions', 'Will trigger', reactions, ['immediate', 'on-confirm']));
   }
   if (preview.recipientFacts.length > 0) {
     // Aggregation is PER RECIPIENT: two players' identical gains are two

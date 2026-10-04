@@ -62,6 +62,14 @@ describe('boardCellPreviewUrl', () => {
     expect(destination.get('staged')).to.equal('1');
   });
 
+  it('a reward THE CELL DECIDES (TR21): the staged greenery asks as its card — the target never rides the URL', () => {
+    const p = params(buildBoardCellUrl('17', 'greenery', false, TileType.GREENERY, CardName.ARBORETUM, undefined, true));
+    expect(p.get('card'), 'the card\'s own hook answers «+N data · for N adjacent cities» on this cell').to.equal(CardName.ARBORETUM);
+    expect(p.get('staged')).to.equal('1');
+    // The chosen holder is the CLIENT's to add (its count + the server's amount): one answer per cell, cached as such.
+    expect([...p.keys()].sort()).to.deep.equal(['card', 'color', 'id', 'kind', 'space', 'staged', 'tile']);
+  });
+
   it('the default effect is not sent (both sides default to a tile)', () => {
     expect(params(buildBoardCellUrl('10', 'city', false, TileType.CITY, undefined, 'tile')).has('effect')).to.be.false;
     expect(params(buildBoardCellUrl('10', 'land', false, undefined, undefined, 'marker')).get('effect')).to.equal('marker');

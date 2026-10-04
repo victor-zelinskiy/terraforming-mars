@@ -240,6 +240,7 @@ import {
   buildDossierRows,
   dossierEmptyKey,
   dossierSections,
+  DossierChosenTarget,
   placementFollowUpLine,
   placementIdentity,
 } from '@/client/console/placementDossier';
@@ -318,6 +319,8 @@ export default defineComponent({
     inspectAll: {type: Boolean, default: false},
     /** WHO asked for this placement — normalized by the shared model. */
     sourceView: {type: Object as PropType<PromptSourceView | undefined>, default: undefined},
+    /** The card a reward the cell decides lands on, as the staged play chose it (Arboretum) — its live count. */
+    chosenTarget: {type: Object as PropType<DossierChosenTarget | undefined>, default: undefined},
     // track mode (P27)
     trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
     /** P27c: the owning scale's overview (name / current value / description). */
@@ -372,7 +375,7 @@ export default defineComponent({
     },
     /** The dossier body — the preview's facts regrouped by intent. */
     sections(): ReadonlyArray<DossierSection> {
-      return this.preview !== undefined ? dossierSections(this.preview, this.viewerColor) : [];
+      return this.preview !== undefined ? dossierSections(this.preview, this.viewerColor, this.chosenTarget) : [];
     },
     /**
      * This cell demands nothing extra — said as one quiet word on the cell

@@ -32,6 +32,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {AdjacencyAmountBasis} from '@/common/models/CardAdjacencyPayoutModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
 
@@ -57,6 +58,15 @@ function onCardDeltaOf(effects: ReadonlyArray<ActionEffect> | undefined): {icon:
   }
   return {icon: hit.icon, amount: hit.direction === 'cost' ? -hit.amount : hit.amount};
 }
+
+/**
+ * WHAT ONE UNIT IS WORTH when the amount is not known before the pick — the
+ * server's `amountBasis`, read as a rate. One row per basis the server can
+ * send; a new basis is a compile error here until it says its rate.
+ */
+const BASIS_RATE: Record<AdjacencyAmountBasis['per'], string> = {
+  'adjacent-city': '+1 for each adjacent city',
+};
 
 /** The production resources a copy-production box can carry, in chip order. */
 const STANDARD_PROD_KEYS = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
@@ -180,6 +190,15 @@ export function playedTargetPreviewFor(
       impacts.push({label: 'VP', from: vp.from, to: vp.to, static: vp.from === vp.to});
     }
     out.push({key: 'res', title: 'Target card', entity: 'target', impacts});
+  } else if (amount === undefined && input.resourceGainPrompt?.amountBasis !== undefined && model !== undefined) {
+    // NO NUMBER YET — the cell chosen after this pick decides it (Arboretum).
+    // The candidate reads its live count and the RATE, never a guessed «→».
+    out.push({key: 'res', title: 'Target card', entity: 'target', impacts: [{
+      label: 'Resources on this card',
+      icon: (step !== undefined && step.kind === 'input' ? step.cardResource : undefined) ?? input.resourceGainPrompt.cardResource,
+      from: model.resources ?? 0,
+      per: BASIS_RATE[input.resourceGainPrompt.amountBasis.per],
+    }]});
   }
   return out;
 }

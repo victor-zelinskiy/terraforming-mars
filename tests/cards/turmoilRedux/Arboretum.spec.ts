@@ -422,6 +422,7 @@ describe('Arboretum', () => {
     placeOn(t, play(t, fiber), centre);
     expect(fiber.resourceCount).eq(3);
     expect(t.p1.megaCredits - mc, 'exactly what the dossier promised').eq(3);
+    expect(t.game.cardAdjacencyPayouts.at(-1)?.reactions, 'what the table answered, MEASURED for the scene').deep.eq({megacredits: 3});
   });
 
   describe('rule 10 — the journal: one line and one event with the reason; the record the scene reads', () => {

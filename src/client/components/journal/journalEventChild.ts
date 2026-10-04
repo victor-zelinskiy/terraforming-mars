@@ -113,6 +113,13 @@ export type JournalChildVM = {
    * «+4» as a gain. `chips` stays empty on such a row.
    */
   skipped?: {label: string; reason: string; chip?: JournalImpactChip};
+  /**
+   * WHY a card-resource amount is what it is, when a rule counted it
+   * (`EventImpact.cardResources[].basis` — Arboretum's «+3 data · for 3
+   * adjacent cities»), and the CARD the units landed on. Its own row, never
+   * merged: the reason belongs to that one payout.
+   */
+  basis?: {count: number; unitKey: string; onCard?: CardName};
 };
 
 /** The colony TILE's own glyph as a chip icon (`iconClassFor` → the printed pill). */
@@ -477,6 +484,13 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     if ((e.type === 'popular-support-gained' || e.type === 'popular-support-discarded') && e.impact.popularSupport !== undefined) {
       push(`support|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'support', party: e.impact.popularSupport.party, total: e.impact.popularSupport.total}}, impactChips(e.impact));
+      continue;
+    }
+    // A card-resource payout a RULE counted (TR21: «for 3 adjacent cities») keeps its reason and its card on a row of its own.
+    const counted = e.type === 'card-resource-changed' ? e.impact.cardResources?.find((cr) => cr.basis !== undefined) : undefined;
+    if (counted?.basis !== undefined) {
+      push(`basis|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        basis: {count: counted.basis.count, unitKey: counted.basis.unitKey, onCard: counted.target}}, impactChips(e.impact));
       continue;
     }
     const chips = [...impactChips(e.impact), ...(foldedChips.get(e.id) ?? [])];

@@ -2,6 +2,7 @@ import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Color} from '../Color';
 import {SpaceId} from '../Types';
+import {Units} from '../Units';
 
 /**
  * A CARD'S REWARD THAT DEPENDS ON THE CELL — «add 1 data to ANY card for each
@@ -50,4 +51,11 @@ export type CardAdjacencyPayoutModel = {
   amount: number;
   /** `target`'s stored count BEFORE the payout (the scene's frozen start). */
   before: number;
+  /**
+   * What the TABLE paid the seat in answer to this addition — MEASURED around
+   * the one `addResourceTo` (Martian Fiber's +1 M€ per data), never derived:
+   * the scene flies it to the rail after the card has gone home. Absent when
+   * nothing answered.
+   */
+  reactions?: Partial<Units>;
 };

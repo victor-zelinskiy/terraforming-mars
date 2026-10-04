@@ -48,6 +48,22 @@ describe('journal event-driven children', () => {
     expect(rows[0].chips[0]).to.deep.include({icon: CardResource.ANIMAL, text: '+1'});
   });
 
+  it('a payout a RULE counted (TR21: «for 3 adjacent cities») keeps its reason and its card on a row of its own', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.ARBORETUM}, player: 'red', correlationId: 1}),
+      ev({id: 2, type: 'card-resource-changed', source: {kind: 'card', card: CardName.ARBORETUM}, player: 'red', correlationId: 1, parentId: 1,
+        impact: {cardResources: [{cardResource: CardResource.DATA, target: CardName.VECTOR_COMPUTATIONS, amount: 3, basis: {count: 3, unitKey: 'adjacent {city|cities}'}}]}}),
+      // An ordinary addition of the same card's source stays its own, merged row.
+      ev({id: 3, type: 'card-resource-changed', source: {kind: 'card', card: CardName.ARBORETUM}, player: 'red', correlationId: 1, parentId: 1,
+        impact: {cardResources: [{cardResource: CardResource.DATA, target: CardName.VECTOR_COMPUTATIONS, amount: 1}]}}),
+    ];
+    const rows = buildEventChildren(events, 1, 'red');
+    const counted = rows.find((r) => r.basis !== undefined);
+    expect(counted?.basis).to.deep.eq({count: 3, unitKey: 'adjacent {city|cities}', onCard: CardName.VECTOR_COMPUTATIONS});
+    expect(counted?.chips).to.deep.eq([{icon: CardResource.DATA, text: '+3'}]);
+    expect(rows.filter((r) => r.basis === undefined && r.chips.some((c) => c.text === '+1'))).to.have.length(1);
+  });
+
   it('renders a tile placement with its space + tile label', () => {
     const events: Array<GameEvent> = [
       ev({id: 1, type: 'action', source: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}, player: 'red', correlationId: 1}),

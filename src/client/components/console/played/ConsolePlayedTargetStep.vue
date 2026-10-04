@@ -229,6 +229,7 @@
                 {{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}
               </b>
               <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
+              <template v-else-if="imp.per !== undefined"><b class="con-ptsel__imp-delta con-ptsel__imp-count">{{ imp.from }}</b><span class="con-ptsel__imp-per">· {{ $t(imp.per) }}</span></template>
             </span>
             <span v-if="railOverflow > 0" class="con-ptsel__imp con-ptsel__imp--more">+{{ railOverflow }}</span>
           </span>

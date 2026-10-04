@@ -116,6 +116,14 @@ export type StagedPlayArm = {
    * vote mode beside the delegate's source; the mode cannot change it, B walks back to the composer.
    */
   receipt?: StagedReceipt;
+  /**
+   * The CARD a reward the cell decides will land on — the pick of the play's
+   * basis step (Arboretum: «1 data for each adjacent city» onto the card chosen
+   * in the composer). The server cannot know it before the batch is sent, so
+   * the board's dossier reads it here and prints that card's `before → after`
+   * beside the cell's amount. Absent for every other play.
+   */
+  cardTarget?: CardName;
   /** The play's immediate gains (composer-extracted) — the card-seal beat's
    *  reward wave. Play flow only. */
   rewards?: ReadonlyArray<ResourceTransferSpec>;

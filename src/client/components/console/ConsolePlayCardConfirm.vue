@@ -393,6 +393,7 @@
                         <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
                         <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
                         <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
+                        <template v-else-if="imp.per !== undefined"><b class="con-ptsel__imp-delta con-ptsel__imp-count">{{ imp.from }}</b><span class="con-ptsel__imp-per">· {{ $t(imp.per) }}</span></template>
                       </span>
                     </div>
                     <!-- The CHANGE affordance — drawn ONLY while this row holds
@@ -3910,10 +3911,28 @@ export default defineComponent({
         // door (nothing is chosen, the play submits here as any other): the shell reads it to owe the hosted
         // outcome to this workspace from the press on.
         agendaWalk: this.agendaWalkOf(b),
+        // A reward the CELL decides (Arboretum): the card its units will land on — the board's dossier prints
+        // that card's «before → after» per cell. The pick itself rides the batch like any other.
+        stagedCardTarget: this.stagedCardTargetOf(),
         // …and the raw capture snapshot that restores this very screen when
         // the player comes back from the board with B. Opaque to the shell.
         composerDraft: this.composerDraftSnapshot(),
       });
+    },
+    /**
+     * The card picked by a step whose amount the CELL decides (`resourceGainPrompt.amountBasis`, no
+     * `amount` — Arboretum's «1 data for each adjacent city»), if one was picked. Structural: the server's
+     * marker, never the step's title.
+     */
+    stagedCardTargetOf(): CardName | undefined {
+      for (const choice of this.stepChoices) {
+        const meta = choice.input.type === 'card' ? (choice.input as SelectCardModel).resourceGainPrompt : undefined;
+        if (meta?.amountBasis !== undefined && meta.amount === undefined) {
+          const pick = this.picks[choice.id];
+          return pick !== undefined ? pick as CardName : undefined;
+        }
+      }
+      return undefined;
     },
     /** The walk of the Agenda track the CHOSEN branch promises (TR04's SHOW step), if any. */
     agendaWalkOf(branch: ActionPreviewBranch | undefined): AgendaWalkModel | undefined {

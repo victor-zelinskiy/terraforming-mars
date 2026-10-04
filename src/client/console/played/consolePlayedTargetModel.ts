@@ -86,6 +86,13 @@ export type PlayedTargetImpact = {
   /** A standalone delta when there is no before/after to show. */
   amount?: number;
   /**
+   * The RATE when the amount does not exist yet — a reward the cell decides
+   * after this pick (Arboretum: «+1 for each adjacent city»). An i18n key; the
+   * reading is the candidate's live count (`from`) followed by this rate,
+   * never a guessed «→».
+   */
+  per?: string;
+  /**
    * The reading is TRUE but does not move — «эта карта даёт 1 ПО за каждые две
    * фишки, и там сейчас чётное число». It is shown, because silence would make
    * it look like a card whose points the resource never touches, and those are

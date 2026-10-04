@@ -7,6 +7,7 @@ import {CardResourceBasis} from '../../common/events/EventImpact';
 import {BoardFact} from '../../common/boards/BoardInformationFacts';
 import {ActionPreviewStep} from '../../common/models/ActionPreviewModel';
 import {Message} from '../../common/logs/Message';
+import {Units} from '../../common/Units';
 import {adjacentCitySpaces, cityTiersOf, countCityTiers} from '../boards/cityStack';
 import {cardSource} from '../inputs/choiceContext';
 import {SelectResourceTarget} from '../deferredActions/SelectResourceTarget';
@@ -125,7 +126,17 @@ function land(player: IPlayer, source: ICard, space: Space, cells: ReadonlyArray
   const game = player.game;
   const before = card.resourceCount;
   const basis: CardResourceBasis = {count, unitKey: ADJACENT_CITY_UNIT};
+  // What the table answers (Martian Fiber's M€) is MEASURED around the one addition — the scene flies it, nobody re-derives it.
+  const stockBefore = player.stock.asUnits();
   player.addResourceTo(card, {qty: count, log: false, from: {card: source}, basis});
+  const stockAfter = player.stock.asUnits();
+  const reactions: Partial<Units> = {};
+  for (const key of Object.keys(stockAfter) as Array<keyof Units>) {
+    const delta = stockAfter[key] - stockBefore[key];
+    if (delta > 0) {
+      reactions[key] = delta;
+    }
+  }
   game.log('${0} added ${1} ${2} to ${3} for ${4} adjacent {city|cities}', (b) =>
     b.player(player).number(count).cardResource(resource).card(card).number(count));
   game.recordCardAdjacencyPayout({
@@ -138,6 +149,7 @@ function land(player: IPlayer, source: ICard, space: Space, cells: ReadonlyArray
     resource,
     amount: count,
     before,
+    ...(Object.keys(reactions).length > 0 ? {reactions} : {}),
   });
 }
 
@@ -160,8 +172,9 @@ export function adjacentCityPayoutFacts(player: IPlayer, source: ICard, space: S
   const holders = new SelectResourceTarget(player, resource, cardSource(source), ADJACENT_CITY_BASIS).getCards();
   if (holders.length === 0) {
     return [{
+      // No `spaces`: nothing pays — the board lights no city for a payout that has nowhere to land.
       ...placementPreviews.gain(source, {icon, amount: count, direction: 'gain'}, 'No card can hold the data — it is lost', {
-        id: `card-${source.name}-lost`, spaces, severity: 'warning',
+        id: `card-${source.name}-lost`, severity: 'warning',
       }),
       timing: 'warning',
     }];
