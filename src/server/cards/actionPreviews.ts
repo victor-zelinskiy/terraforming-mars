@@ -18,6 +18,7 @@ import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
+import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
@@ -959,7 +960,7 @@ export function singleBranch(
   player: IPlayer,
   steps: ReadonlyArray<ActionPreviewStep> = [],
   effects: ReadonlyArray<ActionEffect> = [],
-  opts: {reveal?: ActionRevealDescriptor, unavailableReason?: string | Message | UnplayableReason} = {},
+  opts: {reveal?: ActionRevealDescriptor, unavailableReason?: string | Message | UnplayableReason, colonyBonuses?: AllColonyBonusesModel} = {},
 ): ActionPreview {
   const available = card.canAct(player);
   // A blocked branch ALWAYS names its blocker. `opts.unavailableReason` wins when
@@ -982,6 +983,7 @@ export function singleBranch(
     effects,
     steps: available ? steps : [],
     reveal: opts.reveal,
+    ...(opts.colonyBonuses !== undefined ? {colonyBonuses: opts.colonyBonuses} : {}),
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};
 }
@@ -1000,7 +1002,7 @@ export function playPreview(
   player: IPlayer,
   extraEffects: ReadonlyArray<ActionEffect> = [],
   steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
-  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}} = {},
+  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}, colonyBonuses?: AllColonyBonusesModel} = {},
 ): ActionPreview {
   const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
   const branch: ActionPreviewBranch = {
@@ -1011,6 +1013,7 @@ export function playPreview(
     effects: [...behaviorEffects, ...extraEffects],
     steps: definedSteps(steps),
     mergeCardSteps: opts.mergeCardSteps,
+    ...(opts.colonyBonuses !== undefined ? {colonyBonuses: opts.colonyBonuses} : {}),
   };
   return {...base(card), kind: 'bespoke', branches: [branch]};
 }

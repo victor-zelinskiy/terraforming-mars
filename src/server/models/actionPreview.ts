@@ -381,7 +381,11 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   // ── Gains ──
   if (behavior.addResources !== undefined && card.resourceType !== undefined) {
     const n = ctx.count(behavior.addResources);
-    out.push({direction: 'gain', icon: cardResourceIcon(card.resourceType), amount: n, current: card.resourceCount, resulting: card.resourceCount + n, note: 'on this card'});
+    // A COUNTED amount («1 data per colony in play») names what it counted —
+    // the same basis the stock / production / TR chips carry — so the number
+    // explains itself, a zero included («0 → 0 · Colonies in play: 0»).
+    const basis = countableBasis(ctx, behavior.addResources);
+    out.push({direction: 'gain', icon: cardResourceIcon(card.resourceType), amount: n, current: card.resourceCount, resulting: card.resourceCount + n, note: 'on this card', ...(basis !== undefined ? {basis} : {})});
   }
   // `addResourcesToAnyCard` is single-OR-ARRAY (Imported Nitrogen: +3 microbes AND
   // +2 animals). Show a "+N to a card" gain PER addition — only when a card can

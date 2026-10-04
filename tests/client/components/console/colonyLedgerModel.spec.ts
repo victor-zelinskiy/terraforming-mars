@@ -34,9 +34,9 @@ function shipped(id: string): IClientResolution {
   return r;
 }
 
-const LUNA: ColonyLedgerEntryModel = {colony: ColonyName.LUNA, grant: {benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 2, resource: Resource.MEGACREDITS}, description: 'Gain 2 M€'};
-const TITAN: ColonyLedgerEntryModel = {colony: ColonyName.TITAN, grant: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResource: CardResource.FLOATER}, description: 'Add 1 floater to ANY card'};
-const PLUTO: ColonyLedgerEntryModel = {colony: ColonyName.PLUTO, grant: {benefit: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE, quantity: 1}, description: 'Draw 1 card and then discard 1 card'};
+const LUNA: ColonyLedgerEntryModel = {colony: ColonyName.LUNA, grant: {benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 2, resource: Resource.MEGACREDITS}, description: 'Gain 2 M€', cubes: 1};
+const TITAN: ColonyLedgerEntryModel = {colony: ColonyName.TITAN, grant: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResource: CardResource.FLOATER}, description: 'Add 1 floater to ANY card', cubes: 1};
+const PLUTO: ColonyLedgerEntryModel = {colony: ColonyName.PLUTO, grant: {benefit: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE, quantity: 1}, description: 'Draw 1 card and then discard 1 card', cubes: 1};
 
 function seat(color: Color, agenda: number, colonies: ReadonlyArray<ColonyLedgerEntryModel> | undefined): ParliamentPlayerModel {
   const model: ParliamentPlayerModel = {
@@ -145,7 +145,7 @@ describe('voteInfoModel — the ledger in the vote panel', () => {
     expect(voteReadingOf(shipped(AQUIFER), model([seat(BLUE, 5, [LUNA])]), BLUE, []).ledger).is.undefined;
     expect(voteReadingOf(shipped(COLONIAL), model([seat(BLUE, 5, [LUNA])]), RED, []).ledger, 'a spectator reads the graphic alone').is.undefined;
     // The budget counts the tiles' names and the sums' kicker — four tiles keep the panel under its ceiling.
-    const four = [LUNA, TITAN, PLUTO, {colony: ColonyName.MIRANDA, grant: {benefit: ColonyBenefit.DRAW_CARDS, quantity: 1}, description: 'Draw 1 card'}];
+    const four = [LUNA, TITAN, PLUTO, {colony: ColonyName.MIRANDA, grant: {benefit: ColonyBenefit.DRAW_CARDS, quantity: 1}, description: 'Draw 1 card', cubes: 1}];
     const resolution = shipped(COLONIAL);
     const instance = `${COLONIAL}#0`;
     const table = model([seat(BLUE, 5, four)], {

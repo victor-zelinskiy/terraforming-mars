@@ -17,12 +17,12 @@ import {ALL_COLONIES_TILES} from '../../src/server/colonies/ColonyManifest';
  */
 const BLUE = 'blue' as Color;
 
-const LUNA: ColonyLedgerEntryModel = {colony: ColonyName.LUNA, grant: {benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 2, resource: Resource.MEGACREDITS}, description: 'Gain 2 M€'};
-const TITAN: ColonyLedgerEntryModel = {colony: ColonyName.TITAN, grant: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResource: CardResource.FLOATER}, description: 'Add 1 floater to ANY card'};
-const MIRANDA: ColonyLedgerEntryModel = {colony: ColonyName.MIRANDA, grant: {benefit: ColonyBenefit.DRAW_CARDS, quantity: 1}, description: 'Draw 1 card'};
-const PLUTO: ColonyLedgerEntryModel = {colony: ColonyName.PLUTO, grant: {benefit: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE, quantity: 1}, description: 'Draw 1 card and then discard 1 card'};
-const TITANIA: ColonyLedgerEntryModel = {colony: ColonyName.TITANIA, grant: {benefit: ColonyBenefit.LOSE_RESOURCES, quantity: 3, resource: Resource.MEGACREDITS}, description: 'Lose 3 M€'};
-const IAPETUS: ColonyLedgerEntryModel = {colony: ColonyName.IAPETUS, grant: {benefit: ColonyBenefit.GAIN_CARD_DISCOUNT, quantity: 1}, description: 'Pay 1 M€ less for cards this generation'};
+const LUNA: ColonyLedgerEntryModel = {colony: ColonyName.LUNA, grant: {benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 2, resource: Resource.MEGACREDITS}, description: 'Gain 2 M€', cubes: 1};
+const TITAN: ColonyLedgerEntryModel = {colony: ColonyName.TITAN, grant: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResource: CardResource.FLOATER}, description: 'Add 1 floater to ANY card', cubes: 1};
+const MIRANDA: ColonyLedgerEntryModel = {colony: ColonyName.MIRANDA, grant: {benefit: ColonyBenefit.DRAW_CARDS, quantity: 1}, description: 'Draw 1 card', cubes: 1};
+const PLUTO: ColonyLedgerEntryModel = {colony: ColonyName.PLUTO, grant: {benefit: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE, quantity: 1}, description: 'Draw 1 card and then discard 1 card', cubes: 1};
+const TITANIA: ColonyLedgerEntryModel = {colony: ColonyName.TITANIA, grant: {benefit: ColonyBenefit.LOSE_RESOURCES, quantity: 3, resource: Resource.MEGACREDITS}, description: 'Lose 3 M€', cubes: 1};
+const IAPETUS: ColonyLedgerEntryModel = {colony: ColonyName.IAPETUS, grant: {benefit: ColonyBenefit.GAIN_CARD_DISCOUNT, quantity: 1}, description: 'Pay 1 M€ less for cards this generation', cubes: 1};
 
 const record = (over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentEnactOutcomeModel['kind']}): ParliamentEnactOutcomeModel =>
   ({player: BLUE, step: 'colony:X', part: 'effect', effect: 'colonyBonuses', multiplier: 3, influence: 3, ...over}) as ParliamentEnactOutcomeModel;
@@ -55,6 +55,33 @@ describe('colonyLedger — the shared pure half of «gain all your colony bonuse
     ]);
     expect(rows.every((r) => r.multiplier === 3 && r.records.length === 0)).is.true;
     expect(colonyLedgerRows([], 3), 'no tiles — no rows').deep.eq([]);
+  });
+
+  it('a row is paid k × its CUBES: two cubes on Luna at k = 3 are 6 repeats = 12 M€; two on Pluto are 6 pairs — one cube reads as before', () => {
+    const rows = colonyLedgerRows([{...LUNA, cubes: 2}, TITAN, {...PLUTO, cubes: 2}], 3);
+    expect(rows.map((r) => [r.colony, r.cubes, r.multiplier, r.total])).deep.eq([
+      [ColonyName.LUNA, 2, 6, 12],
+      [ColonyName.TITAN, 1, 3, 3],
+      [ColonyName.PLUTO, 2, 6, 6],
+    ]);
+  });
+
+  it('a CARD\'s reading (no records): the entry\'s own refusal is a skipped row with its reason, and a row says what it will ask', () => {
+    const rows = colonyLedgerRows([
+      {...LUNA, cubes: 2},
+      {...MIRANDA, asks: 'draw'},
+      {...PLUTO, asks: 'draw-discard'},
+      {...TITAN, skipped: {reason: 'No card can hold floaters', amount: 1}},
+    ], 1);
+    expect(rows.map((r) => [r.colony, r.state, r.asks, r.skipped])).deep.eq([
+      [ColonyName.LUNA, 'pending', undefined, undefined],
+      [ColonyName.MIRANDA, 'pending', 'draw', undefined],
+      [ColonyName.PLUTO, 'pending', 'draw-discard', undefined],
+      [ColonyName.TITAN, 'skipped', undefined, 'No card can hold floaters'],
+    ]);
+    expect(rows[0].total, 'two cubes, once each').eq(4);
+    // A skipped row adds nothing to the sums.
+    expect(colonyLedgerTotals(rows).cardResources).deep.eq([]);
   });
 
   it('the sums by unit: M€ 6, floaters 3, cards 3, pairs 3 — and a skipped row adds nothing', () => {

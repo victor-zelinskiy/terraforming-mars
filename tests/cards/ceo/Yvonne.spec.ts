@@ -8,6 +8,12 @@ import {Yvonne} from '../../../src/server/cards/ceos/Yvonne';
 import {Callisto} from '../../../src/server/colonies/Callisto';
 import {Ceres} from '../../../src/server/colonies/Ceres';
 import {Triton} from '../../../src/server/colonies/Triton';
+import {Pluto} from '../../../src/server/colonies/Pluto';
+import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {IProjectCard} from '../../../src/server/cards/IProjectCard';
+import {CardName} from '../../../src/common/cards/CardName';
+import {ColonyName} from '../../../src/common/colonies/ColonyName';
+import {cast} from '../../../src/common/utils/utils';
 
 
 describe('Yvonne', () => {
@@ -67,6 +73,23 @@ describe('Yvonne', () => {
     expect(player2.energy).eq(0);
     expect(player2.steel).eq(0);
     expect(player2.titanium).eq(0);
+  });
+
+  it('every cube pays TWICE and says which payout it is: one cube on Pluto is «1 of 2», then «2 of 2», under Yvonne', () => {
+    const pluto = new Pluto();
+    game.colonies = [pluto];
+    pluto.colonies.push(player.id);
+    player.cardsInHand.push(...game.projectDeck.drawN(game, 2) as Array<IProjectCard>);
+
+    card.action(player);
+    game.deferredActions.runAll(() => { });
+    const first = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    expect(first.discardPrompt?.source).deep.eq({kind: 'card', card: CardName.YVONNE});
+    expect(first.discardPrompt?.colonyRepeat).deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 2});
+    first.cb([first.cards[0]]);
+    game.deferredActions.runAll(() => { });
+    const second = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    expect(second.discardPrompt?.colonyRepeat).deep.eq({colonyName: ColonyName.PLUTO, index: 2, total: 2});
   });
 
   it('Can only act once per game', () => {

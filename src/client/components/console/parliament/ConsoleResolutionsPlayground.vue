@@ -2983,7 +2983,9 @@ export default defineComponent({
       // …and the COLONY LEDGER a «colony bonuses» part multiplies — the registry the server ships, built from
       // the colony manifest's printed bonuses (the same descriptors `IColony.colonyBonusGrant` reads).
       if (colonyBonusesEffectOf(this.selected ?? {}) !== undefined) {
-        model.colonyBonuses = (this.seats[i].colonies ?? []).map((name) => {
+        // A tile named TWICE in the seat's list is two cubes on it (each pays in full) — one row, `cubes: 2`.
+        const seated = this.seats[i].colonies ?? [];
+        model.colonyBonuses = [...new Set(seated)].map((name) => {
           const colony = getColony(name).colony;
           const grant: ColonyTradeGrantModel = {benefit: colony.type, quantity: colony.quantity};
           if (colony.resource !== undefined) {
@@ -2997,7 +2999,7 @@ export default defineComponent({
               grant.cardResources = kinds;
             }
           }
-          return {colony: name, grant, description: colony.description};
+          return {colony: name, grant, description: colony.description, cubes: seated.filter((n) => n === name).length};
         });
       }
       return model;

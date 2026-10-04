@@ -80,7 +80,7 @@ export class GiveColonyBonus extends DeferredAction {
       // while the trader's own cube resolves inline on the stage they are
       // already watching. `selfish` (CoordinatedRaid) makes the trader the
       // recipient of every cube, so it is inline by construction.
-      const input = this.colony.giveColonyBonus(player, true, ordinal, this.player);
+      const input = this.colony.giveColonyBonus(player, {inTrade: true, ordinal, trader: this.player});
       if (input !== undefined) {
         // The continuation must RESTORE this delivery's own captured scope:
         // `Player.process` deliberately runs `waitingForCb` OUTSIDE the

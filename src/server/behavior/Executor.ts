@@ -9,6 +9,7 @@ import {PlaceGreeneryTile} from '../deferredActions/PlaceGreeneryTile';
 import {PlaceOceanTile} from '../deferredActions/PlaceOceanTile';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
 import {Priority} from '../deferredActions/Priority';
+import {countedResourceBasis} from './countedBasis';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {PlaceMoonHabitatTile} from '../moon/PlaceMoonHabitatTile';
 import {PlaceMoonMineTile} from '../moon/PlaceMoonMineTile';
@@ -559,8 +560,10 @@ export class Executor implements BehaviorExecutor {
         player.game.log('Resources from ${0} cannot be added to ${1}', (b) => b.card(card).cardName(CardName.DOUBLE_DOWN));
       } else {
         const count = ctx.count(addResources);
+        // A COUNTED amount carries its reason onto the event («for 5 colonies in play»).
+        const basis = countedResourceBasis(addResources, count);
         player.defer(() => {
-          player.addResourceTo(card, {qty: count, log: true});
+          player.addResourceTo(card, {qty: count, log: true, ...(basis !== undefined ? {basis} : {})});
           return undefined;
         });
       }

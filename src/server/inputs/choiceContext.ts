@@ -84,7 +84,10 @@ export function namedCardSource(card: CardName, isCorporation = false): ChoiceCo
 }
 
 /** A COLONY that caused a prompt — no card to show, so it names itself instead
- *  («КОЛОНИЯ · Ганимед») rather than leaving the player with a bare list. */
-export function colonySource(name: string | Message): ChoiceContextSource {
-  return {kind: 'colony', name};
+ *  («КОЛОНИЯ · Ганимед») rather than leaving the player with a bare list.
+ *  `via` is the CARD that pays this colony's bonus outside a trade («gain all
+ *  your colony bonuses» — Habitat Science, Productive Outpost): the question
+ *  is still the colony's, and the workspace the card was pressed in owns it. */
+export function colonySource(name: string | Message, via?: CardName): ChoiceContextSource {
+  return via === undefined ? {kind: 'colony', name} : {kind: 'colony', name, via};
 }

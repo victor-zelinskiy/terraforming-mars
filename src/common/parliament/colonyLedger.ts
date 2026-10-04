@@ -19,7 +19,8 @@
 import {ColonyBenefit} from '../colonies/ColonyBenefit';
 import {ColonyName} from '../colonies/ColonyName';
 import {ColonyTradeGrantModel} from '../models/ColonyTradeManifestModel';
-import {ColonyLedgerEntryModel, ParliamentEnactOutcomeModel} from '../models/ParliamentModel';
+import {ColonyBonusAsk, ColonyLedgerEntryModel} from '../models/ColonyBonusLedgerModel';
+import {ParliamentEnactOutcomeModel} from '../models/ParliamentModel';
 
 /**
  * WHAT A PRINTED COLONY BONUS BECOMES under ×k — the family table (§2 of the
@@ -84,12 +85,19 @@ export type ColonyLedgerRowState =
 export type ColonyLedgerRow = {
   colony: ColonyName;
   bonus: ColonyLedgerBonus;
-  /** k — how many times this row's bonus is paid. */
-  multiplier: number;
   /**
-   * The row's TOTAL at k in the bonus's own unit: `amount × k` for a merged
-   * bonus; for a pair (`draw-discard`) the number of PAIRS (k); for a `hud`
-   * benefit `amount × k` where the tile prints an amount, else k repeats.
+   * HOW MANY TIMES this row's bonus is paid: k × the seat's cubes on the tile
+   * (every cube is a colony and pays in full — two cubes at k = 3 pay 6
+   * times; one cube pays k).
+   */
+  multiplier: number;
+  /** The seat's cubes on the tile (the row's own factor of `multiplier`). */
+  cubes: number;
+  /**
+   * The row's TOTAL in the bonus's own unit: `amount × multiplier` for a
+   * merged bonus; for a pair (`draw-discard`) the number of PAIRS; for a
+   * `hud` benefit `amount × multiplier` where the tile prints an amount,
+   * else the repeats.
    */
   total: number;
   state: ColonyLedgerRowState;
@@ -97,6 +105,8 @@ export type ColonyLedgerRow = {
   records: ReadonlyArray<ParliamentEnactOutcomeModel>;
   /** `skipped`: the server's reason (an English key). */
   skipped?: string;
+  /** A CARD's payout: what the row will ask of the player after the press (the entry's own `asks`). */
+  asks?: ColonyBonusAsk;
 };
 
 /** The ledger's SUMS by unit — what the player receives in all, read off the rows. */
@@ -145,9 +155,11 @@ function recordsOf(records: ReadonlyArray<ParliamentEnactOutcomeModel>, colony: 
 }
 
 /**
- * THE ROWS: one per tile of the seat's registry, in the registry's (the
- * table's) order, multiplied by `k`; a row's state is read off the RECORDS
- * (the server's own, filtered to the viewer and the effect) — never guessed.
+ * THE ROWS: one per tile of the seat's registry, in the registry's order,
+ * each paid `k` times PER CUBE of the seat's on the tile; a row's state is
+ * read off the RECORDS (the server's own, filtered to the viewer and the
+ * effect) — or, for a card's payout read before the press, off the entry's
+ * own `skipped` (the server's refusal, named with its size) — never guessed.
  */
 export function colonyLedgerRows(entries: ReadonlyArray<ColonyLedgerEntryModel>, k: number, records: ReadonlyArray<ParliamentEnactOutcomeModel> = []): Array<ColonyLedgerRow> {
   return entries.map((entry) => {
@@ -155,11 +167,17 @@ export function colonyLedgerRows(entries: ReadonlyArray<ColonyLedgerEntryModel>,
     const own = recordsOf(records, entry.colony);
     const skip = own.find((o) => o.kind === 'skipped');
     const paid = own.some((o) => o.kind !== 'skipped');
-    const state: ColonyLedgerRowState = paid ? 'paid' : skip !== undefined ? 'skipped' : 'pending';
-    const total = bonus.kind === 'draw-discard' ? k : bonus.amount * k;
-    const row: ColonyLedgerRow = {colony: entry.colony, bonus, multiplier: k, total, state, records: own};
-    if (state === 'skipped' && skip?.reason !== undefined) {
-      row.skipped = skip.reason;
+    const refused = entry.skipped !== undefined;
+    const state: ColonyLedgerRowState = paid ? 'paid' : (skip !== undefined || refused) ? 'skipped' : 'pending';
+    const repeats = k * entry.cubes;
+    const total = bonus.kind === 'draw-discard' ? repeats : bonus.amount * repeats;
+    const row: ColonyLedgerRow = {colony: entry.colony, bonus, multiplier: repeats, cubes: entry.cubes, total, state, records: own};
+    const reason = skip?.reason ?? entry.skipped?.reason;
+    if (state === 'skipped' && reason !== undefined) {
+      row.skipped = reason;
+    }
+    if (entry.asks !== undefined && state !== 'skipped') {
+      row.asks = entry.asks;
     }
     return row;
   });

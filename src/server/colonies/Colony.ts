@@ -24,12 +24,13 @@ import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
-import {ColonyBonusOrdinal, IColony, TradeOptions, TradeTerms, tradeTermsOf, TradeTrackPlan} from './IColony';
+import {ColonyBonusOptions, ColonyBonusOrdinal, IColony, TradeOptions, TradeTerms, tradeTermsOf, TradeTrackPlan} from './IColony';
 import {ColonyMetadata, colonyMetadata, colonyCardResources, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome, trackTop} from '../../common/colonies/ColonyMetadata';
 import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
 import {CardDrawRevealSource, ColonyTradeRevealTag} from '../../common/models/CardDrawRevealModel';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {ColonyTradeBonusRecipientModel, ColonyTradeGrantModel} from '../../common/models/ColonyTradeManifestModel';
 import {sum} from '../../common/utils/utils';
 import {message} from '../logs/MessageBuilder';
@@ -38,7 +39,7 @@ import {TileType} from '../../../src/common/TileType';
 import {ErodeSpacesDeferred} from '../underworld/ErodeSpacesDeferred';
 import {CardName} from '../../common/cards/CardName';
 import {GlobalParameter} from '@/common/GlobalParameter';
-import {colonySource} from '../inputs/choiceContext';
+import {colonySource, namedCardSource} from '../inputs/choiceContext';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {TradeDestinationSource} from './ITradeDestination';
@@ -458,12 +459,28 @@ export abstract class Colony implements IColony {
     return {tradeId: this.activeTradeId, role: benefit === 'trade' ? 'income' : 'bonus'};
   }
 
-  /** The colony reveal source for a card draw, trade-stamped inside a trade window. */
-  private colonyRevealSource(benefit: ColonyBenefitRole): CardDrawRevealSource {
+  /**
+   * The colony reveal source for a card draw: trade-stamped inside a trade
+   * window, or — for a bonus a CARD pays outside any trade — naming that card
+   * (`via`), which is what lets the workspace the card was pressed in claim
+   * the batch. The two never coexist: a card's grant is not a trade.
+   */
+  private colonyRevealSource(benefit: ColonyBenefitRole, via?: CardName): CardDrawRevealSource {
+    if (via !== undefined) {
+      return {type: 'colony', colonyName: this.name, via};
+    }
     const trade = this.tradeRevealTag(benefit);
     return trade !== undefined ?
       {type: 'colony', colonyName: this.name, trade} :
       {type: 'colony', colonyName: this.name};
+  }
+
+  /**
+   * WHO a bonus's own question names: the colony («КОЛОНИЯ · Титан») — and,
+   * when a CARD pays the bonus outside a trade, that card beside it (`via`).
+   */
+  private bonusCause(via: CardName | undefined): ChoiceContextSource {
+    return colonySource(this.name, via);
   }
 
   /**
@@ -472,8 +489,9 @@ export abstract class Colony implements IColony {
    * — the rules never merge them — so an INTERACTIVE bonus (Pluto's "draw 1,
    * then discard 1") uses it to tell the player which colony is paying out.
    */
-  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
-    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', ordinal, trader);
+  public giveColonyBonus(player: IPlayer, options: ColonyBonusOptions = {}): undefined | PlayerInput {
+    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource,
+      options.inTrade === true, 'colonyBonus', options.ordinal, options.trader, options.via);
   }
 
   /**
@@ -488,8 +506,9 @@ export abstract class Colony implements IColony {
    * recipient's bonus is queued at `Priority.BACK_OF_THE_LINE` — after the
    * trade's own finalizer. The trader's own cube resolves inline in the
    * trade's chain (they are already watching the payout), a bot never prompts
-   * (handled before this is asked), and the self-directed grants
-   * (ProductiveOutpost / selfish trades) have no foreign trader.
+   * (handled before this is asked), and the self-directed grants (a card
+   * paying «all your colony bonuses» — `via` — and selfish trades) have no
+   * foreign trader.
    */
   private isDetachedBonusDelivery(player: IPlayer, isGiveColonyBonus: boolean, trader: IPlayer | undefined): trader is IPlayer {
     return isGiveColonyBonus && trader !== undefined && trader.id !== player.id && !player.isMarsBot;
@@ -507,12 +526,21 @@ export abstract class Colony implements IColony {
    * deferred build bonuses (draw / add-resource) are covered too. A top-level trade
    * is already a `colony` root, so re-sourcing there is a harmless no-op.
    */
-  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
+  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer, via?: CardName): undefined | PlayerInput {
     return player.game.events.withSource({kind: 'colony', name: this.name, benefit}, () =>
-      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, ordinal, trader));
+      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, ordinal, trader, via));
   }
 
-  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
+  /**
+   * `via` — the CARD paying this bonus outside a trade (see
+   * `ColonyBonusOptions`). It changes three things and only these: a draw's
+   * reveal source names the card, a resource's single holder is SHOWN
+   * (`autoSelect: false` — the trade's own path pre-collects its target on
+   * the colony stage and is left exactly as it was), and Pluto's discard is
+   * marked `colonyRepeat` with the card as its source instead of
+   * `colonyBonus` (which routes the colony workspace).
+   */
+  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer, via?: CardName): undefined | PlayerInput {
     const game = player.game;
 
     let action: undefined | DeferredAction<any> = undefined;
@@ -524,7 +552,12 @@ export abstract class Colony implements IColony {
       // and no idea which of their colonies paid. SEVERAL kinds (the Redux
       // Vesta) are ONE pick over the holders of any of them — the kind lands
       // as the chosen card's own, never as a second question.
-      action = new AddResourcesToCard(player, this.cardResourceKinds(), {count: quantity, cause: colonySource(this.name)});
+      action = new AddResourcesToCard(player, this.cardResourceKinds(), {
+        count: quantity,
+        cause: this.bonusCause(via),
+        // A CARD's payout: the one holder is still a pick the player sees (no auto-select).
+        ...(via !== undefined ? {autoSelect: false} : {}),
+      });
       break;
 
     case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
@@ -535,7 +568,8 @@ export abstract class Colony implements IColony {
           count: quantity,
           restrictedTag: Tag.VENUS,
           title: message('Select Venus card to add ${0} resource(s)', (b) => b.number(quantity)),
-          cause: colonySource(this.name),
+          cause: this.bonusCause(via),
+          ...(via !== undefined ? {autoSelect: false} : {}),
         });
       break;
 
@@ -572,7 +606,7 @@ export abstract class Colony implements IColony {
       // modal shows a hoverable colony chip as the source — plus the tradeId
       // when the draw is part of a resolving trade, so the client binds it to
       // that trade's transaction (and same-trade batches merge into one).
-      const drawSource = this.colonyRevealSource(benefit);
+      const drawSource = this.colonyRevealSource(benefit, via);
       /*
        * A BONUS PAID TO SOMEONE ELSE IS DELIVERED, NOT POSTED. When another
        * player's trade pays this owner their card, the draw used to happen
@@ -586,8 +620,8 @@ export abstract class Colony implements IColony {
        * The TRADER's own bonus stays inline: they are already watching the
        * payout resolve on their own colony stage, and a prompt there would be
        * a click asking them to confirm what they just did. Same for a bot
-       * (never prompted) and for the self-directed grants
-       * (ProductiveOutpost / Yvonne — no trader, `isGiveColonyBonus` false).
+       * (never prompted) and for the self-directed grants (a card paying
+       * «all your colony bonuses» — no trader, `isGiveColonyBonus` false).
        */
       const seat = ordinal ?? {index: 1, total: 1};
       if (this.isDetachedBonusDelivery(player, isGiveColonyBonus, trader)) {
@@ -630,7 +664,7 @@ export abstract class Colony implements IColony {
     case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE: {
       // Capture the trade-stamped source NOW — the deferred callback runs
       // later, when the trade-stamping window may have moved on.
-      const drawAndDiscardSource = this.colonyRevealSource(benefit);
+      const drawAndDiscardSource = this.colonyRevealSource(benefit, via);
       // ONE CUBE, ONE PAYOUT: draw 1, then discard 1, and only then does the
       // recipient's NEXT cube start (Priority.SUPERPOWER puts this discard
       // ahead of every other pending pair of this payout — for the trader
@@ -653,12 +687,24 @@ export abstract class Colony implements IColony {
         // separated by whenever the client's acknowledgement happens to land
         // (see IPlayer.CardDrawReveal.sealed).
         player.sealCardDrawReveal();
-        player.game.defer(
+        // WHO owns the closing discard. A trade's: the colony resolution
+        // (`colonyBonus` — the marker that routes the colony workspace). A
+        // CARD's: that card, with the tile and «n of k» riding `colonyRepeat`
+        // — the same planet and position, WITHOUT that routing (the
+        // precedent: Colonial Affairs' discard, a step of the sitting).
+        const discard = via === undefined ?
           new DiscardCards(player, 1, 1, this.name + ' colony bonus. Select a card to discard', {
             source: {kind: 'colony'},
             colonyBonus: {colonyName: this.name, index: seat.index, total: seat.total},
-          }),
-          Priority.SUPERPOWER);
+          }) :
+          new DiscardCards(player, 1, 1,
+            message('Discard 1 card: the ${0} colony bonus, ${1} of ${2}, from ${3}', (b) =>
+              b.colony(this).number(seat.index).number(seat.total).cardName(via)),
+            {
+              source: namedCardSource(via),
+              colonyRepeat: {colonyName: this.name, index: seat.index, total: seat.total},
+            });
+        player.game.defer(discard, Priority.SUPERPOWER);
       }, this.isDetachedBonusDelivery(player, isGiveColonyBonus, trader) ? Priority.BACK_OF_THE_LINE : Priority.DEFAULT);
       break;
     }

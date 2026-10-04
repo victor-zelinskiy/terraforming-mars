@@ -228,6 +228,8 @@ export type RewardPayload = {
   colony?: string;
   /** …how many times that bonus was paid in this one record (the resolution's multiplier k). */
   multiplier?: number;
+  /** …and the seat's cubes on that tile, when more than one (each pays in full). */
+  cubes?: number;
   /** `colonyBonus`: the tile's printed description of the bonus (an English key of the colony's own). */
   description?: string;
   /** The CELL a record names (the board scene's own address): `tileRemoved` the one the tile left, a placement the one it took — and who chose it. */
@@ -316,6 +318,9 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   }
   if (outcome.multiplier !== undefined) {
     payload.multiplier = outcome.multiplier;
+  }
+  if (outcome.cubes !== undefined) {
+    payload.cubes = outcome.cubes;
   }
   if (outcome.description !== undefined) {
     payload.description = outcome.description;

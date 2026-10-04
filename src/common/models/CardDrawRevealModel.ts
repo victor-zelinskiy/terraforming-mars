@@ -55,7 +55,14 @@ export type ColonyTradeRevealSegment = {
  */
 export type CardDrawRevealSource =
   | {type: 'card', cardName: CardName}
-  | {type: 'colony', colonyName: ColonyName, trade?: ColonyTradeRevealTag}
+  /**
+   * `via` — the CARD that paid this colony's bonus OUTSIDE a trade («gain all
+   * your colony bonuses»: Habitat Science, Productive Outpost, Yvonne). The
+   * batch is still the colony's (the planet names it), and `via` is the key
+   * the workspace the card was pressed in claims it by. Never set together
+   * with `trade`; absent for a trade's and a build's draw.
+   */
+  | {type: 'colony', colonyName: ColonyName, trade?: ColonyTradeRevealTag, via?: CardName}
   /**
    * A board-tile bonus draw. `spaceId` (when known) names the PAYING cell:
    * the placed cell for its own printed DRAW_CARD bonus, or the NEIGHBOURING

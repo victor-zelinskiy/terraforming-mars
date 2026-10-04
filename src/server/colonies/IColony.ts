@@ -5,6 +5,7 @@ import {IGame} from '../IGame';
 import {SerializedColony} from '../SerializedColony';
 import {ColonyMetadata} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
+import {CardName} from '../../common/cards/CardName';
 import {ColonyTradeGrantModel} from '../../common/models/ColonyTradeManifestModel';
 import {ITradeDestination} from './ITradeDestination';
 
@@ -17,6 +18,37 @@ export type TradeOptions = {
 
 /** Which of a recipient's cubes on a colony is resolving (1-based) of how many. */
 export type ColonyBonusOrdinal = {index: number, total: number};
+
+/**
+ * WHO PAYS A COLONY BONUS, AND AS WHAT — everything `giveColonyBonus` needs
+ * beside the recipient. A bonus has two payers and they never mix:
+ *
+ *  · A TRADE (`GiveColonyBonus`, the deferred action a trade queues):
+ *    `inTrade` + `ordinal` + `trader`. An interactive bonus is RETURNED to
+ *    the drain instead of deferred, a bonus owed to somebody other than the
+ *    trader is a detached delivery, and Pluto's discard carries the
+ *    `colonyBonus` marker (the colony resolution's own flow).
+ *  · A CARD paying «all your colony bonuses» outside any trade (Habitat
+ *    Science, Productive Outpost, Yvonne — `gainAllColonyBonuses`): `ordinal`
+ *    + `via`. The card NAMES ITSELF on everything the bonus asks — the draw's
+ *    reveal source (`{type: 'colony', colonyName, via}`), the resource
+ *    target's cause, the discard's source — so the workspace the player
+ *    pressed in can own the whole payout; a single holder is SHOWN (no
+ *    auto-select), and Pluto's discard carries `colonyRepeat` (the tile and
+ *    «n of k» WITHOUT routing the colony workspace).
+ *
+ * A bare `giveColonyBonus(player)` (no options) is the direct grant the specs
+ * and the build path knew: anonymous colony source, auto-select as before.
+ */
+export type ColonyBonusOptions = {
+  /** One cube's payout of a TRADE resolving here — see above. */
+  inTrade?: boolean;
+  ordinal?: ColonyBonusOrdinal;
+  /** Who made the trade (with `inTrade`): a bonus paid to somebody ELSE is delivered, never inline. */
+  trader?: IPlayer;
+  /** The CARD that pays this bonus outside a trade. Never set together with `inTrade`. */
+  via?: CardName;
+};
 
 /**
  * WHAT THE PATH A TRADE IS PAID BY BRINGS TO THE COLONY'S OWN JUDGEMENT —
@@ -139,6 +171,9 @@ export interface IColony extends ITradeDestination {
    */
   tradeBlockedReason(player: IPlayer, terms?: number | TradeTerms): string | undefined;
   /**
+   * Pay ONE cube's printed colony bonus to `player`. `options` say who pays
+   * it and as what (see {@link ColonyBonusOptions}):
+   *
    * `ordinal` = WHICH of this recipient's cubes on this colony is resolving
    * (1-based) out of how many they own. Each cube resolves separately and in
    * full; an interactive bonus uses this only to say which colony is paying.
@@ -146,9 +181,12 @@ export interface IColony extends ITradeDestination {
    * `trader` = who made the trade that pays this bonus, when there is one. A
    * bonus paid to somebody ELSE is DELIVERED (the recipient collects it, and
    * the cards are drawn on their answer); the trader's own cube resolves
-   * inline. Absent for the self-directed grants (ProductiveOutpost, Yvonne).
+   * inline.
+   *
+   * `via` = the CARD that pays the bonus outside a trade (Habitat Science,
+   * Productive Outpost, Yvonne) — it names itself on every prompt and batch.
    */
-  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput;
+  giveColonyBonus(player: IPlayer, options?: ColonyBonusOptions): undefined | PlayerInput;
   /**
    * THE PRINTED COLONY BONUS AS A GRANT — the same descriptor the trade
    * manifest carries for the per-cube payout (`colonyBonus`), read off this

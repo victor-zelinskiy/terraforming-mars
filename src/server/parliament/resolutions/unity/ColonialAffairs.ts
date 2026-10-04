@@ -20,9 +20,13 @@
  *  · «A COLONY BONUS» is the tile's PRINTED colony bonus — what a cube's
  *    owner receives when somebody else trades there (`metadata.colony`,
  *    `IColony.colonyBonusGrant`) — never the trade income, never the build
- *    bonus. «ALL YOUR» is one per tile the player has a cube on (a player
- *    never holds two cubes on one tile), in the TABLE's order
- *    (`game.colonies`).
+ *    bonus. «ALL YOUR» is one per CUBE of the player's: a tile carrying two
+ *    of them pays twice (Space Port Colony and Research Colony build over
+ *    one's own cube), exactly as the engine pays a trade's owner bonus. The
+ *    tiles and their cubes are the engine's ONE reading (`ownColonyBonuses`
+ *    over `ColoniesHandler.coloniesOf`), in the TABLE's order
+ *    (`game.colonies`); a row's repeats are k × cubes, its record carries
+ *    `multiplier: k` (the declaration's number) and `cubes` beside it.
  *  · «k TIMES» — THE LAW OF MERGING: the k repeats of one bonus are ONE
  *    payout exactly when no decision and no new information stands between
  *    them. A supply gain (Luna 2 M€ ×k = 2k M€) merges; a resource onto a
@@ -77,6 +81,7 @@ import {ResolutionCode, ResolutionId} from '../../../../common/parliament/Parlia
 import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {sum} from '../../../../common/utils/utils';
 import {IColony} from '../../../colonies/IColony';
+import {NO_VENUS_HOLDER_REASON, noHolderReason, ownColonyBonuses} from '../../../colonies/allColonyBonuses';
 import {IGame} from '../../../IGame';
 import {IPlayer} from '../../../IPlayer';
 import {message} from '../../../logs/MessageBuilder';
@@ -128,11 +133,6 @@ export function colonyRepeatStepKey(colony: ColonyName, n: number, half: 'draw' 
   return `colony:${colony}:${n}:${half}`;
 }
 
-/** The tiles `player` has a cube on, in the TABLE's order (`game.colonies`). */
-export function colonyTilesOf(player: IPlayer, game: IGame): Array<IColony> {
-  return game.colonies.filter((colony) => colony.colonies.includes(player.id));
-}
-
 /**
  * WHAT A PRINTED COLONY BONUS BECOMES under ×k — the family table, stated
  * ONCE in the shared ledger module (`common/parliament/colonyLedger.ts`): the
@@ -141,16 +141,12 @@ export function colonyTilesOf(player: IPlayer, game: IGame): Array<IColony> {
 export type ColonyBonusStepShape = ColonyBonusShape;
 export const colonyBonusStepShape = colonyBonusShape;
 
-/** The SERVER's own skip reason for a card resource with no holder — the client's `noRecipientReasonKey` prints the same key. */
-export function noHolderReason(resource: CardResource | undefined): string {
-  switch (resource) {
-  case CardResource.ANIMAL: return 'No card can hold animals';
-  case CardResource.FLOATER: return 'No card can hold floaters';
-  case CardResource.MICROBE: return 'No card can hold microbes';
-  case CardResource.DATA: return 'No card can hold data';
-  default: return 'No card can hold this resource';
-  }
-}
+/**
+ * The SERVER's own skip reason for a card resource with no holder — the
+ * client's `noRecipientReasonKey` prints the same key. Stated once, in the
+ * shared module every payer of «all your colony bonuses» reads.
+ */
+export {noHolderReason};
 
 /** The pick / distribution titles — journal text only (the console reads the prompt's markers). `undefined` = several kinds or any. */
 function pickTitleOf(resource: CardResource | undefined, amount: number) {
@@ -179,13 +175,19 @@ function intakeKey(stepKey: string): string {
   return `intake:${stepKey}`;
 }
 
-/** The fields EVERY record of the plan carries: the effect, the influence it was read at, k, and the tile. */
-function recordedOf(ctx: EnactContext, colony: ColonyName | undefined): Pick<EnactOutcome, 'effect' | 'influence' | 'multiplier' | 'colony'> {
+/**
+ * The fields EVERY record of the plan carries: the effect, the influence it
+ * was read at, k, the tile — and the seat's CUBES on it when there is more
+ * than one (a row paid k × cubes times; one cube writes the record it always
+ * wrote).
+ */
+function recordedOf(ctx: EnactContext, colony: ColonyName | undefined, cubes: number = 1): Pick<EnactOutcome, 'effect' | 'influence' | 'multiplier' | 'colony' | 'cubes'> {
   return {
     effect: COLONIAL_AFFAIRS_BONUSES.id,
     influence: ctx.influence,
     multiplier: colonyBonusMultiplier(ctx.influence),
     ...(colony === undefined ? {} : {colony}),
+    ...(cubes > 1 ? {cubes} : {}),
   };
 }
 
@@ -215,13 +217,13 @@ const NO_COLONIES_STEP: EnactStep = {
 };
 
 /** A supply gain ×k (Luna, Europa, Ceres, Io, Callisto, Triton, Ganymede; Hygiea, Kuiper, Mercury): ONE record of quantity × k. */
-function stockStep(colony: IColony, grant: ColonyTradeGrantModel): EnactStep {
+function stockStep(colony: IColony, grant: ColonyTradeGrantModel, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       const resource = grant.resource ?? Resource.MEGACREDITS;
       const amount = grant.quantity * k;
       const before = player.stock.get(resource);
@@ -229,20 +231,20 @@ function stockStep(colony: IColony, grant: ColonyTradeGrantModel): EnactStep {
       const after = player.stock.get(resource);
       ctx.game.log('${0} gained ${1} ${2}: the ${3} colony bonus ×${4} from ${5}', (b) =>
         b.player(player).number(amount).resource(resource).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
-      ctx.report({kind: 'stock', ...recordedOf(ctx, colony.name), stock: resource, amount, before, after});
+      ctx.report({kind: 'stock', ...recordedOf(ctx, colony.name, cubes), stock: resource, amount, before, after});
       return undefined;
     },
   };
 }
 
 /** A production gain ×k (no base tile prints one as its colony bonus; the shape exists so a future tile pays through the same door). */
-function productionStep(colony: IColony, grant: ColonyTradeGrantModel): EnactStep {
+function productionStep(colony: IColony, grant: ColonyTradeGrantModel, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       const resource = grant.resource ?? Resource.MEGACREDITS;
       const amount = grant.quantity * k;
       const before = player.production.get(resource);
@@ -250,7 +252,7 @@ function productionStep(colony: IColony, grant: ColonyTradeGrantModel): EnactSte
       const after = player.production.get(resource);
       ctx.game.log('${0} raised ${1} production by ${2}: the ${3} colony bonus ×${4} from ${5}', (b) =>
         b.player(player).resource(resource).number(amount).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
-      ctx.report({kind: 'production', ...recordedOf(ctx, colony.name), production: resource, amount, before, after});
+      ctx.report({kind: 'production', ...recordedOf(ctx, colony.name, cubes), production: resource, amount, before, after});
       return undefined;
     },
   };
@@ -263,13 +265,13 @@ function productionStep(colony: IColony, grant: ColonyTradeGrantModel): EnactSte
  * one) — never k successive picks, which would allow exactly the same
  * layouts one question at a time.
  */
-function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactStep {
+function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       // ONE kind (every tile that prints such a bonus today), or SEVERAL (the
       // grant's list — the holders of ANY, each unit the kind of its card).
       const kinds = grant.cardResources ?? (grant.cardResource === undefined ? undefined : [grant.cardResource]);
@@ -279,7 +281,7 @@ function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactS
       if (kinds === undefined || new AddResourcesToCard(player, kinds).getCards().length === 0) {
         ctx.game.log('${0} has no card that can hold the ${1} colony bonus — ${2} resource(s) from ${3} are forfeited', (b) =>
           b.player(player).colony(colony).number(owed).resolution(COLONIAL_AFFAIRS_ID));
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), ...(resource === undefined ? {} : {resource}), ...several, amount: owed, reason: noHolderReason(resource)});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), ...(resource === undefined ? {} : {resource}), ...several, amount: owed, reason: noHolderReason(resource)});
         return undefined;
       }
       return new AddResourcesToCards(player, kinds, owed, {
@@ -293,7 +295,7 @@ function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactS
         ctx.game.log('${0} placed ${1} resource(s): the ${2} colony bonus ×${3} from ${4}', (b) =>
           b.player(player).number(owed).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
         ctx.report({
-          kind: 'cardResource', ...recordedOf(ctx, colony.name), ...(resource === undefined ? {} : {resource}), ...several, amount: owed,
+          kind: 'cardResource', ...recordedOf(ctx, colony.name, cubes), ...(resource === undefined ? {} : {resource}), ...several, amount: owed,
           ...(cards.length === 1 ? {card: cards[0].card} : {}),
           cards,
         });
@@ -304,19 +306,19 @@ function cardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactS
 }
 
 /** A resource onto a VENUS card ×k (the community Venus tile): the family's pick over the Venus holders, k units onto the chosen one. */
-function venusCardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): EnactStep {
+function venusCardResourceStep(colony: IColony, grant: ColonyTradeGrantModel, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       const owed = grant.quantity * k;
       const holders = player.getResourceCards().filter((card) => card.tags.includes(Tag.VENUS));
       if (holders.length === 0) {
         ctx.game.log('${0} has no Venus card that can hold the ${1} colony bonus — ${2} resource(s) from ${3} are forfeited', (b) =>
           b.player(player).colony(colony).number(owed).resolution(COLONIAL_AFFAIRS_ID));
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), amount: owed, reason: 'No Venus card can hold resources'});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), amount: owed, reason: NO_VENUS_HOLDER_REASON});
         return undefined;
       }
       return new AddResourcesToCard(player, undefined, {
@@ -330,7 +332,7 @@ function venusCardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): E
         ctx.game.log('${0} placed ${1} resource(s): the ${2} colony bonus ×${3} from ${4}', (b) =>
           b.player(player).number(owed).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
         ctx.report({
-          kind: 'cardResource', ...recordedOf(ctx, colony.name),
+          kind: 'cardResource', ...recordedOf(ctx, colony.name, cubes),
           ...(card.resourceType === undefined ? {} : {resource: card.resourceType}),
           amount: owed, card: card.name, cards: [{card: card.name, amount: owed}],
         });
@@ -347,7 +349,7 @@ function venusCardResourceStep(colony: IColony, grant: ColonyTradeGrantModel): E
  * reload inside the take re-derives the prompt from the intake (game state)
  * and draws nothing twice. An empty deck is named with the size it owed.
  */
-function drawStep(colony: IColony, key: string, count: number, repeat?: {index: number, total: number}): EnactStep {
+function drawStep(colony: IColony, key: string, count: number, cubes: number, repeat?: {index: number, total: number}): EnactStep {
   return {
     key,
     run(ctx) {
@@ -360,13 +362,13 @@ function drawStep(colony: IColony, key: string, count: number, repeat?: {index: 
       }
       const intake = ExternalDrawIntake.open(player, count, {kind: 'resolution', resolution: COLONIAL_AFFAIRS_ID, effect: COLONIAL_AFFAIRS_BONUSES.id});
       if (intake === undefined) {
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), amount: count, drawn: 0, reason: 'The project deck is empty'});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), amount: count, drawn: 0, reason: 'The project deck is empty'});
         return undefined;
       }
       ctx.state[intakeKey(key)] = intake.id;
       if (repeat === undefined) {
         ctx.game.log('${0} draws ${1} card(s): the ${2} colony bonus ×${3} from ${4}', (b) =>
-          b.player(player).number(intake.count).colony(colony).number(colonyBonusMultiplier(ctx.influence)).resolution(COLONIAL_AFFAIRS_ID));
+          b.player(player).number(intake.count).colony(colony).number(colonyBonusMultiplier(ctx.influence) * cubes).resolution(COLONIAL_AFFAIRS_ID));
       } else {
         ctx.game.log('${0} draws 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}', (b) =>
           b.player(player).colony(colony).number(repeat.index).number(repeat.total).resolution(COLONIAL_AFFAIRS_ID));
@@ -374,7 +376,7 @@ function drawStep(colony: IColony, key: string, count: number, repeat?: {index: 
       if (intake.count < count) {
         ctx.game.log('Only ${0} of ${1} card(s) were left in the deck for ${2}', (b) => b.number(intake.count).number(count).player(player));
       }
-      ctx.report({kind: 'cards', ...recordedOf(ctx, colony.name), amount: count, drawn: intake.count, intake: intake.id});
+      ctx.report({kind: 'cards', ...recordedOf(ctx, colony.name, cubes), amount: count, drawn: intake.count, intake: intake.id});
       return ExternalDrawIntake.takePromptFor(player, intake);
     },
   };
@@ -388,7 +390,7 @@ function drawStep(colony: IColony, key: string, count: number, repeat?: {index: 
  * hand of one card (or none) is decided by the rule itself, and an empty
  * hand is a named skip.
  */
-function discardStep(colony: IColony, key: string, repeat: {index: number, total: number}): EnactStep {
+function discardStep(colony: IColony, key: string, cubes: number, repeat: {index: number, total: number}): EnactStep {
   return {
     key,
     run(ctx) {
@@ -397,7 +399,7 @@ function discardStep(colony: IColony, key: string, repeat: {index: number, total
       if (player.cardsInHand.length === 0) {
         ctx.game.log('${0} has no card in hand to discard for the ${1} colony bonus from ${2}', (b) =>
           b.player(player).colony(colony).resolution(COLONIAL_AFFAIRS_ID));
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), amount: 0, reason: 'No cards in hand to discard'});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), amount: 0, reason: 'No cards in hand to discard'});
         return undefined;
       }
       return new DiscardCards(player, 1, 1,
@@ -408,7 +410,7 @@ function discardStep(colony: IColony, key: string, repeat: {index: number, total
           const card = discards[0];
           ctx.game.log('${0} discarded 1 card: the ${1} colony bonus, ${2} of ${3}, from ${4}', (b) =>
             b.player(player).colony(colony).number(repeat.index).number(repeat.total).resolution(COLONIAL_AFFAIRS_ID));
-          ctx.report({kind: 'discard', ...recordedOf(ctx, colony.name), amount: discards.length, ...(card === undefined ? {} : {card: card.name})});
+          ctx.report({kind: 'discard', ...recordedOf(ctx, colony.name, cubes), amount: discards.length, ...(card === undefined ? {} : {card: card.name})});
           return undefined;
         }).execute();
     },
@@ -422,7 +424,7 @@ function discardStep(colony: IColony, key: string, repeat: {index: number, total
  * resolution as the pick's source; the record is the general colony bonus
  * with the tile's printed description.
  */
-function revealBuyStep(colony: IColony, grant: ColonyTradeGrantModel, key: string, repeat: {index: number, total: number}): EnactStep {
+function revealBuyStep(colony: IColony, grant: ColonyTradeGrantModel, key: string, cubes: number, repeat: {index: number, total: number}): EnactStep {
   return {
     key,
     run(ctx) {
@@ -431,164 +433,172 @@ function revealBuyStep(colony: IColony, grant: ColonyTradeGrantModel, key: strin
       DrawCards.keepSome(player, grant.quantity, {paying: true, logDrawnCard: true, promptSource: SOURCE}).execute();
       ctx.game.log('${0} reveals a card to keep for its cost: the ${1} colony bonus, ${2} of ${3}, from ${4}', (b) =>
         b.player(player).colony(colony).number(repeat.index).number(repeat.total).resolution(COLONIAL_AFFAIRS_ID));
-      ctx.report({kind: 'colonyBonus', ...recordedOf(ctx, colony.name), amount: grant.quantity, description: colony.metadata.colony.description});
+      ctx.report({kind: 'colonyBonus', ...recordedOf(ctx, colony.name, cubes), amount: grant.quantity, description: colony.metadata.colony.description});
       return undefined;
     },
   };
 }
 
 /** A LOSS ×k (Titania's «lose 3 M€»): a negative record — a loss is never a payout; nothing to lose is a named skip. */
-function lossStep(colony: IColony, grant: ColonyTradeGrantModel): EnactStep {
+function lossStep(colony: IColony, grant: ColonyTradeGrantModel, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       const resource = grant.resource ?? Resource.MEGACREDITS;
       const before = player.stock.get(resource);
       const lost = Math.min(before, grant.quantity * k);
       if (lost <= 0) {
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), stock: resource, amount: 0, reason: 'Nothing to lose'});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), stock: resource, amount: 0, reason: 'Nothing to lose'});
         return undefined;
       }
       player.stock.deduct(resource, lost, {log: false, from: FROM});
       const after = player.stock.get(resource);
       ctx.game.log('${0} lost ${1} ${2}: the ${3} colony bonus ×${4} from ${5}', (b) =>
         b.player(player).number(lost).resource(resource).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
-      ctx.report({kind: 'colonyBonus', ...recordedOf(ctx, colony.name), stock: resource, amount: -lost, before, after, description: colony.metadata.colony.description});
+      ctx.report({kind: 'colonyBonus', ...recordedOf(ctx, colony.name, cubes), stock: resource, amount: -lost, before, after, description: colony.metadata.colony.description});
       return undefined;
     },
   };
 }
 
 /** A card DISCOUNT ×k (Iapetus' «pay 1 M€ less for cards this generation»): the discount counter, the general colony bonus record. */
-function discountStep(colony: IColony): EnactStep {
+function discountStep(colony: IColony, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       player.colonies.cardDiscount += k;
       ctx.game.log('Cards played by ${0} cost ${1} M€ less this generation: the ${2} colony bonus ×${3} from ${4}', (b) =>
         b.player(player).number(k).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID));
-      ctx.report({kind: 'colonyBonus', ...recordedOf(ctx, colony.name), amount: k, description: colony.metadata.colony.description});
+      ctx.report({kind: 'colonyBonus', ...recordedOf(ctx, colony.name, cubes), amount: k, description: colony.metadata.colony.description});
       return undefined;
     },
   };
 }
 
 /** M€ per 3 Earth tags in play ×k (Terra) — a supply gain computed the way the tile's own trade bonus computes it. */
-function mcPerEarthTagsStep(colony: IColony): EnactStep {
+function mcPerEarthTagsStep(colony: IColony, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
       const game = ctx.game;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       const tags = sum(game.players.map((p) => p.tags.count(Tag.EARTH, p.id === player.id ? 'default' : 'raw')));
       const perTime = Math.floor(tags / 3);
       const amount = perTime * k;
       if (amount <= 0) {
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), stock: Resource.MEGACREDITS, amount: 0, reason: 'Fewer than 3 Earth tags in play'});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), stock: Resource.MEGACREDITS, amount: 0, reason: 'Fewer than 3 Earth tags in play'});
         return undefined;
       }
       const before = player.megaCredits;
       player.stock.add(Resource.MEGACREDITS, amount, {log: false, from: FROM});
       ctx.game.log('${0} gained ${1} M€: the ${2} colony bonus ×${3} from ${4} (${5} Earth tags in play)', (b) =>
         b.player(player).number(amount).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID).number(tags));
-      ctx.report({kind: 'stock', ...recordedOf(ctx, colony.name), stock: Resource.MEGACREDITS, amount, before, after: player.megaCredits});
+      ctx.report({kind: 'stock', ...recordedOf(ctx, colony.name, cubes), stock: Resource.MEGACREDITS, amount, before, after: player.megaCredits});
       return undefined;
     },
   };
 }
 
 /** M€ per hazard tile on Mars ×k (Deimos) — a supply gain, or a named skip when Mars has no hazard. */
-function mcPerHazardStep(colony: IColony): EnactStep {
+function mcPerHazardStep(colony: IColony, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       const player = ctx.player;
-      const k = colonyBonusMultiplier(ctx.influence);
+      const k = colonyBonusMultiplier(ctx.influence) * cubes;
       const hazards = ctx.game.board.getHazards().length;
       const amount = hazards * k;
       if (amount <= 0) {
-        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), stock: Resource.MEGACREDITS, amount: 0, reason: 'No hazard tiles on Mars'});
+        ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), stock: Resource.MEGACREDITS, amount: 0, reason: 'No hazard tiles on Mars'});
         return undefined;
       }
       const before = player.megaCredits;
       player.stock.add(Resource.MEGACREDITS, amount, {log: false, from: FROM});
       ctx.game.log('${0} gained ${1} M€: the ${2} colony bonus ×${3} from ${4} (${5} hazard tiles)', (b) =>
         b.player(player).number(amount).colony(colony).number(k).resolution(COLONIAL_AFFAIRS_ID).number(hazards));
-      ctx.report({kind: 'stock', ...recordedOf(ctx, colony.name), stock: Resource.MEGACREDITS, amount, before, after: player.megaCredits});
+      ctx.report({kind: 'stock', ...recordedOf(ctx, colony.name, cubes), stock: Resource.MEGACREDITS, amount, before, after: player.megaCredits});
       return undefined;
     },
   };
 }
 
 /** A benefit no tile of the pool prints as its colony bonus — named, never thrown, never silent. */
-function unsupportedStep(colony: IColony): EnactStep {
+function unsupportedStep(colony: IColony, cubes: number): EnactStep {
   return {
     key: colonyStepKey(colony.name),
     run(ctx) {
       announce(ctx);
       ctx.game.log('The ${0} colony bonus cannot be paid by ${1} — skipped', (b) => b.colony(colony).resolution(COLONIAL_AFFAIRS_ID));
-      ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name), amount: 0, reason: 'This colony bonus is not paid by a resolution'});
+      ctx.report({kind: 'skipped', ...recordedOf(ctx, colony.name, cubes), amount: 0, reason: 'This colony bonus is not paid by a resolution'});
       return undefined;
     },
   };
 }
 
-/** The steps ONE tile's printed bonus becomes under ×k — the family table applied. */
-export function colonyBonusStepsOf(colony: IColony, k: number): Array<EnactStep> {
+/**
+ * The steps ONE tile's printed bonus becomes under ×k for a seat holding
+ * `cubes` cubes on it — the family table applied. Every cube pays in full, so
+ * the tile's repeats are k × cubes: a merged bonus is one payout of that many
+ * repeats, a bonus that never merges is that many pairs / reveals.
+ */
+export function colonyBonusStepsOf(colony: IColony, k: number, cubes: number = 1): Array<EnactStep> {
   const grant = colony.colonyBonusGrant();
+  const repeats = k * cubes;
   switch (colonyBonusStepShape(grant.benefit)) {
-  case 'stock': return [stockStep(colony, grant)];
-  case 'production': return [productionStep(colony, grant)];
-  case 'cardResource': return [cardResourceStep(colony, grant)];
-  case 'venusCardResource': return [venusCardResourceStep(colony, grant)];
-  case 'draw': return [drawStep(colony, colonyStepKey(colony.name), grant.quantity * k)];
+  case 'stock': return [stockStep(colony, grant, cubes)];
+  case 'production': return [productionStep(colony, grant, cubes)];
+  case 'cardResource': return [cardResourceStep(colony, grant, cubes)];
+  case 'venusCardResource': return [venusCardResourceStep(colony, grant, cubes)];
+  case 'draw': return [drawStep(colony, colonyStepKey(colony.name), grant.quantity * repeats, cubes)];
   case 'drawDiscard': {
-    // k PAIRS — the next card is never revealed before the previous discard is answered.
+    // k × cubes PAIRS — the next card is never revealed before the previous discard is answered.
     const out: Array<EnactStep> = [];
-    for (let n = 1; n <= k; n++) {
-      const repeat = {index: n, total: k};
-      out.push(drawStep(colony, colonyRepeatStepKey(colony.name, n, 'draw'), grant.quantity, repeat));
-      out.push(discardStep(colony, colonyRepeatStepKey(colony.name, n, 'discard'), repeat));
+    for (let n = 1; n <= repeats; n++) {
+      const repeat = {index: n, total: repeats};
+      out.push(drawStep(colony, colonyRepeatStepKey(colony.name, n, 'draw'), grant.quantity, cubes, repeat));
+      out.push(discardStep(colony, colonyRepeatStepKey(colony.name, n, 'discard'), cubes, repeat));
     }
     return out;
   }
   case 'revealBuy': {
     const out: Array<EnactStep> = [];
-    for (let n = 1; n <= k; n++) {
-      out.push(revealBuyStep(colony, grant, colonyRepeatStepKey(colony.name, n, 'reveal'), {index: n, total: k}));
+    for (let n = 1; n <= repeats; n++) {
+      out.push(revealBuyStep(colony, grant, colonyRepeatStepKey(colony.name, n, 'reveal'), cubes, {index: n, total: repeats}));
     }
     return out;
   }
-  case 'loss': return [lossStep(colony, grant)];
-  case 'discount': return [discountStep(colony)];
-  case 'mcPerEarthTags': return [mcPerEarthTagsStep(colony)];
-  case 'mcPerHazard': return [mcPerHazardStep(colony)];
-  case 'unsupported': return [unsupportedStep(colony)];
+  case 'loss': return [lossStep(colony, grant, cubes)];
+  case 'discount': return [discountStep(colony, cubes)];
+  case 'mcPerEarthTags': return [mcPerEarthTagsStep(colony, cubes)];
+  case 'mcPerHazard': return [mcPerHazardStep(colony, cubes)];
+  case 'unsupported': return [unsupportedStep(colony, cubes)];
   }
 }
 
 /**
- * THE PLAN FOR ONE PLAYER: one step (or k pairs) per tile the player has a
- * cube on, in the table's order; a player with no cube at all gets the one
- * named skip. Deterministic over the table and the influence — the driver
- * asks for it on every entry and a reload finds the same keys.
+ * THE PLAN FOR ONE PLAYER: one step (or k × cubes pairs) per tile the player
+ * has a cube on, in the table's order; a player with no cube at all gets the
+ * one named skip. The tiles and their cubes are the engine's one reading of
+ * «each colony you have» (`ownColonyBonuses`). Deterministic over the table
+ * and the influence — the driver asks for it on every entry and a reload
+ * finds the same keys.
  */
 export function colonyBonusSteps(player: IPlayer, parliament: Parliament, game: IGame): ReadonlyArray<EnactStep> {
-  const tiles = colonyTilesOf(player, game);
+  const tiles = ownColonyBonuses(game, player);
   if (tiles.length === 0) {
     return [NO_COLONIES_STEP];
   }
   const k = colonyBonusMultiplier(parliament.influence(player));
-  return tiles.flatMap((tile) => colonyBonusStepsOf(tile, k));
+  return tiles.flatMap((tile) => colonyBonusStepsOf(tile.colony, k, tile.cubes));
 }
 
 export const COLONIAL_AFFAIRS: ResolutionDefinition = {

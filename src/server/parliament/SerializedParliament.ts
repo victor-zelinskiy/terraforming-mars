@@ -95,9 +95,13 @@ export type SerializedEnactOutcome = {
    * all your colony bonuses k times») — the ledger row the record belongs to
    * on every surface; `multiplier` is how many times that bonus was paid in
    * this one record (the resolution's k, the scaled effect's own amount).
+   * `cubes` is the seat's cubes on that tile when there is MORE THAN ONE —
+   * every cube pays in full, so the record's amount is k × cubes × the
+   * printed quantity (absent = one cube: the record a save always held).
    */
   colony?: ColonyName;
   multiplier?: number;
+  cubes?: number;
   /** `colonyBonus`: the tile's printed description of the bonus (the colony's own English key). */
   description?: string;
   /**

@@ -7,6 +7,7 @@ import {TileType} from '../TileType';
 import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} from './PlayerInputModel';
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
+import {AllColonyBonusesModel} from './ColonyBonusLedgerModel';
 import {EffectForecast} from './EffectForecastModel';
 import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
@@ -283,6 +284,19 @@ export type ActionPreviewBranch = {
    * the desktop modal — keeps using the per-slot titles either way).
    */
   mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message};
+  /**
+   * THIS BRANCH PAYS «ALL YOUR COLONY BONUSES» — the ledger behind the sums
+   * (TR23 Habitat Science's action, Productive Outpost's play): a row per
+   * colony tile the player has cubes on, IN THE ORDER THE ENGINE PAYS THEM,
+   * each with its printed bonus, its cubes, what it will ask of the player
+   * after the press and — when it cannot land — the refusal with its size
+   * (`server/colonies/allColonyBonuses.ts`). `effects` answer «how much», the
+   * ledger answers «from where»; the composer shows it before the press and
+   * the scene pays from its rows after it. ONE carrier for an action and a
+   * play — and what an outcome claim derives its kinds from (a row that asks
+   * `draw` / `draw-discard` draws cards; a `card` row is a pick).
+   */
+  colonyBonuses?: AllColonyBonusesModel;
 };
 
 /**

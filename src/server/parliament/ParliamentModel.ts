@@ -23,6 +23,7 @@ import {Resource} from '../../common/Resource';
 import {declaredCountIds, declaredSequelProductions, declaredStockReads, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
 import {botQuestReachable} from '../../common/parliament/botQuestPath';
 import {botQuestTableOf} from '../automa/BotQuestEvents';
+import {ownColonyBonuses} from '../colonies/allColonyBonuses';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -271,13 +272,13 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   }
   // …and the COLONY LEDGER a resolution paying «all your colony bonuses»
   // multiplies (Colonial Affairs): the tiles the seat has a cube on, in the
-  // table's order, each with its PRINTED colony bonus as a grant — the
-  // server's rule of what a colony bonus is, so the client never derives the
-  // list from the colonies model.
+  // table's order, each with its PRINTED colony bonus as a grant and the
+  // seat's CUBES on it (every cube pays in full) — the engine's one reading
+  // of «each colony you have» (`ownColonyBonuses`), the same the enactment's
+  // plan walks, so the client never derives the list from the colonies model.
   if (enactment && declaresColonyBonuses(parliament.catalog)) {
-    model.colonyBonuses = game.colonies
-      .filter((colony) => colony.colonies.includes(player.id))
-      .map((colony) => ({colony: colony.name, grant: colony.colonyBonusGrant(), description: colony.metadata.colony.description}));
+    model.colonyBonuses = ownColonyBonuses(game, player)
+      .map(({colony, cubes}) => ({colony: colony.name, grant: colony.colonyBonusGrant(), description: colony.metadata.colony.description, cubes}));
   }
   // …and the HAND a LEVEL part tops up (Joint Research's «until you have 6 +
   // influence in hand»): the same count the step will read — cards withheld in

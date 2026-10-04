@@ -4,7 +4,7 @@ import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
 import {CardResource} from '../CardResource';
 import {ColonyName} from '../colonies/ColonyName';
-import {ColonyTradeGrantModel} from './ColonyTradeManifestModel';
+import {ColonyLedgerEntryModel} from './ColonyBonusLedgerModel';
 import {Resource} from '../Resource';
 import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
 import {ParameterMoveId} from '../parliament/parameterMove';
@@ -74,13 +74,13 @@ export type PartyAccessModel = {
   satisfiesRequirement: boolean;
 };
 
-/** ONE row of a seat's colony ledger: the tile and its printed colony bonus (see `ParliamentPlayerModel.colonyBonuses`). */
-export type ColonyLedgerEntryModel = {
-  colony: ColonyName;
-  grant: ColonyTradeGrantModel;
-  /** The tile's printed description of the bonus — an English key of the colony's own. */
-  description: string;
-};
+/**
+ * ONE row of a seat's colony ledger: the tile, its printed colony bonus and
+ * the seat's cubes on it (see `ParliamentPlayerModel.colonyBonuses`). The
+ * shape lives in `ColonyBonusLedgerModel.ts` — a CARD paying «all your colony
+ * bonuses» reads the same rows outside the Parliament.
+ */
+export type {ColonyLedgerEntryModel};
 
 export type ParliamentPlayerModel = {
   color: Color;
@@ -282,6 +282,8 @@ export type ParliamentEnactOutcomeModel = {
   colony?: ColonyName;
   /** …how many times that bonus was paid in this one record (the resolution's multiplier k). */
   multiplier?: number;
+  /** …and the seat's cubes on that tile when MORE THAN ONE (each pays in full — the amount is k × cubes × the printed quantity). */
+  cubes?: number;
   /** `colonyBonus`: the tile's printed description of the bonus (the colony's own English key). */
   description?: string;
   /**

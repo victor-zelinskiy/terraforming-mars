@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
+import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {
@@ -195,6 +196,45 @@ describe('ColonialAffairs', () => {
   });
 
   describe('the enactment', () => {
+    it('pays PER CUBE: two cubes on Luna at k = 3 are ONE record of 12 M€ (k × cubes × 2) — `multiplier` stays the declaration\'s k, `cubes` rides beside it', () => {
+      const [game, p1, p2, parliament] = stage();
+      arrangeColonies(game, [[new Luna(), [p1, p1, p2]]]);
+      parliament.agenda.set(p1.id, agendaForInfluence(3) - 1); // the phase's step lands on influence 3 → k = 3
+      parliament.agenda.set(p2.id, agendaForInfluence(1)); // k = 2
+      endGeneration(game);
+      settleParliamentGates(game);
+      const one = outcomesOf(parliament, p1);
+      expect(one).has.length(1);
+      expect(one[0]).deep.include({step: 'colony:Luna', kind: 'stock', amount: 12, influence: 3, multiplier: 3, cubes: 2, colony: ColonyName.LUNA});
+      expect(one[0].after! - one[0].before!).eq(12);
+      // One cube writes the record it always wrote — no `cubes` member at all.
+      const two = outcomesOf(parliament, p2)[0];
+      expect(two).deep.include({kind: 'stock', amount: 4, multiplier: 2, colony: ColonyName.LUNA});
+      expect(two.cubes).is.undefined;
+    });
+
+    it('two cubes on Pluto at k = 2 are FOUR pairs, numbered «n of 4», still never merged', () => {
+      const [game, p1, , parliament] = stage();
+      arrangeColonies(game, [[new Pluto(), [p1, p1]]]);
+      parliament.agenda.set(p1.id, agendaForInfluence(1) - 1); // influence 1 → k = 2
+      // A hand to choose from — with a single card the discard decides itself and asks nothing.
+      p1.cardsInHand.push(...game.projectDeck.drawN(game, 2) as Array<IProjectCard>);
+      endGeneration(game);
+      settleParliamentGates(game);
+      for (let n = 1; n <= 4; n++) {
+        takeAll(p1);
+        const discard = cast(p1.getWaitingFor(), SelectCard);
+        expect(discard.discardPrompt?.colonyRepeat).deep.eq({colonyName: ColonyName.PLUTO, index: n, total: 4});
+        discardFirst(p1);
+      }
+      settleParliamentGates(game);
+      const mine = outcomesOf(parliament, p1);
+      expect(mine.filter((o) => o.kind === 'discard')).has.length(4);
+      for (const record of mine) {
+        expect(record).deep.include({colony: ColonyName.PLUTO, multiplier: 2, cubes: 2});
+      }
+    });
+
     it('pays every participant by its OWN influence: the winner\'s k is read AFTER its Agenda step; Luna ×k is ONE record of 2k M€', () => {
       const [game, p1, p2, parliament] = stage();
       arrangeColonies(game, [[new Luna(), [p1, p2]]]);
@@ -486,12 +526,17 @@ describe('ColonialAffairs', () => {
       const model = getParliamentModel(game, p1)!;
       const one = model.players.find((p) => p.color === p1.color)!;
       expect(one.colonyBonuses).deep.eq([
-        {colony: ColonyName.LUNA, grant: {benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 2, resource: Resource.MEGACREDITS}, description: 'Gain 2 M€'},
-        {colony: ColonyName.TITAN, grant: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResource: CardResource.FLOATER}, description: 'Add 1 floater to ANY card'},
+        {colony: ColonyName.LUNA, grant: {benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 2, resource: Resource.MEGACREDITS}, description: 'Gain 2 M€', cubes: 1},
+        {colony: ColonyName.TITAN, grant: {benefit: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: 1, cardResource: CardResource.FLOATER}, description: 'Add 1 floater to ANY card', cubes: 1},
       ]);
       const two = model.players.find((p) => p.color === p2.color)!;
       expect(two.colonyBonuses?.map((e) => e.colony)).deep.eq([ColonyName.TITAN, ColonyName.PLUTO]);
+      expect(two.colonyBonuses?.map((e) => e.cubes)).deep.eq([1, 1]);
       expect(two.colonyBonuses?.[1].grant.benefit).eq(ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE);
+      // TWO cubes on a tile are ONE row with `cubes: 2` — never two rows, never a lost cube.
+      arrangeColonies(game, [[new Luna(), [p1, p2, p1]]]);
+      const again = getParliamentModel(game, p1)!.players.find((p) => p.color === p1.color)!;
+      expect(again.colonyBonuses?.map((e) => [e.colony, e.cubes])).deep.eq([[ColonyName.LUNA, 2]]);
     });
 
     it('MarsBot (mode none) is never asked, never paid, never a winner — its cubes receive nothing', () => {

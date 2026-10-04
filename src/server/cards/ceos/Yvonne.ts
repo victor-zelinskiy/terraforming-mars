@@ -4,6 +4,7 @@ import {PlayerInput} from '../../PlayerInput';
 import {CardRenderer} from '../render/CardRenderer';
 import {CeoCard} from './CeoCard';
 import {Size} from '../../../common/cards/render/Size';
+import {gainAllColonyBonuses} from '../../colonies/allColonyBonuses';
 
 export class Yvonne extends CeoCard {
   constructor() {
@@ -29,12 +30,8 @@ export class Yvonne extends CeoCard {
 
   public action(player: IPlayer): PlayerInput | undefined {
     this.isDisabled = true;
-    player.game.colonies.forEach((colony) => {
-      colony.colonies.filter((owner) => owner === player.id).forEach((owner) => {
-        player.defer(() => colony.giveColonyBonus(player.game.getPlayerById(owner)));
-        player.defer(() => colony.giveColonyBonus(player.game.getPlayerById(owner)));
-      });
-    });
+    // The ONE rule «gain all your colony bonuses» (colonies/allColonyBonuses.ts), every cube paying twice.
+    gainAllColonyBonuses(player, {via: this.name, times: 2});
     return undefined;
   }
 }

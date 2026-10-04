@@ -152,6 +152,16 @@ export type ChoiceContextSource = {
    * the bonus. Never set alongside `card` — a card face already is its name.
    */
   name?: string | Message;
+  /**
+   * `kind: 'colony'` — the CARD that pays this colony's bonus outside a trade
+   * («gain all your colony bonuses»: Habitat Science, Productive Outpost,
+   * Yvonne). The question stays the colony's (`name` is the tile), and `via`
+   * is the key the workspace the card was pressed in claims the step by — the
+   * same card the draw's reveal source names (`CardDrawRevealSource.via`).
+   * Absent for a trade's or a build's bonus. Deliberately NOT `card`: that
+   * member is the source's own face.
+   */
+  via?: CardName;
 }
 
 /**
