@@ -550,3 +550,16 @@
         animation: con-colfocus-landflash calc(560ms * var(--motion-scale, 1)) ease-out both;
     }
 }
+
+/* ══ «ШАГ ШКАЛЫ ПЛАТИТ» — the stage of a card that answers each step of a
+   scale (TR24 Venusian Census, Aphrodite; scaleStepRewardBeat.ts). The same
+   step of the z ladder as the TR21 stage (under the transfer chips, which take
+   over each token on its own point); it draws only the tokens condensing on
+   the marker's rim — the coin anatomy above, nothing of its own. ═══ */
+.con-scalepay {
+    position: fixed;
+    inset: 0;
+    z-index: 11650;
+    pointer-events: none;
+    contain: layout style;
+}

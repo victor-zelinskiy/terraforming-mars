@@ -354,6 +354,7 @@ import {seedParliamentSittingHolds} from '@/client/console/parliament/parliament
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
+import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
@@ -807,6 +808,9 @@ export default defineComponent({
             seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a CITY somebody laid on a colony tile (TR22): landed on its seat — only when a seat of that tile stands.
             seedColonyCityHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and what a SCALE STEP paid (TR24 — another seat's raise, a world move, the Solar Phase): the
+            // viewer's counter waits for the tokens born at the marker (the same block as the apply).
+            seedScaleStepRewardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {

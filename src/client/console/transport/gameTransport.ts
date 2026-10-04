@@ -102,6 +102,7 @@ import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
@@ -637,6 +638,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // player pressed on keeps its pre-payout number on the rail until its own chip lands — the supply rows with the
   // press's answer, a resource onto a card with the response that actually carries it. Armed at the press only.
   seedColonyBonusPayoutHolds(currentView(), newView);
+  // …and what a SCALE STEP paid (TR24 Venusian Census, Aphrodite — «each time the scale is terraformed»): the
+  // viewer's own counter keeps its pre-payout number until each token born at the marker has landed.
+  seedScaleStepRewardHolds(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

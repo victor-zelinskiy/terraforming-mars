@@ -33,7 +33,10 @@
  *     supplier includes this verdict), and no scene arms for it;
  *  3. DRAINS on the «board watchable» rising edge, in causal order: settle →
  *     the held values release (the marker glides, the fill advances, the chip
- *     plays its capture) → the scale beat runs its window → the batch
+ *     plays its capture) → the scale beat runs its window → what the step
+ *     PAID is told (the STORY MEMBERS — Turmoil Redux TR24 Venusian Census:
+ *     the tokens born at the marker once it has arrived; the window stretches
+ *     by the wave's own landing signal, never by a number) → the batch
  *     un-parks, and the cover-lift scene self-arms against a board it can
  *     actually measure.
  *
@@ -181,6 +184,40 @@ export function registerBoardWatchableProbe(probe: (() => boolean) | undefined):
 function boardWatchable(): boolean {
   return watchableProbe === undefined || watchableProbe();
 }
+
+/** The «board watchable» verdict, for a board scene that must wait for the player's view (TR24's scale-step tokens). */
+export function boardBeatBoardWatchable(): boolean {
+  return boardWatchable();
+}
+
+/** Is this parameter's PRESENTED value still held (its marker has not been released to glide)? */
+export function boardBeatHoldsParam(key: keyof HeldGlobalParams): boolean {
+  return boardBeatParkState.heldParams?.[key] !== undefined;
+}
+
+/**
+ * THE SCALE STORY'S MEMBERS — a scene that tells what the released step PAID
+ * (TR24 Venusian Census / Aphrodite: the tokens born at the scale's marker once
+ * it has arrived). The drain asks every member after the scale window: a busy
+ * one STRETCHES the window by its own landing signal (`quiet`) — the blocking
+ * scale story stands, and a parked batch (the Venus 8 % card) un-parks only
+ * after the last token has landed. Bounded (`BOARD_BEAT_MEMBER_WAIT_MAX_MS`):
+ * a member that never settles cannot wedge the drain.
+ */
+export type BoardBeatStoryMember = {busy: () => boolean, quiet: () => Promise<void>};
+const storyMembers = new Map<string, BoardBeatStoryMember>();
+
+export function registerBoardBeatStoryMember(id: string, member: BoardBeatStoryMember): () => void {
+  storyMembers.set(id, member);
+  return () => {
+    if (storyMembers.get(id) === member) {
+      storyMembers.delete(id);
+    }
+  };
+}
+
+/** The longest the drain waits for its members after the scale window. */
+export const BOARD_BEAT_MEMBER_WAIT_MAX_MS = 8000;
 
 /**
  * The injected «a surface is still LEAVING» verdict (shell-owned —
@@ -417,20 +454,39 @@ export function drainBoardBeatsIfDue(): void {
       endScaleStory();
       clearSafety();
     };
+    // …and what the released step PAID is told before anything after it (the members' own signal).
+    const nonce = boardBeatParkState.nonce;
+    const afterMembers = (run: () => void) => () => {
+      const owed = [...storyMembers.values()].filter((m) => m.busy());
+      if (owed.length === 0) {
+        run();
+        return;
+      }
+      let done = false;
+      const finish = () => {
+        // A drain released / reset meanwhile (or a NEW drain running) is not this one's to end.
+        if (!done && boardBeatParkState.nonce === nonce && boardBeatParkState.draining) {
+          done = true;
+          run();
+        }
+      };
+      void Promise.all(owed.map((m) => m.quiet())).then(finish, finish);
+      schedule(finish, consoleMotionMs(BOARD_BEAT_MEMBER_WAIT_MAX_MS));
+    };
     if (parkedBatchPending()) {
       // The cover lifts only off a marker that has ARRIVED. No scale story →
       // no wait (a reload mid-park holds no values — the batch releases on
       // the settle alone).
       boardBeatParkState.batchHeldByDrain = true;
-      schedule(releaseBatch, hadScaleStory ? consoleMotionMs(BOARD_BEAT_SCALE_MS) : 0);
+      schedule(hadScaleStory ? afterMembers(releaseBatch) : releaseBatch, hadScaleStory ? consoleMotionMs(BOARD_BEAT_SCALE_MS) : 0);
     } else if (hadScaleStory) {
       // Values released with no batch behind them — the hold covers the
-      // glide window so nothing lands on top of the moving scales.
-      schedule(() => {
+      // glide window (and the members' story) so nothing lands on top of the moving scales.
+      schedule(afterMembers(() => {
         boardBeatParkState.draining = false;
         endScaleStory();
         clearSafety();
-      }, consoleMotionMs(BOARD_BEAT_SCALE_MS));
+      }), consoleMotionMs(BOARD_BEAT_SCALE_MS));
     } else {
       boardBeatParkState.draining = false;
       endScaleStory();

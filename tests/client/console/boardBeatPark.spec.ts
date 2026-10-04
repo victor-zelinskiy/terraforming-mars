@@ -21,7 +21,7 @@ import {
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
   boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending,
   changedGlobalParams, drainBoardBeatsIfDue,
-  noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive,
+  noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
   registerBoardWatchableProbe, releaseBoardBeatPark,
   resetBoardBeatPark,
 } from '@/client/console/boardBeatPark';
@@ -197,6 +197,55 @@ describe('boardBeatPark', function() {
     expect(boardBeatParkState.batchHeldByDrain).to.equal(false);
     expect(boardBeatParkState.draining).to.equal(false);
     expect(boardBeatParksReveal(venus as never)).to.equal(false);
+  });
+
+  it('a busy STORY MEMBER stretches the scale window by its OWN signal: the batch un-parks only after it (TR24)', async () => {
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    drawnCardsState.events.push(venusEntry());
+    const venus = {type: 'globalParameter', parameter: 'venus'} as const;
+    let busy = true;
+    let settle: () => void = () => {};
+    const quiet = new Promise<void>((resolve) => {
+      settle = () => {
+        busy = false;
+        resolve();
+      };
+    });
+    const off = registerBoardBeatStoryMember('spec-member', {busy: () => busy, quiet: () => quiet});
+    try {
+      watchable = true;
+      drainBoardBeatsIfDue();
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + consoleMotionMs(BOARD_BEAT_SCALE_MS) + 120);
+      // The window has passed, but the scale step's tokens are still in the air.
+      expect(boardBeatParkState.heldParams, 'the values went at the settle').to.equal(undefined);
+      expect(boardBeatParkState.batchHeldByDrain, 'the cover waits for the last touchdown').to.equal(true);
+      expect(boardBeatParkState.scaleStory, 'the blocking story window stretches with it').to.equal(true);
+      expect(boardBeatParksReveal(venus as never)).to.equal(true);
+      settle();
+      await delay(20);
+      expect(boardBeatParkState.batchHeldByDrain).to.equal(false);
+      expect(boardBeatParkState.draining).to.equal(false);
+      expect(boardBeatParkState.scaleStory).to.equal(false);
+    } finally {
+      off();
+    }
+  });
+
+  it('a member that is NOT busy changes nothing — the window is exactly the scale beat', async () => {
+    const off = registerBoardBeatStoryMember('spec-idle', {busy: () => false, quiet: () => new Promise<void>(() => {})});
+    try {
+      watchable = false;
+      noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+      drawnCardsState.events.push(venusEntry());
+      watchable = true;
+      drainBoardBeatsIfDue();
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + consoleMotionMs(BOARD_BEAT_SCALE_MS) + 120);
+      expect(boardBeatParkState.batchHeldByDrain).to.equal(false);
+      expect(boardBeatParkState.draining).to.equal(false);
+    } finally {
+      off();
+    }
   });
 
   it('re-parks when the board is covered again mid-settle', async () => {

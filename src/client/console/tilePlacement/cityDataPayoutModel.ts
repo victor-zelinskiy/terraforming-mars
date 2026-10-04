@@ -18,6 +18,7 @@
 import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel';
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
+import {TOUCHDOWN_TICK_GAP_MS, touchdownTickAt} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /** The receiving card rises out of its satellite cell and stands by the field. */
 export const CITY_PAYOUT_RISE_MS = 320;
@@ -28,17 +29,13 @@ export const CITY_PAYOUT_RETURN_MS = 260;
 /** One breath between the landing beats and the cities' answer (the law wave's breath). */
 export const CITY_PAYOUT_BREATH_MS = 200;
 /**
- * The capsule's TICK CADENCE: two tokens can touch down in the same frame (a
- * near city's flight is shorter than a far one launched earlier), and one
- * render then shows «4 → 6» — a count no frame ever read as 5. Each tick
- * stands at least this long before the next; a tick is never AHEAD of its
- * touchdown, at most this much behind it.
+ * The capsule's TICK CADENCE — the shared touchdown rule
+ * (`resourceTransferModel.touchdownTickAt`): never «4 → 6» in one render,
+ * never a tick ahead of its touchdown.
  */
-export const CITY_PAYOUT_TICK_GAP_MS = 90;
+export const CITY_PAYOUT_TICK_GAP_MS = TOUCHDOWN_TICK_GAP_MS;
 /** When a touchdown at `now` may tick, given the previous tick at `last`. */
-export function cityPayoutTickAt(now: number, last: number, gapMs: number): number {
-  return Math.max(now, last + gapMs);
-}
+export const cityPayoutTickAt = touchdownTickAt;
 /** The receiving card's width on the field (rem, the thumb tier — a face that still reads at 1080). */
 export const CITY_PAYOUT_CARD_W_REM = 8.4;
 /** Its height/width ratio — the premium face's own. */

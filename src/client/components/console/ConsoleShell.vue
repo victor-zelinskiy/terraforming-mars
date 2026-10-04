@@ -1386,6 +1386,8 @@
     <ConsoleTilePlacementLayer />
     <!-- «ГОРОДА ПЛАТЯТ» (TR21): the cities beside a placed tile pay the card the play chose — shell level, beside the tile stage. -->
     <ConsoleCityPayoutLayer />
+    <!-- «ШАГ ШКАЛЫ ПЛАТИТ» (TR24): a card that answers each step of a scale — its tokens condense on the marker. -->
+    <ConsoleScaleStepRewardLayer />
 
     <!-- The MARS NOMADS MOVE stage — the camp module lifts off its cell
          (the contact shadow stays behind and lets go), hops to the adjacent
@@ -2025,6 +2027,8 @@ import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitR
 import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
+import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
+import {resetScaleStepRewards} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
@@ -2376,6 +2380,7 @@ export default defineComponent({
     ConsoleResourceTransferLayer,
     ConsoleTilePlacementLayer,
     ConsoleCityPayoutLayer,
+    ConsoleScaleStepRewardLayer,
     ConsoleNomadMoveLayer,
     ConsoleColonyBuildLayer,
     ConsoleColonyCityLayer,
@@ -21798,6 +21803,8 @@ export default defineComponent({
     // shell's computeds must never decide the next game's parks; held values
     // and a parked batch release honestly, without the show).
     resetBoardBeatPark();
+    // …and what a scale step still owed to tell (TR24): its holds release honestly, no record replays.
+    resetScaleStepRewards();
     this.releaseRevealQueuePark?.();
     this.releaseRevealQueuePark = undefined;
     // …and the presentation ledger with it: a dead shell's closures must

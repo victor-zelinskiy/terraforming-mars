@@ -1005,7 +1005,7 @@ function degradeReveal(ev: RemoteEvent): void {
  * ocean) or an unmounted strip falls back to the neutral top table edge —
  * still the mirror of the viewer's own bottom-centre supply.
  */
-function remoteOriginPoint(color: Color | undefined, ui: number): TransferPoint {
+export function remoteOriginPoint(color: Color | undefined, ui: number): TransferPoint {
   if (typeof document !== 'undefined' && color !== undefined) {
     const dot = document.querySelector<HTMLElement>(`.con-status__player .player_bg_color_${color}`);
     if (dot !== null) {

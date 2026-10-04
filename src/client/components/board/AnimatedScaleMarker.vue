@@ -21,6 +21,7 @@
     ref="marker"
     class="scale-marker"
     :class="markerClasses"
+    :data-scale-marker="accent"
     aria-hidden="true">
     <!--
       Four-child layout, intentionally compact.
@@ -50,6 +51,7 @@
 import {defineComponent, PropType} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {reducedMotionActive} from '@/client/utils/reducedMotion';
+import {noteScaleMarkerMoving, noteScaleMarkerSettled} from '@/client/components/board/scaleMarkerArrival';
 
 type AccentName = 'temperature' | 'oxygen' | 'venus' | 'oceans';
 
@@ -292,6 +294,8 @@ export default defineComponent({
     }
   },
   beforeUnmount(): void {
+    // A cursor that is gone rests nowhere — nobody may wait for its arrival.
+    noteScaleMarkerSettled(this.accent, undefined);
     if (this.activeAnimation !== null) {
       this.activeAnimation.cancel();
       this.activeAnimation = null;
@@ -464,6 +468,31 @@ export default defineComponent({
       this.applyAnchor(this.anchors[idx]);
       this.currentValue = value;
       this.placed = true;
+      this.publishPose(value);
+    },
+    /**
+     * THE ARRIVAL SIGNAL (`scaleMarkerArrival.ts`): where the cursor RESTS —
+     * `undefined` while a glide runs or off the printed dial. Published at
+     * every write of a resting position (a snap, a finished glide) and at the
+     * start of every glide, so a scene that tells what a step PAID (TR24's
+     * tokens born at the marker) starts on the cursor's own clock, never a
+     * guessed duration. Mirrored on the element (`data-scale-marker-at`) for
+     * the probes.
+     */
+    publishPose(resting: number | undefined, target?: number): void {
+      if (target !== undefined) {
+        noteScaleMarkerMoving(this.accent, target);
+      } else {
+        noteScaleMarkerSettled(this.accent, resting);
+      }
+      const marker = this.$refs.marker as HTMLElement | undefined;
+      if (marker !== undefined) {
+        if (resting !== undefined && target === undefined) {
+          marker.dataset.scaleMarkerAt = String(resting);
+        } else {
+          delete marker.dataset.scaleMarkerAt;
+        }
+      }
     },
     /**
      * Write a position to the element's OWN inline style — the marker's
@@ -524,6 +553,7 @@ export default defineComponent({
         }
         this.currentValue = undefined;
         this.placed = false;
+        this.publishPose(undefined);
         return;
       }
       if (!this.placed || this.currentValue === undefined) {
@@ -712,6 +742,7 @@ export default defineComponent({
       this.activeAnimation = anim;
       this.currentValue = targetValue;
       this.placed = true;
+      this.publishPose(undefined, targetValue);
       const destination = this.anchors[targetIdx];
 
       const onFinish = () => {
@@ -724,6 +755,8 @@ export default defineComponent({
           this.applyAnchor(idx >= 0 ? this.anchors[idx] : destination);
           anim.cancel();
           this.activeAnimation = null;
+          // ARRIVED — the division is reached; a scene waiting for it may now tell what it paid.
+          this.publishPose(targetValue);
         }
         this.triggerSettle();
       };

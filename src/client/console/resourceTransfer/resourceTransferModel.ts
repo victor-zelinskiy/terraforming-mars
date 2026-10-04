@@ -148,6 +148,21 @@ export function mergeTransferSpecs(specs: ReadonlyArray<ResourceTransferSpec>): 
  * rich card never stretches into a multi-second parade (the whole wave's
  * spread stays ≈½ s).
  */
+/**
+ * THE COUNTER'S TICK CADENCE at the touchdowns of one wave: two chips can land
+ * in the same frame (a near flight is shorter than a far one launched earlier,
+ * a starved renderer folds several frames into one), and one render then shows
+ * «4 → 6» — a count no frame ever read as 5. Each tick stands at least this
+ * long before the next; a tick is never AHEAD of its touchdown, at most this
+ * much behind it. Shared by every scene that ticks a counter per token
+ * (TR21's «cities pay», TR24's «the scale step pays»).
+ */
+export const TOUCHDOWN_TICK_GAP_MS = 90;
+/** When a touchdown at `now` may tick, given the previous tick at `last`. */
+export function touchdownTickAt(now: number, last: number, gapMs: number): number {
+  return Math.max(now, last + gapMs);
+}
+
 export function transferWaveDelayMs(i: number, n: number): number {
   const stagger = n <= 4 ? 110 : Math.max(64, Math.round(440 / n));
   return i * stagger;
