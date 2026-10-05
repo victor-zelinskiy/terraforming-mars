@@ -19671,13 +19671,31 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     /* Two lines are allowed on purpose: a truncated «Свободное …» reads as a
        broken label, and these boxes are narrow by design. */
-    &__berth-name {
+    /* THE NAME'S LINE, reserved in EVERY berth (an empty one included): the
+       seat is centred over seat + gap + ONE line whoever holds the berth, so
+       nothing moves when the owner's name arrives with the cube. (Without it
+       the landing berth re-centred its seat ~10 px up at 1080 in the very
+       frame the build's cube proxy handed over to the real cube — the cube
+       «jumped».) A second line of a long name hangs into the berth's foot and
+       moves nothing either. */
+    &__berth-namebox {
+        position: relative;
+        flex: 0 0 auto;
+        align-self: stretch;
         font-size: .6rem;
+        line-height: 1.15;
+        height: 1.15em;
+    }
+    &__berth-name {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        font-size: inherit;
         font-weight: 700;
         line-height: 1.15;
         letter-spacing: .02rem;
         color: @con-text-dim;
-        max-width: 100%;
         text-align: center;
         display: -webkit-box;
         -webkit-box-orient: vertical;

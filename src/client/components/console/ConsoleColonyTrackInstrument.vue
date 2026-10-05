@@ -160,9 +160,14 @@
         </span>
         <!-- Only an OCCUPIED berth has something to say: an empty seat
              already reads as empty, and «Свободное место» in a one-column
-             box could only ever be clipped. -->
-        <span v-if="berth.state === 'taken'" class="con-colfocus__berth-name" data-unfold-late>
-          {{ ownerNames[berth.index] ?? '' }}
+             box could only ever be clipped. But the name's LINE is reserved in
+             every berth, so the seat stands where it stands whoever holds it:
+             a name arriving with the cube re-centred the seat ~10 px in the
+             very frame the build's cube handed over to the real one. -->
+        <span class="con-colfocus__berth-namebox">
+          <span v-if="berth.state === 'taken'" class="con-colfocus__berth-name" data-unfold-late>
+            {{ ownerNames[berth.index] ?? '' }}
+          </span>
         </span>
       </div>
       <!-- THE OWNER BONUS — the CONTINUATION of the ownership row: it takes

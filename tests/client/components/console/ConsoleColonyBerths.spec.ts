@@ -77,6 +77,25 @@ describe('a berth beyond the printed limit — the three hosts', () => {
       }
     });
 
+    it('the owner name\'s LINE is reserved in EVERY berth — the seat does not move when a cube (and its name) arrives', () => {
+      // Without the box the landing berth re-centred its seat ~10 px up in the very frame the build's cube proxy
+      // handed over to the real cube. The name rides INSIDE the box; an empty berth keeps the box, without a name.
+      const w = mountInstrument(luna([RED]));
+      const berths = w.findAll('.con-colfocus__berth');
+      expect(berths.length).to.eq(3);
+      for (const [i, berth] of berths.entries()) {
+        const box = berth.find('.con-colfocus__berth-namebox');
+        expect(box.exists(), `berth ${i} reserves the name's line`).to.eq(true);
+        expect(box.find('.con-colfocus__berth-name').exists(), `berth ${i}: a name only where a cube stands`).to.eq(i === 0);
+        // The box is the seat's sibling, AFTER it — the order the column is centred over.
+        const children = berth.element.children;
+        const seatAt = Array.from(children).findIndex((c) => c.classList.contains('con-colfocus__berth-seat'));
+        const boxAt = Array.from(children).indexOf(box.element);
+        expect(boxAt, `berth ${i}: the name's box follows the seat`).to.eq(seatAt + 1);
+      }
+      expect(berths[0].find('.con-colfocus__berth-name').text()).to.eq('Ada');
+    });
+
     it('an ordinary BUILD PREVIEW points at the next berth and adds none', () => {
       const w = mountInstrument(luna([RED]), {buildPreview: true});
       expect(w.findAll('.con-colfocus__berth').length).to.eq(3);
