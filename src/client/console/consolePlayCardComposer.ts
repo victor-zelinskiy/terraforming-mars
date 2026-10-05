@@ -290,13 +290,17 @@ export function playDoorNextStepKey(door: PlayDoor | undefined): string | undefi
   switch (door?.kind) {
   case 'parliament': return door.mode === 'support' ? 'Popular support area — chosen in the Parliament' : 'Resolution — chosen in the Parliament';
   // The colony door's step is named by the staged prompt's own MARKER: a roster pick replaces a tile (TR10), a
-  // pick carrying `tileSite` lays a city on a tile (TR22), any other moves a track (TR07).
+  // pick carrying `tileSite` lays a city on a tile (TR22), one carrying `buildSites` builds a colony (TR25), any
+  // other moves a track (TR07).
   case 'colonies':
     if (door.staged.prompt.rosterChange !== undefined) {
       return 'Colony tile — replaced in the Colonies';
     }
     if (door.staged.prompt.tileSite !== undefined) {
       return 'City on a colony tile — chosen in the Colonies';
+    }
+    if (door.staged.prompt.buildSites !== undefined) {
+      return 'Colony — the tile is chosen in the Colonies';
     }
     return 'Colony track — chosen in the Colonies';
   default: return undefined;

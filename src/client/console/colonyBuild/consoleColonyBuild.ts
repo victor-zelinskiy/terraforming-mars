@@ -86,7 +86,32 @@ export const colonyBuildState = reactive({
    * `CUBE_SLOT_F` fraction when it is a whole cell.
    */
   cubeFactor: CUBE_SLOT_F,
+  /**
+   * THE SCENE COULD NOT BE PLAYED AS A FLIGHT — the landing seat was not
+   * measurable (or the stage layer was not there), so the cube simply stands
+   * after the commit. Said out loud: the section publishes it as
+   * `data-colony-build-degraded`, and a probe demands its absence. Sticky
+   * until the next arm (a reduced-motion run is not a degrade — it is asked for).
+   */
+  degraded: false,
+  /**
+   * WHICH DOOR armed the build. `staged` — a card that builds by being played
+   * (the play's one POST carries the tile as its addressed tail): that flow
+   * does not end with the cube — the stage folds HOME and the grid stands as
+   * a receipt (`receipt`, `homing`). `live` — every other build, ended by the
+   * section's own completion exactly as before.
+   */
+  door: 'live' as ColonyBuildDoor,
+  /** A STAGED build has landed: what the grid states while it stands as a receipt (no cursor, no verbs). */
+  receipt: undefined as ColonyBuildReceipt | undefined,
+  /** The shell's HOMING beat of a staged build — the stage folds home, the receipt is read (input: none). */
+  homing: false,
 });
+
+export type ColonyBuildDoor = 'live' | 'staged';
+
+/** What the grid states once a staged build's stage has folded home. */
+export type ColonyBuildReceipt = {colony: string, slot: number};
 
 /** One-shot claim per response (mirrors the sibling transactions). */
 let claimed = false;
@@ -137,9 +162,13 @@ registerAnimationHoldSupplier('colony-build', colonyBuildHolding);
  *  `targetCard` = the host card the placement bonus was PRE-COLLECTED onto
  *  (Titan's floaters) — the chip then flies onto that exact card instead of
  *  the bonus arriving as a detached prompt after the cube. */
-export function armColonyBuild(colonyName: string, slotIndex: number, color: Color, targetCard?: CardName): void {
+export function armColonyBuild(colonyName: string, slotIndex: number, color: Color, targetCard?: CardName, door: ColonyBuildDoor = 'live'): void {
   clearTimers();
   claimed = false;
+  colonyBuildState.degraded = false;
+  colonyBuildState.door = door;
+  colonyBuildState.receipt = undefined;
+  colonyBuildState.homing = false;
   buildTargetCard = targetCard;
   resetCardResourceLandings(); // this payout's own tally starts empty
   pendingSpecs = [];
@@ -215,6 +244,10 @@ async function executeBuild(): Promise<void> {
   if (colonyBuildState.reducedMotion || slot === undefined || typeof document === 'undefined') {
     // Reduced / unmeasurable: no cube animation, but the bonus still leaves +
     // credits (the chip self-degrades to an instant release under reduced).
+    // An UNMEASURABLE seat names itself — it used to be silent.
+    if (!colonyBuildState.reducedMotion) {
+      confessDegrade('no measurable seat');
+    }
     startBonusExit();
     colonyBuildState.phase = 'landed';
     await wait(colonyBuildState.reducedMotion ? REDUCED_MS : 60);
@@ -227,6 +260,7 @@ async function executeBuild(): Promise<void> {
   }
   const els = stage?.els();
   if (els === undefined || !placeCubeProxy(els, {slot})) {
+    confessDegrade('no stage for the cube');
     startBonusExit();
     colonyBuildState.phase = 'landed';
     await wait(60);
@@ -369,6 +403,10 @@ function finish(): void {
   buildTargetCard = undefined;
   pendingSpecs = [];
   bonusFlight = undefined;
+  // A STAGED build's flow goes on past the cube: the grid will state the result (see `door`).
+  if (colonyBuildState.door === 'staged' && colonyBuildState.colonyName !== '') {
+    colonyBuildState.receipt = {colony: colonyBuildState.colonyName, slot: colonyBuildState.slotIndex};
+  }
   colonyBuildState.active = false;
   colonyBuildState.phase = 'done';
   void nextTick(() => {
@@ -378,9 +416,35 @@ function finish(): void {
   });
 }
 
+/** The shell's HOMING beat of a staged build (see `colonyBuildState.homing`). */
+export function setColonyBuildHoming(on: boolean): void {
+  colonyBuildState.homing = on;
+}
+
+/** The staged build's flow is over (or was never played): the receipt and the homing beat go. Idempotent. */
+export function clearColonyBuildReceipt(): void {
+  colonyBuildState.receipt = undefined;
+  colonyBuildState.homing = false;
+  colonyBuildState.door = 'live';
+}
+
+/**
+ * A STAGED build of the player's own is ANSWERED (on the wire, playing,
+ * homing, or standing as its receipt): the door's prompt has outlived its
+ * answer — no tile is offered, refused or projected any more.
+ */
+export function colonyBuildAnswered(): boolean {
+  return colonyBuildState.door === 'staged' &&
+    (colonyBuildState.active || colonyBuildState.receipt !== undefined || colonyBuildState.homing);
+}
+
 /** Full reset (tests / game-switch boundary). */
 export function resetColonyBuild(): void {
   clearTimers();
+  colonyBuildState.degraded = false;
+  colonyBuildState.receipt = undefined;
+  colonyBuildState.homing = false;
+  colonyBuildState.door = 'live';
   const els = stage?.els();
   if (els !== undefined) {
     killColonyBuildTweens(els);
@@ -412,6 +476,12 @@ function releaseOwnHolds(): void {
       releasePanelRewardHold(spec);
     }
   }
+}
+
+/** The flight could not be played — said once, by name (never a silent «the cube just stands»). */
+function confessDegrade(why: string): void {
+  colonyBuildState.degraded = true;
+  console.warn(`[colony-build] degraded: ${why} (${colonyBuildState.colonyName}#${colonyBuildState.slotIndex})`);
 }
 
 function resetTransient(): void {

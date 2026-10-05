@@ -277,7 +277,7 @@ describe('consoleColonyCity — the landing\'s controller', () => {
     });
 
     it('a staged prompt and a live one are ONE act: `city`', () => {
-      expect(colonyPickIntent({buttonLabel: 'Select', tileSite: staged.prompt.tileSite})).eq('city');
+      expect(colonyPickIntent({tileSite: staged.prompt.tileSite})).eq('city');
     });
   });
 });

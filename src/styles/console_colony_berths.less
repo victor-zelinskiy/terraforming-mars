@@ -165,6 +165,43 @@
     pointer-events: none;
 }
 .con-colfocus__berth--projected .con-colfocus__berth-seat .benefit-glyph { opacity: 0.55; }
+/* ADMITTED: the ghost steps aside for the real cube that is on its way. */
+.con-colfocus__berth-ghost {
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+
+    .con-colfocus__berth--admitted & { opacity: 0; }
+}
+
+/* ── A WATCHER'S MOMENT — the place before its object ─────────────────────
+   Somebody else built beyond the limit while this surface stood: the berth
+   is revealed by ONE transition (its own box, from the limit mark outward),
+   and only then does the cube surface in it. No hold, no flight (a watcher
+   has none for any build); the stop and the guard move by their own
+   transitions. One-shot classes, removed on the cube's `animationend`. */
+@keyframes con-berth-reveal {
+    from { opacity: 0; transform: scaleX(0.4); }
+    to { opacity: 1; transform: scaleX(1); }
+}
+@keyframes con-berth-reveal-cube {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.con-colfocus__berths--revealing .con-colfocus__berth--overlimit {
+    transform-origin: left center;
+    animation: con-berth-reveal calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+
+    .con-colfocus__berth-seat > .player-cube {
+        animation: con-berth-reveal-cube calc(200ms * var(--motion-scale, 1)) ease-out calc(240ms * var(--motion-scale, 1)) backwards;
+    }
+}
+.con-coltile__build--revealing .con-coltile__build-slot--overlimit {
+    transform-origin: left center;
+    animation: con-berth-reveal calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) backwards;
+
+    .con-coltile__build-seat > .player-cube {
+        animation: con-berth-reveal-cube calc(200ms * var(--motion-scale, 1)) ease-out calc(240ms * var(--motion-scale, 1)) backwards;
+    }
+}
 
 html.con-profile-tv {
     .con-colfocus__limitword {

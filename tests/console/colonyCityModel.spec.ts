@@ -38,12 +38,12 @@ describe('colonyCityModel', () => {
   describe('the act of the pick — the marker decides', () => {
     it('a pick carrying `tileSite` is `city`; the track and the roster outrank it; a build stays a build', () => {
       const site = {tile: TileType.CITY};
-      expect(colonyPickIntent({buttonLabel: 'Select', tileSite: site})).eq('city');
-      expect(colonyPickIntent({buttonLabel: 'Build', tileSite: site}), 'never the button\'s label').eq('city');
-      expect(colonyPickIntent({buttonLabel: 'Select', trackMoves: [], tileSite: site})).eq('track');
-      expect(colonyPickIntent({buttonLabel: 'Select', roster: {}, tileSite: site})).eq('roster');
-      expect(colonyPickIntent({buttonLabel: 'Build'})).eq('build');
-      expect(colonyPickIntent({buttonLabel: 'Select'})).eq('pick');
+      expect(colonyPickIntent({tileSite: site})).eq('city');
+      expect(colonyPickIntent({tileSite: site, buildSites: []}), 'the city outranks a build marker').eq('city');
+      expect(colonyPickIntent({trackMoves: [], tileSite: site})).eq('track');
+      expect(colonyPickIntent({roster: {}, tileSite: site})).eq('roster');
+      expect(colonyPickIntent({buildSites: []})).eq('build');
+      expect(colonyPickIntent({})).eq('pick');
     });
   });
 

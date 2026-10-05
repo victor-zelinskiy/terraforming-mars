@@ -2058,8 +2058,10 @@ import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
 import ConsoleColonyCityLayer from '@/client/components/console/colonyCity/ConsoleColonyCityLayer.vue';
-import {abortColonyBuild, armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
-import {nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {
+  abortColonyBuild, armColonyBuild, clearColonyBuildReceipt, colonyBuildState, isColonyBuildActive, setColonyBuildHoming,
+} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {buildSiteOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -5679,6 +5681,13 @@ export default defineComponent({
         // A pick that LAYS A TILE on the chosen colony tile (TR22) — the server's projection again: the seat's ghost on
         // every candidate, the count «now → after» and the card's VP are read off this marker, never computed here.
         ...(model.tileSite !== undefined ? {tileSite: model.tileSite} : {}),
+        // A pick that BUILDS A COLONY (every build prompt carries it) — the server's projection of each candidate's
+        // berth; the act is read off this marker, never off the button's label. A CARD's own door (staged, or the
+        // prompt naming a card as its giver) additionally projects the cube on the grid.
+        ...(model.buildSites !== undefined ? {
+          buildSites: model.buildSites,
+          ...(model.choiceContext?.source.kind === 'card' ? {buildProjected: true} : {}),
+        } : {}),
         // …and whether it is the STAGED door (nothing on the wire yet) or a live server prompt.
         ...(this.playerView.waitingFor?.type !== 'colony' && this.stagedColonyModel !== undefined ? {staged: true} : {}),
       };
@@ -5690,6 +5699,27 @@ export default defineComponent({
     /** The staged colony's commit is on the wire (the abort battery's falling edge gives the stage back). */
     stagedColonyCommitting(): boolean {
       return this.stagedColonyModel !== undefined && stagedPlayState.committing;
+    },
+    /**
+     * WHAT A LANDED BUILD STILL OWES INSIDE ITS STAGE (the staged door's HOME waits for all of it — `landColonyBuild`):
+     *  · a follow-up the COLONY's claim holds — a draw being taken (Pluto), a late card target;
+     *  · the presented card still receiving its resources and being read (Titan);
+     *  · a step hosted inside the colonies frame (the Parliament's grant — the Redux Venus);
+     *  · a prompt the tile's own bonus raised that a workspace serves — named by the server's structural source
+     *    (`choiceContext.source = {kind: 'colony', name}`), never by a title.
+     * A board placement (Europa's ocean) is NOT in it: that one takes the board once the hand has left.
+     */
+    colonyBuildContinuationOwed(): boolean {
+      if (workspaceOutcomeState.host === 'colonies' && workspaceOutcomeClaimed()) {
+        return true;
+      }
+      if (colonyResolutionUi.cardSceneLive || workspaceFrameHasNested('colonies')) {
+        return true;
+      }
+      const wf = this.playerView.waitingFor;
+      const source = wf?.choiceContext?.source;
+      return wf !== undefined && wf.type !== 'space' && source?.kind === 'colony' &&
+        source.name === colonyBuildState.receipt?.colony;
     },
     /**
      * THE RAIL IS THE ADD-A-TILE CATALOG — a pick-a-NEW-tile prompt (Aridor's
@@ -7549,7 +7579,9 @@ export default defineComponent({
         // A ROSTER change of the player's own: armed, playing on the stage, or still landing as a receipt.
         colonyRosterPending() || colonyRosterState.landing ||
         // A CITY laid on a colony tile (TR22): armed, landing on the stage, or the stage folding home to its receipt.
-        colonyCityPending() || colonyCityState.homing;
+        colonyCityPending() || colonyCityState.homing ||
+        // A colony a CARD built (TR25's staged door): its stage folding home, its receipt being read.
+        colonyBuildState.homing || colonyBuildState.receipt !== undefined;
     },
     /**
      * A COLONY'S OWN DELEGATE GRANT STANDS (Turmoil Redux — the Redux Venus:
@@ -8821,15 +8853,25 @@ export default defineComponent({
           // A BUILD THAT COMPOSES speaks the trade's grammar: its placement
           // bonus needs a card, so A opens that decision and X commits. With
           // nothing to decide it keeps the single-verb «A Построить».
+          // A STAGED door (a card that builds by being played — TR25): the commit IS the play's one submit, so it
+          // speaks the play's verb, and L3 reads the source card.
+          const stagedBuild = this.colonyPick?.staged === true;
+          const verb = stagedBuild ? 'Play card' : 'Build';
+          const source = stagedBuild && this.colonyEmbedSourceCard !== undefined ?
+            [{control: 'stickL' as GlyphControl, label: 'Source'}] : [];
           if (consoleColoniesUi.composerDecisions) {
             return [
               {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
-              {control: 'secondary', label: 'Build', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+              {control: 'secondary', label: verb, enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+              ...source,
               {control: 'back', label: 'Back'},
             ];
           }
           return [
-            {control: 'confirm', label: 'Build', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'confirm', label: verb, enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            // A CARD's own build door with nothing to compose: X reads the colony's dossier (the staged acts' grammar).
+            ...(this.colonyPick?.buildProjected === true ? [{control: 'secondary' as GlyphControl, label: 'Inspect'}] : []),
+            ...source,
             {control: 'back', label: 'Back'},
           ];
         }
@@ -16456,6 +16498,28 @@ export default defineComponent({
         this.onColonyRosterConfirm();
         return;
       }
+      // THE STAGED DOOR (a card that builds by being played — TR25 Exclusive Colony): A on the stage is the PLAY's
+      // one POST. The build itself is committed by the SAME body as the live door's (`armColonyBuildCommit`) —
+      // only the address differs: the tile rides the parked play batch as its ADDRESSED tail, and the build
+      // bonus's pre-collected answers ride BEHIND it, in order (the server replays the batch positionally and
+      // parks whatever has not met its prompt yet — `deferredInputBatch`).
+      if (pick.staged === true) {
+        const staged = stagedColonyOf(stagedPlayState.arm);
+        if (staged === undefined || stagedPlayState.committing) {
+          return;
+        }
+        markColonyFocusCommitting();
+        setWorkspaceFramePhase('colonies', 'committed');
+        const build = this.armColonyBuildCommit(selected, pick, payload, 'staged');
+        this.commitStagedTail(
+          {type: 'colony', colonyName: selected.name as ColonyName, stagedFor: staged.sourceCard},
+          build.tail,
+          // THE BUILD BONUS'S FOLLOW-UP IS BORN INSIDE THE STAGE on this door too: the claim is the COLONY's, made
+          // AFTER the play's own optimistic one — a draw (Pluto) or a late card target lands in the stage's zone,
+          // never in the hand's. A tile whose bonus asks nothing claims nothing, and the play's claim stands.
+          () => this.claimColonyBuildOutcome(selected.name as ColonyName, build.slot));
+        return;
+      }
       // THE ATOMIC COMMIT of a build hosted by the STD-PROJECTS flow: this is
       // the single press that spends the project's cost (pay-on-commit), so
       // BOTH frames cross the boundary together — B stops meaning «отмена» and
@@ -16470,17 +16534,7 @@ export default defineComponent({
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;
-      // The guards accepted: freeze the stage's presentation for the whole
-      // resolution (the answer flips its props under the flying cube).
-      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
-      // The berth the cube takes — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp:
-      // the hero, the outcome claim and the server all speak of the same one.
-      const slotIndex = nextBuildSlot(selected);
-      // THE PLACEMENT BONUS'S HOST CARD, chosen on the stage before the cube
-      // moves (Titan's floaters). It rides the transaction so the reward chip
-      // flies onto that exact card — and the batch below answers the prompt
-      // the server is about to raise, so the player is never asked twice.
-      armColonyBuild(selected.name, slotIndex, this.thisPlayer.color, payload?.targets?.incomeTargetCard);
+      const build = this.armColonyBuildCommit(selected, pick, payload, 'live');
       // EMBEDDED OUTCOME — the same two lines the trade paths already have.
       // WITHOUT them a build whose placement bonus DRAWS (Pluto: «возьмите 2
       // карты») had no claim, so `workspaceClaimsColonyReveal` was false, the
@@ -16489,24 +16543,49 @@ export default defineComponent({
       // STRUCTURAL — derived from the colony's own build benefit, so a colony
       // that grants no cards claims nothing and `reconcileWorkspaceOutcome`
       // has nothing to drop.
-      this.claimColonyBuildOutcome(selected.name as ColonyName, slotIndex);
+      this.claimColonyBuildOutcome(selected.name as ColonyName, build.slot);
+      if (build.tail.length > 0) {
+        this.submitBatch([colonyResponse(selected.name), ...build.tail]);
+        return;
+      }
+      this.submit(colonyResponse(selected.name));
+    },
+    /**
+     * THE BUILD'S COMMIT, ONE BODY FOR BOTH DOORS — everything a build confirm does that does not depend on how
+     * the answer travels: the stage pins what it shows, the berth is the SERVER's (`buildSites` — the marker of
+     * the pick; `nextBuildSlot` only where no door names one), the cube's hero is armed for that very berth with
+     * the placement bonus's host card, and the bonus's pre-collected answers are built. Returns the berth (the
+     * outcome claim reads the SAME one) and the tail of responses that follow the colony's own.
+     */
+    armColonyBuildCommit(
+      selected: ColonyModel,
+      pick: ConsoleColonyPick,
+      payload: {steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>, targets?: ColonyTradeTargets} | undefined,
+      door: 'live' | 'staged',
+    ): {slot: number, tail: Array<InputResponse>} {
+      // The guards accepted: freeze the stage's presentation for the whole
+      // resolution (the answer flips its props under the flying cube).
+      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      // The berth the cube takes — the hero, the outcome claim and the server all speak of the same one.
+      const slot = nextBuildSlot(selected, buildSiteOf(pick.buildSites, selected.name));
+      // THE PLACEMENT BONUS'S HOST CARD, chosen on the stage before the cube
+      // moves (Titan's floaters). It rides the transaction so the reward chip
+      // flies onto that exact card — and the tail below answers the prompt
+      // the server is about to raise, so the player is never asked twice.
+      armColonyBuild(selected.name, slot, this.thisPlayer.color, payload?.targets?.incomeTargetCard, door);
       // The BUILD's own pre-collected tail — byte-identical to answering the
       // live prompts one at a time (`stepResponse`, the trade's own builder),
       // truncated at the first uncaptured step so a diverged decision still
       // arrives as an honest live prompt.
-      const responses: Array<unknown> = [colonyResponse(selected.name)];
+      const tail: Array<InputResponse> = [];
       for (const [i, step] of (payload?.steps ?? []).entries()) {
         const response = stepResponse(step, payload?.captures[i]);
         if (response === undefined) {
           break;
         }
-        responses.push(response);
+        tail.push(response as InputResponse);
       }
-      if (responses.length > 1) {
-        this.submitBatch(responses);
-        return;
-      }
-      this.submit(colonyResponse(selected.name));
+      return {slot, tail};
     },
     /**
      * The FOCUS STAGE's generic pick confirm (setup remove / Aridor add-tile
@@ -19680,6 +19759,63 @@ export default defineComponent({
       this.settleColonyFollowUp();
     },
     /**
+     * HOME — the end of a STAGED BUILD (TR25 Exclusive Colony), the roster landing's and the city's own grammar. The
+     * cube landed on the stage with the commit held; the build bonus's continuation — a draw being taken in the
+     * stage's zone, the chosen card receiving its resources, a step the bonus hosts — plays INSIDE the stage and
+     * is waited out (`colonyBuildContinuationOwed`: state, never a timer — a player may read a draw as long as
+     * they like). Then the stage folds HOME into its tile — the berth the cube took stands on that tile already,
+     * so nothing is re-laid — and the grid stands as a RECEIPT (no cursor, no verbs, input `none`) for one read.
+     * A board placement the bonus raised (Europa's ocean) is not waited for: it takes the board once the hand
+     * has left with the step.
+     */
+    async landColonyBuild(): Promise<void> {
+      if (colonyBuildState.homing) {
+        return;
+      }
+      setColonyBuildHoming(true);
+      const settle = (get: () => boolean) => new Promise<void>((resolve) => {
+        if (!get()) {
+          resolve();
+          return;
+        }
+        const stop = vueWatch(get, (busy) => {
+          if (!busy) {
+            stop();
+            resolve();
+          }
+        });
+      });
+      const frames = () => new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      });
+      const dwell = (ms: number) => new Promise<void>((resolve) => {
+        window.setTimeout(resolve, motionMs(ms));
+      });
+      // The cube's own scene first (a version move can arrive a tick before its handoff ends)…
+      await settle(() => isColonyBuildActive());
+      // …one flush for the answer's own follow-up to surface (a claim, a prompt), then all of it.
+      await vueNextTick();
+      await settle(() => this.colonyBuildContinuationOwed);
+      const receipt = colonyBuildState.receipt;
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      await vueNextTick();
+      await frames();
+      if (receipt !== undefined && this.colonyFocus.open && section !== undefined) {
+        // The fold's home is the tile the colony now stands on — re-measured at rest (a destination is solved
+        // before it is aimed at); a tile that cannot be measured lets the stage go where it stands.
+        section.retargetFocusHome(receipt.colony);
+        closeColonyFocus();
+        await dwell(COLONY_ROSTER_LANDING_MS + ROSTER_READ_MS);
+      }
+      const staged = stagedColonyOf(stagedPlayState.arm) !== undefined;
+      clearColonyBuildReceipt();
+      if (staged) {
+        this.endStagedColony();
+        return;
+      }
+      this.settleColonyFollowUp();
+    },
+    /**
      * THE ONE STAGED HANDOFF TO A STEP OF THE HAND (the vote's Parliament, TR03;
      * the colonies, TR07). The batch parks, the step's frame is pushed INTO the
      * hand's own stage zone (the one section instance, embedded), and the
@@ -19829,26 +19965,32 @@ export default defineComponent({
      * triggered draw belongs to this workspace) — and NO played-hero is armed:
      * the landing ritual was the play's, and it has already been seen.
      */
-    commitStagedTail(response: InputResponse): void {
+    commitStagedTail(response: InputResponse, following: ReadonlyArray<InputResponse> = [], claim?: () => void): void {
       const arm = stagedPlayState.arm;
       if (arm === undefined || stagedPlayState.committing) {
         return;
       }
       markStagedPlayCommitting();
+      // `following` — the answers the staged step PRE-COLLECTED for what its own answer raises (a build bonus's
+      // card target): they ride BEHIND the addressed tail, in order, and the server parks whatever has not met
+      // its prompt yet with it.
       if (arm.flow === 'action') {
         // A CARD ACTION's commit (TR15): no play outcome to claim (the action draws nothing). The host crosses its
         // commit boundary — a second A and every B are absorbed — and the composer standing under the step plays
         // the card's ACTION COMMIT off this very edge (`stagedVoteCommitMine`).
         setWorkspaceFramePhase('card-actions', 'executing');
-        this.submitBatch([...arm.batch, response]);
+        this.submitBatch([...arm.batch, response, ...following]);
         return;
       }
       claimPlayOutcome(arm.cardName, arm.draws);
       // The execution beat the claim withholds its surface for has ALREADY
       // played (the card landed before the step) — report it at once.
       markWorkspaceOutcomeBeatDone();
+      // …and the step's OWN claim, when its answer owns a follow-up of its own (a build's bonus): made after
+      // the play's, so the nearer host — the step's stage — is the one that receives it.
+      claim?.();
       setWorkspaceFramePhase('hand', 'executing');
-      this.submitBatch([...arm.batch, response]);
+      this.submitBatch([...arm.batch, response, ...following]);
     },
     /**
      * A version move under a STAGED COLONY (TR07). Before the commit the world
@@ -19892,6 +20034,9 @@ export default defineComponent({
         disarmColonyRoster();
         // (…and so does a city's arm: the live door's own A arms it again.)
         disarmColonyCity();
+        // (…and a build's: the answer carried no cube, so its hero was aborted at the detect — nothing stands as
+        // a receipt, and the live door's own A arms it again.)
+        clearColonyBuildReceipt();
         colonyFocusState.committing = false;
         (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
         setWorkspaceFrameServes('colonies', ['colony']);
@@ -19914,6 +20059,13 @@ export default defineComponent({
       // read), then the step and the play end.
       if (colonyCityState.receipt !== undefined) {
         void this.landColonyCity();
+        return;
+      }
+      // LANDED as a BUILD (TR25): the gate played the cube on the stage with the commit held — what is left is
+      // everything the build bonus still owes INSIDE the stage, then HOME (the stage folds into its tile, the
+      // receipt is read), then the step and the play end.
+      if (colonyBuildState.door === 'staged' && (isColonyBuildActive() || colonyBuildState.receipt !== undefined)) {
+        void this.landColonyBuild();
         return;
       }
       if (colonyTrackMoveFlow.live) {
@@ -19946,6 +20098,8 @@ export default defineComponent({
       clearColonyRoster();
       // (A PARKED city: the arm goes with the step — the tile arrives with the ordinary update, as a watcher's.)
       clearColonyCity();
+      // (…and a staged build's receipt: the step it belonged to is over.)
+      clearColonyBuildReceipt();
       this.endHandWithHostedStep(pick);
     },
     /**

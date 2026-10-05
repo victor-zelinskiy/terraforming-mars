@@ -80,6 +80,20 @@ describe('stagedPlay — the fourth target: a COLONY', () => {
     expect(playDoorNextStepKey(door)).eq('Colony track — chosen in the Colonies');
   });
 
+  it('a BUILD door (TR25): the same door and verb, its own next-step row — said by the prompt\'s `buildSites` marker', () => {
+    const buildPrompt = {
+      type: 'colony', title: 'Select where to build the colony', buttonLabel: 'Build',
+      coloniesModel: [{name: ColonyName.LUNA}],
+      buildSites: [{colony: ColonyName.LUNA, slot: 3, overLimit: true, own: 1}],
+      choiceContext: {source: {kind: 'card', card: CardName.EXCLUSIVE_COLONY}, mode: 'effect-choice'},
+    } as unknown as SelectColonyModel;
+    const staged: StagedColonyModel = {prompt: buildPrompt, sourceCard: CardName.EXCLUSIVE_COLONY};
+    const door = playDoorOf(branch([{kind: 'colonyPick', staged}]));
+    expect(door).deep.eq({kind: 'colonies', staged});
+    expect(playCommitVerb(door)).eq('Choose the colony');
+    expect(playDoorNextStepKey(door)).eq('Colony — the tile is chosen in the Colonies');
+  });
+
   it('no tile to move: the branch carries the named warning and NO door — the CTA is the ordinary play', () => {
     const door = playDoorOf(branch([{kind: 'note', noteKind: 'warning', text: 'Every colony track is at its highest position', skipped: {label: 'Colony track'}}]));
     expect(door).is.undefined;
@@ -87,9 +101,22 @@ describe('stagedPlay — the fourth target: a COLONY', () => {
   });
 
   it('the act of a pick: a track-moving pick is `track`, a build `build`, anything else `pick`', () => {
-    expect(colonyPickIntent({buttonLabel: 'Select', trackMoves: []})).eq('track');
-    expect(colonyPickIntent({buttonLabel: 'Build'})).eq('build');
-    expect(colonyPickIntent({buttonLabel: 'Select'})).eq('pick');
+    expect(colonyPickIntent({trackMoves: []})).eq('track');
+    expect(colonyPickIntent({buildSites: []})).eq('build');
+    expect(colonyPickIntent({})).eq('pick');
+  });
+
+  it('a BUILD is known by the server\'s marker — NEVER by the button\'s label', () => {
+    // Every door of a build the server opens carries `buildSites` (BuildColony.prompt): the standard project, a
+    // card's follow-up, Colony Contest's free colony, a cell's bonus, the staged door of a card that builds.
+    const sites = [{colony: ColonyName.LUNA, slot: 0, overLimit: false, own: 0}];
+    expect(colonyPickIntent({buildSites: sites})).eq('build');
+    // A label alone says nothing — in either direction.
+    expect(colonyPickIntent({buttonLabel: 'Build'} as never), 'a «Build» label with no marker is a plain pick').eq('pick');
+    expect(colonyPickIntent({buttonLabel: 'Select', buildSites: sites} as never), 'the marker under any label').eq('build');
+    // The other acts' markers outrank it (a roster replacement that also builds is a `roster` act).
+    expect(colonyPickIntent({roster: {}, buildSites: sites})).eq('roster');
+    expect(colonyPickIntent({trackMoves: [], buildSites: sites})).eq('track');
   });
 
   describe('the move — promised at A, seeded from the diff in the apply block, played on the stage', () => {

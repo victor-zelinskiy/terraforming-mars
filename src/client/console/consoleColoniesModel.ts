@@ -258,10 +258,12 @@ export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus'
  * dossier's A and the stage read: a pick that moves a track (its `trackMoves`
  * marker) is `track`, a pick that changes the roster (its `rosterChange`
  * marker) is `roster`, a pick that places a tile on the chosen colony tile
- * (its `tileSite` marker) is `city`, a build is `build`, anything else is a
- * plain `pick`. The marker decides — never the button's label, never a title.
+ * (its `tileSite` marker) is `city`, a pick that builds a colony (its
+ * `buildSites` marker — published by the server on EVERY build prompt) is
+ * `build`, anything else is a plain `pick`. The marker decides — never the
+ * button's label, never a title.
  */
-export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: ReadonlyArray<unknown>, roster?: unknown, tileSite?: unknown}): ColonyFocusIntent {
+export function colonyPickIntent(pick: {trackMoves?: ReadonlyArray<unknown>, roster?: unknown, tileSite?: unknown, buildSites?: ReadonlyArray<unknown>}): ColonyFocusIntent {
   if (pick.trackMoves !== undefined) {
     return 'track';
   }
@@ -271,7 +273,7 @@ export function colonyPickIntent(pick: {buttonLabel: string, trackMoves?: Readon
   if (pick.tileSite !== undefined) {
     return 'city';
   }
-  return pick.buttonLabel === 'Build' ? 'build' : 'pick';
+  return pick.buildSites !== undefined ? 'build' : 'pick';
 }
 
 export const colonyFocusState = reactive({

@@ -265,7 +265,10 @@
                                       :settledCell="settledCell"
                                       :touchedCell="touchedCell"
                                       :offsetCaption="intent === 'track' ? 'The marker moves to the top' : 'Your trade advances the track first'"
-                                      :buildPreview="buildPreview" />
+                                      :buildPreview="buildPreview"
+                                      :buildSlot="buildPreview ? nextBuildSlot : -1"
+                                      :projectedColor="buildProjected && viewerColor !== undefined ? viewerColor : ''"
+                                      :admitCell="admitCell" />
 
         <!-- ── THE ACTION CONFIGURATION — adaptive by mode: never an empty
              «СПОСОБ ОПЛАТЫ» skeleton when there is nothing to choose. ── -->
@@ -755,7 +758,8 @@
             <div class="con-colfocus__rsec-label">{{ $t('New colony') }}</div>
             <div class="con-colfocus__rrow">
               <PlayerCube v-if="viewerColor !== undefined" class="con-colfocus__rcube" :color="viewerColor" :size="18" />
-              <span>{{ $t('Slot') }} {{ nextBuildSlot + 1 }}</span>
+              <span v-if="buildOverLimit" data-colony-build-overlimit>{{ newColonyOverLimitText }}</span>
+              <span v-else>{{ $t('Slot') }} {{ nextBuildSlot + 1 }}</span>
             </div>
           </div>
         </template>
@@ -863,7 +867,9 @@ import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDi
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
-import {berthBuildBenefit, BerthBenefit, colonyBerthsOf, freeBerths, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {berthBuildBenefit, BerthBenefit, colonyBerthsOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {ColonyBuildSite} from '@/common/colonies/ColonyBuildSite';
+import {berthIsOverLimit} from '@/common/colonies/colonyBerths';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {
   armOutcomeOriginFrom, playConfigRelease, playOutcomePhase, playOutcomeContent,
@@ -1012,6 +1018,14 @@ export default defineComponent({
     /** That reason's REGISTER (`AvailabilityBlocker.tone`): 'warning' = the
      *  trade is legal and merely out of the player's window right now. */
     blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
+    /**
+     * THE SERVER'S PROJECTION OF A BUILD ON THIS TILE (`SelectColonyModel.buildSites` — the berth the cube takes,
+     * beyond the printed limit or not). `undefined` off a build door; past the commit the stage reads its own
+     * pinned berth.
+     */
+    buildSite: {type: Object as PropType<ColonyBuildSite | undefined>, default: undefined},
+    /** The build is a CARD's own door (TR25): the berth beyond the limit wears the cube's ghost. */
+    buildProjected: {type: Boolean, default: false},
     /** The pick's server verb ('Build' / 'Remove colony' …, pick intent). */
     pickLabel: {type: String, default: ''},
     /**
@@ -1476,9 +1490,30 @@ export default defineComponent({
     builtCount(): number {
       return this.colony.colonies.length;
     },
-    /** The build preview is LIVE (build intent, genuinely offerable). */
+    /**
+     * The build preview is LIVE: the door offers this tile, and the berth the build is aimed at is still empty
+     * (the answer's cube ends the preview — the commit is held through the scene, so the berth stays the
+     * destination for the whole flight). WHO may build is the server's door; nothing here counts cubes.
+     */
     buildPreview(): boolean {
-      return this.intent === 'build' && this.presentAvailable && freeBerths(this.colony) > 0;
+      return this.intent === 'build' && this.presentAvailable && this.colony.colonies[this.nextBuildSlot] === undefined;
+    },
+    /** The build lands in a berth BEYOND THE PRINTED LIMIT (a card's door lifted it — TR25). */
+    buildOverLimit(): boolean {
+      return berthIsOverLimit(this.nextBuildSlot);
+    },
+    /** «Место 4 · сверх лимита» — the «Новая колония» line of a build beyond the limit. */
+    newColonyOverLimitText(): string {
+      return translateTextWithParams('Berth ${0} · over the limit', [String(this.nextBuildSlot + 1)]);
+    },
+    /**
+     * THE ADMISSION BEAT — the berth whose limit this build has just lifted: from the press (the build
+     * transaction is armed before the POST) until the cube stands there. ONE fact from the transaction's own
+     * state, never a timer: the limit mark lets go and the dashed contour closes off this class.
+     */
+    admitCell(): number {
+      const b = this.colonyBuildState;
+      return b.active && b.colonyName === this.colony.name ? b.slotIndex : -1;
     },
     /**
      * The cell/berth pair currently being LATCHED by a landing build — the
@@ -1590,7 +1625,7 @@ export default defineComponent({
      * the build was committed into (pinned for the stage's life).
      */
     nextBuildSlot(): number {
-      return this.pinnedConfig?.buildSlot ?? nextBuildSlot(this.colony);
+      return this.pinnedConfig?.buildSlot ?? nextBuildSlot(this.colony, this.buildSite);
     },
     /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
     nextBuildBenefit(): BerthBenefit {
@@ -2927,6 +2962,14 @@ export default defineComponent({
         // A CHOSEN TRACK's stage (TR07) and a CITY's (TR22): X is the console's ordinary «Осмотреть» — the colony's
         // dossier. The confirm here is A; there is nothing composed for X to commit.
         if ((this.intent === 'track' || this.city !== undefined) && this.sub === undefined) {
+          if (!this.pastCommit) {
+            this.$emit('inspect');
+          }
+          return;
+        }
+        // …and a CARD's own build door (TR25) with nothing to compose: A is its confirm, so X is free to read the
+        // dossier exactly as on the other two staged acts. (A build that composes keeps X as its one commit.)
+        if (this.intent === 'build' && this.buildProjected && !this.hasDecisions && this.sub === undefined) {
           if (!this.pastCommit) {
             this.$emit('inspect');
           }

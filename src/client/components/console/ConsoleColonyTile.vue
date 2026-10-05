@@ -62,8 +62,9 @@
            Turmoil Redux TR25) wears the row's compact metric and the limit mark in the gap before that berth
            (console_colony_berths.less). An ordinary tile carries neither the class nor the token. -->
       <div class="con-coltile__build"
-           :class="{'con-coltile__build--over': overLimit}"
-           :style="overLimit ? {'--printed': printedCount} : undefined">
+           :class="{'con-coltile__build--over': overLimit, 'con-coltile__build--revealing': berthRevealing}"
+           :style="overLimit ? {'--printed': printedCount} : undefined"
+           @animationend="onBerthRevealEnd">
         <div v-for="berth in berths" :key="berth.index"
              class="con-coltile__build-slot"
              :class="{
@@ -241,10 +242,33 @@ export default defineComponent({
     projectedCube: {type: String, default: ''},
     projectedCubeSlot: {type: Number, default: 0},
   },
+  data() {
+    return {
+      /**
+       * A WATCHER'S MOMENT: a colony was built beyond the limit while this tile stood (the viewer's own door
+       * mounts the grid with the berth already projected — nothing changes under it). The slot is revealed by ONE
+       * transition and the cube surfaces after it; the class goes with the animation.
+       */
+      berthRevealing: false,
+    };
+  },
+  watch: {
+    overLimit(now: boolean, was: boolean): void {
+      if (now && !was && this.berths.some((berth) => berth.overLimit && berth.state === 'taken')) {
+        this.berthRevealing = true;
+      }
+    },
+  },
   methods: {
     /** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
     berthBenefit(slot: number): BerthBenefit {
       return berthBuildBenefit(this.metadata, slot);
+    },
+    /** The reveal's last beat (the cube surfacing) has played — the one-shot class goes. */
+    onBerthRevealEnd(event: AnimationEvent): void {
+      if (event.animationName === 'con-berth-reveal-cube') {
+        this.berthRevealing = false;
+      }
     },
   },
   computed: {

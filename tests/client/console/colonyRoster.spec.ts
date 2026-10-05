@@ -158,11 +158,11 @@ describe('the roster pick — the act, the rail, the composer\'s door', () => {
   } as unknown as StagedColonyModel;
 
   it('a pick that carries the roster marker is the `roster` act; a track pick and a build keep theirs', () => {
-    expect(colonyPickIntent({buttonLabel: 'Replace colony tile', roster: {}})).eq('roster');
-    expect(colonyPickIntent({buttonLabel: 'Add colony tile', roster: {}})).eq('roster');
-    expect(colonyPickIntent({buttonLabel: 'Select', trackMoves: []})).eq('track');
-    expect(colonyPickIntent({buttonLabel: 'Build'})).eq('build');
-    expect(colonyPickIntent({buttonLabel: 'Select'})).eq('pick');
+    expect(colonyPickIntent({roster: {}})).eq('roster');
+    expect(colonyPickIntent({roster: {}, buildSites: []}), 'the roster outranks a build marker').eq('roster');
+    expect(colonyPickIntent({trackMoves: []})).eq('track');
+    expect(colonyPickIntent({buildSites: []})).eq('build');
+    expect(colonyPickIntent({})).eq('pick');
   });
 
   it('the LEVEL decides the rail: a replacement asks «who leaves» on the table and «who enters» on the reserve', () => {

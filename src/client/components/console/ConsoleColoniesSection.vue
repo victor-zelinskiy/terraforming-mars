@@ -23,6 +23,8 @@
            'con-colonies--receipt': receiptOn,
          },
        ]"
+       :data-colony-build-degraded="buildState.degraded ? '' : undefined"
+       :data-colony-build-phase="buildState.active ? buildState.phase : undefined"
        :data-colony-city-degraded="cityState.degraded !== '' ? cityState.degraded : undefined"
        :data-colony-city-beat="cityState.live ? cityState.beat : undefined"
        :data-colony-roster-degraded="rosterState.degraded !== '' ? rosterState.degraded : undefined"
@@ -106,6 +108,7 @@
                                    :justDocked="colony.name === dockedColony"
                                    :orbit="rosterState.orbit === colony.name"
                                    :projectedCube="tileProjectedCube(colony)"
+                                   :projectedCubeSlot="tileProjectedCubeSlot(colony)"
                                    :cityProjection="tileCityProjection(colony)"
                                    :status="tileStatus(colony)" />
               </div>
@@ -161,7 +164,8 @@
                stands. A result, never an offer: it carries no verb. -->
           <footer v-else-if="receiptOn" class="con-colonies__rail"
                   :data-colony-roster-receipt="rosterReceiptOn ? '' : undefined"
-                  :data-colony-city-receipt="cityReceiptOn ? '' : undefined">
+                  :data-colony-city-receipt="cityReceiptOn ? '' : undefined"
+                  :data-colony-build-receipt="buildReceiptOn ? '' : undefined">
             <span class="con-colonies__rail-receipt">
               <span class="con-colonies__rail-receipt-mark" aria-hidden="true">✓</span>
               <span>{{ receiptText }}</span>
@@ -288,7 +292,10 @@
                 </span>
               </template>
               <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
-              <span class="con-colonies__rail-muted">{{ $t('Free slots') }}: {{ focusedFreeBerths }}</span>
+              <!-- A build BEYOND the limit names its berth («Место 4 · сверх лимита») — «Свободно мест: 0» beside
+                   «Вы строите» would contradict the door that offers the tile. -->
+              <span v-if="focusedOverLimitText !== ''" class="con-colonies__rail-muted" data-colonies-rail-overlimit>{{ focusedOverLimitText }}</span>
+              <span v-else class="con-colonies__rail-muted">{{ $t('Free slots') }}: {{ focusedFreeBerths }}</span>
               <span v-if="focusedBuildLost" class="con-colonies__rail-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
               <span v-if="pick !== undefined && focusedStatus.kind === 'blocked'" class="con-colonies__rail-reason con-colonies__rail-reason--blocked">
                 <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
@@ -410,6 +417,8 @@
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
                                    :trackMove="focusTrackMove"
+                                   :buildSite="focusBuildSite"
+                                   :buildProjected="buildDoorStands"
                                    @inspect="onStageInspect"
                                    @confirm="onFocusConfirm"
                                    @build-confirm="$emit('build-confirm', $event)"
@@ -522,8 +531,10 @@ import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyTradeState, colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
-import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
-import {berthBuildBenefit, BerthBenefit, freeBerths, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {colonyBuildAnswered, ColonyBuildReceipt, colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {berthBuildBenefit, BerthBenefit, buildSiteOf, freeBerths, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {ColonyBuildSite} from '@/common/colonies/ColonyBuildSite';
+import {berthIsOverLimit} from '@/common/colonies/colonyBerths';
 import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTradeReason';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -582,6 +593,18 @@ export type ConsoleColonyPick = {
    * Its presence makes the act `city` (`colonyPickIntent`).
    */
   tileSite?: ColonyTileSite,
+  /**
+   * THE PICK BUILDS A COLONY (the server's `SelectColonyModel.buildSites` — published on EVERY build prompt): the
+   * berth the cube takes on each CANDIDATE, whether it lies beyond the printed limit, the player's own cubes
+   * there. Its presence makes the act `build` (`colonyPickIntent`) — never the button's label.
+   */
+  buildSites?: ReadonlyArray<ColonyBuildSite>,
+  /**
+   * The build is A CARD's own door (staged, or its live re-ask — the prompt names a card as its giver): the grid
+   * PROJECTS the cube on every candidate and says, calmly, what the card lifts there. Every other build (the
+   * standard project, a follow-up, a resolution's colony) keeps the grid it always had.
+   */
+  buildProjected?: boolean,
   /**
    * The pick is a STAGED door (TR07's staged colony): nothing is on the wire
    * yet — the stage's A is the PLAY's one submit and B walks one level back.
@@ -729,6 +752,8 @@ export default defineComponent({
        * latched — without this the ghosts and the pick's rail came back for the last frames of the leave.
        */
       cityReceiptLatch: undefined as ColonyCityReceipt | undefined,
+      /** The same latch for a STAGED BUILD's receipt (TR25): the transaction's own is cleared when the read ends. */
+      buildReceiptLatch: undefined as ColonyBuildReceipt | undefined,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
       /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
@@ -776,16 +801,46 @@ export default defineComponent({
     cityDoorStands(): boolean {
       return this.pick?.tileSite !== undefined;
     },
+    /** A card's own BUILD door stands on this surface (live, staged, or latched through the host's dissolve). */
+    buildDoorStands(): boolean {
+      return this.pick?.buildProjected === true;
+    },
+    /** The receipt of a staged build: the transaction's own while it stands, then this surface's copy. */
+    buildReceipt(): ColonyBuildReceipt | undefined {
+      return this.buildState.receipt ?? this.buildReceiptLatch;
+    },
+    buildReceiptOn(): boolean {
+      return this.buildReceipt !== undefined && !this.buildState.active && !this.focusState.open;
+    },
+    /**
+     * A staged build of the player's own is ANSWERED (on the wire, playing, homing or standing as its receipt):
+     * the door's prompt has outlived its answer — no tile is offered, refused or projected any more.
+     */
+    buildAnswered(): boolean {
+      return colonyBuildAnswered() || this.buildReceipt !== undefined;
+    },
+    /** The server's projection of a build on the FOCUSED tile (its berth, beyond the limit or not) — `undefined` off a build door. */
+    focusBuildSite(): ColonyBuildSite | undefined {
+      const model = this.focusColonyModel;
+      return model === undefined ? undefined : buildSiteOf(this.pick?.buildSites, model.name);
+    },
     /**
      * THE GRID IS A RECEIPT — one reading for every flow that folds its stage home and lets the grid state the
-     * result (a roster change, a city laid on a tile): no cursor, no verbs, the landed tile in the calm amber.
+     * result (a roster change, a city laid on a tile, a colony a card built): no cursor, no verbs, the landed
+     * tile in the calm amber.
      */
     receiptOn(): boolean {
-      return this.rosterReceiptOn || this.cityReceiptOn;
+      return this.rosterReceiptOn || this.cityReceiptOn || this.buildReceiptOn;
     },
     receiptText(): string {
       if (this.rosterReceiptOn) {
         return this.rosterReceiptText;
+      }
+      if (this.buildReceiptOn && this.buildReceipt !== undefined) {
+        const built = this.buildReceipt;
+        return translateTextWithParams(
+          berthIsOverLimit(built.slot) ? 'Colony built on ${0} — berth ${1}, over the limit' : 'Colony built on ${0} — berth ${1}',
+          [translateText(built.colony), String(built.slot + 1)]);
       }
       const receipt = this.cityReceipt;
       if (receipt === undefined) {
@@ -1432,7 +1487,14 @@ export default defineComponent({
     /** The berth a new settlement lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
     focusedBuildSlot(): number {
       const colony = this.colonies[this.index];
-      return colony === undefined ? 0 : nextBuildSlot(colony);
+      return colony === undefined ? 0 : nextBuildSlot(colony, buildSiteOf(this.pick?.buildSites, colony.name));
+    },
+    /** «Место 4 · сверх лимита» — the focused candidate's berth lies beyond the printed limit (the server's `buildSites`); '' otherwise. */
+    focusedOverLimitText(): string {
+      const colony = this.colonies[this.index];
+      const site = colony === undefined ? undefined : buildSiteOf(this.pick?.buildSites, colony.name);
+      return site !== undefined && site.overLimit && this.isPickable(site.colony) ?
+        translateTextWithParams('Berth ${0} · over the limit', [String(site.slot + 1)]) : '';
     },
     /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
     focusedBuildBenefit(): BerthBenefit {
@@ -1522,6 +1584,16 @@ export default defineComponent({
     'cityState.receipt'(receipt: ColonyCityReceipt | undefined): void {
       if (receipt !== undefined && this.cityDoorStands) {
         this.cityReceiptLatch = {...receipt};
+      }
+    },
+    'buildState.receipt'(receipt: ColonyBuildReceipt | undefined): void {
+      if (receipt !== undefined && this.buildDoorStands) {
+        this.buildReceiptLatch = {...receipt};
+      }
+    },
+    buildDoorStands(stands: boolean): void {
+      if (!stands) {
+        this.buildReceiptLatch = undefined;
       }
     },
     cityDoorStands(stands: boolean): void {
@@ -1861,7 +1933,7 @@ export default defineComponent({
     tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
       // A ROSTER change is answered and playing / standing as its receipt: the grid is a RESULT — no tile is being
       // offered or refused any more (a staged door's prompt outlives the answer, and its «not pickable» is stale).
-      if (this.rosterState.receipt !== undefined || this.cityAnswered) {
+      if (this.rosterState.receipt !== undefined || this.cityAnswered || this.buildAnswered) {
         return {kind: 'none', text: ''};
       }
       // The trade transaction narrates its own beats on the traded tile —
@@ -1885,6 +1957,15 @@ export default defineComponent({
         // A pickable colony is the NORMAL case in a pick — the focus ring and
         // the command bar already say so. Only a refusal earns a line.
         if (this.isPickable(colony.name)) {
+          // …and what a CARD's build LIFTS on this candidate — calm, never a refusal: the berth beyond the
+          // printed limit, or a second colony of one's own. The server's projection (`buildSites`), read as is.
+          const site = this.buildDoorStands ? buildSiteOf(this.pick.buildSites, colony.name) : undefined;
+          if (site !== undefined && site.overLimit) {
+            return {kind: 'ok', text: translateText('Over the limit — by the card')};
+          }
+          if (site !== undefined && site.own > 0) {
+            return {kind: 'ok', text: translateText('Second colony — by the card')};
+          }
           return {kind: 'none', text: ''};
         }
         return {kind: 'blocked', text: this.pickReasonFor(colony.name)};
@@ -2036,8 +2117,28 @@ export default defineComponent({
       }
       return site.color;
     },
-    /** The colour of the colony a roster pick would BUILD on this reserve tile ('' = none) — the server's projection. */
+    /**
+     * The berth the projected cube would take — the server's (`buildSites` for a card's build door; a roster
+     * build lands in the entering tile's own next berth).
+     */
+    tileProjectedCubeSlot(colony: ColonyModel): number {
+      const site = this.buildDoorStands ? buildSiteOf(this.pick?.buildSites, colony.name) : undefined;
+      if (site !== undefined) {
+        return site.slot;
+      }
+      const build = this.pick?.roster?.level === 'incoming' ? rosterIncomingOf(this.pick.roster.prompt, colony.name)?.build : undefined;
+      return rosterBuildLands(build) ? build.slot : 0;
+    },
+    /**
+     * The colour of the colony a pick would BUILD on this tile ('' = none) — the server's projection: a roster
+     * pick's reserve tile, or a candidate of a CARD's own build door (TR25 — its `buildSites`; the ghost stands in
+     * the berth the marker names, the fourth on a tile at its limit). Never once the door is answered.
+     */
     tileProjectedCube(colony: ColonyModel): string {
+      if (this.buildDoorStands) {
+        return !this.buildAnswered && this.isPickable(colony.name) && buildSiteOf(this.pick?.buildSites, colony.name) !== undefined ?
+          (this.viewerColor ?? '') : '';
+      }
       const roster = this.pick?.roster;
       if (roster === undefined || roster.level !== 'incoming') {
         return '';
@@ -2171,6 +2272,11 @@ export default defineComponent({
       if (this.cityAnswered) {
         return;
       }
+      // …and a STAGED BUILD's (TR25): the cube, what its bonus still owes inside the stage, HOME, the receipt —
+      // the shell's `landColonyBuild`.
+      if (this.buildAnswered) {
+        return;
+      }
       this.completeTimer = window.setTimeout(() => {
         this.completeTimer = undefined;
         if (workspaceOutcomeClaimed() || !this.focusState.open || this.resolutionUi.cardSceneLive) {
@@ -2240,7 +2346,9 @@ export default defineComponent({
     },
     /** X on a `track` / `city` stage — the colony's dossier, the act kept (A on the dossier leads back to it). */
     onStageInspect(): void {
-      if (this.focusState.open && (this.focusState.intent === 'track' || this.focusState.intent === 'city')) {
+      // (…and a CARD's own build door — TR25: its stage offers X as the other staged acts do.)
+      if (this.focusState.open && (this.focusState.intent === 'track' || this.focusState.intent === 'city' ||
+          (this.focusState.intent === 'build' && this.buildDoorStands))) {
         switchColonyFocusIntent('inspect');
       }
     },

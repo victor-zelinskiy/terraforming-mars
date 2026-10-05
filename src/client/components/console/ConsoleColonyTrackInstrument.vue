@@ -108,7 +108,9 @@
          projected by a build door) beyond them. Nothing stands under the
          cells no cube protects, and the empty span says so. -->
     <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item
-         :style="{'--berths': berths.length}">
+         :class="{'con-colfocus__berths--revealing': berthRevealing}"
+         :style="{'--berths': berths.length}"
+         @animationend="onBerthRevealEnd">
       <div v-for="berth in berths" :key="berth.index"
            class="con-colfocus__berth"
            :class="{
@@ -241,6 +243,24 @@ type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?:
 export default defineComponent({
   name: 'ConsoleColonyTrackInstrument',
   components: {BenefitGlyph, PlayerCube},
+  data() {
+    return {
+      /**
+       * A WATCHER'S MOMENT: a colony was built beyond the limit while this instrument stood (somebody else's
+       * build — the viewer's own berth is projected before its cube, so its count never changes under it). The
+       * berth is revealed by ONE transition and the cube surfaces after it; the class goes with the animation.
+       */
+      berthRevealing: false,
+    };
+  },
+  watch: {
+    berths(now: ReadonlyArray<ColonyBerth>, was: ReadonlyArray<ColonyBerth>): void {
+      const last = now[now.length - 1];
+      if (now.length > was.length && last !== undefined && last.overLimit && last.state === 'taken') {
+        this.berthRevealing = true;
+      }
+    },
+  },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     metadata: {type: Object as PropType<ColonyMetadata>, required: true},
@@ -360,6 +380,12 @@ export default defineComponent({
     /** A card-resource cell over SEVERAL kinds (the Redux Vesta) — the glyph box opens to the row's width. */
     multiKindCell(position: number): boolean {
       return this.cardResourceKinds.length > 1 && tradeBenefitAt(this.metadata, position).type === ColonyBenefit.ADD_RESOURCES_TO_CARD;
+    },
+    /** The reveal's last beat (the cube surfacing) has played — the one-shot class goes. */
+    onBerthRevealEnd(event: AnimationEvent): void {
+      if (event.animationName === 'con-berth-reveal-cube') {
+        this.berthRevealing = false;
+      }
     },
     /**
      * A berth beyond the limit whose limit has been LIFTED: a cube stands in

@@ -103,6 +103,14 @@ describe('colonyBuildModel', () => {
       expect(verifyColonyBuild(prev, next, ColonyName.LUNA, 'blue')).to.deep.eq({slotIndex: 1});
     });
 
+    it('proves the FOURTH berth — a colony built beyond the printed limit (TR25)', () => {
+      const prev = [colony(ColonyName.LUNA, ['red', 'red', 'blue'])];
+      const next = [colony(ColonyName.LUNA, ['red', 'red', 'blue', 'blue'])];
+      expect(verifyColonyBuild(prev, next, ColonyName.LUNA, 'blue')).to.deep.eq({slotIndex: 3});
+      // …and never somebody else's fourth cube.
+      expect(verifyColonyBuild(prev, next, ColonyName.LUNA, 'red')).to.eq(undefined);
+    });
+
     it('refuses when the colony did not grow', () => {
       const prev = [colony(ColonyName.LUNA, ['red'])];
       const next = [colony(ColonyName.LUNA, ['red'])];
