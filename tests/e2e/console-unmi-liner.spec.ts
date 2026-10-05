@@ -451,6 +451,13 @@ for (const preset of PRESETS) {
       const scenes = [...new Set(samples.map((s) => s.scene).filter((s) => s !== ''))];
       expect(scenes, 'the card answered, the reward flew, the result was read').toEqual(expect.arrayContaining(['answer', 'reward', 'read']));
       expect(scenes, 'a reward on the rail leaves nothing to make room for: the card has no departure of its own').not.toContain('leave');
+      // PL-018: past the press the bar is a STATUS — never «Торговать · Осмотреть · Назад» gone inert over the scene.
+      const sceneBars = samples.filter((s) => s.stage && ['answer', 'reward', 'read'].includes(s.scene)).map((s) => s.bar);
+      expect(sceneBars.length, 'the bar was read during the scene').toBeGreaterThan(0);
+      // (Blank while the fleet flies; the board's own bar once the flow has concluded and the workspace is leaving.)
+      const deadVerbs = sceneBars.filter((bar) => bar.startsWith('Торговля') && /Торговать|Осмотреть|Назад/.test(bar));
+      expect(deadVerbs, `past the press the stage's verbs are gone — the bar read: ${[...new Set(sceneBars)].join(' ¦ ')}`).toEqual([]);
+      expect(sceneBars.some((bar) => bar.includes('Выполняется')), 'the bar says «Выполняется…» while the card answers').toBe(true);
       expect(samples.some((s) => s.leaving), 'the card went WITH the workspace').toBe(false);
       const crumbMisses = samples.filter((s) => s.stage && !(s.crumb.includes('КОЛОНИИ') && s.crumb.includes(LINER_RU)));
       expect(crumbMisses.length, 'the crumb held its root and the card on every stage sample').toBe(0);

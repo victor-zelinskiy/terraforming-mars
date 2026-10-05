@@ -163,6 +163,12 @@ export const fleetDockUi = reactive({
   primaryEnabled: false,
   /** A on the chosen path commits the trade — the bar lights it. */
   primaryCommits: false,
+  /**
+   * PAST THE PRESS: the stage is its own receipt and its scene is in flight (the shell accepted the confirm —
+   * `holdPresentation` — until the workspace leaves or a refusal gives the stage back). The bar is a STATUS then,
+   * never the stage's verbs gone inert.
+   */
+  answered: false,
 });
 
 export function resetFleetDockUi(): void {
@@ -170,6 +176,7 @@ export function resetFleetDockUi(): void {
   fleetDockUi.primaryLabel = 'Trade';
   fleetDockUi.primaryEnabled = false;
   fleetDockUi.primaryCommits = false;
+  fleetDockUi.answered = false;
 }
 
 /**

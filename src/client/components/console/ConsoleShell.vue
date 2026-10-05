@@ -8800,6 +8800,11 @@ export default defineComponent({
       if (this.colonyFocusOpen && this.colonyFocus.dock !== '') {
         // THE FLEET-DOCK STAGE publishes its ONE primary verb (A selects a path,
         // opens the payment, or trades) — the bar reads it, never guesses.
+        // PAST THE PRESS the stage is a beat in flight (the card answers, the reward lands, the workspace leaves):
+        // the bar is the colony acts' ONE status, never «Торговать · Осмотреть · Назад» gone inert (PL-018).
+        if (fleetDockUi.answered) {
+          return [{control: 'confirm', label: 'Performing…', enabled: false}];
+        }
         if (fleetDockUi.sub === 'lanes') {
           return [
             {control: 'triggerR', label: 'Max'},

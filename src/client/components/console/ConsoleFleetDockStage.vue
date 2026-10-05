@@ -740,6 +740,7 @@ export default defineComponent({
       fleetDockUi.primaryLabel = this.primary.label;
       fleetDockUi.primaryEnabled = this.primary.enabled && this.held === undefined;
       fleetDockUi.primaryCommits = this.primary.commits;
+      fleetDockUi.answered = this.held !== undefined;
     },
     seedPaymentDefault(): void {
       const step = this.paymentStep;
@@ -1183,6 +1184,7 @@ export default defineComponent({
     fleetDockUi.sub = '';
     fleetDockUi.primaryEnabled = false;
     fleetDockUi.primaryCommits = false;
+    fleetDockUi.answered = false;
   },
 });
 </script>

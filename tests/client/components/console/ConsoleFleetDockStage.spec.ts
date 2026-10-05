@@ -10,6 +10,7 @@ import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockS
 import {EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {armedFleetDockScene, fleetDockRewardKey, resetFleetDockScene} from '@/client/console/colonyTrade/fleetDockScene';
 import {railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
+import {fleetDockUi} from '@/client/console/consoleColoniesModel';
 
 /*
  * THE FLEET-DOCK STAGE, BY THE REWARD'S CATEGORY (docs/TURMOIL_REDUX_WATER_HAULING.md §8–§9).
@@ -121,6 +122,20 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
     await stage.vm.$nextTick();
     expect(armedFleetDockScene(CardName.UNMI_LINER)).is.undefined;
     expect(stage.find('.con-fleetdock').attributes('data-fleet-dock-category'), 'the live preview again').eq('placement');
+  });
+
+  // PL-018: past the press the shell's bar reads «Выполняется…» off this ONE mirror (never the stage's verbs gone inert).
+  it('the bar\'s mirror says ANSWERED from the commit boundary until a refusal gives the stage back, or the stage leaves', async () => {
+    const stage = mountStage(LINER);
+    expect(fleetDockUi.answered, 'before the press').eq(false);
+    stage.vm.holdPresentation();
+    expect(fleetDockUi.answered, 'the shell accepted the confirm').eq(true);
+    expect(fleetDockUi.sub, 'no substep stands past the press').eq('');
+    stage.vm.releasePresentation();
+    expect(fleetDockUi.answered, 'a refused submit: the stage is live again').eq(false);
+    stage.vm.holdPresentation();
+    stage.unmount();
+    expect(fleetDockUi.answered, 'the stage left: nothing claims the bar').eq(false);
   });
 
   it('what the TABLE answers is named on the result BEFORE the press — the composers\' own «⚡ сработает» group, for either sister', () => {
