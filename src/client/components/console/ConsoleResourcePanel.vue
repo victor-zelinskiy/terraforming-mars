@@ -353,7 +353,7 @@ import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetu
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 import {heldStock, heldProduction, heldCardResource, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardResourceKey, RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {infoModeState} from '@/client/console/infoModeState';
 import {extrasExplorerUi} from '@/client/console/consoleExtrasExplorer';
 import {marsBotExtraGroups} from '@/client/components/console/marsBotRailModel';
@@ -529,12 +529,20 @@ export default defineComponent({
       // The rating rides the SAME reward hold as the rows (`rating` on the
       // stock channel — the Parliament's Agenda bonus flies into this cell):
       // committed − held until the chip's touchdown, the viewer's own only.
-      const held = this.own && panelRewardHold.active ? heldStock('rating') : 0;
+      const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) : 0;
       return this.effectivePlayer.terraformRating - held;
     },
-    /** Victory points (incl. TR) — the server recomputes the breakdown per response. */
+    /**
+     * Victory points (incl. TR) — the server recomputes the breakdown per response.
+     *
+     * The total INCLUDES the rating point for point, so it is a DERIVED cell of the one beside it: while a rating
+     * step is still held on its flight (that cell reads «committed − held»), the same step is held here. A derived
+     * cell that announced «+1» a second before the rating's own token landed told the result ahead of its cause, an
+     * inch from the number being withheld. Both tick on the one touchdown.
+     */
     vp(): number {
-      return this.player.victoryPointsBreakdown.total;
+      const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) : 0;
+      return this.player.victoryPointsBreakdown.total - held;
     },
     /**
      * The VP mask, by seat:

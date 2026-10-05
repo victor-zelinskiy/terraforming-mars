@@ -9,6 +9,8 @@ import {CONSOLE_TAG_ORDER, NO_TAG_CELL} from '@/client/components/console/consol
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
 import {infoModeState} from '@/client/console/infoModeState';
 import {extrasExplorerUi, resetExtrasExplorer} from '@/client/console/consoleExtrasExplorer';
+import {beginPanelRewardHold, clearPanelRewardHold, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
@@ -226,6 +228,47 @@ describe('ConsoleResourcePanel — the law tag addition', () => {
  * local «Приватный счёт» pref masks only the OWN seat; the game-level
  * hidden-VP rule masks an inspected opponent.
  */
+/*
+ * THE SCORE HEADER UNDER A HELD RATING (docs/claude/gameplay-polish-ledger.md PL-014): the VP total includes the
+ * rating point for point, so it is a DERIVED cell — while a rating step is held on its flight (a reward on the
+ * rail, the Parliament's Agenda bonus) the VP cell keeps its pre-step value too, and both tick on the touchdown.
+ */
+describe('ConsoleResourcePanel — the VP cell is derived from the rating, and is held with it', () => {
+  const step: ResourceTransferSpec = {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1};
+  const committed = () => fakePlayer({}, {terraformRating: 21, victoryPointsBreakdown: {total: 23}});
+  const cells = (w: ReturnType<typeof mount>) => ({
+    tr: w.find('.con-score__value--tr').text(),
+    vp: w.find('.con-score__cell--vp .con-score__value').text(),
+  });
+
+  afterEach(() => clearPanelRewardHold());
+
+  it('a held rating step holds BOTH cells at their pre-step values; the touchdown ticks both', async () => {
+    const w = mount(ConsoleResourcePanel, {global: globalConfig.global, props: {player: committed(), gameTags: BASE_GAME_TAGS as Array<Tag>}});
+    expect(cells(w)).deep.eq({tr: '21', vp: '23'});
+    beginPanelRewardHold([step]);
+    await w.vm.$nextTick();
+    expect(cells(w), 'the derived cell never announces a point the rating has not shown arriving').deep.eq({tr: '20', vp: '22'});
+    releasePanelRewardHold(step);
+    await w.vm.$nextTick();
+    expect(cells(w)).deep.eq({tr: '21', vp: '23'});
+  });
+
+  it('a hold of another row leaves the score header alone', async () => {
+    const w = mount(ConsoleResourcePanel, {global: globalConfig.global, props: {player: committed(), gameTags: BASE_GAME_TAGS as Array<Tag>}});
+    beginPanelRewardHold([{channel: 'stock', resource: 'megacredits', amount: 2}]);
+    await w.vm.$nextTick();
+    expect(cells(w)).deep.eq({tr: '21', vp: '23'});
+  });
+
+  it('an INSPECTED seat is never reduced by the viewer\'s own holds', async () => {
+    const w = mount(ConsoleResourcePanel, {global: globalConfig.global, props: {player: committed(), gameTags: BASE_GAME_TAGS as Array<Tag>, own: false}});
+    beginPanelRewardHold([step]);
+    await w.vm.$nextTick();
+    expect(cells(w)).deep.eq({tr: '21', vp: '23'});
+  });
+});
+
 describe('ConsoleResourcePanel — inspected-player VP masking', () => {
   function mountSeat(extra: {own?: boolean, vpHidden?: boolean} = {}) {
     return mount(ConsoleResourcePanel, {
