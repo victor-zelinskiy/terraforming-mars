@@ -157,6 +157,37 @@ export function tradeBenefitAt(metadata: ColonyMetadata, position: number): Trad
   };
 }
 
+/** The build bonus of ONE berth, every field resolved. */
+export type BuildBenefitAt = {
+  type: ColonyBenefit;
+  quantity: number;
+  resource: Resource | undefined;
+};
+
+/**
+ * THE ONE READING of a colony's build (placement) bonus at a BERTH — the twin
+ * of {@link tradeBenefitAt} for the cells a cube stands on. The slot is
+ * CLAMPED to the printed cells: a tile prints its build bonus in its first
+ * cells only (three today), and a colony placed beyond them (Turmoil Redux
+ * TR25 Exclusive Colony — «you gain the colony tile's placement bonus») is
+ * paid the LAST PRINTED cell — the same number on every uniform tile, 2 VP on
+ * Titania (5 / 3 / 2). The server pays exactly this (`Colony.addColony`), the
+ * preview plans it and every client surface draws it; none may index
+ * `build.quantity` itself (`tests/colonies/colonyBuildBenefitReader.spec.ts`
+ * scans for a raw read), because a reader past the printed cells gets
+ * `undefined` — and the engine would add `undefined` to a production track.
+ */
+export function buildBenefitAt(metadata: Pick<ColonyMetadata, 'build'>, slot: number): BuildBenefitAt {
+  const build = metadata.build;
+  const last = build.quantity.length - 1;
+  const index = Math.min(Math.max(slot, 0), last);
+  return {
+    type: build.type,
+    quantity: build.quantity[index] ?? 0,
+    resource: build.resource,
+  };
+}
+
 /**
  * THE HIGHEST (RIGHT-MOST) POSITION of a tile's colony track — the last cell
  * its trade income prints. The ONE reading of «the top»: the engine's clamp

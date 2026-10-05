@@ -5,6 +5,10 @@ import {all} from '../Options';
 import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {EffectForecastGrant} from '../EffectForecastContext';
+import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import * as actionPreviews from '../actionPreviews';
+import * as forecast from '../effectForecastPreviews';
 
 export class Poseidon extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -39,5 +43,15 @@ export class Poseidon extends CorporationCard implements ICorporationCard {
 
   public onColonyAddedByAnyPlayer(cardOwner: IPlayer) {
     cardOwner.production.add(Resource.MEGACREDITS, 1, {log: true});
+  }
+
+  /** The forecast twin of `onColonyAddedByAnyPlayer`: every colony the operation builds raises M€ production 1 step, whoever builds. */
+  public grantForecast(cardOwner: IPlayer, _activePlayer: IPlayer, grant: EffectForecastGrant): ReadonlyArray<EffectForecastFact> {
+    if (grant.kind !== 'colony' || grant.count <= 0) {
+      return [];
+    }
+    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'colony-added'),
+      [actionPreviews.productionChange(cardOwner, Resource.MEGACREDITS, grant.count)],
+      'A colony is placed')];
   }
 }

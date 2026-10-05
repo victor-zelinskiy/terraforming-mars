@@ -301,7 +301,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -555,7 +555,7 @@ export default defineComponent({
       if (this.actIntent === 'build') {
         const b = this.metadata.build;
         const resource = Array.isArray(b.resource) ? b.resource[this.nextBuildSlot] : b.resource;
-        const per = describeBenefit(b.type, b.quantity[this.nextBuildSlot] ?? 0, typeof resource === 'string' ? resource : undefined, this.metadata);
+        const per = describeBenefit(b.type, buildBenefitAt(this.metadata, this.nextBuildSlot).quantity, typeof resource === 'string' ? resource : undefined, this.metadata);
         if (per === undefined || per.amount <= 0) {
           return [];
         }

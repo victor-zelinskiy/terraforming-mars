@@ -29,7 +29,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {cardResourceKey, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -117,7 +117,7 @@ export function buildRewardSpecs(
   targetResource?: string,
 ): Array<ResourceTransferSpec> {
   const build = metadata.build;
-  const amount = build.quantity[slotIndex] ?? 0;
+  const amount = buildBenefitAt(metadata, slotIndex).quantity;
   if (amount <= 0) {
     return [];
   }

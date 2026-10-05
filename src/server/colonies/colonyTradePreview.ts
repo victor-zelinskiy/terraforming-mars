@@ -1,7 +1,6 @@
-import {MAX_COLONIES_PER_TILE} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
-import {tradeBenefitAt, colonyCardResources} from '../../common/colonies/ColonyMetadata';
+import {buildBenefitAt, tradeBenefitAt, colonyCardResources} from '../../common/colonies/ColonyMetadata';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
@@ -169,21 +168,24 @@ function flatBonusModels(player: IPlayer): Array<{card: CardName, resource: stri
 
 /**
  * The follow-ups a NEW SETTLEMENT here would raise for this player — read at
- * the slot the cube would take (`Colony.addColony` → `giveBonus(build.type,
- * build.quantity[colonies.length])`, mirrored exactly).
+ * the berth the cube would take, through the ONE reading `Colony.addColony`
+ * pays by (`buildBenefitAt(metadata, colonies.length)`).
  *
- * Empty for a full colony (nothing can be built) and for every bonus that
- * resolves without asking. It does NOT include the trade's own follow-ups:
- * building is not trading, and mixing the two lists is how a build would
- * answer a prompt the server never raised.
+ * WHO may build is the DOOR's question (`Colonies.buildBlockedReason`), never
+ * this preview's: a tile at its printed limit still answers what the NEXT
+ * cube would ask, because a door may lift that limit (Turmoil Redux TR25
+ * Exclusive Colony) and its stage pre-collects the bonus's target from here.
+ * Empty only where NO door builds — the track has no cell left for a cube —
+ * and for every bonus that resolves without asking. It does NOT include the
+ * trade's own follow-ups: building is not trading, and mixing the two lists
+ * is how a build would answer a prompt the server never raised.
  */
 function buildBonusFollowUps(player: IPlayer, colony: IColony): Array<ColonyTradeFollowUpModel> {
-  const slot = colony.colonies.length;
-  if (slot >= MAX_COLONIES_PER_TILE) {
+  if (!colony.hasFreeTrackCell()) {
     return [];
   }
-  const build = colony.metadata.build;
-  const followUp = benefitFollowUp(player, colony, 'buildBonus', build.type, build.quantity[slot] ?? 0);
+  const build = buildBenefitAt(colony.metadata, colony.colonies.length);
+  const followUp = benefitFollowUp(player, colony, 'buildBonus', build.type, build.quantity);
   return followUp !== undefined ? [followUp] : [];
 }
 

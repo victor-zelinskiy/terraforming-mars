@@ -59,6 +59,10 @@ import {DEFAULT_PAYMENT_VALUES} from '../../common/inputs/Payment';
  *     placement steps and the reserved off-Mars slots) is offered to every
  *     seat's `onTilePlaced` reactors through `tilePlacedForecast` — `deferred`
  *     facts, since the cell is not chosen yet.
+ *  3b. A COLONY pass: every colony the operation will build (a declarative
+ *     `buildColony`, a colony pick carrying `buildSites`) is offered to every
+ *     seat's `onColonyAddedByAnyPlayer` reactors through `grantForecast` (a
+ *     `colony` grant) — the reaction does not depend on the tile chosen.
  *  4. The DISCOUNTS through `getCardCostBreakdown` (the same itemization the
  *     analytics record) and the PAYMENT VALUES through the play prompt's own
  *     `paymentOptionsForCard`.
@@ -688,6 +692,72 @@ function tileFacts(player: IPlayer, card: ICard, tiles: ReadonlyArray<EffectFore
   return facts;
 }
 
+// ── the colony pass ─────────────────────────────────────────────────────────
+
+/**
+ * How many COLONIES a branch builds — TWO sources, both structural:
+ *  · a `boardPlacement` step of `placementType: 'colony'` — the declarative
+ *    `colonies.buildColony` (the colony is picked after the commit);
+ *  · a COLONY PICK whose prompt carries `buildSites` — a card that builds by
+ *    being played and enters the staged colony door (Turmoil Redux TR25
+ *    Exclusive Colony; `BuildColony.previewSelectColony`).
+ * A pick that moves a track, places a city or changes the roster builds none
+ * here (the roster's own «place a colony on it, if possible» is decided by
+ * the tile chosen — never promised before it).
+ */
+export function colonyBuildsOfBranch(branch: ActionPreviewBranch): number {
+  let count = 0;
+  for (const step of branch.steps) {
+    if (step.kind === 'boardPlacement' && step.placementType === 'colony') {
+      count += step.count ?? 1;
+    } else if (step.kind === 'colonyPick' && step.staged.prompt.buildSites !== undefined) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * THE COLONY PASS — «a colony was built» offered to the reactors the live
+ * engine calls for it (`Colony.addColony`'s loop: EVERY seat's tableau, the
+ * table's order — `onColonyAddedByAnyPlayer`: Poseidon, Colony Trade Hub),
+ * each fact addressed to its reactor's owner, then the MarsBot corporation
+ * that reads the same sentence (C33 Poseidon). Through the same `grantForecast`
+ * twins as every other grant — never a table of «who reacts to a colony». A
+ * reactor with the live hook and no twin is an honest `unknown`.
+ */
+function colonyBuiltFacts(player: IPlayer, card: ICard, count: number, ctx: EffectForecastContext): Array<EffectForecastFact> {
+  if (count <= 0) {
+    return [];
+  }
+  const game = player.game;
+  const grant: EffectForecastGrant = {kind: 'colony', count};
+  const facts: Array<EffectForecastFact> = [];
+  for (const owner of game.players) {
+    for (const reactor of reactorsOf(owner, player, card)) {
+      if (reactor.onColonyAddedByAnyPlayer === undefined) {
+        continue;
+      }
+      if (reactor.grantForecast === undefined) {
+        facts.push(unknownFor(reactor, owner, player, 'colony-added', 'This card reacts to the colony, but its result is not described'));
+        continue;
+      }
+      for (const fact of reactor.grantForecast(owner, player, grant, ctx)) {
+        facts.push(addressed(fact, player, owner, undefined));
+      }
+    }
+  }
+  const corp = AutomaCorporations.reactsToColonyBuilt(game);
+  if (corp !== undefined) {
+    const marsBot = marsBotOf(game);
+    facts.push(forecast.unknown(
+      {kind: 'automa-corporation', name: corp.info.original, owner: marsBot.color, channel: 'automa-corporation'},
+      'MarsBot\'s corporation reacts to the colony, but its result is not described',
+      {recipient: {kind: 'bot', color: marsBot.color}}));
+  }
+  return facts;
+}
+
 // ── discounts + payment values ──────────────────────────────────────────────
 
 function discountsOf(player: IPlayer, card: ICard, operation: 'play' | 'action'): EffectForecastDiscounts {
@@ -904,6 +974,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
     facts.push(...grantFacts(player, player, card, grantsOf(effects), ctx));
     facts.push(...basisGrantFacts(player, card, branches[0]?.available === false ? [] : (branches[0]?.steps ?? []), ctx));
     facts.push(...tileFacts(player, card, branches[0]?.available === false ? [] : sharedTiles, ctx));
+    facts.push(...colonyBuiltFacts(player, card, branches[0] === undefined || branches[0].available === false ? 0 : colonyBuildsOfBranch(branches[0]), ctx));
   } else {
     // The tiles every option places are the PLAY's: their reactions stand in
     // `facts`, never inside an option card.
@@ -920,6 +991,8 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
       const branchFacts = [
         ...grantFacts(player, player, card, grantsOf(branch.effects), branchCtx),
         ...tileFacts(player, card, ownTilesOf(perBranchTiles[pos], sharedTiles), branchCtx),
+        // A colony an OPTION builds is that option's (no card builds one in every option today).
+        ...colonyBuiltFacts(player, card, colonyBuildsOfBranch(branch), branchCtx),
       ];
       if (branchFacts.length > 0) {
         byBranch[pos] = branchFacts.map((fact) => asBranchFact(fact, pos));
@@ -1006,4 +1079,6 @@ export const FORECAST_HOOK_PAIRS: ReadonlyArray<{live: keyof ICard, forecast: ke
   // A scale raise is a `global` grant: the raiser's own rewarded reactors and every seat's «whoever raised».
   {live: 'onGlobalParameterIncrease', forecast: 'grantForecast'},
   {live: 'onGlobalParameterRaised', forecast: 'grantForecast'},
+  // A colony built is a `colony` grant: every seat's «when any colony is placed».
+  {live: 'onColonyAddedByAnyPlayer', forecast: 'grantForecast'},
 ];

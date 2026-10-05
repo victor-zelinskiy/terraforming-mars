@@ -158,6 +158,30 @@ describe('Automa Colonies', () => {
       game.colonies[0].colonies.push(bot.id);
       expect(AutomaColonies.botBuildColony(game)).is.false;
     });
+
+    // Turmoil Redux TR25 Exclusive Colony lets a HUMAN build beyond the printed
+    // limit; MarsBot has no such rule — a tile at (or past) the limit is closed to it.
+    it('never builds on a tile at or beyond the printed limit — three cubes or four', () => {
+      const [game, human] = testAutomaGame({coloniesExtension: true});
+      setColonies(game, new Luna());
+      const luna = game.colonies[0];
+      luna.colonies = [human.id, human.id, human.id];
+      expect(AutomaColonies.botBuildColony(game)).is.false;
+      luna.colonies = [human.id, human.id, human.id, human.id];
+      expect(AutomaColonies.botBuildColony(game)).is.false;
+      expect(luna.colonies).has.length(4);
+    });
+
+    it('its build goes through the cube array\'s ONE writer: the marker is lifted to the colonies', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true});
+      setColonies(game, new Luna());
+      const luna = game.colonies[0];
+      luna.colonies = [human.id, human.id];
+      luna.trackPosition = 2;
+      expect(AutomaColonies.botBuildColony(game)).is.true;
+      expect(luna.colonies).deep.eq([human.id, human.id, bot.id]);
+      expect(luna.trackPosition).eq(3);
+    });
   });
 
   describe('trading (B19/B20)', () => {
@@ -228,6 +252,21 @@ describe('Automa Colonies', () => {
       ceres.trade(human);
       runAllActions(game);
       expect(game.automa!.shippingStorage[ColonyName.CERES]).eq(1);
+    });
+
+    it('…and still does beside a FOURTH human colony (a tile built on beyond the limit): +1 per trade, the marker back on four', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true});
+      setColonies(game, new Ceres());
+      const ceres = game.colonies[0];
+      ceres.colonies = [human.id, bot.id, human.id];
+      ceres.addColony(human);
+      runAllActions(game);
+      expect(ceres.colonies).deep.eq([human.id, bot.id, human.id, human.id]);
+      ceres.trackPosition = 6;
+      ceres.trade(human);
+      runAllActions(game);
+      expect(game.automa!.shippingStorage[ColonyName.CERES]).eq(1);
+      expect(ceres.trackPosition).eq(4);
     });
 
     it('the bot builds on and trades with a Redux addition by the official abstraction — resources into ITS area, the printed reward ignored', () => {

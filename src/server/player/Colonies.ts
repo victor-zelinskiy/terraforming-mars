@@ -28,6 +28,27 @@ import {TradeWithHectateSpeditions} from '../cards/underworld/HecateSpeditions';
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {DisabledOptionModel} from '../../common/models/PlayerInputModel';
 
+/**
+ * The reason NO door lifts: every cell of the track a cube may stand on is
+ * taken (the marker keeps one of its own). An English i18n key.
+ */
+export const NO_FREE_TRACK_CELL_REASON = 'No free cell on the colony track';
+
+/**
+ * What a DOOR of a build tells the one reason function
+ * (`Colonies.buildBlockedReason`) about itself.
+ */
+export type BuildDoorOptions = {
+  /** «Even if you already have a colony there» — lifts «You already have a colony here». */
+  allowDuplicate?: boolean,
+  /** «This ignores the 3-colony limit» — lifts «Colony is full» (and nothing else). */
+  ignoreLimit?: boolean,
+  /** What the TR of a build bonus must be affordable WITH (a card not yet paid folds its price in). */
+  canAffordOptions?: number | CanAffordOptions,
+  /** Overrides the tile's own flag for a tile judged BEFORE it entered the game (TR10). */
+  active?: boolean,
+};
+
 export class Colonies {
   private player: IPlayer;
 
@@ -289,19 +310,28 @@ export class Colonies {
    * The last two are TR-affordability the client cannot compute: building on
    * Europa raises a global parameter and Leavitt raises TR directly (Pharmacy
    * Union), so the player must afford that TR gain where it is taxed.
+   *
+   * THE 3-COLONY LIMIT IS A RULE OF THIS DOOR, not a bound of the cube array:
+   * `ignoreLimit` lifts «Colony is full» for the build that asks with it
+   * (Turmoil Redux TR25 Exclusive Colony — «this ignores the 3-colony limit»)
+   * and nothing else. It is independent of `allowDuplicate` («even if you
+   * already have a colony there» is the other printed clause): `ignoreLimit`
+   * alone on a full tile carrying the player's cube answers «You already have
+   * a colony here». What NO flag lifts is the PHYSICAL limit — a cube needs a
+   * cell of the track and the marker keeps one of its own
+   * (`IColony.hasFreeTrackCell`), named here before the build is offered.
    */
-  public buildBlockedReason(colony: IColony, options: {
-    allowDuplicate?: boolean,
-    canAffordOptions?: number | CanAffordOptions,
-    active?: boolean,
-  } = {}): string | undefined {
+  public buildBlockedReason(colony: IColony, options: BuildDoorOptions = {}): string | undefined {
     const canAffordOptions = options.canAffordOptions ?? 0;
     const afford: CanAffordOptions = typeof canAffordOptions === 'number' ? {cost: canAffordOptions} : canAffordOptions;
     if ((options.active ?? colony.isActive) === false) {
       return 'Colony is inactive';
     }
-    if (colony.isFull()) {
+    if (options.ignoreLimit !== true && colony.isFull()) {
       return 'Colony is full';
+    }
+    if (!colony.hasFreeTrackCell()) {
+      return NO_FREE_TRACK_CELL_REASON;
     }
     if (options.allowDuplicate !== true && colony.colonies.includes(this.player.id)) {
       return 'You already have a colony here';
@@ -318,9 +348,16 @@ export class Colonies {
     return undefined;
   }
 
-  public getPlayableColonies(allowDuplicate: boolean = false, canAffordOptions: number | CanAffordOptions = 0) {
+  /**
+   * The tiles a build may land on — `buildBlockedReason` as a filter. The
+   * upstream positional form (`allowDuplicate`, `canAffordOptions`) stays; a
+   * door with more to say hands the door's own options instead (`ignoreLimit`
+   * — Turmoil Redux TR25).
+   */
+  public getPlayableColonies(allowDuplicate: boolean | BuildDoorOptions = false, canAffordOptions: number | CanAffordOptions = 0) {
+    const options: BuildDoorOptions = typeof allowDuplicate === 'boolean' ? {allowDuplicate, canAffordOptions} : allowDuplicate;
     return this.player.game.colonies
-      .filter((colony) => this.buildBlockedReason(colony, {allowDuplicate, canAffordOptions}) === undefined);
+      .filter((colony) => this.buildBlockedReason(colony, options) === undefined);
   }
 
   public getVictoryPoints(): number {

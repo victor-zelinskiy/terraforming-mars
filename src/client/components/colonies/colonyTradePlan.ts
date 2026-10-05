@@ -26,7 +26,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeBenefitTypes, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeBenefitTypes, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -342,7 +342,7 @@ const CARD_BENEFITS: ReadonlySet<ColonyBenefit> = new Set([
 /** TRUE when BUILDING here deals cards (Pluto's «возьмите 2 карты»). The
  *  claim is derived from this, never from the colony's name. */
 export function colonyBuildDrawsCards(metadata: ColonyMetadata, slotIndex: number): boolean {
-  return CARD_BENEFITS.has(metadata.build.type) && (metadata.build.quantity[slotIndex] ?? 0) > 0;
+  return CARD_BENEFITS.has(metadata.build.type) && buildBenefitAt(metadata, slotIndex).quantity > 0;
 }
 
 /** TRUE when a TRADE here deals cards at `position`. */
@@ -406,7 +406,7 @@ export function colonyTradeAsksCardTargets(metadata: ColonyMetadata, viewerOwnsS
 
 /** TRUE when BUILDING into this slot lands its bonus on a card the player points at. */
 export function colonyBuildAsksCardTarget(metadata: ColonyMetadata, slotIndex: number): boolean {
-  return CARD_TARGET_BENEFITS.has(metadata.build.type) && (metadata.build.quantity[slotIndex] ?? 0) > 0;
+  return CARD_TARGET_BENEFITS.has(metadata.build.type) && buildBenefitAt(metadata, slotIndex).quantity > 0;
 }
 
 /** Free trade fleets = the player's fleet size minus the fleets already out. */

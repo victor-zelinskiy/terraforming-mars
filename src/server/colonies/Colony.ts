@@ -25,7 +25,8 @@ import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
 import {ColonyBonusOptions, ColonyBonusOrdinal, IColony, TradeOptions, TradeTerms, tradeTermsOf, TradeTrackPlan} from './IColony';
-import {ColonyMetadata, colonyMetadata, colonyCardResources, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome, trackTop} from '../../common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyMetadata, colonyCardResources, InputColonyMetadata, tradeBenefitAt, tradeFixedIncome, trackTop} from '../../common/colonies/ColonyMetadata';
+import {berthIsOverLimit, hasFreeTrackCell} from '../../common/colonies/colonyBerths';
 import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
@@ -115,18 +116,48 @@ export abstract class Colony implements IColony {
     return this.colonies.length >= MAX_COLONIES_PER_TILE;
   }
 
-  public addColony(player: IPlayer, options?: {giveBonusTwice: boolean}): void {
-    player.game.log('${0} built a colony on ${1}', (b) => b.player(player).colony(this));
+  public hasFreeTrackCell(): boolean {
+    return hasFreeTrackCell(this.metadata, this.colonies.length);
+  }
 
-    this.giveBonus(player, this.metadata.build.type, this.metadata.build.quantity[this.colonies.length], this.metadata.build.resource, false, 'build');
-    if (options?.giveBonusTwice === true) { // Vital Colony hook.
-      this.giveBonus(player, this.metadata.build.type, this.metadata.build.quantity[this.colonies.length], this.metadata.build.resource, false, 'build');
+  public placeCube(owner: PlayerId): number {
+    if (!this.hasFreeTrackCell()) {
+      throw new Error(`${this.name} has no free cell on its colony track`);
     }
-
-    this.colonies.push(player.id);
+    const slot = this.colonies.length;
+    this.colonies.push(owner);
+    // The marker never sits below the colonies: a cube stands on its cell.
     if (this.trackPosition < this.colonies.length) {
       this.trackPosition = this.colonies.length;
     }
+    return slot;
+  }
+
+  public addColony(player: IPlayer, options?: {giveBonusTwice: boolean}): void {
+    // The engine's floor, asked BEFORE anything is paid or journaled (every
+    // door names this reason first — `Colonies.buildBlockedReason`).
+    if (!this.hasFreeTrackCell()) {
+      throw new Error(`${this.name} has no free cell on its colony track`);
+    }
+    // The berth is read ONCE, before the cube: the journal line, the bonus and
+    // its Vital Colony repeat all speak of the same one.
+    const slot = this.colonies.length;
+    if (berthIsOverLimit(slot)) {
+      // A build that LIFTED the printed limit names the rule it lifted
+      // (Turmoil Redux TR25 Exclusive Colony) — instead of the ordinary line.
+      player.game.log('${0} built a colony on ${1} beyond the 3-colony limit', (b) => b.player(player).colony(this));
+    } else {
+      player.game.log('${0} built a colony on ${1}', (b) => b.player(player).colony(this));
+    }
+
+    // The build bonus of THAT berth — the last printed cell for a berth beyond them (`buildBenefitAt`).
+    const bonus = buildBenefitAt(this.metadata, slot);
+    this.giveBonus(player, bonus.type, bonus.quantity, bonus.resource, false, 'build');
+    if (options?.giveBonusTwice === true) { // Vital Colony hook.
+      this.giveBonus(player, bonus.type, bonus.quantity, bonus.resource, false, 'build');
+    }
+
+    this.placeCube(player.id);
 
     for (const cardOwner of player.game.players) {
       for (const card of cardOwner.tableau) {

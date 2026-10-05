@@ -11,6 +11,7 @@ import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {ColonyRosterPrompt} from '../../common/colonies/ColonyRoster';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyTileSite} from '../../common/colonies/ColonyTileSite';
+import {ColonyBuildSite} from '../../common/colonies/ColonyBuildSite';
 
 export class SelectColony extends BasePlayerInput<IColony> {
   // When true, show just the tile, and none of the cubes on top.
@@ -74,6 +75,15 @@ export class SelectColony extends BasePlayerInput<IColony> {
    * colony pick.
    */
   public rosterChange: ColonyRosterPrompt | undefined = undefined;
+
+  /**
+   * THIS PICK BUILDS A COLONY — where the cube lands on EACH candidate
+   * (`BuildColony.prompt()`, the one construction of a build prompt).
+   * Published as the model's `buildSites` marker: the berth, whether it lies
+   * beyond the printed limit, the player's own cubes there. Empty on every
+   * other colony pick.
+   */
+  public buildSites: ReadonlyArray<ColonyBuildSite> = [];
   /**
    * The handler of a REPLACEMENT answer (`{colonyName, replaces}`) — the twin
    * of `cb` for the fourth response form: `incoming` is one of `colonies` (the
@@ -127,6 +137,11 @@ export class SelectColony extends BasePlayerInput<IColony> {
     // …and the «a tile lands on the chosen colony tile» marker.
     if (this.tileSite !== undefined) {
       model.tileSite = this.tileSite;
+    }
+    // …and the «a colony is built on the chosen tile» marker (a build is
+    // routinely nested too: the standard project's target step).
+    if (this.buildSites.length > 0) {
+      model.buildSites = this.buildSites;
     }
     return model;
   }

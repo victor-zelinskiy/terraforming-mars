@@ -1039,6 +1039,17 @@ export type SelectColonyModel = BaseInputModel & {
    * (`{colonyName, replaces}`). See `common/colonies/ColonyRoster.ts`.
    */
   rosterChange?: import('../colonies/ColonyRoster').ColonyRosterPrompt;
+  /**
+   * STRUCTURAL «this pick BUILDS A COLONY on the chosen tile»: ONE entry per
+   * CANDIDATE — the berth its cube will take, whether that berth lies beyond
+   * the printed limit (only a door that lifts the limit offers one — Turmoil
+   * Redux TR25 Exclusive Colony) and how many cubes of the player already
+   * stand there. Its presence makes the act of the pick `build` (the client's
+   * `colonyPickIntent` — never the button label); the answer is the ordinary
+   * colony response. Published by `BuildColony` on EVERY build prompt. Absent
+   * on every other colony pick. See `common/colonies/ColonyBuildSite.ts`.
+   */
+  buildSites?: ReadonlyArray<import('../colonies/ColonyBuildSite').ColonyBuildSite>;
 }
 
 /**

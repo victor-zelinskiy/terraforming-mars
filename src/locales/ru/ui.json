@@ -298,6 +298,7 @@
     "After activation, you can build a colony here or send a trade fleet here.": "После активации здесь можно будет построить колонию или отправить торговый флот.",
     "Colony is full": "Колония заполнена",
     "You already have a colony here": "У вас здесь уже есть колония",
+    "No free cell on the colony track": "На треке колонии нет свободной клетки",
     "Cannot build on this colony right now": "Сейчас нельзя строить здесь (не хватает рейтинга или ресурсов)",
     "Your trade fleet is currently here": "Здесь стоит ваш флот",
     "Trade embargo is in effect": "Введено эмбарго на торговлю",

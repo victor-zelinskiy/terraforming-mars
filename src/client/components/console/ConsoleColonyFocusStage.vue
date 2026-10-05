@@ -788,7 +788,7 @@ import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {CardModel} from '@/common/models/CardModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, colonyCardResources, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
 import {holdsAnyOf} from '@/client/console/parliament/influenceYieldModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
@@ -1563,7 +1563,7 @@ export default defineComponent({
     /** The build grant the landing colony pays (the tile's own printed reward for that berth). */
     rosterGrantQty(): number {
       const build = this.roster?.reading.build;
-      return build !== undefined && build.lands ? (this.metadata.build.quantity[build.slot] ?? 0) : 0;
+      return build !== undefined && build.lands ? buildBenefitAt(this.metadata, build.slot).quantity : 0;
     },
     buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const b = this.metadata.build;
@@ -1580,7 +1580,7 @@ export default defineComponent({
       return Math.min(this.colony.colonies.length, 2);
     },
     buildQty(): number {
-      return this.metadata.build.quantity[this.nextBuildSlot] ?? 0;
+      return buildBenefitAt(this.metadata, this.nextBuildSlot).quantity;
     },
     buildLost(): boolean {
       return this.benefitResourceLost(this.metadata.build.type);

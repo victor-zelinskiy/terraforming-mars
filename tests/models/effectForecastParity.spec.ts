@@ -41,6 +41,9 @@ import {Herbivores} from '../../src/server/cards/base/Herbivores';
 import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
 import {SpinInducingAsteroid} from '../../src/server/cards/venusNext/SpinInducingAsteroid';
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
+import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
+import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
+import {SelectColony} from '../../src/server/inputs/SelectColony';
 
 /**
  * THE EFFECT FORECAST ↔ EXECUTION PARITY GUARD.
@@ -87,6 +90,17 @@ function inScopeReactors(): Array<Factory> {
     }
   }
   return out;
+}
+
+/**
+ * A reactor whose ONLY mirrored hook is «a colony was built»: no prompt-less
+ * trigger of the pool fires it (a colony build asks which tile), so the sweep
+ * leaves it to the colony block — which must then cover every one of them.
+ */
+function colonyOnly(card: ICard): boolean {
+  return card.onColonyAddedByAnyPlayer !== undefined && card.cardPlayedForecast === undefined &&
+    card.onProductionGain === undefined && card.onResourceAdded === undefined &&
+    card.onGlobalParameterIncrease === undefined && card.onGlobalParameterRaised === undefined;
 }
 
 /**
@@ -217,6 +231,10 @@ describe('effect-forecast ↔ execution parity', function() {
     let cases = 0;
     for (const F of reactors) {
       const probe = new F();
+      // A «colony built» reactor is fired by a play that ASKS (which tile) — its own block below.
+      if (colonyOnly(probe)) {
+        continue;
+      }
       // «Any player plays» and «the scale is raised, whoever raised it» both pay a FOREIGN owner.
       const foreignToo = probe.onCardPlayedByAnyPlayer !== undefined || probe.onGlobalParameterRaised !== undefined;
       const variants = [{label: 'default', arrange: undefined as ((r: ICard) => void) | undefined}, ...(VARIANTS[probe.name] ?? [])];
@@ -249,7 +267,7 @@ describe('effect-forecast ↔ execution parity', function() {
         }
       }
     }
-    const unreached = reactors.map((F) => new F().name).filter((name) => !reached.has(name));
+    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
     expect(unreached, 'every forecast hook must be fired by at least one trigger of the pool (extend TRIGGERS / VARIANTS)').to.deep.eq([]);
     expect(cases, 'parity cases exercised').to.be.greaterThan(40);
   });
@@ -316,6 +334,70 @@ describe('effect-forecast ↔ execution parity', function() {
     tileCase('a greenery: Herbivores and PolderTech Dutch', Mangrove, [
       {F: Herbivores, foreign: false}, {F: PolderTechDutch, foreign: false},
     ]);
+  });
+
+  /*
+   * THE COLONY PASS — «a colony was built» (`onColonyAddedByAnyPlayer`). The
+   * trigger asks WHICH tile, so it cannot ride the prompt-less sweep above:
+   * the play's own colony pick is answered here, and the reaction — which does
+   * not depend on the tile — is read off the stream. Every in-scope reactor of
+   * the class must be exercised (the anti-vacuous floor is the class itself).
+   */
+  describe('colony builds (exact facts, whichever tile is picked)', () => {
+    const COLONY_REACTORS: ReadonlyArray<Factory> = [Poseidon];
+
+    it('the block covers every in-scope «colony built» reactor', () => {
+      const inScope = inScopeReactors().map((F) => new F()).filter((card) => card.onColonyAddedByAnyPlayer !== undefined).map((card) => card.name);
+      expect(inScope.sort()).deep.eq(COLONY_REACTORS.map((F) => new F().name).sort());
+    });
+
+    function colonyTable(F: Factory, foreign: boolean, suffix: string): Table {
+      const [game, player, opponent] = testGame(2, {coloniesExtension: true}, suffix);
+      const owner = foreign ? opponent : player;
+      const reactor = new F();
+      owner.playedCards.push(reactor);
+      player.megaCredits = 40;
+      return {game, player, owner, reactor};
+    }
+
+    for (const F of COLONY_REACTORS) {
+      for (const foreign of [false, true]) {
+        const name = new F().name;
+        it(`${name} [${foreign ? 'foreign' : 'own'}] ← Mining Colony (a declarative buildColony)`, () => {
+          const forecastTable = colonyTable(F, foreign, `-colony-${foreign}-fc`);
+          const trigger = new MiningColony();
+          forecastTable.player.cardsInHand.push(trigger);
+          const forecast = effectForecastForPlay(forecastTable.player, trigger, cardPlayPreview(forecastTable.player, trigger));
+          const facts = forecast.facts.filter((f) => f.source.name === name);
+          expect(facts.map((f) => f.certainty), 'the colony pass states the reaction').deep.eq(['exact']);
+          expect(facts[0].source.channel).eq('colony-added');
+          expect(facts[0].recipient.kind).eq(foreign ? 'player' : 'you');
+
+          const {game, player, owner} = colonyTable(F, foreign, `-colony-${foreign}-live`);
+          const liveTrigger = new MiningColony();
+          player.cardsInHand.push(liveTrigger);
+          const before = game.events.events.length;
+          const production = owner.production.megacredits;
+          player.playCard(liveTrigger);
+          runAllActions(game);
+          const pick = cast(player.popWaitingFor(), SelectColony);
+          pick.cb(pick.colonies[0]);
+          runAllActions(game);
+          const markers = firedMarkers(game.events.events.slice(before), facts[0], recipientColorOf(facts[0], player));
+          expect(markers.length, `${name} must have fired on 'colony-added'`).to.be.greaterThan(0);
+          // …and what it promised is what landed (the chip's own delta).
+          expect(owner.production.megacredits - production).eq(facts[0].effects[0].amount);
+        });
+      }
+    }
+
+    it('an operation that builds no colony states no colony fact', () => {
+      const table = colonyTable(Poseidon, false, '-colony-none');
+      const trigger = new Research();
+      table.player.cardsInHand.push(trigger);
+      const forecast = effectForecastForPlay(table.player, trigger, cardPlayPreview(table.player, trigger));
+      expect(forecast.facts.filter((f) => f.source.name === CardName.POSEIDON)).deep.eq([]);
+    });
   });
 
   describe('MarsBot corporations', () => {

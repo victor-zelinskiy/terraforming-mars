@@ -37,6 +37,7 @@
     "${0} used ${1} standard project": "${0} использовал стандартный проект ${1}",
     "${0} used ${1} standard action": "${0} выполнил стандартное действие ${1}",
     "${0} built a colony on ${1}": "${0} построил колонию на ${1}",
+    "${0} built a colony on ${1} beyond the 3-colony limit": "${0} построил колонию на ${1} сверх лимита в 3 колонии",
     "${0} bought ${1} card(s)": "${0} купил ${1} {карту|карты|карт}",
     "${0} acted as World Government and increased Venus scale": "${0} повысил с помощью правительства уровень Венеры",
     "${0} acted as World Government and placed an ocean": "${0} залил с помощью правительства океан",

@@ -595,6 +595,14 @@ export class AutomaCorporations {
     return corp?.onTilePlaced !== undefined ? corp : undefined;
   }
 
+  /** Does the seated corporation react to a colony being built (C33 Poseidon —
+   *  the effect forecast reports it honestly as an `unknown` for an operation
+   *  that builds one)? */
+  public static reactsToColonyBuilt(game: IGame): MarsBotCorp | undefined {
+    const corp = AutomaCorporations.activeCorp(game);
+    return corp?.onColonyBuilt !== undefined ? corp : undefined;
+  }
+
   /**
    * The bot GAINED M€ — dispatched from the one choke point every gain goes
    * through (`Stock.add`), so a corporation that redirects its income (C06's

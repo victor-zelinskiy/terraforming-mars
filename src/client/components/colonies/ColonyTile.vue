@@ -254,7 +254,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -433,7 +433,7 @@ export default defineComponent({
   },
   methods: {
     buildQuantityAt(idx: number): number {
-      return this.metadata.build.quantity[idx] ?? 1;
+      return buildBenefitAt(this.metadata, idx).quantity;
     },
   },
 });

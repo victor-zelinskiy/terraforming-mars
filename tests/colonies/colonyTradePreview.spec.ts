@@ -5,6 +5,7 @@ import {testGame} from '../TestGame';
 import {runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
+import {trackTop} from '../../src/common/colonies/ColonyMetadata';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardResource} from '../../src/common/CardResource';
 import {IColony} from '../../src/server/colonies/IColony';
@@ -84,20 +85,47 @@ describe('colonyTradePreview', () => {
         [CardName.DIRIGIBLES, CardName.JUPITER_FLOATING_STATION]);
     });
 
-    it('reads the bonus of the NEXT free slot, and stops at a full colony', () => {
+    /**
+     * WHO may build is the DOOR's question, never the preview's: a tile at
+     * its printed limit still answers what the NEXT cube would ask — a door
+     * may lift the limit (Turmoil Redux TR25 Exclusive Colony) and its stage
+     * pre-collects the bonus's target from this very list. Only a track with
+     * no cell left for a cube asks nothing (no door builds there).
+     */
+    it('reads the bonus of the NEXT berth — at the printed limit too — and stops only where no cube fits', () => {
       player.playedCards.push(new Dirigibles(), new JupiterFloatingStation());
       const titan = game.colonies.find((c) => c.name === ColonyName.TITAN)!;
-      titan.colonies.push(player2.id);
+      titan.colonies = [player2.id];
       const second = buildColonyTradePreview(player, titan).buildFollowUps ?? [];
       const target = second[0];
       if (target === undefined || target.kind !== 'cardTarget') {
         throw new Error('expected cardTarget');
       }
-      expect(target.amount, 'read at the NEXT free slot (Titan pays 3 at every one)').to.eq(3);
+      expect(target.amount, 'read at the NEXT berth (Titan pays 3 at every one)').to.eq(3);
 
-      titan.colonies.push(player2.id, player2.id);
+      titan.colonies = [player2.id, player2.id, player2.id];
+      const fourth = buildColonyTradePreview(player, titan).buildFollowUps ?? [];
+      const beyond = fourth[0];
+      if (beyond === undefined || beyond.kind !== 'cardTarget') {
+        throw new Error('a tile at its printed limit still answers what the next cube asks');
+      }
+      expect(beyond.role).to.eq('buildBonus');
+      expect(beyond.amount, 'the last printed cell — never `undefined`').to.eq(3);
+      expect(beyond.pick?.cards.map((c) => c.name)).to.have.members(
+        [CardName.DIRIGIBLES, CardName.JUPITER_FLOATING_STATION]);
+
+      titan.colonies = Array.from({length: trackTop(titan.metadata)}, () => player2.id);
       expect(buildColonyTradePreview(player, titan).buildFollowUps,
-        'a full colony cannot be built on — nothing to ask').is.undefined;
+        'no cell of the track is left for a cube — nothing to ask').is.undefined;
+    });
+
+    it('stays read-only at the printed limit', () => {
+      player.playedCards.push(new Dirigibles(), new JupiterFloatingStation());
+      const titan = game.colonies.find((c) => c.name === ColonyName.TITAN)!;
+      titan.colonies = [player2.id, player2.id, player2.id];
+      const before = JSON.stringify(game.serialize());
+      buildColonyTradePreview(player, titan);
+      expect(JSON.stringify(game.serialize())).to.eq(before);
     });
 
     /** A build bonus that resolves by itself (Luna's M€) asks nothing — the

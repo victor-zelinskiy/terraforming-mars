@@ -142,7 +142,31 @@ export interface IColony extends ITradeDestination {
    *  track by `appliedSteps` from `oldPosition`, attributing the steps + the exact
    *  extra trade reward to the owning card(s). */
   recordTradeTrackBonus(player: IPlayer, oldPosition: number, appliedSteps: number): void;
+  /**
+   * The PRINTED limit is reached (`MAX_COLONIES_PER_TILE` cubes or more) — the
+   * gate of the ORDINARY doors of a build (`Colonies.buildBlockedReason`
+   * without `ignoreLimit`, the standard project, MarsBot). It is a rule of
+   * those doors, not a bound of the cube array: a tile a card built beyond the
+   * limit on (Turmoil Redux TR25 Exclusive Colony) holds four cubes and
+   * answers `true` here like any full tile.
+   */
   isFull(): boolean;
+  /**
+   * THE PHYSICAL LIMIT no card lifts: is there a track cell left for one more
+   * cube (`colonyBerths.hasFreeTrackCell` — the marker keeps a cell of its
+   * own)? Every door names its absence before the build is offered.
+   */
+  hasFreeTrackCell(): boolean;
+  /**
+   * THE ONE WRITER of the cube array: `owner`'s cube takes the next berth and
+   * the marker is lifted to the number of colonies when it stood below.
+   * Returns the 0-based berth taken. Throws when no track cell is left — the
+   * doors name that reason first, so the throw is the engine's floor. Called
+   * by `addColony` (a player's build) and `AutomaColonies.botBuildColony`
+   * (the bot's, which ignores the printed reward) — nobody else pushes into
+   * `colonies` (source-level guard: `tests/colonies/ColonyBerths.spec.ts`).
+   */
+  placeCube(owner: PlayerId): number;
   addColony(player: IPlayer, options?: {giveBonusTwice: boolean}): void;
   trade(player: IPlayer, tradeOptions?: TradeOptions, bonusTradeOffset?: number): void;
   /**

@@ -504,7 +504,7 @@ import {
   FleetDockReasonInput, FleetDockTileStatus, FleetDockView, fleetDockReason, fleetDockTileStatus,
 } from '@/client/console/colonyTrade/fleetDockModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
-import {ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
 import {holdsAnyOf} from '@/client/console/parliament/influenceYieldModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
@@ -1437,7 +1437,7 @@ export default defineComponent({
       return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
     },
     focusedBuildQty(): number {
-      return this.focusedMeta === undefined ? 0 : (this.focusedMeta.build.quantity[this.focusedBuildSlot] ?? 0);
+      return this.focusedMeta === undefined ? 0 : buildBenefitAt(this.focusedMeta, this.focusedBuildSlot).quantity;
     },
     /** A card-resource TRADE reward with no card to hold it ⇒ it is lost —
      *  read at the position the trade would pay (the Redux Pluto: data low,

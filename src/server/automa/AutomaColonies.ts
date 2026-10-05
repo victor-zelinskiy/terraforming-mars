@@ -145,11 +145,9 @@ export class AutomaColonies {
     }
     const colony = AutomaColonies.flipToPick(game, eligible);
     game.log('${0} built a colony on ${1}', (b) => b.player(bot).colony(colony));
-    colony.colonies.push(bot.id);
-    // The ordinary "the marker never sits below the colony count" rule applies.
-    if (colony.trackPosition < colony.colonies.length) {
-      colony.trackPosition = colony.colonies.length;
-    }
+    // The cube array's ONE writer — the ordinary «the marker never sits below
+    // the colony count» rule is its own.
+    colony.placeCube(bot.id);
     // "Any player built a colony" effects (Poseidon) fire — the official
     // precedent: the human's any-player effects react to MarsBot's actions.
     for (const cardOwner of game.players) {

@@ -84,4 +84,13 @@ export type EffectForecastGrant =
    * `onGlobalParameterRaised` reactors (`effectForecast.scaleRaiseFacts`).
    */
   | {kind: 'global', parameter: GlobalParameter, steps: number}
+  /**
+   * The operation BUILDS colonies — `count` cubes placed through the engine's
+   * `Colony.addColony` (a declarative `colonies.buildColony`, or a colony pick
+   * whose prompt carries `buildSites` — `effectForecast.colonyBuildsOfBranch`).
+   * Offered to EVERY seat's `onColonyAddedByAnyPlayer` reactors, in the live
+   * loop's order (`effectForecast.colonyBuiltFacts`). WHICH tile is not known
+   * before the pick, so the tile's own build bonus is never part of it.
+   */
+  | {kind: 'colony', count: number}
   | {kind: 'cards', amount: number};
