@@ -950,7 +950,10 @@ html.con-profile-tv {
         /* (__cell-num / __cell-offset are px INSIDE the ×ui-scale zoomed
            cell-value — see the keep-px rules in console.less; a rem bump
            here double-scaled the digit against the glyph.) */
-        &__cell-label { font-size: var(--con-t-floor); }
+        /* The floor makes the label 39 % larger against a tile of the same relative size: its tracking and the
+           cell's own spacing give the room back (PL-006 — the value's right breathing room stays .5rem). */
+        &__cell-label { font-size: var(--con-t-floor); letter-spacing: .02rem; }
+        &__cell { padding-right: .5rem; gap: .3rem; }
         &__status { font-size: var(--con-t-caption); }
         /* The colony track — a real progress rail, not a hairline. */
         &__track-cell { height: 0.6rem; }

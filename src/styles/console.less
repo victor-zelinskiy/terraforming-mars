@@ -20978,6 +20978,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         overflow: hidden;
 
         &--trade { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 25%); }
+        /* THE ROW IS SHARED BY CONTENT, NOT IN HALVES (PL-006): «БОНУС» + one value never needs half the row, while
+           «ТОРГОВАТЬ» beside a composite income («[Venus] + 2 [floaters]», Vesta's three kinds) needed more than half —
+           the trade label read «ТОРГОВ…» on the Redux tiles at every profile and on EVERY tile on the TV. The bonus
+           cell is content-sized and capped at the old half (a wide bonus yields exactly as before); the trade cell
+           takes the rest. Corpus: `console-colony-tile-labels` (every colony × every position × three profiles). */
+        &--trade { flex: 1 1 0; }
+        &--bonus { flex: 0 1 auto; max-width: calc((100% - .5rem) / 2); }
     }
     &__cell-label {
         flex: 1;

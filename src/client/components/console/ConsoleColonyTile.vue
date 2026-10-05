@@ -155,7 +155,7 @@
           <span v-if="offsetSteps > 0" class="con-coltile__cell-offset">+{{ offsetSteps }}</span>
         </span>
       </div>
-      <div class="con-coltile__cell">
+      <div class="con-coltile__cell con-coltile__cell--bonus">
         <span class="con-coltile__cell-label">{{ $t('Bonus') }}</span>
         <span class="con-coltile__cell-value" :data-colony-bonus-source="colony.name">
           <span v-if="bonusQuantity > 1" class="con-coltile__cell-num">{{ bonusQuantity }}</span>
