@@ -119,6 +119,15 @@ export function isColonyRosterInputLocked(): boolean {
   return colonyRosterState.live || colonyRosterState.landing;
 }
 
+/**
+ * The player's OWN change is ANSWERED — confirmed, playing on its stage, landing, or being read as a receipt (a
+ * watcher's ceremony on the grid is not the player's act). The command bar is a status from here on.
+ */
+export function colonyRosterAnswered(): boolean {
+  return colonyRosterState.armed !== undefined || (colonyRosterState.live && colonyRosterState.scale === 'stage') ||
+    colonyRosterState.receipt !== undefined || colonyRosterState.landing;
+}
+
 /** The shell's LANDING beat (the stage folding home, the receipt's read) — the pad stays the ceremony's through it. */
 export function setColonyRosterLanding(on: boolean): void {
   colonyRosterState.landing = on;

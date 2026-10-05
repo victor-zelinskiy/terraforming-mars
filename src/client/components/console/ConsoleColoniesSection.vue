@@ -482,7 +482,7 @@ import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
   colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus, switchColonyFocusIntent,
-  colonyDockCursor, openFleetDockFocus, resetColonyDockCursor, colonyPickIntent,
+  colonyDockCursor, openFleetDockFocus, resetColonyDockCursor, colonyPickIntent, consoleColoniesUi,
 } from '@/client/console/consoleColoniesModel';
 import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
 import {ColonyTrackMoveReading, colonyTrackMoveReading, trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
@@ -1525,6 +1525,13 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The bar reads the ONE receipt reading (it states the result while the grid takes no verb). */
+    receiptOn: {
+      immediate: true,
+      handler(on: boolean): void {
+        consoleColoniesUi.receipt = on;
+      },
+    },
     /**
      * A CLAIMED ARTIFACT ARRIVES WHILE THE DOSSIER STANDS (a late card-target
      * pick, a reveal): the dossier is a READING and hosts nothing, so it folds
@@ -2451,6 +2458,7 @@ export default defineComponent({
   beforeUnmount() {
     // A watcher's landing has no seat left to land on.
     endWatchedColonyCity();
+    consoleColoniesUi.receipt = false;
     this.stopResizeObs?.();
     this.stopResize?.();
     if (this.completeTimer !== undefined) {

@@ -2209,20 +2209,22 @@ import {
 import type {PlayComposerDraft, StagedPlayArm, StagedReceipt} from '@/client/console/stagedPlay';
 import type {AgendaWalkModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {
-  clearColonyTrackMove, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove, registerColonyTrackMoveHost,
+  clearColonyTrackMove, colonyTrackMoveAnswered, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove,
+  registerColonyTrackMoveHost,
 } from '@/client/console/colonyTrade/colonyTrackMove';
 import {trackMoveOf} from '@/client/console/colonyTrade/colonyTrackMoveModel';
 import {
-  armColonyRosterChange, clearColonyRoster, colonyRosterDraft, colonyRosterPending, colonyRosterState, disarmColonyRoster,
-  hurryColonyRoster, isColonyRosterInputLocked, presentedColonyRoster, registerColonyRosterHost, setColonyRosterLanding,
+  armColonyRosterChange, clearColonyRoster, colonyRosterAnswered, colonyRosterDraft, colonyRosterPending, colonyRosterState,
+  disarmColonyRoster, hurryColonyRoster, isColonyRosterInputLocked, presentedColonyRoster, registerColonyRosterHost,
+  setColonyRosterLanding,
 } from '@/client/console/colonyRoster/consoleColonyRoster';
 import {
   ROSTER_READ_MS, RosterLevel, reanchorColonyCursor, rosterDraftStands, rosterIncomingOf, rosterLeavable, rosterLevel,
 } from '@/client/console/colonyRoster/colonyRosterModel';
 import {rosterBuildLands} from '@/common/colonies/ColonyRoster';
 import {
-  armColonyCity, clearColonyCity, colonyCityPending, colonyCitySceneDone, colonyCityState, disarmColonyCity, hurryColonyCity,
-  isColonyCityInputLocked, setColonyCityHoming,
+  armColonyCity, clearColonyCity, colonyCityAnswered, colonyCityPending, colonyCitySceneDone, colonyCityState, disarmColonyCity,
+  hurryColonyCity, isColonyCityInputLocked, setColonyCityHoming,
 } from '@/client/console/colonyCity/consoleColonyCity';
 
 type PendingPlayCard = {
@@ -5727,6 +5729,20 @@ export default defineComponent({
       return wf !== undefined && wf.type !== 'space' && wf.type !== 'party' && source?.kind === 'colony' &&
         source.name === colonyBuildState.receipt?.colony;
     },
+    /**
+     * The player's OWN colony act on the focus stage is ANSWERED — past its press, by the act's own transaction:
+     * a card's build (`colonyBuildAnswered` — the staged door; a live build keeps the bar it always had), a roster
+     * change, a city laid on the tile, a chosen track. The bar is a status from here on («Выполняется…»).
+     */
+    colonyActAnswered(): boolean {
+      switch (this.colonyFocus.intent) {
+      case 'build': return colonyBuildAnswered();
+      case 'roster': return colonyRosterAnswered();
+      case 'city': return colonyCityAnswered();
+      case 'track': return colonyTrackMoveAnswered();
+      default: return false;
+      }
+    },
     /** The delegate grant the built tile's bonus raised (the Redux Venus), by the server's structural markers. */
     colonyBuildGrantPrompt(): boolean {
       const wf = this.playerView.waitingFor;
@@ -8516,11 +8532,9 @@ export default defineComponent({
       if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
         return [];
       }
-      // A CITY LANDING ON A COLONY TILE (TR22) and its homing beat (the stage folds home, the grid stands as a
-      // receipt): the pad is the scene's — the bar advertises nothing.
-      if (isColonyCityInputLocked()) {
-        return [];
-      }
+      // (A CITY LANDING ON A COLONY TILE (TR22) and its homing beat used to blank the bar here. The pad is still the
+      // scene's — the input routing absorbs it — but the bar now speaks the colony acts' ONE status grammar below:
+      // «Выполняется…» on the stage past the press, «Выполнено» while the grid stands as the receipt.)
       // The played-card hero scene: the bar goes quiet — the card is the
       // whole story (a press during the result beat quietly skips ahead).
       if (this.playedHeroHolds) {
@@ -8845,6 +8859,11 @@ export default defineComponent({
           ];
         }
         const intent = this.colonyFocus.intent;
+        // PAST THE PRESS of the player's own colony act (a card's build, a roster change, a city on the tile, a chosen
+        // track) the stage is a beat in flight: the bar is a STATUS, never the stage's verbs gone inert.
+        if (this.colonyActAnswered) {
+          return [{control: 'confirm', label: 'Performing…', enabled: false}];
+        }
         if (intent === 'inspect') {
           // THE DOSSIER: A goes ON into the act the grid's A would have
           // opened — «К торговле» — ALWAYS enabled: the dossier does not
@@ -8875,11 +8894,6 @@ export default defineComponent({
           // nothing to decide it keeps the single-verb «A Построить».
           // A STAGED door (a card that builds by being played — TR25): the commit IS the play's one submit, so it
           // speaks the play's verb, and L3 reads the source card.
-          // PAST THE PRESS a card's build is a beat in flight (the admission, the cube, what the bonus owes): the bar
-          // is a STATUS, never the stage's own verbs gone inert. (A live build keeps the bar it always had.)
-          if (colonyBuildAnswered()) {
-            return [{control: 'confirm', label: 'Performing…', enabled: false}];
-          }
           const stagedBuild = this.colonyPick?.staged === true;
           const verb = stagedBuild ? 'Play card' : 'Build';
           const source = stagedBuild && this.colonyEmbedSourceCard !== undefined ?
@@ -9217,11 +9231,11 @@ export default defineComponent({
         // (one grid, one grammar — only B's label differs: an embedded step
         // minimizes its host).
         const pick = this.colonyPick;
-        // THE GRID AS THE RECEIPT of a colony a card built (TR25): the stage folded home, the grid states the result
-        // for one read — no cursor and no verbs, so the bar states it too (the door's prompt outlives its answer, and
-        // by it the bar would still offer «Выбрать · Осмотреть · Назад» over a grid that takes none of them).
-        // The HOSTED grid only: a fresh «Колонии» opened beside a parked flow is an ordinary screen with its own verbs.
-        if (colonyBuildAnswered() && workspaceFrameHost('colonies') !== undefined) {
+        // THE GRID AS THE RECEIPT (a roster change, a city laid on a tile, a colony a card built — the section's ONE
+        // `receiptOn` reading): the stage folded home, the grid states the result for one read — no cursor and no
+        // verbs, so the bar states it too (a staged door's prompt outlives its answer, and by it the bar would still
+        // offer «Выбрать · Осмотреть · Назад» over a grid that takes none of them).
+        if (consoleColoniesUi.receipt) {
           return [{control: 'confirm', label: 'Completed', enabled: false}];
         }
         if (pick !== undefined) {

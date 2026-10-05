@@ -178,20 +178,29 @@ describe('a colony built by a card — the wiring of the door', () => {
       expect(memberOf(stage, 'nextBuildSlot')).to.include('nextBuildSlot(this.colony, this.buildSite)');
     });
 
-    it('past the press a card\'s build speaks a STATUS on the bar — «Выполняется…» on the stage, «Выполнено» on the receipt grid', () => {
+    it('past the press EVERY colony act speaks ONE status on the bar — «Выполняется…» on the stage, «Выполнено» on the receipt grid', () => {
       const commands = memberOf(shell, 'commands');
-      const stageBranch = commands.slice(commands.indexOf('if (intent === \'build\') {'));
-      const stageStatus = stageBranch.indexOf('if (colonyBuildAnswered()) {');
-      expect(stageStatus, 'the stage\'s build branch asks the transaction first').to.be.greaterThan(-1);
-      expect(stageStatus, '…before it builds its own verbs').to.be.lessThan(stageBranch.indexOf('const verb = stagedBuild ?'));
-      expect(stageBranch.slice(stageStatus, stageStatus + 140)).to.include('label: \'Performing…\', enabled: false');
-      const gridBranch = commands.slice(commands.indexOf('if (this.consoleState.section === \'colonies\') {'));
-      // …on the HOSTED grid only (a staged door's grid is a step of its host): a fresh «Колонии» opened beside a
-      // parked flow keeps its own verbs — and its own ordinary grid (the section's receipt asks `embedded` too).
-      const gridStatus = gridBranch.indexOf('if (colonyBuildAnswered() && workspaceFrameHost(\'colonies\') !== undefined) {');
-      expect(gridStatus, 'the grid\'s branch asks the transaction first').to.be.greaterThan(-1);
-      expect(gridStatus, '…before the pick\'s verbs').to.be.lessThan(gridBranch.indexOf('if (pick !== undefined) {'));
-      expect(gridBranch.slice(gridStatus, gridStatus + 180)).to.include('label: \'Completed\', enabled: false');
+      // The stage: ONE check, before every intent's own verbs (a card's build, a roster change, a city, a track).
+      const stage = commands.slice(commands.indexOf('const intent = this.colonyFocus.intent;'));
+      const stageStatus = stage.indexOf('if (this.colonyActAnswered) {');
+      expect(stageStatus, 'the stage asks the act first').to.be.greaterThan(-1);
+      expect(stageStatus, '…before the dossier\'s and every act\'s verbs').to.be.lessThan(stage.indexOf('if (intent === \'inspect\') {'));
+      expect(stage.slice(stageStatus, stageStatus + 140)).to.include('label: \'Performing…\', enabled: false');
+      const answered = memberOf(shell, 'colonyActAnswered');
+      expect(answered).to.include('case \'build\': return colonyBuildAnswered();');
+      expect(answered).to.include('case \'roster\': return colonyRosterAnswered();');
+      expect(answered).to.include('case \'city\': return colonyCityAnswered();');
+      expect(answered).to.include('case \'track\': return colonyTrackMoveAnswered();');
+      // The city's scene no longer blanks the bar (it speaks the same grammar); its INPUT stays the scene's.
+      expect(commands, 'no silent bar for the city').to.not.match(/if \(isColonyCityInputLocked\(\)\) \{\s*return \[\];/);
+      // The grid: the section's ONE receipt reading, mirrored for the bar — roster, city and a card's build alike.
+      const grid = commands.slice(commands.indexOf('if (this.consoleState.section === \'colonies\') {'));
+      const gridStatus = grid.indexOf('if (consoleColoniesUi.receipt) {');
+      expect(gridStatus, 'the grid\'s branch asks the receipt first').to.be.greaterThan(-1);
+      expect(gridStatus, '…before the pick\'s verbs').to.be.lessThan(grid.indexOf('if (pick !== undefined) {'));
+      expect(grid.slice(gridStatus, gridStatus + 140)).to.include('label: \'Completed\', enabled: false');
+      expect(section, 'the section publishes its receipt reading').to.include('consoleColoniesUi.receipt = on;');
+      // A card's build receipt belongs to the HOSTED instance (a fresh «Колонии» beside a parked flow is ordinary).
       expect(memberOf(section, 'buildReceipt')).to.include('this.embedded ? this.buildState.receipt ?? this.buildReceiptLatch : undefined');
       expect(memberOf(section, 'buildAnswered')).to.include('this.embedded && (colonyBuildAnswered() || this.buildReceipt !== undefined)');
     });

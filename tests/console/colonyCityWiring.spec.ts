@@ -72,8 +72,15 @@ describe('a city on a colony tile — the wiring', () => {
       expect(branch).to.match(/control: 'back', label: 'Back'/);
     });
 
-    it('while the piece is in the air or the stage folds home the bar advertises nothing and A only presses the scene through', () => {
-      expect(memberOf(shell, 'commands')).to.match(/if \(isColonyCityInputLocked\(\)\) \{\s*return \[\];\s*\}/);
+    it('while the piece is in the air or the stage folds home the bar is a STATUS and A only presses the scene through', () => {
+      // (2026-10-05: the bar used to go blank here; it now speaks the colony acts' ONE status grammar —
+      // «Выполняется…» on the stage past the press, «Выполнено» while the grid stands as the receipt.)
+      const commands = memberOf(shell, 'commands');
+      expect(commands, 'no silent bar').to.not.match(/if \(isColonyCityInputLocked\(\)\) \{\s*return \[\];/);
+      expect(memberOf(shell, 'colonyActAnswered')).to.include('case \'city\': return colonyCityAnswered();');
+      expect(commands).to.match(/if \(this\.colonyActAnswered\) \{\s*return \[\{control: 'confirm', label: 'Performing…', enabled: false\}\];/);
+      expect(commands).to.match(/if \(consoleColoniesUi\.receipt\) \{\s*return \[\{control: 'confirm', label: 'Completed', enabled: false\}\];/);
+      // The INPUT stays the scene's.
       expect(shell).to.match(/if \(isColonyCityInputLocked\(\)\) \{\s*if \(intent\.kind === 'press' && action === 'primary'\) \{\s*hurryColonyCity\(\);\s*\}\s*return true;\s*\}/);
     });
   });

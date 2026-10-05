@@ -140,6 +140,11 @@ export const consoleColoniesUi = reactive({
    *  the bar advertises the LB/RB dial exactly while it works, and drops the
    *  hint the moment another payment family (or a fixed mix) is chosen. */
   composerMixAdjustable: false,
+  /**
+   * The grid stands as a RECEIPT (a roster change, a city laid on a tile, a colony a card built — the section's ONE
+   * `receiptOn` reading): no cursor and no verbs, so the bar states the result instead of offering the grid's verbs.
+   */
+  receipt: false,
 });
 
 /**
@@ -191,6 +196,7 @@ export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.composerEditable = false;
   consoleColoniesUi.composerDecisions = false;
   consoleColoniesUi.composerMixAdjustable = false;
+  consoleColoniesUi.receipt = false;
 }
 
 // ── THE COLONY WORKSPACE FLOW — browse ⇄ focus, one typed state ─────────────

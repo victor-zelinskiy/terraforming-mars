@@ -124,6 +124,11 @@ export async function playOwedColonyTrackMove(): Promise<boolean> {
  * The flow that promised the move is over (or was refused): every hold of its
  * own released, the move — if mid-flight — ended in its final pose. Idempotent.
  */
+/** The player's chosen move is ANSWERED — confirmed, carried by the answer, or playing on the stage. */
+export function colonyTrackMoveAnswered(): boolean {
+  return colonyTrackMoveFlow.promised !== undefined || colonyTrackMoveFlow.owed !== undefined || colonyTrackMoveFlow.live;
+}
+
 export function clearColonyTrackMove(): void {
   const owed = colonyTrackMoveFlow.owed;
   if (owed !== undefined) {
