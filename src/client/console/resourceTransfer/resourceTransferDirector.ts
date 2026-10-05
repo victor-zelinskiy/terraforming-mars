@@ -52,6 +52,55 @@ export type TransferFlightHandles = {
   finished: Promise<'landed' | 'done'>;
 };
 
+/** The chip's first PAINTED pose: at its source, the first frame of its pop (the pop then rises from here). */
+const TRANSFER_BIRTH_ALPHA = 0.35;
+
+/** A flight that has been asked for but not flown yet (see `bornThenFlown`), per chip — a kill cancels it too. */
+const pendingStarts = new WeakMap<HTMLElement, {cancel: () => void}>();
+
+/**
+ * THE CHIP IS BORN AT ITS SOURCE — painted there once — AND ONLY THEN FLOWN, on the animation clock.
+ *
+ * Two clocks used to decide the chip's first painted pose, and neither was the chip's own:
+ *  · GSAP's global time advances ONLY at a tick, and a timeline created between two ticks starts at the LAST one.
+ *    A reward wave is launched from the response's own task (the answer is applied, a watcher flies the row), so a
+ *    long task (measured: 146 ms of `Response.json().then` on the Habitat Science ledger) put the timeline's first
+ *    rendered frame 150 ms into its flight;
+ *  · a SLOW FRAME does the same after a correct start: the first tick after the start lands a whole frame later
+ *    (a headless 4K frame is hundreds of ms), and the chip — `autoAlpha: 0` at its birth — was first painted 40 %
+ *    along its arc, above the panel, born out of nothing.
+ * So the birth is its own beat: after the wave's stagger, ON a tick, the chip turns visible at its source (the
+ * first frame of the pop); the flight starts on the NEXT tick (a later frame — the birth has been painted between
+ * them) and runs from there. Whatever the frames cost afterwards, the first thing the player sees is the source.
+ * The cost is one frame.
+ */
+function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void): void {
+  pendingStarts.get(chip)?.cancel();
+  let listener: (() => void) | undefined;
+  const birth = gsap.delayedCall(delayMs / 1000, () => {
+    gsap.set(chip, {autoAlpha: TRANSFER_BIRTH_ALPHA});
+    const bornFrame = gsap.ticker.frame;
+    // A listener added while this tick dispatches is called in this very tick — hence the frame count.
+    listener = () => {
+      if (gsap.ticker.frame <= bornFrame) {
+        return;
+      }
+      cancel();
+      fly();
+    };
+    gsap.ticker.add(listener);
+  });
+  const cancel = (): void => {
+    birth.kill();
+    if (listener !== undefined) {
+      gsap.ticker.remove(listener);
+      listener = undefined;
+    }
+    pendingStarts.delete(chip);
+  };
+  pendingStarts.set(chip, {cancel});
+}
+
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
@@ -96,9 +145,10 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   const launchedAt = new Promise<void>((resolve) => {
     launchedResolve = resolve;
   });
-  const touched = guarded((done) => {
-    const tl = gsap.timeline({delay: opts.delayMs / 1000, onComplete: done});
-    // Materialize at the source — the chip is BORN there, never teleported in.
+  const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
+    // (The wave's stagger was the birth's — the flight starts the moment it is called.)
+    const tl = gsap.timeline({onComplete: done});
+    // Materialize at the source — the chip is BORN there, never teleported in (its first frame is already painted).
     tl.to(chip, {autoAlpha: 1, duration: popMs / 1000, ease: 'power1.out'}, 0);
     // …and LEAVES it once whole: the launch is the end of the pop.
     tl.call(() => launchedResolve(), undefined, popMs / 1000);
@@ -123,7 +173,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     // Touchdown: microscopic damped weight — felt, not seen.
     tl.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
     tl.to(chip, {y: `-=${settlePx}`, duration: (settleMs / 1000) - 0.08, ease: 'power2.out'});
-  }, opts.delayMs + popMs + arcMs + settleMs);
+  }), opts.delayMs + popMs + arcMs + settleMs);
 
   const finished: Promise<'landed' | 'done'> = touched.then(() => {
     if (opts.hold) {
@@ -167,6 +217,7 @@ export function settleTransferChip(piece: TransferStagePiece, at: TransferPoint,
 
 /** Abort/unmount: kill the piece's tweens (idempotent). */
 export function killTransferPiece(piece: TransferStagePiece): void {
+  pendingStarts.get(piece.chip)?.cancel();
   gsap.killTweensOf(piece.chip);
   if (piece.beat !== undefined) {
     gsap.killTweensOf(piece.beat);
