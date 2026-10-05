@@ -158,6 +158,7 @@ import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/Political
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
+import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
 import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
@@ -1139,6 +1140,38 @@ parliamentFixture('water-hauling', {
     if (dock === undefined || p1.colonies.getFleetSize() !== 2 || p1.colonies.freeTradeFleets() !== 2 ||
         p1.colonies.potentialTradeCount() < 2 || !game.canAddOcean() || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the water-hauling fixture expected the dock in the tableau, two free fleets, trades on offer, room for an ocean and the Industrialists ruling — got dock=${dock !== undefined} fleets=${p1.colonies.getFleetSize()}/${p1.colonies.freeTradeFleets()} trades=${p1.colonies.potentialTradeCount()} oceans=${game.board.getOceanSpaces().length} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR26 · UNMI LINER — the SECOND fleet dock, whose reward lands ON THE RAIL (+1 TR), and the first table
+//    with TWO docks in one tableau (docs/TURMOIL_REDUX_WATER_HAULING.md §9): blue's action phase with «UNMI
+//    Liner» AND «Water Hauling» played (the liner first — the column's tableau order), THREE free fleets (both
+//    docks and a colony in one generation, each trade with its own fee), 9 energy (three fees) and nothing else
+//    to pay with. SIX colonies open (the fullest grid the column stands beside), the oceans far from 9. THE
+//    GREENS RULE (a fresh Redux table's own starting government): every TR step pays 2 M€ — the table's answer
+//    the stage names before the press and the scene shows AFTER the rating has landed. The chairman quest is
+//    one nothing on this journey can close (a quest's gate would be a second story over the trade's own). ──
+parliamentFixture('unmi-liner', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, parliament}) => {
+    game.colonies = [new Luna(), new Europa(), new Callisto(), new Ceres(), new Io(), new Miranda()];
+    p1.playedCards.push(new UnmiLiner());
+    p1.playedCards.push(new WaterHauling());
+    p1.colonies.setFleetSize(3);
+    p1.energy = 9;
+    p1.titanium = 0;
+    p1.heat = 0;
+    parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+  },
+  expect: ({game, p1, parliament}) => {
+    const liner = p1.playedCards.get(CardName.UNMI_LINER);
+    const hauling = p1.playedCards.get(CardName.WATER_HAULING);
+    if (liner === undefined || hauling === undefined || p1.colonies.getFleetSize() !== 3 || p1.colonies.freeTradeFleets() !== 3 ||
+        p1.colonies.potentialTradeCount() !== 3 || !game.canAddOcean() || parliament.rulingParty() !== PartyName.GREENS ||
+        !parliament.hasPartyEffect(p1, PartyName.GREENS) || p1.megaCredits !== 20) {
+      throw new Error(`the unmi-liner fixture expected both docks in the tableau, three free fleets, three trades on offer, room for an ocean, 20 M€ and the Greens ruling with their effect — got liner=${liner !== undefined} hauling=${hauling !== undefined} fleets=${p1.colonies.getFleetSize()}/${p1.colonies.freeTradeFleets()} trades=${p1.colonies.potentialTradeCount()} oceans=${game.board.getOceanSpaces().length} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
     }
     parliament.assertLedger(game);
   },

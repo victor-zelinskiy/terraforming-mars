@@ -2346,6 +2346,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR06 Water Hauling: blue's action phase with the dock in its tableau, two free fleets, 6 energy (two fees) and no other fee;
   // six colonies open, a quiet government (docs/TURMOIL_REDUX_WATER_HAULING.md).
   'water-hauling' |
+  // TR26 UNMI Liner: blue's action phase with BOTH docks in its tableau (the liner and Water Hauling), three free fleets, 9 energy
+  // (three fees), six colonies open and the Greens ruling — every TR step pays 2 M€ (docs/TURMOIL_REDUX_WATER_HAULING.md §9).
+  'unmi-liner' |
   // TR07 Colony Sponsors: blue's action phase with the card in hand, 10 M€, blue's colony on Luna (track at cell 3), Ceres at
   // its top, Titan inactive, Europa and Io candidates; a quiet government (docs/TURMOIL_REDUX_COLONY_SPONSORS.md).
   'colony-sponsors' |
