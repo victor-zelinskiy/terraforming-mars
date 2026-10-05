@@ -14,8 +14,8 @@ import {isICardRenderItem} from '@/common/cards/render/Types';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {colonyNavStep} from '@/client/console/consoleColoniesModel';
 import {
-  ColonyCursor, DOCK_DOCKED_KEY, DOCK_FREE_KEY, FleetDockReasonInput, colonyCursorStep, fleetDockEffectNode,
-  fleetDockOwnBlock, fleetDockReason, fleetDockRewardCategory, fleetDockScenePlan, fleetDockTileStatus, fleetDockViews,
+  ColonyCursor, DOCK_DOCKED_KEY, DOCK_DOCKED_SHORT_KEY, DOCK_FREE_KEY, FleetDockReasonInput, colonyCursorStep, fleetDockEffectNode,
+  fleetDockOwnBlock, fleetDockReason, fleetDockRewardCategory, fleetDockScenePlan, fleetDockTileLabel, fleetDockTileStatus, fleetDockViews,
   reactionRailSpecs, tradeKnownRailMoves,
 } from '@/client/console/colonyTrade/fleetDockModel';
 
@@ -85,7 +85,20 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
 
     it('the fleet on the card — until the generation ends', () => {
       const [dock] = fleetDockViews([card(DOCK, {fleetDocked: 'blue'})], isDock, [offer(false, FLEET_DOCK_BUSY_REASON)]);
-      expect(fleetDockTileStatus(dock, input())).deep.eq({kind: 'docked', text: DOCK_DOCKED_KEY});
+      expect(fleetDockTileStatus(dock, input())).deep.eq({kind: 'docked', text: DOCK_DOCKED_KEY, short: DOCK_DOCKED_SHORT_KEY});
+    });
+
+    // PL-016: the whole sentence is 46 letters and the column holds about 17 — the tile says the STATE, the
+    // rail under the grid says the rest. The whole statement stays the status's `text` (what the rail prints).
+    it('the TILE prints the short form where a status has one, the whole statement otherwise', () => {
+      const [docked] = fleetDockViews([card(DOCK, {fleetDocked: 'blue'})], isDock, [offer(false, FLEET_DOCK_BUSY_REASON)]);
+      const dockedStatus = fleetDockTileStatus(docked, input());
+      expect(fleetDockTileLabel(dockedStatus)).eq(DOCK_DOCKED_SHORT_KEY);
+      expect(dockedStatus.text, 'the rail keeps the whole statement').eq(DOCK_DOCKED_KEY);
+      const [free] = fleetDockViews([card(DOCK)], isDock, [offer(true)]);
+      expect(fleetDockTileLabel(fleetDockTileStatus(free, input({tradeable: [DOCK]})))).eq(DOCK_FREE_KEY);
+      const [refused] = fleetDockViews([card(DOCK)], isDock, [offer(false, 'No ocean tile is left')]);
+      expect(fleetDockTileLabel(fleetDockTileStatus(refused, input({tradeable: ['Luna']}))), 'a refusal is the sentence the server sent').eq('No ocean tile is left');
     });
 
     it('the reward\'s own refusal is the tile\'s reason', () => {

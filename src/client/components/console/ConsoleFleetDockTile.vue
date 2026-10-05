@@ -8,7 +8,9 @@
     card sits on the ▲ of that face (`premiumFleetDock.ts` — the mark slot is the
     flight's measured landing anchor too). Under the face, ONE status line:
     free · the fleet on the card until the generation ends · the reason it is
-    not a destination (the server's, through the colony ladder).
+    not a destination (the server's, through the colony ladder). The line is
+    the TILE's: it prints the status's own short form where it has one, and is
+    cut — if ever — by an ellipsis in its OWN box, never by the column.
   -->
   <div class="con-fleetdock-tile"
        :class="{
@@ -25,7 +27,7 @@
       <ColonyFleetIcon v-if="status.kind === 'docked' && dock.dockedColor !== undefined"
                        class="con-fleetdock-tile__status-ship" :color="dock.dockedColor" />
       <span v-else class="con-fleetdock-tile__status-mark" aria-hidden="true">{{ status.kind === 'blocked' ? '✕' : '●' }}</span>
-      <span class="con-fleetdock-tile__status-text">{{ $t(status.text) }}</span>
+      <span class="con-fleetdock-tile__status-text">{{ $t(label) }}</span>
     </footer>
   </div>
 </template>
@@ -34,7 +36,7 @@
 import {defineComponent, PropType} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
-import {FleetDockTileStatus, FleetDockView} from '@/client/console/colonyTrade/fleetDockModel';
+import {FleetDockTileStatus, FleetDockView, fleetDockTileLabel} from '@/client/console/colonyTrade/fleetDockModel';
 
 export default defineComponent({
   name: 'ConsoleFleetDockTile',
@@ -43,6 +45,11 @@ export default defineComponent({
     dock: {type: Object as PropType<FleetDockView>, required: true},
     status: {type: Object as PropType<FleetDockTileStatus>, required: true},
     focused: {type: Boolean, default: false},
+  },
+  computed: {
+    label(): string {
+      return fleetDockTileLabel(this.status);
+    },
   },
 });
 </script>

@@ -132,12 +132,24 @@ export function fleetDockReason(dock: FleetDockView, input: FleetDockReasonInput
 /** What the dock's TILE says — three states, the reason being the ladder's. */
 export type FleetDockTileStatus = {
   kind: 'free' | 'docked' | 'blocked',
-  /** An English i18n key. */
+  /** An English i18n key — the WHOLE statement (the overview's rail, the explorer's plate: where there is room). */
   text: string,
+  /**
+   * The same state in the TILE's own width, when the whole statement cannot
+   * stand on one line of a narrow column: the tile says the state, the rail
+   * under the grid says the rest once the cursor is on the dock.
+   */
+  short?: string,
 };
 
 export const DOCK_FREE_KEY = 'Dock free';
 export const DOCK_DOCKED_KEY = 'Trade fleet docked · returns next generation';
+export const DOCK_DOCKED_SHORT_KEY = 'Fleet on the card';
+
+/** What the tile's one status line prints (an English key). */
+export function fleetDockTileLabel(status: FleetDockTileStatus): string {
+  return status.short ?? status.text;
+}
 
 /**
  * The tile's status, through the ladder. Like a colony tile it states only
@@ -148,7 +160,7 @@ export const DOCK_DOCKED_KEY = 'Trade fleet docked · returns next generation';
  */
 export function fleetDockTileStatus(dock: FleetDockView, input: FleetDockReasonInput): FleetDockTileStatus {
   if (dock.dockedColor !== undefined) {
-    return {kind: 'docked', text: DOCK_DOCKED_KEY};
+    return {kind: 'docked', text: DOCK_DOCKED_KEY, short: DOCK_DOCKED_SHORT_KEY};
   }
   const reason = fleetDockReason(dock, input);
   if (reason === undefined) {

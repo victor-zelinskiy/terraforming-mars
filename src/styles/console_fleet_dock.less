@@ -50,7 +50,12 @@ html.con-profile-handheld .con-colonies__docks { --con-colonies-docks-w: 7rem; }
     padding-bottom: .15rem;
     border-bottom: .05rem solid fade(@con-cyan, 18%);
 }
-.con-colonies__dockslot { position: relative; flex: 0 0 auto; }
+/* A slot is never wider than the column: it is content-sized (the card's face
+   sets it), and a status line longer than the column once WIDENED it — the
+   line's own `max-width: 100%` then measured a box that had already grown to
+   fit it, and the column's clip cut the sentence at BOTH ends with no ellipsis
+   («арте · вернётся в следующ»). Bounded here, the line ellipsizes in its own box. */
+.con-colonies__dockslot { position: relative; flex: 0 0 auto; max-width: 100%; }
 
 /* The rail's chips (a focused dock: «→ [океан] 3 → 4 · [РТ] +1»). */
 .con-colonies__rail-chip { flex: 0 0 auto; }
