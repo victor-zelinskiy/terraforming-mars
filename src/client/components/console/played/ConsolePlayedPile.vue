@@ -40,12 +40,16 @@
       <!-- No live overlays ride the table: stored card resources are read in
            the dedicated «Информация» screen (its «Доп. ресурсы» block) and on
            the card's own face in the fullscreen inspector. The tableau stays
-           the printed table — cards, nothing pinned on top of them. -->
+           the printed table — cards, nothing pinned on top of them. What a
+           card PUBLICLY CARRIES on its face is not an overlay: the trade
+           fleet standing on a dock is part of the card until the generation
+           ends (`publicFaceModel` — that card alone gets it; the rest stay
+           name-only). -->
       <div class="con-played__lift">
         <div class="con-played__face con-played__focusbox" :style="{zoom: String(zoom)}">
           <!-- Pile faces are ≤ ~370 CSS px wide on every profile (zoom ≤0.58
                × uiScale ≤2) — always the thumb art tier. -->
-          <ConsolePlayedCardLite v-if="hydrated" :name="card.name" :peek="coveredAt(i)" art-tier="thumb" />
+          <ConsolePlayedCardLite v-if="hydrated" :name="card.name" :card="publicFaceModel(card)" :peek="coveredAt(i)" art-tier="thumb" />
         </div>
       </div>
     </div>
@@ -56,6 +60,7 @@
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
+import {publicFaceModel} from '@/client/components/premiumCard/premiumFleetDock';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
@@ -80,6 +85,7 @@ export default defineComponent({
     peekH: {type: Number, required: true},
   },
   methods: {
+    publicFaceModel,
     /**
      * The card is COVERED by the pile (only its peek band can ever show) —
      * its face renders the cheap peek crop. Everything but the topmost card

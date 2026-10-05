@@ -31,6 +31,44 @@ function make(props: Partial<{cards: Array<CardModel>, hiddenKey: string | undef
   });
 }
 
+/*
+ * THE FLEET ON A DOCK IS PART OF THE CARD ON THE TABLE TOO (docs/claude/gameplay-polish-ledger.md PL-013): the pile
+ * draws name-only faces, and a docked dock read as a free one — in the owner's own «РАЗЫГРАНО» and in a rival's
+ * reading of it. The docked face alone gets the minimal public model; every other face stays name-only.
+ */
+describe('ConsolePlayedPile — a dock\'s fleet stands on its face', () => {
+  it('the TOP card of a pile, docked: the ship sits on its ▲ in the owner\'s livery', () => {
+    const wrapper = make({cards: [{name: CardName.TREES} as CardModel, {name: CardName.UNMI_LINER, fleetDocked: 'blue'} as CardModel]});
+    const ship = wrapper.find(`[data-played-key="${CardName.UNMI_LINER}"] .pcard-fleet--docked .colony-fleet-icon`);
+    expect(ship.exists()).to.eq(true);
+    expect(ship.classes()).to.include('fleet-hue--blue');
+    wrapper.unmount();
+  });
+
+  it('a free dock keeps its empty mark slot; a card\'s LIVE counters still never reach the table — it stays printed', () => {
+    const face = (cards: Array<CardModel>) => {
+      const wrapper = make({cards});
+      const html = wrapper.find(`[data-played-key="${CardName.BIRDS}"]`).html();
+      const docked = wrapper.find('.pcard-fleet--docked').exists();
+      wrapper.unmount();
+      return {html, docked};
+    };
+    const printed = face([{name: CardName.WATER_HAULING} as CardModel, {name: CardName.BIRDS} as CardModel]);
+    const live = face([{name: CardName.WATER_HAULING} as CardModel, {name: CardName.BIRDS, resources: 4, isDisabled: true} as CardModel]);
+    expect(printed.docked, 'no fleet on a free dock').to.eq(false);
+    expect(live.html, 'stored resources and availability are not the table\'s to draw').to.eq(printed.html);
+  });
+
+  it('the fleet leaving (next generation) leaves the face name-only again', async () => {
+    const wrapper = make({cards: [{name: CardName.UNMI_LINER, fleetDocked: 'red'} as CardModel]});
+    expect(wrapper.find('.pcard-fleet--docked').exists()).to.eq(true);
+    await wrapper.setProps({cards: [{name: CardName.UNMI_LINER} as CardModel]});
+    expect(wrapper.find('.pcard-fleet--docked').exists()).to.eq(false);
+    expect(wrapper.find('.pcard-fleet').exists(), 'the slot stays — it is the landing anchor').to.eq(true);
+    wrapper.unmount();
+  });
+});
+
 describe('ConsolePlayedPile (peek-crop faces)', () => {
   it('covered cards render the peek face: header + no art img, no mechanics', () => {
     const wrapper = make();

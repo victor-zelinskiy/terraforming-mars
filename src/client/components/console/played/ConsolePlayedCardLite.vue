@@ -40,7 +40,10 @@ export default defineComponent({
      * OPTIONAL live model — passed ONLY where a stored-resource reading is
      * part of the scene (the receiving stage's effect targets: the capsule is
      * the counter that ticks at the chip's contact). The table at rest stays
-     * name-only on purpose: nothing live re-renders a resting pile.
+     * name-only on purpose: nothing live re-renders a resting pile. The one
+     * thing a resting face still carries is what lies PUBLICLY on the card —
+     * the trade fleet standing on a dock — handed in as the minimal
+     * `publicFaceModel` (name + fleet), for that card alone.
      */
     card: {
       type: Object as PropType<CardModel | undefined>,

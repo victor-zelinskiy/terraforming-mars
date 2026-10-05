@@ -48,7 +48,7 @@
           <div class="con-played-cat__lift">
             <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
               <!-- The near-fullscreen stage — always the full art tier. -->
-              <ConsolePlayedCardLite :name="cards[0].name" />
+              <ConsolePlayedCardLite :name="cards[0].name" :card="publicFaceModel(cards[0])" />
             </div>
           </div>
         </div>
@@ -80,7 +80,7 @@
                        mount at the frame beat, under the settled proxies, so
                        the open flush never pays for two full card sets. -->
                   <div v-if="facesOn" class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
-                    <ConsolePlayedCardLite :name="card.name" :art-tier="catArtTier" />
+                    <ConsolePlayedCardLite :name="card.name" :card="publicFaceModel(card)" :art-tier="catArtTier" />
                   </div>
                 </div>
               </div>
@@ -107,7 +107,7 @@
           <div class="con-deal-proxy__face">
             <!-- The proxy lands on a grid slot — same art tier as the grid,
                  so the handoff crossfades over the very same decoded file. -->
-            <ConsolePlayedCardLite :name="f.name" :art-tier="catArtTier" />
+            <ConsolePlayedCardLite :name="f.name" :card="publicFaceModelOf(f.name)" :art-tier="catArtTier" />
           </div>
           <div class="con-deal-proxy__back">
             <div class="con-card-back con-card-back--flyer"></div>
@@ -174,6 +174,7 @@ import {
   CategoryFlightPlan, CATEGORY_FRAME_MS,
 } from '@/client/console/played/playedCategoryDirector';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
+import {publicFaceModel} from '@/client/components/premiumCard/premiumFleetDock';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 /** Rows kept mounted above/below the viewport (hand-section discipline). */
@@ -357,6 +358,11 @@ export default defineComponent({
     resetCategoryDirector();
   },
   methods: {
+    publicFaceModel,
+    /** A flight proxy wears what its slot wears (the copies are identical — the docked fleet included). */
+    publicFaceModelOf(name: string): CardModel | undefined {
+      return publicFaceModel(this.cards.find((card) => card.name === name));
+    },
     range(a: number, b: number): Array<number> {
       const out: Array<number> = [];
       for (let i = a; i <= b; i++) {
