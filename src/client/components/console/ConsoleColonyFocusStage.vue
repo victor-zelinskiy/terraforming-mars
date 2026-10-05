@@ -382,17 +382,12 @@
                       <span v-if="captures['track'] !== undefined">{{ trackSummary }}</span>
                       <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose the track advance') }}…</span>
                     </template>
-                    <template v-else-if="row.kind === 'cardTarget' && row.step !== undefined">
-                      <i v-if="row.iconClass !== ''" class="con-colfocus__steprow-icon" :class="row.iconClass" aria-hidden="true"></i>
-                      <span v-if="captures[row.key] !== undefined">{{ $t(String(captures[row.key])) }}</span>
-                      <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose a card') }}…</span>
-                      <em v-if="captures[row.key] !== undefined">{{ targetImpact(row) }}</em>
-                      <!-- The answered pick stays re-enterable: A on this row
-                           re-opens the target step with the choice pre-locked
-                           (B there keeps it — «Изменить», never «потерять»). -->
-                      <span v-if="captures[row.key] !== undefined && isFocused('step', i)"
-                            class="con-colfocus__steprow-change">{{ $t('Change selection') }}</span>
-                    </template>
+                    <!-- The SHARED reading of a «КУДА» row (the fleet-dock stage draws the same). -->
+                    <ConsoleTradeTargetValue v-else-if="row.kind === 'cardTarget' && row.step !== undefined"
+                                             :iconClass="row.iconClass"
+                                             :card="captures[row.key] !== undefined ? String(captures[row.key]) : undefined"
+                                             :impact="targetImpact(row)"
+                                             :changeable="isFocused('step', i)" />
                   </div>
                 </div>
               </template>
@@ -449,15 +444,11 @@
       <!-- (No ask line of our own: the selector's contract header already
            states the server's ask and the target scope — a second statement
            above it was the tripled-title screenshot.) -->
-      <section v-if="sub === 'targets' && targetStepModel !== undefined && targetFocus !== undefined"
-               class="con-colfocus__targetstage" ref="targetZone">
-        <ConsolePlayedTargetStep ref="targetStep"
-                                 :model="targetStepModel"
-                                 :layout="targetLayout"
-                                 :focus="targetFocus"
-                                 :bandHeight="targetBandH"
-                                 :lockedCard="targetLockedCard" />
-      </section>
+      <ConsoleTradeTargetStep v-if="sub === 'targets' && targetStepModel !== undefined"
+                              ref="targetStep"
+                              :model="targetStepModel"
+                              :lockedCard="targetLockedCard"
+                              @pick="targetPicked($event)" />
 
       <!-- ═══ THE PRESENTED TARGETS — the chosen host card(s), physically ON
            STAGE for the resolution. The reward chip is born at the income
@@ -467,29 +458,12 @@
            «было → прилетел → стало», never a number that silently changed.
            The scene recedes before the closing track glide (the conclusion
            waits for the working area through `stageBusy`). -->
-      <section v-if="cardlandVisible" class="con-colfocus__cardland"
-               :class="{
-                 'con-colfocus__cardland--leaving': cardlandReleased,
-                 'con-colfocus__cardland--rail': intent === 'build',
-               }"
-               :data-cardland-count="presentedTargets.length">
-        <div v-for="t in presentedTargets" :key="t.card"
-             class="con-colfocus__landcell"
-             :class="{'con-colfocus__landcell--landed': landedOf(t) > 0}"
-             :data-played-key="t.card">
-          <div class="con-colfocus__landcard">
-            <ConsoleCardFaceLite :name="t.card" :card="presentedModelOf(t)" />
-            <!-- Re-keyed per touchdown: each landed chip replays the one-shot
-                 contact flash over the card's own counter capsule. -->
-            <span v-if="landedOf(t) > 0" :key="'flash' + landedOf(t)"
-                  class="con-colfocus__landflash" aria-hidden="true"></span>
-          </div>
-          <div class="con-colfocus__landmeta">
-            <i v-if="t.icon !== ''" :class="rewardIconClass(t.icon)" aria-hidden="true"></i>
-            <em>{{ t.before }} → {{ t.before + t.amount }}</em>
-          </div>
-        </div>
-      </section>
+      <ConsoleTradeReceivingCards v-if="cardlandVisible"
+                                  :targets="presentedTargets"
+                                  :landings="landings.by"
+                                  :players="players"
+                                  :leaving="cardlandReleased"
+                                  :rail="intent === 'build'" />
 
       <!-- (The reward package answers «what happens if I confirm now?» — a
            question the BONUS composition does not pose: nothing is being
@@ -790,7 +764,6 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
-import {CardModel} from '@/common/models/CardModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
@@ -846,19 +819,10 @@ import {
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {TradeReceiptBase, tradeReceiptBaseOf} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {
-  ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations,
-  presentedTargetModel,
+  ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations, openTradeTargetFocus,
 } from '@/client/console/colonyTrade/colonyTradeTargetStep';
 import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
-import {
-  PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
-  findPlayedTargetFocus, planPlayedTargetLayout, playedTargetAt, playedTargetSourceCardName,
-  reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner,
-} from '@/client/console/played/consolePlayedTargetModel';
-import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
-import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
-import {playColonyTargetStepEnter, playColonyTargetStepLeave} from '@/client/console/consoleColonyFocusMotion';
+import {PlayedTargetModel} from '@/client/console/played/consolePlayedTargetModel';
 import {cardResourceLandings, resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
@@ -897,8 +861,12 @@ import ConsoleTradePayRows from '@/client/components/console/ConsoleTradePayRows
 import {
   TradePayEntry, tradePayDisabledEntries, tradePayEntries, visibleTradePayDisabled, visibleTradePayRows,
 } from '@/client/console/colonyTrade/tradePayModel';
-import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
-import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import ConsoleTradeTargetStep from '@/client/components/console/ConsoleTradeTargetStep.vue';
+import ConsoleTradeTargetValue from '@/client/components/console/ConsoleTradeTargetValue.vue';
+import ConsoleTradeReceivingCards from '@/client/components/console/ConsoleTradeReceivingCards.vue';
+
+/** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
+type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void};
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -1004,7 +972,7 @@ export default defineComponent({
   name: 'ConsoleColonyFocusStage',
   components: {
     BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
-    ConsolePlayedTargetStep, ConsoleCardFaceLite, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
+    ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
     ConsoleColonyCitySeat, PremiumCountGlyph,
   },
   props: {
@@ -1081,11 +1049,6 @@ export default defineComponent({
       subIdx: 0,
       sub: undefined as Sub,
       captures: {} as Record<string, unknown>,
-      /** The embedded target step's cursor (the shared selector's own shape). */
-      targetFocus: undefined as PlayedTargetFocus | undefined,
-      /** The target zone's measured box (the step's layout + height budget). */
-      targetZoneW: 0,
-      targetZoneH: 0,
       /** The MEASURED height the panel's columns want (see `measureFit`). */
       fitNeedPx: 0,
       fitRaf: undefined as number | undefined,
@@ -1982,19 +1945,6 @@ export default defineComponent({
         resourceOf: (name) => getCard(name)?.resourceType,
       });
     },
-    targetLayout(): PlayedTargetLayout {
-      return planPlayedTargetLayout({
-        owners: this.targetStepModel?.owners ?? [],
-        availW: this.targetZoneW > 0 ? this.targetZoneW : 900,
-        ui: conUiScale(),
-        handheld: consoleLayoutState.profile === 'handheld',
-      });
-    },
-    /** The step's vertical budget — the zone IS the room (its own contract
-     *  header and rail are part of the step and already in its budget). */
-    targetBandH(): number {
-      return Math.max(0, this.targetZoneH);
-    },
     targetLockedCard(): string {
       const captured = this.captures[this.activeTargetKey];
       return typeof captured === 'string' ? captured : '';
@@ -2399,7 +2349,6 @@ export default defineComponent({
       this.pinnedConfig = undefined;
       this.commitLatched = false;
       this.heldContext = undefined;
-      this.targetFocus = undefined;
       this.presentedTargets = [];
       this.cardlandReleased = false;
       this.clearCardlandDwell();
@@ -3052,33 +3001,19 @@ export default defineComponent({
         return;
       }
     },
-    // ── the embedded TARGET STEP (the shared played-card selector) ─────────
+    // ── the embedded TARGET STEP (the shared selector — `ConsoleTradeTargetStep`) ─
     /**
      * DESCEND into the target step — one level deeper in the same flow. The
-     * cursor lands on the previously chosen card when there is one (a
-     * re-entry through «Изменить выбор» — already target-locked), else on the
-     * model's own first seat. The zone is measured a tick later, when it
-     * stands; the step re-solves its cards on that budget by contract.
+     * cursor lands on the previously chosen card when there is one (a re-entry
+     * through «Изменить выбор» — already target-locked), else on the model's
+     * own first seat; with nothing to point at the step does not open. The
+     * step measures its own room once it stands and solves its cards on it.
      */
     openTargetStep(): void {
-      const model = this.targetStepModel;
-      const owners = model?.owners ?? [];
-      if (owners.length === 0) {
-        return;
-      }
-      this.targetFocus = findPlayedTargetFocus(this.targetLockedCard, owners) ??
-        reseatPlayedTargetFocus(undefined, owners);
-      if (this.targetFocus === undefined) {
+      if (openTradeTargetFocus(this.targetStepModel, this.targetLockedCard) === undefined) {
         return;
       }
       this.sub = 'targets';
-      void this.$nextTick(() => {
-        this.measureTargetZone();
-        const zone = this.$refs.targetZone as HTMLElement | undefined;
-        if (zone !== undefined && zone !== null) {
-          playColonyTargetStepEnter(zone);
-        }
-      });
     },
     /**
      * THE PANEL TAKES THE ROOM IT NEEDS — measured, because CSS cannot see it.
@@ -3130,107 +3065,56 @@ export default defineComponent({
         }
       });
     },
-    measureTargetZone(): void {
-      const zone = this.$refs.targetZone as HTMLElement | undefined;
-      if (zone === undefined || zone === null) {
-        return;
-      }
-      // CONTENT box, not client box: `clientHeight` includes the zone's own
-      // padding, and a budget fed the padding solves cards for room that does
-      // not exist — a hairline scroll rail and a cropped bottom row at 4K.
-      const cs = getComputedStyle(zone);
-      this.targetZoneW = Math.max(0, zone.clientWidth -
-        (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0));
-      this.targetZoneH = Math.max(0, zone.clientHeight -
-        (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0));
-    },
     /**
      * B — fold ONE level back. The previous pre-select is deliberately kept:
      * closing the step is «передумал смотреть», never «передумал выбирать» —
      * a confirmed target survives every visit that ends with B.
      */
     closeTargetStep(): void {
-      const zone = this.$refs.targetZone as HTMLElement | undefined;
       const drop = (): void => {
         if (this.sub === 'targets') {
           this.sub = undefined;
         }
         this.scrollFocusedIntoView();
       };
-      if (zone !== undefined && zone !== null) {
-        playColonyTargetStepLeave(zone, drop);
+      const step = this.$refs.targetStep as {close?: (done: () => void) => void} | undefined;
+      if (step?.close !== undefined) {
+        step.close(drop);
       } else {
         drop();
       }
     },
+    /** The step's own grammar, reached through its host (the shared selector lives there). */
+    targetStepHost(): TradeTargetStepHandle | undefined {
+      return this.$refs.targetStep as TradeTargetStepHandle | undefined;
+    },
     targetNav(dir: NavDirection): void {
-      const owners = this.targetStepModel?.owners ?? [];
-      const focus = this.targetFocus;
-      if (focus === undefined || owners.length === 0) {
-        return;
-      }
-      const map: Record<string, PlayedTargetNavDir | undefined> =
-        {left: 'left', right: 'right', up: 'up', down: 'down'};
-      const d = map[dir as string];
-      if (d === undefined) {
-        return;
-      }
-      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
-      const cells = step?.cells?.() ?? [];
-      const next = cells.length > 0 ?
-        stepPlayedTargetFocusAt(focus, d, cells) :
-        stepPlayedTargetFocus(focus, d, owners, this.targetLayout);
-      if (next === undefined) {
-        return; // an edge HOLDS — never a wrap, never a silent owner change
-      }
-      this.targetFocus = next;
-      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+      this.targetStepHost()?.nav(dir);
     },
     /** LB/RB — the owner axis, tabbed mode only (the shared grammar; colony
      *  targets are normally the viewer's own single group, so this is quiet). */
     cycleTargetOwner(delta: number): void {
-      const owners = this.targetStepModel?.owners ?? [];
-      const focus = this.targetFocus;
-      if (focus === undefined || this.targetLayout.mode !== 'tabs' || owners.length < 2) {
-        return;
-      }
-      const ownerId = stepPlayedTargetOwner(focus.ownerId, delta, owners);
-      if (ownerId !== focus.ownerId) {
-        this.targetFocus = reseatPlayedTargetFocus({ownerId, index: 0}, owners) ?? focus;
-      }
+      this.targetStepHost()?.cycleOwner(delta);
     },
-    /** A — lock the focused candidate in as this step's target and return to
-     *  the trade review. The capture is the SAME shape the batch always sent
+    /** A — lock the focused candidate in as this step's target (the host answers with `pick`). */
+    targetConfirm(): void {
+      this.targetStepHost()?.confirm();
+    },
+    /** The host's answer: the capture is the SAME shape the batch always sent
      *  (`{type:'card', cards:[name]}` downstream) — the selector is
      *  presentation, never a second source of truth. */
-    targetConfirm(): void {
-      const owners = this.targetStepModel?.owners ?? [];
-      const candidate = playedTargetAt(this.targetFocus, owners);
+    targetPicked(card: string): void {
       const key = this.activeTargetKey;
-      if (candidate === undefined || key === '') {
+      if (key === '') {
         return;
       }
-      this.captures = {...this.captures, [key]: candidate.cardName};
+      this.captures = {...this.captures, [key]: card};
       this.closeTargetStep();
     },
     /** X — the focused candidate fullscreen, lifting from its own slot (the
      *  console-wide «X inspects the current object»). */
     targetInspect(): void {
-      const owners = this.targetStepModel?.owners ?? [];
-      const candidate = playedTargetAt(this.targetFocus, owners);
-      if (candidate === undefined) {
-        return;
-      }
-      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
-      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
-      openConsoleCardZoom(cards, at, undefined, undefined, {
-        // The explicit root ref, never `this.$el`: a root-level template
-        // comment makes the dev build a fragment whose $el is a Comment node.
-        origin: playedTargetZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement | undefined,
-          (i) => cards[i]?.name ?? '',
-          playedTargetSourceCardName(owners)),
-      });
+      this.targetStepHost()?.inspect();
     },
     /**
      * THE CONFIG HALF of the boundary snapshot — what the working area
@@ -3284,12 +3168,6 @@ export default defineComponent({
       // ONE tally for every payout shape — the transfer framework's own
       // contact record, so a TRADE reward and a BUILD bonus tick identically.
       return this.landings.by[t.card] ?? 0;
-    },
-    presentedModelOf(t: ColonyTradePresentedTarget): CardModel {
-      const live = this.players
-        .flatMap((p) => p.tableau)
-        .find((c) => c.name === t.card);
-      return presentedTargetModel(t, live, this.landedOf(t));
     },
     clearCardlandDwell(): void {
       if (this.cardlandDwell !== undefined) {

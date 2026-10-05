@@ -29,8 +29,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {ColonyTradeFollowUpRole} from '@/common/models/ColonyTradePreviewModel';
 import {TradeNotice, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {
-  BuildPlayedTargetInput, PlayedTargetModel, PlayedTargetPreviewSection,
-  buildPlayedTargetModel,
+  BuildPlayedTargetInput, PlayedTargetFocus, PlayedTargetModel, PlayedTargetPreviewSection,
+  buildPlayedTargetModel, findPlayedTargetFocus, reseatPlayedTargetFocus,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
@@ -99,6 +99,21 @@ export function buildColonyTradeTargetModel(input: BuildColonyTradeTargetInput):
     resourceContext: (name, model) =>
       playedTargetResourceFor(step.amount, colonyTradeTargetIcon(step, input.resourceOf, name), model),
   });
+}
+
+/**
+ * WHERE THE CURSOR STANDS when the target step opens: on the card already
+ * chosen (a re-entry through «Изменить выбор» — target-locked), else on the
+ * model's own first seat. `undefined` = there is nothing to point at, and the
+ * step does not open. The ONE answer both stages ask before descending
+ * (`ConsoleTradeTargetStep` seeds its cursor from it).
+ */
+export function openTradeTargetFocus(model: PlayedTargetModel | undefined, lockedCard: string): PlayedTargetFocus | undefined {
+  const owners = model?.owners ?? [];
+  if (owners.length === 0) {
+    return undefined;
+  }
+  return findPlayedTargetFocus(lockedCard, owners) ?? reseatPlayedTargetFocus(undefined, owners);
 }
 
 // ── the card-resource DESTINATIONS of a confirmed trade ─────────────────────
