@@ -34,6 +34,8 @@
           <board-space v-if="hasSpace(SpaceName.DAWN_CITY)" :space="getSpace(SpaceName.DAWN_CITY)" :tileView="tileView"></board-space>
           <board-space v-if="hasSpace(SpaceName.STRATOPOLIS)" :space="getSpace(SpaceName.STRATOPOLIS)" :tileView="tileView"></board-space>
           <board-space v-if="hasSpace(SpaceName.MAXWELL_BASE)" :space="getSpace(SpaceName.MAXWELL_BASE)" :tileView="tileView"></board-space>
+          <!-- Turmoil Redux TR27 — «next to the Venus track»: the fifth cell of the Venus flank. -->
+          <board-space v-if="hasSpace(SpaceName.AURORA_STATION)" :space="getSpace(SpaceName.AURORA_STATION)" :tileView="tileView"></board-space>
           <board-space v-if="hasSpace(SpaceName.CERES_SPACEPORT)" :space="getSpace(SpaceName.CERES_SPACEPORT)" :tileView="tileView"></board-space>
           <board-space v-if="hasSpace(SpaceName.DYSON_SCREENS)" :space="getSpace(SpaceName.DYSON_SCREENS)" :tileView="tileView"></board-space>
           <board-space v-if="hasSpace(SpaceName.LUNAR_EMBASSY)" :space="getSpace(SpaceName.LUNAR_EMBASSY)" :tileView="tileView"></board-space>
