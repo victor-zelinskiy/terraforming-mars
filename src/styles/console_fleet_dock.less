@@ -37,7 +37,10 @@
     overflow: hidden;
 }
 html.con-profile-handheld .con-colonies__docks { --con-colonies-docks-w: 7rem; }
+/* The title never yields: with `overflow: hidden` its flex minimum is 0, so an overfull column SHRANK it away — and the
+   fit, measuring a 0 px title, solved the cards for a room without it (three docks at 1080: no «ПРИЧАЛЫ» at all). */
 .con-colonies__docks-title {
+    flex: 0 0 auto;
     align-self: stretch;
     font-size: .64rem;
     font-weight: 800;

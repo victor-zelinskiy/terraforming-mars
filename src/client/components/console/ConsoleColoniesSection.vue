@@ -2097,11 +2097,27 @@ export default defineComponent({
       if (w <= 0 || h <= 0) {
         return;
       }
+      // EVERY term of the column is measured: its own padding (`clientHeight` includes it), the title, and per dock
+      // the status line AND the tile's gap between face and status; the face's NATURAL box is its rendered box over
+      // the zoom it was rendered at. Two of those were missing and the third was a literal (460 — the face is ≈467):
+      // with three docks at 4K the last status line hung 22 px out of the column and was cut by its clip.
+      const colStyle = getComputedStyle(col);
+      const padY = (parseFloat(colStyle.paddingTop) || 0) + (parseFloat(colStyle.paddingBottom) || 0);
       const title = col.querySelector<HTMLElement>('.con-colonies__docks-title')?.offsetHeight ?? 0;
       const status = col.querySelector<HTMLElement>('.con-fleetdock-tile__status')?.offsetHeight ?? 0;
-      const gap = parseFloat(getComputedStyle(col).rowGap) || 0;
-      const perH = (h - title - n * (status + gap) - gap) / n;
-      const zoom = Math.min(w / 320, perH / 460);
+      const tile = col.querySelector<HTMLElement>('.con-fleetdock-tile');
+      const tileGap = tile === null ? 0 : parseFloat(getComputedStyle(tile).rowGap) || 0;
+      const gap = parseFloat(colStyle.rowGap) || 0;
+      // (The zoom it was rendered at is read off the face itself, never `dockZoom`: a fit re-run before the patch
+      // would divide the old box by the new zoom.)
+      const faceEl = col.querySelector<HTMLElement>('.con-fleetdock-tile__face');
+      const face = faceEl?.getBoundingClientRect();
+      const rendered = faceEl === null ? NaN : parseFloat(getComputedStyle(faceEl).zoom);
+      const measured = face !== undefined && face.width > 0 && face.height > 0 && rendered > 0;
+      const naturalW = face !== undefined && measured ? face.width / rendered : 320;
+      const naturalH = face !== undefined && measured ? face.height / rendered : 460;
+      const perH = (h - padY - title - n * (status + tileGap + gap)) / n;
+      const zoom = Math.min(w / naturalW, perH / naturalH);
       this.dockZoom = Math.max(0.2, Math.floor(zoom * 1000) / 1000);
     },
     scrollSelectedIntoView(): void {
