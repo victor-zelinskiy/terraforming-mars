@@ -22,6 +22,7 @@ import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {IPlayer} from '../IPlayer';
 import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
+import {rewardReactionFacts} from '../models/effectForecast';
 
 /**
  * READ-ONLY preview of trading with `colony` for `player` — the shared brain
@@ -111,18 +112,27 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
  * payment part (one builder), the dock's own verdict, and the reward exactly
  * as the card's co-located contract states it (`previewEffects` /
  * `previewFollowUps`). Nothing here re-states a rule and nothing mutates.
+ *
+ * `reactions` is the CLASS's part, never a card's: what the table answers to
+ * the reward's grants (the ruling Greens' 2 M€ on the TR step, a card that
+ * pays on a rating gain) — the forecast engine's own pass over the chips the
+ * card stated (`rewardReactionFacts`), the same twins the composers'
+ * «Сработает» row reads.
  */
 export function buildFleetDockPreview(player: IPlayer, card: FleetDockCard): FleetDockPreviewModel {
   const reason = fleetDockBlockedReason(player, card);
   const flatBonuses = flatBonusModels(player);
+  const effects = card.fleetDock.previewEffects(player);
+  const reactions = rewardReactionFacts(player, card, effects);
   return {
     card: card.name,
     available: reason === undefined,
     ...(reason !== undefined ? {reason} : {}),
     ...tradePaymentPreview(player),
-    effects: card.fleetDock.previewEffects(player),
+    effects,
     followUps: card.fleetDock.previewFollowUps?.(player) ?? [],
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
+    ...(reactions.length > 0 ? {reactions} : {}),
   };
 }
 

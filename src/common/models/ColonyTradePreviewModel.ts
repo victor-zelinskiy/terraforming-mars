@@ -3,6 +3,7 @@ import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {SelectCardModel, SelectPaymentModel} from './PlayerInputModel';
 import type {ActionEffect} from './ActionPreviewModel';
+import type {EffectForecastFact} from './EffectForecastModel';
 
 /**
  * A NOTE follow-up: something the trade will require / trigger AFTER the
@@ -147,6 +148,16 @@ export type FleetDockPreviewModel = TradePaymentPreviewModel & {
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>;
   /** The flat every-trade card modifiers this trade pays too (Venus Trade Hub's +3 M€). */
   flatBonuses?: ReadonlyArray<{card: CardName, resource: string, amount: number}>;
+  /**
+   * WHAT THE TABLE ANSWERS to the reward — the forecast engine's own facts for
+   * the grants of `effects` (the ruling Greens' «+2 M€» on a TR step, a card
+   * that pays on a rating step, …), computed by the very twins the composers'
+   * «Сработает» row reads (`effectForecast.rewardReactionFacts`). Read BEFORE
+   * the press — an answer that only shows up after it is a surprise — and
+   * pinned at the commit boundary as the size of what follows the reward.
+   * Absent = nothing reacts. The client derives no rule from it.
+   */
+  reactions?: ReadonlyArray<EffectForecastFact>;
 };
 
 export type ColonyTradePreviewModel = TradePaymentPreviewModel & {

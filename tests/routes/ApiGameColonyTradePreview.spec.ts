@@ -7,6 +7,7 @@ import {RouteTestScaffolding} from './RouteTestScaffolding';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {CardName} from '../../src/common/cards/CardName';
 import {WaterHauling} from '../../src/server/cards/turmoilRedux/WaterHauling';
+import {UnmiLiner} from '../../src/server/cards/turmoilRedux/UnmiLiner';
 import {VenusTradeHub} from '../../src/server/cards/prelude2/VenusTradeHub';
 import {statusCode} from '../../src/common/http/statusCode';
 import {use} from 'chai';
@@ -127,6 +128,20 @@ describe('ApiGameColonyTradePreview', () => {
         {direction: 'gain', icon: 'tr', amount: 1, current: player.terraformRating, resulting: player.terraformRating + 1},
       ]);
       expect(preview.followUps).to.deep.eq([{kind: 'note', role: 'tradeReward', note: 'placeOcean'}]);
+    });
+
+    it('a dock with a plain reward (TR26 UNMI Liner): the TR chip alone, nothing asked after the confirm', async () => {
+      const {player} = await freshGame();
+      player.playedCards.push(new UnmiLiner());
+      scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&dock=${encodeURIComponent(CardName.UNMI_LINER)}`;
+      await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+      const preview = JSON.parse(res.content);
+      expect(preview.card).eq(CardName.UNMI_LINER);
+      expect(preview.available).eq(true);
+      expect(preview.effects).to.deep.eq([
+        {direction: 'gain', icon: 'tr', amount: 1, current: player.terraformRating, resulting: player.terraformRating + 1},
+      ]);
+      expect(preview.followUps, 'the reward has no surface and no question').to.deep.eq([]);
     });
 
     it('`colony` and `dock` are mutually exclusive', async () => {

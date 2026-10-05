@@ -1044,6 +1044,29 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   };
 }
 
+/**
+ * THE TABLE'S WHOLE ANSWER TO A REWARD PAID OUTSIDE A COMPOSER — a fleet dock's
+ * reward (`colonies/FleetDock.ts`: the trade stage shows it before the press).
+ * The grants of `effects` go through every pass a play's own grants go through
+ * in `buildForecast`: the card reactors and their cascade, the seat's PARTY
+ * EFFECTS (the ruling Greens' 2 M€ per TR step) and the ENACTED resolution's
+ * passive — with no card played and no tile placed (a placement the reward
+ * defers is the cell dossier's to forecast, where the cell is known).
+ * `card` is the source of the reward, already in the tableau. Read-only.
+ *
+ * `grantReactionFacts` stays the CELL's narrower pass (the card reactors only,
+ * for a grant a cell decides); this is the operation-level twin for a reward
+ * that is no card play and no card action.
+ */
+export function rewardReactionFacts(player: IPlayer, card: ICard, effects: ReadonlyArray<ActionEffect>): Array<EffectForecastFact> {
+  const ctx: EffectForecastContext = {operation: 'action', card, tiles: []};
+  const grants = grantsOf(effects);
+  const facts = grantFacts(player, player, card, grants, ctx);
+  facts.push(...cascadeFacts(player, card, facts, ctx));
+  facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
+  return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);
+}
+
 /** The forecast of PLAYING `card` (a hand card, a prelude, the picked corporation). */
 export function effectForecastForPlay(player: IPlayer, card: ICard, preview: ActionPreview): EffectForecast {
   return buildForecast(player, card, preview, 'play');

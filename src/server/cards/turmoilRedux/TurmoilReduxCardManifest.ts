@@ -26,6 +26,7 @@ import {NovaCity} from './NovaCity';
 import {HabitatScience} from './HabitatScience';
 import {VenusianCensus} from './VenusianCensus';
 import {ExclusiveColony} from './ExclusiveColony';
+import {UnmiLiner} from './UnmiLiner';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -135,5 +136,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // 3-COLONY LIMIT, the set's first build that does, `docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md`). The purple
     // Turmoil symbol below it is the module itself. Unity's plate.
     [CardName.EXCLUSIVE_COLONY]: {Factory: ExclusiveColony, compatibility: 'colonies'},
+    // The grey ▲ at the bottom left: the card needs Colonies (it is a destination of the trade action — the
+    // set's SECOND fleet dock, `colonies/FleetDock.ts`; its reward is +1 TR). The purple Turmoil symbol below
+    // it is the module itself. Unity's plate.
+    [CardName.UNMI_LINER]: {Factory: UnmiLiner, compatibility: 'colonies'},
   },
 });

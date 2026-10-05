@@ -90,5 +90,9 @@
 
     "Exclusive Colony": "Эксклюзивная колония",
     "Requires Unity to be ruling or that you have 2 delegates there. Place a colony on any colony tile, EVEN IF YOU ALREADY HAVE A COLONY THERE, OR IT HAS 3 COLONIES. THIS IGNORES THE 3-COLONY LIMIT. (You gain the colony tile's placement bonus.)": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Постройте колонию на любой плитке колоний, ДАЖЕ ЕСЛИ У ВАС УЖЕ ЕСТЬ ТАМ КОЛОНИЯ ИЛИ НА НЕЙ 3 КОЛОНИИ. ЛИМИТ В 3 КОЛОНИИ ИГНОРИРУЕТСЯ. (Вы получаете бонус постройки этой плитки.)",
-    "Select where to build the colony — a tile with 3 colonies or with your own colony is allowed": "Выберите плитку для колонии — можно и с 3 колониями, и со своей"
+    "Select where to build the colony — a tile with 3 colonies or with your own colony is allowed": "Выберите плитку для колонии — можно и с 3 колониями, и со своей",
+
+    "UNMI Liner": "Лайнер UNMI",
+    "Effect: Once per generation, when you trade, you can send the trade fleet to this card to gain 1 TR.": "Эффект: раз в поколение, торгуя, вы можете отправить торговый флот на эту карту и получить 1 РТ.",
+    "Requires Unity to be ruling or that you have 2 delegates there. Gain an extra trade fleet.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Получите дополнительный торговый флот."
 }
