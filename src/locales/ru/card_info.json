@@ -508,5 +508,7 @@
     "Place a city ON A COLONY TILE in play.": "Разместите город НА ПЛИТКЕ КОЛОНИИ в игре.",
     "2 VP per space city you own (any city that is not on Mars).": "2 ПО за каждый ваш космический город (любой город не на Марсе).",
     "Add 1 data resource to this card for each colony in play, owned by ANY player.": "Положите на эту карту 1 единицу данных за каждую колонию в игре — ЛЮБОГО игрока.",
-    "Spend 2 data for all your colony bonuses": "Потратьте 2 данных: бонусы всех ваших колоний"
+    "Spend 2 data for all your colony bonuses": "Потратьте 2 данных: бонусы всех ваших колоний",
+    "Place a colony on any colony tile, EVEN IF YOU ALREADY HAVE A COLONY THERE, OR IT HAS 3 COLONIES. This ignores the 3-colony limit.": "Постройте колонию на любой плитке колоний, ДАЖЕ ЕСЛИ У ВАС УЖЕ ЕСТЬ ТАМ КОЛОНИЯ ИЛИ НА НЕЙ 3 КОЛОНИИ. Лимит в 3 колонии игнорируется.",
+    "You gain the colony tile's placement bonus.": "Вы получаете бонус постройки этой плитки."
 }

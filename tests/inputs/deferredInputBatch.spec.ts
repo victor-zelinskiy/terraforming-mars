@@ -71,6 +71,9 @@ import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalSci
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {seatEnacted} from '../parliament/parliamentArrange';
 import {addCity} from '../TestingUtils';
+import {ExclusiveColony} from '../../src/server/cards/turmoilRedux/ExclusiveColony';
+import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {JupiterFloatingStation} from '../../src/server/cards/colonies/JupiterFloatingStation';
 
 /**
  * A PRE-SELECTED CHOICE MUST NEVER COME BACK AS A LIVE PROMPT.
@@ -1229,6 +1232,152 @@ describe('deferredInputBatch', () => {
         expect(() => live.process({type: 'colony', colonyName: ColonyName.LUNA, replaces: ColonyName.CERES}))
           .to.throw('This colony pick does not replace a colony tile');
         expect(cityCell(state).tile).is.undefined;
+      });
+    });
+
+    /*
+     * THE BUILD (Turmoil Redux TR25 Exclusive Colony) — the SAME third form,
+     * `{colonyName, stagedFor}`, landing on the card's own `buildSites`
+     * prompt. The trap this address exists for is sharper here than anywhere:
+     * a build of ANOTHER giver standing first is a `SelectColony` carrying
+     * `buildSites` too. And a build has a TAIL of its own — the target of the
+     * build bonus (Titan's floaters), pre-collected on the stage and replayed
+     * BEHIND the colony, in order.
+     */
+    describe('the build — {colonyName, stagedFor} on a `buildSites` prompt', () => {
+      type Build = {game: IGame, player: TestPlayer, other: TestPlayer, card: IProjectCard, luna: Luna, ceres: Ceres, titan: Titan, dirigibles: IProjectCard, station: IProjectCard};
+
+      /**
+       * In play: Luna at its printed limit (two of the rival's cubes and one
+       * of the player's — BOTH lifted rules at once), Ceres empty, Titan
+       * active with one cube of the player's. Two floater holders in the
+       * tableau, so Titan's build bonus ASKS. The real card in hand.
+       */
+      function buildGame(before?: (player: IPlayer, state: Build) => void): Build {
+        const [game, player, other] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        const luna = new Luna();
+        const ceres = new Ceres();
+        const titan = new Titan();
+        titan.isActive = true;
+        game.colonies = [luna, ceres, titan];
+        luna.colonies = [other.id, other.id, player.id];
+        luna.trackPosition = 3;
+        titan.colonies = [player.id];
+        const dirigibles = new Dirigibles();
+        const station = new JupiterFloatingStation();
+        player.playedCards.push(dirigibles, station);
+        const state = {game, player, other, luna, ceres, titan, dirigibles, station} as unknown as Build;
+        const real = new ExclusiveColony();
+        const card = fakeCard({
+          // The real card's NAME and its real play — behind `before`, a prompt the same play raises AHEAD of it.
+          name: real.name,
+          cost: 10,
+          play: (p: IPlayer) => {
+            before?.(p, state);
+            return real.bespokePlay(p);
+          },
+        });
+        state.card = card;
+        player.cardsInHand = [card];
+        player.megaCredits = 50;
+        player.takeAction();
+        return state;
+      }
+
+      function buildTail(state: Build, colony: ColonyName): InputResponse {
+        return {type: 'colony', colonyName: colony, stagedFor: state.card.name};
+      }
+
+      const asBuild = (before: unknown) => before as (player: IPlayer, state: Build) => void;
+
+      it('lands at once when nothing interposes: the FOURTH cube stands, the bonus is paid — never asked again', () => {
+        const state = buildGame();
+        replayBatch(state.player, playBatch(state.player, state.card, [buildTail(state, ColonyName.LUNA)]));
+        expect(state.luna.colonies).deep.eq([state.other.id, state.other.id, state.player.id, state.player.id]);
+        expect(state.luna.trackPosition).eq(4);
+        expect(state.player.production.megacredits, 'Luna\'s build bonus').eq(2);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectColony, 'the tile is never asked again').is.false;
+      });
+
+      it('[play, {colony}, {card}] lands WHOLE and IN ORDER: the cube first, then the bonus on the chosen card', () => {
+        const state = buildGame();
+        replayBatch(state.player, playBatch(state.player, state.card, [
+          buildTail(state, ColonyName.TITAN),
+          {type: 'card', cards: [state.station.name]},
+        ]));
+        expect(state.titan.colonies).deep.eq([state.player.id, state.player.id]);
+        expect(state.station.resourceCount, 'Titan\'s 3 floaters on the card picked BEFORE the commit').eq(3);
+        expect(state.dirigibles.resourceCount).eq(0);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectCard, 'the target is never asked after the cube landed').is.false;
+      });
+
+      it('a BUILD of another giver in front does NOT eat the tail — though it is a `buildSites` prompt too', () => {
+        const state = buildGame(asBuild(interposeBuild));
+        replayBatch(state.player, playBatch(state.player, state.card, [buildTail(state, ColonyName.LUNA)]));
+        const foreign = cast(state.player.getWaitingFor(), SelectColony);
+        expect(foreign.buildSites.length, 'the interloper is a build as well').to.be.greaterThan(0);
+        expect(foreign.choiceContext?.source.card, 'but names no card of ours').is.undefined;
+        expect(foreign.colonies, 'the ordinary door: Luna is full for it').does.not.include(state.luna);
+        expect(state.luna.colonies).has.length(3);
+        expect(parkedBatchTailLength(state.player)).eq(1);
+        // The player answers the foreign build for real (Ceres); the staged tile then lands on its own prompt.
+        state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+        drainBatchTail(state.player);
+        expect(state.ceres.colonies).deep.eq([state.player.id]);
+        expect(state.luna.colonies, 'the staged build went beyond the limit').has.length(4);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectColony).is.false;
+      });
+
+      it('PARKS behind a prompt that jumped the queue — and BOTH answers land once it is answered, in order', () => {
+        const state = buildGame(asBuild(interposeChoice()));
+        replayBatch(state.player, playBatch(state.player, state.card, [
+          buildTail(state, ColonyName.TITAN),
+          {type: 'card', cards: [state.dirigibles.name]},
+        ]));
+        cast(state.player.getWaitingFor(), OrOptions);
+        expect(parkedBatchTailLength(state.player), 'the colony AND the target it is followed by').eq(2);
+        expect(state.titan.colonies, 'nothing was built while parked').has.length(1);
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        drainBatchTail(state.player);
+        expect(state.titan.colonies).deep.eq([state.player.id, state.player.id]);
+        expect(state.dirigibles.resourceCount).eq(3);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        expect(state.player.getWaitingFor() instanceof SelectCard).is.false;
+      });
+
+      it('the tile CLOSED while parked: the whole tail is dropped and the build is asked live, the table as it is', () => {
+        const state = buildGame(asBuild(interposeChoice((s) => {
+          (s as unknown as Build).titan.isActive = false;
+        })));
+        replayBatch(state.player, playBatch(state.player, state.card, [
+          buildTail(state, ColonyName.TITAN),
+          {type: 'card', cards: [state.dirigibles.name]},
+        ]));
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        drainBatchTail(state.player);
+        expect(parkedBatchTailLength(state.player), 'stale — dropped, the target with it').eq(0);
+        expect(state.titan.colonies, 'nothing was built on a tile that closed').has.length(1);
+        expect(state.dirigibles.resourceCount).eq(0);
+        const live = cast(state.player.getWaitingFor(), SelectColony);
+        expect(live.choiceContext?.source.card).eq(state.card.name);
+        expect(live.colonies.map((c) => c.name)).deep.eq([ColonyName.LUNA, ColonyName.CERES]);
+        expect(String(live.disabledColonies.find((d) => d.colony === state.titan)?.reason)).eq('Colony is inactive');
+      });
+
+      it('a manual answer to its own prompt SUPERSEDES the parked tile', () => {
+        const state = buildGame(asBuild(interposeChoice()));
+        replayBatch(state.player, playBatch(state.player, state.card, [buildTail(state, ColonyName.LUNA)]));
+        state.player.process({type: 'or', index: 0, response: {type: 'option'}});
+        cast(state.player.getWaitingFor(), SelectColony);
+        expireSupersededStagedTail(state.player);
+        expect(parkedBatchTailLength(state.player)).eq(0);
+        state.player.process({type: 'colony', colonyName: ColonyName.CERES});
+        drainBatchTail(state.player);
+        expect(state.ceres.colonies).deep.eq([state.player.id]);
+        expect(state.luna.colonies, 'the superseded pick never lands').has.length(3);
       });
     });
 

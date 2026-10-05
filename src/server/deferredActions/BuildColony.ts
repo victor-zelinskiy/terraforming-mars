@@ -143,6 +143,11 @@ export class BuildColony extends DeferredAction<IColony> {
     return select;
   }
 
+  /** READ-ONLY: would the build have a tile to land on — the playability question of a card that builds by being played. */
+  public hasCandidate(): boolean {
+    return this.offer().candidates.length > 0;
+  }
+
   /**
    * READ-ONLY: the `SelectColonyModel` the live path WOULD raise — the same
    * title, candidates, disabled tiles, `buildSites` projection and giver — or
