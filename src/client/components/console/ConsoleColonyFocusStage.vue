@@ -565,7 +565,7 @@
                 {{ rosterBuildSlotText }}
                 <span v-if="rosterGrantQty > 0" class="con-colfocus__rglyph">
                   <b v-if="rosterGrantQty > 1">{{ rosterGrantQty }}</b>
-                  <BenefitGlyph :benefit="buildBenefit" :idx="roster.reading.build.slot" :cardResources="cardResourceKinds" />
+                  <BenefitGlyph :benefit="rosterGrantBenefit" :idx="0" :cardResources="cardResourceKinds" />
                 </span>
               </span>
               <span v-else class="con-colfocus__rosterfact-value">
@@ -726,7 +726,7 @@
               <span class="con-colfocus__rvalue" :data-colony-trade-source="colony.name">
                 <b>+{{ buildQty }}</b>
                 <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResources="cardResourceKinds" />
+                  <BenefitGlyph :benefit="nextBuildBenefit" :idx="0" :cardResources="cardResourceKinds" />
                 </span>
               </span>
             </div>
@@ -863,6 +863,7 @@ import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDi
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {berthBuildBenefit, BerthBenefit, colonyBerthsOf, freeBerths, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {
   armOutcomeOriginFrom, playConfigRelease, playOutcomePhase, playOutcomeContent,
@@ -985,6 +986,12 @@ type HeldView = {
    * answer lands, and a receipt read off it counts the trade twice.
    */
   receipt: TradeReceiptBase,
+  /**
+   * THE BERTH A BUILD WAS COMMITTED INTO. Past the answer the tile holds one
+   * cube more, and a live read («the next berth») would name the berth AFTER
+   * the one the cube is landing in — «Слот 4» under a third colony.
+   */
+  buildSlot: number,
 };
 
 export default defineComponent({
@@ -1471,7 +1478,7 @@ export default defineComponent({
     },
     /** The build preview is LIVE (build intent, genuinely offerable). */
     buildPreview(): boolean {
-      return this.intent === 'build' && this.presentAvailable && this.builtCount < 3;
+      return this.intent === 'build' && this.presentAvailable && freeBerths(this.colony) > 0;
     },
     /**
      * The cell/berth pair currently being LATCHED by a landing build — the
@@ -1565,9 +1572,10 @@ export default defineComponent({
       const build = this.roster?.reading.build;
       return build !== undefined && build.lands ? buildBenefitAt(this.metadata, build.slot).quantity : 0;
     },
-    buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const b = this.metadata.build;
-      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
+    /** The same grant, resolved for a glyph (a list of one — read with `idx: 0`). */
+    rosterGrantBenefit(): BerthBenefit {
+      const build = this.roster?.reading.build;
+      return berthBuildBenefit(this.metadata, build !== undefined && build.lands ? build.slot : 0);
     },
     colonyBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const c = this.metadata.colony;
@@ -1576,8 +1584,17 @@ export default defineComponent({
     focusedBonusQty(): number {
       return this.metadata.colony.quantity ?? 1;
     },
+    /**
+     * The berth a build here lands in — the ONE reading
+     * (`colonyBerths.nextBuildSlot`), never a clamp; past the commit, the berth
+     * the build was committed into (pinned for the stage's life).
+     */
     nextBuildSlot(): number {
-      return Math.min(this.colony.colonies.length, 2);
+      return this.pinnedConfig?.buildSlot ?? nextBuildSlot(this.colony);
+    },
+    /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
+    nextBuildBenefit(): BerthBenefit {
+      return berthBuildBenefit(this.metadata, this.nextBuildSlot);
     },
     buildQty(): number {
       return buildBenefitAt(this.metadata, this.nextBuildSlot).quantity;
@@ -1585,9 +1602,9 @@ export default defineComponent({
     buildLost(): boolean {
       return this.benefitResourceLost(this.metadata.build.type);
     },
-    /** The names seated in the three berths — the instrument's prop. */
+    /** The names seated in the berths (index-aligned with the berths model) — the instrument's prop. */
     ownerNames(): Array<string> {
-      return [0, 1, 2].map((idx) => this.ownerNameAt(idx));
+      return colonyBerthsOf(this.colony).map((berth) => this.ownerNameAt(berth.index));
     },
     owners(): Array<{color: Color, count: number, name: string}> {
       return colonyOwnerCounts(this.colony).map((owner) => {
@@ -3214,6 +3231,7 @@ export default defineComponent({
         preview: this.preview,
         tradeOffset: this.tradeOffset + this.chosenPathOffset,
         receipt: this.boundaryReceipt(),
+        buildSlot: this.nextBuildSlot,
       };
       this.pinnedConfig = this.heldView;
     },

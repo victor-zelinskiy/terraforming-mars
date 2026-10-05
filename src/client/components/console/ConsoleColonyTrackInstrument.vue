@@ -102,33 +102,36 @@
             class="con-colfocus__stop con-colfocus__stop--ghost" aria-hidden="true"></span>
     </div>
 
-    <!-- THE BERTHS — the physical foundation of the first three positions.
-         There is deliberately nothing under cells 4…7: no colony can ever
-         protect them, and the empty span says so. -->
+    <!-- THE BERTHS — the physical foundation of the positions a colony
+         holds, read from the ONE berths model (`colonyBerths.ts`): the three
+         a tile prints, plus a berth for every cube that stands (or is
+         projected by a build door) beyond them. Nothing stands under the
+         cells no cube protects, and the empty span says so. -->
     <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item>
-      <div v-for="idx in [0, 1, 2]" :key="idx"
+      <div v-for="berth in berths" :key="berth.index"
            class="con-colfocus__berth"
            :class="{
-             'con-colfocus__berth--taken': colony.colonies[idx] !== undefined,
-             'con-colfocus__berth--mine': colony.colonies[idx] === viewerColor,
-             'con-colfocus__berth--dest': buildPreview && idx === nextBuildSlot,
-             'con-colfocus__berth--latching': idx === latchCell,
+             'con-colfocus__berth--taken': berth.state === 'taken',
+             'con-colfocus__berth--mine': berth.owner === viewerColor,
+             'con-colfocus__berth--dest': buildPreview && berth.index === destSlot,
+             'con-colfocus__berth--latching': berth.index === latchCell,
            }">
         <!-- The LATCH: an occupied berth is physically bolted to the track
              cell above it. -->
         <span class="con-colfocus__berth-latch" aria-hidden="true"></span>
         <span class="con-colfocus__berth-seat"
-              :data-colony-build-slot="colony.name + '#' + idx"
+              :data-colony-build-slot="colony.name + '#' + berth.index"
               data-colony-build-seat
-              :data-colony-bonus-source="colony.colonies[idx] !== undefined ? colony.name : undefined">
-          <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="44" />
-          <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResources="cardResourceKinds" />
+              :data-colony-bonus-source="berth.state === 'taken' ? colony.name : undefined">
+          <PlayerCube v-if="berth.owner !== undefined" :color="berth.owner" :size="44" />
+          <!-- The bonus THIS berth pays, resolved (a list of one — never the row and an index past its end). -->
+          <BenefitGlyph v-else :benefit="berthBenefit(berth.index)" :idx="0" :cardResources="cardResourceKinds" />
         </span>
         <!-- Only an OCCUPIED berth has something to say: an empty seat
              already reads as empty, and «Свободное место» in a one-column
              box could only ever be clipped. -->
-        <span v-if="colony.colonies[idx] !== undefined" class="con-colfocus__berth-name" data-unfold-late>
-          {{ ownerNames[idx] ?? '' }}
+        <span v-if="berth.state === 'taken'" class="con-colfocus__berth-name" data-unfold-late>
+          {{ ownerNames[berth.index] ?? '' }}
         </span>
       </div>
       <!-- THE OWNER BONUS — the CONTINUATION of the ownership row: it takes
@@ -179,6 +182,7 @@ import {CardResource} from '@/common/CardResource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {trackResetAfterBuild, trackResetPosition} from '@/client/components/colonies/colonyTradePlan';
+import {berthBuildBenefit, BerthBenefit, ColonyBerth, colonyBerthsOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
@@ -210,7 +214,7 @@ export default defineComponent({
     markerPosition: {type: Number, required: true},
     /** The position a trade would read right now (the standing offset applied). */
     effectivePosition: {type: Number, required: true},
-    /** The names seated in the three berths (index-aligned; '' for an empty seat). */
+    /** The names seated in the berths (index-aligned with the berths model; '' for an empty seat). */
     ownerNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
     /** The multiplier row (`rate × cubes = total`) — undefined draws just the rate. */
     bonusMath: {type: Object as PropType<ColonyTrackBonusMath | undefined>, default: undefined},
@@ -219,6 +223,12 @@ export default defineComponent({
     latchCell: {type: Number, default: -1},
     settledCell: {type: Number, default: -1},
     buildPreview: {type: Boolean, default: false},
+    /**
+     * THE BERTH A BUILD DOOR PROJECTS ITS CUBE INTO — the server's
+     * (`ColonyBuildSite.slot`, the pick's `buildSites` marker), handed down by
+     * the host. −1 = no door names one: the next berth.
+     */
+    buildSlot: {type: Number, default: -1},
     /** The zone head («ТОРГОВЫЙ ТРЕК» + the standing-offset caption). */
     head: {type: Boolean, default: true},
     /**
@@ -254,8 +264,13 @@ export default defineComponent({
     resetPositionAfterBuild(): number {
       return trackResetAfterBuild(this.colony, this.metadata);
     },
-    nextBuildSlot(): number {
-      return Math.min(this.colony.colonies.length, 2);
+    /** The berth the build preview points at — the door's own, else the next one. */
+    destSlot(): number {
+      return this.buildSlot >= 0 ? this.buildSlot : nextBuildSlot(this.colony);
+    },
+    /** THE BERTHS — the one model every colony surface draws (a previewed build projects its berth). */
+    berths(): Array<ColonyBerth> {
+      return colonyBerthsOf(this.colony, this.buildPreview ? {slot: this.destSlot} : undefined);
     },
     cells(): Array<ColonyTrackCell> {
       const cells: Array<ColonyTrackCell> = [];
@@ -276,10 +291,6 @@ export default defineComponent({
       const fixed = tradeFixedIncome(this.metadata);
       return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
     },
-    buildBenefit(): Benefit {
-      const b = this.metadata.build;
-      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
-    },
     colonyBenefit(): Benefit {
       const c = this.metadata.colony;
       return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
@@ -292,6 +303,10 @@ export default defineComponent({
     /** A card-resource cell over SEVERAL kinds (the Redux Vesta) — the glyph box opens to the row's width. */
     multiKindCell(position: number): boolean {
       return this.cardResourceKinds.length > 1 && tradeBenefitAt(this.metadata, position).type === ColonyBenefit.ADD_RESOURCES_TO_CARD;
+    },
+    /** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
+    berthBenefit(slot: number): BerthBenefit {
+      return berthBuildBenefit(this.metadata, slot);
     },
     /** The cell's income — kind AND resource at that position (the Redux Pluto: data cells, then card cells). */
     tradeBenefitAt(position: number): Benefit {

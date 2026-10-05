@@ -2059,6 +2059,7 @@ import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
 import ConsoleColonyCityLayer from '@/client/components/console/colonyCity/ConsoleColonyCityLayer.vue';
 import {abortColonyBuild, armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -16472,7 +16473,9 @@ export default defineComponent({
       // The guards accepted: freeze the stage's presentation for the whole
       // resolution (the answer flips its props under the flying cube).
       (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
-      const slotIndex = Math.min(2, selected.colonies.length);
+      // The berth the cube takes — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp:
+      // the hero, the outcome claim and the server all speak of the same one.
+      const slotIndex = nextBuildSlot(selected);
       // THE PLACEMENT BONUS'S HOST CARD, chosen on the stage before the cube
       // moves (Titan's floaters). It rides the transaction so the reward chip
       // flies onto that exact card — and the batch below answers the prompt

@@ -75,7 +75,7 @@
           misleading (player asks "why is this glowing? no colony's
           there").
         -->
-        <div v-for="idx in [0, 1, 2]" :key="idx"
+        <div v-for="idx in berthIndexes" :key="idx"
              class="colony-tile__build-slot"
              :class="{
                'colony-tile__build-slot--occupied':
@@ -123,7 +123,7 @@
               <span class="resource card colony-tile__build-icon colony-tile__build-icon--card"></span>
             </span>
           </template>
-          <BuildBenefit v-else :metadata="metadata" :idx="idx" />
+          <BuildBenefit v-else :metadata="metadata" :idx="printedBuildCell(idx)" />
 
           <!--
             Player marker — "stamp" style, like milestones / awards. A
@@ -255,6 +255,7 @@
 import {defineComponent} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
+import {colonyBerthsOf} from '@/client/console/colonyBuild/colonyBerths';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -316,6 +317,10 @@ export default defineComponent({
   computed: {
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
+    },
+    /** The berths this tile draws — the console's ONE berths model (a fourth cube built beyond the limit is a fourth slot). */
+    berthIndexes(): Array<number> {
+      return colonyBerthsOf(this.colony).map((berth) => berth.index);
     },
     planetClass(): string {
       return this.colony.name.replace(' ', '-') + '-background';
@@ -434,6 +439,10 @@ export default defineComponent({
   methods: {
     buildQuantityAt(idx: number): number {
       return buildBenefitAt(this.metadata, idx).quantity;
+    },
+    /** The printed cell a berth's bonus is read from — the last one for a berth beyond them (the frozen `BuildBenefit` indexes the row itself). */
+    printedBuildCell(idx: number): number {
+      return Math.min(idx, this.metadata.build.quantity.length - 1);
     },
   },
 });

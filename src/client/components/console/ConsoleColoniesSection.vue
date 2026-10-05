@@ -284,11 +284,11 @@
                 <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
                 <span class="con-colonies__rail-cell con-colonies__rail-cell--get">
                   <b v-if="focusedBuildQty > 1">{{ focusedBuildQty }}</b>
-                  <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResources="cardResourceKinds" />
+                  <BenefitGlyph :benefit="focusedBuildBenefit" :idx="0" :cardResources="cardResourceKinds" />
                 </span>
               </template>
               <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
-              <span class="con-colonies__rail-muted">{{ $t('Free slots') }}: {{ 3 - focusedOwners.length }}</span>
+              <span class="con-colonies__rail-muted">{{ $t('Free slots') }}: {{ focusedFreeBerths }}</span>
               <span v-if="focusedBuildLost" class="con-colonies__rail-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
               <span v-if="pick !== undefined && focusedStatus.kind === 'blocked'" class="con-colonies__rail-reason con-colonies__rail-reason--blocked">
                 <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
@@ -523,6 +523,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyTradeState, colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {berthBuildBenefit, BerthBenefit, freeBerths, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTradeReason';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -1428,13 +1429,19 @@ export default defineComponent({
       const move = colony === undefined ? undefined : trackMoveOf(this.pick?.trackMoves, colony.name);
       return move === undefined || this.focusedMeta === undefined ? undefined : colonyTrackMoveReading(this.focusedMeta, move);
     },
-    /** The slot a new settlement lands in (next empty build slot, ≤ 2). */
+    /** The berth a new settlement lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
     focusedBuildSlot(): number {
-      return Math.min(2, this.focusedOwners.length);
+      const colony = this.colonies[this.index];
+      return colony === undefined ? 0 : nextBuildSlot(colony);
     },
-    focusedBuildBenefit(): {type: ColonyMetadata['build']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
-      const b = (this.focusedMeta as ColonyMetadata).build;
-      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
+    /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
+    focusedBuildBenefit(): BerthBenefit {
+      return berthBuildBenefit(this.focusedMeta as ColonyMetadata, this.focusedBuildSlot);
+    },
+    /** How many PRINTED berths are still free on the focused tile (never negative). */
+    focusedFreeBerths(): number {
+      const colony = this.colonies[this.index];
+      return colony === undefined ? 0 : freeBerths(colony);
     },
     focusedBuildQty(): number {
       return this.focusedMeta === undefined ? 0 : buildBenefitAt(this.focusedMeta, this.focusedBuildSlot).quantity;

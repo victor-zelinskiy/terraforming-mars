@@ -223,7 +223,7 @@
                 <span class="con-colinspect__kind">{{ $t('Construction') }}</span>
                 <div class="con-colinspect__line">
                   <span class="con-colinspect__glyph">
-                    <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResources="cardResourceKinds" />
+                    <BenefitGlyph :benefit="nextBuildBenefit" :idx="0" :cardResources="cardResourceKinds" />
                   </span>
                   <p class="con-colinspect__text" v-i18n>{{ metadata.build.description }}</p>
                 </div>
@@ -339,6 +339,8 @@ import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import ConsoleColonyTrackInstrument, {ColonyTrackBonusMath} from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
 
+import {berthBuildBenefit, colonyBerthsOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+
 type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown};
 type CardTargetLine = {card: string, iconClass: string, before: number, after: number};
 
@@ -429,12 +431,13 @@ export default defineComponent({
       const fixed = tradeFixedIncome(this.metadata);
       return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
     },
+    /** The berth a build here lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
     nextBuildSlot(): number {
-      return Math.min(this.colony.colonies.length, 2);
+      return nextBuildSlot(this.colony);
     },
-    buildBenefit(): Benefit {
-      const b = this.metadata.build;
-      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
+    /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
+    nextBuildBenefit(): Benefit {
+      return berthBuildBenefit(this.metadata, this.nextBuildSlot);
     },
     colonyBenefit(): Benefit {
       const c = this.metadata.colony;
@@ -449,10 +452,10 @@ export default defineComponent({
         return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
       });
     },
-    /** The names seated in the three berths (the instrument's prop). */
+    /** The names seated in the berths (index-aligned with the berths model) — the instrument's prop. */
     ownerNames(): Array<string> {
-      return [0, 1, 2].map((idx) => {
-        const color = this.colony.colonies[idx];
+      return colonyBerthsOf(this.colony).map((berth) => {
+        const color = berth.owner;
         if (color === undefined) {
           return '';
         }

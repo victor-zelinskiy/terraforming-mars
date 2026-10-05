@@ -59,10 +59,10 @@
     <!-- Build slots (owner cubes) + the live 7-cell track in ONE band. -->
     <div class="con-coltile__mid">
       <div class="con-coltile__build">
-        <div v-for="idx in [0, 1, 2]" :key="idx"
+        <div v-for="berth in berths" :key="berth.index"
              class="con-coltile__build-slot"
-             :class="{'con-coltile__build-slot--occupied': colony.colonies[idx] !== undefined}"
-             :data-colony-build-slot="colony.name + '#' + idx">
+             :class="{'con-coltile__build-slot--occupied': berth.state === 'taken'}"
+             :data-colony-build-slot="colony.name + '#' + berth.index">
           <!-- Each build bonus is ONE-TIME: once a settlement is built here the
                bonus is consumed and the owner's PREMIUM 3D PlayerCube — the
                same physical token the main board uses for tile ownership —
@@ -77,16 +77,17 @@
                the whole cell and multiplied by a fraction calibrated for one
                cell size, which the handheld profile's smaller cell broke. -->
           <span class="con-coltile__build-seat" data-colony-build-seat
-                :class="{'con-coltile__build-seat--projected': projectsCube(idx)}"
-                :data-colony-projected-cube="projectsCube(idx) ? projectedCube : undefined">
-            <PlayerCube v-if="colony.colonies[idx] !== undefined"
-                        :color="colony.colonies[idx]"
+                :class="{'con-coltile__build-seat--projected': berth.state === 'projected'}"
+                :data-colony-projected-cube="berth.state === 'projected' ? projectedCube : undefined">
+            <PlayerCube v-if="berth.owner !== undefined"
+                        :color="berth.owner"
                         :size="cubeSize" />
-            <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResources="cardResourceKinds" />
+            <!-- The bonus THIS berth pays, resolved (a list of one — never the row and an index past its end). -->
+            <BenefitGlyph v-else :benefit="berthBenefit(berth.index)" :idx="0" :cardResources="cardResourceKinds" />
             <!-- THE PROJECTED CUBE (a roster pick that also builds — TR10): the player's colony this pick would
                  place, a ghost in the berth it would take, over the build reward it would pay. The server's
                  projection (`ColonyRosterIncoming.build`), never a client guess. -->
-            <span v-if="projectsCube(idx)" class="con-coltile__ghost-cube" :class="'player_translucent_bg_color_' + projectedCube" aria-hidden="true"></span>
+            <span v-if="berth.state === 'projected'" class="con-coltile__ghost-cube" :class="'player_translucent_bg_color_' + projectedCube" aria-hidden="true"></span>
           </span>
         </div>
       </div>
@@ -178,6 +179,7 @@ import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTrackWaveState, colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {CUBE_STATIC_SIZE} from '@/client/console/colonyBuild/colonyBuildModel';
+import {berthBuildBenefit, BerthBenefit, ColonyBerth, colonyBerthsOf} from '@/client/console/colonyBuild/colonyBerths';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
@@ -230,11 +232,21 @@ export default defineComponent({
     projectedCubeSlot: {type: Number, default: 0},
   },
   methods: {
-    projectsCube(idx: number): boolean {
-      return this.projectedCube !== '' && idx === this.projectedCubeSlot && this.colony.colonies[idx] === undefined;
+    /** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
+    berthBenefit(slot: number): BerthBenefit {
+      return berthBuildBenefit(this.metadata, slot);
     },
   },
   computed: {
+    /**
+     * THE BERTHS — the one model every colony surface draws (`colonyBerths.ts`):
+     * the printed three, every cube that stands, and the berth a door projects
+     * its cube into (never a berth a cube already took).
+     */
+    berths(): Array<ColonyBerth> {
+      const projects = this.projectedCube !== '' && this.colony.colonies[this.projectedCubeSlot] === undefined;
+      return colonyBerthsOf(this.colony, projects ? {slot: this.projectedCubeSlot} : undefined);
+    },
     /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
     cardResourceKinds(): ReadonlyArray<CardResource> {
       return colonyCardResources(this.metadata);
@@ -274,10 +286,6 @@ export default defineComponent({
       return this.settledCell >= 0;
     },
     // BenefitGlyph expects a quantity ARRAY; the colony bonus is a scalar.
-    buildBenefit(): {type: ColonyMetadata['build']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
-      const b = this.metadata.build;
-      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
-    },
     /** The income at the position a trade READS — kind and resource resolved there (the Redux Pluto: data low, cards high). */
     tradeBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const income = tradeBenefitAt(this.metadata, this.effectivePosition);
