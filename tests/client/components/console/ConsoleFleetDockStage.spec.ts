@@ -108,7 +108,7 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
   it('the result reads the server\'s chips and the fleet leaving the supply', () => {
     const chips = mountStage(LINER).find('[data-fleet-dock-result]').text().replace(/\s+/g, ' ');
     expect(chips, 'the rating').to.match(/20\s*→\s*21/);
-    expect(chips, 'the fleet').to.match(/2\s*→\s*1/);
+    expect(chips, 'the fleet — and the unit is NAMED (PL-008)').to.match(/2\s*→\s*1\s*Trade fleet/);
   });
 
   it('the COMMIT BOUNDARY pins the plan and arms the scene; a refused submit voids both', async () => {

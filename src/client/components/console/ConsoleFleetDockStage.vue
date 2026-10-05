@@ -633,6 +633,8 @@ export default defineComponent({
         amount: 1,
         current: this.freeFleets,
         resulting: Math.max(0, this.freeFleets - 1),
+        // The unit is NAMED (PL-008): the fleet glyph alone read as one more resource of the reward.
+        note: 'Trade fleet',
       };
       return [...effects, fleet];
     },
