@@ -115,6 +115,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {gsap} from 'gsap';
 import {useResizeObserver} from '@vueuse/core';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -232,7 +233,12 @@ export default defineComponent({
       cardLeaving: false,
       scene: fleetDockSceneState,
       fleet: tradeFleetState,
-      sceneTimer: undefined as number | undefined,
+      /**
+       * The scene's pending wait between two beats — on the ANIMATION clock (see `sceneWait`). A plain handle,
+       * never the tween itself: component data is a reactive proxy, and a proxied GSAP tween is not the object
+       * its own timeline holds.
+       */
+      sceneCall: undefined as {kill: () => void} | undefined,
       sceneMotion: undefined as ActionCommitMotionHandle | undefined,
       stopFitObs: undefined as (() => void) | undefined,
     };
@@ -701,8 +707,7 @@ export default defineComponent({
         return;
       }
       setFleetDockScenePhase('read');
-      this.sceneTimer = window.setTimeout(() => {
-        this.sceneTimer = undefined;
+      this.sceneWait(DOCK_READ_MS, () => {
         // A reward that is AHEAD needs the screen: the card departs first, as a beat of its own. A reward
         // delivered on the rail leaves nothing to make room for — the card goes WITH the workspace.
         if (this.presentPlan.category === 'rail') {
@@ -710,7 +715,7 @@ export default defineComponent({
         } else {
           this.leaveScene();
         }
-      }, consoleReducedMotionActive() ? 0 : motionMs(DOCK_READ_MS));
+      });
     },
     /** THE CARD'S DEPARTURE IS A BEAT, not a crossfade: it leaves on its own, the fleet mark with it. */
     leaveScene(): void {
@@ -719,10 +724,22 @@ export default defineComponent({
       }
       setFleetDockScenePhase('leave');
       this.cardLeaving = true;
-      this.sceneTimer = window.setTimeout(() => {
-        this.sceneTimer = undefined;
-        this.concludeScene();
-      }, consoleReducedMotionActive() ? 0 : motionMs(DOCK_LEAVE_MS));
+      this.sceneWait(DOCK_LEAVE_MS, () => this.concludeScene());
+    },
+    /**
+     * A WAIT BETWEEN TWO BEATS OF THE SCENE — on the ANIMATION clock, never the wall clock. The beat before it
+     * is the impulse's GSAP timeline and the beat after it a transition the compositor paces by PAINTED frames;
+     * a wall-clock timer keeps running through a starved frame (a 4K frame is hundreds of ms) and through a
+     * hidden tab, and hands the scene on before the beat it was waiting for has been drawn. GSAP's clock slows
+     * with the frames it is given, so the read is a read of something painted. Reduced motion waits nothing.
+     */
+    sceneWait(ms: number, then: () => void): void {
+      this.sceneCall?.kill();
+      const call = gsap.delayedCall(consoleReducedMotionActive() ? 0 : motionMs(ms) / 1000, () => {
+        this.sceneCall = undefined;
+        then();
+      });
+      this.sceneCall = {kill: () => call.kill()};
     },
     /** …and only then the workspace leaves as one surface; the shell concludes it and the hold falls at the END of that leave. */
     concludeScene(): void {
@@ -747,10 +764,8 @@ export default defineComponent({
   beforeUnmount() {
     this.stopFitObs?.();
     this.sceneMotion?.kill();
-    if (this.sceneTimer !== undefined) {
-      window.clearTimeout(this.sceneTimer);
-      this.sceneTimer = undefined;
-    }
+    this.sceneCall?.kill();
+    this.sceneCall = undefined;
     setFleetDockStageCard('');
     // A scene the stage did not finish (the world moved, a collapse) ends here:
     // the placement is server state and comes up on its own. A CONCLUDING scene
