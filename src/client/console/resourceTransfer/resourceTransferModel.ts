@@ -229,8 +229,19 @@ function clamp(lo: number, hi: number, v: number): number {
  * Plan a transfer arc: a clean upward toss from the source to the panel
  * zone. The apex lift is proportional to the travel, clamped to a calm band
  * (`liftBias` spreads simultaneous arcs of one wave).
+ *
+ * `ceilingY` — the highest line the chip's CENTRE may reach (the director
+ * passes the top of the screen plus the chip's own half). The toss is lifted
+ * over the HIGHER endpoint, and a curve through that apex keeps rising past
+ * it toward the destination — so every flight into the rail's TOP rows (the
+ * rating cell, the M€ row) from lower on the screen left the viewport at the
+ * top and came back down onto its row: for a quarter of a second the reward
+ * was nowhere, and the player saw a chip arrive out of the bezel rather than
+ * out of its cause. An arc that would cross the ceiling is flattened to TOUCH
+ * it (the same toss, lower); an arc that stays inside is byte for byte the
+ * one it always was. An endpoint already above the line cannot be helped.
  */
-export function transferArcPlan(from: TransferPoint, to: TransferPoint, liftBias = 0): TransferArcPlan {
+export function transferArcPlan(from: TransferPoint, to: TransferPoint, liftBias = 0, ceilingY?: number): TransferArcPlan {
   const dist = Math.hypot(to.x - from.x, to.y - from.y);
   const lift = clamp(44, 160, dist * 0.30) * (1 + liftBias);
   const apex = {
@@ -238,14 +249,52 @@ export function transferArcPlan(from: TransferPoint, to: TransferPoint, liftBias
     y: Math.min(from.y, to.y) - lift,
   };
   // Quadratic control point so the curve PASSES through the apex at t=0.5.
+  let cy = 2 * apex.y - (from.y + to.y) / 2;
+  if (ceilingY !== undefined && from.y > ceilingY && to.y > ceilingY) {
+    // The curve's own minimum is y0 − (y0 − cy)² / (y0 − 2·cy + y1); it equals the ceiling at
+    // cy = m − √((y0 − m)(y1 − m)), and rises with cy — so the control point may not go above that.
+    cy = Math.max(cy, ceilingY - Math.sqrt((from.y - ceilingY) * (to.y - ceilingY)));
+  }
   return {
     p0: from,
     c: {
       x: 2 * apex.x - (from.x + to.x) / 2,
-      y: 2 * apex.y - (from.y + to.y) / 2,
+      y: cy,
     },
     p1: to,
   };
+}
+
+/**
+ * The highest line a chip's centre may reach under `topEdge`: the chip's own half at its largest (the bloom of
+ * `transferChipScaleAt`, 1.14) and a hair of air — so the whole token is painted at the top of its arc.
+ */
+export function transferCeilingY(chipHeight: number, uiScale: number, topEdge = 0): number {
+  return topEdge + chipHeight * 0.5 * 1.14 + 6 * uiScale;
+}
+
+/**
+ * THE CEILING OF ONE FLIGHT: under the cockpit's top rail (`railBottom` — the flight layer paints UNDER the HUD
+ * rails, so a chip above that edge is a chip cut in half) when both ends of the flight stand below that line; else
+ * under the top of the screen (a row tucked right beneath the rail must still be reachable by a toss); else none —
+ * `transferArcPlan` cannot help an endpoint that is itself above the line.
+ */
+export function transferCeilingFor(from: TransferPoint, to: TransferPoint, chipHeight: number, uiScale: number, railBottom: number): number | undefined {
+  for (const edge of [railBottom, 0]) {
+    const ceiling = transferCeilingY(chipHeight, uiScale, edge);
+    if (from.y > ceiling && to.y > ceiling) {
+      return ceiling;
+    }
+  }
+  return undefined;
+}
+
+/** The highest point (the smallest y) an arc reaches — its own minimum, endpoints included. */
+export function transferArcTop(plan: TransferArcPlan): number {
+  const denom = plan.p0.y - 2 * plan.c.y + plan.p1.y;
+  const t = denom === 0 ? 0 : (plan.p0.y - plan.c.y) / denom;
+  const inner = t > 0 && t < 1 ? transferArcPoint(plan, t).y : Infinity;
+  return Math.min(plan.p0.y, plan.p1.y, inner);
 }
 
 /** Point on the arc at t ∈ [0,1]. */

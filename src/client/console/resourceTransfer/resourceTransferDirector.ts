@@ -18,7 +18,7 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  TransferPoint, transferArcPlan, transferArcPoint, transferChipScaleAt, transferLiftBias,
+  TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferLiftBias,
   TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -116,6 +116,15 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
   });
 }
 
+/** The lower edge of the cockpit's top rail (the status strip), 0 when none stands (a non-console host, a spec). */
+function topRailBottom(): number {
+  if (typeof document === 'undefined') {
+    return 0;
+  }
+  const rect = document.querySelector('.con-status')?.getBoundingClientRect();
+  return rect !== undefined && rect.height > 0 ? Math.max(0, rect.bottom) : 0;
+}
+
 /**
  * One chip's flight. The chip is CSS-sized (rem — profile-correct); the
  * director only moves/scales it, centring the box on the arc points.
@@ -124,7 +133,12 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   const chip = piece.chip;
   const w = chip.offsetWidth || 48;
   const h = chip.offsetHeight || 48;
-  const plan = transferArcPlan(opts.from, opts.to, transferLiftBias(opts.index));
+  // The chip stays IN VIEW for its whole flight (see `transferArcPlan` — a toss into the rail's top rows used to
+  // leave the viewport and come back down onto its row). The line it may not cross is the lower edge of the top
+  // HUD rail — the flight layer paints UNDER the cockpit rails, so a chip above that edge is a chip cut in half —
+  // and, for a row that itself stands above that line, the top of the screen.
+  const ceiling = transferCeilingFor(opts.from, opts.to, h, opts.uiScale, topRailBottom());
+  const plan = transferArcPlan(opts.from, opts.to, transferLiftBias(opts.index), ceiling);
   const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
   const settlePx = Math.max(2, Math.round(2.5 * opts.uiScale));
   const pace = opts.pace ?? 1;

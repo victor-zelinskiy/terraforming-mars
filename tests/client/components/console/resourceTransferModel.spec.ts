@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {
-  mergeTransferSpecs, transferWaveDelayMs, transferArcPlan, transferArcPoint,
+  mergeTransferSpecs, transferWaveDelayMs, transferArcPlan, transferArcPoint, transferArcTop, transferCeilingFor, transferCeilingY,
   transferChipScaleAt, sourceSpawnPoint, cardResourceKey, extractPlayRewards,
   clampTransferPace, ResourceTransferSpec, TRANSFER_CONCURRENT_PACE,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -56,6 +56,88 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
     expect(transferArcPoint(plan, 1)).to.deep.eq(to);
     const mid = transferArcPoint(plan, 0.5);
     expect(mid.y).to.be.lessThan((from.y + to.y) / 2); // a toss, not a slide
+  });
+
+  /*
+   * THE CHIP STAYS ON SCREEN (docs/claude/gameplay-polish-ledger.md PL-012). A toss lifted over the higher endpoint
+   * keeps rising past it, so every flight into the rail's top rows from lower on the screen left the viewport and
+   * came back down onto its row — the reward was nowhere for a quarter of a second.
+   */
+  describe('the ceiling — an arc never leaves the screen', () => {
+    const CEILING = 34; // a 48 px chip's bloomed half + air, as the director passes it
+    // Where rewards are born (a card's printed icon, a colony stage's cell, a board hex) × the rail's rows, at 1080 logical.
+    const SOURCES = [{x: 508, y: 765}, {x: 900, y: 600}, {x: 1500, y: 300}, {x: 700, y: 500}, {x: 960, y: 980}, {x: 300, y: 200}];
+    const ROWS = [{x: 88, y: 88}, {x: 110, y: 150}, {x: 110, y: 205}, {x: 110, y: 425}];
+
+    it('without a ceiling the toss into the top rows DID leave the screen (the defect, pinned)', () => {
+      expect(transferArcTop(transferArcPlan({x: 508, y: 765}, {x: 88, y: 88}, -0.18))).to.be.lessThan(-60);
+      expect(transferArcTop(transferArcPlan({x: 900, y: 600}, {x: 110, y: 150}))).to.be.lessThan(0);
+    });
+
+    it('with it, no arc of the sweep rises above the line — for every lift bias of a wave', () => {
+      for (const from of SOURCES) {
+        for (const to of ROWS) {
+          for (const bias of [-0.18, 0, 0.18]) {
+            const plan = transferArcPlan(from, to, bias, CEILING);
+            expect(transferArcTop(plan), `${JSON.stringify(from)} → ${JSON.stringify(to)} bias ${bias}`).to.be.at.least(CEILING - 0.001);
+            // …sampled too, so the closed form and the curve agree.
+            for (let t = 0; t <= 1.0001; t += 0.02) {
+              expect(transferArcPoint(plan, Math.min(1, t)).y).to.be.at.least(CEILING - 0.001);
+            }
+          }
+        }
+      }
+    });
+
+    it('an arc that already stays inside is byte for byte the one it always was', () => {
+      // Low rows, short hops, a toss across the middle of the screen.
+      for (const [from, to] of [[{x: 700, y: 900}, {x: 110, y: 425}], [{x: 300, y: 700}, {x: 110, y: 620}], [{x: 900, y: 800}, {x: 600, y: 760}]] as const) {
+        expect(transferArcPlan(from, to, 0, CEILING)).to.deep.eq(transferArcPlan(from, to, 0));
+      }
+    });
+
+    it('a flattened arc is still a TOSS: it starts at the source, ends on the row and passes above the straight line', () => {
+      const from = {x: 508, y: 765};
+      const to = {x: 88, y: 88};
+      const plan = transferArcPlan(from, to, -0.18, CEILING);
+      expect(transferArcPoint(plan, 0)).to.deep.eq(from);
+      expect(transferArcPoint(plan, 1)).to.deep.eq(to);
+      expect(transferArcPoint(plan, 0.5).y).to.be.lessThan((from.y + to.y) / 2);
+      expect(transferArcTop(plan)).to.be.closeTo(CEILING, 0.001);
+    });
+
+    it('an endpoint already above the line cannot be helped — the plan is the unclamped one', () => {
+      const from = {x: 700, y: 500};
+      const to = {x: 120, y: 20};
+      expect(transferArcPlan(from, to, 0, CEILING)).to.deep.eq(transferArcPlan(from, to, 0));
+    });
+
+    // WHICH line: the flight layer paints UNDER the cockpit's rails, so the line is the top rail's lower edge.
+    it('both ends below the top rail: the ceiling is the rail\'s lower edge + the chip\'s bloomed half + air', () => {
+      expect(transferCeilingY(48, 1, 42)).to.be.closeTo(42 + 27.36 + 6, 0.001);
+      expect(transferCeilingFor({x: 508, y: 765}, {x: 88, y: 88}, 48, 1, 42)).to.eq(transferCeilingY(48, 1, 42));
+    });
+
+    it('a row tucked right under the rail: the top of the screen is the line — the toss must still reach it', () => {
+      expect(transferCeilingFor({x: 508, y: 765}, {x: 88, y: 60}, 48, 1, 42)).to.eq(transferCeilingY(48, 1, 0));
+    });
+
+    it('an endpoint above every line: no ceiling at all', () => {
+      expect(transferCeilingFor({x: 508, y: 765}, {x: 88, y: 10}, 48, 1, 42)).is.undefined;
+    });
+
+    it('the line scales with the profile (a 4K chip is twice the chip, its rail twice the rail)', () => {
+      expect(transferCeilingY(96, 2, 84)).to.be.closeTo(84 + 54.72 + 12, 0.001);
+    });
+
+    it('the liner\'s own flight (the printed TR icon → the rating cell, 1080): the token stays under the rail', () => {
+      const from = {x: 508, y: 765};
+      const to = {x: 88, y: 88};
+      const ceiling = transferCeilingFor(from, to, 48, 1, 42)!;
+      const plan = transferArcPlan(from, to, -0.18, ceiling);
+      // The chip's TOP edge at its largest never crosses the rail's lower edge.
+      expect(transferArcTop(plan) - 48 * 0.5 * 1.14).to.be.at.least(42);
+    });
   });
 
   it('the lift bias separates parallel arcs of one wave deterministically', () => {
