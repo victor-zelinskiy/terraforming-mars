@@ -155,8 +155,8 @@ export const consoleColoniesUi = reactive({
  * stage publishes instead of guessing it.
  */
 export const fleetDockUi = reactive({
-  /** The stage's substep: '' = the rows, 'lanes' = the M€ payment, 'mix' = the Delta Works composition. */
-  sub: '' as '' | 'lanes' | 'mix',
+  /** The stage's substep: '' = the rows, 'lanes' = the M€ payment, 'mix' = the Delta Works composition, 'targets' = the reward's target step. */
+  sub: '' as '' | 'lanes' | 'mix' | 'targets',
   /** A's label right now (an i18n key — «Trade» / «Select» / «Payment» / «Continue to payment»). */
   primaryLabel: 'Trade',
   /** A does something right now (a trade the server refuses keeps it dead, the reason on the stage). */

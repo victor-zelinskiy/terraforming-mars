@@ -352,7 +352,7 @@ import {conversionPromptUi} from '@/client/console/conversionPromptUi';
 import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
-import {heldStock, heldProduction, heldCardResource, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {heldStock, heldProduction, heldCardResource, heldVictoryPoints, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardResourceKey, RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {infoModeState} from '@/client/console/infoModeState';
 import {extrasExplorerUi} from '@/client/console/consoleExtrasExplorer';
@@ -539,9 +539,12 @@ export default defineComponent({
      * step is still held on its flight (that cell reads «committed − held»), the same step is held here. A derived
      * cell that announced «+1» a second before the rating's own token landed told the result ahead of its cause, an
      * inch from the number being withheld. Both tick on the one touchdown.
+     *
+     * …and the points a CARD RESOURCE brings its card (TR27: floaters onto a «1 VP / 2» card) are held the same way:
+     * the score includes them, so it ticks on the touchdown of the token that brings them (`heldVictoryPoints`).
      */
     vp(): number {
-      const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) : 0;
+      const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) + heldVictoryPoints() : 0;
       return this.player.victoryPointsBreakdown.total - held;
     },
     /**

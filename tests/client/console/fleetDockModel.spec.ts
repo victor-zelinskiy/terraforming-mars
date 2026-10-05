@@ -16,8 +16,9 @@ import {colonyNavStep} from '@/client/console/consoleColoniesModel';
 import {
   ColonyCursor, DOCK_DOCKED_KEY, DOCK_DOCKED_SHORT_KEY, DOCK_FREE_KEY, FleetDockReasonInput, colonyCursorStep, fleetDockEffectNode,
   fleetDockOwnBlock, fleetDockReason, fleetDockRewardCategory, fleetDockScenePlan, fleetDockTileLabel, fleetDockTileStatus, fleetDockViews,
-  reactionRailSpecs, tradeKnownRailMoves,
+  reactionRailSpecs, tradeKnownRailMoves, cardTargetTokens, printedRewardUnits,
 } from '@/client/console/colonyTrade/fleetDockModel';
+import {CardResource} from '@/common/CardResource';
 
 const DOCK = CardName.WATER_HAULING;
 const isDock = (name: CardName) => getCard(name)?.fleetDock === true;
@@ -147,6 +148,27 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
     });
   });
 
+  describe('THREE docks in one tableau (TR06 + TR26 + TR27)', () => {
+    it('the column holds the three in tableau order, each with its own verdict', () => {
+      const views = fleetDockViews(
+        [card(CardName.AURORA_STATION), card(CardName.WATER_HAULING, {fleetDocked: 'blue'}), card(CardName.UNMI_LINER)],
+        isDock,
+        [{card: CardName.AURORA_STATION, available: true, effects: []}, {card: CardName.UNMI_LINER, available: true, effects: []}]);
+      expect(views.map((v) => [v.card, v.dockedColor, v.offer?.available])).deep.eq([
+        [CardName.AURORA_STATION, undefined, true],
+        [CardName.WATER_HAULING, 'blue', undefined],
+        [CardName.UNMI_LINER, undefined, true],
+      ]);
+      expect(fleetDockOwnBlock(views[1]), 'the taken one names itself').eq(FLEET_DOCK_BUSY_REASON);
+    });
+
+    it('Aurora Station\'s printed row: «▲* : [floater·V] [floater·V] [prod M€]» — two tokens off two icons', () => {
+      const node = fleetDockEffectNode(getCard(CardName.AURORA_STATION)?.metadata.renderData);
+      expect(node, 'the fleet has a ▲ to land on').is.not.undefined;
+      expect(printedRewardUnits(node, CardResource.FLOATER, 2)).eq(2);
+    });
+  });
+
   describe('fleetDockEffectNode — the printed row the card answers with', () => {
     it('finds Water Hauling\'s «▲* : [ocean]» effect by its TRADE cause', () => {
       const node = fleetDockEffectNode(getCard(DOCK)?.metadata.renderData);
@@ -193,11 +215,11 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
     it('three shapes of data, three categories', () => {
       expect(fleetDockRewardCategory([placeOcean]), 'TR06: the reward is ahead, on the board').eq('placement');
       expect(fleetDockRewardCategory([]), 'TR26: the reward arrived with the answer').eq('rail');
-      expect(fleetDockRewardCategory([floaterTarget]), 'TR27: the reward asks').eq('question');
+      expect(fleetDockRewardCategory([floaterTarget]), 'TR27: the reward lands on a card').eq('card');
     });
 
-    it('seniority: a question outranks a surface ahead; a surface ahead outranks a plain gain', () => {
-      expect(fleetDockRewardCategory([placeOcean, floaterTarget])).eq('question');
+    it('seniority: a card outranks a surface ahead; a surface ahead outranks a plain gain', () => {
+      expect(fleetDockRewardCategory([placeOcean, floaterTarget])).eq('card');
       // Water Hauling states BOTH a placement and a TR chip — the TR is the ocean's own, never the card's.
       expect(fleetDockScenePlan({effects: [ocean, tr], followUps: [placeOcean]})).deep.eq({category: 'placement', answer: 'global', specs: [], reactions: []});
     });
@@ -228,8 +250,62 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
         .deep.eq({category: 'rail', answer: 'generic', specs: [], reactions: []});
     });
 
-    it('a `question` is named and NOT built: the honest default — nothing flown, nothing withheld', () => {
-      expect(fleetDockScenePlan({effects: [mcProduction], followUps: [floaterTarget]})).deep.eq({category: 'question', answer: 'generic', specs: [], reactions: []});
+    it('a `card` plan with no receiving card named (no choice, no holder) is the honest default — nothing flown', () => {
+      expect(fleetDockScenePlan({effects: [mcProduction], followUps: [floaterTarget]})).deep.eq({category: 'card', answer: 'generic', specs: [], reactions: []});
+      const lost: ColonyTradeFollowUpModel = {kind: 'cardTarget', role: 'tradeReward', resource: CardResource.FLOATER, amount: 2, lost: true};
+      expect(fleetDockScenePlan({effects: [mcProduction], followUps: [lost]}, {target: 'Aurora Station' as CardName, tokens: 2}).specs).deep.eq([]);
+    });
+
+    describe('a `card` plan — THE CARD PAYS A CARD (TR27 Aurora Station)', () => {
+      const AURORA = 'Aurora Station' as CardName;
+      const HABS = 'Floating Habs' as CardName;
+      const floaterChip: ActionEffect = {direction: 'gain', icon: 'floater', amount: 2, note: 'to a card'};
+      const target = (extra: Partial<Extract<ColonyTradeFollowUpModel, {kind: 'cardTarget'}>> = {}): ColonyTradeFollowUpModel => ({
+        kind: 'cardTarget', role: 'tradeReward', resource: CardResource.FLOATER, amount: 2,
+        vpSteps: {[AURORA]: [{from: 0, to: 0}, {from: 0, to: 1}], [HABS]: [{from: 0, to: 1}, {from: 0, to: 1}]},
+        lost: false, ...extra,
+      } as ColonyTradeFollowUpModel);
+
+      it('ONE token per printed icon, onto the chosen card, then the rail half (the M€ production) — in print order', () => {
+        const plan = fleetDockScenePlan({effects: [floaterChip, mcProduction], followUps: [target()]}, {target: HABS, tokens: 2});
+        expect(plan).deep.eq({
+          category: 'card', answer: 'resources', firstResource: 'floater', target: HABS,
+          specs: [
+            {channel: 'card-resource', resource: 'floater', amount: 1, targetCard: HABS},
+            {channel: 'card-resource', resource: 'floater', amount: 1, targetCard: HABS},
+            {channel: 'production', resource: 'megacredits', amount: 1},
+          ],
+          // Habs at 1 floater: the FIRST token makes 2 (+1 VP), the second makes 3 (nothing more) — the server's per-unit reading.
+          vp: [1, 0, 0],
+          reactions: [],
+        });
+      });
+
+      it('no choice to make: the server\'s one holder (`auto`) receives — the dock itself, its point on the second token', () => {
+        const plan = fleetDockScenePlan({effects: [floaterChip, mcProduction], followUps: [target({auto: AURORA})]}, {tokens: 2});
+        expect(plan.target).eq(AURORA);
+        expect(plan.specs.map((s) => s.targetCard)).deep.eq([AURORA, AURORA, undefined]);
+        expect(plan.vp).deep.eq([0, 1, 0]);
+      });
+
+      it('fewer printed icons than units: the units ride fewer tokens (the remainder on the first); never more tokens than units', () => {
+        const one = cardTargetTokens(target() as never, AURORA, 1);
+        expect(one.specs.map((s) => s.amount)).deep.eq([2]);
+        expect(one.vp).deep.eq([1]);
+        const many = cardTargetTokens(target() as never, AURORA, 5);
+        expect(many.specs.map((s) => s.amount)).deep.eq([1, 1]);
+      });
+
+      it('the printed icons are counted off the render data — two floater icons on Aurora\'s row, one when the row prints one', () => {
+        const node = {is: 'effect', rows: [[{type: 'trade'}], [], [
+          {is: 'item', type: 'resource', resource: CardResource.FLOATER},
+          {is: 'item', type: 'resource', resource: CardResource.FLOATER},
+          {is: 'production-box'},
+        ]]} as never;
+        expect(printedRewardUnits(node, CardResource.FLOATER, 2)).eq(2);
+        expect(printedRewardUnits(node, CardResource.FLOATER, 1), 'never more tokens than units').eq(1);
+        expect(printedRewardUnits(undefined, CardResource.FLOATER, 2), 'no row: one token').eq(1);
+      });
     });
 
     it('NO preview at the press (it outran the fetch): the phrase every dock played before categories', () => {

@@ -17,6 +17,12 @@
  *                M€) ticks one beat later — `resourceTransfer/railReward.ts`;
  *              · `placement` (Water Hauling's ocean): EMPTY. The reward is
  *                ahead, on the board, and is NOT shown placed;
+ *              · `card` (Aurora Station's floaters): the tokens leave the
+ *                card's printed icons — one per icon — for the RECEIVING card
+ *                (presented on the stage, or the hero itself), its counter
+ *                ticking on each touchdown and the points it derives with it;
+ *                the rail half of the reward (the M€ production) follows on
+ *                the same chain;
  *   READ     — a short read (the colony stage's own CARDLAND read);
  *   LEAVE    — `placement` only: the card departs as a BEAT of its own (the
  *              fleet mark rides away with it), freeing the screen the
@@ -39,6 +45,13 @@
  * pre-reward values until the token lands, and without a stage to fly it the
  * counters simply tick with the commit.
  *
+ * A reward that is still OWED by the response that landed the fleet (TR27: its
+ * card target re-asked live, or parked behind somebody else's question) is not
+ * a mismatch: nothing of it has been paid yet. The scene then holds NOTHING
+ * (the question must be free to stand) and waits for the response that pays it
+ * (`fleetDockOwedCard` — the transport seeds again on it); the receiving card
+ * is read off that response's own diff, whatever was pinned at the press.
+ *
  * The stage plays the beats; this module owns the hold, its phase, the reward
  * it armed and their release. Interruptions (the stage unmounting mid-scene,
  * the world moving) release everything at once — a placement is server state
@@ -51,9 +64,10 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {FleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
-import {releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {RailReward, railRewardOwed, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
-export type FleetDockScenePhase = 'idle' | 'seeded' | 'answer' | 'reward' | 'read' | 'leave' | 'conclude';
+export type FleetDockScenePhase = 'idle' | 'owed' | 'seeded' | 'answer' | 'reward' | 'read' | 'leave' | 'conclude';
 
 /** What the stage pinned at the commit boundary: the scene's plan and the trade's other moves on the rail. */
 export type ArmedFleetDockScene = {
@@ -75,6 +89,14 @@ export const fleetDockSceneState = reactive({
   lastEnd: '',
   /** The rail reward is HELD for this scene (seeded and verified) — the stage flies it in the REWARD slot. */
   railHeld: false,
+  /**
+   * `card` category: the card that RECEIVES, as the paying response's own diff
+   * names it (the pinned choice, or the live answer when it was re-asked) — ''
+   * outside such a scene. The stage presents it and freezes its counter.
+   */
+  target: '' as CardName | '',
+  /** The dock whose reward the landing response did not pay yet (asked live / parked) — '' when none is owed. */
+  owedCard: '' as CardName | '',
 });
 
 let armed: ArmedFleetDockScene | undefined;
@@ -102,13 +124,59 @@ export function setFleetDockStageCard(card: CardName | ''): void {
  */
 export function armFleetDockScene(scene: ArmedFleetDockScene): void {
   armed = scene;
+  fleetDockSceneState.owedCard = '';
+  fleetDockSceneState.target = scene.plan.target ?? '';
+  // A card that receives ticks on THIS payout's touchdowns — a stale tally from the last one would tick it early.
+  if (scene.plan.category === 'card') {
+    resetCardResourceLandings();
+  }
 }
 
 /** A refused submit (or a stage that left before the answer): the plan is void. */
 export function disarmFleetDockScene(card?: CardName | ''): void {
   if (card === undefined || armed?.card === card) {
     armed = undefined;
+    fleetDockSceneState.owedCard = '';
+    fleetDockSceneState.target = '';
   }
+}
+
+/** The dock whose reward is still owed (the transport seeds again on the response that pays it), '' when none. */
+export function fleetDockOwedCard(): CardName | '' {
+  return fleetDockSceneState.owedCard;
+}
+
+/** A card plan's flights and points, as a rail reward. */
+function railRewardOf(scene: ArmedFleetDockScene): RailReward {
+  return {cause: scene.plan.specs, reactions: scene.plan.reactions, known: scene.known, vp: scene.plan.vp};
+}
+
+/**
+ * THE CARD THAT ACTUALLY RECEIVED — read off the paying response's diff: the
+ * card of the viewer's tableau whose stored resources rose by exactly the
+ * reward's units. The pinned choice when it did (the ordinary landing); the
+ * live answer when the question was re-asked; the plan unchanged when the diff
+ * names no single card (the honest default — the check below then names it).
+ */
+function retargetedPlan(plan: FleetDockScenePlan, before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): FleetDockScenePlan {
+  if (plan.category !== 'card' || plan.target === undefined) {
+    return plan;
+  }
+  const units = plan.specs.filter((spec) => spec.channel === 'card-resource').reduce((sum, spec) => sum + spec.amount, 0);
+  const was = before?.thisPlayer.tableau ?? [];
+  const now = after?.thisPlayer.tableau ?? [];
+  const rose = now.filter((card) => (card.resources ?? 0) - (was.find((c) => c.name === card.name)?.resources ?? 0) === units);
+  if (rose.length !== 1 || rose[0].name === plan.target) {
+    return plan;
+  }
+  const target = rose[0].name;
+  return {
+    ...plan,
+    target,
+    specs: plan.specs.map((spec) => spec.channel === 'card-resource' ? {...spec, targetCard: target} : spec),
+    // The points were read for the pinned card; another card's are unknown here — none are held for it.
+    vp: plan.vp?.map(() => 0),
+  };
 }
 
 /** The plan the stage armed for `card`, if any (the scene reads its category from it). */
@@ -129,13 +197,28 @@ export function seedFleetDockHold(card: CardName | '', before?: PlayerViewModel,
     return;
   }
   stopWatchingDetach();
+  let scene = armedFleetDockScene(card);
+  // OWED: the response that landed the fleet paid nothing of a card reward yet (its question stands live, or
+  // waits behind another) — no hold (the question must stand), the plan kept, the next response re-seeds.
+  if (scene !== undefined && scene.plan.category === 'card' && scene.plan.specs.length > 0 &&
+      railRewardOwed(railRewardOf(scene), before, after)) {
+    fleetDockSceneState.owedCard = card;
+    fleetDockSceneState.card = card;
+    fleetDockSceneState.phase = 'owed';
+    return;
+  }
+  if (scene !== undefined && scene.plan.category === 'card') {
+    scene = {...scene, plan: retargetedPlan(scene.plan, before, after)};
+    armed = scene;
+    fleetDockSceneState.target = scene.plan.target ?? '';
+  }
+  fleetDockSceneState.owedCard = '';
   fleetDockSceneState.holding = true;
   fleetDockSceneState.card = card;
   fleetDockSceneState.phase = 'seeded';
   fleetDockSceneState.lastEnd = '';
-  const scene = armedFleetDockScene(card);
-  fleetDockSceneState.railHeld = scene !== undefined && scene.plan.category === 'rail' && scene.plan.specs.length > 0 &&
-    seedRailReward(fleetDockRewardKey(card), {cause: scene.plan.specs, reactions: scene.plan.reactions, known: scene.known}, before, after);
+  fleetDockSceneState.railHeld = scene !== undefined && (scene.plan.category === 'rail' || scene.plan.category === 'card') &&
+    scene.plan.specs.length > 0 && seedRailReward(fleetDockRewardKey(card), railRewardOf(scene), before, after);
 }
 
 /** The stage advances the scene's phase (the beats are its own). */
@@ -157,6 +240,7 @@ export function endFleetDockScene(reason: string): void {
   fleetDockSceneState.card = '';
   fleetDockSceneState.lastEnd = reason;
   fleetDockSceneState.railHeld = false;
+  fleetDockSceneState.owedCard = '';
   // The reward's own chain releases every row it held on its landings; this is the interrupt's net.
   releaseRailReward(fleetDockRewardKey(card), reason);
   disarmFleetDockScene(card);
@@ -205,4 +289,6 @@ export function resetFleetDockScene(): void {
   fleetDockSceneState.stageCard = '';
   fleetDockSceneState.lastEnd = '';
   fleetDockSceneState.railHeld = false;
+  fleetDockSceneState.target = '';
+  fleetDockSceneState.owedCard = '';
 }

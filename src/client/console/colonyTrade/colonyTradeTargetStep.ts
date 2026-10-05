@@ -12,10 +12,12 @@
  * A parallel colony-only picker is exactly the drift this fork forbids.
  *
  * Deliberate differences from the composer hosts, both structural:
- *  · NO `sourceCardName` — the hero of the colony stage is the PLANET, not a
+ *  · NO `sourceCardName` on the COLONY stage — its hero is the PLANET, not a
  *    card; even a card-door trade (Летающая платформа) has no card standing on
- *    this stage, so every candidate renders as its own physical face and the
- *    «ЭТА КАРТА» proxy never appears here.
+ *    that stage, so every candidate renders as its own physical face. The
+ *    FLEET-DOCK stage is the one host that passes it: its hero IS a card, and a
+ *    dock that holds what it pays (TR27 Aurora Station) is itself a candidate —
+ *    the selector points at it («ЭТА КАРТА») instead of drawing it twice.
  *  · the preview sections are built from the TRADE step's own numbers (the
  *    server's candidate list carries live per-card counts) — the composers'
  *    `ActionPreviewStep` never existed for a colony trade.
@@ -29,7 +31,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {ColonyTradeFollowUpRole} from '@/common/models/ColonyTradePreviewModel';
 import {TradeNotice, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {
-  BuildPlayedTargetInput, PlayedTargetFocus, PlayedTargetModel, PlayedTargetPreviewSection,
+  BuildPlayedTargetInput, PlayedTargetFocus, PlayedTargetImpact, PlayedTargetModel, PlayedTargetPreviewSection,
   buildPlayedTargetModel, findPlayedTargetFocus, reseatPlayedTargetFocus,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
@@ -60,6 +62,19 @@ export type BuildColonyTradeTargetInput = {
   typeOf: (name: CardName) => CardType | undefined;
   /** `ClientCardManifest.getCard(...)?.resourceType`, injected for purity. */
   resourceOf: (name: CardName) => string | undefined;
+  /**
+   * The card standing as the stage's HERO when it is also a candidate (a fleet
+   * dock that holds the very resource it pays — TR27 Aurora Station): the
+   * selector points AT it («ЭТА КАРТА») instead of drawing a second face of the
+   * same object. Absent on the colony stage, whose hero is a planet.
+   */
+  sourceCardName?: CardName;
+  /**
+   * Read each candidate's VICTORY POINTS too — the server's own per-candidate
+   * reading on the pick (`resourceGainPrompt.vpBox`), the line the blue-action
+   * composers already draw. Opt-in per host.
+   */
+  victoryPoints?: boolean;
 };
 
 /**
@@ -77,17 +92,19 @@ export function buildColonyTradeTargetModel(input: BuildColonyTradeTargetInput):
       return [];
     }
     const from = model.resources ?? 0;
-    return [{
-      key: 'res',
-      title: 'Target card',
-      entity: 'target',
-      impacts: [{
-        label: 'Resources on this card',
-        icon: colonyTradeTargetIcon(step, input.resourceOf, name),
-        from,
-        to: Math.max(0, from + step.amount),
-      }],
+    const impacts: Array<PlayedTargetImpact> = [{
+      label: 'Resources on this card',
+      icon: colonyTradeTargetIcon(step, input.resourceOf, name),
+      from,
+      to: Math.max(0, from + step.amount),
     }];
+    // …and what the move does to the card's points — present whenever the card's points respond (a static
+    // reading is stated quietly), exactly as the composers' target rail reads it.
+    const vp = input.victoryPoints === true ? step.pick.resourceGainPrompt?.vpBox?.[name] : undefined;
+    if (vp !== undefined) {
+      impacts.push({label: 'VP', from: vp.from, to: vp.to, static: vp.from === vp.to});
+    }
+    return [{key: 'res', title: 'Target card', entity: 'target', impacts}];
   };
   return buildPlayedTargetModel({
     candidates: step.pick.cards,
@@ -96,6 +113,7 @@ export function buildColonyTradeTargetModel(input: BuildColonyTradeTargetInput):
     ask: input.ask,
     typeOf: input.typeOf,
     preview,
+    ...(input.sourceCardName !== undefined ? {sourceCardName: input.sourceCardName} : {}),
     resourceContext: (name, model) =>
       playedTargetResourceFor(step.amount, colonyTradeTargetIcon(step, input.resourceOf, name), model),
   });

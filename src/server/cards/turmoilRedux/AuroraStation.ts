@@ -12,6 +12,7 @@ import {Card} from '../Card';
 import {FleetDock} from '../../colonies/FleetDock';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import * as actionPreviews from '../actionPreviews';
+import {message} from '../../logs/MessageBuilder';
 
 /**
  * TR27 — AURORA STATION («Станция Аврора»), the THIRD fleet dock («карта-
@@ -149,7 +150,12 @@ export class AuroraStation extends Card implements IProjectCard {
       actionPreviews.cardResourceGain(CardResource.FLOATER, 2),
       actionPreviews.productionChange(player, Resource.MEGACREDITS, 1),
     ],
-    rewardTarget: (player) => new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.VENUS}),
+    // The question's own words (the generic «Select card to add 2 Floater» read «…добавить 2 Аэростат»).
+    rewardTarget: (player) => new AddResourcesToCard(player, CardResource.FLOATER, {
+      count: 2,
+      restrictedTag: Tag.VENUS,
+      title: message('Select a Venus card to add ${0} floater(s)', (b) => b.number(2)),
+    }),
     receive: (player) => {
       player.production.add(Resource.MEGACREDITS, 1, {log: true});
     },

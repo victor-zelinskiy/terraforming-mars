@@ -3,7 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {activeAnimationHoldLabels, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
 import {
-  armFleetDockScene, armedFleetDockScene, disarmFleetDockScene, endFleetDockScene, fleetDockSceneState, releaseFleetDockHoldWhenGone,
+  armFleetDockScene, armedFleetDockScene, disarmFleetDockScene, endFleetDockScene, fleetDockOwedCard, fleetDockSceneState, releaseFleetDockHoldWhenGone,
   resetFleetDockScene, seedFleetDockHold, setFleetDockScenePhase, setFleetDockStageCard,
 } from '@/client/console/colonyTrade/fleetDockScene';
 import {fleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
@@ -283,5 +283,69 @@ describe('consoleTradeFleet — the flight\'s TARGET (a colony or a dock card)',
     expect(tradeFleetState.active).is.false;
     expect(tradeFleetState.dockedCard).eq(DOCK);
     expect(tradeFleetState.dockedColonyName).eq('');
+  });
+});
+
+/**
+ * THE CARD PAYS A CARD (TR27 Aurora Station) — a reward that lands on the
+ * chosen card. Pinned here: a landing response that paid NOTHING of it yet (the
+ * target asked again live, or parked behind another question) raises no hold —
+ * the question must be free to stand — and names the dock as owed; the response
+ * that pays it seeds the scene; the receiving card is the one that response's
+ * diff names, whatever was pinned at the press.
+ */
+describe('fleetDockScene — a reward that lands on a card (TR27)', () => {
+  const AURORA = 'Aurora Station' as CardName;
+  const HABS = 'Floating Habs' as CardName;
+  const viewOf = (habs: number, aurora: number, mcProd: number, vp = 20): PlayerViewModel => ({
+    id: 'p-blue',
+    thisPlayer: {
+      color: 'blue', terraformRating: 20, megacredits: 0, megacreditProduction: mcProd, energy: 0,
+      steel: 0, titanium: 0, plants: 0, heat: 0,
+      steelProduction: 0, titaniumProduction: 0, plantProduction: 0, energyProduction: 0, heatProduction: 0,
+      victoryPointsBreakdown: {total: vp},
+      tableau: [{name: AURORA, resources: aurora}, {name: HABS, resources: habs}],
+    },
+  } as unknown as PlayerViewModel);
+  const preview = {
+    effects: [
+      {direction: 'gain' as const, icon: 'floater', amount: 2, note: 'to a card'},
+      {direction: 'gain' as const, icon: 'megacredits', amount: 1, current: 0, resulting: 1, note: 'production'},
+    ],
+    followUps: [{
+      kind: 'cardTarget' as const, role: 'tradeReward' as const, resource: 'Floater' as never, amount: 2, lost: false,
+      vpSteps: {[AURORA]: [{from: 0, to: 0}, {from: 0, to: 1}], [HABS]: [{from: 0, to: 1}, {from: 0, to: 1}]},
+    }],
+  };
+
+  afterEach(() => {
+    resetFleetDockScene();
+    resetRailRewards();
+    clearPanelRewardHold();
+  });
+
+  it('OWED: the landing paid nothing yet — no hold, the dock named; the paying response seeds the scene', () => {
+    setFleetDockStageCard(AURORA);
+    armFleetDockScene({card: AURORA, plan: fleetDockScenePlan(preview, {target: HABS, tokens: 2}), known: {}});
+    seedFleetDockHold(AURORA, viewOf(1, 0, 0), viewOf(1, 0, 0));
+    expect(fleetDockSceneState.holding, 'the question must be free to stand').is.false;
+    expect(fleetDockSceneState.phase).eq('owed');
+    expect(fleetDockOwedCard()).eq(AURORA);
+    seedFleetDockHold(fleetDockOwedCard(), viewOf(1, 0, 0), viewOf(3, 0, 1, 21));
+    expect(fleetDockSceneState.holding).is.true;
+    expect(fleetDockSceneState.phase).eq('seeded');
+    expect(fleetDockSceneState.railHeld).is.true;
+    expect(fleetDockOwedCard()).eq('');
+  });
+
+  it('the receiving card is the one the paying response NAMES: a re-asked answer re-aims the tokens', () => {
+    setFleetDockStageCard(AURORA);
+    armFleetDockScene({card: AURORA, plan: fleetDockScenePlan(preview, {target: HABS, tokens: 2}), known: {}});
+    expect(fleetDockSceneState.target).eq(HABS);
+    // The live answer put both floaters on the station itself.
+    seedFleetDockHold(AURORA, viewOf(1, 0, 0), viewOf(1, 2, 1, 21));
+    expect(fleetDockSceneState.target).eq(AURORA);
+    expect(armedFleetDockScene(AURORA)?.plan.specs.filter((s) => s.channel === 'card-resource').map((s) => s.targetCard)).deep.eq([AURORA, AURORA]);
+    expect(fleetDockSceneState.railHeld, 'the floaters and the production still held — the points were read for another card').is.true;
   });
 });

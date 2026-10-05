@@ -8807,6 +8807,15 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        // The reward's TARGET STEP (TR27): the shared selector's own grammar — A chooses, X inspects the focused
+        // candidate, B returns to the trade with everything intact.
+        if (fleetDockUi.sub === 'targets') {
+          return [
+            {control: 'confirm', label: 'Select'},
+            {control: 'secondary', label: 'Inspect'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         if (fleetDockUi.sub === 'mix') {
           return [
             {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
@@ -16930,7 +16939,17 @@ export default defineComponent({
         this.consoleState.task.deferred = false;
         section?.holdDockStage();
         armTradeFleet({kind: 'card', card}, this.thisPlayer.color);
-        this.submit(tradeDestinationResponse({fleetDock: card}));
+        // The reward's target, chosen on the stage, rides the same submit (its fee was the card's, its question is not).
+        const tail = payload.steps.flatMap((step, i) => step.kind === 'cardTarget' ? [stepResponse(step, payload.captures[i])] : [])
+          .filter((response): response is NonNullable<typeof response> => response !== undefined);
+        if (payload.asksCard) {
+          claimWorkspaceOutcome('colonies', card, ['pick']);
+        }
+        if (tail.length > 0) {
+          this.submitBatch([tradeDestinationResponse({fleetDock: card}), ...tail]);
+        } else {
+          this.submit(tradeDestinationResponse({fleetDock: card}));
+        }
         return;
       }
       if (ctx === undefined) {
@@ -16944,6 +16963,13 @@ export default defineComponent({
         captures: payload.captures,
       });
       section?.holdDockStage();
+      // A reward that lands ON A CARD (TR27): its target rides the batch, and should the server ask it again (a
+      // stale pick, a tail parked behind another question) the question is THIS workspace's — the claim keeps it
+      // inside the dock's stage instead of a band over the colonies. Released a tick after the answer when nothing
+      // turned out to be asked.
+      if (payload.asksCard) {
+        claimWorkspaceOutcome('colonies', card, ['pick']);
+      }
       armTradeFleet({kind: 'card', card}, this.thisPlayer.color);
       this.submitBatch(batch);
     },

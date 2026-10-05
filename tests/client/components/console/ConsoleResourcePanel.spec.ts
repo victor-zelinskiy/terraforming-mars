@@ -9,7 +9,7 @@ import {CONSOLE_TAG_ORDER, NO_TAG_CELL} from '@/client/components/console/consol
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
 import {infoModeState} from '@/client/console/infoModeState';
 import {extrasExplorerUi, resetExtrasExplorer} from '@/client/console/consoleExtrasExplorer';
-import {beginPanelRewardHold, clearPanelRewardHold, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginPanelRewardHold, beginPanelVpHold, clearPanelRewardHold, releasePanelRewardHold, releasePanelVpHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
@@ -250,6 +250,16 @@ describe('ConsoleResourcePanel — the VP cell is derived from the rating, and i
     await w.vm.$nextTick();
     expect(cells(w), 'the derived cell never announces a point the rating has not shown arriving').deep.eq({tr: '20', vp: '22'});
     releasePanelRewardHold(step);
+    await w.vm.$nextTick();
+    expect(cells(w)).deep.eq({tr: '21', vp: '23'});
+  });
+
+  it('the points a CARD RESOURCE brings its card (TR27 — floaters onto «1 VP / 2») are held in the VP cell alone', async () => {
+    const w = mount(ConsoleResourcePanel, {global: globalConfig.global, props: {player: committed(), gameTags: BASE_GAME_TAGS as Array<Tag>}});
+    beginPanelVpHold(1);
+    await w.vm.$nextTick();
+    expect(cells(w), 'the rating is not touched; the score waits for the floater that brings the point').deep.eq({tr: '21', vp: '22'});
+    releasePanelVpHold(1);
     await w.vm.$nextTick();
     expect(cells(w)).deep.eq({tr: '21', vp: '23'});
   });

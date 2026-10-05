@@ -136,6 +136,14 @@ type PanelRewardHold = {
    */
   stockLoss: Record<string, number>;
   productionLoss: Record<string, number>;
+  /**
+   * DERIVED victory points still in the air — the points a card resource
+   * brings its card at its touchdown (a floater onto a «1 VP / 2» card). The
+   * rail's VP cell is the score INCLUDING them, so it reads «committed − held»
+   * until the token that brings them lands (`railReward.ts` holds and releases
+   * them with the token's own spec).
+   */
+  vp: number;
 };
 
 export const panelRewardHold = reactive<PanelRewardHold>({
@@ -145,6 +153,7 @@ export const panelRewardHold = reactive<PanelRewardHold>({
   cardRes: {},
   stockLoss: {},
   productionLoss: {},
+  vp: 0,
 });
 
 function holdMapFor(spec: ResourceTransferSpec): Record<string, number> {
@@ -220,6 +229,7 @@ export function clearPanelRewardHold(): void {
   panelRewardHold.cardRes = {};
   panelRewardHold.stockLoss = {};
   panelRewardHold.productionLoss = {};
+  panelRewardHold.vp = 0;
   panelRewardHold.active = false;
 }
 
@@ -229,7 +239,8 @@ function syncHoldActive(): void {
     Object.keys(panelRewardHold.production).length > 0 ||
     Object.keys(panelRewardHold.cardRes).length > 0 ||
     Object.keys(panelRewardHold.stockLoss).length > 0 ||
-    Object.keys(panelRewardHold.productionLoss).length > 0;
+    Object.keys(panelRewardHold.productionLoss).length > 0 ||
+    panelRewardHold.vp > 0;
 }
 
 /**
@@ -244,6 +255,27 @@ export function heldStock(resource: string): number {
 export function heldProduction(resource: string): number {
   return panelRewardHold.active ? (panelRewardHold.production[resource] ?? 0) - (panelRewardHold.productionLoss[resource] ?? 0) : 0;
 }
+/** Hold N derived victory points (the score cell keeps them back until their token lands). */
+export function beginPanelVpHold(points: number): void {
+  if (points > 0) {
+    panelRewardHold.vp += points;
+    syncHoldActive();
+  }
+}
+
+/** Release N held derived points — the VP cell ticks by exactly that. Never below zero. */
+export function releasePanelVpHold(points: number): void {
+  if (points > 0) {
+    panelRewardHold.vp = Math.max(0, panelRewardHold.vp - points);
+    syncHoldActive();
+  }
+}
+
+/** The derived points still held (0 when nothing is). */
+export function heldVictoryPoints(): number {
+  return panelRewardHold.active ? panelRewardHold.vp : 0;
+}
+
 export function heldCardResource(iconKey: string): number {
   return panelRewardHold.active ? (panelRewardHold.cardRes[iconKey] ?? 0) : 0;
 }
@@ -655,6 +687,7 @@ function describeCardDestination(spec: ResourceTransferSpec): unknown {
   return [
     `.con-colfocus [data-played-key="${esc}"] .pcard__res`,
     `.con-colfocus [data-played-key="${esc}"]`,
+    `.con-fleetdock [data-played-key="${esc}"] .pcard__res`,
     `[data-played-key="${esc}"]`,
   ].map((sel) => {
     const el = document.querySelector<HTMLElement>(sel);
@@ -706,6 +739,9 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
       measureRestingRect(`.con-recv [data-played-key="${esc}"]`) ??
       measureRestingRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
       measureRestingRect(`.con-colfocus [data-played-key="${esc}"]`) ??
+      // …the FLEET-DOCK STAGE's receiving card (TR27: the dock pays a card it presents — or itself, its hero face):
+      measureRestingRect(`.con-fleetdock [data-played-key="${esc}"] .pcard__res`) ??
+      measureRestingRect(`.con-fleetdock [data-played-key="${esc}"]`) ??
       measureRestingRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
       measureRestingRect(`.con-hydro [data-played-key="${esc}"]`) ??
       // …the SHARED recipient picker's candidate (an enacted resolution's

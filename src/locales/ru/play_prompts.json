@@ -227,6 +227,7 @@
     "Remove 1 floater to gain 4 heat": "Сбросьте 1 аэростат, чтобы получить 4 тепла",
     "Spend 2 microbes here to raise Venus 1 step.": "Потратьте 2 микроба отсюда, чтобы повысить Венеру на 1.",
     "Select a Venus card to add 1 microbe": "Выберите карту Венеры, чтобы добавить 1 микроб",
+    "Select a Venus card to add ${0} floater(s)": "Выберите карту Венеры, чтобы добавить ${0} {аэростат|аэростата|аэростатов}",
     "Aridor first action - Select colony tile to add": "Первое действие Aridor — выберите тайл колонии для добавления",
     "Select colony for Pioneer Settlement": "Выберите колонию для «Первое поселение»",
     "Select colony for Minority Refuge": "Выберите колонию для «Поселение беженцов»",

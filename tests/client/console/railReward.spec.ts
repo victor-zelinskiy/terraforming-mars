@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {activeAnimationHoldLabels, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
-import {clearPanelRewardHold, heldProduction, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {clearPanelRewardHold, heldCardResource, heldProduction, heldStock, heldVictoryPoints} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, ResourceTransferSpec, railRewardSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   flyRailReward, railRewardPending, railRewardState, releaseRailReward, resetRailRewards, seedRailReward, verifyRailReward,
@@ -78,7 +78,7 @@ describe('railReward — a gain arrives on the rail as a reward', () => {
   describe('verifyRailReward — the promise against the applied view', () => {
     it('the row moved by exactly the promise: held', () => {
       const verdict = verifyRailReward({cause: [TR], reactions: []}, view({tr: 20}), view({tr: 21}));
-      expect(verdict).deep.eq({cause: [TR], reactions: [], mismatches: []});
+      expect(verdict).deep.eq({cause: [TR], reactions: [], vp: [], mismatches: [], owed: false});
     });
 
     it('the owner\'s KNOWN moves on a row are allowed for: a 9 M€ fee, a +3 flat bonus and the Greens\' +2 are −4', () => {
@@ -216,6 +216,69 @@ describe('railReward — a gain arrives on the rail as a reward', () => {
       const spec: ResourceTransferSpec = {channel: 'production', resource: 'megacredits', amount: 1};
       seedRailReward(KEY, {cause: [spec], reactions: []}, view({mcProd: 0}), view({mcProd: 1}));
       expect(heldProduction('megacredits')).eq(1);
+    });
+  });
+
+  /**
+   * A REWARD THAT LANDS ON A CARD (TR27 Aurora Station: two floater tokens onto
+   * the chosen Venus card, then +1 M€ production): the card's own counter is
+   * the row the promise is checked against, the two printed icons stay two
+   * tokens, the points the floaters bring the card ride the rail's VP cell and
+   * are released with the token that brings them — and a response that paid
+   * nothing of it yet is OWED, not wrong.
+   */
+  describe('a card-resource cause — the card pays a card', () => {
+    const HABS = 'Floating Habs';
+    const token = (): ResourceTransferSpec => ({channel: 'card-resource', resource: 'floater', amount: 1, targetCard: HABS as never});
+    const PROD: ResourceTransferSpec = {channel: 'production', resource: 'megacredits', amount: 1};
+    const cardView = (floaters: number, mcProd: number, vp: number): PlayerViewModel => {
+      const v = view({mcProd});
+      (v.thisPlayer as unknown as {tableau: unknown}).tableau = [{name: HABS, resources: floaters}];
+      (v.thisPlayer as unknown as {victoryPointsBreakdown: unknown}).victoryPointsBreakdown = {total: vp};
+      return v;
+    };
+
+    it('the card\'s counter is the row: two tokens of one each, kept apart; the points held with the token that brings them', () => {
+      const a = token();
+      const b = token();
+      const verdict = verifyRailReward({cause: [a, b, PROD], reactions: [], vp: [1, 0, 0]}, cardView(1, 0, 20), cardView(3, 1, 21));
+      expect(verdict.mismatches).deep.eq([]);
+      expect(verdict.cause, 'two printed icons are two flights — never merged').deep.eq([a, b, PROD]);
+      expect(verdict.vp).deep.eq([1, 0, 0]);
+      expect(verdict.owed).is.false;
+    });
+
+    it('a card that moved otherwise holds nothing and names the row', () => {
+      const verdict = verifyRailReward({cause: [token(), token(), PROD], reactions: [], vp: [1, 0, 0]}, cardView(1, 0, 20), cardView(2, 1, 20));
+      expect(verdict.cause).deep.eq([]);
+      expect(verdict.mismatches).deep.eq([`card-resource:floater@${HABS}: expected +2, applied +1`]);
+    });
+
+    it('a score that moved otherwise keeps the tokens and holds no point — named', () => {
+      const verdict = verifyRailReward({cause: [token(), token(), PROD], reactions: [], vp: [1, 0, 0]}, cardView(1, 0, 20), cardView(3, 1, 22));
+      expect(verdict.cause).has.lengthOf(3);
+      expect(verdict.vp).deep.eq([]);
+      expect(verdict.mismatches).deep.eq(['vp: expected +1, applied +2']);
+    });
+
+    it('OWED: nothing of the cause applied yet (the target asked live, or parked) — not a mismatch to hold, an answer to wait for', () => {
+      const verdict = verifyRailReward({cause: [token(), token(), PROD], reactions: [], vp: [1, 0, 0]}, cardView(1, 0, 20), cardView(1, 0, 20));
+      expect(verdict.owed).is.true;
+      expect(verdict.cause).deep.eq([]);
+    });
+
+    it('seeded: the satellite\'s floaters, the production and the VP cell held; each token releases its own share on its touchdown', async () => {
+      const a = token();
+      const b = token();
+      expect(seedRailReward(KEY, {cause: [a, b, PROD], reactions: [], vp: [1, 0, 0]}, cardView(1, 0, 20), cardView(3, 1, 21))).is.true;
+      expect(heldCardResource('floater')).eq(2);
+      expect(heldProduction('megacredits')).eq(1);
+      expect(heldVictoryPoints(), 'the point the first floater brings is withheld with it').eq(1);
+      reduceMotionOverrideState.enabled = true; // no geometry here: every token «lands» at once, in order
+      expect(await flyRailReward(KEY, () => ({x: 1, y: 1}))).eq('landed');
+      expect(heldCardResource('floater')).eq(0);
+      expect(heldVictoryPoints()).eq(0);
+      expect(heldProduction('megacredits')).eq(0);
     });
   });
 });

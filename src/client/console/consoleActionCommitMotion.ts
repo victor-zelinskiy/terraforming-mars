@@ -225,6 +225,9 @@ export function resolveGainIconOrigins(
   // chip answers «where did this come from» with the very number that caused it.
   const mcTiles = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-mi--mc'));
   const printsNegative = (el: HTMLElement): boolean => /^[−-]/.test((el.textContent ?? '').trim());
+  // TWO PRINTED ICONS ARE TWO SOURCES: the k-th token of one resource is born on the k-th icon that prints it
+  // (TR27's «[floater·V] [floater·V]» — each token from its own icon), the first icon when the row prints fewer.
+  const seen = new Map<string, number>();
   return specs.map((spec) => {
     if (spec.channel === 'production') {
       const inProd = prod !== null && prod !== undefined ?
@@ -237,7 +240,10 @@ export function resolveGainIconOrigins(
       const mc = mcTiles.find((el) => printsNegative(el) === wantNegative) ?? mcTiles[0];
       return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits')));
     }
-    return centerOf(icons.find((el) => iconMatches(el, spec.resource)));
+    const matching = icons.filter((el) => iconMatches(el, spec.resource));
+    const k = seen.get(spec.resource) ?? 0;
+    seen.set(spec.resource, k + 1);
+    return centerOf(matching[k] ?? matching[0]);
   });
 }
 

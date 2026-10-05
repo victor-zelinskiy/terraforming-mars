@@ -55,12 +55,17 @@ import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, mergeTransferSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferDegradeReason, beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers,
+  TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 /** What an owner promises the rail: the gains it will FLY, and the table's answer to them. */
 export type RailReward = {
-  /** The gains the paying object's own icons give — flown, each ticking on its touchdown. */
+  /**
+   * The gains the paying object's own icons give — flown, each ticking on its
+   * touchdown. NEVER merged: two printed icons are two tokens (TR27's two
+   * floaters), each released on its own touchdown. A `card-resource` spec
+   * lands on its `targetCard` — the card's own counter is its row.
+   */
   cause: ReadonlyArray<ResourceTransferSpec>;
   /** What the table pays BECAUSE of them — never flown from the object, released after the last touchdown. */
   reactions: ReadonlyArray<ResourceTransferSpec>;
@@ -70,6 +75,14 @@ export type RailReward = {
    * diff check must allow for beside the reward itself.
    */
   known?: Readonly<Record<string, number>>;
+  /**
+   * DERIVED POINTS, aligned with `cause`: the victory points each cause token
+   * brings at its touchdown (a floater onto a «1 VP / 2» card). The rail's VP
+   * cell is the score INCLUDING those points, so it is held with them and
+   * ticks on the same touchdowns — never a result announced ahead of its
+   * cause. Checked against the views' own score like every row.
+   */
+  vp?: ReadonlyArray<number>;
 };
 
 /** WHY a rail reward was not shown as promised. */
@@ -82,6 +95,8 @@ type Entry = {
   /** Still held on the rail, per spec (released one by one). */
   cause: Array<ResourceTransferSpec>;
   reactions: Array<ResourceTransferSpec>;
+  /** The derived points each cause token releases at its touchdown (by the spec object). */
+  vp: Map<ResourceTransferSpec, number>;
   phase: 'held' | 'flying' | 'answering';
 };
 
@@ -132,6 +147,12 @@ function rowValue(player: PublicPlayerModel | undefined, row: string): number | 
   if (player === undefined) {
     return undefined;
   }
+  // A CARD's counter (`card-resource:<kind>@<card>`): the stored resources the views carry on the card itself.
+  if (row.startsWith('card-resource:')) {
+    const card = row.slice(row.indexOf('@') + 1);
+    const model = row.includes('@') ? player.tableau.find((c) => c.name === card) : undefined;
+    return model === undefined ? undefined : (model.resources ?? 0);
+  }
   const [channel, resource] = row.split(':');
   const field = channel === 'production' ? PRODUCTION_FIELDS[resource] : channel === 'stock' ? STOCK_FIELDS[resource] : undefined;
   const value = field === undefined ? undefined : player[field];
@@ -141,9 +162,30 @@ function rowValue(player: PublicPlayerModel | undefined, row: string): number | 
 export type RailRewardVerdict = {
   cause: Array<ResourceTransferSpec>;
   reactions: Array<ResourceTransferSpec>;
+  /** The derived points held with the cause (0 when the score's own change did not agree, or none were promised). */
+  vp: Array<number>;
   /** The rows whose applied change was not the promised one: `row: expected N, applied M`. */
   mismatches: Array<string>;
+  /**
+   * NOTHING of the cause has been applied yet — every cause row stands exactly
+   * where it stood: the reward is still OWED (its question was re-asked live,
+   * or another question went first and the rest is parked). Not a mismatch: the
+   * owner waits for the response that pays it.
+   */
+  owed: boolean;
 };
+
+/** The row a spec lands on, for the diff check: a card's counter is its own row (`card-resource:floater@Aurora Station`). */
+function verifyRowKey(spec: ResourceTransferSpec): string {
+  return spec.channel === 'card-resource' && spec.targetCard !== undefined ?
+    `${railRowKey(spec)}@${spec.targetCard}` :
+    railRowKey(spec);
+}
+
+function scoreOf(player: PublicPlayerModel | undefined): number | undefined {
+  const total = player?.victoryPointsBreakdown?.total;
+  return typeof total === 'number' ? total : undefined;
+}
 
 /**
  * THE PROMISE AGAINST THE APPLIED VIEW (pure). Per rail row: the change the
@@ -154,20 +196,22 @@ export type RailRewardVerdict = {
  * arriving after a cause that was not shown is a second lie).
  */
 export function verifyRailReward(reward: RailReward, before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): RailRewardVerdict {
-  const cause = mergeTransferSpecs(reward.cause);
+  // The cause is checked per ROW (summed) but held per TOKEN (as given): two printed icons stay two flights.
+  const cause = reward.cause.filter((spec) => spec.amount > 0);
   const reactions = mergeTransferSpecs(reward.reactions);
   const was = before?.thisPlayer;
   const now = after?.thisPlayer;
   if (was === undefined || now === undefined || before?.id !== after?.id) {
-    return {cause: [], reactions: [], mismatches: ['no pair of views of one seat']};
+    return {cause: [], reactions: [], vp: [], mismatches: ['no pair of views of one seat'], owed: false};
   }
   const promised = new Map<string, number>();
   for (const spec of [...cause, ...reactions]) {
-    const row = railRowKey(spec);
+    const row = verifyRowKey(spec);
     promised.set(row, (promised.get(row) ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount));
   }
   const mismatches: Array<string> = [];
   const bad = new Set<string>();
+  const applied = new Map<string, number>();
   for (const [row, amount] of promised) {
     const a = rowValue(was, row);
     const b = rowValue(now, row);
@@ -175,19 +219,49 @@ export function verifyRailReward(reward: RailReward, before: PlayerViewModel | u
     if (a === undefined || b === undefined) {
       bad.add(row);
       mismatches.push(`${row}: not a rail row`);
-    } else if (b - a !== expected) {
-      bad.add(row);
-      mismatches.push(`${row}: expected ${expected >= 0 ? '+' : ''}${expected}, applied ${b - a >= 0 ? '+' : ''}${b - a}`);
+    } else {
+      applied.set(row, b - a);
+      if (b - a !== expected) {
+        bad.add(row);
+        mismatches.push(`${row}: expected ${expected >= 0 ? '+' : ''}${expected}, applied ${b - a >= 0 ? '+' : ''}${b - a}`);
+      }
     }
   }
-  if (cause.some((spec) => bad.has(railRowKey(spec)))) {
-    return {cause: [], reactions: [], mismatches};
+  // OWED, not wrong: no row of the cause has moved by anything but the trade's own known moves — the reward has
+  // not been paid in this response at all (its question stands, or waits behind another).
+  const owed = cause.length > 0 && cause.every((spec) => {
+    const row = verifyRowKey(spec);
+    return applied.get(row) === (reward.known?.[row] ?? 0);
+  });
+  if (cause.some((spec) => bad.has(verifyRowKey(spec)))) {
+    return {cause: [], reactions: [], vp: [], mismatches, owed};
+  }
+  // THE DERIVED POINTS: the score's own change must be the promised points plus the rating the reward moves (the
+  // score includes the rating point for point); a score that moved otherwise holds no point and says why.
+  const points = (reward.vp ?? []).reduce((sum, v) => sum + v, 0);
+  let vp: Array<number> = [];
+  if (points !== 0) {
+    const rating = promised.get(railRowKey({channel: 'stock', resource: RATING_RAIL_KEY})) ?? 0;
+    const sa = scoreOf(was);
+    const sb = scoreOf(now);
+    if (sa !== undefined && sb !== undefined && sb - sa === points + rating) {
+      vp = cause.map((_, i) => reward.vp?.[i] ?? 0);
+    } else {
+      mismatches.push(`vp: expected +${points + rating}, applied ${sa === undefined || sb === undefined ? '?' : (sb - sa >= 0 ? '+' : '') + (sb - sa)}`);
+    }
   }
   return {
     cause,
-    reactions: reactions.filter((spec) => !bad.has(railRowKey(spec))),
+    reactions: reactions.filter((spec) => !bad.has(verifyRowKey(spec))),
+    vp,
     mismatches,
+    owed,
   };
+}
+
+/** Is the reward still OWED by this response — nothing of its cause applied yet (see `RailRewardVerdict.owed`)? Pure. */
+export function railRewardOwed(reward: RailReward, before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): boolean {
+  return verifyRailReward(reward, before, after).owed;
 }
 
 function entryOf(key: string): Entry | undefined {
@@ -205,14 +279,24 @@ function noteDegrade(key: string, why: RailRewardDegrade, detail?: string): void
   }
 }
 
-/** Release ONE held spec of an entry (idempotent per spec: a spec leaves the entry as it is released). */
-function releaseSpec(list: Array<ResourceTransferSpec>, spec: ResourceTransferSpec): void {
-  const index = list.findIndex((held) => held.channel === spec.channel && held.resource === spec.resource && (held.direction ?? 'gain') === (spec.direction ?? 'gain'));
+/** Release ONE held spec of an entry (idempotent per spec: a spec leaves the entry as it is released) — and the points it carried. */
+function releaseSpec(list: Array<ResourceTransferSpec>, spec: ResourceTransferSpec, vp?: Map<ResourceTransferSpec, number>): void {
+  // The very object first (a token's own spec), else the first of the same row (a spec re-built by a caller).
+  let index = list.indexOf(spec);
+  if (index === -1) {
+    index = list.findIndex((held) => held.channel === spec.channel && held.resource === spec.resource &&
+      held.targetCard === spec.targetCard && (held.direction ?? 'gain') === (spec.direction ?? 'gain'));
+  }
   if (index === -1) {
     return;
   }
   const [held] = list.splice(index, 1);
   releasePanelRewardHold(held);
+  const points = vp?.get(held) ?? 0;
+  if (points !== 0) {
+    vp?.delete(held);
+    releasePanelVpHold(points);
+  }
 }
 
 /**
@@ -237,7 +321,15 @@ export function seedRailReward(key: string, reward: RailReward, before: PlayerVi
     return false;
   }
   beginPanelRewardHold([...verdict.cause, ...verdict.reactions]);
-  railRewardState.entries.push({key, cause: verdict.cause, reactions: verdict.reactions, phase: 'held'});
+  const vp = new Map<ResourceTransferSpec, number>();
+  verdict.cause.forEach((spec, i) => {
+    const points = verdict.vp[i] ?? 0;
+    if (points !== 0) {
+      vp.set(spec, points);
+      beginPanelVpHold(points);
+    }
+  });
+  railRewardState.entries.push({key, cause: verdict.cause, reactions: verdict.reactions, vp, phase: 'held'});
   return true;
 }
 
@@ -277,7 +369,7 @@ export function flyRailReward(key: string, originOf: (spec: ResourceTransferSpec
     onArrive: (spec) => {
       const live = entryOf(key);
       if (live !== undefined) {
-        releaseSpec(live.cause, spec);
+        releaseSpec(live.cause, spec, live.vp);
       }
     },
     onDegrade: (spec, why) => {
@@ -302,7 +394,7 @@ function answerRailReward(key: string): Promise<void> {
     return Promise.resolve();
   }
   // Whatever the wave left held (it never does — the framework's safety releases every spec) goes first.
-  [...entry.cause].forEach((spec) => releaseSpec(entry.cause, spec));
+  [...entry.cause].forEach((spec) => releaseSpec(entry.cause, spec, entry.vp));
   if (entry.reactions.length === 0) {
     dropEntry(key);
     return Promise.resolve();
@@ -335,7 +427,7 @@ export function releaseRailReward(key: string, why: string): void {
   }
   const pending = reactionCalls.get(key);
   reactionCalls.delete(key);
-  [...entry.cause].forEach((spec) => releaseSpec(entry.cause, spec));
+  [...entry.cause].forEach((spec) => releaseSpec(entry.cause, spec, entry.vp));
   [...entry.reactions].forEach((spec) => releaseSpec(entry.reactions, spec));
   dropEntry(key);
   pending?.call.kill();

@@ -30,7 +30,7 @@ import {EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {FleetDockOfferModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {Payment} from '@/common/inputs/Payment';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, isStandardResource, mergeTransferSpecs, railRewardSpecs, railRowKey,
+  RATING_RAIL_KEY, ResourceTransferSpec, cardResourceKey, isStandardResource, mergeTransferSpecs, railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {FLEET_DOCK_BUSY_REASON} from '@/common/colonies/fleetDock';
 import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTradeReason';
@@ -264,23 +264,50 @@ export function fleetDockEffectNode(renderData: CardComponent | undefined): ICar
  *  · `rail`      — the reward arrives WITH the answer and asks nothing (UNMI
  *    Liner's +1 TR): its rail-bound gains are flown from the card's printed
  *    icons to their rows, and the card leaves with the workspace;
- *  · `question`  — the reward ASKS for a target (a `cardTarget` follow-up:
- *    Aurora Station's floaters). Named so the class is whole; its stage step
- *    is not built yet, and the scene treats it as the honest default (nothing
- *    flown, nothing withheld on the rail).
+ *  · `card`      — the reward LANDS ON A CARD (a `cardTarget` follow-up:
+ *    Aurora Station's floaters, onto the Venus card the player chose on the
+ *    stage before the press — or the one holder the server names). Its tokens
+ *    leave the dock's printed icons for that card, one token per icon, the
+ *    card's counter ticking on each touchdown; whatever else the reward gives
+ *    on the rail (Aurora's M€ production) flies after them, and the card goes
+ *    with the workspace. Named for where the reward lands, not for a question:
+ *    with one holder nothing is asked at all.
  *
- * Seniority when a preview carries several signs: a question outranks a
- * surface ahead, and a surface ahead outranks a plain gain — Water Hauling
- * states BOTH a placement and a TR chip, and that TR is the ocean's own: it
- * lands with the tile, never from the card.
+ * Seniority when a preview carries several signs: a card outranks a surface
+ * ahead, and a surface ahead outranks a plain gain — Water Hauling states BOTH
+ * a placement and a TR chip, and that TR is the ocean's own: it lands with the
+ * tile, never from the card.
  */
-export type FleetDockRewardCategory = 'placement' | 'rail' | 'question';
+export type FleetDockRewardCategory = 'placement' | 'rail' | 'card';
 
 export function fleetDockRewardCategory(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): FleetDockRewardCategory {
   if (followUps.some((followUp) => followUp.kind === 'cardTarget')) {
-    return 'question';
+    return 'card';
   }
   return followUps.length > 0 ? 'placement' : 'rail';
+}
+
+/** A dock's card target — the first `cardTarget` follow-up of its preview (a dock declares at most one). */
+export type FleetDockCardTarget = Extract<ColonyTradeFollowUpModel, {kind: 'cardTarget'}>;
+
+export function fleetDockCardTarget(followUps: ReadonlyArray<ColonyTradeFollowUpModel> | undefined): FleetDockCardTarget | undefined {
+  const found = (followUps ?? []).find((followUp) => followUp.kind === 'cardTarget');
+  return found?.kind === 'cardTarget' ? found : undefined;
+}
+
+/**
+ * HOW MANY TOKENS a card-target reward flies: one per PRINTED icon of that
+ * resource on the dock's «▲ : [reward]» row (Aurora prints two floater icons —
+ * two tokens, each from its own icon), never more tokens than units. Read off
+ * the render data (`fleetDockEffectNode`), so the scene answers the printed
+ * card, not a guess. At least one.
+ */
+export function printedRewardUnits(node: ICardRenderEffect | undefined, resource: string | undefined, amount: number): number {
+  const result = node?.rows[node.rows.length - 1] ?? [];
+  const printed = resource === undefined ? 0 : result.filter((item) =>
+    isICardRenderItem(item) && item.type === CardRenderItemType.RESOURCE &&
+    item.resource !== undefined && cardResourceKey(item.resource) === cardResourceKey(resource)).length;
+  return Math.max(1, Math.min(Math.max(1, amount), printed));
 }
 
 /** The landing of the card's answer — the action-commit vocabulary (`ActionCommitKind`), named here so this module stays a leaf. */
@@ -293,11 +320,46 @@ export type FleetDockScenePlan = {
   answer: FleetDockAnswerKind;
   /** `resources` only: the resource whose printed icon the impulse lands on. */
   firstResource?: string;
-  /** `rail` only: the gains the card's own icons give — flown, each ticking on its touchdown. */
+  /** `rail` / `card`: the gains the card's own icons give — flown in print order, each ticking on its touchdown. */
   specs: Array<ResourceTransferSpec>;
-  /** `rail` only: what the table pays BECAUSE of them — released after the last touchdown. */
+  /** `rail` / `card`: what the table pays BECAUSE of them — released after the last touchdown. */
   reactions: Array<ResourceTransferSpec>;
+  /** `card` only: the card that receives (the stage's choice, else the one holder the server named). */
+  target?: CardName;
+  /**
+   * `card` only, aligned with `specs`: the victory points each token brings the
+   * RECEIVING card at its touchdown — the server's per-unit reading
+   * (`vpSteps`), so a derived number (the rail's VP cell) is held with the
+   * counter it derives from. 0 for a token that moves no point.
+   */
+  vp?: Array<number>;
 };
+
+/**
+ * The tokens of a CARD-target reward: `amount` units onto `target`, split over
+ * `tokens` flights (print order, the remainder on the first), each with the
+ * points it brings the card at its touchdown — the server's own per-unit
+ * reading (`vpSteps[target][k − 1]`), cumulative, never client arithmetic.
+ */
+export function cardTargetTokens(followUp: FleetDockCardTarget, target: CardName, tokens: number): {specs: Array<ResourceTransferSpec>, vp: Array<number>} {
+  const resource = followUp.resource === undefined ? '' : cardResourceKey(followUp.resource);
+  const amount = Math.max(0, followUp.amount);
+  const count = Math.max(1, Math.min(tokens, amount));
+  const steps = followUp.vpSteps?.[target];
+  const vpAfter = (units: number): number => units <= 0 || steps === undefined ?
+    (steps?.[0]?.from ?? 0) :
+    (steps[Math.min(units, steps.length) - 1]?.to ?? 0);
+  const specs: Array<ResourceTransferSpec> = [];
+  const vp: Array<number> = [];
+  let landed = 0;
+  for (let i = 0; i < count; i++) {
+    const units = Math.floor(amount / count) + (i < amount % count ? 1 : 0);
+    specs.push({channel: 'card-resource', resource, amount: units, targetCard: target});
+    vp.push(steps === undefined ? 0 : vpAfter(landed + units) - vpAfter(landed));
+    landed += units;
+  }
+  return {specs, vp};
+}
 
 /**
  * The table's answer as rail specs: only what arrives WITH the trade's own
@@ -327,7 +389,12 @@ export function fleetDockScenePlan(preview: {
   effects: ReadonlyArray<ActionEffect>,
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>,
   reactions?: ReadonlyArray<EffectForecastFact>,
-} | undefined): FleetDockScenePlan {
+} | undefined, card?: {
+  /** The card that receives — the stage's captured choice (absent: the server's one holder, `auto`). */
+  target?: CardName,
+  /** The printed tokens of the target's resource (`printedRewardUnits`); 1 when unknown. */
+  tokens?: number,
+}): FleetDockScenePlan {
   if (preview === undefined) {
     return {category: 'placement', answer: 'global', specs: [], reactions: []};
   }
@@ -346,8 +413,28 @@ export function fleetDockScenePlan(preview: {
       {category, answer: 'global', specs, reactions: reactionRailSpecs(preview.reactions)} :
       {category, answer: 'resources', firstResource: first.resource, specs, reactions: reactionRailSpecs(preview.reactions)};
   }
-  default:
-    return {category, answer: 'generic', specs: [], reactions: []};
+  case 'card': {
+    // THE CARD PAYS A CARD: the tokens leave the printed icons for the receiving card (one per icon), then the
+    // rail half of the same reward (the M€ production) flies to its row — the printed order is the order of the
+    // events. With no receiving card named (a choice not made — the press outran it) nothing is flown: the
+    // honest default, the counters tick with the commit.
+    const followUp = fleetDockCardTarget(preview.followUps);
+    const target = card?.target ?? followUp?.auto;
+    if (followUp === undefined || followUp.lost || target === undefined || followUp.resource === undefined) {
+      return {category, answer: 'generic', specs: [], reactions: []};
+    }
+    const tokens = cardTargetTokens(followUp, target, card?.tokens ?? 1);
+    const rail = railRewardSpecs(preview.effects);
+    return {
+      category,
+      answer: 'resources',
+      firstResource: cardResourceKey(followUp.resource),
+      specs: [...tokens.specs, ...rail],
+      reactions: reactionRailSpecs(preview.reactions),
+      target,
+      vp: [...tokens.vp, ...rail.map(() => 0)],
+    };
+  }
   }
 }
 

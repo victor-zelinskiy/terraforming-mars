@@ -3,7 +3,8 @@ import {mount, VueWrapper} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {CardName} from '@/common/cards/CardName';
 import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
-import {SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {CardResource} from '@/common/CardResource';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockStage.vue';
 import {EffectForecastFact} from '@/common/models/EffectForecastModel';
@@ -166,5 +167,131 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
     stage.vm.holdPresentation();
     stage.unmount();
     expect(armedFleetDockScene(CardName.UNMI_LINER)).is.undefined;
+  });
+});
+
+/*
+ * A REWARD THAT LANDS ON A CARD (TR27 Aurora Station): the stage names the card
+ * BEFORE the press — a statement with one holder, a decision with several — and
+ * the decision is a press that rides the trade's ONE POST. Past the commit the
+ * receiving card stands on the stage, or the hero's own counter is frozen.
+ */
+describe('ConsoleFleetDockStage — a reward that lands on a card (TR27)', () => {
+  const AURORA = CardName.AURORA_STATION;
+  const HABS = CardName.FLOATING_HABS;
+  const effects = [
+    {direction: 'gain' as const, icon: 'floater', amount: 2, note: 'to a card'},
+    {direction: 'gain' as const, icon: 'megacredits', amount: 1, current: 0, resulting: 1, note: 'production'},
+  ];
+  const vpSteps = {[AURORA]: [{from: 0, to: 0}, {from: 0, to: 1}], [HABS]: [{from: 0, to: 1}, {from: 0, to: 1}]};
+  const ONE: FleetDockPreviewModel = {
+    card: AURORA, available: true, effects,
+    followUps: [{kind: 'cardTarget', role: 'tradeReward', resource: CardResource.FLOATER, amount: 2, auto: AURORA, vpSteps, lost: false}],
+  };
+  const TWO: FleetDockPreviewModel = {
+    card: AURORA, available: true, effects,
+    followUps: [{
+      kind: 'cardTarget', role: 'tradeReward', resource: CardResource.FLOATER, amount: 2, vpSteps, lost: false,
+      pick: {type: 'card', title: 'Select a Venus card', buttonLabel: 'Add', cards: [{name: AURORA, resources: 0}, {name: HABS, resources: 1}]} as unknown as SelectCardModel,
+    }],
+  };
+  const blue = {...player, tableau: [{name: AURORA, resources: 0}, {name: HABS, resources: 1}]} as unknown as PublicPlayerModel;
+
+  function mountAurora(preview: FleetDockPreviewModel): VueWrapper<any> {
+    return mount(ConsoleFleetDockStage, {
+      global: {...globalConfig.global, stubs: {
+        ConsoleCardFaceLite: {props: ['name', 'card'], template: '<div class="pcard-stub" :data-name="name" :data-res="card && card.resources"></div>'},
+        ConsoleTradeTargetStep: {props: ['model', 'lockedCard'], template: '<div class="tts-stub"></div>', methods: {nav() {}, confirm() {}, inspect() {}, cycleOwner() {}, close(done: () => void) {
+          done();
+        }}},
+      }},
+      props: {
+        card: AURORA, model: {name: AURORA, resources: 0}, available: true, options: [energyPath], preview,
+        offerEffects: effects, thisPlayer: blue, freeFleets: 1, players: [blue], viewerColor: 'blue',
+      },
+    });
+  }
+
+  let originalTranslations: unknown;
+  beforeEach(() => {
+    originalTranslations = (window as any)._translations;
+    (window as any)._translations = {};
+  });
+  afterEach(() => {
+    (window as any)._translations = originalTranslations;
+    resetFleetDockScene();
+    resetRailRewards();
+  });
+
+  it('ONE holder: the row NAMES it with its «0 → 2» and is no cursor stop; the trade commits with nothing to ask', () => {
+    const stage = mountAurora(ONE);
+    expect(stage.find('.con-fleetdock').attributes('data-fleet-dock-category')).eq('card');
+    const row = stage.find('[data-fleet-dock-target]');
+    expect(row.attributes('data-fleet-dock-target-card')).eq(AURORA);
+    expect(row.text()).to.contain('0 → 2');
+    expect(stage.vm.focusables.map((f: {zone: string}) => f.zone), 'a statement, never a stop').deep.eq(['pay']);
+    expect(stage.vm.canConfirm).is.true;
+    // The chip names where the floaters land, and the point they bring the station on its second floater.
+    const result = stage.find('[data-fleet-dock-result]').text().replace(/\s+/g, ' ');
+    expect(result).to.match(/0\s*→\s*2/);
+    expect(stage.find('[data-fleet-dock-target]').text(), 'the card is named once — by the «КУДА» row').to.contain(AURORA);
+    expect(result, 'the station\'s points, 0 → 1').to.match(/VP\s*0\s*→\s*1/);
+    stage.vm.emitConfirm();
+    const payload = stage.emitted('confirm')![0][0] as {captures: Record<number, unknown>, asksCard: boolean};
+    expect(payload.asksCard).is.true;
+    expect(Object.values(payload.captures), 'nothing to answer').deep.eq([]);
+  });
+
+  it('TWO holders: a decision — nothing pre-chosen, the trade REFUSES until a card is named; the chip says «Choose a card»', () => {
+    const stage = mountAurora(TWO);
+    const row = stage.find('[data-fleet-dock-target]');
+    expect(row.classes()).to.include('con-colfocus__steprow--missing');
+    expect(row.attributes('data-fleet-dock-target-card')).eq('');
+    expect(stage.vm.focusables.map((f: {zone: string}) => f.zone)).deep.eq(['pay', 'target']);
+    expect(stage.vm.canConfirm, 'a choice is a press').is.false;
+    expect(stage.find('[data-fleet-dock-result]').text()).to.contain('Choose a card');
+  });
+
+  it('…A on the row descends into the step; the answer is captured, the chip re-aims, and it rides the ONE POST', async () => {
+    const stage = mountAurora(TWO);
+    stage.vm.focusIdx = 1;
+    stage.vm.onPrimary();
+    await stage.vm.$nextTick();
+    expect(stage.vm.sub).eq('targets');
+    expect(stage.find('.tts-stub').exists()).is.true;
+    stage.vm.targetPicked(HABS);
+    await stage.vm.$nextTick();
+    expect(stage.vm.sub).is.undefined;
+    expect(stage.vm.canConfirm).is.true;
+    const result = stage.find('[data-fleet-dock-result]').text().replace(/\s+/g, ' ');
+    expect(result, 'Habs 1 → 3').to.match(/1\s*→\s*3/);
+    expect(result, 'and its point').to.match(/VP\s*0\s*→\s*1/);
+    stage.vm.focusIdx = 0;
+    stage.vm.emitConfirm();
+    const payload = stage.emitted('confirm')![0][0] as {steps: Array<{kind: string}>, captures: Record<number, unknown>};
+    const at = payload.steps.findIndex((s) => s.kind === 'cardTarget');
+    expect(payload.captures[at], 'the target is the batch\'s tail').eq(HABS);
+  });
+
+  it('past the commit: a card that is not the dock STANDS on the stage, frozen at its press-time count', async () => {
+    const stage = mountAurora(TWO);
+    stage.vm.targetPicked(HABS);
+    stage.vm.holdPresentation();
+    await stage.vm.$nextTick();
+    expect(armedFleetDockScene(AURORA)?.plan.target).eq(HABS);
+    const receiving = stage.find('[data-fleet-dock-receiving]');
+    expect(receiving.exists()).is.true;
+    expect(receiving.find(`[data-name="${HABS}"]`).attributes('data-res'), 'the «было» of the press').eq('1');
+    expect(stage.find('.con-fleetdock').classes()).to.include('con-fleetdock--carding');
+  });
+
+  it('past the commit: the dock receiving on its OWN face keeps the hero\'s counter frozen until the tokens land', async () => {
+    const stage = mountAurora(ONE);
+    stage.vm.holdPresentation();
+    // The answer applies: the live model already holds the two floaters.
+    await stage.setProps({model: {name: AURORA, resources: 2}});
+    expect(stage.find('[data-fleet-dock-receiving]').exists(), 'no second copy of the dock').is.false;
+    expect(stage.find('[data-fleet-dock-hero] .pcard-stub').attributes('data-res'), 'the hero still reads 0').eq('0');
+    expect(stage.find('[data-fleet-dock-hero]').attributes('data-played-key'), 'the destination ladder\'s anchor').eq(AURORA);
   });
 });

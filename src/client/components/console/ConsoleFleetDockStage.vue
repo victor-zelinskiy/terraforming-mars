@@ -18,6 +18,16 @@
     facts, named before the press) and the next step's note when the reward
     raises one. No track, no settlements, no colony income: the colony takes
     no part.
+
+    A reward that LANDS ON A CARD (TR27 Aurora Station: 2 floaters onto a Venus
+    card) names its card before the press: a «КУДА» row (the colony stage's own
+    reading — `ConsoleTradeTargetValue`) and, with several holders, the trade's
+    TARGET STEP one level deeper (`ConsoleTradeTargetStep` — the colony stage's
+    own host of the shared selector; the dock itself stands in it as «ЭТА
+    КАРТА»). The choice is a press and rides the trade's ONE POST. Past the
+    commit the receiving card stands on the stage (`ConsoleTradeReceivingCards`
+    — the colony stage's own presentation), or the tokens land on the hero
+    itself, its counter frozen until they touch down.
   -->
   <div ref="rootEl"
        class="con-fleetdock"
@@ -25,6 +35,9 @@
          'con-fleetdock--held': held !== undefined,
          'con-fleetdock--blocked': !presentAvailable,
          'con-fleetdock--leaving': cardLeaving,
+         'con-fleetdock--targeting': sub === 'targets',
+         'con-fleetdock--carding': presentedTargets.length > 0,
+         'con-fleetdock--claimed': outcomeZone && claimPresenting,
        }"
        data-unfold-surface
        :data-fleet-dock-stage="card"
@@ -39,9 +52,11 @@
            identity, whatever the subject is). -->
       <!-- The carried box is UNZOOMED (a FLIP's translate inside a CSS `zoom`
            would be scaled by it); the face inside it takes the zoom. -->
-      <div class="con-fleetdock__card" ref="cardEl" data-colony-focus-planet data-fleet-dock-hero>
+      <!-- `data-played-key`: a reward that lands on the dock ITSELF (TR27 with one holder) aims at this face's own
+           counter — the destination ladder's fleet-dock rung (`consoleResourceTransfer.targetPointFor`). -->
+      <div class="con-fleetdock__card" ref="cardEl" data-colony-focus-planet data-fleet-dock-hero :data-played-key="card">
         <div class="con-fleetdock__face" :style="{'--con-fleetdock-zoom': String(heroZoom)}">
-          <ConsoleCardFaceLite :name="card" :card="model" />
+          <ConsoleCardFaceLite :name="card" :card="heroModel" />
         </div>
       </div>
     </div>
@@ -101,6 +116,25 @@
             <div class="con-colfocus__steprow-label">{{ $t('Payment') }}</div>
             <div class="con-colfocus__steprow-value"><span>{{ paymentSummary }}</span></div>
           </div>
+          <!-- «КУДА» — the card the reward lands on. With several holders it is a decision (a cursor stop; A
+               descends into the target step, nothing pre-chosen); with one it is a statement (the holder named
+               with its «n → n + k», no stop). The colony stage's own reading. -->
+          <div v-if="targetRow !== undefined"
+               class="con-colfocus__steprow"
+               :class="{
+                 'con-colfocus__steprow--focused': focusedZone === 'target',
+                 'con-colfocus__steprow--missing': targetRow.missing,
+               }"
+               data-fleet-dock-target
+               :data-fleet-dock-target-card="targetRow.card ?? ''">
+            <div class="con-colfocus__steprow-label">{{ $t('Trade reward target') }}</div>
+            <div class="con-colfocus__steprow-value">
+              <ConsoleTradeTargetValue :iconClass="targetRow.iconClass"
+                                       :card="targetRow.card"
+                                       :impact="targetRow.impact"
+                                       :changeable="focusedZone === 'target' && targetRow.pickable && held === undefined" />
+            </div>
+          </div>
         </div>
 
         <!-- ═══ RESULT — what this trade does, from the SERVER only ═══ -->
@@ -115,6 +149,27 @@
           <div v-for="note in followUpNotes" :key="note" class="con-fleetdock__note" data-unfold-late data-fleet-dock-note>{{ $t(note) }}</div>
         </section>
       </ConsoleScrollArea>
+
+      <!-- THE TARGET STEP — one level deeper in the same flow (the colony stage's own host). -->
+      <ConsoleTradeTargetStep v-if="sub === 'targets' && targetStepModel !== undefined"
+                              ref="targetStep"
+                              :model="targetStepModel"
+                              :lockedCard="targetCapture"
+                              @pick="targetPicked($event)" />
+
+      <!-- THE RECEIVING CARD — standing before the first token leaves the dock, receiving, read; it goes with the
+           workspace (the colony stage's own presentation). Absent when the dock receives on its own face. -->
+      <ConsoleTradeReceivingCards v-if="presentedTargets.length > 0"
+                                  :targets="presentedTargets"
+                                  :landings="landings.by"
+                                  :players="players"
+                                  data-fleet-dock-receiving />
+
+      <!-- A QUESTION RE-ASKED LIVE (the pre-collected target went stale, or the tail was parked) is THIS card's —
+           its source is the dock — and it is answered here, inside the colonies workspace, never as a band over it
+           (the claim's zone — the colony stage's selector). -->
+      <section v-if="outcomeZone" class="con-fleetdock__outcome"
+               data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
     </div>
   </div>
 </template>
@@ -125,6 +180,7 @@ import {gsap} from 'gsap';
 import {useResizeObserver} from '@vueuse/core';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
@@ -147,10 +203,19 @@ import {
   TradePayEntry, TradePayRow, tradePayDisabledEntries, tradePayEntries, visibleTradePayDisabled, visibleTradePayRows,
 } from '@/client/console/colonyTrade/tradePayModel';
 import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
-import {fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan, tradeKnownRailMoves} from '@/client/console/colonyTrade/fleetDockModel';
 import {
-  armFleetDockScene, disarmFleetDockScene, fleetDockRewardKey, fleetDockSceneState, setFleetDockScenePhase, setFleetDockStageCard,
-  endFleetDockScene,
+  fleetDockCardTarget, FleetDockCardTarget, fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan, printedRewardUnits, tradeKnownRailMoves,
+} from '@/client/console/colonyTrade/fleetDockModel';
+import {
+  ColonyTradePresentedTarget, buildColonyTradeTargetModel, openTradeTargetFocus, presentedTargetModel,
+} from '@/client/console/colonyTrade/colonyTradeTargetStep';
+import {PlayedTargetModel} from '@/client/console/played/consolePlayedTargetModel';
+import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {
+  armFleetDockScene, armedFleetDockScene, disarmFleetDockScene, fleetDockRewardKey, fleetDockSceneState, setFleetDockScenePhase,
+  setFleetDockStageCard, endFleetDockScene,
 } from '@/client/console/colonyTrade/fleetDockScene';
 import {flyRailReward, railRewardState} from '@/client/console/resourceTransfer/railReward';
 import {reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
@@ -166,6 +231,9 @@ import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel
 import ConsoleTradePayRows from '@/client/components/console/ConsoleTradePayRows.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
+import ConsoleTradeTargetStep from '@/client/components/console/ConsoleTradeTargetStep.vue';
+import ConsoleTradeTargetValue from '@/client/components/console/ConsoleTradeTargetValue.vue';
+import ConsoleTradeReceivingCards from '@/client/components/console/ConsoleTradeReceivingCards.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -186,19 +254,32 @@ const DOCK_READ_MS = 680;
 /** The card's departure beat (the colony stage's CARDLAND_LEAVE_MS). */
 const DOCK_LEAVE_MS = 300;
 
-type Zone = 'pay' | 'payment';
+type Zone = 'pay' | 'payment' | 'target';
 type Focusable = {zone: Zone, index: number};
 type HeldView = {entry: TradePayEntry | undefined};
+/** The «КУДА» row's reading. */
+type TargetRow = {card: string | undefined, impact: string, iconClass: string, pickable: boolean, missing: boolean};
+/** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
+type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void, close: (done: () => void) => void};
 
 export type FleetDockConfirmPayload = {
   paymentIndex: number,
   steps: ReadonlyArray<TradeStep>,
   captures: Readonly<Record<number, unknown>>,
+  /**
+   * The reward lands on a CARD (a card target in the preview): the shell claims
+   * the trade's `pick` for the colonies workspace, so a question re-asked live
+   * stands inside it — never as a band over it.
+   */
+  asksCard: boolean,
 };
 
 export default defineComponent({
   name: 'ConsoleFleetDockStage',
-  components: {ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite, ConsoleForecastReactions},
+  components: {
+    ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite, ConsoleForecastReactions,
+    ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards,
+  },
   props: {
     card: {type: String as PropType<CardName>, required: true},
     /** The live model from the viewer's tableau (its face carries the fleet mark). */
@@ -223,13 +304,26 @@ export default defineComponent({
      * no payment paths to compose, A answers the destination alone.
      */
     pickMode: {type: Boolean, default: false},
+    /** Every player — owners for the target step, and the live models of a receiving card. */
+    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+    /** The colonies workspace hosts a claimed follow-up — the zone a re-asked question is teleported into. */
+    outcomeZone: {type: Boolean, default: false},
   },
   emits: ['confirm', 'cancel', 'inspect', 'flow-complete'],
   data() {
     return {
       payIdx: 0,
       focusIdx: 0,
-      sub: undefined as 'lanes' | 'mix' | undefined,
+      sub: undefined as 'lanes' | 'mix' | 'targets' | undefined,
+      /** The card the player CHOSE for the reward ('' = none — a choice is a press, never seeded). */
+      targetCapture: '',
+      /** Past the commit: the receiving card as chosen AT THE PRESS ('' when the dock pays no card). */
+      heldTarget: '',
+      /** Past the commit: the viewer's card counters as they stood AT THE PRESS — the frozen «было» of a receiving card. */
+      heldCounts: {} as Record<string, number>,
+      landings: cardResourceLandings,
+      outcome: workspaceOutcomeState,
       subIdx: 0,
       steelMixPreference: 0,
       mixFlashNonce: 0,
@@ -291,6 +385,107 @@ export default defineComponent({
     paymentStep(): Extract<TradeStep, {kind: 'payment'}> | undefined {
       const step = this.steps.find((s) => s.kind === 'payment');
       return step?.kind === 'payment' ? step : undefined;
+    },
+    /** The reward's card target as the server's preview states it (absent = the reward lands on no card). */
+    cardTarget(): FleetDockCardTarget | undefined {
+      return fleetDockCardTarget(this.preview?.followUps);
+    },
+    /** The target STEP — present only when the server will ASK (several holders; one holder is named, not asked). */
+    targetStep(): Extract<TradeStep, {kind: 'cardTarget'}> | undefined {
+      const step = this.steps.find((s) => s.kind === 'cardTarget');
+      return step?.kind === 'cardTarget' ? step : undefined;
+    },
+    targetIcon(): string {
+      const resource = this.cardTarget?.resource;
+      return resource === undefined ? '' : cardResourceKey(resource);
+    },
+    /**
+     * THE CARD THAT RECEIVES — past the commit, the card the paying response named (else the press-time choice);
+     * before it, the player's own choice (a choice is a press: nothing is pre-selected), or the one holder the
+     * server names when there is no choice to make.
+     */
+    chosenTarget(): string | undefined {
+      if (this.held !== undefined) {
+        const named = this.scene.card === this.card && this.scene.target !== '' ? this.scene.target : this.heldTarget;
+        return named !== '' ? named : undefined;
+      }
+      if (this.targetStep !== undefined) {
+        return this.targetCapture !== '' ? this.targetCapture : undefined;
+      }
+      return this.cardTarget !== undefined && !this.cardTarget.lost ? this.cardTarget.auto : undefined;
+    },
+    /** The «КУДА» row — undefined when the reward lands on no card. */
+    targetRow(): TargetRow | undefined {
+      const target = this.cardTarget;
+      if (target === undefined || target.lost) {
+        return undefined;
+      }
+      const card = this.chosenTarget;
+      const before = card === undefined ? 0 : this.countOf(card);
+      return {
+        card,
+        impact: card === undefined ? '' : `${before} → ${before + target.amount}`,
+        iconClass: this.targetIcon === '' ? '' : payIconClass(this.targetIcon),
+        pickable: this.targetStep !== undefined,
+        missing: this.targetStep !== undefined && card === undefined,
+      };
+    },
+    /**
+     * THE STEP'S MODEL — the colony stage's own translation of the trade step (`buildColonyTradeTargetModel`),
+     * with the two things only this stage has: its hero is a card that is itself a candidate («ЭТА КАРТА»), and
+     * each candidate reads what the floaters do to its points.
+     */
+    targetStepModel(): PlayedTargetModel | undefined {
+      const step = this.targetStep;
+      if (step === undefined || this.viewerColor === undefined) {
+        return undefined;
+      }
+      return buildColonyTradeTargetModel({
+        step,
+        ask: textOf(step.pick.title) || translateText('Choose a card'),
+        players: this.players,
+        viewerColor: this.viewerColor,
+        typeOf: (name) => getCard(name)?.type,
+        resourceOf: (name) => getCard(name)?.resourceType,
+        sourceCardName: this.card,
+        victoryPoints: true,
+      });
+    },
+    /** The units the reward lays on its card (the plan's own tokens, summed). */
+    rewardUnits(): number {
+      return this.presentPlan.specs.filter((spec) => spec.channel === 'card-resource').reduce((sum, spec) => sum + spec.amount, 0);
+    },
+    /** A follow-up embedded in the colonies' zone is ON SCREEN (a question re-asked live). */
+    claimPresenting(): boolean {
+      return this.outcome.host === 'colonies' && this.outcome.stage === 'presenting';
+    },
+    /**
+     * THE RECEIVING CARD on the stage, past the commit — standing before the first token leaves the dock, frozen
+     * at its press-time count. None when the dock receives on its own face, and none while a re-asked question
+     * stands in the zone (the card it names is not decided yet).
+     */
+    presentedTargets(): ReadonlyArray<ColonyTradePresentedTarget> {
+      const target = this.chosenTarget;
+      if (this.held === undefined || this.presentPlan.category !== 'card' || target === undefined || target === this.card || this.claimPresenting) {
+        return [];
+      }
+      return [{
+        card: target as CardName,
+        role: 'tradeReward',
+        icon: this.presentPlan.firstResource ?? '',
+        amount: this.rewardUnits,
+        before: this.heldCounts[target] ?? 0,
+      }];
+    },
+    /** The hero's face: FROZEN at its press-time count while its own counter is the one receiving (TR27 with one holder). */
+    heroModel(): CardModel | undefined {
+      if (this.held === undefined || this.presentPlan.category !== 'card' || this.chosenTarget !== this.card) {
+        return this.model;
+      }
+      return presentedTargetModel(
+        {card: this.card, role: 'tradeReward', icon: this.presentPlan.firstResource ?? '', amount: this.rewardUnits, before: this.heldCounts[this.card] ?? 0},
+        this.model,
+        this.landings.by[this.card] ?? 0);
     },
     payLanes(): ReadonlyArray<PaymentLane> {
       const step = this.paymentStep;
@@ -371,6 +566,9 @@ export default defineComponent({
       if (this.paymentStep !== undefined) {
         out.push({zone: 'payment', index: 0});
       }
+      if (this.targetStep !== undefined) {
+        out.push({zone: 'target', index: 0});
+      }
       return out;
     },
     focused(): Focusable | undefined {
@@ -385,6 +583,11 @@ export default defineComponent({
     /** Every decision is in and the server offers the trade. */
     canConfirm(): boolean {
       if (this.held !== undefined || !this.available) {
+        return false;
+      }
+      // A CHOICE IS A PRESS: with several holders the trade waits for the card to be named (a card door's bare
+      // pick too — its fee was the card's, its reward is still this one).
+      if (this.targetStep !== undefined && this.targetCapture === '') {
         return false;
       }
       if (this.pickMode) {
@@ -403,9 +606,15 @@ export default defineComponent({
       if (this.sub === 'mix') {
         return {label: 'Trade', enabled: this.canConfirm, commits: true};
       }
+      if (this.sub === 'targets') {
+        return {label: 'Select', enabled: true, commits: false};
+      }
       const focused = this.focused;
       if (focused?.zone === 'payment') {
         return {label: 'Select', enabled: this.payLanes.length > 0, commits: false};
+      }
+      if (focused?.zone === 'target') {
+        return {label: 'Select', enabled: this.targetStepModel !== undefined, commits: false};
       }
       if (focused?.zone === 'pay' && focused.index !== this.payIdx) {
         return {label: 'Select', enabled: true, commits: false};
@@ -417,7 +626,7 @@ export default defineComponent({
       if (this.heldChips !== undefined) {
         return this.heldChips;
       }
-      const effects = this.preview?.effects ?? this.offerEffects;
+      const effects = this.cardEffects(this.preview?.effects ?? this.offerEffects);
       const fleet: ActionEffect = {
         direction: 'cost',
         icon: TRADE_FLEET_ICON,
@@ -437,7 +646,11 @@ export default defineComponent({
     },
     /** The scene this trade will play — its reward's category, read off the server's preview (never off the card). */
     scenePlan(): FleetDockScenePlan {
-      return fleetDockScenePlan(this.preview);
+      const target = this.cardTarget;
+      return fleetDockScenePlan(this.preview, target === undefined ? undefined : {
+        target: this.chosenTarget as CardName | undefined,
+        tokens: printedRewardUnits(fleetDockEffectNode(getCard(this.card)?.metadata.renderData), target.resource, target.amount),
+      });
     },
     /** Past the commit the plan is the PINNED one: the answer re-prices the preview under the scene. */
     presentPlan(): FleetDockScenePlan {
@@ -473,6 +686,21 @@ export default defineComponent({
     },
     sub(): void {
       this.syncUiMirror();
+      // The step is one level DEEPER in the same flow — only the crumb's tail advances, and B walks it back.
+      setColonyFocusStage(this.sub === 'targets' ? 'Reward target' : 'Trading');
+    },
+    // A fresh preview re-judges the choice: a card no longer offered is dropped (the row asks again), a step that
+    // vanished folds the target step back.
+    targetStep(step: Extract<TradeStep, {kind: 'cardTarget'}> | undefined): void {
+      if (this.held !== undefined) {
+        return;
+      }
+      if (this.targetCapture !== '' && (step === undefined || !step.pick.cards.some((c) => c.name === this.targetCapture))) {
+        this.targetCapture = '';
+      }
+      if (step === undefined && this.sub === 'targets') {
+        this.sub = undefined;
+      }
     },
     isMcSelected(): void {
       this.seedPaymentDefault();
@@ -538,6 +766,10 @@ export default defineComponent({
       }
     },
     onNav(dir: NavDirection): void {
+      if (this.sub === 'targets') {
+        this.targetHost()?.nav(dir);
+        return;
+      }
       if (this.sub === 'lanes') {
         if (dir === 'up' || dir === 'down') {
           this.subIdx = Math.min(this.payLanes.length - 1, Math.max(0, this.subIdx + (dir === 'down' ? 1 : -1)));
@@ -579,6 +811,18 @@ export default defineComponent({
       }
     },
     onPress(action: ConsoleAction): void {
+      // THE TARGET STEP SPEAKS THE SHARED SELECTOR'S GRAMMAR — A chooses, X inspects the focused candidate, LB/RB
+      // the owner axis, B one level back with the previous choice intact.
+      if (this.sub === 'targets') {
+        switch (action) {
+        case 'primary': this.targetHost()?.confirm(); return;
+        case 'inspect': this.targetHost()?.inspect(); return;
+        case 'prevSection': this.targetHost()?.cycleOwner(-1); return;
+        case 'nextSection': this.targetHost()?.cycleOwner(1); return;
+        case 'back': this.closeTargetStep(); return;
+        default: return;
+        }
+      }
       switch (action) {
       case 'primary':
         this.onPrimary();
@@ -638,6 +882,10 @@ export default defineComponent({
         }
         return;
       }
+      if (focused?.zone === 'target') {
+        this.openTargetStep();
+        return;
+      }
       if (focused?.zone === 'pay' && focused.index !== this.payIdx && this.lockedPayIdx < 0) {
         this.payIdx = focused.index;
         return;
@@ -661,9 +909,14 @@ export default defineComponent({
           }
         } else if (step.kind === 'energyMix') {
           captures[i] = this.tradeSteelMix;
+        } else if (step.kind === 'cardTarget' && this.targetCapture !== '') {
+          captures[i] = this.targetCapture;
         }
       });
-      const payload: FleetDockConfirmPayload = {paymentIndex: this.payIdx, steps: this.steps, captures};
+      const payload: FleetDockConfirmPayload = {
+        paymentIndex: this.payIdx, steps: this.steps, captures,
+        asksCard: this.cardTarget !== undefined && !this.cardTarget.lost,
+      };
       this.$emit('confirm', payload);
     },
     /**
@@ -684,9 +937,19 @@ export default defineComponent({
       const known = tradeKnownRailMoves({
         option: this.pickMode ? undefined : this.options[this.payIdx], payment: paid, mix, flatBonuses: this.preview?.flatBonuses,
       });
+      // The receiving card and every counter as they stand AT THE PRESS — read before `held` flips the readings.
+      const target = this.chosenTarget ?? '';
+      const counts: Record<string, number> = {};
+      for (const model of this.thisPlayer?.tableau ?? []) {
+        counts[model.name] = model.resources ?? 0;
+      }
+      const plan = this.scenePlan;
+      const chips = this.resultChips;
+      this.heldTarget = target;
+      this.heldCounts = counts;
       this.held = {entry: entry === undefined ? undefined : (mix !== undefined ? {...entry, mix} : entry)};
-      this.heldChips = this.resultChips;
-      this.heldPlan = this.scenePlan;
+      this.heldChips = chips;
+      this.heldPlan = plan;
       this.heldReaction = this.presentReaction;
       armFleetDockScene({card: this.card, plan: this.heldPlan, known});
       this.sub = undefined;
@@ -695,11 +958,89 @@ export default defineComponent({
     /** A refused submit gives the stage back as it was (the fleet returns to its pad). */
     releasePresentation(): void {
       this.held = undefined;
+      this.heldTarget = '';
+      this.heldCounts = {};
       this.heldChips = undefined;
       this.heldPlan = undefined;
       this.heldReaction = undefined;
       disarmFleetDockScene(this.card);
       this.syncUiMirror();
+    },
+    /** A card's counter: frozen at the press past the commit; before it, the pick's own reading, else the viewer's tableau. */
+    countOf(name: string): number {
+      if (this.held !== undefined) {
+        return this.heldCounts[name] ?? 0;
+      }
+      const fromPick = this.targetStep?.pick.cards.find((c) => c.name === name);
+      if (fromPick !== undefined) {
+        return fromPick.resources ?? 0;
+      }
+      if (name === this.card) {
+        return this.model?.resources ?? 0;
+      }
+      return this.thisPlayer?.tableau.find((c) => c.name === name)?.resources ?? 0;
+    },
+    /**
+     * THE RESULT, card by card: the server's «+2 [floater] на карту» chip names WHERE it lands — the chosen card
+     * with its own «n → n + 2» (re-aimed with the choice; «выберите карту», with no number, before one is made)
+     * and, when the move shifts that card's points, its «ПО from → to» beside it (the server's per-unit reading).
+     */
+    cardEffects(effects: ReadonlyArray<ActionEffect>): ReadonlyArray<ActionEffect> {
+      const target = this.cardTarget;
+      if (target === undefined || target.lost) {
+        return effects;
+      }
+      const out: Array<ActionEffect> = [];
+      for (const effect of effects) {
+        if (effect.direction !== 'gain' || effect.note !== 'to a card' || effect.icon !== this.targetIcon) {
+          out.push(effect);
+          continue;
+        }
+        const card = this.chosenTarget;
+        if (card === undefined) {
+          out.push({direction: 'gain', icon: effect.icon, amount: effect.amount, note: 'Choose a card'});
+          continue;
+        }
+        const before = this.countOf(card);
+        // The card is named by the «КУДА» row right above (a chip note is lowercase type — never a proper name).
+        out.push({direction: 'gain', icon: effect.icon, amount: effect.amount, current: before, resulting: before + effect.amount, note: 'to a card'});
+        const steps = target.vpSteps?.[card as CardName];
+        const last = steps?.[Math.max(0, Math.min(steps.length, target.amount) - 1)];
+        if (last !== undefined && last.to !== last.from) {
+          out.push({direction: 'gain', icon: 'vp', amount: last.to - last.from, current: last.from, resulting: last.to});
+        }
+      }
+      return out;
+    },
+    targetHost(): TradeTargetStepHandle | undefined {
+      return this.$refs.targetStep as TradeTargetStepHandle | undefined;
+    },
+    /** DESCEND into the target step — the cursor on the chosen card (a re-entry), else the first seat. */
+    openTargetStep(): void {
+      if (openTradeTargetFocus(this.targetStepModel, this.targetCapture) === undefined) {
+        return;
+      }
+      this.sub = 'targets';
+    },
+    /** B — one level back; the choice made before stands. */
+    closeTargetStep(): void {
+      const drop = (): void => {
+        if (this.sub === 'targets') {
+          this.sub = undefined;
+        }
+        this.scrollFocusedIntoView();
+      };
+      const host = this.targetHost();
+      if (host !== undefined) {
+        host.close(drop);
+      } else {
+        drop();
+      }
+    },
+    /** The step's answer: the capture rides the trade's ONE POST (`{type: 'card', cards: [name]}`). */
+    targetPicked(card: string): void {
+      this.targetCapture = card;
+      this.closeTargetStep();
     },
     scrollFocusedIntoView(): void {
       void this.$nextTick(() => {
@@ -760,7 +1101,9 @@ export default defineComponent({
       }
       setFleetDockScenePhase('reward');
       const node = fleetDockEffectNode(getCard(this.card)?.metadata.renderData);
-      const origins = cardEl === undefined ? [] : resolveGainIconOrigins(resolveActionCommitAnchors(cardEl, node), plan.specs);
+      // The flights are the ARMED plan's (re-aimed at the card the paying response named) — one origin per token.
+      const flown = armedFleetDockScene(this.card)?.plan ?? plan;
+      const origins = cardEl === undefined ? [] : resolveGainIconOrigins(resolveActionCommitAnchors(cardEl, node), flown.specs);
       return flyRailReward(fleetDockRewardKey(this.card), (_spec, index) => origins[index]);
     },
     readScene(): void {
@@ -771,7 +1114,7 @@ export default defineComponent({
       this.sceneWait(DOCK_READ_MS, () => {
         // A reward that is AHEAD needs the screen: the card departs first, as a beat of its own. A reward
         // delivered on the rail leaves nothing to make room for — the card goes WITH the workspace.
-        if (this.presentPlan.category === 'rail') {
+        if (this.presentPlan.category === 'rail' || this.presentPlan.category === 'card') {
           this.concludeScene();
         } else {
           this.leaveScene();

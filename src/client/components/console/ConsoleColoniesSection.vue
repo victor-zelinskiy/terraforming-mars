@@ -443,6 +443,9 @@
                                  :thisPlayer="thisPlayer"
                                  :freeFleets="viewerFreeFleets"
                                  :pickMode="pick !== undefined"
+                                 :players="players"
+                                 :viewerColor="viewerColor"
+                                 :outcomeZone="focusOutcomeZone"
                                  @confirm="$emit('dock-confirm', $event)"
                                  @inspect="$emit('dock-inspect', focusDockView.card)"
                                  @flow-complete="$emit('dock-flow-complete', $event)"
@@ -2264,6 +2267,13 @@ export default defineComponent({
       // (`cardSceneLive`, released by its own landing + read beat, with its
       // own bounded net), and the completion re-runs on that falling edge.
       if (this.completeTimer !== undefined || workspaceOutcomeClaimed() || this.resolutionUi.cardSceneLive) {
+        return;
+      }
+      // A FLEET DOCK's trade owns its own ending: the dock's scene answers, reads and concludes the workspace
+      // through the shell's ONE guarded conclusion (`onFleetDockFlowComplete`). A dock whose reward lands on a card
+      // claims its `pick` (TR27), and that claim's release a tick after the answer used to fold the stage HERE —
+      // mid-impulse, before a single token had left the card.
+      if (this.focusState.dock !== '') {
         return;
       }
       // A CHOSEN TRACK's move (TR07) owns its own ending: the STAGED door ends with the play (the shell's
