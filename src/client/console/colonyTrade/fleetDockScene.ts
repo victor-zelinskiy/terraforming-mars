@@ -1,39 +1,61 @@
 /*
  * THE FLEET-DOCK SCENE — what happens between the fleet's touchdown on a dock
- * CARD and the clean board the reward is placed on (Turmoil Redux TR06 Water
- * Hauling: the trade's reward is an OCEAN, i.e. a board placement).
+ * CARD and the end of the trade's flow (Turmoil Redux TR06 Water Hauling,
+ * TR26 UNMI Liner, TR27 Aurora Station — `docs/TURMOIL_REDUX_WATER_HAULING.md`).
  *
- * A colony trade resolves ON its stage and the colonies fold back; a dock trade
- * ends in a PLACEMENT, and a placement admitted the instant the view applies
- * would rise under a workspace still standing on screen — the card never
- * answering, the screen cut to the board. So the scene is a BLOCKING animation
- * hold (`'trade-fleet-dock'`), seeded in the very block that applies the view
- * (`gameTransport.seedRewardHolds` — and only while the dock's stage stands,
- * since nobody else would play it), and the placement's admission waits on it:
+ * ONE phrase for every dock, with ONE slot whose content the reward's CATEGORY
+ * decides. The category is read off the server's own preview of the trade
+ * (`fleetDockModel.fleetDockScenePlan` — its chips and its follow-ups, pinned
+ * at the commit boundary), never off the card's name:
  *
- *   ANSWER   — the impulse runs the card's printed «▲ : [ocean]» and the ocean
- *              icon answers once (the action-commit language). The ocean is NOT
- *              shown placed — it is ahead;
+ *   ANSWER   — the impulse runs the card's printed «▲ : [reward]» and the
+ *              reward's icon answers once (the action-commit language);
+ *   REWARD   — the slot.
+ *              · `rail` (UNMI Liner's +1 TR): the reward has arrived with
+ *                the answer — its rail-bound gains are the plan's `specs`;
+ *              · `placement` (Water Hauling's ocean): EMPTY. The reward is
+ *                ahead, on the board, and is NOT shown placed;
  *   READ     — a short read (the colony stage's own CARDLAND read);
- *   LEAVE    — the card departs as a BEAT (the fleet mark rides away with it);
+ *   LEAVE    — `placement` only: the card departs as a BEAT of its own (the
+ *              fleet mark rides away with it), freeing the screen the
+ *              placement is about to take. A `rail` reward has been delivered
+ *              in full: the card stays where its token left it and goes WITH
+ *              the workspace;
  *   CONCLUDE — the workspace leaves as ONE surface through the shell's ONE
- *              guarded conclusion, and the hold is released by the END OF THAT
- *              LEAVE: the workspace's own root element leaving the document.
+ *              guarded conclusion, and the scene's hold is released by the END
+ *              OF THAT LEAVE: the workspace's own root leaving the document.
  *
- * The stage plays the beats; this module owns the hold, its phase and its
- * release. Interruptions (the stage unmounting mid-scene, the world moving)
- * release at once — the placement is server state and is never lost; the
- * registry ceiling is the one net (`expire` ends the wedge, `diagnose` names it).
+ * WHY A HOLD. A colony trade resolves ON its stage and the colonies fold back;
+ * a dock trade ends its flow, and whatever the same response raised — the
+ * ocean's placement, the next prompt, the notification of the trade — admitted
+ * the instant the view applies would rise under a workspace still standing on
+ * screen: the card never answering, the screen cut. So the scene is a BLOCKING
+ * animation hold (`'trade-fleet-dock'`), seeded in the very block that applies
+ * the view (`gameTransport.seedRewardHolds`) and ONLY while the dock's own
+ * stage stands — a scene nobody will play is a hold nobody releases.
+ *
+ * The stage plays the beats; this module owns the hold, its phase, the plan
+ * the stage armed and their release. Interruptions (the stage unmounting
+ * mid-scene, the world moving) release at once — a placement is server state
+ * and is never lost; the registry ceiling is the one net (`expire` ends the
+ * wedge, `diagnose` names it).
  */
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {FleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
 
-export type FleetDockScenePhase = 'idle' | 'seeded' | 'answer' | 'read' | 'leave' | 'conclude';
+export type FleetDockScenePhase = 'idle' | 'seeded' | 'answer' | 'reward' | 'read' | 'leave' | 'conclude';
+
+/** What the stage pinned at the commit boundary: the scene's plan. */
+export type ArmedFleetDockScene = {
+  card: CardName;
+  plan: FleetDockScenePlan;
+};
 
 export const fleetDockSceneState = reactive({
-  /** The hold stands (the placement waits). */
+  /** The hold stands (whatever the response raised waits). */
   holding: false,
   /** The dock card the scene plays on. */
   card: '' as CardName | '',
@@ -44,6 +66,7 @@ export const fleetDockSceneState = reactive({
   lastEnd: '',
 });
 
+let armed: ArmedFleetDockScene | undefined;
 let detachObserver: MutationObserver | undefined;
 
 function stopWatchingDetach(): void {
@@ -54,6 +77,27 @@ function stopWatchingDetach(): void {
 /** The dock stage registers itself while it stands ('' on unmount). */
 export function setFleetDockStageCard(card: CardName | ''): void {
   fleetDockSceneState.stageCard = card;
+}
+
+/**
+ * ARM — the stage's commit boundary (the shell accepted the confirm): the plan
+ * of the scene as priced AT THE PRESS. The answer re-prices everything under
+ * the scene, so nothing is read later.
+ */
+export function armFleetDockScene(scene: ArmedFleetDockScene): void {
+  armed = scene;
+}
+
+/** A refused submit (or a stage that left before the answer): the plan is void. */
+export function disarmFleetDockScene(card?: CardName | ''): void {
+  if (card === undefined || armed?.card === card) {
+    armed = undefined;
+  }
+}
+
+/** The plan the stage armed for `card`, if any (the scene reads its category from it). */
+export function armedFleetDockScene(card: CardName | ''): ArmedFleetDockScene | undefined {
+  return armed !== undefined && armed.card === card ? armed : undefined;
 }
 
 /**
@@ -79,16 +123,18 @@ export function setFleetDockScenePhase(phase: FleetDockScenePhase): void {
   }
 }
 
-/** END — the hold falls and the placement is admitted. Idempotent. */
+/** END — the hold falls and whatever waited is admitted. Idempotent. */
 export function endFleetDockScene(reason: string): void {
   stopWatchingDetach();
   if (!fleetDockSceneState.holding && fleetDockSceneState.phase === 'idle') {
     return;
   }
+  const card = fleetDockSceneState.card;
   fleetDockSceneState.holding = false;
   fleetDockSceneState.phase = 'idle';
   fleetDockSceneState.card = '';
   fleetDockSceneState.lastEnd = reason;
+  disarmFleetDockScene(card);
 }
 
 /**
@@ -116,13 +162,17 @@ export function releaseFleetDockHoldWhenGone(root: Element | null | undefined): 
 }
 
 registerAnimationHoldSupplier('trade-fleet-dock', () => fleetDockSceneState.holding, {
-  diagnose: () => ({card: fleetDockSceneState.card, phase: fleetDockSceneState.phase, stage: fleetDockSceneState.stageCard}),
+  diagnose: () => ({
+    card: fleetDockSceneState.card, phase: fleetDockSceneState.phase, stage: fleetDockSceneState.stageCard,
+    category: armedFleetDockScene(fleetDockSceneState.card)?.plan.category,
+  }),
   expire: () => endFleetDockScene('expired'),
 });
 
 /** Test-only reset. */
 export function resetFleetDockScene(): void {
   stopWatchingDetach();
+  armed = undefined;
   fleetDockSceneState.holding = false;
   fleetDockSceneState.card = '';
   fleetDockSceneState.phase = 'idle';

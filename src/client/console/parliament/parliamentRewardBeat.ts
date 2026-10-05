@@ -54,15 +54,15 @@ import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
 import {RewardDelivery, rewardAddressOf} from '@/common/parliament/rewardAddress';
-import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {beginPanelRewardHold, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
 
-/** The rail's key for the terraform rating (the score cell) — the ONE key the transfer layer, the panel and the seeder share. */
-export const RATING_RAIL_KEY = 'rating';
+/** The rail's key for the terraform rating (the score cell) — the transfer model's own (`resourceTransferModel.ts`), re-exported for the parliament's seeders. */
+export {RATING_RAIL_KEY};
 
 /** THE REASONS a stage ends with holds still standing — every release names one (the trail reads it). */
 export type RewardReleaseReason = 'board' | 'close' | 'collapse' | 'unmount' | 'stage-settled' | 'ceiling' | 'new-sitting' | 'reset' | 'no-glide' | 'unmeasurable-step' | 'stage-finished' | 'landed' | 're-seed';

@@ -154,6 +154,22 @@ export function buildNotices(preview: ColonyTradePreviewModel | undefined): Arra
   return followUpNotices(preview?.buildFollowUps ?? []);
 }
 
+/**
+ * The «after confirming» lines of a follow-up list, as English i18n keys —
+ * the ONE table (`NOTE_TEXT`) behind every stage that names what a trade
+ * raises next: the colony stage's notices and the fleet-dock stage's note. A
+ * stage that kept its own copy of one row is how the two would drift.
+ */
+export function afterConfirmNotes(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Array<string> {
+  const notes: Array<string> = [];
+  for (const notice of followUpNotices(followUps)) {
+    if (notice.kind === 'afterConfirm') {
+      notes.push(notice.note);
+    }
+  }
+  return notes;
+}
+
 function followUpNotices(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Array<TradeNotice> {
   const notices: Array<TradeNotice> = [];
   for (const followUp of followUps) {

@@ -26,6 +26,7 @@
        }"
        data-unfold-surface
        :data-fleet-dock-stage="card"
+       :data-fleet-dock-category="presentPlan.category"
        :data-fleet-dock-scene="scene.phase">
     <span class="con-fleetdock__edge" data-unfold-edge aria-hidden="true"></span>
 
@@ -105,7 +106,7 @@
           <div class="con-fleetdock__chips" data-unfold-late>
             <ActionEffectChip v-for="(chip, i) in resultChips" :key="'e' + i" :effect="chip" />
           </div>
-          <div v-if="followUpNote !== ''" class="con-fleetdock__note" data-unfold-late data-fleet-dock-note>{{ $t(followUpNote) }}</div>
+          <div v-for="note in followUpNotes" :key="note" class="con-fleetdock__note" data-unfold-late data-fleet-dock-note>{{ $t(note) }}</div>
         </section>
       </ConsoleScrollArea>
     </div>
@@ -134,14 +135,14 @@ import {
   paymentLanes, megacreditsAvailable, paymentFromCounts, initialCounts, dialLaneCount,
   buildPaymentView, buildEnergyMixView, clampEnergyMixSteel, editableRows, PaymentLane, PaymentView,
 } from '@/client/console/paymentPlan';
-import {tradeSteps, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {afterConfirmNotes, tradeSteps, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {
   TradePayEntry, TradePayRow, tradePayDisabledEntries, tradePayEntries, visibleTradePayDisabled, visibleTradePayRows,
 } from '@/client/console/colonyTrade/tradePayModel';
 import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
-import {fleetDockEffectNode} from '@/client/console/colonyTrade/fleetDockModel';
+import {fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
 import {
-  fleetDockSceneState, setFleetDockScenePhase, setFleetDockStageCard, endFleetDockScene,
+  armFleetDockScene, disarmFleetDockScene, fleetDockSceneState, setFleetDockScenePhase, setFleetDockStageCard, endFleetDockScene,
 } from '@/client/console/colonyTrade/fleetDockScene';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {runActionCommitMotion, ActionCommitMotionHandle} from '@/client/console/consoleActionCommitMotion';
@@ -225,6 +226,8 @@ export default defineComponent({
       held: undefined as HeldView | undefined,
       /** The pinned result chips (the answer re-prices the reward under the scene). */
       heldChips: undefined as ReadonlyArray<ActionEffect> | undefined,
+      /** The pinned plan of the scene — the reward's category as the server's preview stated it AT THE PRESS. */
+      heldPlan: undefined as FleetDockScenePlan | undefined,
       heroZoom: 1,
       cardLeaving: false,
       scene: fleetDockSceneState,
@@ -403,13 +406,21 @@ export default defineComponent({
       };
       return [...effects, fleet];
     },
-    /** The reward's next step («После подтверждения: тайл океана на поле») — the server's own note. */
-    followUpNote(): string {
-      const notes = (this.preview?.followUps ?? []).filter((f) => f.kind === 'note');
-      if (notes.some((n) => n.kind === 'note' && n.note === 'placeOcean')) {
-        return 'After confirming: place an ocean tile';
-      }
-      return '';
+    /**
+     * What the reward raises AFTER the confirm («После подтверждения: тайл океана на поле») — the server's own
+     * follow-ups through the ONE table of their lines (`colonyTradePlan.afterConfirmNotes`). A reward that
+     * raises nothing (a plain gain) has no line, and the block above it stands exactly where it stood.
+     */
+    followUpNotes(): Array<string> {
+      return afterConfirmNotes(this.preview?.followUps ?? []);
+    },
+    /** The scene this trade will play — its reward's category, read off the server's preview (never off the card). */
+    scenePlan(): FleetDockScenePlan {
+      return fleetDockScenePlan(this.preview);
+    },
+    /** Past the commit the plan is the PINNED one: the answer re-prices the preview under the scene. */
+    presentPlan(): FleetDockScenePlan {
+      return this.heldPlan ?? this.scenePlan;
     },
     /**
      * The scene may start: the hold stands — seeded in the very block that applied the view, i.e. the
@@ -633,6 +644,8 @@ export default defineComponent({
       const mix = this.payRowMix;
       this.held = {entry: entry === undefined ? undefined : (mix !== undefined ? {...entry, mix} : entry)};
       this.heldChips = this.resultChips;
+      this.heldPlan = this.scenePlan;
+      armFleetDockScene({card: this.card, plan: this.heldPlan});
       this.sub = undefined;
       this.syncUiMirror();
     },
@@ -640,6 +653,8 @@ export default defineComponent({
     releasePresentation(): void {
       this.held = undefined;
       this.heldChips = undefined;
+      this.heldPlan = undefined;
+      disarmFleetDockScene(this.card);
       this.syncUiMirror();
     },
     scrollFocusedIntoView(): void {
@@ -662,16 +677,19 @@ export default defineComponent({
       const zoom = Math.min(w / CARD_W, h / CARD_H);
       this.heroZoom = Math.max(0.3, Math.round(zoom * 1000) / 1000);
     },
-    // ── THE SCENE (`fleetDockScene.ts`) — the card answers, reads, leaves ──
+    // ── THE SCENE (`fleetDockScene.ts`) — ANSWER → REWARD → READ → LEAVE → CONCLUDE, the slot by category ──
     playScene(): void {
       const cardEl = this.$refs.cardEl as HTMLElement | undefined;
+      const plan = this.presentPlan;
       setFleetDockScenePhase('answer');
       const node = fleetDockEffectNode(getCard(this.card)?.metadata.renderData);
       this.sceneMotion = runActionCommitMotion({
         cardWrapEl: cardEl ?? undefined,
         ctaEl: undefined,
         actionNode: node,
-        kind: 'global',
+        // Where the impulse lands follows from the reward (the printed parameter, the printed resource) — never a literal.
+        kind: plan.answer,
+        firstResource: plan.firstResource,
         onSettled: () => {
           this.sceneMotion = undefined;
           this.readScene();
@@ -685,7 +703,13 @@ export default defineComponent({
       setFleetDockScenePhase('read');
       this.sceneTimer = window.setTimeout(() => {
         this.sceneTimer = undefined;
-        this.leaveScene();
+        // A reward that is AHEAD needs the screen: the card departs first, as a beat of its own. A reward
+        // delivered on the rail leaves nothing to make room for — the card goes WITH the workspace.
+        if (this.presentPlan.category === 'rail') {
+          this.concludeScene();
+        } else {
+          this.leaveScene();
+        }
       }, consoleReducedMotionActive() ? 0 : motionMs(DOCK_READ_MS));
     },
     /** THE CARD'S DEPARTURE IS A BEAT, not a crossfade: it leaves on its own, the fleet mark with it. */
@@ -697,10 +721,15 @@ export default defineComponent({
       this.cardLeaving = true;
       this.sceneTimer = window.setTimeout(() => {
         this.sceneTimer = undefined;
-        // …and only then the workspace leaves as one surface; the shell
-        // concludes it and the hold falls at the END of that leave.
-        this.$emit('flow-complete', (this.$el as HTMLElement | null)?.closest('.con-ws') ?? (this.$el as HTMLElement | null)?.closest('.con-colonies'));
+        this.concludeScene();
       }, consoleReducedMotionActive() ? 0 : motionMs(DOCK_LEAVE_MS));
+    },
+    /** …and only then the workspace leaves as one surface; the shell concludes it and the hold falls at the END of that leave. */
+    concludeScene(): void {
+      if (!this.scene.holding) {
+        return;
+      }
+      this.$emit('flow-complete', (this.$el as HTMLElement | null)?.closest('.con-ws') ?? (this.$el as HTMLElement | null)?.closest('.con-colonies'));
     },
   },
   mounted() {
@@ -728,6 +757,9 @@ export default defineComponent({
     // is released by its root's detachment, which this unmount is part of.
     if (this.scene.holding && this.scene.card === this.card && this.scene.phase !== 'conclude') {
       endFleetDockScene('stage-unmounted');
+    } else if (!this.scene.holding) {
+      // A stage that left before its answer came: the plan it armed is void.
+      disarmFleetDockScene(this.card);
     }
     fleetDockUi.sub = '';
     fleetDockUi.primaryEnabled = false;

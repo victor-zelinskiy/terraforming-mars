@@ -3,9 +3,10 @@ import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {activeAnimationHoldLabels, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
 import {
-  endFleetDockScene, fleetDockSceneState, releaseFleetDockHoldWhenGone, resetFleetDockScene, seedFleetDockHold,
-  setFleetDockScenePhase, setFleetDockStageCard,
+  armFleetDockScene, armedFleetDockScene, disarmFleetDockScene, endFleetDockScene, fleetDockSceneState, releaseFleetDockHoldWhenGone,
+  resetFleetDockScene, seedFleetDockHold, setFleetDockScenePhase, setFleetDockStageCard,
 } from '@/client/console/colonyTrade/fleetDockScene';
+import {fleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
 import {
   armTradeFleet, detectTradeFleet, endTradeFleet, registerTradeFleetHandle, resetTradeFleet, runTradeFleet,
   setTradeFleetLaunchPending, tradeFleetState,
@@ -66,6 +67,37 @@ describe('fleetDockScene — the dock\'s scene holds the reward\'s placement (TR
     endFleetDockScene('again');
     expect(fleetDockSceneState.lastEnd).eq('stage-unmounted');
     expect(fleetDockSceneState.holding).is.false;
+  });
+});
+
+describe('fleetDockScene — the plan the stage arms at the commit boundary', () => {
+  const LINER = CardName.UNMI_LINER;
+  const railPlan = fleetDockScenePlan({effects: [{direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}], followUps: []});
+
+  afterEach(() => {
+    resetFleetDockScene();
+    resetTradeFleet();
+  });
+
+  it('is read back for ITS card only, and a refused submit voids it', () => {
+    armFleetDockScene({card: LINER, plan: railPlan});
+    expect(armedFleetDockScene(LINER)?.plan.category).eq('rail');
+    expect(armedFleetDockScene(DOCK), 'another dock\'s scene never reads it').is.undefined;
+    disarmFleetDockScene(DOCK);
+    expect(armedFleetDockScene(LINER), 'disarming another card is a no-op').is.not.undefined;
+    disarmFleetDockScene(LINER);
+    expect(armedFleetDockScene(LINER)).is.undefined;
+  });
+
+  it('the scene\'s end voids it — the next trade arms its own', () => {
+    setFleetDockStageCard(LINER);
+    armFleetDockScene({card: LINER, plan: railPlan});
+    seedFleetDockHold(LINER);
+    expect(fleetDockSceneState.holding, 'the hold stands for every category').is.true;
+    setFleetDockScenePhase('reward');
+    expect(fleetDockSceneState.phase).eq('reward');
+    endFleetDockScene('concluded');
+    expect(armedFleetDockScene(LINER)).is.undefined;
   });
 });
 

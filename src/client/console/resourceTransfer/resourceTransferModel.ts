@@ -110,6 +110,46 @@ export function isStandardResource(key: string): boolean {
   return STANDARD_RESOURCES.has(key);
 }
 
+/**
+ * The rail's key for the TERRAFORM RATING (the score cell) — the ONE key the
+ * transfer layer, the panel's hold and every seeder share. The rating rides the
+ * `stock` channel under it: its home is the score header's TR cell, not a
+ * resource row.
+ */
+export const RATING_RAIL_KEY = 'rating';
+
+/**
+ * THE RAIL-BOUND GAINS OF A REWARD'S CHIPS — what a «reward on the rail» flies
+ * (`railReward.ts`): a standard resource's stock / production gain on its own
+ * row, and a TERRAFORM RATING gain on the score cell. Read off the server's
+ * own `ActionEffect` vocabulary (the chips the stage showed before the press),
+ * so every amount is the server's. Everything else — a cost, a card resource,
+ * a card draw, a global parameter, an untyped «any resource» — is not a rail
+ * gain and is not listed (`extractPlayRewards` keeps the card-resource half
+ * for the surfaces that own a target).
+ */
+export function railRewardSpecs(effects: ReadonlyArray<ActionEffect>): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  for (const e of effects) {
+    if (e.direction !== 'gain' || e.amount <= 0 || e.unit !== undefined) {
+      continue;
+    }
+    if (e.icon === 'tr' && e.note === undefined) {
+      out.push({channel: 'stock', resource: RATING_RAIL_KEY, amount: e.amount});
+    } else if (e.note === 'production' && isStandardResource(e.icon)) {
+      out.push({channel: 'production', resource: e.icon, amount: e.amount});
+    } else if (e.note === undefined && isStandardResource(e.icon)) {
+      out.push({channel: 'stock', resource: e.icon, amount: e.amount});
+    }
+  }
+  return mergeTransferSpecs(out);
+}
+
+/** The rail ROW a spec lands on (`stock:megacredits`, `production:heat`, `stock:rating`) — the key a reward's diff check speaks. */
+export function railRowKey(spec: Pick<ResourceTransferSpec, 'channel' | 'resource'>): string {
+  return `${spec.channel}:${spec.resource}`;
+}
+
 /** The normalized card-resource key (`CardResource` value → icon key) — the
  *  SAME lowercase-hyphen form the server's `cardResourceIcon` produces. */
 export function cardResourceKey(value: string): string {

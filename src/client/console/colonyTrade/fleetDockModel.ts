@@ -24,7 +24,14 @@
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
-import {FleetDockOfferModel} from '@/common/models/PlayerInputModel';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ColonyTradeFollowUpModel} from '@/common/models/ColonyTradePreviewModel';
+import {EffectForecastFact} from '@/common/models/EffectForecastModel';
+import {FleetDockOfferModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {Payment} from '@/common/inputs/Payment';
+import {
+  RATING_RAIL_KEY, ResourceTransferSpec, isStandardResource, mergeTransferSpecs, railRewardSpecs, railRowKey,
+} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {FLEET_DOCK_BUSY_REASON} from '@/common/colonies/fleetDock';
 import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTradeReason';
 import {CardComponent} from '@/common/cards/render/CardComponent';
@@ -229,4 +236,148 @@ export function fleetDockEffectNode(renderData: CardComponent | undefined): ICar
     }
   }
   return undefined;
+}
+
+// ── THE REWARD'S CATEGORY — how a trade with the card ENDS ──────────────────
+
+/**
+ * How a dock trade's scene ends — read off the SERVER's own preview of the
+ * trade (`FleetDockPreviewModel`: its chips and its follow-ups, pinned at the
+ * commit boundary), never off the card's name:
+ *
+ *  · `placement` — the reward is AHEAD, on a surface of its own (an «after
+ *    confirming» follow-up: Water Hauling's ocean and its cell). Nothing of it
+ *    is shown on the stage; the card answers, is read, departs, and the board
+ *    comes up clean;
+ *  · `rail`      — the reward arrives WITH the answer and asks nothing (UNMI
+ *    Liner's +1 TR): its rail-bound gains are flown from the card's printed
+ *    icons to their rows, and the card leaves with the workspace;
+ *  · `question`  — the reward ASKS for a target (a `cardTarget` follow-up:
+ *    Aurora Station's floaters). Named so the class is whole; its stage step
+ *    is not built yet, and the scene treats it as the honest default (nothing
+ *    flown, nothing withheld on the rail).
+ *
+ * Seniority when a preview carries several signs: a question outranks a
+ * surface ahead, and a surface ahead outranks a plain gain — Water Hauling
+ * states BOTH a placement and a TR chip, and that TR is the ocean's own: it
+ * lands with the tile, never from the card.
+ */
+export type FleetDockRewardCategory = 'placement' | 'rail' | 'question';
+
+export function fleetDockRewardCategory(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): FleetDockRewardCategory {
+  if (followUps.some((followUp) => followUp.kind === 'cardTarget')) {
+    return 'question';
+  }
+  return followUps.length > 0 ? 'placement' : 'rail';
+}
+
+/** The landing of the card's answer — the action-commit vocabulary (`ActionCommitKind`), named here so this module stays a leaf. */
+export type FleetDockAnswerKind = 'global' | 'resources' | 'generic';
+
+/** What the dock's scene plays after the fleet has landed. */
+export type FleetDockScenePlan = {
+  category: FleetDockRewardCategory;
+  /** Where the impulse over the printed «▲ : [reward]» lands. */
+  answer: FleetDockAnswerKind;
+  /** `resources` only: the resource whose printed icon the impulse lands on. */
+  firstResource?: string;
+  /** `rail` only: the gains the card's own icons give — flown, each ticking on its touchdown. */
+  specs: Array<ResourceTransferSpec>;
+  /** `rail` only: what the table pays BECAUSE of them — released after the last touchdown. */
+  reactions: Array<ResourceTransferSpec>;
+};
+
+/**
+ * The table's answer as rail specs: only what arrives WITH the trade's own
+ * response and is the viewer's — an `exact` fact addressed to «you». A
+ * question, a deferred payout, an uncomputed reaction and another seat's gain
+ * are named on the stage and never held on the viewer's rail.
+ */
+export function reactionRailSpecs(reactions: ReadonlyArray<EffectForecastFact> | undefined): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  for (const fact of reactions ?? []) {
+    if (fact.certainty === 'exact' && fact.recipient.kind === 'you') {
+      out.push(...railRewardSpecs(fact.effects));
+    }
+  }
+  return mergeTransferSpecs(out);
+}
+
+/**
+ * The scene's plan, from the preview the stage pinned at the commit boundary.
+ * NO preview (the press outran the stage's own fetch) is the honest default —
+ * the phrase every dock played before categories existed: the card answers,
+ * is read and departs, nothing is flown and nothing is withheld on the rail.
+ * A category is never guessed from the pick's marker: its chips alone cannot
+ * tell a plain gain from the TR of a tile that is still ahead.
+ */
+export function fleetDockScenePlan(preview: {
+  effects: ReadonlyArray<ActionEffect>,
+  followUps: ReadonlyArray<ColonyTradeFollowUpModel>,
+  reactions?: ReadonlyArray<EffectForecastFact>,
+} | undefined): FleetDockScenePlan {
+  if (preview === undefined) {
+    return {category: 'placement', answer: 'global', specs: [], reactions: []};
+  }
+  const category = fleetDockRewardCategory(preview.followUps);
+  switch (category) {
+  case 'placement':
+    // The impulse lands on the printed parameter the placement will move (the ocean) — the reward itself is ahead.
+    return {category, answer: 'global', specs: [], reactions: []};
+  case 'rail': {
+    const specs = railRewardSpecs(preview.effects);
+    if (specs.length === 0) {
+      return {category, answer: 'generic', specs, reactions: []};
+    }
+    const first = specs[0];
+    return first.resource === RATING_RAIL_KEY ?
+      {category, answer: 'global', specs, reactions: reactionRailSpecs(preview.reactions)} :
+      {category, answer: 'resources', firstResource: first.resource, specs, reactions: reactionRailSpecs(preview.reactions)};
+  }
+  default:
+    return {category, answer: 'generic', specs: [], reactions: []};
+  }
+}
+
+/** A `Payment`'s fields that are rail rows (the standard resources — a card resource spent as M€ leaves no rail row). */
+const PAYMENT_RAIL_ROWS: ReadonlyArray<keyof Payment> = ['megacredits', 'heat', 'steel', 'titanium', 'plants'];
+
+/**
+ * THE OTHER MOVES OF THE TRADE ON THE RAIL — what the same response changes on
+ * the viewer's rows beside the reward: the FEE of the chosen path (the
+ * server's own `current → resulting` on the path's option; the captured
+ * payment of an M€ path that asked for one; the Delta Works composition of an
+ * energy path) and the flat every-trade bonuses. Keyed by `railRowKey`; the
+ * reward's diff check (`railReward.verifyRailReward`) allows for exactly these.
+ */
+export function tradeKnownRailMoves(input: {
+  option: SelectOptionModel | undefined,
+  payment?: Payment,
+  mix?: {energy: number, steel: number},
+  flatBonuses?: ReadonlyArray<{resource: string, amount: number}>,
+}): Record<string, number> {
+  const known: Record<string, number> = {};
+  const add = (resource: string, amount: number) => {
+    if (amount !== 0 && isStandardResource(resource)) {
+      const row = railRowKey({channel: 'stock', resource});
+      known[row] = (known[row] ?? 0) + amount;
+    }
+  };
+  if (input.mix !== undefined) {
+    add('energy', -input.mix.energy);
+    add('steel', -input.mix.steel);
+  } else if (input.payment !== undefined) {
+    for (const resource of PAYMENT_RAIL_ROWS) {
+      add(resource, -(input.payment[resource] ?? 0));
+    }
+  } else {
+    const meta = input.option?.metadata;
+    if (meta?.icon !== undefined && meta.resource !== undefined) {
+      add(meta.icon, meta.resource.resulting - meta.resource.current);
+    }
+  }
+  for (const bonus of input.flatBonuses ?? []) {
+    add(bonus.resource, bonus.amount);
+  }
+  return known;
 }
