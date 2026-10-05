@@ -203,7 +203,13 @@ stop, cyan an occupied seat, mint a projection):
    empty lane above the owner bonus; the berth's own latch passes behind it. Never on a berth, never on a cell.
 
 All of it exists only where the model HAS such a berth (a fourth cube stands, or a door projects one): an ordinary tile
-renders none of these nodes, classes or tokens. The owner-bonus block gives up exactly ONE column
+renders none of these nodes, classes or tokens.
+
+**The owner name's LINE is reserved in EVERY berth** (`__berth-namebox`, the name absolute inside it): the berth is a
+centred column over seat + gap + one line whoever holds it. Without the box the landing berth re-centred its seat when
+the owner's name arrived with the cube — in the very frame the build's cube proxy handed over to the real one (measured
+on ANY build: 9.9 px at 1080 and on the Deck, 24.4 px at 4K — the cube «jumped»). The seats of empty berths therefore
+stand on the same line as the occupied ones' cubes; a second line of a long name hangs into the berth's foot. The owner-bonus block gives up exactly ONE column
 (`grid-column: calc(var(--berths, 3) + 1) / -1` — `4 / -1` for an ordinary tile, as before) and its arithmetic
 «rate × cubes = total» must still stand in ONE line, so it yields in a STRICT order: ① the note «За каждую торговлю
 здесь» → ② the cubes close ranks (≥ 3) → ③ the rate term (a container query on the block's own width) → ④ the cubes
@@ -311,8 +317,10 @@ vote step takes the section's whole central area (`colonies-parliament`) — hel
 Parliament drawn over a lit track, with the stage's verbs on the bar. On a card's build door that step's own door is
 HELD while the stage stands, the landing folds the stage home first, opens the door once the stage's node has left
 the section, waits for the step (`colonyBuildSectionStepOwed`) and only then lets the grid be read as the receipt.
-And past the press the bar of a card's build is a STATUS («Выполняется…» on the stage, «Выполнено» on the receipt
-grid) — the staged door's prompt outlives its answer, and by it the bar kept offering verbs nothing accepted.
+And past the press the bar of EVERY colony act is a STATUS — «Выполняется…» on the stage (`colonyActAnswered`: a card's
+build · a roster change · a city on the tile · a chosen track), «Выполнено» while the grid stands as the receipt
+(`consoleColoniesUi.receipt`, the mirror of the section's ONE `receiptOn`). A staged door's prompt outlives its answer,
+and by it the bar kept offering verbs nothing accepted (TR10, TR25) — or went blank (TR22). The INPUT stays the scene's.
 
 ## 4c · COMPLETION — settle, then FORWARD ONLY
 
