@@ -277,7 +277,16 @@ export type VariantReaction = {
  * at two + «+N». The row never repeats them.
  */
 export function variantReactionChips(forecast: EffectForecast | undefined, branchPos: number): VariantReaction {
-  const facts = forecast?.byBranch?.[branchPos] ?? [];
+  return reactionChipsOf(forecast?.byBranch?.[branchPos] ?? []);
+}
+
+/**
+ * The same note for a BARE LIST OF FACTS — a reward's reactions stated outside
+ * a forecast (a fleet dock's trade: `FleetDockPreviewModel.reactions`). One
+ * chip vocabulary, one merge, one cap: the «⚡ сработает» group reads the same
+ * wherever the table's answer is shown before a press.
+ */
+export function reactionChipsOf(facts: ReadonlyArray<EffectForecastFact>): VariantReaction {
   const own = new Map<string, ChipSlot>();
   const asks = new Map<string, ChipSlot>();
   const other = new Map<string, ChipSlot & {color: Color, bot: boolean, asks: boolean}>();

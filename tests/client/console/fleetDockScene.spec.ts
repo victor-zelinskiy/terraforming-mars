@@ -7,6 +7,12 @@ import {
   resetFleetDockScene, seedFleetDockHold, setFleetDockScenePhase, setFleetDockStageCard,
 } from '@/client/console/colonyTrade/fleetDockScene';
 import {fleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {railRewardPending, railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
+import {fleetDockRewardKey} from '@/client/console/colonyTrade/fleetDockScene';
+import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 import {
   armTradeFleet, detectTradeFleet, endTradeFleet, registerTradeFleetHandle, resetTradeFleet, runTradeFleet,
   setTradeFleetLaunchPending, tradeFleetState,
@@ -80,7 +86,7 @@ describe('fleetDockScene — the plan the stage arms at the commit boundary', ()
   });
 
   it('is read back for ITS card only, and a refused submit voids it', () => {
-    armFleetDockScene({card: LINER, plan: railPlan});
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
     expect(armedFleetDockScene(LINER)?.plan.category).eq('rail');
     expect(armedFleetDockScene(DOCK), 'another dock\'s scene never reads it').is.undefined;
     disarmFleetDockScene(DOCK);
@@ -91,13 +97,132 @@ describe('fleetDockScene — the plan the stage arms at the commit boundary', ()
 
   it('the scene\'s end voids it — the next trade arms its own', () => {
     setFleetDockStageCard(LINER);
-    armFleetDockScene({card: LINER, plan: railPlan});
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
     seedFleetDockHold(LINER);
     expect(fleetDockSceneState.holding, 'the hold stands for every category').is.true;
     setFleetDockScenePhase('reward');
     expect(fleetDockSceneState.phase).eq('reward');
     endFleetDockScene('concluded');
     expect(armedFleetDockScene(LINER)).is.undefined;
+  });
+});
+
+/*
+ * THE RAIL HALF OF THE SCENE (TR26 UNMI Liner): a reward that lands on the rail
+ * is HELD there in the apply block — only while the dock's own stage stands,
+ * only when the applied view keeps the promise, never under reduced motion —
+ * and every way the scene can end leaves nothing held.
+ */
+describe('fleetDockScene — a reward on the rail is held until its token lands', () => {
+  const LINER = CardName.UNMI_LINER;
+  const view = (tr: number, mc: number): PlayerViewModel => ({
+    id: 'p-viewer',
+    thisPlayer: {color: 'blue', terraformRating: tr, megacredits: mc, energy: 0, steel: 0, titanium: 0, plants: 0, heat: 0},
+  } as unknown as PlayerViewModel);
+  const greens = {
+    id: 'greens-tr', source: {kind: 'party', name: 'Greens', owner: 'blue', channel: 'tr-increase'}, certainty: 'exact',
+    recipient: {kind: 'you'}, timing: 'immediate', effects: [{direction: 'gain', icon: 'megacredits', amount: 2}], reason: 'r',
+  };
+  const railPlan = fleetDockScenePlan({
+    effects: [{direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}], followUps: [],
+    reactions: [greens] as never,
+  });
+  const placementPlan = fleetDockScenePlan({
+    effects: [{direction: 'gain', icon: 'oceans', amount: 1}, {direction: 'gain', icon: 'tr', amount: 1}],
+    followUps: [{kind: 'note', role: 'tradeReward', note: 'placeOcean'}],
+  });
+
+  afterEach(() => {
+    reduceMotionOverrideState.enabled = false;
+    resetFleetDockScene();
+    resetRailRewards();
+    clearPanelRewardHold();
+    resetTradeFleet();
+  });
+
+  it('with the stage standing: the rating AND the table\'s answer keep their old values on the rail', () => {
+    setFleetDockStageCard(LINER);
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
+    seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+    expect(fleetDockSceneState.railHeld).is.true;
+    expect(heldStock(RATING_RAIL_KEY), 'the rail paints committed − held').eq(1);
+    expect(heldStock('megacredits'), 'the Greens\' M€ waits for its cause').eq(2);
+    expect(railRewardPending(fleetDockRewardKey(LINER))).is.true;
+  });
+
+  it('NO stage for this card: nothing is held — the counters tick with the commit (a hold nobody plays is never raised)', () => {
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
+    seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+    expect(fleetDockSceneState.holding).is.false;
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    setFleetDockStageCard(DOCK);
+    seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+    expect(heldStock(RATING_RAIL_KEY), 'another dock\'s stage is not this card\'s').eq(0);
+  });
+
+  it('a `placement` scene holds NOTHING on the rail: the TR is the tile\'s, and comes with it', () => {
+    setFleetDockStageCard(DOCK);
+    armFleetDockScene({card: DOCK, plan: placementPlan, known: {}});
+    seedFleetDockHold(DOCK, view(20, 0), view(20, 0));
+    expect(fleetDockSceneState.holding, 'the scene\'s own hold stands').is.true;
+    expect(fleetDockSceneState.railHeld).is.false;
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+  });
+
+  it('the trade\'s OTHER moves are allowed for: a 9 M€ fee beside the Greens\' +2 is −7 on the row', () => {
+    setFleetDockStageCard(LINER);
+    armFleetDockScene({card: LINER, plan: railPlan, known: {'stock:megacredits': -9}});
+    seedFleetDockHold(LINER, view(20, 12), view(21, 5));
+    expect(heldStock('megacredits')).eq(2);
+    expect(railRewardState.degraded).is.undefined;
+  });
+
+  it('a promise the applied view does not keep is NOT held, and says so', () => {
+    setFleetDockStageCard(LINER);
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
+    seedFleetDockHold(LINER, view(20, 0), view(20, 0));
+    expect(fleetDockSceneState.holding, 'the scene still plays').is.true;
+    expect(fleetDockSceneState.railHeld).is.false;
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    expect(railRewardState.degraded?.why).eq('mismatch');
+  });
+
+  it('no plan was armed (the press outran the preview): the scene holds, the rail does not', () => {
+    setFleetDockStageCard(LINER);
+    seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+    expect(fleetDockSceneState.holding).is.true;
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+  });
+
+  it('reduced motion: the final poses at once — no hold on the rail', () => {
+    reduceMotionOverrideState.enabled = true;
+    setFleetDockStageCard(LINER);
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
+    seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+    expect(fleetDockSceneState.railHeld).is.false;
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+  });
+
+  it('EVERY end of the scene releases the rail: an interrupt, the ceiling, the conclusion', () => {
+    for (const reason of ['stage-unmounted', 'expired', 'concluded']) {
+      setFleetDockStageCard(LINER);
+      armFleetDockScene({card: LINER, plan: railPlan, known: {}});
+      seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+      expect(heldStock(RATING_RAIL_KEY), reason).eq(1);
+      endFleetDockScene(reason);
+      expect(heldStock(RATING_RAIL_KEY), reason).eq(0);
+      expect(heldStock('megacredits'), reason).eq(0);
+      expect(railRewardPending(fleetDockRewardKey(LINER)), reason).is.false;
+      expect(fleetDockSceneState.railHeld, reason).is.false;
+    }
+  });
+
+  it('a second seed while the scene holds changes nothing (an echo frame of the same response)', () => {
+    setFleetDockStageCard(LINER);
+    armFleetDockScene({card: LINER, plan: railPlan, known: {}});
+    seedFleetDockHold(LINER, view(20, 0), view(21, 2));
+    seedFleetDockHold(LINER, view(21, 2), view(21, 2));
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
   });
 });
 

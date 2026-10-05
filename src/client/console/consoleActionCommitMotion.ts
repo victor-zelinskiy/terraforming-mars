@@ -78,6 +78,9 @@ const ICON_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = {
   'venus': ['venus'],
   'oceans': ['ocean'],
   'tr': ['tr.'],
+  // The rail's own key of the rating (`RATING_RAIL_KEY`): a reward spec that lands on the score cell is born
+  // on the printed TR icon — one sprite, two names (the preview's chip says `tr`, the rail says `rating`).
+  'rating': ['tr.'],
   'microbe': ['microbe'],
   'animal': ['animal'],
   'floater': ['floater'],

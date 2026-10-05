@@ -578,11 +578,13 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   seedNomadMoveRewardHold();
   seedColonyBuildRewardHold();
   seedColonyTradeRewardHold();
-  // A trade whose fleet landed on a DOCK CARD (TR06 Water Hauling): the
-  // card's own scene holds the reward's placement until the workspace has
-  // left — seeded here, in the apply block, and only while the dock's stage
-  // stands (`fleetDockScene.ts`).
-  seedFleetDockHold(tradeFleetState.active ? tradeFleetState.card : '');
+  // A trade whose fleet landed on a DOCK CARD (TR06 Water Hauling, TR26 UNMI
+  // Liner): the card's own scene holds whatever the response raised until the
+  // workspace has left, and a reward that lands ON THE RAIL (the Liner's TR)
+  // is held on the rail until its token touches down — both seeded here, in
+  // the apply block, and only while the dock's stage stands
+  // (`fleetDockScene.ts`; the rail half checks its promise against the views).
+  seedFleetDockHold(tradeFleetState.active ? tradeFleetState.card : '', currentView(), newView);
   seedHydroMarkerRewardHold();
   // The «Фора» window's gains — the ONE seeder that needs BOTH views: a claim
   // is armed at the press, but the window's AUTO-resolve is only knowable by

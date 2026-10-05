@@ -13,9 +13,11 @@
     and the SAME model as the colony stage — `ConsoleTradePayRows` /
     `tradePayModel`), the M€ payment and the Delta Works mix through the shared
     payment panel, and the RESULT — only the server's chips (the reward's
-    `current → resulting`, the TR step, the fleet leaving the supply) and the
-    next step's note. No track, no settlements, no colony income: the colony
-    takes no part.
+    `current → resulting`, the TR step, the fleet leaving the supply), what the
+    TABLE answers to that reward («⚡ сработает» — the forecast engine's own
+    facts, named before the press) and the next step's note when the reward
+    raises one. No track, no settlements, no colony income: the colony takes
+    no part.
   -->
   <div ref="rootEl"
        class="con-fleetdock"
@@ -27,6 +29,7 @@
        data-unfold-surface
        :data-fleet-dock-stage="card"
        :data-fleet-dock-category="presentPlan.category"
+       :data-fleet-dock-degraded="rewardDegraded"
        :data-fleet-dock-scene="scene.phase">
     <span class="con-fleetdock__edge" data-unfold-edge aria-hidden="true"></span>
 
@@ -105,6 +108,9 @@
           <div class="con-colfocus__sec-title">{{ $t('Result') }}</div>
           <div class="con-fleetdock__chips" data-unfold-late>
             <ActionEffectChip v-for="(chip, i) in resultChips" :key="'e' + i" :effect="chip" />
+            <!-- WHAT THE TABLE ANSWERS to the reward (the ruling Greens' M€ on a TR step) — the composers' own
+                 «⚡ сработает» group, on the chips' line: read BEFORE the press, never a surprise after it. -->
+            <ConsoleForecastReactions :reaction="presentReaction" />
           </div>
           <div v-for="note in followUpNotes" :key="note" class="con-fleetdock__note" data-unfold-late data-fleet-dock-note>{{ $t(note) }}</div>
         </section>
@@ -141,12 +147,17 @@ import {
   TradePayEntry, TradePayRow, tradePayDisabledEntries, tradePayEntries, visibleTradePayDisabled, visibleTradePayRows,
 } from '@/client/console/colonyTrade/tradePayModel';
 import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
-import {fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
+import {fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan, tradeKnownRailMoves} from '@/client/console/colonyTrade/fleetDockModel';
 import {
-  armFleetDockScene, disarmFleetDockScene, fleetDockSceneState, setFleetDockScenePhase, setFleetDockStageCard, endFleetDockScene,
+  armFleetDockScene, disarmFleetDockScene, fleetDockRewardKey, fleetDockSceneState, setFleetDockScenePhase, setFleetDockStageCard,
+  endFleetDockScene,
 } from '@/client/console/colonyTrade/fleetDockScene';
+import {flyRailReward, railRewardState} from '@/client/console/resourceTransfer/railReward';
+import {reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
-import {runActionCommitMotion, ActionCommitMotionHandle} from '@/client/console/consoleActionCommitMotion';
+import {
+  runActionCommitMotion, resolveActionCommitAnchors, resolveGainIconOrigins, ActionCommitMotionHandle,
+} from '@/client/console/consoleActionCommitMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -154,6 +165,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleTradePayRows from '@/client/components/console/ConsoleTradePayRows.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -186,7 +198,7 @@ export type FleetDockConfirmPayload = {
 
 export default defineComponent({
   name: 'ConsoleFleetDockStage',
-  components: {ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite},
+  components: {ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite, ConsoleForecastReactions},
   props: {
     card: {type: String as PropType<CardName>, required: true},
     /** The live model from the viewer's tableau (its face carries the fleet mark). */
@@ -229,6 +241,9 @@ export default defineComponent({
       heldChips: undefined as ReadonlyArray<ActionEffect> | undefined,
       /** The pinned plan of the scene — the reward's category as the server's preview stated it AT THE PRESS. */
       heldPlan: undefined as FleetDockScenePlan | undefined,
+      /** The pinned answer of the table (the receipt keeps naming what the press was promised). */
+      heldReaction: undefined as VariantReaction | undefined,
+      railReward: railRewardState,
       heroZoom: 1,
       cardLeaving: false,
       scene: fleetDockSceneState,
@@ -427,6 +442,18 @@ export default defineComponent({
     /** Past the commit the plan is the PINNED one: the answer re-prices the preview under the scene. */
     presentPlan(): FleetDockScenePlan {
       return this.heldPlan ?? this.scenePlan;
+    },
+    /**
+     * WHAT THE TABLE ANSWERS to the reward — the server's own forecast facts (`FleetDockPreviewModel.reactions`)
+     * as the «⚡ сработает» chips every composer draws. Nothing is derived here: no fact, no group.
+     */
+    presentReaction(): VariantReaction {
+      return this.heldReaction ?? reactionChipsOf(this.preview?.reactions ?? []);
+    },
+    /** A rail reward of THIS dock that was not shown as promised — named (`railReward.ts`), never silent. */
+    rewardDegraded(): string | undefined {
+      const degraded = this.railReward.degraded;
+      return degraded !== undefined && degraded.key === fleetDockRewardKey(this.card) ? degraded.why : undefined;
     },
     /**
      * The scene may start: the hold stands — seeded in the very block that applied the view, i.e. the
@@ -648,10 +675,20 @@ export default defineComponent({
     holdPresentation(): void {
       const entry = this.payEntries[this.payIdx];
       const mix = this.payRowMix;
+      // The trade's OTHER moves on the rail, as priced at the press (the fee of the chosen path, the flat
+      // bonuses): the reward's diff check allows for exactly these. Read BEFORE the receipt pins the rows.
+      const paid = this.paymentStep !== undefined && this.paymentView !== undefined && this.thisPlayer !== undefined ?
+        paymentFromCounts(this.paymentView.cost, this.payLanes, this.paymentCounts, megacreditsAvailable(this.thisPlayer)) :
+        undefined;
+      // (A card door's bare pick has no path of its own: its fee was the card's, and is no rail row.)
+      const known = tradeKnownRailMoves({
+        option: this.pickMode ? undefined : this.options[this.payIdx], payment: paid, mix, flatBonuses: this.preview?.flatBonuses,
+      });
       this.held = {entry: entry === undefined ? undefined : (mix !== undefined ? {...entry, mix} : entry)};
       this.heldChips = this.resultChips;
       this.heldPlan = this.scenePlan;
-      armFleetDockScene({card: this.card, plan: this.heldPlan});
+      this.heldReaction = this.presentReaction;
+      armFleetDockScene({card: this.card, plan: this.heldPlan, known});
       this.sub = undefined;
       this.syncUiMirror();
     },
@@ -660,6 +697,7 @@ export default defineComponent({
       this.held = undefined;
       this.heldChips = undefined;
       this.heldPlan = undefined;
+      this.heldReaction = undefined;
       disarmFleetDockScene(this.card);
       this.syncUiMirror();
     },
@@ -689,6 +727,10 @@ export default defineComponent({
       const plan = this.presentPlan;
       setFleetDockScenePhase('answer');
       const node = fleetDockEffectNode(getCard(this.card)?.metadata.renderData);
+      // THE REWARD SLOT: whatever the category flies starts when the impulse SITS on the printed icon (the
+      // handoff — cause before result), and the read begins only when both the card's own beat and the
+      // reward have finished. An empty slot (a placement ahead) is a resolved promise.
+      let reward: Promise<unknown> = Promise.resolve();
       this.sceneMotion = runActionCommitMotion({
         cardWrapEl: cardEl ?? undefined,
         ctaEl: undefined,
@@ -696,11 +738,30 @@ export default defineComponent({
         // Where the impulse lands follows from the reward (the printed parameter, the printed resource) — never a literal.
         kind: plan.answer,
         firstResource: plan.firstResource,
+        onHandoff: () => {
+          reward = this.flyReward(cardEl ?? undefined, plan);
+        },
         onSettled: () => {
           this.sceneMotion = undefined;
-          this.readScene();
+          void reward.then(() => this.readScene());
         },
       });
+    },
+    /**
+     * REWARD — a reward that landed ON THE RAIL leaves the card as a token: born on the PRINTED icon of the
+     * effect row (measured now, on the standing face — the action-commit anchors, never a coordinate), flown to
+     * its row, the counter ticking on the touchdown and the table's answer one beat later (`railReward.ts`
+     * owns the holds and their order, so the chain survives this stage). Nothing was held for this scene (a
+     * placement ahead, reduced motion, a promise the applied view did not keep) → nothing to fly.
+     */
+    flyReward(cardEl: HTMLElement | undefined, plan: FleetDockScenePlan): Promise<unknown> {
+      if (!this.scene.railHeld) {
+        return Promise.resolve();
+      }
+      setFleetDockScenePhase('reward');
+      const node = fleetDockEffectNode(getCard(this.card)?.metadata.renderData);
+      const origins = cardEl === undefined ? [] : resolveGainIconOrigins(resolveActionCommitAnchors(cardEl, node), plan.specs);
+      return flyRailReward(fleetDockRewardKey(this.card), (_spec, index) => origins[index]);
     },
     readScene(): void {
       if (!this.scene.holding) {

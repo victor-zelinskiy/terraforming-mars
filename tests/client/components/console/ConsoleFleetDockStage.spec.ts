@@ -6,7 +6,9 @@ import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockStage.vue';
-import {armedFleetDockScene, resetFleetDockScene} from '@/client/console/colonyTrade/fleetDockScene';
+import {EffectForecastFact} from '@/common/models/EffectForecastModel';
+import {armedFleetDockScene, fleetDockRewardKey, resetFleetDockScene} from '@/client/console/colonyTrade/fleetDockScene';
+import {railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
 
 /*
  * THE FLEET-DOCK STAGE, BY THE REWARD'S CATEGORY (docs/TURMOIL_REDUX_WATER_HAULING.md §8–§9).
@@ -36,6 +38,12 @@ const LINER: FleetDockPreviewModel = {
   effects: [{direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}],
   followUps: [],
 };
+const GREENS: EffectForecastFact = {
+  id: 'greens-tr', source: {kind: 'party', name: 'Greens', owner: 'blue', channel: 'tr-increase'},
+  certainty: 'exact', recipient: {kind: 'you'}, timing: 'immediate',
+  effects: [{direction: 'gain', icon: 'megacredits', amount: 2, current: 0, resulting: 2}],
+  reason: 'The Greens pay 2 M€ per TR step you gain',
+} as unknown as EffectForecastFact;
 
 function mountStage(preview: FleetDockPreviewModel | undefined, card: CardName = preview?.card ?? CardName.UNMI_LINER): VueWrapper<any> {
   return mount(ConsoleFleetDockStage, {
@@ -67,6 +75,7 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
   afterEach(() => {
     (window as any)._translations = originalTranslations;
     resetFleetDockScene();
+    resetRailRewards();
   });
 
   it('the category is the SERVER\'s: a follow-up ahead is `placement`, a plain gain is `rail` — the client names no card', () => {
@@ -111,6 +120,45 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
     await stage.vm.$nextTick();
     expect(armedFleetDockScene(CardName.UNMI_LINER)).is.undefined;
     expect(stage.find('.con-fleetdock').attributes('data-fleet-dock-category'), 'the live preview again').eq('placement');
+  });
+
+  it('what the TABLE answers is named on the result BEFORE the press — the composers\' own «⚡ сработает» group, for either sister', () => {
+    const quiet = mountStage(LINER);
+    expect(quiet.findAll('[data-fleet-dock-result] [data-forecast-vfx]'), 'nothing reacts: no group, no gap').has.lengthOf(0);
+    for (const preview of [{...LINER, reactions: [GREENS]}, {...HAULING, reactions: [GREENS]}]) {
+      const stage = mountStage(preview);
+      const group = stage.find('[data-fleet-dock-result] [data-forecast-vfx]');
+      expect(group.exists(), preview.card).is.true;
+      expect(group.text().replace(/\s+/g, ' '), 'a bare delta — the row\'s language').to.match(/\+\s*2/);
+      expect(group.element.parentElement?.className, 'on the chips\' own line').to.contain('con-fleetdock__chips');
+    }
+  });
+
+  it('the answer is PINNED with the receipt: the response re-prices the preview under the scene', async () => {
+    const stage = mountStage({...LINER, reactions: [GREENS]});
+    stage.vm.holdPresentation();
+    await stage.setProps({preview: {...LINER, available: false, reactions: []}});
+    expect(stage.find('[data-fleet-dock-result] [data-forecast-vfx]').exists(), 'the receipt keeps naming what the press was promised').is.true;
+  });
+
+  it('the COMMIT BOUNDARY arms the trade\'s other moves on the rail: the fee of the chosen path and the flat bonuses', () => {
+    const stage = mountStage({...LINER, reactions: [GREENS], flatBonuses: [{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]});
+    stage.vm.holdPresentation();
+    const armed = armedFleetDockScene(CardName.UNMI_LINER);
+    expect(armed?.plan.specs).deep.eq([{channel: 'stock', resource: 'rating', amount: 1}]);
+    expect(armed?.plan.reactions).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 2}]);
+    expect(armed?.known, 'the energy path\'s 3 and Venus Trade Hub\'s +3').deep.eq({'stock:energy': -3, 'stock:megacredits': 3});
+  });
+
+  it('a rail reward of THIS dock that was not shown as promised is NAMED on the stage; another owner\'s is not', async () => {
+    const stage = mountStage(LINER);
+    expect(stage.find('.con-fleetdock').attributes('data-fleet-dock-degraded')).is.undefined;
+    railRewardState.degraded = {key: 'somebody-else', why: 'no-source'};
+    await stage.vm.$nextTick();
+    expect(stage.find('.con-fleetdock').attributes('data-fleet-dock-degraded')).is.undefined;
+    railRewardState.degraded = {key: fleetDockRewardKey(CardName.UNMI_LINER), why: 'no-origin'};
+    await stage.vm.$nextTick();
+    expect(stage.find('.con-fleetdock').attributes('data-fleet-dock-degraded')).eq('no-origin');
   });
 
   it('a stage that leaves before its answer came voids the plan it armed', () => {

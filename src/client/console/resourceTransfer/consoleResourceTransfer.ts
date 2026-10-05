@@ -41,7 +41,7 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
-  TRANSFER_BEAT_MS, clampTransferPace,
+  TRANSFER_BEAT_MS, clampTransferPace, RATING_RAIL_KEY,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferStagePiece, runTransferFlight, settleTransferChip, killTransferPiece,
@@ -299,6 +299,14 @@ export type ResourceTransferRun = {
   /** Fired at each transfer's TOUCHDOWN (release the hold / free a gate). */
   onArrive?: (spec: ResourceTransferSpec) => void;
   /**
+   * Fired for a transfer whose FLIGHT WAS LOST — beside its `onArrive` (the
+   * amount has arrived either way; only the chip never flew, or stalled in the
+   * air). A caller that owes its chip a NAMED degradation reads the reason
+   * here (`railReward.ts`); everyone else keeps the silent, honest release.
+   * Never fired for reduced motion — no flight is owed there.
+   */
+  onDegrade?: (spec: ResourceTransferSpec, why: TransferDegradeReason) => void;
+  /**
    * The wave's visual SOURCE is the MARS BOARD (a cell's printed bonus, an
    * Ares/ocean adjacency payout, a nomad stage reward, a remote landing's
    * income). Board-sourced chips belong to the board's own story: while a
@@ -330,6 +338,9 @@ export type ResourceTransferRun = {
    */
   destination?: TransferPoint;
 };
+
+/** WHY a transfer's flight was lost: nothing to be born on, nowhere to land, no layer to fly in, or a wave that stalled past its budget. */
+export type TransferDegradeReason = 'no-source' | 'no-destination' | 'no-stage' | 'stalled';
 
 let flightSeq = 0;
 /** Landed hold-mode chips awaiting settle (id → its landing point). */
@@ -402,6 +413,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   const sourceRect = resolveSourceRect(run.source);
   if (sourceRect === undefined && !specEntries.some((e) => e.origin !== undefined)) {
     releaseAll(specEntries);
+    specEntries.forEach((e) => run.onDegrade?.(e.spec, 'no-source'));
     trail(runId, 'run:earlyreturn', 'no-source-geometry');
     return;
   }
@@ -422,6 +434,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       });
       noteCardResourceLanding(e.spec); // degraded, but the amount HAS arrived
       run.onArrive?.(e.spec);
+      run.onDegrade?.(e.spec, sourcePoint === undefined ? 'no-source' : 'no-destination');
     } else if (e.spec.direction === 'loss') {
       flights.push({spec: e.spec, from: row, to: sourcePoint});
     } else {
@@ -470,6 +483,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       entries.forEach((e) => {
         noteCardResourceLanding(e.spec);
         run.onArrive?.(e.spec);
+        run.onDegrade?.(e.spec, 'stalled');
       });
     }, waveBudget);
 
@@ -480,6 +494,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       if (piece === undefined) {
         if (!safetyFired) {
           run.onArrive?.(e.spec);
+          run.onDegrade?.(e.spec, 'no-stage');
         }
         trail(runId, 'flight:no-piece', e.id);
         removeFlight(e.id);
@@ -660,9 +675,9 @@ function escapeName(name: string): string {
 function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   if (spec.channel === 'stock') {
     // The TERRAFORM RATING rides the stock channel under the rail's own key
-    // (`rating`): its home is the score header's TR cell, not a resource row
-    // (the Parliament's Agenda bonus flies there — parliamentRewardBeat.ts).
-    if (spec.resource === 'rating') {
+    // (`RATING_RAIL_KEY`): its home is the score header's TR cell, not a
+    // resource row (the Parliament's Agenda bonus and a rail reward fly there).
+    if (spec.resource === RATING_RAIL_KEY) {
       const cell = measureRestingRect('.con-res .con-score__cell--tr .con-score__valwrap') ??
         measureRestingRect('.con-res .con-score__cell--tr');
       return cell !== undefined ? centerOf(cell) : undefined;
