@@ -175,9 +175,16 @@ A colony whose PLACEMENT bonus lands on a card (Titan: «положи 3 аэро
 landed. It is the same decision, so it rides the same machinery end to end:
 
 - **the server offers it** — `ColonyTradePreviewModel.buildFollowUps` (the
-  next free slot's bonus through the very same `benefitFollowUp`, role
-  `buildBonus`; absent for a full colony and for every bonus that resolves
-  without asking). One preview per colony serves both intents;
+  NEXT CUBE's bonus through the very same `benefitFollowUp`, role
+  `buildBonus`; absent for every bonus that resolves without asking). One
+  preview per colony serves both intents.
+  ⚠️ **The preview does not decide WHO may build** (2026-10-05, TR25): the
+  old gate «`slot >= MAX_COLONIES_PER_TILE` → nothing» is gone — a tile at its
+  printed limit answers what a fourth cube would ask, because a door that
+  lifts the limit (`BuildColony {ignoreLimit}`) pre-collects its target from
+  here. The bonus is read through `buildBenefitAt(metadata, built)` — clamped
+  to the last PRINTED cell — and the list is empty only where the track has no
+  free cell left (`colony.hasFreeTrackCell()`);
 - **the stage composes it** — `buildSteps(preview)` produces the same
   `cardTarget` step, so the same decision row («ЦЕЛЬ БОНУСА ПОСТРОЙКИ»), the
   same embedded picker and the same `canConfirm` gate apply. A build that

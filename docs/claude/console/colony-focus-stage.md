@@ -178,6 +178,37 @@ an inline expression: a presentation that teaches a rule must read the rule
 from the same place every other surface does. Guarded by
 `tests/client/components/colonies/colonyTradePlan.spec.ts`.
 
+### THE BERTHS ARE A MODEL — and the fourth one stands under the fourth cell (2026-10-05)
+
+«Three berths» is no longer written anywhere in a colony surface. Every host reads ONE pure model
+(`console/colonyBuild/colonyBerths.ts`: `colonyBerthsOf(colony, projection?)` → `{index, owner, state, overLimit}[]`,
+`nextBuildSlot`, `freeBerths`, `buildSiteOf`, `berthBuildBenefit`), which stands on the SERVER's own arithmetic
+(`common/colonies/colonyBerths.ts`). A literal `[0, 1, 2]` or a clamp `Math.min(…, 2)` in a colony surface fails
+`tests/console/colonyBerths.spec.ts` with the file and the line; a raw `build.quantity[…]` fails
+`tests/colonies/colonyBuildBenefitReader.spec.ts` (the bonus of a berth is `buildBenefitAt`, clamped to the last
+PRINTED cell).
+
+A colony **beyond the 3-colony limit** (TR25 Exclusive Colony, `docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md`) is not a
+special surface — the rule above already says where it stands: berth 4 under track cell 4, its latch and guard the same
+objects, the stop on cell 5. What makes it read as «beyond the limit» is FORM, never colour (amber is the guard and the
+stop, cyan an occupied seat, mint a projection):
+
+1. **The LIMIT MARK** (`__limitmark`) — an end stop of the printed row in the gap before berth 4: a neutral light post
+   with a heel, as tall as the berth row. On the admission it retracts into its heel by ONE transform and stays so.
+2. **The PLATE** (`__limitplate`, an SVG with `vector-effect: non-scaling-stroke`) — a double hairline contour with a
+   cut corner instead of the rounded dock. While the door only PROJECTS the cube it is one dashed mint contour with the
+   cube's ghost in the player's colour over the bonus the berth will pay; admitted, the contour closes and doubles
+   (an opacity crossfade — no geometry animates).
+3. **ONE word**, «Сверх лимита» (`__limitword`), in the mechanism lane, read RIGHTWARD from the limit mark over the
+   empty lane above the owner bonus; the berth's own latch passes behind it. Never on a berth, never on a cell.
+
+All of it exists only where the model HAS such a berth (a fourth cube stands, or a door projects one): an ordinary tile
+renders none of these nodes, classes or tokens. The owner-bonus block gives up exactly ONE column
+(`grid-column: calc(var(--berths, 3) + 1) / -1` — `4 / -1` for an ordinary tile, as before) and its arithmetic
+«rate × cubes = total» must still stand in ONE line, so it yields in a STRICT order: ① the note «За каждую торговлю
+здесь» → ② the cubes close ranks (≥ 3) → ③ the rate term (a container query on the block's own width) → ④ the cubes
+and the total never yield. Unit guard: `tests/client/components/console/ConsoleColonyBerths.spec.ts`.
+
 ---
 
 ## 3 · SEATS — why the flying objects are the size they land at
@@ -245,6 +276,43 @@ for the rest of the game, and the commit says so, in this order:
 4. the STOP slides one cell right (transform transition on `--stop-col`);
 5. the build grant flies;
 6. **the completion settle**, then the screen moves forward.
+
+**Which berth** is the door's answer, not a count: `nextBuildSlot(colony, buildSiteOf(pick.buildSites, colony.name))`
+— the slot of the server's `buildSites` marker (every build prompt carries it), pinned in the commit-boundary snapshot
+(`HeldView.buildSlot`). `buildPreview` is «the door offers this tile and the aimed berth is empty»; no cube is counted
+against the limit anywhere on the stage.
+
+**THE LIMIT OPENS — the one extra beat of a berth beyond the limit** (TR25, 2026-10-05). The signature above is
+unchanged and simply plays one cell further (latch on cell 4 and berth 4, the stop to cell 5); the director's numbers
+did not move. ONE beat is added BEFORE the cube — **the admission**: the limit mark lets go, the dashed contour closes
+into the plate, the ghost steps aside. It is ONE class (`--admitted`) read from the build transaction's own state
+(`admitCell` ← `colonyBuildState.active`, armed at the press, before the POST) — a CSS transition of 220 ms ×
+`--motion-scale`, never a timer and never a JS chase; the cube's own flight starts when the answer lands, so the
+admission always precedes it. An unmeasurable flight NAMES itself: `colonyBuildState.degraded` →
+`data-colony-build-degraded` on the transaction's own WITNESS (`colonyBuild/ConsoleColonyBuildWitness.vue`, a node of
+the cube's shell-mounted layer; it also carries `data-colony-build-phase`) — the e2e demands its absence.
+⚠ The witness is a component of its OWN on purpose: published on the colonies section's root, the phase made that
+whole surface re-render on the press and on every beat of an ORDINARY build (A/B: the cube's proxy was born 10–25 ms
+later than on the base build). The section's template reads nothing of the build transaction, and an ordinary berth
+admits nothing (`admitCell` is −1 — the instrument's props stand still); `colonyBuildDoorWiring.spec` guards both.
+
+**ONE commit body for both doors** (`ConsoleShell.armColonyBuildCommit`): pin the stage → the server's berth → arm the
+cube's hero (`armColonyBuild(…, door)`) → the pre-collected step answers. The live door submits as it always did; a
+CARD's own build door (the staged colony door of TR07 in its build mode) posts ONE batch through `commitStagedTail` —
+the tile ADDRESSED to the card, the bonus's answers BEHIND it — and the colony's own outcome claim is made after the
+play's, so §4d holds on the staged door too: Pluto's draw and a late target are born in the stage's zone. The staged
+door then ends with the roster's grammar instead of §4c's settle: everything the bonus still owes inside the stage
+(by STRUCTURE — `colonyBuildContinuationOwed`), the stage folds HOME, the grid stands as the ONE receipt reading
+(`receiptOn` — roster ∨ city ∨ a card's build) for one read (`ConsoleShell.landColonyBuild`). Guard of the wiring:
+`tests/console/colonyBuildDoorWiring.spec.ts`; probe: `tests/e2e/console-exclusive-colony.spec.ts`.
+
+⚠ **Not every continuation lives INSIDE the stage.** The Redux Venus pays DELEGATES for a build, and the Parliament's
+vote step takes the section's whole central area (`colonies-parliament`) — held as «owed inside the stage» it was a
+Parliament drawn over a lit track, with the stage's verbs on the bar. On a card's build door that step's own door is
+HELD while the stage stands, the landing folds the stage home first, opens the door once the stage's node has left
+the section, waits for the step (`colonyBuildSectionStepOwed`) and only then lets the grid be read as the receipt.
+And past the press the bar of a card's build is a STATUS («Выполняется…» on the stage, «Выполнено» on the receipt
+grid) — the staged door's prompt outlives its answer, and by it the bar kept offering verbs nothing accepted.
 
 ## 4c · COMPLETION — settle, then FORWARD ONLY
 
@@ -472,7 +540,13 @@ One scene, genuinely different priorities:
   non-destination berths dim, the rail shows the `+1` ghost and the summary rail
   states the grant and the new colony. NO configuration block: there is nothing
   to configure, and the brief that used to stand there was the summary rail
-  again, verbatim.
+  again, verbatim. The act is read off the server's `buildSites` marker (`colonyPickIntent` — never the button's
+  label). **A CARD's own build door** (2026-10-05, TR25 — `pick.buildProjected`: the staged door, or a live prompt
+  naming a card as its giver) changes three things and no composition: the berth is the marker's (a fourth, behind the
+  limit mark, on a tile at its limit — «Место 4 · сверх лимита» in the «Новая колония» row); A reads «Разыграть
+  карту» while staged; and with nothing to compose **X reads the dossier** (a build that composes keeps X as its one
+  commit), L3 the source. The standard project, a declarative card's follow-up and a resolution's colony keep the stage
+  and the grid they had.
 * **inspect / unavailable** — NO configuration block and NO manual. The
   physical scene IS the dossier; the panel is simply shorter. A «how it works»
   panel appeared exactly when the player could not act, which made the screen
@@ -519,6 +593,7 @@ pulse; the owner is named by the CUBE (a ring on the planet is the fleet's langu
 | Markup + state | `src/client/components/console/ConsoleColonyFocusStage.vue` |
 | The TRADE-TRACK INSTRUMENT (track · marker rail · stop · berths · owner-bonus lane) — **shared with the dossier** (2026-09-27, `docs/claude/console/colony-inspect.md`); the stage passes what it PRESENTS (`markerPosition` / `effectivePosition`) and its beats (`latchCell` / `settledCell` / `buildPreview`) | `src/client/components/console/ConsoleColonyTrackInstrument.vue` |
 | The PLANET DISC (art as a cover disc + the light) — shared with the tile and the dossier; the stage owns only `--con-planet-size` and the orbital berth | `src/client/components/console/ConsolePlanetDisc.vue`, `.con-planet` in `console.less` |
+| The BERTHS as a model (+ the berth beyond the limit — TR25) | `src/client/console/colonyBuild/colonyBerths.ts` (pure), `src/common/colonies/colonyBerths.ts` (the shared arithmetic), `src/styles/console_colony_berths.less` |
 | The CITY'S SEAT (a city laid on the colony tile — TR22) — shared with the tile and the dossier; the scene of its landing | `src/client/components/console/colonyCity/ConsoleColonyCitySeat.vue`, `src/client/console/colonyCity/`, `src/styles/console_colony_city.less` |
 | Entrance / fold choreography | `src/client/console/consoleColonyFocusMotion.ts` |
 | Styles | `src/styles/console.less` (`.con-colfocus`), `console_tv.less` |
