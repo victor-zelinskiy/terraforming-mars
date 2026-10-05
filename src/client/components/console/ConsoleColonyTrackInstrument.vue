@@ -107,7 +107,8 @@
          a tile prints, plus a berth for every cube that stands (or is
          projected by a build door) beyond them. Nothing stands under the
          cells no cube protects, and the empty span says so. -->
-    <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item>
+    <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item
+         :style="{'--berths': berths.length}">
       <div v-for="berth in berths" :key="berth.index"
            class="con-colfocus__berth"
            :class="{
@@ -115,7 +116,30 @@
              'con-colfocus__berth--mine': berth.owner === viewerColor,
              'con-colfocus__berth--dest': buildPreview && berth.index === destSlot,
              'con-colfocus__berth--latching': berth.index === latchCell,
-           }">
+             'con-colfocus__berth--overlimit': berth.overLimit,
+             'con-colfocus__berth--projected': berth.overLimit && berth.state === 'projected',
+             'con-colfocus__berth--admitted': berthAdmitted(berth),
+           }"
+           :data-colony-berth-overlimit="berth.overLimit ? (berthAdmitted(berth) ? 'passed' : 'standing') : undefined">
+        <!-- A BERTH BEYOND THE PRINTED LIMIT (Turmoil Redux TR25 Exclusive
+             Colony) says so by FORM, never by colour: the LIMIT MARK — the end
+             stop of the printed row, standing in the gap before it — and a
+             PLATE of its own (a double hairline contour with a cut corner
+             instead of the rounded dock). Both exist only where a cube stands
+             or is projected beyond the limit; an ordinary tile renders neither.
+             Once the build is ADMITTED the mark lets go into its heel and the
+             dashed contour closes — one class, the transaction's own phase. -->
+        <template v-if="berth.overLimit">
+          <span v-if="berth.index === limitIndex" class="con-colfocus__limitmark" aria-hidden="true"></span>
+          <svg class="con-colfocus__limitplate" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <polygon class="con-colfocus__limitplate-fill" points="1,1 82,1 99,18 99,99 1,99" />
+            <polygon class="con-colfocus__limitplate-line con-colfocus__limitplate-line--dashed" points="1,1 82,1 99,18 99,99 1,99" />
+            <polygon class="con-colfocus__limitplate-line con-colfocus__limitplate-line--outer" points="1,1 82,1 99,18 99,99 1,99" />
+            <polygon class="con-colfocus__limitplate-line con-colfocus__limitplate-line--inner" points="6,6.5 80,6.5 94,20.5 94,93.5 6,93.5" />
+          </svg>
+          <!-- The ONE word, in the mechanism lane over the berth's own column — never on the berth or a cell. -->
+          <span v-if="berth.index === limitIndex" class="con-colfocus__limitword" data-unfold-late>{{ $t('Over the limit') }}</span>
+        </template>
         <!-- The LATCH: an occupied berth is physically bolted to the track
              cell above it. -->
         <span class="con-colfocus__berth-latch" aria-hidden="true"></span>
@@ -126,6 +150,11 @@
           <PlayerCube v-if="berth.owner !== undefined" :color="berth.owner" :size="44" />
           <!-- The bonus THIS berth pays, resolved (a list of one — never the row and an index past its end). -->
           <BenefitGlyph v-else :benefit="berthBenefit(berth.index)" :idx="0" :cardResources="cardResourceKinds" />
+          <!-- The cube the door would place beyond the limit — a ghost in the builder's colour over the
+               bonus it would pay (the grid tile's own projection pose). -->
+          <span v-if="berth.overLimit && berth.state === 'projected' && projectedColor !== ''"
+                class="con-colfocus__berth-ghost" :class="'player_translucent_bg_color_' + projectedColor"
+                aria-hidden="true"></span>
         </span>
         <!-- Only an OCCUPIED berth has something to say: an empty seat
              already reads as empty, and «Свободное место» in a one-column
@@ -142,7 +171,11 @@
            WHO receives how much is the host's own sentence (the stage's
            summary rail, the dossier's rules panel). -->
       <div class="con-colfocus__ownerbonus"
-           :class="{'con-colfocus__ownerbonus--math': bonusMath !== undefined}"
+           :class="{
+             'con-colfocus__ownerbonus--math': bonusMath !== undefined,
+             'con-colfocus__ownerbonus--narrow': bonusNarrow,
+             'con-colfocus__ownerbonus--ranks': bonusNarrow && bonusMath !== undefined && bonusMath.count >= 3,
+           }"
            :data-colony-bonus-source="colony.colonies.length === 0 ? colony.name : undefined">
         <span class="con-colfocus__ob-label" data-unfold-late>{{ $t('Owner bonus') }}</span>
         <!-- The BONUS card's own launch anchor — the bonus cover separates
@@ -183,6 +216,7 @@ import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {trackResetAfterBuild, trackResetPosition} from '@/client/components/colonies/colonyTradePlan';
 import {berthBuildBenefit, BerthBenefit, ColonyBerth, colonyBerthsOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {printedBerths} from '@/common/colonies/colonyBerths';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
@@ -229,6 +263,15 @@ export default defineComponent({
      * the host. −1 = no door names one: the next berth.
      */
     buildSlot: {type: Number, default: -1},
+    /**
+     * THE BERTH WHOSE LIMIT A BUILD IN FLIGHT HAS JUST LIFTED — the stage's
+     * beat, driven by the build transaction's own phase (never a timer). −1 on
+     * the dossier and at rest: a berth beyond the limit is then «passed»
+     * exactly when a cube stands in it.
+     */
+    admitCell: {type: Number, default: -1},
+    /** The colour of the cube a build door projects (the answering player's) — '' = no ghost. */
+    projectedColor: {type: String, default: ''},
     /** The zone head («ТОРГОВЫЙ ТРЕК» + the standing-offset caption). */
     head: {type: Boolean, default: true},
     /**
@@ -263,6 +306,20 @@ export default defineComponent({
     },
     resetPositionAfterBuild(): number {
       return trackResetAfterBuild(this.colony, this.metadata);
+    },
+    /**
+     * THE OWNER BONUS HAS GIVEN A COLUMN to a berth beyond the limit: its row
+     * stands in three columns instead of four, and it yields in a DECLARED
+     * order (console_colony_berths.less) — the fine-print note first, then
+     * the cubes close ranks, then the rate term; the cubes and the total
+     * never yield.
+     */
+    bonusNarrow(): boolean {
+      return this.berths.length > this.limitIndex;
+    },
+    /** The first berth beyond the printed ones — where the limit mark stands. */
+    limitIndex(): number {
+      return printedBerths();
     },
     /** The berth the build preview points at — the door's own, else the next one. */
     destSlot(): number {
@@ -303,6 +360,14 @@ export default defineComponent({
     /** A card-resource cell over SEVERAL kinds (the Redux Vesta) — the glyph box opens to the row's width. */
     multiKindCell(position: number): boolean {
       return this.cardResourceKinds.length > 1 && tradeBenefitAt(this.metadata, position).type === ColonyBenefit.ADD_RESOURCES_TO_CARD;
+    },
+    /**
+     * A berth beyond the limit whose limit has been LIFTED: a cube stands in
+     * it, or the build that will seat one has been committed (`admitCell`).
+     * The mark is then in its «passed» pose and the contour is closed — for good.
+     */
+    berthAdmitted(berth: ColonyBerth): boolean {
+      return berth.overLimit && (berth.state === 'taken' || berth.index === this.admitCell);
     },
     /** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
     berthBenefit(slot: number): BerthBenefit {

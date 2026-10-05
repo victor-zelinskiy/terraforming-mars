@@ -374,6 +374,10 @@ describe('colonyTradePlan', () => {
     // …and the build preview is exactly one step further.
     expect(trackResetAfterBuild({colonies: []}, ENCELADUS_META)).to.eq(1);
     expect(trackResetAfterBuild({colonies: [red, blue]}, ENCELADUS_META)).to.eq(3);
+    // The rule reads the CUBES, never the printed limit: a colony built beyond it (TR25 Exclusive Colony)
+    // holds the fourth cell, and a door projecting one shows the stop a cell further.
+    expect(trackResetAfterBuild({colonies: [red, blue, red]}, ENCELADUS_META)).to.eq(4);
+    expect(trackResetPosition({colonies: [red, blue, red, blue]}, ENCELADUS_META)).to.eq(4);
   });
 
   it('trackResetPosition: never past the last cell of a short track', () => {

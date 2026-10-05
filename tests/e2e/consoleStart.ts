@@ -2330,6 +2330,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'play-scale-card' | 'effect-forecast' |
   // TR09 EVA Mechs: blue holds the card with 2 mechs, 1 energy, 3 M€ and Trans-Neptune Probe in hand (docs/TURMOIL_REDUX_EVA_MECHS.md).
   'eva-mechs' |
+  // TR25 Exclusive Colony: blue holds the card with 30 M€ and Unity's access; Luna at its printed limit (red ×2, blue ×1,
+  // marker on cell 3), Titan with one cube of blue's and two floater holders, red's fleet on Ceres, Enceladus inactive
+  // (docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md).
+  'exclusive-colony' |
   // TR02 Political Science: the assembly gate with blue's card in the tableau and TWO of blue's delegates on the Greens'
   // loser — the renewal's `card-effect` (docs/TURMOIL_REDUX_POLITICAL_SCIENCE.md).
   'political-science-assembly' |

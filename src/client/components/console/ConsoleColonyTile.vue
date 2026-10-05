@@ -58,10 +58,19 @@
 
     <!-- Build slots (owner cubes) + the live 7-cell track in ONE band. -->
     <div class="con-coltile__mid">
-      <div class="con-coltile__build">
+      <!-- A tile whose model has a berth BEYOND THE PRINTED LIMIT (a fourth cube, or a door projecting one —
+           Turmoil Redux TR25) wears the row's compact metric and the limit mark in the gap before that berth
+           (console_colony_berths.less). An ordinary tile carries neither the class nor the token. -->
+      <div class="con-coltile__build"
+           :class="{'con-coltile__build--over': overLimit}"
+           :style="overLimit ? {'--printed': printedCount} : undefined">
         <div v-for="berth in berths" :key="berth.index"
              class="con-coltile__build-slot"
-             :class="{'con-coltile__build-slot--occupied': berth.state === 'taken'}"
+             :class="{
+               'con-coltile__build-slot--occupied': berth.state === 'taken',
+               'con-coltile__build-slot--overlimit': berth.overLimit,
+             }"
+             :data-colony-berth-overlimit="berth.overLimit ? '' : undefined"
              :data-colony-build-slot="colony.name + '#' + berth.index">
           <!-- Each build bonus is ONE-TIME: once a settlement is built here the
                bonus is consumed and the owner's PREMIUM 3D PlayerCube — the
@@ -180,6 +189,7 @@ import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/
 import {colonyTrackWaveState, colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {CUBE_STATIC_SIZE} from '@/client/console/colonyBuild/colonyBuildModel';
 import {berthBuildBenefit, BerthBenefit, ColonyBerth, colonyBerthsOf} from '@/client/console/colonyBuild/colonyBerths';
+import {printedBerths} from '@/common/colonies/colonyBerths';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
@@ -246,6 +256,14 @@ export default defineComponent({
     berths(): Array<ColonyBerth> {
       const projects = this.projectedCube !== '' && this.colony.colonies[this.projectedCubeSlot] === undefined;
       return colonyBerthsOf(this.colony, projects ? {slot: this.projectedCubeSlot} : undefined);
+    },
+    /** The tile has a berth beyond the printed ones — the row's compact metric and the limit mark. */
+    overLimit(): boolean {
+      return this.berths.some((berth) => berth.overLimit);
+    },
+    /** How many berths the tile PRINTS — where the limit mark stands (the stylesheet's token). */
+    printedCount(): number {
+      return printedBerths();
     },
     /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
     cardResourceKinds(): ReadonlyArray<CardResource> {

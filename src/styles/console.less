@@ -19553,8 +19553,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        flying cube is measured from it, so the landing is 1:1 with no size
        jump. The owner bonus stands beside the berths that pay it. */
     /* The berths are the track's SECOND ROW: same 7 columns, same gap, so
-       berth `i` stands under cell `i`. There is deliberately nothing under
-       cells 4…7 — no colony can protect those, and the empty span says it. */
+       berth `i` stands under cell `i`. Nothing stands under the cells no
+       colony protects, and the empty span says it. */
     &__berths {
         flex: 0 1 auto;
         display: grid;
@@ -19687,7 +19687,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         .con-colfocus__berth--taken & { color: @con-text; }
     }
     /* THE OWNERSHIP ROW'S SECOND HALF. It takes the shared grid's remaining
-       columns — everything past the three berths, out to the end of the track
+       columns — everything past the berths (`--berths`, the instrument's own
+       count: three on every ordinary tile, so the column is the `4 / -1` it
+       always was; four on a tile built on beyond the limit —
+       console_colony_berths.less), out to the end of the track
        — so the bonus is spatially attached to the seats that earn it instead
        of floating as an unrelated card in the middle of the scene. Never a
        hand-tuned width: a fixed box could not hold «За каждую торговлю здесь»
@@ -19698,7 +19701,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        restart) and a soft mint wash. A second bordered box beside three
        bordered boxes reads as four unrelated tiles. */
     &__ownerbonus {
-        grid-column: 4 / -1;
+        grid-column: calc(var(--berths, 3) + 1) / -1;
         min-width: 0;
         display: flex;
         flex-flow: row wrap;

@@ -166,6 +166,9 @@ import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCen
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
 import {NovaCity} from '../../../src/server/cards/turmoilRedux/NovaCity';
+import {ExclusiveColony} from '../../../src/server/cards/turmoilRedux/ExclusiveColony';
+import {Enceladus} from '../../../src/server/colonies/Enceladus';
+import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
 import {GanymedeColony} from '../../../src/server/cards/base/GanymedeColony';
 import {Game} from '../../../src/server/Game';
 import {adjacentCityTiers} from '../../../src/server/boards/cityStack';
@@ -1481,6 +1484,82 @@ parliamentFixture('nova-city', {
         tile(ColonyName.CERES)?.colonies.length !== 3 || tile(ColonyName.TITAN)?.isActive !== false ||
         parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the nova-city fixture expected a playable card (Unity's access by two delegates), 30 M€, the hosted cell empty, one space city of blue's own, red's fleet on Luna, three colonies on Ceres, Titan inactive and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} mc=${p1.megaCredits} cell=${cell === undefined ? 'missing' : (cell.tile === undefined ? 'empty' : 'taken')} spaceCities=${game.board.getCitiesOffMars(p1).length} lunaFleet=${tile(ColonyName.LUNA)?.visitor} ceres=${tile(ColonyName.CERES)?.colonies.length} titan=${tile(ColonyName.TITAN)?.isActive} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR25 · EXCLUSIVE COLONY — a colony BEYOND THE 3-COLONY LIMIT, the staged colony door's build mode
+//    (docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md): blue's action phase with the card in hand and 30 M€, Unity's access
+//    by TWO of blue's delegates on its resolution (Colonization Funding in slot 0), a QUIET government (the
+//    Industrialists by Central Power Grid). The table holds BOTH lifted rules on one tile and every refusal the
+//    door still makes: Luna — at its printed limit with red ×2 and blue ×1, the marker on the third cell (the
+//    build lifts it to the fourth); Titan — active, one cube of blue's, and TWO floater holders in blue's tableau
+//    (a second own colony UNDER the limit whose build bonus asks for a card); Ceres — red's FLEET; Enceladus —
+//    INACTIVE by itself (no microbe holder is in play: the one tile the door refuses); Io — plain. SYNTHETIC:
+//    the cubes and Titan's activity are set directly (no build was played to put them there). ──
+parliamentFixture('exclusive-colony', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 0, COLONIZATION_FUNDING_ID);
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+    parliament.placeVote(p1, parliament.slots[0], 'lobby');
+    const luna = new Luna();
+    const ceres = new Ceres();
+    const titan = new Titan();
+    const enceladus = new Enceladus();
+    const io = new Io();
+    game.colonies = [luna, ceres, titan, enceladus, io];
+    luna.colonies.push(p2.id, p2.id, p1.id);
+    luna.trackPosition = 3;
+    titan.isActive = true;
+    titan.colonies.push(p1.id);
+    ceres.visitor = p2.id;
+    enceladus.isActive = false;
+    p1.playedCards.push(new Dirigibles(), new JupiterFloatingStation());
+    p1.cardsInHand.push(new ExclusiveColony());
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.EXCLUSIVE_COLONY);
+    const tile = (name: ColonyName) => game.colonies.find((c) => c.name === name);
+    const luna = tile(ColonyName.LUNA);
+    const titan = tile(ColonyName.TITAN);
+    // THE DRY RUN — the real play on a copy: the fourth cube on Luna, its bonus, its marker.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const production = blue.production.megacredits;
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.EXCLUSIVE_COLONY)!);
+    runAllActions(copy);
+    const pick = blue.getWaitingFor();
+    const offered = pick instanceof SelectColony ? pick.colonies.map((c) => c.name).join(',') : `no pick (${pick?.type})`;
+    if (pick instanceof SelectColony) {
+      blue.process({type: 'colony', colonyName: ColonyName.LUNA});
+      runAllActions(copy);
+    }
+    const built = copy.colonies.find((c) => c.name === ColonyName.LUNA);
+    const facts = {
+      playable: card !== undefined && p1.canPlay(card) !== false,
+      mc: p1.megaCredits,
+      luna: luna?.colonies.map((id) => (id === p1.id ? 'blue' : 'red')).join(','),
+      lunaTrack: luna?.trackPosition,
+      titan: titan?.colonies.length,
+      titanActive: titan?.isActive,
+      ceresFleet: tile(ColonyName.CERES)?.visitor === p2.id,
+      enceladusActive: tile(ColonyName.ENCELADUS)?.isActive,
+      holders: p1.getResourceCards(CardResource.FLOATER).length,
+      offered,
+      builtCubes: built?.colonies.length,
+      builtTrack: built?.trackPosition,
+      production: blue.production.megacredits - production,
+      ruling: parliament.rulingParty(),
+    };
+    if (!facts.playable || facts.mc !== 30 || facts.luna !== 'red,red,blue' || facts.lunaTrack !== 3 || facts.titan !== 1 ||
+        facts.titanActive !== true || !facts.ceresFleet || facts.enceladusActive !== false || facts.holders !== 2 ||
+        facts.offered !== `${ColonyName.LUNA},${ColonyName.CERES},${ColonyName.TITAN},${ColonyName.IO}` ||
+        facts.builtCubes !== 4 || facts.builtTrack !== 4 || facts.production !== 2 || facts.ruling !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the exclusive-colony fixture expected a playable card, 30 M€, Luna red,red,blue on cell 3, Titan active with one cube and two floater holders, red's fleet on Ceres, Enceladus inactive, the door offering Luna · Ceres · Titan · Io, and a dry run landing the fourth cube (marker 4, +2 M€ production) — got ${JSON.stringify(facts)}`);
     }
     parliament.assertLedger(game);
   },

@@ -194,6 +194,8 @@
     "Card VP": "ПО карты",
     "Takes no colony berth · trade and track unchanged": "Причал колонии не занимает · торговля и трек без изменений",
     "On the tile": "На плитке",
+    "Over the limit": "Сверх лимита",
+    "Colony no. ${0}": "${0}-я колония",
     "${0} — on the ${1} colony tile": "${0} — на плитке колонии «${1}»",
     "City on a colony tile — chosen in the Colonies": "Город на плитке колонии — выбор в «Колониях»",
     "per trade": "за торговлю",

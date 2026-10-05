@@ -265,7 +265,9 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   expect(open.loreFallback, 'Luna has real lore').toBe(false);
   expect(open.lore.length, 'the archive entry is on screen').toBeGreaterThan(20);
   expect(open.cells, 'the seven-cell instrument').toBe(7);
-  expect(open.berths, 'the three berths').toBe(3);
+  // An ORDINARY tile prints three berths; a fourth exists only for a cube standing (or projected) beyond the
+  // limit — TR25, `console-exclusive-colony.spec.ts`.
+  expect(open.berths, 'an ordinary tile: its three printed berths').toBe(3);
   // The rules panel: the THREE printed rules and nothing else — the fleet is
   // on the status line, the availability is in the act block.
   expect(open.kinds, 'the rules groups').toEqual(['СТРОИТЕЛЬСТВО', 'ТОРГОВЫЙ ДОХОД', 'БОНУС ВЛАДЕЛЬЦА']);
@@ -447,7 +449,7 @@ test('colony dossier: the composition holds at 1080p and on the Deck', async ({p
     console.log(`── profile ${p.name} (${p.w}×${p.h}) ──`, JSON.stringify({...c, lore: c.lore.slice(0, 40) + '…'}));
     expect(c.dossier).toBe(true);
     expect(c.cells, `${p.name}: seven cells`).toBe(7);
-    expect(c.berths, `${p.name}: three berths`).toBe(3);
+    expect(c.berths, `${p.name}: an ordinary tile — three printed berths`).toBe(3);
     expect(c.planetW, `${p.name}: the planet keeps a hero size`).toBeGreaterThanOrEqual(p.minPlanet);
     expect(c.past, `${p.name}: nothing paints past the surface`).toEqual([]);
     expect(c.loreFallback, `${p.name}: the archive entry stands`).toBe(false);

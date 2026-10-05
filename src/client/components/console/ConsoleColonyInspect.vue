@@ -94,6 +94,16 @@
             <span v-if="tileOnTile.owner !== ''" class="con-colinspect__ontile-owner">· {{ tileOnTile.owner }}</span>
           </div>
 
+          <!-- A COLONY BEYOND THE PRINTED LIMIT (TR25 Exclusive Colony): ONE line of fact, in the act column —
+               «Сверх лимита: 4-я колония · <игрок>». The instrument draws the berth, its plate and the limit
+               mark; the words stand here once, never in the rules panel (the tile's three printed rules). -->
+          <div v-if="overLimitFact !== undefined" class="con-colinspect__ontile con-colinspect__ontile--overlimit"
+               data-colony-over-limit data-unfold-late>
+            <span class="con-colinspect__ontile-label">{{ $t('Over the limit') }}</span>
+            <span class="con-colinspect__ontile-name">{{ overLimitFact.name }}</span>
+            <span v-if="overLimitFact.owner !== ''" class="con-colinspect__ontile-owner">· {{ overLimitFact.owner }}</span>
+          </div>
+
           <!-- THE ACT'S READING — what A leads to. The verdict is the
                SERVER's (tone and reason), stated as a fact beside the act's
                name; the reward is the reward package every colony surface
@@ -517,6 +527,21 @@ export default defineComponent({
       const player = this.players.find((p) => p.color === view.color);
       return {
         name: translateText(view.card ?? 'City'),
+        owner: player !== undefined ? participantDisplayName(player) : '',
+      };
+    },
+    /**
+     * THE COLONY STANDING BEYOND THE PRINTED LIMIT, by its ordinal and its owner — read from the berths model
+     * (the first berth that is both beyond the limit and taken). `undefined` on every ordinary tile.
+     */
+    overLimitFact(): {name: string, owner: string} | undefined {
+      const berth = colonyBerthsOf(this.colony).find((b) => b.overLimit && b.owner !== undefined);
+      if (berth === undefined) {
+        return undefined;
+      }
+      const player = this.players.find((p) => p.color === berth.owner);
+      return {
+        name: translateTextWithParams('Colony no. ${0}', [String(berth.index + 1)]),
         owner: player !== undefined ? participantDisplayName(player) : '',
       };
     },

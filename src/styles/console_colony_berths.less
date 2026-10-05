@@ -1,0 +1,259 @@
+/*
+ * A BERTH BEYOND THE PRINTED LIMIT — the fourth colony of a tile
+ * (docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md § the places; Turmoil Redux TR25
+ * Exclusive Colony is the first card that builds one).
+ *
+ * The cube stands where it does on the tabletop tile: on the track's fourth
+ * cell, so its berth is the fourth of the same seven-column grid and its
+ * latch, guard and stop are the ordinary ones, one column further. What says
+ * «beyond the limit» is FORM, never colour — amber is the guard's and the
+ * stop's state accent, cyan an occupied place, mint a projection:
+ *
+ *  · THE LIMIT MARK — the end stop of the printed row: a neutral light post
+ *    with a heel, standing in the gap between the third and the fourth berth,
+ *    as tall as the berths row. Once the build is admitted the post lets go
+ *    into its heel (ONE transform) and stays that way for good;
+ *  · THE PLATE — the berth's own: a double hairline contour with a cut corner
+ *    instead of the rounded dock. Dashed (one contour) while a door only
+ *    projects the cube; closed and doubled once it is admitted;
+ *  · ONE WORD in the mechanism lane over the berth's own column.
+ *
+ * No glow, no pulse at rest, no text on the berth or on a cell. All of it
+ * exists only on a tile whose model HAS such a berth (a cube standing there,
+ * or a door projecting one) — an ordinary tile renders none of these nodes,
+ * and the one shared rule this feature touches (`__ownerbonus`'s grid column)
+ * computes to the very value it always had.
+ *
+ * Console-safe materials only (gradients, strokes, opacity, transform).
+ */
+
+@over-limit-line: #d9e6f2;
+
+/* ── THE STAGE / THE DOSSIER (the trade-track instrument) ────────────────── */
+.con-colfocus__berth--overlimit {
+    /* The rounded dock's material is withdrawn: the contour is the plate's. */
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+
+    &::before { display: none; }
+    /* A projection beyond the limit never pulses and never glows: the dashed
+       plate and the cube's ghost ARE the reading (the ordinary destination's
+       mint ring stays the ordinary berths'). */
+    &.con-colfocus__berth--dest { animation: none; box-shadow: none; }
+    &.con-colfocus__berth--mine { box-shadow: none; }
+
+    /* The seat and the owner's name stand ON the plate. */
+    > .con-colfocus__berth-seat,
+    > .con-colfocus__berth-name { position: relative; z-index: 1; }
+    > .con-colfocus__berth-seat { position: relative; }
+}
+
+.con-colfocus__limitplate {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+.con-colfocus__limitplate-fill {
+    fill: rgba(14, 24, 36, 0.92);
+    stroke: none;
+    opacity: 0;
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+
+    .con-colfocus__berth--admitted & { opacity: 1; }
+}
+.con-colfocus__limitplate-line {
+    fill: none;
+    /* The stroke is drawn in SCREEN space: a hairline whatever the plate's box. */
+    vector-effect: non-scaling-stroke;
+    stroke: fade(@over-limit-line, 62%);
+    stroke-width: .055rem;
+    stroke-linejoin: miter;
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+
+    /* THE PROJECTION — one dashed contour, in the projection's own tone. */
+    &--dashed {
+        stroke: fade(@con-mint, 78%);
+        stroke-width: .07rem;
+        stroke-dasharray: .34rem .26rem;
+        opacity: 1;
+    }
+    /* THE ADMITTED PLATE — the contour closed and doubled. */
+    &--outer,
+    &--inner { opacity: 0; }
+    &--inner { stroke: fade(@over-limit-line, 34%); }
+
+    .con-colfocus__berth--admitted &--dashed { opacity: 0; }
+    .con-colfocus__berth--admitted &--outer,
+    .con-colfocus__berth--admitted &--inner { opacity: 1; }
+    /* The viewer's own colony: the inner contour takes the «mine» tone. */
+    .con-colfocus__berth--admitted.con-colfocus__berth--mine &--inner { stroke: fade(@con-cyan, 60%); }
+}
+
+/* THE LIMIT MARK — the end stop of the printed row, in the gap before the
+   first berth beyond it. Zero layout: absolute in the berth's own box. */
+.con-colfocus__limitmark {
+    position: absolute;
+    left: calc(-1 * var(--track-gap, .5rem) / 2);
+    top: 0;
+    bottom: 0;
+    width: 0;
+    pointer-events: none;
+    z-index: 2;
+
+    /* The post. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: -.04rem;
+        top: 0;
+        bottom: .1rem;
+        width: .08rem;
+        border-radius: 49.95rem 49.95rem 0 0;
+        background: linear-gradient(180deg, fade(@over-limit-line, 34%), fade(@over-limit-line, 84%));
+        transform-origin: bottom center;
+        transition: transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    /* The heel — what stays once the post has let go. It stands INSIDE the
+       gap between the two plates, never over a plate's own edge. */
+    &::after {
+        content: '';
+        position: absolute;
+        left: calc(-1 * var(--track-gap, .5rem) / 2 + .06rem);
+        bottom: 0;
+        width: calc(var(--track-gap, .5rem) - .12rem);
+        height: .13rem;
+        border-radius: 49.95rem;
+        background: fade(@over-limit-line, 84%);
+    }
+
+    .con-colfocus__berth--admitted &::before { transform: scaleY(0); }
+}
+
+/* THE ONE WORD — a tag in the mechanism lane. It starts where the limit
+   mark stands and reads to the RIGHT, over the lane of what lies beyond the
+   limit (the lane over the owner bonus is empty), so it never reaches back
+   over a printed berth's latch; its own berth's latch passes behind it. */
+.con-colfocus__limitword {
+    position: absolute;
+    left: calc(-1 * var(--track-gap, .5rem) / 2 + .28rem);
+    bottom: calc(100% + .1rem);
+    z-index: 3;
+    padding: .1rem .32rem .1rem .26rem;
+    border-radius: .2rem;
+    background: rgba(10, 17, 26, 0.94);
+    font-size: .52rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .07rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: fade(@over-limit-line, 86%);
+    pointer-events: none;
+}
+
+/* The ghost of the cube a door would place beyond the limit — over the bonus
+   it would pay (the grid tile's own projection pose, at the seat's size). */
+.con-colfocus__berth-ghost {
+    position: absolute;
+    inset: 14%;
+    border-radius: 5px; /* keep-px: inside the seat's ui-scale zoom */
+    border: 1px dashed fade(@con-text, 70%); /* keep-px */
+    pointer-events: none;
+}
+.con-colfocus__berth--projected .con-colfocus__berth-seat .benefit-glyph { opacity: 0.55; }
+
+html.con-profile-tv {
+    .con-colfocus__limitword {
+        font-size: var(--con-t-floor);
+        padding-top: 0;
+        padding-bottom: 0;
+        bottom: calc(100% + .04rem);
+    }
+}
+
+/* ── THE OWNER BONUS IN THREE COLUMNS — who yields, and in what order ─────
+   The block has given a column to the berth beyond the limit. Its arithmetic
+   («rate × the seated cubes = total») must stay ONE row on every profile, in
+   both languages, with up to four cubes:
+     1. the fine-print NOTE goes first — gone whenever the arithmetic is drawn
+        (the label above already names the block), and otherwise cut only by
+        an ellipsis in its OWN box;
+     2. then the CUBES close ranks (three or more stand shoulder to shoulder);
+     3. then the RATE term («N [bonus] ×») — on a block too narrow for the
+        whole sentence the cubes and what they pay remain: «[cubes] = total»;
+     4. the CUBES and the TOTAL never yield.
+   The thresholds are the sentence's own widths (rem — type, glyphs and cubes
+   all scale with it): two cubes, and the closed ranks of three or four. */
+.con-colfocus__ownerbonus--narrow {
+    container: con-colfocus-ob / inline-size;
+
+    .con-colfocus__ob-value,
+    .con-colfocus__ob-op,
+    .con-colfocus__ob-tokens,
+    .con-colfocus__ob-total { flex: 0 0 auto; }
+
+    .con-colfocus__ob-note {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: max-content;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    &.con-colfocus__ownerbonus--math .con-colfocus__ob-note { display: none; }
+
+    &.con-colfocus__ownerbonus--ranks .con-colfocus__ob-tokens {
+        gap: 0;
+        > * + * { margin-left: -6px; } /* keep-px: inside the tokens' ui-scale zoom */
+    }
+}
+@container con-colfocus-ob (max-width: 12.6rem) {
+    .con-colfocus__ownerbonus--math > .con-colfocus__ob-value,
+    .con-colfocus__ownerbonus--math > .con-colfocus__ob-value + .con-colfocus__ob-op { display: none; }
+}
+@container con-colfocus-ob (max-width: 14.3rem) {
+    .con-colfocus__ownerbonus--ranks > .con-colfocus__ob-value,
+    .con-colfocus__ownerbonus--ranks > .con-colfocus__ob-value + .con-colfocus__ob-op { display: none; }
+}
+
+/* ── THE GRID TILE — the fourth slot of the build row ────────────────────── *
+ * The tile's box never changes. A tile whose model has a berth beyond the
+ * limit wears the row's COMPACT METRIC: narrower slots and gaps, so four
+ * stand where three did plus ~1.4rem — which the track's pips (`flex: 1`)
+ * give up; the «N/7» readout does not. The cube's seat keeps its 32 px (the
+ * build hero measures it). */
+.con-coltile__build--over {
+    --over-slot-w: 2.2rem;
+    --over-slot-gap: .3rem;
+    position: relative;
+    gap: var(--over-slot-gap);
+
+    .con-coltile__build-slot { width: var(--over-slot-w); }
+
+    /* THE LIMIT MARK on the tile: a hairline stop in the gap between the last
+       printed slot and the first one beyond it. Zero layout. */
+    &::after {
+        content: '';
+        position: absolute;
+        left: calc(var(--printed, 3) * var(--over-slot-w) + (var(--printed, 3) - .5) * var(--over-slot-gap) - .03rem);
+        top: .1rem;
+        bottom: .1rem;
+        width: .06rem;
+        border-radius: 49.95rem;
+        background: fade(@over-limit-line, 72%);
+        pointer-events: none;
+    }
+}
+
+html.con-profile-handheld {
+    .con-coltile__build--over {
+        --over-slot-w: 1.65rem;
+        --over-slot-gap: .25rem;
+
+        .con-coltile__build-slot { width: var(--over-slot-w); }
+    }
+}
