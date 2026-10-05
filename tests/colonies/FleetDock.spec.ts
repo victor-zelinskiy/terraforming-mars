@@ -42,6 +42,16 @@ import {DarksideSmugglersUnion} from '../../src/server/cards/moon/DarksideSmuggl
 import {CollegiumCopernicus} from '../../src/server/cards/pathfinders/CollegiumCopernicus';
 import {HecateSpeditions} from '../../src/server/cards/underworld/HecateSpeditions';
 import * as actionPreviews from '../../src/server/cards/actionPreviews';
+import {CardResource} from '../../src/common/CardResource';
+import {ColonyTradeFollowUpModel} from '../../src/common/models/ColonyTradePreviewModel';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
+import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
+import {SimpleDeferredAction} from '../../src/server/deferredActions/DeferredAction';
+import {Priority} from '../../src/server/deferredActions/Priority';
+import {drainBatchTail, parkedBatchTailLength, replayBatch} from '../../src/server/inputs/deferredInputBatch';
+import {Ants} from '../../src/server/cards/base/Ants';
+import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
+import {Decomposers} from '../../src/server/cards/base/Decomposers';
 
 /**
  * THE FLEET DOCK — the CLASS contract («карта-причал»), on a dock that is not
@@ -597,6 +607,163 @@ describe('FleetDock — a card as a destination of the trade', () => {
       fleetDockOffers(player);
       expect(JSON.stringify(game.serialize())).eq(before);
       expect(game.events.events.length).eq(events);
+    });
+  });
+
+  /**
+   * A REWARD WITH A QUESTION (TR27 Aurora Station's shape) — the stand-in pays
+   * «2 microbes to any card» and THEN +1 titanium production. The class reads
+   * the card's ONE built step for the preview and queues the same step at the
+   * landing; everything the card pays besides it waits behind the answer.
+   */
+  describe('a reward with a CARD TARGET — one object for the preview and the landing', () => {
+    const ASKING = 'A test dock that asks' as CardName;
+
+    function askingDock(): FleetDockCard {
+      const fleetDock: FleetDock = {
+        previewEffects: (p) => [actionPreviews.cardResourceGain(CardResource.MICROBE, 2), actionPreviews.productionChange(p, Resource.TITANIUM, 1)],
+        rewardTarget: (p) => new AddResourcesToCard(p, CardResource.MICROBE, {count: 2}),
+        receive: (p) => {
+          p.production.add(Resource.TITANIUM, 1, {log: true});
+        },
+      };
+      return fakeCard({name: ASKING, fleetDock, data: {dockedGeneration: -1}}) as IProjectCard & {fleetDock: FleetDock};
+    }
+
+    let asking: FleetDockCard;
+    beforeEach(() => {
+      player.playedCards.remove(dock);
+      asking = askingDock();
+      player.playedCards.push(asking);
+    });
+
+    function targetOf(): Extract<ColonyTradeFollowUpModel, {kind: 'cardTarget'}> {
+      const followUp = buildFleetDockPreview(player, asking).followUps[0];
+      expect(followUp?.kind, 'the target leads the follow-ups').eq('cardTarget');
+      return followUp as Extract<ColonyTradeFollowUpModel, {kind: 'cardTarget'}>;
+    }
+
+    /** The types of the events the landing wrote under the dock card, in order. */
+    function landingEvents(from: number): Array<string> {
+      return game.events.events.slice(from)
+        .filter((e) => e.source?.kind === 'card' && e.source.card === ASKING)
+        .map((e) => e.type);
+    }
+
+    it('no holder: the preview says LOST, and the landing names the loss and still pays the rest — after it', () => {
+      expect(targetOf()).deep.eq({kind: 'cardTarget', role: 'tradeReward', resource: CardResource.MICROBE, amount: 2, lost: true});
+      const from = game.events.events.length;
+      dockFleet(player, asking);
+      runAllActions(game);
+      expect(player.getWaitingFor()).is.undefined;
+      expect(player.production.titanium).eq(1);
+      expect(landingEvents(from)).deep.eq(['fleet-docked', 'effect-skipped', 'production-changed']);
+    });
+
+    it('ONE holder: the preview names it (`auto`) with its points per unit; the landing asks NOTHING, the microbes land first', () => {
+      const ants = new Ants();
+      player.playedCards.push(ants);
+      expect(targetOf()).deep.eq({
+        kind: 'cardTarget', role: 'tradeReward', resource: CardResource.MICROBE, amount: 2, auto: CardName.ANTS,
+        vpSteps: {[CardName.ANTS]: [{from: 0, to: 0}, {from: 0, to: 1}]}, lost: false,
+      });
+      const from = game.events.events.length;
+      dockFleet(player, asking);
+      runAllActions(game);
+      expect(player.getWaitingFor(), 'no question after the fleet has landed').is.undefined;
+      expect(ants.resourceCount).eq(2);
+      expect(player.production.titanium).eq(1);
+      expect(landingEvents(from)).deep.eq(['fleet-docked', 'card-resource-changed', 'production-changed']);
+    });
+
+    it('TWO holders: the preview\'s pick IS the live prompt (candidates, order, the dock as its source) — and the rest waits for the answer', () => {
+      const ants = new Ants();
+      const tardigrades = new Tardigrades();
+      player.playedCards.push(ants, tardigrades);
+      const target = targetOf();
+      expect(target.auto).is.undefined;
+      expect(target.pick?.cards.map((c) => c.name)).deep.eq([CardName.ANTS, CardName.TARDIGRADES]);
+      expect(Object.keys(target.vpSteps ?? {})).deep.eq([CardName.ANTS, CardName.TARDIGRADES]);
+      dockFleet(player, asking);
+      runAllActions(game);
+      const live = cast(player.getWaitingFor(), SelectCard);
+      expect(live.toModel(player), 'one construction, two answers of it').deep.eq(target.pick);
+      expect(live.choiceContext?.source, 'the question is THIS dock\'s by structure (serialized with the waitingFor)').deep.eq({kind: 'card', card: ASKING});
+      expect(player.production.titanium, 'nothing past the question is paid before it is answered').eq(0);
+      player.process({type: 'card', cards: [CardName.TARDIGRADES]});
+      runAllActions(game);
+      expect(tardigrades.resourceCount).eq(2);
+      expect(ants.resourceCount).eq(0);
+      expect(player.production.titanium).eq(1);
+    });
+
+    /** The real action menu, the trade answered for the dock, and the target as the batch's tail. */
+    function tradeBatch(target: CardName): Array<InputResponse> {
+      player.takeAction();
+      const menu = cast(player.getWaitingFor(), OrOptions);
+      const tradeIndex = menu.options.findIndex((o) => o instanceof AndOptions && o.options.some((sub) => sub instanceof SelectColony));
+      const pay = cast(cast(menu.options[tradeIndex], AndOptions).options[0], OrOptions);
+      const energy = pay.options.findIndex(byIcon('energy'));
+      return [
+        {type: 'or', index: tradeIndex, response: {type: 'and', responses: [{type: 'or', index: energy, response: {type: 'option'}}, {type: 'colony', fleetDock: ASKING}]}},
+        {type: 'card', cards: [target]},
+      ];
+    }
+
+    it('the batch `[destination, card]` lands whole in ONE submit — no question is left standing', () => {
+      game.phase = Phase.ACTION;
+      const tardigrades = new Tardigrades();
+      player.playedCards.push(new Ants(), tardigrades);
+      player.energy = 3;
+      replayBatch(player, tradeBatch(CardName.TARDIGRADES));
+      expect(player.getWaitingFor()?.type, 'only the next action is asked').not.eq('card');
+      expect(tardigrades.resourceCount).eq(2);
+      expect(player.production.titanium).eq(1);
+      expect(parkedBatchTailLength(player)).eq(0);
+    });
+
+    it('PARKED: a question that jumps ahead keeps the target in the park, and it lands on its own prompt after', () => {
+      game.phase = Phase.ACTION;
+      const tardigrades = new Tardigrades();
+      player.playedCards.push(new Ants(), tardigrades);
+      player.energy = 3;
+      const batch = tradeBatch(CardName.TARDIGRADES);
+      game.defer(new SimpleDeferredAction(player, () => new SelectOption('Somebody else asks first'), Priority.COST));
+      replayBatch(player, batch);
+      cast(player.getWaitingFor(), SelectOption);
+      expect(parkedBatchTailLength(player), 'the target is PARKED, not dropped').eq(1);
+      expect(tardigrades.resourceCount).eq(0);
+      player.process({type: 'option'});
+      drainBatchTail(player);
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(tardigrades.resourceCount).eq(2);
+      expect(player.production.titanium).eq(1);
+    });
+
+    it('STALE: a chosen card that stopped being a candidate is dropped, and the question stands LIVE — the dock\'s', () => {
+      game.phase = Phase.ACTION;
+      const ants = new Ants();
+      const tardigrades = new Tardigrades();
+      const decomposers = new Decomposers();
+      player.playedCards.push(ants, tardigrades, decomposers);
+      player.energy = 3;
+      const batch = tradeBatch(CardName.DECOMPOSERS);
+      player.playedCards.remove(decomposers);
+      replayBatch(player, batch);
+      const live = cast(player.getWaitingFor(), SelectCard);
+      expect(live.cards.map((c) => c.name)).deep.eq([CardName.ANTS, CardName.TARDIGRADES]);
+      expect(live.choiceContext?.source).deep.eq({kind: 'card', card: ASKING});
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(player.production.titanium).eq(0);
+    });
+
+    it('the preview stays READ-ONLY with a target in it', () => {
+      player.playedCards.push(new Ants(), new Tardigrades());
+      const before = JSON.stringify(game.serialize());
+      const queued = game.deferredActions.length;
+      buildFleetDockPreview(player, asking);
+      expect(JSON.stringify(game.serialize())).eq(before);
+      expect(game.deferredActions.length).eq(queued);
     });
   });
 

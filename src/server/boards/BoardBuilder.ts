@@ -8,6 +8,7 @@ import {inplaceShuffle} from '../utils/shuffle';
 import {GameOptions} from '../game/GameOptions';
 import {expansionSpaceColonies} from '../../common/boards/expansionSpaceColonies';
 import {CardName} from '../../common/cards/CardName';
+import {Expansion} from '../../common/cards/GameModule';
 
 function colonySpace(id: SpaceId): Space {
   return {id, spaceType: SpaceType.COLONY, x: -1, y: -1, bonus: []};
@@ -32,7 +33,9 @@ function expansionSpaceColonyIds(gameOptions: GameOptions): Array<SpaceId> {
       }
       continue;
     }
-    if (gameOptions.expansions[entry.expansion] || gameOptions.includedCards.includes(entry.card)) {
+    // A row may name SEVERAL modules — the cell exists only where every one of them is on.
+    const modules: ReadonlyArray<Expansion> = typeof entry.expansion === 'string' ? [entry.expansion] : entry.expansion;
+    if (modules.every((module) => gameOptions.expansions[module]) || gameOptions.includedCards.includes(entry.card)) {
       ids.push(entry.name);
     }
   }

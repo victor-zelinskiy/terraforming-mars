@@ -511,5 +511,7 @@
     "Spend 2 data for all your colony bonuses": "Потратьте 2 данных: бонусы всех ваших колоний",
     "Place a colony on any colony tile, EVEN IF YOU ALREADY HAVE A COLONY THERE, OR IT HAS 3 COLONIES. This ignores the 3-colony limit.": "Постройте колонию на любой плитке колоний, ДАЖЕ ЕСЛИ У ВАС УЖЕ ЕСТЬ ТАМ КОЛОНИЯ ИЛИ НА НЕЙ 3 КОЛОНИИ. Лимит в 3 колонии игнорируется.",
     "You gain the colony tile's placement bonus.": "Вы получаете бонус постройки этой плитки.",
-    "Trade with this card: gain 1 TR": "Торговля с этой картой: +1 РТ"
+    "Trade with this card: gain 1 TR": "Торговля с этой картой: +1 РТ",
+    "Trade here: 2 floaters to a Venus card, +1 M€ prod.": "Торговля: 2 аэростата на карту Венеры, +1 к доходу",
+    "Place a city tile next to the Venus track.": "Выложите тайл города рядом с треком Венеры."
 }

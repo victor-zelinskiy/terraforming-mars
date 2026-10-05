@@ -303,6 +303,14 @@ export const SPECIAL_CELL_INFO: ReadonlyArray<SpecialCellInfo> = [
     description: 'Only the Maxwell Base tile can be placed here. Maxwell Base is placed using a specific project card.',
     placement: 'bottom',
   },
+  // Turmoil Redux TR27 — the FIFTH cell of the Venus flank («next to the Venus track»), an ordinary drawn cell.
+  {
+    id: 'aurora_station',
+    spaceId: SpaceName.AURORA_STATION, // '80'
+    title: 'Aurora Station',
+    description: 'Only the Aurora Station tile can be placed here. Aurora Station is placed using a specific project card.',
+    placement: 'left',
+  },
   // A HOSTED cell (`common/boards/hostedSpaces.ts`): its place is a colony tile, never the board — the entry gives
   // the cell its NAME for the readings that list counted cities (RX08's, the score explorer's), no board hover.
   {

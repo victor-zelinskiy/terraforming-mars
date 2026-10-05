@@ -4,6 +4,7 @@ import {FleetDockOfferModel} from '../../common/models/PlayerInputModel';
 import {FLEET_DOCK_BUSY_REASON} from '../../common/colonies/fleetDock';
 import {ICard} from '../cards/ICard';
 import {IPlayer} from '../IPlayer';
+import type {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 
 /**
  * A FLEET DOCK — a CARD that is a destination of the trade action («карта-причал»).
@@ -47,6 +48,18 @@ import {IPlayer} from '../IPlayer';
  * the player's own tableau, so another seat's dock is never a destination.
  * MarsBot trades past all of this (`AutomaColonies.botTrade`) and never plays
  * a project card.
+ *
+ * A REWARD WITH A QUESTION IS ONE OBJECT FOR BOTH ENDS (TR27 Aurora Station:
+ * «2 floaters to ANY Venus card»). The card names WHAT is due — a built,
+ * never-queued `AddResourcesToCard` (`rewardTarget`) — and the module asks
+ * that one object twice: the preview reads its candidates (0 / 1 / ≥ 2 →
+ * `lost` / `auto` / `pick`, `colonyTradePreview.cardTargetFollowUpOf` — the
+ * reading a colony's card target goes through), and the landing queues it
+ * (`dockFleet`). Who the candidates are, how many, and whether the server
+ * will ask cannot read apart, because there is nothing to read apart: one
+ * construction, one `getCards()`, one `autoSelect`. The module stamps the
+ * question's SOURCE (`choiceContext` = the dock card) — the structural mark a
+ * re-asked or parked question is recognised by, never its title.
  */
 export type FleetDock = {
   /**
@@ -66,7 +79,21 @@ export type FleetDock = {
    * the same step. Absent = the reward asks nothing. READ-ONLY.
    */
   previewFollowUps?(player: IPlayer): ReadonlyArray<ColonyTradeFollowUpModel>;
-  /** THE REWARD: queue the card's own deferred work. Called AFTER the fleet has landed. */
+  /**
+   * THE REWARD'S CARD TARGET — «add N <resource> to a card» as the REAL step,
+   * built and never queued (TR27: `new AddResourcesToCard(player, FLOATER,
+   * {count: 2, restrictedTag: VENUS})`). Read through `fleetDockRewardTarget`
+   * only: the preview derives its follow-up from it and the landing queues it,
+   * BEFORE `receive` — the printed order of a row whose first icons land on a
+   * card. Absent = the reward points at no card. A fresh object per call.
+   */
+  rewardTarget?(player: IPlayer): AddResourcesToCard;
+  /**
+   * THE REWARD: queue the card's own deferred work. Called AFTER the fleet has
+   * landed — and, for a dock with a `rewardTarget`, after that target has been
+   * answered (or auto-applied): nothing the card pays here comes before the
+   * question its row prints first.
+   */
   receive(player: IPlayer): void;
 };
 
@@ -115,6 +142,21 @@ export function fleetDockBlockedReason(player: IPlayer, card: FleetDockCard): st
     return FLEET_DOCK_BUSY_REASON;
   }
   return card.fleetDock.rewardBlockedReason?.(player);
+}
+
+/**
+ * THE REWARD'S QUESTION of `card` for `player` — the card's own built step
+ * with the class's mark stamped on it: the question's SOURCE is the dock card
+ * (`choiceContext`, mode `reward`), so the client knows a re-asked or parked
+ * target as THIS card's question by structure. `undefined` = no target. The
+ * ONE reading the preview and the landing go through (see the module header).
+ */
+export function fleetDockRewardTarget(player: IPlayer, card: FleetDockCard): AddResourcesToCard | undefined {
+  const step = card.fleetDock.rewardTarget?.(player);
+  if (step !== undefined) {
+    step.options.cause = {kind: 'card', card: card.name};
+  }
+  return step;
 }
 
 /** Every fleet dock in the player's tableau, tableau order, with the verdict. READ-ONLY. */

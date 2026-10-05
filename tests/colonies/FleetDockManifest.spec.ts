@@ -23,7 +23,7 @@ import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
 
 /**
  * THE FLEET DOCK CLASS, HELD FOR EVERY DOCK OF THE MANIFESTS — the worklist of
- * the next dock card (TR27 Aurora Station).
+ * the next dock card.
  *
  * `FleetDock.spec.ts` proves the class on a stand-in dock, and each real dock
  * proves its own rules in its own spec; nothing so far stopped a NEW dock from
@@ -32,7 +32,8 @@ import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
  * column stands on, the printed «▲ : [reward]» row the fleet lands on and the
  * card answers with). This spec ENUMERATES the docks — a card is one by
  * declaring `fleetDock`, never by a list here — and asserts those invariants on
- * each, failing with the card's name and the condition.
+ * each, failing with the card's name and the condition. Three docks stand in it
+ * since TR27 Aurora Station — the first whose reward ASKS (a card target).
  */
 type DockEntry = {name: CardName, module: string, compatibility: unknown, make: () => FleetDockCard};
 
@@ -65,9 +66,9 @@ function table(entry: DockEntry): Table {
 const DOCKS = manifestDocks();
 
 describe('FleetDock — the class contract, for every dock of the manifests', () => {
-  it('the worklist is not empty: Water Hauling and UNMI Liner stand in it', () => {
-    expect(DOCKS.length, 'a guard that iterates nothing proves nothing').greaterThanOrEqual(2);
-    expect(DOCKS.map((dock) => dock.name)).to.include.members([CardName.WATER_HAULING, CardName.UNMI_LINER]);
+  it('the worklist is not empty: Water Hauling, UNMI Liner and Aurora Station stand in it', () => {
+    expect(DOCKS.length, 'a guard that iterates nothing proves nothing').greaterThanOrEqual(3);
+    expect(DOCKS.map((dock) => dock.name)).to.include.members([CardName.WATER_HAULING, CardName.UNMI_LINER, CardName.AURORA_STATION]);
   });
 
   it('the client export marks exactly these cards (`ClientCard.fleetDock` — what the «ПРИЧАЛЫ» column reads)', () => {
@@ -162,6 +163,21 @@ describe('FleetDock — the class contract, for every dock of the manifests', ()
           `${entry.name}: an event of the landing is attributed to another card`).deep.eq([]);
         expect(t.card.data, `${entry.name}: the stamp`).deep.eq({dockedGeneration: t.game.generation});
         expect(t.player.colonies.usedTradeFleets, `${entry.name}: the fleet is spent`).eq(1);
+      });
+
+      it('a reward that ASKS leads the preview with its target, and the landing asks exactly when the preview said it would', () => {
+        const t = table(entry);
+        if (t.card.fleetDock.rewardTarget === undefined) {
+          expect(buildFleetDockPreview(t.player, t.card).followUps.filter((f) => f.kind === 'cardTarget'),
+            `${entry.name}: a card target no step stands behind`).deep.eq([]);
+          return;
+        }
+        const target = buildFleetDockPreview(t.player, t.card).followUps[0];
+        expect(target?.kind, `${entry.name}: the target is the first follow-up — the landing queues it first`).eq('cardTarget');
+        const asks = target?.kind === 'cardTarget' && target.pick !== undefined;
+        dockFleet(t.player, t.card);
+        runAllActions(t.game);
+        expect(t.player.getWaitingFor()?.type === 'card', `${entry.name}: the preview said ${asks ? 'pick' : 'no question'}`).eq(asks);
       });
 
       it('prints the «▲ : [reward]» row the fleet lands on, with a reward icon on its result side', () => {

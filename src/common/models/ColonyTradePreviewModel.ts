@@ -2,7 +2,7 @@ import {ColonyName} from '../colonies/ColonyName';
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {SelectCardModel, SelectPaymentModel} from './PlayerInputModel';
-import type {ActionEffect} from './ActionPreviewModel';
+import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {EffectForecastFact} from './EffectForecastModel';
 
 /**
@@ -76,6 +76,14 @@ export type ColonyTradeFollowUpModel =
       pick?: SelectCardModel,
       /** Exactly 1 candidate → the server auto-applies; shown explicitly. */
       auto?: CardName,
+      /**
+       * Each candidate's own victory points after k of the units have landed
+       * (k = 1…amount, index k − 1) — the server's per-unit reading, for a
+       * scene that ticks the points on each touchdown (a fleet dock's reward,
+       * TR27). Absent where no reader asked, and for a card whose points never
+       * respond. The client derives no rule from it.
+       */
+      vpSteps?: Partial<Record<CardName, ReadonlyArray<VictoryPointsDelta>>>,
       /** No eligible card — the resource is NOT added (honest warning). */
       lost: boolean,
     }

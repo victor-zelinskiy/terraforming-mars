@@ -21,4 +21,7 @@ export const SpaceName = {
 
   // Turmoil Redux — a HOSTED cell: its place is a colony tile, never the board (`hostedSpaces.ts`).
   NOVA_CITY: '79',
+  // Turmoil Redux — «next to the Venus track»: the fifth cell of the board's Venus flank, drawn by the board
+  // beside the four Venus Next cities (TR27 Aurora Station). An ordinary off-Mars cell, never a hosted one.
+  AURORA_STATION: '80',
 } as const;

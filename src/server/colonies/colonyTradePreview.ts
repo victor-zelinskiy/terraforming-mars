@@ -12,9 +12,10 @@ import {
   FleetDockPreviewModel,
   TradePaymentPreviewModel,
 } from '../../common/models/ColonyTradePreviewModel';
-import {FleetDockCard, fleetDockBlockedReason} from './FleetDock';
+import {FleetDockCard, fleetDockBlockedReason, fleetDockRewardTarget} from './FleetDock';
 import {tradeFlatBonuses} from './tradePerformed';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {distributionVictoryPoints} from '../cards/actionPreviews';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {StealResources} from '../deferredActions/StealResources';
 import {TradeWithEnergy, TradeWithMegacredits} from '../player/Colonies';
@@ -118,19 +119,29 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
  * pays on a rating gain) — the forecast engine's own pass over the chips the
  * card stated (`rewardReactionFacts`), the same twins the composers'
  * «Сработает» row reads.
+ *
+ * A reward with a CARD TARGET (TR27) leads the follow-ups with that target, in
+ * the landing's own order (`dockFleet` queues it first): the very step the
+ * landing will queue, read once (`fleetDockRewardTarget` →
+ * `cardTargetFollowUpOf`), with each candidate's points per landed unit — the
+ * dock's scene ticks them on the touchdowns.
  */
 export function buildFleetDockPreview(player: IPlayer, card: FleetDockCard): FleetDockPreviewModel {
   const reason = fleetDockBlockedReason(player, card);
   const flatBonuses = flatBonusModels(player);
   const effects = card.fleetDock.previewEffects(player);
   const reactions = rewardReactionFacts(player, card, effects);
+  const target = fleetDockRewardTarget(player, card);
   return {
     card: card.name,
     available: reason === undefined,
     ...(reason !== undefined ? {reason} : {}),
     ...tradePaymentPreview(player),
     effects,
-    followUps: card.fleetDock.previewFollowUps?.(player) ?? [],
+    followUps: [
+      ...(target !== undefined ? [cardTargetFollowUpOf(target, 'tradeReward', {vpSteps: true})] : []),
+      ...(card.fleetDock.previewFollowUps?.(player) ?? []),
+    ],
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
     ...(reactions.length > 0 ? {reactions} : {}),
   };
@@ -300,14 +311,43 @@ function cardTargetFollowUp(
       title: message('Select Venus card to add ${0} resource(s)', (b) => b.number(amount)),
     } : {}),
   });
+  return cardTargetFollowUpOf(action, role);
+}
+
+/**
+ * THE ONE READING OF A CARD TARGET — what a built «add N to a card» step will
+ * do once it runs, read off the step ITSELF: no candidate → the resource is
+ * `lost` (named, never silent); the live step will not ask (one candidate
+ * under its own `autoSelect`) → `auto`, the card named; it will ask → `pick`,
+ * the very `SelectCard` it will present. A colony's reward / bonus target and
+ * a fleet dock's reward target (TR27) both go through here, so the follow-up
+ * a stage pre-collects and the prompt the server raises are one object's two
+ * answers.
+ *
+ * `vpSteps` (opt-in — a reader whose scene ticks the points per landed unit,
+ * the dock's): each candidate's own victory points after k of the units have
+ * landed, k = 1…amount (`actionPreviews.distributionVictoryPoints` — the
+ * machine the distribution step's per-k reading runs). A card whose points
+ * never respond is absent.
+ */
+export function cardTargetFollowUpOf(
+  action: AddResourcesToCard,
+  role: ColonyTradeFollowUpRole,
+  options: {vpSteps?: boolean} = {},
+): ColonyTradeFollowUpModel {
   const resource = action.resourceType;
+  const kinds = action.resourceTypes;
   const several = kinds !== undefined && kinds.length > 1 ? {resources: kinds} : {};
+  const amount = action.options.count ?? 1;
   const cards = action.getCards();
   if (cards.length === 0) {
     return {kind: 'cardTarget', role, resource, ...several, amount, lost: true};
   }
-  if (cards.length === 1) {
-    return {kind: 'cardTarget', role, resource, ...several, amount, auto: cards[0].name, lost: false};
+  const vp = options.vpSteps === true ? distributionVictoryPoints(action.player, cards, amount) : undefined;
+  const vpSteps = vp !== undefined && Object.keys(vp).length > 0 ? {vpSteps: vp} : {};
+  const pick = action.previewSelectCard();
+  if (pick === undefined) {
+    return {kind: 'cardTarget', role, resource, ...several, amount, auto: cards[0].name, ...vpSteps, lost: false};
   }
-  return {kind: 'cardTarget', role, resource, ...several, amount, pick: action.previewSelectCard(), lost: false};
+  return {kind: 'cardTarget', role, resource, ...several, amount, pick, ...vpSteps, lost: false};
 }

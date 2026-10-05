@@ -9,6 +9,12 @@ import {CardName} from '../../src/common/cards/CardName';
 import {WaterHauling} from '../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../src/server/cards/turmoilRedux/UnmiLiner';
 import {VenusTradeHub} from '../../src/server/cards/prelude2/VenusTradeHub';
+import {AuroraStation} from '../../src/server/cards/turmoilRedux/AuroraStation';
+import {FloatingHabs} from '../../src/server/cards/venusNext/FloatingHabs';
+import {FleetDock} from '../../src/server/colonies/FleetDock';
+import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
+import {CardResource} from '../../src/common/CardResource';
+import {fakeCard} from '../TestingUtils';
 import {statusCode} from '../../src/common/http/statusCode';
 import {use} from 'chai';
 import chaiAsPromised from 'chai-as-promised';
@@ -142,6 +148,49 @@ describe('ApiGameColonyTradePreview', () => {
         {direction: 'gain', icon: 'tr', amount: 1, current: player.terraformRating, resulting: player.terraformRating + 1},
       ]);
       expect(preview.followUps, 'the reward has no surface and no question').to.deep.eq([]);
+    });
+
+    /**
+     * A reward that ASKS (TR27 Aurora Station: «2 floaters to ANY Venus card»)
+     * — the target leads the follow-ups in its three honest forms, read off the
+     * very step the landing queues (`fleetDockRewardTarget`): `auto` with one
+     * holder, `pick` with several, `lost` with none (a stand-in: the station is
+     * always its own candidate, so it can never lose its floaters).
+     */
+    it('a reward that asks (TR27): the card target in its three forms — auto · pick · lost', async () => {
+      const {player} = await freshGame();
+      const aurora = new AuroraStation();
+      player.playedCards.push(aurora);
+      const ask = async (card: CardName) => {
+        res = new MockResponse();
+        scaffolding.url = `/api/game/colony-trade-preview?id=${player.id}&dock=${encodeURIComponent(card)}`;
+        await scaffolding.get(ApiGameColonyTradePreview.INSTANCE, res);
+        return JSON.parse(res.content);
+      };
+      const one = await ask(CardName.AURORA_STATION);
+      expect(one.effects).to.deep.eq([
+        {direction: 'gain', icon: 'floater', amount: 2, note: 'to a card'},
+        {direction: 'gain', icon: 'megacredits', amount: 1, current: 0, resulting: 1, note: 'production'},
+      ]);
+      expect(one.followUps).to.deep.eq([{
+        kind: 'cardTarget', role: 'tradeReward', resource: 'Floater', amount: 2, auto: CardName.AURORA_STATION,
+        vpSteps: {[CardName.AURORA_STATION]: [{from: 0, to: 0}, {from: 0, to: 1}]}, lost: false,
+      }]);
+
+      player.playedCards.push(new FloatingHabs());
+      const two = await ask(CardName.AURORA_STATION);
+      expect(two.followUps).has.lengthOf(1);
+      expect(two.followUps[0].auto).is.undefined;
+      expect(two.followUps[0].pick.cards.map((c: {name: string}) => c.name)).to.deep.eq([CardName.AURORA_STATION, CardName.FLOATING_HABS]);
+
+      const fleetDock: FleetDock = {
+        previewEffects: () => [],
+        rewardTarget: (p) => new AddResourcesToCard(p, CardResource.ANIMAL, {count: 1}),
+        receive: () => {},
+      };
+      player.playedCards.push(fakeCard({name: 'A dock with nobody to receive' as CardName, fleetDock, data: {dockedGeneration: -1}}));
+      const none = await ask('A dock with nobody to receive' as CardName);
+      expect(none.followUps).to.deep.eq([{kind: 'cardTarget', role: 'tradeReward', resource: 'Animal', amount: 1, lost: true}]);
     });
 
     it('`colony` and `dock` are mutually exclusive', async () => {

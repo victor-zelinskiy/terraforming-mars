@@ -1097,6 +1097,7 @@ export enum CardName {
   VENUSIAN_CENSUS = 'Venusian Census',
   EXCLUSIVE_COLONY = 'Exclusive Colony',
   UNMI_LINER = 'UNMI Liner',
+  AURORA_STATION = 'Aurora Station',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

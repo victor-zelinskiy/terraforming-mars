@@ -1,7 +1,8 @@
 import {IPlayer} from '../IPlayer';
-import {FleetDockCard, fleetDockBlockedReason} from './FleetDock';
+import {FleetDockCard, fleetDockBlockedReason, fleetDockRewardTarget} from './FleetDock';
 import {ITradeDestination, TradeDestinationSource} from './ITradeDestination';
 import {payTradeFlatBonuses, reportTrade} from './tradePerformed';
+import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 
 /**
  * THE FLEET LANDS ON THE CARD — the one writer of a dock's state.
@@ -12,6 +13,14 @@ import {payTradeFlatBonuses, reportTrade} from './tradePerformed';
  * row, the rival's notification), and only then the card's reward — so
  * whatever the reward defers (Water Hauling's ocean) is queued by a fleet that
  * has demonstrably landed.
+ *
+ * A reward with a CARD TARGET (TR27) is paid in its printed order: the
+ * target's own step is queued first (the very object the preview read —
+ * `fleetDockRewardTarget`), and the rest of the reward (`receive`) is queued
+ * BEHIND it at the same priority, so it runs only once the target has been
+ * answered — or auto-applied, or named lost. Nothing the card pays comes
+ * before the question its row prints first. A dock without a target is
+ * byte for byte the landing it always was (`receive` inline).
  */
 export function dockFleet(player: IPlayer, card: FleetDockCard): void {
   const game = player.game;
@@ -19,7 +28,16 @@ export function dockFleet(player: IPlayer, card: FleetDockCard): void {
     card.data = {dockedGeneration: game.generation};
     player.colonies.usedTradeFleets++;
     game.events.recordFleetDocked(player, card);
-    card.fleetDock.receive(player);
+    const target = fleetDockRewardTarget(player, card);
+    if (target === undefined) {
+      card.fleetDock.receive(player);
+      return;
+    }
+    game.defer(target);
+    game.defer(new SimpleDeferredAction(player, () => {
+      card.fleetDock.receive(player);
+      return undefined;
+    }, target.priority));
   });
 }
 

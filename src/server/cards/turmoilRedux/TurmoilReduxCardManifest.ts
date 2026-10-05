@@ -27,6 +27,7 @@ import {HabitatScience} from './HabitatScience';
 import {VenusianCensus} from './VenusianCensus';
 import {ExclusiveColony} from './ExclusiveColony';
 import {UnmiLiner} from './UnmiLiner';
+import {AuroraStation} from './AuroraStation';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -140,5 +141,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // set's SECOND fleet dock, `colonies/FleetDock.ts`; its reward is +1 TR). The purple Turmoil symbol below
     // it is the module itself. Unity's plate.
     [CardName.UNMI_LINER]: {Factory: UnmiLiner, compatibility: 'colonies'},
+    // The grey ▲ at the bottom left: the card needs Colonies (it is a destination of the trade action — the
+    // set's THIRD fleet dock, `colonies/FleetDock.ts`; its reward asks for a Venus card). The scan carries NO
+    // Venus Next icon, yet the card cannot work without it (a Venus tag, «the Venus track», «any Venus card»):
+    // owner's decision 3 gates it on BOTH. The purple Turmoil symbol below it is the module itself. Unity's plate.
+    [CardName.AURORA_STATION]: {Factory: AuroraStation, compatibility: ['colonies', 'venus']},
   },
 });

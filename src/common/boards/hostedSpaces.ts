@@ -21,8 +21,11 @@ import {SpaceName} from './SpaceName';
  *
  * A TABLE, NOT A GUESS: «x === −1» is every space colony (Ganymede has a
  * place on the board), and «not drawn by Board.vue» is a fact about a
- * template. The next hosted cell (TR27 Aurora Station — «next to the Venus
- * track») adds its ROW here.
+ * template. A cell is hosted only when its tile lies ON ANOTHER OBJECT;
+ * TR27 Aurora Station's city («next to the Venus track») is NOT one — on the
+ * printed board the Venus cities stand beside the track, so its cell is the
+ * fifth of the board's Venus flank, drawn by `Board.vue` like its four
+ * neighbours (owner's decision, 2026-10-05).
  */
 export const HOSTED_SPACES: ReadonlySet<SpaceId> = new Set<SpaceId>([
   SpaceName.NOVA_CITY,
