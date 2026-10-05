@@ -23,8 +23,6 @@
            'con-colonies--receipt': receiptOn,
          },
        ]"
-       :data-colony-build-degraded="buildState.degraded ? '' : undefined"
-       :data-colony-build-phase="buildState.active ? buildState.phase : undefined"
        :data-colony-city-degraded="cityState.degraded !== '' ? cityState.degraded : undefined"
        :data-colony-city-beat="cityState.live ? cityState.beat : undefined"
        :data-colony-roster-degraded="rosterState.degraded !== '' ? rosterState.degraded : undefined"
@@ -805,9 +803,13 @@ export default defineComponent({
     buildDoorStands(): boolean {
       return this.pick?.buildProjected === true;
     },
-    /** The receipt of a staged build: the transaction's own while it stands, then this surface's copy. */
+    /**
+     * The receipt of a staged build: the transaction's own while it stands, then this surface's copy. It belongs to
+     * the HOSTED instance the build was made in (a staged door's grid is always a step of its host): a FRESH
+     * «Колонии» the player opens beside a parked flow (the delegates' step set aside) is an ordinary grid.
+     */
     buildReceipt(): ColonyBuildReceipt | undefined {
-      return this.buildState.receipt ?? this.buildReceiptLatch;
+      return this.embedded ? this.buildState.receipt ?? this.buildReceiptLatch : undefined;
     },
     buildReceiptOn(): boolean {
       return this.buildReceipt !== undefined && !this.buildState.active && !this.focusState.open;
@@ -817,7 +819,8 @@ export default defineComponent({
      * the door's prompt has outlived its answer — no tile is offered, refused or projected any more.
      */
     buildAnswered(): boolean {
-      return colonyBuildAnswered() || this.buildReceipt !== undefined;
+      // …on the HOSTED instance the build was made in — a fresh «Колонии» beside a parked flow answers its own presses.
+      return this.embedded && (colonyBuildAnswered() || this.buildReceipt !== undefined);
     },
     /** The server's projection of a build on the FOCUSED tile (its berth, beyond the limit or not) — `undefined` off a build door. */
     focusBuildSite(): ColonyBuildSite | undefined {

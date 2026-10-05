@@ -119,6 +119,31 @@ describe('a colony built by a card — the wiring of the door', () => {
       expect(owed, 'never a title').to.not.include('.title');
     });
 
+    it('the Parliament\'s delegate grant (the Redux Venus) is NOT owed inside the stage — it stands in the section\'s zone AFTER the stage went home', () => {
+      // Under a standing stage it was a Parliament drawn over a lit track with the stage's verbs on the bar.
+      const owed = memberOf(shell, 'colonyBuildContinuationOwed');
+      expect(owed, 'a hosted Parliament does not hold the stage').to.include('workspaceFrameHost(\'parliament\') !== \'colonies\'');
+      expect(owed, 'a party prompt does not hold the stage').to.include('wf.type !== \'party\'');
+      const grant = memberOf(shell, 'colonyBuildGrantPrompt');
+      expect(grant, 'the grant by the server\'s markers').to.include('wf.votePrompt?.source === \'grant\'');
+      expect(grant).to.include('source?.kind === \'colony\'');
+      expect(grant, 'never a title').to.not.include('.title');
+      expect(memberOf(shell, 'colonyBuildSectionStepOwed')).to.include('workspaceFrameHost(\'parliament\') === \'colonies\' || this.colonyBuildGrantPrompt');
+      // The grant's door is HELD while a card's build stage stands…
+      const door = memberOf(shell, 'openShellTaskSurface');
+      expect(door).to.include('if (partyStep && colonyBuildAnswered() && this.colonyFocus.open) {');
+      // …and the landing opens it once the stage has left, then waits for the step before the receipt is read.
+      const land = memberOf(shell, 'landColonyBuild');
+      const fold = land.indexOf('closeColonyFocus()');
+      const open = land.indexOf('this.openShellTaskSurface(task)');
+      const wait = land.indexOf('this.colonyBuildSectionStepOwed');
+      const read = land.indexOf('await dwell(');
+      expect(fold, 'the fold').to.be.greaterThan(-1);
+      expect(open, 'the door after the fold').to.be.greaterThan(fold);
+      expect(wait, 'the step is waited for after its door').to.be.greaterThan(open);
+      expect(read, 'the receipt is read after the step').to.be.greaterThan(wait);
+    });
+
     it('the re-asked door and the end of the step both drop the receipt', () => {
       expect(memberOf(shell, 'settleStagedColony')).to.include('clearColonyBuildReceipt()');
       expect(memberOf(shell, 'endStagedColony')).to.include('clearColonyBuildReceipt()');
@@ -142,7 +167,7 @@ describe('a colony built by a card — the wiring of the door', () => {
 
     it('the admission is the build transaction\'s own state — never a timer', () => {
       const admit = memberOf(stage, 'admitCell');
-      expect(admit).to.include('b.active && b.colonyName === this.colony.name ? b.slotIndex : -1');
+      expect(admit).to.include('b.active && b.colonyName === this.colony.name && berthIsOverLimit(b.slotIndex) ? b.slotIndex : -1');
       expect(admit).to.not.match(/setTimeout|delayedCall/);
     });
 
@@ -153,9 +178,37 @@ describe('a colony built by a card — the wiring of the door', () => {
       expect(memberOf(stage, 'nextBuildSlot')).to.include('nextBuildSlot(this.colony, this.buildSite)');
     });
 
-    it('a flight that could not be played is published on the section\'s root', () => {
-      const raw = read('src', 'client', 'components', 'console', 'ConsoleColoniesSection.vue');
-      expect(raw).to.include(':data-colony-build-degraded="buildState.degraded ? \'\' : undefined"');
+    it('past the press a card\'s build speaks a STATUS on the bar — «Выполняется…» on the stage, «Выполнено» on the receipt grid', () => {
+      const commands = memberOf(shell, 'commands');
+      const stageBranch = commands.slice(commands.indexOf('if (intent === \'build\') {'));
+      const stageStatus = stageBranch.indexOf('if (colonyBuildAnswered()) {');
+      expect(stageStatus, 'the stage\'s build branch asks the transaction first').to.be.greaterThan(-1);
+      expect(stageStatus, '…before it builds its own verbs').to.be.lessThan(stageBranch.indexOf('const verb = stagedBuild ?'));
+      expect(stageBranch.slice(stageStatus, stageStatus + 140)).to.include('label: \'Performing…\', enabled: false');
+      const gridBranch = commands.slice(commands.indexOf('if (this.consoleState.section === \'colonies\') {'));
+      // …on the HOSTED grid only (a staged door's grid is a step of its host): a fresh «Колонии» opened beside a
+      // parked flow keeps its own verbs — and its own ordinary grid (the section's receipt asks `embedded` too).
+      const gridStatus = gridBranch.indexOf('if (colonyBuildAnswered() && workspaceFrameHost(\'colonies\') !== undefined) {');
+      expect(gridStatus, 'the grid\'s branch asks the transaction first').to.be.greaterThan(-1);
+      expect(gridStatus, '…before the pick\'s verbs').to.be.lessThan(gridBranch.indexOf('if (pick !== undefined) {'));
+      expect(gridBranch.slice(gridStatus, gridStatus + 180)).to.include('label: \'Completed\', enabled: false');
+      expect(memberOf(section, 'buildReceipt')).to.include('this.embedded ? this.buildState.receipt ?? this.buildReceiptLatch : undefined');
+      expect(memberOf(section, 'buildAnswered')).to.include('this.embedded && (colonyBuildAnswered() || this.buildReceipt !== undefined)');
+    });
+
+    it('a flight that could not be played is published by the transaction\'s own WITNESS — never by the section\'s render', () => {
+      const witness = read('src', 'client', 'components', 'console', 'colonyBuild', 'ConsoleColonyBuildWitness.vue');
+      expect(witness).to.include(':data-colony-build-degraded="colonyBuildState.degraded ? \'\' : undefined"');
+      expect(witness).to.include(':data-colony-build-phase="colonyBuildState.active ? colonyBuildState.phase : undefined"');
+      // The witness rides the cube's shell-mounted layer: it stands whatever surface is open.
+      expect(read('src', 'client', 'components', 'console', 'colonyBuild', 'ConsoleColonyBuildLayer.vue')).to.include('<ConsoleColonyBuildWitness />');
+      // AN ORDINARY BUILD'S PRESS PATH IS THE ONE IT ALWAYS WAS: the section's template reads nothing of the build
+      // transaction (a phase read there re-rendered the whole surface on the press and on every beat — the cube's
+      // proxy was born 10–25 ms later), and an ordinary berth admits nothing (the instrument's props stand still).
+      const template = section.slice(0, section.indexOf('<script'));
+      expect(template.length, 'the section\'s template was found').to.be.greaterThan(1000);
+      expect(template).to.not.match(/buildState\.(phase|active|degraded)/);
+      expect(memberOf(stage, 'admitCell')).to.include('berthIsOverLimit(b.slotIndex)');
     });
   });
 });

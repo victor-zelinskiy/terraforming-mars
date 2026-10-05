@@ -2059,7 +2059,8 @@ import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
 import ConsoleColonyCityLayer from '@/client/components/console/colonyCity/ConsoleColonyCityLayer.vue';
 import {
-  abortColonyBuild, armColonyBuild, clearColonyBuildReceipt, colonyBuildState, isColonyBuildActive, setColonyBuildHoming,
+  abortColonyBuild, armColonyBuild, clearColonyBuildReceipt, colonyBuildAnswered, colonyBuildState, isColonyBuildActive,
+  setColonyBuildHoming,
 } from '@/client/console/colonyBuild/consoleColonyBuild';
 import {buildSiteOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
@@ -2089,6 +2090,7 @@ import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/
 import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
 import {actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
+import {probeTick} from '@/client/console/probeTick';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
@@ -5704,22 +5706,40 @@ export default defineComponent({
      * WHAT A LANDED BUILD STILL OWES INSIDE ITS STAGE (the staged door's HOME waits for all of it — `landColonyBuild`):
      *  · a follow-up the COLONY's claim holds — a draw being taken (Pluto), a late card target;
      *  · the presented card still receiving its resources and being read (Titan);
-     *  · a step hosted inside the colonies frame (the Parliament's grant — the Redux Venus);
-     *  · a prompt the tile's own bonus raised that a workspace serves — named by the server's structural source
+     *  · a step hosted inside the colonies frame that the STAGE lives with (the hand's discard);
+     *  · a prompt the tile's own bonus raised that the stage serves — named by the server's structural source
      *    (`choiceContext.source = {kind: 'colony', name}`), never by a title.
-     * A board placement (Europa's ocean) is NOT in it: that one takes the board once the hand has left.
+     * NOT in it: a board placement (Europa's ocean — it takes the board once the hand has left), and the
+     * Parliament's delegate grant (the Redux Venus) — that step takes the SECTION's whole central area, so it stands
+     * AFTER the stage has gone home (`colonyBuildSectionStepOwed`); under a standing stage it was a Parliament drawn
+     * over a lit track with the stage's verbs on the bar.
      */
     colonyBuildContinuationOwed(): boolean {
       if (workspaceOutcomeState.host === 'colonies' && workspaceOutcomeClaimed()) {
         return true;
       }
-      if (colonyResolutionUi.cardSceneLive || workspaceFrameHasNested('colonies')) {
+      if (colonyResolutionUi.cardSceneLive ||
+          (workspaceFrameHasNested('colonies') && workspaceFrameHost('parliament') !== 'colonies')) {
         return true;
       }
       const wf = this.playerView.waitingFor;
       const source = wf?.choiceContext?.source;
-      return wf !== undefined && wf.type !== 'space' && source?.kind === 'colony' &&
+      return wf !== undefined && wf.type !== 'space' && wf.type !== 'party' && source?.kind === 'colony' &&
         source.name === colonyBuildState.receipt?.colony;
+    },
+    /** The delegate grant the built tile's bonus raised (the Redux Venus), by the server's structural markers. */
+    colonyBuildGrantPrompt(): boolean {
+      const wf = this.playerView.waitingFor;
+      const source = wf?.choiceContext?.source;
+      return wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'grant' &&
+        source?.kind === 'colony' && source.name === colonyBuildState.receipt?.colony;
+    },
+    /**
+     * WHAT A LANDED BUILD STILL OWES IN THE SECTION'S OWN ZONE, once its stage has gone home: the Parliament's
+     * vote step for the delegates the tile's bonus pays — standing, or still behind its door.
+     */
+    colonyBuildSectionStepOwed(): boolean {
+      return workspaceFrameHost('parliament') === 'colonies' || this.colonyBuildGrantPrompt;
     },
     /**
      * THE RAIL IS THE ADD-A-TILE CATALOG — a pick-a-NEW-tile prompt (Aridor's
@@ -8855,6 +8875,11 @@ export default defineComponent({
           // nothing to decide it keeps the single-verb «A Построить».
           // A STAGED door (a card that builds by being played — TR25): the commit IS the play's one submit, so it
           // speaks the play's verb, and L3 reads the source card.
+          // PAST THE PRESS a card's build is a beat in flight (the admission, the cube, what the bonus owes): the bar
+          // is a STATUS, never the stage's own verbs gone inert. (A live build keeps the bar it always had.)
+          if (colonyBuildAnswered()) {
+            return [{control: 'confirm', label: 'Performing…', enabled: false}];
+          }
           const stagedBuild = this.colonyPick?.staged === true;
           const verb = stagedBuild ? 'Play card' : 'Build';
           const source = stagedBuild && this.colonyEmbedSourceCard !== undefined ?
@@ -9192,6 +9217,13 @@ export default defineComponent({
         // (one grid, one grammar — only B's label differs: an embedded step
         // minimizes its host).
         const pick = this.colonyPick;
+        // THE GRID AS THE RECEIPT of a colony a card built (TR25): the stage folded home, the grid states the result
+        // for one read — no cursor and no verbs, so the bar states it too (the door's prompt outlives its answer, and
+        // by it the bar would still offer «Выбрать · Осмотреть · Назад» over a grid that takes none of them).
+        // The HOSTED grid only: a fresh «Колонии» opened beside a parked flow is an ordinary screen with its own verbs.
+        if (colonyBuildAnswered() && workspaceFrameHost('colonies') !== undefined) {
+          return [{control: 'confirm', label: 'Completed', enabled: false}];
+        }
         if (pick !== undefined) {
           // The overview SELECTS; the focus stage resolves — A's label says
           // where it goes, never pretends the commit happens here.
@@ -18151,6 +18183,11 @@ export default defineComponent({
         // …and a card's SUPPORT-AREA pick met LIVE (TR12 — re-asked, a reload, a play outside the staged boundary)
         // stands the same way: the Parliament's support-area mode, inside the flow that raised it.
         const partyStep = this.playerView.waitingFor?.votePrompt?.source === 'grant' || this.playerView.waitingFor?.supportPrompt !== undefined;
+        // A CARD's build (TR25) whose stage still stands: the grant's step takes the section's central area, so its
+        // door waits for the stage to go HOME — `landColonyBuild` opens it then (never a Parliament over a lit stage).
+        if (partyStep && colonyBuildAnswered() && this.colonyFocus.open) {
+          return;
+        }
         if (partyStep) {
           const host = workspaceHostForStep();
           if (host !== undefined && host !== 'parliament') {
@@ -19805,6 +19842,31 @@ export default defineComponent({
         // before it is aimed at); a tile that cannot be measured lets the stage go where it stands.
         section.retargetFocusHome(receipt.colony);
         closeColonyFocus();
+        if (this.colonyBuildGrantPrompt) {
+          // THE DELEGATES THE TILE PAYS (the Redux Venus): the stage is home — now the Parliament's vote step takes
+          // the section's central area (its door was held while the stage stood), and the receipt is read after it.
+          // «Home» is a STATE: the stage's own node has left the section (its fold ended), bounded.
+          await new Promise<void>((resolve) => {
+            let left = 80;
+            const look = () => {
+              const stage = (section.$el as HTMLElement | undefined)?.querySelector?.('.con-colfocus');
+              if (stage === null || stage === undefined || --left <= 0) {
+                resolve();
+                return;
+              }
+              probeTick(look);
+            };
+            look();
+          });
+          const task = this.shellTask;
+          if (task !== undefined && task.kind === 'party' && this.colonyBuildGrantPrompt) {
+            this.openShellTaskSurface(task);
+          }
+          await vueNextTick();
+          await settle(() => this.colonyBuildSectionStepOwed);
+          await vueNextTick();
+          await frames();
+        }
         await dwell(COLONY_ROSTER_LANDING_MS + ROSTER_READ_MS);
       }
       const staged = stagedColonyOf(stagedPlayState.arm) !== undefined;

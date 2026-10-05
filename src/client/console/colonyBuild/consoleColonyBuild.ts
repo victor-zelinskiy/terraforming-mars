@@ -89,7 +89,8 @@ export const colonyBuildState = reactive({
   /**
    * THE SCENE COULD NOT BE PLAYED AS A FLIGHT — the landing seat was not
    * measurable (or the stage layer was not there), so the cube simply stands
-   * after the commit. Said out loud: the section publishes it as
+   * after the commit. Said out loud: the transaction's witness
+   * (`ConsoleColonyBuildWitness`) publishes it as
    * `data-colony-build-degraded`, and a probe demands its absence. Sticky
    * until the next arm (a reduced-motion run is not a degrade — it is asked for).
    */

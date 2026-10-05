@@ -243,9 +243,13 @@ html.con-profile-tv {
     }
     &.con-colfocus__ownerbonus--math .con-colfocus__ob-note { display: none; }
 
+    /* ⚠ The sibling pair is keyed on the cube's OWN class, never `> * + *`: a universal adjacent pair has no feature
+       Blink can key its sibling invalidation on, so EVERY insertion or removal anywhere in the document restyled the
+       whole subtree of the node's next sibling (measured on an ordinary build's press: 1204 elements restyled instead
+       of 323, the cube's proxy born a frame later). */
     &.con-colfocus__ownerbonus--ranks .con-colfocus__ob-tokens {
         gap: 0;
-        > * + * { margin-left: -6px; } /* keep-px: inside the tokens' ui-scale zoom */
+        > .player-cube + .player-cube { margin-left: -6px; } /* keep-px: inside the tokens' ui-scale zoom */
     }
 }
 @container con-colfocus-ob (max-width: 12.6rem) {

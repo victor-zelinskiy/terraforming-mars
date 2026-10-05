@@ -1509,11 +1509,12 @@ export default defineComponent({
     /**
      * THE ADMISSION BEAT — the berth whose limit this build has just lifted: from the press (the build
      * transaction is armed before the POST) until the cube stands there. ONE fact from the transaction's own
-     * state, never a timer: the limit mark lets go and the dashed contour closes off this class.
+     * state, never a timer: the limit mark lets go and the dashed contour closes off this class. An ORDINARY
+     * berth admits nothing — the instrument's props stand still through an ordinary build, as they always did.
      */
     admitCell(): number {
       const b = this.colonyBuildState;
-      return b.active && b.colonyName === this.colony.name ? b.slotIndex : -1;
+      return b.active && b.colonyName === this.colony.name && berthIsOverLimit(b.slotIndex) ? b.slotIndex : -1;
     },
     /**
      * The cell/berth pair currently being LATCHED by a landing build — the

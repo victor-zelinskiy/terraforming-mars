@@ -30,6 +30,8 @@
       <span ref="ring" class="con-colonybuild__ring" :style="ringStyle"></span>
     </div>
   </div>
+  <!-- The transaction's witness (phase · «the flight could not be played») — its own component, its own render. -->
+  <ConsoleColonyBuildWitness />
 </template>
 
 <script lang="ts">
@@ -38,10 +40,11 @@ import {Color} from '@/common/Color';
 import {colonyBuildState, registerColonyBuildStage} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {ColonyBuildStageEls} from '@/client/console/colonyBuild/colonyBuildDirector';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsoleColonyBuildWitness from '@/client/components/console/colonyBuild/ConsoleColonyBuildWitness.vue';
 
 export default defineComponent({
   name: 'ConsoleColonyBuildLayer',
-  components: {PlayerCube},
+  components: {PlayerCube, ConsoleColonyBuildWitness},
   data() {
     return {
       colonyBuildState,
