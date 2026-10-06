@@ -108,12 +108,13 @@ const CANON: Record<string, string> = {
   'area is full': 'область заполнена',
   'no neutral delegates left': 'нейтральных не осталось',
   // A PARTY REQUIREMENT (TR15 Martian Census — the set's first; glossary § 5): the rule and its «now» speak the
-  // access line's own words — «правит», «два ваших делегата на её резолюции», «на голосовании» — and the party
-  // by its parliament name («Марс вперёд»).
-  'Requires ${0} to be ruling or ${1} of your delegates on its resolution': 'Требуется: «${0}» правит или ${1} ваших делегата на её резолюции',
+  // access line's own words — «правит», «два ваших делегата», «на голосовании» — and the party by its parliament
+  // name («Марс вперёд»). ONE sentence serves every party, so it names NO pronoun: «на её резолюции» beside «Союз»
+  // (masculine) or «Зелёные» (plural) read wrong (PL-053, TR29 walk) — «на резолюции этой партии» is right for all.
+  'Requires ${0} to be ruling or ${1} of your delegates on the resolution of that party': 'Требуется: «${0}» правит или ${1} ваших делегата на резолюции этой партии',
   '${0} is not ruling': '«${0}» не правит',
-  'your delegates on its resolution: ${0} of ${1}': 'ваших делегатов на её резолюции: ${0} из ${1}',
-  'its resolution is not up for a vote': 'её резолюции нет на голосовании',
+  'your delegates on the resolution of that party: ${0} of ${1}': 'ваших делегатов на резолюции этой партии: ${0} из ${1}',
+  'the resolution of that party is not up for a vote': 'резолюции этой партии нет на голосовании',
   // THE SUPPORT-AREA MODE (TR12 Party Sanctions — glossary § 9-bis): the composer's door is a navigation verb, the
   // stage names what the pick does («САНКЦИИ»), the candidate's rule says where the cubes go and what does NOT change,
   // an empty area is a fact in the quiet register, and the chairman requirement names who holds the seat now.

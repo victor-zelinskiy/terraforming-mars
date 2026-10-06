@@ -46,16 +46,16 @@ describe('unplayableReasonFormat — the compact counter form', () => {
    */
   describe('a PARTY requirement', () => {
     const base: UnplayableReason = {
-      type: 'party', message: 'Requires ${0} to be ruling or ${1} of your delegates on its resolution',
+      type: 'party', message: 'Requires ${0} to be ruling or ${1} of your delegates on the resolution of that party',
       params: [PartyName.MARS, '2'], party: PartyName.MARS, current: 1, requirement: true,
     };
 
     it('the rule speaks the parliament name for the party (the key, not the raw param)', () => {
-      expect(unplayableReasonText(base)).eq('Requires party name: Mars First to be ruling or 2 of your delegates on its resolution');
+      expect(unplayableReasonText(base)).eq('Requires party name: Mars First to be ruling or 2 of your delegates on the resolution of that party');
     });
 
-    it('the line: «not ruling · your delegates on its resolution: 1 of 2»', () => {
-      expect(unplayableReasonLine(base)).eq('party name: Mars First is not ruling · your delegates on its resolution: 1 of 2');
+    it('the line: «not ruling · your delegates on the resolution of that party: 1 of 2»', () => {
+      expect(unplayableReasonLine(base)).eq('party name: Mars First is not ruling · your delegates on the resolution of that party: 1 of 2');
     });
 
     it('the compact counter: «1/2», read with the party emblem', () => {
@@ -63,9 +63,9 @@ describe('unplayableReasonFormat — the compact counter form', () => {
       expect(unplayableReasonEmblem(base)).eq('assets/parties/redux/mars-first.png');
     });
 
-    it('its resolution is not up for a vote: the CLOSED road is named, in the line and on the rail', () => {
+    it('the resolution of that party is not up for a vote: the CLOSED road is named, in the line and on the rail', () => {
       const off: UnplayableReason = {...base, current: 0, partyOffVote: true};
-      expect(unplayableReasonLine(off)).eq('party name: Mars First is not ruling · its resolution is not up for a vote');
+      expect(unplayableReasonLine(off)).eq('party name: Mars First is not ruling · the resolution of that party is not up for a vote');
       expect(unplayableReasonCompact(off)).eq('Not in the vote');
     });
 

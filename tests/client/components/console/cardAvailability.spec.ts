@@ -54,14 +54,14 @@ describe('cardAvailability — the ONE availability presentation model', () => {
   it('a named PARTY requirement (Turmoil Redux, TR15+): the rail reads «[emblem] 1/2», the panel the two roads', () => {
     const party: UnplayableReason = {
       type: 'party', requirement: true, requirementKey: 'req:party',
-      message: 'Requires ${0} to be ruling or ${1} of your delegates on its resolution',
+      message: 'Requires ${0} to be ruling or ${1} of your delegates on the resolution of that party',
       params: [PartyName.MARS, '2'], party: PartyName.MARS, current: 1,
     };
     const v = buildCardAvailability({reasons: [party]}, 'play')!;
     expect(v.severity).to.eq('blocked');
     expect(v.primary?.compact).to.eq('1/2');
     expect(v.primary?.emblem).to.eq('assets/parties/redux/mars-first.png');
-    expect(v.primary?.text).to.eq('party name: Mars First is not ruling · your delegates on its resolution: 1 of 2');
+    expect(v.primary?.text).to.eq('party name: Mars First is not ruling · your delegates on the resolution of that party: 1 of 2');
     expect(v.coveredRequirementIds, 'the named reason restates the rule').to.deep.eq(['req:party']);
     // Any other reason carries no emblem — its compact form names its own subject.
     expect(buildCardAvailability({reasons: [TAGS]}, 'play')!.primary?.emblem).to.eq(undefined);

@@ -47,8 +47,8 @@ export function unplayableReasonText(r: UnplayableReason): string {
 function partyReasonLine(r: UnplayableReason & {party: PartyName}): string {
   const party = translateText(partyNameKey(r.party));
   const road = r.partyOffVote === true ?
-    translateText('its resolution is not up for a vote') :
-    translateTextWithParams('your delegates on its resolution: ${0} of ${1}', [String(r.current ?? 0), r.params?.[1] ?? '2']);
+    translateText('the resolution of that party is not up for a vote') :
+    translateTextWithParams('your delegates on the resolution of that party: ${0} of ${1}', [String(r.current ?? 0), r.params?.[1] ?? '2']);
   return `${translateTextWithParams('${0} is not ruling', [party])} · ${road}`;
 }
 

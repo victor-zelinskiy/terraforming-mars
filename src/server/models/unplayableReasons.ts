@@ -363,7 +363,12 @@ function chairmanRequirementReason(player: IPlayer): UnplayableReason | undefine
 export const CHAIRMAN_REQUIREMENT_REASON = 'Requires you to be the chairman';
 
 /** The named party requirement's template — `${0}` the party, `${1}` the delegates the rule asks for. */
-export const PARTY_REQUIREMENT_REASON = 'Requires ${0} to be ruling or ${1} of your delegates on its resolution';
+/**
+ * ONE sentence for every party — so it names no pronoun: «её резолюции» agreed with the WORD «партия» and read
+ * wrong beside the party's own name («Союз» правит … на её резолюции — PL-053); the parties' names are of every
+ * gender and number in Russian, and «this party's» is right for all of them.
+ */
+export const PARTY_REQUIREMENT_REASON = 'Requires ${0} to be ruling or ${1} of your delegates on the resolution of that party';
 
 function collectAffordabilityReason(player: IPlayer, card: IProjectCard, out: Array<UnplayableReason>): void {
   const deficit = player.affordabilityDeficit(card);

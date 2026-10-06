@@ -112,7 +112,7 @@ describe('MartianCensus', () => {
         type: 'party', message: PARTY_REQUIREMENT_REASON, params: [M, '2'], party: M, current: 0,
         requirement: true, requirementKey: 'req:party',
       }]);
-      expect(PARTY_REQUIREMENT_REASON).eq('Requires ${0} to be ruling or ${1} of your delegates on its resolution');
+      expect(PARTY_REQUIREMENT_REASON).eq('Requires ${0} to be ruling or ${1} of your delegates on the resolution of that party');
     });
 
     it('one delegate on its resolution: still unplayable, «1 of 2»', () => {
