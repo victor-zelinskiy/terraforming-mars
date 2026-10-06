@@ -8860,12 +8860,12 @@ export default defineComponent({
         // the bar is the ONLY hint surface (no inline duplicates). The verbs
         // follow the INTENT: trade = rows + the one X confirm; build / pick =
         // A IS the confirm (nothing else to choose); inspect = B only.
-        if (consoleColoniesUi.composerSub === 'lanes') {
         // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (the
         // composers' and the dock stage's rule; PL-066).
         if (consoleColoniesUi.forecastOpen) {
           return [...(forecastExplorerUi('colony').barCommands ?? [])];
         }
+        if (consoleColoniesUi.composerSub === 'lanes') {
           return [
             {control: 'triggerR', label: 'Max'},
             {control: 'confirm', label: 'Done'},
@@ -8937,15 +8937,15 @@ export default defineComponent({
           const verb = stagedBuild ? 'Play card' : 'Build';
           const source = stagedBuild && this.colonyEmbedSourceCard !== undefined ?
             [{control: 'stickL' as GlyphControl, label: 'Source'}] : [];
-          if (consoleColoniesUi.composerDecisions) {
           // R3 — the «Эффекты» layer (the table's answer to the build), only when the forecast has something to show.
           const effects = consoleColoniesUi.forecastAvailable ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : [];
+          if (consoleColoniesUi.composerDecisions) {
             return [
               {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
               {control: 'secondary', label: verb, enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
               ...source,
-              {control: 'back', label: 'Back'},
               ...effects,
+              {control: 'back', label: 'Back'},
             ];
           }
           return [
@@ -8953,8 +8953,8 @@ export default defineComponent({
             // A CARD's own build door with nothing to compose: X reads the colony's dossier (the staged acts' grammar).
             ...(this.colonyPick?.buildProjected === true ? [{control: 'secondary' as GlyphControl, label: 'Inspect'}] : []),
             ...source,
-            {control: 'back', label: 'Back'},
             ...effects,
+            {control: 'back', label: 'Back'},
           ];
         }
         if (intent === 'pick') {
@@ -9002,9 +9002,9 @@ export default defineComponent({
             enabled: consoleColoniesUi.composerReady,
             highlight: consoleColoniesUi.composerReady,
           },
-          {control: 'back', label: 'Back'},
           // R3 — the «Эффекты» layer (the table's answer to the income), only when the forecast has something to show.
           ...(consoleColoniesUi.forecastAvailable ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : []),
+          {control: 'back', label: 'Back'},
         ];
       }
       if (this.colonyInspectModel !== undefined) {
@@ -9115,11 +9115,11 @@ export default defineComponent({
         if (!acceptsInput(workspaceFramePhase('standard-projects') ?? 'browse')) {
           return [];
         }
-        // One context-sensitive CTA belongs in the canonical command rail;
         // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (PL-066).
         if (effectForecastOpen('stdp')) {
           return [...(forecastExplorerUi('stdp').barCommands ?? [])];
         }
+        // One context-sensitive CTA belongs in the canonical command rail;
         // repeating it on every project card adds noise and weakens focus.
         const focused = this.stdProjectItems[this.consoleState.sheetIndex];
         return [
@@ -9129,9 +9129,9 @@ export default defineComponent({
             enabled: focused?.available === true,
             highlight: focused?.available === true,
           },
-          {control: 'back', label: this.stdBackLabel},
           // R3 — the «Эффекты» layer (the table's answer to the focused project), only when it has something to show.
           ...(!this.stdpStepUp && forecastLayerAvailable(focused?.preview?.forecast) ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : []),
+          {control: 'back', label: this.stdBackLabel},
         ];
       }
       if (this.consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
@@ -14350,7 +14350,6 @@ export default defineComponent({
         if (!acceptsInput(workspaceFramePhase('standard-projects') ?? 'browse')) {
           return;
         }
-        if (intent.kind === 'nav') {
         // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the browse opens it (PL-066). Both resolved
         // BEFORE the semantic map (no default R3) — the composers' and the stages' order.
         const stdpScreen = this.$refs.stdpScreen as InstanceType<typeof ConsoleStdProjectsScreen> | undefined;
@@ -14362,6 +14361,7 @@ export default defineComponent({
           stdpScreen?.openForecastLayer();
           return;
         }
+        if (intent.kind === 'nav') {
           this.consoleState.sheetIndex = stepGrid(
             this.consoleState.sheetIndex, intent.dir, this.stdProjectItems.length, 2);
           return;
