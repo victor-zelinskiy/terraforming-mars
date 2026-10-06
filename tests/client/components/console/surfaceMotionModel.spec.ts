@@ -15,6 +15,9 @@ import {
 import {
   addShadeOwner,
   beginAwaitingHandoff,
+  blankDepartedAnchors,
+  captureSurfaceDeparture,
+  isAnchorHandoffClaimed,
   clearAwaitingHandoff,
   isSurfaceAwaitingHandoff,
   markWheelHandoff,
@@ -235,6 +238,49 @@ describe('surfaceMotionState (the reactive store)', () => {
       expect(dep?.from).to.eq('action-composer');
       expect(dep?.anchors.get('card:X')?.width).to.eq(200);
       expect(takeSurfaceDeparture('reveal')).to.be.undefined;
+    });
+
+    /**
+     * A CAPTURE IS NOT A CLAIM. The shell captures every committed composer
+     * (it cannot know whether anything will carry the card on), and the leave
+     * used to blank the card on the mere capture: in a fold to the board the
+     * hero vanished in the first frame while its own reward tokens were still
+     * being born on its printed icons (TR28). Only a claim blanks — and the
+     * claimant never blanks its own anchors (a `v-show` surface coming back is
+     * both the departure and the claimant).
+     */
+    it('only a CLAIM blanks the departed card — the claimant\'s own anchors are never touched', () => {
+      const sized = (el: HTMLElement) => {
+        el.getBoundingClientRect = () => ({left: 0, top: 0, right: 200, bottom: 280, width: 200, height: 280, x: 0, y: 0, toJSON: () => ({})});
+        return el;
+      };
+      const outgoing = sized(document.createElement('div'));
+      const panel = sized(document.createElement('div'));
+      panel.setAttribute('data-motion-panel', '');
+      const card = sized(document.createElement('div'));
+      card.setAttribute('data-motion-anchor', 'card:X');
+      panel.appendChild(card);
+      outgoing.appendChild(panel);
+      document.body.appendChild(outgoing);
+      const claimant = document.createElement('div');
+      const theirs = document.createElement('div');
+      theirs.setAttribute('data-motion-anchor', 'card:X');
+      claimant.appendChild(theirs);
+      document.body.appendChild(claimant);
+      try {
+        captureSurfaceDeparture('action-composer', outgoing);
+        expect(isAnchorHandoffClaimed(), 'captured, not claimed').to.be.false;
+        expect(card.style.opacity, 'the capture alone leaves the card painted').to.eq('');
+        expect(takeSurfaceDeparture('reveal')?.from).to.eq('action-composer');
+        expect(isAnchorHandoffClaimed(), 'claimed').to.be.true;
+        blankDepartedAnchors(claimant);
+        expect(card.style.opacity, 'the claim blanks the OUTGOING copy').to.eq('0');
+        expect(theirs.style.opacity, 'never the claimant\'s own').to.eq('');
+      } finally {
+        outgoing.remove();
+        claimant.remove();
+        resetSurfaceMotion();
+      }
     });
   });
 

@@ -147,13 +147,16 @@ export function captureSurfaceDeparture(from: SurfaceMotionId, root: Element | n
     return; // hidden / display:none — not a believable departure
   }
   const anchors = new Map<string, CapturedRect>();
+  const nodes: Array<HTMLElement> = [];
   for (const el of root.querySelectorAll<HTMLElement>('[data-motion-anchor]')) {
     const id = el.dataset.motionAnchor;
     const r = rectOf(el);
     if (id !== undefined && id !== '' && r.width >= 10 && r.height >= 10) {
       anchors.set(id, r);
+      nodes.push(el);
     }
   }
+  departingAnchorNodes = nodes;
   surfaceMotionState.departure = {from, at: now(), panel: panelRect, anchors};
   if (anchors.size > 0) {
     armAnchorCarry();
@@ -199,6 +202,18 @@ export function endAnchorCarry(): void {
  *  never shows double. Module-level, not reactive (read once per hook). */
 let departureTakenAt = -Infinity;
 
+/**
+ * The outgoing surface's anchor NODES of the latest capture — module-level and
+ * never reactive (DOM elements). They are blanked by the CLAIM, not by the
+ * capture: a capture is taken unconditionally (the shell cannot know at the
+ * dismissal whether anything will carry the card on), and blanking on the mere
+ * capture made the source card vanish in the first frame of EVERY fold to the
+ * board — an action's hero gone while its own reward tokens were still being
+ * born on its printed icons (TR28's TR, any commit wave). A card nobody claims
+ * now leaves WITH its surface.
+ */
+let departingAnchorNodes: Array<HTMLElement> = [];
+
 /** Consume the capture for an incoming surface (fresh + phase-linked only). */
 export function takeSurfaceDeparture(to: SurfaceMotionId): SurfaceDeparture | undefined {
   const dep = surfaceMotionState.departure;
@@ -210,11 +225,31 @@ export function takeSurfaceDeparture(to: SurfaceMotionId): SurfaceDeparture | un
   return dep;
 }
 
+/**
+ * THE CLAIM BLANKS THE OUTGOING COPY: the claimant (the surface whose FLIP now
+ * carries the card) hides the departed anchors — never its own (`except`: a
+ * `v-show` surface coming back is both the departure and the claimant, and its
+ * anchors are the very objects it is about to carry home). Idempotent.
+ */
+export function blankDepartedAnchors(except?: Element): void {
+  for (const node of departingAnchorNodes) {
+    if (node.isConnected && except?.contains(node) !== true) {
+      node.style.opacity = '0';
+    }
+  }
+  departingAnchorNodes = [];
+}
+
 /** An anchored FLIP is in flight right now (claimed within the last beat) —
- *  or a capture is pending for one. The outgoing leave consults this to
- *  blank its own anchors (the card lives on the INCOMING side only). */
+ *  or a capture is pending for one. An INCOMING surface consults this to hold
+ *  its own anchors until the FLIP that brings them starts (`holdCarriedAnchors`). */
 export function isAnchorHandoffLive(): boolean {
   return surfaceMotionState.departure !== undefined || now() - departureTakenAt < 600;
+}
+
+/** A capture was CLAIMED within the last beat — the one case an outgoing leave blanks its own anchors. */
+export function isAnchorHandoffClaimed(): boolean {
+  return now() - departureTakenAt < 600;
 }
 
 /** How long a carried object may stay held before it is shown regardless. */
@@ -337,6 +372,8 @@ export function resetSurfaceMotion(): void {
   surfaceMotionState.revealVeilSuppressed = false;
   surfaceMotionState.awaiting = undefined;
   surfaceMotionState.departure = undefined;
+  departingAnchorNodes = [];
+  departureTakenAt = -Infinity;
   surfaceMotionState.wheelOrigin = undefined;
   surfaceMotionState.wheelChosenSlot = undefined;
   surfaceMotionState.wheelEcho = undefined;

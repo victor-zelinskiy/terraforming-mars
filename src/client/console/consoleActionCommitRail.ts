@@ -45,7 +45,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRelease} from '@/client/console/consoleActionCommit';
 import {pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
-import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_POP_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {flyRailReward, flyRailRewardLink, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 
 export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
@@ -188,12 +188,15 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
       }
       actionCommitRailState.link = k;
       if (k === last) {
-        // The last link is born now: a timeline's TR gets its ring, and the surface may fold under the token.
+        // The last link is born now: a timeline's TR gets its ring; the surface folds UNDER the token once it has
+        // popped out of its printed icon (one pop of the transfer language, on the animation clock) — the token is
+        // born over a card that is still there, and the card dissolves under it in flight.
         if (rail.links.length > 1) {
           pulseCommitRing(rail.ring);
         }
-        markFoldable();
-        await flyRailReward(rail.key, originOf);
+        const flight = flyRailReward(rail.key, originOf);
+        gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, markFoldable);
+        await flight;
       } else {
         const specs = rail.links[k].map((i) => rail.reward.cause[i]);
         const onCard = specs.every((spec) => spec.channel === 'card-resource' && spec.targetCard === card);

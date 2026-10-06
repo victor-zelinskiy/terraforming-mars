@@ -42,7 +42,8 @@ import {
 import {
   addShadeOwner,
   removeShadeOwner,
-  isAnchorHandoffLive,
+  blankDepartedAnchors,
+  isAnchorHandoffClaimed,
   endAnchorCarry,
   takeSurfaceDeparture,
   takeWheelOrigin,
@@ -344,6 +345,10 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   }
   const reduced = consoleReducedMotionActive();
   const departure = takeSurfaceDeparture(id);
+  if (departure !== undefined) {
+    // The claim: the outgoing copy goes now, so the card lives on this side only.
+    blankDepartedAnchors(el);
+  }
   const wheelOrigin = id === 'quick' ? undefined : takeWheelOrigin();
   const kind = departure !== undefined ? 'phase' :
     id === 'quick' ? 'wheel-open' :
@@ -783,6 +788,7 @@ export function carryAnchorsHome(root: Element | null | undefined, id: SurfaceMo
   if (dep === undefined) {
     return false;
   }
+  blankDepartedAnchors(root);
   const carried = Array.from(root.querySelectorAll<HTMLElement>('[data-motion-anchor]'))
     .map((node) => ({node, from: dep.anchors.get(node.dataset.motionAnchor ?? '')}))
     .filter((c): c is {node: HTMLElement, from: CapturedRect} => c.from !== undefined);
@@ -958,10 +964,13 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
       margin: 0, zIndex: 5, pointerEvents: 'none',
     });
   }
-  // An anchored FLIP is claiming this surface's card (composer → reveal):
+  // An anchored FLIP has CLAIMED this surface's card (composer → reveal):
   // blank the departing anchors instantly so the travelling card exists on
-  // the INCOMING side only — never a double image.
-  if (isAnchorHandoffLive()) {
+  // the INCOMING side only — never a double image. Only a CLAIM blanks: a
+  // capture nobody takes (a commit folding to the board) leaves its card to
+  // dissolve WITH the surface, and a claim that lands after this leave has
+  // started blanks the departed copy itself (`blankDepartedAnchors`).
+  if (isAnchorHandoffClaimed()) {
     const anchors = el.querySelectorAll<HTMLElement>('[data-motion-anchor]');
     if (anchors.length > 0) {
       gsap.set(anchors, {opacity: 0});
