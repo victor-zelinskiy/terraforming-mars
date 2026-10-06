@@ -32,6 +32,10 @@ describe('consoleActionFlow', () => {
       expect(focusKicker('setup')).to.eq('Setup');
       expect(focusKicker('reveal')).to.eq('Reveal result');
     });
+
+    it('PL-062: a SENT action with no outcome stage of its own is «Выполнение», never the setup it left', () => {
+      expect(focusKicker('executing')).to.eq('Performing');
+    });
   });
 
   describe('focusCommandRun', () => {

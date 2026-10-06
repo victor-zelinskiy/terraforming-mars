@@ -1210,7 +1210,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
+  emits: ['confirm', 'committing', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
   data() {
     return {
       /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
@@ -1268,6 +1268,13 @@ export default defineComponent({
       playedTargetWidth: 0,
       playedTargetHeight: 0,
       submitting: false,
+      /**
+       * THE ACTION WAS SENT — past the commit boundary for real. `submitting` alone cannot say it: a staged board
+       * placement locks the CTA too and sends NOTHING (the board's cell is the one submit, B walks back here). Raised
+       * at the press that hands the batch to the server, it falls with `submitting` (a refusal, a fresh view the
+       * transport no longer awaits) — and the host's crumb reads it: «… › ВЫПОЛНЕНИЕ», amber past the commit (PL-062).
+       */
+      commitSent: false,
       /** THE LEDGER as the player read it at the press — frozen, so the paying rows can never re-order under a refetched preview. */
       ledgerFrozen: undefined as AllColonyBonusesModel | undefined,
       /** The surface's height AT THE PRESS (its own used value) — the box the paying ledger keeps ('' — not pinned). */
@@ -2565,6 +2572,15 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The sent action stops being in flight the moment the lock falls — whichever road dropped it. */
+    submitting(now: boolean) {
+      if (!now) {
+        this.commitSent = false;
+      }
+    },
+    commitSent(now: boolean) {
+      this.$emit('committing', now);
+    },
     /**
      * A NEW PREVIEW RE-SEATS THE DRAFT — but never past the COMMIT BOUNDARY.
      *
@@ -5070,6 +5086,7 @@ export default defineComponent({
       //    choice — no server activation, no commit beat there.
       if (this.publishCommands) {
         this.playCommitBeat(branch);
+        this.commitSent = true;
       }
       this.$emit('confirm', {
         branchIndex: branch.index,

@@ -34,6 +34,12 @@ export const consoleActionComposerUi = reactive({
    * overlay for exactly this reveal. Cleared on ack / stage unmount.
    */
   revealClaim: '' as string,
+  /**
+   * The action was SENT and its phrase is playing with no outcome stage of its own (PL-062): the stage is
+   * «Выполнение». Published by the hosting «Действия карт» (which knows a real send from a capture), read by the
+   * command bar beside `revealClaim` — the bar and the crumb name the stage from the same fact.
+   */
+  executing: false,
 });
 
 export function setConsoleActionComposerCommands(commands: ReadonlyArray<ConsoleCommand>): void {
@@ -45,6 +51,10 @@ export function setConsoleActionRevealClaim(cardName: string): void {
   consoleActionComposerUi.revealClaim = cardName;
 }
 
+export function setConsoleActionComposerExecuting(on: boolean): void {
+  consoleActionComposerUi.executing = on;
+}
+
 export function resetConsoleActionRevealClaim(): void {
   consoleActionComposerUi.revealClaim = '';
 }
@@ -53,4 +63,5 @@ export function resetConsoleActionComposerUi(): void {
   consoleActionComposerUi.open = false;
   consoleActionComposerUi.commands = [];
   consoleActionComposerUi.revealClaim = '';
+  consoleActionComposerUi.executing = false;
 }

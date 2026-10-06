@@ -85,8 +85,14 @@ export function actionFlowStage(signals: {
  *               player takes them there. A distinct phase from `reveal`
  *               because nothing is being CHECKED — the outcome is the cards
  *               themselves, so «Результат вскрытия» would misname it.
+ *  - `executing` — the action was SENT and its phrase is playing (the commit
+ *               beat, a spend leaving its card, a timeline's links) with no
+ *               outcome stage of its own. The setup is over — the pad is
+ *               inert, the bar reads «Выполняется…» — so the tail may not keep
+ *               saying «Настройка» in the pre-commit cyan (PL-062: ≈ 2 s of a
+ *               spend → result chain under a word the player had left).
  */
-export type FocusPhase = 'setup' | 'reveal' | 'draw';
+export type FocusPhase = 'setup' | 'reveal' | 'draw' | 'executing';
 
 /**
  * The focus stage's kicker (i18n key), derived ONLY from the phase.
@@ -101,6 +107,8 @@ export function focusKicker(phase: FocusPhase): string {
   switch (phase) {
   case 'reveal': return 'Reveal result';
   case 'draw': return 'Card draw';
+  // «Выполнение» — one word, the bar's own «Выполняется…» as a noun.
+  case 'executing': return 'Performing';
   // «Настройка», not «Настройка действия»: the stage marker follows the fixed
   // «ДЕЙСТВИЯ КАРТ › <карта> ›» context, so repeating «действия» made the one
   // mutable word read as a third heading (and echoed the root). Off-workspace

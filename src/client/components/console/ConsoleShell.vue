@@ -8462,7 +8462,9 @@ export default defineComponent({
         if (colonyBonusPayoutArmed() && workspaceFrameMounted('card-actions')) {
           return COLONY_LEDGER_STAGE;
         }
-        const phase = focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' : 'setup');
+        // A SENT action with no outcome stage of its own reads «Выполнение» here exactly as in the crumb (PL-062).
+        const phase = focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' :
+          consoleActionComposerUi.executing ? 'executing' : 'setup');
         // The composer's R3 «Эффекты» layer — one voice with the crumb's
         // composed tail (pre-translated; `$t` passes an unknown key through).
         return forecastStageText('action', phase) ?? phase;

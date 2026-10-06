@@ -145,6 +145,38 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     w.unmount();
   });
 
+  it('PL-062: SENT with no outcome stage → «… › ВЫПОЛНЕНИЕ», amber, B inert; a refusal gives the setup back', async () => {
+    const w = factory();
+    await settle(w);
+    resetConsoleActionComposerUi();
+    const vm = w.vm as any;
+    vm.activateFocused();
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Setup');
+    expect(vm.workspacePhase).to.eq('configure');
+    // The composer announces the SEND (a staged placement locks its CTA too and never does).
+    w.findComponent({name: 'ConsoleActionComposer'}).vm.$emit('committing', true);
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Performing');
+    expect(w.find('.con-wshead__step').text()).to.eq('Performing');
+    expect(w.find('.con-wshead__step').classes()).to.contain('con-wshead__step--committed');
+    // A beat, never a place: B has nothing to undo and nothing to come back to.
+    expect(vm.workspacePhase).to.eq('executing');
+    expect(consoleActionComposerUi.executing, 'the command bar reads the same fact').to.eq(true);
+    // An outcome stage still names itself over it.
+    vm.outcomeFlow = {kind: 'draw'};
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Card draw');
+    vm.outcomeFlow = undefined;
+    // A REFUSAL drops the lock: the setup is the player's again.
+    w.findComponent({name: 'ConsoleActionComposer'}).vm.$emit('committing', false);
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Setup');
+    expect(vm.workspacePhase).to.eq('configure');
+    expect(consoleActionComposerUi.executing).to.eq(false);
+    w.unmount();
+  });
+
   it('an EMBEDDED surface names the stage in the WORKSPACE breadcrumb — the card name never restarts', async () => {
     const w = factory();
     await settle(w);

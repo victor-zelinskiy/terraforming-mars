@@ -53,7 +53,7 @@
                      :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
                        (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
                      :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
-                     :committed="steppedCommitted || outcomeFlow !== undefined || colonyStepCommitted || parliamentStepCommitted || partyCommitted">
+                     :committed="steppedCommitted || outcomeFlow !== undefined || composerExecuting || colonyStepCommitted || parliamentStepCommitted || partyCommitted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -476,6 +476,7 @@
                                :publishCommands="!repeat"
                                :repeatPickDisabled="repeat"
                                @confirm="onComposerConfirm"
+                               @committing="onComposerCommitting"
                                @staged-placement="onComposerStagedPlacement"
                                @staged-vote="onComposerStagedVote"
                                @colony-trade="onComposerColonyTrade"
@@ -605,7 +606,7 @@ import {
   playActionCarryReturn,
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
-import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim, setConsoleActionComposerExecuting} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
@@ -807,6 +808,9 @@ export default defineComponent({
        * it has already produced.
        */
       committedPreview: undefined as {cardName: CardName, nodeIndex: number, preview: ActionPreview} | undefined,
+      /** The composer SENT the action and its phrase is still playing (the composer's own `committing` — a staged
+       *  placement locks its CTA and sends nothing, so the lock is not the fact). The crumb's tail and the B verb read it. */
+      composerExecuting: false,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
       /** The slot the player just DESCENDED into (the commit pulse rides it
@@ -1189,6 +1193,11 @@ export default defineComponent({
           LEDGER_DISCARD_STAGE : LEDGER_STAGE;
       }
       if (kind === undefined) {
+        // SENT, and no outcome stage of its own: the setup is over — the tail says so, amber (PL-062). A party action's
+        // submit is the same beat (its own payout / sale / draw stages name themselves above).
+        if (this.executingStage) {
+          return focusKicker('executing');
+        }
         // The composer's R3 «Эффекты» layer is a level INSIDE the setup: the
         // tail gains «· ЭФФЕКТЫ» (+ the source card at its detail) and gives
         // it back on B / R3 — a composed, pre-translated string (`focusKickerRaw`).
@@ -1378,10 +1387,14 @@ export default defineComponent({
     revealVerdictUp(): boolean {
       return this.outcomeFlow?.kind === 'deck-check' && this.outcomeFlow.payload !== undefined;
     },
+    /** SENT, no outcome stage of its own: the «Выполнение» beat (a card action's or a party action's submit). */
+    executingStage(): boolean {
+      return this.composerExecuting || this.partySubmitting;
+    },
     workspacePhase(): WorkspacePhase {
       return workspacePhaseOf({
         open: this.composer !== undefined,
-        committed: this.outcomeFlow !== undefined || this.partySubmitting || this.partyCommitted,
+        committed: this.outcomeFlow !== undefined || this.composerExecuting || this.partySubmitting || this.partyCommitted,
         // The outcome is INTERACTIVE once something is actually on stage; the
         // «pending» beat before that is machine time, not a destination.
         // A hosted hand step (the Reds' discard) is the party flow's own
@@ -1470,6 +1483,10 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The command bar names the stage from the same fact as the crumb (PL-062) — published, never re-derived there. */
+    executingStage(on: boolean) {
+      setConsoleActionComposerExecuting(on);
+    },
     /**
      * THE ENTRY ENDS WITH THE STEP. B popped the colonies frame, the trade
      * concluded, or the whole flow went home — either way the card-sourced
@@ -2333,6 +2350,7 @@ export default defineComponent({
       // earlier commit lets go here (it is keyed by variant, so this only ever
       // matters for re-entering the same one).
       this.committedPreview = undefined;
+      this.composerExecuting = false;
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
       // The DESCENT is recorded where it survives the surface: the module
       // draft (a park unmounts this component, and the draft is what re-seats
@@ -2408,6 +2426,7 @@ export default defineComponent({
       }
       // The frozen preview belongs to the stage that is going away.
       this.committedPreview = undefined;
+      this.composerExecuting = false;
       // A genuine fold ends the descent: the suspended-instance record goes
       // with it. (An UNMOUNT deliberately does not come through here — a park
       // must keep the draft, or the restore has nothing to re-seat.)
@@ -3033,6 +3052,7 @@ export default defineComponent({
       this.descendKey = tile.key;
       this.flowState = 'entering';
       this.committedPreview = undefined;
+      this.composerExecuting = false;
       // The DESCENT is recorded where it survives the surface (a park unmounts
       // this component): the module draft re-seats the composer on restore,
       // the frame subject is the navigation truth, and the party flow record
@@ -3250,6 +3270,10 @@ export default defineComponent({
     },
     /** Repeat instance: the nested composer reports its contract UP (it doesn't
      *  touch the shared `consoleActionComposerUi` the outer Viron composer owns). */
+    /** The repeat browser only CAPTURES a choice (the source sends it), so its composer never executes here. */
+    onComposerCommitting(on: boolean): void {
+      this.composerExecuting = on && !this.repeat;
+    },
     onComposerCommands(cmds: ReadonlyArray<ConsoleCommand>): void {
       if (this.repeat && this.composer !== undefined) {
         setConsoleRepeatPickCommands(cmds);
