@@ -2349,6 +2349,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR26 UNMI Liner: blue's action phase with BOTH docks in its tableau (the liner and Water Hauling), three free fleets, 9 energy
   // (three fees), six colonies open and the Greens ruling — every TR step pays 2 M€ (docs/TURMOIL_REDUX_WATER_HAULING.md §9).
   'unmi-liner' |
+  // TR28 Earth Army Contract: blue's action phase with the card played and ONE fighter on it (the action converts: +1,
+  // −2, +1 TR), 20 M€, the Greens ruling — the TR step pays 2 M€ (docs/claude/console/workspace-band.md § ACTION COMMIT).
+  'earth-army-contract' |
   // TR07 Colony Sponsors: blue's action phase with the card in hand, 10 M€, blue's colony on Luna (track at cell 3), Ceres at
   // its top, Titan inactive, Europa and Io candidates; a quiet government (docs/TURMOIL_REDUX_COLONY_SPONSORS.md).
   'colony-sponsors' |

@@ -41,6 +41,7 @@
              }"
              :data-motion-anchor="'card:' + entry.cardName"
              :data-zoom-slot="entry.cardName"
+             :data-commit-link="commitRailLink"
              data-ptsel-source
              data-action-focus-card>
           <div class="con-composer__actcard con-composer__actcard--stage">
@@ -907,7 +908,7 @@ import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markW
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
-import {actionCommitRailHoldsCapsule} from '@/client/console/consoleActionCommitRail';
+import {actionCommitRailHoldsCapsule, actionCommitRailState} from '@/client/console/consoleActionCommitRail';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, resolveResultIcon, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -2517,6 +2518,17 @@ export default defineComponent({
       return this.sub?.kind === 'playedTarget' && playedTargetSelfState.focused;
     },
     /** The source card is the CONFIRMED target. */
+    /**
+     * The commit's rail half in the air for THIS card — the link flying now («0» the landing, «1» the two leaving,
+     * «2» the TR for TR28; the phase — «seeded» / «flying» — before and between links) — a reading for the probe,
+     * undefined when no half stands.
+     */
+    commitRailLink(): string | undefined {
+      if (actionCommitRailState.card !== this.entry.cardName || actionCommitRailState.phase === 'idle') {
+        return undefined;
+      }
+      return actionCommitRailState.link >= 0 ? String(actionCommitRailState.link) : actionCommitRailState.phase;
+    },
     selfTargetLocked(): boolean {
       return this.sub?.kind === 'playedTarget' && playedTargetSelfState.locked;
     },

@@ -159,6 +159,7 @@ import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/Politica
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
+import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
 import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
@@ -1172,6 +1173,32 @@ parliamentFixture('unmi-liner', {
         p1.colonies.potentialTradeCount() !== 3 || !game.canAddOcean() || parliament.rulingParty() !== PartyName.GREENS ||
         !parliament.hasPartyEffect(p1, PartyName.GREENS) || p1.megaCredits !== 20) {
       throw new Error(`the unmi-liner fixture expected both docks in the tableau, three free fleets, three trades on offer, room for an ocean, 20 M€ and the Greens ruling with their effect — got liner=${liner !== undefined} hauling=${hauling !== undefined} fleets=${p1.colonies.getFleetSize()}/${p1.colonies.freeTradeFleets()} trades=${p1.colonies.potentialTradeCount()} oceans=${game.board.getOceanSpaces().length} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR28 · EARTH ARMY CONTRACT — the set's first action of TWO BEATS ON ONE CARD (+1 fighter here; at two, −2 for
+//    1 TR — docs/claude/console/workspace-band.md § ACTION COMMIT): blue's action phase with the card played and ONE
+//    fighter on it (the action converts), 20 M€, THE GREENS RULE (a fresh Redux table's own government): the TR step
+//    pays 2 M€ — the table's answer the composer names before the press and the rail shows after the TR has landed.
+//    The chairman quest is one nothing on this journey can close (a quest's gate would be a second story over the
+//    action's own). Red is the second client. ──
+parliamentFixture('earth-army-contract', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, parliament}) => {
+    const card = new EarthArmyContract();
+    card.resourceCount = 1;
+    p1.playedCards.push(card);
+    p1.heat = 0;
+    p1.titanium = 0;
+    parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.playedCards.get(CardName.EARTH_ARMY_CONTRACT);
+    if (card === undefined || card.resourceCount !== 1 || p1.megaCredits !== 20 || parliament.rulingParty() !== PartyName.GREENS ||
+        !parliament.hasPartyEffect(p1, PartyName.GREENS)) {
+      throw new Error(`the earth-army-contract fixture expected the card with ONE fighter, 20 M€ and the Greens ruling with their effect — got card=${card?.resourceCount} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
     }
     parliament.assertLedger(game);
   },
