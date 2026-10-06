@@ -299,6 +299,16 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
       expect(spendLinkSpecs(t.fleet.name, branchesOf(t.p, t.fleet)[0], {}, {ownCard: t.own})).deep.eq([]);
     });
 
+    it('a spend whose departure another scene owns is no link (TR15\'s vote: the data leave WITH the cube)', () => {
+      const t = spendTable();
+      const branch = branchesOf(t.p, t.nitrite)[0];
+      expect(spendLinkSpecs(t.nitrite.name, branch, {}, {ownCard: t.own, departsElsewhere: true})).deep.eq([]);
+      const plan = commitRailPlan(t.nitrite.name, branch, {}, [], {ownCard: t.own, departsElsewhere: true});
+      expect(plan?.reward.cause, 'the TR still rides the rail — only the spend is somebody else\'s').deep.eq([...TR]);
+      expect(plan?.spendLinks).is.undefined;
+      expect(plan?.capsules, 'no capsule held: the scene that owns the departure holds it').deep.eq([]);
+    });
+
     it('a spend with no answered source yet holds nothing (the pick is still open)', () => {
       const t = spendTable();
       const preview = actionPreview(t.p, t.recycling);

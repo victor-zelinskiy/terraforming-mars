@@ -481,6 +481,12 @@ export type SpendContext = {
   /** The card-level steps' captured responses, by `preSteps` index. */
   preResponses?: Readonly<Record<number, unknown>>;
   ownCard?: (card: CardName) => boolean;
+  /**
+   * The spend's departure belongs to ANOTHER scene, so the rail carries no spend link: TR15's staged action vote
+   * keeps the data on the card until the CUBE lifts off the reserve (the Parliament's own flight) — and its answer
+   * never reaches the shell's rail handoff, so a link seeded there would hold the capsule until its owed-fly net.
+   */
+  departsElsewhere?: boolean;
 };
 
 /** The card a captured `{type: 'card', cards: [X]}` answer picked. */
@@ -530,7 +536,7 @@ export function spendLinkSpecs(
   stepResponses: Readonly<Record<number, unknown>> = {},
   ctx: SpendContext = {},
 ): Array<ResourceTransferSpec> {
-  if (branch === undefined || capsuleTimeline(branch) !== undefined) {
+  if (branch === undefined || capsuleTimeline(branch) !== undefined || ctx.departsElsewhere === true) {
     return [];
   }
   const own = ctx.ownCard ?? (() => true);

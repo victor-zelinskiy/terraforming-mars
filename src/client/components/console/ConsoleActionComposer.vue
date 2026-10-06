@@ -2683,7 +2683,8 @@ export default defineComponent({
         this.submitting = true;
         const branch = this.selectedBranch;
         if (branch !== undefined) {
-          this.playCommitBeat(branch);
+          // The data leave WITH the cube (the Parliament's own flight), never as a rail link of this commit.
+          this.playCommitBeat(branch, {spendDepartsElsewhere: true});
         }
         return;
       }
@@ -4859,7 +4860,7 @@ export default defineComponent({
      *    outliving the answer). Played by the composer's own confirm — and by a STAGED ACTION VOTE's confirm in
      *    the Parliament standing in this composer (TR15): the press is the mode's A, the beat is this card's.
      */
-    playCommitBeat(branch: ActionPreviewBranch): void {
+    playCommitBeat(branch: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean} = {}): void {
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category
       // and the reward wave are only knowable once the answer is in hand.
@@ -4891,6 +4892,7 @@ export default defineComponent({
             preSteps: this.preview?.preSteps,
             preResponses: this.capturedPre,
             ownCard: (name) => this.thisPlayer.tableau.some((c) => c.name === name),
+            departsElsewhere: opts.spendDepartsElsewhere === true,
           });
       const specs = ledgerBranch ? [] : [
         ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured, railPlan) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),
