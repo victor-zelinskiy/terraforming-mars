@@ -160,6 +160,9 @@ import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/Min
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
+import {BribedCommittee} from '../../../src/server/cards/base/BribedCommittee';
+import {TerraformingGanymede} from '../../../src/server/cards/base/TerraformingGanymede';
+import {MagneticFieldDome} from '../../../src/server/cards/base/MagneticFieldDome';
 import {AuroraStation} from '../../../src/server/cards/turmoilRedux/AuroraStation';
 import {FloatingHabs} from '../../../src/server/cards/venusNext/FloatingHabs';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
@@ -1243,6 +1246,34 @@ parliamentFixture('earth-army-contract', {
     if (card === undefined || card.resourceCount !== 1 || p1.megaCredits !== 20 || parliament.rulingParty() !== PartyName.GREENS ||
         !parliament.hasPartyEffect(p1, PartyName.GREENS)) {
       throw new Error(`the earth-army-contract fixture expected the card with ONE fighter, 20 M€ and the Greens ruling with their effect — got card=${card?.resourceCount} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── PL-001 FOR PLAYS — A CARD PLAY'S DIRECT TR IS A REWARD (docs/claude/console/workspace-band.md § РОЗЫГРЫШ
+//    КАРТЫ): blue's action phase with three TR plays in hand — Bribed Committee (an EVENT: +2 TR, the token is born on
+//    the face-down pile), Terraforming Ganymede (a face: +1 TR for its own Jovian tag, born on the printed TR) and
+//    Magnetic Field Dome (a production wave first, then +1 TR) — 60 M€, no titanium / heat (one payment path each),
+//    2 energy production (the Dome's requirement), THE GREENS RULE (every TR step pays 2 M€ — the table's answer the
+//    rail shows after the TR has landed). A chairman quest nothing on the journey can close. Red is the second client. ──
+parliamentFixture('play-tr-reward', {
+  stopAt: 'vote',
+  megacredits: [60, 30],
+  arrange: ({game, p1, parliament}) => {
+    p1.cardsInHand.push(new BribedCommittee(), new TerraformingGanymede(), new MagneticFieldDome());
+    p1.heat = 0;
+    p1.titanium = 0;
+    p1.production.add(Resource.ENERGY, 2);
+    parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+  },
+  expect: ({game, p1, parliament}) => {
+    const names = [CardName.BRIBED_COMMITTEE, CardName.TERRAFORMING_GANYMEDE, CardName.MAGNETIC_FIELD_DOME];
+    const playable = names.every((name) => {
+      const card = p1.cardsInHand.find((c) => c.name === name);
+      return card !== undefined && p1.canPlay(card);
+    });
+    if (!playable || p1.megaCredits !== 60 || parliament.rulingParty() !== PartyName.GREENS || !parliament.hasPartyEffect(p1, PartyName.GREENS)) {
+      throw new Error(`the play-tr-reward fixture expected three playable TR cards, 60 M€ and the Greens ruling with their effect — got playable=${playable} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
     }
     parliament.assertLedger(game);
   },
