@@ -367,7 +367,10 @@ for (const preset of PRESETS) {
       expect(redErrors, `no page error on the watcher — ${redErrors.join(' | ')}`).toEqual([]);
     });
 
-    test('at 0 fighters: one link — the fighter lands, the rating is untouched, nothing «сработает»', async ({page, request}) => {
+    // PL-063 — «+1 на эту карту» with nothing spent before it: the token is born on the printed fighter and lands IN THE
+    // HERO'S CAPSULE (never the board's satellite over a folding workspace); the capsule reads 0 until that touchdown,
+    // and the workspace stands to it.
+    test('at 0 fighters: one link — the fighter lands in the hero\'s capsule, the rating is untouched, nothing «сработает»', async ({page, request}) => {
       test.setTimeout(240_000);
       const seen = watchPage(page);
       const {playerId} = await bootFixtureSeats(page, request, 'earth-army-contract', {
@@ -386,16 +389,29 @@ for (const preset of PRESETS) {
       expect(formula, `the capsule 0 → 1 — got «${formula}»`).toMatch(/0\s*→\s*1/);
       expect(formula, 'no TR promised').not.toMatch(new RegExp(`${N}\\s*→\\s*${N + 1}`));
       await expect(page.locator(`${composer} .con-composer__hero-side--forecast`), 'nothing «сработает»').toHaveCount(0);
+      const fighters = await heroIcons(page, 'fighter.');
+      const capsule = await rectOf(page, `${hero} .pcard__res`);
+      expect(fighters.length, 'the printed fighter').toBeGreaterThan(0);
+      expect(capsule, 'the hero\'s capsule').toBeDefined();
       await armProbe(page);
       await commit(page, seen.posts);
       await expect.poll(() => page.locator('.con-ws').count(), {timeout: 45_000, message: 'the workspace left'}).toBe(0);
       await settle(page, {timeoutMs: 30_000});
       const samples = (await readProbe(page)).samples;
+      console.log(`[${preset.id}] at 0 · fighters=${JSON.stringify(fighters)} capsule=${JSON.stringify(capsule)}\n${trail(samples)}`);
       expect(seen.posts.length, 'one POST').toBe(1);
       const born = births(samples);
       expect(born.map((b) => b.chip.v), 'ONE token — the fighter').toEqual(['+1']);
       expect(samples.every((s) => s.tr === String(N)), 'the rating never moved').toBe(true);
-      expect(samples.every((s) => s.link === ''), 'no rail half stood').toBe(true);
+      expect(inside(born[0].chip, fighters[0], 2), `the fighter is BORN inside the printed fighter — ${JSON.stringify(born[0].chip)} vs ${JSON.stringify(fighters[0])}`).toBe(true);
+      expect(samples.some((s) => s.link !== ''), 'the rail half carried it').toBe(true);
+      const capOne = samples.findIndex((s) => s.cap === '1');
+      expect(capOne, 'the capsule ticked 0 → 1').toBeGreaterThan(born[0].at);
+      expect(samples.slice(0, capOne).every((s) => s.cap === '0'), 'the capsule read 0 on EVERY sample until the touchdown').toBe(true);
+      const touchdown = [...samples.slice(0, capOne + 1)].reverse().find((s) => s.chips.some((c) => c.v === '+1'))!.chips.find((c) => c.v === '+1')!;
+      expect(inside(touchdown, capsule!, Math.max(touchdown.w, touchdown.h)), `the tick is the token's TOUCHDOWN on the hero's capsule — ${JSON.stringify(touchdown)} vs ${JSON.stringify(capsule)}`).toBe(true);
+      const wsGone = samples.findIndex((s) => s.ws === 0);
+      expect(wsGone, 'the workspace stood until the fighter had landed on its card').toBeGreaterThanOrEqual(capOne);
       const after = await wireOf(request, playerId);
       expect(after.thisPlayer.tableau.find((c) => c.name === CARD)?.resources, '1 fighter').toBe(1);
       expect(after.thisPlayer.terraformRating, 'no TR').toBe(N);

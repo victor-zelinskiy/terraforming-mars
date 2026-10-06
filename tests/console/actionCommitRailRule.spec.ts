@@ -153,10 +153,34 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
       expect(plan?.holdsSurface).is.false;
     });
 
-    it('no rail half for a branch without a direct TR or a timeline', () => {
+    it('no rail half for a branch without a direct TR, a timeline, a spend or a gain on the card itself', () => {
       const {p, cards} = table();
-      expect(commitRailPlan(cards.titan.name, branchesOf(p, cards.titan)[1], {}, [])).is.undefined;
       expect(commitRailPlan(cards.aquifer.name, branchesOf(p, cards.aquifer)[0], {}, [])).is.undefined;
+      expect(commitRailPlan(cards.europa.name, branchesOf(p, cards.europa)[0], {}, [])).is.undefined;
+    });
+
+    /**
+     * PL-063: «+N на эту карту» with nothing spent before it lands in the HERO's capsule (the card standing in the
+     * composer), never in the board's satellite over a folding workspace: one link, the surface held to its
+     * touchdown, the capsule held until then, no second chip in the wave. Earth Army Contract at 0 is exactly that
+     * (its timeline needs a fighter to spend).
+     */
+    it('a gain on THIS card with no spend: one link into the hero\'s capsule, the surface held (Titan · EAC at 0)', () => {
+      const {p, cards} = table();
+      const titan = branchesOf(p, cards.titan)[1];
+      const plan = commitRailPlan(cards.titan.name, titan, {}, []);
+      expect(plan?.reward.cause).deep.eq([{channel: 'card-resource', resource: 'floater', amount: 2, targetCard: cards.titan.name}]);
+      expect(plan?.links).deep.eq([[0]]);
+      expect(plan?.holdsSurface, 'the workspace stands to the touchdown').is.true;
+      expect(plan?.capsules).deep.eq([cards.titan.name]);
+      expect(plan?.reward.known, 'the titanium price is a known move beside it').deep.eq({'stock:titanium': -1});
+      expect(commitWaveSpecs(cards.titan.name, titan, {}, plan), 'never a second floater chip in the wave').deep.eq([]);
+
+      cards.eac.resourceCount = 0;
+      const eac = commitRailPlan(cards.eac.name, branchesOf(p, cards.eac)[0], {}, []);
+      expect(eac?.reward.cause[0]).deep.eq({channel: 'card-resource', resource: 'fighter', amount: 1, targetCard: cards.eac.name});
+      expect(eac?.holdsSurface).is.true;
+      expect(commitRailPlan(cards.titan.name, titan, {}, [], {departsElsewhere: true}), 'another scene owns that flow').is.undefined;
     });
   });
 

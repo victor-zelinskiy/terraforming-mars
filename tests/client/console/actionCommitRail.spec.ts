@@ -145,6 +145,32 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       expect(actionCommitRailState.lastEnd).eq('');
     });
 
+    /* PL-063 — «+N на эту карту» with nothing spent before it: the token lands in the hero's own capsule, which reads
+       the old count until that touchdown (never ticking with the view), and the workspace stands to it. */
+    it('PL-063: a gain on THIS card with no spend — the capsule reads 0 until the touchdown; the surface held to it', async () => {
+      const branch = {
+        index: -1, title: '', available: true, renderKeys: [], steps: [],
+        effects: [{direction: 'gain', icon: 'fighter', amount: 1, current: 0, resulting: 1, note: 'on this card'}],
+      } as ActionPreviewBranch;
+      const plan = arm(EAC, branch);
+      expect(plan.rail?.holdsSurface, 'the workspace stands to the touchdown').is.true;
+      seedActionCommitRail(view({tr: 20, fighters: 0}), view({tr: 20, fighters: 1}));
+      expect(actionCommitRailHoldsCapsule(EAC)).is.true;
+      const shown = () => 1 - heldCardCapsule(EAC);
+      const seen: Array<number> = [shown()];
+      const stop = watch(shown, (now) => seen.push(now), {flush: 'sync'});
+      const flight = flyActionCommitRail(plan);
+      let foldedAt = -1;
+      void flight.foldable.then(() => {
+        foldedAt = shown();
+      });
+      await flight.done;
+      stop();
+      expect(seen, 'the model already reads 1; the capsule says 0 until the fighter lands').deep.eq([0, 1]);
+      expect(foldedAt, 'the surface folded only after the touchdown').eq(1);
+      expect(heldCardResource('fighter'), 'nothing left for the satellite').eq(0);
+    });
+
     for (const c of [1, 2, 3, 5]) {
       it(`TR28 at ${c}: the capsule reads ${c} → ${c + 1} → ${c - 1} — never ${c - 2}, never below zero; the TR last`, async () => {
         const plan = arm(EAC, eacBranch(c));

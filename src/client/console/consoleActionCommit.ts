@@ -632,7 +632,17 @@ export function commitRailPlan(
   const tr = actionRailTrSpecs(branch, stepResponses);
   const timeline = capsuleTimeline(branch);
   const spends = spendLinkSpecs(cardName, branch, stepResponses, spend);
-  if (tr.length === 0 && timeline === undefined && spends.length === 0) {
+  // A GAIN ON THIS CARD with nothing spent before it (PL-063 — Security Fleet's fighter, Titan Air-scrapping's
+  // floaters, Earth Army Contract at 0): the hero standing in the composer IS the card it lands on, so the token
+  // lands in ITS capsule — never in the board's ДОП. РЕСУРСЫ satellite over a folding workspace — and the capsule
+  // ticks on that touchdown, the workspace standing to it (a timeline and a spend's result already did; this is
+  // the same last link with nothing before it). Not when another scene owns the flow (`departsElsewhere` — TR15's
+  // vote moves its own capsule).
+  const onCard = spends.length === 0 && timeline === undefined && spend.departsElsewhere !== true ?
+    commitRewardSpecs(cardName, branch, stepResponses).filter((spec) =>
+      spec.channel === 'card-resource' && spec.targetCard === cardName && spec.direction !== 'loss') :
+    [];
+  if (tr.length === 0 && timeline === undefined && spends.length === 0 && onCard.length === 0) {
     return undefined;
   }
   const cause: Array<ResourceTransferSpec> = [];
@@ -646,7 +656,7 @@ export function commitRailPlan(
   }
   // A SPEND first, each its own link; the result — the branch's own gains the wave would have flown — is the LAST
   // link, beside the TR: it is born where the spend was absorbed.
-  const result = spends.length > 0 ? commitRewardSpecs(cardName, branch, stepResponses) : [];
+  const result = spends.length > 0 ? commitRewardSpecs(cardName, branch, stepResponses) : onCard;
   for (const spec of spends) {
     spendLinks.push(cause.length);
     links.push([cause.length]);
@@ -679,7 +689,7 @@ export function commitRailPlan(
     key: actionCommitRailKey(cardName),
     reward: {cause, reactions: [...reactions], known, ...(vp.some((v) => v !== 0) ? {vp} : {})},
     links,
-    holdsSurface: timeline !== undefined || spends.length > 0,
+    holdsSurface: timeline !== undefined || spends.length > 0 || onCard.length > 0,
     ...(spendLinks.length > 0 ? {spendLinks} : {}),
     capsules,
   };
