@@ -10,7 +10,7 @@ import {
 import {
   actionCommitRailHoldsCapsule, actionCommitRailState, flyActionCommitRail, resetActionCommitRail, seedActionCommitRail,
 } from '@/client/console/consoleActionCommitRail';
-import {clearPanelRewardHold, heldCardCapsule, heldCardResource, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {clearPanelRewardHold, heldCardCapsule, heldCardResource, heldStock, heldVictoryPoints} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
@@ -168,5 +168,97 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
         expect(heldCardResource('fighter'), 'the satellite\'s holds are spent too').eq(0);
       });
     }
+  });
+
+  /*
+   * PL-064 IN GENERAL — A SPEND IS A DEPARTURE FROM ITS REAL SOURCE (TR29 Spaceship Recycling): the fighter leaves the
+   * card the source step chose — its capsule (and its point) tick on the DEPARTURE, never with the view — and the
+   * result is born where it landed: the titanium ticks only after, the mech lands on the card the target step chose.
+   */
+  describe('a SPEND — the source ticks on the departure, the result after the spend lands', () => {
+    const SR = CardName.SPACESHIP_RECYCLING;
+    const FZ = CardName.FORMULA_ZERO;
+    const MS = CardName.MECH_SPORTS;
+    const preSteps = [{kind: 'input' as const, input: {type: 'card', title: '', cards: [], min: 1, max: 1} as never, amount: -1, cardResource: 'fighter',
+      vpBox: {[FZ]: {from: 1, to: 0}}}];
+    const tiView = (p: {fz: number, ms: number, ti: number, vp: number}): PlayerViewModel => {
+      const v = view({tr: 20});
+      const me = v.thisPlayer as unknown as {tableau: unknown, titanium: number, victoryPointsBreakdown: unknown};
+      me.tableau = [{name: SR, resources: 2}, {name: FZ, resources: p.fz}, {name: MS, resources: p.ms}];
+      me.titanium = p.ti;
+      me.victoryPointsBreakdown = {total: p.vp};
+      return v;
+    };
+    function armSpend(variant: 'A' | 'B'): ActionCommitPlan {
+      const branch = variant === 'A' ? {
+        index: 0, title: '', available: true, renderKeys: [], steps: [],
+        effects: [{direction: 'cost', icon: 'fighter', amount: 1}, {direction: 'gain', icon: 'titanium', amount: 2, current: 0, resulting: 2}],
+      } as ActionPreviewBranch : {
+        index: 1, title: '', available: true, renderKeys: [],
+        steps: [{kind: 'input', input: {type: 'card', title: '', cards: [], min: 1, max: 1} as never, amount: 1, cardResource: 'mech', vpBox: {[MS]: {from: 0, to: 1}}}],
+        effects: [{direction: 'cost', icon: 'fighter', amount: 1}, {direction: 'gain', icon: 'mech', amount: 1, note: 'to a card'}],
+      } as ActionPreviewBranch;
+      const steps = variant === 'B' ? {0: {type: 'card', cards: [MS]}} : {};
+      const rail = commitRailPlan(SR, branch, steps, [], {preSteps, preResponses: {0: {type: 'card', cards: [FZ]}}, ownCard: () => true})!;
+      const plan: ActionCommitPlan = {sourceCard: SR, kind: 'resources', specs: [], origins: [], rail: {...rail, origins: rail.reward.cause.map(() => ({x: 10, y: 10}))}};
+      armActionCommit(plan);
+      return plan;
+    }
+
+    it('A: Formula Zero reads 1 (and its point) until the fighter leaves, then 0; the titanium only after — the surface folds once the result is born', async () => {
+      const plan = armSpend('A');
+      seedActionCommitRail(tiView({fz: 1, ms: 0, ti: 0, vp: 21}), tiView({fz: 0, ms: 0, ti: 2, vp: 20}));
+      expect(actionCommitRailState.phase).eq('seeded');
+      expect(actionCommitRailHoldsCapsule(FZ), 'the source\'s miniature reads the held capsule').is.true;
+      const shown = () => `fz${0 - heldCardCapsule(FZ)}|ti${2 - heldStock('titanium')}|vp${20 - heldVictoryPoints()}`;
+      const seen: Array<string> = [shown()];
+      // 'pre' — what a render sees: the capsule and its point are released in ONE call, never painted apart.
+      const stop = watch(shown, (now) => seen.push(now), {flush: 'pre'});
+      const flight = flyActionCommitRail(plan);
+      let foldedAt = '';
+      void flight.foldable.then(() => {
+        foldedAt = seen[seen.length - 1];
+      });
+      await flight.done;
+      stop();
+      expect(seen, 'the fighter leaves (its point with it), THEN the titanium lands').deep.eq(['fz1|ti0|vp21', 'fz0|ti0|vp20', 'fz0|ti2|vp20']);
+      expect(foldedAt, 'the surface stood while the source was a source of a token').not.eq('fz1|ti0|vp21');
+    });
+
+    it('B: the mech lands on the card the target step chose — the surface folds only on its touchdown', async () => {
+      const plan = armSpend('B');
+      seedActionCommitRail(tiView({fz: 1, ms: 0, ti: 0, vp: 21}), tiView({fz: 0, ms: 1, ti: 0, vp: 21}));
+      expect(actionCommitRailState.phase).eq('seeded');
+      expect([actionCommitRailHoldsCapsule(FZ), actionCommitRailHoldsCapsule(MS)]).deep.eq([true, true]);
+      const shown = () => `fz${0 - heldCardCapsule(FZ)}|ms${1 - heldCardCapsule(MS)}|vp${21 - heldVictoryPoints()}`;
+      const seen: Array<string> = [shown()];
+      // 'pre' — what a render sees: the capsule and its point are released in ONE call, never painted apart.
+      const stop = watch(shown, (now) => seen.push(now), {flush: 'pre'});
+      const flight = flyActionCommitRail(plan);
+      let foldedAt = '';
+      void flight.foldable.then(() => {
+        foldedAt = seen[seen.length - 1];
+      });
+      await flight.done;
+      stop();
+      expect(seen, 'Formula Zero −1 (and its point) on the departure, Mech Sports +1 (and its point) on the touchdown')
+        .deep.eq(['fz1|ms0|vp21', 'fz0|ms0|vp20', 'fz0|ms1|vp21']);
+      expect(foldedAt, 'the workspace stood until the mech had landed on its card').eq('fz0|ms1|vp21');
+    });
+
+    it('reduced motion seeds nothing: the counters tick with the commit', () => {
+      reduceMotionOverrideState.enabled = true;
+      armSpend('A');
+      seedActionCommitRail(tiView({fz: 1, ms: 0, ti: 0, vp: 21}), tiView({fz: 0, ms: 0, ti: 2, vp: 20}));
+      expect(actionCommitRailState.phase).eq('idle');
+      expect(heldCardCapsule(FZ)).eq(0);
+    });
+
+    it('a view that moved the source otherwise holds nothing (named) — the capsule ticks with the commit', () => {
+      armSpend('A');
+      seedActionCommitRail(tiView({fz: 1, ms: 0, ti: 0, vp: 21}), tiView({fz: 1, ms: 0, ti: 2, vp: 21}));
+      expect(actionCommitRailState.phase).eq('idle');
+      expect(railRewardState.degraded?.why).eq('mismatch');
+    });
   });
 });

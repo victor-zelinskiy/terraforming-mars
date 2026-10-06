@@ -29,7 +29,19 @@
  *   FOLD   — the workspace may fold once the card is no longer a TARGET or a
  *            SOURCE of a token (`foldable`): at once for a plain TR (the token
  *            is born over the standing icon and the surface folds under it),
- *            at the birth of the last link for a timeline.
+ *            at the birth of the last link for a timeline — and, when the last
+ *            link lands ON the surface (a mech onto the card the player chose in
+ *            the composer's target row — TR29), at its touchdown.
+ *
+ * A SPEND (`ActionCommitRail.spendLinks` — PL-064 in general, TR29) is a link
+ * of its own, flown FROM its real source: the capsule of the card it leaves
+ * as the player sees it — the hero's, or the miniature of the chosen card in
+ * the composer's source row (`data-composer-card`) — never a synthetic point;
+ * a source with no measurable face falls back to the ДОП. РЕСУРСЫ satellite
+ * and says so (`actionCommitRailState.fallback`). The counter of that card
+ * (and its derived points) tick on the DEPARTURE; the token is absorbed at the
+ * selected variant's printed result icon, and the result is born there, on the
+ * spend's touchdown — never before it.
  *
  * Every hold is bounded and names itself: a seeded half nobody flies is
  * released by the commit's release (`onActionCommitRelease`) or, at the
@@ -45,7 +57,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRelease} from '@/client/console/consoleActionCommit';
 import {pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
-import {ResourceTransferSpec, TRANSFER_POP_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_POP_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {flyRailReward, flyRailRewardLink, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 
 export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
@@ -58,6 +70,10 @@ export const actionCommitRailState = reactive({
   link: -1,
   /** The half holds this card's CAPSULE (a timeline): the composer's hero reads the held capsule. */
   capsule: false,
+  /** The cards whose capsule the half holds — the hero and the composer rows' miniatures read `heldCardCapsule` then. */
+  capsules: [] as Array<CardName>,
+  /** A spend that could not be born on its card's own face and fell back to the satellite — named. */
+  fallback: '',
   /** Why the last half ended early ('' after a full flight) — diagnostics. */
   lastEnd: '',
 });
@@ -88,6 +104,7 @@ function resetHalf(why: string): void {
   actionCommitRailState.phase = 'idle';
   actionCommitRailState.link = -1;
   actionCommitRailState.capsule = false;
+  actionCommitRailState.capsules = [];
   actionCommitRailState.lastEnd = why;
   seededRail = undefined;
 }
@@ -125,7 +142,9 @@ export function seedActionCommitRail(before: PlayerViewModel | undefined, after:
   actionCommitRailState.card = plan.sourceCard;
   actionCommitRailState.phase = 'seeded';
   actionCommitRailState.link = -1;
-  actionCommitRailState.capsule = rail.holdsSurface;
+  actionCommitRailState.capsules = [...(rail.capsules ?? (rail.holdsSurface ? [plan.sourceCard] : []))];
+  actionCommitRailState.capsule = actionCommitRailState.capsules.length > 0;
+  actionCommitRailState.fallback = '';
   actionCommitRailState.lastEnd = '';
   owedFly = gsap.delayedCall(motionMs(OWED_FLY_MS) / 1000, () => {
     owedFly = undefined;
@@ -135,9 +154,9 @@ export function seedActionCommitRail(before: PlayerViewModel | undefined, after:
   });
 }
 
-/** The half holds this card's capsule right now (the composer's hero reads `heldCardCapsule` only then). */
+/** The half holds this card's capsule right now (the composer's hero and its rows' miniatures read `heldCardCapsule` only then). */
 export function actionCommitRailHoldsCapsule(card: CardName | string): boolean {
-  return actionCommitRailState.capsule && actionCommitRailState.phase !== 'idle' && actionCommitRailState.card === card;
+  return actionCommitRailState.phase !== 'idle' && actionCommitRailState.capsules.includes(card as CardName);
 }
 
 /** The capsule of the card standing in the action composer — where a link onto (or off) the card lands. */
@@ -149,6 +168,22 @@ function capsulePoint(card: CardName): TransferPoint | undefined {
   const el = document.querySelector<HTMLElement>(`.con-composer__actcardwrap[data-zoom-slot="${esc}"] .pcard__res`);
   const r = el?.getBoundingClientRect();
   return r !== undefined && r.width > 2 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+}
+
+/** A card standing in one of the composer's rows (a spend's chosen SOURCE, a reward's chosen TARGET) — its own capsule, else its face. */
+function composerCardPoint(card: CardName): TransferPoint | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
+  const face = document.querySelector<HTMLElement>(`.con-cardactions .con-composer [data-composer-card="${esc}"]`);
+  for (const el of [face?.querySelector<HTMLElement>('.pcard__res'), face]) {
+    const r = el?.getBoundingClientRect();
+    if (r !== undefined && r.width > 2 && r.height > 2) {
+      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    }
+  }
+  return undefined;
 }
 
 export type ActionCommitRailFlight = {
@@ -181,26 +216,60 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
     markFoldable = resolve;
   });
   const last = rail.links.length - 1;
+  const spends = new Set(rail.spendLinks ?? []);
+  /**
+   * WHERE A LINK'S TOKEN MEETS THE CARD it moves on: the card's own face as the player sees it — the hero's
+   * capsule, a composer row's miniature — or the transfer ladder (a rail row; the satellite for a card nobody
+   * stands on screen). A SPEND that cannot be born on its source's face names the fallback.
+   */
+  const pointOf = (spec: ResourceTransferSpec, index: number): TransferPoint | undefined => {
+    if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
+      return undefined;
+    }
+    const point = spec.targetCard === card ? capsulePoint(card) : composerCardPoint(spec.targetCard);
+    if (point === undefined && spends.has(index)) {
+      actionCommitRailState.fallback = `satellite:${spec.targetCard}`;
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[action-commit-rail] ${card}: the spend leaves ${spec.targetCard}, whose face is not on screen — born on the satellite`);
+      }
+    }
+    return point;
+  };
   const run = async (): Promise<void> => {
     for (let k = 0; k <= last; k++) {
       if (actionCommitRailState.phase !== 'flying' || seededRail !== rail) {
         break; // ended from outside (the ceiling, a reset) — whatever was held has ticked
       }
       actionCommitRailState.link = k;
+      const indices = rail.links[k];
+      const specs = indices.map((i) => rail.reward.cause[i]);
+      const points = indices.map((i, n) => pointOf(specs[n], i));
       if (k === last) {
-        // The last link is born now: a timeline's TR gets its ring; the surface folds UNDER the token once it has
-        // popped out of its printed icon (one pop of the transfer language, on the animation clock) — the token is
-        // born over a card that is still there, and the card dissolves under it in flight.
+        // The last link is born now: a later link gets its ring (a timeline's TR, a spend's result — born where the
+        // spend was absorbed). A token that lands ON the surface (a card the player chose in a composer row, the
+        // hero's own capsule) keeps the workspace until its touchdown; otherwise the surface folds UNDER the token
+        // once it has popped out of its printed icon (one pop of the transfer language, on the animation clock).
         if (rail.links.length > 1) {
           pulseCommitRing(rail.ring);
         }
-        const flight = flyRailReward(rail.key, originOf);
-        gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, markFoldable);
-        await flight;
+        const landing = specs.findIndex((spec, n) => points[n] !== undefined && spec.direction !== 'loss');
+        if (landing >= 0) {
+          const onSurface = specs.filter((spec, n) => points[n] !== undefined && spec.direction !== 'loss');
+          await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing]});
+          // The run resolves on the touchdown; the token is ABSORBED into the card over the contact beat — the card it
+          // lands on must still be there for that (folded on the touchdown, the chip hung over the board where its
+          // card had been). One beat of the animation clock, never a timer.
+          await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+          markFoldable();
+          await flyRailReward(rail.key, originOf);
+        } else {
+          const flight = flyRailReward(rail.key, originOf);
+          gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, markFoldable);
+          await flight;
+        }
       } else {
-        const specs = rail.links[k].map((i) => rail.reward.cause[i]);
-        const onCard = specs.every((spec) => spec.channel === 'card-resource' && spec.targetCard === card);
-        await flyRailRewardLink(rail.key, specs, originOf, onCard ? {destination: capsulePoint(card)} : {});
+        const destination = points.find((p) => p !== undefined);
+        await flyRailRewardLink(rail.key, specs, originOf, destination !== undefined ? {destination} : {});
         actionCommitRailState.link = -1;
       }
     }

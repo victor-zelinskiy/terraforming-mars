@@ -21,7 +21,7 @@
  */
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {ActionEffect, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {Payment} from '@/common/inputs/Payment';
 import {
@@ -70,10 +70,22 @@ export type ActionCommitRail = {
   links: ReadonlyArray<ReadonlyArray<number>>;
   /** The card is a TARGET or a SOURCE of some link: the workspace stands until the last link is born. */
   holdsSurface: boolean;
-  /** Origins aligned with `reward.cause` — the printed icon each token is born on (measured at submit). */
+  /**
+   * Origins aligned with `reward.cause` — the printed icon each token is born on (measured at submit). For a
+   * SPEND (a loss taken off a card — `spendLinks`) it is the point the token is ABSORBED at: the selected
+   * variant's printed result icon, where the result is then born.
+   */
   origins: ReadonlyArray<TransferPoint | undefined>;
-  /** The printed TR icon's box, when a later link is born under it — its ring marks that birth. */
+  /** The printed icon's box a later link is born under (the TR — TR28; the variant's result — a spend) — its ring marks that birth. */
   ring?: TransferRect;
+  /**
+   * THE SPENDS — indices into `reward.cause` of the losses a branch takes off a card BEFORE its result
+   * (`spendLinkSpecs`: Nitrite's «−3 here», TR29's fighter from a CHOSEN card): each is its own link, born on its
+   * source's on-screen capsule (the hero's, a source row's miniature) and absorbed at the result icon.
+   */
+  spendLinks?: ReadonlyArray<number>;
+  /** The cards whose CAPSULE the half holds (a link's source or target standing on the surface) — they read `heldCardCapsule`. */
+  capsules?: ReadonlyArray<CardName>;
 };
 
 /**
@@ -356,8 +368,7 @@ function directTrSpecs(
  * never a net «−1»: the resource lands on the card's capsule, and only then do
  * the spent units leave it. A spend from the card with no gain BEFORE it
  * (Nitrite-Reducing Bacteria's «−3 here : TR», Titan Air-scrapping's «−2 here»)
- * is not a timeline: its capsule keeps its historical behaviour (owner's
- * decision 6 of the TR28 brief; the class is ready for it).
+ * is not a timeline: it is a SPEND LINK (`spendLinkSpecs` — TR29, PL-064).
  */
 export function capsuleTimeline(branch: ActionPreviewBranch | undefined): {gain: ActionEffect, spend: ActionEffect} | undefined {
   const effects = branch?.effects ?? [];
@@ -461,41 +472,210 @@ export function actionCommitRailKey(card: CardName): string {
 }
 
 /**
+ * Where a branch's spend may be TAKEN FROM on screen — the context the pure rule needs beyond the branch: the
+ * card-level steps (a source picked BEFORE the variant — TR29) with their answers, and which cards are the
+ * viewer's own (only those counters exist in the views the rail checks against and on this surface).
+ */
+export type SpendContext = {
+  preSteps?: ReadonlyArray<ActionPreviewStep>;
+  /** The card-level steps' captured responses, by `preSteps` index. */
+  preResponses?: Readonly<Record<number, unknown>>;
+  ownCard?: (card: CardName) => boolean;
+};
+
+/** The card a captured `{type: 'card', cards: [X]}` answer picked. */
+function pickedCard(response: unknown): CardName | undefined {
+  const r = response as {type?: string, cards?: ReadonlyArray<string>} | undefined;
+  return r?.type === 'card' && Array.isArray(r.cards) && r.cards.length === 1 ? r.cards[0] as CardName : undefined;
+}
+
+type SourceStep = {step: Extract<ActionPreviewStep, {kind: 'input'}>, response: unknown};
+
+/** The card-pick steps that TAKE from the chosen card (a negative delta), in the asked order: card-level first. */
+function sourceStepsOf(branch: ActionPreviewBranch, stepResponses: Readonly<Record<number, unknown>>, ctx: SpendContext): Array<SourceStep> {
+  const out: Array<SourceStep> = [];
+  (ctx.preSteps ?? []).forEach((step, i) => {
+    if (step.kind === 'input' && (step.amount ?? 0) < 0 && step.input.type === 'card') {
+      out.push({step, response: ctx.preResponses?.[i]});
+    }
+  });
+  branch.steps.forEach((step, i) => {
+    if (step.kind === 'input' && (step.amount ?? 0) < 0 && step.input.type === 'card') {
+      out.push({step, response: stepResponses[i]});
+    }
+  });
+  return out;
+}
+
+/**
+ * PL-064 IN GENERAL — «A SPEND IS A DEPARTURE FROM ITS REAL SOURCE» (TR29): the
+ * losses a branch takes off a CARD before its result, each as a rail spec of
+ * the `card-resource` channel flying `loss` from the card it leaves. Pure,
+ * structural, never the card's name:
+ *  · a cost chip noted «on this card» — the hero's own capsule (Nitrite-Reducing
+ *    Bacteria's «−3 here : TR», Titan Air-scrapping's «−2 here : TR»);
+ *  · a cost chip with NO note matched to a source step (a card pick with a
+ *    negative delta of that very resource — card-level first, the TR29 order)
+ *    — the card that step's answer chose («spend 1 fighter from ANY of your
+ *    cards»);
+ *  · a source step no chip states (Ants: «take 1 microbe from any card» — the
+ *    step IS the spend) — its chosen card, by the step's own delta.
+ * Only a card of the viewer's OWN (its counter is in the views the rail checks
+ * and on this surface — an opponent's card is an attack's business). A TIMELINE
+ * (TR28 — a gain onto the card first) owns its spend already: none here.
+ */
+export function spendLinkSpecs(
+  cardName: CardName,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>> = {},
+  ctx: SpendContext = {},
+): Array<ResourceTransferSpec> {
+  if (branch === undefined || capsuleTimeline(branch) !== undefined) {
+    return [];
+  }
+  const own = ctx.ownCard ?? (() => true);
+  const out: Array<ResourceTransferSpec> = [];
+  const sources = sourceStepsOf(branch, stepResponses, ctx);
+  const claimed = new Set<SourceStep>();
+  for (const e of branch.effects ?? []) {
+    if (e.direction !== 'cost' || e.amount <= 0 || e.unit !== undefined || isStandardResource(e.icon) ||
+        e.icon === 'resources' || e.icon === 'tr' || e.icon === 'cards') {
+      continue;
+    }
+    if (e.note === 'on this card') {
+      out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: cardName, direction: 'loss'});
+      continue;
+    }
+    if (e.note !== undefined) {
+      continue;
+    }
+    const source = sources.find((s) => !claimed.has(s) && s.step.cardResource === e.icon);
+    if (source === undefined) {
+      continue;
+    }
+    claimed.add(source);
+    const card = pickedCard(source.response);
+    if (card !== undefined && own(card)) {
+      out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: card, direction: 'loss'});
+    }
+  }
+  for (const source of sources) {
+    const card = pickedCard(source.response);
+    if (claimed.has(source) || card === undefined || !own(card) || source.step.cardResource === undefined) {
+      continue;
+    }
+    out.push({channel: 'card-resource', resource: source.step.cardResource, amount: Math.abs(source.step.amount ?? 0), targetCard: card, direction: 'loss'});
+  }
+  return out;
+}
+
+/**
+ * The derived points one cause token moves at ITS beat (the rail's VP cell is held with it): a card resource
+ * leaving / landing on a chosen card that scores per resource — the step's own per-candidate reading (`vpBox`, the
+ * server's), signed. 0 for anything else (a stock row, the TR — counted by the check itself).
+ */
+function causeVictoryPoints(
+  spec: ResourceTransferSpec,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+  ctx: SpendContext,
+): number {
+  if (spec.channel !== 'card-resource' || spec.targetCard === undefined || branch === undefined) {
+    return 0;
+  }
+  const loss = spec.direction === 'loss';
+  const steps: Array<{step: ActionPreviewStep, response: unknown}> = [
+    ...(ctx.preSteps ?? []).map((step, i) => ({step, response: ctx.preResponses?.[i]})),
+    ...branch.steps.map((step, i) => ({step, response: stepResponses[i]})),
+  ];
+  for (const {step, response} of steps) {
+    if (step.kind !== 'input' || pickedCard(response) !== spec.targetCard || ((step.amount ?? 0) < 0) !== loss) {
+      continue;
+    }
+    const vp = step.vpBox?.[spec.targetCard];
+    if (vp !== undefined) {
+      return vp.to - vp.from;
+    }
+  }
+  return 0;
+}
+
+/** Two specs move the same thing (channel · resource · card · way). */
+function sameTransfer(a: ResourceTransferSpec, b: ResourceTransferSpec): boolean {
+  return a.channel === b.channel && a.resource === b.resource && a.targetCard === b.targetCard &&
+    (a.direction ?? 'gain') === (b.direction ?? 'gain');
+}
+
+/**
  * THE RAIL HALF OF A BRANCH (pure — measured later, at the press): the direct
  * TR (`actionRailTrSpecs`), the capsule timeline's two movements before it
- * (`capsuleTimeline`), the table's answer read off the branch's forecast (only
- * an `exact` fact addressed to «you» — `reactionRailSpecs`), the branch's other
- * known moves. Undefined when the branch has nothing the rail must hold.
+ * (`capsuleTimeline`), the SPENDS taken off a card before the result
+ * (`spendLinkSpecs` — then the result itself rides the chain as its LAST link:
+ * it is born where the spend landed, never before), the table's answer read off
+ * the branch's forecast (only an `exact` fact addressed to «you» —
+ * `reactionRailSpecs`), the branch's other known moves. Undefined when the
+ * branch has nothing the rail must hold.
  */
 export function commitRailPlan(
   cardName: CardName,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>>,
   reactions: ReadonlyArray<ResourceTransferSpec>,
+  spend: SpendContext = {},
 ): Omit<ActionCommitRail, 'origins' | 'ring'> | undefined {
   const tr = actionRailTrSpecs(branch, stepResponses);
   const timeline = capsuleTimeline(branch);
-  if (tr.length === 0 && timeline === undefined) {
+  const spends = spendLinkSpecs(cardName, branch, stepResponses, spend);
+  if (tr.length === 0 && timeline === undefined && spends.length === 0) {
     return undefined;
   }
   const cause: Array<ResourceTransferSpec> = [];
   const links: Array<Array<number>> = [];
+  const spendLinks: Array<number> = [];
   if (timeline !== undefined) {
     cause.push({channel: 'card-resource', resource: timeline.gain.icon, amount: timeline.gain.amount, targetCard: cardName});
     links.push([0]);
     cause.push({channel: 'card-resource', resource: timeline.spend.icon, amount: timeline.spend.amount, targetCard: cardName, direction: 'loss'});
     links.push([1]);
   }
-  if (tr.length > 0) {
-    links.push(tr.map((_, i) => cause.length + i));
-    cause.push(...tr);
+  // A SPEND first, each its own link; the result — the branch's own gains the wave would have flown — is the LAST
+  // link, beside the TR: it is born where the spend was absorbed.
+  const result = spends.length > 0 ? commitRewardSpecs(cardName, branch, stepResponses) : [];
+  for (const spec of spends) {
+    spendLinks.push(cause.length);
+    links.push([cause.length]);
+    cause.push(spec);
   }
+  const last = [...result, ...tr];
+  if (last.length > 0) {
+    links.push(last.map((_, i) => cause.length + i));
+    cause.push(...last);
+  }
+  // The rows the CHAIN now carries are its own promise, never a «known» move beside it.
   const known = actionKnownRailMoves(branch, stepResponses);
+  for (const spec of result) {
+    if (spec.channel === 'stock' || spec.channel === 'production') {
+      const row = railRowKey(spec);
+      const left = (known[row] ?? 0) - spec.amount;
+      if (left === 0) {
+        delete known[row];
+      } else {
+        known[row] = left;
+      }
+    }
+  }
+  const vp = cause.map((spec) => causeVictoryPoints(spec, branch, stepResponses, spend));
+  const capsules = [...new Set(cause
+    .filter((spec) => spec.channel === 'card-resource' && spec.targetCard !== undefined &&
+      (spec.targetCard === cardName || spec.direction === 'loss' || spends.length > 0))
+    .map((spec) => spec.targetCard as CardName))];
   return {
     key: actionCommitRailKey(cardName),
-    reward: {cause, reactions: [...reactions], known},
+    reward: {cause, reactions: [...reactions], known, ...(vp.some((v) => v !== 0) ? {vp} : {})},
     links,
-    holdsSurface: timeline !== undefined,
+    holdsSurface: timeline !== undefined || spends.length > 0,
+    ...(spendLinks.length > 0 ? {spendLinks} : {}),
+    capsules,
   };
 }
 
@@ -524,17 +704,20 @@ export function playRailReward(
 /**
  * The reward WAVE the shell flies itself (`ActionCommitPlan.specs`) — every
  * transfer of the branch minus what the rail half holds: a timeline's landing
- * on the card is the rail's first link, never a second chip.
+ * on the card is the rail's first link, and a result that follows a SPEND is
+ * the chain's last one — never a second chip.
  */
 export function commitWaveSpecs(
   cardName: CardName,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>>,
+  rail?: {reward: {cause: ReadonlyArray<ResourceTransferSpec>}},
 ): Array<ResourceTransferSpec> {
   const specs = commitRewardSpecs(cardName, branch, stepResponses);
   const timeline = capsuleTimeline(branch);
-  return timeline === undefined ? specs :
-    specs.filter((spec) => !(spec.channel === 'card-resource' && spec.targetCard === cardName && spec.resource === timeline.gain.icon));
+  const carried = (spec: ResourceTransferSpec) => rail?.reward.cause.some((held) => sameTransfer(held, spec)) === true;
+  return specs.filter((spec) => !carried(spec) &&
+    !(timeline !== undefined && spec.channel === 'card-resource' && spec.targetCard === cardName && spec.resource === timeline.gain.icon));
 }
 /**
  * The reward specs the commit wave carries — the SAME extraction the

@@ -389,6 +389,8 @@
     "AWAITING PLACEMENT": "ОЖИДАЕТСЯ РАЗМЕЩЕНИЕ",
     "Cancel placement": "Отменить размещение",
     "Choose a card": "Выберите себе карту",
+    "Choose the source card": "Выберите карту-источник",
+    "Choose the receiving card": "Выберите карту-получатель",
     "Selected ${0} of ${1}": "Выбрано ${0} из ${1}",
     "Buy": "Купить",
     "Skip": "Пропустить",

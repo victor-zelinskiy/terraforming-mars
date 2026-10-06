@@ -116,17 +116,68 @@ export function initialVariantSelection(
   return choosable.length === 1 ? branches.indexOf(choosable[0]) : undefined;
 }
 
-/** The pre-branch choices (branch-independent — captured once per preview). */
+/**
+ * The pre-branch choices (branch-independent — captured once per preview). A
+ * card-level input carries its delta and resource exactly like a branch step:
+ * the SOURCE of a spend taken from a card the player chooses (TR29 — «spend 1
+ * fighter from ANY of your cards») reads `current → resulting` per candidate.
+ */
 export function preChoices(preview: ActionPreview | undefined): Array<ComposerChoice> {
   const out: Array<ComposerChoice> = [];
   (preview?.preSteps ?? []).forEach((step, i) => {
     if (step.kind === 'spendHeat') {
       out.push({id: `pre#${i}`, scope: 'pre', index: i, kind: 'spendHeat', input: step.input});
     } else if (step.kind === 'input') {
-      out.push({id: `pre#${i}`, scope: 'pre', index: i, kind: choiceKind(step.input), input: step.input});
+      out.push({
+        id: `pre#${i}`, scope: 'pre', index: i, kind: choiceKind(step.input), input: step.input,
+        amount: step.amount, cardResource: step.cardResource,
+      });
     }
   });
   return out;
+}
+
+/** The preview step a choice answers — a card-level step (`pre`) or the selected branch's (`step`); none for the option. */
+export function stepOfChoice(
+  preview: ActionPreview | undefined,
+  branch: ActionPreviewBranch | undefined,
+  choice: Pick<ComposerChoice, 'scope' | 'index'>,
+): ActionPreviewStep | undefined {
+  if (choice.scope === 'pre') {
+    return preview?.preSteps?.[choice.index];
+  }
+  return choice.scope === 'step' ? branch?.steps[choice.index] : undefined;
+}
+
+/**
+ * THE ROLE OF AN ANSWERED CARD PICK — the row's label once a card is chosen. «Выбранная карта» says nothing when a
+ * composer holds two of them (TR29: the card a fighter is spent FROM and the card a mech is put ON): the role is the
+ * step's own direction, the same structural fact the ask reads.
+ */
+export function cardPickRoleKey(amount: number | undefined): string {
+  if (amount !== undefined && amount < 0) {
+    return 'Source card';
+  }
+  if (amount !== undefined && amount > 0) {
+    return 'Receiving card';
+  }
+  return 'Selected card';
+}
+
+/**
+ * THE ASK OF AN UNANSWERED CARD PICK, by what the pick DOES to the card (PL-056).
+ * «Choose a card» reads «Выберите себе карту» — right for TAKING a card, a lie
+ * for a card the action takes FROM (a spend's source) or puts a resource ON (a
+ * reward's target). The sign of the step's own delta is the structural fact.
+ */
+export function cardPickAskKey(amount: number | undefined): string {
+  if (amount !== undefined && amount < 0) {
+    return 'Choose the source card';
+  }
+  if (amount !== undefined && amount > 0) {
+    return 'Choose the receiving card';
+  }
+  return 'Choose a card';
 }
 
 /** The selected branch's choices: the direct optionInput + every input step. */

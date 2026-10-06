@@ -11,12 +11,21 @@ import {TitanAirScrapping} from '../../src/server/cards/colonies/TitanAirScrappi
 import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
 import {WaterImportFromEuropa} from '../../src/server/cards/base/WaterImportFromEuropa';
 import {EarthArmyContract} from '../../src/server/cards/turmoilRedux/EarthArmyContract';
+import {SpaceshipRecycling} from '../../src/server/cards/turmoilRedux/SpaceshipRecycling';
+import {FormulaZero} from '../../src/server/cards/turmoilRedux/FormulaZero';
+import {EvaMechs} from '../../src/server/cards/turmoilRedux/EvaMechs';
+import {MechSports} from '../../src/server/cards/turmoilRedux/MechSports';
+import {SecurityFleet} from '../../src/server/cards/base/SecurityFleet';
+import {Ants} from '../../src/server/cards/base/Ants';
+import {Decomposers} from '../../src/server/cards/base/Decomposers';
+import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
+import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
 import {ActionPreviewBranch} from '../../src/common/models/ActionPreviewModel';
 import {RATING_RAIL_KEY} from '../../src/client/console/resourceTransfer/resourceTransferModel';
 import {
-  actionKnownRailMoves, actionRailTrSpecs, capsuleTimeline, commitKindForBranch, commitRailPlan, commitWaveSpecs,
+  actionKnownRailMoves, actionRailTrSpecs, capsuleTimeline, commitKindForBranch, commitRailPlan, commitWaveSpecs, spendLinkSpecs,
 } from '../../src/client/console/consoleActionCommit';
 
 /**
@@ -169,6 +178,131 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
     it('a card resource is not a rail row', () => {
       const {p, cards} = table();
       expect(actionKnownRailMoves(branchesOf(p, cards.eac)[0])).deep.eq({});
+    });
+  });
+
+  /*
+   * PL-064 IN GENERAL — «A SPEND IS A DEPARTURE FROM ITS REAL SOURCE» (TR29): the losses a branch takes off a CARD
+   * before its result fly FROM that card, and the result is born where the spend landed. Swept over the server's own
+   * previews: TR29 A / B (the source a card-level step chose) ✓, Nitrite's and Titan Air-scrapping's TR branches
+   * (the hero's own capsule) ✓, Ants with a source of the viewer's own ✓; Ants taking from another seat ✗ (an
+   * attack's business), Earth Army Contract ✗ (a timeline already owns its spend), Formula Zero / Security Fleet ✗
+   * (a stock price, no card spent).
+   */
+  describe('the SPEND — a departure from its real source (PL-064, TR29)', () => {
+    function spendTable() {
+      const [game, p, rival] = testGame(2, {coloniesExtension: true, turmoilReduxExpansion: true});
+      game.phase = Phase.ACTION;
+      p.megaCredits = 30;
+      p.titanium = 5;
+      const recycling = new SpaceshipRecycling();
+      recycling.resourceCount = 2;
+      const formula = new FormulaZero();
+      formula.resourceCount = 1;
+      const eva = new EvaMechs();
+      const sports = new MechSports();
+      const nitrite = new NitriteReducingBacteria();
+      nitrite.resourceCount = 3;
+      const titan = new TitanAirScrapping();
+      titan.resourceCount = 2;
+      const eac = new EarthArmyContract();
+      eac.resourceCount = 1;
+      const ants = new Ants();
+      const decomposers = new Decomposers();
+      decomposers.resourceCount = 2;
+      const fleet = new SecurityFleet();
+      p.playedCards.push(recycling, formula, eva, sports, nitrite, titan, eac, ants, decomposers, fleet);
+      const tardigrades = new Tardigrades();
+      tardigrades.resourceCount = 1;
+      rival.playedCards.push(tardigrades);
+      const own = (name: CardName) => p.playedCards.has(name);
+      return {p, recycling, formula, eva, sports, nitrite, titan, eac, ants, decomposers, tardigrades, fleet, own};
+    }
+    const fighterSource = (card: CardName) => ({0: {type: 'card', cards: [card]}});
+    const loss = (resource: string, amount: number, targetCard: CardName) =>
+      ({channel: 'card-resource', resource, amount, targetCard, direction: 'loss'});
+
+    it('TR29 A — the fighter leaves the card the SOURCE STEP chose; the titanium is the chain\'s last link, never a wave chip', () => {
+      const t = spendTable();
+      const preview = actionPreview(t.p, t.recycling);
+      const [a] = preview.branches;
+      const ctx = {preSteps: preview.preSteps, preResponses: fighterSource(t.formula.name), ownCard: t.own};
+      expect(spendLinkSpecs(t.recycling.name, a, {}, ctx)).deep.eq([loss('fighter', 1, t.formula.name)]);
+      const plan = commitRailPlan(t.recycling.name, a, {}, [], ctx);
+      expect(plan?.reward.cause).deep.eq([loss('fighter', 1, t.formula.name), {channel: 'stock', resource: 'titanium', amount: 2}]);
+      expect(plan?.links, 'the spend, then the result — link 2 starts on link 1\'s touchdown').deep.eq([[0], [1]]);
+      expect(plan?.spendLinks).deep.eq([0]);
+      expect(plan?.holdsSurface, 'the source stands on the surface').is.true;
+      expect(plan?.capsules).deep.eq([t.formula.name]);
+      expect(plan?.reward.vp, 'Formula Zero\'s point leaves WITH its fighter').deep.eq([-1, 0]);
+      expect(plan?.reward.known, 'the titanium is the chain\'s promise, never a «known» move beside it').deep.eq({});
+      expect(commitWaveSpecs(t.recycling.name, a, {}, plan), 'no second titanium chip in the wave').deep.eq([]);
+      expect(commitKindForBranch(a)).eq('resources');
+    });
+
+    it('TR29 A from THIS card — the hero\'s own capsule is the source', () => {
+      const t = spendTable();
+      const preview = actionPreview(t.p, t.recycling);
+      const ctx = {preSteps: preview.preSteps, preResponses: fighterSource(t.recycling.name), ownCard: t.own};
+      const plan = commitRailPlan(t.recycling.name, preview.branches[0], {}, [], ctx);
+      expect(plan?.reward.cause[0]).deep.eq(loss('fighter', 1, t.recycling.name));
+      expect(plan?.capsules).deep.eq([t.recycling.name]);
+      expect(plan?.reward.vp, 'no VP on either card').is.undefined;
+    });
+
+    it('TR29 B — the spend, then the mech onto the card the TARGET step chose (its VP with it)', () => {
+      const t = spendTable();
+      const preview = actionPreview(t.p, t.recycling);
+      const b = preview.branches[1];
+      expect(b.available).is.true;
+      const ctx = {preSteps: preview.preSteps, preResponses: fighterSource(t.formula.name), ownCard: t.own};
+      const plan = commitRailPlan(t.recycling.name, b, {0: {type: 'card', cards: [t.sports.name]}}, [], ctx);
+      expect(plan?.reward.cause).deep.eq([
+        loss('fighter', 1, t.formula.name),
+        {channel: 'card-resource', resource: 'mech', amount: 1, targetCard: t.sports.name},
+      ]);
+      expect(plan?.links).deep.eq([[0], [1]]);
+      expect(plan?.capsules, 'the source and the target both stand in the composer\'s rows').deep.eq([t.formula.name, t.sports.name]);
+      expect(plan?.reward.vp, 'Formula Zero −1 at the departure, Mech Sports +1 at the touchdown').deep.eq([-1, 1]);
+      expect(commitWaveSpecs(t.recycling.name, b, {0: {type: 'card', cards: [t.sports.name]}}, plan)).deep.eq([]);
+    });
+
+    it('Nitrite-Reducing Bacteria\'s TR branch — «−3 here», then the TR born under its ring', () => {
+      const t = spendTable();
+      const branch = branchesOf(t.p, t.nitrite)[0];
+      const plan = commitRailPlan(t.nitrite.name, branch, {}, [], {ownCard: t.own});
+      expect(plan?.reward.cause).deep.eq([loss('microbe', 3, t.nitrite.name), ...TR]);
+      expect(plan?.links).deep.eq([[0], [1]]);
+      expect(plan?.capsules).deep.eq([t.nitrite.name]);
+      expect(commitKindForBranch(branch), 'the impulse still lands on the printed TR').eq('rating');
+    });
+
+    it('Titan Air-scrapping\'s TR branch — «−2 here», then the TR', () => {
+      const t = spendTable();
+      const plan = commitRailPlan(t.titan.name, branchesOf(t.p, t.titan)[0], {}, [], {ownCard: t.own});
+      expect(plan?.reward.cause).deep.eq([loss('floater', 2, t.titan.name), ...TR]);
+      expect(plan?.spendLinks).deep.eq([0]);
+    });
+
+    it('Ants — a source of the viewer\'s OWN is a departure; another seat\'s card is not (an attack)', () => {
+      const t = spendTable();
+      const branch = branchesOf(t.p, t.ants)[0];
+      expect(spendLinkSpecs(t.ants.name, branch, {0: {type: 'card', cards: [t.decomposers.name]}}, {ownCard: t.own}))
+        .deep.eq([loss('microbe', 1, t.decomposers.name)]);
+      expect(spendLinkSpecs(t.ants.name, branch, {0: {type: 'card', cards: [t.tardigrades.name]}}, {ownCard: t.own})).deep.eq([]);
+    });
+
+    it('✗ — a timeline owns its spend (Earth Army Contract); a stock price spends no card (Formula Zero, Security Fleet)', () => {
+      const t = spendTable();
+      expect(spendLinkSpecs(t.eac.name, branchesOf(t.p, t.eac)[0], {}, {ownCard: t.own})).deep.eq([]);
+      expect(spendLinkSpecs(t.formula.name, branchesOf(t.p, t.formula)[0], {}, {ownCard: t.own})).deep.eq([]);
+      expect(spendLinkSpecs(t.fleet.name, branchesOf(t.p, t.fleet)[0], {}, {ownCard: t.own})).deep.eq([]);
+    });
+
+    it('a spend with no answered source yet holds nothing (the pick is still open)', () => {
+      const t = spendTable();
+      const preview = actionPreview(t.p, t.recycling);
+      expect(spendLinkSpecs(t.recycling.name, preview.branches[0], {}, {preSteps: preview.preSteps, preResponses: {}, ownCard: t.own})).deep.eq([]);
     });
   });
 });

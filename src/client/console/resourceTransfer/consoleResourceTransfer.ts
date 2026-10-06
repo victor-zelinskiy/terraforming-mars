@@ -158,6 +158,14 @@ type PanelRewardHold = {
    * them with the token's own spec).
    */
   vp: number;
+  /**
+   * DERIVED victory points still LEAVING — the points a card resource takes
+   * with it when it departs a card that scores per resource (a fighter spent
+   * off Formula Zero — TR29): the VP cell reads «committed − held» SIGNED, so
+   * it shows the pre-spend score until the token leaves (a loss ticks on its
+   * departure, the transfer language's own law).
+   */
+  vpLoss: number;
 };
 
 export const panelRewardHold = reactive<PanelRewardHold>({
@@ -171,6 +179,7 @@ export const panelRewardHold = reactive<PanelRewardHold>({
   capsule: {},
   capsuleLoss: {},
   vp: 0,
+  vpLoss: 0,
 });
 
 function holdMapFor(spec: ResourceTransferSpec): Record<string, number> {
@@ -262,6 +271,7 @@ export function clearPanelRewardHold(): void {
   panelRewardHold.capsule = {};
   panelRewardHold.capsuleLoss = {};
   panelRewardHold.vp = 0;
+  panelRewardHold.vpLoss = 0;
   panelRewardHold.active = false;
 }
 
@@ -275,7 +285,8 @@ function syncHoldActive(): void {
     Object.keys(panelRewardHold.cardResLoss).length > 0 ||
     Object.keys(panelRewardHold.capsule).length > 0 ||
     Object.keys(panelRewardHold.capsuleLoss).length > 0 ||
-    panelRewardHold.vp > 0;
+    panelRewardHold.vp > 0 ||
+    panelRewardHold.vpLoss > 0;
 }
 
 /**
@@ -290,25 +301,32 @@ export function heldStock(resource: string): number {
 export function heldProduction(resource: string): number {
   return panelRewardHold.active ? (panelRewardHold.production[resource] ?? 0) - (panelRewardHold.productionLoss[resource] ?? 0) : 0;
 }
-/** Hold N derived victory points (the score cell keeps them back until their token lands). */
+/**
+ * Hold N derived victory points, SIGNED: points a token brings (the score cell keeps them back until it lands) or
+ * — negative — points a departing token takes away (the cell keeps them until it leaves).
+ */
 export function beginPanelVpHold(points: number): void {
   if (points > 0) {
     panelRewardHold.vp += points;
-    syncHoldActive();
+  } else if (points < 0) {
+    panelRewardHold.vpLoss -= points;
   }
+  syncHoldActive();
 }
 
-/** Release N held derived points — the VP cell ticks by exactly that. Never below zero. */
+/** Release N held derived points (signed, as held) — the VP cell ticks by exactly that. Never below zero. */
 export function releasePanelVpHold(points: number): void {
   if (points > 0) {
     panelRewardHold.vp = Math.max(0, panelRewardHold.vp - points);
-    syncHoldActive();
+  } else if (points < 0) {
+    panelRewardHold.vpLoss = Math.max(0, panelRewardHold.vpLoss + points);
   }
+  syncHoldActive();
 }
 
-/** The derived points still held (0 when nothing is). */
+/** The derived points still held, signed: brought minus taken away (0 when nothing is). */
 export function heldVictoryPoints(): number {
-  return panelRewardHold.active ? panelRewardHold.vp : 0;
+  return panelRewardHold.active ? panelRewardHold.vp - panelRewardHold.vpLoss : 0;
 }
 
 /** SIGNED, like the stock: the card-resource gains held minus the losses held (the satellite reads «committed − held»). */

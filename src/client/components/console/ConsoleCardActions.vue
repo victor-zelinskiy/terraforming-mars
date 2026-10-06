@@ -590,7 +590,7 @@ import {
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
-import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {buildActionBatch, cardPickAskKey, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -2127,7 +2127,7 @@ export default defineComponent({
       return group.tiles.some((t) => t.key === this.focusKey);
     },
     choiceKindsLabel(tile: ConsoleActionTile): string {
-      return tile.choiceKinds.map((k) => translateText(CHOICE_KIND_LABEL[k])).join(' · ');
+      return tile.choiceKinds.map((k) => translateText(k === 'card' ? cardPickAskKey(tile.cardPickAmount) : CHOICE_KIND_LABEL[k])).join(' · ');
     },
     /** Only what GENUINELY stays post-submit (placement / reveal / notes). */
     stepNoteFor(tile: ConsoleActionTile): string {

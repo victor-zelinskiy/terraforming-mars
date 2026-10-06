@@ -269,6 +269,25 @@ describe('railReward — a gain arrives on the rail as a reward', () => {
       expect(verdict.cause).deep.eq([]);
     });
 
+    it('a SPEND takes its card\'s points WITH it (TR29: a fighter off Formula Zero) — the VP cell held signed, released on the departure', async () => {
+      const FZ = 'Formula Zero';
+      const spend: ResourceTransferSpec = {channel: 'card-resource', resource: 'fighter', amount: 1, targetCard: FZ as never, direction: 'loss'};
+      const fzView = (fighters: number, vp: number): PlayerViewModel => {
+        const v = view({});
+        (v.thisPlayer as unknown as {tableau: unknown}).tableau = [{name: FZ, resources: fighters}];
+        (v.thisPlayer as unknown as {victoryPointsBreakdown: unknown}).victoryPointsBreakdown = {total: vp};
+        return v;
+      };
+      expect(verifyRailReward({cause: [spend], reactions: [], vp: [-1]}, fzView(1, 20), fzView(0, 19)).mismatches).deep.eq([]);
+      expect(seedRailReward(KEY, {cause: [spend], reactions: [], vp: [-1]}, fzView(1, 20), fzView(0, 19))).is.true;
+      expect(heldCardResource('fighter'), 'the satellite reads the fighter until it leaves').eq(-1);
+      expect(heldVictoryPoints(), 'the cell reads the point until it leaves').eq(-1);
+      reduceMotionOverrideState.enabled = true;
+      expect(await flyRailReward(KEY, () => ({x: 1, y: 1}))).eq('landed');
+      expect(heldCardResource('fighter')).eq(0);
+      expect(heldVictoryPoints()).eq(0);
+    });
+
     it('seeded: the satellite\'s floaters, the production and the VP cell held; each token releases its own share on its touchdown', async () => {
       const a = token();
       const b = token();

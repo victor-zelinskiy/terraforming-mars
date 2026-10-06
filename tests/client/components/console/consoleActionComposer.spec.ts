@@ -19,6 +19,9 @@ import {
   tabbedStepsOf,
   soleInlineDial,
   focusFreeDialId,
+  stepOfChoice,
+  cardPickAskKey,
+  cardPickRoleKey,
 } from '@/client/console/consoleActionComposer';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 
@@ -167,6 +170,27 @@ describe('consoleActionComposer', () => {
       const choices = branchChoices(b);
       expect(choices).to.have.length(1);
       expect(choices[0].index).to.eq(2); // keeps the ORIGINAL step index
+    });
+
+    it('a CARD-LEVEL card pick (TR29\'s source) carries its delta and resource like a branch step', () => {
+      const source = {kind: 'input' as const, input: CARD_INPUT, amount: -1, cardResource: 'fighter'};
+      const target = {kind: 'input' as const, input: CARD_INPUT, amount: 1, cardResource: 'mech'};
+      const b = branch({steps: [target]});
+      const p = preview([b], [source]);
+      const [pre] = preChoices(p);
+      expect(pre).to.include({id: 'pre#0', scope: 'pre', index: 0, kind: 'card', amount: -1, cardResource: 'fighter'});
+      expect(stepOfChoice(p, b, pre), 'the source answers the card-level step').eq(source);
+      expect(stepOfChoice(p, b, branchChoices(b)[0]), 'the target answers the branch step').eq(target);
+      expect(stepOfChoice(p, b, {scope: 'option', index: -1})).is.undefined;
+    });
+
+    it('a card pick asks by what it DOES to the card (PL-056): the source, the receiving card, or a card to take', () => {
+      expect(cardPickAskKey(-1)).eq('Choose the source card');
+      expect(cardPickAskKey(2)).eq('Choose the receiving card');
+      expect(cardPickAskKey(undefined)).eq('Choose a card');
+      expect(cardPickAskKey(0)).eq('Choose a card');
+      expect([cardPickRoleKey(-1), cardPickRoleKey(1), cardPickRoleKey(undefined)], 'the answered row names the role too')
+        .deep.eq(['Source card', 'Receiving card', 'Selected card']);
     });
 
     it('spendHeat preSteps become pre-scope choices', () => {

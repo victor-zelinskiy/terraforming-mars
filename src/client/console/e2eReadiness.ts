@@ -58,7 +58,7 @@ export type ConsoleReadinessSnapshot = {
   /** The rewards still held ON THE RAIL (a gain shown arriving — `railReward.ts`) and the last one that degraded, by name. */
   railReward: ReturnType<typeof railRewardDiag>;
   /** A card action's RAIL HALF (a direct TR, a capsule timeline — TR28): whose, its phase, the link in the air, why the last one ended early. */
-  actionCommitRail: {card: string, phase: string, link: number, lastEnd: string};
+  actionCommitRail: {card: string, phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string};
   at: number;
 };
 
@@ -74,7 +74,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     cardBonus: boardCardBonusDiag(),
     colonyTrackWave: colonyTrackWaveDiag(),
     railReward: railRewardDiag(),
-    actionCommitRail: {card: actionCommitRailState.card, phase: actionCommitRailState.phase, link: actionCommitRailState.link, lastEnd: actionCommitRailState.lastEnd},
+    actionCommitRail: {card: actionCommitRailState.card, phase: actionCommitRailState.phase, link: actionCommitRailState.link, lastEnd: actionCommitRailState.lastEnd, capsules: [...actionCommitRailState.capsules], fallback: actionCommitRailState.fallback},
     partyFlow: consoleCardActionsUi.partyFlow === undefined ? undefined : {
       party: consoleCardActionsUi.partyFlow.party, resolution: consoleCardActionsUi.partyFlow.resolution,
       stage: consoleCardActionsUi.partyFlow.stage, fleetBefore: consoleCardActionsUi.partyFlow.fleetBefore,

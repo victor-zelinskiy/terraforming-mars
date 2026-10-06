@@ -495,12 +495,15 @@
                    under the cursor — a dimmed Ⓐ beside a focused commit row is
                    still a promise the button will not keep. -->
               <template v-else-if="playedTargetResult(item.choice) !== undefined">
-                <div class="con-composer__row-label">{{ $t('Selected card') }}</div>
+                <div class="con-composer__row-label">{{ $t(cardPickRoleKey(item.choice.amount)) }}</div>
                 <div class="con-composer__target" v-for="tgt in targetSummaryOf(item.choice)" :key="tgt.cardName">
                   <!-- A SOURCE-CARD target draws no thumbnail: the real card is
                        still in the hero slot to the left. -->
-                  <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" aria-hidden="true">
-                    <ConsoleCardFaceLite :name="tgt.cardName" />
+                  <!-- `data-composer-card`: the miniature IS the card on this surface — a spend taken off it is born on
+                       its capsule, a resource put on it lands there (consoleActionCommitRail); its capsule reads the
+                       live count, held while a token of the commit still has to leave or reach it. -->
+                  <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" :data-composer-card="tgt.cardName" aria-hidden="true">
+                    <ConsoleCardFaceLite :name="tgt.cardName" :card="summaryCardModel(tgt.cardName)" />
                   </div>
                   <span v-else class="con-composer__target-selflink" aria-hidden="true">↰</span>
                   <div class="con-composer__target-body">
@@ -877,6 +880,10 @@ import {
   initialVariantSelection,
   // A branch that LEADS somewhere instead of asking for something.
   runtimeNavigationSteps,
+  // The step a choice answers (a card-level one too) and the ask of a card pick by its direction.
+  stepOfChoice,
+  cardPickAskKey,
+  cardPickRoleKey,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
@@ -944,7 +951,7 @@ import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
-import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {RATING_RAIL_KEY, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
@@ -1464,31 +1471,7 @@ export default defineComponent({
      */
     playedTargetModel(): PlayedTargetModel | undefined {
       const choice = this.playedTargetChoice;
-      const model = this.playedTargetInput;
-      if (choice === undefined || model === undefined) {
-        return undefined;
-      }
-      return buildPlayedTargetModel({
-        candidates: model.cards,
-        players: this.playerView.players,
-        viewerColor: this.thisPlayer.color,
-        // ONE selection instruction. The step's own contract line already says
-        // «ВЫБЕРИТЕ РАЗЫГРАННУЮ КАРТУ · Доступных целей: N»; a boilerplate
-        // server title under it just restates the effect the rule and the gain
-        // chip have already stated. A title that names a real CONSTRAINT is not
-        // boilerplate and keeps its line.
-        ask: isBoilerplateTitle(model.title) ? '' : textOf(model.title),
-        // The card whose action this is — «Обстрел кометами» adds its asteroid
-        // to ANY card, and it is one. That candidate becomes a HANDLE pointing
-        // at the hero slot instead of a second full-size copy of the same card.
-        sourceCardName: this.entry.cardName,
-        typeOf: (name) => getCard(name)?.type,
-        // A NEGATIVE delta means the step takes FROM the chosen card, which is
-        // what makes «your own card» a warning rather than the ordinary target.
-        takesFromTarget: (choice.amount ?? 0) < 0,
-        preview: (name) => this.playedTargetPreview(choice, model, name),
-        resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
-      });
+      return choice === undefined ? undefined : this.playedTargetModelFor(choice);
     },
     playedTargetLayout(): PlayedTargetLayout {
       return planPlayedTargetLayout({
@@ -1772,7 +1755,7 @@ export default defineComponent({
         return '';
       }
       switch (missing.kind) {
-      case 'card': return translateText('Choose a card');
+      case 'card': return translateText(cardPickAskKey(missing.amount));
       case 'player': return translateText('Choose a player');
       case 'or': return translateText('Choose an option');
       case 'payment': return translateText('Configure payment');
@@ -3084,7 +3067,8 @@ export default defineComponent({
         if (b.reveal !== undefined) {
           needs = translateText('Next: reveal a card');
         } else if (b.optionInput?.type === 'card' || b.steps.some((s) => s.kind === 'input' && s.input.type === 'card')) {
-          needs = translateText('Choose a card');
+          const pick = b.steps.find((s) => s.kind === 'input' && s.input.type === 'card');
+          needs = translateText(cardPickAskKey(pick?.kind === 'input' ? pick.amount : undefined));
         } else if (b.optionInput?.type === 'player' || b.steps.some((s) => s.kind === 'input' && s.input.type === 'player')) {
           needs = translateText('Choose a player');
         }
@@ -3120,7 +3104,7 @@ export default defineComponent({
       if (c.kind === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1) {
         return translateText('Pick cards from hand');
       }
-      return translateText(c.kind === 'card' ? 'Choose a card' : c.kind === 'player' ? 'Choose a player' : 'Choose an option');
+      return translateText(c.kind === 'card' ? cardPickAskKey(c.amount) : c.kind === 'player' ? 'Choose a player' : 'Choose an option');
     },
     choiceMissing(c: ComposerChoice): boolean {
       if (c.repeatAction === true) {
@@ -4062,7 +4046,7 @@ export default defineComponent({
      *  are the ones the held line already uses — ONE vocabulary, not two. */
     requirementVerb(c: ComposerChoice): string {
       switch (c.kind) {
-      case 'card': return 'Choose a card';
+      case 'card': return cardPickAskKey(c.amount);
       case 'player': return 'Choose a player';
       case 'or': return 'Choose an option';
       case 'payment': return 'Configure payment';
@@ -4169,7 +4153,8 @@ export default defineComponent({
     },
     /** The contextual preview for a candidate — the ONE shared builder. */
     playedTargetPreview(choice: ComposerChoice, model: SelectCardModel, name: CardName) {
-      const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
+      // A card-level step (TR29's source) reads its own delta and VP exactly like a branch step.
+      const step = stepOfChoice(this.preview, this.selectedBranch, choice);
       return playedTargetPreviewFor(step, model, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
     },
     /**
@@ -4178,6 +4163,41 @@ export default defineComponent({
      * (`sub.orItem`) or answered earlier (`orDescents`). A METHOD, because the
      * summary row asks it for a choice that is not the open one.
      */
+    /**
+     * THE EMBEDDED SELECTOR'S MODEL for ONE choice — built for the open step
+     * and for each answered row's summary. Per CHOICE, never «the» step: a
+     * composer may host TWO played-card picks (a spend's SOURCE before the
+     * variant and a reward's TARGET after it — TR29), and a summary checked
+     * against the other pick's candidates reads as a stale answer. Eligibility
+     * is the SERVER's candidate set, verbatim.
+     */
+    playedTargetModelFor(choice: ComposerChoice): PlayedTargetModel | undefined {
+      const model = this.playedTargetInputFor(choice);
+      if (model === undefined) {
+        return undefined;
+      }
+      return buildPlayedTargetModel({
+        candidates: model.cards,
+        players: this.playerView.players,
+        viewerColor: this.thisPlayer.color,
+        // ONE selection instruction. The step's own contract line already says
+        // «ВЫБЕРИТЕ РАЗЫГРАННУЮ КАРТУ · Доступных целей: N»; a boilerplate
+        // server title under it just restates the effect the rule and the gain
+        // chip have already stated. A title that names a real CONSTRAINT is not
+        // boilerplate and keeps its line.
+        ask: isBoilerplateTitle(model.title) ? '' : textOf(model.title),
+        // The card whose action this is — «Обстрел кометами» adds its asteroid
+        // to ANY card, and it is one. That candidate becomes a HANDLE pointing
+        // at the hero slot instead of a second full-size copy of the same card.
+        sourceCardName: this.entry.cardName,
+        typeOf: (name) => getCard(name)?.type,
+        // A NEGATIVE delta means the step takes FROM the chosen card, which is
+        // what makes «your own card» a warning rather than the ordinary target.
+        takesFromTarget: (choice.amount ?? 0) < 0,
+        preview: (name) => this.playedTargetPreview(choice, model, name),
+        resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
+      });
+    },
     playedTargetInputFor(c: ComposerChoice): SelectCardModel | undefined {
       const open = this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined;
       const input = (open ?? this.orDescents[c.id]?.item)?.nested ?? c.input;
@@ -4327,8 +4347,31 @@ export default defineComponent({
      *  chosen, and never submitted). */
     playedTargetResult(c: ComposerChoice): PlayedTargetResult | undefined {
       const result = this.playedTargetResults[c.id];
-      const owners = this.playedTargetModel?.owners ?? [];
+      // PAST THE PRESS an answer is a RECEIPT, not a live pick: it is what the batch SENT. The response moves the
+      // game version (and the chosen card's own count) while the commit's phrase still plays on this very screen —
+      // judged «stale» there, the row painted the amber «выберите…» over a card already chosen and sent.
+      if (result !== undefined && this.submitting) {
+        return result;
+      }
+      // Judged against ITS OWN choice's candidates — a second played-card pick of the same composer has others.
+      const owners = this.playedTargetModelFor(c)?.owners ?? [];
       return playedTargetResultLive(result, owners, this.playedTargetVersion) ? result : undefined;
+    },
+    /**
+     * A row miniature's LIVE card — the viewer's own tableau model, its capsule read as the player should see it:
+     * while the commit's rail half still has a token to take off (or bring to) this card, the count it had before
+     * that token moved (`heldCardCapsule`). Undefined for a card of another seat: the printed face.
+     */
+    summaryCardModel(name: CardName): CardModel | undefined {
+      const model = this.thisPlayer.tableau.find((c) => c.name === name);
+      if (model === undefined || !actionCommitRailHoldsCapsule(name)) {
+        return model;
+      }
+      return {...model, resources: Math.max(0, (model.resources ?? 0) - heldCardCapsule(name))};
+    },
+    /** The answered pick's ROLE — «Карта-источник» / «Карта-получатель» / «Выбранная карта» (a template alias). */
+    cardPickRoleKey(amount: number | undefined): string {
+      return cardPickRoleKey(amount);
     },
     /** The answered target as a ONE-ELEMENT list — a template alias. */
     targetSummaryOf(c: ComposerChoice): ReadonlyArray<PlayedTargetResult> {
@@ -4839,11 +4882,18 @@ export default defineComponent({
       // THE RAIL HALF (PL-001 for actions): a direct TR, a capsule timeline's two movements, the table's answer —
       // held through `railReward` against the views, never by the shell's own wave (`consoleActionCommitRail.ts`).
       // A draw / a stage's own follow-up hosts its result in the workspace: no rail half there.
+      // A SPEND taken off a card before the result (PL-064 in general — TR29's fighter from a CHOSEN card) rides the
+      // half as its own link: the context it needs is the card-level source step with its answer, and which cards
+      // are the viewer's own (only those counters stand on this surface and in the views the half is checked against).
       const railPlan = ledgerBranch || kind === 'draw' ? undefined :
         commitRailPlan(this.entry.cardName, branch, this.captured,
-          reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts));
+          reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts), {
+            preSteps: this.preview?.preSteps,
+            preResponses: this.capturedPre,
+            ownCard: (name) => this.thisPlayer.tableau.some((c) => c.name === name),
+          });
       const specs = ledgerBranch ? [] : [
-        ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),
+        ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured, railPlan) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),
         ...stageSpecs,
       ];
       const root = this.$refs.rootEl as HTMLElement | undefined;
@@ -4851,8 +4901,21 @@ export default defineComponent({
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
       const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
+      // THE RESULT the impulse lands on: the wave's first gain, else the chain's (a spend's result rides the half).
+      const resultResource = specs[0]?.resource ?? railPlan?.reward.cause.find((spec) => spec.direction !== 'loss')?.resource;
+      // A spend is ABSORBED at the selected variant's printed result icon — the icon its result is then born on.
+      const absorbEl = railPlan?.spendLinks !== undefined && anchors !== undefined ? resolveResultIcon(anchors, kind, resultResource) : undefined;
+      const absorbRect = absorbEl?.getBoundingClientRect();
+      const absorb = absorbRect !== undefined && absorbRect.width > 2 ?
+        {x: absorbRect.left + absorbRect.width / 2, y: absorbRect.top + absorbRect.height / 2} : undefined;
+      // A later link is born under a ring: the TR's (a timeline, a spend before a TR), else the spend's result.
       const ringRect = railPlan !== undefined && railPlan.links.length > 1 && anchors !== undefined ?
-        resolveResultIcon(anchors, 'rating')?.getBoundingClientRect() : undefined;
+        (railPlan.reward.cause.some((spec) => spec.resource === RATING_RAIL_KEY) ? resolveResultIcon(anchors, 'rating')?.getBoundingClientRect() : absorbRect) :
+        undefined;
+      const spendLinks = new Set(railPlan?.spendLinks ?? []);
+      const railOrigins = railPlan === undefined ? [] : anchors !== undefined ?
+        resolveGainIconOrigins(anchors, railPlan.reward.cause).map((origin, i) => (spendLinks.has(i) ? absorb : origin)) :
+        railPlan.reward.cause.map(() => undefined);
       armActionCommit({
         sourceCard: this.entry.cardName,
         kind,
@@ -4862,7 +4925,7 @@ export default defineComponent({
           {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.72} : undefined,
         rail: railPlan === undefined ? undefined : {
           ...railPlan,
-          origins: anchors !== undefined ? resolveGainIconOrigins(anchors, railPlan.reward.cause) : railPlan.reward.cause.map(() => undefined),
+          origins: railOrigins,
           ring: ringRect !== undefined && ringRect.width > 2 ? {x: ringRect.left, y: ringRect.top, w: ringRect.width, h: ringRect.height} : undefined,
         },
       });
@@ -4871,7 +4934,7 @@ export default defineComponent({
         ctaEl: root?.querySelector<HTMLElement>('.con-composer__cta') ?? undefined,
         actionNode: this.actionGraphicNode,
         kind,
-        firstResource: specs[0]?.resource ?? railPlan?.reward.cause[0]?.resource,
+        firstResource: resultResource,
         // The draw's causality: the impulse lands on the printed card-draw
         // icon and the HUD deck ANSWERS — right before the physical pull.
         onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,

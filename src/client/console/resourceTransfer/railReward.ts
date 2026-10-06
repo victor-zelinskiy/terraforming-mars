@@ -240,7 +240,10 @@ export function verifyRailReward(reward: RailReward, before: PlayerViewModel | u
   // score includes the rating point for point); a score that moved otherwise holds no point and says why.
   const points = (reward.vp ?? []).reduce((sum, v) => sum + v, 0);
   let vp: Array<number> = [];
-  if (points !== 0) {
+  // Held when ANY token moves points — never by the SUM: a spend off a scoring card and a landing on another
+  // (TR29: Formula Zero −1, Mech Sports +1) net to zero, and the cell still dips at the departure and recovers at
+  // the touchdown, because that is what happened.
+  if ((reward.vp ?? []).some((v) => v !== 0)) {
     const rating = promised.get(railRowKey({channel: 'stock', resource: RATING_RAIL_KEY})) ?? 0;
     const sa = scoreOf(was);
     const sb = scoreOf(now);

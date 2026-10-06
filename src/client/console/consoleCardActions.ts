@@ -119,6 +119,13 @@ export type ConsoleActionTile = {
    *  spendHeat) — the tile names them ("choose a card") since no range chip
    *  can express them. Amount choices ride `variableCost`/`variableGain`. */
   choiceKinds: ReadonlyArray<'card' | 'player' | 'or' | 'payment' | 'spendHeat'>;
+  /**
+   * The signed delta of the FIRST card pick the composer will ask (card-level
+   * steps first, then the branch's) — what the tile's «card» ask says: a pick
+   * the action takes FROM reads «the source card», one it puts a resource ON
+   * «the receiving card» (`cardPickAskKey`, PL-056). Undefined: no delta.
+   */
+  cardPickAmount?: number;
   /** Why this variant can't be used right now (undefined when available). */
   reason: ConsoleActionReason | undefined;
   /**
@@ -783,6 +790,16 @@ function branchNeedsChoices(branch: ActionPreviewBranch | undefined): boolean {
     branch.steps.some((s) => s.kind === 'input' || s.kind === 'spendHeat');
 }
 
+/** The signed delta of the first card pick a branch (+ card-level preSteps) will host, in the asked order. */
+function firstCardPickAmount(branch: ActionPreviewBranch | undefined, preview: ActionPreview | undefined): number | undefined {
+  for (const step of [...(preview?.preSteps ?? []), ...(branch?.steps ?? [])]) {
+    if (step.kind === 'input' && step.input.type === 'card') {
+      return step.amount;
+    }
+  }
+  return undefined;
+}
+
 /** The NON-amount choice kinds a branch (+ card-level preSteps) will host. */
 function branchChoiceKinds(
   branch: ActionPreviewBranch | undefined,
@@ -949,6 +966,7 @@ function buildTiles(
       // instead of looking like a one-press activation.
       hasChoices: (preview?.preSteps ?? []).length > 0 || avail.branching || branchNeedsChoices(branch),
       choiceKinds: branchChoiceKinds(branch, preview, avail.branching),
+      cardPickAmount: firstCardPickAmount(branch, preview),
       reason,
       // A 'soft' variant is blocked by the WINDOW only (the card meets every
       // rule) — it keeps the calm register and stays in the potential count.
