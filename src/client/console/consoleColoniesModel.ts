@@ -169,6 +169,10 @@ export const fleetDockUi = reactive({
    * never the stage's verbs gone inert.
    */
   answered: false,
+  /** R3 «Эффекты» is a verb of the stage right now: a forecast with facts, the setup level, nothing held (PL-060). */
+  forecastAvailable: false,
+  /** The stage's «Эффекты» layer is OPEN — the explorer owns the bar (`forecastExplorerUi('dock').barCommands`). */
+  forecastOpen: false,
 });
 
 export function resetFleetDockUi(): void {
@@ -177,6 +181,8 @@ export function resetFleetDockUi(): void {
   fleetDockUi.primaryEnabled = false;
   fleetDockUi.primaryCommits = false;
   fleetDockUi.answered = false;
+  fleetDockUi.forecastAvailable = false;
+  fleetDockUi.forecastOpen = false;
 }
 
 /**

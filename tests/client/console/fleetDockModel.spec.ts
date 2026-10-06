@@ -211,6 +211,8 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
       effects: [{direction: 'gain', icon: 'megacredits', amount: 2, current: 0, resulting: 2}],
       reason: 'The Greens pay 2 M€ per TR step you gain', ...extra,
     } as EffectForecastFact);
+    /** The dock preview's forecast — the plan reads its facts only. */
+    const forecastOf = (facts: ReadonlyArray<EffectForecastFact>) => ({facts});
 
     it('three shapes of data, three categories', () => {
       expect(fleetDockRewardCategory([placeOcean]), 'TR06: the reward is ahead, on the board').eq('placement');
@@ -225,13 +227,13 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
     });
 
     it('a `placement` plan flies nothing and holds nothing, even when the table would answer its TR chip', () => {
-      const plan = fleetDockScenePlan({effects: [ocean, tr], followUps: [placeOcean], reactions: [greens()]});
+      const plan = fleetDockScenePlan({effects: [ocean, tr], followUps: [placeOcean], forecast: forecastOf([greens()])});
       expect(plan.specs).deep.eq([]);
       expect(plan.reactions, 'the Greens pay at the placement — the board\'s story, not the stage\'s').deep.eq([]);
     });
 
     it('a `rail` plan: the TR flies off the printed rating (the impulse lands on the parameter), the Greens\' M€ follows it', () => {
-      expect(fleetDockScenePlan({effects: [tr], followUps: [], reactions: [greens()]})).deep.eq({
+      expect(fleetDockScenePlan({effects: [tr], followUps: [], forecast: forecastOf([greens()])})).deep.eq({
         category: 'rail', answer: 'global',
         specs: [{channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}],
         reactions: [{channel: 'stock', resource: 'megacredits', amount: 2}],

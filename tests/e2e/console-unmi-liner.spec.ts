@@ -394,6 +394,25 @@ for (const preset of PRESETS) {
       expect(result, 'and the fleets').toMatch(/3\s*→\s*2/);
       await expect(page.locator('[data-fleet-dock-result] [data-forecast-vfx]'), 'the table\'s answer is named before the press').toHaveCount(1);
       expect(((await page.locator('[data-fleet-dock-result] [data-forecast-vfx]').textContent()) ?? '').replace(/\s+/g, ' '), 'the Greens\' 2 M€').toMatch(/\+\s*2/);
+
+      // ── 2b. R3 → the «ЭФФЕКТЫ» layer INSIDE the stage (PL-060): the group carries the key, the work column parks
+      // (never unmounts), the explorer stands in the stage's own box, the crumb gains «· ЭФФЕКТЫ», the Greens' answer
+      // is a tile of «Вы получите»; B gives the stage back whole — same path, same chips — and nothing was sent.
+      await expect(page.locator('[data-fleet-dock-result] [data-forecast-row] .gp-glyph'), 'the «сработает» group carries the R3 key').toHaveCount(1);
+      expect(await pressUntil(page, 'KeyV', async () => await page.locator('.con-fleetdock [data-forecast-layer]').count() > 0, {tries: 3, settleMs: 1100}),
+        'R3 opens the «Эффекты» layer inside the dock\'s stage').toBeTruthy();
+      await expect(page.locator('.con-fleetdock [data-forecast-layer] .con-efx--forecast'), 'the effects explorer in its forecast mode').toHaveCount(1);
+      await expect(page.locator('.con-colonies .con-wshead'), 'the crumb gains «· ЭФФЕКТЫ»').toContainText(/ЭФФЕКТЫ/i);
+      await expect(page.locator('.con-fleetdock [data-forecast-layer] [data-forecast-group="receive"]'), 'the Greens\' 2 M€ stand as a tile of «Вы получите»').toHaveCount(1);
+      expect(await page.locator('.con-fleetdock [data-forecast-browse] [data-fleet-dock-result]').count(), 'the work column is PARKED under the layer, never unmounted').toBe(1);
+      await settle(page, {timeoutMs: 15_000});
+      await shoot(page, preset.id, '02b-liner-effects-layer');
+      expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-fleetdock [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 1100}),
+        'B folds the layer, never the stage').toBeTruthy();
+      await expect(page.locator('.con-fleetdock'), 'the stage is still up').toHaveCount(1);
+      await expect(page.locator('.con-colonies .con-wshead')).not.toContainText(/ЭФФЕКТЫ/i);
+      await expect(page.locator('[data-fleet-dock-result] [data-forecast-vfx]'), 'the group is back on the line').toContainText(/\+\s*2/);
+      await settle(page, {timeoutMs: 15_000});
       await expect(page.locator('[data-fleet-dock-note]'), 'the reward raises nothing after the confirm — no line').toHaveCount(0);
       expect(posts, 'nothing reached the server before A').toEqual([]);
       const trIcon = await settledRect(page, '.con-fleetdock [data-fleet-dock-hero] .pcard-ic', 'tr.');

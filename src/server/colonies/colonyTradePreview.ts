@@ -23,7 +23,7 @@ import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {IPlayer} from '../IPlayer';
 import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
-import {rewardReactionFacts} from '../models/effectForecast';
+import {rewardReactionForecast} from '../models/effectForecast';
 
 /**
  * READ-ONLY preview of trading with `colony` for `player` — the shared brain
@@ -114,11 +114,12 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
  * as the card's co-located contract states it (`previewEffects` /
  * `previewFollowUps`). Nothing here re-states a rule and nothing mutates.
  *
- * `reactions` is the CLASS's part, never a card's: what the table answers to
+ * `forecast` is the CLASS's part, never a card's: what the table answers to
  * the reward's grants (the ruling Greens' 2 M€ on the TR step, a card that
  * pays on a rating gain) — the forecast engine's own pass over the chips the
- * card stated (`rewardReactionFacts`), the same twins the composers'
- * «Сработает» row reads.
+ * card stated (`rewardReactionForecast`), the same twins the composers'
+ * «Сработает» row reads, as the ONE forecast object the stage's R3 «Эффекты»
+ * layer opens.
  *
  * A reward with a CARD TARGET (TR27) leads the follow-ups with that target, in
  * the landing's own order (`dockFleet` queues it first): the very step the
@@ -130,7 +131,7 @@ export function buildFleetDockPreview(player: IPlayer, card: FleetDockCard): Fle
   const reason = fleetDockBlockedReason(player, card);
   const flatBonuses = flatBonusModels(player);
   const effects = card.fleetDock.previewEffects(player);
-  const reactions = rewardReactionFacts(player, card, effects);
+  const forecast = rewardReactionForecast(player, card, effects);
   const target = fleetDockRewardTarget(player, card);
   return {
     card: card.name,
@@ -143,7 +144,7 @@ export function buildFleetDockPreview(player: IPlayer, card: FleetDockCard): Fle
       ...(card.fleetDock.previewFollowUps?.(player) ?? []),
     ],
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
-    ...(reactions.length > 0 ? {reactions} : {}),
+    ...(forecast !== undefined ? {forecast} : {}),
   };
 }
 

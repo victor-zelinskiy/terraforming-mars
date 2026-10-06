@@ -113,8 +113,16 @@ describe('FleetDock — the class contract, for every dock of the manifests', ()
         const t = table(entry);
         const preview = buildFleetDockPreview(t.player, t.card);
         expect(preview.effects.filter((effect) => effect.direction === 'gain'), `${entry.name}: a dock that pays nothing`).is.not.empty;
-        expect(preview.reactions ?? [], `${entry.name}: the reactions are the class's pass over the card's own chips`)
-          .deep.eq(rewardReactionFacts(t.player, t.card, t.card.fleetDock.previewEffects(t.player)));
+        const facts = rewardReactionFacts(t.player, t.card, t.card.fleetDock.previewEffects(t.player));
+        expect(preview.forecast?.facts ?? [], `${entry.name}: the forecast's facts are the class's pass over the card's own chips`).deep.eq(facts);
+        // The whole forecast is what the stage's R3 «Эффекты» layer opens (PL-060): present exactly when something
+        // reacts, no discount and no payment value (a trade's fee is not a card's price), the engine's own coverage.
+        expect(preview.forecast !== undefined, `${entry.name}: a forecast exactly when something reacts`).eq(facts.length > 0);
+        if (preview.forecast !== undefined) {
+          expect(preview.forecast.discounts.final, `${entry.name}: no discount on a trade`).eq(preview.forecast.discounts.base);
+          expect(preview.forecast.paymentValues, `${entry.name}: no payment value on a trade`).deep.eq([]);
+          expect(preview.forecast.coverage).eq(facts.some((f) => f.certainty === 'unknown') ? 'partial' : 'complete');
+        }
       });
 
       it('under the ruling Greens a TR chip is ANSWERED before the press, and the landing pays exactly that', () => {
@@ -127,7 +135,7 @@ describe('FleetDock — the class contract, for every dock of the manifests', ()
         player.megaCredits = 0;
         const preview = buildFleetDockPreview(player, card);
         const steps = preview.effects.filter((effect) => effect.direction === 'gain' && effect.icon === 'tr').reduce((sum, effect) => sum + effect.amount, 0);
-        const promised = (preview.reactions ?? [])
+        const promised = (preview.forecast?.facts ?? [])
           .filter((fact) => fact.source.kind === 'party' && fact.recipient.kind === 'you')
           .flatMap((fact) => fact.effects)
           .filter((effect) => effect.icon === 'megacredits' && effect.direction === 'gain')

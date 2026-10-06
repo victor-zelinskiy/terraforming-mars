@@ -26,7 +26,7 @@ import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {ColonyTradeFollowUpModel} from '@/common/models/ColonyTradePreviewModel';
-import {EffectForecastFact} from '@/common/models/EffectForecastModel';
+import {EffectForecast, EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {FleetDockOfferModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {Payment} from '@/common/inputs/Payment';
 import {
@@ -388,7 +388,7 @@ export function reactionRailSpecs(reactions: ReadonlyArray<EffectForecastFact> |
 export function fleetDockScenePlan(preview: {
   effects: ReadonlyArray<ActionEffect>,
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>,
-  reactions?: ReadonlyArray<EffectForecastFact>,
+  forecast?: Pick<EffectForecast, 'facts'>,
 } | undefined, card?: {
   /** The card that receives — the stage's captured choice (absent: the server's one holder, `auto`). */
   target?: CardName,
@@ -410,8 +410,8 @@ export function fleetDockScenePlan(preview: {
     }
     const first = specs[0];
     return first.resource === RATING_RAIL_KEY ?
-      {category, answer: 'global', specs, reactions: reactionRailSpecs(preview.reactions)} :
-      {category, answer: 'resources', firstResource: first.resource, specs, reactions: reactionRailSpecs(preview.reactions)};
+      {category, answer: 'global', specs, reactions: reactionRailSpecs(preview.forecast?.facts)} :
+      {category, answer: 'resources', firstResource: first.resource, specs, reactions: reactionRailSpecs(preview.forecast?.facts)};
   }
   case 'card': {
     // THE CARD PAYS A CARD: the tokens leave the printed icons for the receiving card (one per icon), then the
@@ -430,7 +430,7 @@ export function fleetDockScenePlan(preview: {
       answer: 'resources',
       firstResource: cardResourceKey(followUp.resource),
       specs: [...tokens.specs, ...rail],
-      reactions: reactionRailSpecs(preview.reactions),
+      reactions: reactionRailSpecs(preview.forecast?.facts),
       target,
       vp: [...tokens.vp, ...rail.map(() => 0)],
     };

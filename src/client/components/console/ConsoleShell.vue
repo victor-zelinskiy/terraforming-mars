@@ -269,6 +269,7 @@
                                 :tradeDisabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []"
                                 :thisPlayer="thisPlayer"
                                 :playerId="playerView.id"
+                                :statsView="playerView"
                                 :viewVersion="`${playerView.game.gameAge}|${playerView.game.undoCount}`"
                                 :docks="coloniesLeaving ? [] : colonyDocks"
                                 @dock-confirm="onFleetDockConfirm($event)"
@@ -1934,7 +1935,7 @@ import {isResourceTransferActive, resourceTransferDiagnostics} from '@/client/co
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {forecastStageText} from '@/client/console/consoleEffectForecast';
+import {forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
 import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, tradeDestinationResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
@@ -2022,8 +2023,9 @@ import ConsoleResourceTransferLayer from '@/client/components/console/resourceTr
 import {ResourceTransferSpec, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
-import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitRewardSpecs, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
+import {actionCommitRailState, flyActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
@@ -2689,6 +2691,13 @@ export default defineComponent({
        * settle releases it, never a timer.
        */
       pendingCommitDismiss: undefined as (() => void) | undefined,
+      /**
+       * The ACTION COMMIT has been resolved and its workspace's fold is OWED to
+       * the phrase in the air (a capsule timeline — `consoleActionCommitRail`):
+       * the awaiting handoff stays up meanwhile, and this keeps a later view from
+       * resolving it a second time. Cleared by the fold itself.
+       */
+      commitFoldOwed: false,
       /** The console-native card-action center's UI state (filter + confirm-open). */
       consoleCardActionsUi,
       /** The MA workspace commit's safety backstop (a verdict may never hang). */
@@ -8805,6 +8814,11 @@ export default defineComponent({
         if (fleetDockUi.answered) {
           return [{control: 'confirm', label: 'Performing…', enabled: false}];
         }
+        // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (the
+        // composers' rule; PL-060).
+        if (fleetDockUi.forecastOpen) {
+          return [...(forecastExplorerUi('dock').barCommands ?? [])];
+        }
         if (fleetDockUi.sub === 'lanes') {
           return [
             {control: 'triggerR', label: 'Max'},
@@ -8832,6 +8846,8 @@ export default defineComponent({
           {control: 'confirm', label: fleetDockUi.primaryLabel, enabled: fleetDockUi.primaryEnabled,
             highlight: fleetDockUi.primaryEnabled && fleetDockUi.primaryCommits},
           {control: 'secondary', label: 'Inspect'},
+          // R3 — the «Эффекты» layer (the table's answer to the reward), only when the forecast has something to show.
+          ...(fleetDockUi.forecastAvailable ? [{control: 'stickR' as const, label: 'Effects'}] : []),
           {control: 'back', label: 'Back'},
         ];
       }
@@ -11959,7 +11975,9 @@ export default defineComponent({
           }
         }
         const awaiting = surfaceMotionState.awaiting;
-        if (awaiting !== undefined) {
+        // A commit whose phrase still owes its fold (a capsule timeline in the
+        // air) has ALREADY been resolved — a later view must not resolve it again.
+        if (awaiting !== undefined && !this.commitFoldOwed) {
           const lr = newView.lastReveal;
           const resolution = resolveAwaiting(awaiting, {
             gameAge: newView.game.gameAge,
@@ -12041,16 +12059,34 @@ export default defineComponent({
                   beginBlockadeExecution(deploy.target, deploy.source);
                   return;
                 }
-                // Capture the departing composer UNCONDITIONALLY — the incoming
-                // surface consumes it only when the pair is phase-linked
-                // (departureUsable), so a reveal FLIPs the source card while a
-                // follow-up task host (a Helion payment, an OrOptions branch)
-                // enters as the continuation of the same activation.
-                captureSurfaceDeparture(awaiting.from,
-                  document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
-                clearAwaitingHandoff();
-                closeConsoleLayers();
-                releaseActionCommit();
+                // THE RAIL HALF (PL-001 for actions): a direct TR's token is
+                // born on its printed icon and the workspace folds under it; a
+                // capsule TIMELINE (TR28) keeps the workspace while the card is
+                // still a target or a source of a token, and folds under the
+                // last one (`consoleActionCommitRail.ts`).
+                const rail = flyActionCommitRail(commitPlan);
+                const fold = () => {
+                  this.commitFoldOwed = false;
+                  // Capture the departing composer UNCONDITIONALLY — the incoming
+                  // surface consumes it only when the pair is phase-linked
+                  // (departureUsable), so a reveal FLIPs the source card while a
+                  // follow-up task host (a Helion payment, an OrOptions branch)
+                  // enters as the continuation of the same activation.
+                  captureSurfaceDeparture(awaiting.from,
+                    document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
+                  clearAwaitingHandoff();
+                  closeConsoleLayers();
+                  releaseActionCommit();
+                };
+                if (commitPlan?.rail?.holdsSurface === true && actionCommitRailState.phase === 'flying') {
+                  // The awaiting handoff stays up (the pad stays inert — the
+                  // phrase cannot be cut by a press) and a view arriving
+                  // mid-phrase must not resolve it a second time.
+                  this.commitFoldOwed = true;
+                  void rail.foldable.then(fold);
+                } else {
+                  fold();
+                }
               };
               // A fast server must not cut the minimum readable commit: the
               // dismiss waits for the beat's settle (never a timer — the
@@ -19115,13 +19151,24 @@ export default defineComponent({
       if (plan.specs.length === 0) {
         return;
       }
+      // The wave's net releases ITS OWN rows only: a blanket clear here once
+      // dropped every other hold on the rail with it — the rail half of the
+      // same commit (its TR still in the air) included.
+      const pending = new Set(plan.specs);
       void runResourceTransfers({
         specs: plan.specs,
         origins: plan.origins,
         source: {point: plan.sourcePoint},
         arrival: 'auto',
-        onArrive: (spec) => releasePanelRewardHold(spec),
-      }).finally(() => clearPanelRewardHold());
+        onArrive: (spec) => {
+          if (pending.delete(spec)) {
+            releasePanelRewardHold(spec);
+          }
+        },
+      }).finally(() => {
+        pending.forEach((spec) => releasePanelRewardHold(spec));
+        pending.clear();
+      });
     },
     /**
      * SETTLE the claim once the response has actually been applied.

@@ -456,6 +456,29 @@ duplicates it) for the forecast classes, every type ≥ the .8rem floor;
 the handheld ladder folds the dossier into a top plate (no face) and keeps
 the grid single-column; the row's chips shrink on the compact tokens.
 
+**The third host — the FLEET-DOCK STAGE** (`ConsoleFleetDockStage`, a trade
+whose destination is a card: TR06 / TR26 / TR27; PL-060, 2026-10-06). The
+server's dock preview carries the table's answer to the reward as ONE
+`EffectForecast` (`FleetDockPreviewModel.forecast` ← `rewardReactionForecast`:
+the same passes a play's grants go through — the card reactors, the cascade,
+the party effects, the enacted resolution — no discount, no payment value, the
+engine's own coverage; absent when nothing reacts). The stage draws the
+«⚡ сработает» group on its result line (`ConsoleForecastReactions`, the
+option cards' note) and that group IS the door: it carries the R3 key, a click
+or R3 opens the layer (`EffectForecastHost 'dock'`), the work column parks
+under `data-forecast-browse`, the layer unfolds from the group's rect into the
+stage's own box (`.con-fleetdock__fxlayer`, the composer's values), the crumb
+reads «КОЛОНИИ › ЛАЙНЕР UNMI › ТОРГОВЛЯ · ЭФФЕКТЫ» (the colonies section's
+`crumbStage` → `forecastStageText('dock', …)`), the shell's dock bar reads the
+explorer's own commands while it is open (`fleetDockUi.forecastOpen`) and
+offers «R3 Эффекты» only while `fleetDockUi.forecastAvailable`. A sub-step
+(the lanes, the mix, the target step) and the commit boundary fold it
+instantly; the stage's unmount closes it. The motion hooks find their host by
+`[data-forecast-host]` (the stage declares itself) before `.con-composer`.
+`operation="action"` — an immediate reaction reads «сразу после выполнения».
+Guards: `ConsoleFleetDockStage.spec` § the R3 «Эффекты» layer, the e2e
+`console-unmi-liner` (R3 → the layer inside the stage → B → the stage intact).
+
 ## i18n
 
 UI keys in `src/locales/ru/console.json` (`Will trigger` → «Сработает»,

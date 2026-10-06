@@ -27,6 +27,7 @@ import {
   EffectForecastPaymentValue,
   EffectForecastRecipient,
   EffectForecastSource,
+  emptyEffectForecast,
 } from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
 import {cardResourceIcon, drawGain, globalParameterStepSize, productionChange, stockGain} from '../cards/actionPreviews';
@@ -1040,8 +1041,13 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
     byBranch: Object.keys(strippedByBranch).length > 0 ? strippedByBranch : undefined,
     discounts: discountsOf(player, card, operation),
     paymentValues: paymentValuesOf(player, card, operation),
-    coverage: all.some((f) => f.certainty === 'unknown') ? 'partial' : 'complete',
+    coverage: coverageOf(all),
   };
+}
+
+/** `partial` when at least one live hook stayed uncomputed — the ONE reading of a fact list, for every builder. */
+function coverageOf(facts: ReadonlyArray<EffectForecastFact>): EffectForecast['coverage'] {
+  return facts.some((f) => f.certainty === 'unknown') ? 'partial' : 'complete';
 }
 
 /**
@@ -1065,6 +1071,19 @@ export function rewardReactionFacts(player: IPlayer, card: ICard, effects: Reado
   facts.push(...cascadeFacts(player, card, facts, ctx));
   facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
   return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);
+}
+
+/**
+ * The same answer as ONE `EffectForecast` — what the dock's stage hands its
+ * R3 «Эффекты» layer (the explorer reads a forecast, never a bare list): the
+ * facts above, no discount and no payment value (a trade's fee is the stage's
+ * own payment rows, not a card's price), the coverage read as every builder
+ * reads it. `undefined` when nothing reacts, so the wire carries no empty
+ * object and the client's «absent = nothing reacts» stays one test.
+ */
+export function rewardReactionForecast(player: IPlayer, card: ICard, effects: ReadonlyArray<ActionEffect>): EffectForecast | undefined {
+  const facts = rewardReactionFacts(player, card, effects);
+  return facts.length === 0 ? undefined : {...emptyEffectForecast(), facts, coverage: coverageOf(facts)};
 }
 
 /** The forecast of PLAYING `card` (a hand card, a prelude, the picked corporation). */

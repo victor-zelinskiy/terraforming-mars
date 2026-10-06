@@ -40,6 +40,7 @@
          'con-fleetdock--claimed': outcomeZone && claimPresenting,
        }"
        data-unfold-surface
+       data-forecast-host
        :data-fleet-dock-stage="card"
        :data-fleet-dock-category="presentPlan.category"
        :data-fleet-dock-degraded="rewardDegraded"
@@ -62,7 +63,7 @@
     </div>
 
     <div class="con-fleetdock__main" ref="mainEl">
-      <ConsoleScrollArea class="con-fleetdock__scroll" ref="scroll">
+      <ConsoleScrollArea class="con-fleetdock__scroll" ref="scroll" data-forecast-browse>
         <!-- THE ONE REASON a refused dock is not a destination — the server's,
              through the colony ladder. Nothing else replaces the work column:
              the rows below stay readable (the player sees the trade's
@@ -143,12 +144,46 @@
           <div class="con-fleetdock__chips" data-unfold-late>
             <ActionEffectChip v-for="(chip, i) in resultChips" :key="'e' + i" :effect="chip" />
             <!-- WHAT THE TABLE ANSWERS to the reward (the ruling Greens' M€ on a TR step) — the composers' own
-                 «⚡ сработает» group, on the chips' line: read BEFORE the press, never a surprise after it. -->
-            <ConsoleForecastReactions :reaction="presentReaction" />
+                 «⚡ сработает» group, on the chips' line: read BEFORE the press, never a surprise after it. And, as
+                 on every composer, the group is the DOOR of the R3 «Эффекты» layer (the key rides it, a click
+                 opens it): the whole answer — the eight groups, the five-question dossier — stands one level
+                 deeper INSIDE this stage, never as a surface over it (PL-060). -->
+            <span v-if="presentReaction.chips.length > 0 || presentReaction.more > 0"
+                  class="con-fleetdock__vfxrow"
+                  :class="{'con-forecast--descend': forecastPulse}"
+                  data-forecast-row
+                  @click="openForecastLayer()">
+              <ConsoleForecastReactions :reaction="presentReaction" />
+              <span v-if="forecastCanOpen" class="con-forecast__key" aria-hidden="true"><GamepadGlyph control="stickR" /></span>
+            </span>
           </div>
           <div v-for="note in followUpNotes" :key="note" class="con-fleetdock__note" data-unfold-late data-fleet-dock-note>{{ $t(note) }}</div>
         </section>
       </ConsoleScrollArea>
+
+      <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this stage, the composers' own (PL-060): the work column above
+           PARKS in place, the effects explorer (forecast mode) UNFOLDS out of the «⚡ сработает» group, B / R3 fold
+           it back with the chosen path, the payment and the cursor intact. The crumb gains «· ЭФФЕКТЫ». The hero
+           card, the frame, the rail and the bar stand still. ── -->
+      <transition :css="false"
+                  @enter="forecastFocusEnterHook"
+                  @leave="forecastFocusLeaveHook"
+                  @enter-cancelled="forecastFocusEnterCancelledHook"
+                  @leave-cancelled="forecastFocusLeaveCancelledHook">
+        <div v-if="fxOpen" key="fx" class="con-fleetdock__fxlayer" data-forecast-layer>
+          <div class="con-fleetdock__fxpanel" data-forecast-surface>
+            <ConsoleEffectsExplorer ref="forecastExplorer"
+                                    mode="forecast"
+                                    operation="action"
+                                    :explorerUi="forecastUi"
+                                    :forecast="forecast"
+                                    :cards="thisPlayer?.tableau ?? []"
+                                    :color="thisPlayer?.color ?? ''"
+                                    :players="players"
+                                    :statsByColor="forecastStatsByColor" />
+          </div>
+        </div>
+      </transition>
 
       <!-- THE TARGET STEP — one level deeper in the same flow (the colony stage's own host). -->
       <ConsoleTradeTargetStep v-if="sub === 'targets' && targetStepModel !== undefined"
@@ -218,7 +253,19 @@ import {
   setFleetDockStageCard, endFleetDockScene,
 } from '@/client/console/colonyTrade/fleetDockScene';
 import {flyRailReward, railRewardState} from '@/client/console/resourceTransfer/railReward';
-import {reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
+import {forecastLayerAvailable, reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
+import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
+import {EffectOverlayStat} from '@/common/events/aggregate';
+import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, openEffectForecastLayer} from '@/client/console/consoleEffectForecast';
+import {
+  armForecastRow, armForecastInstantFold,
+  forecastFocusEnterHook, forecastFocusLeaveHook, forecastFocusEnterCancelledHook, forecastFocusLeaveCancelledHook,
+} from '@/client/console/consoleForecastFocusMotion';
+import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
+import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
+import {VersionedView} from '@/client/console/gameStateVersion';
+import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {
   runActionCommitMotion, resolveActionCommitAnchors, resolveGainIconOrigins, ActionCommitMotionHandle,
@@ -278,7 +325,7 @@ export default defineComponent({
   name: 'ConsoleFleetDockStage',
   components: {
     ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite, ConsoleForecastReactions,
-    ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards,
+    ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleEffectsExplorer, GamepadGlyph,
   },
   props: {
     card: {type: String as PropType<CardName>, required: true},
@@ -309,6 +356,8 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     /** The colonies workspace hosts a claimed follow-up — the zone a re-asked question is teleported into. */
     outcomeZone: {type: Boolean, default: false},
+    /** The viewer's versioned view — the reacting seats' effect stats the layer's «За партию» block asks for. */
+    statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
   },
   emits: ['confirm', 'cancel', 'inspect', 'flow-complete'],
   data() {
@@ -337,6 +386,10 @@ export default defineComponent({
       heldPlan: undefined as FleetDockScenePlan | undefined,
       /** The pinned answer of the table (the receipt keeps naming what the press was promised). */
       heldReaction: undefined as VariantReaction | undefined,
+      /** The R3 layer's own cursors (never the Information workspace's, never a composer's). */
+      forecastUi: forecastExplorerUi('dock'),
+      /** The one-shot COMMIT flare on the «⚡ сработает» group. */
+      forecastPulse: false,
       railReward: railRewardState,
       heroZoom: 1,
       cardLeaving: false,
@@ -348,6 +401,8 @@ export default defineComponent({
        * its own timeline holds.
        */
       sceneCall: undefined as {kill: () => void} | undefined,
+      /** The «сработает» group's commit flare (a plain handle — never the tween itself in reactive data). */
+      pulseCall: undefined as {kill: () => void} | undefined,
       sceneMotion: undefined as ActionCommitMotionHandle | undefined,
       stopFitObs: undefined as (() => void) | undefined,
     };
@@ -659,11 +714,43 @@ export default defineComponent({
       return this.heldPlan ?? this.scenePlan;
     },
     /**
-     * WHAT THE TABLE ANSWERS to the reward — the server's own forecast facts (`FleetDockPreviewModel.reactions`)
+     * WHAT THE TABLE ANSWERS to the reward — the server's own forecast facts (`FleetDockPreviewModel.forecast.facts`)
      * as the «⚡ сработает» chips every composer draws. Nothing is derived here: no fact, no group.
      */
     presentReaction(): VariantReaction {
-      return this.heldReaction ?? reactionChipsOf(this.preview?.reactions ?? []);
+      return this.heldReaction ?? reactionChipsOf(this.forecast?.facts ?? []);
+    },
+    // ── THE EFFECT FORECAST (rides inside the dock preview) — the R3 «Эффекты» layer, the composers' own ──
+    forecast(): EffectForecast | undefined {
+      return this.preview?.forecast;
+    },
+    forecastAvailable(): boolean {
+      return forecastLayerAvailable(this.forecast);
+    },
+    /** R3 is the SETUP level's verb — silent in a sub-step (the lanes, the mix, the target step) and past the commit. */
+    forecastCanOpen(): boolean {
+      return this.forecastAvailable && this.sub === undefined && this.held === undefined;
+    },
+    fxOpen(): boolean {
+      return effectForecastOpen('dock');
+    },
+    forecastStatsByColor(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      const out: Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> = {};
+      for (const color of this.forecastOwnerColors) {
+        out[color] = effectStatsFor(color as Color);
+      }
+      return out;
+    },
+    /** The seats whose CARDS react (a party's or a resolution's fact has no seat to ask stats of). */
+    forecastOwnerColors(): ReadonlyArray<string> {
+      const bots = new Set(this.players.filter((p) => p.isMarsBot === true).map((p) => p.color));
+      const colors = new Set<string>();
+      for (const fact of this.forecast?.facts ?? []) {
+        if (!forecastSourceIsCardless(fact.source) && fact.source.kind !== 'automa-corporation' && !bots.has(fact.source.owner)) {
+          colors.add(fact.source.owner);
+        }
+      }
+      return [...colors];
     },
     /** A rail reward of THIS dock that was not shown as promised — named (`railReward.ts`), never silent. */
     rewardDegraded(): string | undefined {
@@ -690,6 +777,17 @@ export default defineComponent({
       this.syncUiMirror();
       // The step is one level DEEPER in the same flow — only the crumb's tail advances, and B walks it back.
       setColonyFocusStage(this.sub === 'targets' ? 'Reward target' : 'Trading');
+    },
+    /** The «Эффекты» layer lives ONLY on the setup level — a sub-step and the commit boundary fold it instantly. */
+    forecastCanOpen(can: boolean): void {
+      this.syncUiMirror();
+      if (!can && this.fxOpen) {
+        armForecastInstantFold();
+        closeEffectForecastLayer('dock');
+      }
+    },
+    fxOpen(): void {
+      this.syncUiMirror();
     },
     // A fresh preview re-judges the choice: a card no longer offered is dropped (the row asks again), a step that
     // vanished folds the target step back.
@@ -743,6 +841,8 @@ export default defineComponent({
       fleetDockUi.primaryEnabled = this.primary.enabled && this.held === undefined;
       fleetDockUi.primaryCommits = this.primary.commits;
       fleetDockUi.answered = this.held !== undefined;
+      fleetDockUi.forecastAvailable = this.forecastCanOpen;
+      fleetDockUi.forecastOpen = this.fxOpen;
     },
     seedPaymentDefault(): void {
       const step = this.paymentStep;
@@ -759,6 +859,16 @@ export default defineComponent({
       if (this.held !== undefined) {
         return;
       }
+      // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 at the setup level opens it. Both resolved BEFORE
+      // the semantic map (no default R3) — the composers' own order.
+      if (this.fxOpen) {
+        this.onForecastIntent(intent);
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickR') {
+        this.openForecastLayer();
+        return;
+      }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
@@ -767,6 +877,55 @@ export default defineComponent({
       if (action !== undefined) {
         this.onPress(action);
       }
+    },
+    // The stage ⇄ «Эффекты» layer transition hooks (the descend phrase — the composers' own).
+    forecastFocusEnterHook,
+    forecastFocusLeaveHook,
+    forecastFocusEnterCancelledHook,
+    forecastFocusLeaveCancelledHook,
+    /** R3 / a click on the «⚡ сработает» group — the WORKSPACE DESCEND into the layer (the group's rect armed
+     *  SYNCHRONOUSLY; the reacting seats' stats asked). */
+    openForecastLayer(): void {
+      if (!this.forecastCanOpen || this.fxOpen) {
+        return;
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
+      // The flare is a one-shot CSS class; its end rides the animation clock like every wait of this stage (PL-003).
+      this.forecastPulse = true;
+      this.pulseCall?.kill();
+      const pulse = gsap.delayedCall(0.32, () => {
+        this.pulseCall = undefined;
+        this.forecastPulse = false;
+      });
+      this.pulseCall = {kill: () => pulse.kill()};
+      if (this.statsView !== undefined) {
+        for (const color of this.forecastOwnerColors) {
+          ensureEffectStats(this.statsView, color as Color);
+        }
+      }
+      openEffectForecastLayer('dock');
+    },
+    closeForecastLayer(): void {
+      if (this.fxOpen) {
+        closeEffectForecastLayer('dock');
+      }
+    },
+    /** Input while the layer is open: B folds one level (the explorer's dossier first), R3 closes the whole
+     *  layer, the rest is the explorer's. */
+    onForecastIntent(intent: GamepadIntent): void {
+      const explorer = this.$refs.forecastExplorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      if (intent.kind === 'press' && intent.button === 'stickR') {
+        this.closeForecastLayer();
+        return;
+      }
+      if (intent.kind === 'press' && consoleActionOf(intent) === 'back') {
+        if (explorer?.consumeEffectsBack() !== true) {
+          this.closeForecastLayer();
+        }
+        return;
+      }
+      explorer?.handleIntent(intent);
     },
     onNav(dir: NavDirection): void {
       if (this.sub === 'targets') {
@@ -1173,6 +1332,8 @@ export default defineComponent({
     this.sceneMotion?.kill();
     this.sceneCall?.kill();
     this.sceneCall = undefined;
+    this.pulseCall?.kill();
+    this.pulseCall = undefined;
     setFleetDockStageCard('');
     // A scene the stage did not finish (the world moved, a collapse) ends here:
     // the placement is server state and comes up on its own. A CONCLUDING scene
@@ -1187,6 +1348,9 @@ export default defineComponent({
     fleetDockUi.primaryEnabled = false;
     fleetDockUi.primaryCommits = false;
     fleetDockUi.answered = false;
+    fleetDockUi.forecastAvailable = false;
+    fleetDockUi.forecastOpen = false;
+    closeEffectForecastLayer('dock');
   },
 });
 </script>

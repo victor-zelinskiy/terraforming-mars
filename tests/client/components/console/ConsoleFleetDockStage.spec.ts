@@ -7,7 +7,8 @@ import {SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputMod
 import {CardResource} from '@/common/CardResource';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockStage.vue';
-import {EffectForecastFact} from '@/common/models/EffectForecastModel';
+import {EffectForecast, EffectForecastFact} from '@/common/models/EffectForecastModel';
+import {effectForecastOpen, resetEffectForecastUi} from '@/client/console/consoleEffectForecast';
 import {armedFleetDockScene, fleetDockRewardKey, resetFleetDockScene} from '@/client/console/colonyTrade/fleetDockScene';
 import {railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
 import {fleetDockUi} from '@/client/console/consoleColoniesModel';
@@ -46,12 +47,19 @@ const GREENS: EffectForecastFact = {
   effects: [{direction: 'gain', icon: 'megacredits', amount: 2, current: 0, resulting: 2}],
   reason: 'The Greens pay 2 M€ per TR step you gain',
 } as unknown as EffectForecastFact;
+/** The server's forecast object for a dock (`rewardReactionForecast`): facts, no discount, no payment value. */
+const forecastOf = (facts: ReadonlyArray<EffectForecastFact>): EffectForecast =>
+  ({facts, discounts: {base: 0, final: 0, items: [], other: 0}, paymentValues: [], coverage: 'complete'});
 
 function mountStage(preview: FleetDockPreviewModel | undefined, card: CardName = preview?.card ?? CardName.UNMI_LINER): VueWrapper<any> {
   return mount(ConsoleFleetDockStage, {
     global: {
       ...globalConfig.global,
-      stubs: {ConsoleCardFaceLite: {template: '<div class="pcard-stub"></div>'}},
+      stubs: {
+        ConsoleCardFaceLite: {template: '<div class="pcard-stub"></div>'},
+        // The layer's explorer is the composers' (its own specs); here only its PLACE is the subject.
+        ConsoleEffectsExplorer: {template: '<div class="con-efx con-efx--forecast con-efx-stub"></div>', methods: {consumeEffectsBack: () => false, handleIntent: () => undefined}},
+      },
     },
     props: {
       card,
@@ -141,24 +149,25 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
   it('what the TABLE answers is named on the result BEFORE the press — the composers\' own «⚡ сработает» group, for either sister', () => {
     const quiet = mountStage(LINER);
     expect(quiet.findAll('[data-fleet-dock-result] [data-forecast-vfx]'), 'nothing reacts: no group, no gap').has.lengthOf(0);
-    for (const preview of [{...LINER, reactions: [GREENS]}, {...HAULING, reactions: [GREENS]}]) {
+    for (const preview of [{...LINER, forecast: forecastOf([GREENS])}, {...HAULING, forecast: forecastOf([GREENS])}]) {
       const stage = mountStage(preview);
       const group = stage.find('[data-fleet-dock-result] [data-forecast-vfx]');
       expect(group.exists(), preview.card).is.true;
       expect(group.text().replace(/\s+/g, ' '), 'a bare delta — the row\'s language').to.match(/\+\s*2/);
-      expect(group.element.parentElement?.className, 'on the chips\' own line').to.contain('con-fleetdock__chips');
+      expect(group.element.parentElement?.className, 'the group is the layer\'s DOOR').to.contain('con-fleetdock__vfxrow');
+      expect(group.element.parentElement?.parentElement?.className, 'on the chips\' own line').to.contain('con-fleetdock__chips');
     }
   });
 
   it('the answer is PINNED with the receipt: the response re-prices the preview under the scene', async () => {
-    const stage = mountStage({...LINER, reactions: [GREENS]});
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS])});
     stage.vm.holdPresentation();
-    await stage.setProps({preview: {...LINER, available: false, reactions: []}});
+    await stage.setProps({preview: {...LINER, available: false, forecast: undefined}});
     expect(stage.find('[data-fleet-dock-result] [data-forecast-vfx]').exists(), 'the receipt keeps naming what the press was promised').is.true;
   });
 
   it('the COMMIT BOUNDARY arms the trade\'s other moves on the rail: the fee of the chosen path and the flat bonuses', () => {
-    const stage = mountStage({...LINER, reactions: [GREENS], flatBonuses: [{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]});
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS]), flatBonuses: [{card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3}]});
     stage.vm.holdPresentation();
     const armed = armedFleetDockScene(CardName.UNMI_LINER);
     expect(armed?.plan.specs).deep.eq([{channel: 'stock', resource: 'rating', amount: 1}]);
@@ -191,6 +200,76 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
  * the decision is a press that rides the trade's ONE POST. Past the commit the
  * receiving card stands on the stage, or the hero's own counter is frozen.
  */
+/**
+ * PL-060 (2026-10-06): the «⚡ сработает» group on the dock's stage was a dead end — the composers open their R3
+ * «Эффекты» layer from the same group, the stage offered no door. The layer is a LEVEL INSIDE the stage: the work
+ * column parks (never unmounts), the explorer stands in the stage's own box, the mirror tells the bar, a sub-step /
+ * the commit boundary / the unmount fold it.
+ */
+describe('ConsoleFleetDockStage — the R3 «Эффекты» layer is a level INSIDE the stage (PL-060)', () => {
+  afterEach(() => {
+    resetEffectForecastUi();
+    resetFleetDockScene();
+    resetRailRewards();
+  });
+
+  it('R3 is a verb of the stage exactly when the table answers something; a quiet dock has no door and publishes none', () => {
+    const quiet = mountStage(LINER);
+    expect(fleetDockUi.forecastAvailable, 'nothing reacts — no R3').is.false;
+    expect(quiet.find('[data-forecast-row]').exists(), 'no group, no door').is.false;
+    quiet.unmount();
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS])});
+    expect(fleetDockUi.forecastAvailable, 'the Greens answer — R3 is published').is.true;
+    expect(stage.find('[data-forecast-row] [data-forecast-vfx]').exists(), 'the «сработает» group is the door').is.true;
+    expect(stage.find('[data-forecast-layer]').exists(), 'closed until the press').is.false;
+  });
+
+  it('R3 opens the layer INSIDE the stage — the work column PARKS (never unmounts), the mirror says OPEN; B folds it back', async () => {
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS])});
+    stage.vm.handleIntent({kind: 'press', button: 'stickR'});
+    await stage.vm.$nextTick();
+    expect(effectForecastOpen('dock'), 'the ONE fact everybody reads').is.true;
+    expect(fleetDockUi.forecastOpen, 'the bar reads the explorer\'s commands off this').is.true;
+    expect(stage.find('[data-forecast-host] [data-forecast-layer] [data-forecast-surface] .con-efx--forecast').exists(), 'the explorer in forecast mode, in the stage\'s box').is.true;
+    expect(stage.find('[data-forecast-browse] [data-fleet-dock-result]').exists(), 'the rows are parked under it, not gone').is.true;
+    stage.vm.handleIntent({kind: 'press', button: 'back'});
+    await stage.vm.$nextTick();
+    expect(effectForecastOpen('dock'), 'B folds the layer, never the stage').is.false;
+    expect(stage.find('[data-forecast-layer]').exists()).is.false;
+    expect(stage.emitted('cancel'), 'the stage did not take the B for itself').to.be.undefined;
+    expect(fleetDockUi.forecastAvailable, 'R3 is offered again').is.true;
+  });
+
+  it('R3 while open CLOSES it; no door opens twice', async () => {
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS])});
+    stage.vm.handleIntent({kind: 'press', button: 'stickR'});
+    await stage.vm.$nextTick();
+    stage.vm.handleIntent({kind: 'press', button: 'stickR'});
+    await stage.vm.$nextTick();
+    expect(effectForecastOpen('dock')).is.false;
+  });
+
+  it('the COMMIT BOUNDARY folds the layer instantly and takes R3 away — past the press the bar is a status', async () => {
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS])});
+    stage.vm.handleIntent({kind: 'press', button: 'stickR'});
+    await stage.vm.$nextTick();
+    stage.vm.holdPresentation();
+    await stage.vm.$nextTick();
+    expect(effectForecastOpen('dock')).is.false;
+    expect(fleetDockUi.forecastAvailable).is.false;
+    expect(fleetDockUi.forecastOpen).is.false;
+  });
+
+  it('the layer dies with the stage', async () => {
+    const stage = mountStage({...LINER, forecast: forecastOf([GREENS])});
+    stage.vm.handleIntent({kind: 'press', button: 'stickR'});
+    await stage.vm.$nextTick();
+    stage.unmount();
+    expect(effectForecastOpen('dock')).is.false;
+    expect(fleetDockUi.forecastOpen).is.false;
+  });
+});
+
 describe('ConsoleFleetDockStage — a reward that lands on a card (TR27)', () => {
   const AURORA = CardName.AURORA_STATION;
   const HABS = CardName.FLOATING_HABS;

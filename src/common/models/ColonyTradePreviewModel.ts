@@ -3,7 +3,7 @@ import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {SelectCardModel, SelectPaymentModel} from './PlayerInputModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
-import type {EffectForecastFact} from './EffectForecastModel';
+import type {EffectForecast} from './EffectForecastModel';
 
 /**
  * A NOTE follow-up: something the trade will require / trigger AFTER the
@@ -157,15 +157,18 @@ export type FleetDockPreviewModel = TradePaymentPreviewModel & {
   /** The flat every-trade card modifiers this trade pays too (Venus Trade Hub's +3 M€). */
   flatBonuses?: ReadonlyArray<{card: CardName, resource: string, amount: number}>;
   /**
-   * WHAT THE TABLE ANSWERS to the reward — the forecast engine's own facts for
-   * the grants of `effects` (the ruling Greens' «+2 M€» on a TR step, a card
-   * that pays on a rating step, …), computed by the very twins the composers'
-   * «Сработает» row reads (`effectForecast.rewardReactionFacts`). Read BEFORE
-   * the press — an answer that only shows up after it is a surprise — and
-   * pinned at the commit boundary as the size of what follows the reward.
-   * Absent = nothing reacts. The client derives no rule from it.
+   * WHAT THE TABLE ANSWERS to the reward — the forecast engine's own FORECAST
+   * for the grants of `effects` (the ruling Greens' «+2 M€» on a TR step, a
+   * card that pays on a rating step, …), computed by the very twins the
+   * composers' «Сработает» row reads (`effectForecast.rewardReactionForecast`):
+   * its `facts` are the chips of the stage's «⚡ сработает» line and the rail's
+   * reactions, the whole object is what the stage's R3 «Эффекты» layer opens
+   * (the same explorer, the same eight groups and dossier as a composer's).
+   * Read BEFORE the press — an answer that only shows up after it is a
+   * surprise — and pinned at the commit boundary as the size of what follows
+   * the reward. Absent = nothing reacts. The client derives no rule from it.
    */
-  reactions?: ReadonlyArray<EffectForecastFact>;
+  forecast?: EffectForecast;
 };
 
 export type ColonyTradePreviewModel = TradePaymentPreviewModel & {

@@ -9,6 +9,12 @@
  * payment and the cursor untouched — the same phrase the card-actions descent
  * and the effects explorer's own dossier speak.
  *
+ * The THIRD host is the FLEET-DOCK STAGE (`ConsoleFleetDockStage` — a trade
+ * whose destination is a card, TR06 / TR26 / TR27): its «⚡ сработает» group is
+ * the same door, its layer the same level inside the stage (the colonies
+ * section's crumb reads `forecastStageText('dock', …)`, the shell's dock bar
+ * reads `forecastExplorerUi('dock').barCommands`).
+ *
  * This module holds the ONE fact everybody reads — «which composer has the
  * layer open» — so the crumb (the hand section / the card-actions head), the
  * command bar and the composers agree without a second flag. The explorer's
@@ -19,7 +25,7 @@ import {reactive} from 'vue';
 import {translateText} from '@/client/directives/i18n';
 import {EffectsExplorerUi, createEffectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 
-export type EffectForecastHost = 'play' | 'action';
+export type EffectForecastHost = 'play' | 'action' | 'dock';
 
 export const consoleEffectForecastUi = reactive({
   /** The composer whose layer is OPEN (undefined = closed everywhere). */
@@ -31,6 +37,7 @@ export const consoleEffectForecastUi = reactive({
 const explorerUis: Record<EffectForecastHost, EffectsExplorerUi> = {
   play: createEffectsExplorerUi(),
   action: createEffectsExplorerUi(),
+  dock: createEffectsExplorerUi(),
 };
 
 export function forecastExplorerUi(host: EffectForecastHost): EffectsExplorerUi {

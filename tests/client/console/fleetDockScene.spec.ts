@@ -125,7 +125,7 @@ describe('fleetDockScene — a reward on the rail is held until its token lands'
   };
   const railPlan = fleetDockScenePlan({
     effects: [{direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}], followUps: [],
-    reactions: [greens] as never,
+    forecast: {facts: [greens]} as never,
   });
   const placementPlan = fleetDockScenePlan({
     effects: [{direction: 'gain', icon: 'oceans', amount: 1}, {direction: 'gain', icon: 'tr', amount: 1}],

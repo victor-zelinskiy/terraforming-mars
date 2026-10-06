@@ -446,6 +446,7 @@
                                  :players="players"
                                  :viewerColor="viewerColor"
                                  :outcomeZone="focusOutcomeZone"
+                                 :statsView="statsView"
                                  @confirm="$emit('dock-confirm', $event)"
                                  @inspect="$emit('dock-inspect', focusDockView.card)"
                                  @flow-complete="$emit('dock-flow-complete', $event)"
@@ -526,6 +527,8 @@ import ConsoleColonyFocusStage from '@/client/components/console/ConsoleColonyFo
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import ConsoleFleetDockTile from '@/client/components/console/ConsoleFleetDockTile.vue';
 import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockStage.vue';
+import {forecastStageText} from '@/client/console/consoleEffectForecast';
+import {VersionedView} from '@/client/console/gameStateVersion';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
@@ -696,6 +699,8 @@ export default defineComponent({
     thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     /** The viewer's player id — the focus stage's server preview fetch. */
     playerId: {type: String, default: ''},
+    /** The viewer's versioned view — the dock stage's R3 «Эффекты» layer asks the reacting seats' effect stats with it. */
+    statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
     /** The game-state version (`gameAge|undoCount`) — a moved state re-pulls
      *  the focused colony's trade preview, so the stage's candidate sets and
      *  captures are re-judged against CURRENT truth (never a stale pick). */
@@ -1001,7 +1006,11 @@ export default defineComponent({
         if (this.focusState.stage === '' && this.focusState.intent === 'city') {
           return COLONY_CITY_STAGE;
         }
-        return this.focusState.stage !== '' ? this.focusState.stage : (this.focusState.intent === 'track' ? 'Track' : '');
+        const stage = this.focusState.stage !== '' ? this.focusState.stage : (this.focusState.intent === 'track' ? 'Track' : '');
+        // THE DOCK STAGE's R3 «Эффекты» layer is a level INSIDE the stage: the tail gains «· ЭФФЕКТЫ» (+ the source
+        // card at its detail) and gives it back on B / R3 — the composers' own rule (PL-060), a composed,
+        // pre-translated string.
+        return this.focusState.dock !== '' ? (forecastStageText('dock', stage) ?? stage) : stage;
       }
       // A «CITY» act with its stage closed: ANSWERED — the grid is the receipt of «… · ГОРОД»; still a QUESTION (B
       // from the stage) — the grid is the door again and the tail walks BACK to the name the door wore.

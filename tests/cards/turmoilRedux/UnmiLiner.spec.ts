@@ -516,7 +516,7 @@ describe('UnmiLiner', () => {
       expect(preview.available).is.true;
       expect(preview.effects).deep.eq([{direction: 'gain', icon: 'tr', amount: 1, current: t.p1.terraformRating, resulting: t.p1.terraformRating + 1}]);
       expect(preview.followUps).deep.eq([]);
-      expect(preview.reactions, 'a quiet government: nothing answers the TR').is.undefined;
+      expect(preview.forecast, 'a quiet government: nothing answers the TR').is.undefined;
       expect(JSON.stringify(t.game.serialize())).eq(before);
       expect(t.game.events.events.length).eq(events);
     });
@@ -524,8 +524,9 @@ describe('UnmiLiner', () => {
     it('under the ruling Greens the preview NAMES their answer before the press — and the trade pays exactly it', () => {
       const t = greensTable();
       const preview = buildFleetDockPreview(t.p1, t.card);
-      expect(preview.reactions).has.lengthOf(1);
-      const fact = preview.reactions![0];
+      expect(preview.forecast?.facts).has.lengthOf(1);
+      expect(preview.forecast?.coverage, 'the party effect is a known twin').eq('complete');
+      const fact = preview.forecast!.facts[0];
       expect(fact.source).deep.include({kind: 'party', name: PartyName.GREENS});
       expect(fact.certainty).eq('exact');
       expect(fact.recipient.kind).eq('you');

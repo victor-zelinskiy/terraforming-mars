@@ -84,9 +84,10 @@ export function resetForecastFocusMotion(): void {
 
 // ── element resolution ──────────────────────────────────────────────────────
 
-/** The composer hosting the layer. */
+/** The surface hosting the layer — a composer, or any stage that declares itself one (`data-forecast-host`:
+ *  the fleet-dock stage). The nearest wins, so a stage nested inside a composer's flow is its own host. */
 function composerOf(el: Element): HTMLElement | null {
-  return el.closest<HTMLElement>('.con-composer');
+  return el.closest<HTMLElement>('[data-forecast-host], .con-composer');
 }
 
 /** The composer's WORK COLUMN content — what parks under the layer. */
