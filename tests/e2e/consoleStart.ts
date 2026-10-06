@@ -2352,6 +2352,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR28 Earth Army Contract: blue's action phase with the card played and ONE fighter on it (the action converts: +1,
   // −2, +1 TR), 20 M€, the Greens ruling — the TR step pays 2 M€ (docs/claude/console/workspace-band.md § ACTION COMMIT).
   'earth-army-contract' |
+  // TR27 Aurora Station: a Venus Next table, blue's action phase with the station played (its city on the Venus
+  // flank) and Floating Habs (1 floater) beside it — the reward's target is a CHOICE; one free fleet, 3 energy
+  // (docs/TURMOIL_REDUX_WATER_HAULING.md §10).
+  'aurora-station' |
   // TR07 Colony Sponsors: blue's action phase with the card in hand, 10 M€, blue's colony on Luna (track at cell 3), Ceres at
   // its top, Titan inactive, Europa and Io candidates; a quiet government (docs/TURMOIL_REDUX_COLONY_SPONSORS.md).
   'colony-sponsors' |

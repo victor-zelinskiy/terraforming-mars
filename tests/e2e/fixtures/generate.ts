@@ -136,7 +136,7 @@ import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScie
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {Parliament} from '../../../src/server/parliament/Parliament';
-import {answerStandingGates, endGenerationThroughParliament, passToParliament, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
+import {answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
 import {REDUX_PARTIES} from '../../../src/common/parliament/ParliamentTypes';
 import {ResolutionId, resolutionInstanceId} from '../../../src/common/parliament/ParliamentTypes';
 import {Space} from '../../../src/server/boards/Space';
@@ -160,6 +160,8 @@ import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/Min
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
+import {AuroraStation} from '../../../src/server/cards/turmoilRedux/AuroraStation';
+import {FloatingHabs} from '../../../src/server/cards/venusNext/FloatingHabs';
 import {ColonySponsors} from '../../../src/server/cards/turmoilRedux/ColonySponsors';
 import {FringeColony} from '../../../src/server/cards/turmoilRedux/FringeColony';
 import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/PoliticalThinkTank';
@@ -1173,6 +1175,48 @@ parliamentFixture('unmi-liner', {
         p1.colonies.potentialTradeCount() !== 3 || !game.canAddOcean() || parliament.rulingParty() !== PartyName.GREENS ||
         !parliament.hasPartyEffect(p1, PartyName.GREENS) || p1.megaCredits !== 20) {
       throw new Error(`the unmi-liner fixture expected both docks in the tableau, three free fleets, three trades on offer, room for an ocean, 20 M€ and the Greens ruling with their effect — got liner=${liner !== undefined} hauling=${hauling !== undefined} fleets=${p1.colonies.getFleetSize()}/${p1.colonies.freeTradeFleets()} trades=${p1.colonies.potentialTradeCount()} oceans=${game.board.getOceanSpaces().length} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR27 · AURORA STATION — the THIRD fleet dock, the first whose reward ASKS (docs/TURMOIL_REDUX_WATER_HAULING.md
+//    §10): a Venus Next table at blue's action phase with «Aurora Station» played (its city standing on its own cell,
+//    the fifth of the Venus flank) and «Floating Habs» beside it (1 floater — a second Venus floater holder, so the
+//    target is a CHOICE and each choice moves a card's points: Habs 1 → 3 and the station 0 → 2 both cross «1 / 2»).
+//    ONE free fleet (the card gives none), 3 energy (one fee) and nothing else to pay with. SIX colonies open (the
+//    fullest grid the column stands beside). A QUIET government (the Industrialists by Central Power Grid): the
+//    reward's production step answers nothing the probe would have to account for. Red is the second client. ──
+parliamentFixture('aurora-station', {
+  stopAt: 'vote',
+  options: {venusNextExtension: true},
+  megacredits: [0, 30],
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    game.colonies = [new Luna(), new Europa(), new Callisto(), new Ceres(), new Io(), new Miranda()];
+    const aurora = new AuroraStation();
+    p1.playedCards.push(aurora);
+    game.addTile(p1, game.board.getSpaceOrThrow(SpaceName.AURORA_STATION), {tileType: TileType.CITY, card: CardName.AURORA_STATION});
+    const habs = new FloatingHabs();
+    habs.resourceCount = 1;
+    p1.playedCards.push(habs);
+    p1.energy = 3;
+    p1.titanium = 0;
+    p1.heat = 0;
+    parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+    // Unity's road for a play from the hand (the spec's third journey moves the card back into it): two of blue's
+    // delegates on a quiet Unity resolution in the voting area.
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.UNITY));
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+    parliament.placeVote(p1, parliament.slots[0], 'lobby');
+  },
+  expect: ({game, p1, parliament}) => {
+    const aurora = p1.playedCards.get(CardName.AURORA_STATION);
+    const habs = p1.playedCards.get(CardName.FLOATING_HABS);
+    const city = game.board.getSpaceOrThrow(SpaceName.AURORA_STATION);
+    if (aurora === undefined || habs === undefined || habs.resourceCount !== 1 || aurora.resourceCount !== 0 ||
+        city.tile?.tileType !== TileType.CITY || city.player?.id !== p1.id || p1.colonies.freeTradeFleets() !== 1 ||
+        p1.energy !== 3 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS || !parliament.access(p1, PartyName.UNITY).satisfiesRequirement) {
+      throw new Error(`the aurora-station fixture expected the station (0 floaters) with its city and Floating Habs (1 floater), one free fleet, 3 energy and the Industrialists ruling — got aurora=${aurora?.resourceCount} habs=${habs?.resourceCount} city=${city.tile?.tileType}/${city.player?.id} fleets=${p1.colonies.freeTradeFleets()} energy=${p1.energy} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

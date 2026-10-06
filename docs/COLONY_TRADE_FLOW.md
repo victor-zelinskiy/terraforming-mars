@@ -156,6 +156,15 @@ reuses it instead of a text list in the configuration column:
   `before → after` and the resource badge with `showZero`. Deliberately NO
   `sourceCardName`: no card stands on this stage (the hero is the planet), so
   the «ЭТА КАРТА» proxy never appears here.
+- **ONE step for every stage a trade composes on (TR27, 2026-10-06).** The
+  step's room, cursor and grammar are `ConsoleTradeTargetStep`, the decision
+  row's reading is `ConsoleTradeTargetValue` (a fragment — the row around it is
+  the stage's own), the receiving card is `ConsoleTradeReceivingCards`, the
+  opening cursor is `openTradeTargetFocus` — extracted from this stage with
+  nothing it draws changed (A/B: the settled frames 0 px apart) and hosted by the
+  fleet-dock stage too. That host passes `sourceCardName` (a dock that holds
+  what it pays is itself a candidate → the «ЭТА КАРТА» proxy) and opts into each
+  candidate's VP; this stage passes neither and reads as before.
 - **Grammar**: d-pad = the measured cells (`stepPlayedTargetFocusAt`), A =
   choose (capture + return to the review), X = inspect the focused candidate
   fullscreen, B = one level back — and B after a re-entry through «Изменить
@@ -620,6 +629,12 @@ the reward is the card's (an ocean). Full contract:
   stage stands; the card answers (the action-commit impulse on «▲ : [ocean]»),
   reads, leaves as a beat, the workspace leaves through the ONE guarded
   conclusion, and the hold falls when the workspace root leaves the document.
+- **A dock's reward can ask «onto which card» (TR27 Aurora Station).** The
+  server builds the target ONCE (`FleetDock.rewardTarget`) and reads it for the
+  preview through this flow's own reading (`cardTargetFollowUpOf` — lost · auto
+  · pick) and for the payout (queued first, the rest of the reward behind it);
+  the dock stage answers it in the step above BEFORE the press, and the pick
+  rides the trade's ONE POST as the same `{type: 'card'}` tail.
 
 ## Guards
 
