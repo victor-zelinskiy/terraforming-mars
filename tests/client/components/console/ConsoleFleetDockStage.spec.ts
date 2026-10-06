@@ -336,14 +336,14 @@ describe('ConsoleFleetDockStage — a reward that lands on a card (TR27)', () =>
     expect(Object.values(payload.captures), 'nothing to answer').deep.eq([]);
   });
 
-  it('TWO holders: a decision — nothing pre-chosen, the trade REFUSES until a card is named; the chip says «Choose a card»', () => {
+  it('TWO holders: a decision — nothing pre-chosen, the trade REFUSES until a card is named; the chip asks for the RECEIVING card (PL-056)', () => {
     const stage = mountAurora(TWO);
     const row = stage.find('[data-fleet-dock-target]');
     expect(row.classes()).to.include('con-colfocus__steprow--missing');
     expect(row.attributes('data-fleet-dock-target-card')).eq('');
     expect(stage.vm.focusables.map((f: {zone: string}) => f.zone)).deep.eq(['pay', 'target']);
     expect(stage.vm.canConfirm, 'a choice is a press').is.false;
-    expect(stage.find('[data-fleet-dock-result]').text()).to.contain('Choose a card');
+    expect(stage.find('[data-fleet-dock-result]').text()).to.contain('Choose the receiving card');
   });
 
   it('…A on the row descends into the step; the answer is captured, the chip re-aims, and it rides the ONE POST', async () => {

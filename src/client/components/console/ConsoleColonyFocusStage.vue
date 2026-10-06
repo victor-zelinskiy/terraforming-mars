@@ -1982,7 +1982,7 @@ export default defineComponent({
       if (step === undefined) {
         return '';
       }
-      return textOf(step.pick.title) || translateText('Choose a card');
+      return textOf(step.pick.title) || translateText('Choose the receiving card');
     },
     /**
      * THE SHARED SELECTOR'S MODEL for the focused card-target step — the same

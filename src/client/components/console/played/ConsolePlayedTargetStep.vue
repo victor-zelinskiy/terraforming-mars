@@ -398,6 +398,11 @@ export default defineComponent({
     /** «3 доступные цели у 2 игроков» — the scope, in one honest line. */
     scopeLine(): string {
       const {targetCount, ownerCount} = this.model.contract;
+      // A pick that takes FROM the viewer's own cards is a SOURCE of a price they chose (TR29: «spend 1 fighter from
+      // ANY of your cards»), never a target — the word «цель» belongs to an attack and to a reward (PL-056).
+      if (this.model.contract.direction === 'remove' && this.model.owners.every((owner) => owner.self)) {
+        return translateTextWithParams('${0} available sources', [String(targetCount)]);
+      }
       return ownerCount > 1 ?
         translateTextWithParams('${0} targets across ${1} players', [String(targetCount), String(ownerCount)]) :
         translateTextWithParams('${0} available targets', [String(targetCount)]);

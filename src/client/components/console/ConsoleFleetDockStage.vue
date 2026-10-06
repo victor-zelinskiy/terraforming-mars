@@ -473,7 +473,7 @@ export default defineComponent({
       }
       return buildColonyTradeTargetModel({
         step,
-        ask: textOf(step.pick.title) || translateText('Choose a card'),
+        ask: textOf(step.pick.title) || translateText('Choose the receiving card'),
         players: this.players,
         viewerColor: this.viewerColor,
         typeOf: (name) => getCard(name)?.type,
@@ -1095,7 +1095,7 @@ export default defineComponent({
         }
         const card = this.chosenTarget;
         if (card === undefined) {
-          out.push({direction: 'gain', icon: effect.icon, amount: effect.amount, note: 'Choose a card'});
+          out.push({direction: 'gain', icon: effect.icon, amount: effect.amount, note: 'Choose the receiving card'});
           continue;
         }
         const before = this.countOf(card);

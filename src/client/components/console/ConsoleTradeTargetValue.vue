@@ -10,7 +10,8 @@
   -->
   <i v-if="iconClass !== ''" class="con-colfocus__steprow-icon" :class="iconClass" aria-hidden="true"></i>
   <span v-if="card !== undefined">{{ $t(card) }}</span>
-  <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose a card') }}…</span>
+  <!-- A TARGET: the card the reward lands ON — never «choose yourself a card» (PL-056). -->
+  <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose the receiving card') }}…</span>
   <em v-if="card !== undefined">{{ impact }}</em>
   <!-- The answered pick stays re-enterable: A on this row re-opens the target
        step with the choice pre-locked (B there keeps it). -->

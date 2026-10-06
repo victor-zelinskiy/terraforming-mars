@@ -670,7 +670,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
-  orderedPreResponses, orderedStepResponses, tabbedStepsOf,
+  orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey,
 } from '@/client/console/consoleActionComposer';
 import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
 import {
@@ -2462,7 +2462,7 @@ export default defineComponent({
         return 'Choose a player';
       }
       switch (row.kind === 'step' ? row.choice.kind : undefined) {
-      case 'card': return 'Choose a card';
+      case 'card': return cardPickAskKey(row.kind === 'step' ? row.choice.amount : undefined);
       case 'player': return 'Choose a player';
       case 'or': return 'Choose an option';
       case 'spendHeat': return 'Heat sources';
@@ -2705,7 +2705,7 @@ export default defineComponent({
         return t;
       }
       switch (c.kind) {
-      case 'card': return translateText('Choose a card');
+      case 'card': return translateText(cardPickAskKey(c.amount));
       case 'player': return translateText('Choose a player');
       case 'or': return translateText('Choose an option');
       default: return '';
@@ -2718,7 +2718,7 @@ export default defineComponent({
         return translateText('Pick cards on the table');
       }
       switch (c.kind) {
-      case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' : 'Choose a card');
+      case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' : cardPickAskKey(c.amount));
       case 'player': return translateText('Choose a player');
       default: return translateText('Choose an option');
       }
