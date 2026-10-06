@@ -160,6 +160,9 @@ import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/Min
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
+import {SpaceshipRecycling} from '../../../src/server/cards/turmoilRedux/SpaceshipRecycling';
+import {FormulaZero} from '../../../src/server/cards/turmoilRedux/FormulaZero';
+import {MechSports} from '../../../src/server/cards/turmoilRedux/MechSports';
 import {BribedCommittee} from '../../../src/server/cards/base/BribedCommittee';
 import {TerraformingGanymede} from '../../../src/server/cards/base/TerraformingGanymede';
 import {MagneticFieldDome} from '../../../src/server/cards/base/MagneticFieldDome';
@@ -1274,6 +1277,40 @@ parliamentFixture('play-tr-reward', {
     });
     if (!playable || p1.megaCredits !== 60 || parliament.rulingParty() !== PartyName.GREENS || !parliament.hasPartyEffect(p1, PartyName.GREENS)) {
       throw new Error(`the play-tr-reward fixture expected three playable TR cards, 60 M€ and the Greens ruling with their effect — got playable=${playable} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} greens=${parliament.hasPartyEffect(p1, PartyName.GREENS)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR29 · SPACESHIP RECYCLING — ONE price taken from a card the player CHOOSES, TWO outcomes (docs/claude/console/
+//    workspace-band.md § ACTION COMMIT — «a spend is a departure from its real source»): blue's action phase with the
+//    card played and TWO fighters on it, Formula Zero with ONE fighter (a source that costs a VP), EVA Mechs with ONE
+//    mech and Mech Sports with NONE (two mech holders — the target is a CHOICE, Mech Sports' VP moves), no titanium. A
+//    QUIET government (the Industrialists by Central Power Grid) — nothing at the table answers the action. A chairman
+//    quest nothing on the journey can close. Red is the second client. ──
+parliamentFixture('spaceship-recycling', {
+  stopAt: 'vote',
+  megacredits: [10, 30],
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const recycling = new SpaceshipRecycling();
+    recycling.resourceCount = 2;
+    const formula = new FormulaZero();
+    formula.resourceCount = 1;
+    const eva = new EvaMechs();
+    eva.resourceCount = 1;
+    const sports = new MechSports();
+    sports.resourceCount = 0;
+    p1.playedCards.push(recycling, formula, eva, sports);
+    p1.titanium = 0;
+    p1.heat = 0;
+    parliament.quest = {definition: {goal: {kind: 'trade'}, count: 9}, source: 'starter', generation: game.generation, progress: new Map()};
+  },
+  expect: ({game, p1, parliament}) => {
+    const count = (name: CardName) => p1.playedCards.get(name)?.resourceCount;
+    const card = p1.playedCards.get(CardName.SPACESHIP_RECYCLING) as SpaceshipRecycling | undefined;
+    if (count(CardName.SPACESHIP_RECYCLING) !== 2 || count(CardName.FORMULA_ZERO) !== 1 || count(CardName.EVA_MECHS) !== 1 ||
+        count(CardName.MECH_SPORTS) !== 0 || p1.titanium !== 0 || card === undefined || !card.canAct(p1)) {
+      throw new Error(`the spaceship-recycling fixture expected TR29 ×2 · Formula Zero ×1 · EVA Mechs ×1 · Mech Sports ×0, no titanium and the action open — got ${[CardName.SPACESHIP_RECYCLING, CardName.FORMULA_ZERO, CardName.EVA_MECHS, CardName.MECH_SPORTS].map(count).join('/')} ti=${p1.titanium}`);
     }
     parliament.assertLedger(game);
   },

@@ -2355,6 +2355,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // PL-001 for plays: blue's action phase with three TR plays in hand (Bribed Committee — an event, Terraforming
   // Ganymede, Magnetic Field Dome — a production wave first), 60 M€, the Greens ruling — every TR step pays 2 M€.
   'play-tr-reward' |
+  // TR29 Spaceship Recycling: blue's action phase with the card (2 fighters), Formula Zero (1 fighter), EVA Mechs (1 mech) and
+  // Mech Sports (0), no titanium, a quiet government — the source and the target are both choices (§ ACTION COMMIT).
+  'spaceship-recycling' |
   // TR27 Aurora Station: a Venus Next table, blue's action phase with the station played (its city on the Venus
   // flank) and Floating Habs (1 floater) beside it — the reward's target is a CHOICE; one free fleet, 3 energy
   // (docs/TURMOIL_REDUX_WATER_HAULING.md §10).
