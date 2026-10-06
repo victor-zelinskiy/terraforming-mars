@@ -119,6 +119,8 @@ export default defineComponent({
       displayedDelta: 0,
       chipNonce: 0,
       polarity: 'neutral' as 'positive' | 'negative' | 'neutral',
+      /** The chip on screen is being REPLACED by one of the opposite sign (see `applyEvent`). */
+      flipLeave: false,
       hideTimerId: 0,
       clearActiveTimerId: 0,
       fullScopeKey: '',
@@ -129,6 +131,9 @@ export default defineComponent({
       const c: Array<string> = [`metric-feedback-host--${this.variant}`];
       if (this.displayedDelta !== 0) {
         c.push(`metric-feedback-host--active-${this.polarity}`);
+      }
+      if (this.flipLeave) {
+        c.push('metric-feedback-host--flipping');
       }
       return c;
     },
@@ -255,6 +260,7 @@ export default defineComponent({
       this.clearTimers();
       this.displayedDelta = 0;
       this.polarity = 'neutral';
+      this.flipLeave = false;
       this.fullScopeKey = this.computeFullScopeKey();
       // Re-baseline against the now-current value AND record the scope
       // observation so a subsequent remount-to-different-scope (e.g.
@@ -277,6 +283,17 @@ export default defineComponent({
        * puts two chips on screen instead of silently netting them out.
        */
       const continues = merged && this.displayedDelta !== 0 && polarity === this.polarity;
+      /*
+       * A POLARITY FLIP over a chip still on screen (PL-069): the row already reads the NEW value, so the outgoing
+       * chip is a statement about a number that is gone — on the standard 540 ms drift (easeInQuart: ~200 ms at
+       * nearly full opacity) «−1» stood over the «21» the +1 had just brought back, before «+1» could read. On a
+       * flip the outgoing chip clears FAST (the host's `--flipping`, resource_change_feedback.less); the incoming
+       * one is untouched, and an ordinary expiry keeps its drift (the hide timer drops the flag in the same tick).
+       * A continuation leaves the flag alone — the flip's leave may still be running under it.
+       */
+      if (!continues) {
+        this.flipLeave = this.displayedDelta !== 0 && polarity !== this.polarity;
+      }
 
       this.clearTimers();
       this.displayedDelta = netDelta;
@@ -287,6 +304,7 @@ export default defineComponent({
 
       const lifetime = motionMs(CHIP_VISIBLE_MS[this.variant]);
       this.hideTimerId = (window.setTimeout(() => {
+        this.flipLeave = false;
         this.displayedDelta = 0;
         this.hideTimerId = 0;
       }, lifetime) as unknown as number);

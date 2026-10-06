@@ -338,6 +338,26 @@
 }
 
 /*
+ * …but on a FLIP the outgoing chip CLEARS, it does not drift (PL-069). By the
+ * time the opposite chip arrives the row already reads the new value, so the
+ * old sign is a statement about a number that is gone: on the 540 ms easeIn
+ * above it stood ~200 ms at nearly full opacity over the new digits («−1»
+ * over the «21» the +1 had just brought back). An ease-OUT 120 ms takes most
+ * of it away in the first frames; the incoming chip keeps its own entrance,
+ * and an ordinary expiry (no flip) keeps the drift. The host flags it
+ * (`AnimatedMetricValue.flipLeave`).
+ */
+.metric-feedback-host--flipping .delta-chip-fade-leave-active {
+    transition:
+        opacity calc(120ms * var(--motion-scale, 1)) cubic-bezier(0.33, 1, 0.68, 1),
+        transform calc(120ms * var(--motion-scale, 1)) cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.metric-feedback-host--flipping .delta-chip-fade-reduced-leave-active {
+    transition: opacity calc(120ms * var(--motion-scale, 1)) linear;
+}
+
+/*
  * Reduced-motion: drop the transform travel entirely. Pure opacity
  * fade so the feedback signal survives without movement.
  */

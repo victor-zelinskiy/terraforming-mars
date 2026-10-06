@@ -135,4 +135,36 @@ describe('AnimatedMetricValue (reactive transitions)', () => {
     expect((wrapper.vm as any).chipNonce).to.eq(afterGain + 1);
     wrapper.unmount();
   });
+
+  /**
+   * PL-069: the row already reads the new value when the opposite chip arrives, so the outgoing one CLEARS — the
+   * host flags the flip and the stylesheet gives that leave 120 ms instead of the 540 ms drift. Only a flip: a
+   * coalesced change and a fresh chip after an expiry keep the ordinary leave.
+   */
+  it('a polarity flip marks the host --flipping (the outgoing chip clears fast); nothing else does', async () => {
+    const wrapper = mountHost(20);
+    await wrapper.setProps({value: 19});
+    expect(wrapper.find('.metric-feedback-host').classes(), 'a first chip is no flip').to.not.contain('metric-feedback-host--flipping');
+    await wrapper.setProps({value: 18});
+    expect((wrapper.vm as any).displayedDelta, 'coalesced').to.eq(-2);
+    expect(wrapper.find('.metric-feedback-host').classes(), 'a continuation is no flip').to.not.contain('metric-feedback-host--flipping');
+    await wrapper.setProps({value: 21});
+    await wrapper.vm.$nextTick();
+    expect((wrapper.vm as any).displayedDelta).to.eq(3);
+    expect((wrapper.vm as any).flipLeave).to.eq(true);
+    expect(wrapper.find('.metric-feedback-host').classes(), 'the opposite sign over a standing chip').to.contain('metric-feedback-host--flipping');
+    wrapper.unmount();
+  });
+
+  it('after an expiry the next chip is no flip, whatever its sign', async () => {
+    const wrapper = mountHost(20);
+    await wrapper.setProps({value: 19});
+    // The chip expired (its hide timer) — nothing stands over the digits any more.
+    (wrapper.vm as any).displayedDelta = 0;
+    changeFeedbackManager.clearActive('blue', 'megacredits.stock');
+    await wrapper.setProps({value: 21});
+    expect((wrapper.vm as any).displayedDelta).to.eq(2);
+    expect(wrapper.find('.metric-feedback-host').classes()).to.not.contain('metric-feedback-host--flipping');
+    wrapper.unmount();
+  });
 });
