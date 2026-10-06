@@ -1173,6 +1173,10 @@ import ConsoleJourneyRail, {
 import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartSelectionDock.vue';
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import type {RailReward} from '@/client/console/resourceTransfer/railReward';
+import {playRailReward} from '@/client/console/consoleActionCommit';
+import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
+import {forecastForFixedBranch} from '@/client/console/effectForecastModel';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   armBonusGainClaim, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward,
@@ -1404,6 +1408,9 @@ export default defineComponent({
        * the honest default).
        */
       playRewards: new Map<CardName, ReadonlyArray<ResourceTransferSpec>>(),
+      /** Per pressable card: its play's RAIL HALF (PL-001 for plays) — the direct TR and the table's answer,
+       *  read off the same preview; flown by the same beat after the gains above. */
+      playRails: new Map<CardName, RailReward>(),
       /** Per pressable card: how many cards its play DRAWS (from the same
        *  preview branch) — the embed claim's `expectedCards`. */
       drawExpected: new Map<CardName, number>(),
@@ -8051,6 +8058,7 @@ export default defineComponent({
         // settle carries it on into «Разыграно» when the effect completes.
         targetSelector: (this.drawExpected.get(name) ?? 0) > 0 ? '[data-embed-source-slot]' : undefined,
         rewards: this.playRewards.get(name),
+        rail: this.playRails.get(name),
         // The queue slot and the dock's top slot (and the effect-source seat)
         // all paint the `thumb`-tier name-only face — the proxy wears it from
         // the lift to the handoff, no swap needed.
@@ -8122,6 +8130,16 @@ export default defineComponent({
             }).filter((spec) => spec.channel !== 'card-resource');
             if (rewards.length > 0 && this.rewardVersion === version) {
               this.playRewards.set(name, rewards);
+            }
+            // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here.
+            const rail = playRailReward(branch, branch.effects ?? [], {}, undefined,
+              reactionRailSpecs(forecastForFixedBranch(preview?.forecast, 0)?.facts));
+            if (this.rewardVersion === version) {
+              if (rail !== undefined) {
+                this.playRails.set(name, rail);
+              } else {
+                this.playRails.delete(name);
+              }
             }
             // The same structural read the card-actions workspace uses: a
             // `cards` gain in the branch means this play DRAWS — its follow-

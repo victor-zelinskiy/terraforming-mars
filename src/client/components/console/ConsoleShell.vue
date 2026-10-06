@@ -2025,6 +2025,7 @@ import ConsolePatentSaleLayer from '@/client/components/console/patentSale/Conso
 import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
 import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -15927,7 +15928,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, rail?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -16093,6 +16094,7 @@ export default defineComponent({
       armPlayedHero(pending.cardName, isEvent, {
         manualTableOpen: this.playedOpen,
         rewards: payload.rewards,
+        rail: payload.rail,
         host: workspaceFrameDescended('hand') && !this.playedOpen ? 'workspace' : 'overlay',
         // THE PICTURE THE CARD WEARS: it lifts off the composer's stationary
         // hero (`normal` tier over the hand model) and lands on the receiving

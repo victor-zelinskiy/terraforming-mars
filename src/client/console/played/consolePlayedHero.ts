@@ -67,6 +67,9 @@ import {
   abortPlayedCardReturns, capturePlayedCardReturnSource, hasPendingPlayedReturns, runPlayedCardReturns,
 } from '@/client/console/played/playedCardReturn';
 import {splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
+import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {iconNeedlesFor} from '@/client/console/consoleActionCommitMotion';
 
 /** The result beat is SHORT when the server already queued the next decision
  *  — the demonstration yields to the game (spec §13). */
@@ -175,6 +178,34 @@ let rewardHoldSeeded = false;
  * the same lesson). The scene lets go of its OWN and nobody else's.
  */
 let heldRewards: Array<ResourceTransferSpec> = [];
+
+/**
+ * THE PLAY'S RAIL HALF (PL-001 for plays — `consoleActionCommit.playRailReward`):
+ * the branch's DIRECT TR and the table's answer to it, promised at the arm,
+ * checked against the two views in the apply block (`railReward.seedRailReward`
+ * — a rating that moved otherwise is not held and names itself), flown by the
+ * reward beat from the landed card's printed TR — the face-down pile for an
+ * event — after the card's own gains, and released by this scene's every
+ * ending. The rating, the VP cell derived from it and the table's answer tick
+ * on their own touchdowns, never with the commit.
+ */
+let pendingRail: RailReward | undefined;
+/** The rail reward this transaction SEEDED (its owner key) — undefined: nothing of it is held. */
+let heldRailKey: string | undefined;
+
+function playedHeroRailKey(card: CardName): string {
+  return `played-hero:${card}`;
+}
+
+/** Let go of this scene's rail half (an ending that did not fly it): the rows tick now, honestly late. */
+function releaseHeroRail(why: string): void {
+  const key = heldRailKey;
+  heldRailKey = undefined;
+  pendingRail = undefined;
+  if (key !== undefined) {
+    releaseRailReward(key, why);
+  }
+}
 
 /** Release ONE of this scene's holds (a chip's touchdown) — the spec's own metric ticks, the others stay held. */
 function releaseHeroReward(spec: ResourceTransferSpec): void {
@@ -365,6 +396,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   sourceSelector?: string,
   targetSelector?: string,
   rewards?: ReadonlyArray<ResourceTransferSpec>,
+  /** The play's rail half — its direct TR and the table's answer (see `pendingRail`). */
+  rail?: RailReward,
   host?: PlayedHeroHost,
   /** The picture the card wears where it LIFTS from (default: the composer's
    *  stationary hero — `normal` tier, no live model). */
@@ -377,6 +410,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   claimed = false;
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
+  releaseHeroRail('re-armed');
+  pendingRail = opts.rail;
   // THIS payout's touchdown tally starts empty (the colony flows arm the same
   // way) — a stale count would tick a fresh target before its chip ever flew.
   resetCardResourceLandings();
@@ -524,18 +559,32 @@ export function runPlayedHero(view: PlayerViewModel): Promise<void> {
  * Idempotent + a no-op when the card grants nothing immediately, under
  * reduced motion, or after an abort (the chips then simply fire with the
  * commit — the honest default).
+ *
+ * The RAIL HALF (the direct TR) needs the two views: its promise is checked
+ * against the diff the commit applies (`seedRailReward`), so a rating that
+ * moved by anything else is never held — it ticks with the commit and names
+ * itself.
  */
-export function seedPlayedHeroRewardHold(): void {
-  if (!playedHeroState.active || rewardHoldSeeded || pendingRewards.length === 0) {
+export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: PlayerViewModel): void {
+  if (!playedHeroState.active || rewardHoldSeeded || (pendingRewards.length === 0 && pendingRail === undefined)) {
     return;
   }
   if (consoleReducedMotionActive()) {
     pendingRewards = [];
+    pendingRail = undefined;
     return;
   }
   rewardHoldSeeded = true;
-  heldRewards = [...pendingRewards];
-  beginPanelRewardHold(pendingRewards);
+  if (pendingRewards.length > 0) {
+    heldRewards = [...pendingRewards];
+    beginPanelRewardHold(pendingRewards);
+  }
+  const rail = pendingRail;
+  const card = playedHeroState.card;
+  pendingRail = undefined;
+  if (rail !== undefined && card !== undefined && seedRailReward(playedHeroRailKey(card), rail, before, after)) {
+    heldRailKey = playedHeroRailKey(card);
+  }
 }
 
 function freeRunGate(): void {
@@ -769,7 +818,8 @@ export async function endPlayedHero(): Promise<void> {
   }
   playedHeroState.proxy = undefined;
   playedHeroState.phase = 'showing-result';
-  if (pendingRewards.length > 0 && !consoleReducedMotionActive()) {
+  const railKey = heldRailKey !== undefined && railRewardPending(heldRailKey) ? heldRailKey : undefined;
+  if ((pendingRewards.length > 0 || railKey !== undefined) && !consoleReducedMotionActive()) {
     // THE REWARD BEAT — the final chord of the play: the landed card is read
     // for a quiet moment, then its immediate gains emerge from it as
     // physical resource chips and land where they belong. Each touchdown
@@ -810,7 +860,7 @@ export async function endPlayedHero(): Promise<void> {
       if (railSpecs.length > 0 && playedHeroState.active) {
         await runResourceTransfers({specs: railSpecs, source, arrival: 'auto', onArrive: release});
       }
-    } else {
+    } else if (rewards.length > 0) {
       await runResourceTransfers({specs: rewards, source, arrival: 'auto', onArrive: release});
     }
     // Belt-and-braces: any hold of OURS a degraded transfer left behind snaps to
@@ -818,6 +868,18 @@ export async function endPlayedHero(): Promise<void> {
     releaseHeroRewards();
     if (!playedHeroState.active) {
       return;
+    }
+    if (railKey !== undefined) {
+      // THE TR, LAST: after the card's own gains, the token is born on the
+      // printed TR of the card that just landed (the face-down pile for an
+      // event — where that card now lies), the rating and its VP cell tick on
+      // the touchdown, and the table's answer (the ruling Greens' M€) one beat
+      // after — `flyRailReward` resolves once all of it has ticked.
+      await flyRailReward(railKey, () => heroRailOrigin(playedHeroState.card ?? ''));
+      heldRailKey = undefined;
+      if (!playedHeroState.active) {
+        return;
+      }
     }
     await skippablePause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
   } else {
@@ -952,6 +1014,7 @@ export function abortPlayedHero(): void {
   // behind a failed animation.
   abortPlayedCardReturns();
   releaseHeroRewards();
+  releaseHeroRail('aborted');
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;
@@ -981,6 +1044,7 @@ function finish(): void {
   // leave its dock withhold behind; a completed one already cleared itself.
   abortPlayedCardReturns();
   releaseHeroRewards(); // safety — the reward beat leaves it empty
+  releaseHeroRail('finished'); // safety — the reward beat flies it; an ending that skipped the beat lets go
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;
@@ -1079,6 +1143,35 @@ function heroRewardSourceSelectors(card: string): Array<string> {
     // emerge from the pile (the card's honest on-table location).
     '.con-played .con-played__family--event .con-played__backstack',
   ];
+}
+
+/**
+ * WHERE THE PLAY'S TR TOKEN IS BORN — measured at fly time on the card that
+ * has just landed: the first measurable place of the reward ladder
+ * (`heroRewardSourceSelectors`), and inside it the PRINTED TR icon. A place
+ * that prints none is the card's honest location with its face hidden — an
+ * EVENT lies face-down on its pile — and the token is born on that place.
+ * Undefined only when nothing is measurable: the rail reward names it.
+ */
+function heroRailOrigin(card: string): TransferPoint | undefined {
+  if (typeof document === 'undefined' || card === '') {
+    return undefined;
+  }
+  const needles = iconNeedlesFor('tr') ?? [];
+  const centre = (r: DOMRect): TransferPoint => ({x: r.left + r.width / 2, y: r.top + r.height / 2});
+  for (const selector of heroRewardSourceSelectors(card)) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 4 || r.height <= 4) {
+        continue;
+      }
+      const printed = Array.from(el.querySelectorAll<HTMLElement>('.pcard-ic'))
+        .find((icon) => needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
+      const ir = printed?.getBoundingClientRect();
+      return ir !== undefined && ir.width > 4 ? centre(ir) : centre(r);
+    }
+  }
+  return undefined;
 }
 
 /**

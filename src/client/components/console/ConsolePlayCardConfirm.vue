@@ -624,7 +624,7 @@ import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectFo
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {
   DiscountTail, ForecastBranchInfo, VariantReaction,
-  discountTail, forecastLayerAvailable, forecastRowPresent, variantReactionChips,
+  discountTail, forecastForFixedBranch, forecastLayerAvailable, forecastRowPresent, variantReactionChips,
 } from '@/client/console/effectForecastModel';
 import {
   closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, openEffectForecastLayer,
@@ -644,6 +644,8 @@ import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {playRailReward} from '@/client/console/consoleActionCommit';
+import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Payment} from '@/common/inputs/Payment';
@@ -3887,6 +3889,12 @@ export default defineComponent({
         // for the arrival's size, never a gate: the workspace claims its
         // follow-up either way, because a triggered effect (Point Luna's Earth
         // tag) draws cards no preview can advertise.
+        // …and its RAIL HALF (PL-001 for plays): the branch's direct TR, flown by the same beat from the landed
+        // card's printed TR AFTER the gains above, the rating ticking on the touchdown; the table's answer to it
+        // (an exact forecast fact for this seat — the ruling Greens' M€) a beat after. The play's own price rides
+        // along for the diff check the seed makes against the two views.
+        rail: playRailReward(b, heroRewardEffectsOf(b), this.captured, payment,
+          reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts)),
         draws: heroRewardEffectsOf(b).reduce((n, e) =>
           (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0),
         // ProjectInspection: the chosen already-used action + its composed

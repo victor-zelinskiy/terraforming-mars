@@ -309,11 +309,40 @@ export function actionRailTrSpecs(
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>> = {},
 ): Array<ResourceTransferSpec> {
+  return directTrSpecs(branch, branch?.effects ?? [], stepResponses, {drawOwnsTr: true});
+}
+
+/**
+ * PL-001 FOR PLAYS — the SAME rule at the card-play door: the direct TR of the
+ * branch the composer committed, read off the chips the play's own reward beat
+ * carries (`heroRewardEffectsOf` — a WALK of the Agenda track pays its own TR
+ * off the track's node, TR04). One difference, and it is the door's, not the
+ * TR's: a DRAW does not own a play's TR. An action's draw IS its commit's
+ * result (the impulse lands on the printed cards, the deck answers), so its TR
+ * had no beat of its own; a play's draw is dealt AFTER the landing scene ends,
+ * and the scene's reward beat — where this TR flies — is already behind it
+ * (UNMI Contractor: «+3 TR, draw a card»).
+ */
+export function playRailTrSpecs(
+  branch: ActionPreviewBranch | undefined,
+  effects: ReadonlyArray<ActionEffect>,
+  stepResponses: Readonly<Record<number, unknown>> = {},
+): Array<ResourceTransferSpec> {
+  return directTrSpecs(branch, effects, stepResponses, {drawOwnsTr: false});
+}
+
+/** The ONE rule behind both doors (see `actionRailTrSpecs`): a TR chip with no note that nothing ahead owns. */
+function directTrSpecs(
+  branch: ActionPreviewBranch | undefined,
+  branchEffects: ReadonlyArray<ActionEffect>,
+  stepResponses: Readonly<Record<number, unknown>>,
+  opts: {drawOwnsTr: boolean},
+): Array<ResourceTransferSpec> {
   if (branch === undefined || branch.reveal !== undefined || (branch.steps ?? []).some((s) => s.kind === 'boardPlacement')) {
     return [];
   }
-  const effects = [...(branch.effects ?? []), ...chosenStepEffects(branch, stepResponses)];
-  if (effects.some((e) => e.direction === 'gain' && (SCALE_ICONS.has(e.icon) || e.icon === 'cards'))) {
+  const effects = [...branchEffects, ...chosenStepEffects(branch, stepResponses)];
+  if (effects.some((e) => e.direction === 'gain' && (SCALE_ICONS.has(e.icon) || (opts.drawOwnsTr && e.icon === 'cards')))) {
     return [];
   }
   return railRewardSpecs(effects).filter((spec) => spec.resource === RATING_RAIL_KEY);
@@ -387,6 +416,8 @@ const PAYMENT_RAIL_ROWS: ReadonlyArray<keyof Payment> = ['megacredits', 'heat', 
 export function actionKnownRailMoves(
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>> = {},
+  /** A payment made OUTSIDE the steps — a card play's own price, answered with the play itself. */
+  paid?: Payment,
 ): Record<string, number> {
   const known: Record<string, number> = {};
   if (branch === undefined) {
@@ -415,7 +446,8 @@ export function actionKnownRailMoves(
       add(channel, e.icon, e.amount);
     }
   }
-  for (const {payment} of payments) {
+  // A play's price is no chip of its branch (the payment panel states it), so the loop above settles nothing of it.
+  for (const payment of [...payments.map((r) => r.payment), ...(paid !== undefined ? [paid] : [])]) {
     for (const resource of PAYMENT_RAIL_ROWS) {
       add('stock', resource, -(payment[resource] ?? 0));
     }
@@ -465,6 +497,28 @@ export function commitRailPlan(
     links,
     holdsSurface: timeline !== undefined,
   };
+}
+
+/**
+ * THE RAIL HALF OF A CARD PLAY (pure — PL-001 for plays): the branch's direct
+ * TR (`playRailTrSpecs` over the chips the landing scene's reward beat carries),
+ * the table's answer (an `exact` forecast fact addressed to «you» —
+ * `reactionRailSpecs`, handed in), and the branch's other known moves with the
+ * play's own price (`paid` — the composer's payment, never a chip of the
+ * branch). Undefined when the play gains no direct TR.
+ */
+export function playRailReward(
+  branch: ActionPreviewBranch | undefined,
+  effects: ReadonlyArray<ActionEffect>,
+  stepResponses: Readonly<Record<number, unknown>>,
+  paid: Payment | undefined,
+  reactions: ReadonlyArray<ResourceTransferSpec>,
+): RailReward | undefined {
+  const cause = playRailTrSpecs(branch, effects, stepResponses);
+  if (cause.length === 0) {
+    return undefined;
+  }
+  return {cause, reactions: [...reactions], known: actionKnownRailMoves(branch, stepResponses, paid)};
 }
 
 /**
