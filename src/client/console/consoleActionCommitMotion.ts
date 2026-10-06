@@ -190,6 +190,9 @@ export function resolveResultIcon(
     }
     return undefined;
   }
+  case 'rating':
+    // The printed TR icon — the token the handoff flies is born on it.
+    return measurable(byKey('tr'));
   case 'resources': {
     if (firstResource === 'megacredits') {
       return measurable(scope.querySelector<HTMLElement>('.pcard-mi--mc'));
@@ -304,6 +307,29 @@ export function pulseDeckPile(): void {
     transformOrigin: '50% 20%', clearProps: 'transform',
     onInterrupt: () => gsap.set(pile, {clearProps: 'transform'}),
   });
+}
+
+/**
+ * THE RING ALONE — the commit's one-shot «executed» mark on ONE printed icon,
+ * for a LATER beat of a timeline (TR28: the impulse lands on the first fighter;
+ * the ring on the TR icon fires when the TR's own token is born, two beats
+ * later). The box is the one measured at the press (the icon may be folding
+ * away by now); the same overlay class and phrase as the commit's own ring.
+ * Silent under reduced motion and off-DOM.
+ */
+export function pulseCommitRing(rect: {x: number, y: number, w: number, h: number} | undefined): void {
+  if (rect === undefined || typeof document === 'undefined' || consoleReducedMotionActive()) {
+    return;
+  }
+  const ring = document.createElement('div');
+  ring.className = 'con-commit-ring';
+  ring.style.cssText = `left:${rect.x - 5}px;top:${rect.y - 5}px;width:${rect.w + 10}px;height:${rect.h + 10}px;`;
+  document.body.appendChild(ring);
+  const tl = gsap.timeline({onComplete: () => ring.remove(), onInterrupt: () => ring.remove()});
+  tl.fromTo(ring, {opacity: 0, scale: 0.78}, {
+    opacity: 0.9, scale: 1, duration: s(ICON_MS * 0.5), ease: 'sine.out', transformOrigin: '50% 50%',
+  }, 0);
+  tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(ICON_MS * 0.55));
 }
 
 /**

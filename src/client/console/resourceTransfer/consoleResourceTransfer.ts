@@ -137,6 +137,20 @@ type PanelRewardHold = {
   stockLoss: Record<string, number>;
   productionLoss: Record<string, number>;
   /**
+   * Pending card-resource LOSSES by icon key (the satellite) — a spend that
+   * LEAVES a card on its own flight (TR28: two fighters off the capsule): the
+   * satellite keeps them until the chip departs. Same two-map law as the stock.
+   */
+  cardResLoss: Record<string, number>;
+  /**
+   * THE CARD'S OWN CAPSULE, per card name — the pending gains and losses whose
+   * spec names a `targetCard`. A surface that paints that card's capsule while
+   * its tokens fly reads `heldCardCapsule` (the action composer's hero, TR28):
+   * the capsule = the model + what has not departed − what has not landed.
+   */
+  capsule: Record<string, number>;
+  capsuleLoss: Record<string, number>;
+  /**
    * DERIVED victory points still in the air — the points a card resource
    * brings its card at its touchdown (a floater onto a «1 VP / 2» card). The
    * rail's VP cell is the score INCLUDING them, so it reads «committed − held»
@@ -153,6 +167,9 @@ export const panelRewardHold = reactive<PanelRewardHold>({
   cardRes: {},
   stockLoss: {},
   productionLoss: {},
+  cardResLoss: {},
+  capsule: {},
+  capsuleLoss: {},
   vp: 0,
 });
 
@@ -161,7 +178,20 @@ function holdMapFor(spec: ResourceTransferSpec): Record<string, number> {
   switch (spec.channel) {
   case 'stock': return loss ? panelRewardHold.stockLoss : panelRewardHold.stock;
   case 'production': return loss ? panelRewardHold.productionLoss : panelRewardHold.production;
-  case 'card-resource': return panelRewardHold.cardRes;
+  case 'card-resource': return loss ? panelRewardHold.cardResLoss : panelRewardHold.cardRes;
+  }
+}
+
+function addHeld(map: Record<string, number>, key: string, amount: number): void {
+  map[key] = (map[key] ?? 0) + amount;
+}
+
+function takeHeld(map: Record<string, number>, key: string, amount: number): void {
+  const left = (map[key] ?? 0) - amount;
+  if (left > 0) {
+    map[key] = left;
+  } else {
+    delete map[key];
   }
 }
 
@@ -172,8 +202,10 @@ export function beginPanelRewardHold(specs: ReadonlyArray<ResourceTransferSpec>)
     if (spec.amount <= 0) {
       continue;
     }
-    const map = holdMapFor(spec);
-    map[spec.resource] = (map[spec.resource] ?? 0) + spec.amount;
+    addHeld(holdMapFor(spec), spec.resource, spec.amount);
+    if (spec.channel === 'card-resource' && spec.targetCard !== undefined) {
+      addHeld(spec.direction === 'loss' ? panelRewardHold.capsuleLoss : panelRewardHold.capsule, spec.targetCard, spec.amount);
+    }
   }
   syncHoldActive();
 }
@@ -181,12 +213,9 @@ export function beginPanelRewardHold(specs: ReadonlyArray<ResourceTransferSpec>)
 /** Release ONE transfer's metric — the displayed value jumps by exactly the
  *  transferred amount and its delta chip fires from that transition. */
 export function releasePanelRewardHold(spec: ResourceTransferSpec): void {
-  const map = holdMapFor(spec);
-  const left = (map[spec.resource] ?? 0) - spec.amount;
-  if (left > 0) {
-    map[spec.resource] = left;
-  } else {
-    delete map[spec.resource];
+  takeHeld(holdMapFor(spec), spec.resource, spec.amount);
+  if (spec.channel === 'card-resource' && spec.targetCard !== undefined) {
+    takeHeld(spec.direction === 'loss' ? panelRewardHold.capsuleLoss : panelRewardHold.capsule, spec.targetCard, spec.amount);
   }
   syncHoldActive();
 }
@@ -229,6 +258,9 @@ export function clearPanelRewardHold(): void {
   panelRewardHold.cardRes = {};
   panelRewardHold.stockLoss = {};
   panelRewardHold.productionLoss = {};
+  panelRewardHold.cardResLoss = {};
+  panelRewardHold.capsule = {};
+  panelRewardHold.capsuleLoss = {};
   panelRewardHold.vp = 0;
   panelRewardHold.active = false;
 }
@@ -240,6 +272,9 @@ function syncHoldActive(): void {
     Object.keys(panelRewardHold.cardRes).length > 0 ||
     Object.keys(panelRewardHold.stockLoss).length > 0 ||
     Object.keys(panelRewardHold.productionLoss).length > 0 ||
+    Object.keys(panelRewardHold.cardResLoss).length > 0 ||
+    Object.keys(panelRewardHold.capsule).length > 0 ||
+    Object.keys(panelRewardHold.capsuleLoss).length > 0 ||
     panelRewardHold.vp > 0;
 }
 
@@ -276,8 +311,19 @@ export function heldVictoryPoints(): number {
   return panelRewardHold.active ? panelRewardHold.vp : 0;
 }
 
+/** SIGNED, like the stock: the card-resource gains held minus the losses held (the satellite reads «committed − held»). */
 export function heldCardResource(iconKey: string): number {
-  return panelRewardHold.active ? (panelRewardHold.cardRes[iconKey] ?? 0) : 0;
+  return panelRewardHold.active ? (panelRewardHold.cardRes[iconKey] ?? 0) - (panelRewardHold.cardResLoss[iconKey] ?? 0) : 0;
+}
+
+/**
+ * ONE CARD'S CAPSULE, signed: the gains held on it minus the losses held off it.
+ * Displayed = the model − this — TR28 at c fighters reads c (+1 not landed, −2
+ * not departed: model c − 1 − (1 − 2)), then c + 1 on the landing, c − 1 on the
+ * departure; never c − 2, never below zero by construction.
+ */
+export function heldCardCapsule(card: string): number {
+  return panelRewardHold.active ? (panelRewardHold.capsule[card] ?? 0) - (panelRewardHold.capsuleLoss[card] ?? 0) : 0;
 }
 
 // ── stage registry (the layer plugs in) ─────────────────────────────────────

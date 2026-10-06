@@ -23,9 +23,12 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
+import {Payment} from '@/common/inputs/Payment';
 import {
-  ResourceTransferSpec, TransferPoint, extractPlayRewards, isStandardResource, mergeTransferSpecs,
+  RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, TransferRect, extractPlayRewards, isStandardResource, mergeTransferSpecs,
+  railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
+import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 
 /**
  * The RESULT CATEGORY the commit hands off to. One systemic commit language;
@@ -38,9 +41,40 @@ import {
  *    through the existing placement flow.
  *  - `global` — the impulse ends on the parameter icon; the existing HUD /
  *    scale animations carry the change.
+ *  - `rating` — a DIRECT TR of the branch (no tile, no scale ahead of it to
+ *    own it): the impulse ends on the printed TR icon and the handoff flies a
+ *    token from that icon to the rail's rating cell (`ActionCommitPlan.rail` —
+ *    «a gain is a reward», never a number that changed).
  *  - `generic` — the mechanical commit alone (no addressable large result).
  */
-export type ActionCommitKind = 'deck-check' | 'draw' | 'resources' | 'tile' | 'global' | 'generic';
+export type ActionCommitKind = 'deck-check' | 'draw' | 'resources' | 'tile' | 'global' | 'rating' | 'generic';
+
+/**
+ * THE RAIL HALF of a commit — what the branch pays that is HELD on the rail
+ * through `railReward.ts` (seeded in the transport's apply block against the
+ * diff of the two views, flown by the shell at the handoff): a direct TR, and
+ * the moves on the card's own capsule when the printed row is a TIMELINE
+ * (`capsuleTimeline`). Built pure (`commitRailPlan`), measured at submit.
+ */
+export type ActionCommitRail = {
+  /** The owner key of the rail reward (`railReward.ts`). */
+  key: string;
+  /** The promise checked against the views: the cause in the printed order, the table's answer, the branch's other moves. */
+  reward: RailReward;
+  /**
+   * The cause in LINKS — indices into `reward.cause` flown together; link k + 1
+   * starts on link k's TOUCHDOWN (TR28: «[fighter] , −2 [fighter] : [TR]» — the
+   * fighter lands, then two leave, then the TR is born). One link is the plain
+   * case (UNMI: the TR alone).
+   */
+  links: ReadonlyArray<ReadonlyArray<number>>;
+  /** The card is a TARGET or a SOURCE of some link: the workspace stands until the last link is born. */
+  holdsSurface: boolean;
+  /** Origins aligned with `reward.cause` — the printed icon each token is born on (measured at submit). */
+  origins: ReadonlyArray<TransferPoint | undefined>;
+  /** The printed TR icon's box, when a later link is born under it — its ring marks that birth. */
+  ring?: TransferRect;
+};
 
 /**
  * The normalized handoff plan, built and MEASURED at submit time. `origins`
@@ -54,6 +88,8 @@ export type ActionCommitPlan = {
   specs: ReadonlyArray<ResourceTransferSpec>;
   origins: ReadonlyArray<TransferPoint | undefined>;
   sourcePoint?: TransferPoint;
+  /** The rail half (a direct TR, a capsule timeline) — held through `railReward`, never by the shell's own hold. */
+  rail?: ActionCommitRail;
 };
 
 /**
@@ -129,12 +165,26 @@ export function consumeActionCommitPlan(): ActionCommitPlan | undefined {
   return plan;
 }
 
+/**
+ * Who else must let go when the commit is released — the rail half
+ * (`consoleActionCommitRail.ts`) registers here, so a commit released WITHOUT
+ * its handoff (a result the workspace hosts, a rejected submit, a game switch)
+ * never leaves a rail row held for a flight nobody will fly. A seam, not an
+ * import: this module stays the unit-testable half.
+ */
+const releaseListeners: Array<(why: string) => void> = [];
+
+export function onActionCommitRelease(listener: (why: string) => void): void {
+  releaseListeners.push(listener);
+}
+
 /** The action resolved (result handed off / dismissed) — release the beat. */
-export function releaseActionCommit(): void {
+export function releaseActionCommit(why = 'released'): void {
   clearSettleTimer();
   actionCommitState.active = false;
   actionCommitState.settled = true;
   actionCommitState.plan = undefined;
+  releaseListeners.forEach((listener) => listener(why));
 }
 
 /**
@@ -144,20 +194,20 @@ export function releaseActionCommit(): void {
  * the player's captures intact. Never starts a result animation.
  */
 export function abortConsoleActionCommit(): void {
-  releaseActionCommit();
+  releaseActionCommit('aborted');
   actionCommitState.abortNonce++;
 }
 
 /** Full reset (game switch / spec cleanup). */
 export function resetActionCommit(): void {
-  releaseActionCommit();
+  releaseActionCommit('reset');
   actionCommitState.abortNonce = 0;
 }
 
 // ── the pure plan builders ──────────────────────────────────────────────────
 
-const GLOBAL_PARAM_ICONS: ReadonlySet<string> =
-  new Set(['temperature', 'oxygen', 'venus', 'oceans', 'tr']);
+/** The scales (and the oceans): a TR beside one of these is the scale's own reward, paid with its step. */
+const SCALE_ICONS: ReadonlySet<string> = new Set(['temperature', 'oxygen', 'venus', 'oceans']);
 
 /**
  * The premium chips of the options the player picked in this branch's OR steps
@@ -217,7 +267,19 @@ export function commitKindForBranch(
   if ((branch.steps ?? []).some((s) => s.kind === 'boardPlacement')) {
     return 'tile';
   }
-  if (effects.some((e) => e.direction === 'gain' && GLOBAL_PARAM_ICONS.has(e.icon))) {
+  if (effects.some((e) => e.direction === 'gain' && SCALE_ICONS.has(e.icon))) {
+    return 'global';
+  }
+  // THE PRINTED ROW AS A TIMELINE: its FIRST beat is a resource landing on the card — the impulse lands there,
+  // and the TR is born later, under its own ring (`ActionCommitRail.ring`).
+  if (capsuleTimeline(branch) !== undefined) {
+    return 'resources';
+  }
+  if (actionRailTrSpecs(branch, stepResponses).length > 0) {
+    return 'rating';
+  }
+  // A TR the rail rule does not own (a chip with a note) keeps the historical landing on its icon.
+  if (effects.some((e) => e.direction === 'gain' && e.icon === 'tr')) {
     return 'global';
   }
   // A rail-bound gain (stock or production of a standard resource, or a
@@ -227,6 +289,199 @@ export function commitKindForBranch(
   return railGain ? 'resources' : 'generic';
 }
 
+/**
+ * PL-001 FOR ACTIONS — «A GAIN IS A REWARD»: the branch's DIRECT TR as a spec
+ * of the rail (`stock:rating`), or nothing. Pure, structural, never the card's
+ * name. A TR chip with no note is direct when NOTHING ahead of it owns it:
+ *  · a board PLACEMENT step — the TR belongs to the tile (an ocean, a
+ *    greenery) and arrives with it (Aquifer Pumping, Water Import);
+ *  · a SCALE gain (temperature / oxygen / Venus / oceans) — the TR is the
+ *    scale's own step and arrives with it;
+ *  · a DRAW or a REVEAL — the result is hosted in the workspace's own stage,
+ *    which owns its own pacing.
+ * Otherwise (UNMI's «3 M€ → TR», Caretaker Contract's heat, Equatorial
+ * Magnetizer's energy production, the TR branches of Nitrite-Reducing Bacteria
+ * and Titan Air-scrapping, Earth Army Contract's two fighters) the TR is held
+ * on the rail and flies from the printed icon. The chosen OR option's own chips
+ * count (the result picked in a step).
+ */
+export function actionRailTrSpecs(
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>> = {},
+): Array<ResourceTransferSpec> {
+  if (branch === undefined || branch.reveal !== undefined || (branch.steps ?? []).some((s) => s.kind === 'boardPlacement')) {
+    return [];
+  }
+  const effects = [...(branch.effects ?? []), ...chosenStepEffects(branch, stepResponses)];
+  if (effects.some((e) => e.direction === 'gain' && (SCALE_ICONS.has(e.icon) || e.icon === 'cards'))) {
+    return [];
+  }
+  return railRewardSpecs(effects).filter((spec) => spec.resource === RATING_RAIL_KEY);
+}
+
+/**
+ * THE PRINTED ROW AS A TIMELINE (TR28 Earth Army Contract — «→ [fighter] ,
+ * −2 [fighter] : [TR]»): the branch ADDS to its own card and then SPENDS from
+ * it — in the server's chips (the printed order) a gain noted «on this card»
+ * followed by a cost noted «on this card» of the same resource. Two movements,
+ * never a net «−1»: the resource lands on the card's capsule, and only then do
+ * the spent units leave it. A spend from the card with no gain BEFORE it
+ * (Nitrite-Reducing Bacteria's «−3 here : TR», Titan Air-scrapping's «−2 here»)
+ * is not a timeline: its capsule keeps its historical behaviour (owner's
+ * decision 6 of the TR28 brief; the class is ready for it).
+ */
+export function capsuleTimeline(branch: ActionPreviewBranch | undefined): {gain: ActionEffect, spend: ActionEffect} | undefined {
+  const effects = branch?.effects ?? [];
+  const gainAt = effects.findIndex((e) => e.direction === 'gain' && e.note === 'on this card' && e.amount > 0);
+  if (gainAt < 0) {
+    return undefined;
+  }
+  const gain = effects[gainAt];
+  const spend = effects.slice(gainAt + 1).find((e) => e.direction === 'cost' && e.note === 'on this card' && e.icon === gain.icon && e.amount > 0);
+  return spend === undefined ? undefined : {gain, spend};
+}
+
+/**
+ * THE COMPOSER'S READING OF A TIMELINE (TR28, before the press): ONE chip for
+ * the card's own capsule — where it starts and where it ends (`c → c − 1`) —
+ * that carries its two MOVEMENTS in order (`+1 · −2`), never a bare net «−1»
+ * and never the spend read before the gain («БУДЕТ СПИСАНО 2 → 0 · ВЫ
+ * ПОЛУЧИТЕ 1 → 2» read the printed row backwards). It stands on the RESULT
+ * side: the spend is a consequence of the action, not its price. Built from the
+ * server's own chips (their `current` / `resulting`), so the numbers are the
+ * preview's.
+ */
+export function capsuleTimelineReading(branch: ActionPreviewBranch | undefined): {effect: ActionEffect, moves: ReadonlyArray<number>, parts: ReadonlyArray<ActionEffect>} | undefined {
+  const timeline = capsuleTimeline(branch);
+  if (timeline === undefined) {
+    return undefined;
+  }
+  const {gain, spend} = timeline;
+  const net = gain.amount - spend.amount;
+  return {
+    effect: {
+      direction: net >= 0 ? 'gain' : 'cost',
+      icon: gain.icon,
+      amount: Math.abs(net),
+      ...(gain.current !== undefined ? {current: gain.current} : {}),
+      ...(spend.resulting !== undefined ? {resulting: spend.resulting} : {}),
+      note: 'on this card',
+    },
+    moves: [gain.amount, -spend.amount],
+    parts: [gain, spend],
+  };
+}
+
+/** A `Payment`'s fields that are rail rows (a card resource spent as M€ leaves no rail row). */
+const PAYMENT_RAIL_ROWS: ReadonlyArray<keyof Payment> = ['megacredits', 'heat', 'steel', 'titanium', 'plants'];
+
+/**
+ * THE BRANCH'S OTHER MOVES ON THE RAIL — what the same response changes on the
+ * viewer's rows beside the held reward, keyed by `railRowKey`: the branch's
+ * costs (a stock cost, a production cost), its gains the shell's own wave
+ * carries, and — when a payment step was answered — that captured payment in
+ * place of the M€ cost it settles. The reward's diff check
+ * (`railReward.verifyRailReward`) allows for exactly these; a row that moved
+ * otherwise is not held and names itself.
+ */
+export function actionKnownRailMoves(
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>> = {},
+): Record<string, number> {
+  const known: Record<string, number> = {};
+  if (branch === undefined) {
+    return known;
+  }
+  const add = (channel: 'stock' | 'production', resource: string, amount: number) => {
+    if (amount !== 0 && isStandardResource(resource)) {
+      const row = railRowKey({channel, resource});
+      known[row] = (known[row] ?? 0) + amount;
+    }
+  };
+  const payments = Object.values(stepResponses)
+    .map((r) => r as {type?: string, payment?: Payment} | undefined)
+    .filter((r): r is {type: 'payment', payment: Payment} => r?.type === 'payment' && r.payment !== undefined);
+  for (const e of [...(branch.effects ?? []), ...chosenStepEffects(branch, stepResponses)]) {
+    if (e.unit !== undefined || e.amount <= 0 || (e.note !== undefined && e.note !== 'production')) {
+      continue;
+    }
+    const channel = e.note === 'production' ? 'production' : 'stock';
+    if (e.direction === 'cost') {
+      // A cost a payment step settles is that payment's — counted below, never twice.
+      if (!(channel === 'stock' && e.icon === 'megacredits' && payments.length > 0)) {
+        add(channel, e.icon, -e.amount);
+      }
+    } else if (e.direction === 'gain') {
+      add(channel, e.icon, e.amount);
+    }
+  }
+  for (const {payment} of payments) {
+    for (const resource of PAYMENT_RAIL_ROWS) {
+      add('stock', resource, -(payment[resource] ?? 0));
+    }
+  }
+  return known;
+}
+
+/** The rail reward's owner key of one card's action commit. */
+export function actionCommitRailKey(card: CardName): string {
+  return `action-commit:${card}`;
+}
+
+/**
+ * THE RAIL HALF OF A BRANCH (pure — measured later, at the press): the direct
+ * TR (`actionRailTrSpecs`), the capsule timeline's two movements before it
+ * (`capsuleTimeline`), the table's answer read off the branch's forecast (only
+ * an `exact` fact addressed to «you» — `reactionRailSpecs`), the branch's other
+ * known moves. Undefined when the branch has nothing the rail must hold.
+ */
+export function commitRailPlan(
+  cardName: CardName,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+  reactions: ReadonlyArray<ResourceTransferSpec>,
+): Omit<ActionCommitRail, 'origins' | 'ring'> | undefined {
+  const tr = actionRailTrSpecs(branch, stepResponses);
+  const timeline = capsuleTimeline(branch);
+  if (tr.length === 0 && timeline === undefined) {
+    return undefined;
+  }
+  const cause: Array<ResourceTransferSpec> = [];
+  const links: Array<Array<number>> = [];
+  if (timeline !== undefined) {
+    cause.push({channel: 'card-resource', resource: timeline.gain.icon, amount: timeline.gain.amount, targetCard: cardName});
+    links.push([0]);
+    cause.push({channel: 'card-resource', resource: timeline.spend.icon, amount: timeline.spend.amount, targetCard: cardName, direction: 'loss'});
+    links.push([1]);
+  }
+  if (tr.length > 0) {
+    links.push(tr.map((_, i) => cause.length + i));
+    cause.push(...tr);
+  }
+  const known = actionKnownRailMoves(branch, stepResponses);
+  return {
+    key: actionCommitRailKey(cardName),
+    reward: {cause, reactions: [...reactions], known},
+    links,
+    holdsSurface: timeline !== undefined,
+  };
+}
+
+/**
+ * The reward WAVE the shell flies itself (`ActionCommitPlan.specs`) — every
+ * transfer of the branch minus what the rail half holds: a timeline's landing
+ * on the card is the rail's first link, never a second chip.
+ */
+export function commitWaveSpecs(
+  cardName: CardName,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+): Array<ResourceTransferSpec> {
+  const specs = commitRewardSpecs(cardName, branch, stepResponses);
+  const timeline = capsuleTimeline(branch);
+  return timeline === undefined ? specs :
+    specs.filter((spec) => !(spec.channel === 'card-resource' && spec.targetCard === cardName && spec.resource === timeline.gain.icon));
+}
 /**
  * The reward specs the commit wave carries — the SAME extraction the
  * played-card beat uses (`extractPlayRewards`: server-computed preview

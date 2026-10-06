@@ -13,6 +13,7 @@
           'action-effect-chip--skipped': skipped,
           'action-effect-chip--danger': danger && !shortfall,
           'action-effect-chip--bare': iconClass === '' && !isVictoryPoints,
+          'action-effect-chip--timeline': moves !== undefined,
         }]">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
@@ -41,6 +42,13 @@
         <span class="action-effect-chip__res">{{ effect.resulting }}{{ unit }}</span>
       </template>
       <span v-else class="action-effect-chip__amount">{{ sign }}{{ effect.amount }}{{ unit }}</span>
+    </span>
+
+    <!-- A TIMELINE on one pool (TR28: «+1 here, then −2 here») — the pool's start and end above, its MOVEMENTS
+         here, in order, each in its own direction's colour: two movements read as two, never as a bare net. -->
+    <span v-if="moves !== undefined" class="action-effect-chip__moves">
+      <span v-for="(m, i) in moves" :key="i" class="action-effect-chip__move"
+            :class="m < 0 ? 'action-effect-chip__move--out' : 'action-effect-chip__move--in'">{{ m < 0 ? '−' : '+' }}{{ Math.abs(m) }}</span>
     </span>
 
     <!-- The note and "no effect" are BOTH shown: they answer different
@@ -97,6 +105,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // The pool's MOVEMENTS, in order (signed) — the chip reads a timeline on one pool rather than one change.
+    moves: {
+      type: Array as PropType<ReadonlyArray<number>>,
+      default: undefined,
+    },
   },
   computed: {
     iconClass(): string {
@@ -119,7 +132,7 @@ export default defineComponent({
     // `resulting` — the builder's own statement that the move is legal — so
     // «0 → −1» is not a shortfall; a clamped `resulting` (or none) still is.
     shortfall(): boolean {
-      return this.effect.direction === 'cost' &&
+      return this.moves === undefined && this.effect.direction === 'cost' &&
         this.effect.current !== undefined &&
         this.effect.current < this.effect.amount &&
         this.effect.resulting !== this.effect.current - this.effect.amount;
@@ -130,7 +143,7 @@ export default defineComponent({
     // The POOL-LESS form ("+N to a card", "draw N") has no `current` to compare,
     // so a zero amount is the only signal it has.
     noEffect(): boolean {
-      if (this.effect.direction !== 'gain') {
+      if (this.effect.direction !== 'gain' || this.moves !== undefined) {
         return false;
       }
       if (this.effect.current === undefined || this.effect.resulting === undefined) {
@@ -188,6 +201,12 @@ export default defineComponent({
     --chip-rim: rgba(255, 120, 110, 0.6);
     --chip-bg: rgba(62, 26, 24, 0.55);
     --chip-accent: #ff9f96;
+  }
+  // A TIMELINE on one pool: neither a gain nor a cost as a whole — the neutral rim; its moves carry the colours.
+  &--timeline {
+    --chip-rim: rgba(120, 200, 255, 0.42);
+    --chip-bg: rgba(22, 44, 64, 0.55);
+    --chip-accent: #bfe6ff;
   }
   // No sprite → no reserved icon box, so the pill stays symmetric.
   &--bare {
@@ -260,6 +279,19 @@ export default defineComponent({
 .action-effect-chip__amount { color: var(--chip-accent); }
 .action-effect-chip__sep { color: rgba(220, 236, 247, 0.5); font-weight: 700; }
 .action-effect-chip__need { color: var(--chip-accent); }
+
+.action-effect-chip__moves {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 6px;
+  border-left: 1px solid var(--chip-rim);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 12px;
+}
+.action-effect-chip__move--in { color: #8ff0c4; }
+.action-effect-chip__move--out { color: #ffce92; }
 
 .action-effect-chip__note {
   font-size: 10.5px;

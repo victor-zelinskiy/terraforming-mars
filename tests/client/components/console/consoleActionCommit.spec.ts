@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   actionCommitState, armActionCommit, markActionCommitSettled, actionCommitHolding,
   consumeActionCommitPlan, releaseActionCommit, abortConsoleActionCommit, resetActionCommit,
-  commitKindForBranch, commitRewardSpecs,
+  commitKindForBranch, commitRewardSpecs, onActionCommitRelease,
 } from '@/client/console/consoleActionCommit';
 import {CardName} from '@/common/cards/CardName';
 import {ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
@@ -47,6 +47,15 @@ describe('consoleActionCommit — the universal activation beat', () => {
       expect(consumeActionCommitPlan()).to.eq(undefined);
     });
 
+    it('a release tells its listeners WHY (the rail half lets go of a flight nobody will fly)', () => {
+      const heard: Array<string> = [];
+      onActionCommitRelease((why) => heard.push(why));
+      armActionCommit(PLAN);
+      releaseActionCommit('hosted');
+      abortConsoleActionCommit();
+      expect(heard.slice(-2)).to.deep.eq(['hosted', 'aborted']);
+    });
+
     it('a REJECTED submit aborts: released + abortNonce tells the composer to unlock', () => {
       const nonce = actionCommitState.abortNonce;
       armActionCommit(PLAN);
@@ -74,6 +83,20 @@ describe('consoleActionCommit — the universal activation beat', () => {
 
     it('a global-parameter gain is global', () => {
       expect(commitKindForBranch(branchWith({effects: [gain('temperature', 1, undefined, '°C')]}))).to.eq('global');
+    });
+
+    /**
+     * PL-001 for actions: a DIRECT TR (nothing ahead owns it) is the RATING
+     * category — the impulse lands on the printed TR and the handoff flies a
+     * token to the rail. A TR beside a scale stays the scale's (global); a
+     * timeline lands on its first beat (resources).
+     */
+    it('a direct TR is rating; beside a scale it stays global; a capsule timeline lands on its first beat', () => {
+      expect(commitKindForBranch(branchWith({effects: [{direction: 'cost', icon: 'megacredits', amount: 3}, gain('tr', 1)]}))).to.eq('rating');
+      expect(commitKindForBranch(branchWith({effects: [gain('oxygen', 1, undefined, '%'), gain('tr', 1)]}))).to.eq('global');
+      expect(commitKindForBranch(branchWith({effects: [
+        gain('fighter', 1, 'on this card'), {direction: 'cost', icon: 'fighter', amount: 2, note: 'on this card'}, gain('tr', 1),
+      ]}))).to.eq('resources');
     });
 
     it('a standard-resource gain is resources; production too; a card resource too', () => {

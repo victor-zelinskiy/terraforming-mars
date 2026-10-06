@@ -383,6 +383,66 @@ export function flyRailReward(key: string, originOf: (spec: ResourceTransferSpec
 }
 
 /**
+ * FLY ONE LINK — a PART of the held cause, for an owner whose reward is a
+ * TIMELINE (TR28's «[fighter] , −2 [fighter] : [TR]»: the fighter lands, then
+ * two leave the card, then the TR is born). Each token of `specs` (the held
+ * spec objects) is released on its own touchdown — a LOSS on its departure,
+ * the transfer language's own law — and the entry stays held for the rest; the
+ * table's answer waits for `flyRailReward`, which flies whatever is left and
+ * answers after it. `destination` — an explicit point the link's tokens land on
+ * (a loss is born there): the capsule of a card standing in the owner's own
+ * surface, which the transfer framework's address ladder does not know.
+ */
+export function flyRailRewardLink(
+  key: string,
+  specs: ReadonlyArray<ResourceTransferSpec>,
+  originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined,
+  opts: {destination?: TransferPoint} = {},
+): Promise<RailRewardOutcome> {
+  const entry = entryOf(key);
+  const held = entry === undefined ? [] : specs.filter((spec) => entry.cause.includes(spec));
+  if (entry === undefined || entry.phase !== 'held' || held.length === 0) {
+    return Promise.resolve('none');
+  }
+  entry.phase = 'flying';
+  const origins = held.map((spec, index) => originOf(spec, index));
+  let degraded = false;
+  origins.forEach((origin, index) => {
+    if (origin === undefined) {
+      degraded = true;
+      noteDegrade(key, 'no-origin', describe(held[index]));
+    }
+  });
+  return runResourceTransfers({
+    specs: held,
+    source: {},
+    origins,
+    arrival: 'auto',
+    ...(opts.destination !== undefined ? {destination: opts.destination} : {}),
+    onArrive: (spec) => {
+      const live = entryOf(key);
+      if (live !== undefined) {
+        releaseSpec(live.cause, spec, live.vp);
+      }
+    },
+    onDegrade: (spec, why) => {
+      if (!(why === 'no-source' && origins[held.indexOf(spec)] === undefined)) {
+        noteDegrade(key, why, describe(spec));
+      }
+      degraded = true;
+    },
+  }).then(() => {
+    const live = entryOf(key);
+    if (live !== undefined) {
+      // Whatever of this link the wave left held (it never does — the framework's safety releases every spec).
+      held.filter((spec) => live.cause.includes(spec)).forEach((spec) => releaseSpec(live.cause, spec, live.vp));
+      live.phase = 'held';
+    }
+    return degraded ? 'degraded' : 'landed';
+  });
+}
+
+/**
  * THE ANSWER AFTER THE CAUSE: one beat of the animation clock after the last
  * touchdown the reactions' rows tick — a separate tick from the cause's own,
  * never before it. A killed beat (an interrupt released the entry) resolves

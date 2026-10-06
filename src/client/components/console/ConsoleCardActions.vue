@@ -242,9 +242,11 @@
               </div>
             </div>
             <span v-if="hasCost && hasGain" class="con-cardactions__changes-arrow" aria-hidden="true">→</span>
-            <div v-if="focusedTile.gainEffects.length > 0 || focusedTile.variableGain.length > 0" class="con-cardactions__detail-block con-cardactions__detail-block--gain">
+            <div v-if="hasGain" class="con-cardactions__detail-block con-cardactions__detail-block--gain">
               <div class="con-cardactions__detail-label">{{ $t('You will receive') }}</div>
               <div class="con-cardactions__detail-chips">
+                <!-- A TIMELINE on the card's own capsule (TR28): one chip, start → end, its movements in order. -->
+                <ActionEffectChip v-if="focusedTile.timeline !== undefined" :effect="focusedTile.timeline.effect" :moves="focusedTile.timeline.moves" data-capsule-timeline />
                 <ActionEffectChip v-for="(eff, k) in focusedTile.gainEffects" :key="k" :effect="eff" />
                 <span v-for="(vc, k) in focusedTile.variableGain" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
                   <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
@@ -1108,7 +1110,7 @@ export default defineComponent({
     },
     hasGain(): boolean {
       const t = this.focusedTile;
-      return t !== undefined && (t.gainEffects.length > 0 || t.variableGain.length > 0);
+      return t !== undefined && (t.gainEffects.length > 0 || t.variableGain.length > 0 || t.timeline !== undefined);
     },
     hasChanges(): boolean {
       return this.hasCost || this.hasGain;
@@ -1118,7 +1120,7 @@ export default defineComponent({
     detailSignature(): string {
       const t = this.focusedTile;
       return t === undefined ? '' :
-        `${t.key}|${t.status}|${this.focusedRule.length}|${t.costEffects.length}+${t.gainEffects.length}`;
+        `${t.key}|${t.status}|${this.focusedRule.length}|${t.costEffects.length}+${t.gainEffects.length}${t.timeline !== undefined ? '+t' : ''}`;
     },
     /**
      * The focus-stage breadcrumb step, named by the stage's PHASE alone

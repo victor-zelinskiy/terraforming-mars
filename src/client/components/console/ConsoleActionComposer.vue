@@ -241,10 +241,12 @@
             <ActionEffectChip v-for="(eff, k) in heroCost" :key="'c' + k" :effect="eff" />
           </div>
         </div>
-        <span v-if="heroCost.length > 0 && heroGain.length > 0" class="con-composer__hero-arrow" aria-hidden="true">→</span>
-        <div v-if="heroGain.length > 0" class="con-composer__hero-side">
+        <span v-if="heroCost.length > 0 && (heroGain.length > 0 || heroTimeline !== undefined)" class="con-composer__hero-arrow" aria-hidden="true">→</span>
+        <div v-if="heroGain.length > 0 || heroTimeline !== undefined" class="con-composer__hero-side">
           <div class="con-composer__hero-label">{{ $t('You will receive') }}</div>
           <div class="con-composer__hero-chips">
+            <!-- A TIMELINE on the card's own capsule (TR28): ONE chip, start → end, its two movements in order. -->
+            <ActionEffectChip v-if="heroTimeline !== undefined" :effect="heroTimeline.effect" :moves="heroTimeline.moves" data-capsule-timeline />
             <ActionEffectChip v-for="(eff, k) in heroGain" :key="'g' + k" :effect="eff" />
           </div>
         </div>
@@ -904,8 +906,10 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
-import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
+import {actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
+import {actionCommitRailHoldsCapsule} from '@/client/console/consoleActionCommitRail';
+import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
+import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, resolveResultIcon, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -917,7 +921,7 @@ import {
   colonyBonusPayout, colonyBonusPayoutOf, finishColonyBonusPayout, markPayoutRowLanded, nextPayoutRow, PayoutFacts,
   PayoutRow, payoutRowSettled, payoutServerOwes, payoutUntaken,
 } from '@/client/console/colonyLedger/colonyBonusPayout';
-import {releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {heldCardCapsule, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {choiceSourceView} from '@/client/console/promptSource';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
@@ -1657,7 +1661,7 @@ export default defineComponent({
      *  option cards carry their own chips → no hero until one is chosen). */
     showHero(): boolean {
       return this.selectedBranch !== undefined &&
-        (this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0);
+        (this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0 || this.heroTimeline !== undefined);
     },
     /** The repeat-action choice (Viron) — a SelectCard of already-used actions
      *  filled by the repeat pick surface, not captured like a normal step. */
@@ -1871,6 +1875,11 @@ export default defineComponent({
       if (this.deckCheckOn && !this.revealGainApplied && this.revealResBaseline !== undefined) {
         return this.revealResBaseline;
       }
+      // A CAPSULE TIMELINE in the air (TR28): the model already holds the result (c − 1); the capsule reads what
+      // has physically happened — c until the fighter lands, c + 1 until two leave, then c − 1. Never below zero.
+      if (actionCommitRailHoldsCapsule(this.entry.cardName)) {
+        return Math.max(0, live - heldCardCapsule(this.entry.cardName));
+      }
       return live;
     },
     revealRewardIconClass(): string {
@@ -2002,13 +2011,18 @@ export default defineComponent({
       const row = quickAdjustRow(this.paymentPanelView(c));
       return {kind: 'payment', canDecrease: row?.canDecrease === true, canIncrease: row?.canIncrease === true};
     },
+    /** The branch's capsule TIMELINE read as one chip (TR28) — its two chips leave the cost / gain lists. */
+    heroTimeline(): {effect: ActionEffect, moves: ReadonlyArray<number>, parts: ReadonlyArray<ActionEffect>} | undefined {
+      return capsuleTimelineReading(this.selectedBranch);
+    },
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
       if (branch === undefined) {
         return [];
       }
       const variable = variablePartsForBranch(branch);
-      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon));
+      const timeline = this.heroTimeline?.parts ?? [];
+      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon) && !timeline.includes(e));
       for (const c of this.allChoices) {
         out.push(...this.syntheticCost(c));
       }
@@ -2020,7 +2034,8 @@ export default defineComponent({
         return [];
       }
       const variable = variablePartsForBranch(branch);
-      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'gain' && !variable.suppressGainIcons.has(e.icon));
+      const timeline = this.heroTimeline?.parts ?? [];
+      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'gain' && !variable.suppressGainIcons.has(e.icon) && !timeline.includes(e));
       for (const c of this.allChoices) {
         out.push(...this.syntheticGain(c));
       }
@@ -4809,12 +4824,23 @@ export default defineComponent({
       const baseKind = ledgerBranch ? 'generic' : commitKindForBranch(branch, this.captured);
       const kind = ledgerBranch ? 'generic' : stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
         (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
-      const specs = ledgerBranch ? [] : [...commitRewardSpecs(this.entry.cardName, branch, this.captured), ...stageSpecs];
+      // THE RAIL HALF (PL-001 for actions): a direct TR, a capsule timeline's two movements, the table's answer —
+      // held through `railReward` against the views, never by the shell's own wave (`consoleActionCommitRail.ts`).
+      // A draw / a stage's own follow-up hosts its result in the workspace: no rail half there.
+      const railPlan = ledgerBranch || kind === 'draw' ? undefined :
+        commitRailPlan(this.entry.cardName, branch, this.captured,
+          reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts));
+      const specs = ledgerBranch ? [] : [
+        ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),
+        ...stageSpecs,
+      ];
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
       const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
+      const ringRect = railPlan !== undefined && railPlan.links.length > 1 && anchors !== undefined ?
+        resolveResultIcon(anchors, 'rating')?.getBoundingClientRect() : undefined;
       armActionCommit({
         sourceCard: this.entry.cardName,
         kind,
@@ -4822,13 +4848,18 @@ export default defineComponent({
         origins,
         sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
           {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.72} : undefined,
+        rail: railPlan === undefined ? undefined : {
+          ...railPlan,
+          origins: anchors !== undefined ? resolveGainIconOrigins(anchors, railPlan.reward.cause) : railPlan.reward.cause.map(() => undefined),
+          ring: ringRect !== undefined && ringRect.width > 2 ? {x: ringRect.left, y: ringRect.top, w: ringRect.width, h: ringRect.height} : undefined,
+        },
       });
       this.commitHandle = runActionCommitMotion({
         cardWrapEl: wrap,
         ctaEl: root?.querySelector<HTMLElement>('.con-composer__cta') ?? undefined,
         actionNode: this.actionGraphicNode,
         kind,
-        firstResource: specs[0]?.resource,
+        firstResource: specs[0]?.resource ?? railPlan?.reward.cause[0]?.resource,
         // The draw's causality: the impulse lands on the printed card-draw
         // icon and the HUD deck ANSWERS — right before the physical pull.
         onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,

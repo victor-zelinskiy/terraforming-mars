@@ -44,6 +44,7 @@ import {ActionStatus, actionStatusBlocker} from '@/client/components/actions/act
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {branchPositionForNode, branchPositionsForNode, branchTitleText, nodeAvailability, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, actionRules} from '@/client/components/actions/actionDescription';
+import {capsuleTimelineReading} from '@/client/console/consoleActionCommit';
 import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
 import {resourceScoring, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
@@ -95,6 +96,12 @@ export type ConsoleActionTile = {
   costEffects: ReadonlyArray<ActionEffect>;
   /** The branch's GAIN chips (produced / raised) — the right side. */
   gainEffects: ReadonlyArray<ActionEffect>;
+  /**
+   * A TIMELINE on the card's own capsule (TR28: «+1 here, then −2 here») as ONE chip on the result side — start →
+   * end and its two movements in order (`consoleActionCommit.capsuleTimelineReading`); its two chips leave
+   * `costEffects` / `gainEffects`. Absent for every other branch.
+   */
+  timeline?: {effect: ActionEffect, moves: ReadonlyArray<number>};
   /** Player-chosen VARIABLE parts of the formula (amount inputs) — the
    *  "spend X energy → draw X cards" family. Rendered as premium range chips. */
   variableCost: ReadonlyArray<ConsoleVariableChip>;
@@ -918,7 +925,8 @@ function buildTiles(
       reason = reasonFrom(entry.state.softReason?.message, entry.state.softReason?.params);
     }
 
-    const effects = branch?.effects ?? [];
+    const timeline = capsuleTimelineReading(branch);
+    const effects = (branch?.effects ?? []).filter((e) => timeline === undefined || !timeline.parts.includes(e));
     const variable = branch !== undefined ?
       variablePartsForBranch(branch) :
       {cost: [], gain: [], choice: [], suppressCostIcons: new Set<string>(), suppressGainIcons: new Set<string>()};
@@ -932,6 +940,7 @@ function buildTiles(
       branch,
       costEffects: effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon)),
       gainEffects: effects.filter((e) => e.direction === 'gain' && !variable.suppressGainIcons.has(e.icon)),
+      ...(timeline !== undefined ? {timeline: {effect: timeline.effect, moves: timeline.moves}} : {}),
       variableCost: variable.cost,
       variableGain: variable.gain,
       variableChoice: variable.choice,

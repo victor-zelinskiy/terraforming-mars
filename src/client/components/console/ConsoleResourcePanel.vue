@@ -673,8 +673,10 @@ export default defineComponent({
         return groups;
       }
       return groups.map((g) => {
+        // SIGNED: a spend that leaves a card on its own flight (TR28's two fighters) is held as a negative —
+        // the satellite keeps them until the chip departs.
         const held = heldCardResource(cardResourceKey(g.resource));
-        return held > 0 ? {...g, total: Math.max(0, g.total - held)} : g;
+        return held !== 0 ? {...g, total: Math.max(0, g.total - held)} : g;
       });
     },
     /** The Information Workspace is up (open or still dismissing) — the

@@ -85,6 +85,7 @@ import {
   tradeFleetState,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {fleetDockOwedCard, seedFleetDockHold} from '@/client/console/colonyTrade/fleetDockScene';
+import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {
   abortColonyTrade,
   detectColonyTrade,
@@ -587,6 +588,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // A card reward the landing response did not pay yet (TR27: its target asked live, or parked behind another
   // question) is seeded again on the response that pays it — the trade's fleet has long since landed by then.
   seedFleetDockHold(tradeFleetState.active ? tradeFleetState.card : fleetDockOwedCard(), currentView(), newView);
+  // A CARD ACTION's rail half (PL-001 for actions — `consoleActionCommitRail.ts`): the branch's direct TR, the
+  // capsule moves of a timeline row (TR28) and the table's answer, held only when the two views keep the promise
+  // the press armed; the shell's handoff flies them.
+  seedActionCommitRail(currentView(), newView);
   seedHydroMarkerRewardHold();
   // The «Фора» window's gains — the ONE seeder that needs BOTH views: a claim
   // is armed at the press, but the window's AUTO-resolve is only knowable by
