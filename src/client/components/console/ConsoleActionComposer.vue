@@ -372,7 +372,8 @@
               <span v-else class="con-composer__branch-check con-composer__branch-check--off" aria-hidden="true">○</span>
               <div class="con-composer__branch-body">
                 <div class="con-composer__branch-formula">
-                  <template v-for="(eff, k) in branchView(item.pos).cost" :key="'c' + k">
+                  <!-- A price every variant shares is the action's, not this card's: printed once, in the formula above. -->
+                  <template v-for="(eff, k) in branchCostShown(item.pos)" :key="'c' + k">
                     <ActionEffectChip :effect="eff" />
                   </template>
                   <span v-for="(vc, k) in branchView(item.pos).variableCost" :key="'vc' + k" class="con-composer__varchip con-composer__varchip--spend">
@@ -884,6 +885,8 @@ import {
   stepOfChoice,
   cardPickAskKey,
   cardPickRoleKey,
+  // The price every variant shares — printed once, on the price side.
+  commonVariantCost,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
@@ -1651,8 +1654,24 @@ export default defineComponent({
     /** The hero is the selected/single branch's live formula (multi-branch
      *  option cards carry their own chips → no hero until one is chosen). */
     showHero(): boolean {
-      return this.selectedBranch !== undefined &&
-        (this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0 || this.heroTimeline !== undefined);
+      if (this.selectedBranch === undefined) {
+        // The variants' COMMON price is the action's: «Будет списано» states it before a variant is chosen (PL-074).
+        return this.commonCost.length > 0;
+      }
+      return this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0 || this.heroTimeline !== undefined;
+    },
+    /**
+     * THE PRICE EVERY OFFERED VARIANT SHARES (PL-074 — `commonVariantCost`): printed once, on the formula's price
+     * side, and taken off the variant cards, which then read only what each GIVES. `[]` — no common price.
+     */
+    commonCost(): ReadonlyArray<ActionEffect> {
+      if (!this.needBranchRow) {
+        return [];
+      }
+      return commonVariantCost(this.positions.map((pos) => {
+        const v = this.branchView(pos);
+        return {cost: v.cost, variableCost: v.variableCost.length, rest: v.gain.length + v.variableGain.length + v.variableChoice.length};
+      }));
     },
     /** The repeat-action choice (Viron) — a SelectCard of already-used actions
      *  filled by the repeat pick surface, not captured like a normal step. */
@@ -2009,7 +2028,7 @@ export default defineComponent({
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
       if (branch === undefined) {
-        return [];
+        return this.commonCost;
       }
       const variable = variablePartsForBranch(branch);
       const timeline = this.heroTimeline?.parts ?? [];
@@ -3092,9 +3111,13 @@ export default defineComponent({
       }
       return {cost, gain, variableCost: variable.cost, variableGain: variable.gain, variableChoice: variable.choice, empty: !hasChips && needs === '', needs};
     },
+    /** The price chips THIS variant card prints — none when the price is every variant's (`commonCost`). */
+    branchCostShown(pos: number): ReadonlyArray<ActionEffect> {
+      return this.commonCost.length > 0 ? [] : this.branchView(pos).cost;
+    },
     branchHasBothSides(pos: number): boolean {
       const v = this.branchView(pos);
-      const c = v.cost.length + v.variableCost.length > 0;
+      const c = this.branchCostShown(pos).length + v.variableCost.length > 0;
       const g = v.gain.length + v.variableGain.length > 0;
       return c && g;
     },

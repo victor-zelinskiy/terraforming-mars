@@ -62,8 +62,11 @@ describe('ConsoleActionComposer — premium render', () => {
     });
     // Two premium branch option cards (the radiogroup) — not a "choose option" row.
     expect(w.findAll('.con-composer__branch')).to.have.length(2);
-    // Each branch renders its cost/gain chips (2 per branch = 4 total).
-    expect(w.findAll('.con-composer__branch .action-effect-chip')).to.have.length(4);
+    // Each branch renders its RESULT chip; the 4 M€ every variant shares is the action's price, printed ONCE in
+    // the formula's «Будет списано» (PL-074) — never on each card.
+    expect(w.findAll('.con-composer__branch .action-effect-chip')).to.have.length(2);
+    expect(w.findAll('.con-composer__branch .action-effect-chip--cost')).to.have.length(0);
+    expect(w.findAll('.con-composer__hero .action-effect-chip--cost')).to.have.length(1);
     // NONE fall back to a bare title (all have chips).
     expect(w.findAll('.con-composer__branch-title')).to.have.length(0);
     // The old "ACTION OPTION → выберите вариант" review row is gone.

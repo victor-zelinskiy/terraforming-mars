@@ -22,6 +22,7 @@ import {
   stepOfChoice,
   cardPickAskKey,
   cardPickRoleKey,
+  commonVariantCost,
 } from '@/client/console/consoleActionComposer';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 
@@ -191,6 +192,19 @@ describe('consoleActionComposer', () => {
       expect(cardPickAskKey(0)).eq('Choose a card');
       expect([cardPickRoleKey(-1), cardPickRoleKey(1), cardPickRoleKey(undefined)], 'the answered row names the role too')
         .deep.eq(['Source card', 'Receiving card', 'Selected card']);
+    });
+
+    it('PL-074: a price EVERY variant shares is the ACTION\'s — printed once; anything else keeps the cards whole', () => {
+      const fighter = {direction: 'cost', icon: 'fighter', amount: 1};
+      const v = (cost: Array<unknown>, rest = 1, variableCost = 0) => ({cost, rest, variableCost});
+      // TR29: −1 fighter → 2 titanium OR → 1 mech.
+      expect(commonVariantCost([v([fighter]), v([fighter])])).deep.eq([fighter]);
+      expect(commonVariantCost([v([fighter])]), 'one variant is not a choice').deep.eq([]);
+      expect(commonVariantCost([v([fighter]), v([{...fighter, amount: 2}])]), 'a different price').deep.eq([]);
+      expect(commonVariantCost([v([fighter]), v([fighter, {direction: 'cost', icon: 'megacredits', amount: 3}])]), 'a price plus more').deep.eq([]);
+      expect(commonVariantCost([v([]), v([])]), 'no price at all').deep.eq([]);
+      expect(commonVariantCost([v([fighter]), v([fighter], 1, 1)]), 'a variable price of its own').deep.eq([]);
+      expect(commonVariantCost([v([fighter]), v([fighter], 0)]), 'a variant whose whole formula IS the price keeps it').deep.eq([]);
     });
 
     it('spendHeat preSteps become pre-scope choices', () => {

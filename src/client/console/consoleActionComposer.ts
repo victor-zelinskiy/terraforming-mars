@@ -180,6 +180,37 @@ export function cardPickAskKey(amount: number | undefined): string {
   return 'Choose a card';
 }
 
+/**
+ * THE PRICE EVERY VARIANT SHARES — printed ONCE, on the price side (PL-074).
+ *
+ * «Утилизация космолётов» asks −1 fighter for EITHER result, and the composer
+ * printed it three times: on each variant card and again in the formula. The
+ * variants differ only by what they GIVE, so a card that repeats the common
+ * price makes the player read the same chip twice to find the one difference.
+ * When every offered variant carries the SAME fixed price (same chips, in the
+ * same order) the price is the action's, not the variant's: the variant cards
+ * read only their result and the formula's «Будет списано» states it — before
+ * a variant is chosen too.
+ *
+ * Only when it is honest: one variant is not a choice; a variant with a
+ * variable price of its own is not «the same price»; and a variant that would
+ * be left with nothing to read (its whole formula IS the price) keeps it.
+ * `[]` = no common price, the cards stay whole.
+ */
+export function commonVariantCost<T>(variants: ReadonlyArray<{cost: ReadonlyArray<T>, variableCost: number, rest: number}>): ReadonlyArray<T> {
+  if (variants.length < 2) {
+    return [];
+  }
+  const first = variants[0].cost;
+  if (first.length === 0) {
+    return [];
+  }
+  const key = (cost: ReadonlyArray<T>) => JSON.stringify(cost);
+  const shared = key(first);
+  const common = variants.every((v) => v.variableCost === 0 && v.rest > 0 && key(v.cost) === shared);
+  return common ? first : [];
+}
+
 /** The selected branch's choices: the direct optionInput + every input step. */
 export function branchChoices(branch: ActionPreviewBranch | undefined): Array<ComposerChoice> {
   if (branch === undefined) {
