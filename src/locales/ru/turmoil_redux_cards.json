@@ -101,5 +101,12 @@
     "Requires Unity to be ruling or that you have 2 delegates there. Place a city tile NEXT TO THE VENUS TRACK.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Выложите тайл города РЯДОМ С ТРЕКОМ ВЕНЕРЫ.",
 
     "Earth Army Contract": "Контракт с армией Земли",
-    "Action: Add 1 fighter to this card. If there are at least 2 fighters here, discard 2 of them to gain 1 TR.": "Действие: положите 1 истребитель на эту карту. Если здесь не меньше 2 истребителей, сбросьте 2 из них и получите 1 РТ."
+    "Action: Add 1 fighter to this card. If there are at least 2 fighters here, discard 2 of them to gain 1 TR.": "Действие: положите 1 истребитель на эту карту. Если здесь не меньше 2 истребителей, сбросьте 2 из них и получите 1 РТ.",
+
+    "Spaceship Recycling": "Утилизация космолётов",
+    "Action: Spend 1 fighter from ANY of your cards to gain 2 titanium OR to add 1 mech resource to ANY card.": "Действие: потратьте 1 истребитель с ЛЮБОЙ своей карты, чтобы получить 2 титана ИЛИ положить 1 мех на ЛЮБУЮ карту.",
+    "Requires Unity to be ruling or that you have 2 delegates there. Add 2 fighter resources to this card.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Положите на эту карту 2 истребителя.",
+    "Select card to spend 1 fighter from": "Выберите карту, с которой потратить 1 истребитель",
+    "Add 1 mech to any card": "Положите 1 мех на любую карту",
+    "No card of yours can hold mechs": "Нет вашей карты, которая примет мех"
 }

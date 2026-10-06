@@ -1099,6 +1099,7 @@ export enum CardName {
   UNMI_LINER = 'UNMI Liner',
   AURORA_STATION = 'Aurora Station',
   EARTH_ARMY_CONTRACT = 'Earth Army Contract',
+  SPACESHIP_RECYCLING = 'Spaceship Recycling',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

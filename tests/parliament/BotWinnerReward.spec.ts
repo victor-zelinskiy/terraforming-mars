@@ -26,6 +26,7 @@ import {testAutomaGame} from '../automa/AutomaTestGame';
 import {TestPlayer} from '../TestPlayer';
 import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
 import {answerGate, gatePromptOf, REDS_STAND_IN, seatResolution} from './parliamentArrange';
+import {ColonyName} from '../../src/common/colonies/ColonyName';
 
 /**
  * THE BOT AS THE WINNING PLAYER (docs/TURMOIL_REDUX_MARSBOT.md §4, stage Э2):
@@ -259,7 +260,10 @@ describe('BotWinnerReward — the bot as the winning player', () => {
 
   describe('RX09 Colony Contest — a colony by the bot\'s own build', () => {
     it('the bot builds a colony (flip-to-pick, two storage resources, no M€) and the record names the tile', () => {
-      const t = seated(COLONY_CONTEST_ID);
+      // Europa is the rule's ONE exception (an ocean and its TR instead of the storage — the ruling Greens then pay
+      // 2 M€): the flip may land anywhere the deal put a tile, so the exception is taken off the table, never assumed
+      // away (a new card in the Redux deck once moved the flip onto it — TR29).
+      const t = seated(COLONY_CONTEST_ID, ({game}) => game.colonies.filter((colony) => colony.name === ColonyName.EUROPA).forEach((colony) => (colony.isActive = false)));
       botWinsTheVote(t);
       const cubes = () => t.game.colonies.reduce((sum, colony) => sum + colony.colonies.filter((id) => id === t.bot.id).length, 0);
       expect(cubes()).eq(0);

@@ -372,6 +372,7 @@ describe('card information model', function() {
       ['Deimos Down:promo', '"adjacent to no city tile" = "not next to a city", shown'],
       ['Neutralizer Factory', '"Venus track" = "Raise Venus …", shown'],
       ['AstroDrill', '"3 asteroid resources" = "3 asteroids on this card" — same starting card-resources, only the noun differs'],
+      ['Spaceship Recycling', '"2 fighter resources" = "Add 2 fighters to this card." — the play\'s card resources, only the noun differs'],
       ['PolderTECH Dutch', '"next to each other" = "an adjacent greenery tile", shown; only the wording differs'],
     ]);
 

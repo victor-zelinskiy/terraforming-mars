@@ -34,6 +34,8 @@ export const notEnoughPlants = (player: IPlayer): UnplayableReason =>
   ({type: 'resource', message: 'Not enough plants', resource: Resource.PLANTS, current: player.plants});
 /** No card holding a floater to spend (FLOATER is a card resource, so no stock icon). */
 export const notEnoughFloaters = (): UnplayableReason => ({type: 'count', message: 'Not enough floaters'});
+/** No card of the player's own holds a fighter to spend (FIGHTER is a card resource, so no stock icon). */
+export const notEnoughFighters = (): UnplayableReason => ({type: 'count', message: 'No fighters on your cards'});
 export const deckEmpty = (): UnplayableReason => ({type: 'rule', message: 'The deck is empty'});
 /** A card-specific reason naming the exact unmet condition (see each card's hook). */
 export const ruleReason = (message: string): UnplayableReason => ({type: 'rule', message});

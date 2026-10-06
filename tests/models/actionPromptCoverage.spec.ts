@@ -588,8 +588,10 @@ describe('action prompt coverage (the pre-collect contract)', () => {
         if (preview.kind === 'dynamic') {
           continue;
         }
-        // `preSteps` are spend-heat only, and no profile here owns a heat-source
-        // CHOICE (no Stormcraft floaters) — a preStep prompt cannot arrive.
+        // `preSteps` are the CARD-LEVEL asks before the variant (a heat source,
+        // a fighter's source card — TR29): the live chain asks them FIRST, so
+        // the walk answers them before it resolves the branch's own option.
+        const preQueue = (preview.preSteps ?? []).filter((s) => s.kind === 'input' || s.kind === 'spendHeat');
         const available = preview.branches.filter((b) => b.available);
 
         for (const branch of available) {
@@ -603,6 +605,28 @@ describe('action prompt coverage (the pre-collect contract)', () => {
             current = churn(b.card.action(b.player), b.player);
           } catch {
             continue; // a throwing action() is the other checks' business
+          }
+
+          // ── The card-level steps, in their declared order ──
+          let preWalked = true;
+          for (const pre of preQueue) {
+            if (pre.kind !== 'input' && pre.kind !== 'spendHeat') {
+              continue;
+            }
+            if (current === undefined || current.type !== pre.input.type) {
+              leaking.set(a.card.name, `${where} :: declared a '${pre.input.type}' pre-step but the server asks ${current === undefined ? 'nothing' : shapeOf(current)} — order/shape drift`);
+              preWalked = false;
+              break;
+            }
+            try {
+              current = answerLive(current, b.player);
+            } catch {
+              preWalked = false; // unanswerable from here — unverifiable, not a leak
+              break;
+            }
+          }
+          if (!preWalked) {
+            continue;
           }
 
           // ── Resolve the branch's own option ──

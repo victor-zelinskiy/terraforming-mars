@@ -29,6 +29,7 @@ import {ExclusiveColony} from './ExclusiveColony';
 import {UnmiLiner} from './UnmiLiner';
 import {AuroraStation} from './AuroraStation';
 import {EarthArmyContract} from './EarthArmyContract';
+import {SpaceshipRecycling} from './SpaceshipRecycling';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -151,5 +152,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // icon. The set's first action with a CONDITIONAL second beat: +1 fighter, and at two, −2 fighters for 1 TR.
     // Unity's plate.
     [CardName.EARTH_ARMY_CONTRACT]: {Factory: EarthArmyContract},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The set's first action
+    // with ONE price taken from a card the player chooses and TWO outcomes (+2 titanium OR a mech on any card).
+    // Unity's plate.
+    [CardName.SPACESHIP_RECYCLING]: {Factory: SpaceshipRecycling},
   },
 });

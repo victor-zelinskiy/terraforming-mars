@@ -27,6 +27,12 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
   private autoselect: boolean;
   private title: string | Message;
   private log: boolean;
+  /**
+   * A removal from the player's OWN card writes the class's own SPEND line («spent 1 fighter from X») unless the
+   * caller writes a more specific line of its own (`log: false`). Separate from `log`, whose default (false)
+   * belongs to the attack path.
+   */
+  private logSpend: boolean;
   /** WHO caused this — attached to every prompt this deferred builds. */
   private cause: ChoiceContextSource | undefined;
 
@@ -60,11 +66,16 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     this.blockable = options?.blockable ?? true;
     this.autoselect = options?.autoselect ?? true;
     this.log = options?.log ?? false;
+    this.logSpend = options?.log !== false;
     this.cause = options?.cause;
     // A `message()` (NOT a raw template literal) so the title is a translatable
     // key — the ${1} resource token is translated client-side, and the template
-    // 'Select card to remove ${0} ${1}' has a single stable i18n key.
-    this.title = options?.title ?? message('Select card to remove ${0} ${1}', (b) => b.number(count).string(cardResource ?? ''));
+    // 'Select card to remove ${0} ${1}' has a single stable i18n key. Taking from
+    // your OWN card is a cost you chose, never an attack on yourself: the verb
+    // says so (title, button, journal line) for every caller of the class.
+    this.title = options?.title ?? (this.source === 'self' ?
+      message('Select card to spend ${0} ${1} from', (b) => b.number(count).string(cardResource ?? '')) :
+      message('Select card to remove ${0} ${1}', (b) => b.number(count).string(cardResource ?? '')));
     if (this.source === 'self') {
       this.priority = Priority.LOSE_RESOURCE_OR_PRODUCTION;
       if (this.blockable) {
@@ -153,10 +164,15 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       new SelectOption('Do not remove').withMetadata(skip())));
   }
 
+  /** The picker's verb: a cost from your own card is SPENT, an attack REMOVES. */
+  private buttonLabel(): string {
+    return this.source === 'self' ? 'Spend resource(s)' : 'Remove resource(s)';
+  }
+
   private buildSelectCard(cards: Array<ICard>, disabledCards: Array<{card: ICard, reason: string}>) {
     return this.withCause(new SelectCard(
       this.title,
-      'Remove resource(s)',
+      this.buttonLabel(),
       cards,
       {showOwner: this.source !== 'self', disabled: disabledCards.length > 0 ? disabledCards : undefined})
       .andThen(([card]) => {
@@ -305,7 +321,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
     return this.withCause(new SelectCard(
       this.title,
-      'Remove resource(s)',
+      this.buttonLabel(),
       cards,
       {showOwner: this.source !== 'self', disabled: disabledCards.length > 0 ? disabledCards : undefined}))
       .toModel(this.player);
@@ -316,7 +332,27 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
 
     // TODO(kberg): Consolidate the blockable in maybeBlock.
     if (this.blockable === false) {
-      target.removeResourceFrom(card, this.count, {removingPlayer: this.player});
+      if (target === this.player) {
+        // A COST paid from your own card: the journal says «spent N <resource> from <card>», never the attack's
+        // «X removed N resource(s) from X's <card>». A caller with a more specific line of its own passes `log: false`.
+        const before = card.resourceCount;
+        target.removeResourceFrom(card, this.count, {removingPlayer: this.player, log: false});
+        const spent = before - card.resourceCount;
+        if (this.logSpend && spent > 0) {
+          const resource = card.resourceType;
+          this.player.game.log('${0} spent ${1} ${2} from ${3}', (b) => {
+            b.player(this.player).number(spent);
+            if (resource !== undefined) {
+              b.cardResource(resource);
+            } else {
+              b.string('resources');
+            }
+            b.card(card);
+          });
+        }
+      } else {
+        target.removeResourceFrom(card, this.count, {removingPlayer: this.player});
+      }
       this.cb({card: card, owner: target, proceed: true});
       return;
     }
