@@ -48,14 +48,19 @@ function clampValue(v: number, lo: number, hi: number): number {
 // These are the bespoke counterpart of `effectsForBehavior` in actionPreview.ts:
 // a hook declares its branch's costs/gains with these one-liners.
 
-/** Spend N of the card's OWN stored resource (e.g. 2 floaters from this card). */
-export function cardCost(card: ICard, amount: number): ActionEffect {
+/**
+ * Spend N of the card's OWN stored resource (e.g. 2 floaters from this card).
+ * `from` — the count the spend starts from when an EARLIER move of the same
+ * action lands on the card first (TR28 Earth Army Contract: «+1 here, then −2
+ * here» — the spend reads `c + 1 → c − 1`, never a `c → c − 2` no frame shows).
+ */
+export function cardCost(card: ICard, amount: number, from: number = card.resourceCount): ActionEffect {
   return {
     direction: 'cost',
     icon: card.resourceType !== undefined ? cardResourceIcon(card.resourceType) : 'resources',
     amount,
-    current: card.resourceCount,
-    resulting: Math.max(0, card.resourceCount - amount),
+    current: from,
+    resulting: Math.max(0, from - amount),
     note: 'on this card',
   };
 }

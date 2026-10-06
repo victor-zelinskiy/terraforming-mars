@@ -1098,6 +1098,7 @@ export enum CardName {
   EXCLUSIVE_COLONY = 'Exclusive Colony',
   UNMI_LINER = 'UNMI Liner',
   AURORA_STATION = 'Aurora Station',
+  EARTH_ARMY_CONTRACT = 'Earth Army Contract',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

@@ -28,6 +28,7 @@ import {VenusianCensus} from './VenusianCensus';
 import {ExclusiveColony} from './ExclusiveColony';
 import {UnmiLiner} from './UnmiLiner';
 import {AuroraStation} from './AuroraStation';
+import {EarthArmyContract} from './EarthArmyContract';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -146,5 +147,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Venus Next icon, yet the card cannot work without it (a Venus tag, «the Venus track», «any Venus card»):
     // owner's decision 3 gates it on BOTH. The purple Turmoil symbol below it is the module itself. Unity's plate.
     [CardName.AURORA_STATION]: {Factory: AuroraStation, compatibility: ['colonies', 'venus']},
+    // Only the purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲, no Venus
+    // icon. The set's first action with a CONDITIONAL second beat: +1 fighter, and at two, −2 fighters for 1 TR.
+    // Unity's plate.
+    [CardName.EARTH_ARMY_CONTRACT]: {Factory: EarthArmyContract},
   },
 });
