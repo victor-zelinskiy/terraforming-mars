@@ -145,6 +145,10 @@ export const consoleColoniesUi = reactive({
    * `receiptOn` reading): no cursor and no verbs, so the bar states the result instead of offering the grid's verbs.
    */
   receipt: false,
+  /** Focus stage: R3 «Эффекты» is a verb right now — a forecast with facts, the setup level, nothing held (PL-066). */
+  forecastAvailable: false,
+  /** Focus stage: the «Эффекты» layer is OPEN — the bar is the explorer's (`forecastExplorerUi('colony').barCommands`). */
+  forecastOpen: false,
 });
 
 /**
@@ -210,6 +214,8 @@ export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.composerDecisions = false;
   consoleColoniesUi.composerMixAdjustable = false;
   consoleColoniesUi.receipt = false;
+  consoleColoniesUi.forecastAvailable = false;
+  consoleColoniesUi.forecastOpen = false;
 }
 
 // ── THE COLONY WORKSPACE FLOW — browse ⇄ focus, one typed state ─────────────

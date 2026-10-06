@@ -12,6 +12,7 @@ import {Message} from '../logs/Message';
 // THIS file — a value import would close that cycle at runtime (the same reason
 // `PlayerInputModel` type-imports `ActionEffect`).
 import type {ActionEffect} from './ActionPreviewModel';
+import type {EffectForecast} from './EffectForecastModel';
 
 /**
  * The GUARANTEED result of a standard project, computed server-side from the
@@ -30,6 +31,14 @@ import type {ActionEffect} from './ActionPreviewModel';
 export interface StandardProjectPreviewModel {
     effects: ReadonlyArray<ActionEffect>;
     target?: 'space' | 'colony';
+    /**
+     * WHAT THE TABLE ANSWERS to the project's own bump (the ruling Greens' 2 M€
+     * on an asteroid's TR step, a card that reacts to the scale) — the forecast
+     * engine's pass over `effects` (`effectForecast.rewardReactionForecast`),
+     * read by the workspace's «⚡ сработает» line and its R3 «Эффекты» layer.
+     * Absent = nothing reacts. A placement's answer is the cell dossier's.
+     */
+    forecast?: EffectForecast;
 }
 
 export interface CardModel {

@@ -131,7 +131,9 @@ export const RATING_RAIL_KEY = 'rating';
 export function railRewardSpecs(effects: ReadonlyArray<ActionEffect>): Array<ResourceTransferSpec> {
   const out: Array<ResourceTransferSpec> = [];
   for (const e of effects) {
-    if (e.direction !== 'gain' || e.amount <= 0 || e.unit !== undefined) {
+    // An IMPLIED chip restates a scale's own step (an ocean's TR beside the ocean): that tick belongs to the board's
+    // story, never to a rail flight of its own.
+    if (e.direction !== 'gain' || e.amount <= 0 || e.unit !== undefined || e.implied === true) {
       continue;
     }
     if (e.icon === 'tr' && e.note === undefined) {

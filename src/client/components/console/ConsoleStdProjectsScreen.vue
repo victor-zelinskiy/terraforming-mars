@@ -34,9 +34,21 @@
            untouched — and teleports into the always-present embed zone. Never
            a `v-if` swap (embed rules; a teleport target must exist at the
            child's mount). ── -->
-      <div class="con-stdp__stagewrap">
+      <div class="con-stdp__stagewrap" data-forecast-host>
+        <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this workspace, the composers' own (PL-066): the browse PARKS
+             in place, the explorer unfolds out of the foot's «⚡ сработает» door with the FOCUSED project's answer
+             (the ruling Greens' 2 M€ on an asteroid's degree, a card that reacts to the scale), B / R3 fold it
+             back with the cursor where it stood; the crumb gains «ЭФФЕКТЫ». The shell routes the pad here. ── -->
+        <ConsoleForecastLayer ref="forecastLayer"
+                              host="stdp"
+                              :forecast="focusedForecast"
+                              :cards="thisPlayer?.tableau ?? []"
+                              :color="thisPlayer?.color ?? ''"
+                              :players="players"
+                              :statsByColor="forecastStatsByColor" />
         <div class="con-stdp__browse" :class="{'con-stdp__browse--parked': stepUp}"
-             :aria-hidden="stepUp ? 'true' : undefined">
+             :aria-hidden="stepUp ? 'true' : undefined"
+             data-forecast-browse>
           <!-- The dashboard: a 2-column grid — every basic action is a focusable
                card (Patent sale included, Steam-version parity); a disabled card
                still explains itself via the footer context. -->
@@ -121,6 +133,9 @@
                   <ActionEffectChip v-for="e in focusedChips" :key="chipKey(e)" :effect="e" />
                 </transition-group>
                 <span v-else-if="commitPhase === 'idle'" class="con-stdp__context-state">{{ $t('Ready to use now') }}</span>
+                <!-- WHAT THE TABLE ANSWERS to the focused project's own bump — the composers' «⚡ сработает» group, and
+                     the DOOR of the R3 «Эффекты» layer (PL-066). -->
+                <ConsoleForecastDoor :reaction="focusedReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
                 <span v-if="nextStepKey !== undefined" class="con-stdp__context-next">› {{ $t(nextStepKey) }}</span>
                 <span v-for="w in focusedWarnings" :key="w" class="con-stdp__context-warning">⚠ {{ $t(warningTextOf(w)) }}</span>
               </template>
@@ -162,6 +177,19 @@ import {gsap} from 'gsap';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleForecastDoor from '@/client/components/console/ConsoleForecastDoor.vue';
+import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
+import {ForecastSeat} from '@/client/components/console/ConsoleEffectsExplorer.vue';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {EffectOverlayStat} from '@/common/events/aggregate';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {forecastLayerAvailable, reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
+import {closeEffectForecastLayer, effectForecastOpen, forecastStageText} from '@/client/console/consoleEffectForecast';
+import {
+  foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
+} from '@/client/console/consoleForecastHost';
+import {VersionedView} from '@/client/console/gameStateVersion';
 import {translateTextWithParams, translateText} from '@/client/directives/i18n';
 import {StdProjectItem} from '@/client/console/consoleQuickModel';
 import {
@@ -178,7 +206,7 @@ const STDP_EMBED_SLOT = '.con-stdp [data-embed-slot="stdp-step"]';
 
 export default defineComponent({
   name: 'ConsoleStdProjectsScreen',
-  components: {ConsoleWsHead, ConsoleScrollArea, ActionEffectChip},
+  components: {ConsoleWsHead, ConsoleScrollArea, ActionEffectChip, ConsoleForecastDoor, ConsoleForecastLayer},
   props: {
     items: {type: Array as PropType<ReadonlyArray<StdProjectItem>>, required: true},
     index: {type: Number, required: true},
@@ -197,6 +225,18 @@ export default defineComponent({
      * derivation — and the browse layer parks on it.
      */
     stepUp: {type: Boolean, default: false},
+    /** The viewer (the layer's own tableau) and every seat (the explorer's names and colours) — PL-066. */
+    thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
+    players: {type: Array as PropType<ReadonlyArray<ForecastSeat>>, default: () => []},
+    /** The viewer's versioned view — the reacting seats' effect stats are asked with it. */
+    statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
+  },
+  data() {
+    return {
+      /** The one-shot COMMIT flare on the «⚡ сработает» door (PL-066) and its clock (a plain handle). */
+      forecastPulse: false,
+      pulseCall: undefined as {kill: () => void} | undefined,
+    };
   },
   computed: {
     focused(): StdProjectItem | undefined {
@@ -284,20 +324,55 @@ export default defineComponent({
       return workspaceStackCrumb()?.subject?.text ?? '';
     },
     crumbStage(): string {
-      return workspaceStackCrumb()?.stage ?? '';
+      const stage = workspaceStackCrumb()?.stage ?? '';
+      // The R3 «Эффекты» layer is a level INSIDE this workspace: the tail gains «ЭФФЕКТЫ» (+ the source card at its
+      // detail) and gives it back on B / R3 — a composed, pre-translated string (PL-066).
+      return forecastStageText('stdp', stage) ?? stage;
     },
     /** A hosted step may publish a composed, already-translated tail
-     *  («ГАНИМЕД · ТОРГОВЛЯ») — mirror the stack's own convention. */
+     *  («ГАНИМЕД · ТОРГОВЛЯ») — mirror the stack's own convention; the
+     *  layer's tail is composed too. */
     crumbStageRaw(): boolean {
-      return false;
+      return this.fxOpen;
+    },
+    // ── THE EFFECT FORECAST (rides inside the focused project's preview) — the R3 «Эффекты» layer (PL-066) ──
+    focusedForecast(): EffectForecast | undefined {
+      return this.focused?.preview?.forecast;
+    },
+    focusedReaction(): VariantReaction {
+      return reactionChipsOf(this.focusedForecast?.facts ?? []);
+    },
+    forecastAvailable(): boolean {
+      return forecastLayerAvailable(this.focusedForecast);
+    },
+    /** R3 is the BROWSE level's verb — silent under a hosted step and through a commit's beats. */
+    forecastCanOpen(): boolean {
+      return this.forecastAvailable && !this.stepUp && this.commitPhase === 'idle';
+    },
+    fxOpen(): boolean {
+      return effectForecastOpen('stdp');
+    },
+    forecastOwnerColors(): ReadonlyArray<string> {
+      return forecastOwnerColors(this.focusedForecast, this.players);
+    },
+    forecastStatsByColor(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      return forecastStatsByColor(this.forecastOwnerColors);
     },
     crumbCommitted(): boolean {
       return workspaceStackCrumb()?.committed === true;
     },
   },
   watch: {
-    /** Overflow is a fallback — keep the focus visible there. */
+    /** The layer lives ONLY on the browse level — a hosted step, a commit and a focus move off the answering project fold it instantly. */
+    forecastCanOpen(can: boolean): void {
+      if (!can) {
+        foldForecastHost('stdp');
+      }
+    },
+    /** Overflow is a fallback — keep the focus visible there. The cursor moved to another project: its answer is
+     *  another forecast — the layer folds, the next R3 opens that one (PL-066). */
     index() {
+      foldForecastHost('stdp');
       void this.$nextTick(() => {
         const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
@@ -329,6 +404,20 @@ export default defineComponent({
     },
   },
   methods: {
+    /** R3 / a click on the «⚡ сработает» door — the WORKSPACE DESCEND into the layer (PL-066). The shell calls it on R3. */
+    openForecastLayer(): void {
+      if (!this.forecastCanOpen || this.fxOpen) {
+        return;
+      }
+      this.pulseCall = pulseForecastDoor((on) => {
+        this.forecastPulse = on;
+      }, this.pulseCall);
+      openForecastHost('stdp', this.$el as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
+    },
+    /** Input while the layer is open (the shell routes it here): B folds one level, R3 closes the whole layer. */
+    forecastIntent(intent: GamepadIntent): void {
+      forecastHostIntent('stdp', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+    },
     warningTextOf(w: Warning): string {
       return warningText(w);
     },
@@ -355,6 +444,9 @@ export default defineComponent({
     setWorkspaceFrameSlot('standard-projects', STDP_EMBED_SLOT);
   },
   beforeUnmount() {
+    closeEffectForecastLayer('stdp');
+    this.pulseCall?.kill();
+    this.pulseCall = undefined;
     setWorkspaceFrameSlot('standard-projects', '');
   },
 });

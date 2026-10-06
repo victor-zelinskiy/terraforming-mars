@@ -21,6 +21,11 @@ import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {InputResponse} from '../../src/common/inputs/InputResponse';
+import {MeatIndustry} from '../../src/server/cards/promo/MeatIndustry';
+import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
+import {Birds} from '../../src/server/cards/base/Birds';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {Phase} from '../../src/common/Phase';
 
 describe('colonyTradePreview', () => {
   let game: IGame;
@@ -312,5 +317,83 @@ describe('colonyTradePreview', () => {
     const before = JSON.stringify(game.serialize());
     buildColonyTradePreview(player, enceladus);
     expect(JSON.stringify(game.serialize())).to.eq(before);
+  });
+});
+
+/**
+ * PL-066 (2026-10-06): the colony stage used to show the trade's income and the build's bonus and nothing of what
+ * the TABLE answers to them — the dock's stage did (TR26). The preview now carries the forecast engine's own
+ * answer for both acts, with no source card: the stage's «⚡ сработает» line and its R3 «Эффекты» layer read it.
+ */
+describe('colonyTradePreview — what the TABLE answers (the forecast, PL-066)', () => {
+  const table = (redux: boolean) => {
+    const [game, player, player2] = testGame(2, {
+      coloniesExtension: true,
+      ...(redux ? {turmoilReduxExpansion: true} : {}),
+      customColoniesList: [ColonyName.LUNA, ColonyName.MIRANDA, ColonyName.IO, ColonyName.EUROPA, ColonyName.CALLISTO],
+    });
+    game.phase = Phase.ACTION;
+    const colony = (name: ColonyName) => game.colonies.find((c) => c.name === name)!;
+    for (const c of game.colonies) {
+      c.isActive = true;
+    }
+    return {game, player, player2, colony};
+  };
+
+  it('a trade nothing reacts to carries no forecast — absent, never an empty object', () => {
+    const t = table(false);
+    expect(buildColonyTradePreview(t.player, t.colony(ColonyName.LUNA)).forecast).is.undefined;
+    expect(buildColonyTradePreview(t.player, t.colony(ColonyName.LUNA)).buildForecast).is.undefined;
+  });
+
+  it('a card-resource income with NO card to land on is LOST — the live income adds nothing, so nothing reacts and no forecast stands', () => {
+    const t = table(false);
+    const miranda = t.colony(ColonyName.MIRANDA);
+    miranda.trackPosition = 4;
+    t.player.playedCards.push(new MeatIndustry());
+    const preview = buildColonyTradePreview(t.player, miranda);
+    expect(preview.followUps.some((f) => f.kind === 'cardTarget' && f.lost), 'the preview itself says the animal is lost').is.true;
+    expect(preview.forecast).is.undefined;
+  });
+
+  it('a trade whose income lands on a card is answered by the resource reactor (Miranda\'s animals → Meat Industry)', () => {
+    const t = table(false);
+    const miranda = t.colony(ColonyName.MIRANDA);
+    miranda.trackPosition = 4;
+    t.player.playedCards.push(new MeatIndustry(), new Birds());
+    const preview = buildColonyTradePreview(t.player, miranda);
+    const facts = preview.forecast?.facts ?? [];
+    expect(facts.map((f) => f.source.name), 'the reactor is named').to.include(CardName.MEAT_INDUSTRY);
+    const fact = facts.find((f) => f.source.name === CardName.MEAT_INDUSTRY)!;
+    expect(fact.recipient.kind).eq('you');
+    expect(fact.effects.some((e) => e.icon === 'megacredits' && e.direction === 'gain'), 'Meat Industry pays M€ per animal').is.true;
+    expect(preview.forecast?.discounts.final, 'a trade has no price to discount').eq(preview.forecast?.discounts.base);
+    expect(preview.forecast?.paymentValues).deep.eq([]);
+  });
+
+  it('a BUILD is answered twice: the berth\'s bonus (Io: heat production → the ruling Greens\' M€ production) and the colony itself (Poseidon, another seat)', () => {
+    const t = table(true);
+    expect(t.game.parliament!.rulingParty(), 'a fresh Redux table: the Greens').eq(PartyName.GREENS);
+    t.player2.playedCards.push(new Poseidon());
+    const preview = buildColonyTradePreview(t.player, t.colony(ColonyName.IO));
+    const facts = preview.buildForecast?.facts ?? [];
+    const greens = facts.find((f) => f.source.kind === 'party' && f.source.name === PartyName.GREENS);
+    expect(greens, 'the Greens answer the heat production step').is.not.undefined;
+    expect(greens!.effects.some((e) => e.icon === 'megacredits' && e.note === 'production' && e.amount === 1)).is.true;
+    const poseidon = facts.find((f) => f.source.name === CardName.POSEIDON);
+    expect(poseidon, 'Poseidon answers the colony itself').is.not.undefined;
+    expect(poseidon!.recipient, 'addressed to its owner').deep.eq({kind: 'player', color: t.player2.color});
+    // The TRADE's forecast is the trade's alone — Io's heat is a stock, nothing answers it.
+    expect(preview.forecast).is.undefined;
+  });
+
+  it('no cube fits → no build forecast; the trade\'s stands', () => {
+    const t = table(true);
+    const io = t.colony(ColonyName.IO);
+    for (let i = 0; i < 12 && io.hasFreeTrackCell(); i++) {
+      io.colonies.push(i % 2 === 0 ? t.player.id : t.player2.id);
+    }
+    expect(io.hasFreeTrackCell(), 'the track is full').is.false;
+    expect(buildColonyTradePreview(t.player, io).buildForecast).is.undefined;
   });
 });

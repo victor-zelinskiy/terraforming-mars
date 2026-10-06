@@ -131,7 +131,7 @@ describe('ApiGameColonyTradePreview', () => {
       const oceans = game.board.getOceanSpaces().length;
       expect(preview.effects).to.deep.eq([
         {direction: 'gain', icon: 'oceans', amount: 1, current: oceans, resulting: oceans + 1},
-        {direction: 'gain', icon: 'tr', amount: 1, current: player.terraformRating, resulting: player.terraformRating + 1},
+        {direction: 'gain', icon: 'tr', amount: 1, current: player.terraformRating, resulting: player.terraformRating + 1, implied: true},
       ]);
       expect(preview.followUps).to.deep.eq([{kind: 'note', role: 'tradeReward', note: 'placeOcean'}]);
     });

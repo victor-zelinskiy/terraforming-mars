@@ -53,6 +53,15 @@ describe('ConsoleWsHead — the ONE workspace header', () => {
     expect(w.find('.con-wshead__step').text()).to.eq('Playing');
   });
 
+  it('renders a STAGE with no subject — a level inside the browse that carries no object (the standard projects: «ЭФФЕКТЫ», PL-066)', () => {
+    const w = head({root: 'Standard Projects', stage: 'Effects', stageRaw: true});
+    expect(w.find('.con-wshead__layer--deep').classes()).to.not.contain('con-wshead__layer--out');
+    expect(w.find('.con-wshead__subject').exists()).to.eq(false);
+    expect(w.find('.con-wshead__step').text()).to.eq('Effects');
+    // ROOT › STAGE: exactly one separator — never a «›» standing over an empty subject word.
+    expect(w.findAll('.con-wshead__layer--deep .con-wshead__sep').length).to.eq(1);
+  });
+
   it('renders a subject with NO stage — the crumb is honest before the step is published', () => {
     const w = head({root: 'Cards in hand', subject: 'AI Central'});
     expect(w.find('.con-wshead__subject').text()).to.eq('AI Central');

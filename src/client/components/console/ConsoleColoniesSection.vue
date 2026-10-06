@@ -412,6 +412,7 @@
                                    @path-offset="onFocusPathOffset"
                                    :thisPlayer="thisPlayer"
                                    :viewerColor="viewerColor"
+                                   :statsView="statsView"
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
                                    :trackMove="focusTrackMove"
@@ -1007,10 +1008,10 @@ export default defineComponent({
           return COLONY_CITY_STAGE;
         }
         const stage = this.focusState.stage !== '' ? this.focusState.stage : (this.focusState.intent === 'track' ? 'Track' : '');
-        // THE DOCK STAGE's R3 «Эффекты» layer is a level INSIDE the stage: the tail gains «· ЭФФЕКТЫ» (+ the source
-        // card at its detail) and gives it back on B / R3 — the composers' own rule (PL-060), a composed,
-        // pre-translated string.
-        return this.focusState.dock !== '' ? (forecastStageText('dock', stage) ?? stage) : stage;
+        // A STAGE's R3 «Эффекты» layer (the dock's — PL-060; the colony's — PL-066) is a level INSIDE the stage: the
+        // tail gains «· ЭФФЕКТЫ» (+ the source card at its detail) and gives it back on B / R3 — the composers' own
+        // rule, a composed, pre-translated string.
+        return forecastStageText(this.focusState.dock !== '' ? 'dock' : 'colony', stage) ?? stage;
       }
       // A «CITY» act with its stage closed: ANSWERED — the grid is the receipt of «… · ГОРОД»; still a QUESTION (B
       // from the stage) — the grid is the door again and the tail walks BACK to the name the door wore.

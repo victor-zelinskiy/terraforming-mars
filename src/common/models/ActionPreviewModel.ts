@@ -138,6 +138,14 @@ export type ActionEffect = {
    */
   host?: string;
   /**
+   * This chip RESTATES a step another chip of the same list already pays —
+   * an ocean's own TR drawn beside the ocean (Water Hauling's «[океан] · [РТ]»):
+   * the stage reads it, the effect forecast's GRANTS skip it (a scale step is
+   * a TR step for the raiser by the engine's own rule, so counting the chip
+   * too would pay the Greens twice). Never set on a chip that adds something.
+   */
+  implied?: boolean;
+  /**
    * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
    * the live BASIS of that computation — so the player sees WHY the amount is
    * what it is (e.g. `[{count: 3, label: 'Cities on Mars'}]` → "+3 M€ · Cities

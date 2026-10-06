@@ -9,11 +9,14 @@
  * payment and the cursor untouched — the same phrase the card-actions descent
  * and the effects explorer's own dossier speak.
  *
- * The THIRD host is the FLEET-DOCK STAGE (`ConsoleFleetDockStage` — a trade
+ * The other hosts are STAGES — the FLEET-DOCK STAGE (`ConsoleFleetDockStage` — a trade
  * whose destination is a card, TR06 / TR26 / TR27): its «⚡ сработает» group is
  * the same door, its layer the same level inside the stage (the colonies
  * section's crumb reads `forecastStageText('dock', …)`, the shell's dock bar
- * reads `forecastExplorerUi('dock').barCommands`).
+ * reads `forecastExplorerUi('dock').barCommands`), the COLONY STAGE (`'colony'` —
+ * a trade's income, a build's bonus; PL-066) and the STANDARD PROJECTS
+ * (`'stdp'`). Their shared phrase: `consoleForecastHost.ts` +
+ * `ConsoleForecastDoor` / `ConsoleForecastLayer`.
  *
  * This module holds the ONE fact everybody reads — «which composer has the
  * layer open» — so the crumb (the hand section / the card-actions head), the
@@ -25,7 +28,7 @@ import {reactive} from 'vue';
 import {translateText} from '@/client/directives/i18n';
 import {EffectsExplorerUi, createEffectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 
-export type EffectForecastHost = 'play' | 'action' | 'dock';
+export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp';
 
 export const consoleEffectForecastUi = reactive({
   /** The composer whose layer is OPEN (undefined = closed everywhere). */
@@ -38,6 +41,8 @@ const explorerUis: Record<EffectForecastHost, EffectsExplorerUi> = {
   play: createEffectsExplorerUi(),
   action: createEffectsExplorerUi(),
   dock: createEffectsExplorerUi(),
+  colony: createEffectsExplorerUi(),
+  stdp: createEffectsExplorerUi(),
 };
 
 export function forecastExplorerUi(host: EffectForecastHost): EffectsExplorerUi {
@@ -86,7 +91,8 @@ export function forecastStageText(host: EffectForecastHost, baseKey: string): st
   if (consoleEffectForecastUi.host !== host) {
     return undefined;
   }
-  const parts = [translateText(baseKey), translateText('Effects')];
+  // A host whose browse has no stage word of its own (the standard projects) gets the bare «ЭФФЕКТЫ».
+  const parts = [...(baseKey !== '' ? [translateText(baseKey)] : []), translateText('Effects')];
   const detail = explorerUis[host].detail;
   if (detail !== undefined) {
     parts.push(translateText(detail.cardName));

@@ -204,4 +204,21 @@ export type ColonyTradePreviewModel = TradePaymentPreviewModel & {
    * +3 M€) — shown in the outcome so the numbers add up visibly.
    */
   flatBonuses?: ReadonlyArray<{card: CardName, resource: string, amount: number}>;
+  /**
+   * WHAT THE TABLE ANSWERS to a TRADE here — the forecast engine's own pass
+   * over the income the trade pays at the effective position (the fixed part,
+   * the marker's income, the player's own colony bonuses, the flat modifiers):
+   * the reactors to a production step or a resource added to a card, the
+   * ruling party's effects, the enacted resolution's passive — the same twins
+   * the composers' «Сработает» row reads (`effectForecast.rewardReactionForecast`,
+   * with no source card). The stage's «⚡ сработает» line and its R3 «Эффекты»
+   * layer read this and nothing else. Absent = nothing reacts.
+   */
+  forecast?: EffectForecast;
+  /**
+   * The same answer for BUILDING here — the next berth's bonus plus the colony
+   * itself («when any colony is placed», every seat's reactors). Absent when
+   * nothing reacts or no cube fits.
+   */
+  buildForecast?: EffectForecast;
 };

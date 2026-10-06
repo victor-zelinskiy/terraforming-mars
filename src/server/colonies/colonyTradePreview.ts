@@ -1,6 +1,8 @@
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
-import {buildBenefitAt, tradeBenefitAt, colonyCardResources} from '../../common/colonies/ColonyMetadata';
+import {buildBenefitAt, tradeBenefitAt, tradeFixedIncome, colonyCardResources, ColonyMetadata} from '../../common/colonies/ColonyMetadata';
+import {Resource} from '../../common/Resource';
+import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
@@ -15,7 +17,7 @@ import {
 import {FleetDockCard, fleetDockBlockedReason, fleetDockRewardTarget} from './FleetDock';
 import {tradeFlatBonuses} from './tradePerformed';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
-import {distributionVictoryPoints} from '../cards/actionPreviews';
+import {cardResourceGain, distributionVictoryPoints, drawGain, globalGain, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {StealResources} from '../deferredActions/StealResources';
 import {TradeWithEnergy, TradeWithMegacredits} from '../player/Colonies';
@@ -66,10 +68,12 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
   //    the trading player once per own colony, BEFORE the reward pick). A
   //    Each cube is its own step — the rules resolve them one at a time. ─────
   const ownColonies = colony.colonies.filter((id) => id === player.id).length;
+  let colonyBonusLost = false;
   for (let i = 0; i < ownColonies; i++) {
     const followUp = benefitFollowUp(player, colony, 'colonyBonus', metadata.colony.type, metadata.colony.quantity ?? 1);
     if (followUp !== undefined) {
       followUps.push(followUp);
+      colonyBonusLost = colonyBonusLost || isLostTarget(followUp);
     }
   }
 
@@ -96,6 +100,19 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
   //    a Titan build stops dropping «выберите карту» after the cube landed.
   const buildFollowUps = buildBonusFollowUps(player, colony);
 
+  // ── WHAT THE TABLE ANSWERS — to the trade's income and to a build here (PL-066: the same answer the dock's
+  //    stage reads; the stage's «⚡ сработает» line and its R3 «Эффекты» layer read these and nothing else). The
+  //    grants are the income exactly as `Colony.trade` pays it — the fixed part, the marker's income, the player's
+  //    own colony bonuses, the flat modifiers — as the preview builders' chips; a benefit no reactor answers (VP,
+  //    influence, a delegate) is no grant. No card is the source: the reactors are the tableaux alone. ────────
+  //    A card-resource income with NO card to land on is LOST (the follow-up says so) — the live engine adds nothing
+  //    and no reactor fires, so it is no grant either.
+  const forecast = rewardReactionForecast(player, undefined, tradeGrantEffects(player, metadata, effective, ownColonies, flatBonuses,
+    {reward: isLostTarget(rewardFollowUp), colonyBonus: colonyBonusLost}));
+  const buildForecast = colony.hasFreeTrackCell() ?
+    rewardReactionForecast(player, undefined, buildGrantEffects(player, colony, metadata, isLostTarget(buildFollowUps[0])), {coloniesBuilt: 1}) :
+    undefined;
+
   return {
     colonyName: colony.name,
     track: {current: colony.trackPosition, effective, steps, willAsk},
@@ -104,7 +121,84 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony, pathOf
     followUps,
     ...(buildFollowUps.length > 0 ? {buildFollowUps} : {}),
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
+    ...(forecast !== undefined ? {forecast} : {}),
+    ...(buildForecast !== undefined ? {buildForecast} : {}),
   };
+}
+
+/**
+ * ONE colony benefit as the GRANTS the forecast engine reads — the preview
+ * builders' own chips (`cards/actionPreviews`), never the stage's reading of
+ * the reward (the client's package draws that). A benefit the table has no
+ * reactor for (VP, influence, a delegate, a hazard) is no grant; a card
+ * resource of SEVERAL kinds (the Redux Vesta) names no kind before the pick,
+ * so it is no grant either — the honest absence, never a guess.
+ */
+function benefitGrantEffects(player: IPlayer, metadata: ColonyMetadata, type: ColonyBenefit, quantity: number, resource: Resource | undefined, lost = false): Array<ActionEffect> {
+  if (quantity <= 0) {
+    return [];
+  }
+  switch (type) {
+  case ColonyBenefit.GAIN_RESOURCES:
+    return resource !== undefined ? [stockGain(player, resource, quantity)] : [];
+  case ColonyBenefit.GAIN_PRODUCTION:
+    return resource !== undefined ? [productionChange(player, resource, quantity)] : [];
+  case ColonyBenefit.ADD_RESOURCES_TO_CARD:
+  case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD: {
+    const kinds = colonyCardResources(metadata);
+    return kinds.length === 1 && !lost ? [cardResourceGain(kinds[0], quantity)] : [];
+  }
+  case ColonyBenefit.DRAW_CARDS:
+  case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
+  case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE:
+  case ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE:
+  case ColonyBenefit.DRAW_EARTH_CARD:
+    return [drawGain(quantity)];
+  case ColonyBenefit.GAIN_TR:
+    return [trGain(player, quantity)];
+  case ColonyBenefit.INCREASE_VENUS_SCALE:
+    return [globalGain(player, 'venus', quantity)];
+  case ColonyBenefit.PLACE_OCEAN_TILE:
+    return [oceanGain(player, quantity)];
+  default:
+    return [];
+  }
+}
+
+/** The TRADE's income at `effective`, in the order `Colony.trade` pays it: the fixed part, the marker's income, the own colony bonuses, the flat modifiers. */
+function tradeGrantEffects(
+  player: IPlayer,
+  metadata: ColonyMetadata,
+  effective: number,
+  ownColonies: number,
+  flatBonuses: ReadonlyArray<{resource: string, amount: number}>,
+  lost: {reward: boolean, colonyBonus: boolean},
+): Array<ActionEffect> {
+  const effects: Array<ActionEffect> = [];
+  const fixed = tradeFixedIncome(metadata);
+  if (fixed !== undefined) {
+    effects.push(...benefitGrantEffects(player, metadata, fixed.type, fixed.quantity, fixed.resource));
+  }
+  const income = tradeBenefitAt(metadata, effective);
+  effects.push(...benefitGrantEffects(player, metadata, income.type, income.quantity, income.resource, lost.reward));
+  for (let i = 0; i < ownColonies; i++) {
+    effects.push(...benefitGrantEffects(player, metadata, metadata.colony.type, metadata.colony.quantity ?? 1, metadata.colony.resource, lost.colonyBonus));
+  }
+  for (const bonus of flatBonuses) {
+    effects.push(stockGain(player, bonus.resource as Resource, bonus.amount));
+  }
+  return effects;
+}
+
+/** A BUILD's bonus at the berth the cube would take — the ONE reading `Colony.addColony` pays by. */
+function buildGrantEffects(player: IPlayer, colony: IColony, metadata: ColonyMetadata, lost: boolean): Array<ActionEffect> {
+  const build = buildBenefitAt(metadata, colony.colonies.length);
+  return benefitGrantEffects(player, metadata, build.type, build.quantity, build.resource, lost);
+}
+
+/** A card-resource follow-up whose target does not exist — the live income adds nothing and no reactor fires. */
+function isLostTarget(followUp: ColonyTradeFollowUpModel | undefined): boolean {
+  return followUp?.kind === 'cardTarget' && followUp.lost === true;
 }
 
 /**

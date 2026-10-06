@@ -182,7 +182,7 @@ describe('WaterHauling', () => {
         available: true,
         effects: [
           {direction: 'gain', icon: 'oceans', amount: 1, current: 0, resulting: 1},
-          {direction: 'gain', icon: 'tr', amount: 1, current: t.p1.terraformRating, resulting: t.p1.terraformRating + 1},
+          {direction: 'gain', icon: 'tr', amount: 1, current: t.p1.terraformRating, resulting: t.p1.terraformRating + 1, implied: true},
         ],
       }]);
       // …and the wire model the client reads carries it nested inside the action menu.
@@ -473,7 +473,7 @@ describe('WaterHauling', () => {
       const preview = buildFleetDockPreview(t.p1, t.card);
       expect(preview.effects).deep.eq([
         {direction: 'gain', icon: 'oceans', amount: 1, current: 0, resulting: 1},
-        {direction: 'gain', icon: 'tr', amount: 1, current: t.p1.terraformRating, resulting: t.p1.terraformRating + 1},
+        {direction: 'gain', icon: 'tr', amount: 1, current: t.p1.terraformRating, resulting: t.p1.terraformRating + 1, implied: true},
       ]);
       expect(preview.followUps).deep.eq([{kind: 'note', role: 'tradeReward', note: 'placeOcean'}]);
       expect(JSON.stringify(t.game.serialize())).eq(before);

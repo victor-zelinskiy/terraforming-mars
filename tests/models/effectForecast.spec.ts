@@ -3,6 +3,8 @@ import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {Resource} from '../../src/common/Resource';
+import {Phase} from '../../src/common/Phase';
+import {PartyName} from '../../src/common/turmoil/PartyName';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
 import {Priority} from '../../src/server/deferredActions/Priority';
@@ -576,6 +578,24 @@ describe('effectForecast (engine)', () => {
     expect(grantOfEffect({direction: 'gain', icon: 'microbe', amount: 3, note: 'to a card'})).to.deep.eq({kind: 'cardResource', resource: 'Microbe', amount: 3, target: 'any'});
     expect(grantOfEffect({direction: 'cost', icon: 'steel', amount: 2, note: 'production'})).to.be.undefined;
     expect(grantOfEffect({direction: 'gain', icon: 'tr', amount: 1})).to.deep.eq({kind: 'tr', amount: 1});
+    // A chip that RESTATES a scale's own step (Water Hauling's TR beside its ocean) is no grant (PL-066).
+    expect(grantOfEffect({direction: 'gain', icon: 'tr', amount: 1, implied: true})).to.be.undefined;
+  });
+
+  it('a SCALE STEP is a TR STEP for the raiser: the ruling Greens answer an asteroid\'s degree — the explicit TR and the scale\'s own added, an implied chip not counted (PL-066)', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    expect(game.parliament!.rulingParty(), 'a fresh Redux table: the Greens').eq(PartyName.GREENS);
+    player.megaCredits = 40;
+    // Nitrogen-Rich Asteroid: +2 TR AND +1 temperature step = 3 TR steps → 6 M€ (the live hook pays exactly that).
+    const asteroid = new NitrogenRichAsteroid();
+    player.cardsInHand.push(asteroid);
+    const greens = playForecast(player, asteroid).facts.filter((f) => f.source.kind === 'party' && f.source.name === PartyName.GREENS && f.source.channel === 'tr-increase');
+    expect(greens.map((f) => f.effects[0].amount), '2 M€ × (2 explicit + 1 from the scale)').deep.eq([6]);
+    const before = player.megaCredits;
+    asteroid.play(player);
+    game.deferredActions.runAll(() => {});
+    expect(player.megaCredits - before, 'the live Greens pay the forecast\'s number').eq(6);
   });
 
   it('a SCALE chip grants its STEPS, never its percent / degrees — and only the steps the ceiling leaves (TR24)', () => {

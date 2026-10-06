@@ -18,6 +18,7 @@
  * Never mutates game state (test-guarded, like every preview builder).
  */
 import {IPlayer} from '../IPlayer';
+import {rewardReactionForecast} from './effectForecast';
 import {IStandardProjectCard} from '../cards/IStandardProjectCard';
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {StandardProjectPreviewModel} from '../../common/models/CardModel';
@@ -80,6 +81,13 @@ export function buildStandardProjectPreview(
   const target = card.standardProjectTarget?.(player);
   if (target !== undefined) {
     model.target = target;
+  }
+  // WHAT THE TABLE ANSWERS to the bump — the project IS a card, so its own
+  // reactors (none today) join the seat's tableau's; a placement's answer is
+  // the cell dossier's, where the cell is known (PL-066).
+  const forecast = rewardReactionForecast(player, card, effects);
+  if (forecast !== undefined) {
+    model.forecast = forecast;
   }
   return model;
 }

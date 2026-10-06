@@ -19,8 +19,12 @@ import {ICard} from './ICard';
 export type EffectForecastContext = {
   /** A card PLAY (hand / prelude / corporation) or a card ACTION activation. */
   operation: 'play' | 'action';
-  /** The card the operation is about — played, or whose action runs. */
-  card: ICard;
+  /**
+   * The card the operation is about — played, or whose action runs. ABSENT
+   * for a reward paid by no card at all (a colony's trade income or build
+   * bonus): the table's reactors are then the seats' tableaux alone.
+   */
+  card?: ICard;
   /**
    * The tiles this operation will put down (from the preview's board
    * placement steps / staged placement) — what the tile triggers react to.

@@ -154,7 +154,7 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
       const group = stage.find('[data-fleet-dock-result] [data-forecast-vfx]');
       expect(group.exists(), preview.card).is.true;
       expect(group.text().replace(/\s+/g, ' '), 'a bare delta — the row\'s language').to.match(/\+\s*2/);
-      expect(group.element.parentElement?.className, 'the group is the layer\'s DOOR').to.contain('con-fleetdock__vfxrow');
+      expect(group.element.parentElement?.className, 'the group is the layer\'s DOOR').to.contain('con-fxdoor');
       expect(group.element.parentElement?.parentElement?.className, 'on the chips\' own line').to.contain('con-fleetdock__chips');
     }
   });

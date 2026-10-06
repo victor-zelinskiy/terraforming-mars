@@ -39,6 +39,20 @@ system that shows it; the agreed assignment it implements is
 8. **The forecast rides INSIDE the preview** (`ActionPreview.forecast?`) — the
    same route, the same version-keyed cache (`gameStateVersion`), zero new
    fetch sites (`serverDerivedCacheGuard` unchanged).
+9. **Every surface that draws the table's answer is a DOOR** (PL-060 / PL-066,
+   2026-10-06). A stage that reuses the «⚡ сработает» group reuses its verb:
+   the key on the group, «R3 Эффекты» on the bar, the layer a level INSIDE
+   the stage, the crumb's tail — the two composers, the fleet-dock stage, the
+   colony stage (a trade's income, a build's bonus), the standard projects.
+   The stages speak ONE phrase (`consoleForecastHost.ts` + `ConsoleForecastDoor`
+   / `ConsoleForecastLayer`); the cell dossier names the answer with no door,
+   by its own law; a one-press action with no stage (heat conversion) is an
+   open ledger row (PL-067). And the ENGINE answers everywhere the table does:
+   **a scale step IS a TR step** for the raiser (`partyFacts` counts `tr`
+   grants plus every `global` grant's steps), a chip that restates a scale's
+   own TR is `ActionEffect.implied` and never counted twice, and a reward no
+   card pays (`rewardReactionForecast(player, undefined, …)`) is answered by
+   the tableaux alone — with the colony pass (`coloniesBuilt`) for a build.
 
 ## The shared model — `src/common/models/EffectForecastModel.ts`
 
@@ -456,7 +470,7 @@ duplicates it) for the forecast classes, every type ≥ the .8rem floor;
 the handheld ladder folds the dossier into a top plate (no face) and keeps
 the grid single-column; the row's chips shrink on the compact tokens.
 
-**The third host — the FLEET-DOCK STAGE** (`ConsoleFleetDockStage`, a trade
+**The stages — the FLEET-DOCK STAGE, the COLONY STAGE, the STANDARD PROJECTS.** The fleet-dock stage first (`ConsoleFleetDockStage`, a trade
 whose destination is a card: TR06 / TR26 / TR27; PL-060, 2026-10-06). The
 server's dock preview carries the table's answer to the reward as ONE
 `EffectForecast` (`FleetDockPreviewModel.forecast` ← `rewardReactionForecast`:
@@ -478,6 +492,25 @@ instantly; the stage's unmount closes it. The motion hooks find their host by
 `operation="action"` — an immediate reaction reads «сразу после выполнения».
 Guards: `ConsoleFleetDockStage.spec` § the R3 «Эффекты» layer, the e2e
 `console-unmi-liner` (R3 → the layer inside the stage → B → the stage intact).
+The COLONY STAGE (PL-066) reads `ColonyTradePreviewModel.forecast` for a trade
+and `buildForecast` for a build (the server's `buildColonyTradePreview`: the
+income exactly as `Colony.trade` pays it — the fixed part, the marker's income,
+the own colony bonuses, the flat modifiers — and the next berth's bonus plus the
+colony pass; a card-resource income the preview itself calls LOST is no grant),
+draws the door on the «ВАШ ИТОГ» rail / under the build grant, and hosts the
+layer in its configuration column (`.con-colfocus__config`, the track instrument
+stays in view); the colonies section's `crumbStage` → `forecastStageText('colony',
+…)`, the shell's colony bar reads `consoleColoniesUi.forecastOpen` /
+`forecastAvailable`. The STANDARD PROJECTS read `StandardProjectPreviewModel
+.forecast` (the project IS a card — `rewardReactionForecast(player, card,
+effects)`), draw the door on the foot's context line, host the layer over the
+parked grid (`.con-stdp__stagewrap`), and the SHELL routes the pad (R3 →
+`openForecastLayer()`, the layer's input → `forecastIntent()`) and the bar;
+a focus move to another project folds the layer (its answer is another
+forecast). All three hosts: `consoleForecastHost.ts` (owner colours, open,
+fold, intent, the door's flare on the animation clock), `ConsoleForecastDoor`,
+`ConsoleForecastLayer`; guards `consoleForecastHost.spec`, e2e
+`console-forecast-doors` (both, fhd + 4K).
 
 ## i18n
 

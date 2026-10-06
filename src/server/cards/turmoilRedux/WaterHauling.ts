@@ -121,7 +121,9 @@ export class WaterHauling extends Card implements IProjectCard {
     rewardBlockedReason: (player) => player.game.canAddOcean() ? undefined : WATER_HAULING_NO_OCEAN_REASON,
     // The ocean and its TR as two chips: the effect forecast reads the ruling
     // Greens' «+2 M€» off the TR chip, never off the tile.
-    previewEffects: (player) => [actionPreviews.oceanGain(player, 1), actionPreviews.trGain(player, 1)],
+    // The TR chip beside the ocean is the ocean's OWN step made visible (the stage reads «[океан] 3 → 4 · [РТ] 20 → 21»);
+    // for the forecast's grants it is IMPLIED by the ocean — the Greens are paid once (PL-066).
+    previewEffects: (player) => [actionPreviews.oceanGain(player, 1), {...actionPreviews.trGain(player, 1), implied: true}],
     previewFollowUps: () => [{kind: 'note', role: 'tradeReward', note: 'placeOcean'}],
     receive: (player) => {
       player.game.defer(new PlaceOceanTile(player, {

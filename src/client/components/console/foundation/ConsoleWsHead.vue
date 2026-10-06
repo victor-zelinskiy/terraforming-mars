@@ -38,16 +38,21 @@
            :class="{'con-wshead__layer--out': !deep}"
            :aria-hidden="deep ? undefined : 'true'">
         <template v-if="deep">
-          <span class="con-wshead__sep" aria-hidden="true">›</span>
           <!-- STABLE CONTEXT BEFORE MUTABLE STAGE (consoleWorkspaceHeader):
                  КАРТЫ В РУКЕ › ЦЕНТР ИИ › РОЗЫГРЫШ
                The SUBJECT is the anchor of the whole flow and stands FIXED;
-               only the tail changes. -->
-          <span class="con-wshead__swap">
-            <transition name="con-wshead-swap">
-              <span class="con-wshead__subject" :key="subjectText">{{ subjectLabel }}</span>
-            </transition>
-          </span>
+               only the tail changes. A LEVEL inside the browse layer that
+               carries no object (the standard projects' R3 «ЭФФЕКТЫ») has a
+               stage and no subject — the line reads ROOT › STAGE, never a
+               separator over an empty word (PL-066). -->
+          <template v-if="subjectText !== ''">
+            <span class="con-wshead__sep" aria-hidden="true">›</span>
+            <span class="con-wshead__swap">
+              <transition name="con-wshead-swap">
+                <span class="con-wshead__subject" :key="subjectText">{{ subjectLabel }}</span>
+              </transition>
+            </span>
+          </template>
           <template v-if="stageText !== ''">
             <span class="con-wshead__sep" aria-hidden="true">›</span>
             <!-- The STAGE — the ONLY animating segment. Crossfade, never
@@ -178,9 +183,13 @@ export default defineComponent({
         committed: this.committed,
       });
     },
-    /** The crumb has a tail: the workspace has been DESCENDED into. */
+    /** The crumb has a tail: the workspace has been DESCENDED into — onto a
+     *  carried object, or into a LEVEL that names itself with no object (a
+     *  stage published at the browse layer, PL-066). Before, a stage with no
+     *  subject was silently DROPPED: the standard projects' «ЭФФЕКТЫ» layer
+     *  opened and the crumb kept reading the bare root. */
     deep(): boolean {
-      return this.subject !== '';
+      return this.subject !== '' || this.stage !== '';
     },
     subjectText(): string {
       return this.model.segments.find((s) => s.role === 'subject')?.text ?? '';

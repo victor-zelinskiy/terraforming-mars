@@ -48,6 +48,7 @@
   -->
   <div class="con-colfocus"
        ref="rootEl"
+       data-forecast-host
        :class="['con-colfocus--' + presentMode, {
          'con-colfocus--resolving': resolving,
          'con-colfocus--gliding': trackGliding,
@@ -273,6 +274,16 @@
         <!-- ── THE ACTION CONFIGURATION — adaptive by mode: never an empty
              «СПОСОБ ОПЛАТЫ» skeleton when there is nothing to choose. ── -->
         <section class="con-colfocus__config" data-unfold-item>
+          <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this stage, the composers' own (PL-066): the configuration
+               column PARKS in place, the explorer unfolds out of the «⚡ сработает» door on the result rail, B / R3
+               fold it back with the chosen path intact; the crumb gains «· ЭФФЕКТЫ». The track instrument stays. ── -->
+          <ConsoleForecastLayer ref="forecastLayer"
+                                host="colony"
+                                :forecast="forecast"
+                                :cards="forecastCards"
+                                :color="viewerColor ?? ''"
+                                :players="players"
+                                :statsByColor="forecastStatsByColor" />
           <!-- SUB: the M€ lanes mix — the SHARED payment panel, expanded. -->
           <template v-if="sub === 'lanes' && paymentView !== undefined">
             <ConsolePaymentPanel :view="paymentView"
@@ -343,7 +354,7 @@
                nothing to ask still renders NO panel (`stepRows` is empty and
                the payment block is trade-only). -->
           <template v-else-if="configLive && (tradeConfigLive || stepRows.length > 0)">
-            <ConsoleScrollArea class="con-colfocus__configscroll" ref="scroll">
+            <ConsoleScrollArea class="con-colfocus__configscroll" ref="scroll" data-forecast-browse>
               <!-- The heading belongs to the ROWS, not to the mode: past the
                    commit the server takes the options away and a bare
                    «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
@@ -627,6 +638,9 @@
               <span aria-hidden="true">⚠</span>
               <span>{{ $t('Resource will be lost — no card') }}</span>
             </div>
+            <!-- WHAT THE TABLE ANSWERS to the income — the composers' «⚡ сработает» group, and the DOOR of the R3
+                 «Эффекты» layer (PL-066): read BEFORE the press, never a surprise after it. -->
+            <ConsoleForecastDoor :reaction="forecastReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" data-unfold-late @open="openForecastLayer()" />
           </div>
 
           <!-- THE COMPOSITION — where each part came from. The track's own
@@ -708,6 +722,9 @@
               </span>
             </div>
             <div v-else class="con-colfocus__muted" data-unfold-late>{{ $t('No placement bonus') }}</div>
+            <!-- WHAT THE TABLE ANSWERS to the build — the berth's bonus AND the colony itself («when any colony is
+                 placed»): the same door as the trade's (PL-066). -->
+            <ConsoleForecastDoor :reaction="forecastReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" data-unfold-late @open="openForecastLayer()" />
             <!-- …and WHERE it lands, the same reading the trade gives: the
                  card the player chose (or the only eligible one) with its
                  honest before → after. -->
@@ -864,6 +881,17 @@ import {
 import ConsoleTradeTargetStep from '@/client/components/console/ConsoleTradeTargetStep.vue';
 import ConsoleTradeTargetValue from '@/client/components/console/ConsoleTradeTargetValue.vue';
 import ConsoleTradeReceivingCards from '@/client/components/console/ConsoleTradeReceivingCards.vue';
+import ConsoleForecastDoor from '@/client/components/console/ConsoleForecastDoor.vue';
+import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {CardModel} from '@/common/models/CardModel';
+import {EffectOverlayStat} from '@/common/events/aggregate';
+import {forecastLayerAvailable, reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
+import {closeEffectForecastLayer, effectForecastOpen} from '@/client/console/consoleEffectForecast';
+import {
+  foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
+} from '@/client/console/consoleForecastHost';
+import {VersionedView} from '@/client/console/gameStateVersion';
 
 /** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
 type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void};
@@ -973,7 +1001,7 @@ export default defineComponent({
   components: {
     BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
     ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
-    ConsoleColonyCitySeat, PremiumCountGlyph,
+    ConsoleColonyCitySeat, PremiumCountGlyph, ConsoleForecastDoor, ConsoleForecastLayer,
   },
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
@@ -1010,6 +1038,8 @@ export default defineComponent({
     preview: {type: Object as PropType<ColonyTradePreviewModel | undefined>, default: undefined},
     thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+    /** The viewer's versioned view — the R3 «Эффекты» layer asks the reacting seats' effect stats with it (PL-066). */
+    statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
     tradeOffset: {type: Number, default: 0},
     /** The chosen payment path's own advance the PREVIEW was fetched with (the section echoes `path-offset` back). */
     pathOffset: {type: Number, default: 0},
@@ -1037,6 +1067,10 @@ export default defineComponent({
   data() {
     return {
       payIdx: 0,
+      /** The one-shot COMMIT flare on the «⚡ сработает» door (PL-066). */
+      forecastPulse: false,
+      /** The flare's clock — a plain handle, never the tween in reactive data. */
+      pulseCall: undefined as {kill: () => void} | undefined,
       /** The dialed Delta Works steel share (clamped live in `tradeSteelMix`);
        *  0 keeps the energy-first default — steel covers only the deficit. */
       steelMixPreference: 0,
@@ -1281,6 +1315,33 @@ export default defineComponent({
      *  boundary (see `heldView`), live everywhere else. */
     presentAvailable(): boolean {
       return this.heldView !== undefined ? this.heldView.available : this.actionAvailable;
+    },
+    // ── THE EFFECT FORECAST (rides inside the colony preview) — the R3 «Эффекты» layer, the composers' own (PL-066) ──
+    /** The TRADE's answer for a trade, the BUILD's for a build; a card's door (pick / track / roster / city) has its own forecast in its composer. */
+    forecast(): EffectForecast | undefined {
+      return this.intent === 'trade' ? this.preview?.forecast : this.intent === 'build' ? this.preview?.buildForecast : undefined;
+    },
+    forecastReaction(): VariantReaction {
+      return reactionChipsOf(this.forecast?.facts ?? []);
+    },
+    forecastAvailable(): boolean {
+      return forecastLayerAvailable(this.forecast);
+    },
+    /** R3 is the SETUP level's verb — silent in a sub-step, past the commit and while the resolution plays. */
+    forecastCanOpen(): boolean {
+      return this.forecastAvailable && this.sub === undefined && this.heldView === undefined && !this.resolving;
+    },
+    fxOpen(): boolean {
+      return effectForecastOpen('colony');
+    },
+    forecastOwnerColors(): ReadonlyArray<string> {
+      return forecastOwnerColors(this.forecast, this.players);
+    },
+    forecastStatsByColor(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      return forecastStatsByColor(this.forecastOwnerColors);
+    },
+    forecastCards(): ReadonlyArray<CardModel> {
+      return this.thisPlayer?.tableau ?? [];
     },
     /** The payment path the player actually chose, pinned at the commit —
      *  what the config zone keeps showing while the trade resolves. */
@@ -2262,6 +2323,16 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The «Эффекты» layer lives ONLY on the setup level — a sub-step, the commit boundary and the resolution fold it instantly. */
+    forecastCanOpen(can: boolean): void {
+      this.syncUiMirror();
+      if (!can) {
+        foldForecastHost('colony');
+      }
+    },
+    fxOpen(): void {
+      this.syncUiMirror();
+    },
     isMcSelected() {
       this.seedPaymentDefault();
     },
@@ -2742,6 +2813,8 @@ export default defineComponent({
       // the server model admits several mixes and no commit is in flight.
       consoleColoniesUi.composerMixAdjustable =
         this.tradeMixAdjustable && this.heldView === undefined;
+      consoleColoniesUi.forecastAvailable = this.forecastCanOpen;
+      consoleColoniesUi.forecastOpen = this.fxOpen;
     },
     /** The shell routes every intent here while the stage is open. */
     handleIntent(intent: GamepadIntent): void {
@@ -2749,6 +2822,15 @@ export default defineComponent({
       // the moment: input is ABSORBED, so a double submit is impossible by
       // construction (the workspace-flow 'none' verb).
       if (this.resolving || this.heldView !== undefined) {
+        return;
+      }
+      // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 at the setup level opens it (PL-066).
+      if (this.fxOpen) {
+        this.onForecastIntent(intent);
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickR') {
+        this.openForecastLayer();
         return;
       }
       if (intent.kind === 'nav') {
@@ -2759,6 +2841,20 @@ export default defineComponent({
       if (action !== undefined) {
         this.onPress(action);
       }
+    },
+    /** R3 / a click on the «⚡ сработает» door — the WORKSPACE DESCEND into the layer (PL-066). */
+    openForecastLayer(): void {
+      if (!this.forecastCanOpen || this.fxOpen) {
+        return;
+      }
+      this.pulseCall = pulseForecastDoor((on) => {
+        this.forecastPulse = on;
+      }, this.pulseCall);
+      openForecastHost('colony', this.$refs.rootEl as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
+    },
+    /** Input while the layer is open: B folds one level (the explorer's dossier first), R3 closes the whole layer. */
+    onForecastIntent(intent: GamepadIntent): void {
+      forecastHostIntent('colony', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
     },
     onNav(dir: NavDirection): void {
       if (this.sub === 'lanes') {
@@ -3362,6 +3458,11 @@ export default defineComponent({
     consoleColoniesUi.composerEditable = false;
     consoleColoniesUi.composerDecisions = false;
     consoleColoniesUi.composerMixAdjustable = false;
+    consoleColoniesUi.forecastAvailable = false;
+    consoleColoniesUi.forecastOpen = false;
+    closeEffectForecastLayer('colony');
+    this.pulseCall?.kill();
+    this.pulseCall = undefined;
     // A stage that is GONE hides nothing: the closing beat must never wait on
     // a screen that no longer exists (the discard closes this stage mid-flow,
     // and the reset then plays on the restored one — or on the overview tile).

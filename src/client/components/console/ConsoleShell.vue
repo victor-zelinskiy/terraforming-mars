@@ -585,7 +585,10 @@
                                 :index="consoleState.sheetIndex"
                                 :myMegacredits="thisPlayer.megacredits"
                                 :stepUp="stdpStepUp"
-                                :backLabel="stdBackLabel" />
+                                :backLabel="stdBackLabel"
+                                :thisPlayer="thisPlayer"
+                                :players="playerView.players"
+                                :statsView="playerView" />
       <ConsoleMaScreen v-else-if="maScreenKind !== undefined"
                        ref="maScreen"
                        :kind="maScreenKind"
@@ -1935,7 +1938,8 @@ import {isResourceTransferActive, resourceTransferDiagnostics} from '@/client/co
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
+import {effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
+import {forecastLayerAvailable} from '@/client/console/effectForecastModel';
 import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, tradeDestinationResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
@@ -8857,6 +8861,11 @@ export default defineComponent({
         // follow the INTENT: trade = rows + the one X confirm; build / pick =
         // A IS the confirm (nothing else to choose); inspect = B only.
         if (consoleColoniesUi.composerSub === 'lanes') {
+        // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (the
+        // composers' and the dock stage's rule; PL-066).
+        if (consoleColoniesUi.forecastOpen) {
+          return [...(forecastExplorerUi('colony').barCommands ?? [])];
+        }
           return [
             {control: 'triggerR', label: 'Max'},
             {control: 'confirm', label: 'Done'},
@@ -8929,11 +8938,14 @@ export default defineComponent({
           const source = stagedBuild && this.colonyEmbedSourceCard !== undefined ?
             [{control: 'stickL' as GlyphControl, label: 'Source'}] : [];
           if (consoleColoniesUi.composerDecisions) {
+          // R3 — the «Эффекты» layer (the table's answer to the build), only when the forecast has something to show.
+          const effects = consoleColoniesUi.forecastAvailable ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : [];
             return [
               {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
               {control: 'secondary', label: verb, enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
               ...source,
               {control: 'back', label: 'Back'},
+              ...effects,
             ];
           }
           return [
@@ -8942,6 +8954,7 @@ export default defineComponent({
             ...(this.colonyPick?.buildProjected === true ? [{control: 'secondary' as GlyphControl, label: 'Inspect'}] : []),
             ...source,
             {control: 'back', label: 'Back'},
+            ...effects,
           ];
         }
         if (intent === 'pick') {
@@ -8990,6 +9003,8 @@ export default defineComponent({
             highlight: consoleColoniesUi.composerReady,
           },
           {control: 'back', label: 'Back'},
+          // R3 — the «Эффекты» layer (the table's answer to the income), only when the forecast has something to show.
+          ...(consoleColoniesUi.forecastAvailable ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : []),
         ];
       }
       if (this.colonyInspectModel !== undefined) {
@@ -9101,6 +9116,10 @@ export default defineComponent({
           return [];
         }
         // One context-sensitive CTA belongs in the canonical command rail;
+        // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (PL-066).
+        if (effectForecastOpen('stdp')) {
+          return [...(forecastExplorerUi('stdp').barCommands ?? [])];
+        }
         // repeating it on every project card adds noise and weakens focus.
         const focused = this.stdProjectItems[this.consoleState.sheetIndex];
         return [
@@ -9111,6 +9130,8 @@ export default defineComponent({
             highlight: focused?.available === true,
           },
           {control: 'back', label: this.stdBackLabel},
+          // R3 — the «Эффекты» layer (the table's answer to the focused project), only when it has something to show.
+          ...(!this.stdpStepUp && forecastLayerAvailable(focused?.preview?.forecast) ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : []),
         ];
       }
       if (this.consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
@@ -14330,6 +14351,17 @@ export default defineComponent({
           return;
         }
         if (intent.kind === 'nav') {
+        // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the browse opens it (PL-066). Both resolved
+        // BEFORE the semantic map (no default R3) — the composers' and the stages' order.
+        const stdpScreen = this.$refs.stdpScreen as InstanceType<typeof ConsoleStdProjectsScreen> | undefined;
+        if (effectForecastOpen('stdp')) {
+          stdpScreen?.forecastIntent(intent);
+          return;
+        }
+        if (intent.kind === 'press' && intent.button === 'stickR') {
+          stdpScreen?.openForecastLayer();
+          return;
+        }
           this.consoleState.sheetIndex = stepGrid(
             this.consoleState.sheetIndex, intent.dir, this.stdProjectItems.length, 2);
           return;

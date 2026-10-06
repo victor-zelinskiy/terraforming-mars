@@ -19785,6 +19785,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
     /* ── THE ACTION CONFIGURATION — adaptive by mode. ── */
     &__config {
+        /* The R3 «Эффекты» layer stands in THIS column (`.con-fxlayer`, absolute) — the track instrument beside it
+           stays in view while the configuration parks under the layer (PL-066). */
+        position: relative;
         flex: 1 1 auto;
         min-width: 0;
         min-height: 0;
@@ -32476,13 +32479,15 @@ html.console-mode {
     visibility: hidden;
     transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out, visibility 0s linear calc(200ms * var(--motion-scale, 1));
 }
-.con-composer__fxlayer {
+.con-composer__fxlayer,
+.con-fxlayer {
     position: absolute; inset: 0;
     z-index: 3;
     display: flex; flex-direction: column;
     min-height: 0; min-width: 0;
 }
-.con-composer__fxpanel {
+.con-composer__fxpanel,
+.con-fxpanel {
     flex: 1; min-height: 0; min-width: 0;
     display: flex; flex-direction: column;
     padding: .6rem .7rem;
@@ -32491,6 +32496,12 @@ html.console-mode {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
     /* The explorer takes the panel's whole height (its own body scrolls). */
     .con-efx { flex: 1; min-height: 0; }
+}
+/* THE DOOR of a stage's layer (`ConsoleForecastDoor`): the «⚡ сработает» group with the R3 key riding it — ONE flex
+   item on the host's chips line (the group never parts from its key); a click opens the layer. */
+.con-fxdoor {
+    display: inline-flex; align-items: center; gap: .2rem;
+    cursor: pointer;
 }
 
 /* ── ACTION COMPOSER (ConsoleActionComposer.vue) — the pre-submit setup

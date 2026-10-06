@@ -12,6 +12,8 @@ import {BuildColonyStandardProject} from '../../src/server/cards/colonies/BuildC
 import {setTemperature, maxOutOceans} from '../TestingUtils';
 import {MAX_TEMPERATURE} from '../../src/common/constants';
 import {Resource} from '../../src/common/Resource';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {Phase} from '../../src/common/Phase';
 
 describe('standardProjectPreview', () => {
   let game: IGame;
@@ -104,5 +106,34 @@ describe('standardProjectPreview', () => {
       tr: player.terraformRating,
     });
     expect(after).to.eq(before);
+  });
+});
+
+/** PL-066: the workspace's row showed the project's own chips and nothing of what the TABLE answers to them. */
+describe('standardProjectPreview — what the TABLE answers (the forecast, PL-066)', () => {
+  it('an asteroid under the ruling Greens names their 2 M€ before the press', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    expect(game.parliament!.rulingParty(), 'a fresh Redux table: the Greens').eq(PartyName.GREENS);
+    player.megaCredits = 30;
+    const preview = buildStandardProjectPreview(player, new AsteroidStandardProject(), 14);
+    const greens = (preview.forecast?.facts ?? []).find((f) => f.source.kind === 'party' && f.source.name === PartyName.GREENS);
+    expect(greens, 'the Greens answer the TR step').is.not.undefined;
+    expect(greens!.effects.some((e) => e.icon === 'megacredits' && e.amount === 2 && e.direction === 'gain')).is.true;
+    expect(preview.forecast?.coverage).eq('complete');
+  });
+
+  it('a maxed temperature raises nothing — no step, no TR, no forecast', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    setTemperature(game, MAX_TEMPERATURE);
+    player.megaCredits = 30;
+    expect(buildStandardProjectPreview(player, new AsteroidStandardProject(), 14).forecast).is.undefined;
+  });
+
+  it('a quiet table answers nothing to a power plant', () => {
+    const [, player] = testGame(2);
+    player.megaCredits = 30;
+    expect(buildStandardProjectPreview(player, new PowerPlantStandardProject(), 11).forecast).is.undefined;
   });
 });

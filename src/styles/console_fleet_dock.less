@@ -307,27 +307,3 @@ html.con-profile-handheld .con-colonies__docks { --con-colonies-docks-w: 7rem; }
     .con-efx__plate-ship.colony-fleet-icon { flex: 0 0 auto; width: .85rem; height: .85rem; }
 }
 
-/* ── THE «ЭФФЕКТЫ» LAYER (R3) of the dock stage (PL-060) — the composers' own layer (`.con-composer__fxlayer` /
-   `__fxpanel`, value for value), positioned in this stage's work column (`__main` is `position: relative`); the
-   explorer takes the panel's whole height (its own body scrolls). ── */
-.con-fleetdock__fxlayer {
-    position: absolute; inset: 0;
-    z-index: 3;
-    display: flex; flex-direction: column;
-    min-height: 0; min-width: 0;
-}
-.con-fleetdock__fxpanel {
-    flex: 1; min-height: 0; min-width: 0;
-    display: flex; flex-direction: column;
-    padding: .6rem .7rem;
-    border-radius: .7rem;
-    background: rgba(8, 14, 22, 0.78);
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
-    .con-efx { flex: 1; min-height: 0; }
-}
-/* The «⚡ сработает» group with the R3 key riding it — ONE flex item on the chips' line (the group never parts
-   from its key), the door of the layer. */
-.con-fleetdock__vfxrow {
-    display: inline-flex; align-items: center; gap: .2rem;
-    cursor: pointer;
-}

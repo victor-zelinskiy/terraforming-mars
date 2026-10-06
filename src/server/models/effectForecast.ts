@@ -92,9 +92,9 @@ function unknownFor(card: ICard, owner: IPlayer, active: IPlayer, channel: Effec
  * tableau yet (a hand card / a prelude / the picked corporation): the live
  * path pushes it in before the fan-out, so its own hooks fire on its own play.
  */
-function reactorsOf(owner: IPlayer, active: IPlayer, card: ICard): Array<ICard> {
+function reactorsOf(owner: IPlayer, active: IPlayer, card: ICard | undefined): Array<ICard> {
   const out: Array<ICard> = [...owner.playedCards];
-  if (owner.id === active.id && !owner.playedCards.has(card.name)) {
+  if (card !== undefined && owner.id === active.id && !owner.playedCards.has(card.name)) {
     out.push(card);
   }
   return out;
@@ -234,7 +234,7 @@ function scaleStepsOf(effect: ActionEffect, parameter: GlobalParameter): number 
  *  that changes NOTHING — a parameter already at its cap reads `current ===
  *  resulting` — or nothing a hook reacts to). */
 export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undefined {
-  if (effect.direction !== 'gain' || effect.amount <= 0) {
+  if (effect.direction !== 'gain' || effect.amount <= 0 || effect.implied === true) {
     return undefined;
   }
   if (effect.current !== undefined && effect.resulting !== undefined && effect.resulting <= effect.current) {
@@ -270,10 +270,15 @@ export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undef
  * gains and to its plant / heat production steps, Mars First to the tiles it
  * places on Mars. Read from the SAME predicates the live hooks read
  * (`Parliament.hasPartyEffect`, `PARTY_EFFECTS`); the source is the party
- * (cardless — the client never resolves it to a card). Honest limits of
- * iteration 0: the TR a global-parameter raise pays and the greenery
- * revision's own TR are not forecast here yet (the live Greens hook still
- * pays them); the explicit `tr` grants are.
+ * (cardless — the client never resolves it to a card). A SCALE STEP IS A TR
+ * STEP for the raiser (temperature, oxygen, Venus — and an ocean tile), so the
+ * Greens' TR count is the explicit `tr` grants PLUS every `global` grant's
+ * steps (the steps the ceiling leaves — `scaleStepsOf`): an asteroid's degree,
+ * a standard aquifer's tile, a card's Venus step all name their 2 M€ before
+ * the press. A chip that merely RESTATES a scale's own TR beside the scale
+ * (`ActionEffect.implied`) is no grant, so nothing is counted twice; the
+ * greenery revision's own TR arrives as an explicit chip beside the oxygen
+ * and is honestly a second step.
  */
 function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>): Array<EffectForecastFact> {
   const parliament = player.game.parliament;
@@ -284,7 +289,7 @@ function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>,
   const partySource = (party: PartyName, channel: EffectForecastSource['channel']): EffectForecastSource =>
     ({kind: 'party', name: party, owner: player.color, channel});
   if (parliament.hasPartyEffect(player, PartyName.GREENS)) {
-    const tr = grants.filter((g) => g.kind === 'tr').reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : 0), 0);
+    const tr = grants.reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : g.kind === 'global' ? g.steps : 0), 0);
     if (tr > 0) {
       facts.push(forecast.exact(partySource(PartyName.GREENS, 'tr-increase'),
         [stockGain(player, Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * tr)],
@@ -344,7 +349,7 @@ function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGr
 }
 
 /** The second-order reactors of ONE seat (+ the acting seat's own played card, «including this»). */
-function grantReactorsOf(owner: IPlayer, active: IPlayer, card: ICard): Array<ICard> {
+function grantReactorsOf(owner: IPlayer, active: IPlayer, card: ICard | undefined): Array<ICard> {
   return reactorsOf(owner, active, card).filter((c) => c.onProductionGain !== undefined || c.onResourceAdded !== undefined);
 }
 
@@ -367,7 +372,7 @@ function reactsToGrant(card: ICard, grant: EffectForecastGrant): boolean {
 function grantFacts(
   recipient: IPlayer,
   active: IPlayer,
-  card: ICard,
+  card: ICard | undefined,
   grants: ReadonlyArray<EffectForecastGrant>,
   ctx: EffectForecastContext,
   inherit?: {certainty: EffectForecastCertainty, timing: EffectForecastFact['timing'], sequence?: number},
@@ -422,7 +427,7 @@ function addressed(fact: EffectForecastFact, active: IPlayer, owner: IPlayer, in
 function scaleRaiseFacts(
   raiser: IPlayer,
   active: IPlayer,
-  card: ICard,
+  card: ICard | undefined,
   grants: ReadonlyArray<EffectForecastGrant>,
   ctx: EffectForecastContext,
   inherit: GrantInheritance | undefined,
@@ -523,7 +528,7 @@ function playerOfRecipient(game: IGame, active: IPlayer, recipient: EffectForeca
 }
 
 /** The cascade: every exact / deferred first-order fact's chips, offered to ITS recipient's second-order hooks. */
-function cascadeFacts(active: IPlayer, card: ICard, first: ReadonlyArray<EffectForecastFact>, ctx: EffectForecastContext): Array<EffectForecastFact> {
+function cascadeFacts(active: IPlayer, card: ICard | undefined, first: ReadonlyArray<EffectForecastFact>, ctx: EffectForecastContext): Array<EffectForecastFact> {
   const out: Array<EffectForecastFact> = [];
   for (const fact of first) {
     if ((fact.certainty !== 'exact' && fact.certainty !== 'deferred') || fact.effects.length === 0) {
@@ -727,7 +732,7 @@ export function colonyBuildsOfBranch(branch: ActionPreviewBranch): number {
  * twins as every other grant — never a table of «who reacts to a colony». A
  * reactor with the live hook and no twin is an honest `unknown`.
  */
-function colonyBuiltFacts(player: IPlayer, card: ICard, count: number, ctx: EffectForecastContext): Array<EffectForecastFact> {
+function colonyBuiltFacts(player: IPlayer, card: ICard | undefined, count: number, ctx: EffectForecastContext): Array<EffectForecastFact> {
   if (count <= 0) {
     return [];
   }
@@ -833,7 +838,7 @@ export function asBranchFact(fact: EffectForecastFact, pos: number): EffectForec
  * chosen in a later step) stays host-less. Only a card-resource icon has a
  * host; a player's stock / production pool never does.
  */
-function stampHosts(fact: EffectForecastFact, played: ICard): EffectForecastFact {
+function stampHosts(fact: EffectForecastFact, played: ICard | undefined): EffectForecastFact {
   if (fact.source.kind === 'rule') {
     return fact;
   }
@@ -844,7 +849,7 @@ function stampHosts(fact: EffectForecastFact, played: ICard): EffectForecastFact
     if (e.note === 'on this card') {
       return {...e, host: fact.source.name};
     }
-    if (e.note === 'on the played card') {
+    if (e.note === 'on the played card' && played !== undefined) {
       return {...e, host: played.name};
     }
     return e;
@@ -910,8 +915,8 @@ function poolTouched(pool: string, touched: ReadonlySet<string>): boolean {
  * played card» loses its arrow. A foreign recipient's pool is never touched
  * by the actor's own chips.
  */
-export function stripTouchedPools(facts: ReadonlyArray<EffectForecastFact>, own: ReadonlyArray<ActionEffect>, played: ICard): Array<EffectForecastFact> {
-  const touched = new Set(own.map((e) => chipPool(e, played.name)));
+export function stripTouchedPools(facts: ReadonlyArray<EffectForecastFact>, own: ReadonlyArray<ActionEffect>, played: ICard | undefined): Array<EffectForecastFact> {
+  const touched = new Set(own.map((e) => chipPool(e, played?.name)));
   if (touched.size === 0) {
     return [...facts];
   }
@@ -1052,24 +1057,36 @@ function coverageOf(facts: ReadonlyArray<EffectForecastFact>): EffectForecast['c
 
 /**
  * THE TABLE'S WHOLE ANSWER TO A REWARD PAID OUTSIDE A COMPOSER — a fleet dock's
- * reward (`colonies/FleetDock.ts`: the trade stage shows it before the press).
+ * reward (`colonies/FleetDock.ts`), a colony's trade income or build bonus
+ * (`colonies/colonyTradePreview.ts`), a standard project's own bump
+ * (`models/standardProjectPreview.ts`): the stage shows it before the press.
  * The grants of `effects` go through every pass a play's own grants go through
  * in `buildForecast`: the card reactors and their cascade, the seat's PARTY
  * EFFECTS (the ruling Greens' 2 M€ per TR step) and the ENACTED resolution's
  * passive — with no card played and no tile placed (a placement the reward
  * defers is the cell dossier's to forecast, where the cell is known).
- * `card` is the source of the reward, already in the tableau. Read-only.
+ * `card` is the source of the reward, already in the tableau — or `undefined`
+ * for a reward no card pays (a colony's): the reactors are then the tableaux
+ * alone and no chip has «the played card» to point at. `coloniesBuilt` adds
+ * the colony pass (every seat's «when any colony is placed») for a BUILD.
+ * Read-only.
  *
  * `grantReactionFacts` stays the CELL's narrower pass (the card reactors only,
  * for a grant a cell decides); this is the operation-level twin for a reward
  * that is no card play and no card action.
  */
-export function rewardReactionFacts(player: IPlayer, card: ICard, effects: ReadonlyArray<ActionEffect>): Array<EffectForecastFact> {
-  const ctx: EffectForecastContext = {operation: 'action', card, tiles: []};
+export function rewardReactionFacts(
+  player: IPlayer,
+  card: ICard | undefined,
+  effects: ReadonlyArray<ActionEffect>,
+  opts: {coloniesBuilt?: number} = {},
+): Array<EffectForecastFact> {
+  const ctx: EffectForecastContext = {operation: 'action', ...(card !== undefined ? {card} : {}), tiles: []};
   const grants = grantsOf(effects);
   const facts = grantFacts(player, player, card, grants, ctx);
   facts.push(...cascadeFacts(player, card, facts, ctx));
   facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
+  facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));
   return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);
 }
 
@@ -1081,8 +1098,13 @@ export function rewardReactionFacts(player: IPlayer, card: ICard, effects: Reado
  * reads it. `undefined` when nothing reacts, so the wire carries no empty
  * object and the client's «absent = nothing reacts» stays one test.
  */
-export function rewardReactionForecast(player: IPlayer, card: ICard, effects: ReadonlyArray<ActionEffect>): EffectForecast | undefined {
-  const facts = rewardReactionFacts(player, card, effects);
+export function rewardReactionForecast(
+  player: IPlayer,
+  card: ICard | undefined,
+  effects: ReadonlyArray<ActionEffect>,
+  opts: {coloniesBuilt?: number} = {},
+): EffectForecast | undefined {
+  const facts = rewardReactionFacts(player, card, effects, opts);
   return facts.length === 0 ? undefined : {...emptyEffectForecast(), facts, coverage: coverageOf(facts)};
 }
 

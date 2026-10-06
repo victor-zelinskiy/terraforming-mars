@@ -59,7 +59,7 @@ describe('railReward — a gain arrives on the rail as a reward', () => {
       ]);
     });
 
-    it('never a cost, a card resource, a card draw, a global parameter, an «any resource» unit, a zero', () => {
+    it('never a cost, a card resource, a card draw, a global parameter, an «any resource» unit, a zero, an implied chip', () => {
       expect(railRewardSpecs([
         {direction: 'cost', icon: 'megacredits', amount: 9},
         gain('floater', 2, {note: 'to a card'}),
@@ -67,6 +67,8 @@ describe('railReward — a gain arrives on the rail as a reward', () => {
         gain('oceans', 1),
         gain('megacredits', 2, {unit: 'each'} as Partial<ActionEffect>),
         gain('tr', 0),
+        // …and a chip that RESTATES a scale's own step (Water Hauling's TR beside its ocean): the board's story, not the rail's (PL-066).
+        gain('tr', 1, {implied: true}),
       ])).deep.eq([]);
     });
 
