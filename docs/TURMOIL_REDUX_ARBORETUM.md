@@ -84,6 +84,11 @@ TR21, 12 M€, AUTOMATED, метки Растение + Строительств
 печатает чип + «за 3 соседних города»; общий для любой будущей выплаты «за каждый X».
 
 ### 2.6 Запись подачи — `GameModel.cardAdjacencyPayouts`
+
+> С TR30 (2026-10-07) — запись КЛАССА «тайл платит карте» с причиной `cause` (`adjacent-cities` здесь, `tile-placed` у
+> Красного музея / Pets / переписи) и ОДНИМ писателем `cards/tilePayout.payTileToCard` (`Game.publishCardAdjacencyPayout`);
+> `basis` необязателен. Контракт класса — `docs/TURMOIL_REDUX_RED_MUSEUM.md` §3–§4.
+
 `CardAdjacencyPayoutModel = {seq, color, card, spaceId, basis, neighbours: [{spaceId, units}], target, resource, amount,
 before, reactions?}` — кольцо (cap 8), `seq = gameAge * 100 + n`, читается клиентом ОДИН раз по `seq` (герой или
 remote-стейдж). Сцена играет запись сервера, а не геометрию.
@@ -111,6 +116,11 @@ remote-стейдж). Сцена играет запись сервера, а н
   платит data сейчас, и даст ПО в конце — светится золотом (`reward`).
 
 ## 4. Клиент — СЦЕНА «ГОРОДА ПЛАТЯТ»
+
+> С TR30 — частный случай сцены «ТАЙЛ ПЛАТИТ КАРТЕ» (отправитель единицы — сосед или сам севший тайл; несколько записей
+> одной посадки играются по очереди; производная ячейка ПО держится до касаний; сцена — член истории доски):
+> `docs/TURMOIL_REDUX_RED_MUSEUM.md` §4. Ответ стола в досье стоит под строкой гранта, на который отвечает (`BoardFact.answers`).
+
 
 Чистая половина — `tilePlacement/cityDataPayoutModel.ts` (запись, порядок жетонов, тайминги, где стоит карта);
 директор — `cityDataPayoutBeat.ts`; слой — `ConsoleCityPayoutLayer.vue` (смонтирован оболочкой рядом со слоем посадки

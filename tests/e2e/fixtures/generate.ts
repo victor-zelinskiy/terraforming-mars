@@ -175,6 +175,7 @@ import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensu
 import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCensus';
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
+import {RedMuseum, museumBlockers} from '../../../src/server/cards/turmoilRedux/RedMuseum';
 import {NovaCity} from '../../../src/server/cards/turmoilRedux/NovaCity';
 import {ExclusiveColony} from '../../../src/server/cards/turmoilRedux/ExclusiveColony';
 import {Enceladus} from '../../../src/server/colonies/Enceladus';
@@ -1610,6 +1611,131 @@ parliamentFixture('arboretum', {
         facts.holders !== `${CardName.VECTOR_COMPUTATIONS},${CardName.MARTIAN_FIBER}` || facts.data !== 6 || facts.oxygen !== 1 ||
         facts.reactions?.megacredits !== 4) {
       throw new Error(`the arboretum fixture expected a playable card, G (${ARBORETUM_SITE.g}) legal beside 4 city tiers, Z (${ARBORETUM_SITE.z}) legal beside none, two holders, and a dry run landing 2 → 6 data with +4 M€ — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR30 · RED MUSEUM — a tile trigger THE CELL DECIDES, the scene «ТАЙЛ ПЛАТИТ» (cards/tilePayout.ts): blue's action
+//    phase, 40 M€ (the City standard project costs 25), «Красный музей» (0 data) and Martian Fiber (0 data, +1 M€ per
+//    data) on the table, Nuclear Zone in hand; a quiet government (the Greens rule by the starting rule). The board is
+//    ARRANGED on Tharsis, never dealt:
+//      · the CLEAN cell C (17, no printed bonus) — no greenery and no ocean beside it: +2 data;
+//      · the cell A (50, no printed bonus) beside an OCEAN TILE on 43 — the dossier's named NO, the city pays nothing;
+//      · the cell N (47, no printed bonus) — clean, the special tile's cell (Nuclear Zone);
+//      · a greenery of red's on 61 — the cell 62 beside it is the dossier's «beside a greenery».
+//    The ids are the e2e spec's own constants (`tests/e2e/console-red-museum.spec.ts`); a DRY RUN on a deserialized copy
+//    lands the three placements, so a rule change fails HERE. ──
+const RED_MUSEUM_SITE = {clean: '17', besideOcean: '50', ocean: '43', special: '47', grove: '61', besideGrove: '62'} as const;
+parliamentFixture('red-museum', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  // Red's first move must be its OWN choice — Aridor's pending corporation action would stand in front of it (the TR24
+  // trap): blue keeps the table's Teractor, red takes ThorGate.
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    cell(RED_MUSEUM_SITE.ocean).tile = {tileType: TileType.OCEAN};
+    cell(RED_MUSEUM_SITE.grove).tile = {tileType: TileType.GREENERY};
+    cell(RED_MUSEUM_SITE.grove).player = p2;
+    moveToDeckTop(game, CardName.RED_MUSEUM);
+    const museum = game.projectDeck.drawPile.pop() as RedMuseum;
+    moveToDeckTop(game, CardName.MARTIAN_FIBER);
+    const fiber = game.projectDeck.drawPile.pop() as IProjectCard;
+    p1.playedCards.push(museum, fiber);
+    moveToDeckTop(game, CardName.NUCLEAR_ZONE);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as NuclearZone);
+  },
+  expect: ({game, parliament, p1}) => {
+    const cityCells = game.board.getAvailableSpacesForCity(p1).map((s) => s.id);
+    const blockers = (id: string) => museumBlockers(game.board, game.board.getSpaceOrThrow(id as SpaceId));
+    // THE DRY RUN — the three placements for real, on a copy.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const museum = blue.tableau.get(CardName.RED_MUSEUM);
+    const at = (id: string) => copy.board.getSpaceOrThrow(id as SpaceId);
+    const mc = blue.megaCredits;
+    copy.addCity(blue, at(RED_MUSEUM_SITE.clean));
+    runAllActions(copy);
+    const afterClean = {data: museum?.resourceCount, mc: blue.megaCredits - mc, record: copy.cardAdjacencyPayouts.at(-1)};
+    copy.addTile(blue, at(RED_MUSEUM_SITE.special), {tileType: TileType.NUCLEAR_ZONE});
+    runAllActions(copy);
+    const afterSpecial = museum?.resourceCount;
+    copy.addCity(blue, at(RED_MUSEUM_SITE.besideOcean));
+    runAllActions(copy);
+    const facts = {
+      nuclearZoneInHand: p1.cardsInHand.some((c) => c.name === CardName.NUCLEAR_ZONE),
+      onTable: [CardName.RED_MUSEUM, CardName.MARTIAN_FIBER].every((n) => p1.tableau.has(n)),
+      legalClean: cityCells.includes(RED_MUSEUM_SITE.clean as SpaceId),
+      legalBesideOcean: cityCells.includes(RED_MUSEUM_SITE.besideOcean as SpaceId),
+      clean: blockers(RED_MUSEUM_SITE.clean),
+      besideOcean: blockers(RED_MUSEUM_SITE.besideOcean),
+      besideGrove: blockers(RED_MUSEUM_SITE.besideGrove),
+      special: blockers(RED_MUSEUM_SITE.special),
+      afterClean: {data: afterClean.data, mc: afterClean.mc, cause: afterClean.record?.cause, reactions: afterClean.record?.reactions},
+      afterSpecial,
+      afterBesideOcean: museum?.resourceCount,
+    };
+    if (!facts.nuclearZoneInHand || !facts.onTable || !facts.legalClean || !facts.legalBesideOcean ||
+        facts.clean.oceans + facts.clean.greeneries !== 0 || facts.besideOcean.oceans !== 1 || facts.besideGrove.greeneries !== 1 ||
+        facts.special.oceans + facts.special.greeneries !== 0 ||
+        facts.afterClean.data !== 2 || facts.afterClean.cause !== 'tile-placed' || facts.afterClean.reactions?.megacredits !== 2 ||
+        facts.afterSpecial !== 4 || facts.afterBesideOcean !== 4) {
+      throw new Error(`the red-museum fixture expected the museum and Martian Fiber on the table, Nuclear Zone in hand, C (${RED_MUSEUM_SITE.clean}) and N (${RED_MUSEUM_SITE.special}) clean, A (${RED_MUSEUM_SITE.besideOcean}) beside one ocean, 62 beside one greenery, and a dry run landing 0 → 2 → 4 → 4 with +2 M€ — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── THE «TILE PAYS A CARD» CLASS, A RIVAL'S CITY (PL-034 — TR15 Martian Census and Pets answer ANOTHER seat's city):
+//    red on the move with 40 M€ (the City standard project costs 25), blue's tableau holds Martian Census (2 data),
+//    Pets (1 animal) and Martian Fiber (0) — two records of ONE city, both blue's. No museum: the same JSON boots the
+//    build BEFORE the class too (the A/B of PL-034). The clean cell 17 (the red-museum fixture's own). ──
+const RIVAL_SITE = {clean: '17'} as const;
+parliamentFixture('census-pets-rival', {
+  stopAt: 'vote',
+  megacredits: [20, 40],
+  // Red's first move must be its OWN choice (Aridor's pending corporation action would stand in front of it).
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    moveToDeckTop(game, CardName.MARTIAN_CENSUS);
+    const census = game.projectDeck.drawPile.pop() as IProjectCard;
+    census.resourceCount = 2;
+    moveToDeckTop(game, CardName.PETS);
+    const pets = game.projectDeck.drawPile.pop() as IProjectCard;
+    pets.resourceCount = 1;
+    moveToDeckTop(game, CardName.MARTIAN_FIBER);
+    const fiber = game.projectDeck.drawPile.pop() as IProjectCard;
+    p1.playedCards.push(census, pets, fiber);
+    p1.clearWaitingFor();
+    game.playerIsFinishedTakingActions();
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const count = (name: CardName) => p1.tableau.get(name)?.resourceCount;
+    // THE DRY RUN — red's city on the clean cell, for real, on a copy: both of blue's cards answer it.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const red = copy.getPlayerById(p2.id);
+    copy.addCity(red, copy.board.getSpaceOrThrow(RIVAL_SITE.clean as SpaceId));
+    runAllActions(copy);
+    const blue = copy.getPlayerById(p1.id);
+    const records = copy.cardAdjacencyPayouts.map((r) => `${r.card}:${r.color}:${r.cause}:${r.amount}`).join(',');
+    const facts = {
+      census: count(CardName.MARTIAN_CENSUS), pets: count(CardName.PETS), fiber: count(CardName.MARTIAN_FIBER),
+      active: game.activePlayer.id === p2.id, menu: p2.getWaitingFor() instanceof OrOptions, red: p2.megaCredits,
+      legal: game.board.getAvailableSpacesForCity(p2).some((s) => s.id === RIVAL_SITE.clean),
+      after: {census: blue.tableau.get(CardName.MARTIAN_CENSUS)?.resourceCount, pets: blue.tableau.get(CardName.PETS)?.resourceCount},
+      records,
+    };
+    if (facts.census !== 2 || facts.pets !== 1 || facts.fiber !== 0 || !facts.active || !facts.menu || facts.red !== 40 || !facts.legal ||
+        facts.after.census !== 3 || facts.after.pets !== 2 ||
+        records !== `${CardName.MARTIAN_CENSUS}:${p1.color}:tile-placed:1,${CardName.PETS}:${p1.color}:tile-placed:1`) {
+      throw new Error(`the census-pets-rival fixture expected blue's census 2 / Pets 1 / Fiber 0, red on the move with the menu and 40 M€, ${RIVAL_SITE.clean} legal for red's city, and a dry run of red's city paying blue twice (census 3, Pets 2, two blue records) — got ${JSON.stringify(facts)}`);
     }
     parliament.assertLedger(game);
   },

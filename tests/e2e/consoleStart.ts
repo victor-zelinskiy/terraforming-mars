@@ -2389,6 +2389,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // (2 data) and Martian Fiber in the tableau; the cell 17 beside blue's city 16, red's 11 and red's stack of two on 24
   // (4 data), the cell 48 beside no city (docs/TURMOIL_REDUX_ARBORETUM.md).
   'arboretum' |
+  // TR30 Red Museum: blue's action phase, 40 M€, the museum (0 data) and Martian Fiber on the table, Nuclear Zone in hand;
+  // the clean cell 17, the cell 50 beside an ocean on 43, the clean cell 47, red's greenery on 61 (cards/tilePayout.ts).
+  'red-museum' |
+  // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
+  // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
+  'census-pets-rival' |
   // TR22 Nova City: blue's action phase with the card in hand, 30 M€, Unity's access by two delegates; «Ganymede Colony»
   // stands (one space city of blue's own) and Pets is on the table; Luna — blue's colony and RED's fleet, Ceres — three
   // colonies, Titan inactive, Europa and Io plain (docs/TURMOIL_REDUX_NOVA_CITY.md).
