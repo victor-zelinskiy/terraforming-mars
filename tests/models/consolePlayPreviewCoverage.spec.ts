@@ -70,6 +70,11 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
   if (step.kind === 'agendaWalk') {
     return 'followup';
   }
+  // A rally of neutral delegates by PLAYING the card (TR31): the same SHOW
+  // step — nothing collected, the answer's record played inside the hand.
+  if (step.kind === 'neutralRally') {
+    return 'followup';
+  }
   if (step.kind === 'boardPlacement' || step.kind === 'note') {
     return 'followup';
   }

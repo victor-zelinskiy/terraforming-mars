@@ -407,9 +407,21 @@ export class EventRecorder {
   }
 
   /**
+   * A CARD PLACED NEUTRAL DELEGATES ON A RESOLUTION (Turmoil Redux TR31
+   * Nationalist Movement): `player` is whose effect it was, the cubes are the
+   * neutral player's (`impact.delegates.neutral`). Recorded under the live
+   * scope — the card's play. Written only by `parliament/RallyNeutralDelegates`.
+   */
+  public recordNeutralDelegatesPlaced(player: IPlayer, count: number, resolution: string): void {
+    this.record({type: 'neutral-delegates-placed', player: player.color, impact: {delegates: {count, resolution, neutral: true}}, visibility: 'journal'});
+  }
+
+  /**
    * AN EFFECT ADDED NEUTRAL DELEGATES TO A PARTY'S POPULAR SUPPORT (Turmoil
    * Redux TR03). `player` is the one whose effect it was — the support itself
-   * is nobody's. Written only by `parliament/PlaceDelegatesOnResolution`.
+   * is nobody's. Written only by `parliament/PlaceDelegatesOnResolution`'s
+   * `payPopularSupport` — the one payout of a card's support (its own step and
+   * TR31's rally both pay through it).
    */
   public recordPopularSupportGained(player: IPlayer, party: PartyName, gained: number, total: number): void {
     this.record({type: 'popular-support-gained', player: player.color, impact: {popularSupport: {party, gained, total}}, visibility: 'journal'});

@@ -17,7 +17,7 @@ import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
@@ -29,7 +29,7 @@ import type {SelectResourceTarget} from '../deferredActions/SelectResourceTarget
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {DiscardPopularSupport, skippedSupportDiscard} from '../parliament/DiscardPopularSupport';
-import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
+import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, NEUTRAL_DELEGATE_ICON, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectPlayer} from '../inputs/SelectPlayer';
@@ -517,6 +517,42 @@ export function agendaWalkEffects(player: IPlayer, walk: AgendaWalkModel): Array
 /** The SHOW step of the walk (see `ActionPreviewStep` — `agendaWalk`). */
 export function agendaWalkStep(walk: AgendaWalkModel): ActionPreviewStep {
   return {kind: 'agendaWalk', walk};
+}
+
+/** The note of the rally's vote chip (TR31) — WHERE the neutral delegates go: onto the resolutions, as votes. */
+export const NEUTRAL_VOTES_NOTE = 'on resolutions';
+/** …and of its support chip — into the parties' Popular Support areas. */
+export const NEUTRAL_SUPPORT_NOTE = 'to Popular Support';
+
+/**
+ * THE RALLY'S CHIPS (Turmoil Redux TR31), in the plan's order: the neutral
+ * delegates placed as VOTES (one chip, the count), the ones that landed in
+ * the AREAS (one chip, the count), and the M€ the recount pays — the chip
+ * the hosted step delivers from the recount's own counter, never the landing
+ * scene (`heroRewardEffectsOf`). The per-party reading — which resolution,
+ * before → after, the winner, each area's room and its named zero — is the
+ * SHOW step's (`rallyStep`): a chip has no party on it, and a bare «+0»
+ * would read as nothing happening where something was judged.
+ */
+export function rallyEffects(player: IPlayer, plan: NeutralRallyModel): Array<ActionEffect> {
+  const effects: Array<ActionEffect> = [];
+  const placed = plan.votes.filter((v) => v.placed).length;
+  if (placed > 0) {
+    effects.push({direction: 'gain', icon: NEUTRAL_DELEGATE_ICON, amount: placed, note: NEUTRAL_VOTES_NOTE});
+  }
+  const supported = plan.support.reduce((sum, s) => sum + s.gained, 0);
+  if (supported > 0) {
+    effects.push({direction: 'gain', icon: NEUTRAL_DELEGATE_ICON, amount: supported, note: NEUTRAL_SUPPORT_NOTE});
+  }
+  if (plan.megacredits > 0) {
+    effects.push(stockGain(player, Resource.MEGACREDITS, plan.megacredits));
+  }
+  return effects;
+}
+
+/** The SHOW step of the rally (see `ActionPreviewStep` — `neutralRally`): the whole plan, for the composer's rows and the crumb's coming stage. */
+export function rallyStep(plan: NeutralRallyModel): ActionPreviewStep {
+  return {kind: 'neutralRally', rally: plan};
 }
 
 /**

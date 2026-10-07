@@ -1101,6 +1101,7 @@ export enum CardName {
   EARTH_ARMY_CONTRACT = 'Earth Army Contract',
   SPACESHIP_RECYCLING = 'Spaceship Recycling',
   RED_MUSEUM = 'Red Museum',
+  NATIONALIST_MOVEMENT = 'Nationalist Movement',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

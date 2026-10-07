@@ -64,8 +64,31 @@ export type SupportRoom = {
   limit?: 'area' | 'supply';
 };
 
+/**
+ * THE ONE ARITHMETIC of a support area's room, over bare numbers: what the
+ * area holds now, what the common supply holds now, what is printed. The live
+ * table asks it through `Parliament.popularSupportRoom`; a PLAN that spends
+ * the supply step by step BEFORE the table moves (Turmoil Redux TR31
+ * Nationalist Movement — two neutral votes placed, then two areas paid from
+ * what is left) asks it with its own running supply. One function, so the
+ * forecast and the payout can never part by a second reading of «3 − current».
+ */
+export function supportRoomOf(current: number, supply: number, printed: number): SupportRoom {
+  const area = Math.max(0, PARLIAMENT_MAX_POPULAR_SUPPORT - current);
+  const left = Math.max(0, supply);
+  const wanted = Math.max(0, printed);
+  const gained = Math.min(wanted, area, left);
+  const room: SupportRoom = {current, gained, resulting: current + gained, printed: wanted};
+  if (gained < wanted) {
+    room.limit = area <= left ? 'area' : 'supply';
+  }
+  return room;
+}
+
 /** The name a «neutral delegates to Popular Support» effect goes by where it is lost — the forecast's and the record's one label. */
 export const POPULAR_SUPPORT_LABEL = 'Popular support';
+/** The name a «neutral delegate onto a resolution» effect (TR31) goes by where the empty supply cuts it — one label for the forecast and the record. */
+export const NEUTRAL_VOTE_LABEL = 'Neutral delegate on a resolution';
 /** WHY none landed, by what cut the number — the forecast's tail and the after-the-fact record state the same cause. */
 export const SUPPORT_LIMIT_REASON: Readonly<Record<NonNullable<SupportRoom['limit']>, string>> = {
   area: 'The support area is full',

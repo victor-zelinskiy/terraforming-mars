@@ -18,9 +18,11 @@ import {PlayerId} from '../../common/Types';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {
   AGENDA_TRACK, AgendaStep, BotParliamentMode, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS, PARLIAMENT_DELEGATES_PER_PLAYER,
-  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER,
+  PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER,
   PARTY_EFFECT_DELEGATES, PartyActionId, QuestDefinition, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId, STARTER_QUEST, SupportRoom,
+  supportRoomOf,
 } from '../../common/parliament/ParliamentTypes';
+import type {ParliamentRallyRecord} from './RallyNeutralDelegates';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
@@ -141,6 +143,15 @@ export class Parliament {
   public phaseHistory: Array<SerializedPhaseSummary> = [];
   /** The last Agenda advance (mid-generation quest or the phase) — the client presents it once by `seq`. */
   public lastAdvance: SerializedAdvance | undefined = undefined;
+  /**
+   * THE LAST RALLY OF NEUTRAL DELEGATES BY A CARD (Turmoil Redux TR31
+   * Nationalist Movement) — a PRESENTATION record, NOT SERIALIZED (the ring
+   * law of `Game.tileMoves`: a reload loses the animation, never a rule; the
+   * table itself is the ledger above). `seq` derives from `gameAge`, so it is
+   * monotonic across a restart and a client plays each rally exactly once.
+   * Written by ONE function, `RallyNeutralDelegates.applyRally`.
+   */
+  public lastRally: ParliamentRallyRecord | undefined = undefined;
   public pendingActions: Array<SerializedPendingAction> = [];
 
   constructor(botMode: BotParliamentMode = 'none', catalog: ResolutionCatalog = REDUX_RESOLUTION_CATALOG) {
@@ -392,6 +403,22 @@ export class Parliament {
   /** The resolution that would be enacted now, and who wins it (rulebook p.8, p.10). */
   public winner(): WinnerVerdict | undefined {
     return this.winnerAmong(this.slots);
+  }
+
+  /**
+   * A THROWAWAY TABLE FOR A HYPOTHETICAL — the ONE way «what would the vote
+   * read with this cube added» is asked (the model's vote projection, a card's
+   * plan of neutral votes — TR31): the slots deep-copied with every vote, the
+   * enacted card and the placement counter, over the same catalog and bot
+   * policy. The rules run on the copy; the live table is untouched. Nothing
+   * else is copied — the copy exists for `leaderOf` / `winner` alone.
+   */
+  public projection(): Parliament {
+    const copy = new Parliament(this.botMode, this.catalog);
+    copy.slots = this.slots.map((s) => ({instance: s.instance, votes: s.votes.map((vote) => ({...vote}))}));
+    copy.enacted = this.enacted;
+    copy.voteSeq = this.voteSeq;
+    return copy;
   }
 
   /**
@@ -666,16 +693,7 @@ export class Parliament {
    * short of `n` — the area's ceiling is judged first.
    */
   public popularSupportRoom(party: ReduxParty, n: number): SupportRoom {
-    const current = this.popularSupportOf(party);
-    const area = Math.max(0, PARLIAMENT_MAX_POPULAR_SUPPORT - current);
-    const supply = Math.max(0, this.neutralSupply());
-    const printed = Math.max(0, n);
-    const gained = Math.min(printed, area, supply);
-    const room: SupportRoom = {current, gained, resulting: current + gained, printed};
-    if (gained < printed) {
-      room.limit = area <= supply ? 'area' : 'supply';
-    }
-    return room;
+    return supportRoomOf(this.popularSupportOf(party), this.neutralSupply(), n);
   }
 
   /** Add up to `n` neutral delegates to a party's support area (cap 3, supply permitting). Returns how many landed. */

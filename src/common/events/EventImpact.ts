@@ -149,7 +149,16 @@ export type EventImpact = {
    * resolution `resolution` (a catalog id — the client names it through the
    * parliament manifest, never from a log line).
    */
-  delegates?: {count: number; resolution: string};
+  delegates?: {
+    count: number;
+    resolution: string;
+    /**
+     * The cubes are the NEUTRAL player's (`neutral-delegates-placed`, Turmoil
+     * Redux TR31): the chip is the dark figure, never the event player's own
+     * colour — the player is whose effect it was, the delegate is nobody's.
+     */
+    neutral?: true;
+  };
   /**
    * Neutral delegates an EFFECT added to a party's Popular Support
    * (`popular-support-gained`): how many landed and what the area holds now.

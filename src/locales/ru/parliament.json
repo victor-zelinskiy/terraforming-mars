@@ -1174,5 +1174,17 @@
   "Sanctions": "Санкции",
   "The neutral delegates return to the common supply. The resolutions keep their votes.": "Нейтральные делегаты уходят в общий запас. Голоса на резолюциях не меняются.",
   "Sanctions applied": "Санкции применены",
-  "Agenda — the marker walks 1 step in the Parliament": "Карьера — маркер пройдёт 1 шаг в Парламенте"
+  "Agenda — the marker walks 1 step in the Parliament": "Карьера — маркер пройдёт 1 шаг в Парламенте",
+  "Neutral delegates": "Нейтральные делегаты",
+  "Delegates — neutral delegates in the Parliament": "Делегаты — нейтральные делегаты в Парламенте",
+  "${0} — no resolution up for a vote": "${0} — резолюции на голосовании нет",
+  "In use ${0} → ${1}": "В игре ${0} → ${1}",
+  "in use": "в игре",
+  "on resolutions": "на резолюции",
+  "to Popular Support": "в Народную поддержку",
+  "Neutral delegate on a resolution": "Нейтральный делегат на резолюцию",
+  "${0} adds 1 neutral delegate to ${1}": "${0}: +1 нейтральный делегат — за ${1}",
+  "${0} gains ${1} M€ — ${2} neutral delegate(s) in use": "${0} получает ${1} M€ — в игре ${2} {нейтральный делегат|нейтральных делегата|нейтральных делегатов}",
+  "+0 · the area is full": "+0 · область заполнена",
+  "+0 · no neutral delegates left": "+0 · нейтральных не осталось"
 }

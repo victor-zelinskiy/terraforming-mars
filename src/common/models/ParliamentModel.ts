@@ -480,6 +480,70 @@ export type ParliamentAdvanceModel = {
   generation: number;
 };
 
+/**
+ * ONE NEUTRAL VOTE a card placed (Turmoil Redux TR31 Nationalist Movement):
+ * the resolution, the cube's placement number (its place on the ribbon), the
+ * card's votes once it stands, and WHICH resolution is the winning one once
+ * it stands — the marker moves on THIS touchdown, never before (`winnerAfter`
+ * changing between two consecutive entries is the move).
+ */
+export type ParliamentRallyVoteModel = {
+  instance: ResolutionInstanceId;
+  resolution: ResolutionId;
+  party: ReduxParty;
+  seq: number;
+  votes: number;
+  winnerAfter: ResolutionInstanceId | undefined;
+  /** The card won the vote by standing closer to ENACTED (its votes equal another's). */
+  tieNote?: 'slot-priority';
+};
+
+/** ONE support area a card paid (TR31): the party, what landed and the room's reading (a cut NAMES its cause). */
+export type ParliamentRallySupportModel = {
+  party: ReduxParty;
+  current: number;
+  gained: number;
+  resulting: number;
+  printed: number;
+  limit?: 'area' | 'supply';
+};
+
+/**
+ * THE LAST RALLY OF NEUTRAL DELEGATES BY A CARD (Turmoil Redux TR31
+ * Nationalist Movement — docs/TURMOIL_REDUX_NATIONALIST_MOVEMENT.md): what
+ * the card put on the table, in the PRINTED order — the neutral votes (one
+ * per resolution of the named parties up for a vote), the support areas
+ * (one cube each, the area's ceiling and the supply judged as the phase
+ * judges them), then the RECOUNT the M€ stands on. The client plays it ONCE
+ * (`seq` is the key) and derives nothing from the counters' deltas: `counted`
+ * is the FULL list of what the recount marks — every neutral cube in use
+ * AFTER the rally, votes by slot in the table's order, then the six areas —
+ * because by the time the scene runs the table may have moved on. A
+ * presentation record: not serialized, lost on a reload (the table is not).
+ */
+export type ParliamentRallyModel = {
+  seq: number;
+  player: Color;
+  card?: CardName;
+  /** The resolution that was winning BEFORE the first cube landed (the marker's hold). */
+  winnerBefore: ResolutionInstanceId | undefined;
+  votes: ReadonlyArray<ParliamentRallyVoteModel>;
+  /** The named parties whose resolution was NOT up for a vote — a named zero, nothing lost. */
+  missing: ReadonlyArray<ReduxParty>;
+  /** The named parties whose vote the EMPTY SUPPLY cut (a named skip). */
+  votesCut: ReadonlyArray<{party: ReduxParty, instance: ResolutionInstanceId, resolution: ResolutionId}>;
+  support: ReadonlyArray<ParliamentRallySupportModel>;
+  counted: {
+    votes: ReadonlyArray<{instance: ResolutionInstanceId, seqs: ReadonlyArray<number>}>;
+    support: ReadonlyArray<{party: ReduxParty, count: number}>;
+  };
+  /** Neutral delegates IN USE (not in the reserve) before → after the rally. */
+  inUse: {before: number, after: number};
+  /** The M€ the recount paid — `inUse.after`. */
+  megacredits: number;
+  generation: number;
+};
+
 export type ParliamentModel = {
   slots: ReadonlyArray<ParliamentSlotModel>;
   enacted?: ParliamentEnactedModel;
@@ -496,6 +560,8 @@ export type ParliamentModel = {
   /** The finished sittings, oldest first (the last 24 — the protocol's source; absent until the first). */
   phaseHistory?: ReadonlyArray<ParliamentPhaseSummaryModel>;
   lastAdvance?: ParliamentAdvanceModel;
+  /** The last rally of neutral delegates by a card (TR31) — played once by `seq`; absent until the first, and after a reload. */
+  lastRally?: ParliamentRallyModel;
   botMode: BotParliamentMode;
   /** Present on the viewer's own model only. */
   viewer?: {

@@ -11,6 +11,7 @@ import {AllColonyBonusesModel} from './ColonyBonusLedgerModel';
 import {EffectForecast} from './EffectForecastModel';
 import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
+import type {ReduxParty, ResolutionId, ResolutionInstanceId} from '../parliament/ParliamentTypes';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -498,6 +499,16 @@ export type ActionPreviewStep =
    * reading the track chip in `effects` draws.
    */
   | {kind: 'agendaWalk', walk: AgendaWalkModel}
+  /**
+   * THIS PLAY RALLIES NEUTRAL DELEGATES (Turmoil Redux TR31 Nationalist
+   * Movement) — a SHOW step like `agendaWalk`: the composer collects nothing,
+   * the play's one POST carries the rally's record back, and the console
+   * hosts the Parliament in the hand's own zone to play it — the cubes onto
+   * the resolutions and into the areas, then the recount the M€ stands on.
+   * `rally` is the PLAN read before the press (the same numbers the chips in
+   * `effects` draw, and the very numbers the play applies — one function).
+   */
+  | {kind: 'neutralRally', rally: NeutralRallyModel}
   | {
     kind: 'boardPlacement',
     placementType: string,
@@ -692,6 +703,46 @@ export type AgendaWalkModel = {
   steps: ReadonlyArray<{to: number, kind: 'influence' | 'tr' | 'card', level?: number}>;
   /** The player's WHOLE influence now → after the walk. */
   influence: {current: number, resulting: number};
+};
+
+/**
+ * THE RALLY READ BEFORE THE PRESS (Turmoil Redux TR31): for every named
+ * party, in the PRINTED order — its resolution up for a vote with the votes
+ * before → after the neutral cube and the political consequence (becomes /
+ * stays / still not the winning one, a tie going to the slot closer to
+ * ENACTED), or the NAMED ZERO of a party with no resolution in the area, or
+ * the NAMED CUT of an empty supply; then every area with the room's own
+ * reading; then the neutral delegates in use before → after, which IS the
+ * M€. Computed by the server's one plan (`RallyNeutralDelegates.rallyPlan`);
+ * the client computes none of it.
+ */
+export type NeutralRallyVoteModel = {
+  party: ReduxParty;
+  instance: ResolutionInstanceId;
+  resolution: ResolutionId;
+  /** The cube lands (false: the common supply was empty by the time this vote came — `limit: 'supply'`). */
+  placed: boolean;
+  limit?: 'supply';
+  votesBefore: number;
+  votesAfter: number;
+  winningBefore: boolean;
+  winningAfter: boolean;
+  /** `winningAfter` by standing closer to ENACTED (the votes equal another card's). */
+  tieNote?: 'slot-priority';
+};
+
+export type NeutralRallyModel = {
+  parties: ReadonlyArray<ReduxParty>;
+  votes: ReadonlyArray<NeutralRallyVoteModel>;
+  /** The named parties with no resolution up for a vote — a named zero. */
+  missing: ReadonlyArray<ReduxParty>;
+  support: ReadonlyArray<{party: ReduxParty, current: number, gained: number, resulting: number, printed: number, limit?: 'area' | 'supply'}>;
+  /** The common supply before → after. */
+  supply: {before: number, after: number};
+  /** Neutral delegates IN USE (not in the reserve) before → after. */
+  inUse: {before: number, after: number};
+  /** `inUse.after` — the M€ gained. */
+  megacredits: number;
 };
 
 /** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */

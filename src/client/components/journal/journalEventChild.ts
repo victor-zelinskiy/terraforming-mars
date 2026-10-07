@@ -182,7 +182,8 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
   // Turmoil Redux: a delegate an effect placed on a resolution, neutral
   // delegates an effect added to a party's Popular Support.
   if (impact.delegates !== undefined && impact.delegates.count !== 0) {
-    chips.push({icon: DELEGATE_ICON, text: signed(impact.delegates.count)});
+    // A NEUTRAL vote a card placed (TR31) wears the dark figure, never the event player's colour: the cube is nobody's.
+    chips.push({icon: impact.delegates.neutral === true ? NEUTRAL_DELEGATE_ICON : DELEGATE_ICON, text: signed(impact.delegates.count)});
   }
   if (impact.popularSupport !== undefined && impact.popularSupport.gained !== 0) {
     chips.push({icon: NEUTRAL_DELEGATE_ICON, text: signed(impact.popularSupport.gained)});
@@ -440,9 +441,10 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       push(`skipped|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], skipped: skippedRowOf(e.impact.skipped)}, []);
       continue;
     }
-    if (e.type === 'delegates-placed' && e.impact.delegates !== undefined) {
+    if ((e.type === 'delegates-placed' || e.type === 'neutral-delegates-placed') && e.impact.delegates !== undefined) {
       // Its OWN row (never merged into the card's other gains): the chip needs
-      // its address — which resolution the delegate stands on.
+      // its address — which resolution the delegate stands on. A NEUTRAL vote
+      // a card placed (TR31) is the same row with the dark figure as its chip.
       push(`delegates|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'resolution', resolution: e.impact.delegates.resolution}}, impactChips(e.impact));
       continue;

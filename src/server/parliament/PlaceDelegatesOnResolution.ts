@@ -244,17 +244,29 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
    * (the refresh's `moveSupportToSlot`), never on the card just voted for.
    */
   private paySupport(parliament: Parliament, party: ReduxParty, support: number): void {
-    const player = this.player;
-    const room = parliament.popularSupportRoom(party, support);
-    const gained = parliament.addPopularSupport(party, support);
-    if (gained > 0) {
-      const total = parliament.popularSupportOf(party);
-      player.game.log('${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})', (b) =>
-        b.partyName(party).number(gained).number(total).number(PARLIAMENT_MAX_POPULAR_SUPPORT));
-      player.game.events.recordPopularSupportGained(player, party, gained, total);
-      return;
-    }
-    const lost = skippedPopularSupport(room);
-    recordSkippedEffect(player, lost.reason, lost.skipped);
+    payPopularSupport(this.player, parliament, party, support);
   }
+}
+
+/**
+ * THE ONE PAYOUT OF A CARD'S «add N neutral delegates to a party's Popular
+ * Support» — TR03's «then» and TR31's areas (`RallyNeutralDelegates`) both
+ * pay through it, so the journal line, the typed fact and the named skip read
+ * the same for every card. The room is read on the live table
+ * (`popularSupportRoom`) and paid by the sitting's one writer; none landing
+ * is a NAMED record in the forecast's own words. Returns the room as paid.
+ */
+export function payPopularSupport(player: IPlayer, parliament: Parliament, party: ReduxParty, printed: number): SupportRoom {
+  const room = parliament.popularSupportRoom(party, printed);
+  const gained = parliament.addPopularSupport(party, printed);
+  if (gained > 0) {
+    const total = parliament.popularSupportOf(party);
+    player.game.log('${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})', (b) =>
+      b.partyName(party).number(gained).number(total).number(PARLIAMENT_MAX_POPULAR_SUPPORT));
+    player.game.events.recordPopularSupportGained(player, party, gained, total);
+    return room;
+  }
+  const lost = skippedPopularSupport(room);
+  recordSkippedEffect(player, lost.reason, lost.skipped);
+  return room;
 }

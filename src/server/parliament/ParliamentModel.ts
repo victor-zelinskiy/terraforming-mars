@@ -180,6 +180,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       generation: advance.generation,
     };
   }
+  if (parliament.lastRally !== undefined) {
+    // The record is written in the model's own shape by its one writer (`applyRally`); only the seat is a colour here.
+    const rally = parliament.lastRally;
+    model.lastRally = {...rally, player: game.getPlayerById(rally.player).color};
+  }
   if (viewer !== undefined) {
     model.viewer = {
       vote: voteModel(game, parliament, viewer),
@@ -316,11 +321,9 @@ function pendingDelegateGrantCount(viewer: IPlayer): number {
 
 function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot: Slot, count = 1): VoteProjectionModel {
   // A throwaway parliament over copied slots: the rules run on the copy, the
-  // live state is untouched.
-  const copy = new Parliament(parliament.botMode, parliament.catalog);
-  copy.slots = parliament.slots.map((s) => ({instance: s.instance, votes: s.votes.map((vote) => ({...vote}))}));
-  copy.enacted = parliament.enacted;
-  copy.voteSeq = parliament.voteSeq;
+  // live state is untouched (`Parliament.projection` — the same copy a card's
+  // plan of neutral votes reads, TR31).
+  const copy = parliament.projection();
   const target = copy.slotByInstance(slot.instance);
   if (target === undefined) {
     throw new Error('slot vanished');

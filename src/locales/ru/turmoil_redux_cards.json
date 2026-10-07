@@ -111,5 +111,8 @@
     "No card of yours can hold mechs": "Нет вашей карты, которая примет мех",
 
     "Red Museum": "Красный музей",
-    "Effect: After you place a city or special tile on Mars ADJACENT TO NO GREENERIES OR OCEANS, add 2 data resources to this card.": "Эффект: после того как вы разместили на Марсе город или особый тайл НЕ РЯДОМ С ОЗЕЛЕНЕНИЕМ ИЛИ ОКЕАНОМ, положите на эту карту 2 единицы данных."
+    "Effect: After you place a city or special tile on Mars ADJACENT TO NO GREENERIES OR OCEANS, add 2 data resources to this card.": "Эффект: после того как вы разместили на Марсе город или особый тайл НЕ РЯДОМ С ОЗЕЛЕНЕНИЕМ ИЛИ ОКЕАНОМ, положите на эту карту 2 единицы данных.",
+
+    "Nationalist Movement": "Националистическое движение",
+    "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 neutral delegate to each Reds and Mars First resolution up for voting, and to each of their Popular Support Areas as well. Then gain M€ equal to the total number of neutral delegates in use. (Not in the reserve)": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Добавьте 1 нейтрального делегата на каждую резолюцию «Красных» и «Марс вперёд» на голосовании и в области Народной поддержки обеих партий. Затем получите M€ по числу нейтральных делегатов в игре (не в резерве)."
 }

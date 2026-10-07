@@ -74,6 +74,18 @@ export type GameEventType =
    */
   | 'delegates-placed'
   /**
+   * NEUTRAL DELEGATES PLACED ON A RESOLUTION BY A CARD (Turmoil Redux TR31
+   * Nationalist Movement — «add 1 neutral delegate to each Reds and Mars
+   * First resolution up for voting»): the same `impact.delegates` shape with
+   * `neutral: true`. Until TR31 a neutral vote was only ever the sitting's
+   * own (a party's support becoming votes at the refresh — told by the
+   * phase's summary); a CARD placing one mid-generation is a typed fact of
+   * the play's chain, so the journal row and the rival's notification read
+   * the dark figure on the resolution it joined. The card rides the event's
+   * `source`.
+   */
+  | 'neutral-delegates-placed'
+  /**
    * NEUTRAL DELEGATES ADDED TO A PARTY'S POPULAR SUPPORT BY AN EFFECT
    * (Turmoil Redux, TR03): `impact.popularSupport` names the party, how many
    * landed and what the area holds now. The sitting's own support step is not

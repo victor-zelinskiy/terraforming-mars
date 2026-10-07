@@ -57,6 +57,14 @@ const CANON: Record<string, string> = {
   'Agenda track': 'Карьера',
   'Agenda start': 'Старт карьеры',
   'Agenda step': 'шаг Карьеры',
+  // «ДЕЛЕГАТЫ» (owner's decision 2026-10-07, TR31): a card's rally of NEUTRAL delegates — the stage is one word
+  // («Delegates»), the band's kicker names the cubes, the recount counts «in use» (glossary § 9-ter).
+  'Delegates': 'Делегаты',
+  'Neutral delegates': 'Нейтральные делегаты',
+  'in use': 'в игре',
+  'Delegates — neutral delegates in the Parliament': 'Делегаты — нейтральные делегаты в Парламенте',
+  '+0 · the area is full': '+0 · область заполнена',
+  '+0 · no neutral delegates left': '+0 · нейтральных не осталось',
   'Available to every player': 'Доступен всем',
   'Waiting for the other seats': 'Ожидание',
   'The ruling party answers': 'Ответ правящей партии',

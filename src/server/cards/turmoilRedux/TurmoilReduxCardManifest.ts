@@ -31,6 +31,7 @@ import {AuroraStation} from './AuroraStation';
 import {EarthArmyContract} from './EarthArmyContract';
 import {SpaceshipRecycling} from './SpaceshipRecycling';
 import {RedMuseum} from './RedMuseum';
+import {NationalistMovement} from './NationalistMovement';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -161,5 +162,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // under the REDS' plate, and its first tile trigger the CELL decides («a city or special tile on Mars adjacent to
     // no greeneries or oceans» → +2 data here; `cards/tilePayout.ts`, the scene «ТАЙЛ ПЛАТИТ»).
     [CardName.RED_MUSEUM]: {Factory: RedMuseum},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The Reds' plate
+    // again, and the set's first card that places a NEUTRAL vote — the shared step `parliament/RallyNeutralDelegates`
+    // (a pure plan, no prompt), the rally hosted by the hand on the console («ДЕЛЕГАТЫ»).
+    [CardName.NATIONALIST_MOVEMENT]: {Factory: NationalistMovement},
   },
 });
