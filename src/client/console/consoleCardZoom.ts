@@ -24,6 +24,7 @@ import {ActionInspectHistory} from '@/client/components/actions/actionInspectHis
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
+import type {DrawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
 
 /** A SAFE selection bridge from the opening context (P15). */
 export type ConsoleZoomSelect = {
@@ -306,6 +307,13 @@ export type ConsoleZoomExtra = {
    * source too.
    */
   discards?: () => void,
+  /**
+   * Present ⇔ the viewer browses a conditional search's DISCARD pile (TR32):
+   * WHY the card on screen was thrown away — the tag it carries that the rule
+   * excludes, or the rule a positive filter applied — read off the server's
+   * own step (`drawDiscardVerdict`). Index-keyed, so LB/RB keeps it honest.
+   */
+  discardVerdictAt?: (index: number) => DrawDiscardVerdict | undefined,
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
   /** Present ⇔ the viewer shows the availability panel in this VOICE. */
@@ -378,6 +386,8 @@ export const consoleCardZoom = reactive({
   sourceInfo: undefined as {label: string, name: string} | undefined,
   /** Present ⇔ R3 browses the discard pile (single-card fullscreen reveal). */
   discards: undefined as (() => void) | undefined,
+  /** Present ⇔ the viewer browses a search's discard pile: the reason per card (index → verdict). */
+  discardVerdictAt: undefined as ((index: number) => DrawDiscardVerdict | undefined) | undefined,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
   /** The availability panel's viewing context (explicit opener opt-in). */
@@ -421,6 +431,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.receivedCount = extra?.receivedCount ?? 0;
   consoleCardZoom.sourceInfo = extra?.sourceInfo;
   consoleCardZoom.discards = extra?.discards;
+  consoleCardZoom.discardVerdictAt = extra?.discardVerdictAt;
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
   consoleCardZoom.availability = extra?.availability;
   consoleCardZoom.inspect = extra?.inspect;
@@ -486,6 +497,7 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.receivedCount = 0;
   consoleCardZoom.sourceInfo = undefined;
   consoleCardZoom.discards = undefined;
+  consoleCardZoom.discardVerdictAt = undefined;
   consoleCardZoom.origin = {kind: 'none'};
   consoleCardZoom.availability = undefined;
   consoleCardZoom.inspect = undefined;

@@ -388,8 +388,13 @@ body.con-zoom-open .con-journal {
         height: var(--con-chip-icon, 1.3rem);
     }
     .action-effect-chip__note.action-effect-chip__note,
-    .action-effect-chip__basis.action-effect-chip__basis {
+    .action-effect-chip__basis.action-effect-chip__basis,
+    .action-effect-chip__search.action-effect-chip__search {
         font-size: var(--con-chip-note, 0.7rem);
+    }
+    /* The search rule's padding rides the same rem scale (the scoped chip rule is px). */
+    .action-effect-chip__search.action-effect-chip__search {
+        padding-left: .35rem;
     }
 }
 
@@ -957,6 +962,63 @@ html.console-native {
         background: fade(@con-red, 10%);
         box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
         .con-ws-stage-badge__num { color: #ffc9c4; }
+    }
+}
+/* ═══ THE SEARCH'S RULE (`ConsoleDrawSearchRule` — TR32, PL-021) ═══════════
+   One inline phrase for every surface that names a filtered draw: the
+   composer's draw chip, its «Далее» row, the reveal's summary badge and the
+   discard viewer's verdict. Sized in `em` so it takes the voice of its host
+   (a chip's note, a badge's caps, a status line). An EXCLUDED tag is struck
+   exactly as the card face prints it (`.pcard-mi--cancelled`'s red slash). */
+.con-dsearch {
+    display: inline-flex;
+    align-items: center;
+    gap: .45em;
+    white-space: nowrap;
+
+    &__term {
+        display: inline-flex;
+        align-items: center;
+        gap: .3em;
+    }
+    &__term + &__term::before {
+        content: '·';
+        opacity: .55;
+        margin-right: .15em;
+    }
+    &__label {
+        letter-spacing: .01em;
+    }
+    &__tag,
+    &__res {
+        position: relative;
+        flex: 0 0 auto;
+        width: 1.5em;
+        height: 1.5em;
+        border-radius: 50%;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__res {
+        border-radius: 0;
+        background-size: contain;
+    }
+    &__tag + &__tag {
+        margin-left: .1em;
+    }
+    &__tag--struck::after {
+        content: '';
+        position: absolute;
+        left: -12%;
+        right: -12%;
+        top: 50%;
+        height: .14em;
+        min-height: .1rem;
+        background: #e03d3d;
+        transform: rotate(-32deg);
+        box-shadow: 0 0 .1rem rgba(0, 0, 0, .7);
+        pointer-events: none;
     }
 }
 .con-cards__strip.con-ws-stage-row,
@@ -23883,6 +23945,82 @@ each(@players, {
     }
 }
 
+/* ═══ WHY THIS CARD WAS THROWN AWAY (TR32 — the search's discard pile) ═══════
+   The viewer bar names the reason in the discard's own red register: the tag
+   the rule excludes (its medallion struck, its name beside it) or, for a card a
+   positive filter refused, the rule it did not meet. */
+.con-zoom__verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .25rem .8rem;
+    border-radius: 49.95rem;
+    background: rgba(40, 16, 16, 0.72);
+    box-shadow: inset 0 0 0 .05rem rgba(224, 61, 61, 0.55);
+    font-family: @con-font;
+    font-size: .75rem;
+    color: @con-text;
+    white-space: nowrap;
+
+    &-label {
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: #ffb3ab;
+    }
+    &-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+    }
+    &-name {
+        font-weight: 700;
+    }
+}
+
+/* …and on the FACE: the printed medallion of the tag that threw the card away
+   is marked as a STATE (a red ring + the card face's own strike), one class per
+   tag on the viewer root, scoped to the hero stage (never the preloaded
+   neighbours). The ring is `box-shadow` — functional state survives the paint
+   baseline; the strike rides `::before` (the medallion's `::after` is its gold
+   ring). */
+@con-reject-tags: building, space, science, power, earth, jovian, venus, plant, microbe, animal, city, moon, mars, crime, event, wild, clone;
+each(@con-reject-tags, {
+    .con-zoom--reject-@{value} .card-zoom-stage .pcard-tag[data-tag="@{value}"] {
+        box-shadow: 0 0 0 .15rem rgba(224, 61, 61, 0.95), 0 0 .6rem rgba(224, 61, 61, 0.55);
+        &::before {
+            background:
+                linear-gradient(-32deg, transparent 45%, #e03d3d 45%, #e03d3d 55%, transparent 55%),
+                radial-gradient(110% 85% at 50% 118%, rgba(8, 5, 2, 0.4), transparent 58%);
+        }
+    }
+});
+
+/* THE SEARCH'S SUMMARY (`ConsoleDrawSearchTally`) — one line inside the
+   reveal's badge (embedded) or under its title (standalone). */
+.con-dsearch-tally {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    white-space: nowrap;
+
+    &__num {
+        font-weight: 800;
+        color: @con-cyan;
+    }
+    &__sep,
+    &__dash {
+        opacity: .55;
+    }
+    &__end {
+        color: fade(@con-text, 78%);
+    }
+}
+.con-reveal__searchbadge .con-dsearch-tally__num {
+    font-size: .82rem;
+}
+
 /* ── THE GAME START WORKSPACE (`.con-start`) ──────────────────────────
    ONE root surface, two bounds:
     · PREPARATION — full-bleed safe area (the standard Top Bar + Player Rail
@@ -32907,6 +33045,9 @@ html.console-mode {
        the thing that gives way; the ellipsis here is a pathological-input
        backstop, not the normal case. */
     &__next-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    /* A filtered draw's RULE after the sentence (TR32): the icons never shrink —
+       a struck tag cut in half reads as some other tag. Shorter than the row. */
+    &__next-search { flex: none; font-size: .74rem; color: fade(@con-cyan, 82%); }
     /* The muted placement constraint — the FIRST thing to yield when the row is
        tight, down to nothing if need be. The full value stays on the row's
        `aria-label`, so clipping it never loses information for a screen reader. */

@@ -28,7 +28,8 @@
  */
 
 import {Message} from '@/common/logs/Message';
-import {ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {TileType, isSpecialTile, tileTypeToString} from '@/common/TileType';
 
 /** The `boardPlacement` arm of `ActionPreviewStep`, narrowed. */
@@ -163,11 +164,34 @@ export type NextStepRow = {
   constraint: string;
   /** Sentence + constraint — the accessible full value behind any ellipsis. */
   full: string;
+  /** A filtered draw's RULE, drawn after the sentence (`ConsoleDrawSearchRule`) — the server's descriptor. */
+  search?: DrawSearchModel;
 };
 
 /** A plain (non-placement) follow-up row: prose the server already authored. */
 export function noteRow(text: string): NextStepRow {
   return {text, constraint: '', full: text};
+}
+
+/** The key of a FILTERED draw's «Далее» row — «the deck is revealed until N match», the rule drawn after it. */
+export const SEARCH_NEXT_STEP_KEY = 'Draw — the deck is revealed until matches: ${0}';
+
+/**
+ * THE SEARCH'S ROW (TR32): a filtered draw does not simply «take N» — the deck
+ * is turned over until N cards meet the rule, and the rest is thrown away. The
+ * chip names the rule; this row names the PROCESS the press starts, from the
+ * same server descriptor. One row per filtered draw chip, none for a plain draw.
+ */
+export function searchRows(effects: ReadonlyArray<ActionEffect>, translate: (key: string, params: ReadonlyArray<string>) => string): Array<NextStepRow> {
+  const out: Array<NextStepRow> = [];
+  for (const e of effects) {
+    if (e.icon !== 'cards' || e.direction !== 'gain' || e.search === undefined) {
+      continue;
+    }
+    const text = translate(SEARCH_NEXT_STEP_KEY, [String(e.search.count)]);
+    out.push({text, constraint: '', full: text, search: e.search});
+  }
+  return out;
 }
 
 /**

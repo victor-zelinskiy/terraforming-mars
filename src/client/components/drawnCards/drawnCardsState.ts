@@ -1,7 +1,7 @@
 import {reactive, shallowRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, ColonyTradeRevealSegment} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, ColonyTradeRevealSegment, DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 
@@ -30,6 +30,10 @@ export type DrawnCardEntry = {
    * discarded something; the console draw cinematic replays it verbatim.
    */
   sequence?: ReadonlyArray<CardDrawRevealStep>;
+  /** A filtered search's RULE (server truth — CardDrawRevealModel.search), on every batch it produced. */
+  search?: DrawSearchModel;
+  /** The search ran out of cards first (server truth — CardDrawRevealModel.exhausted). */
+  exhausted?: true;
   /**
    * A trade-merged batch's income/bonus split (server truth — see
    * CardDrawRevealModel.tradeSegments). The console trade cinematic launches
@@ -78,6 +82,8 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
         source: r.source,
         cards: r.cards,
         sequence: r.sequence,
+        search: r.search,
+        exhausted: r.exhausted,
         tradeSegments: r.tradeSegments,
         takenIndices: new Set<number>(),
         acking: false,
@@ -101,6 +107,8 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
       existing.cards = r.cards;
       existing.source = r.source;
       existing.sequence = r.sequence;
+      existing.search = r.search;
+      existing.exhausted = r.exhausted;
       existing.tradeSegments = r.tradeSegments;
       if (grew && existing.dismissed) {
         existing.dismissed = false;

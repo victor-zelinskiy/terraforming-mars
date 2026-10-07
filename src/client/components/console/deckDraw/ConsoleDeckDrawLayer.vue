@@ -49,6 +49,8 @@
          tray, so the heavy premium face is never built for it. -->
     <div v-for="(step, i) in sceneCards" :key="sceneNonce + '|' + step.name + '#' + i"
          class="con-deckdraw-proxy"
+         :data-dd-card="step.name"
+         :data-dd-matched="step.matched ? 'yes' : 'no'"
          :ref="(el) => setProxyRef(el, i)">
       <div class="con-deal-proxy__flip" :ref="(el) => setFlipRef(el, i)">
         <div v-if="step.matched" class="con-deal-proxy__face">

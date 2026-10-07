@@ -308,6 +308,7 @@
                 <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
                 <span class="con-composer__next-label">{{ $t('Next') }}</span>
                 <span class="con-composer__next-text">{{ n.text }}</span>
+                <ConsoleDrawSearchRule v-if="n.search !== undefined" class="con-composer__next-search" :search="n.search" size="line" />
                 <span v-if="n.constraint !== ''" class="con-composer__next-tail">{{ n.constraint }}</span>
               </div>
 
@@ -618,6 +619,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
+import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
@@ -740,7 +742,7 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
-import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {NextStepRow, noteRow, placementRow, searchRows} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 
@@ -860,7 +862,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1696,6 +1698,9 @@ export default defineComponent({
       if (b.reveal !== undefined) {
         out.push(noteRow(translateText('Reveal a card')));
       }
+      // A FILTERED DRAW's process (TR32): «Добор — колода вскрывается, пока не наберётся совпадений: 3 · без меток …» —
+      // the rule from the chip's own server descriptor, first: the search runs in the press's own answer.
+      out.push(...searchRows(this.immediateEffects, (key, params) => translateTextWithParams(key, [...params])));
       for (const s of b.steps) {
         if (s.kind === 'boardPlacement') {
           // WHICH tile — named, and «особый тайл» first when it is one. The

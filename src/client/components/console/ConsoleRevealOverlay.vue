@@ -54,8 +54,14 @@
           <ConsoleWsStageHead v-if="embedded && mode !== 'result'"
                               class="con-reveal__head con-reveal__head--embedded"
                               :title="titleText">
-            <template v-if="mode === 'drawn' && drawnEvent !== undefined && drawnEvent.cards.length > 1" #badges>
-              <span class="con-ws-stage-badge">
+            <template v-if="mode === 'drawn' && drawnEvent !== undefined && (drawnEvent.cards.length > 1 || drawnEvent.search !== undefined)" #badges>
+              <!-- A FILTERED SEARCH states its whole outcome and its rule in the ONE badge (TR32 — K-4):
+                   «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 — без меток …». A plain draw keeps its count. -->
+              <span v-if="drawnEvent.search !== undefined" class="con-ws-stage-badge con-reveal__searchbadge">
+                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+                <ConsoleDrawSearchTally :reveal="drawnEvent" />
+              </span>
+              <span v-else class="con-ws-stage-badge">
                 <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
                 <span class="con-ws-stage-badge__label">{{ $t('Received') }}</span>
                 <b class="con-ws-stage-badge__num">{{ drawnEvent.cards.length }}</b>
@@ -71,7 +77,9 @@
               <div class="con-reveal__headmain">
                 <div class="con-reveal__title">{{ titleText }}</div>
                 <div v-if="mode === 'drawn'" class="con-reveal__subtitle">
-                  {{ $t('Cards were added from a draw source.') }}
+                  <!-- A filtered search names what it turned over and by which rule (TR32), never the generic line. -->
+                  <ConsoleDrawSearchTally v-if="drawnEvent !== undefined && drawnEvent.search !== undefined" :reveal="drawnEvent" />
+                  <template v-else>{{ $t('Cards were added from a draw source.') }}</template>
                 </div>
                 <!--
                   Compact SOURCE chip — a navigation-context metadata element,
@@ -477,6 +485,8 @@ import {
   sourceSeatReservePx, verdictStageFit, wsStageLayout, wsStageLayoutStyle,
 } from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
+import ConsoleDrawSearchTally from '@/client/components/console/foundation/ConsoleDrawSearchTally.vue';
+import {discardedSteps, drawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -540,7 +550,7 @@ type StripEntry = {card: CardModel, index: number, pos: number};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleDrawSearchTally, ConsoleRevealVerdict, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
@@ -2028,8 +2038,13 @@ export default defineComponent({
       if (list.length === 0) {
         return;
       }
+      // WHY each card went (TR32): the step's own reason, index for index — the pile is the
+      // sequence's discarded steps in the server's order, exactly the list above.
+      const steps = discardedSteps(this.drawnEvent);
+      const search = this.drawnEvent?.search;
       openConsoleCardZoom(list, 0, undefined, undefined, {
         statusLabel: 'Discarded card',
+        discardVerdictAt: (index) => drawDiscardVerdict(steps[index], search),
         // The pile IS the physical origin — the viewer lifts out of it.
         origin: {
           kind: 'physical',

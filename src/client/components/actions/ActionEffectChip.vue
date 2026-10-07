@@ -59,6 +59,13 @@
     <span v-if="effect.note" class="action-effect-chip__note" v-i18n>{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
 
+    <!-- A FILTERED DRAW's RULE (PL-021) — «+3 взять | без меток [P̸][M̸][A̸]»: the
+         server's search descriptor, behind its own hairline like the basis.
+         The SAME rendering the reveal's summary and the discard viewer use. -->
+    <span v-if="effect.search !== undefined" class="action-effect-chip__search">
+      <ConsoleDrawSearchRule :search="effect.search" />
+    </span>
+
     <!-- Variable-amount BASIS — "why is it this much": the live count of each
          counted entity (e.g. Cities on Mars: 3). It comes LAST, behind its own
          hairline: the chip states the change first and the reason after, so the
@@ -83,9 +90,11 @@
 import {defineComponent, PropType} from 'vue';
 import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 
 export default defineComponent({
   name: 'ActionEffectChip',
+  components: {ConsoleDrawSearchRule},
   props: {
     effect: {
       type: Object as PropType<ActionEffect>,
@@ -342,6 +351,17 @@ export default defineComponent({
   vertical-align: middle;
 }
 .action-effect-chip__basis-sep { margin: 0 1px; opacity: 0.6; }
+/* The search rule — set off by the same hairline as the basis: the chip states
+   the draw first, then WHAT the deck is searched for. */
+.action-effect-chip__search {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 7px;
+  margin-left: 1px;
+  border-left: 1px solid var(--chip-rim);
+  font-size: 10.5px;
+  color: rgba(200, 224, 240, 0.66);
+}
 .action-effect-chip__basis-count {
   font-weight: 700;
   color: var(--chip-accent);

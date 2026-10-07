@@ -977,7 +977,7 @@
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
                    class="con-zoom"
-                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined, 'con-zoom--party': zoomPartyOpen}"
+                   :class="[{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined, 'con-zoom--party': zoomPartyOpen}, zoomRejectedTagClasses]"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
@@ -1185,6 +1185,26 @@
                 class="con-zoom__status"
                 :class="zoomReceiveLabel !== undefined ? 'con-zoom__status--received' : 'con-zoom__status--source'">
             {{ $t(zoomStatusLabel) }}
+          </span>
+          <!-- WHY THIS CARD WAS THROWN AWAY (TR32 — a conditional search's discard pile): the tag it carries
+               that the rule excludes (its printed medallion is struck on the face above, one class per tag),
+               or the rule a positive filter applied. The server's own step, never a client guess. -->
+          <span v-if="zoomDiscardVerdict !== undefined"
+                class="con-zoom__verdict"
+                data-zoom-discard-verdict
+                :data-verdict-kind="zoomDiscardVerdict.kind"
+                :data-verdict-tags="zoomDiscardVerdict.kind === 'tags' ? zoomDiscardVerdict.tags.join(',') : undefined">
+            <template v-if="zoomDiscardVerdict.kind === 'tags'">
+              <span class="con-zoom__verdict-label">{{ $t('Thrown away for its tag') }}</span>
+              <span v-for="tag in zoomDiscardVerdict.tags" :key="tag" class="con-zoom__verdict-tag">
+                <span class="con-dsearch__tag con-dsearch__tag--struck" :style="zoomVerdictTagStyle(tag)" aria-hidden="true"></span>
+                <span class="con-zoom__verdict-name">{{ zoomVerdictTagName(tag) }}</span>
+              </span>
+            </template>
+            <template v-else>
+              <span class="con-zoom__verdict-label">{{ $t('Did not match the search') }}</span>
+              <ConsoleDrawSearchRule :clauses="zoomDiscardVerdict.terms" size="line" />
+            </template>
           </span>
           <!-- «ПОЛУЧЕНО N» — parity with the multi-card modal's header count. -->
           <span v-if="zoomReceivedCount > 0" class="con-zoom__count">
@@ -1760,6 +1780,10 @@ import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from
 import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
 import {boardSceneSettling, boardStorySettling, waitBoardStoryQuiet, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
+import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
+import type {DrawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
+import {tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
+import {tagLabel} from '@/client/cards/tagLabel';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
 import {
@@ -2329,6 +2353,7 @@ function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
+    ConsoleDrawSearchRule,
     ConsoleStatusStrip,
     ConsoleMandatoryAnnounce,
     ConsoleTerraformingCeremony,
@@ -9782,6 +9807,23 @@ export default defineComponent({
       return this.consoleCardZoom.statusLabel;
     },
     /**
+     * WHY the card on screen was thrown away — a search's discard pile only
+     * (TR32). Rides `index`, so LB/RB through the pile keeps it honest.
+     */
+    zoomDiscardVerdict(): DrawDiscardVerdict | undefined {
+      const index = this.consoleCardZoom.index;
+      return this.consoleCardZoom.discardVerdictAt?.(index);
+    },
+    /**
+     * ONE class per excluded tag the card on screen carries — the face marks
+     * its own printed medallion as a STATE (`.con-zoom--reject-<tag>`), so the
+     * reason is found where the rule looked, never re-drawn beside the card.
+     */
+    zoomRejectedTagClasses(): Array<string> {
+      const verdict = this.zoomDiscardVerdict;
+      return verdict?.kind === 'tags' ? verdict.tags.map((tag) => `con-zoom--reject-${tag}`) : [];
+    },
+    /**
      * The PLAYED-TABLE provenance plate for the card ON SCREEN (undefined =
      * the viewer wasn't opened from «Разыграно»). Rides `index`, so browsing
      * a zone with LB/RB keeps the plate — and «N из M» — honest.
@@ -12336,6 +12378,14 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The discard verdict's tag medallion (TR32) — the card face's own art. */
+    zoomVerdictTagStyle(tag: Tag): Record<string, string> {
+      return tagIconStyle(tag);
+    },
+    /** …and its name, in the player's language («Растение»). */
+    zoomVerdictTagName(tag: Tag): string {
+      return tagLabel(tag);
+    },
     /**
      * May this prompt-surface family come alive right now? THE single admission
      * question — every family asks it, none re-derives it (consolePromptAdmission).
