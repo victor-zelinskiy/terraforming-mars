@@ -1,7 +1,13 @@
 /*
- * «ГОРОДА ПЛАТЯТ» — the pure half of the scene of a card reward THE CELL
- * DECIDES (Turmoil Redux TR21 Arboretum: «1 data on the chosen card for each
- * city beside the greenery»; docs/TURMOIL_REDUX_ARBORETUM.md).
+ * «ТАЙЛ ПЛАТИТ КАРТЕ» — the pure half of the scene of a card reward a PLACED
+ * TILE pays (`cards/tilePayout.ts`, one record per paying card). Two causes:
+ * «ГОРОДА ПЛАТЯТ» — the cities beside the tile send the units (Turmoil Redux
+ * TR21 Arboretum: «1 data on the chosen card for each city beside the
+ * greenery»; docs/TURMOIL_REDUX_ARBORETUM.md) — and the TILE ITSELF sends them
+ * (TR30 Red Museum: «+2 data here» for a city or special tile with no greenery
+ * or ocean beside it; the Pets / Martian Census class). One stage, one record
+ * shape; the sender of each unit is a cell of the record — a neighbour, or the
+ * placed cell itself (`sentByTheTile`).
  *
  * THE GRAMMAR (TILE_PLAY_STAGED_COMMIT.md §8-bis, extended): the tile and its
  * oxygen are the FIELD's (the ordinary landing beats); the data is the CARD's
@@ -42,25 +48,75 @@ export const CITY_PAYOUT_CARD_W_REM = 8.4;
 export const CITY_PAYOUT_CARD_RATIO = 1.4;
 
 /**
- * The SERVER's record of THIS placement's payout — the newest one naming the
- * placed cell and the paid seat. Nothing else is accepted: a stale record (an
- * earlier play) or another seat's never plays here.
+ * EVERY record of THIS placement — one cell can pay several cards at once (a
+ * city on a clean cell pays the museum's data, Martian Census's data and Pets'
+ * animal: one record each, `cards/tilePayout.ts`). The records of one
+ * placement are written in ONE response and share its `gameAge` block
+ * (`seq = gameAge · 100 + n`), so only the newest block naming the cell is
+ * taken — an earlier placement's record on the same cell never plays again.
+ * The engine's own order (oldest first: the order the triggers paid).
+ * `color` narrows to one seat; `undefined` takes every seat (the remote stage).
  */
-export function cityPayoutFor(
+export function cityPayoutsFor(
   records: ReadonlyArray<CardAdjacencyPayoutModel> | undefined,
   spaceId: SpaceId | string,
   color: Color | undefined,
-): CardAdjacencyPayoutModel | undefined {
-  if (records === undefined) {
-    return undefined;
+): Array<CardAdjacencyPayoutModel> {
+  const mine = (records ?? []).filter((r) => r.spaceId === spaceId && r.amount > 0);
+  if (mine.length === 0) {
+    return [];
   }
-  for (let i = records.length - 1; i >= 0; i--) {
-    const r = records[i];
-    if (r.spaceId === spaceId && (color === undefined || r.color === color) && r.amount > 0) {
-      return r;
-    }
+  const block = Math.max(...mine.map((r) => Math.floor(r.seq / 100)));
+  return mine
+    .filter((r) => Math.floor(r.seq / 100) === block && (color === undefined || r.color === color))
+    .sort((a, b) => a.seq - b.seq);
+}
+
+/**
+ * The TILE ITSELF sends the units (cause `tile-placed` — TR30 Red Museum, the
+ * Pets / Martian Census class): the record's sending cell is the placed one,
+ * so the token is born on the tile that just landed — never on a neighbour.
+ */
+export function sentByTheTile(payout: CardAdjacencyPayoutModel, sender: SpaceId | string): boolean {
+  return sender === payout.spaceId;
+}
+
+/**
+ * Where a token the placed tile ITSELF sends is born, as a fraction of the
+ * hex's width from its centre toward the card that receives it — inside the
+ * tile, at its edge: the unit belongs to the tile, and the edge it leaves by
+ * already points where it is going.
+ */
+export const SELF_TOKEN_REACH = 0.3;
+/** Where the tile's own wake is centred (the city register's swell), toward the same edge. */
+export const SELF_WAKE_REACH = 0.16;
+
+/** The unit vector from a rect's centre toward a point (straight up when the point is the centre itself). */
+export function directionToward(from: Rect, toward: {x: number, y: number}): {x: number, y: number} {
+  const dx = toward.x - (from.x + from.w / 2);
+  const dy = toward.y - (from.y + from.h / 2);
+  const dist = Math.hypot(dx, dy);
+  return dist < 1 ? {x: 0, y: -1} : {x: dx / dist, y: dy / dist};
+}
+
+/** A point `reach` hex-widths from the rect's centre along `dir`, lifted by `liftPx`. */
+export function pointToward(rect: Rect, dir: {x: number, y: number}, reach: number, liftPx = 0): {x: number, y: number} {
+  return {x: rect.x + rect.w / 2 + dir.x * rect.w * reach, y: rect.y + rect.h / 2 + dir.y * rect.w * reach - liftPx};
+}
+
+/**
+ * THE POINTS THE UNITS BRING, touchdown by touchdown: `steps[k]` is what the
+ * (k + 1)-th unit adds to its card's score (`vpAt` — the card's own scorer,
+ * the count → its points). The rail's VP cell is a DERIVED cell (PL-014 /
+ * PL-073): it keeps these back and ticks on the touchdown that crosses a point
+ * — the museum's «1 per 2 data» reads 0 on the first landing, +1 on the second.
+ */
+export function cityPayoutVpSteps(before: number, amount: number, vpAt: (count: number) => number): Array<number> {
+  const out: Array<number> = [];
+  for (let k = 1; k <= amount; k++) {
+    out.push(vpAt(before + k) - vpAt(before + k - 1));
   }
-  return undefined;
+  return out;
 }
 
 /** Records this client has played (or is playing) — each is played ONCE, by the hero or by the remote stage. */

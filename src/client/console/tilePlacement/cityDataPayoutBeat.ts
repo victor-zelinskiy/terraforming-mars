@@ -35,6 +35,7 @@ import {gsap} from 'gsap';
 import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
 import {Units} from '@/common/Units';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -47,10 +48,12 @@ import {
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
-import {ResourceTransferSpec, TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
+import {ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   CITY_PAYOUT_BREATH_MS, CITY_PAYOUT_READ_MS, CITY_PAYOUT_RETURN_MS, CITY_PAYOUT_RISE_MS, CITY_PAYOUT_TICK_GAP_MS,
-  Rect, cityPayoutPlate, cityPayoutTickAt, cityTokenPlan, tokenSpread,
+  Rect, SELF_TOKEN_REACH, SELF_WAKE_REACH, cityPayoutPlate, cityPayoutTickAt, cityTokenPlan, directionToward, pointToward,
+  sentByTheTile, tokenSpread,
 } from '@/client/console/tilePlacement/cityDataPayoutModel';
 
 export type CityPayoutPhase = 'idle' | 'waiting' | 'rising' | 'paying' | 'reading' | 'returning' | 'answering';
@@ -68,6 +71,8 @@ export const cityPayoutState = reactive({
   tokens: [] as Array<CityTokenProxy>,
   /** The receiving card on the field (own scene only): its name, its frozen model, its plate. */
   card: undefined as {name: CardName, model: CardModel | undefined, before: number, plate: Rect} | undefined,
+  /** The card resource the record moves, as an icon key (`data`, `animal`) — the tokens' face and the reading's icon. */
+  resource: 'data',
   /** Tokens that have TOUCHED the card's capsule — the counter reads `before + landed`. */
   landed: 0,
   /** Nothing measurable: the numbers ticked, nothing flew (a probe's witness; a reduced run is not a degrade). */
@@ -113,6 +118,9 @@ registerAnimationHoldSupplier('city-data-payout-pending', cityPayoutWaiting, {
   scope: 'notification-only',
   expire: () => abortCityPayoutBeat(),
 });
+// ON STAGE it is a piece of the board's story: an automatic workspace transition (a yielded stack's return, the
+// endgame open) waits it out instead of covering the card standing by the field.
+registerBoardSceneMember(cityPayoutActive);
 
 /**
  * THE FIELD SPEAKS FIRST: the tile and the oxygen it raised are the board's own
@@ -162,47 +170,77 @@ function measureHex(spaceId: string): Rect | undefined {
   return r !== undefined && r.w > 8 && r.h > 8 ? r : undefined;
 }
 
-/** The satellite's data cell — «your cards with data», the receiving card's home. */
-export function auxDataCellRect(): Rect | undefined {
-  return measure('.con-res-aux__cell[data-aux-resource="data"]');
+/**
+ * A SEAT's chip in the top status strip — where another player's units go (and
+ * where a remote tile departs from: the opponents live in the top HUD). An
+ * unmounted strip falls back to the neutral top table edge.
+ */
+export function seatChipPoint(color: Color | undefined, ui: number): TransferPoint {
+  if (typeof document !== 'undefined' && color !== undefined) {
+    const dot = document.querySelector<HTMLElement>(`.con-status__player .player_bg_color_${color}`);
+    if (dot !== null) {
+      const r = dot.getBoundingClientRect();
+      if (r.width > 2 && r.height > 2) {
+        return {x: r.left + r.width / 2, y: r.bottom + Math.round(16 * ui)};
+      }
+    }
+  }
+  return {x: window.innerWidth / 2, y: Math.round(72 * ui)};
+}
+
+/** The satellite's cell of a card resource — «your cards with data / animals», the receiving card's home. */
+export function auxCellRect(resource: string): Rect | undefined {
+  return measure(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(resource)}"]`);
 }
 
 function centre(r: Rect): TransferPoint {
   return {x: r.x + r.w / 2, y: r.y + r.h / 2};
 }
 
-/** The wakes and the tokens of a payout, measured live; `undefined` when a paying city is not on screen. */
-function stageGeometry(payout: CardAdjacencyPayoutModel, tile: TileRect, ui: number):
-  {wakes: Array<CityWake>, tokens: Array<CityTokenProxy>, cities: Array<Rect>} | undefined {
-  const lift = Math.round(OCEAN_COIN_LIFT_PX * ui);
-  const cities: Array<Rect> = [];
+/** The cells that SEND the units, measured live (a neighbour, or the placed tile itself); `undefined` when one is not on screen. */
+function senderRects(payout: CardAdjacencyPayoutModel): Array<Rect> | undefined {
+  const out: Array<Rect> = [];
   for (const n of payout.neighbours) {
     const rect = measureHex(n.spaceId);
     if (rect === undefined) {
       return undefined;
     }
-    cities.push(rect);
+    out.push(rect);
   }
+  return out;
+}
+
+/**
+ * The wakes and the tokens of a payout. A NEIGHBOUR wakes at the edge it
+ * shares with the placed tile and its token condenses inside it, toward the
+ * tile (the ocean's anatomy); the PLACED TILE ITSELF (`sentByTheTile`) wakes
+ * and condenses at its own edge toward `toward` — the card that receives the
+ * units, or the seat's chip — since it has no neighbour to face. Several
+ * tokens of one sender sit side by side ACROSS that edge, never one on the other.
+ */
+function tokenGeometry(payout: CardAdjacencyPayoutModel, senders: ReadonlyArray<Rect>, tile: TileRect, ui: number, toward: TransferPoint | undefined):
+  {wakes: Array<CityWake>, tokens: Array<CityTokenProxy>} {
+  const lift = Math.round(OCEAN_COIN_LIFT_PX * ui);
   const wakes: Array<CityWake> = [];
   const tokens: Array<CityTokenProxy> = [];
   for (const t of cityTokenPlan(payout)) {
-    const rect = cities[t.city];
-    const shore = oceanShoreDirection(rect, tile);
-    const base = oceanEdgePoint(rect, tile, OCEAN_COIN_T, lift);
-    // A stack's tokens sit side by side ACROSS the shared edge — never one on the other.
+    const rect = senders[t.city];
+    const self = sentByTheTile(payout, t.spaceId);
+    const shore = self ? directionToward(rect, toward ?? {x: rect.x + rect.w / 2, y: rect.y - rect.h}) : oceanShoreDirection(rect, tile);
+    const base = self ? pointToward(rect, shore, SELF_TOKEN_REACH, lift) : oceanEdgePoint(rect, tile, OCEAN_COIN_T, lift);
     const spread = Math.round(rect.w * 0.22) * tokenSpread(t.unit, t.units);
     const perp = {x: -shore.y, y: shore.x};
     wakes.push({
       id: t.id,
       city: t.city,
-      pulseAt: oceanEdgePoint(rect, tile, OCEAN_PULSE_T),
+      pulseAt: self ? pointToward(rect, shore, SELF_WAKE_REACH) : oceanEdgePoint(rect, tile, OCEAN_PULSE_T),
       pulseSize: Math.round(rect.w * 0.66),
       shore,
       drift: Math.round(rect.w * OCEAN_PULSE_DRIFT),
     });
     tokens.push({id: t.id, city: t.city, at: {x: base.x + perp.x * spread, y: base.y + perp.y * spread}});
   }
-  return {wakes, tokens, cities};
+  return {wakes, tokens};
 }
 
 function wait(ms: number): Promise<void> {
@@ -307,6 +345,12 @@ export type OwnCityPayoutOpts = {
   releaseCard: () => void,
   /** Release ONE reaction's stock hold (each at its own touchdown, or at a degrade). */
   releaseReaction: (spec: ResourceTransferSpec) => void,
+  /**
+   * The points each unit brings its card (`cityPayoutVpSteps`) and their release: the rail's VP cell keeps them
+   * back and ticks on the touchdown that crosses a point; whatever is still held at a degrade / an abort is released.
+   */
+  vpSteps?: ReadonlyArray<number>,
+  releaseVp?: (points: number) => void,
 };
 
 /** The reactions of a record as stock specs (what the table paid, the server's measure). */
@@ -340,7 +384,20 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
       opts.releaseReaction(spec);
     }
   };
+  // The points the units bring: released on the touchdown that crosses them, the rest at any way out.
+  const vpSteps = [...(opts.vpSteps ?? [])];
+  const releaseVpThrough = (landed: number) => {
+    let points = 0;
+    for (let k = 0; k < Math.min(landed, vpSteps.length); k++) {
+      points += vpSteps[k];
+      vpSteps[k] = 0;
+    }
+    if (points !== 0) {
+      opts.releaseVp?.(points);
+    }
+  };
   const releaseAll = () => {
+    releaseVpThrough(vpSteps.length);
     releaseCard();
     for (const spec of [...pendingReactions]) {
       releaseReaction(spec);
@@ -365,6 +422,7 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
   cityPayoutState.degraded = false;
   cityPayoutState.landed = 0;
   cityPayoutState.seq = opts.payout.seq;
+  cityPayoutState.resource = cardResourceKey(opts.payout.resource);
   if (typeof document === 'undefined') {
     end();
     return;
@@ -381,9 +439,9 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
     end();
     return;
   }
-  const home = auxDataCellRect();
-  const geometry = stageGeometry(opts.payout, opts.tileRect, opts.uiScale);
-  if (home === undefined || geometry === undefined) {
+  const home = auxCellRect(opts.payout.resource);
+  const senders = senderRects(opts.payout);
+  if (home === undefined || senders === undefined) {
     degrade();
     return;
   }
@@ -405,7 +463,9 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
   // The card's place on the field includes its reading under it («2 → 6») — neither may cover the tile or a payer.
   const read = cardEl.querySelector('[data-city-payout-read]')?.getBoundingClientRect();
   const height = read !== undefined && read.height > 0 ? Math.max(box.height, read.bottom - box.top) : box.height;
-  const plate = cityPayoutPlate(opts.tileRect, geometry.cities, {w: box.width, h: height}, board, Math.round(14 * opts.uiScale));
+  const plate = cityPayoutPlate(opts.tileRect, senders, {w: box.width, h: height}, board, Math.round(14 * opts.uiScale));
+  // The tokens are placed once the card's stand is known: a tile that pays its own card sends them out by the edge facing it.
+  const geometry = tokenGeometry(opts.payout, senders, opts.tileRect, opts.uiScale, centre(plate));
   cityPayoutState.card = {...cityPayoutState.card, plate};
   await nextTick(); // the plate's own left/top are in the DOM
   if (epoch !== myEpoch) {
@@ -432,10 +492,11 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
   const tick = () => {
     if (epoch === myEpoch) {
       cityPayoutState.landed = Math.min(opts.payout.amount, cityPayoutState.landed + 1);
+      releaseVpThrough(cityPayoutState.landed);
     }
   };
   const paid = await payTokens(geometry, opts.tileRect, opts.uiScale, opts.pace,
-    () => ({channel: 'card-resource', resource: opts.payout.resource.toLowerCase(), amount: 1, targetCard: opts.payout.target}),
+    () => ({channel: 'card-resource', resource: cardResourceKey(opts.payout.resource), amount: 1, targetCard: opts.payout.target}),
     undefined,
     () => {
       const now = performance.now();
@@ -455,6 +516,7 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
     return;
   }
   cityPayoutState.landed = opts.payout.amount;
+  releaseVpThrough(opts.payout.amount);
 
   // 3. READ — «before → after» stands.
   cityPayoutState.phase = 'reading';
@@ -522,6 +584,7 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
   };
   cityPayoutState.degraded = false;
   cityPayoutState.seq = opts.payout.seq;
+  cityPayoutState.resource = cardResourceKey(opts.payout.resource);
   if (typeof document === 'undefined') {
     end();
     return;
@@ -534,7 +597,11 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
   }
   cityPayoutState.phase = 'paying';
   await wait(motionMs(CITY_PAYOUT_BREATH_MS));
-  const geometry = epoch === myEpoch ? stageGeometry(opts.payout, opts.tileRect, opts.uiScale) : undefined;
+  const senders = epoch === myEpoch ? senderRects(opts.payout) : undefined;
+  // Where the units are going: the seat's chip, or — the viewer's own payout — their satellite cell.
+  const home = opts.destination === undefined ? auxCellRect(opts.payout.resource) : undefined;
+  const toward = opts.destination ?? (home !== undefined ? centre(home) : undefined);
+  const geometry = senders !== undefined ? tokenGeometry(opts.payout, senders, opts.tileRect, opts.uiScale, toward) : undefined;
   if (geometry === undefined) {
     if (epoch === myEpoch) {
       cityPayoutState.degraded = true;
@@ -542,7 +609,7 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
     end();
     return;
   }
-  const resource = opts.payout.resource.toLowerCase();
+  const resource = cardResourceKey(opts.payout.resource);
   const paid = await payTokens(geometry, opts.tileRect, opts.uiScale, 1,
     () => ({channel: 'card-resource', resource, amount: 1}),
     opts.destination,
@@ -554,9 +621,33 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
   end();
 }
 
+/**
+ * SEVERAL CARDS PAID BY ONE TILE play IN TURN, in the engine's order — one
+ * stage, one record at a time (the own card rising and going home, then the
+ * next). An abort stops the sequence, and what the records not played yet owe
+ * is released at once (`release`) — a hold never strands.
+ */
+export async function runCityPayoutSequence(steps: ReadonlyArray<{play: () => Promise<void>, release: () => void}>): Promise<void> {
+  const before = aborts;
+  for (let i = 0; i < steps.length; i++) {
+    if (aborts !== before) {
+      steps.slice(i).forEach((step) => step.release());
+      return;
+    }
+    await steps[i].play();
+  }
+}
+
+/** How many times the scene was aborted — a sequence of records reads it to stop with the scene (and pay the rest). */
+let aborts = 0;
+export function cityPayoutAbortCount(): number {
+  return aborts;
+}
+
 /** Abort / unmount: stop every tween, pay every owed release, drop the stage (idempotent). */
 export function abortCityPayoutBeat(): void {
   epoch++;
+  aborts++;
   const els = stage?.els();
   if (els !== undefined) {
     killOceanTweens([...els.wakes, ...els.tokens]);

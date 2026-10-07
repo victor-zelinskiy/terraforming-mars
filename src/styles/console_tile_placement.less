@@ -420,6 +420,40 @@
         .con-tileplace__coin-sheen { display: none; }
     }
 
+    /* THE ANIMAL TOKEN a placed tile pays (Pets — the «tile pays a card» class) — the data token's anatomy, the
+       framework's own ANIMAL chip as its substance. */
+    &__oceancoin--animal {
+        .con-tileplace__coin-spark {
+            background: radial-gradient(50% 50% at 50% 50%, #f4ffe6 0%, #8cbf52 55%, transparent 78%);
+        }
+        .con-tileplace__coin-ring {
+            border-color: rgba(218, 244, 190, 0.9);
+            box-shadow:
+                0 0 .45rem rgba(140, 200, 90, 0.55),
+                inset 0 0 .3rem rgba(232, 255, 214, 0.5);
+        }
+        .con-tileplace__coin-body {
+            background: url('./assets/resources/animal.png') center / contain no-repeat;
+        }
+        .con-tileplace__coin-value {
+            position: absolute;
+            right: -.45rem;
+            bottom: -.35rem;
+            min-width: 1.3rem;
+            padding: .08rem .3rem;
+            border-radius: 49.95rem;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(38, 48, 62, 0.98), rgba(14, 20, 28, 0.98));
+            box-shadow:
+                inset 0 0 0 .06rem rgba(190, 215, 240, 0.55),
+                0 .12rem .3rem rgba(0, 0, 0, 0.65);
+            color: #f4f9ff;
+            font-size: .85rem;
+            text-shadow: none;
+        }
+        .con-tileplace__coin-sheen { display: none; }
+    }
+
     /* One short specular pass over the finished face — the mint mark. */
     &__coin-sheen {
         position: absolute;

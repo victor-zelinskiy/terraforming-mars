@@ -42,6 +42,7 @@
  */
 
 import {probeTick} from '@/client/console/probeTick';
+import {boardSceneMemberBusy} from '@/client/console/boardSceneMembers';
 import {boardBeatStoryPending} from '@/client/console/boardBeatPark';
 import {planetFocusSettling} from '@/client/console/planetFocus';
 import {
@@ -103,6 +104,7 @@ export function boardSceneSettling(): boolean {
     isRemotePlacementActive() ||
     isRemoteNomadMoveActive() ||
     isBoardCardBonusActive() ||
+    boardSceneMemberBusy() ||
     // The CAMERA in motion (planet-focus enter/exit + the arcs' return
     // beat — deliberately not `active`, a fully-grown stage is stable and
     // hosts the placement's own scenes). Added with the one-owner merge:

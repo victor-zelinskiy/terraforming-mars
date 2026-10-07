@@ -1,14 +1,16 @@
 <template>
   <!--
-    «ГОРОДА ПЛАТЯТ» — the shell-level stage of a card reward THE CELL DECIDES
-    (TR21 Arboretum; the director: cityDataPayoutBeat.ts). Mounted beside the
-    tile-placement layer and never inside a teleported surface, so a fixed
-    flight resolves against the viewport.
+    «ТАЙЛ ПЛАТИТ КАРТЕ» — the shell-level stage of a card reward a PLACED TILE
+    pays (TR21 Arboretum — the cities beside it; TR30 Red Museum, Pets, Martian
+    Census — the tile itself; the director: cityDataPayoutBeat.ts). Mounted
+    beside the tile-placement layer and never inside a teleported surface, so a
+    fixed flight resolves against the viewport.
 
-     - the WAKES: one per token a city sends — the ocean's shoreline swell in
+     - the WAKES: one per token a sender sends — the ocean's shoreline swell in
        the city's register (`--city`); a stack answers twice;
-     - the TOKENS: a data token condensing at its city's edge, a pixel twin of
-       the Resource Transfer Framework's own chip (the handoff is invisible);
+     - the TOKENS: a card-resource token (data, an animal) condensing at its
+       sender's edge, a pixel twin of the Resource Transfer Framework's own
+       chip (the handoff is invisible);
      - the RECEIVING CARD (own scene only): the chosen card's premium face, its
        capsule counting the touchdowns (`before + landed`), one contact flash
        per token.
@@ -31,7 +33,7 @@
       <div class="con-tileplace__oceanpulse-ring"></div>
     </div>
     <div v-for="t in cityPayoutState.tokens" :key="'token-' + t.id"
-         class="con-tileplace__oceancoin con-tileplace__oceancoin--data"
+         class="con-tileplace__oceancoin" :class="coinClass"
          :data-city-token="t.city"
          :style="tokenStyle(t)"
          :ref="(el) => setRef(tokenEls, t.id, el as HTMLElement | null)">
@@ -97,9 +99,16 @@ export default defineComponent({
       const card = cityPayoutState.card;
       return card?.model === undefined ? undefined : {...card.model, resources: this.presentedCount};
     },
-    /** The resource the payout moves, as the shared icon vocabulary (data). */
+    /** The token's substance — the framework's own chip of the resource (named classes: a probe waits for them). */
+    coinClass(): Record<string, boolean> {
+      return {
+        'con-tileplace__oceancoin--data': cityPayoutState.resource === 'data',
+        'con-tileplace__oceancoin--animal': cityPayoutState.resource === 'animal',
+      };
+    },
+    /** The resource the payout moves, as the shared icon vocabulary (data, an animal). */
     resourceIconClass(): string {
-      return iconClassFor('data');
+      return iconClassFor(cityPayoutState.resource);
     },
     cardStyle(): Record<string, string> {
       const plate = cityPayoutState.card?.plate;

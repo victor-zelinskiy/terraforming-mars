@@ -146,9 +146,10 @@ import {GreeneryAdjacencyBonusModel} from '@/common/models/GreeneryAdjacencyBonu
 import {PlacementLawPayoutModel} from '@/common/models/PlacementLawPayoutModel';
 import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel';
 import {CardModel} from '@/common/models/CardModel';
-import {claimCityPayout, cityPayoutFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
+import {claimCityPayout, cityPayoutVpSteps, cityPayoutsFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {
-  abortCityPayoutBeat, cityPayoutReactionSpecs, cityPayoutState, runCityPayoutBeat,
+  abortCityPayoutBeat, cityPayoutReactionSpecs, cityPayoutState, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat,
+  seatChipPoint,
 } from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
@@ -160,7 +161,9 @@ import {
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
+  beginPanelVpHold, releasePanelVpHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {
   ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -255,14 +258,29 @@ let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
  *  paid over and above the engine's own bonuses (captured at detect, matched
  *  on the armed space): the law wave's manifest. */
 let pendingLawWave: PlacementLawWave | undefined;
-/** The SERVER's per-neighbour CARD PAYOUT of THIS placement (TR21 Arboretum —
- *  the data the neighbouring cities paid onto the chosen card), claimed at
- *  detect, with the receiving card's face: the «cities pay» scene's script. */
-let pendingCityPayout: {payout: CardAdjacencyPayoutModel, cardModel: CardModel | undefined} | undefined;
+/**
+ * The SERVER's «A TILE PAYS A CARD» records of THIS placement (`cards/tilePayout.ts`
+ * — TR21 Arboretum's neighbouring cities, TR30 Red Museum / Pets / Martian Census
+ * answering the tile itself), claimed at detect, in the engine's order: the
+ * viewer's OWN records rise their card (`cardModel` — its face), another seat's
+ * fly to that seat's chip. The «tile pays» scene's script.
+ */
+type PendingCityPayout = {payout: CardAdjacencyPayoutModel, own: boolean, cardModel: CardModel | undefined, vpSteps: ReadonlyArray<number>};
+let pendingCityPayouts: ReadonlyArray<PendingCityPayout> = [];
 
-/** The satellite's data hold of a card payout (the receiving card's home cell ticks when the card comes back). */
+/** The satellite's hold of a card payout (the receiving card's home cell ticks when the card comes back). */
 function cityPayoutHoldSpec(payout: CardAdjacencyPayoutModel): ResourceTransferSpec {
   return {channel: 'card-resource', resource: cardResourceKey(payout.resource), amount: payout.amount};
+}
+
+/** Every hold the viewer's OWN records of a placement seed: each card's satellite cell and what the table answered. */
+function ownCityPayoutHolds(list: ReadonlyArray<PendingCityPayout>): Array<ResourceTransferSpec> {
+  return list.filter((p) => p.own).flatMap((p) => [cityPayoutHoldSpec(p.payout), ...cityPayoutReactionSpecs(p.payout)]);
+}
+
+/** The points the viewer's OWN records bring their cards — the rail's VP cell keeps them back until their touchdowns. */
+function ownCityPayoutVp(list: ReadonlyArray<PendingCityPayout>): number {
+  return list.filter((p) => p.own).reduce((sum, p) => sum + p.vpSteps.reduce((a, b) => a + b, 0), 0);
 }
 /** The SERVER's Ares adjacency manifest for THIS placement, reduced to the
  *  viewer's own flights (captured + claimed at detect) — the ares beat. */
@@ -359,7 +377,7 @@ export function tilePlacementRewardsSettling(): boolean {
   return tilePlacementState.active && (
     tilePlacementState.phase === 'rewarding' ||
     pendingBonuses.length > 0 || pendingOceanBonus !== undefined || pendingAresFlights.length > 0 || pendingLawWave !== undefined ||
-    pendingCityPayout !== undefined);
+    pendingCityPayouts.length > 0);
 }
 
 /**
@@ -406,7 +424,7 @@ export function armTilePlacement(opts: {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
-  pendingCityPayout = undefined;
+  pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   hexRect = undefined;
   restoreHeldBonuses();
@@ -517,6 +535,9 @@ export function detectTilePlacement(
     pendingOceanBonus = undefined;
     pendingLawWave = undefined;
     pendingAresFlights = [];
+    // …but a CARD that answers «a city tile placed» still pays (TR30 Red Museum, Pets, Martian Census — FAQ
+    // p.19: a tier is a tile placed): the tier itself is what sends its units.
+    pendingCityPayouts = claimCityPayouts(spaceId, opts);
     return {spaceId};
   }
   // The cell is still UNCOVERED on the displayed board — capture the hex +
@@ -549,11 +570,31 @@ export function detectTilePlacement(
   const grant = latestAresGrantFor(opts?.aresGrants, spaceId);
   pendingAresFlights = grant !== undefined && opts?.viewerColor !== undefined && claimAresGrant(grant.seq) ?
     viewerAresAdjacencyFlights(grant, opts.viewerColor) : [];
-  // …and the CARD the neighbouring cities paid (TR21): the server's record of THIS cell for THIS seat.
-  const payout = cityPayoutFor(opts?.cardPayouts, spaceId, opts?.viewerColor);
-  pendingCityPayout = payout !== undefined && claimCityPayout(payout.seq) ?
-    {payout, cardModel: opts?.viewerCards?.find((c) => c.name === payout.target)} : undefined;
+  // …and every CARD this tile paid (TR21's neighbouring cities, TR30 / Pets / Martian Census answering the
+  // tile itself): the server's records of THIS cell.
+  pendingCityPayouts = claimCityPayouts(spaceId, opts);
   return {spaceId};
+}
+
+/**
+ * Claim THIS placement's «tile pays a card» records — every seat's, once each
+ * (the hero plays them all, so the remote stage never will): the viewer's own
+ * rise their card, another seat's fly to their chip.
+ */
+function claimCityPayouts(
+  spaceId: string,
+  opts: {cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>, viewerColor?: Color, viewerCards?: ReadonlyArray<CardModel>} | undefined,
+): Array<PendingCityPayout> {
+  return cityPayoutsFor(opts?.cardPayouts, spaceId, undefined)
+    .filter((payout) => claimCityPayout(payout.seq))
+    .map((payout) => {
+      const own = opts?.viewerColor !== undefined && payout.color === opts.viewerColor;
+      return {
+        payout, own,
+        cardModel: own ? opts?.viewerCards?.find((c) => c.name === payout.target) : undefined,
+        vpSteps: own ? cityPayoutVpSteps(payout.before, payout.amount, (count) => accumulatedVp(payout.target, count)) : [],
+      };
+    });
 }
 
 /**
@@ -969,7 +1010,7 @@ async function runDeparture(hex: TileRect): Promise<void> {
 export function seedTilePlacementRewardHold(): void {
   if (!tilePlacementState.active || bonusHoldSeeded ||
       (pendingBonuses.length === 0 && pendingOceanBonus === undefined && pendingAresFlights.length === 0 && pendingLawWave === undefined &&
-       pendingCityPayout === undefined)) {
+       pendingCityPayouts.length === 0)) {
     return;
   }
   if (tilePlacementState.reducedMotion) {
@@ -977,7 +1018,7 @@ export function seedTilePlacementRewardHold(): void {
     pendingOceanBonus = undefined;
     pendingAresFlights = [];
     pendingLawWave = undefined;
-    pendingCityPayout = undefined;
+    pendingCityPayouts = [];
     return;
   }
   bonusHoldSeeded = true;
@@ -1005,12 +1046,13 @@ export function seedTilePlacementRewardHold(): void {
       specs.push({channel: 'stock', resource: 'plants', amount: pendingLawWave.greeneries.plants});
     }
   }
-  // THE CARD THE CITIES PAID (TR21): the satellite's data cell keeps its pre-payout count until the
-  // receiving card comes HOME; what the table answered (Martian Fiber's M€) waits for its own flight.
-  if (pendingCityPayout !== undefined) {
-    specs.push(cityPayoutHoldSpec(pendingCityPayout.payout), ...cityPayoutReactionSpecs(pendingCityPayout.payout));
-  }
+  // EVERY CARD THE TILE PAID the viewer (TR21's cities, TR30 / Pets / Martian Census): the satellite's cell keeps
+  // its pre-payout count until the receiving card comes HOME; what the table answered (Martian Fiber's M€) waits
+  // for its own flight. Another seat's records hold nothing here — their chip is not this panel.
+  specs.push(...ownCityPayoutHolds(pendingCityPayouts));
   beginPanelRewardHold(specs);
+  // …and the points they bring their cards (the museum's «1 per 2 data»): the VP cell is derived (PL-014 / PL-073).
+  beginPanelVpHold(ownCityPayoutVp(pendingCityPayouts));
 }
 
 /**
@@ -1029,21 +1071,21 @@ export async function endTilePlacement(): Promise<void> {
   const ocean = pendingOceanBonus;
   const aresFlights = pendingAresFlights;
   const lawWave = pendingLawWave;
-  const cityPayout = pendingCityPayout;
+  const cityPayouts = pendingCityPayouts;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
-  pendingCityPayout = undefined;
+  pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
-  // THE CITIES PAY AFTER THE FIELD HAS SPOKEN (TR21): the card's scene is not a beat of this transaction — it
-  // plays once the landing is over AND the scales have told the oxygen this greenery raised, so it is kicked at
-  // every way out of here, its holds re-seeded across the transaction's own belt-and-braces clear.
+  // THE TILE PAYS AFTER THE FIELD HAS SPOKEN (TR21, TR30): the cards' scene is not a beat of this transaction —
+  // it plays once the landing is over AND the scales have told what this tile raised, so it is kicked at every
+  // way out of here, its holds re-seeded across the transaction's own belt-and-braces clear.
   // (Measured only when there IS a payout: every other placement leaves here exactly as before.)
-  const tileRect = cityPayout !== undefined ? hexRect ?? measureBoardHexRect(tilePlacementState.spaceId) : undefined;
+  const tileRect = cityPayouts.length > 0 ? hexRect ?? measureBoardHexRect(tilePlacementState.spaceId) : undefined;
   const kickCityPayout = () => {
-    if (cityPayout !== undefined) {
-      startCityPayout(cityPayout.payout, cityPayout.cardModel, tileRect);
+    if (cityPayouts.length > 0) {
+      startCityPayouts(cityPayouts, tileRect);
     }
   };
   if (tilePlacementState.reducedMotion ||
@@ -1112,31 +1154,49 @@ async function runLawWave(wave: PlacementLawWave): Promise<void> {
 }
 
 /**
- * «ГОРОДА ПЛАТЯТ» (TR21 Arboretum) — handed over at the END of the landing:
- * the card the player chose rises out of its satellite cell, every
- * neighbouring city sends its own data token into the card's capsule, the card
- * goes home. Called right after `finish()` in the SAME synchronous block, so
- * re-seeding the scene's two holds (the satellite's data, the table's answer)
- * across the transaction's belt-and-braces clear paints nothing; the scene
- * releases them itself (the data when the card lands home, each reaction at
- * its own touchdown) and waits for the scales' story before it starts.
+ * «ТАЙЛ ПЛАТИТ КАРТЕ» — handed over at the END of the landing, one record at a
+ * time in the engine's order (`runCityPayoutSequence`): the viewer's OWN card
+ * rises out of its satellite cell and receives its units — from the
+ * neighbouring cities (TR21) or from the tile that just landed (TR30, Pets,
+ * Martian Census) — then goes home; another seat's card is not on this screen,
+ * so its units fly to that seat's chip. Called right after `finish()` in the
+ * SAME synchronous block, so re-seeding the own records' holds (each
+ * satellite cell, the table's answer) across the transaction's
+ * belt-and-braces clear paints nothing; each scene releases its own (the units
+ * when the card lands home, each reaction at its own touchdown), a record the
+ * sequence never reached is released at once, and the first scene waits for
+ * the scales' story before it starts.
  */
-function startCityPayout(payout: CardAdjacencyPayoutModel, cardModel: CardModel | undefined, tileRect: TileRect | undefined): void {
-  const holds = [cityPayoutHoldSpec(payout), ...cityPayoutReactionSpecs(payout)];
+function startCityPayouts(list: ReadonlyArray<PendingCityPayout>, tileRect: TileRect | undefined): void {
   if (tileRect === undefined || consoleReducedMotionActive()) {
     return; // nothing re-seeded: the counters already show the committed truth
   }
-  beginPanelRewardHold(holds);
-  void runCityPayoutBeat({
-    payout,
-    tileRect,
-    cardModel,
-    uiScale: conUiScale(),
-    pace: 1,
-    alive: () => true,
-    releaseCard: () => releasePanelRewardHold(cityPayoutHoldSpec(payout)),
-    releaseReaction: (spec) => releasePanelRewardHold(spec),
-  });
+  beginPanelRewardHold(ownCityPayoutHolds(list));
+  beginPanelVpHold(ownCityPayoutVp(list));
+  const ui = conUiScale();
+  void runCityPayoutSequence(list.map((item) => ({
+    play: () => item.own ? runCityPayoutBeat({
+      payout: item.payout,
+      tileRect,
+      cardModel: item.cardModel,
+      uiScale: ui,
+      pace: 1,
+      alive: () => true,
+      releaseCard: () => releasePanelRewardHold(cityPayoutHoldSpec(item.payout)),
+      releaseReaction: (spec) => releasePanelRewardHold(spec),
+      vpSteps: item.vpSteps,
+      releaseVp: (points) => releasePanelVpHold(points),
+    }) : runRemoteCityPayoutBeat({
+      payout: item.payout,
+      tileRect,
+      uiScale: ui,
+      destination: seatChipPoint(item.payout.color, ui),
+    }),
+    release: () => {
+      ownCityPayoutHolds([item]).forEach((spec) => releasePanelRewardHold(spec));
+      releasePanelVpHold(ownCityPayoutVp([item]));
+    },
+  })));
 }
 
 /**
@@ -1359,7 +1419,7 @@ export function abortTilePlacement(): void {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
-  pendingCityPayout = undefined;
+  pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   hexRect = undefined;
   armedReplacing = false;
@@ -1405,7 +1465,7 @@ function finish(): void {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
-  pendingCityPayout = undefined;
+  pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   hexRect = undefined;
   armedReplacing = false;

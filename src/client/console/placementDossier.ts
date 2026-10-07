@@ -727,24 +727,29 @@ export function dossierSections(
   // word for the same thing, under the result it answers — never mixed into it.
   const gains = preview.immediateFacts.filter((f) => f.reaction !== true);
   const reactions = preview.immediateFacts.filter((f) => f.reaction === true && f.delta !== undefined);
-  // The table's answer is read WITH its cause: under the row whose delta lands on the chosen card (the one
-  // grant the reactions answer today) — a section of its own only when no such row stands. One line, never a
-  // second head: the dossier is a HUD that may not scroll (a 4K panel wraps every sentence twice).
+  // The table's answer is read WITH its cause: under the row of the grant it ANSWERS (`BoardFact.answers` — the
+  // server names it: TR30's «+2 data», TR21's landing on the chosen card) or, unnamed, under the row whose delta
+  // lands on the chosen card — a section of its own only when no such row stands. One line, never a second head:
+  // the dossier is a HUD that may not scroll (a 4K panel wraps every sentence twice).
   const gainSection = gains.length > 0 ? section('gain', 'You receive', gains, ['immediate', 'on-confirm']) : undefined;
-  const landing = gainSection?.rows.find((r) => gains.some((f) => f.id === r.key && f.landsOnChosenCard !== undefined));
+  const landingKey = gainSection?.rows.find((r) => gains.some((f) => f.id === r.key && f.landsOnChosenCard !== undefined))?.key;
+  const rowKeys = new Set(gainSection?.rows.map((r) => r.key) ?? []);
+  const causeOf = (f: BoardFact): string | undefined =>
+    f.answers !== undefined && rowKeys.has(f.answers) ? f.answers : f.answers === undefined ? landingKey : undefined;
+  const placed = reactions.filter((f) => causeOf(f) !== undefined);
   if (gainSection !== undefined) {
-    if (landing !== undefined && reactions.length > 0) {
-      const rows = gainSection.rows.map((r) => r === landing ? {
+    const rows = placed.length === 0 ? gainSection.rows : gainSection.rows.map((r) => {
+      const mine = placed.filter((f) => causeOf(f) === r.key);
+      return mine.length === 0 ? r : {
         ...r,
-        reactions: reactions.map((f) => ({key: f.id, label: compactTitleKey(f), delta: f.delta as BoardFactDelta})),
-      } : r);
-      out.push({...gainSection, rows});
-    } else {
-      out.push(gainSection);
-    }
+        reactions: mine.map((f) => ({key: f.id, label: compactTitleKey(f), delta: f.delta as BoardFactDelta})),
+      };
+    });
+    out.push({...gainSection, rows});
   }
-  if (reactions.length > 0 && landing === undefined) {
-    out.push(section('reactions', 'Will trigger', reactions, ['immediate', 'on-confirm']));
+  const unplaced = reactions.filter((f) => causeOf(f) === undefined);
+  if (unplaced.length > 0) {
+    out.push(section('reactions', 'Will trigger', unplaced, ['immediate', 'on-confirm']));
   }
   if (preview.recipientFacts.length > 0) {
     // Aggregation is PER RECIPIENT: two players' identical gains are two

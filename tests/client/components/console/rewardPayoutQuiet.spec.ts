@@ -12,6 +12,7 @@ import {
 import {remotePlacementState} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {nomadMoveState} from '@/client/console/nomads/consoleNomadMove';
 import {boardCardBonusState} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {cityPayoutState} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 
 function settle(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -76,6 +77,20 @@ describe('rewardPayoutQuiet (card ↔ resource payout coordination)', () => {
     const before = Date.now();
     await waitRewardPayoutQuiet();
     expect(Date.now() - before).to.be.lessThan(60);
+  });
+
+  it('«a tile pays a card» ON STAGE is a piece of the board story — WAITING for the scales is not (it never waits for itself)', () => {
+    try {
+      cityPayoutState.phase = 'waiting';
+      expect(boardSceneSettling(), 'the scene waits for the field — it may not hold it').to.be.false;
+      for (const phase of ['rising', 'paying', 'reading', 'returning', 'answering'] as const) {
+        cityPayoutState.phase = phase;
+        expect(boardSceneSettling(), phase).to.be.true;
+      }
+    } finally {
+      cityPayoutState.phase = 'idle';
+    }
+    expect(boardSceneSettling()).to.be.false;
   });
 
   it('waitRewardPayoutQuiet pends while settling and resolves when the payout clears', async () => {

@@ -12,7 +12,8 @@ import {playedTargetQuickImpacts} from '@/client/console/played/consolePlayedTar
 import {dossierSections} from '@/client/console/placementDossier';
 import {
   CITY_PAYOUT_READ_MS, CITY_PAYOUT_RETURN_MS, CITY_PAYOUT_RISE_MS, CITY_PAYOUT_TICK_GAP_MS, cityPayoutTickAt,
-  cityPayoutFor, cityPayoutPlate, cityTokenPlan, claimCityPayout, resetCityPayoutClaims, tokenSpread,
+  SELF_TOKEN_REACH, cityPayoutPlate, cityPayoutVpSteps, cityPayoutsFor, cityTokenPlan, claimCityPayout, directionToward, pointToward,
+  resetCityPayoutClaims, sentByTheTile, tokenSpread,
 } from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {cityPayoutReactionSpecs} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import ruConsole from '@/locales/ru/console.json';
@@ -134,17 +135,17 @@ describe('a card reward the cell decides (TR21) — the client', () => {
     beforeEach(() => resetCityPayoutClaims());
     after(() => resetCityPayoutClaims());
 
-    it('accepts only the newest record of THIS cell for THIS seat', () => {
+    it('accepts only the records of the NEWEST placement on THIS cell — for THIS seat, or every seat', () => {
       const old = payout({seq: 300});
       const other = payout({seq: 502, spaceId: '20' as SpaceId});
       const foreign = payout({seq: 503, color: 'red'});
       const mine = payout({seq: 504});
-      expect(cityPayoutFor([old, mine, other, foreign], '10', 'blue')).eq(mine);
-      expect(cityPayoutFor([old, other, foreign], '10', 'red')).eq(foreign);
-      expect(cityPayoutFor([other], '10', 'blue')).is.undefined;
-      expect(cityPayoutFor(undefined, '10', 'blue')).is.undefined;
+      expect(cityPayoutsFor([old, mine, other, foreign], '10', 'blue')).deep.eq([mine]);
+      expect(cityPayoutsFor([old, other, foreign], '10', 'red')).deep.eq([foreign]);
+      expect(cityPayoutsFor([other], '10', 'blue')).deep.eq([]);
+      expect(cityPayoutsFor(undefined, '10', 'blue')).deep.eq([]);
       // Any seat, when the caller is the remote stage.
-      expect(cityPayoutFor([foreign], '10', undefined)).eq(foreign);
+      expect(cityPayoutsFor([foreign], '10', undefined)).deep.eq([foreign]);
     });
 
     it('a record is played ONCE (the hero or the remote stage, never both)', () => {
@@ -206,6 +207,78 @@ describe('a card reward the cell decides (TR21) — the client', () => {
         expect(rect.x + rect.w).lte(1920);
         expect(hits(rect, edge)).is.false;
       });
+    });
+  });
+
+  /*
+   * THE CLASS «ТАЙЛ ПЛАТИТ КАРТЕ» (TR30 Red Museum, Pets, Martian Census — the
+   * TILE ITSELF sends the units; `cards/tilePayout.ts`): one placement may pay
+   * several cards, the sender of a unit may be the placed cell, and the
+   * table's answer stands under the grant it answers.
+   */
+  describe('the class «a tile pays a card» (TR30) — the client', () => {
+    const museum = (partial: Partial<CardAdjacencyPayoutModel> = {}) => payout({
+      cause: 'tile-placed', card: CardName.RED_MUSEUM, target: CardName.RED_MUSEUM, basis: undefined,
+      neighbours: [{spaceId: '10' as SpaceId, units: 2}], amount: 2, before: 0, ...partial,
+    });
+    beforeEach(() => resetCityPayoutClaims());
+    after(() => resetCityPayoutClaims());
+
+    it('every record of THIS placement, in the engine\'s order — never an earlier placement\'s on the same cell', () => {
+      const earlier = museum({seq: 401});
+      const pets = museum({seq: 502, card: CardName.PETS, target: CardName.PETS, resource: CardResource.ANIMAL, amount: 1, neighbours: [{spaceId: '10' as SpaceId, units: 1}]});
+      const own = museum({seq: 501});
+      const census = museum({seq: 503, color: 'red', card: CardName.MARTIAN_CENSUS, target: CardName.MARTIAN_CENSUS, amount: 1});
+      const elsewhere = museum({seq: 504, spaceId: '20' as SpaceId});
+      const all = [earlier, pets, census, own, elsewhere];
+      expect(cityPayoutsFor(all, '10', undefined), 'every seat, the newest block, oldest first').deep.eq([own, pets, census]);
+      expect(cityPayoutsFor(all, '10', 'blue'), 'one seat').deep.eq([own, pets]);
+      expect(cityPayoutsFor(all, '30', undefined)).deep.eq([]);
+      expect(cityPayoutsFor(undefined, '10', undefined)).deep.eq([]);
+    });
+
+    it('the TILE is the sender when the record names the placed cell — a neighbour is not', () => {
+      expect(sentByTheTile(museum(), '10')).is.true;
+      expect(sentByTheTile(payout(), '11')).is.false;
+      // The plan is the shared one: two units of the one sender, side by side.
+      expect(cityTokenPlan(museum()).map((t) => [t.spaceId, t.unit, t.units])).deep.eq([['10', 0, 2], ['10', 1, 2]]);
+    });
+
+    it('a token of the tile itself is born ON the tile, at the edge facing where it goes', () => {
+      const tile = {x: 500, y: 400, w: 100, h: 110};
+      const card = {x: 800, y: 455};
+      const dir = directionToward(tile, card);
+      expect(dir.x).closeTo(1, 1e-9);
+      expect(dir.y).closeTo(0, 1e-9);
+      const at = pointToward(tile, dir, SELF_TOKEN_REACH);
+      expect(at.x, 'inside the hex').lessThan(tile.x + tile.w);
+      expect(at.x, 'on the half facing the card').greaterThan(tile.x + tile.w / 2);
+      expect(at.y).eq(tile.y + tile.h / 2);
+      // A destination ON the tile has no direction: straight up, never a NaN.
+      expect(directionToward(tile, {x: 550, y: 455})).deep.eq({x: 0, y: -1});
+    });
+
+    it('the points the units bring tick on the touchdown that crosses them (the derived VP cell)', () => {
+      const half = (count: number) => Math.floor(count / 2);
+      expect(cityPayoutVpSteps(0, 2, half), '0 → 2 data: nothing on the first, +1 on the second').deep.eq([0, 1]);
+      expect(cityPayoutVpSteps(1, 2, half), '1 → 3 data: +1 on the first').deep.eq([1, 0]);
+      expect(cityPayoutVpSteps(4, 2, () => 0), 'a card that does not score').deep.eq([0, 0]);
+    });
+
+    it('the dossier reads the table\'s answer under the grant it ANSWERS — no chosen card needed, no section of its own', () => {
+      const pays = fact({id: 'card-Red Museum-pays', title: 'No greenery or ocean beside', delta: {icon: 'data', amount: 2, direction: 'gain'}});
+      const fiber = fact({
+        id: 'reaction-fiber', title: CardName.MARTIAN_FIBER, reaction: true, answers: 'card-Red Museum-pays',
+        delta: {icon: 'megacredits', amount: 2, direction: 'gain'},
+        source: {type: 'card', id: CardName.MARTIAN_FIBER},
+      });
+      const sections = dossierSections(preview({immediateFacts: [pays, fiber]}), 'blue');
+      expect(sections.map((s) => s.key)).deep.eq(['gain']);
+      expect(sections[0].rows[0].reactions?.map((r) => r.key)).deep.eq(['reaction-fiber']);
+      // A reply naming a row that does not stand keeps «Сработает» (never dropped).
+      const orphan = {...fiber, answers: 'card-gone'};
+      const alone = dossierSections(preview({immediateFacts: [pays, orphan]}), 'blue');
+      expect(alone.map((s) => s.key)).deep.eq(['gain', 'reactions']);
     });
   });
 });
