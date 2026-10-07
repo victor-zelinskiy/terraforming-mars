@@ -44,6 +44,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
+import {DECK_CHECK_PEEL_DY} from '@/client/console/deckDraw/deckPeel';
 
 /** The HUD project-deck pile — the physical source of every deck flight. */
 const DECK_SEL = '.con-deckstack__pile';
@@ -164,8 +165,9 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   gsap.set(flip, {rotateY: 180}); // back showing — the card leaves the deck face down
 
   const tl = gsap.timeline();
-  // A short lift OUT of the pile (the card frees itself before travelling).
-  tl.to(proxy, {autoAlpha: 1, y: `-=${12}`, duration: s(120), ease: 'power2.out'}, 0);
+  // A short separation OFF the pile (the card frees itself before travelling) — DOWN, into the screen: the pile sits
+  // on the top edge (PL-089, `deckPeel.ts`).
+  tl.to(proxy, {autoAlpha: 1, y: `+=${DECK_CHECK_PEEL_DY}`, duration: s(120), ease: 'power2.out'}, 0);
   // The travel: x and y ride DIFFERENT eases — the path bows into a natural
   // arc; the scale grows most over the second half (approach = arrival).
   tl.to(proxy, {x: slotRect.left, duration: s(TRAVEL_MS), ease: 'power2.inOut'}, s(90));

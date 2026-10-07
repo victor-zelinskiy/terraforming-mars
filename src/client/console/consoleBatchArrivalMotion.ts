@@ -45,6 +45,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {runDeckSettleTick} from '@/client/console/deckDraw/deckDrawDirector';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
+import {deckPeelDy} from '@/client/console/deckDraw/deckPeel';
 import {
   CardArrivalMode, CardArrivalPlan, CardArrivalTimings, arrivalSourceFan,
   cardArrivalTimings, planCardArrival, reducedCardArrivalTimings,
@@ -249,10 +250,11 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     timelines.push(tl);
 
     // PEEL — the card frees itself from the pile before it travels. Straight
-    // UP out of the stack (BOTH axes re-solved for the bigger scale), exactly
+    // DOWN off the stack, into the screen (the pile sits on the top edge —
+    // PL-089, `deckPeel.ts`; BOTH axes re-solved for the bigger scale), exactly
     // the deck-draw cinematic's separation, and the pile TICKS as the first
     // card leaves so the deck visibly answers instead of standing inert.
-    const peel = at(fromCx, fromCy - 10 - 14 * startScale, startScale * 1.14);
+    const peel = at(fromCx, fromCy + deckPeelDy(startScale), startScale * 1.14);
     tl.to(proxy, {
       autoAlpha: 1,
       x: peel.x,

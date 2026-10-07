@@ -18,6 +18,7 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {addPremiumTurn} from '@/client/console/cardDeal/premiumTurn';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {DeckDrawTimings, DrawBeat, RectLike} from './deckDrawModel';
+import {deckPeelDy} from './deckPeel';
 
 /** BASE ms → seconds, through the fork-wide speed preset. */
 const s = (baseMs: number) => motionMs(baseMs) / 1000;
@@ -111,9 +112,10 @@ export function runDeckDrawBeat(args: {
   const tl = gsap.timeline({onComplete: args.onLanded});
 
   // ── 1 · The peel: the top card separates from the stack ───────────────
-  // A short lift + slight grow off the deck's own position, so the card is
-  // seen leaving the pile rather than appearing beside it.
-  const peel = at(deckCx, deckCy - 10 - 14 * startScale, startScale * 1.14);
+  // A short separation + slight grow off the deck's own position, so the card
+  // is seen leaving the pile rather than appearing beside it — DOWN, into the
+  // screen: the pile sits on the top edge (PL-089, `deckPeel.ts`).
+  const peel = at(deckCx, deckCy + deckPeelDy(startScale), startScale * 1.14);
   tl.to(proxy, {
     x: peel.x, y: peel.y, scale: startScale * 1.14,
     duration: s(t.peelMs), ease: 'power2.out',

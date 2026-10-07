@@ -304,11 +304,10 @@ for (const preset of PRESETS) {
       expect(probe.revealOutsideHand, 'never a band of its own').toBe(false);
       expect(probe.wsMax, 'one workspace').toBeLessThanOrEqual(1);
       expect(probe.phases.map(([, v]) => v), 'no settle wave over the found cards (law 1)').not.toContain('settle');
-      // The family's PEEL lifts the top card UP off the HUD deck, and the deck lives on the screen's top edge: the
-      // card's top crosses it by ~10 px for a beat (PL-089 — open, the owner's call: it changes the accepted scene).
-      // What the family guarantees today, and this pins: a card is never even HALF off the screen.
+      // PL-089 (the owner's decision 2026-10-07): the HUD deck lives on the screen's top edge, so the PEEL separates
+      // the card DOWN, into the screen — no card off the pile ever crosses the top edge (it used to, by ~10.7 px).
       test.info().annotations.push({type: 'peel', description: `min top ${probe.minProxyY.toFixed(1)} px (${probe.minProxyAt})`});
-      expect(probe.minProxyY, `a card is never half above the screen (${probe.minProxyAt})`).toBeGreaterThan(-probe.minProxyH / 2);
+      expect(probe.minProxyY, `no card above the screen (${probe.minProxyAt})`).toBeGreaterThanOrEqual(-1);
       // PL-088: the counter never flips UP with a «+N» chip (the cards a draw turned over stay on it until dealt).
       expect(probe.deckUp, 'the deck never reads as GAINING cards').toEqual([]);
       // The HUD deck falls by ONE per card, six times (`onCardPeeled`).
