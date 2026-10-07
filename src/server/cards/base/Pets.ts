@@ -7,7 +7,8 @@ import {Space} from '../../boards/Space';
 import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
-import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
+import {SimpleDeferredAction} from '../../deferredActions/DeferredAction';
+import {payTileToCard} from '../tilePayout';
 import {Board} from '../../boards/Board';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
@@ -60,10 +61,13 @@ export class Pets extends Card implements IProjectCard {
 
   public onTilePlaced(cardOwner: IPlayer, activePlayer: IPlayer, space: Space) {
     if (Board.isCitySpace(space)) {
-      cardOwner.game.defer(
-        new AddResourcesToCard(cardOwner, CardResource.ANIMAL, {filter: (c) => c.name === this.name}),
-        cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined,
-      );
+      // THE TILE PAYS THIS CARD (the fork's «tile pays a card» class, `cards/tilePayout.ts`): the same deferred step
+      // at the same priority as upstream's `AddResourcesToCard` onto itself, now ONE measured addition that also
+      // writes the record the board plays — the animal leaves the city that was placed, after it landed, never ahead.
+      cardOwner.game.defer(new SimpleDeferredAction(cardOwner, () => {
+        payTileToCard(cardOwner, this, space, this, CardResource.ANIMAL, 1, {cause: 'tile-placed'}, {log: true});
+        return undefined;
+      }), cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.GAIN_RESOURCE_OR_PRODUCTION);
     }
   }
 

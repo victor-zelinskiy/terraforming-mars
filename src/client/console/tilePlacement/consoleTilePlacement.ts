@@ -485,6 +485,8 @@ export function detectTilePlacement(
     /** The SERVER's per-neighbour card payout ring (`game.cardAdjacencyPayouts`, TR21): THIS
      *  cell's record for the viewer is claimed here — the hero plays it, the remote stage never will. */
     cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
+    /** The PREVIOUS view's ring — a record of THIS placement is one it did not carry. */
+    prevCardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
     /** The viewer's tableau — where the receiving card's face comes from. */
     viewerCards?: ReadonlyArray<CardModel>,
   },
@@ -583,9 +585,10 @@ export function detectTilePlacement(
  */
 function claimCityPayouts(
   spaceId: string,
-  opts: {cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>, viewerColor?: Color, viewerCards?: ReadonlyArray<CardModel>} | undefined,
+  opts: {cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>, prevCardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
+    viewerColor?: Color, viewerCards?: ReadonlyArray<CardModel>} | undefined,
 ): Array<PendingCityPayout> {
-  return cityPayoutsFor(opts?.cardPayouts, spaceId, undefined)
+  return cityPayoutsFor(opts?.cardPayouts, spaceId, undefined, opts?.prevCardPayouts)
     .filter((payout) => claimCityPayout(payout.seq))
     .map((payout) => {
       const own = opts?.viewerColor !== undefined && payout.color === opts.viewerColor;

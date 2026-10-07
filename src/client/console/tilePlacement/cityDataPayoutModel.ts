@@ -50,25 +50,25 @@ export const CITY_PAYOUT_CARD_RATIO = 1.4;
 /**
  * EVERY record of THIS placement — one cell can pay several cards at once (a
  * city on a clean cell pays the museum's data, Martian Census's data and Pets'
- * animal: one record each, `cards/tilePayout.ts`). The records of one
- * placement are written in ONE response and share its `gameAge` block
- * (`seq = gameAge · 100 + n`), so only the newest block naming the cell is
- * taken — an earlier placement's record on the same cell never plays again.
- * The engine's own order (oldest first: the order the triggers paid).
- * `color` narrows to one seat; `undefined` takes every seat (the remote stage).
+ * animal: one record each, `cards/tilePayout.ts`). A record of this placement
+ * is one the PREVIOUS view's ring did not carry (the TR24 law — `seq` is
+ * `gameAge · 100 + n`, and `gameAge` grows with every log line, so the records
+ * of ONE placement do NOT share a block: Martian Census logs its data before
+ * Pets' record is written). An earlier placement's record on the same cell is
+ * in the previous ring and never plays again; with no previous view, every
+ * record of the cell is a candidate (the claim set still plays each once).
+ * The engine's own order (oldest first: the order the triggers paid). `color`
+ * narrows to one seat; `undefined` takes every seat (the remote stage).
  */
 export function cityPayoutsFor(
   records: ReadonlyArray<CardAdjacencyPayoutModel> | undefined,
   spaceId: SpaceId | string,
   color: Color | undefined,
+  previous?: ReadonlyArray<CardAdjacencyPayoutModel>,
 ): Array<CardAdjacencyPayoutModel> {
-  const mine = (records ?? []).filter((r) => r.spaceId === spaceId && r.amount > 0);
-  if (mine.length === 0) {
-    return [];
-  }
-  const block = Math.max(...mine.map((r) => Math.floor(r.seq / 100)));
-  return mine
-    .filter((r) => Math.floor(r.seq / 100) === block && (color === undefined || r.color === color))
+  const seen = new Set((previous ?? []).map((r) => r.seq));
+  return (records ?? [])
+    .filter((r) => r.spaceId === spaceId && r.amount > 0 && !seen.has(r.seq) && (color === undefined || r.color === color))
     .sort((a, b) => a.seq - b.seq);
 }
 

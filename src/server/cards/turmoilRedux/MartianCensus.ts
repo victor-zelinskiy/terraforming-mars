@@ -16,7 +16,8 @@ import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {PlayerInput} from '../../PlayerInput';
 import {Priority} from '../../deferredActions/Priority';
-import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
+import {SimpleDeferredAction} from '../../deferredActions/DeferredAction';
+import {payTileToCard} from '../tilePayout';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
@@ -115,10 +116,13 @@ export class MartianCensus extends Card implements IProjectCard, IActionCard {
 
   public onTilePlaced(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, boardType: BoardType) {
     if (this.countsCity(space, boardType)) {
-      cardOwner.game.defer(
-        new AddResourcesToCard(cardOwner, CardResource.DATA, {filter: (c) => c.name === this.name}),
-        cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined,
-      );
+      // THE TILE PAYS THIS CARD (`cards/tilePayout.ts` — the class TR30 Red Museum opened): the same deferred step at
+      // the same priority, now ONE measured addition that writes the record the board plays — the data leaves the city
+      // that was placed, after it landed (an opponent's city included: PL-034, the chip no longer lights before it).
+      cardOwner.game.defer(new SimpleDeferredAction(cardOwner, () => {
+        payTileToCard(cardOwner, this, space, this, CardResource.DATA, 1, {cause: 'tile-placed'}, {log: true});
+        return undefined;
+      }), cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.GAIN_RESOURCE_OR_PRODUCTION);
     }
   }
 

@@ -203,6 +203,19 @@ describe('MartianCensus', () => {
       });
     }
 
+    it('the class «a tile pays a card»: ONE record per city, the placed cell the sender — the board plays it', () => {
+      const t = owned();
+      t.card.resourceCount = 2;
+      const space = addCity(t.p2);
+      runAllActions(t.game);
+      const record = t.game.cardAdjacencyPayouts.at(-1);
+      expect(record).deep.include({
+        cause: 'tile-placed', color: t.p1.color, card: CardName.MARTIAN_CENSUS, spaceId: space.id,
+        target: CardName.MARTIAN_CENSUS, amount: 1, before: 2,
+      });
+      expect(record?.neighbours).deep.eq([{spaceId: space.id, units: 1}]);
+    });
+
     it('the Capital is a city: +1', () => {
       const t = owned();
       const space = t.game.board.getAvailableSpacesForCity(t.p2)[0];

@@ -140,8 +140,9 @@ describe('a card reward the cell decides (TR21) — the client', () => {
       const other = payout({seq: 502, spaceId: '20' as SpaceId});
       const foreign = payout({seq: 503, color: 'red'});
       const mine = payout({seq: 504});
-      expect(cityPayoutsFor([old, mine, other, foreign], '10', 'blue')).deep.eq([mine]);
-      expect(cityPayoutsFor([old, other, foreign], '10', 'red')).deep.eq([foreign]);
+      // The previous view carried `old`: it is an earlier placement's, never this one's.
+      expect(cityPayoutsFor([old, mine, other, foreign], '10', 'blue', [old])).deep.eq([mine]);
+      expect(cityPayoutsFor([old, other, foreign], '10', 'red', [old])).deep.eq([foreign]);
       expect(cityPayoutsFor([other], '10', 'blue')).deep.eq([]);
       expect(cityPayoutsFor(undefined, '10', 'blue')).deep.eq([]);
       // Any seat, when the caller is the remote stage.
@@ -226,15 +227,20 @@ describe('a card reward the cell decides (TR21) — the client', () => {
 
     it('every record of THIS placement, in the engine\'s order — never an earlier placement\'s on the same cell', () => {
       const earlier = museum({seq: 401});
-      const pets = museum({seq: 502, card: CardName.PETS, target: CardName.PETS, resource: CardResource.ANIMAL, amount: 1, neighbours: [{spaceId: '10' as SpaceId, units: 1}]});
+      // ONE placement's records sit in DIFFERENT gameAge blocks: every log line ages the game (Martian Census logs
+      // its data before Pets' record is written) — measured on the A/B probe, where a «newest block» rule dropped
+      // the census's record and its data ticked with the view.
       const own = museum({seq: 501});
-      const census = museum({seq: 503, color: 'red', card: CardName.MARTIAN_CENSUS, target: CardName.MARTIAN_CENSUS, amount: 1});
-      const elsewhere = museum({seq: 504, spaceId: '20' as SpaceId});
+      const census = museum({seq: 603, color: 'red', card: CardName.MARTIAN_CENSUS, target: CardName.MARTIAN_CENSUS, amount: 1});
+      const pets = museum({seq: 702, card: CardName.PETS, target: CardName.PETS, resource: CardResource.ANIMAL, amount: 1, neighbours: [{spaceId: '10' as SpaceId, units: 1}]});
+      const elsewhere = museum({seq: 704, spaceId: '20' as SpaceId});
       const all = [earlier, pets, census, own, elsewhere];
-      expect(cityPayoutsFor(all, '10', undefined), 'every seat, the newest block, oldest first').deep.eq([own, pets, census]);
-      expect(cityPayoutsFor(all, '10', 'blue'), 'one seat').deep.eq([own, pets]);
-      expect(cityPayoutsFor(all, '30', undefined)).deep.eq([]);
+      expect(cityPayoutsFor(all, '10', undefined, [earlier]), 'every seat, whatever block, oldest first').deep.eq([own, census, pets]);
+      expect(cityPayoutsFor(all, '10', 'blue', [earlier]), 'one seat').deep.eq([own, pets]);
+      expect(cityPayoutsFor(all, '30', undefined, [earlier])).deep.eq([]);
       expect(cityPayoutsFor(undefined, '10', undefined)).deep.eq([]);
+      // No previous view: every record of the cell is a candidate (the claim set plays each once).
+      expect(cityPayoutsFor(all, '10', 'blue')).deep.eq([earlier, own, pets]);
     });
 
     it('the TILE is the sender when the record names the placed cell — a neighbour is not', () => {

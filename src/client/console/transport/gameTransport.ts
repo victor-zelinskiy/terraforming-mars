@@ -796,6 +796,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // …and its per-neighbour card payouts (TR21: the data the cities paid onto the chosen
             // card) — the hero plays THIS cell's record and claims it; the card's face comes from the tableau.
             cardPayouts: newView.game?.cardAdjacencyPayouts,
+            prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
             viewerCards: newView.thisPlayer?.tableau,
           });
         if (tileHeroEvent !== undefined) {
@@ -876,6 +877,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               aresGrants: newView.game?.aresAdjacencyGrants,
               tileMoves: newView.game?.tileMoves,
               cardPayouts: newView.game?.cardAdjacencyPayouts,
+              prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
             });
             // …and a nomad camp that moved in the batch (a concurrent human's
             // move riding the bot's turns): commit hidden, hop at reveal.
@@ -950,6 +952,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           tileMoves: newView.game?.tileMoves,
           // …and the server's per-neighbour card payouts (TR21 — another seat's cities paying their card).
           cardPayouts: newView.game?.cardAdjacencyPayouts,
+          prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
         });
         // …and a REMOTE nomad hop riding the viewer's own submit response (a
         // concurrent human's move that resolved while the POST was in

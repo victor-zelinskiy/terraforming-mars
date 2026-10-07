@@ -283,6 +283,8 @@ export type RemoteStageOpts = {
   tileMoves?: ReadonlyArray<TileMoveRecordModel>,
   /** The SERVER's per-neighbour card payout ring (`game.cardAdjacencyPayouts`, TR21) — consumed once per record. */
   cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
+  /** The PREVIOUS view's ring — a record of THIS placement is one it did not carry. */
+  prevCardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
 };
 
 export function stageRemotePlacements(
@@ -454,7 +456,7 @@ function cityPayoutHoldSpecs(payout: CardAdjacencyPayoutModel): Array<ResourceTr
  * block (the phantom-chip contract).
  */
 function claimCityPayoutsOf(spaceId: string, opts: RemoteStageOpts | undefined): RemoteEvent['cityPayouts'] {
-  const out = cityPayoutsFor(opts?.cardPayouts, spaceId, undefined)
+  const out = cityPayoutsFor(opts?.cardPayouts, spaceId, undefined, opts?.prevCardPayouts)
     .filter((payout) => claimCityPayout(payout.seq))
     .map((payout) => ({payout, own: payout.color === opts?.viewerColor}));
   for (const item of out) {
