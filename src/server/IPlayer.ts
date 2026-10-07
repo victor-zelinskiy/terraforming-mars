@@ -30,7 +30,7 @@ import {OrOptions} from './inputs/OrOptions';
 import {Stock} from './player/Stock';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
-import {CardDrawRevealSource, ColonyTradeRevealSegment} from '../common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, ColonyTradeRevealSegment, DrawSearchModel} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
@@ -90,6 +90,18 @@ export type PlayabilityOptions = {
 export type RevealedCard = {
   card: IProjectCard,
   matched: boolean,
+  /** The search's `withoutTags` this discarded card carries (see CardDrawRevealStep.failedTags). */
+  failedTags?: ReadonlyArray<Tag>,
+}
+
+/**
+ * What a FILTERED search tells its reveal beyond the cards: the rule it
+ * searched by and whether it ran out of cards first (see
+ * CardDrawRevealModel.search / exhausted).
+ */
+export type CardDrawSearchOutcome = {
+  search?: DrawSearchModel,
+  exhausted: boolean,
 }
 
 /**
@@ -105,6 +117,10 @@ export type CardDrawReveal = {
    * discarded at least one card — a plain draw leaves it undefined.
    */
   sequence?: ReadonlyArray<RevealedCard>,
+  /** The filtered search's rule (see CardDrawRevealModel.search) — on every batch a search produced. */
+  search?: DrawSearchModel,
+  /** The search ran out of cards before it found enough (see CardDrawRevealModel.exhausted). */
+  exhausted?: true,
   /**
    * Trade-tagged batches only: the same-role runs of `cards` (income first,
    * then colony-bonus), maintained as same-trade draws MERGE into one batch.
@@ -570,7 +586,7 @@ export interface IPlayer {
    * `sequence` is the conditional search's real reveal order; it is kept only
    * when the search actually discarded something.
    */
-  enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>): void;
+  enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>, outcome?: CardDrawSearchOutcome): void;
   /**
    * CLOSE the batch just queued to further merging (see `CardDrawReveal.sealed`).
    * Called by a payout that owes the player a MANDATORY answer before the next

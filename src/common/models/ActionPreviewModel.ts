@@ -11,6 +11,7 @@ import {AllColonyBonusesModel} from './ColonyBonusLedgerModel';
 import {EffectForecast} from './EffectForecastModel';
 import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
+import type {DrawSearchModel} from './CardDrawRevealModel';
 import type {ReduxParty, ResolutionId, ResolutionInstanceId} from '../parliament/ParliamentTypes';
 
 /**
@@ -158,6 +159,14 @@ export type ActionEffect = {
    * reported a number the board does not contain.
    */
   basis?: ReadonlyArray<ActionEffectBasis>;
+  /**
+   * A draw chip's SEARCH RULE («+3 cards · without plant, microbe or animal
+   * tags»): the same server descriptor the reveal carries
+   * (`CardDrawRevealModel.search`), so the chip, the summary and the tray name
+   * one rule. Only on a `cards` chip of a FILTERED draw; a plain draw has none.
+   * The chip's form and numbers do not change — it only knows the rule.
+   */
+  search?: DrawSearchModel;
 };
 
 /**

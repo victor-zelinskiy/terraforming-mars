@@ -71,7 +71,7 @@ import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/gam
 import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -1748,7 +1748,7 @@ export class Player implements IPlayer {
     this.game.defer(DrawCards.keepSome(this, count, options));
   }
 
-  public enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>): void {
+  public enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>, outcome?: CardDrawSearchOutcome): void {
     // Never queue an empty reveal (deck exhausted / count 0) — it would show an empty modal.
     if (cards.length === 0) {
       return;
@@ -1758,6 +1758,11 @@ export class Player implements IPlayer {
     // the same event — cards simply come off the deck — so it carries no
     // sequence, which is exactly the client's "no discard tray" signal.
     const discarded = sequence?.some((step) => !step.matched) === true;
+    // A FILTERED search's rule rides EVERY batch it produced — with or without
+    // discards: the summary of three clean cards on top still names what was
+    // searched for. A plain draw has no rule and stays as lean as it was.
+    const search = outcome?.search;
+    const exhausted = outcome?.exhausted === true && (search !== undefined || discarded);
     // ONE trade = ONE reveal batch. A colony trade can draw cards more than
     // once (the trade income, then the trader's own per-cube colony bonuses —
     // Pluto); merging the same-trade draws into the still-pending batch gives
@@ -1773,7 +1778,7 @@ export class Player implements IPlayer {
     // next cube always opens a fresh one whether or not the client's ack won
     // its race with the discard submit. See `CardDrawReveal.sealed`.
     const trade = source?.type === 'colony' ? source.trade : undefined;
-    if (trade !== undefined && !discarded) {
+    if (trade !== undefined && !discarded && search === undefined) {
       const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
       if (last !== undefined &&
           last.sealed !== true &&
@@ -1795,6 +1800,8 @@ export class Player implements IPlayer {
       source,
       cards: [...cards],
       sequence: discarded ? [...(sequence ?? [])] : undefined,
+      search,
+      exhausted: exhausted ? true : undefined,
       tradeSegments: trade !== undefined && !discarded ? [{role: trade.role, count: cards.length}] : undefined,
     });
   }

@@ -20,6 +20,13 @@ import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {CardName} from '../../src/common/cards/CardName';
 import {cast} from '../../src/common/utils/utils';
 import {addCity, churn, runAllActions} from '../TestingUtils';
+import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
+import {AcquiredSpaceAgency} from '../../src/server/cards/prelude/AcquiredSpaceAgency';
+import {DeepSpaceOperations} from '../../src/server/cards/pathfinders/DeepSpaceOperations';
+import {LagrangeObservatory} from '../../src/server/cards/base/LagrangeObservatory';
+import {Tag} from '../../src/common/cards/Tag';
+import {CardType} from '../../src/common/cards/CardType';
 
 describe('actionPreview', () => {
   it('declarative multi-branch (Regolith Eaters): two branches, both available with resources', () => {
@@ -369,6 +376,37 @@ describe('actionPreview', () => {
       expect(mc?.amount).eq(0);
       expect(mc?.current).eq(mc?.resulting); // → the chip renders it as "no effect"
       expect(mc?.basis).deep.eq([{count: 0, label: 'Cities on Mars'}]);
+    });
+  });
+
+  /**
+   * PL-021 — A FILTERED DRAW NAMES ITS RULE on the chip, from the ONE search
+   * descriptor its reveal carries (`deferredActions/drawSearch.ts`). The class:
+   * every declarative filtered draw gets it, the plain draw does not, and the
+   * chip's form and numbers are untouched.
+   */
+  describe('the draw chip carries the search rule (PL-021)', () => {
+    it('TR05 Vector Computations (an action): «+1 · with a Space tag»', () => {
+      const [/* game */, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      const card = new VectorComputations();
+      card.resourceCount = 4;
+      const chip = actionPreview(player, card).branches[0].effects.find((e) => e.icon === 'cards');
+      expect(chip).deep.include({direction: 'gain', icon: 'cards', amount: 1, note: 'draw', search: {count: 1, tag: Tag.SPACE}});
+    });
+
+    it('Acquired Space Agency (a prelude play): «+2 · with a Space tag»; Deep Space Operations: «+2 · events with a Space tag»', () => {
+      const [/* game */, player] = testGame(2);
+      const asa = cardPlayPreview(player, new AcquiredSpaceAgency()).branches[0].effects.find((e) => e.icon === 'cards');
+      expect(asa).deep.include({amount: 2, note: 'draw', search: {count: 2, tag: Tag.SPACE}});
+      const dso = cardPlayPreview(player, new DeepSpaceOperations()).branches[0].effects.find((e) => e.icon === 'cards');
+      expect(dso).deep.include({amount: 2, note: 'draw', search: {count: 2, tag: Tag.SPACE, type: CardType.EVENT}});
+    });
+
+    it('a PLAIN draw carries no rule (Lagrange Observatory)', () => {
+      const [/* game */, player] = testGame(2);
+      const chip = cardPlayPreview(player, new LagrangeObservatory()).branches[0].effects.find((e) => e.icon === 'cards');
+      expect(chip).deep.include({amount: 1, note: 'draw'});
+      expect(chip?.search).is.undefined;
     });
   });
 

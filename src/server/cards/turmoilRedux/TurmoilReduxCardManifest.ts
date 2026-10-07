@@ -32,6 +32,7 @@ import {EarthArmyContract} from './EarthArmyContract';
 import {SpaceshipRecycling} from './SpaceshipRecycling';
 import {RedMuseum} from './RedMuseum';
 import {NationalistMovement} from './NationalistMovement';
+import {RedTechConvention} from './RedTechConvention';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -166,5 +167,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // again, and the set's first card that places a NEUTRAL vote — the shared step `parliament/RallyNeutralDelegates`
     // (a pure plan, no prompt), the rally hosted by the hand on the console («ДЕЛЕГАТЫ»).
     [CardName.NATIONALIST_MOVEMENT]: {Factory: NationalistMovement},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The Reds' plate
+    // again, and the set's first draw with a NEGATIVE filter — the DSL's `drawCard.withoutTags`, one descriptor of
+    // the search for the chip, the text, the reveal's summary and its discard tray (`deferredActions/drawSearch.ts`).
+    [CardName.RED_TECH_CONVENTION]: {Factory: RedTechConvention},
   },
 });

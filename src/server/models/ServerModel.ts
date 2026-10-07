@@ -269,7 +269,13 @@ export class Server {
         sequence: r.sequence?.map((step) => ({
           card: cardsToModel(player, [step.card], {showCalculatedCost: true, unplayableReasons: true})[0],
           matched: step.matched,
+          // The tag that threw this card away (a negative filter) — the tray names it.
+          failedTags: step.failedTags,
         })),
+        // A filtered search's RULE and whether it ran out of cards — the
+        // summary and the tray read both (CardDrawRevealModel.search / exhausted).
+        search: r.search,
+        exhausted: r.exhausted,
         // The income/bonus split of a trade-merged batch (see
         // CardDrawRevealModel.tradeSegments) — drives the console trade
         // cinematic's per-wave launches.

@@ -59,6 +59,8 @@ import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemTyp
 import {Size} from '../../../common/cards/render/Size';
 import {Behavior} from '../../behavior/Behavior';
 import {Card} from '../../cards/Card';
+import {drawSearchOf} from '../../deferredActions/drawSearch';
+import {DrawSearchModel} from '../../../common/models/CardDrawRevealModel';
 
 const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
@@ -419,6 +421,47 @@ function placementClause(kind: 'ocean' | 'city' | 'greenery' | 'tile', on: Place
   return PLACEMENT_CLAUSE[on];
 }
 
+/** «a» / «an» before an English word (the tag and type nouns this generator prints). */
+function article(word: string): string {
+  return /^[aeiou]/i.test(word) ? 'an' : 'a';
+}
+
+/** «plant», «plant or microbe», «plant, microbe or animal». */
+function orList(words: ReadonlyArray<string>): string {
+  if (words.length <= 1) {
+    return words[0] ?? '';
+  }
+  return `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`;
+}
+
+/**
+ * THE SEARCH'S RULE, in the card's own voice — printed from the ONE descriptor
+ * (`drawSearchOf`) the composer's chip and the reveal read, so a filtered draw
+ * is described by the generator instead of waiting for curation:
+ * «Reveal cards from the project deck until you reveal 3 cards without a plant,
+ * microbe or animal tag. Take them into your hand and discard the rest.»
+ * The rendered sentence IS the i18n key (one per distinct rule).
+ */
+export function drawSearchSentence(search: DrawSearchModel): string {
+  const one = search.count === 1;
+  const kind = search.type === undefined ? '' : `${search.type.toLowerCase()} `;
+  const noun = `${kind}${one ? 'card' : 'cards'}`;
+  const amount = one ? article(noun) : String(search.count);
+  const qualifiers: Array<string> = [];
+  if (search.tag !== undefined) {
+    qualifiers.push(`with ${article(search.tag)} ${search.tag} tag`);
+  }
+  if (search.resource !== undefined) {
+    qualifiers.push(`that ${one ? 'collects' : 'collect'} ${search.resource.toLowerCase()} resources`);
+  }
+  if (search.withoutTags !== undefined && search.withoutTags.length > 0) {
+    const list = orList(search.withoutTags);
+    qualifiers.push(`without ${article(list)} ${list} tag`);
+  }
+  const what = [`${amount} ${noun}`, ...qualifiers].join(' ');
+  return `Reveal cards from the project deck until you reveal ${what}. Take ${one ? 'it' : 'them'} into your hand and discard the rest.`;
+}
+
 function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | undefined {
   const b: Behavior | undefined = (card as {behavior?: Behavior}).behavior;
   if (b === undefined) {
@@ -536,8 +579,18 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
     if (typeof b.drawCard === 'number') {
       push('drawCard', `Draw ${b.drawCard === 1 ? '1 card' : `${b.drawCard} cards`}.`, ['cards']);
     } else {
-      complex = true;
-      notes.push('drawCard is structured (keep/pay/filter)');
+      // A FILTERED search («reveal until you find N cards that …») prints its
+      // rule from the descriptor; a look-and-keep (keep / pay) or a counted
+      // amount still needs a curated sentence. A corporation's setup draw keeps
+      // its own corp-local line (`corpStartingBlocks` — «Draw a science card.»).
+      const count = numeric(b.drawCard.count);
+      const search = count === undefined ? undefined : drawSearchOf(count, b.drawCard);
+      if (search !== undefined && b.drawCard.keep === undefined && b.drawCard.pay === undefined && card.type !== CardType.CORPORATION) {
+        push('drawCard', drawSearchSentence(search), ['cards']);
+      } else {
+        complex = true;
+        notes.push('drawCard is structured (keep/pay/filter)');
+      }
     }
   }
   if (b.addResources !== undefined) {

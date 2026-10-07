@@ -8,6 +8,8 @@ import {CardType} from '../../common/cards/CardType';
 import {ChooseCards, ChooseOptions, LogType, keep} from './ChooseCards';
 import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 import {RevealedCard} from '../IPlayer';
+import {drawSearchOf, forbiddenTagsOn} from './drawSearch';
+import {DrawSearchModel} from '../../common/models/CardDrawRevealModel';
 
 /**
  * Best-effort attribution for the "you drew cards" reveal modal when the caller
@@ -45,6 +47,8 @@ export type DrawOptions = {
   tag?: Tag,
   resource?: CardResource,
   cardType?: CardType,
+  /** Discard cards WITH any of these tags (`Behavior.DrawCard.withoutTags` — Red Tech Convention). */
+  withoutTags?: ReadonlyArray<Tag>,
   include?(card: IProjectCard): boolean,
   /**
    * Attribution for the "you drew cards" reveal modal, when cheaply known
@@ -66,6 +70,12 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
    * the reveal can carry the honest sequence instead of just the result.
    */
   public readonly revealSequence: Array<RevealedCard> = [];
+  /**
+   * The search ran out of cards: the deck (and its reshuffled discard pile)
+   * was turned over to the end and fewer than `count` cards matched. Set by
+   * `execute()`, read by `keepAll` beside `revealSequence`.
+   */
+  public exhausted = false;
 
   // Visible for tests.
   public constructor(
@@ -80,8 +90,12 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
     this.player.game.resettable = false;
     const game = this.player.game;
     this.revealSequence.length = 0;
+    const withoutTags = this.options.withoutTags;
     const onReveal = (card: IProjectCard, matched: boolean) => {
-      this.revealSequence.push({card, matched});
+      // The REASON a discard was thrown away, when it is a tag it carries —
+      // read by the same function the verdict below used.
+      const failedTags = matched ? [] : forbiddenTagsOn(this.player, card, withoutTags);
+      this.revealSequence.push(failedTags.length > 0 ? {card, matched, failedTags} : {card, matched});
     };
     const cards = game.projectDeck.drawByConditionLegacy(game, this.count, (card) => {
       if (this.options.resource !== undefined && this.options.resource !== card.resourceType) {
@@ -93,28 +107,41 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       if (this.options.tag !== undefined && !this.player.tags.cardHasTag(card, this.options.tag)) {
         return false;
       }
+      if (forbiddenTagsOn(this.player, card, withoutTags).length > 0) {
+        return false;
+      }
       if (this.options.include !== undefined && !this.options.include(card)) {
         return false;
       }
       return true;
     }, onReveal);
+    this.exhausted = cards.length < this.count;
 
     this.cb(cards);
     return undefined;
   }
 
+  /**
+   * The rule this draw searches by (`DrawSearchModel`), or undefined for a
+   * plain draw / an opaque `include` — the ONE descriptor the reveal, the
+   * preview chip and the structured text share (`drawSearch.ts`).
+   */
+  public static searchOf(count: number, options: DrawOptions | undefined): DrawSearchModel | undefined {
+    return drawSearchOf(count, options === undefined ? undefined : {
+      tag: options.tag,
+      type: options.cardType,
+      resource: options.resource,
+      withoutTags: options.withoutTags,
+    });
+  }
+
   public static keepAll(player: IPlayer, count: number = 1, options?: DrawOptions): DrawCards {
     const action = new DrawCards(player, count, options);
+    const search = DrawCards.searchOf(count, options);
     return action.andThen((cards) => {
-      let verbosity: LogType = LogType.DREW;
-      if (options !== undefined) {
-        if (options.tag !== undefined ||
-          options.resource !== undefined ||
-          options.cardType !== undefined ||
-          options.include !== undefined) {
-          verbosity = LogType.DREW_VERBOSE;
-        }
-      }
+      // A filtered search reveals its cards — the kept ones are named in the
+      // log like the discarded ones (`DREW_VERBOSE`).
+      const verbosity: LogType = search !== undefined || options?.include !== undefined ? LogType.DREW_VERBOSE : LogType.DREW;
       keep(player, cards, [], verbosity);
       // Analytics: attribute the draw to the active effect/action (the source
       // is resolved from the correlation context, e.g. Mars University).
@@ -130,10 +157,14 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       // the deck actually performed (which card came up when, and whether it
       // was kept) instead of only seeing the result. `enqueueCardDrawReveal`
       // drops it when nothing was discarded — i.e. a plain draw carries none.
+      //
+      // A FILTERED search also carries its rule (`search`) and whether it ran
+      // out of cards (`exhausted`) — the summary and the tray name both.
       player.enqueueCardDrawReveal(
         cards,
         options?.source ?? revealSourceFromContext(player),
-        action.revealSequence);
+        action.revealSequence,
+        {search, exhausted: action.exhausted});
     });
   }
 

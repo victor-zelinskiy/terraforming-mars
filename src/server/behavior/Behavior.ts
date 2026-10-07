@@ -196,6 +196,13 @@ export interface DrawCard {
   type?: CardType,
   /** Discard cards without this type of resource. */
   resource?: CardResource,
+  /**
+   * Discard cards WITH any of these tags — the NEGATIVE filter (Red Tech
+   * Convention: «until you reveal 3 cards without a plant, microbe or animal
+   * tag»). Read by the same reader as `tag` (`Tags.cardHasTag`); in the printed
+   * rule's order, which is the order every surface names them in.
+   */
+  withoutTags?: ReadonlyArray<Tag>,
 }
 
 export interface AddResource {

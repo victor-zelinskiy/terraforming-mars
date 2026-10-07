@@ -512,12 +512,13 @@ export class Executor implements BehaviorExecutor {
       } else {
         // This conditional could probably be removed, using the else clause for both.
         if (drawCard.keep === undefined && drawCard.pay === undefined) {
-          player.drawCard(ctx.count(drawCard.count), {tag: drawCard.tag, resource: drawCard.resource, cardType: drawCard.type, source: revealSource});
+          player.drawCard(ctx.count(drawCard.count), {tag: drawCard.tag, resource: drawCard.resource, cardType: drawCard.type, withoutTags: drawCard.withoutTags, source: revealSource});
         } else {
           player.drawCardKeepSome(ctx.count(drawCard.count), {
             tag: drawCard.tag,
             resource: drawCard.resource,
             cardType: drawCard.type,
+            withoutTags: drawCard.withoutTags,
             keepMax: drawCard.keep,
             paying: drawCard.pay,
             // The look-at-N pick is a CONTINUATION of playing this card, so it

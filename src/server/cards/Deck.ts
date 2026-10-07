@@ -167,7 +167,13 @@ export class Deck<T extends ICard> {
 
     while (result.length < total) {
       if (discardedCards.length >= this.drawPile.length + this.discardPile.length) {
-        logger.log(`discarded every ${this.type} card without a match`);
+        // NAMED, never silent — and in the journal's language: like the
+        // reshuffle line above, the rendered sentence (one per deck type) IS
+        // its i18n key. A search that turned something over ran the deck out;
+        // nothing at all to turn over is the empty deck.
+        logger.log(discardedCards.length > 0 ?
+          `The whole ${this.type} deck has been searched — no more matching cards.` :
+          `The ${this.type} deck is empty — no card to reveal.`);
         break;
       }
       const projectCard = this.drawOrThrow(logger);

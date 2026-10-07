@@ -20,6 +20,7 @@ import {TITLES} from '../inputs/titles';
 import {cardSource} from '../inputs/choiceContext';
 import * as actionPreviews from '../cards/actionPreviews';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLost} from '../colonies/tradeFleetGain';
+import {drawSearchOf} from '../deferredActions/drawSearch';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -452,8 +453,11 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
     const n = ctx.count(raw);
     if (n > 0 || isVariableAmount(raw)) {
       // A draw has no pool, so it carries no `current → resulting`: the chip
-      // reads the zero off the amount itself and mutes on that.
-      out.push({direction: 'gain', icon: 'cards', amount: Math.max(0, n), note: 'draw', basis: countableBasis(ctx, raw)});
+      // reads the zero off the amount itself and mutes on that. A FILTERED
+      // draw also carries its rule — the same descriptor its reveal will
+      // (`drawSearch.ts`), so the chip names what the deck is searched for.
+      const search = typeof dc === 'number' ? undefined : drawSearchOf(Math.max(0, n), dc);
+      out.push({direction: 'gain', icon: 'cards', amount: Math.max(0, n), note: 'draw', basis: countableBasis(ctx, raw), ...(search !== undefined ? {search} : {})});
     }
   }
   // «Gain N trade fleets» — the fleet count `current → resulting`, honest

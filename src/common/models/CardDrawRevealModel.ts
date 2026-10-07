@@ -1,5 +1,8 @@
 import {CardModel} from './CardModel';
 import {CardName} from '../cards/CardName';
+import {CardType} from '../cards/CardType';
+import {Tag} from '../cards/Tag';
+import {CardResource} from '../CardResource';
 import {ColonyName} from '../colonies/ColonyName';
 import {GlobalParameter} from '../GlobalParameter';
 import {SpaceId} from '../Types';
@@ -100,6 +103,40 @@ export type CardDrawRevealStep = {
   /** Serialized with the SAME options as `cards` so it renders identically. */
   card: CardModel;
   matched: boolean;
+  /**
+   * WHY a discarded card was thrown away, when the reason is a TAG IT CARRIES —
+   * the search's `withoutTags` it was found holding (Red Tech Convention: «a
+   * plant tag»), read by the SAME reader as the search itself
+   * (`Tags.cardHasTag`). Absent on a matched card and on a card a POSITIVE
+   * filter refused: «it lacks the Space tag» is the search's own rule, already
+   * named by `CardDrawRevealModel.search`.
+   */
+  failedTags?: ReadonlyArray<Tag>;
+};
+
+/**
+ * THE SEARCH'S RULE — ONE descriptor of a filtered draw («reveal until you find
+ * N cards that …»), born on the server from the declaration that performs the
+ * search (`Behavior.DrawCard` / `DrawOptions`, `deferredActions/drawSearch.ts`)
+ * and read by every surface that names it: the composer's draw chip
+ * (`ActionEffect.search`), the card's structured text, the reveal's summary and
+ * its discard tray. No surface rebuilds the rule from a guess.
+ *
+ * Absent for a plain draw («draw N»): there is nothing to search for. A search
+ * by an opaque predicate (`DrawOptions.include` — a bespoke card) has no
+ * descriptor either: its rule is the card's own prose.
+ */
+export type DrawSearchModel = {
+  /** How many MATCHING cards the search keeps. */
+  count: number;
+  /** Keep only cards WITH this tag. */
+  tag?: Tag;
+  /** Keep only cards of this type (Deep Space Operations — events). */
+  type?: CardType;
+  /** Keep only cards that collect this resource. */
+  resource?: CardResource;
+  /** Keep only cards with NONE of these tags (Red Tech Convention). In the printed rule's order. */
+  withoutTags?: ReadonlyArray<Tag>;
 };
 
 /**
@@ -129,6 +166,18 @@ export type CardDrawRevealModel = {
    * The matched steps' cards are the same ones listed in `cards`.
    */
   sequence?: ReadonlyArray<CardDrawRevealStep>;
+  /**
+   * The search's RULE (see `DrawSearchModel`), present on EVERY batch a
+   * filtered search produced — also when nothing was discarded (the three
+   * matches sat on top): the summary still names what was searched for.
+   */
+  search?: DrawSearchModel;
+  /**
+   * The search turned over every card the deck (and its reshuffled discard
+   * pile) had left and found FEWER matches than it wanted: `cards` is all
+   * there was. Named calmly by the summary — the rule working, not an error.
+   */
+  exhausted?: true;
   /**
    * Present ONLY on a trade-tagged batch (`source.trade` set): the same-role
    * runs of `cards`, in order. The server MERGES the income draw and the
