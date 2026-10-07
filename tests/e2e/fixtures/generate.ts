@@ -158,6 +158,8 @@ import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/Political
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {NATIONALIST_MOVEMENT_PARTIES, NATIONALIST_MOVEMENT_PRINT, NationalistMovement} from '../../../src/server/cards/turmoilRedux/NationalistMovement';
+import {RedTechConvention} from '../../../src/server/cards/turmoilRedux/RedTechConvention';
+import {Payment} from '../../../src/common/inputs/Payment';
 import {rallyPlan} from '../../../src/server/parliament/RallyNeutralDelegates';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
@@ -1217,6 +1219,108 @@ parliamentFixture('nationalist-movement-short-supply', rallyTable('nationalist-m
 // card is playable by the ruling road, Mars First's card takes the vote (3 → 4, the tie to slot 1), both areas pay as
 // before, 13 in use, +13 M€.
 parliamentFixture('nationalist-movement-reds-rule', rallyTable('nationalist-movement-reds-rule', {reds: 'ruling', unity: 2}));
+
+// ── TR32 · RED TECH CONVENTION — the draw's NEGATIVE filter: blue's action phase with the card in hand and 10 M€, the
+//    REDS RULING by their enacted Heat Capture (the requirement's ruling road), the corporations pinned (Teractor /
+//    Thorgate — no first action on red's page, so red's console opens). The project deck's TOP is stacked BY NAME after
+//    the deal (the deal draws from the top), turned over first → last:
+//      Algae ✗ (plant) → Research ✓ → Ants ✗ (microbe) → Fish ✗ (animal) → Mining Area ✓ → Comet ✓
+//    — six turned over, three kept, three thrown away, each for ITS tag. The `-clean-top` variant stacks the three clean
+//    cards on top: nothing thrown away, the family's plain language, the rule still named. A DRY RUN on a copy plays the
+//    card, so a rule change fails HERE. ──
+const RED_TECH_JOURNEY = [CardName.ALGAE, CardName.RESEARCH, CardName.ANTS, CardName.FISH, CardName.MINING_AREA, CardName.COMET] as const;
+const RED_TECH_CLEAN_TOP = [CardName.RESEARCH, CardName.MINING_AREA, CardName.COMET] as const;
+/** Stack the deck so `topFirst[0]` is turned over first (the top of the draw pile is its END). */
+function stackDeckTop(game: IGame, topFirst: ReadonlyArray<CardName>): void {
+  for (const name of [...topFirst].reverse()) {
+    moveToDeckTop(game, name);
+  }
+}
+function redTechConvention(name: string, topFirst: ReadonlyArray<CardName>, expected: {hand: ReadonlyArray<CardName>, discard: ReadonlyArray<CardName>}): ParliamentFixtureSpec {
+  return {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      seatEnacted(parliament, HEAT_CAPTURE_ID);
+      seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+      seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+      p1.cardsInHand.push(new RedTechConvention());
+      stackDeckTop(game, topFirst);
+    },
+    expect: ({game, parliament, p1}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.RED_TECH_CONVENTION);
+      const top = game.projectDeck.drawPile.slice(-topFirst.length).map((c) => c.name).reverse();
+      // THE DRY RUN — the real play on a copy.
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const hand = new Set(blue.cardsInHand.map((c) => c.name));
+      const discardBefore = copy.projectDeck.discardPile.length;
+      blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.RED_TECH_CONVENTION)!, Payment.of({megacredits: 5}));
+      runAllActions(copy);
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card) !== false,
+        ruling: parliament.rulingParty(),
+        top: top.join(','),
+        drawn: blue.cardsInHand.filter((c) => !hand.has(c.name)).map((c) => c.name).join(','),
+        discarded: copy.projectDeck.discardPile.slice(discardBefore).map((c) => c.name).join(','),
+        mc: blue.megaCredits,
+        sequence: (blue.cardDrawReveals[0]?.sequence ?? []).length,
+      };
+      if (!facts.playable || facts.ruling !== PartyName.REDS || facts.top !== topFirst.join(',') || facts.drawn !== expected.hand.join(',') ||
+          facts.discarded !== expected.discard.join(',') || facts.mc !== 5 || facts.sequence !== (expected.discard.length > 0 ? topFirst.length : 0)) {
+        throw new Error(`the ${name} fixture expected the Reds ruling, the card playable and the search to keep ${expected.hand.join(',')} / throw away ${expected.discard.join(',')} — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  };
+}
+parliamentFixture('red-tech-convention', redTechConvention('red-tech-convention', RED_TECH_JOURNEY,
+  {hand: [CardName.RESEARCH, CardName.MINING_AREA, CardName.COMET], discard: [CardName.ALGAE, CardName.ANTS, CardName.FISH]}));
+parliamentFixture('red-tech-convention-clean-top', redTechConvention('red-tech-convention-clean-top', RED_TECH_CLEAN_TOP,
+  {hand: [CardName.RESEARCH, CardName.MINING_AREA, CardName.COMET], discard: []}));
+// …and the NEIGHBOURS of the class, on the SAME build-independent table (no Red Tech Convention in it — so the JSON boots
+// the build BEFORE the class too: the A/B of TR32's surfaces on the cards that were already there):
+//   · TR05 Vector Computations on blue's table with 4 data — its action searches for a SPACE card: Algae ✗ → Comet ✓;
+//   · Aqueduct Systems in hand (a blue city beside an ocean) — the play searches for 3 BUILDING cards:
+//     Algae ✗ → Comet ✗ → Mining Area ✓ → Research ✗ → Steelworks ✓ → Domed Crater ✓.
+const RED_TECH_NEIGHBOURS_TOP = [CardName.ALGAE, CardName.COMET, CardName.MINING_AREA, CardName.RESEARCH, CardName.STEELWORKS, CardName.DOMED_CRATER] as const;
+parliamentFixture('red-tech-convention-neighbours', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  // Promo in the deck: Aqueduct Systems is a promo card.
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], promoCardsOption: true},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, HEAT_CAPTURE_ID);
+    seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+    // A blue city beside an ocean tile — Aqueduct Systems' requirement.
+    const ocean = game.board.getAvailableSpacesForOcean(p1).find((s) => game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.LAND && a.tile === undefined && a.bonus.length === 0))!;
+    ocean.tile = {tileType: TileType.OCEAN};
+    const site = game.board.getAdjacentSpaces(ocean).find((a) => a.spaceType === SpaceType.LAND && a.tile === undefined && a.bonus.length === 0)!;
+    site.tile = {tileType: TileType.CITY};
+    site.player = p1;
+    moveToDeckTop(game, CardName.VECTOR_COMPUTATIONS);
+    const vector = game.projectDeck.drawPile.pop() as IProjectCard;
+    vector.resourceCount = 4;
+    p1.playedCards.push(vector);
+    moveToDeckTop(game, CardName.AQUEDUCT_SYSTEMS);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+    stackDeckTop(game, RED_TECH_NEIGHBOURS_TOP);
+  },
+  expect: ({game, parliament, p1}) => {
+    const aqueduct = p1.cardsInHand.find((c) => c.name === CardName.AQUEDUCT_SYSTEMS);
+    const vector = p1.playedCards.get(CardName.VECTOR_COMPUTATIONS);
+    const top = game.projectDeck.drawPile.slice(-RED_TECH_NEIGHBOURS_TOP.length).map((c) => c.name).reverse().join(',');
+    if (aqueduct === undefined || !p1.canPlay(aqueduct) || vector === undefined || vector.resourceCount !== 4 || !(vector as IProjectCard & {canAct(p: IPlayer): boolean}).canAct(p1) ||
+        top !== RED_TECH_NEIGHBOURS_TOP.join(',')) {
+      throw new Error(`the red-tech-convention-neighbours fixture expected Aqueduct Systems playable, Vector Computations able to act with 4 data and the stacked top — got aqueduct=${aqueduct !== undefined && p1.canPlay(aqueduct)} data=${vector?.resourceCount} top=${top}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
 // ── TR06 · WATER HAULING — a trade whose destination is a CARD (docs/TURMOIL_REDUX_WATER_HAULING.md):
 //    blue's action phase with the card in its tableau and the card's own extra fleet (TWO free
 //    fleets — the dock and a colony in one generation, each with its own fee), 6 energy (two fees) and

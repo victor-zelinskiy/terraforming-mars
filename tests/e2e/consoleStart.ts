@@ -2402,6 +2402,14 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'nationalist-movement' |
   'nationalist-movement-short-supply' |
   'nationalist-movement-reds-rule' |
+  // TR32 Red Tech Convention: blue's action phase with the card in hand, 10 M€, the Reds ruling (Heat Capture enacted);
+  // the deck's top stacked by name — Algae ✗ → Research ✓ → Ants ✗ → Fish ✗ → Mining Area ✓ → Comet ✓ (three kept, three
+  // thrown away, each for its tag). `-clean-top`: the three clean cards on top (nothing thrown away). `-neighbours`: the
+  // class's neighbours with NO TR32 in the game (the JSON boots the build before the class): Vector Computations with
+  // 4 data (a Space search: Algae ✗ → Comet ✓) and Aqueduct Systems in hand (a Building search).
+  'red-tech-convention' |
+  'red-tech-convention-clean-top' |
+  'red-tech-convention-neighbours' |
   // TR22 Nova City: blue's action phase with the card in hand, 30 M€, Unity's access by two delegates; «Ganymede Colony»
   // stands (one space city of blue's own) and Pets is on the table; Luna — blue's colony and RED's fleet, Ceres — three
   // colonies, Titan inactive, Europa and Io plain (docs/TURMOIL_REDUX_NOVA_CITY.md).
