@@ -55,7 +55,7 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     });
 
     it('the line: «not ruling · your delegates on the resolution of that party: 1 of 2»', () => {
-      expect(unplayableReasonLine(base)).eq('party name: Mars First is not ruling · your delegates on the resolution of that party: 1 of 2');
+      expect(unplayableReasonLine(base)).eq('party name: Mars First does not hold power · your delegates on the resolution of that party: 1 of 2');
     });
 
     it('the compact counter: «1/2», read with the party emblem', () => {
@@ -65,7 +65,7 @@ describe('unplayableReasonFormat — the compact counter form', () => {
 
     it('the resolution of that party is not up for a vote: the CLOSED road is named, in the line and on the rail', () => {
       const off: UnplayableReason = {...base, current: 0, partyOffVote: true};
-      expect(unplayableReasonLine(off)).eq('party name: Mars First is not ruling · the resolution of that party is not up for a vote');
+      expect(unplayableReasonLine(off)).eq('party name: Mars First does not hold power · the resolution of that party is not up for a vote');
       expect(unplayableReasonCompact(off)).eq('Not in the vote');
     });
 
