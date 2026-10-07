@@ -2395,6 +2395,13 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |
+  // TR31 Nationalist Movement: blue's action phase with the card in hand, 12 M€, two delegates on the Reds' Heat Capture
+  // (slot 0, 3 votes), Architecture Award 3, Aquifer Contest 4 (the winner); support Reds 1 / Mars First 3 / Unity 2 →
+  // 11 in use, a supply of 3 (docs/TURMOIL_REDUX_NATIONALIST_MOVEMENT.md). The two `arrange` variants: the short supply
+  // (Unity 3) and the Reds ruling by their enacted card (no Reds resolution up for a vote).
+  'nationalist-movement' |
+  'nationalist-movement-short-supply' |
+  'nationalist-movement-reds-rule' |
   // TR22 Nova City: blue's action phase with the card in hand, 30 M€, Unity's access by two delegates; «Ganymede Colony»
   // stands (one space city of blue's own) and Pets is on the table; Luna — blue's colony and RED's fleet, Ceres — three
   // colonies, Titan inactive, Europa and Io plain (docs/TURMOIL_REDUX_NOVA_CITY.md).

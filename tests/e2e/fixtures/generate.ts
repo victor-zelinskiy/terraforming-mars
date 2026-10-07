@@ -157,6 +157,8 @@ import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
 import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/PoliticalScience';
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
+import {NATIONALIST_MOVEMENT_PARTIES, NATIONALIST_MOVEMENT_PRINT, NationalistMovement} from '../../../src/server/cards/turmoilRedux/NationalistMovement';
+import {rallyPlan} from '../../../src/server/parliament/RallyNeutralDelegates';
 import {WaterHauling} from '../../../src/server/cards/turmoilRedux/WaterHauling';
 import {UnmiLiner} from '../../../src/server/cards/turmoilRedux/UnmiLiner';
 import {EarthArmyContract} from '../../../src/server/cards/turmoilRedux/EarthArmyContract';
@@ -1125,6 +1127,96 @@ parliamentFixture('minority-representation', {
     parliament.assertLedger(game);
   },
 });
+// ── TR31 · NATIONALIST MOVEMENT — a card's RALLY of neutral delegates as the OUTCOME of its play
+//    (docs/TURMOIL_REDUX_NATIONALIST_MOVEMENT.md): blue's action phase, the card in hand, 12 M€; the
+//    Industrialists rule QUIETLY by Central Power Grid (an enacted card, so the Reds' card may stand in the
+//    area); slot 0 — Heat Capture (the Reds): 2 cubes of blue's + 1 neutral (= 3; the requirement's «2
+//    delegates» road); slot 1 — Architecture Award (Mars First): 1 cube of red's + 2 neutral (= 3); slot 2 —
+//    Aquifer Contest (the Greens): 2 cubes of red's + 2 neutral (= 4, THE WINNER). Support: the Reds 1, Mars
+//    First 3 (FULL), Unity 2 → 11 in use, a supply of 3. The plan: HC 3 → 4 (a tie with AC at 4 → slot 0:
+//    it BECOMES the winner), AA 3 → 4, the Reds 1 → 2, Mars First +0 · the area is full, 14 in use, +14 M€,
+//    the supply 0. The dry run checks the plan. ──
+type RallyTableSpec = {reds: 'area' | 'ruling', unity: number};
+function rallyTable(name: string, spec: RallyTableSpec) {
+  return {
+    stopAt: 'vote' as const,
+    megacredits: [12, 30],
+    // The corporations PINNED to two without a first action (TR30's choice): red's Aridor would hold a mandatory
+    // «choose a colony tile» on its page, and the rival's table could never be opened to watch the cubes arrive.
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, p2, parliament}: ParliamentTable) => {
+      if (spec.reds === 'ruling') {
+        // The Reds rule by their ENACTED card: no Reds resolution is up for a vote; the Industrialists' stands in slot 0.
+        seatEnacted(parliament, HEAT_CAPTURE_ID);
+        seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+      } else {
+        seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+        seatResolution(parliament, 0, HEAT_CAPTURE_ID);
+      }
+      seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+      parliament.placeVote(p1, parliament.slots[0], 'lobby');
+      parliament.placeVote(p1, parliament.slots[0], 'reserve');
+      parliament.addNeutralVote(parliament.slots[0]);
+      parliament.placeVote(p2, parliament.slots[1], 'lobby');
+      parliament.addNeutralVote(parliament.slots[1]);
+      parliament.addNeutralVote(parliament.slots[1]);
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      parliament.addNeutralVote(parliament.slots[2]);
+      parliament.addNeutralVote(parliament.slots[2]);
+      parliament.popularSupport.set(PartyName.REDS, 1);
+      parliament.popularSupport.set(PartyName.MARS, 3);
+      parliament.popularSupport.set(PartyName.UNITY, spec.unity);
+      p1.cardsInHand.push(new NationalistMovement());
+    },
+    expect: ({game, parliament, p1}: ParliamentTable) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.NATIONALIST_MOVEMENT);
+      const plan = rallyPlan(parliament, NATIONALIST_MOVEMENT_PARTIES, NATIONALIST_MOVEMENT_PRINT);
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card),
+        ruling: parliament.rulingParty(),
+        parties: parliament.partiesInVotingArea().join(','),
+        winner: parliament.slotIndexOf(parliament.winner()?.instance ?? ''),
+        votes: parliament.slots.map((s) => s.votes.length).join(','),
+        supply: parliament.neutralSupply(),
+        plan: JSON.stringify({
+          votes: plan.votes.map((v) => [v.party, v.placed, v.votesAfter, v.winningAfter, v.tieNote ?? null]),
+          missing: plan.missing,
+          support: plan.support.map((s) => [s.party, s.gained, s.limit ?? null]),
+          inUse: plan.inUse, megacredits: plan.megacredits,
+        }),
+      };
+      const expected = spec.reds === 'ruling' ? {
+        ruling: PartyName.REDS, parties: [PartyName.INDUSTRIALISTS, PartyName.MARS, PartyName.GREENS].join(','), supply: 3 + 2 - spec.unity,
+        plan: JSON.stringify({
+          votes: [[PartyName.MARS, true, 4, true, 'slot-priority']], missing: [PartyName.REDS],
+          support: [[PartyName.REDS, 1, null], [PartyName.MARS, 0, 'area']], inUse: {before: 9 + spec.unity, after: 11 + spec.unity}, megacredits: 11 + spec.unity,
+        }),
+      } : {
+        ruling: PartyName.INDUSTRIALISTS, parties: [PartyName.REDS, PartyName.MARS, PartyName.GREENS].join(','), supply: 3 + 2 - spec.unity,
+        plan: JSON.stringify({
+          votes: [[PartyName.REDS, true, 4, true, 'slot-priority'], [PartyName.MARS, true, 4, false, null]], missing: [],
+          support: spec.unity >= 3 ? [[PartyName.REDS, 0, 'supply'], [PartyName.MARS, 0, 'area']] : [[PartyName.REDS, 1, null], [PartyName.MARS, 0, 'area']],
+          inUse: {before: 9 + spec.unity, after: 14}, megacredits: 14,
+        }),
+      };
+      if (!facts.playable || facts.ruling !== expected.ruling || facts.parties !== expected.parties || facts.winner !== 2 || facts.votes !== '3,3,4' ||
+          facts.supply !== expected.supply || facts.plan !== expected.plan) {
+        throw new Error(`the ${name} fixture expected a playable card on the table of the rally's plan — got ${JSON.stringify(facts)}, expected ${JSON.stringify(expected)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  };
+}
+parliamentFixture('nationalist-movement', rallyTable('nationalist-movement', {reds: 'area', unity: 2}));
+// …the SHORT SUPPLY: Unity's area holds 3 → 12 in use, a supply of 2 — both votes land, both areas read a named zero
+// (the Reds' by the supply, Mars First's by its ceiling), 14 in use, +14 M€ (the composer and the pose say one thing).
+parliamentFixture('nationalist-movement-short-supply', rallyTable('nationalist-movement-short-supply', {reds: 'area', unity: 3}));
+// …and THE REDS RULING by their enacted card: no Reds resolution is up for a vote (a named zero, never a skip) — the
+// card is playable by the ruling road, Mars First's card takes the vote (3 → 4, the tie to slot 1), both areas pay as
+// before, 13 in use, +13 M€.
+parliamentFixture('nationalist-movement-reds-rule', rallyTable('nationalist-movement-reds-rule', {reds: 'ruling', unity: 2}));
 // ── TR06 · WATER HAULING — a trade whose destination is a CARD (docs/TURMOIL_REDUX_WATER_HAULING.md):
 //    blue's action phase with the card in its tableau and the card's own extra fleet (TWO free
 //    fleets — the dock and a colony in one generation, each with its own fee), 6 energy (two fees) and
