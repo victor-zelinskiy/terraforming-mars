@@ -8491,6 +8491,11 @@ export default defineComponent({
         if (colonyBonusPayoutArmed() && workspaceFrameMounted('card-actions')) {
           return COLONY_LEDGER_STAGE;
         }
+        // THE CRUMB'S OWN WORD, published by «Действия карт» (PL-090): a draw beat reads «Добор карт» here exactly as
+        // in the crumb (it read «Настройка» while the crumb had moved on). Composed already (R3 «· Эффекты» included).
+        if (consoleActionComposerUi.stageKey !== '') {
+          return consoleActionComposerUi.stageKey;
+        }
         // A SENT action with no outcome stage of its own reads «Выполнение» here exactly as in the crumb (PL-062).
         const phase = focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' :
           consoleActionComposerUi.executing ? 'executing' : 'setup');

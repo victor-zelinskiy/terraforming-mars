@@ -40,6 +40,12 @@ export const consoleActionComposerUi = reactive({
    * command bar beside `revealClaim` — the bar and the crumb name the stage from the same fact.
    */
   executing: false,
+  /**
+   * THE CRUMB'S STAGE, as the hosting «Действия карт» names it (`focusKickerKey` — '' while no composer stands): the
+   * ONE source the command bar's context reads (PL-090). Re-deriving it from `revealClaim` / `executing` read
+   * «НАСТРОЙКА» under a draw beat the crumb already called «ДОБОР КАРТ».
+   */
+  stageKey: '' as string,
 });
 
 export function setConsoleActionComposerCommands(commands: ReadonlyArray<ConsoleCommand>): void {
@@ -55,6 +61,10 @@ export function setConsoleActionComposerExecuting(on: boolean): void {
   consoleActionComposerUi.executing = on;
 }
 
+export function setConsoleActionStageKey(key: string): void {
+  consoleActionComposerUi.stageKey = key;
+}
+
 export function resetConsoleActionRevealClaim(): void {
   consoleActionComposerUi.revealClaim = '';
 }
@@ -64,4 +74,5 @@ export function resetConsoleActionComposerUi(): void {
   consoleActionComposerUi.commands = [];
   consoleActionComposerUi.revealClaim = '';
   consoleActionComposerUi.executing = false;
+  consoleActionComposerUi.stageKey = '';
 }

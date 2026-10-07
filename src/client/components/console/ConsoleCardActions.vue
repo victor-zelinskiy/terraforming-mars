@@ -606,7 +606,7 @@ import {
   playActionCarryReturn,
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
-import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim, setConsoleActionComposerExecuting} from '@/client/console/consoleActionComposerUi';
+import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim, setConsoleActionComposerExecuting, setConsoleActionStageKey} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
@@ -1133,6 +1133,10 @@ export default defineComponent({
      * episode starts and cannot change during it — the same function the
      * command bar reads, so breadcrumb and bar can never disagree.
      */
+    /** The crumb's stage word while a composer stands ('' otherwise) — published for the command bar (PL-090). */
+    publishedStageKey(): string {
+      return this.composer !== undefined ? this.focusKickerKey : '';
+    },
     focusKickerKey(): string {
       // The party flow's hosted DISCARD step (the Reds): the hand's own stage
       // name, handed up; the closing PAYOUT beat names itself «Результат».
@@ -1486,6 +1490,13 @@ export default defineComponent({
     /** The command bar names the stage from the same fact as the crumb (PL-062) — published, never re-derived there. */
     executingStage(on: boolean) {
       setConsoleActionComposerExecuting(on);
+    },
+    /** …and the crumb's whole stage word (PL-090): the bar reads THIS, so a draw / ledger / step stage is one voice. */
+    'publishedStageKey': {
+      immediate: true,
+      handler(key: string) {
+        setConsoleActionStageKey(key);
+      },
     },
     /**
      * THE ENTRY ENDS WITH THE STEP. B popped the colonies frame, the trade
@@ -2029,6 +2040,8 @@ export default defineComponent({
     // The berth dies with the header that offers it — a teleport into a
     // detached node drops its content silently.
     setColonyFleetBerth('');
+    // The bar's stage word dies with the crumb that published it (PL-090).
+    setConsoleActionStageKey('');
     if (!workspaceFrameKnown('colonies')) {
       clearCardColonyTrade();
     }
