@@ -92,7 +92,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
-  abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, endDeckDraw,
+  abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, endDeckDraw, releaseDeckDrawSeed,
   isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
   markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
   setDeckDrawPhase,
@@ -343,6 +343,8 @@ export default defineComponent({
         }
         if (r.v.kind === 'foreign') {
           noteDeckDrawForeign(r.v.eventId);
+          // Somebody else flies it — the apply-block seed that kept its cards on the counter lets go (PL-088).
+          releaseDeckDrawSeed();
           return;
         }
         this.claimScene(r.e);

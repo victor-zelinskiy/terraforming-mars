@@ -31,7 +31,8 @@
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
-import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import {holdDeckDisplay, releaseDeckDisplay, releaseDeckSeed, seedDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import type {PlayerViewModel} from '@/common/models/PlayerModel';
 
 export type DeckDrawPhase =
   | 'idle'
@@ -153,6 +154,54 @@ const SCENE_SAFETY_MS = 30_000;
  * cinematic. The deal either starts promptly or this scene has nothing to show.
  */
 const DEAL_START_SAFETY_MS = 6_000;
+
+/**
+ * THE SEED'S NET (PL-088): the apply-block seed is taken over by the flight
+ * that deals the batch (`armDeckDraw` → `holdDeckDisplay`, the same value) or
+ * dropped by a foreign verdict. A batch neither answers within this long
+ * (a door the player has not opened yet) lets the counter fall to the
+ * server's number — the pre-seed behaviour, honest and never stuck.
+ */
+const SEED_SAFETY_MS = 15_000;
+let seedTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * SEED the deck counter in the SAME SYNCHRONOUS BLOCK as the commit (the
+ * transport's `seedRewardHolds` for the viewer's own submit, `App.update` for
+ * a poll / WS frame): a NEW batch of cards off the project deck keeps them on
+ * the counter until the flight deals them. Without it the HUD renders the
+ * smaller count a beat before the scene arms its hold, and the counter flips
+ * UP with a «+N» chip (PL-088). A first view seeds nothing (a reload never
+ * replays a draw); a standing hold (a composer's own, armed at its submit) is
+ * never replaced.
+ */
+export function seedDeckDrawHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
+  if (before === undefined || after === undefined || before.id !== after.id) {
+    return;
+  }
+  const known = new Set((before.cardDrawReveals ?? []).map((r) => r.id));
+  let owed = 0;
+  for (const r of after.cardDrawReveals ?? []) {
+    if (!known.has(r.id) && isDeckDrawSource(r.source)) {
+      owed += r.sequence?.length ?? r.cards.length;
+    }
+  }
+  if (owed === 0 || !seedDeckDisplay(after.game.deckSize + owed)) {
+    return;
+  }
+  if (seedTimer !== undefined) {
+    clearTimeout(seedTimer);
+  }
+  seedTimer = setTimeout(() => {
+    seedTimer = undefined;
+    releaseDeckSeed();
+  }, SEED_SAFETY_MS);
+}
+
+/** A foreign owner flies this batch: its cards leave the counter now (the seed only — never a flight's hold). */
+export function releaseDeckDrawSeed(): void {
+  releaseDeckSeed();
+}
 
 function clearSafety(): void {
   if (safetyTimer !== undefined) {
@@ -424,6 +473,10 @@ export function abortDeckDraw(): void {
 export function resetDeckDraw(): void {
   clearSafety();
   clearDealStartSafety();
+  if (seedTimer !== undefined) {
+    clearTimeout(seedTimer);
+    seedTimer = undefined;
+  }
   releaseDeckDisplay();
   handle = undefined;
   zoomOriginResolver = undefined;

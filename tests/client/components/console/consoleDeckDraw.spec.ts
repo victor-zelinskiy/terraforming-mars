@@ -4,9 +4,11 @@ import {
   deckDrawVerdict, deckDrawZoomOriginEl, endDeckDraw, isDeckDrawActive, isDeckDrawForeign,
   isDeckDrawSource, isDeckDrawStaged, markDeckCardDrawn, markDeckDrawDiscarded,
   markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
-  resetDeckDraw, setDeckDrawPhase,
+  releaseDeckDrawSeed, resetDeckDraw, seedDeckDrawHold, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
-import {displayedDeckSize, isDeckDisplayHeld} from '@/client/console/consoleDeckDisplay';
+import {displayedDeckSize, holdDeckDisplay, isDeckDisplayHeld, isDeckDisplaySeeded} from '@/client/console/consoleDeckDisplay';
+import type {PlayerViewModel} from '@/common/models/PlayerModel';
+import type {CardDrawRevealModel} from '@/common/models/CardDrawRevealModel';
 
 /**
  * The deck-draw controller: the gates the scene rests on. The two that must
@@ -291,6 +293,58 @@ describe('consoleDeckDraw', () => {
       expect(isDeckDrawForeign(119)).to.eq(true);
       resetDeckDraw();
       expect(isDeckDrawForeign(119)).to.eq(false);
+    });
+  });
+
+  /**
+   * PL-088 — THE APPLY-BLOCK SEED. A response that drew cards off the deck
+   * commits the smaller count in the same block the batch arrives in; the
+   * scene's own hold comes a render later. Seeded with the commit, the
+   * pre-draw number never leaves the counter (no «+N» flip back up).
+   */
+  describe('the apply-block seed (PL-088)', () => {
+    const view = (deckSize: number, reveals: Array<Partial<CardDrawRevealModel>>): PlayerViewModel =>
+      ({id: 'p1', game: {deckSize}, cardDrawReveals: reveals}) as unknown as PlayerViewModel;
+    const batch = (id: number, cards: number, revealed?: number, source?: CardDrawRevealModel['source']): Partial<CardDrawRevealModel> => ({
+      id, source: source ?? {type: 'card', cardName: 'Red Tech Convention' as never},
+      cards: Array.from({length: cards}, () => ({name: 'x'})) as never,
+      sequence: revealed === undefined ? undefined : Array.from({length: revealed}, (_, i) => ({card: {name: 'x'}, matched: i < cards})) as never,
+    });
+
+    it('a NEW deck batch keeps every card it turned over on the counter — the six the search turned over, not the kept three', () => {
+      seedDeckDrawHold(view(268, []), view(262, [batch(4, 3, 6)]));
+      expect(isDeckDisplaySeeded()).to.eq(true);
+      expect(displayedDeckSize(262)).to.eq(268);
+    });
+
+    it('the flight that deals it TAKES the seed over (same value) — a later foreign release no longer touches it', () => {
+      seedDeckDrawHold(view(268, []), view(262, [batch(4, 3, 6)]));
+      arm(4, true, 268);
+      expect(isDeckDisplaySeeded()).to.eq(false);
+      releaseDeckDrawSeed();
+      expect(displayedDeckSize(262)).to.eq(268);
+    });
+
+    it('a foreign verdict drops the seed: the cards leave the counter now', () => {
+      seedDeckDrawHold(view(268, []), view(262, [batch(4, 3, 6)]));
+      releaseDeckDrawSeed();
+      expect(isDeckDisplayHeld()).to.eq(false);
+      expect(displayedDeckSize(262)).to.eq(262);
+    });
+
+    it('never replaces a standing hold (a composer that held before its own submit)', () => {
+      holdDeckDisplay(270);
+      seedDeckDrawHold(view(268, []), view(262, [batch(4, 3, 6)]));
+      expect(isDeckDisplaySeeded()).to.eq(false);
+      expect(displayedDeckSize(262)).to.eq(270);
+    });
+
+    it('seeds nothing for a first view, a known batch, another seat view or a board-cell bonus', () => {
+      seedDeckDrawHold(undefined, view(262, [batch(4, 3, 6)]));
+      seedDeckDrawHold(view(262, [batch(4, 3, 6)]), view(262, [batch(4, 3, 6)]));
+      seedDeckDrawHold({...view(268, []), id: 'p2'} as PlayerViewModel, view(262, [batch(4, 3, 6)]));
+      seedDeckDrawHold(view(268, []), view(267, [batch(5, 1, undefined, {type: 'tile'})]));
+      expect(isDeckDisplayHeld()).to.eq(false);
     });
   });
 });

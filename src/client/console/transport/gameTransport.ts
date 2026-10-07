@@ -104,6 +104,7 @@ import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
+import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
@@ -574,6 +575,9 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
  * All calls are no-ops unless their transaction armed rewards.
  */
 function seedRewardHolds(newView?: PlayerViewModel): void {
+  // The DECK COUNTER (PL-088): a new batch of cards off the project deck stays on the counter until the flight that
+  // deals it — the same block as the commit, or the HUD paints the smaller count and the flight's hold flips it back up.
+  seedDeckDrawHold(currentView(), newView);
   // A card PLAY's gains, and its rail half (PL-001 for plays): the direct TR and the table's answer, held only when
   // the two views keep the promise the press armed — the landing scene's reward beat flies them.
   seedPlayedHeroRewardHold(currentView(), newView);

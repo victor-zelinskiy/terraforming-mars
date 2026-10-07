@@ -54,17 +54,55 @@ export function deckStackTier(size: number): DeckStackTier {
 
 const deckHoldState = reactive({
   held: undefined as number | undefined,
+  /** The current hold is the APPLY-BLOCK SEED (`seedDeckDisplay`), not yet taken over by the flight that deals it. */
+  seeded: false,
 });
 
 /** Freeze the VISIBLE deck count at `value` (pre-draw size) while a future
- *  physical draw animation plays. Idempotent; re-holding replaces the value. */
+ *  physical draw animation plays. Idempotent; re-holding replaces the value
+ *  (and takes over a seed — the flight that deals the cards owns it now). */
 export function holdDeckDisplay(value: number): void {
   deckHoldState.held = value;
+  deckHoldState.seeded = false;
 }
 
 /** Release the hold — the widget transitions to the authoritative value. */
 export function releaseDeckDisplay(): void {
   deckHoldState.held = undefined;
+  deckHoldState.seeded = false;
+}
+
+/**
+ * THE APPLY-BLOCK SEED (PL-088): a response that drew cards off the deck
+ * commits the SMALLER count in the very block the batch arrives in, while the
+ * flight that will deal them arms a watcher later — after the HUD has rendered
+ * the smaller count. The flight then held the pre-draw number back, and the
+ * counter flipped UP with a «+N» chip: the deck read as gaining the cards it
+ * was about to deal. Seeded in the same synchronous block as the commit, the
+ * pre-draw number never leaves the screen; the flight's own `hold` takes it
+ * over (same value), a foreign owner releases it (`releaseDeckSeed`).
+ * Never replaces a standing hold (a composer that held before its submit).
+ */
+export function seedDeckDisplay(value: number): boolean {
+  if (deckHoldState.held !== undefined) {
+    return false;
+  }
+  deckHoldState.held = value;
+  deckHoldState.seeded = true;
+  return true;
+}
+
+/** Drop the SEED only — a hold some flight has taken over is never touched. */
+export function releaseDeckSeed(): void {
+  if (deckHoldState.seeded) {
+    deckHoldState.held = undefined;
+    deckHoldState.seeded = false;
+  }
+}
+
+/** Is the visible count the apply-block seed, still waiting for its flight? */
+export function isDeckDisplaySeeded(): boolean {
+  return deckHoldState.seeded;
 }
 
 export function isDeckDisplayHeld(): boolean {
