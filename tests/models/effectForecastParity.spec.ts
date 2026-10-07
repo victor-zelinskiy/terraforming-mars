@@ -43,6 +43,8 @@ import {SpinInducingAsteroid} from '../../src/server/cards/venusNext/SpinInducin
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
 import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
 import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
+import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
+import {RedMuseum} from '../../src/server/cards/turmoilRedux/RedMuseum';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 
 /**
@@ -281,7 +283,11 @@ describe('effect-forecast ↔ execution parity', function() {
       runAllActions(game);
     }
 
-    function tileCase(label: string, T: new () => IProjectCard, reactors: Array<{F: Factory, foreign: boolean}>): void {
+    /**
+     * `cellDecided` — reactors whose fact carries NO number (the cell decides it: Mining Guild, TR30 Red Museum)
+     * but which the FIRST legal cell of a fresh board satisfies: their marker must fire too.
+     */
+    function tileCase(label: string, T: new () => IProjectCard, reactors: Array<{F: Factory, foreign: boolean}>, cellDecided: ReadonlyArray<CardName> = []): void {
       it(label, () => {
         const [game, player, opponent] = testGame(2, undefined, `-tile-${T.name}`);
         player.megaCredits = 40;
@@ -316,7 +322,7 @@ describe('effect-forecast ↔ execution parity', function() {
         answerReactorPrompts(game, [player, opponent], new Set(placed.map((c) => c.name)));
         const after = game.events.events.slice(before);
         for (const fact of facts) {
-          if (fact.certainty === 'deferred' && fact.effects.length > 0) {
+          if (fact.certainty === 'deferred' && (fact.effects.length > 0 || cellDecided.includes(fact.source.name as CardName))) {
             const markers = firedMarkers(after, fact, recipientColorOf(fact, player));
             expect(markers.length, `${fact.source.name}: «${String(fact.reason)}» must have fired on 'tile-placed'`).to.be.greaterThan(0);
           }
@@ -334,6 +340,10 @@ describe('effect-forecast ↔ execution parity', function() {
     tileCase('a greenery: Herbivores and PolderTech Dutch', Mangrove, [
       {F: Herbivores, foreign: false}, {F: PolderTechDutch, foreign: false},
     ]);
+    // A SPECIAL tile on a clean cell (the first legal one of a fresh board): TR30's cell-decided fact must fire.
+    tileCase('a special tile: Nuclear Zone with Red Museum (the cell decides — a clean cell pays)', NuclearZone, [
+      {F: RedMuseum, foreign: false},
+    ], [CardName.RED_MUSEUM]);
   });
 
   /*

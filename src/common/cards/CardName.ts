@@ -1100,6 +1100,7 @@ export enum CardName {
   AURORA_STATION = 'Aurora Station',
   EARTH_ARMY_CONTRACT = 'Earth Army Contract',
   SPACESHIP_RECYCLING = 'Spaceship Recycling',
+  RED_MUSEUM = 'Red Museum',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

@@ -108,5 +108,8 @@
     "Requires Unity to be ruling or that you have 2 delegates there. Add 2 fighter resources to this card.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Положите на эту карту 2 истребителя.",
     "Select card to spend 1 fighter from": "Выберите карту, с которой потратить 1 истребитель",
     "Add 1 mech to any card": "Положите 1 мех на любую карту",
-    "No card of yours can hold mechs": "Нет вашей карты, которая примет мех"
+    "No card of yours can hold mechs": "Нет вашей карты, которая примет мех",
+
+    "Red Museum": "Красный музей",
+    "Effect: After you place a city or special tile on Mars ADJACENT TO NO GREENERIES OR OCEANS, add 2 data resources to this card.": "Эффект: после того как вы разместили на Марсе город или особый тайл НЕ РЯДОМ С ОЗЕЛЕНЕНИЕМ ИЛИ ОКЕАНОМ, положите на эту карту 2 единицы данных."
 }

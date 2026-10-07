@@ -2388,12 +2388,13 @@ export class Game implements IGame, Logger {
    * monotonic across a restart and a client consumes each move exactly once.
    */
   /**
-   * PUBLISH a card's per-neighbour payout (Turmoil Redux TR21 Arboretum — the
-   * data its neighbouring cities paid onto the chosen card) for the board's
-   * scene: the same bounded ring as `recordTileMove`, the same `seq` law.
-   * Called by the payout itself, after the units landed.
+   * PUBLISH what a placed tile paid a card (Turmoil Redux TR21 Arboretum — the
+   * data its neighbouring cities paid onto the chosen card; TR30 Red Museum —
+   * the data the tile itself paid) for the board's scene: the same bounded
+   * ring as `recordTileMove`, the same `seq` law. Written by ONE function,
+   * `cards/tilePayout.recordTilePayout`, after the units landed.
    */
-  public recordCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void {
+  public publishCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void {
     const base = this.gameAge * 100;
     const n = this.cardAdjacencyPayouts.filter((p) => p.seq >= base).length;
     this.cardAdjacencyPayouts.push({...payout, seq: base + Math.min(n, 99)});
@@ -2405,7 +2406,7 @@ export class Game implements IGame, Logger {
   /**
    * PUBLISH what one scale step paid a card's owner (Turmoil Redux TR24
    * Venusian Census, Aphrodite) for the board's scene: the same bounded ring
-   * and `seq` law as `recordCardAdjacencyPayout`. Written by ONE function,
+   * and `seq` law as `publishCardAdjacencyPayout`. Written by ONE function,
    * `cards/scaleStepReward.recordScaleStepReward`, on the card's payout.
    */
   public publishScaleStepReward(reward: Omit<ScaleStepRewardModel, 'seq'>): void {

@@ -156,15 +156,16 @@ export interface IGame extends Logger {
    */
   tileMoves: Array<TileMoveRecordModel>;
   /**
-   * Bounded ring of the latest PER-NEIGHBOUR CARD PAYOUTS (Turmoil Redux TR21
-   * Arboretum): which neighbours paid how many units onto which card — the
-   * scene's whole script, read alike by the paid seat and every other viewer.
-   * See `CardAdjacencyPayoutModel`. Not serialized: a restart loses only the
+   * Bounded ring of the latest «A TILE PAYS A CARD» payouts (Turmoil Redux TR21
+   * Arboretum — the neighbouring cities; TR30 Red Museum — the placed tile
+   * itself): which cells sent how many units onto which card — the scene's
+   * whole script, read alike by the paid seat and every other viewer. See
+   * `CardAdjacencyPayoutModel`. Not serialized: a restart loses only the
    * animation, never the rule.
    */
   cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel>;
-  /** Publish one payout into `cardAdjacencyPayouts` (the ring's `seq` law). */
-  recordCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void;
+  /** Publish one payout into `cardAdjacencyPayouts` (the ring's `seq` law) — called only by `cards/tilePayout.recordTilePayout`. */
+  publishCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void;
   /**
    * Bounded ring of the latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian
    * Census, Aphrodite): what a card answering «each time the scale is

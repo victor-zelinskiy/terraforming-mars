@@ -198,8 +198,9 @@ export function boardCellPreview(
   facts.push(...placementEffectFacts(player, ctx));
   facts.push(...greeneryRevisionFacts(player, ctx));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
-  // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency.
-  if (onMarsGrid(board, space)) {
+  // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency
+  // (`Board.onMarsGrid` — the gate that keeps `countsAs` SEPARATE from scoring).
+  if (board.onMarsGrid(space)) {
     const ocean = ctx.grantsPlacementBonus ? oceanAdjacencyFact(player, space) : undefined;
     if (ocean !== undefined) {
       facts.push(ocean);
@@ -321,19 +322,6 @@ function countsAsFor(tileType: TileType): Array<'city' | 'ocean' | 'greenery'> {
   return out;
 }
 
-/**
- * Whether the cell participates in the normal Mars hex adjacency graph. The REAL
- * source of truth for scoring/adjacency — mirrors `getAdjacentSpaces`, which
- * returns `[]` for off-grid `COLONY` slots (the reserved off-Mars city spaces:
- * Maxwell Base, Ganymede Colony, the Venus city slots). So a tile that
- * `countsAs` a city/ocean but sits off-grid scores 0 for adjacency — we suppress
- * the misleading "city scores for greeneries" / "ocean adjacency" facts for it.
- * This is the gate that keeps `countsAs` SEPARATE from actual scoring.
- */
-function onMarsGrid(board: Board, space: Space): boolean {
-  return board.getAdjacentSpaces(space).length > 0;
-}
-
 /** A neutral "this tile is off the Mars surface" explainer (replaces the false
  *  Mars-adjacency facts for an occupied off-grid city). */
 function externalAreaFact(): BoardFact {
@@ -394,7 +382,7 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     // Ganymede Colony, the Venus city slots) has no adjacency, so it never scores
     // for greeneries / grants ocean M€ even though it `countsAs` a city. Such a
     // tile is inherently SPECIAL even when its TileType is a plain CITY.
-    const external = !onMarsGrid(board, space);
+    const external = !board.onMarsGrid(space);
     const special = isSpecialTile(tileType) || external;
     const countsAs = countsAsFor(tileType);
     // A CITY STACK (Skyscrapers) names its height in the header — «Город ×2».
@@ -1418,8 +1406,13 @@ function tileTriggerFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
       const facts = card.tilePlacedPreview?.(owner, player, space, ctx);
       if (facts !== undefined) {
         // Namespace by owner: two players holding the same card must not collide
-        // on the fact id (the client keys its `v-for` on it).
-        out.push(...facts.map((fact) => ({...fact, id: `${owner.color}-${fact.id}`})));
+        // on the fact id (the client keys its `v-for` on it). A reply names the
+        // fact it answers by that same id, so its link is namespaced with it.
+        out.push(...facts.map((fact) => ({
+          ...fact,
+          id: `${owner.color}-${fact.id}`,
+          ...(fact.answers !== undefined ? {answers: `${owner.color}-${fact.answers}`} : {}),
+        })));
       }
     }
   }
@@ -1725,7 +1718,7 @@ function cityMoveDestinationPreview(
     const out: Array<BoardFact> = [];
     out.push(...placementCostFacts(player, to, ctx, options?.canAffordOptions));
     out.push(...printedBonusFacts(to, ctx.bonusesCovered));
-    if (onMarsGrid(board, to)) {
+    if (board.onMarsGrid(to)) {
       const ocean = oceanAdjacencyFact(player, to);
       if (ocean !== undefined) {
         out.push(ocean);

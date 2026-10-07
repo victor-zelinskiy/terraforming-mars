@@ -236,5 +236,10 @@
   "Its placement bonus goes again to whoever places a tile there next.": "Её бонус размещения снова получит тот, кто займёт её следующим.",
   "For ${0} adjacent {city|cities}": "За ${0} {соседний город|соседних города|соседних городов}",
   "No adjacent cities — no data from this tile": "Соседних городов нет — данных не будет",
-  "No card can hold the data — it is lost": "Данные некуда положить — они пропадут"
+  "No card can hold the data — it is lost": "Данные некуда положить — они пропадут",
+  "No greenery or ocean beside": "Рядом нет озеленения и океана",
+  "Beside ${0} {ocean|oceans} — no data": "Рядом ${0} {океан|океана|океанов} — данных не будет",
+  "Beside ${0} {greenery|greeneries} — no data": "Рядом ${0} {озеленение|озеленения|озеленений} — данных не будет",
+  "Beside ${0} {ocean|oceans} and ${1} {greenery|greeneries} — no data": "Рядом ${0} {океан|океана|океанов} и ${1} {озеленение|озеленения|озеленений} — данных не будет",
+  "Red Museum pays only for a city or special tile with no greenery and no ocean beside it.": "Красный музей платит только за город или особый тайл, рядом с которым нет ни озеленения, ни океана."
 }

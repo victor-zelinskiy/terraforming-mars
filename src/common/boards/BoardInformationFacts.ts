@@ -161,6 +161,13 @@ export type BoardFact = {
    * «Сработает», the composers' word for the same thing.
    */
   reaction?: boolean;
+  /**
+   * The id of the fact a `reaction` ANSWERS — the grant it is the table's reply
+   * to (Martian Fiber's M€ answering TR30 Red Museum's «+2 data», or TR21's data
+   * for the adjacent cities). Structural, so the dossier reads the consequence
+   * WITH its cause on that very row instead of guessing which row it belongs to.
+   */
+  answers?: string;
   vp?: {from: number, to: number};
   /**
    * A COUNT this placement advances (milestone / award standing), rendered as a

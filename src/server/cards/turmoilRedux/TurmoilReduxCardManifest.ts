@@ -30,6 +30,7 @@ import {UnmiLiner} from './UnmiLiner';
 import {AuroraStation} from './AuroraStation';
 import {EarthArmyContract} from './EarthArmyContract';
 import {SpaceshipRecycling} from './SpaceshipRecycling';
+import {RedMuseum} from './RedMuseum';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -156,5 +157,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // with ONE price taken from a card the player chooses and TWO outcomes (+2 titanium OR a mech on any card).
     // Unity's plate.
     [CardName.SPACESHIP_RECYCLING]: {Factory: SpaceshipRecycling},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The set's first card
+    // under the REDS' plate, and its first tile trigger the CELL decides («a city or special tile on Mars adjacent to
+    // no greeneries or oceans» → +2 data here; `cards/tilePayout.ts`, the scene «ТАЙЛ ПЛАТИТ»).
+    [CardName.RED_MUSEUM]: {Factory: RedMuseum},
   },
 });

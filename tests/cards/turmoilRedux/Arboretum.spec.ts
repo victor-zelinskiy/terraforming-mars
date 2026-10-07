@@ -449,7 +449,7 @@ describe('Arboretum', () => {
       expect(lines).deep.eq([`${t.p1.color} added 3 Data to ${CardName.VECTOR_COMPUTATIONS} for 3 adjacent {city|cities}`]);
       const record = t.game.cardAdjacencyPayouts.at(-1);
       expect(record).deep.include({
-        color: t.p1.color, card: CardName.ARBORETUM, spaceId: centre.id, basis: {per: 'adjacent-city'},
+        cause: 'adjacent-cities', color: t.p1.color, card: CardName.ARBORETUM, spaceId: centre.id, basis: {per: 'adjacent-city'},
         target: CardName.VECTOR_COMPUTATIONS, resource: CardResource.DATA, amount: 3, before: 1,
       });
       expect(record?.neighbours).to.have.deep.members([{spaceId: ring[0].id, units: 1}, {spaceId: ring[3].id, units: 2}]);

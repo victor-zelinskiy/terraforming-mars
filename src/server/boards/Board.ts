@@ -124,6 +124,19 @@ export abstract class Board {
     return spaces;
   }
 
+  /**
+   * ON THE MARS GRID — the cell takes part in the board's hex adjacency graph.
+   * The ONE reading of «on Mars» for anything that counts neighbours: every
+   * off-board cell (`SpaceType.COLONY` — Ganymede, Phobos, the Venus slots,
+   * a tile on a colony tile, Aurora Station's cell beside the Venus track)
+   * has none, so a tile there scores no adjacency and answers no «on Mars,
+   * beside …» rule. The read-only explainer gates its adjacency facts on it
+   * and a card hook reads the same function (Turmoil Redux TR30 Red Museum).
+   */
+  public onMarsGrid(space: Space): boolean {
+    return this.getAdjacentSpaces(space).length > 0;
+  }
+
   //  Returns spaces in order from the top left.
   //
   //   0 1

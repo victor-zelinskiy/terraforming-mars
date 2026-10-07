@@ -46,7 +46,7 @@ function preview(partial: Partial<BoardPlacementPreview>): BoardPlacementPreview
 
 function payout(partial: Partial<CardAdjacencyPayoutModel> = {}): CardAdjacencyPayoutModel {
   return {
-    seq: 501, color: 'blue', card: CardName.ARBORETUM, spaceId: '10' as SpaceId, basis: {per: 'adjacent-city'},
+    seq: 501, cause: 'adjacent-cities', color: 'blue', card: CardName.ARBORETUM, spaceId: '10' as SpaceId, basis: {per: 'adjacent-city'},
     neighbours: [{spaceId: '11' as SpaceId, units: 1}, {spaceId: '14' as SpaceId, units: 2}],
     target: VC, resource: CardResource.DATA, amount: 3, before: 2,
     ...partial,

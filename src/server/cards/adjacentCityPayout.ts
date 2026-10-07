@@ -7,7 +7,6 @@ import {CardResourceBasis} from '../../common/events/EventImpact';
 import {BoardFact} from '../../common/boards/BoardInformationFacts';
 import {ActionPreviewStep} from '../../common/models/ActionPreviewModel';
 import {Message} from '../../common/logs/Message';
-import {Units} from '../../common/Units';
 import {adjacentCitySpaces, cityTiersOf, countCityTiers} from '../boards/cityStack';
 import {cardSource} from '../inputs/choiceContext';
 import {SelectResourceTarget} from '../deferredActions/SelectResourceTarget';
@@ -15,6 +14,7 @@ import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 import {grantReactionFacts} from '../models/effectForecast';
 import * as actionPreviews from './actionPreviews';
 import * as placementPreviews from './placementPreviews';
+import {payTileToCard} from './tilePayout';
 
 /**
  * «ADD 1 <RESOURCE> TO ANY CARD FOR EACH CITY ADJACENT TO THIS TILE» — the
@@ -40,8 +40,8 @@ import * as placementPreviews from './placementPreviews';
  *    — the composer warned before the play, the dossier on every paying cell).
  *  · THE JOURNAL carries the reason: ONE line «… for N adjacent cities» and
  *    ONE `card-resource-changed` event with its `basis`.
- *  · THE SCENE reads one record (`IGame.recordCardAdjacencyPayout`): which
- *    neighbours paid how many units onto which card.
+ *  · THE SCENE reads one record (`cards/tilePayout.payTileToCard`, cause
+ *    `adjacent-cities`): which neighbours paid how many units onto which card.
  *
  * Every reaction to «a resource was added» answers through the engine's own
  * `addResourceTo` (Martian Fiber's +1 M€ per data) — nothing is programmed here.
@@ -123,34 +123,16 @@ export function payPerAdjacentCity(player: IPlayer, source: ICard, space: Space,
 }
 
 function land(player: IPlayer, source: ICard, space: Space, cells: ReadonlyArray<Space>, count: number, resource: CardResource, card: ICard): void {
-  const game = player.game;
-  const before = card.resourceCount;
   const basis: CardResourceBasis = {count, unitKey: ADJACENT_CITY_UNIT};
-  // What the table answers (Martian Fiber's M€) is MEASURED around the one addition — the scene flies it, nobody re-derives it.
-  const stockBefore = player.stock.asUnits();
-  player.addResourceTo(card, {qty: count, log: false, from: {card: source}, basis});
-  const stockAfter = player.stock.asUnits();
-  const reactions: Partial<Units> = {};
-  for (const key of Object.keys(stockAfter) as Array<keyof Units>) {
-    const delta = stockAfter[key] - stockBefore[key];
-    if (delta > 0) {
-      reactions[key] = delta;
-    }
-  }
-  game.log('${0} added ${1} ${2} to ${3} for ${4} adjacent {city|cities}', (b) =>
-    b.player(player).number(count).cardResource(resource).card(card).number(count));
-  game.recordCardAdjacencyPayout({
-    color: player.color,
-    card: source.name,
-    spaceId: space.id,
+  // ONE addition through the class's one writer: the table's answer (Martian Fiber's M€) is measured around it
+  // and the scene's record names every paying city with its tiers.
+  payTileToCard(player, source, space, card, resource, count, {
+    cause: 'adjacent-cities',
     basis: ADJACENT_CITY_BASIS,
     neighbours: cells.map((cell) => ({spaceId: cell.id, units: cityTiersOf(cell)})),
-    target: card.name,
-    resource,
-    amount: count,
-    before,
-    ...(Object.keys(reactions).length > 0 ? {reactions} : {}),
-  });
+  }, {log: false, from: {card: source}, basis});
+  player.game.log('${0} added ${1} ${2} to ${3} for ${4} adjacent {city|cities}', (b) =>
+    b.player(player).number(count).cardResource(resource).card(card).number(count));
 }
 
 /**
@@ -187,7 +169,7 @@ export function adjacentCityPayoutFacts(player: IPlayer, source: ICard, space: S
   }];
   const chip = actionPreviews.cardResourceGain(resource, count);
   for (const fact of grantReactionFacts(player, source, [chip])) {
-    const reaction = placementPreviews.forecastReaction(fact);
+    const reaction = placementPreviews.forecastReaction(fact, out[0].id);
     if (reaction !== undefined) {
       out.push(reaction);
     }

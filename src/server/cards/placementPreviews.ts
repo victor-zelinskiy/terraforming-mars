@@ -210,7 +210,7 @@ export function victoryPoints(
  * reacting card («Сработает»), its chip, its owner. The forecast decides who
  * reacts and with what; this only changes the shape, never the numbers.
  */
-export function forecastReaction(fact: EffectForecastFact): BoardFact | undefined {
+export function forecastReaction(fact: EffectForecastFact, answers?: string): BoardFact | undefined {
   const chip = fact.effects[0];
   if (chip === undefined || forecastSourceIsCardless(fact.source)) {
     return undefined;
@@ -220,6 +220,8 @@ export function forecastReaction(fact: EffectForecastFact): BoardFact | undefine
     id: `reaction-${fact.id}`,
     category: 'card-trigger',
     reaction: true,
+    // The grant this reply answers (the row the dossier reads it under).
+    ...(answers !== undefined ? {answers} : {}),
     timing: 'immediate',
     severity: chip.direction === 'gain' ? 'positive' : 'warning',
     recipient,
