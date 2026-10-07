@@ -477,6 +477,19 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
     // The summary is ONE line and is never cut by its row (the head reserves one row).
     const fits = await summary.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= window.innerWidth);
     expect(fits, 'the summary fits its own box and the screen').toBe(true);
+    // PL-091 (the owner's decision 2026-10-07): the discard berth's corner is kept clear by the stage fit — no card
+    // of the row runs under it (on the Deck the last card's VP badge did).
+    const hits = await page.evaluate(() => {
+      const berth = document.querySelector('.con-hand__outcome .con-reveal__discard')?.getBoundingClientRect();
+      if (berth === undefined) {
+        return ['no berth'];
+      }
+      return Array.from(document.querySelectorAll('.con-hand__outcome .con-reveal__strip .con-cards__slot'))
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.right > berth.left && r.left < berth.right && r.bottom > berth.top && r.top < berth.bottom)
+        .map((r) => `slot ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} vs berth ${Math.round(berth.left)},${Math.round(berth.top)}`);
+    });
+    expect(hits, 'no card under the discard berth').toEqual([]);
     await shoot(page, 'deck', '02-reveal');
     const verdict = page.locator('.con-zoom [data-zoom-discard-verdict]');
     for (let i = 0; i < 3 && await verdict.count() === 0; i++) {

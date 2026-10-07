@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  WS_STAGE_FOCUS_SCALE, focusHeadroomPx, wsStageLayout, wsStageLayoutStyle,
+  WS_STAGE_FOCUS_SCALE, focusHeadroomPx, stageRowsHitCorner, wsStageLayout, wsStageLayoutClearOf, wsStageLayoutStyle,
 } from '@/client/console/consoleWsStageLayout';
 
 /**
@@ -345,6 +345,55 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
         });
         expect(l.zoom * 460).to.be.greaterThan(0.7 * 920);
       });
+    });
+  });
+
+  /**
+   * PL-091 — THE DISCARD BERTH'S CORNER. The search reveal's pile stands
+   * absolute in the stage's lower-right corner; the rows must clear it, and a
+   * profile that already clears it must keep the very shape it had.
+   */
+  describe('a corner the rows must clear (wsStageLayoutClearOf)', () => {
+    const box = {w: band.availW, h: band.availH};
+    const input = {...band, ...slot, n: 3};
+    const edges = () => {
+      const plain = wsStageLayout(input);
+      return {
+        plain,
+        right: (box.w + plain.perRow * slot.slotW * plain.zoom + (plain.perRow - 1) * plain.gapPx) / 2,
+        bottom: (box.h + plain.rows * slot.slotH * plain.zoom + (plain.rows - 1) * plain.rowGapPx) / 2,
+      };
+    };
+
+    it('no corner, or a corner nothing reaches: the plain solve, unchanged', () => {
+      const {plain} = edges();
+      expect(wsStageLayoutClearOf(input, box, undefined)).deep.eq(plain);
+      expect(wsStageLayoutClearOf(input, box, {left: box.w - 1, top: box.h - 1})).deep.eq(plain);
+    });
+
+    it('a corner the last card reaches: the rows clear it, at a smaller (never a larger) card', () => {
+      const {plain, right, bottom} = edges();
+      const k = {left: right - 60, top: bottom - 20};
+      expect(stageRowsHitCorner(input, plain, box, k), 'the plain solve collides').eq(true);
+      const cleared = wsStageLayoutClearOf(input, box, k);
+      expect(stageRowsHitCorner(input, cleared, box, k), 'the solve clears the corner').eq(false);
+      expect(cleared.zoom).lessThan(plain.zoom);
+    });
+
+    it('it keeps the BIGGER card of the two honest re-solves (a narrower row vs a shorter one)', () => {
+      // A HEIGHT-bound band (the Deck's case): the corner barely above the rows' bottom but deep to the left —
+      // shortening the rows costs a sliver, narrowing them past the corner costs most of the card.
+      const tall = {...input, availH: 520};
+      const tallBox = {w: tall.availW, h: tall.availH};
+      const plain = wsStageLayout(tall);
+      const right = (tallBox.w + plain.perRow * slot.slotW * plain.zoom + (plain.perRow - 1) * plain.gapPx) / 2;
+      const bottom = (tallBox.h + plain.rows * slot.slotH * plain.zoom + (plain.rows - 1) * plain.rowGapPx) / 2;
+      const k = {left: right - 400, top: bottom - 6};
+      const cleared = wsStageLayoutClearOf(tall, tallBox, k);
+      const narrow = wsStageLayout({...tall, availW: tall.availW - 2 * 400});
+      expect(stageRowsHitCorner(tall, cleared, tallBox, k)).eq(false);
+      expect(cleared.zoom).greaterThan(narrow.zoom);
+      expect(cleared.zoom).greaterThan(plain.zoom * 0.9);
     });
   });
 });

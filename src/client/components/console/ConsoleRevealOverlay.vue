@@ -482,7 +482,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
-  sourceSeatReservePx, verdictStageFit, wsStageLayout, wsStageLayoutStyle,
+  sourceSeatReservePx, StageCornerKeepOut, verdictStageFit, wsStageLayoutClearOf, wsStageLayoutStyle,
 } from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleDrawSearchTally from '@/client/components/console/foundation/ConsoleDrawSearchTally.vue';
@@ -1752,13 +1752,27 @@ export default defineComponent({
       // the seat is BESIDE the cards, so it may not cost them a single pixel of
       // the height they are the protagonists of.
       const seatReserve = sourceSeatReservePx(ui);
-      const layout = wsStageLayout({
+      // THE DISCARD BERTH'S CORNER (PL-091): the search's pile stands absolute in the stage's lower-right corner and
+      // the rows must clear it — measured off the berth's own box (never a constant), applied only when a row would
+      // actually reach it, so a profile with room keeps the very shape it had (`wsStageLayoutClearOf`).
+      const berth = root.querySelector<HTMLElement>('.con-reveal__discard');
+      let keepOut: StageCornerKeepOut | undefined;
+      if (berth !== null) {
+        const sr = strip.getBoundingClientRect();
+        const br = berth.getBoundingClientRect();
+        const clearance = 8 * ui;
+        keepOut = {
+          left: br.left - (sr.left + (parseFloat(cs.paddingLeft) || 0)) - clearance,
+          top: br.top - (sr.top + (parseFloat(cs.paddingTop) || 0)) - clearance,
+        };
+      }
+      const layout = wsStageLayoutClearOf({
         availW: Math.max(1, availW - zoneExtraW - seatReserve * 2),
         availH: Math.max(1, availH - zoneExtraH),
         slotW, slotH, n, ui,
         rowGapPx: colGap + zoneCaptionH,
         padXPx: padX + zoneExtraW,
-      });
+      }, {w: availW, h: availH}, keepOut);
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;

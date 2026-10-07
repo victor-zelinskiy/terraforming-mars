@@ -385,6 +385,64 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
  * deriving anything from it — which is the whole point: what the solver
  * checked its budgets against is exactly what the browser lays out.
  */
+/**
+ * A CORNER THE ROW MUST STAY CLEAR OF — everything right of `left` AND below
+ * `top`, in the row's CONTENT-box coordinates (px). The search reveal's discard
+ * berth stands absolute in the stage's lower-right corner; the fit used to know
+ * nothing of it, and on the Deck the last card's corner (its VP badge) ran
+ * under the berth (PL-091).
+ */
+export type StageCornerKeepOut = {left: number, top: number};
+
+/** The laid-out rows of a solved shape, centred in the box as the row's flex/align rules centre them. */
+function rowRects(o: WsStageLayoutInput, l: WsStageLayout, box: {w: number, h: number}): Array<{right: number, bottom: number}> {
+  const slotW = o.slotW * l.zoom;
+  const slotH = o.slotH * l.zoom;
+  const n = Math.max(1, Math.floor(o.n));
+  const blockH = l.rows * slotH + (l.rows - 1) * l.rowGapPx;
+  const top0 = (box.h - blockH) / 2;
+  const out: Array<{right: number, bottom: number}> = [];
+  for (let r = 0; r < l.rows; r++) {
+    const inRow = Math.min(l.perRow, n - r * l.perRow);
+    const rowW = inRow * slotW + Math.max(0, inRow - 1) * l.gapPx;
+    out.push({right: (box.w + rowW) / 2, bottom: top0 + (r + 1) * slotH + r * l.rowGapPx});
+  }
+  return out;
+}
+
+/** Does any laid-out row reach into the corner? */
+export function stageRowsHitCorner(o: WsStageLayoutInput, l: WsStageLayout, box: {w: number, h: number}, k: StageCornerKeepOut): boolean {
+  return rowRects(o, l, box).some((row) => row.right > k.left && row.bottom > k.top);
+}
+
+/**
+ * THE SHAPE THAT CLEARS THE CORNER — the plain solve when the rows already
+ * clear it (so a profile with room is byte-identical to before), else the
+ * better of two honest re-solves: a narrower row (the last card's right edge
+ * left of the corner) or a shorter one (the rows' bottom above it), whichever
+ * keeps the bigger card. `box` is the row's content box the rows are centred
+ * in; the solve's own `availW` may be smaller (a source seat's reserve).
+ */
+export function wsStageLayoutClearOf(o: WsStageLayoutInput, box: {w: number, h: number}, k: StageCornerKeepOut | undefined): WsStageLayout {
+  const base = wsStageLayout(o);
+  if (k === undefined || !stageRowsHitCorner(o, base, box, k)) {
+    return base;
+  }
+  const rows = rowRects(o, base, box);
+  const overW = Math.max(0, ...rows.map((row) => row.right - k.left));
+  const overH = Math.max(0, ...rows.map((row) => row.bottom - k.top));
+  // The rows are CENTRED, so an overlap of `over` costs twice that of the budget; the solve snaps its zoom to the
+  // published grid, so a pixel of slack keeps the snapped shape on the right side of the corner.
+  const slack = 2;
+  const candidates = [
+    wsStageLayout({...o, availW: Math.max(1, o.availW - 2 * overW - slack)}),
+    wsStageLayout({...o, availH: Math.max(1, o.availH - 2 * overH - slack)}),
+  ];
+  const clear = candidates.filter((l) => !stageRowsHitCorner(o, l, box, k));
+  const pool = clear.length > 0 ? clear : candidates;
+  return pool.reduce((a, b) => (b.zoom > a.zoom ? b : a));
+}
+
 export function wsStageLayoutStyle(l: WsStageLayout): Record<string, string> {
   return {
     '--con-cards-zoom': l.zoom.toFixed(3),
