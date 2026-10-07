@@ -66,8 +66,8 @@ export type BandChip =
   | {kind: 'party', party: ReduxParty}
   /** A seat: its cube and its name. */
   | {kind: 'player', player: Color | 'neutral'}
-  /** A count under its own word («Делегаты 5»). */
-  | {kind: 'count', key: string, amount: number}
+  /** A count under its own word («Делегаты 5»); `id` names the chip for a scene that is born on it (the rally's coin). */
+  | {kind: 'count', key: string, amount: number, id?: string}
   /**
    * The Agenda step's own gift: the influence level it sets (the GLYPH with the level in one disc — parliament
    * law 14, never a bare numeral), or the bonus it hands over.
@@ -265,6 +265,22 @@ export type BandSupport = {
   committed: boolean;
 };
 
+/**
+ * «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates (TR31) shown as the outcome of its play: the votes LANDED so
+ * far (a resolution chip each), the areas READ so far (a party chip each — with its named zero when it took
+ * none), and — once the recount has begun — the count of neutral delegates in use, growing one mark at a time.
+ * The chips grow one touchdown at a time, never as a batch; the number ticks in place.
+ */
+export type BandRally = {
+  votes: ReadonlyArray<{resolution: ResolutionId, party: ReduxParty}>;
+  support: ReadonlyArray<{party: ReduxParty, gained: number, limit?: 'area' | 'supply'}>;
+  /** The recount's number so far; `undefined` before the recount begins. */
+  counted: number | undefined;
+};
+
+/** The count chip's id — the coin is born on this chip's counter (`[data-parl-count-id]`). */
+export const RALLY_COUNT_CHIP_ID = 'rally';
+
 export type BandContext = {
   /** `undefined` outside a live sitting the viewer takes part in — the overview's line. */
   sitting?: BandSitting;
@@ -272,6 +288,8 @@ export type BandContext = {
   quest?: BandQuest;
   /** `undefined` outside a card's walk — it outranks the overview and the quest (a walk is never live during either). */
   walk?: BandWalk;
+  /** `undefined` outside a card's rally of neutral delegates (TR31) — it outranks the overview exactly as the walk does. */
+  rally?: BandRally;
   /** `undefined` outside the support-area mode — a walk that follows it in the same flow outranks it (the walk is the beat on the table then). */
   support?: BandSupport;
   standing: BandStanding;
@@ -291,6 +309,9 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
   if (sitting === undefined) {
     if (ctx.walk !== undefined) {
       return walkLine(ctx.walk);
+    }
+    if (ctx.rally !== undefined) {
+      return rallyLine(ctx.rally);
     }
     if (ctx.support !== undefined) {
       return supportLine(ctx.support);
@@ -324,6 +345,30 @@ function walkLine(walk: BandWalk): BandLine {
     chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus})});
   }
   return {kicker: 'Agenda track', key: `walk:${walk.player}:${walk.landed.map((s) => s.to).join(',')}`, chips, committed: true};
+}
+
+/**
+ * ДЕЛЕГАТЫ — a card's rally of neutral delegates (TR31): the neutral player's cube, then one resolution chip
+ * per LANDED vote, one party chip per READ area (its named zero in the quiet register when it took none),
+ * and the recount's number once it has begun. The key grows with every touchdown and read — never with the
+ * recount's ticks (fourteen crossfades would be a flicker: the number ticks in place on its own key).
+ */
+function rallyLine(rally: BandRally): BandLine {
+  const chips: Array<BandChip> = [{kind: 'player', player: 'neutral'}];
+  for (const vote of rally.votes) {
+    chips.push({kind: 'resolution', resolution: vote.resolution, party: vote.party});
+  }
+  for (const area of rally.support) {
+    chips.push({kind: 'party', party: area.party});
+    if (area.gained <= 0) {
+      chips.push({kind: 'label', key: area.limit === 'supply' ? 'no neutral delegates left' : 'area is full', tone: 'quiet'});
+    }
+  }
+  if (rally.counted !== undefined) {
+    chips.push({kind: 'count', key: 'in use', amount: rally.counted, id: RALLY_COUNT_CHIP_ID});
+  }
+  const key = `rally:${rally.votes.map((v) => v.resolution).join(',')}:${rally.support.map((s) => s.party).join(',')}:${rally.counted === undefined ? '' : 'count'}`;
+  return {kicker: 'Neutral delegates', key, chips, committed: true};
 }
 
 /**

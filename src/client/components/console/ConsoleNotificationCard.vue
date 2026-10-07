@@ -596,7 +596,16 @@ export default defineComponent({
       if (this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined) {
         return 'Watch turn';
       }
-      return this.inspectsResolution ? 'Inspect' : 'Log';
+      if (this.inspectsResolution) {
+        return 'Inspect';
+      }
+      // THE OBJECT THE CARD IS ABOUT (PL-025): a chairmanship card and a card whose chain carries a Parliament
+      // outcome (a delegate placed, a rally, a party's support, a walk) open the Parliament — the model's own CTA,
+      // which this label used to ignore («Журнал» over a card whose action opened the table).
+      if (this.notification.cta?.action === 'open-parliament') {
+        return 'Open the Parliament';
+      }
+      return 'Log';
     },
     /** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
     holdActive(): boolean {

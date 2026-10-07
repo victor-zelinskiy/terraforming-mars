@@ -139,9 +139,14 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
  * `support` — the SUPPORT-AREA mode (TR12 Party Sanctions, «САНКЦИИ»): the
  * cursor walks the six party plaques, A commits the pick, and the SAME stage
  * plays the answer in place (`supportCommitted` — the cubes leave the area,
- * then the card's Agenda step), the pose never changing between the two.
+ * then the card's Agenda step), the pose never changing between the two;
+ * `rally` — a CARD's rally of NEUTRAL delegates shown as the OUTCOME of its
+ * play («ДЕЛЕГАТЫ», TR31 Nationalist Movement: the Parliament hosted in the
+ * hand's zone, the cubes onto the ribbons and the plaques, the recount, the
+ * coin, then the surface leaves — `neutralRally`), past the commit and
+ * absorbing input exactly as `walk`.
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally';
 
 /** The SUPPORT-AREA mode's outcome beat ('' before A): the cubes leaving the area · the card's Agenda step · the read · over. */
 export type SupportBeat = '' | 'sent' | 'discard' | 'walk' | 'read' | 'done';
@@ -405,16 +410,20 @@ export function parliamentCrumbStage(sittingTail: string, questTail = ''): strin
   case 'quest': return questTail;
   // A card's walk: the track's own name is the stage («КАРЬЕРА»), the same key the tier's kicker prints.
   case 'walk': return AGENDA_WALK_STAGE_KEY;
+  // A card's rally of neutral delegates (TR31): one word, «ДЕЛЕГАТЫ» — the same key the hosted frame is pushed with.
+  case 'rally': return NEUTRAL_RALLY_STAGE_KEY;
   default: return '';
   }
 }
 
 /** The crumb tail of a card's walk of the Agenda track — the track's own name (the tier's kicker, the band's). */
 export const AGENDA_WALK_STAGE_KEY = 'Agenda track';
+/** The crumb tail of a card's rally of neutral delegates (TR31) — one word; the band's kicker is «Neutral delegates». */
+export const NEUTRAL_RALLY_STAGE_KEY = 'Delegates';
 
 export function parliamentCrumbCommitted(questLive = false): boolean {
   const stage = parliamentFlow.stage;
-  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' || stage === 'walk' ||
+  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' || stage === 'walk' || stage === 'rally' ||
     (stage === 'seat' && questLive) ||
     // The support-area mode: cyan while its pick is open, amber once A is pressed — or while it serves a LIVE door,
     // which the player must answer (the commit of the flow that raised it is behind them).

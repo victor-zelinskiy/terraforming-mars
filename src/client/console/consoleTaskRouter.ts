@@ -366,6 +366,15 @@ export function partyStepStageOf(prompt: PlayerInputModel | undefined): string {
  */
 export const AGENDA_WALK_STEP_STAGE = 'Agenda track';
 
+/**
+ * …and of a hosted RALLY OF NEUTRAL DELEGATES (Turmoil Redux TR31 Nationalist
+ * Movement — a card that places neutral cubes by being played): «ДЕЛЕГАТЫ»,
+ * one word (owner's decision 3) — the stage, never an echo of the root's noun
+ * or of the card's name; the band's kicker says «НЕЙТРАЛЬНЫЕ ДЕЛЕГАТЫ». The
+ * same key `consoleParliamentFlow.NEUTRAL_RALLY_STAGE_KEY` prints for the stage.
+ */
+export const NEUTRAL_RALLY_STEP_STAGE = 'Delegates';
+
 const FOLLOW_UP_STEP_STAGES: Partial<Record<TaskKind, string>> = {
   // The name `ConsoleColoniesSection` publishes UP for an embedded pick (its
   // `embeddedCrumb` default) and the one `openColoniesForPrompt` pushes — ONE

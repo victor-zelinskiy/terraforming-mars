@@ -29,6 +29,7 @@
              'con-parl--sitting': sittingUp,
              'con-parl--sitting-field': flow.sittingField,
              'con-parl--walk': walkUp,
+             'con-parl--rally': rallyUp,
              'con-parl--support': supportUp,
              ['con-parl--zone-' + flow.zone]: true,
            }"
@@ -45,6 +46,8 @@
            :data-renewal-degraded="motion.renewalDegraded.length > 0 ? motion.renewalDegraded.join(' · ') : undefined"
            :data-quest-beat="questBeat || undefined"
            :data-walk-beat="walkBeat || undefined"
+           :data-rally-beat="rallyBeat || undefined"
+           :data-parl-rally-degraded="rallyDegraded !== '' ? rallyDegraded : undefined"
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
@@ -103,7 +106,7 @@
            SEAT pick is a body of its own too (a decision, nothing flying). ══ -->
       <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
         <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" />
+                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :rally="rallyBand" />
 
         <div class="con-parl__bodyzone" data-parl-body>
         <div class="con-parl__parties-tier" ref="partiesTierEl"
@@ -217,15 +220,22 @@ import {
 import {probeTick} from '@/client/console/probeTick';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {agendaWalkFlow, releaseAgendaWalkHolds, releaseAgendaWalkQuest} from '@/client/console/parliament/agendaWalk';
+import {
+  NEUTRAL_RALLY_RAIL_KEY, neutralRallyFlow, rallyCounted, rallyCubeLifted, rallySupportLanded, rallySupportRead, rallyVoteLanded, releaseNeutralRallyHolds,
+} from '@/client/console/parliament/neutralRally';
+import {NeutralRallyHandle, neutralRallyHoldMs, runNeutralRally} from '@/client/console/parliament/neutralRallyDirector';
+import {flyRailReward} from '@/client/console/resourceTransfer/railReward';
+import {plaquePlaceSelector} from '@/client/console/parliament/supportDiscardScene';
+import {RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
 import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
-import {BandSupport} from '@/client/console/parliament/parliamentBand';
+import {BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
-import {flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne} from '@/client/console/parliament/parliamentFlights';
+import {flyCube, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeCubeRect} from '@/client/console/parliament/parliamentFlights';
 import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
@@ -329,6 +339,9 @@ export default defineComponent({
       /** «КАРЬЕРА»: the walk's animation hold (sized to the walk) and the read beat after the last landing. */
       walkHold: undefined as AnimationHold | undefined,
       walkReadBeat: undefined as ParliamentBeat | undefined,
+      /** «ДЕЛЕГАТЫ»: the rally's animation hold (sized to its cubes and marks) and the phrase in flight. */
+      rallyHold: undefined as AnimationHold | undefined,
+      rallyHandle: undefined as NeutralRallyHandle | undefined,
       /** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
       walking: false,
       /** A walk is queued for the next probe tick (idempotent). */
@@ -695,6 +708,35 @@ export default defineComponent({
     walkOwedSeq(): number {
       return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded ? agendaWalkFlow.owed.seq : 0;
     },
+    /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
+    rallyUp(): boolean {
+      return parliamentFlow.stage === 'rally';
+    },
+    /** The rally's own beat, published on the root — read by the e2e probe, never by the product. */
+    rallyBeat(): string {
+      return neutralRallyFlow.live ? neutralRallyFlow.beat : '';
+    },
+    /** A rally's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
+    rallyDegraded(): string {
+      return neutralRallyFlow.degraded;
+    },
+    /** The rally the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
+    rallyOwedSeq(): number {
+      return neutralRallyFlow.owed !== undefined && neutralRallyFlow.owed.host === 'hand' && this.embedded ? neutralRallyFlow.owed.seq : 0;
+    },
+    /** «ДЕЛЕГАТЫ»'s band line: the votes landed, the areas read, the recount's number once it has begun. */
+    rallyBand(): BandRally | undefined {
+      const flow = neutralRallyFlow;
+      if (!flow.live || flow.owed === undefined) {
+        return undefined;
+      }
+      const counting = flow.beat === 'count' || flow.beat === 'coin' || flow.beat === 'read' || flow.beat === 'done';
+      return {
+        votes: flow.landedVotes.map((v) => ({resolution: v.resolution, party: v.party})),
+        support: flow.readSupport.map((s) => ({party: s.party, gained: s.gained, ...(s.limit === undefined ? {} : {limit: s.limit})})),
+        counted: counting ? flow.counted : undefined,
+      };
+    },
     /** The flow is holding at its seat beat with the server's own pick standing — the picker takes the stage. */
     questSeatStep(): boolean {
       return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'seat' && this.bridge.seat !== undefined;
@@ -1020,6 +1062,19 @@ export default defineComponent({
       },
     },
     /**
+     * «ДЕЛЕГАТЫ» (TR31): the section was pushed INTO the hand's zone with a rally owed to it — the pose opens
+     * on the record at SETUP (declared before `frameCrumb`, so the first name this surface publishes is the
+     * rally's stage, never «Обзор» for a render), and its beats start on the mounted DOM.
+     */
+    'rallyOwedSeq': {
+      immediate: true,
+      handler(seq: number): void {
+        if (seq > 0 && parliamentFlow.stage === 'browse' && !neutralRallyFlow.live) {
+          this.openRallyFlow();
+        }
+      },
+    },
+    /**
      * THE CHAIRMANSHIP FLOW HOLDS FOR THE DELEGATE PICK (the corner case: every
      * delegate of this seat stands on a resolution). The DIRECTOR decides that
      * — not the prompt's arrival — so the picker opens on its own beat, and the
@@ -1179,6 +1234,15 @@ export default defineComponent({
       this.walkHold = undefined;
       (this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined)?.stopAgendaGlide();
       releaseAgendaWalkHolds('unmount');
+    }
+    // «ДЕЛЕГАТЫ» ends with its section too (TR31): the beats are cut, every hold the rally seeded is released (the
+    // cubes show, the plaques and the pool read the server, the rail ticks with this block — honestly late, never lost).
+    if (neutralRallyFlow.owed !== undefined || neutralRallyFlow.live) {
+      this.rallyHandle?.skip();
+      this.rallyHandle = undefined;
+      this.rallyHold?.release();
+      this.rallyHold = undefined;
+      releaseNeutralRallyHolds('unmount');
     }
     // The phase is over (the section unmounts after its latched leave — v3 В1): the sitting's display
     // holds end here, never in the apply block that carried the phase away (the surface still needed
@@ -1450,6 +1514,7 @@ export default defineComponent({
         (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
         return;
       case 'walk':
+      case 'rally':
         // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand.
         return;
       default:
@@ -1656,6 +1721,82 @@ export default defineComponent({
       this.finishOwedWalk();
       this.$emit('flow-complete', 'walk');
     },
+    /**
+     * «ДЕЛЕГАТЫ» — OPEN the rally pose on the record the answer carried (TR31): the voting area and the party
+     * plaques are the objects, the Agenda track and the government's blocks recede, the band grows a chip per
+     * touchdown. Started on the mounted DOM (a tick + a probe tick, as the walk is): the director flies the
+     * votes, then the support, runs the recount mark by mark, births the coin at the kicker's counter; then one
+     * read beat, and the flow ends by its own hand (the shell takes the hosted step and its hand down as ONE
+     * surface). Every wait is a real callback or a beat on the motion clock; the whole rally holds an animation
+     * hold sized to its cubes and marks.
+     */
+    openRallyFlow(): void {
+      neutralRallyFlow.live = true;
+      neutralRallyFlow.beat = 'votes';
+      parliamentFlow.zone = 'voting';
+      this.openStage('rally');
+      void this.$nextTick(() => probeTick(() => this.playOwedRally()));
+    },
+    /** THE ONE RALLY of an owed card record, on the mounted DOM. */
+    playOwedRally(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const owed = neutralRallyFlow.owed;
+      if (owed === undefined || !neutralRallyFlow.live) {
+        this.endRallyFlow();
+        return;
+      }
+      this.rallyHold?.release();
+      this.rallyHold = beginAnimationHold('parliament-neutral-rally', {maxHoldMs: neutralRallyHoldMs(owed)});
+      const measure = (selector: string) => (root === undefined ? undefined : placeCubeRect(root, selector));
+      this.rallyHandle?.skip();
+      this.rallyHandle = runNeutralRally(owed, {
+        pool: () => measure('[data-parl-neutral-cube]'),
+        votePlace: (vote) => measure(`.con-parl__slot[data-instance="${vote.instance}"] [data-seq="${vote.seq}"]`),
+        supportPlace: (party, place) => measure(plaquePlaceSelector(party, place)),
+        fly: (from, to, onLanded, onLifted) => flyCube('neutral', from, to, 0, onLanded, {onLifted}),
+        coinOrigin: () => {
+          const node = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
+            root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`);
+          const r = node?.getBoundingClientRect();
+          return r === undefined || r.width < 2 ? undefined : {x: r.left + r.width / 2, y: r.top + r.height / 2};
+        },
+        // The coin: the M€ row held since the answer (`seedNeutralRallyHolds`) ticks on the touchdown; a hold
+        // nobody seeded (reduced motion, a standalone host without the price known) resolves at once — honestly early.
+        coin: (origin) => flyRailReward(NEUTRAL_RALLY_RAIL_KEY, () => origin),
+        onBeat: (beat) => {
+          neutralRallyFlow.beat = beat;
+        },
+        onLifted: () => rallyCubeLifted(),
+        onVoteLanded: (vote) => rallyVoteLanded(vote),
+        onSupportLanded: (entry) => rallySupportLanded(entry),
+        onSupportRead: (entry) => rallySupportRead(entry),
+        onCounted: (item) => rallyCounted(item.key),
+        onDegraded: (why) => {
+          if (neutralRallyFlow.degraded === '') {
+            neutralRallyFlow.degraded = why;
+            console.warn(`[parliament] rally: ${why} — settled without a flight`);
+          }
+        },
+        onDone: () => {
+          if (neutralRallyFlow.live) {
+            this.endRallyFlow();
+          }
+        },
+      });
+    },
+    /** The owed rally is over: its hold lets go, its beats are cut, the flow reads «done». */
+    finishOwedRally(): void {
+      this.rallyHandle?.skip();
+      this.rallyHandle = undefined;
+      this.rallyHold?.release();
+      this.rallyHold = undefined;
+      neutralRallyFlow.beat = 'done';
+    },
+    /** The rally is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
+    endRallyFlow(): void {
+      this.finishOwedRally();
+      this.$emit('flow-complete', 'rally');
+    },
     /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
     endQuestFlow(): void {
       killChairmanQuestBeats();
@@ -1720,7 +1861,7 @@ export default defineComponent({
       parliamentFlow.stage = stage;
       // A WALK is a transient beat, never a navigation destination (the workspace flow's commit boundary):
       // its frame is `executing` — B and A are `none` for its length, and a double press is impossible.
-      setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : stage === 'walk' ? 'executing' : 'configure');
+      setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : stage === 'walk' || stage === 'rally' ? 'executing' : 'configure');
     },
     closeStage(): void {
       killSittingMotion();

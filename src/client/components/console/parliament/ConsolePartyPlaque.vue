@@ -135,7 +135,7 @@
            off the enacted card, lagging the swap exactly as `ruling` does), and the sitting's support
            wave lands there. -->
       <ConsoleSupportPlaces v-if="support !== undefined"
-                            :filled="support" :outgoing="supportOutgoing" :cubePx="supportCubePx" :voidEmpty="ruling && rulesByCard"
+                            :filled="support" :outgoing="supportOutgoing" :counted="supportCounted" :cubePx="supportCubePx" :voidEmpty="ruling && rulesByCard"
                             :data-support="support" :data-parl-support="party"
                             :data-support-void="ruling && rulesByCard && support <= 0 ? '' : undefined" />
     </div>
@@ -202,6 +202,8 @@ export default defineComponent({
     pick: {type: Object as PropType<{current: number, resulting: number, available: boolean, reason?: string} | undefined>, default: undefined},
     /** …and how many of its standing cubes the press under the cursor would send away (outlines on the places). */
     supportOutgoing: {type: Number, default: 0},
+    /** THE RECOUNT'S MARKS on this plaque's places (TR31): the first N standing cubes counted so far. */
+    supportCounted: {type: Number, default: 0},
   },
   methods: {
     partyNameKey(party: string): string {

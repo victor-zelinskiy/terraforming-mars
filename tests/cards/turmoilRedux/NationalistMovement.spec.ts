@@ -27,7 +27,7 @@ import {
 import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
 import {runAllActions} from '../../TestingUtils';
 import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
-import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
+import {diffRootNotifications, recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
 
 /**
  * TR31 — NATIONALIST MOVEMENT: the set's first card that places a NEUTRAL
@@ -444,6 +444,17 @@ describe('NationalistMovement', () => {
       const actor = impact.pillGroups.find((group) => group.scope === 'actor');
       expect(actor?.chips.map((chip) => `${chip.icon} ${chip.text}`)).to.include.members([`${NEUTRAL_DELEGATE_ICON} +4`, 'megacredits +2']);
       expect(impact.skipped).deep.eq([]);
+    });
+
+    it('a rival\'s notification opens the PARLIAMENT — the object the card is about (PL-025: the family of parliament outcomes)', () => {
+      const t = withAccess(table());
+      play(t);
+      const {models} = diffRootNotifications({
+        messages: t.game.gameLog, events: t.game.events.events, seen: new Set<number>(), viewerColor: t.p2.color, generation: t.game.getGeneration(), createdAt: 1000,
+      });
+      const card = models.find((m) => m.variant === 'play-card');
+      expect(card, 'red is told of blue\'s play').is.not.undefined;
+      expect(card!.cta).deep.eq({labelKey: 'Open the Parliament', action: 'open-parliament'});
     });
 
     it('the record is written ONCE per play, with a growing serial, and `counted` IS the table', () => {

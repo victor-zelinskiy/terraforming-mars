@@ -53,8 +53,8 @@ describe('parliamentRivalVotes — the seed of a rival delegate\'s arrival', () 
     const after = view(model([slot('A', [{owner: RED, seq: 7}, {owner: RED, seq: 8}])], [seat(BLUE), seat(RED, {lobby: false, reserve: 5})]));
     seedRivalVotes(before, after);
     expect(rivalVotes.queue).deep.eq([
-      {instance: 'A', seq: 7, owner: RED, source: 'lobby'},
-      {instance: 'A', seq: 8, owner: RED, source: 'reserve'},
+      {kind: 'vote', id: 'A#7', instance: 'A', seq: 7, owner: RED, source: 'lobby'},
+      {kind: 'vote', id: 'A#8', instance: 'A', seq: 8, owner: RED, source: 'reserve'},
     ]);
     expect(parliamentHolds.hiddenCubes.has('A#7')).is.true;
     expect(parliamentHolds.hiddenCubes.has('A#8')).is.true;
@@ -109,7 +109,55 @@ describe('parliamentRivalVotes — the seed of a rival delegate\'s arrival', () 
     const before = view(model([slot('A', []), slot('B', [])], [seat(BLUE), seat(RED), seat(GREEN)]));
     const after = view(model([slot('A', [{owner: GREEN, seq: 12}]), slot('B', [{owner: RED, seq: 11}])], [seat(BLUE), seat(RED, {lobby: false}), seat(GREEN, {lobby: false})]));
     seedRivalVotes(before, after);
-    expect(rivalVotes.queue.map((e) => `${e.owner}:${e.instance}:${e.seq}:${e.source}`)).deep.eq(['red:B:11:lobby', 'green:A:12:lobby']);
+    expect(rivalVotes.queue.map((e) => (e.kind === 'vote' ? `${e.owner}:${e.instance}:${e.seq}:${e.source}` : e.id))).deep.eq(['red:B:11:lobby', 'green:A:12:lobby']);
+  });
+
+  describe('a RIVAL\'S CARD rallies neutral delegates (TR31) — the record, by its serial', () => {
+    const rally = (seq: number) => ({
+      seq, player: RED, winnerBefore: 'B', votes: [{instance: 'A', resolution: 'A', party: PartyName.REDS, seq: 21, votes: 1, winnerAfter: 'A'}],
+      missing: [], votesCut: [],
+      support: [{party: PartyName.REDS, current: 1, gained: 1, resulting: 2, printed: 1}, {party: PartyName.MARS, current: 3, gained: 0, resulting: 3, printed: 1, limit: 'area' as const}],
+      counted: {votes: [{instance: 'A', seqs: [21]}], support: [{party: PartyName.MARS, count: 3}, {party: PartyName.REDS, count: 2}]},
+      inUse: {before: 4, after: 6}, megacredits: 6, generation: 2,
+    });
+
+    it('its neutral vote flies from the POOL to the ribbon, its support cube from the pool to the plaque\'s next socket — the pool and the plaque held until each has moved', () => {
+      const before = view(model([slot('A', []), slot('B', [{owner: RED, seq: 20}])], [seat(BLUE), seat(RED)], {popularSupport: {[PartyName.REDS]: 1, [PartyName.MARS]: 3}}));
+      const after = view(model([slot('A', [{owner: 'neutral', seq: 21}]), slot('B', [{owner: RED, seq: 20}])], [seat(BLUE), seat(RED)],
+        {popularSupport: {[PartyName.REDS]: 2, [PartyName.MARS]: 3}, lastRally: rally(7)} as never));
+      seedRivalVotes(before, after);
+      expect(rivalVotes.queue).deep.eq([
+        {kind: 'vote', id: 'A#21', instance: 'A', seq: 21, owner: 'neutral', source: 'pool'},
+        {kind: 'support', id: `support:${PartyName.REDS}#2#7`, party: PartyName.REDS, place: 2, owner: 'neutral', source: 'pool'},
+      ]);
+      expect(parliamentHolds.hiddenCubes.has('A#21'), 'the ribbon cube is hidden until its touchdown').is.true;
+      expect(rivalVotes.poolHeld, 'the pool still paints both cubes').eq(2);
+      expect(rivalVotes.supportIncoming.get(PartyName.REDS), 'the plaque does not draw its new cube yet').eq(1);
+      expect(rivalVotes.supportIncoming.get(PartyName.MARS), 'an area that took nothing holds nothing').is.undefined;
+      expect(rivalVotes.rallySeenSeq).eq(7);
+      // An echo of the same view queues nothing twice; the viewer's OWN rally is never queued here (the hand plays it).
+      seedRivalVotes(after, after);
+      expect(rivalVotes.queue).has.lengthOf(2);
+      settleRivalVotes();
+      const own = view(model([slot('A', [{owner: 'neutral', seq: 22}])], [seat(BLUE), seat(RED)], {lastRally: {...rally(8), player: BLUE}} as never));
+      seedRivalVotes(after, own);
+      expect(rivalVotes.queue).deep.eq([]);
+    });
+
+    it('a first reading of the table remembers the record\'s serial without flying it; settling releases the pool and the plaque', () => {
+      const table = model([slot('A', [{owner: 'neutral', seq: 21}])], [seat(BLUE), seat(RED)], {lastRally: rally(7)} as never);
+      seedRivalVotes(undefined, view(table));
+      expect(rivalVotes.queue).deep.eq([]);
+      expect(rivalVotes.rallySeenSeq).eq(7);
+      const before = view(model([slot('A', [])], [seat(BLUE), seat(RED)]));
+      const after = view(model([slot('A', [{owner: 'neutral', seq: 21}])], [seat(BLUE), seat(RED)], {popularSupport: {[PartyName.REDS]: 2}, lastRally: rally(9)} as never));
+      seedRivalVotes(before, after);
+      expect(rivalVotes.poolHeld).eq(2);
+      settleRivalVotes();
+      expect(rivalVotes.poolHeld).eq(0);
+      expect(rivalVotes.supportIncoming.size).eq(0);
+      expect(parliamentHolds.hiddenCubes.has('A#21')).is.false;
+    });
   });
 
   it('settling lets every queued cube be where the model says (the section left, the hold expired)', () => {

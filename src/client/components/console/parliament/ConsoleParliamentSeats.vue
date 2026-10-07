@@ -105,6 +105,8 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportDiscardPoolHeld} from '@/client/console/parliament/supportDiscard';
+import {rallyPoolHeld} from '@/client/console/parliament/neutralRally';
+import {rivalPoolHeld} from '@/client/console/parliament/parliamentRivalVotes';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {BenchSource, RIBBON_CUBE, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
@@ -174,8 +176,10 @@ export default defineComponent({
       // out of the supply, the bench keeps painting and counting each until its proxy stands over it.
       // …and MINUS the cubes a support-area pick (TR12) sent back that have not LANDED here yet: the answer already
       // put them in the supply, the pool counts each on its touchdown.
+      // …PLUS the cubes a card's RALLY (TR31) took that have not LIFTED yet: the answer already moved them, the
+      // bench keeps painting and counting each until its proxy stands over it.
       return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0) -
-        supportDiscardPoolHeld()) + parliamentFlow.supportHeld;
+        supportDiscardPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld();
     },
     /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
     deckShown(): number {

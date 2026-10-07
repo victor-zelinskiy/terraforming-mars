@@ -39,9 +39,11 @@
               <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
               <b class="con-band__text con-band__text--strong">{{ nameOf(chip.player) }}</b>
             </span>
-            <span v-else-if="chip.kind === 'count'" class="con-band__chip" data-parl-band-chip="count">
+            <span v-else-if="chip.kind === 'count'" class="con-band__chip" data-parl-band-chip="count" :data-parl-count-id="chip.id">
               <span class="con-band__text con-band__text--dim">{{ $t(chip.key) }}</span>
-              <b class="con-band__num">{{ chip.amount }}</b>
+              <!-- A NAMED count ticks IN PLACE (the rally's recount — one mark per task): its own key, never the line's. -->
+              <b v-if="chip.id !== undefined" :key="'n' + chip.amount" class="con-band__num con-parl__tick" :data-parl-count="chip.amount">{{ chip.amount }}</b>
+              <b v-else class="con-band__num">{{ chip.amount }}</b>
             </span>
             <span v-else-if="chip.kind === 'agenda'" class="con-band__chip con-band__chip--agenda" data-parl-band-chip="agenda"
                   :data-parl-band-step="chip.to" :data-parl-band-level="chip.level">
@@ -175,7 +177,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {
-  BandLine, BandQuest, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandSupport, BandWalk, parliamentBandLine,
+  BandLine, BandQuest, BandRally, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandSupport, BandWalk, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
@@ -210,10 +212,12 @@ export default defineComponent({
     stage: {type: String as PropType<SittingStage>, default: 'verdict'},
     /** «САНКЦИИ»'s own context — the support-area mode's cursor and its press (undefined outside the mode). */
     support: {type: Object as PropType<BandSupport | undefined>, default: undefined},
+    /** «ДЕЛЕГАТЫ»'s own context — a card's rally of neutral delegates, live in this section (undefined outside it). */
+    rally: {type: Object as PropType<BandRally | undefined>, default: undefined},
   },
   computed: {
     line(): BandLine {
-      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, support: this.support, standing: this.standing});
+      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, rally: this.rally, support: this.support, standing: this.standing});
     },
     /**
      * «КАРЬЕРА»'s own context — a card's walk, live in this section: the seat and the steps LANDED so far.

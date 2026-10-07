@@ -200,6 +200,11 @@
         background: rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
         &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
+        /* THE RECOUNT'S MARK (TR31): a standing cube the count has reached — one class flip, its one-shot pulse, a ring that stays for the read. */
+        &--counted {
+            box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%);
+            animation: con-pseal-support-counted calc(360ms * var(--motion-scale, 1)) ease-out both;
+        }
         /* A PLACE THE PRESS BEING DECIDED WILL FILL (the vote mode's support block): a hollow DASHED outline —
            a forecast, never a cube; the dash is what tells it from an empty socket without any colour. */
         &--incoming { background: transparent; box-shadow: none; outline: .06rem dashed fade(@con-cyan, 85%); outline-offset: -.06rem; }
@@ -338,3 +343,10 @@ html.con-fx-lite .con-pseal__support-place--landed { animation: none; }
     100% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3); }
 }
 html.con-fx-lite .con-pseal__support-place--left { animation: none; }
+/* …and the recount's touch (TR31): the socket lifts and brightens for a beat, settling into its counted ring. */
+@keyframes con-pseal-support-counted {
+    0% { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%); }
+    40% { transform: scale(1.16); box-shadow: inset 0 0 0 .12rem #5fe3b4, 0 0 .9rem fade(#5fe3b4, 65%); }
+    100% { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%); }
+}
+html.con-fx-lite .con-pseal__support-place--counted { animation: none; }

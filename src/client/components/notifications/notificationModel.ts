@@ -161,6 +161,24 @@ function effectSourceOf(chain: ReadonlyArray<GameEvent>, correlationId: number |
   return effectSourceOfMarker(chain.find((e) => e.id === correlationId && e.type === 'effect-triggered'));
 }
 
+/**
+ * THE PARLIAMENT'S OUTCOME EVENTS a card's play or action can write (Turmoil
+ * Redux): a delegate placed by an effect (TR03, TR15), a neutral vote placed
+ * by a card (TR31), a party's support paid or stripped (TR03, TR12, TR31), the
+ * Agenda marker walked by a card (TR04). A notification whose chain carries
+ * one is ABOUT THE PARLIAMENT: its card opens the table, where the cubes, the
+ * areas and the marker all read as they stand now (registry row PL-025 —
+ * the chairmanship card's own law, extended to the whole family).
+ */
+const PARLIAMENT_OUTCOME_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
+  'delegates-placed', 'neutral-delegates-placed', 'popular-support-gained', 'popular-support-discarded', 'agenda-advanced',
+]);
+
+/** Does this chain carry a Parliament outcome a card produced (never the sitting's own steps — those ride the sitting)? */
+export function parliamentOutcomeIn(chain: ReadonlyArray<GameEvent>): boolean {
+  return chain.some((e) => PARLIAMENT_OUTCOME_EVENTS.has(e.type) && e.source?.kind !== 'parliament');
+}
+
 /** The one action a fired passive offers: a resolution opens its own inspector; a card's story is the journal's. */
 function effectCta(source: NotificationEffectSource | undefined): NotificationModel['cta'] {
   return source?.kind === 'resolution' ?
@@ -579,7 +597,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     // THE OBJECT THE CARD IS ABOUT: a chairmanship card opens the Parliament,
     // where the office, the quest and the Agenda track all read as they stand
     // now (nothing is replayed — the beats belonged to the player who acted).
-    cta: variant === 'chairman' ?
+    cta: variant === 'chairman' || parliamentOutcomeIn(chain) ?
       {labelKey: 'Open the Parliament', action: 'open-parliament'} :
       variant === 'passive-effect' ?
         effectCta(effectSourceOf(chain, input.correlationId)) :

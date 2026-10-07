@@ -357,6 +357,7 @@ import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
@@ -798,6 +799,8 @@ export default defineComponent({
             seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and «КАРЬЕРА»'s (a card's walk whose answer arrived through a poll / WS frame — the same block as the apply).
             seedAgendaWalkHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and «ДЕЛЕГАТЫ»'s (a card's rally of neutral delegates, TR31 — the same block as the apply).
+            seedNeutralRallyHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a stripped support area (TR12) whose answer arrived through this frame (a parked tail landing later).
             seedSupportDiscardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).

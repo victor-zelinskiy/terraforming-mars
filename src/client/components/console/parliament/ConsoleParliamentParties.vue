@@ -37,6 +37,7 @@
                               :roll="rollWord(p.party)"
                               :pick="pickOf(p.party)"
                               :supportOutgoing="outgoingOf(p.party, i)"
+                              :supportCounted="rallyCountedPlaces(p.party)"
                               :reason="focusedIndex === i ? partyLine : ''"
                               :reasonTone="partyLineTone" />
         </div>
@@ -55,6 +56,8 @@ import {parliamentFlow, parliamentSupportUp} from '@/client/console/parliament/c
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {supportAreaOf} from '@/client/console/parliament/supportPickModel';
 import {supportDiscardStanding} from '@/client/console/parliament/supportDiscard';
+import {rallyCountedPlaces, rallySupportIncoming, rallySupportReading} from '@/client/console/parliament/neutralRally';
+import {rivalSupportIncoming} from '@/client/console/parliament/parliamentRivalVotes';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportStatusKey} from '@/client/console/parliament/supportScene';
 import {ParliamentPartyVm, PartyActionStateVm, PartyStateVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -213,12 +216,21 @@ export default defineComponent({
      * has not moved onto its fresh card yet) and minus what has not ARRIVED yet (the support beat's cubes in the air).
      */
     supportShown(p: ParliamentPartyVm): number {
-      // …PLUS the cubes a support-area pick (TR12) emptied that have not LIFTED off this plaque yet.
+      // …PLUS the cubes a support-area pick (TR12) emptied that have not LIFTED off this plaque yet, and MINUS the
+      // cubes a card's rally (TR31) granted that have not LANDED here yet (each touchdown lands one).
       return Math.max(0, Math.min(3, p.support + (parliamentHolds.support.get(p.party) ?? 0) - (parliamentHolds.supportIncoming.get(p.party) ?? 0) +
-        supportDiscardStanding(p.party)));
+        supportDiscardStanding(p.party) - rallySupportIncoming(p.party) - rivalSupportIncoming(p.party)));
     },
-    /** The support-area mode's reading of a plaque — the server's row (undefined outside the mode). */
+    /** The recount's marks on this plaque's places (TR31) — 0 outside a rally. */
+    rallyCountedPlaces(party: ReduxParty): number {
+      return rallyCountedPlaces(party);
+    },
+    /** The support-area mode's reading of a plaque — the server's row (undefined outside the mode); the rally's reading of an area it reached (TR31). */
     pickOf(party: ReduxParty): {current: number, resulting: number, available: boolean, reason?: string} | undefined {
+      const rally = rallySupportReading(party);
+      if (rally !== undefined) {
+        return rally;
+      }
       if (this.supportMeta === undefined || !parliamentSupportUp()) {
         return undefined;
       }

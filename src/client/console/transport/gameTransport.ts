@@ -107,6 +107,7 @@ import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleSt
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
 import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
 import {
@@ -621,6 +622,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // paying step's bonus owed — ONLY when the hand that played the card (or an open Parliament) is there to
   // play it; seeded after the quest's for the same reason as the quest's after the ledger's.
   seedAgendaWalkHolds(currentView(), newView);
+  // …and «ДЕЛЕГАТЫ»'s (a card's rally of neutral delegates, TR31): the new ribbon cubes hidden, the plaques and the
+  // pool at their old counts, the winning marker where it stood, the M€ row held for the recount — ONLY when the
+  // hand that played the card (or an open Parliament) is there to play it.
+  seedNeutralRallyHolds(currentView(), newView);
   // …and a STRIPPED POPULAR SUPPORT AREA (TR12 Party Sanctions — «discard all neutral delegates from ONE area»): the
   // promised area keeps its cubes on the plaque and the common supply its old count until the mode that confirmed it
   // flies them — ONLY while that mode stands (a hold nobody plays would freeze the area).

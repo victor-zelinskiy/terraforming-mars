@@ -25,10 +25,12 @@
             'con-pseal__support-place--incoming': n > filled && n <= filled + incoming,
             'con-pseal__support-place--void': voidEmpty && n > filled + incoming,
             'con-pseal__support-place--outgoing': n <= filled && n > filled - outgoing,
+            'con-pseal__support-place--counted': n <= counted,
           }"
           :data-support-place="n"
           :data-support-incoming="n > filled && n <= filled + incoming ? '' : undefined"
-          :data-support-outgoing="n <= filled && n > filled - outgoing ? '' : undefined">
+          :data-support-outgoing="n <= filled && n > filled - outgoing ? '' : undefined"
+          :data-support-counted="n <= counted ? '' : undefined">
       <PlayerCube v-if="n <= filled" color="neutral" steel :size="cubePx" :glow="false" />
     </span>
   </span>
@@ -53,6 +55,12 @@ export default defineComponent({
     cubePx: {type: Number, required: true},
     /** The EMPTY places keep their room but draw nothing — they can never fill (the ruling party's — see the plaque). */
     voidEmpty: {type: Boolean, default: false},
+    /**
+     * THE RECOUNT'S MARKS (TR31 Nationalist Movement — «M€ per neutral delegate in use»): the first `counted`
+     * standing cubes have been counted — each marked the moment the recount reached it (one class flip, the
+     * mark's own one-shot pulse and a ring that stays for the read). Never a cube that is not standing.
+     */
+    counted: {type: Number, default: 0},
   },
   data() {
     return {places: PARLIAMENT_MAX_POPULAR_SUPPORT};

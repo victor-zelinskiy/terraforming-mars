@@ -232,6 +232,16 @@
     &--walk {
         .con-parl__top, .con-parl__parties-tier { opacity: .5; transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out; }
     }
+    /* «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates shown as the outcome of its play (TR31): the VOTING AREA and
+       the party PLAQUES are the objects (the cubes land on the ribbons and in the sockets, the recount marks them),
+       so they stand at full strength and in place; the Agenda track and the government's own blocks RECEDE — opacity
+       only, every tier keeps its box, nothing re-solves (the walk's law). The band reads the beats as they land. */
+    &--rally {
+        .con-parl__agenda, .con-parl__gov-head, .con-parl__gov-carry, .con-parl__gov-empty, .con-parl__quest {
+            opacity: .42;
+            transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out;
+        }
+    }
     /* «САНКЦИИ» — the SUPPORT-AREA mode (TR12): the six party PLAQUES are the objects — the opposition row and the
        ruler's tile in the government stand at full strength and in place; the VOTING AREA recedes fully under the
        mode's reading panel (it takes the area's own cell, so nothing re-solves), and the government's other
@@ -722,6 +732,13 @@
         /* ANOTHER SEAT'S cube that just ARRIVED (`parliamentRivalVotes`): the touchdown's settle after its flight —
            and, under reduced motion, the crossfade it appears with (never a blink). */
         &--arrived { animation: con-parl-arrive calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        /* THE RECOUNT'S MARK (TR31 — «M€ per neutral delegate in use»): one class flip the moment the count reaches
+           this cube — its own one-shot pulse, then a ring that stays for the read (the mark is a STATE, readable
+           without the pulse; coupled motion is one class, never a JS chase). */
+        &--counted {
+            box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 75%), 0 0 .35rem fade(@con-parl-mint, 35%);
+            animation: con-parl-counted calc(360ms * var(--motion-scale, 1)) @con-ease-standard both;
+        }
         /* THE PLACE the arriving delegate takes — hollow (a forecast, never a
            placement) until it lands: an outline and a breathing ghost only. */
         &--place {
@@ -1399,6 +1416,13 @@
     45% { opacity: 1; transform: scale(1.08); }
     to { opacity: 1; transform: scale(1); }
 }
+/* THE RECOUNT'S MARK (TR31): the cube is touched by the count — a short lift and a brighter ring, settling into the state ring. */
+@keyframes con-parl-counted {
+    from { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 75%), 0 0 .35rem fade(@con-parl-mint, 35%); }
+    40% { transform: scale(1.18); box-shadow: inset 0 0 0 .12rem @con-parl-mint, 0 0 .9rem fade(@con-parl-mint, 65%); }
+    to { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 75%), 0 0 .35rem fade(@con-parl-mint, 35%); }
+}
+html.con-fx-lite .con-parl__vote-cube--counted { animation: none; }
 @keyframes con-parl-land-flash {
     from { box-shadow: inset 0 0 0 .12rem @con-parl-mint, 0 0 1.6rem rgba(95, 227, 180, 0.55); }
     to { box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), 0 0 0 rgba(95, 227, 180, 0); }

@@ -2,6 +2,7 @@ import {Color} from '@/common/Color';
 import {PARLIAMENT_VOTE_COST} from '@/common/parliament/ParliamentTypes';
 import {parliamentFlow, parliamentSlotsCarried, parliamentVoteInFlight, VoteSnapshot} from './consoleParliamentFlow';
 import {parliamentHolds} from './parliamentDisplayHolds';
+import {rallyWinnerShown} from './neutralRally';
 import {ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm} from './consoleParliamentModel';
 
 /*
@@ -93,6 +94,12 @@ export function winningShownOf(slot: ParliamentSlotVm, decided = false): boolean
   const snap = parliamentFlow.voteSnapshot;
   if (snap !== undefined && parliamentVoteInFlight()) {
     return slot.instance === snap.winner;
+  }
+  // A card's rally of NEUTRAL votes (TR31) holds the marker where it stood until the cube that moved it has
+  // touched down (decision 6) — the same law as the vote's own snapshot above, for the neutral player's cubes.
+  const rally = rallyWinnerShown();
+  if (rally !== undefined) {
+    return slot.instance === rally.instance;
   }
   return slot.isWinning;
 }

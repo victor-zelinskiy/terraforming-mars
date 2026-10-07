@@ -642,9 +642,12 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
-import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedPlacementModel, AgendaWalkModel, NeutralRallyModel} from '@/common/models/ActionPreviewModel';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {playRailReward} from '@/client/console/consoleActionCommit';
+import {actionKnownRailMoves, playRailReward} from '@/client/console/consoleActionCommit';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -1731,6 +1734,12 @@ export default defineComponent({
           if (s.walk.walked < s.walk.printed) {
             out.push(noteRow(translateTextWithParams('${0} of ${1} · end of the track', [String(s.walk.walked), String(s.walk.printed)])));
           }
+        } else if (s.kind === 'neutralRally') {
+          // THE SHOW STEP's own rows (TR31): the coming stage, then EVERYTHING the server's plan says, one row per
+          // object — each resolution with its votes and the political consequence, each party's area with its room
+          // (a named zero in the quiet register), the neutral delegates in use before → after. Rows, not one prose
+          // line: six parts never fit one band on fhd, and a cut sentence is a lie by omission.
+          out.push(...this.rallyRows(s.rally));
         }
         // `tabbedTargets` is now PRE-COLLECTED inline (a decision row) — no note.
       }
@@ -3928,6 +3937,10 @@ export default defineComponent({
         // door (nothing is chosen, the play submits here as any other): the shell reads it to owe the hosted
         // outcome to this workspace from the press on.
         agendaWalk: this.agendaWalkOf(b),
+        // «ДЕЛЕГАТЫ» (Turmoil Redux TR31): the branch's SHOW step — the rally of neutral delegates the play will
+        // produce, with the play's own price as the rail's known move (the M€ row moves by the recount AND the
+        // price in one answer; the seed's diff check tells them apart). Not a door: the play submits here.
+        neutralRally: this.neutralRallyOf(b, payment),
         // A reward the CELL decides (Arboretum): the card its units will land on — the board's dossier prints
         // that card's «before → after» per cell. The pick itself rides the batch like any other.
         stagedCardTarget: this.stagedCardTargetOf(),
@@ -3955,6 +3968,59 @@ export default defineComponent({
     agendaWalkOf(branch: ActionPreviewBranch | undefined): AgendaWalkModel | undefined {
       const step = branch?.steps.find((s) => s.kind === 'agendaWalk');
       return step !== undefined && step.kind === 'agendaWalk' ? step.walk : undefined;
+    },
+    /** The rally of neutral delegates the CHOSEN branch promises (TR31's SHOW step), with the play's price as the rail's known move. */
+    neutralRallyOf(branch: ActionPreviewBranch | undefined, payment: Payment): {rally: NeutralRallyModel, known: Readonly<Record<string, number>>} | undefined {
+      const step = branch?.steps.find((s) => s.kind === 'neutralRally');
+      if (step === undefined || step.kind !== 'neutralRally' || branch === undefined) {
+        return undefined;
+      }
+      // The KNOWN moves are the response's OTHER moves on the rail — the price, the branch's other chips — never the
+      // recount's own M€ (that is the held cause itself): the step's chips are taken out before the branch is read.
+      return {rally: step.rally, known: actionKnownRailMoves({...branch, effects: heroRewardEffectsOf(branch)}, this.captured, payment)};
+    },
+    /**
+     * THE RALLY'S ROWS (TR31), from the server's plan alone: the stage's lead («Делегаты — нейтральные делегаты в
+     * Парламенте»); per named party its resolution — the votes before → after and what that does to the vote
+     * (the composer's own winner vocabulary: becomes / stays / still not the winning one, the tie to the slot), a
+     * vote the empty supply cut («+0 · нейтральных не осталось»), or the NAMED ZERO of a party with no resolution
+     * up for a vote; per area «party · 1 → 2 из 3» or its named zero in the quiet register; then the count the M€
+     * stands on («В игре 11 → 14»). Nothing here is computed: every number is the plan's.
+     */
+    rallyRows(rally: NeutralRallyModel): Array<NextStepRow> {
+      const rows: Array<NextStepRow> = [noteRow(translateText('Delegates — neutral delegates in the Parliament'))];
+      const resolutionName = (id: string) => translateText(getResolution(id)?.text.name ?? id);
+      const partyName = (party: string) => translateText(partyNameKey(party));
+      for (const party of rally.parties) {
+        const votes = rally.votes.filter((v) => v.party === party);
+        if (votes.length === 0) {
+          if (rally.missing.includes(party)) {
+            rows.push(noteRow(translateTextWithParams('${0} — no resolution up for a vote', [partyName(party)])));
+          }
+          continue;
+        }
+        for (const vote of votes) {
+          if (!vote.placed) {
+            rows.push(noteRow(`${resolutionName(vote.resolution)} · +0 · ${translateText('no neutral delegates left')}`));
+            continue;
+          }
+          const verdict = vote.winningAfter ?
+            (vote.winningBefore ? 'Stays the winning resolution' :
+              vote.tieNote === 'slot-priority' ? 'Becomes the winning resolution — the tie goes to the slot closer to Enacted' : 'Becomes the winning resolution') :
+            'Still not the winning resolution';
+          rows.push(noteRow(`${resolutionName(vote.resolution)} · ${vote.votesBefore} → ${vote.votesAfter} · ${translateText(verdict)}`));
+        }
+      }
+      for (const area of rally.support) {
+        const name = partyName(area.party);
+        if (area.gained > 0) {
+          rows.push(noteRow(`${name} · ${translateTextWithParams('${0} → ${1} of ${2}', [String(area.current), String(area.resulting), String(PARLIAMENT_MAX_POPULAR_SUPPORT)])}`));
+        } else {
+          rows.push(noteRow(`${name} · +0 · ${translateText(area.limit === 'supply' ? 'no neutral delegates left' : 'area is full')}`));
+        }
+      }
+      rows.push(noteRow(translateTextWithParams('In use ${0} → ${1}', [String(rally.inUse.before), String(rally.inUse.after)])));
+      return rows;
     },
     /** The staged payload of the CHOSEN branch — first Mars boardPlacement
      *  step carrying `staged` (D2: only the first placement ever carries it). */

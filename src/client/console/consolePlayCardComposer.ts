@@ -264,10 +264,23 @@ export function playDoorOf(branch: ActionPreviewBranch | undefined): PlayDoor | 
  */
 export function heroRewardEffectsOf(branch: ActionPreviewBranch | undefined): ReadonlyArray<ActionEffect> {
   const effects = branch?.effects ?? [];
-  if (branch === undefined || !branch.steps.some((s) => s.kind === 'agendaWalk')) {
+  if (branch === undefined) {
     return effects;
   }
-  return effects.filter((e) => !(e.direction === 'gain' && (e.icon === 'tr' || e.icon === 'cards' || e.icon === 'agenda' || e.icon === 'influence')));
+  // THE ICONS A HOSTED STEP DELIVERS, by the step's kind: the walk's (TR04) and the rally's (TR31 — the
+  // neutral delegates are cubes the Parliament flies, the M€ is the coin born from the recount's counter).
+  const stepIcons = new Set<string>();
+  for (const step of branch.steps) {
+    if (step.kind === 'agendaWalk') {
+      ['tr', 'cards', 'agenda', 'influence'].forEach((icon) => stepIcons.add(icon));
+    } else if (step.kind === 'neutralRally') {
+      ['megacredits', 'neutral-delegate'].forEach((icon) => stepIcons.add(icon));
+    }
+  }
+  if (stepIcons.size === 0) {
+    return effects;
+  }
+  return effects.filter((e) => !(e.direction === 'gain' && stepIcons.has(e.icon)));
 }
 
 /** «Разыграть карту» — or the door's own navigational verb: the press leads somewhere, it does not finish the play. */

@@ -120,6 +120,19 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(two.chips[2], 'an influence step is the glyph with its level — never a bare ordinal (law 14)').deep.eq({kind: 'agenda', to: 3, level: 2});
       expect(new Set([none.key, one.key, two.key]).size, 'the crossfade fires once per landing').eq(3);
     });
+    it('«ДЕЛЕГАТЫ» (TR31) outranks the overview the same way: the neutral cube, the landed votes, the read areas, the count', () => {
+      const rally = parliamentBandLine({standing: {votes: 2, player: RED, resolution: {resolution: ARCHITECTURE, party: PartyName.MARS}}, rally: {votes: [{resolution: ARCHITECTURE, party: PartyName.MARS}], support: [{party: PartyName.REDS, gained: 0, limit: 'supply'}], counted: 11}});
+      expect(rally.kicker).eq('Neutral delegates');
+      expect(rally.committed).is.true;
+      expect(rally.chips).deep.eq([
+        {kind: 'player', player: 'neutral'},
+        {kind: 'resolution', resolution: ARCHITECTURE, party: PartyName.MARS},
+        {kind: 'party', party: PartyName.REDS},
+        {kind: 'label', key: 'no neutral delegates left', tone: 'quiet'},
+        {kind: 'count', key: 'in use', amount: 11, id: 'rally'},
+      ]);
+    });
+
     it('outranks the overview and the quest (a walk is never live during either)', () => {
       const walk = parliamentBandLine({standing: {votes: 2, player: RED, resolution: {resolution: ARCHITECTURE, party: PartyName.MARS}}, quest: {beat: 'task', player: RED}, walk: {player: BLUE, landed: []}});
       expect(walk.kicker).eq('Agenda track');

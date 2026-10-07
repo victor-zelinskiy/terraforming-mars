@@ -79,18 +79,20 @@
             <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="slotsCarried && flow.slotIndex === i ? '' : undefined">
               <template v-if="slot.votes.length <= DENSE_RIBBON">
                 <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
-                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq)}"
+                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--counted': countedOf(slot, vote.seq)}"
                       :data-seq="vote.seq"
                       :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined"
-                      :data-arrived="rival.arrived.has(slot.instance + '#' + vote.seq) ? '' : undefined">
+                      :data-arrived="rival.arrived.has(slot.instance + '#' + vote.seq) ? '' : undefined"
+                      :data-counted="countedOf(slot, vote.seq) ? '' : undefined">
                   <PlayerCube v-if="vote.owner !== 'neutral'" :color="vote.owner" :size="cubePx(RIBBON_CUBE)" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />
                 </span>
               </template>
               <template v-else>
                 <span v-for="group in ribbonGroups(slot)" :key="group.owner" class="con-parl__vote-stack"
-                      :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq) || flow.landedSeqs.some((seq) => group.hasSeq(seq))}"
-                      :data-seq="group.seqs[group.seqs.length - 1]">
+                      :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq) || flow.landedSeqs.some((seq) => group.hasSeq(seq)), 'con-parl__vote-cube--counted': group.seqs.some((seq) => countedOf(slot, seq))}"
+                      :data-seq="group.seqs[group.seqs.length - 1]"
+                      :data-counted="group.seqs.some((seq) => countedOf(slot, seq)) ? '' : undefined">
                   <PlayerCube v-if="group.owner !== 'neutral'" :color="group.owner" :size="cubePx(RIBBON_CUBE)" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />
                   <b>×{{ group.count }}</b>
@@ -172,6 +174,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSlotsCarried} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
+import {rallyMarked, rallyVoteKey, rallyWinnerShown} from '@/client/console/parliament/neutralRally';
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {CardArtTier} from '@/client/cards/cardArt';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
@@ -318,8 +321,14 @@ export default defineComponent({
     winningShownOf(slot: ParliamentSlotVm): boolean {
       // While the renewal still has cards on the deck or cubes in the air, no card reads «принимается» yet: the
       // badge would name a verdict about objects that have not arrived (a caption never runs ahead of its object).
-      const renewing = this.holds.freshFaces.size > 0 || this.holds.hiddenCubes.size > 0;
+      // A card's RALLY (TR31) hides its own cubes the same way, but its marker is HELD, not silenced: the hold
+      // says which card wins until the cube that changed it has landed (`rallyWinnerShown`).
+      const renewing = rallyWinnerShown() === undefined && (this.holds.freshFaces.size > 0 || this.holds.hiddenCubes.size > 0);
       return winningShownOf(slot, voteDecidedAt(this.model?.phase?.step) || renewing);
+    },
+    /** The recount of a card's rally (TR31) has MARKED this neutral cube. */
+    countedOf(slot: ParliamentSlotVm, seq: number): boolean {
+      return rallyMarked(rallyVoteKey(slot.instance, seq));
     },
     partyNameKey(party: PartyName): string {
       return partyNameKey(party);
