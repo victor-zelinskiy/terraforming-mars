@@ -239,7 +239,10 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        &--refused { font-size: .56rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 62%); }
+        /* A REFUSAL is plain text, not a formula: it takes the row's second line like the state text does (the row is
+           reserved for two lines — a cut reading is worse than a taller line), and never an ellipsis the flex box above
+           cannot paint anyway. «+0 · область заполнена» (TR31's named zero) was clipped by the sockets at «…ЗАПОЛНЕН». */
+        &--refused { display: block; white-space: normal; line-height: 1.15; font-size: .56rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 62%); }
     }
     &__pick-arrow { opacity: .55; font-weight: 600; }
     /* THE ROLL CALL's word (v3 В3): the scene's own reading of this party, in the state row's place — a
