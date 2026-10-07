@@ -209,10 +209,12 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   // A card's WALK (TR04): the outcome of a play made elsewhere — nothing to confirm (the composer's preview already
   // said «1 → 3 · +1 РТ»), nothing to go back to; the flow leaves by itself once the marker has settled. …And a
   // card's RALLY of neutral delegates (TR31): the same outcome grammar — the composer said everything, the beats
-  // absorb the bar, the flow leaves by itself once the coin has landed and been read.
+  // absorb the bar, the flow leaves by itself once the coin has landed and been read. A STATUS, never a verb (the
+  // support mode's precedent): an empty list fell back to the host's «B На поле» — a verb the absorbed beat does
+  // not honour (PL-083).
   case 'walk':
   case 'rally':
-    return [];
+    return [{control: 'confirm', label: 'Performing…', enabled: false}];
   case 'submitting':
     // A SUBMIT INSIDE THE CHAIRMANSHIP FLOW is not a wait the player watches —
     // the reading beat plays over it, so the bar stays as quiet as it is

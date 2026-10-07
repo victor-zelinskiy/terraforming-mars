@@ -20,6 +20,7 @@ import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament
 import {railRewardPending, railRewardState, releaseRailReward} from '@/client/console/resourceTransfer/railReward';
 import {NEUTRAL_RALLY_STAGE_KEY, parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {winningShownOf} from '@/client/console/parliament/parliamentVoteView';
+import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {parliamentBandLine, RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
@@ -451,6 +452,13 @@ describe('«ДЕЛЕГАТЫ» — a card\'s rally of neutral delegates (the pur
       expect(parliamentCrumbStage('', '')).eq(NEUTRAL_RALLY_STAGE_KEY);
       expect(NEUTRAL_RALLY_STEP_STAGE).eq(NEUTRAL_RALLY_STAGE_KEY);
       expect(parliamentCrumbCommitted()).is.true;
+    });
+
+    it('the bar during a hosted outcome is a STATUS, never a verb (PL-083): the rally and the walk alike — an empty list fell back to the host\'s «B На поле»', () => {
+      parliamentFlow.stage = 'rally';
+      expect(parliamentCommandsOf({} as never)).deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);
+      parliamentFlow.stage = 'walk';
+      expect(parliamentCommandsOf({} as never)).deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);
     });
 
     it('the band reads the beats as they land: the neutral cube, a resolution chip per landed vote, a party chip per read area (its named zero in the quiet register), the count once the recount has begun — its key never ticking with the count', () => {
