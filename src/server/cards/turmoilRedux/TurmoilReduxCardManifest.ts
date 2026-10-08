@@ -33,6 +33,7 @@ import {SpaceshipRecycling} from './SpaceshipRecycling';
 import {RedMuseum} from './RedMuseum';
 import {NationalistMovement} from './NationalistMovement';
 import {RedTechConvention} from './RedTechConvention';
+import {RedsNewsOutlet} from './RedsNewsOutlet';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -171,5 +172,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // again, and the set's first draw with a NEGATIVE filter — the DSL's `drawCard.withoutTags`, one descriptor of
     // the search for the chip, the text, the reveal's summary and its discard tray (`deferredActions/drawSearch.ts`).
     [CardName.RED_TECH_CONVENTION]: {Factory: RedTechConvention},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The Reds' plate
+    // again over the TR20 class («VP for tags», no effect row) — the set's first VP count of its own MARS tag, one
+    // for one: the standard `{tag, per}`, read RAW by every surface that shows the number.
+    [CardName.REDS_NEWS_OUTLET]: {Factory: RedsNewsOutlet},
   },
 });

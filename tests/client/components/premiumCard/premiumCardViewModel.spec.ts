@@ -555,6 +555,9 @@ describe('premium face coverage guard', () => {
     // TR20: the card's whole text is the Mars First requirement + «1 VP for every 3 Building tags» — the plate
     // and the VP badge say both; there is no effect row on the scan to iconify.
     CardName.MARTIAN_ROADS,
+    // TR33: the TR20 shape under the Reds' plate — «1 VP per Mars tag you have» is the per-one badge «1/[Mars]»;
+    // the scan's field is text only, there is no effect row to iconify.
+    CardName.REDS_NEWS_OUTLET,
   ]);
 
   it('builds every in-scope premium card', () => {

@@ -1103,6 +1103,7 @@ export enum CardName {
   RED_MUSEUM = 'Red Museum',
   NATIONALIST_MOVEMENT = 'Nationalist Movement',
   RED_TECH_CONVENTION = 'Red Tech Convention',
+  REDS_NEWS_OUTLET = 'Reds News Outlet',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
