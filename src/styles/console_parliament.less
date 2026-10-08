@@ -1300,12 +1300,23 @@
    is the guard that caught it. Every other shell-mounted flight layer
    (`.con-exit-layer`, `.con-handdelivery-layer`, `.con-bonusfly-layer`, …) is
    fixed for the same reason.
-   NO `z-index` here on purpose: with `z-index: auto` this layer opens no
-   stacking context, so each `.con-parl__flight` keeps competing at the ROOT
-   level on its own 11499 — the order the flights have always painted in. */
+   ⚠ AND A FIXED LAYER IS A STACKING CONTEXT WHATEVER ITS z-index — `position:
+   fixed` opens one unconditionally, so «no z-index, the flights compete at the
+   root on their own 11499» was false from the day the layer went fixed
+   (2026-09-20): with `z-index: auto` the layer sat at LEVEL 0 of `.con-root`,
+   under `.con-main` (z 1) and under every band surface (11480+), and every
+   cube and token it carried painted BEHIND the Parliament it was flying over —
+   the rect probes (source visible · destination visible · the proxy moved) all
+   passed, because none of them reads the proxy's paint (PL-101, the TR34
+   walk: the price token flew the capsule → the reserve in the DOM and never
+   on screen). The layer therefore carries the flights' own level itself: the
+   same 11499 — over the bands (11480–11520 minus the lifted rail), under the
+   bars (11700) — and `.con-parl__flight`'s z only orders the flights among
+   themselves now. */
 .con-parl-flightlayer {
     position: fixed;
     inset: 0;
+    z-index: 11499;
     pointer-events: none;
 }
 
