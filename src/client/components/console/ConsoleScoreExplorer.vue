@@ -205,7 +205,7 @@
                  model — stored resources honest) and the zoom's physical
                  origin: X lifts THIS very card into the fullscreen viewer
                  and B lands it back here. -->
-            <aside v-if="hasPreviewColumn" class="con-vpx__preview">
+            <aside v-if="hasPreviewColumn" ref="previewEl" class="con-vpx__preview" :style="{'--con-vpx-preview-fit': String(previewFit)}">
               <div v-if="previewModel !== undefined" class="con-vpx__preview-card" :data-zoom-slot="currentRowName">
                 <Card :card="previewModel" />
               </div>
@@ -296,7 +296,7 @@
  *    `onBrowse`, and B lands the card back in the preview — no duplicates,
  *    ever (the endgame's two-instance detail is exactly what this avoids).
  */
-import {defineComponent, PropType, nextTick} from 'vue';
+import {defineComponent, PropType, markRaw, nextTick} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -339,6 +339,7 @@ import {
   formulaTagIcon as scoreFormulaTagIcon,
   formulaGlyph as scoreFormulaGlyph,
   formulaCountedCities as scoreFormulaCountedCities,
+  previewCardFit,
 } from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
@@ -393,6 +394,10 @@ export default defineComponent({
       /** The category stays VISIBLE through its own recede under the
        *  unfolding table (v-show would cut the breath at the route flip). */
       catReceding: false,
+      /** The preview card's share of its nominal zoom (PL-095 — the card
+       *  yields to the words under it; `previewCardFit`). */
+      previewFit: 1,
+      previewRo: undefined as ResizeObserver | undefined,
     };
   },
   computed: {
@@ -590,6 +595,10 @@ export default defineComponent({
     hasPreviewColumn(): boolean {
       return this.tableModel.rows.some((r) => r.previewable);
     },
+    /** The preview column is in the DOM (its fit observer follows it). */
+    previewColumnLive(): boolean {
+      return this.tableMounted && this.hasPreviewColumn;
+    },
     previewModel(): CardModel | undefined {
       const row = this.currentRow;
       if (row === undefined || !row.previewable) {
@@ -670,8 +679,26 @@ export default defineComponent({
         this.ui.catFocus = Math.max(0, len - 1);
       }
     },
+    /** The column mounts and unmounts with the table: the observer follows it. */
+    previewColumnLive: {
+      flush: 'post',
+      handler(live: boolean): void {
+        this.observePreview(live);
+      },
+    },
+    /** Another row → other words under the card (a second formula line, the counted cells). */
+    currentRowName: {
+      flush: 'post',
+      handler(): void {
+        this.fitPreview();
+      },
+    },
+  },
+  mounted() {
+    this.observePreview(this.previewColumnLive);
   },
   beforeUnmount() {
+    this.observePreview(false);
     this.dropInspect();
     const stage = this.$refs.stageEl as HTMLElement | undefined;
     if (stage !== undefined) {
@@ -683,6 +710,48 @@ export default defineComponent({
     scoreExplorerUi.barCommands = undefined;
   },
   methods: {
+    observePreview(live: boolean): void {
+      this.previewRo?.disconnect();
+      this.previewRo = undefined;
+      const col = this.$refs.previewEl as HTMLElement | undefined;
+      if (!live || col === undefined || typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      this.previewRo = markRaw(new ResizeObserver(() => this.fitPreview()));
+      this.previewRo.observe(col);
+      const meta = col.querySelector<HTMLElement>('.con-vpx__preview-meta');
+      if (meta !== null) {
+        this.previewRo.observe(meta);
+      }
+      this.fitPreview();
+    },
+    /**
+     * The card yields to the words under it (`previewCardFit`). Measured in
+     * LAYOUT pixels: the card's painted height is rescaled by the column's own
+     * painted-to-layout ratio, so the table's entry scale cancels out.
+     */
+    fitPreview(): void {
+      const col = this.$refs.previewEl as HTMLElement | undefined;
+      const card = col?.querySelector<HTMLElement>('.con-vpx__preview-card');
+      const meta = col?.querySelector<HTMLElement>('.con-vpx__preview-meta');
+      if (col === undefined || card === null || card === undefined || meta === null || meta === undefined) {
+        return;
+      }
+      const painted = col.getBoundingClientRect().height;
+      if (painted <= 0) {
+        return;
+      }
+      const fit = previewCardFit({
+        columnH: col.clientHeight,
+        metaH: meta.offsetHeight,
+        gapPx: parseFloat(getComputedStyle(col).rowGap) || 0,
+        cardH: card.getBoundingClientRect().height * (col.clientHeight / painted),
+        currentFit: this.previewFit,
+      });
+      if (Math.abs(fit - this.previewFit) > 0.002) {
+        this.previewFit = fit;
+      }
+    },
     signed(v: number): string {
       return String(v);
     },

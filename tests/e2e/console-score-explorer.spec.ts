@@ -112,6 +112,43 @@ async function expectFits(page: Page, selector: string, label: string): Promise<
     .toBeLessThanOrEqual(verdict.cw + 2);
 }
 
+/**
+ * THE TABLE'S TEXT SCALES WITH THE PROFILE (PL-095). A text node with no size
+ * of its own inherits the page's UNSCALED root size (23px): right at 1080 by
+ * coincidence (1.15rem), half-size on a 4K TV and too big — cut — on the Deck.
+ * The preview column's card name did exactly that while the profile ladders
+ * sized the row's name. Two claims: the preview names the focused card at its
+ * ROW's size (one card, one name, one size), and on the TV no text of the table
+ * renders below the couch type floor (`--con-t-floor`, 0.8rem) — the runtime
+ * twin of `consoleTvTypeFloor.spec`, which reads declarations and cannot see an
+ * inherited size. The card face in the preview is not table text (its own zoom).
+ */
+async function expectTableTextScales(page: Page, label: string): Promise<void> {
+  const v = await page.locator('.con-vpx__table').first().evaluate((table) => {
+    const px = (el: Element | null) => el === null ? undefined : getComputedStyle(el).fontSize;
+    const tv = document.documentElement.classList.contains('con-profile-tv');
+    const floor = tv ? 0.8 * parseFloat(getComputedStyle(document.documentElement).fontSize) : 0;
+    const small: Array<string> = [];
+    table.querySelectorAll<HTMLElement>('*').forEach((el) => {
+      if (el.closest('.con-vpx__preview-card') !== null) {
+        return;
+      }
+      const ownText = Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '');
+      if (ownText && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < floor - 0.5) {
+        small.push(`${el.className.toString().split(' ')[0]} ${getComputedStyle(el).fontSize}`);
+      }
+    });
+    return {
+      row: px(table.querySelector('.con-vpx__row--focused .con-vpx__row-name')),
+      preview: px(table.querySelector('.con-vpx__preview-name')),
+      small,
+    };
+  });
+  expect(v.row, `${label}: a focused row`).toBeDefined();
+  expect(v.preview, `${label}: the preview column names the focused card at its row's size`).toBe(v.row);
+  expect(v.small, `${label}: on the TV no table text renders below the couch type floor`).toEqual([]);
+}
+
 /** Walk the overview grid cursor onto a category tile (row/col arithmetic —
  *  the grid is row-major with a profile-fixed column count). */
 async function focusTile(page: Page, tileKey: string): Promise<void> {
@@ -289,9 +326,18 @@ for (const preset of PRESETS) {
         await key(page, 'Enter', 1000);
         await expect(page.locator('.con-vpx__groups')).toHaveCount(1);
         await shoot(page, preset, '04-cards-hub');
-        await key(page, 'Enter', 1100); // the first (conditional-bearing) family door
+        // The CONDITIONAL family door (Ganymede Colony's row): the first door is the resource family,
+        // dead in this game — Enter there opens nothing, and every table claim below used to skip.
+        for (let i = 0; i < 3 && await page.locator('[data-vpx-group="cards-conditional"].con-vpx__group--focused').count() === 0; i++) {
+          await key(page, 'ArrowRight', 300);
+        }
+        await key(page, 'Enter', 1100);
+        await expect(page.locator('.con-vpx__table'), 'the conditional family table opens').toHaveCount(1);
         if (await page.locator('.con-vpx__table').count() > 0) {
           await expectFits(page, '.con-vpx__table', 'the family table');
+          if (await page.locator('.con-vpx__row').count() > 0) {
+            await expectTableTextScales(page, 'the family table');
+          }
           await shoot(page, preset, '05-table');
         }
         await key(page, 'KeyY', 900);
@@ -362,6 +408,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-vpx__preview-card .pcard')).toHaveCount(1);
       await expect(page.locator('.con-vpx__preview-card')).toHaveAttribute('data-zoom-slot', 'Ganymede Colony');
       await expectFits(page, '.con-vpx__table', 'the conditional table');
+      await expectTableTextScales(page, 'the conditional table');
       await shoot(page, preset, '05-conditional-table');
 
       // ── X: the fullscreen inspector — the PREVIEW CARD ITSELF flies. ──

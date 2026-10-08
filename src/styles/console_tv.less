@@ -1905,7 +1905,8 @@ html.con-profile-tv {
         &__factrow-note { font-size: var(--con-t-caption); }
         &__factrow-value { font-size: 1.45rem; }
         &__preview { width: 24rem; }
-        &__preview-card { zoom: calc(1.32 * var(--con-ui-scale, 1)); }
+        &__preview-card { zoom: calc(var(--con-vpx-preview-fit, 1) * 1.32 * var(--con-ui-scale, 1)); }
+        &__preview-name { font-size: var(--con-t-body); }
         &__preview-formula { font-size: var(--con-t-secondary); }
     }
 

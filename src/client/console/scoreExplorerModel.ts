@@ -1051,3 +1051,30 @@ export function scoreGridNavigate(count: number, from: number, dir: 'up' | 'down
   default: return clamp(from);
   }
 }
+
+// ── the table's preview column ─────────────────────────────────────────────
+
+/** The smallest share of its nominal size the preview card may shrink to. */
+export const PREVIEW_CARD_FIT_FLOOR = 0.5;
+
+/**
+ * THE PREVIEW COLUMN'S FIT (PL-095). The focused row's real card stands above
+ * the block that NAMES it and states its formula — the card yields, the words
+ * never do. The card's size was a profile constant, never measured: at 4K the
+ * column held 1214 px of card + 149 px of words in 1335 px, and the formula
+ * of the very card on display was cut off at the table's bottom edge.
+ *
+ * Every length is a LAYOUT length of the same column (the caller undoes any
+ * ancestor transform — the table enters on a scale). Returns the multiplier of
+ * the card's nominal zoom: 1 when everything already fits, else the largest
+ * value that fits, rounded DOWN (a budget — only smaller fits better) and
+ * floored at {@link PREVIEW_CARD_FIT_FLOOR}.
+ */
+export function previewCardFit(room: {columnH: number, metaH: number, gapPx: number, cardH: number, currentFit: number}): number {
+  const natural = room.currentFit > 0 ? room.cardH / room.currentFit : 0;
+  if (!(natural > 0) || !(room.columnH > 0)) {
+    return 1;
+  }
+  const fit = Math.floor(((room.columnH - room.metaH - room.gapPx) / natural) * 1000) / 1000;
+  return Math.max(PREVIEW_CARD_FIT_FLOOR, Math.min(1, fit));
+}

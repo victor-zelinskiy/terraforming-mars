@@ -26,6 +26,8 @@ import {
   formulaText,
   remainderText,
   shortfallText,
+  previewCardFit,
+  PREVIEW_CARD_FIT_FLOOR,
 } from '@/client/console/scoreExplorerModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Tag} from '@/common/cards/Tag';
@@ -525,5 +527,31 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     expect(scoreGridNavigate(7, 6, 'right', 3)).to.eq(6);
     expect(scoreGridNavigate(7, 1, 'up', 3)).to.eq(1);
     expect(scoreGridNavigate(7, 4, 'up', 3)).to.eq(1);
+  });
+});
+
+describe('previewCardFit — the preview card yields to the words under it (PL-095)', () => {
+  it('a column that already holds card + gap + words keeps the nominal size', () => {
+    // fhd, measured: 643 px of column, a 543 px card, 12 px of gap, 88 px of words.
+    expect(previewCardFit({columnH: 643, metaH: 88, gapPx: 12, cardH: 543, currentFit: 1})).eq(1);
+  });
+
+  it('the 4K column that cut the formula: the card shrinks until the words fit, rounded DOWN', () => {
+    // tv4k, measured: 1335 px of column, a 1214 px card, 24 px of gap, 149 px of words → 1162 / 1214.
+    const fit = previewCardFit({columnH: 1335, metaH: 149, gapPx: 24, cardH: 1214, currentFit: 1});
+    expect(fit).eq(0.957);
+    expect(1214 * fit + 24 + 149, 'card + gap + words now fit the column').to.be.at.most(1335);
+  });
+
+  it('reads the NATURAL card from the current fit: a re-measure at the fitted size is stable, a larger room grows it back', () => {
+    const first = previewCardFit({columnH: 1335, metaH: 149, gapPx: 24, cardH: 1214, currentFit: 1});
+    expect(previewCardFit({columnH: 1335, metaH: 149, gapPx: 24, cardH: 1214 * first, currentFit: first})).eq(first);
+    expect(previewCardFit({columnH: 2000, metaH: 149, gapPx: 24, cardH: 1214 * first, currentFit: first})).eq(1);
+  });
+
+  it('a starved column keeps a recognizable card (the floor); a column with no layout yet changes nothing', () => {
+    expect(previewCardFit({columnH: 300, metaH: 250, gapPx: 12, cardH: 543, currentFit: 1})).eq(PREVIEW_CARD_FIT_FLOOR);
+    expect(previewCardFit({columnH: 0, metaH: 88, gapPx: 12, cardH: 543, currentFit: 1})).eq(1);
+    expect(previewCardFit({columnH: 643, metaH: 88, gapPx: 12, cardH: 0, currentFit: 1})).eq(1);
   });
 });

@@ -18043,12 +18043,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__row--zero { opacity: .55; }
     &__row--zero.con-vpx__row--focused { opacity: .9; }
     &__row--neg .con-vpx__row-vp { color: #eb8f8f; }
+    /* The NAME of a row and of the preview column carry their own rem size
+       (PL-095): without one they inherited the page's UNSCALED 23px — right at
+       1080 by coincidence (1.15rem), half-size on a 4K TV and too big (cut) on
+       the Deck, where the profile ladders size the row name but never knew the
+       preview's. The two names of one card read at one size on every profile. */
     &__row-name {
         flex: 0 1 15rem;
         min-width: 8rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-size: 1.15rem;
         color: @con-text;
     }
     &__row-formula {
@@ -18096,8 +18102,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: .6rem;
         min-height: 0;
     }
+    /* The profile's zoom is the card's NOMINAL size; `--con-vpx-preview-fit`
+       (≤ 1, measured by the component — `previewCardFit`) lets it yield to
+       the name and formula under it, which must never be cut (PL-095). */
     &__preview-card {
-        zoom: calc(1.18 * var(--con-ui-scale, 1));
+        zoom: calc(var(--con-vpx-preview-fit, 1) * 1.18 * var(--con-ui-scale, 1));
         flex: none;
     }
     /* The legacy asymmetric margin trap (client-ui rule): the slot centres. */
@@ -18132,6 +18141,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
     }
     &__preview-name {
+        font-size: 1.15rem;
         font-weight: 700;
         color: @con-text;
         overflow: hidden;
@@ -35764,7 +35774,8 @@ html.con-profile-handheld {
         &__row-formula { font-size: .72rem; }
         &__row-vp { font-size: 1rem; }
         &__preview { width: 13.5rem; }
-        &__preview-card { zoom: calc(0.78 * var(--con-ui-scale, 1)); }
+        &__preview-name { font-size: .8rem; }
+        &__preview-card { zoom: calc(var(--con-vpx-preview-fit, 1) * 0.78 * var(--con-ui-scale, 1)); }
         &__factrow-label { font-size: .8rem; }
         &__factrow-note { font-size: .68rem; }
     }
