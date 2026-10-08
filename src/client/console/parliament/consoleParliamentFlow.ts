@@ -229,6 +229,16 @@ function freshFlow() {
     supportLanded: 0,
     /** The flight could not be flown for want of a measurable place — CONFESSED on the section root (`data-parl-grant-degraded`), never silent. */
     grantDegraded: '',
+    /**
+     * THE PRICE OF A STAGED ACTION DOOR (PL-100 — TR15 / TR24 / TR34 / TR35: the card's own resource buys the
+     * delegate): `flying` once its token has left the hero's capsule for the reserve stack, `departed` the frame it has
+     * visibly left the capsule (the capsule's count drops NOW — the composer reads it), `landed` at its touchdown (the
+     * cube lifts next). `none` outside such a landing — and for every door with no card-resource price (a play's M€
+     * receipt, a live door): the capsule then drops on the cube's lift, as before.
+     */
+    priceStage: 'none' as 'none' | 'flying' | 'departed' | 'landed',
+    /** How many price tokens have landed on the viewer's reserve stack this flow — the stack answers each (its landed flash). */
+    reserveAnswers: 0,
     /** The chair just received its delegate (the seat pick's landing) — the government's chair mark flashes (cleared by the flash's own `animationend`). */
     chairPulse: false,
     /** The chairman QUEST block answers once (its reading beat) — the same one-shot grammar as the chair's. */
@@ -301,6 +311,7 @@ export function armGrantVoteFlow(slotIndex: number): void {
   f.supportHeld = 0;
   f.supportLanded = 0;
   f.grantDegraded = '';
+  f.priceStage = 'none';
 }
 
 /**

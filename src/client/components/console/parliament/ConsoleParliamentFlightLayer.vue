@@ -53,7 +53,7 @@
          data-parl-flight-body="token"
          :data-parl-token-amount="f.amount">
       <i class="con-parl__token-icon" :class="f.iconClass" aria-hidden="true"></i>
-      <b class="con-parl__token-amount">+{{ f.amount }}</b>
+      <b class="con-parl__token-amount">{{ f.sign ?? '+' }}{{ f.amount }}</b>
     </div>
   </div>
 </template>

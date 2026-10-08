@@ -144,6 +144,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The price tokens that have landed on the viewer's reserve stack (PL-100) — each is a touchdown the stack answers. */
+    reserveAnswers(): number {
+      return parliamentFlow.reserveAnswers;
+    },
     /** THE SEATS — every participating player's places, with the results scene's display holds applied. */
     seats(): Array<SeatRow> {
       const me = this.viewerColor;
@@ -198,6 +202,13 @@ export default defineComponent({
     },
   },
   watch: {
+    /** A PRICE TOKEN LANDED on the viewer's reserve stack (PL-100 — the resource that buys the delegate): the stack answers with its landed flash, the cube lifts next. */
+    reserveAnswers(now: number, was: number): void {
+      const me = this.viewerColor;
+      if (now > was && me !== undefined) {
+        this.landFlash[me] = (this.landFlash[me] ?? 0) + 1;
+      }
+    },
     /**
      * A RETURNING DELEGATE LANDED: the shown reserve grows by one while the
      * sitting stands (the display hold lets go touchdown by touchdown) —

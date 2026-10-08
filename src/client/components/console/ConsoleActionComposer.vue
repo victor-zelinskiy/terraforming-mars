@@ -2457,6 +2457,18 @@ export default defineComponent({
     stagedVoteCubeGone(): boolean {
       return parliamentFlow.stage === 'landed' && parliamentFlow.sourceLeavingCount === 0;
     },
+    /**
+     * THE PRICE HAS LEFT THE CARD — the frame the capsule's count may drop (PL-100): the price token's visible
+     * departure from the capsule when the Parliament flies one (a card-resource receipt — data, a mech, a fighter),
+     * else the cube's lift-off as before (a play's M€ door, reduced motion, nothing measurable).
+     */
+    stagedVotePriceGone(): boolean {
+      const stage = parliamentFlow.priceStage;
+      if (stage !== 'none') {
+        return stage === 'departed' || stage === 'landed';
+      }
+      return this.stagedVoteCubeGone;
+    },
     /** The live trade prompt this branch would enter (server-authoritative). */
     tradeEntryContext(): TradeColonyContext | undefined {
       return this.tradeEntryCard === undefined ?
@@ -2734,7 +2746,7 @@ export default defineComponent({
         }
       }
     },
-    stagedVoteCubeGone(gone: boolean): void {
+    stagedVotePriceGone(gone: boolean): void {
       if (gone && this.stagedVoteSent) {
         this.stagedVoteCapsuleHeld = undefined;
       }

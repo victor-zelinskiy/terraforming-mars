@@ -818,3 +818,13 @@ function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
     },
   };
 }
+
+/**
+ * A RESOURCE TOKEN's flight between two real places (PL-100 — the price of a
+ * staged action door leaving the hero's capsule for the reserve stack): the
+ * plain proxy glide with its small arc — a pill, not a die, so no tumble —
+ * the same clock, the same reduced-motion half-speed glide.
+ */
+export function runTokenFlight(args: CubeFlightArgs): CubeFlightHandle {
+  return runProxyFlight(args);
+}

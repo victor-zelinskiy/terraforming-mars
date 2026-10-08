@@ -23,9 +23,11 @@ import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, 
  *      резерва · по карте», A «Подтвердить»; B walks back to the composer on
  *      branch B; in again.
  *   4. A is EXACTLY ONE POST (`input-batch`), its tail ADDRESSED to the card.
- *   5. The cube leaves the RESERVE stack for the card's ribbon; the hero's
- *      capsule reads 3 until the cube lifts, then 0 (never anything between);
- *      the lobby's socket stands full before and after.
+ *   5. PL-100: a «−3 data» PRICE token leaves the hero's capsule for the
+ *      reserve stack first (the capsule reads 3 until the token departs, then
+ *      0 — never anything between; the stack answers), THEN the cube leaves
+ *      the RESERVE stack for the card's ribbon; the lobby's socket stands full
+ *      before and after.
  *   6. The server: 0 data on the card, the viewer's vote on the slot, the
  *      action used this generation, the reserve one short, the lobby intact.
  *   7. It ends on the board: no workspace, nothing stranded, no overflow, no
@@ -362,7 +364,7 @@ for (const preset of PRESETS) {
 
       // ── 4. in again; A is ONE POST, addressed to the card ──
       await chooseResolution(page);
-      const sources = {reserve: await seen(page, `[data-parl-seat-reserve="${viewer}"]`)};
+      const sources = {reserve: await seen(page, `[data-parl-seat-reserve="${viewer}"]`), capsule: await seen(page, `${composer} .con-composer__actcardwrap .pcard__res`)};
       const targets = {ribbon: await seen(page, '[data-parl-vote-ribbon]')};
       expect(sources.reserve?.visible, 'the reserve stack is on screen').toBe(true);
       expect(targets.ribbon?.visible, 'the card\'s ribbon is on screen').toBe(true);
@@ -421,8 +423,16 @@ for (const preset of PRESETS) {
       expect(probe.reserve.map(([, v]) => v), 'the reserve stack gave exactly one cube').toEqual([me(before).reserve, me(before).reserve - 1]);
       expect(probe.votes[probe.votes.length - 1]?.[1], 'the card\'s count ticked to 1').toBe(1);
       expect(probe.capsule.map(([, v]) => v), `the capsule read 3 until the lift, then 0 — never a value between (${dump})`).toEqual([3, 0]);
-      const lift = probe.reserve[1]?.[0] ?? Infinity;
-      expect(probe.capsule[1][0], `the data left the card WITH the cube, not at the press (${dump})`).toBeGreaterThanOrEqual(Math.min(lift, own[0].firstAt) - 60);
+      // ── PL-100: THE PRICE LEAVES FIRST — a «−3 data» token leaves the hero's capsule for the reserve stack, the
+      //    capsule drops as it departs, the stack answers, and only then does the cube lift off that stack. ──
+      expect(sources.capsule?.visible, 'the capsule of the hero is on screen').toBe(true);
+      const price = Object.entries(probe.flights).filter(([id, f]) => id.startsWith('price') && f.n >= 2).map(([, f]) => f);
+      expect(price.length, `ONE price token flew (${dump})`).toBe(1);
+      expect(near(price[0].first, sources.capsule), `…born on the hero's capsule (${dump})`).toBe(true);
+      expect(near(price[0].last, sources.reserve), `…and absorbed by the reserve stack (${dump})`).toBe(true);
+      expect(own[0].firstAt, `the cube lifted only after the price token had landed (${dump})`).toBeGreaterThanOrEqual(price[0].lastAt - 60);
+      expect(probe.capsule[1][0], `the data left the card as the token departed — after its birth (${dump})`).toBeGreaterThanOrEqual(price[0].firstAt - 60);
+      expect(probe.capsule[1][0], `…and before the cube lifted (${dump})`).toBeLessThanOrEqual(own[0].firstAt + 60);
       expect(probe.lobbyEmptied, 'the lobby\'s socket was never empty').toBe(false);
 
       expect(probe.degraded, 'no flight confessed a missing rect').toEqual([]);

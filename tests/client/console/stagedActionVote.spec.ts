@@ -288,3 +288,55 @@ describe('ConsoleActionComposer — the vote door of TR34 (a mech as the price)'
     w.unmount();
   });
 });
+
+describe('ConsoleActionComposer — the PRICE leaves before the cube (PL-100)', () => {
+  afterEach(() => {
+    clearStagedPlay();
+    resetWorkspaceStack();
+    resetParliamentFlow();
+  });
+
+  it('a price token in the air: the capsule holds through the Parliament\'s landing until the token has visibly LEFT the capsule — before any cube lifts', async () => {
+    enterWorkspace('card-actions');
+    const w = mechFactory();
+    const vm = w.vm as any;
+    vm.selectedPos = 1;
+    await w.vm.$nextTick();
+    armStagedPlay({flow: 'action', cardName: CardName.MARS_ARMY_MECHS, isEvent: false, batch: [], target: {kind: 'resolution', vote: MECH_STAGED}, draws: 0, deckCheck: false, yieldedStack: false});
+    markStagedPlayCommitting();
+    await w.vm.$nextTick();
+    expect(vm.stagedVoteCapsuleHeld).to.eq(1);
+    // The landing has started, the cube still stands on the bench, the price token is flying: the capsule holds.
+    parliamentFlow.stage = 'landed';
+    parliamentFlow.sourceLeavingCount = 1;
+    parliamentFlow.priceStage = 'flying';
+    await w.vm.$nextTick();
+    expect(vm.stagedVotePriceGone).to.eq(false);
+    expect(vm.stagedVoteCapsuleHeld, 'still held while the token is over the capsule').to.eq(1);
+    // The token has visibly left the capsule — the count drops NOW, while the cube has not moved.
+    parliamentFlow.priceStage = 'departed';
+    await w.vm.$nextTick();
+    expect(vm.stagedVotePriceGone).to.eq(true);
+    expect(vm.stagedVoteCapsuleHeld, 'released on the price\'s departure, not on the cube\'s lift').to.eq(undefined);
+    w.unmount();
+  });
+
+  it('no price token (a play\'s M€ door, reduced motion, nothing measurable): the capsule drops on the cube\'s lift, as before', async () => {
+    enterWorkspace('card-actions');
+    const w = mechFactory();
+    const vm = w.vm as any;
+    vm.selectedPos = 1;
+    await w.vm.$nextTick();
+    armStagedPlay({flow: 'action', cardName: CardName.MARS_ARMY_MECHS, isEvent: false, batch: [], target: {kind: 'resolution', vote: MECH_STAGED}, draws: 0, deckCheck: false, yieldedStack: false});
+    markStagedPlayCommitting();
+    await w.vm.$nextTick();
+    parliamentFlow.stage = 'landed';
+    parliamentFlow.sourceLeavingCount = 1;
+    await w.vm.$nextTick();
+    expect(vm.stagedVoteCapsuleHeld, 'the cube still on the bench').to.eq(1);
+    parliamentFlow.sourceLeavingCount = 0;
+    await w.vm.$nextTick();
+    expect(vm.stagedVoteCapsuleHeld, 'the cube lifted').to.eq(undefined);
+    w.unmount();
+  });
+});

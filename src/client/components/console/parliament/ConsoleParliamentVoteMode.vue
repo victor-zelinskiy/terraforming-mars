@@ -306,7 +306,7 @@ import {
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
-  dropFlight, dropFlightsWithPrefix, flightEl, flyCube, nextFlightId, placeCubeRect, pushCubeFlight, rectOf, registerFlightHandle,
+  dropFlight, dropFlightsWithPrefix, flightEl, flyCube, flyPriceToken, nextFlightId, placeCubeRect, pushCubeFlight, rectOf, registerFlightHandle,
 } from '@/client/console/parliament/parliamentFlights';
 import {
   emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
@@ -1134,7 +1134,9 @@ export default defineComponent({
       }
       f.supportHeld = supportLanded;
       f.supportLanded = 0;
-      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1) + 900 * supportLanded});
+      // The ceiling budgets the price token's flight too (PL-100) when the door has a card-resource price to fly.
+      const priced = snap.door === 'card' && snap.receipt !== undefined && snap.receipt.icon !== 'megacredits';
+      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1) + 900 * supportLanded + (priced ? 900 : 0)});
       f.landedSeqs = [];
       f.flightSeq = seqs[0];
       f.pendingSeqs = seqs.slice(1);
@@ -1145,9 +1147,53 @@ export default defineComponent({
       f.sourceHoldCount = seqs.length;
       f.sourceLeavingCount = seqs.length;
       void this.$nextTick(() => {
-        this.flyDelegates(seqs, 0, me);
+        this.flyPriceThenDelegates(seqs, me);
       });
       return true;
+    },
+    /**
+     * THE PRICE LEAVES FIRST (PL-100 — «the resource buys the delegate»: TR15 / TR24 / TR34 / TR35). A staged ACTION
+     * door pays with the card's own resource (its receipt — data, a mech, a fighter), and that resource is the cube's
+     * CAUSE: a token of it leaves the hero's capsule (the composer's, standing beside this Parliament — the capsule
+     * ticks the frame the token has visibly left it) and lands on the viewer's RESERVE stack (which answers with its
+     * landed flash), and only then does the cube lift off that very stack. Impulse → price → cube: one chain on the
+     * motion clock, the cube's law intact (it always comes from the reserve). A play's M€ receipt is the payment's
+     * business and a live door is already paid — no token there; nothing measurable or reduced motion — the cube at
+     * once, the capsule dropping on its lift as it always did (`priceStage` stays `none`, the composer falls back).
+     */
+    flyPriceThenDelegates(seqs: ReadonlyArray<number>, me: Color): void {
+      const f = parliamentFlow;
+      const snap = f.voteSnapshot;
+      const receipt = snap?.receipt;
+      const launch = () => this.flyDelegates(seqs, 0, me);
+      if (snap === undefined || snap.door !== 'card' || receipt === undefined || receipt.icon === 'megacredits') {
+        launch();
+        return;
+      }
+      // The hero's capsule in the «Действия карт» composer that hosts this Parliament — the place the resource LEAVES.
+      const capsule = document.querySelector<HTMLElement>('.con-cardactions .con-composer__actcardwrap .pcard__res');
+      const stack = document.querySelector<HTMLElement>(`[data-parl-seat-reserve="${me}"]`);
+      f.priceStage = 'flying';
+      const id = flyPriceToken({
+        iconClass: iconClassFor(receipt.icon),
+        amount: receipt.amount,
+        from: rectOf(capsule),
+        to: rectOf(stack),
+        delayMs: 0,
+        onDeparted: () => {
+          f.priceStage = 'departed';
+        },
+        onLanded: () => {
+          // The stack answers (its landed flash); the cube waits for the token to be absorbed.
+          f.priceStage = 'landed';
+          f.reserveAnswers++;
+        },
+        onAbsorbed: launch,
+      });
+      if (id === undefined) {
+        f.priceStage = 'none';
+        launch();
+      }
     },
     /** Fly the cube at `index` of `seqs`; the landing of each starts the next, the last one begins the landed READ. */
     flyDelegates(seqs: ReadonlyArray<number>, index: number, color: Color): void {
@@ -1362,6 +1408,8 @@ export default defineComponent({
       f.sourceLeaving = undefined;
       f.sourceHoldCount = 0;
       f.sourceLeavingCount = 0;
+      dropFlightsWithPrefix('price');
+      f.priceStage = 'none';
     },
   },
 });

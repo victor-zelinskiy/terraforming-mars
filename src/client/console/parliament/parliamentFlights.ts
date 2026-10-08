@@ -8,7 +8,7 @@ import {addCard3DTurn, FACE_DOWN_DEG, FACE_UP_DEG, readCard3DInner, setCard3DFac
 import {DEAL_TURN_GLINT} from '@/client/console/cardDeal/premiumTurn';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {CubeFlightHandle, Rect, runCardDealFlight, runDelegateCubeFlight} from './consoleParliamentVoteMotion';
+import {CubeFlightHandle, Rect, runCardDealFlight, runDelegateCubeFlight, runTokenFlight} from './consoleParliamentVoteMotion';
 import {RIBBON_CUBE} from './parliamentVoteView';
 
 /** An element's rect as a plain `Rect`, or undefined when it is not laid out. */
@@ -76,7 +76,7 @@ export type CardFlightSpec = {id: string, width: number, height: number, face?: 
  * sitting, so the only honest scene of the collection is the place its cause
  * just landed on (the law of a visible stage).
  */
-export type TokenFlightSpec = {id: string, iconClass: string, amount: number};
+export type TokenFlightSpec = {id: string, iconClass: string, amount: number, /** «+» (a yield) by default; «−» for a PRICE leaving. */ sign?: string};
 
 /** A delegate cube's flight (the enactment's returns home, the seat pick's delegate to the chair). */
 export const CUBE_FLIGHT_MS = 480;
@@ -89,6 +89,10 @@ export const ENACT_MOVE_MS = 620;
 export const VOTE_FLIGHT_MS = 540;
 /** A resource token's whole phrase over the reserve (lift · read · dissolve) — a card's answer to a leave. */
 export const TOKEN_RISE_MS = 960;
+/** A PRICE token's flight from the hero's capsule to the reserve stack (PL-100) — a beat shorter than the cube it buys. */
+export const PRICE_FLIGHT_MS = 460;
+/** …and its absorption by the stack (the dissolve on touchdown) — the cube lifts only after it. */
+export const PRICE_ABSORB_MS = 160;
 
 export const parliamentFlights = reactive({
   flights: [] as Array<FlightSpec>,
@@ -315,6 +319,83 @@ export function riseToken(args: {iconClass: string, amount: number, over: Rect |
         tl.kill();
         gsap.set(proxy, {autoAlpha: 0});
       }};
+      runHandle(id, handle);
+    };
+    scheduleLaunch(id, args.delayMs, fire);
+  });
+  return id;
+}
+
+/**
+ * A PRICE TOKEN LEAVES A REAL PLACE FOR A REAL PLACE (PL-100 — «the resource
+ * buys the delegate», TR15 / TR24 / TR34 / TR35): the resource a staged ACTION
+ * door pays for its delegate leaves the hero's capsule (the composer's — it
+ * ticks on the departure) and lands on the viewer's RESERVE stack (which
+ * answers with its landed flash), and only then does the cube lift off that
+ * stack — impulse → price → cube, one chain on the motion clock, the cube's
+ * law intact (it always comes from the reserve). The token family's own look
+ * (the icon, «−N»), born at ITS OWN size centred over the capsule (a pill,
+ * never the capsule's box), the proxy flight's glide with its small arc;
+ * absorbed on touchdown (a short dissolve), gone a frame later.
+ * `onDeparted` fires once the token has visibly left the capsule, `onLanded`
+ * at the touchdown (the stack answers), `onAbsorbed` once the dissolve is
+ * over and the proxy is gone (the cube lifts then — never over a token still
+ * standing on its stack). Returns the flight's id — undefined when nothing is
+ * measurable or motion is reduced, and then NOTHING was called: the caller
+ * plays the cube at once and the capsule drops on its lift, as it always did.
+ */
+export function flyPriceToken(args: {
+  iconClass: string, amount: number, from: Rect | undefined, to: Rect | undefined, delayMs: number,
+  onDeparted: () => void, onLanded: () => void,
+  /** The token has been ABSORBED (its dissolve is over, the proxy gone) — the next flight may lift now. */
+  onAbsorbed: () => void,
+}): string | undefined {
+  const {from, to} = args;
+  if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    return undefined;
+  }
+  const id = nextFlightId('price');
+  pushTokenFlight({id, iconClass: args.iconClass, amount: args.amount, sign: '−'});
+  void nextTick(() => {
+    const proxy = flightEls[id];
+    if (proxy === null || proxy === undefined) {
+      dropFlight(id);
+      args.onDeparted();
+      args.onLanded();
+      args.onAbsorbed();
+      return;
+    }
+    gsap.set(proxy, {autoAlpha: 0});
+    const fire = () => {
+      delete flightBeats[id];
+      if (flightEls[id] === undefined) {
+        return;
+      }
+      const w = proxy.offsetWidth || conLogicalPx(48);
+      const h = proxy.offsetHeight || conLogicalPx(22);
+      const born = {left: from.left + from.width / 2 - w / 2, top: from.top + from.height / 2 - h / 2, width: w, height: h};
+      // Its foot on the stack's top edge — the place the cube is about to lift from.
+      const land = {left: to.left + to.width / 2 - w / 2, top: to.top - h * 0.55, width: w, height: h};
+      let ended = false;
+      const handle = runTokenFlight({
+        proxy,
+        from: born,
+        to: land,
+        durationMs: PRICE_FLIGHT_MS,
+        onDeparted: args.onDeparted,
+        onLanded: () => {
+          if (ended) {
+            return;
+          }
+          ended = true;
+          args.onLanded();
+          // Absorbed by the stack: a short dissolve, then gone — and only then the next flight (the cube) lifts.
+          gsap.to(proxy, {autoAlpha: 0, scale: 0.8, duration: consoleMotionMs(PRICE_ABSORB_MS) / 1000, ease: 'power1.in', onComplete: () => {
+            dropFlight(id);
+            args.onAbsorbed();
+          }});
+        },
+      });
       runHandle(id, handle);
     };
     scheduleLaunch(id, args.delayMs, fire);
