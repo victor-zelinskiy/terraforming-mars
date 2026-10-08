@@ -23,8 +23,9 @@
  *
  * Anchors are resolved from the REAL interface at flight time (never a fixed
  * trajectory): the played card's slot in «Разыграно», the sale terminal's
- * slit, the panel's stock value / production zone / the chosen host card /
- * the additional-resources satellite. A transfer whose source or target
+ * slit, the panel's stock DIGITS (the ink, never the column's reserve — see
+ * `targetPointFor`) / production plate / the chosen host card / the
+ * additional-resources satellite. A transfer whose source or target
  * can't be measured degrades honestly: no flight, its hold releases at once
  * (the delta chip fires marginally later than the commit — never lost).
  *
@@ -767,19 +768,38 @@ function escapeName(name: string): string {
     CSS.escape(name) : name.replace(/"/g, '\\"');
 }
 
-/** The exact landing point per destination channel (the left panel / the
- *  chosen host card in the «Разыграно» table / the aux satellite). */
+/**
+ * The exact landing point per destination channel (the left panel / the
+ * chosen host card in the «Разыграно» table / the aux satellite).
+ *
+ * A TOKEN LANDS ON THE NUMBER IT CHANGES — the INK, never the column reserved
+ * for it (PL-094, 2026-10-08). The rail's value column is reserved four digits
+ * wide and right-aligned (the row contract), so its box's centre stands a
+ * digit or two LEFT of a short number: measured at 4K a «12» sat 44 px right
+ * of the landing, a «0» would sit a whole chip-width away — the token touched
+ * down in the empty reserve, the counter ticked beside it, and the player read
+ * «it flew off to the left, into nothing». The delta-chip anchor law already
+ * made the ink-tight digits the ±N chip's anchor (`.con-res__digits`, the TR
+ * cell's `.con-score__value`); the touchdown aims at the same ink, so the beat
+ * halo wakes ON the number and the tick happens under the token. The
+ * production plate's digits are centred IN the plate, so the plate is its ink;
+ * a card's capsule and the satellite's cell are icon + count and stay whole.
+ */
 function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   if (spec.channel === 'stock') {
     // The TERRAFORM RATING rides the stock channel under the rail's own key
     // (`RATING_RAIL_KEY`): its home is the score header's TR cell, not a
     // resource row (the Parliament's Agenda bonus and a rail reward fly there).
+    // The VALUE is the ink; the valwrap is its reserved slot (3+ characters step
+    // the type down INSIDE it), the cell the fallback of the fallback.
     if (spec.resource === RATING_RAIL_KEY) {
-      const cell = measureRestingRect('.con-res .con-score__cell--tr .con-score__valwrap') ??
+      const cell = measureRestingRect('.con-res .con-score__cell--tr .con-score__value') ??
+        measureRestingRect('.con-res .con-score__cell--tr .con-score__valwrap') ??
         measureRestingRect('.con-res .con-score__cell--tr');
       return cell !== undefined ? centerOf(cell) : undefined;
     }
-    const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
+    const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__digits`) ??
+      measureRestingRect(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
       measureRestingRect(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;
   }

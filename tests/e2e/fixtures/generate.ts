@@ -52,6 +52,8 @@ import {Pets} from '../../../src/server/cards/base/Pets';
 import {SolarPower} from '../../../src/server/cards/base/SolarPower';
 import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
+import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
+import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
 import {CarbonNanosystems} from '../../../src/server/cards/promo/CarbonNanosystems';
 import {OlympusConference} from '../../../src/server/cards/base/OlympusConference';
 import {RoverConstruction} from '../../../src/server/cards/base/RoverConstruction';
@@ -344,6 +346,21 @@ function write(name: string, game: IGame): void {
   player.drawCard(4);
   runAllActions(game);
   write('solo-actions', game);
+}
+
+// ── rail-reward-action: a solo action phase with TWO plain resource-paying
+//    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
+//    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1
+//    energy production: a PRODUCTION reward). The ACTION COMMIT's reward
+//    wave lands on the rail's own rows; the probe reads where. ──
+{
+  const {game, player} = soloActionPhase();
+  player.megaCredits = 40;
+  player.steel = 5;
+  player.plants = 4;
+  player.playedCards.push(new ElectroCatapult(), new SpaceMirrors());
+  runAllActions(game);
+  write('rail-reward-action', game);
 }
 
 // ── two-player-pre-endgame: a 2p table, every dial but oxygen maxed, the

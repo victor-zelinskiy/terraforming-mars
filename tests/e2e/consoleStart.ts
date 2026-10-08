@@ -2372,6 +2372,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // pinned after the deal — Martian Census (TR15 — Mars First, a MATCH, the game's own copy moved to the top) or, in the
   // -miss table, the dealt top card (no party requirement: a MISS) (docs/claude/turmoil-redux-cards-progress.md).
   'political-think-tank' | 'political-think-tank-miss' |
+  // Two plain resource-paying blue actions (Electro Catapult: 1 steel → 7 M€; Space Mirrors: 7 M€ → +1 energy
+  // production) in a solo action phase — the ACTION COMMIT's reward wave onto the rail's own rows.
+  'rail-reward-action' |
   // TR15 Martian Census: blue's action phase with the card in its tableau holding 3 data (branch B live, unused), the
   // free delegate in the lobby, a full reserve; the voting area pinned [Industrialists · Mars First · Greens]
   // (docs/TURMOIL_REDUX_MARTIAN_CENSUS.md).
