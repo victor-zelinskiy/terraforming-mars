@@ -24,6 +24,7 @@
  * play composer's VP projection — and a formula must be phrased once.
  */
 import {Tag} from '@/common/cards/Tag';
+import {tagCountKey} from '@/common/cards/tagNames';
 import {
   CardVictoryPointsDetail,
   CardVictoryPointsKind,
@@ -591,6 +592,11 @@ function unitNounOf(f: Extract<ScoreFormula, {kind: 'per'}>): string | undefined
   }
   if (f.unit === 'cities' && f.where === 'offmars') {
     return 'space cities';
+  }
+  // A count of tags names ITS tag — «your Mars tags», the card's own words
+  // («1 VP per Mars tag you have») — through the one table of tag names.
+  if (f.unit === 'tags' && f.tag !== undefined) {
+    return tagCountKey(f.tag) ?? UNIT_NOUN.tags;
   }
   return UNIT_NOUN[f.unit];
 }

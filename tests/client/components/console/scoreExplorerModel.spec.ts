@@ -422,12 +422,15 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
     const per = (over: Partial<Extract<ScoreFormula, {kind: 'per'}>>): ScoreFormula =>
       ({kind: 'per', vp: 2, counted: 7, each: 1, per: 3, unit: 'tags', tag: Tag.BUILDING, remainder: 1, ...over});
 
-    it('the explorer\'s sentence per shape — unchanged by the move', () => {
+    it('the explorer\'s sentence per shape — a count of tags NAMES its tag (PL-096)', () => {
       expect(formulaText({kind: 'fixed', vp: 3})).to.eq('Printed VP: 3');
-      expect(formulaText(per({}))).to.eq('7 / 3 = 2 VP · matching tags');
-      expect(formulaText(per({each: 1, per: 1, counted: 3, vp: 3, remainder: undefined}))).to.eq('3 × 1 VP = 3 VP · matching tags');
+      expect(formulaText(per({}))).to.eq('7 / 3 = 2 VP · your Building tags');
+      expect(formulaText(per({each: 1, per: 1, counted: 3, vp: 3, remainder: undefined, tag: Tag.MARS}))).to.eq('3 × 1 VP = 3 VP · your Mars tags');
       expect(formulaText(per({each: 2, per: 1, counted: 2, vp: 4, unit: 'cities', tag: undefined, remainder: undefined}))).to.eq('2 × 2 VP = 4 VP · cities in play');
-      expect(formulaText(per({each: 2, per: 3, counted: 7, vp: 4}))).to.eq('7 × 2 / 3 = 4 VP · matching tags');
+      expect(formulaText(per({each: 2, per: 3, counted: 7, vp: 4}))).to.eq('7 × 2 / 3 = 4 VP · your Building tags');
+      // A tag with no count noun of its own (the meta tags) — and a formula that names no tag — keep the generic noun.
+      expect(formulaText(per({tag: Tag.WILD}))).to.eq('7 / 3 = 2 VP · matching tags');
+      expect(formulaText(per({tag: undefined}))).to.eq('7 / 3 = 2 VP · matching tags');
       expect(formulaText(per({unit: 'resources', tag: undefined}))).to.eq('7 / 3 = 2 VP');
       expect(formulaText({kind: 'special', vp: 1, counted: 4})).to.eq('Special scoring · 4 stored');
       expect(formulaText({kind: 'special', vp: 1})).to.eq('Special scoring');

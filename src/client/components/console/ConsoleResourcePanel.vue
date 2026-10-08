@@ -361,6 +361,7 @@ import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
 import {railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
+import {tagLabel} from '@/client/cards/tagLabel';
 import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -918,7 +919,10 @@ export default defineComponent({
      * serves says so instead of lying a number.
      */
     cellAria(entry: ConsoleTagMatrixCell): string {
-      const name = this.$t(entry.tag === NO_TAG_CELL ? 'Cards with no tags' : entry.tag);
+      // The tag's name is the console's ONE word for it (`tagLabel` — the same
+      // the reasons and the score formulas use); the lowercase enum key read
+      // «микроб» beside «Бактерия» elsewhere (PL-096).
+      const name = entry.tag === NO_TAG_CELL ? this.$t('Cards with no tags') : (tagLabel(entry.tag) || this.$t(entry.tag));
       if (entry.na) {
         return name + ': ' + this.$t('not tracked');
       }

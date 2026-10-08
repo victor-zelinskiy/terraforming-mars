@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
+import {tagLabel} from '@/client/cards/tagLabel';
 import {CardName} from '@/common/cards/CardName';
 import {CONSOLE_TAG_ORDER, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
 import {privateScoreState} from '@/client/components/overview/privateScoreState';
@@ -65,6 +66,13 @@ describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
     const zero = w.find('[data-tag-cell="space"]');
     expect(zero.exists()).to.be.true;
     expect(zero.find('.con-tagmx__num').text()).to.eq('0');
+  });
+
+  it('a cell names its tag with the console\'s ONE word for it (`tagLabel`), never the lowercase enum key (PL-096)', () => {
+    const w = mountWith({[Tag.BUILDING]: 2, [Tag.MICROBE]: 1} as Partial<Record<Tag, number>>);
+    expect(w.find('[data-tag-cell="building"]').attributes('aria-label')).to.eq(`${tagLabel(Tag.BUILDING)}: 2`);
+    expect(w.find('[data-tag-cell="microbe"]').attributes('aria-label')).to.eq(`${tagLabel(Tag.MICROBE)}: 1`);
+    expect(tagLabel(Tag.MICROBE)).to.not.eq('');
   });
 
   it('marks zero-count cells with the dimmed state, active ones without', () => {
