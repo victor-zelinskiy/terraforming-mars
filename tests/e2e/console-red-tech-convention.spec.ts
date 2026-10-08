@@ -328,7 +328,11 @@ for (const preset of PRESETS) {
       const order = [tray1, research, tray2, tray3, mining, comet].filter((t, i) => i !== 2 || t !== undefined);
       const trace = JSON.stringify({tray: probe.tray, found: probe.found});
       expect([tray1, research, tray3, mining, comet].every((t) => t !== undefined), `every beat was seen: ${trace}`).toBe(true);
-      expect(order, `the server's order: ${trace}`).toEqual([...order as Array<number>].sort((a, b) => a - b));
+      // A toss lands on the ANIMATION clock and a found slot fills on the TASK clock: under worker load the two
+      // adjacent beats of one step can swap by a sample (measured: Research found 1 ms before the tray read «1»).
+      // A tie inside one scan window is not an inversion — a real reorder is hundreds of ms.
+      const inversions = (order as Array<number>).map((t, i) => (i > 0 && t + 50 < (order as Array<number>)[i - 1] ? `${i}:${t}<${(order as Array<number>)[i - 1]}` : '')).filter((s) => s !== '');
+      expect(inversions, `the server's order: ${trace}`).toEqual([]);
 
       // ── 5. R3: the pile, each card with ITS tag ──
       await expect(page.locator('.con-cmdbar')).toContainText(/сброшенные/i);
@@ -490,6 +494,36 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
         .map((r) => `slot ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} vs berth ${Math.round(berth.left)},${Math.round(berth.top)}`);
     });
     expect(hits, 'no card under the discard berth').toEqual([]);
+    // PL-092: the status line's NAME yields only when the line is full — «Горнопромышленный район» (the second
+    // card) used to be cut to «…рай…» by a flat 17rem cap with a whole empty line on either side. Walk the row and
+    // read every name: whole while its bar has room, cut only by its own ellipsis once it has none.
+    const nameCuts: Array<string> = [];
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        await press(page, 'ArrowRight', 500);
+      }
+      nameCuts.push(await page.evaluate(() => {
+        const bar = document.querySelector<HTMLElement>('.con-hand__outcome .con-reveal__namebar');
+        const name = bar?.querySelector<HTMLElement>('.con-cards__verdict-name');
+        if (bar === null || bar === undefined || name === null || name === undefined) {
+          return 'no name';
+        }
+        // «Room» is the COLUMN the bar stands in, not the bar's own box: the bar is content-sized (a centred chip
+        // chassis shared with the buy stage), so its own width says nothing about the line.
+        const column = bar.parentElement;
+        const roomy = column !== null && name.scrollWidth + 2 <= column.clientWidth;
+        const cut = name.scrollWidth > name.clientWidth + 1;
+        if (!(roomy && cut)) {
+          return '';
+        }
+        const ns = getComputedStyle(name);
+        const kids = Array.from(bar.children).map((k) => `${k.className.split(' ')[0]}:${k.clientWidth}/${k.scrollWidth}`).join(' ');
+        return `«${name.textContent?.trim()}» cut at ${name.clientWidth} of ${name.scrollWidth} px — bar ${bar.clientWidth}/${bar.scrollWidth} in a column of ${column?.clientWidth}; kids ${kids}; name max-width ${ns.maxWidth}, flex ${ns.flex}`;
+      }));
+    }
+    expect(nameCuts.filter((c) => c !== ''), 'no name cut while its line has room').toEqual([]);
+    await press(page, 'ArrowLeft', 400);
+    await press(page, 'ArrowLeft', 400);
     await shoot(page, 'deck', '02-reveal');
     const verdict = page.locator('.con-zoom [data-zoom-discard-verdict]');
     for (let i = 0; i < 3 && await verdict.count() === 0; i++) {

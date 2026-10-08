@@ -23467,8 +23467,14 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     &__verdict-name {
         font-size: .9rem;
         font-weight: 700;
-        flex-shrink: 0;
-        max-width: 17rem;
+        /* THE NAME YIELDS IN ITS OWN BOX, AND ONLY WHEN THE LINE IS FULL (PL-092). A flat `max-width: 17rem` cut
+           «Горнопромышленный рай…» on the Deck with a whole empty line on either side (17rem is 252 px there). The
+           strict-order law of every one-line status rail: the verdict / price / reason chips keep their content
+           (`min-width: auto` — nowrap text never shrinks below itself), the NAME is the one member that yields —
+           it takes whatever room the line has and ellipsizes in its own box only once the chips have taken theirs. */
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -35815,7 +35821,7 @@ html.con-profile-handheld {
         /* The bar's height is the shared card-status token (2rem on the Deck
            — the profile override above); only the density is tuned here. */
         &__verdictbar { padding: .3rem .5rem; gap: .4rem; }
-        &__verdict-name { font-size: .75rem; max-width: 12rem; }
+        &__verdict-name { font-size: .75rem; } /* no profile cap on the name — it yields by the strict-order law of the base rule (PL-092) */
         &__verdict { font-size: .65rem; padding: .2rem .55rem; }
         /* P17 clip-safe at handheld densities: top headroom covers the
            focus lift + scale + the pick band at every slot zoom. */
