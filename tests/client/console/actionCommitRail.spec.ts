@@ -59,6 +59,14 @@ function unmiBranch(): ActionPreviewBranch {
   } as ActionPreviewBranch;
 }
 
+/** A TR paid with a PRODUCTION step (Equatorial Magnetizer's shape): the plate's own number, no token leaves the rail. */
+function plainTrBranch(): ActionPreviewBranch {
+  return {
+    index: -1, title: '', available: true, renderKeys: [], steps: [],
+    effects: [{direction: 'cost', icon: 'energy', amount: 1, note: 'production'}, {direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}],
+  } as ActionPreviewBranch;
+}
+
 function arm(card: CardName, branch: ActionPreviewBranch, reactions: Array<{channel: 'stock', resource: string, amount: number}> = []): ActionCommitPlan {
   const rail = commitRailPlan(card, branch, {}, reactions)!;
   const plan: ActionCommitPlan = {
@@ -79,13 +87,13 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
   });
 
   describe('SEED — the promise against the views, once', () => {
-    it('UNMI: the TR held (and with it the VP cell), the M€ cost known, the Greens\' answer held after it', () => {
+    it('UNMI: the TR held (and with it the VP cell), the price held until it LEAVES, the Greens\' answer held after it', () => {
       arm(UNMI, unmiBranch(), [{channel: 'stock', resource: 'megacredits', amount: 2}]);
-      // −3 (the cost, known) + 2 (the Greens' answer): the row moved by −1.
+      // −3 (the price — the chain's first link, PL-099) + 2 (the Greens' answer): the row moved by −1.
       seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 19}));
       expect(actionCommitRailState.phase).eq('seeded');
       expect(heldStock(RATING_RAIL_KEY)).eq(1);
-      expect(heldStock('megacredits'), 'the answer is held; the cost ticks with the commit').eq(2);
+      expect(heldStock('megacredits'), 'the answer (+2) held and the price (−3) held, signed: the row reads 20 until the first token moves').eq(-1);
     });
 
     it('a view that does not keep the promise holds NOTHING and names itself', () => {
@@ -122,9 +130,9 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
   });
 
   describe('FLY — the links in the printed order', () => {
-    it('a plain TR may fold at once; its row ticks on the flight', async () => {
-      const plan = arm(UNMI, unmiBranch());
-      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 17}));
+    it('a plain TR (no price — a production cost is the plate\'s number) may fold at once; its row ticks on the flight', async () => {
+      const plan = arm(UNMI, plainTrBranch());
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 20}));
       const flight = flyActionCommitRail(plan);
       let folded = false;
       void flight.foldable.then(() => {
@@ -134,6 +142,25 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       expect(folded, 'nothing of the card is a target or a source').is.true;
       await flight.done;
       expect(heldStock(RATING_RAIL_KEY)).eq(0);
+      expect(actionCommitRailState.phase).eq('idle');
+    });
+
+    it('PL-099 — THE PRICE ON THE RAIL IS A DEPARTURE: UNMI\'s 3 M€ leave the row first (it ticks on the departure), the TR after; the surface stands until the TR is born', async () => {
+      const plan = arm(UNMI, unmiBranch());
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 17}));
+      expect(actionCommitRailState.phase).eq('seeded');
+      const shown = () => `mc${17 - heldStock('megacredits')}|tr${21 - heldStock(RATING_RAIL_KEY)}`;
+      const seen: Array<string> = [shown()];
+      const stop = watch(shown, (now) => seen.push(now), {flush: 'pre'});
+      const flight = flyActionCommitRail(plan);
+      let foldedAt = '';
+      void flight.foldable.then(() => {
+        foldedAt = seen[seen.length - 1];
+      });
+      await flight.done;
+      stop();
+      expect(seen, 'the row reads 20, then 17 on the departure, the rating only after').deep.eq(['mc20|tr20', 'mc17|tr20', 'mc17|tr21']);
+      expect(foldedAt, 'the surface stood while the card was absorbing the price').not.eq('mc20|tr20');
       expect(actionCommitRailState.phase).eq('idle');
     });
 

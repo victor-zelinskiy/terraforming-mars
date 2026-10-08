@@ -920,7 +920,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {actionCommitRailHoldsCapsule, actionCommitRailState} from '@/client/console/consoleActionCommitRail';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
-import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, resolveResultIcon, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
+import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, resolveResultIcon, resolveSpendIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -4954,8 +4954,12 @@ export default defineComponent({
         (railPlan.reward.cause.some((spec) => spec.resource === RATING_RAIL_KEY) ? resolveResultIcon(anchors, 'rating')?.getBoundingClientRect() : absorbRect) :
         undefined;
       const spendLinks = new Set(railPlan?.spendLinks ?? []);
+      // A CARD's spend is absorbed at the result icon (TR29); a PRICE off the RAIL lands on the printed icon of
+      // that very cost in the variant's cost cluster (the rail-spend law) — «the plant goes in there».
+      const costPoints = railPlan !== undefined && anchors !== undefined ? resolveSpendIconOrigins(anchors, railPlan.reward.cause) : [];
       const railOrigins = railPlan === undefined ? [] : anchors !== undefined ?
-        resolveGainIconOrigins(anchors, railPlan.reward.cause).map((origin, i) => (spendLinks.has(i) ? absorb : origin)) :
+        resolveGainIconOrigins(anchors, railPlan.reward.cause).map((origin, i) =>
+          (spendLinks.has(i) ? (railPlan.reward.cause[i].channel === 'card-resource' ? absorb : (costPoints[i] ?? absorb)) : origin)) :
         railPlan.reward.cause.map(() => undefined);
       armActionCommit({
         sourceCard: this.entry.cardName,

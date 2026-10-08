@@ -529,6 +529,16 @@ function sourceStepsOf(branch: ActionPreviewBranch, stepResponses: Readonly<Reco
  * Only a card of the viewer's OWN (its counter is in the views the rail checks
  * and on this surface — an opponent's card is an attack's business). A TIMELINE
  * (TR28 — a gain onto the card first) owns its spend already: none here.
+ *
+ * …AND A PRICE ON THE RAIL IS A DEPARTURE TOO (the owner's decision, 2026-10-08
+ * — the rail walk): a STOCK cost chip of the branch (Electro Catapult's plant
+ * or steel, Space Mirrors' 7 M€, UNMI's 3 M€, Caretaker Contract's 8 heat) is
+ * a link of the `stock` channel flying `loss` — born on its row's digits, absorbed
+ * at the variant's printed COST icon, the row ticking on the departure; the
+ * result is born only after it. A cost a PAYMENT STEP settled is read as the
+ * rows the player actually paid from (steel or titanium for M€ — each row its
+ * own token), in place of the M€ chip. A production cost is the plate's own
+ * number, never a token; a cost chip with a note is somebody else's statement.
  */
 export function spendLinkSpecs(
   cardName: CardName,
@@ -543,9 +553,35 @@ export function spendLinkSpecs(
   const out: Array<ResourceTransferSpec> = [];
   const sources = sourceStepsOf(branch, stepResponses, ctx);
   const claimed = new Set<SourceStep>();
+  const payments = Object.values(stepResponses)
+    .map((r) => r as {type?: string, payment?: Payment} | undefined)
+    .filter((r): r is {type: 'payment', payment: Payment} => r?.type === 'payment' && r.payment !== undefined);
+  let paymentSpent = false;
   for (const e of branch.effects ?? []) {
-    if (e.direction !== 'cost' || e.amount <= 0 || e.unit !== undefined || isStandardResource(e.icon) ||
+    if (e.direction !== 'cost' || e.amount <= 0 || e.unit !== undefined ||
         e.icon === 'resources' || e.icon === 'tr' || e.icon === 'cards') {
+      continue;
+    }
+    if (isStandardResource(e.icon)) {
+      if (e.note !== undefined) {
+        continue; // a production cost (the plate's own number) or another host's statement
+      }
+      if (e.icon === 'megacredits' && payments.length > 0) {
+        // The payment settles this chip: the rows it was paid from leave, once, in the payment's own order.
+        if (!paymentSpent) {
+          paymentSpent = true;
+          for (const {payment} of payments) {
+            for (const resource of PAYMENT_RAIL_ROWS) {
+              const amount = payment[resource] ?? 0;
+              if (amount > 0) {
+                out.push({channel: 'stock', resource, amount, direction: 'loss'});
+              }
+            }
+          }
+        }
+        continue;
+      }
+      out.push({channel: 'stock', resource: e.icon, amount: e.amount, direction: 'loss'});
       continue;
     }
     if (e.note === 'on this card') {
@@ -571,6 +607,18 @@ export function spendLinkSpecs(
       continue;
     }
     out.push({channel: 'card-resource', resource: source.step.cardResource, amount: Math.abs(source.step.amount ?? 0), targetCard: card, direction: 'loss'});
+  }
+  // A price the branch states ONLY as a payment step (Water Import From Europa: no cost chip, the step is the
+  // price): the captured payment's rows leave the rail the same way — each its own token, in the payment's order.
+  if (!paymentSpent && payments.length > 0) {
+    for (const {payment} of payments) {
+      for (const resource of PAYMENT_RAIL_ROWS) {
+        const amount = payment[resource] ?? 0;
+        if (amount > 0) {
+          out.push({channel: 'stock', resource, amount, direction: 'loss'});
+        }
+      }
+    }
   }
   return out;
 }
@@ -667,12 +715,13 @@ export function commitRailPlan(
     links.push(last.map((_, i) => cause.length + i));
     cause.push(...last);
   }
-  // The rows the CHAIN now carries are its own promise, never a «known» move beside it.
+  // The rows the CHAIN now carries are its own promise, never a «known» move beside it: the result's gains and —
+  // the rail-spend law — the prices that LEAVE a row (a loss link's row would otherwise be counted twice).
   const known = actionKnownRailMoves(branch, stepResponses);
-  for (const spec of result) {
+  for (const spec of [...result, ...spends]) {
     if (spec.channel === 'stock' || spec.channel === 'production') {
       const row = railRowKey(spec);
-      const left = (known[row] ?? 0) - spec.amount;
+      const left = (known[row] ?? 0) - (spec.direction === 'loss' ? -spec.amount : spec.amount);
       if (left === 0) {
         delete known[row];
       } else {

@@ -115,6 +115,8 @@ export type ActionCommitAnchors = {
   groupEl?: HTMLElement;
   /** The variant's RESULT cluster (icons live here). */
   resultEl?: HTMLElement;
+  /** The variant's COST cluster — the part(s) BEFORE the result: where a price's token is absorbed (the rail-spend law). */
+  costEl?: HTMLElement;
 };
 
 function iconMatches(el: HTMLElement, key: string): boolean {
@@ -156,11 +158,14 @@ export function resolveActionCommitAnchors(
   }
   groupEl = groupEl ?? measurable(cardEl.querySelector<HTMLElement>('.pcard__mech'));
   let resultEl: HTMLElement | undefined;
+  let costEl: HTMLElement | undefined;
   if (groupEl !== undefined) {
     const parts = groupEl.querySelectorAll<HTMLElement>('.pcard-effect__part');
     resultEl = measurable(parts.length > 0 ? parts[parts.length - 1] : undefined) ?? groupEl;
+    // The cost cluster is the FIRST part of a two-sided row («[plant] → [7 M€]»); a one-part row prints no price.
+    costEl = parts.length > 1 ? measurable(parts[0]) : undefined;
   }
-  return {cardEl, groupEl, resultEl};
+  return {cardEl, groupEl, resultEl, costEl};
 }
 
 /** The result icon of the commit's landing, by category. */
@@ -213,7 +218,23 @@ export function resolveGainIconOrigins(
   anchors: ActionCommitAnchors,
   specs: ReadonlyArray<ResourceTransferSpec>,
 ): Array<TransferPoint | undefined> {
-  const scope = anchors.resultEl ?? anchors.groupEl ?? anchors.cardEl;
+  return resolveIconPoints(anchors.resultEl ?? anchors.groupEl ?? anchors.cardEl, specs);
+}
+
+/**
+ * Per-spec LANDING points of a PRICE'S tokens (the rail-spend law): a stock cost leaves its rail row and is
+ * absorbed at the printed icon of that resource in the variant's COST cluster — the part before the arrow —
+ * then the whole group (a one-part row), then the card. Same icon grammar as the gains: the k-th token of one
+ * resource on the k-th icon that prints it, a M€ token on the M€ tile that prints its price.
+ */
+export function resolveSpendIconOrigins(
+  anchors: ActionCommitAnchors,
+  specs: ReadonlyArray<ResourceTransferSpec>,
+): Array<TransferPoint | undefined> {
+  return resolveIconPoints(anchors.costEl ?? anchors.groupEl ?? anchors.cardEl, specs);
+}
+
+function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
   const icons = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic'));
   const prod = scope.querySelector<HTMLElement>('.pcard-prod');
   const centerOf = (el: HTMLElement | undefined): TransferPoint | undefined => {
