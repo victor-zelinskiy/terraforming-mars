@@ -196,7 +196,7 @@
                   <!-- the COUNTED OBJECT of a «per space city» rule — the glyph the Parliament's readings draw -->
                   <PremiumCountGlyph v-else-if="formulaCountGlyphs(row).length > 0" class="con-vpx__countglyph" :glyph="formulaCountGlyphs(row)[0]" />
                   <i v-else-if="rowResourceIcon(row) !== ''" class="con-vpx__resicon" :class="rowResourceIcon(row)" aria-hidden="true"></i>
-                  {{ formulaText(row) }}
+                  {{ formulaRowText(row) }}
                 </span>
                 <b class="con-vpx__row-vp">{{ signed(row.vp) }}</b>
               </button>
@@ -335,6 +335,7 @@ import {
   scoreGridNavigate,
   TrProvenanceModel,
   formulaText as scoreFormulaText,
+  formulaRowText as scoreFormulaRowText,
   remainderText as scoreRemainderText,
   formulaTagIcon as scoreFormulaTagIcon,
   formulaGlyph as scoreFormulaGlyph,
@@ -794,6 +795,10 @@ export default defineComponent({
      *  (`scoreExplorerModel.formulaText`), shared with the play composer. */
     formulaText(row: ScoreCardRow): string {
       return scoreFormulaText(row.formula);
+    },
+    /** The row's formula — its own VP cell states the result (PL-098). */
+    formulaRowText(row: ScoreCardRow): string {
+      return scoreFormulaRowText(row.formula);
     },
     remainderText(row: ScoreCardRow): string {
       return scoreRemainderText(row.formula);

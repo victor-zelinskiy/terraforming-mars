@@ -24,6 +24,7 @@ import {
   formulaGlyph,
   formulaCountedCities,
   formulaText,
+  formulaRowText,
   remainderText,
   shortfallText,
   previewCardFit,
@@ -435,6 +436,17 @@ describe('scoreExplorerModel — the victory-points exploration levels', () => {
       expect(formulaText({kind: 'special', vp: 1, counted: 4})).to.eq('Special scoring · 4 stored');
       expect(formulaText({kind: 'special', vp: 1})).to.eq('Special scoring');
       expect(formulaText({kind: 'fact', vp: 12, label: 'x'})).to.eq('');
+    });
+
+    it('a TABLE ROW prints the operands and what is counted — its VP cell states the result (PL-098)', () => {
+      expect(formulaRowText(per({each: 1, per: 1, counted: 4, vp: 4, remainder: undefined, tag: Tag.MARS}))).to.eq('4 × 1 VP · your Mars tags');
+      expect(formulaRowText(per({}))).to.eq('7 / 3 · your Building tags');
+      expect(formulaRowText(per({unit: 'resources', tag: undefined}))).to.eq('7 / 3');
+      expect(formulaRowText(per({each: 2, per: 1, counted: 2, vp: 4, unit: 'cities', tag: undefined, remainder: undefined}))).to.eq('2 × 2 VP · cities in play');
+      // Every other shape keeps its one sentence; the preview column keeps the full formula.
+      expect(formulaRowText({kind: 'fixed', vp: 3})).to.eq(formulaText({kind: 'fixed', vp: 3}));
+      expect(formulaRowText({kind: 'special', vp: 1, counted: 4})).to.eq('Special scoring · 4 stored');
+      expect(formulaText(per({each: 1, per: 1, counted: 4, vp: 4, remainder: undefined, tag: Tag.MARS}))).to.eq('4 × 1 VP = 4 VP · your Mars tags');
     });
 
     it('the remainder (explorer) and its other face, the shortfall (composer) — only past a step, per > 1', () => {

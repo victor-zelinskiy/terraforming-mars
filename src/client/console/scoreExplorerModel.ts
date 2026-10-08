@@ -601,14 +601,19 @@ function unitNounOf(f: Extract<ScoreFormula, {kind: 'per'}>): string | undefined
   return UNIT_NOUN[f.unit];
 }
 
+/** « · ваши метки Марса» — the counted noun as a tail, or '' when the formula has none. */
+function unitTailOf(f: Extract<ScoreFormula, {kind: 'per'}>): string {
+  const noun = unitNounOf(f);
+  return noun !== undefined ? ` · ${translateText(noun)}` : '';
+}
+
 /** The formula in the row's own words — never one universal sentence. */
 export function formulaText(f: ScoreFormula): string {
   switch (f.kind) {
   case 'fixed':
     return translateTextWithParams('Printed VP: ${0}', [String(f.vp)]);
   case 'per': {
-    const noun = unitNounOf(f);
-    const unitTail = noun !== undefined ? ` · ${translateText(noun)}` : '';
+    const unitTail = unitTailOf(f);
     const args = (parts: Array<string | number>) => parts.map(String);
     if (f.per === 1 && f.each === 1) {
       return translateTextWithParams('${0} × 1 VP = ${1} VP', args([f.counted, f.vp])) + unitTail;
@@ -652,6 +657,16 @@ export function formulaOperandsText(f: ScoreFormula): string {
     return translateTextWithParams('${0} × ${1} VP', [String(f.counted), String(f.each)]);
   }
   return `${f.counted} × ${f.each} / ${f.per}`;
+}
+
+/**
+ * The formula of a TABLE ROW (PL-098, the owner's decision 2026-10-08): the
+ * row's own VP cell states the result, so a `per` formula prints its operands
+ * and what is counted — «4 × 1 ПО · ваши метки Марса … 4», never the number a
+ * third time. The preview column has no VP cell and keeps `formulaText`.
+ */
+export function formulaRowText(f: ScoreFormula): string {
+  return f.kind === 'per' ? formulaOperandsText(f) + unitTailOf(f) : formulaText(f);
 }
 
 /** «N toward the next VP» — the units already gathered past the last step (per > 1, remainder > 0). */

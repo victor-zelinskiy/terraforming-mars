@@ -396,13 +396,18 @@ for (const preset of PRESETS) {
       await key(page, 'Enter', 1200);
       await expect(page.locator('.con-vpx__table')).toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Карты.*Условные/i);
-      // Ganymede Colony: «N × 1 ПО = N ПО» — ITS OWN live formula (N = the
-      // jovian count, which the random corporation may raise — the deal is
-      // not reproducible, so the probe reads the row's own value).
+      // Ganymede Colony: ITS OWN live formula (N = the jovian count, which the
+      // random corporation may raise — the deal is not reproducible, so the
+      // probe reads the row's own value). The ROW says «N × 1 ПО · ваши метки
+      // Юпитера» and lets its VP cell state the result (PL-098); the preview
+      // column, which has no VP cell, keeps «= N ПО».
       await expect(page.locator('.con-vpx__row').first()).toContainText('Колония на Ганимеде');
       const ganyVp = Number(((await page.locator('.con-vpx__row').first().locator('.con-vpx__row-vp').textContent()) ?? '').trim());
       expect(ganyVp).toBeGreaterThanOrEqual(3);
       await expect(page.locator('.con-vpx__row-formula').first())
+        .toContainText(new RegExp(`${ganyVp}\\s*×\\s*1\\s*ПО\\s*·\\s*ваши метки Юпитера`));
+      await expect(page.locator('.con-vpx__row-formula').first(), 'the row never prints its result twice').not.toContainText('=');
+      await expect(page.locator('.con-vpx__preview-formula'))
         .toContainText(new RegExp(`${ganyVp}\\s*×\\s*1\\s*ПО\\s*=\\s*${ganyVp}\\s*ПО`));
       // The preview column shows the REAL premium card of the focused row.
       await expect(page.locator('.con-vpx__preview-card .pcard')).toHaveCount(1);
