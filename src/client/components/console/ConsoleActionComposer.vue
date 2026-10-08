@@ -1300,11 +1300,11 @@ export default defineComponent({
       /** The running release's identity — a later edge (B, the end) voids a release still waiting for the rise. */
       parliamentReleaseToken: 0,
       /**
-       * THE DATA ON THE CARD AS THE PLAYER PRESSED A (a staged action vote): the hero's capsule reads it until the
-       * cube LIFTS OFF the reserve — the price is paid with the delegate, so the count drops on that motion, never
-       * on the packet. Undefined outside such a commit.
+       * THE CARD'S RESOURCE COUNT AS THE PLAYER PRESSED A (a staged action vote — TR15's data, TR34's mechs: whatever
+       * the card stores): the hero's capsule reads it until the cube LIFTS OFF the reserve — the price is paid with
+       * the delegate, so the count drops on that motion, never on the packet. Undefined outside such a commit.
        */
-      stagedVoteDataHeld: undefined as number | undefined,
+      stagedVoteCapsuleHeld: undefined as number | undefined,
       /** A staged action vote of THIS card has been confirmed in the Parliament (its step leaves with the workspace). */
       stagedVoteSent: false,
       /** The reveal phase's visual stage: face down → face first shown
@@ -1879,8 +1879,8 @@ export default defineComponent({
      *  gain beat lands, the live tableau value everywhere else. */
     displayedStoredCount(): number {
       const live = this.storedResource?.count ?? 0;
-      if (this.stagedVoteDataHeld !== undefined) {
-        return this.stagedVoteDataHeld;
+      if (this.stagedVoteCapsuleHeld !== undefined) {
+        return this.stagedVoteCapsuleHeld;
       }
       if (this.deckCheckOn && !this.revealGainApplied && this.revealResBaseline !== undefined) {
         return this.revealResBaseline;
@@ -2708,23 +2708,25 @@ export default defineComponent({
       },
     },
     // THE MODE'S A FOR THIS CARD (a staged action vote): the commit is this card's — its beat plays on the hero
-    // (the impulse runs the variant's printed row onto its delegate), the CTA locks, and the capsule keeps the data
+    // (the impulse runs the variant's printed row onto its delegate), the CTA locks, and the capsule keeps the count
     // the player pressed with until the cube lifts off the reserve. A refusal (the transport's abort battery
     // cleared `committing` with the arm standing) gives everything back; the flow's end releases the hold.
+    // The watcher is keyed by the STEP'S KIND (the arm's target is a resolution — `stagedVoteOf`), never by the
+    // price's icon: data, mechs and fighters take the same road.
     stagedVoteCommitMine(now: boolean, was: boolean): void {
       if (now && !was) {
         this.stagedVoteSent = true;
-        this.stagedVoteDataHeld = this.storedResource?.count;
+        this.stagedVoteCapsuleHeld = this.storedResource?.count;
         this.submitting = true;
         const branch = this.selectedBranch;
         if (branch !== undefined) {
-          // The data leave WITH the cube (the Parliament's own flight), never as a rail link of this commit.
+          // The price leaves WITH the cube (the Parliament's own flight), never as a rail link of this commit.
           this.playCommitBeat(branch, {spendDepartsElsewhere: true});
         }
         return;
       }
       if (was && !now) {
-        this.stagedVoteDataHeld = undefined;
+        this.stagedVoteCapsuleHeld = undefined;
         const arm = stagedPlayState.arm;
         if (stagedVoteOf(arm) !== undefined && arm?.cardName === this.entry.cardName) {
           this.stagedVoteSent = false;
@@ -2734,7 +2736,7 @@ export default defineComponent({
     },
     stagedVoteCubeGone(gone: boolean): void {
       if (gone && this.stagedVoteSent) {
-        this.stagedVoteDataHeld = undefined;
+        this.stagedVoteCapsuleHeld = undefined;
       }
     },
     colonyStepOn: {

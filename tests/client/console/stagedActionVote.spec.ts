@@ -6,7 +6,7 @@ import {TileType} from '@/common/TileType';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {SelectPartyModel} from '@/common/models/PlayerInputModel';
-import {clearStagedPlay, StagedPlayArm, stagedStepHost} from '@/client/console/stagedPlay';
+import {armStagedPlay, clearStagedPlay, markStagedPlayCommitting, StagedPlayArm, stagedStepHost} from '@/client/console/stagedPlay';
 import {emptyParliamentView} from '@/client/console/parliament/consoleParliamentModel';
 import {parliamentCommandsOf, stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
 import {parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
@@ -177,6 +177,114 @@ describe('ConsoleActionComposer — the vote door of a card\'s action', () => {
     await w.vm.$nextTick();
     expect(vm.voteEntryDoor).to.eq(undefined);
     expect(vm.commitVerbKey).to.eq('Select this action');
+    w.unmount();
+  });
+});
+
+/**
+ * TR34 MARS ARMY MECHS — the same door with a MECH as the price (the census module's spec {mech · 1 energy · 1}):
+ * the receipt is the card's own cost chip whatever it is in, the capsule hold is the card's COUNT (named for no
+ * resource), and the commit watcher is keyed by the step's KIND — a resolution target — never by the price's icon.
+ */
+const MECH_GRANT: SelectPartyModel = {
+  ...GRANT,
+  choiceContext: {source: {kind: 'card', card: CardName.MARS_ARMY_MECHS}, mode: 'reward'},
+} as unknown as SelectPartyModel;
+const MECH_STAGED: StagedVoteModel = {prompt: MECH_GRANT, sourceCard: CardName.MARS_ARMY_MECHS};
+
+const MECH_PLAYER_VIEW: any = {
+  ...PLAYER_VIEW,
+  thisPlayer: {...PLAYER_VIEW.thisPlayer, energy: 1, tableau: [{name: CardName.MARS_ARMY_MECHS, resources: 1}]},
+};
+
+const MECH_PREVIEW: any = {
+  card: CardName.MARS_ARMY_MECHS,
+  kind: 'bespoke',
+  branches: [
+    {index: 0, title: 'Pay 1 energy to add a mech resource to this card', available: true, renderKeys: ['0'],
+      effects: [
+        {direction: 'cost', icon: 'energy', amount: 1, current: 1, resulting: 0},
+        {direction: 'gain', icon: 'mech', amount: 1, current: 1, resulting: 2, note: 'on this card'},
+      ], steps: []},
+    {index: 1, title: 'Spend 1 mech from here to add a delegate to a resolution', available: true, renderKeys: ['1'],
+      effects: [
+        {direction: 'cost', icon: 'mech', amount: 1, current: 1, resulting: 0, note: 'on this card'},
+        {direction: 'cost', icon: 'delegate', amount: 1, current: 6, resulting: 5, note: 'from the reserve'},
+      ],
+      steps: [{kind: 'delegateGrant', staged: MECH_STAGED}]},
+  ],
+  preSteps: [],
+};
+
+function mechFactory() {
+  return mount(ConsoleActionComposer, {
+    ...globalConfig,
+    global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+    props: {
+      playerView: MECH_PLAYER_VIEW,
+      entry: {
+        group: {key: CardName.MARS_ARMY_MECHS, cardName: CardName.MARS_ARMY_MECHS, isCorporation: false, isDisabled: false,
+          nodes: [{key: 'a', actionNode: undefined, renderRoot: undefined, text: undefined}, {key: 'b', actionNode: undefined, renderRoot: undefined, text: undefined}]},
+        cardName: CardName.MARS_ARMY_MECHS,
+        isCorporation: false,
+        state: {status: 'available', activatable: true, reasons: [], softReason: undefined},
+      } as any,
+      preview: MECH_PREVIEW,
+      nodeIndex: 1,
+      repeatPickDisabled: false,
+      publishCommands: true,
+      commitLabel: 'Confirm action',
+    },
+  });
+}
+
+describe('ConsoleActionComposer — the vote door of TR34 (a mech as the price)', () => {
+  afterEach(() => {
+    clearStagedPlay();
+    resetWorkspaceStack();
+    resetParliamentFlow();
+  });
+
+  it('A is no door (its energy price leaves on the rail); B is the Parliament\'s door with the receipt «Карта · 1 [mech]»', async () => {
+    enterWorkspace('card-actions');
+    const w = mechFactory();
+    const vm = w.vm as any;
+    vm.selectedPos = 0;
+    await w.vm.$nextTick();
+    expect(vm.voteEntryDoor, 'the paid A is an ordinary commit').to.eq(undefined);
+    vm.selectedPos = 1;
+    await w.vm.$nextTick();
+    expect(vm.voteEntryDoor).to.deep.eq(MECH_STAGED);
+    expect(vm.commitVerbKey).to.eq('Choose the resolution');
+    vm.submit();
+    await w.vm.$nextTick();
+    expect(w.emitted('confirm'), 'nothing on the wire').to.eq(undefined);
+    const staged = (w.emitted('staged-vote') as Array<Array<any>>)[0][0];
+    expect(staged.receipt, 'ONE mech, in the card\'s own unit — never the delegate').to.deep.eq({amount: 1, icon: 'mech'});
+    expect(staged.staged.sourceCard).to.eq(CardName.MARS_ARMY_MECHS);
+    w.unmount();
+  });
+
+  it('the capsule hold is the card\'s COUNT, whatever it stores: 1 mech held from the mode\'s A until the cube lifts off the reserve', async () => {
+    enterWorkspace('card-actions');
+    const w = mechFactory();
+    const vm = w.vm as any;
+    vm.selectedPos = 1;
+    await w.vm.$nextTick();
+    expect(vm.displayedStoredCount, 'the live count before the press').to.eq(1);
+    // The mode's A: the arm (a RESOLUTION target — the kind, not the icon, is what the watcher reads) goes committing.
+    armStagedPlay({flow: 'action', cardName: CardName.MARS_ARMY_MECHS, isEvent: false, batch: [], target: {kind: 'resolution', vote: MECH_STAGED}, draws: 0, deckCheck: false, yieldedStack: false});
+    markStagedPlayCommitting();
+    await w.vm.$nextTick();
+    expect(vm.stagedVoteSent).to.eq(true);
+    expect(vm.stagedVoteCapsuleHeld, 'the count the player pressed with').to.eq(1);
+    expect(vm.displayedStoredCount).to.eq(1);
+    // The cube lifts off the reserve: the hold releases on that motion.
+    parliamentFlow.stage = 'landed';
+    parliamentFlow.sourceLeavingCount = 0;
+    await w.vm.$nextTick();
+    expect(vm.stagedVoteCubeGone).to.eq(true);
+    expect(vm.stagedVoteCapsuleHeld, 'released with the cube').to.eq(undefined);
     w.unmount();
   });
 });
