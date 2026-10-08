@@ -513,7 +513,6 @@ function describeSpaceBonus(bonus: SpaceBonus, count: number): BonusDescription 
   case SpaceBonus.SCIENCE: return {title: 'Add to a card', deferred: true, delta: gain('science')};
   case SpaceBonus.ASTEROID: return {title: 'Add to a card', deferred: true, delta: gain('asteroid')};
   case SpaceBonus.OCEAN: return {title: 'Place an ocean tile', deferred: true, description: 'Pay M€ to place an ocean tile from this bonus'};
-  case SpaceBonus.TEMPERATURE:
   case SpaceBonus.TEMPERATURE_4MC: return {title: 'Raise temperature', deferred: true, description: 'Pay M€ to raise temperature one step (+1 TR)'};
   case SpaceBonus.COLONY: return {title: 'Build a colony', deferred: true, description: 'Pay M€ to build a colony'};
   case SpaceBonus.DELEGATE: return {title: 'Send a delegate', deferred: true};

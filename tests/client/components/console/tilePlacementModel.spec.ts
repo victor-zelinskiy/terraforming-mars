@@ -41,7 +41,7 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
     it('carries ONLY panel stock resources — cards / oceans / card-resources ride their own flows', () => {
       const out = placementBonuses([
         SpaceBonus.DRAW_CARD, SpaceBonus.OCEAN, SpaceBonus.ANIMAL, SpaceBonus.MICROBE,
-        SpaceBonus.TEMPERATURE, SpaceBonus.ENERGY_PRODUCTION, SpaceBonus.DELEGATE,
+        SpaceBonus.TEMPERATURE_4MC, SpaceBonus.ENERGY_PRODUCTION, SpaceBonus.DELEGATE,
         SpaceBonus.TITANIUM,
       ]);
       expect(out).to.have.length(1);

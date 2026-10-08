@@ -24,7 +24,7 @@ export const SPACE_BONUS_RGB: Record<SpaceBonus, string> = {
   [SpaceBonus.DATA]: '150,196,240',
   [SpaceBonus.SCIENCE]: '190,190,210',
   [SpaceBonus.ENERGY_PRODUCTION]: '244,214,96',
-  [SpaceBonus.TEMPERATURE]: '244,128,128',
+  [SpaceBonus._TEMPERATURE_3MC]: '244,128,128', // retired (merged into TEMPERATURE_4MC); saves migrate on load
   [SpaceBonus._RESTRICTED]: '110,110,110',
   [SpaceBonus.ASTEROID]: '196,150,110',
   [SpaceBonus.DELEGATE]: '208,160,220',
@@ -49,7 +49,7 @@ export const SPACE_BONUS_GLYPHS: Record<SpaceBonus, string> = {
   [SpaceBonus.DATA]: '<circle cx="6.5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="17.5" cy="12" r="1.6" fill="currentColor"/><rect x="3" y="6.5" width="18" height="11" rx="2.4" stroke="currentColor" stroke-width="1.8" fill="none"/>',
   [SpaceBonus.SCIENCE]: stroke('M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18 A1.8 1.8 0 0 0 6.6 20.5 H17.4 A1.8 1.8 0 0 0 19 18 L13.5 9 V3.5'),
   [SpaceBonus.ENERGY_PRODUCTION]: '<rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/>' + stroke('M13 6.5 L8 13 H11.5 L11 17.5 L16 11 H12.5 Z', 1.7),
-  [SpaceBonus.TEMPERATURE]: stroke('M12 4 V15 M12 4 A2.2 2.2 0 0 1 14.2 6.2 V14 A4 4 0 1 1 9.8 14 V6.2 A2.2 2.2 0 0 1 12 4 Z', 1.8),
+  [SpaceBonus._TEMPERATURE_3MC]: '', // retired (merged into TEMPERATURE_4MC)
   [SpaceBonus._RESTRICTED]: stroke('M5 5 L19 19 M19 5 L5 19'),
   [SpaceBonus.ASTEROID]: stroke('M8 4 L16 5 L20 11 L17 19 L9 20 L4 13 Z'),
   [SpaceBonus.DELEGATE]: '<circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5.5 20 C6.5 15.5 9 13.5 12 13.5 C15 13.5 17.5 15.5 18.5 20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
@@ -71,7 +71,6 @@ export const SIGNATURE_BONUSES: ReadonlySet<SpaceBonus> = new Set([
   SpaceBonus.DATA,
   SpaceBonus.SCIENCE,
   SpaceBonus.ENERGY_PRODUCTION,
-  SpaceBonus.TEMPERATURE,
   SpaceBonus.ASTEROID,
   SpaceBonus.DELEGATE,
   SpaceBonus.COLONY,

@@ -376,11 +376,6 @@ export class MarsBoard extends Board {
         return false;
       }
     }
-    if (space.bonus.includes(SpaceBonus.TEMPERATURE) && game.getTemperature() < constants.MAX_TEMPERATURE) {
-      if (!player.canAfford({cost: constants.VASTITAS_BOREALIS_BONUS_TEMPERATURE_COST, tr: {temperature: 1}})) {
-        return false;
-      }
-    }
     if (space.bonus.includes(SpaceBonus.TEMPERATURE_4MC) && game.getTemperature() < constants.MAX_TEMPERATURE) {
       if (!player.canAfford({cost: constants.VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST, tr: {temperature: 1}})) {
         return false;
@@ -569,9 +564,6 @@ export class MarsBoard extends Board {
     let cost = 0;
     if (space.bonus.includes(SpaceBonus.OCEAN) && game.canAddOcean()) {
       cost += constants.HELLAS_BONUS_OCEAN_COST;
-    }
-    if (space.bonus.includes(SpaceBonus.TEMPERATURE) && game.getTemperature() < constants.MAX_TEMPERATURE) {
-      cost += constants.VASTITAS_BOREALIS_BONUS_TEMPERATURE_COST;
     }
     if (space.bonus.includes(SpaceBonus.TEMPERATURE_4MC) && game.getTemperature() < constants.MAX_TEMPERATURE) {
       cost += constants.VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST;
