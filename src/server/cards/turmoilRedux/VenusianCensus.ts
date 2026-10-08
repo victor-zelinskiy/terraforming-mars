@@ -18,7 +18,8 @@ import {GlobalParameterRaise} from '../GlobalParameterRaise';
 import {recordScaleStepReward} from '../scaleStepReward';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
-import {censusAction, censusActionPreview, censusActionRows} from './censusAction';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {censusAction, censusActionPreview, censusActionRows, censusCanAct, censusUnavailableReason, DATA_CENSUS} from './censusAction';
 
 /** The printed rate — data on THIS card per Venus step made. */
 export const VENUSIAN_CENSUS_DATA_PER_STEP = 2;
@@ -100,7 +101,7 @@ export class VenusianCensus extends Card implements IProjectCard, IActionCard {
             // Two data ICONS, as printed (no digit): the face's own reading of «2».
             eb.venus(1, {all}).startEffect.resource(CardResource.DATA, 2);
           }).br;
-          censusActionRows(b);
+          censusActionRows(b, DATA_CENSUS);
         }),
       },
     });
@@ -126,16 +127,21 @@ export class VenusianCensus extends Card implements IProjectCard, IActionCard {
       'Venus is terraformed a step')];
   }
 
-  /** Branch A is always open (rule 6). */
-  public canAct(): boolean {
-    return true;
+  /** Branch A is free, so the action is always open (rule 6) — the module says so, from the spec. */
+  public canAct(player: IPlayer): boolean {
+    return censusCanAct(player, this, DATA_CENSUS);
+  }
+
+  /** …and so there is never a reason (the module's TR66 rule has nothing to name here). */
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    return censusUnavailableReason(player, this, DATA_CENSUS);
   }
 
   public action(player: IPlayer): PlayerInput | undefined {
-    return censusAction(player, this);
+    return censusAction(player, this, DATA_CENSUS);
   }
 
   public actionPreview(player: IPlayer): ActionPreview {
-    return censusActionPreview(player, this);
+    return censusActionPreview(player, this, DATA_CENSUS);
   }
 }

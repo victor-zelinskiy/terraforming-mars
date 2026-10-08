@@ -671,6 +671,7 @@
     "No floaters on this card": "Нет аэростатов на этой карте",
     "No mechs on this card": "На этой карте нет мехов",
     "${0} of 3 data on this card": "На карте ${0} из 3",
+    "${0} of 1 mech on this card": "На карте ${0} из 1",
     "${0} of 2 data on this card": "На карте ${0} из 2",
     "No card to add microbes to": "Нет карты, на которую можно добавить микробов",
     "No colony available to trade with": "Нет колонии для торговли",

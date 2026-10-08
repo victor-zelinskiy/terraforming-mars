@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {
-  CENSUS_ADD_TITLE, CENSUS_DATA_COST, CENSUS_SHORT_DATA_REASON, CENSUS_VOTE_TITLE, censusGrant,
+  CENSUS_ADD_TITLE, CENSUS_DATA_COST, CENSUS_SHORT_DATA_REASON, CENSUS_VOTE_TITLE, censusGrant, DATA_CENSUS,
 } from '../../../src/server/cards/turmoilRedux/censusAction';
 import {POLITICAL_DONATION_NO_DELEGATE_REASON, POLITICAL_DONATION_NO_RESOLUTION_REASON} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {testGame} from '../../TestGame';
@@ -168,7 +168,7 @@ describe('MartianCensus', () => {
     it('checked at the PLAY only: once on the table, the action works whoever rules', () => {
       const t = owned();
       expect(t.parliament.rulingParty()).not.eq(M);
-      expect(t.card.canAct()).is.true;
+      expect(t.card.canAct(t.p1)).is.true;
       t.card.action(t.p1);
       runAllActions(t.game);
       expect(t.card.resourceCount).eq(1);
@@ -416,7 +416,7 @@ describe('MartianCensus', () => {
         throw new Error('no delegateGrant door on B');
       }
       expect(door.staged.sourceCard).eq(CardName.MARTIAN_CENSUS);
-      expect(door.staged.prompt).deep.eq(censusGrant(p1, card).previewSelectParty());
+      expect(door.staged.prompt).deep.eq(censusGrant(p1, card, DATA_CENSUS).previewSelectParty());
       // …field for field the live grant's model.
       const or = cast(card.action(p1), OrOptions);
       cast(or.options[1], SelectOption).cb(undefined);
@@ -457,6 +457,6 @@ describe('MartianCensus', () => {
     const again = reloaded.getPlayerById(t.p1.id);
     const census = again.tableau.get(CardName.MARTIAN_CENSUS);
     expect(census?.resourceCount).eq(5);
-    expect((census as MartianCensus).canAct()).is.true;
+    expect((census as MartianCensus).canAct(again)).is.true;
   });
 });

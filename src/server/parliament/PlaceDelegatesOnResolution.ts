@@ -136,12 +136,25 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     return price === undefined || price.card.resourceCount >= price.count;
   }
 
-  /** The price leaves its card through the recorder (the journal, the stats) — called only with a cube about to land. */
+  /**
+   * The price leaves its card through the recorder (the journal, the stats) — called only with a cube about to
+   * land. The line is the price's OWN («spent 3 [data] from Martian Census for a delegate» — the resource as an
+   * icon token, so the sentence holds for data, mechs and fighters alike), never the generic «removed N
+   * resource(s)» of an attack; a card with no resource type falls back to that generic line.
+   */
   private payPrice(): void {
     const price = this.options.price;
-    if (price !== undefined) {
-      this.player.removeResourceFrom(price.card, price.count, {log: true});
+    if (price === undefined) {
+      return;
     }
+    const resource = price.card.resourceType;
+    if (resource === undefined) {
+      this.player.removeResourceFrom(price.card, price.count, {log: true});
+      return;
+    }
+    this.player.removeResourceFrom(price.card, price.count, {log: false});
+    this.player.game.log('${0} spent ${1} ${2} from ${3} for a delegate', (b) =>
+      b.player(this.player).number(price.count).cardResource(resource).card(price.card));
   }
 
   /** The marked prompt, without its answer — the one construction both the live ask and its read-only twin use. */

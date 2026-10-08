@@ -26,7 +26,8 @@ import {EffectForecastTile} from '../EffectForecastContext';
 import * as placementPreviews from '../placementPreviews';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
-import {censusAction, censusActionPreview, censusActionRows} from './censusAction';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {censusAction, censusActionPreview, censusActionRows, censusCanAct, censusUnavailableReason, DATA_CENSUS} from './censusAction';
 
 /**
  * TR15 — MARTIAN CENSUS («Марсианская перепись»), the thirteenth Turmoil Redux
@@ -103,7 +104,7 @@ export class MartianCensus extends Card implements IProjectCard, IActionCard {
           b.effect('Whenever ANY player places a city on Mars, add a data resource to this card.', (eb) => {
             eb.city({size: Size.SMALL, all}).asterix().startEffect.resource(CardResource.DATA);
           }).br;
-          censusActionRows(b);
+          censusActionRows(b, DATA_CENSUS);
         }),
       },
     });
@@ -149,16 +150,21 @@ export class MartianCensus extends Card implements IProjectCard, IActionCard {
     })];
   }
 
-  /** Branch A is always open (rule 3). */
-  public canAct(): boolean {
-    return true;
+  /** Branch A is free, so the action is always open (rule 3) — the module says so, from the spec. */
+  public canAct(player: IPlayer): boolean {
+    return censusCanAct(player, this, DATA_CENSUS);
+  }
+
+  /** …and so there is never a reason (the module's TR66 rule has nothing to name here). */
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    return censusUnavailableReason(player, this, DATA_CENSUS);
   }
 
   public action(player: IPlayer): PlayerInput | undefined {
-    return censusAction(player, this);
+    return censusAction(player, this, DATA_CENSUS);
   }
 
   public actionPreview(player: IPlayer): ActionPreview {
-    return censusActionPreview(player, this);
+    return censusActionPreview(player, this, DATA_CENSUS);
   }
 }
