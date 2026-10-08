@@ -107,6 +107,9 @@ export class VenusianCensus extends Card implements IProjectCard, IActionCard {
     });
   }
 
+  /** The data here buy DELEGATES (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
+  public readonly resourceRole = {kind: 'delegate'} as const;
+
   /** Rules 2–4 — every Venus step anyone made: +2 data here per step. */
   public onGlobalParameterRaised(cardOwner: IPlayer, raise: GlobalParameterRaise): void {
     if (raise.parameter !== GlobalParameter.VENUS || raise.steps <= 0) {

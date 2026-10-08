@@ -1,8 +1,7 @@
 import {CardModel} from '@/common/models/CardModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
-import {additionalResourceGroups} from '@/client/components/additionalResources/additionalResources';
+import {additionalResourceRoleGroups} from '@/client/components/additionalResources/additionalResources';
 import {marsBotExtraGroups, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
-import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /**
  * The ДОП.РЕСУРСЫ satellite chips of the INSPECTED seat, as the summary
@@ -27,6 +26,7 @@ export function infoExtrasChips(
   if (viewed.isMarsBot === true && automa !== undefined) {
     return marsBotExtraGroups(automa, ctx).map((g) => ({key: g.key, label: g.label}));
   }
-  return additionalResourceGroups(viewed.tableau)
-    .map((g) => ({key: cardResourceKey(g.resource), label: g.resource}));
+  // The role-split groups — the SAME derivation as the satellite's chips, so the ring's addresses are the cells'.
+  return additionalResourceRoleGroups(viewed.tableau)
+    .map((g) => ({key: g.key, label: g.resource}));
 }

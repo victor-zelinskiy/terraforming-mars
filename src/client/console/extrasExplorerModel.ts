@@ -28,6 +28,7 @@
  * PURE: no Vue / DOM / i18n / manifest — unit-tested under the server
  * runner. Labels are English i18n KEYS (card names ARE keys).
  */
+import {HOLDER_ROLE_CAPTION, HolderRole} from '@/client/console/holderRoles';
 import type {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
 import type {AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 import type {MarsBotExtraGroup} from '@/client/components/console/marsBotRailModel';
@@ -107,6 +108,8 @@ export type ExtrasTypeVm = {
   actionCards: number;
   protection?: RailProtectionMark;
   payment?: RailMcBadge;
+  /** The role's caption (an i18n key) when the type is SPLIT by role — the header reads «<resource> · <role>». */
+  roleCaption?: string;
 };
 
 /** What the model needs to know about a card beyond the public model. */
@@ -122,7 +125,8 @@ export type ExtrasCardLookup = (name: string) => {
 export type ExtrasModelInput = {
   /** The canonical type groups (additionalResourceGroups — passed in so
    *  the model stays pure). */
-  groups: ReadonlyArray<AdditionalResourceGroup>;
+  /** …or the role-split groups (`additionalResourceRoleGroups`) — then `key` / `role` / `split` ride along and the type's address and caption follow them. */
+  groups: ReadonlyArray<AdditionalResourceGroup & {key?: string, role?: HolderRole, split?: boolean}>;
   /** The server's per-card VP rows (empty for a hidden opponent). */
   detailsCards: ReadonlyArray<CardVictoryPointsDetail>;
   vpVisible: boolean;
@@ -238,8 +242,10 @@ export function buildExtrasTypes(input: ExtrasModelInput): ReadonlyArray<ExtrasT
       };
     });
     return {
-      key: extrasTypeKey(group.resource),
+      key: group.key ?? extrasTypeKey(group.resource),
       resource: group.resource,
+      // A SPLIT type names its role beside the resource's name (PL-030): «Мехи · делегаты» / «Мехи · деньги».
+      ...(group.split === true && group.role !== undefined && group.role.kind !== 'store' ? {roleCaption: HOLDER_ROLE_CAPTION[group.role.kind]} : {}),
       iconClass: input.iconFor?.(group.resource) ?? '',
       label: group.resource,
       total: group.total,
@@ -250,7 +256,8 @@ export function buildExtrasTypes(input: ExtrasModelInput): ReadonlyArray<ExtrasT
       scoringCards,
       actionCards,
       protection: input.protections?.get(group.resource),
-      payment: input.payments?.get(group.resource),
+      // The tender badge belongs to the PAYMENT role's group alone once the type is split.
+      payment: group.role === undefined || group.role.kind === 'payment' ? input.payments?.get(group.resource) : undefined,
     };
   });
 }

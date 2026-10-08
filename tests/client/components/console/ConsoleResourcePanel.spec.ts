@@ -483,16 +483,37 @@ describe('ConsoleResourcePanel — value badges', () => {
     expect(stormcraft.find('[data-aux-resource] [data-mc-badge]').exists()).to.be.false;
   });
 
-  it('the aggregated-chip aria names the honest spendable split', () => {
+  it('two meanings of one resource are TWO chips (PL-030): the tender with the coin, the storage without — never one number under one coin', () => {
     const w = mountPlayer(
       fakePlayer({}, {tableau: [
         {name: CardName.DIRIGIBLES, resources: 2},
         {name: CardName.STORMCRAFT_INCORPORATED, resources: 3},
       ]}),
       {boardVisible: true});
-    const label = w.find('[data-aux-resource] [data-mc-badge]').attributes('aria-label') ?? '';
-    expect(label).to.contain('2');
-    expect(label).to.contain('5');
+    const cells = w.findAll('[data-aux-resource]');
+    expect(cells.map((c) => c.attributes('data-aux-resource')), 'the tender apart, the storage under the resource\'s own address').to.deep.eq(['floater:payment', 'floater']);
+    expect(cells.map((c) => c.find('.con-res-aux__value').text())).to.deep.eq(['2', '3']);
+    expect(cells[0].find('[data-mc-badge]').exists(), 'the coin on the tender chip').to.be.true;
+    expect(cells[1].find('[data-mc-badge]').exists(), 'no coin on the storage chip').to.be.false;
+    const label = cells[0].find('[data-mc-badge]').attributes('aria-label') ?? '';
+    expect(label).to.contain('3');
+    expect(label, 'the tender chip holds only the tender — no «of» split left to name').not.to.contain(' of ');
+  });
+
+  it('a delegate holder beside the tender (TR34 beside EVA Mechs): the delegate chip wears the delegate badge and names its role', () => {
+    const w = mountPlayer(
+      fakePlayer({}, {tableau: [
+        {name: CardName.EVA_MECHS, resources: 1},
+        {name: CardName.MARS_ARMY_MECHS, resources: 2},
+      ]}),
+      {boardVisible: true});
+    const cells = w.findAll('[data-aux-resource]');
+    expect(cells.map((c) => c.attributes('data-aux-resource'))).to.deep.eq(['mech:payment', 'mech:delegate']);
+    expect(cells[0].find('[data-mc-badge]').exists()).to.be.true;
+    const badge = cells[1].find('[data-role-badge="delegate"]');
+    expect(badge.exists(), 'the delegate badge').to.be.true;
+    expect(badge.attributes('aria-label') ?? '').to.contain('A delegate on a resolution per unit');
+    expect(cells[1].find('[data-mc-badge]').exists(), 'no coin on the delegates chip').to.be.false;
   });
 
   it('a scoring tag carries the VP shield — zero-count cell included', () => {

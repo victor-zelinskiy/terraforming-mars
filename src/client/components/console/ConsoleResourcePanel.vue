@@ -301,6 +301,22 @@
               :wide="c.mcBadge.rates.length > 1"
               :label="c.mcAria ?? ''"
               :scopeKey="player.color" />
+            <!-- A ROLE badge (PL-030): what this chip's resource is FOR when it is not tender — VP (a scoring
+                 holder), delegates (the censuses, TR34), a free trade (TR66) — so a type SPLIT by role reads by
+                 meaning, never one number under one coin. The VP / trade roles wear the shield with a word, the
+                 delegate role the delegate's own sprite. -->
+            <ConsoleValueBadge
+              v-else-if="c.roleBadge !== undefined && c.roleBadge.text !== undefined"
+              variant="vp"
+              class="con-res-aux__mcbadge con-res-aux__rolebadge"
+              :data-role-badge="c.roleBadge.kind"
+              :text="c.roleBadge.kind === 'vp' ? $t(c.roleBadge.text) : c.roleBadge.text"
+              :label="c.roleAria ?? ''"
+              :scopeKey="player.color" />
+            <span v-else-if="c.roleBadge !== undefined" class="con-res-aux__rolebadge con-res-aux__rolebadge--icon"
+                  :data-role-badge="c.roleBadge.kind" role="img" :aria-label="c.roleAria ?? ''">
+              <i class="con-res-aux__roleicon" :class="roleIconClass(c.roleBadge.icon)" aria-hidden="true"></i>
+            </span>
           </span>
           <span class="con-res-aux__value">{{ c.value }}</span>
           <AnimatedMetricValue
@@ -351,7 +367,7 @@ import {energyConversionState} from '@/client/components/feedback/energyConversi
 import {conversionPromptUi} from '@/client/console/conversionPromptUi';
 import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
-import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
+import {additionalResourceRoleGroups, additionalResourceMetricKey, AdditionalResourceRoleGroup} from '@/client/components/additionalResources/additionalResources';
 import {heldStock, heldProduction, heldCardResource, heldVictoryPoints, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardResourceKey, RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {infoModeState} from '@/client/console/infoModeState';
@@ -360,7 +376,9 @@ import {marsBotExtraGroups} from '@/client/components/console/marsBotRailModel';
 import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue';
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
-import {railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
+import {HOLDER_ROLE_CAPTION, HOLDER_ROLE_ICON, HolderRole, holderRoleReading} from '@/client/console/holderRoles';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {MC_CONTEXT_KEYS, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, TagVpBadge} from '@/client/console/railValueModel';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -399,23 +417,26 @@ type AuxCell = {
   protectionAria?: string,
   mcBadge?: RailMcBadge,
   mcAria?: string,
+  /** A ROLE badge (PL-030) — what this chip's resource is for when it is not tender: a shield with a word (VP, trade) or the delegate's own sprite. */
+  roleBadge?: {kind: 'vp' | 'delegate' | 'trade', text?: string, icon?: string},
+  roleAria?: string,
 };
 
-/** RailMcContext → the aria phrase naming WHERE the unit is legal tender. */
-const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
-  'building': 'for cards with a building tag',
-  'space': 'for cards with a space tag',
-  'non-space-ltf': 'for any other card',
-  'any-card': 'for any card',
-  'plant': 'for cards with a plant tag',
-  'plant-or-greenery': 'for cards with a plant tag or the greenery standard project',
-  'venus': 'for cards with a Venus tag',
-  'moon': 'for cards with a Moon tag',
-  'city-or-space': 'for cards with a city or space tag',
-  'building-or-city': 'for cards with a building or city tag',
-  'standard-project': 'for standard projects',
-  'aquifer-asteroid': 'for the aquifer and asteroid standard projects',
-};
+
+/** The role badge a chip wears — none for tender (the coin) and for plain storage. */
+function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
+  switch (role.kind) {
+  case 'vp':
+    return {kind: 'vp', text: 'VP'};
+  case 'trade':
+    // The trade role's glyph is a symbol, not a word — a word would not fit the shield in any language.
+    return {kind: 'trade', text: '⇄'};
+  case 'delegate':
+    return {kind: 'delegate', icon: HOLDER_ROLE_ICON.delegate};
+  default:
+    return undefined;
+  }
+}
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',
@@ -666,8 +687,8 @@ export default defineComponent({
      * derivation the desktop "ДОП. РЕСУРСЫ" panel uses, so the two surfaces
      * stay in lockstep. Empty until the player unlocks a card resource.
      */
-    extraGroups(): ReadonlyArray<AdditionalResourceGroup> {
-      const groups = additionalResourceGroups(this.player.tableau);
+    extraGroups(): ReadonlyArray<AdditionalResourceRoleGroup> {
+      const groups = additionalResourceRoleGroups(this.player.tableau);
       // Reward hold (see `rows`): an in-flight card-resource reward is
       // subtracted until its chip lands on the chosen host / this satellite.
       if (!this.own || !panelRewardHold.active) {
@@ -709,9 +730,12 @@ export default defineComponent({
       }
       return this.extraGroups.map((g): AuxCell => {
         const protection = this.protections.cardResources.get(g.resource);
-        const mcBadge = this.mcBadges.cardBound.get(g.resource);
+        // The tender coin belongs to the PAYMENT role's chip alone; every other named role wears its own badge (PL-030).
+        const mcBadge = g.role.kind === 'payment' ? this.mcBadges.cardBound.get(g.resource) : undefined;
+        // …and a badge exists only where the type is SPLIT — an unsplit chip is the count it always was.
+        const roleBadge = g.split ? roleBadgeOf(g.role) : undefined;
         return {
-          key: cardResourceKey(g.resource),
+          key: g.key,
           iconClass: `card-resource ${cardResourceCSS[g.resource]}`,
           value: g.total,
           metricKey: additionalResourceMetricKey(g.resource),
@@ -719,6 +743,8 @@ export default defineComponent({
           protectionAria: protection !== undefined ? this.auxProtectionAria(g) : undefined,
           mcBadge,
           mcAria: mcBadge !== undefined ? this.auxMcAria(g) : undefined,
+          roleBadge,
+          roleAria: roleBadge !== undefined ? this.auxRoleAria(g) : undefined,
         };
       });
     },
@@ -761,6 +787,9 @@ export default defineComponent({
      * INSIDE its reserved slot — the header's geometry never moves with the
      * digit count.
      */
+    roleIconClass(icon: string | undefined): string {
+      return iconClassFor(icon);
+    },
     wideClass(value: number): string {
       return String(value).length >= 3 ? 'con-score__value--wide' : '';
     },
@@ -895,7 +924,7 @@ export default defineComponent({
      * A chip aggregates every holder, so a PARTIAL mark must name the split —
      * otherwise the shield would claim more than the rules give.
      */
-    auxProtectionAria(group: AdditionalResourceGroup): string {
+    auxProtectionAria(group: AdditionalResourceRoleGroup): string {
       const mark = this.protections.cardResources.get(group.resource);
       if (mark === undefined) {
         return '';
@@ -961,7 +990,21 @@ export default defineComponent({
      * only applies to the enabling card's own stock, so when the two counts
      * differ the label names the honest split (visual stays one clean coin).
      */
-    auxMcAria(group: AdditionalResourceGroup): string {
+    /** The role badge's sentence: the role's caption and what one unit is worth here (PL-030). */
+    auxRoleAria(group: AdditionalResourceRoleGroup): string {
+      const role = group.role;
+      if (role.kind === 'store') {
+        return '';
+      }
+      const caption = translateText(HOLDER_ROLE_CAPTION[role.kind]);
+      const reading = holderRoleReading(role);
+      if (reading === undefined) {
+        return caption;
+      }
+      const line = translateTextWithParams(reading.label, [...(reading.params ?? [])]) + (reading.tail === undefined ? '' : ' ' + translateText(reading.tail));
+      return `${caption} · ${line}`;
+    },
+    auxMcAria(group: AdditionalResourceRoleGroup): string {
       const badge = this.mcBadges.cardBound.get(group.resource);
       if (badge === undefined) {
         return '';

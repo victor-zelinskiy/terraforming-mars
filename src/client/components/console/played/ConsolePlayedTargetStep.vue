@@ -222,9 +222,10 @@
           <span v-if="showsRailCard" class="con-ptsel__railarrow" aria-hidden="true">→</span>
           <span class="con-ptsel__railimpacts">
             <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp"
-                  :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static}]">
+                  :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static, 'con-ptsel__imp--value': imp.value}]">
               <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
-              <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
+              <span class="con-ptsel__imp-label">{{ impactLabel(imp) }}</span>
+              <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ $t(imp.tail) }}</span>
               <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">
                 {{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}
               </b>
@@ -286,7 +287,7 @@ import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleC
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
 import {
@@ -563,6 +564,13 @@ export default defineComponent({
     resetPlayedTargetSelf();
   },
   methods: {
+    /** The impact's label — a resolved name as is, an i18n key translated, with its number params when it has them. */
+    impactLabel(imp: PlayedTargetQuickImpact): string {
+      if (imp.translate === false) {
+        return imp.label;
+      }
+      return imp.params !== undefined ? translateTextWithParams(imp.label, [...imp.params]) : translateText(imp.label);
+    },
     /**
      * THIS STEP'S ROOT ELEMENT — resolved, never cast.
      *

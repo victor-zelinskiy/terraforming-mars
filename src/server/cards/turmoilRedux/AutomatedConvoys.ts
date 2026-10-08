@@ -80,6 +80,9 @@ export class AutomatedConvoys extends Card implements IProjectCard {
     });
   }
 
+  /** The mechs here buy a free TRADE (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
+  public readonly resourceRole = {kind: 'trade'} as const;
+
   private canBuyMechs(player: IPlayer): boolean {
     return player.energy >= ENERGY_COST;
   }

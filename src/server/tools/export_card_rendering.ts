@@ -146,6 +146,11 @@ class CardProcessor {
     if (card.fleetDock !== undefined) {
       clientCard.fleetDock = true;
     }
+    // The card's DECLARED holder role (`common/cards/holderRole.ts` — what its stored resource is for when no
+    // structure tells it): the ДОП. РЕСУРСЫ satellite splits its chips by it, the target step names it.
+    if (card.resourceRole !== undefined) {
+      clientCard.resourceRole = card.resourceRole;
+    }
 
     if (card.requirements) {
       clientCard.requirements = card.requirements;

@@ -3,6 +3,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {holderGroupKey, HolderRole, holderRoleClaims, holderRoleOf} from '@/client/console/holderRoles';
 
 /**
  * Additional (card) resources — the aggregation layer behind the
@@ -154,4 +155,73 @@ export function vpPerResource(name: CardName): number {
 export function accumulatedVp(name: CardName, amount: number): number {
   const s = resourceScoring(name);
   return s === undefined ? 0 : Math.floor((amount * s.each) / s.per);
+}
+
+// ── groups BY ROLE (PL-030 — the satellite's split) ─────────────────────────
+
+/**
+ * A resource type's holders of ONE role — the satellite's chip, the extras
+ * explorer's type and the Info summary's ring all stand on these (the SAME
+ * derivation, so their addresses can never disagree). `key` is the resource's
+ * own key while every holder of the type shares one role (nothing changes for
+ * the one-holder case the whole corpus is), and `resource:role` once the type
+ * is SPLIT — then `split` is true on every group of that resource, so a
+ * consumer can caption the role beside the type's name.
+ */
+export interface AdditionalResourceRoleGroup extends AdditionalResourceGroup {
+  readonly key: string;
+  readonly role: HolderRole;
+  readonly split: boolean;
+}
+
+const roleGroupsMemo = new WeakMap<ReadonlyArray<CardModel>, ReadonlyArray<AdditionalResourceRoleGroup>>();
+
+/**
+ * The ordered holder groups BY RESOURCE AND ROLE: a resource type whose
+ * holders all share one role is one group as before; a type whose holders
+ * differ in role (EVA Mechs' tender beside Mars Army Mechs' delegates) is one
+ * group PER ROLE, each in first-appearance order of its first holder, zeros
+ * included — a chip per MEANING, never one number under one coin.
+ */
+export function additionalResourceRoleGroups(tableau: ReadonlyArray<CardModel>): ReadonlyArray<AdditionalResourceRoleGroup> {
+  const memoized = roleGroupsMemo.get(tableau);
+  if (memoized !== undefined) {
+    return memoized;
+  }
+  type Draft = {resource: CardResource, role: HolderRole, total: number, cards: Array<AdditionalResourceCardEntry>};
+  const drafts: Array<Draft> = [];
+  const byKey = new Map<string, Draft>();
+  const lanesByResource = new Map<CardResource, Set<string>>();
+  for (const card of tableau) {
+    const client = getCard(card.name);
+    const resource = client?.resourceType;
+    if (resource === undefined) {
+      continue;
+    }
+    const role = holderRoleOf(card.name);
+    // A claiming role is its own lane; a VP rule and plain storage share the PLAIN lane (`holderRoleClaims`).
+    const lane = holderRoleClaims(role.kind) ? role.kind : 'plain';
+    const key = `${resource}#${lane}`;
+    let draft = byKey.get(key);
+    if (draft === undefined) {
+      draft = {resource, role, total: 0, cards: []};
+      byKey.set(key, draft);
+      drafts.push(draft);
+    } else if (lane === 'plain' && draft.role.kind !== role.kind) {
+      // The plain lane reads VP only while EVERY holder in it scores — mixed with storage it is storage.
+      draft.role = {kind: 'store'};
+    }
+    const amount = card.resources ?? 0;
+    draft.cards.push({name: card.name, amount, isCorporation: client?.type === CardType.CORPORATION});
+    draft.total += amount;
+    const lanes = lanesByResource.get(resource) ?? new Set<string>();
+    lanes.add(lane);
+    lanesByResource.set(resource, lanes);
+  }
+  const result: Array<AdditionalResourceRoleGroup> = drafts.map((d) => {
+    const split = (lanesByResource.get(d.resource)?.size ?? 1) > 1;
+    return {resource: d.resource, role: d.role, split, key: holderGroupKey(d.resource, d.role, split), total: d.total, cards: d.cards};
+  });
+  roleGroupsMemo.set(tableau, result);
+  return result;
 }

@@ -35,6 +35,7 @@ import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
 import type {FleetDock} from '../colonies/FleetDock';
+import type {DeclaredHolderRole} from '../../common/cards/holderRole';
 import type {GlobalParameterRaise} from './GlobalParameterRaise';
 
 /*
@@ -245,6 +246,13 @@ export interface ICard {
    * `data = {dockedGeneration}` so the fleet standing on it survives a save.
    */
   fleetDock?: FleetDock;
+  /**
+   * WHAT THE RESOURCE STORED HERE IS FOR, when no structure tells it
+   * (`common/cards/holderRole.ts` — PL-030 / PL-075): a resource spent for
+   * a DELEGATE (the census family) or for a TRADE (TR66). A payment unit
+   * and VP per resource are read structurally and declare nothing.
+   */
+  resourceRole?: DeclaredHolderRole;
   /** Called when cards are played. Corps have a different callback */
   onCardPlayed?(player: IPlayer, card: ICard): PlayerInput | undefined | void;
   onCardPlayedByAnyPlayer?(thisCardOwner: IPlayer, card: ICard, activePlayer: IPlayer): PlayerInput | undefined | void;

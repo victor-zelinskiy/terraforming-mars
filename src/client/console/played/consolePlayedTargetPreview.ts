@@ -35,6 +35,7 @@ import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {AdjacencyAmountBasis} from '@/common/models/CardAdjacencyPayoutModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
+import {HOLDER_ROLE_ICON, holderRoleOf, holderRoleReading} from '@/client/console/holderRoles';
 
 /**
  * The server's marker for «this amount lands ON THE CHOSEN CARD», set by
@@ -188,6 +189,18 @@ export function playedTargetPreviewFor(
       // segment to the left, and saying it twice on one line is what makes a
       // status line stop being glanceable.
       impacts.push({label: 'VP', from: vp.from, to: vp.to, static: vp.from === vp.to});
+    }
+    /**
+     * …and WHAT A UNIT IS WORTH ON THIS HOLDER (PL-075 — the TR34 walk). The counter says how many; the VP line says
+     * what they score; neither says that a mech on EVA Mechs is 5 M€ for a Space card and a mech on Mars Army Mechs
+     * is a delegate on a resolution — the whole comparison when choosing where a mech goes. ONE vocabulary with the
+     * satellite's split (`holderRoles.ts`): the role is read off the manifest (a payment unit, a declared delegate /
+     * trade role), never off a card's name; a VP role is already the line above; storage says nothing. A VALUE reading
+     * — it moves nothing and still rides the rail: it IS the comparison.
+     */
+    const reading = holderRoleReading(holderRoleOf(name));
+    if (reading !== undefined) {
+      impacts.push({label: reading.label, params: reading.params, tail: reading.tail, value: true, icon: HOLDER_ROLE_ICON[holderRoleOf(name).kind]});
     }
     out.push({key: 'res', title: 'Target card', entity: 'target', impacts});
   } else if (amount === undefined && input.resourceGainPrompt?.amountBasis !== undefined && model !== undefined) {

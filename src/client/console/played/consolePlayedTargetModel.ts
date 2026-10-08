@@ -79,6 +79,10 @@ export type PlayedTargetImpact = {
   /** i18n key, or an already-resolved proper name when `translate` is false. */
   label: string;
   translate?: boolean;
+  /** The label's `${n}` params (numbers — never words that would need declension). */
+  params?: ReadonlyArray<string>;
+  /** A second phrase after the label, its own i18n key — a payment's «where» (PL-075's value line). */
+  tail?: string;
   /** Resource icon key (`optionIcons.iconClassFor` vocabulary). */
   icon?: string;
   from?: number;
@@ -100,6 +104,13 @@ export type PlayedTargetImpact = {
    * the eye still lands on the candidates where something actually happens.
    */
   static?: boolean;
+  /**
+   * A VALUE reading (PL-075) — what ONE unit is worth on this holder («a delegate on a resolution per unit», «pays
+   * 5 M€ per unit for a Space card»). It moves nothing and is still the comparison the one-line rail exists for:
+   * two candidates with the same counter differ by exactly this. Quiet voice, on the rail — never dropped like a
+   * static «0 → 0».
+   */
+  value?: boolean;
 };
 
 /**
@@ -168,6 +179,9 @@ export function playedTargetQuickImpacts(
  * chip that says nothing while taking the eye off the one that does.
  */
 export function playedTargetImpactMoves(imp: PlayedTargetImpact): boolean {
+  if (imp.value === true) {
+    return true;
+  }
   if (imp.static === true) {
     return false;
   }

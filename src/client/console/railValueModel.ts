@@ -111,7 +111,23 @@ export type RailMcBadges = {
   cardBound: ReadonlyMap<CardResource, RailMcBadge>;
 };
 
-const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext> = {
+/** RailMcContext → the phrase naming WHERE the unit is legal tender (the badge's aria, the target step's value line). */
+export const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
+  'building': 'for cards with a building tag',
+  'space': 'for cards with a space tag',
+  'non-space-ltf': 'for any other card',
+  'any-card': 'for any card',
+  'plant': 'for cards with a plant tag',
+  'plant-or-greenery': 'for cards with a plant tag or the greenery standard project',
+  'venus': 'for cards with a Venus tag',
+  'moon': 'for cards with a Moon tag',
+  'city-or-space': 'for cards with a city or space tag',
+  'building-or-city': 'for cards with a building or city tag',
+  'standard-project': 'for standard projects',
+  'aquifer-asteroid': 'for the aquifer and asteroid standard projects',
+};
+
+export const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext> = {
   microbes: 'plant',
   floaters: 'venus',
   lunaArchivesScience: 'moon',

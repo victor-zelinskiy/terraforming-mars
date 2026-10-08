@@ -9,6 +9,7 @@ import {CountableVictoryPoints} from './CountableVictoryPoints';
 import {VictoryPointsSign} from './victoryPointsIcon';
 import {Tag} from './Tag';
 import {CardDiscount} from './Types';
+import {DeclaredHolderRole} from './holderRole';
 import {OneOrArray} from '../utils/types';
 
 export type ClientCard = Readonly<{
@@ -57,4 +58,6 @@ export type ClientCard = Readonly<{
    * so its tile can stand in the colony workspace outside the trade window.
    */
   fleetDock?: true;
+  /** The card's declared holder role (`holderRole.ts`): its stored resource buys a DELEGATE or a TRADE. */
+  resourceRole?: DeclaredHolderRole;
 }>

@@ -125,6 +125,9 @@ export class MarsArmyMechs extends Card implements IProjectCard, IActionCard {
     });
   }
 
+  /** The mechs here buy DELEGATES (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
+  public readonly resourceRole = {kind: 'delegate'} as const;
+
   /** Rule 4 — at least one variant is live. */
   public canAct(player: IPlayer): boolean {
     return censusCanAct(player, this, MARS_ARMY_MECHS_CENSUS);

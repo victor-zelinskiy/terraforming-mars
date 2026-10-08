@@ -110,6 +110,9 @@ export class MartianCensus extends Card implements IProjectCard, IActionCard {
     });
   }
 
+  /** The data here buy DELEGATES (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
+  public readonly resourceRole = {kind: 'delegate'} as const;
+
   /** Rule 2 — ANY player's city ON MARS (never off Mars, never the Moon): +1 data here. */
   private countsCity(space: Space, boardType: BoardType): boolean {
     return boardType === BoardType.MARS && Board.isCitySpace(space) && space.spaceType !== SpaceType.COLONY;

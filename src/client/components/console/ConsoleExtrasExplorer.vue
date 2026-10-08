@@ -183,7 +183,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {additionalResourceGroups, resourceScoring} from '@/client/components/additionalResources/additionalResources';
+import {additionalResourceRoleGroups, resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {cardHasAction} from '@/client/components/actions/actionExtraction';
 import {railMcBadges} from '@/client/console/railValueModel';
@@ -252,7 +252,7 @@ export default defineComponent({
         return buildBotExtrasTypes(marsBotExtraGroups(automa, marsBotExtrasContext(this.playerView.game)));
       }
       return buildExtrasTypes({
-        groups: additionalResourceGroups(this.viewed.tableau),
+        groups: additionalResourceRoleGroups(this.viewed.tableau),
         detailsCards: this.viewed.victoryPointsBreakdown.detailsCards,
         vpVisible: this.vpVisible,
         lookup: (name) => {
@@ -323,7 +323,10 @@ export default defineComponent({
         'Asteroid': 'Asteroids', 'Seed': 'Seeds', 'Fighter': 'Fighters',
         'Mech': 'Mechs',
       };
-      return translateText(plural[label] ?? label);
+      const title = translateText(plural[label] ?? label);
+      // A type SPLIT by role (PL-030) names the role beside the resource: «Мехи · делегаты» / «Мехи · деньги».
+      const caption = this.selected?.roleCaption;
+      return caption === undefined ? title : `${title} · ${translateText(caption)}`;
     },
     heroSubtitle(): string {
       const sel = this.selected;
