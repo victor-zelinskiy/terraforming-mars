@@ -66,22 +66,49 @@ TR15, 6 M€, ACTIVE, метка Марса, `requirements: {party: PartyName.MA
 Марсианская перепись +1» (проверено глазами на своём городе; после постановки чип «+1» на спутнике ДОП. РЕСУРСЫ,
 сервер 3 → 4).
 
-## 4. Общее действие переписи (A3) — `censusAction.ts`
+## 4. Общее действие переписи (A3) — `censusAction.ts` · МОДУЛЬ СО СПЕКОЙ (с TR34, 2026-10-09)
+
+Одна реализация на ЧЕТЫРЕ карты набора, параметризованная спекой — файл карты называет только своё (ресурс, цена A,
+цена B, четыре печатные строки) и зовёт функции с собой и спекой. Ничего в модуле не называет карту.
 
 ```ts
-export const CENSUS_DATA_COST = 3;
-export function censusGrant(player: IPlayer, card: ICard): PlaceDelegatesOnResolution;          // {kind:'card'}, price {card, count: 3}
-export function censusVoteReason(player: IPlayer, card: ICard): UnplayableReason | undefined;   // правило 6
-export function censusAction(player: IPlayer, card: ICard): PlayerInput | undefined;            // A всегда, B при чистой причине
-export function censusActionPreview(player: IPlayer, card: ICard): ActionPreview;               // две ветки, B с delegateGrantStep
+export type CensusStockPrice = {resource: Resource.ENERGY | Resource.TITANIUM, amount: number};
+export type CensusSpec = {
+  resource: CardResource;                                  // что копит карта — и чем платит за делегата
+  add: {amount: number, price?: CensusStockPrice};         // A: +amount сюда за цену со стока (TR34 / TR35) или бесплатно (TR15 / TR24)
+  votePrice: number;                                       // B: сколько ресурса уходит с карты за ОДНОГО делегата
+  addTitle: string; voteTitle: string;                     // титулы вариантов (ключи i18n — ПО РЕСУРСУ, не шаблон: «N of 3 data» и «N of 1 mech» — разные фразы в RU)
+  shortReason: string;                                     // причина B «${0} of N <ресурс> on this card»
+  rows: {add: string, vote: string};                       // тексты двух печатных рядов (каждый ряд описывает себя)
+};
+export const DATA_CENSUS: CensusSpec;                                      // {DATA · A бесплатно · 3} — TR15 / TR24 (константы CENSUS_* остались)
+export function censusActionRows(b, spec): void;                           // «[цена|∅] → [ресурс] / OR / N [ресурс] → [делегат]» (1 → одна иконка, как у TR66; 3 → цифра)
+export function censusGrant(player, card, spec): PlaceDelegatesOnResolution; // {kind:'card'}, price {card, count: spec.votePrice}
+export function censusAddReason(player, spec): UnplayableReason | undefined;  // цена A: notEnoughEnergy / notEnoughTitanium; без цены — всегда undefined
+export function censusVoteReason(player, card, spec): UnplayableReason | undefined; // правило 6: «N of M» → область голосования → резерв
+export function censusCanAct(player, card, spec): boolean;                 // ⇔ хоть один вариант жив (`canAct` карт — отсюда, не `true`)
+export function censusUnavailableReason(player, card, spec): UnplayableReason | undefined; // оба мертвы — правило TR66: нет ресурса → цена A; есть — что закрыло голосование
+export function censusAction(player, card, spec): PlayerInput | undefined; // A: цена `stock.deduct` → `addResourceTo`; B: грант; один живой — всё действие; два — OrOptions + effectChoice
+export function censusActionPreview(player, card, spec): ActionPreview;    // две ветки: A со `stockCost` при цене + `cardGain`; B `cardCost` + `delegateFromReserve` + `delegateGrantStep`
 ```
 
-Файл карты называет только своё (триггер, требование, метки) и зовёт эти функции с собой — TR24 делает тот же вызов.
-**Два печатных ряда действия тоже общие** — `censusActionRows(b)` (TR24): каждая перепись рисует свой эффект и зовёт её;
-`VenusianCensus.spec` пересобирает билдер TR15 до выноса и сравнивает `renderData` побайтно (лицо TR15 не изменилось).
+| Карта | Спека | A | B | Ключи |
+| --- | --- | --- | --- | --- |
+| TR15 Martian Census · TR24 Venusian Census | `DATA_CENSUS` (в модуле) | +1 data, бесплатно | 3 data → делегат | «Add 1 data resource to this card» · «${0} of 3 data on this card» |
+| TR34 Mars Army Mechs | `MARS_ARMY_MECHS_CENSUS` (в файле карты) | 1 энергия → +1 мех | 1 мех → делегат | ряд A — ключ TR09 дословно; «${0} of 1 mech on this card» |
+| TR35 Mars Army Ships (не сдана) | `{FIGHTER, {titanium: 1}, 1}` — та же декларация, другие константы | 1 титан → +1 истребитель | 1 истребитель → делегат | свои ключи (плюрал RU) |
+
+**TR15 / TR24 не изменились**: `VenusianCensus.spec` пересобирает билдер TR15 до выноса и сравнивает `renderData` побайтно
+(лицо TR15 то же); их спеки прошли без правок ожиданий (только сигнатуры: `canAct(player)`, `censusGrant(…, DATA_CENSUS)`);
+`canAct` обеих — `censusCanAct` (всегда true при бесплатном A), `actionUnavailableReason` — `censusUnavailableReason`
+(всегда undefined там же; гард `actionReasonCoverage` требует хук у `canAct(player)`). Модульность TR35 закреплена спеком
+без карты: `MarsArmyMechs.spec` § «censusAction — ONE module» строит спеку истребителей на `fakeCard` и проверяет ряды
+(титан → истребитель), причины (титан / «0 of 1 fighter»), A и B.
 **`PlaceDelegatesOnResolution` получил опцию `price?: {card, count}`**: `offer()` отказывает, если цены нет; в ответе —
-перечитать резерв → проверить цену → `payPrice()` (снятие с журналом) → `placeVote`; ветка бота платит так же. В файле
-карты нет ни `SelectParty`, ни `placeVote`.
+перечитать резерв → проверить цену → `payPrice()` → `placeVote`; ветка бота платит так же. В файле карты нет ни
+`SelectParty`, ни `placeVote`. **Строка журнала цены — своя** (TR34 A3): «${0} spent ${1} ${2} from ${3} for a delegate»
+с ресурсом-токеном (иконка — одна фраза для data / мехов / истребителей), не общая «removed N resource(s) from X's Y»
+атаки; карта без `resourceType` падает в общую.
 
 ## 5. STAGED ACTION VOTE — четвёртая дверь голосования (B2 · B3)
 
@@ -105,8 +132,11 @@ export function censusActionPreview(player: IPlayer, card: ICard): ActionPreview
 **Композер действия — хост шага.** Зона `[data-embed-slot="action-parliament"]` — ПОСТОЯННЫЙ слой правой колонки
 композера (`.con-composer__parlzone`, `position: absolute; inset: 0`, ввод только `--on`). Композер остаётся
 смонтированным под шагом: B возвращает ту же ветку со всеми захватами; на A в режиме он играет универсальный ACTION
-COMMIT своей карты (`playCommitBeat(branch)` — вынесен из `submit`, один код на обе кнопки) и держит data на капсуле
-(`stagedVoteDataHeld`) до отрыва куба от резерва (`stagedVoteCubeGone` = `landed` ∧ `sourceLeavingCount === 0`).
+COMMIT своей карты (`playCommitBeat(branch)` — вынесен из `submit`, один код на обе кнопки) и держит СЧЁТЧИК карты на
+капсуле (`stagedVoteCapsuleHeld` — переименован из `stagedVoteDataHeld` при TR34: читает `storedResource.count`, каким бы
+ресурс ни был — data, мех, истребитель) до отрыва куба от резерва (`stagedVoteCubeGone` = `landed` ∧
+`sourceLeavingCount === 0`). Наблюдатель коммита ключуется ВИДОМ шага (цель плеча — резолюция, `stagedVoteOf`), не
+значком цены; признак `spendDepartsElsewhere` идёт с ним (юнит `stagedActionVote.spec` § TR34).
 Подтверждение ветки B внутри «Действий карт» эмитит `staged-vote` (батч, staged-модель, квитанция) и НИЧЕГО не
 отправляет; вне staged-границы (повтор, хост — не «Действия карт») ветка коммитится обычно и грант приходит живым (B4).
 `RUNTIME_NAVIGATION_STEP_KINDS` получил `delegateGrant` (строка «ДАЛЕЕ: Резолюция — выбор в Парламенте», CTA «Выбрать
@@ -133,6 +163,26 @@ e2e `console-political-donation` · `console-colony-sponsors` · `console-staged
   `preloadResolutionArt`) — у действия нет ритуала посадки, который грел бы его.
 - **Коммит** — A в режиме: импульс по ряду B на лице к значку делегата; капсула data стоит на 3 до отрыва куба, затем
   3 → 0; куб из стопки резерва на ленту; «Делегат поставлен».
+- **МОМЕНТ ЦЕНЫ — ЦЕНА УХОДИТ ПЕРВОЙ (PL-100, решение владельца 2026-10-09; класс TR15 / TR24 / TR34 / TR35).** Было: капсула
+  падала 3 → 0 (TR34: 1 → 0) в кадр отрыва куба, без жетона, а импульс ряда B и полёт куба шли на двух независимых часах
+  (порядок менялся с латентностью сервера). Стало — одна цепочка на часах мотора: импульс ряда B → **жетон цены** («−3
+  [data]» / «−1 [мех]», семейство токенов Парламента `.con-parl__flight--token` со знаком) рождается своим размером над
+  капсулой героя (`.con-cardactions .con-composer__actcardwrap .pcard__res`), капсула тикает в кадр его ВИДИМОГО отрыва
+  (`parliamentFlow.priceStage = 'departed'` — композер читает `stagedVotePriceGone`), жетон садится на стопку резерва
+  зрителя (`[data-parl-seat-reserve]`), стопка отвечает своей вспышкой (`parliamentFlow.reserveAnswers` → `landFlash` в
+  `ConsoleParliamentSeats`), и только потом куб отрывается от этой же стопки на ленту (`flyPriceThenDelegates` в
+  `ConsoleParliamentVoteMode`, `flyPriceToken` в `parliamentFlights.ts`, `PRICE_FLIGHT_MS` 460). Закон куба цел — он
+  всегда из резерва. Жетон летит ТОЛЬКО у двери с ценой-ресурсом карты (квитанция не M€ и дверь `card`); дверь розыгрыша
+  (M€ — дело оплаты), живая дверь (уже оплачено), reduced motion и неизмеримые места — куб сразу, капсула на его отрыве, как
+  прежде (`priceStage: 'none'`). Холд посадки получает +900 мс бюджета при цене. Гарды: юнит `stagedActionVote.spec`
+  § PL-100 (холд отпускается на `departed`, не на отрыве куба; без жетона — на отрыве куба), e2e
+  `console-martian-census.spec.ts` § 5 (жетон `price…` рождён на капсуле и впитан стопкой, куб стартует после его посадки,
+  капсула 3 → 0 между рождением жетона и стартом куба).
+- **…И СЛОЙ ПОЛЁТОВ НЕСЁТ СВОЙ УРОВЕНЬ САМ (PL-101).** `.con-parl-flightlayer` — `position: fixed`, а fixed открывает контекст
+  наложения и без z-index: с 2026-09-20 слой сидел на уровне 0 `.con-root`, и каждый куб и жетон (этот в том числе) рисовался ПОД
+  `.con-main` и под лентой «Действий карт» при зелёных rect-пробниках. Слой держит `z-index: 11499` сам (над лентами, под барами);
+  свидетель краски — PNG в момент полёта (стенд `tr34-b-token-flight.png`) или `elementsFromPoint` с временно включённым
+  `pointer-events` на прокси.
 - **Уход** — `endCardActionsWithHostedStep`: снять кадр шага, одна охраняемая концовка, `cardActionsLeaveHook` —
   workspace растворяется С Парламентом внутри.
 - **Узкий хост.** Рядом с колонкой героя Парламент уже (fhd 1113 px против ≈ 1650): чтение «+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ①»
