@@ -86,6 +86,29 @@ const GUARDABLE: ReadonlyArray<GuardableAdmissionSignal> = [
 ];
 
 /**
+ * The signals that MIRROR A CINEMATIC — a scene's raw predicate (a hero
+ * landing, a tile landing, a deck deal / a hand delivery, the board card-bonus
+ * lift, a discard flight). Such a signal is honest for exactly as long as its
+ * scene is, and every scene registers an animation hold with its own named
+ * ceiling. So while a LIVE hold stands behind it — and that hold is younger
+ * than every flow's own safety (`ANIMATION_STALL_GRACE_MS`) — the signal is a
+ * working cinematic, not a stuck flag, and the DOM evidence is not yet
+ * meaningful: a card flying into the dock is painted on a flight layer, which
+ * is not a SERVING surface, so «nothing rendered» reads true the whole flight.
+ *
+ * Measured (2026-10-08, PL-093): a verdict's hand delivery stood 4.1 s on a
+ * loaded 4-worker FHD run (it legitimately takes 2.3–3.5 s at 4K unloaded —
+ * lift, 820 ms arc, the dock-pose poll), `cardArrival` stood with it, and the
+ * watchdog expired `admission:cardArrival` + `animation:hand-delivery` on the
+ * third pass and told the player «Экран завис» over a card still landing. A
+ * signal with NO live hold behind it (the stuck-flag shape this watchdog was
+ * built for) keeps the immediate rule.
+ */
+const CINEMATIC_SIGNALS: ReadonlySet<GuardableAdmissionSignal> = new Set<GuardableAdmissionSignal>([
+  'playedHero', 'tileHero', 'cardArrival', 'boardBonus', 'cardDiscard',
+]);
+
+/**
  * A stall must be observed on THIS MANY CONSECUTIVE passes before the watchdog
  * acts. A working hand-off (a reveal dismissing while the hand section mounts, a
  * section switch, a teleport re-homing) can momentarily satisfy all three parts
@@ -249,11 +272,17 @@ function foregroundClaimed(): boolean {
     return false;
   }
   const guarded = guardedAdmissionSignals(lastRaw);
+  // A cinematic's signal is BACKED while a live, named hold stands behind it and is younger than every
+  // flow's own safety — then the scene is working and its signal gets the same grace as the hold itself.
+  const cinematicBacked = !animationClaimIsStale && activeAnimationHoldLabels().length > 0;
   return GUARDABLE.some((key) => {
     if (guarded[key] !== true) {
       return false;
     }
-    return (key !== 'anyAnimation' && key !== 'presentation') || animationClaimIsStale;
+    if (key === 'anyAnimation' || key === 'presentation') {
+      return animationClaimIsStale;
+    }
+    return !(CINEMATIC_SIGNALS.has(key) && cinematicBacked);
   });
 }
 

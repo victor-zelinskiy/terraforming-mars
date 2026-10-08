@@ -315,6 +315,37 @@ describe('consoleForegroundWatchdog', () => {
       expect(tick(STALL_CONFIRM_TICKS * 3, STALLED)).eq(0);
     });
 
+    it('a CINEMATIC signal backed by a LIVE hold is a working scene — a slow hand delivery is not a stall (PL-093)', () => {
+      // 2026-10-08: «Экран завис» over a card still flying into the dock. The verdict's hand delivery stood 4.1 s
+      // on a loaded run (2.3–3.5 s is its ordinary length at 4K), its notification-only hold with it, and the
+      // `cardArrival` signal mirroring that very scene had NO grace at all — the third pass expired both.
+      const hold = beginAnimationHold('watchdog-spec-delivery', {scope: 'notification-only'});
+      noteAdmissionSignals(signals({cardArrival: true, anyAnimation: true}));
+      expect(tick(STALL_CONFIRM_TICKS * 3, STALLED)).eq(0, 'a signal its scene still backs is not a claim');
+      expect(foregroundWatchdogState.expiredSignals.size).eq(0);
+      // The scene ENDED and the flag stayed up: the stuck-flag shape — expired as before.
+      hold.release();
+      noteAdmissionSignals(signals({cardArrival: true}));
+      expect(tick(STALL_CONFIRM_TICKS, STALLED)).eq(1);
+      expect(foregroundWatchdogState.expiredSignals.has('cardArrival')).eq(true);
+    });
+
+    it('…and past every flow\'s own safety the backing hold stops vouching for its signal', () => {
+      const realNow = Date.now;
+      try {
+        let clock = 7_000_000;
+        Date.now = () => clock;
+        beginAnimationHold('watchdog-spec-delivery', {scope: 'notification-only'});
+        noteAdmissionSignals(signals({cardArrival: true, anyAnimation: true}));
+        expect(tick(STALL_CONFIRM_TICKS * 2, STALLED)).eq(0);
+        clock += ANIMATION_STALL_GRACE_MS + 1;
+        expect(tick(STALL_CONFIRM_TICKS, STALLED)).eq(1, 'a hold older than every safety is a leak, signal and all');
+        expect(foregroundWatchdogState.lastDiagnosis).contains('admission:cardArrival');
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
     it('expires an animation hold once it is past EVERY flow\'s own safety', () => {
       const realNow = Date.now;
       try {
