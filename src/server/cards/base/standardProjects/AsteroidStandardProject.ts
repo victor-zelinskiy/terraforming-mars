@@ -1,4 +1,3 @@
-import * as constants from '../../../../common/constants';
 import {IPlayer} from '../../../IPlayer';
 import {CardName} from '../../../../common/cards/CardName';
 import {CardRenderer} from '../../render/CardRenderer';

@@ -68,7 +68,7 @@ export class ConvertPlants extends StandardActionCard {
     if (player.game.board.getAvailableSpacesForGreenery(player).length === 0) {
       return false;
     }
-    if (player.game.getOxygenLevel() === MAX_OXYGEN_LEVEL) {
+    if (player.game.getOxygenLevel() === player.game.max.oxygen) {
       // The level is maximized, and that means you don't have to try to figure out if the
       // player can afford the reds tax when increasing the oxygen level.
       return true;

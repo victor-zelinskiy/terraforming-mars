@@ -8,7 +8,6 @@ import {effectChoice} from '../../inputs/choiceContext';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
-import * as constants from '../../../common/constants';
 import {PartyHooks} from '../../turmoil/parties/PartyHooks';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
@@ -137,10 +136,10 @@ export class Atmoscoop extends Card implements IProjectCard {
   }
 
   private temperatureIsMaxed(game: IGame) {
-    return game.getTemperature() === constants.MAX_TEMPERATURE;
+    return game.getTemperature() === game.max.temperature;
   }
 
   private venusIsMaxed(game: IGame) {
-    return game.getVenusScaleLevel() === constants.MAX_VENUS_SCALE;
+    return game.getVenusScaleLevel() === game.max.venus;
   }
 }

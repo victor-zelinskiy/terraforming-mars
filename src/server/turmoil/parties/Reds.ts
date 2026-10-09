@@ -124,15 +124,15 @@ class RedsPolicy03 implements IPolicy {
     switch (parameter) {
     case GlobalParameter.TEMPERATURE:
       const temp = game.getTemperature();
-      return temp > MIN_TEMPERATURE && temp !== MAX_TEMPERATURE;
+      return temp > MIN_TEMPERATURE && temp !== game.max.temperature;
     case GlobalParameter.OCEANS:
       return game.canRemoveOcean();
     case GlobalParameter.OXYGEN:
       const oxygenLevel = game.getOxygenLevel();
-      return oxygenLevel > MIN_OXYGEN_LEVEL && oxygenLevel !== MAX_OXYGEN_LEVEL;
+      return oxygenLevel > MIN_OXYGEN_LEVEL && oxygenLevel !== game.max.oxygen;
     case GlobalParameter.VENUS:
       const venusScaleLevel = game.getVenusScaleLevel();
-      return game.gameOptions.venusNextExtension === true && venusScaleLevel > MIN_VENUS_SCALE && venusScaleLevel !== MAX_VENUS_SCALE;
+      return game.gameOptions.venusNextExtension === true && venusScaleLevel > MIN_VENUS_SCALE && venusScaleLevel !== game.max.venus;
     case GlobalParameter.MOON_HABITAT_RATE:
       if (game.moonData) {
         const rate = game.moonData.habitatRate;

@@ -91,14 +91,14 @@ export class Executor implements BehaviorExecutor {
       if (g.temperature !== undefined && game.getTemperature() >= MAX_TEMPERATURE && !diverts) {
         card.addWarning('maxtemp');
       }
-      if (g.oxygen !== undefined && game.getOxygenLevel() >= MAX_OXYGEN_LEVEL) {
+      if (g.oxygen !== undefined && game.getOxygenLevel() >= game.max.oxygen) {
         if (g.oxygen < 0) {
           card.addWarning('maxoxygen-reduce');
         } else if (!diverts) {
           card.addWarning('maxoxygen');
         }
       }
-      if (g.venus !== undefined && game.getVenusScaleLevel() >= MAX_VENUS_SCALE) {
+      if (g.venus !== undefined && game.getVenusScaleLevel() >= game.max.venus) {
         card.addWarning('maxvenus');
       }
     }
