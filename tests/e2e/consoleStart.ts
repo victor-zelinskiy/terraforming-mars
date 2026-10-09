@@ -2398,6 +2398,11 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR30 Red Museum: blue's action phase, 40 M€, the museum (0 data) and Martian Fiber on the table, Nuclear Zone in hand;
   // the clean cell 17, the cell 50 beside an ocean on 43, the clean cell 47, red's greenery on 61 (cards/tilePayout.ts).
   'red-museum' |
+  // TR36 Council Seat: blue's action phase with the card in hand and 20 M€, the Greens ruling by the starting rule; the
+  // voting area [the Reds' card — TWO of blue's cubes (the requirement), the Scientists' — ONE (the lowered law's subject),
+  // Mars First's — red's cube only]; Tardigrades on blue's table so the Scientists' action has a holder
+  // (docs/TURMOIL_REDUX_COUNCIL_SEAT.md).
+  'council-seat' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

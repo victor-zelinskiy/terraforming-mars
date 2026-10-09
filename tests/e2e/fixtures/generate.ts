@@ -1271,6 +1271,75 @@ parliamentFixture('nationalist-movement-short-supply', rallyTable('nationalist-m
 // before, 13 in use, +13 M€.
 parliamentFixture('nationalist-movement-reds-rule', rallyTable('nationalist-movement-reds-rule', {reds: 'ruling', unity: 2}));
 
+// ── TR36 · COUNCIL SEAT — THE LAW OF ACCESS, lowered by a card (docs/TURMOIL_REDUX_COUNCIL_SEAT.md): blue's action phase
+//    with «Место в совете» in hand and 20 M€, the Greens ruling by the starting rule (ENACTED empty). The voting area, by
+//    PARTY (the ids are read off the wire by the spec — never pinned here):
+//      · slot 0 — the Reds' quiet card with TWO of blue's cubes: the card's REQUIREMENT by delegates (and a party whose
+//        effect blue holds by the printed road already — the play opens nothing there);
+//      · slot 1 — the Scientists' quiet card with ONE of blue's cubes: the lowered law's subject — «1/2 · не доступен»
+//        before the play, «1/1 · эффект ваш» after it, the Scientists' action in the menu the same turn;
+//      · slot 2 — Mars First's quiet card with RED's cube only: blue's «0/1» after the play, the vote's edge.
+//    Tardigrades (0 microbes) on blue's table, so the Scientists' action has a holder and is OFFERED once the effect opens.
+//    Red keeps its lobby cube for the second client (its own rows read the printed ▢▢). A DRY RUN on a copy plays the
+//    card, so a rule change fails HERE, by name. ──
+parliamentFixture('council-seat', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  // Red's console must open on the BOARD (the second client reads its own rows there): Aridor's pending first
+  // action would stand in front of it (the TR24 trap) — blue keeps the table's Teractor, red takes ThorGate.
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.REDS));
+    seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+    seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+    parliament.placeVote(p1, parliament.slots[1], 'reserve');
+    parliament.placeVote(p2, parliament.slots[2], 'reserve');
+    moveToDeckTop(game, CardName.TARDIGRADES);
+    p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+    moveToDeckTop(game, CardName.COUNCIL_SEAT);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+  },
+  expect: ({game, parliament, p1, p2}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.COUNCIL_SEAT);
+    const parties = parliament.slots.map((s) => parliament.resolutionOf(s.instance).party);
+    const before = ([PartyName.REDS, PartyName.SCIENTISTS, PartyName.MARS] as const).map((p) => parliament.access(p1, p).hasEffect);
+    // THE DRY RUN — the play for real, on a copy: the Scientists open, the Reds were held already, Mars First has no cube.
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const seat = blue.cardsInHand.find((c) => c.name === CardName.COUNCIL_SEAT) as IProjectCard;
+    blue.playCard(seat);
+    runAllActions(copy);
+    const cp = copy.parliament!;
+    const after = ([PartyName.REDS, PartyName.SCIENTISTS, PartyName.MARS] as const).map((p) => cp.access(blue, p).hasEffect);
+    const facts = {
+      playable: card !== undefined && p1.canPlay(card),
+      ruling: parliament.rulingParty(),
+      enactedEmpty: parliament.enacted === undefined,
+      parties: parties.join(','),
+      blueVotes: parliament.slots.map((s) => parliament.votesOf(p1, s)).join(','),
+      redVotes: parliament.slots.map((s) => parliament.votesOf(p2, s)).join(','),
+      holder: p1.tableau.has(CardName.TARDIGRADES),
+      lobby: parliament.lobby.has(p1.id) && parliament.lobby.has(p2.id),
+      before: before.join(','),
+      after: after.join(','),
+      threshold: cp.effectDelegatesOf(blue).count,
+      requirementScientists: cp.satisfiesPartyRequirement(blue, PartyName.SCIENTISTS),
+      scientistsAction: ParliamentHandler.partyActionOptions(blue).some((o) => (o as {partyActionPrompt?: {party: PartyName}}).partyActionPrompt?.party === PartyName.SCIENTISTS),
+      money: p1.megaCredits,
+    };
+    if (!facts.playable || facts.ruling !== PartyName.GREENS || !facts.enactedEmpty ||
+        facts.parties !== [PartyName.REDS, PartyName.SCIENTISTS, PartyName.MARS].join(',') ||
+        facts.blueVotes !== '2,1,0' || facts.redVotes !== '0,0,1' || !facts.holder || !facts.lobby ||
+        facts.before !== 'true,false,false' || facts.after !== 'true,true,false' || facts.threshold !== 1 ||
+        facts.requirementScientists || !facts.scientistsAction || facts.money < 6) {
+      throw new Error(`the council-seat fixture expected a playable card, the Greens ruling by the starting rule, [Reds · Scientists · Mars First] with blue 2/1/0 and red 0/0/1, a data holder, both lobby cubes, and a dry run opening the Scientists alone at threshold 1 with their action offered and the requirement still unmet — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── TR32 · RED TECH CONVENTION — the draw's NEGATIVE filter: blue's action phase with the card in hand and 10 M€, the
 //    REDS RULING by their enacted Heat Capture (the requirement's ruling road), the corporations pinned (Teractor /
 //    Thorgate — no first action on red's page, so red's console opens). The project deck's TOP is stacked BY NAME after
@@ -3779,9 +3848,9 @@ parliamentFixture('parliament-climate-recap', climateTable(4, 2, 'done', {
   }
   // The viewer's party effects: grants beside the ruling party and the V1 party
   // (one of them ON the ruling party — two bases, one effect).
-  parliament.grantPartyEffect(viewer, PartyName.REDS, 'Council Seat');
-  parliament.grantPartyEffect(viewer, PartyName.SCIENTISTS, 'Council Seat');
-  parliament.grantPartyEffect(viewer, PartyName.INDUSTRIALISTS, 'Council Seat');
+  parliament.grantPartyEffect(viewer, PartyName.REDS, 'Septem Tribus');
+  parliament.grantPartyEffect(viewer, PartyName.SCIENTISTS, 'Septem Tribus');
+  parliament.grantPartyEffect(viewer, PartyName.INDUSTRIALISTS, 'Septem Tribus');
   parliament.grantPartyEffect(viewer, parliament.rulingParty(), 'Septem Tribus');
   parliament.recordPartyActionUse(viewer, PartyName.REDS);
   // Agenda, chairman, quest progress.
