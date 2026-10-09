@@ -1112,10 +1112,13 @@ export class Player implements IPlayer {
       }
     });
 
-    // TODO(kberg): put this in a callback.
-    if (card.tags.includes(Tag.SPACE) && PartyHooks.shouldApplyPolicy(this, PartyName.UNITY, 'up04')) {
-      cost -= 2;
-      discounts.push({source: {kind: 'party', name: PartyName.UNITY}, amount: 2});
+    // Party policies (Unity P4: space tags cost 2 M€ less) — the policy says how
+    // much; the breakdown still NAMES the party so the payment head and the
+    // journal can itemize it.
+    const partyDiscount = TurmoilHandler.getCardDiscount(this, card);
+    if (partyDiscount > 0) {
+      cost -= partyDiscount;
+      discounts.push({source: {kind: 'party', name: PartyName.UNITY}, amount: partyDiscount});
     }
 
     // Turmoil Redux: the ENACTED RESOLUTION's discount (Heat Capture's 3 M€
