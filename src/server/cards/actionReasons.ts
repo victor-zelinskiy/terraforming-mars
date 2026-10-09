@@ -32,6 +32,9 @@ export const cannotReduceMcProduction = (): UnplayableReason => ({type: 'product
 /** Not enough plants in stock to pay a card's bespoke plant cost (icon + current). */
 export const notEnoughPlants = (player: IPlayer): UnplayableReason =>
   ({type: 'resource', message: 'Not enough plants', resource: Resource.PLANTS, current: player.plants});
+/** Not enough steel in stock to pay a card's bespoke steel cost (icon + current). */
+export const notEnoughSteel = (player: IPlayer): UnplayableReason =>
+  ({type: 'resource', message: 'Not enough steel', resource: Resource.STEEL, current: player.steel});
 /** No card holding a floater to spend (FLOATER is a card resource, so no stock icon). */
 export const notEnoughFloaters = (): UnplayableReason => ({type: 'count', message: 'Not enough floaters'});
 /** No card of the player's own holds a fighter to spend (FIGHTER is a card resource, so no stock icon). */
