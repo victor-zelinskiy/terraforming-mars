@@ -180,7 +180,9 @@ describe('buildCreateGamePayloadFromPremiumState', () => {
     state.rules.testMode = true;
     state.guaranteedCards = {corporations: [], preludes: [], projects: [CardName.ALGAE]};
     const payload = buildCreateGamePayloadFromPremiumState(state);
-    payload.customProjectCards?.push(CardName.BUSHES);
+    // The payload's list is a COPY of the state's (the config lists are read-only now, so identity proves it).
+    expect(payload.customProjectCards).deep.eq([CardName.ALGAE]);
+    expect(payload.customProjectCards).to.not.equal(state.guaranteedCards.projects);
     expect(state.guaranteedCards.projects).deep.eq([CardName.ALGAE]);
   });
 
