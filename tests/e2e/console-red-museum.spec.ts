@@ -109,9 +109,14 @@ type MuseumProbe = {
   stranded: boolean;
 };
 
-/** THE SCENE PROBE — MutationObserver + setInterval, never rAF; claims about frames are made on interval ticks. */
-async function armProbe(page: Page, cell: string): Promise<void> {
-  await page.evaluate((cellId) => {
+/**
+ * THE SCENE PROBE — MutationObserver + setInterval, never rAF; claims about frames are made on interval ticks.
+ * `dataKey` is the satellite cell the paid data lands on: the museum's plain `data` chip, or — for a holder whose
+ * role CLAIMS something about every unit (TR15 Martian Census: a delegate per data) — its own split chip
+ * `data:delegate` (PL-030; the plain `data` address beside it is Martian Fiber's, standing at 0 for good).
+ */
+async function armProbe(page: Page, cell: string, dataKey = 'data'): Promise<void> {
+  await page.evaluate(({cellId, dataKey}) => {
     const w = window as unknown as {__tr30: MuseumProbe, __tr30chips: Map<Element, {first: Pt, last: Pt}>};
     const boxOf = (el: Element | null): Box | undefined => {
       if (el === null) {
@@ -122,7 +127,7 @@ async function armProbe(page: Page, cell: string): Promise<void> {
     };
     const p: MuseumProbe = {
       samples: 0, ticks: 0, hex: boxOf(document.querySelector(`.board-space[data_space_id="${cellId}"]`))!,
-      aux: boxOf(document.querySelector('.con-res-aux__cell[data-aux-resource="data"]')),
+      aux: boxOf(document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)),
       tokens: [], tokenMax: 0, cardSeen: 0, counts: [], aux_: [], auxAnimal: [], vp: [], mc: [], chipMinY: Infinity, chips: [],
       modes: [], phases: [], degraded: false, stranded: false,
     };
@@ -198,7 +203,7 @@ async function armProbe(page: Page, cell: string): Promise<void> {
         p.cardFirst ??= {t: now, at: centre(card)};
       }
       push(p.counts, now, card?.getAttribute('data-city-payout-count') ?? '');
-      push(p.aux_, now, (document.querySelector('.con-res-aux__cell[data-aux-resource="data"]')?.textContent ?? '').replace(/\D/g, ''));
+      push(p.aux_, now, (document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)?.textContent ?? '').replace(/\D/g, ''));
       push(p.auxAnimal, now, (document.querySelector('.con-res-aux__cell[data-aux-resource="animal"]')?.textContent ?? '').replace(/\D/g, ''));
       push(p.vp, now, (document.querySelector('.con-res .con-score__cell--vp .con-score__value')?.textContent ?? '').replace(/\D/g, ''));
       const mcDigits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
@@ -223,7 +228,7 @@ async function armProbe(page: Page, cell: string): Promise<void> {
     };
     new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
     window.setInterval(() => sample(true), 16);
-  }, cell);
+  }, {cellId: cell, dataKey});
 }
 
 const readProbe = (page: Page): Promise<MuseumProbe> => page.evaluate(() => (window as unknown as {__tr30: MuseumProbe}).__tr30);
@@ -546,7 +551,8 @@ for (const preset of PRESETS) {
       await settle(redPage, {timeoutMs: 30_000});
       await openCityProject(redPage);
       await walkToSpace(redPage, CLEAN);
-      await armProbe(page, CLEAN);
+      // The census's data is a DELEGATE-role chip on blue's satellite (PL-030) — its own address, beside Fiber's plain one.
+      await armProbe(page, CLEAN, 'data:delegate');
       await armProbe(redPage, CLEAN);
       const stopBlue = await storyboard(page, preset.id, 'rival-blue');
       await confirmCell(redPage);
