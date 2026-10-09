@@ -1633,9 +1633,12 @@ html.con-profile-tv .con-parl {
     --con-parl-crumb-w: 19rem;
     --con-parl-mid-h: 12.4rem;
     --con-parl-agenda-h: 4.9rem;
-    --con-parl-node-row: 1.72rem;
-    --con-parl-cube-row: .86rem;
-    --con-parl-node: 1.52rem;
+    /* THE TRACK IS READ FROM THE COUCH (К-T4, TR37): the nodes, their badges, the ring and the rail at the size a
+       4K screen needs — inside the SAME tier height (`mid + agenda` stays constant: the government above does
+       not move). Measured against the budget: .52 padding + 1.42 head + .12 gap + 1.88 + .88 rows = 4.82 ≤ 4.9. */
+    --con-parl-node-row: 1.88rem;
+    --con-parl-cube-row: .88rem;
+    --con-parl-node: 1.72rem;
     --con-parl-slot-label-h: 1.45rem;
     --con-parl-slot-ribbon-h: 1.95rem;
     --con-parl-slot-tally-h: 3rem;
@@ -1707,11 +1710,16 @@ html.con-profile-tv .con-parl {
     &__stage-title { font-size: 1.25rem; }
     &__stage-sub { font-size: .9rem; }
     &__txn-row { font-size: .92rem; b { font-size: 1rem; } }
-    &__agenda-me { font-size: .9rem; b { font-size: 1.05rem; } }
+    &__agenda-me { font-size: 1rem; b { font-size: 1.25rem; } }
     &__step-label { font-size: .8rem; }
-    &__step-level { font-size: .95rem; }
-    &__step-res { &--tr { width: 1.22rem; height: .9rem; } &--card { width: .94rem; height: 1.34rem; } }
-    &__reward-step .con-parl__step-level, &__reward-step .con-parl__step-res { width: 1.35rem; height: 1.35rem; font-size: .82rem; }
+    /* К-T4 — couch sizes for the track's own marks: the level badge a real disc (not a 2 px ring around a
+       digit), the reward glyphs at the node's new size, the «next» ring and the rail at strokes the eye reads
+       from three metres (.1rem ≈ 4 px, .18rem ≈ 7 px at 2160). */
+    &__step-level { font-size: 1rem; min-width: .95rem; height: .95rem; box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 85%); right: -.12rem; bottom: -.14rem; }
+    &__step-res { &--tr { width: 1.4rem; height: 1.05rem; } &--card { width: 1.08rem; height: 1.54rem; } &--inf { width: 1.3rem; height: 1.3rem; } }
+    &__step::before, &__step::after { height: .18rem; top: calc(var(--con-parl-node-row) / 2 - .09rem); }
+    &__step--next &__step-node::after { inset: -.28rem; border-width: .1rem; }
+    &__reward-step .con-parl__step-level, &__reward-step .con-parl__step-res { width: 1.42rem; height: 1.42rem; font-size: .9rem; }
     .con-pseal__reason { font-size: .8rem; }
     /* Couch type at the .8rem floor: the name tighter, the foot may take a second line — nothing is cut. */
     &__party > .con-pseal { padding-left: .4rem; padding-right: .4rem; column-gap: .35rem; }
