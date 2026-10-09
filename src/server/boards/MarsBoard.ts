@@ -16,6 +16,7 @@ import {Tile} from '../Tile';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
 import * as constants from '../../common/constants';
+import {GlobalParameterMaximums} from '../IGame';
 
 /**
  * The M€ an in-flight action has already earmarked, as the PLAYER would count it:
@@ -34,11 +35,19 @@ function committedMegacredits(player: IPlayer, canAffordOptions?: CanAffordOptio
 export class MarsBoard extends Board {
   private readonly edges: ReadonlyArray<Space>;
   private readonly edgeIds: ReadonlySet<SpaceId>;
+  public readonly max: GlobalParameterMaximums;
 
   public constructor(
     spaces: ReadonlyArray<Space>,
-    noctisCitySpaceId?: SpaceId | undefined) {
+    noctisCitySpaceId?: SpaceId | undefined,
+    max?: Partial<GlobalParameterMaximums>) {
     super(spaces, noctisCitySpaceId);
+    this.max = {
+      temperature: max?.temperature ?? constants.MAX_TEMPERATURE,
+      oxygen: max?.oxygen ?? constants.MAX_OXYGEN_LEVEL,
+      oceans: max?.oceans ?? constants.MAX_OCEAN_TILES,
+      venus: max?.venus ?? constants.MAX_VENUS_SCALE,
+    };
     this.edges = this.computeEdges();
     this.edgeIds = new Set(this.edges.map((space) => space.id));
   }
