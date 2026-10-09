@@ -1744,6 +1744,54 @@ html.con-profile-tv .con-parl {
     .con-pseal--hero .con-pseal__seal { width: 4.8rem; height: 4.8rem; }
 }
 
+/* ══ «КАРЬЕРА» — THE TRACK IS THE HERO OF THE WALK POSE (К-T1, PL-121 — the owner's batch TR37) ══
+   A card's walk (TR04 / TR37) makes the Agenda track the subject of the screen, so in that pose the track's
+   tier grows ×1.75 and its nodes ×1.5 — and the height comes from the PARTIES ROW, never from the government:
+   the track's box grows UPWARD (a negative top margin on a stretched grid item — its own row keeps its size),
+   and the row, receded to .5 already, draws itself scaled toward the top of its body. Both are paint-and-own-
+   box only: `mid + agenda` and the TOP tier keep their boxes, the tile fit (which reads layout sizes, never
+   painted rects) re-solves nothing, the ruler's tile and the government do not move a pixel. The pose stands
+   from the walk's first frame to the leave (`openWalkFlow` opens it before the first render), so nothing
+   animates between the two layouts. Not on the Deck: its own ladder keeps the composition (no Deck-only
+   polish — and this one is not built for the 64×40 grid). */
+html:not(.con-profile-handheld) .con-parl--walk {
+    --con-parl-walk-grow: 3.3rem;
+    --con-parl-node-row: 2.5rem;
+    --con-parl-cube-row: 1.15rem;
+    --con-parl-node: 2.1rem;
+    .con-parl__agenda {
+        margin-top: calc(-1 * var(--con-parl-walk-grow));
+        gap: .3rem;
+        padding: .5rem .9rem .4rem;
+        /* It now stands over the receded row's lower part: an opaque plate, the same ink as before. */
+        background: rgba(10, 13, 24, 0.96);
+    }
+    .con-parl__parties-tier { transform: scale(.6); transform-origin: 50% 0; }
+    .con-parl__agenda-head .con-parl__kicker { font-size: 1rem; }
+    .con-parl__agenda-me { font-size: 1rem; b { font-size: 1.35rem; } }
+    .con-parl__step::before, .con-parl__step::after { height: .2rem; top: calc(var(--con-parl-node-row) / 2 - .1rem); }
+    .con-parl__step-level { min-width: 1.1rem; height: 1.1rem; font-size: .9rem; right: -.14rem; bottom: -.16rem; }
+    .con-parl__step-res--tr { width: 1.6rem; height: 1.2rem; }
+    .con-parl__step-res--card { width: 1.25rem; height: 1.8rem; }
+    .con-parl__step-res--inf { width: 1.45rem; height: 1.45rem; }
+    .con-parl__step--next .con-parl__step-node::after { inset: -.34rem; border-width: .1rem; }
+    .con-parl__step-label { font-size: .8rem; }
+    .con-parl__reward-step .con-parl__step-res, .con-parl__reward-step .con-parl__step-level { width: 1.6rem; height: 1.6rem; font-size: 1rem; }
+}
+/* …and the couch's sizes (the TV ladder above re-states the tokens at equal specificity, so this block follows it). */
+html.con-profile-tv .con-parl--walk {
+    --con-parl-walk-grow: 3.7rem;
+    --con-parl-node-row: 2.9rem;
+    --con-parl-cube-row: 1.3rem;
+    --con-parl-node: 2.4rem;
+    .con-parl__parties-tier { transform: scale(.62); }
+    .con-parl__agenda-me { font-size: 1.1rem; b { font-size: 1.5rem; } }
+    .con-parl__step-level { min-width: 1.3rem; height: 1.3rem; font-size: 1.05rem; }
+    .con-parl__step-res--tr { width: 1.9rem; height: 1.4rem; }
+    .con-parl__step-res--card { width: 1.45rem; height: 2.1rem; }
+    .con-parl__step-res--inf { width: 1.7rem; height: 1.7rem; }
+}
+
 /* THE DECK: a slot's «ПРИНИМАЕТСЯ» badge always takes the GLYPH form (the vote's winner mark; the word
    stays for assistive tech) — the glossary's word is two letters longer than the retired «побеждает» and
    beside «Марс вперед» it cut the party name in the slot head (Э9 fits: `cut con-parl__slot-party`).
