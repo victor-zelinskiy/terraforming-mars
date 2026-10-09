@@ -136,5 +136,8 @@
     "Requires the Reds to be ruling or that you have 2 delegates there.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции.",
     "Opens the ${0} party effect now: your delegate stands on ${1}": "Откроет эффект партии «${0}» сейчас: ваш делегат на «${1}»",
     "No party opens now — the effect starts with your first delegate on a resolution": "Сейчас ни одной партии: эффект начнётся с первого вашего делегата на резолюции",
-    "${0} holds the ${1} party effect: 1 delegate on ${2} (${3})": "${0} получает эффект партии «${1}»: 1 делегат на «${2}» («${3}»)"
+    "${0} holds the ${1} party effect: 1 delegate on ${2} (${3})": "${0} получает эффект партии «${1}»: 1 делегат на «${2}» («${3}»)",
+
+    "Red Lawyers": "Юристы Красных",
+    "Requires the Reds to be ruling or that you have 2 delegates there. Advance your Agenda marker 2 steps. (And collect bonuses from each step.)": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Продвиньте маркер Карьеры на 2 шага (и получите бонус каждого шага)."
 }

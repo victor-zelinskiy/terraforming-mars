@@ -37,6 +37,7 @@ import {RedsNewsOutlet} from './RedsNewsOutlet';
 import {MarsArmyMechs} from './MarsArmyMechs';
 import {MarsArmyShips} from './MarsArmyShips';
 import {CouncilSeat} from './CouncilSeat';
+import {RedLawyers} from './RedLawyers';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -190,5 +191,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // seventh time, and the set's first card that changes THE LAW OF ACCESS rather than the table: one passive
     // threshold hook (`partyEffectDelegates = 1`) the Parliament reads live — no behavior, no action, no grant.
     [CardName.COUNCIL_SEAT]: {Factory: CouncilSeat},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The Reds' plate an
+    // eighth time; TR04's printed walk («advance 2 steps») WITHOUT the influence ceiling — one call of the ONE walk
+    // (`ChairmanSeat.walkAgenda`), and the first card for which a CARD step lands in the MIDDLE of a walk.
+    [CardName.RED_LAWYERS]: {Factory: RedLawyers},
   },
 });
