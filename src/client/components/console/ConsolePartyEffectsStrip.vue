@@ -8,7 +8,8 @@
   <section v-if="rows.length > 0" class="con-pfx" :aria-label="$t('Party effects')">
     <header class="con-pfx__head">
       <span class="con-pfx__kicker">{{ $t('Party effects') }}</span>
-      <span class="con-pfx__sub">{{ $t('From the Parliament: the ruling party and every party with two of this player\'s delegates') }}</span>
+      <!-- The rule's line names the seat's OWN law: the printed two — or ONE under a card that lowered it (TR36), the card quoted. -->
+      <span class="con-pfx__sub">{{ subtitle }}</span>
     </header>
     <div class="con-pfx__row">
       <div v-for="row in rows" :key="row.key" class="con-pfx__item" :class="{'con-pfx__item--resolution': row.resolution !== undefined}" :data-party="row.party" :data-resolution="row.resolution" :style="{'--parl-accent': row.accent}">
@@ -29,10 +30,10 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES, ReduxParty, partyActionOf} from '@/common/parliament/ParliamentTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {accessReasonRows, AccessReasonRow} from '@/client/console/parliament/consoleParliamentModel';
+import {accessReasonRows, AccessReasonRow, effectDelegatesLowered, effectDelegatesSourceOf} from '@/client/console/parliament/consoleParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
@@ -62,13 +63,26 @@ export default defineComponent({
     color: {type: String as PropType<Color>, required: true},
   },
   computed: {
+    /** The seat whose effects are listed (undefined outside the parliament). */
+    seat(): ParliamentPlayerModel | undefined {
+      const seat = this.parliament?.players.find((p) => p.color === this.color);
+      return seat === undefined || !seatEnacts(seat) ? undefined : seat;
+    },
+    /**
+     * The rule under the kicker, in the seat's OWN law: the printed two delegates — or, when a card of theirs
+     * lowered the threshold (TR36 «Место в совете»), ONE, with the card quoted. The threshold is the model's number
+     * on every access row alike (one tableau, one law), so the first row says it for all.
+     */
+    subtitle(): string {
+      const access = this.seat?.access.find((a) => effectDelegatesLowered(a));
+      return access === undefined ?
+        translateText('From the Parliament: the ruling party and every party with two of this player\'s delegates') :
+        translateTextWithParams('From the Parliament: the ruling party and every party with one of this player\'s delegates (${0})', [effectDelegatesSourceOf(access)]);
+    },
     rows(): Array<Row> {
       const model = this.parliament;
-      if (model === undefined) {
-        return [];
-      }
-      const seat = model.players.find((p) => p.color === this.color);
-      if (seat === undefined || !seatEnacts(seat)) {
+      const seat = this.seat;
+      if (model === undefined || seat === undefined) {
         return [];
       }
       const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);

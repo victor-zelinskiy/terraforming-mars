@@ -38,7 +38,7 @@ import {
   ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId,
 } from '@/common/parliament/ParliamentTypes';
 import {getPartyEffect, getResolution, getStarterQuest} from '@/client/parliament/ClientParliamentManifest';
-import {translateText} from '@/client/directives/i18n';
+import {translateCardName, translateText} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 
 export type ParliamentSlotVm = {
@@ -55,6 +55,12 @@ export type ParliamentSlotVm = {
   /** 1 = closest to ENACTED (wins ties). */
   tiePriority: number;
   viewerVotes: number;
+  /**
+   * THE VIEWER'S OWN THRESHOLD of the delegates road for THIS card's party
+   * (`effectDelegatesOf` — the printed two, or a card's lower one, TR36): the
+   * «ВАШИ ▢▢ n» row lights its places and says «эффект ваш» by this number.
+   */
+  viewerEffectDelegates: number;
   projection: VoteProjectionModel | undefined;
 };
 
@@ -203,6 +209,7 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
     isWinning: slot.isWinning,
     tiePriority: slot.tiePriority,
     viewerVotes: slot.viewerVotes,
+    viewerEffectDelegates: effectDelegatesOf(viewerAccess.get(slot.party)),
     projection: projections.get(slot.instance),
   }));
 
@@ -320,7 +327,49 @@ export type PartyStateVm = {
   held: boolean;
   /** The viewer's own delegates on the party's resolution. */
   delegates: number;
+  /**
+   * THE VIEWER'S OWN THRESHOLD of the delegates road for this party — the
+   * printed two, or what a card of theirs lowered it to (TR36 Council Seat:
+   * 1). The plaque draws its places and its count by THIS number; a place
+   * past it is VOID (hidden, in the flow — the row's geometry never moves).
+   */
+  effectDelegates: number;
 };
+
+// ── THE LAW OF ACCESS, as the CLIENT reads it ───────────────────────────────
+
+/**
+ * THE PRINTED PLACES every surface draws for the delegates road — the
+ * rulebook's two. A VIEWER's own threshold may be lower (`effectDelegatesOf`),
+ * and the places past it are VOID: hidden, still in the flow, so a lowered
+ * law changes what is lit and never where anything stands. The ONE reader of
+ * the shared constant in the client (guard: `parliamentThresholdGuard.spec`).
+ */
+export const PARTY_EFFECT_PLACES = PARTY_EFFECT_DELEGATES;
+
+/**
+ * THE VIEWER'S OWN THRESHOLD — the server's number (`PartyAccessModel.effectDelegates`:
+ * the printed two, or a card's lower one — TR36). A fixture written before the
+ * field reads the printed default; no surface decides by the constant itself.
+ */
+export function effectDelegatesOf(access: PartyAccessModel | undefined): number {
+  return access?.effectDelegates ?? PARTY_EFFECT_DELEGATES;
+}
+
+/** The threshold is BELOW the printed places — a card of the viewer's lowered it. */
+export function effectDelegatesLowered(access: PartyAccessModel | undefined): boolean {
+  return effectDelegatesOf(access) < PARTY_EFFECT_PLACES;
+}
+
+/**
+ * The NAME of the card that lowered the viewer's threshold, translated — what
+ * every phrase of the lowered law quotes («Место в совете»: достаточно одного).
+ * Empty when the law is the printed one (no phrase quotes a card then).
+ */
+export function effectDelegatesSourceOf(access: PartyAccessModel | undefined): string {
+  const source = access?.effectDelegatesBy;
+  return source === undefined ? '' : translateCardName(source);
+}
 
 /**
  * WHY a party stands where it stands for the viewer — the browse tile's one
@@ -331,6 +380,7 @@ export type PartyStateVm = {
 export function partyStateOf(p: ParliamentPartyVm, enactedEmpty: boolean): PartyStateVm {
   const access = p.access;
   const delegates = access?.delegates ?? 0;
+  const effectDelegates = effectDelegatesOf(access);
   if (p.ruling) {
     const byDefault = enactedEmpty && p.party === PartyName.GREENS;
     return {
@@ -340,21 +390,24 @@ export function partyStateOf(p: ParliamentPartyVm, enactedEmpty: boolean): Party
       tone: 'gold',
       held: access?.hasEffect ?? true,
       delegates,
+      effectDelegates,
     };
   }
   if (access?.byDelegates) {
-    return {kind: 'delegates', label: 'Your effect · 2 delegates', params: [], tone: 'mint', held: true, delegates};
+    // The printed road when the printed number stands on the card; the lowered law's own line when ONE cube is what holds it (TR36).
+    const label = delegates >= PARTY_EFFECT_PLACES ? 'Your effect · 2 delegates' : 'Your effect · 1 delegate';
+    return {kind: 'delegates', label, params: [], tone: 'mint', held: true, delegates, effectDelegates};
   }
   if (access !== undefined && access.granted.length > 0) {
-    return {kind: 'granted', label: 'Your effect · granted by a card', params: [], tone: 'mint', held: true, delegates};
+    return {kind: 'granted', label: 'Your effect · granted by a card', params: [], tone: 'mint', held: true, delegates, effectDelegates};
   }
   if (p.inArea) {
     if (delegates > 0) {
-      return {kind: 'progress', label: '${0} of 2 delegates', params: [String(delegates)], tone: 'cyan', held: false, delegates};
+      return {kind: 'progress', label: '${0} of 2 delegates', params: [String(delegates)], tone: 'cyan', held: false, delegates, effectDelegates};
     }
-    return {kind: 'in-area', label: 'In the vote', params: [], tone: 'cyan', held: false, delegates};
+    return {kind: 'in-area', label: 'In the vote', params: [], tone: 'cyan', held: false, delegates, effectDelegates};
   }
-  return {kind: 'absent', label: 'Not in the vote', params: [], tone: 'dim', held: false, delegates};
+  return {kind: 'absent', label: 'Not in the vote', params: [], tone: 'dim', held: false, delegates, effectDelegates};
 }
 
 export type PartyActionStateKind = 'none' | 'available' | 'not-now' | 'used' | 'blocked' | 'no-access';
@@ -429,17 +482,26 @@ export function accessReasonRows(
       out.push({key: 'You have it: the party rules', params: [], tone: 'holds'});
     }
   }
+  // THE LOWERED LAW (TR36): one cube is what holds the effect, and the phrase quotes the card that made it enough.
+  const lowered = effectDelegatesLowered(access);
+  const source = effectDelegatesSourceOf(access);
   if (access.byDelegates) {
-    out.push({key: 'You have it: two of your delegates are on its resolution', params: [], tone: 'holds'});
+    if (access.delegates >= PARTY_EFFECT_PLACES) {
+      out.push({key: 'You have it: two of your delegates are on its resolution', params: [], tone: 'holds'});
+    } else {
+      out.push({key: 'You have it: one of your delegates is on its resolution (${0}: one is enough)', params: [source], tone: 'holds'});
+    }
   }
-  for (const source of access.granted) {
-    out.push({key: 'You have it: granted by ${0}', params: [source], tone: 'holds'});
+  for (const grant of access.granted) {
+    out.push({key: 'You have it: granted by ${0}', params: [grant], tone: 'holds'});
   }
   if (out.length === 0) {
     if (access.delegates > 0) {
       out.push({key: 'You do not have it yet — one more delegate on its resolution would grant it', params: [], tone: 'lacks'});
     } else if (ctx.inArea) {
-      out.push({key: 'You do not have it — two of your delegates on its resolution would grant it', params: [], tone: 'lacks'});
+      out.push(lowered ?
+        {key: 'You do not have it — one of your delegates on its resolution would grant it (${0})', params: [source], tone: 'lacks'} :
+        {key: 'You do not have it — two of your delegates on its resolution would grant it', params: [], tone: 'lacks'});
     } else {
       out.push({key: 'You do not have it — the party has no resolution in the vote', params: [], tone: 'lacks'});
     }
@@ -447,7 +509,10 @@ export function accessReasonRows(
   if (access.satisfiesRequirement) {
     out.push({key: 'Card requirement of this party: met', params: [], tone: 'note'});
   } else if (access.hasEffect) {
-    out.push({key: 'Card requirement of this party: not met — a granted effect does not count', params: [], tone: 'note'});
+    // The effect is held by a road the REQUIREMENT does not know: a grant, or the lowered law's single cube (FAQ p.19) — each named in its own words.
+    out.push(access.byDelegates ?
+      {key: 'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two', params: [], tone: 'note'} :
+      {key: 'Card requirement of this party: not met — a granted effect does not count', params: [], tone: 'note'});
   }
   return out;
 }
@@ -529,7 +594,8 @@ export type VoteAccessVm = {
  * it (the card REQUIREMENT still counts delegates — the inspector's note).
  */
 export function voteAccessOf(slot: ParliamentSlotVm | undefined, party: ParliamentPartyVm | undefined, afterMine: number | undefined, beforeMine?: number): VoteAccessVm {
-  const threshold = PARTY_EFFECT_DELEGATES;
+  // The viewer's OWN threshold (a card may have lowered it — TR36): at 1 the first cube is the edge and the second changes nothing about the effect.
+  const threshold = effectDelegatesOf(party?.access);
   // `beforeMine` is the count the vote mode SHOWS as «before» (a snapshot taken
   // at the submit — the live model has already moved on once the answer is in).
   const before = beforeMine ?? slot?.viewerVotes ?? 0;
@@ -550,8 +616,8 @@ export function voteAccessOf(slot: ParliamentSlotVm | undefined, party: Parliame
  * facts in short phrases (the full sentences live in the vote stage), so the
  * rail never cuts a consequence in half on a narrow profile.
  */
-export function voteForecastRows(forecast: VoteForecastVm | undefined, compact = false): Array<{key: string, tone: 'gain' | 'note' | 'warn'}> {
-  const out: Array<{key: string, tone: 'gain' | 'note' | 'warn'}> = [];
+export function voteForecastRows(forecast: VoteForecastVm | undefined, compact = false, access?: PartyAccessModel): Array<{key: string, params?: ReadonlyArray<string>, tone: 'gain' | 'note' | 'warn'}> {
+  const out: Array<{key: string, params?: ReadonlyArray<string>, tone: 'gain' | 'note' | 'warn'}> = [];
   if (forecast === undefined) {
     return out;
   }
@@ -586,7 +652,14 @@ export function voteForecastRows(forecast: VoteForecastVm | undefined, compact =
     }
   }
   if (forecast.unlocksEffect) {
-    out.push({key: compact ? 'party effect: yours' : 'Unlocks the party effect for you (2 delegates)', tone: 'gain'});
+    // The edge the server projected is the viewer's OWN threshold: the printed two, or ONE under a card's lowered law (TR36 — the chip names the card).
+    if (compact) {
+      out.push({key: 'party effect: yours', tone: 'gain'});
+    } else if (effectDelegatesLowered(access)) {
+      out.push({key: 'Unlocks the party effect for you (1 delegate — ${0})', params: [effectDelegatesSourceOf(access)], tone: 'gain'});
+    } else {
+      out.push({key: 'Unlocks the party effect for you (2 delegates)', tone: 'gain'});
+    }
   }
   if (forecast.unlocksRequirement) {
     out.push({key: compact ? 'party requirement: met' : 'Satisfies this party\'s card requirement for you', tone: 'gain'});
@@ -1017,9 +1090,6 @@ export function redsResponse(bridge: ParliamentPromptBridge): InputResponse | un
 export function offeredPartyActions(bridge: ParliamentPromptBridge): ReadonlySet<PartyActionId> {
   return new Set((Object.keys(bridge.actions) as Array<PartyActionId>).filter((id) => bridge.actions[id] !== undefined));
 }
-
-/** The party whose effect is asked about in the inspector: two delegates is the threshold the rulebook prints. */
-export const PARTY_EFFECT_THRESHOLD = PARTY_EFFECT_DELEGATES;
 
 /** A marker's move along the Agenda track: whose, from which step, to which. */
 export type AgendaMove = {player: Color, from: number, to: number};

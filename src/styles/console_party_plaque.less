@@ -169,13 +169,20 @@
     }
     /* The state may take a second line on a tile — a cut state is worse than a taller line. */
     &__state-text { flex: 0 1 auto; min-width: 0; white-space: normal; line-height: 1.15; overflow: hidden; letter-spacing: .04em; text-transform: uppercase; font-size: .56rem; }
+    /* THE HELD WORD («ЭФФЕКТ ВАШ») surfaces as a phrase when it arrives — a one-shot entry on mount (the template keys the
+       node on its text), opacity + a short travel, never a cut (PL-109, TR36 walk). Reduced motion zeroes it with the scale. */
+    &__state-text--held { animation: con-pseal-held-in calc(260ms * var(--motion-scale, 1)) @con-ease-standard backwards; }
     &__places { display: inline-flex; align-items: center; gap: .12rem; flex-shrink: 0; }
+    /* A place past the viewer's OWN threshold (TR36 lowered it to one) is VOID — hidden, its room kept (the support
+       sockets' idiom), so a law changing under a standing cube lights a place and moves nothing. The lit state is a beat. */
     &__place {
         width: .8rem; height: .8rem; border-radius: .18rem;
         display: inline-flex; align-items: center; justify-content: center;
         background: rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 45%);
+        transition: box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
         &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 55%); }
+        &--void { visibility: hidden; }
     }
     &__places-count { margin-left: .12rem; font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
     /* THE REASON (the focused tile whose action cannot be taken): one short
@@ -353,3 +360,8 @@ html.con-fx-lite .con-pseal__support-place--left { animation: none; }
     100% { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%); }
 }
 html.con-fx-lite .con-pseal__support-place--counted { animation: none; }
+/* …and the held WORD's entry (PL-109, TR36): «ЭФФЕКТ ВАШ» surfaces and settles — one shot, opacity and transform only. */
+@keyframes con-pseal-held-in {
+    from { opacity: 0; transform: translateX(-.25rem); }
+}
+html.con-fx-lite .con-pseal__state-text--held { animation: none; }

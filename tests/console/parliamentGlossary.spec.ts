@@ -45,6 +45,14 @@ const CANON: Record<string, string> = {
   'Your effect': 'Эффект ваш',
   'Your effect · granted by a card': 'Эффект ваш · выдан картой',
   'Your effect · 2 delegates': 'Эффект ваш · 2 делегата',
+  // THE LOWERED LAW (TR36 Council Seat — glossary § 5): one cube holds the effect, the card is QUOTED by name, the
+  // requirement's note speaks the threshold's own words; the printed phrases stay (they are right at two).
+  'Your effect · 1 delegate': 'Эффект ваш · 1 делегат',
+  'You have it: one of your delegates is on its resolution (${0}: one is enough)': 'Доступен · ваш делегат на её резолюции («${0}»: достаточно одного)',
+  'You do not have it — one of your delegates on its resolution would grant it (${0})': 'Недоступен · один ваш делегат на её резолюции откроет его («${0}»)',
+  'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two': 'Требование этой партии на картах: не выполнено — один делегат открывает эффект, требованию по-прежнему нужны два',
+  'Unlocks the party effect for you (1 delegate — ${0})': 'Откроет вам эффект партии (1 делегат — «${0}»)',
+  'The ruling party\'s effect is everyone\'s. A party with one of your delegates on its resolution gives you its effect too (${0}).': 'Эффект правящей партии есть у всех. Партия, на резолюции которой один ваш делегат, даёт свой эффект и вам («${0}»).',
   'Chairmanship': 'Председательство',
   'Chairmanship (kept)': 'Председательство (сохраняется)',
   // «ПРЕДСЕДАТЕЛЬСТВО» (the chairman-quest flow): the crumb's two stages, one

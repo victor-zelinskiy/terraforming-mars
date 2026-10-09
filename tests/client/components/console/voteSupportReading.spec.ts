@@ -137,7 +137,7 @@ function cardDoorPanel(resolution: IClientResolution, row: VoteSupportProjection
   };
   const slot: ParliamentSlotVm = {
     instance, resolutionId: resolution.id, resolution, party: resolution.party, votes, totalVotes: votes.length, leader: RED, leaderVotes: 1,
-    isWinning: false, tiePriority: 1, viewerVotes: mine, projection,
+    isWinning: false, tiePriority: 1, viewerVotes: mine, viewerEffectDelegates: 2, projection,
   };
   const party: ParliamentPartyVm = {
     party: resolution.party, effect: getPartyEffect(resolution.party), rule: undefined, support: row.current, inArea: true, ruling: false, access, actionId: undefined, action: undefined,

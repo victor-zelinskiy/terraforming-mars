@@ -776,7 +776,23 @@
     /* TWO lines of fixed height: «N delegates · leader ●» / «yours ○○ n». */
     &__tally-line { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; min-width: 0; height: 1.2rem; white-space: nowrap; }
     &__tally-line--mine { height: 1rem; }
-    &__tally-held { font-size: .54rem; letter-spacing: .08em; text-transform: uppercase; color: @con-parl-mint; margin-left: .15rem; }
+    /* «ЭФФЕКТ ВАШ» ENTERS AS A PHRASE (PL-109, TR36 walk): the word stands on a 0fr → 1fr well, so the row re-centres over
+       the same ~240 ms the word surfaces in — one class flip (`--on`) carries both; before it the well is zero wide and the
+       word invisible. Padding stays OFF the inner (a closed 0fr well keeps its item's padding — the dossier's lesson). */
+    &__tally-heldwell {
+        display: grid;
+        grid-template-columns: 0fr;
+        min-width: 0;
+        transition: grid-template-columns calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--on { grid-template-columns: 1fr; }
+    }
+    &__tally-held {
+        min-width: 0; overflow: hidden; white-space: nowrap;
+        font-size: .54rem; letter-spacing: .08em; text-transform: uppercase; color: @con-parl-mint;
+        opacity: 0; transform: translateX(-.2rem);
+        transition: opacity calc(240ms * var(--motion-scale, 1)) @con-ease-standard, transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    &__tally-heldwell--on &__tally-held { opacity: 1; transform: none; transition-delay: calc(80ms * var(--motion-scale, 1)); }
     &__tally-total { display: inline-flex; flex-wrap: nowrap; align-items: baseline; gap: 0 .3rem; }
     &__tally-num { font-size: 1.25rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
     &__tally-unit { font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; white-space: nowrap; }
@@ -787,19 +803,23 @@
         gap: .15rem .3rem;
         font-size: .74rem;
         white-space: nowrap;
-        b { font-size: .92rem; font-variant-numeric: tabular-nums; }
+        b { font-size: .92rem; font-variant-numeric: tabular-nums; transition: color calc(240ms * var(--motion-scale, 1)) @con-ease-standard; }
         &--none { opacity: .55; font-size: .62rem; }
         &--held b { color: @con-parl-mint; }
     }
     &__tally-key { flex: 0 0 auto; font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; opacity: .62; }
-    /* The party-effect THRESHOLD as places: the viewer's own cubes, hollow = still needed. */
+    /* The party-effect THRESHOLD as places: the viewer's own cubes, hollow = still needed. A place past the viewer's OWN
+       threshold (TR36 lowered it to one) is VOID — hidden, its room kept, so the row's geometry never moves (the plaque's
+       support-socket idiom). The lit state is a transition, not a cut: the cube lands and the place answers over one beat. */
     &__places { display: inline-flex; align-items: center; gap: .14rem; }
     &__place {
         display: inline-flex; align-items: center; justify-content: center;
         width: .85rem; height: .85rem; border-radius: .2rem;
         background: rgba(0, 0, 0, 0.4);
         box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 45%);
+        transition: box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
         &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 65%); }
+        &--void { visibility: hidden; }
     }
     &__slot--mine &__tally-row--leader b { color: @con-parl-mint; }
 

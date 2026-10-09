@@ -84,7 +84,7 @@ describe('consoleParliamentModel — access reasons by the CURRENT state', () =>
   });
 
   it('a grant holds the effect but NOT the card requirement', () => {
-    const rows = accessReasonRows(access({granted: ['Council Seat'], hasEffect: true, satisfiesRequirement: false}), {party: PartyName.GREENS, enactedEmpty: false, enactedName: 'X', inArea: false});
+    const rows = accessReasonRows(access({granted: ['Septem Tribus'], hasEffect: true, satisfiesRequirement: false}), {party: PartyName.GREENS, enactedEmpty: false, enactedName: 'X', inArea: false});
     expect(rows.map((r) => r.tone)).to.deep.eq(['holds', 'note']);
     expect(rows[1].key).to.contain('does not count');
   });
@@ -101,7 +101,7 @@ describe('consoleParliamentModel — the vote forecast', () => {
   const vote: VoteOptionModel = {available: true, reason: '', source: 'reserve', cost: 5, projections: []};
   const slot = (over: Partial<Parameters<typeof voteForecastOf>[0]> = {}): Parameters<typeof voteForecastOf>[0] => ({
     instance: 'RDX_REDS_1#0', resolutionId: 'RDX_REDS_1', resolution: undefined, party: PartyName.REDS,
-    votes: [{owner: 'red' as Color, seq: 1}], totalVotes: 1, leader: 'red' as Color, leaderVotes: 1, isWinning: false, tiePriority: 2, viewerVotes: 0,
+    votes: [{owner: 'red' as Color, seq: 1}], totalVotes: 1, leader: 'red' as Color, leaderVotes: 1, isWinning: false, tiePriority: 2, viewerVotes: 0, viewerEffectDelegates: 2,
     projection: {instance: 'RDX_REDS_1#0', votesAfter: 2, leaderAfter: 'red' as Color, viewerLeads: false, becomesWinning: true, unlocksEffect: false, unlocksRequirement: false, tieNote: 'slot-priority'},
     ...over,
   });
@@ -158,7 +158,7 @@ describe('consoleParliamentModel — the vote forecast', () => {
 describe('consoleParliamentModel — the viewer\'s access beside the vote', () => {
   const slotWith = (viewerVotes: number): ParliamentSlotVm => ({
     instance: 'RDX_REDS_1#0', resolutionId: 'RDX_REDS_1', resolution: undefined, party: PartyName.REDS,
-    votes: [], totalVotes: viewerVotes, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 1, viewerVotes, projection: undefined,
+    votes: [], totalVotes: viewerVotes, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 1, viewerVotes, viewerEffectDelegates: 2, projection: undefined,
   });
 
   it('counts the viewer\'s own delegates toward the threshold: 1 of 2 → 2 of 2 unlocks', () => {
@@ -422,7 +422,7 @@ describe('consoleParliamentModel — the DELEGATE GRANT bridge (Turmoil Redux �
   it('the forecast counts the grant\'s cubes, and the bar speaks in the plural with «Свернуть» for B', () => {
     const slot: ParliamentSlotVm = {
       instance: 'RDX_REDS_1#0', resolutionId: 'RDX_REDS_1', resolution: undefined, party: PartyName.REDS,
-      votes: [], totalVotes: 0, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 2, viewerVotes: 0,
+      votes: [], totalVotes: 0, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 2, viewerVotes: 0, viewerEffectDelegates: 2,
       projection: {instance: 'RDX_REDS_1#0', votesAfter: 2, leaderAfter: me, viewerLeads: true, becomesWinning: true, unlocksEffect: true, unlocksRequirement: true},
     };
     const f = voteForecastOf(slot, me, {available: true, reason: '', source: 'reserve', cost: 0, projections: []}, 2);

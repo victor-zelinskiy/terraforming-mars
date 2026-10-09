@@ -96,13 +96,21 @@
         <template v-else>{{ $t(pick.reason ?? 'The support area is empty') }}</template>
       </span>
       <span v-if="roll === '' && pick === undefined && reason !== ''" class="con-pseal__reason" :class="'con-pseal__reason--' + reasonTone" data-pseal-reason>{{ reason }}</span>
-      <span v-if="roll === '' && pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" aria-hidden="true">
-        <span v-for="n in placesCount" :key="n" class="con-pseal__place" :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0)}">
-          <PlayerCube v-if="n <= (state?.delegates ?? 0)" :color="viewerColor" :size="placeCubePx" :glow="false" />
+      <!-- THE THRESHOLD PLACES are the PRINTED two, always in the flow; a place past the viewer's OWN threshold
+           (a card lowered it — TR36 «Место в совете») is VOID: hidden, its room kept, so the law changing under a
+           standing cube lights the place and moves nothing (the support sockets' own idiom). The count reads the
+           viewer's threshold — «1/1», never «1/2» — beside a single live place. -->
+      <span v-if="roll === '' && pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" :data-pseal-places="liveCount" aria-hidden="true">
+        <span v-for="n in placesCount" :key="n" class="con-pseal__place"
+              :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0) && n <= liveCount, 'con-pseal__place--void': n > liveCount}"
+              :data-pseal-place="n" :data-pseal-place-void="n > liveCount ? '' : undefined">
+          <PlayerCube v-if="n <= (state?.delegates ?? 0) && n <= liveCount" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
-        <span class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, placesCount) }}/{{ placesCount }}</span>
+        <span class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, liveCount) }}/{{ liveCount }}</span>
       </span>
-      <span v-if="roll === '' && pick === undefined && reason === '' && stateText !== ''" class="con-pseal__state-text">{{ stateText }}</span>
+      <!-- The held WORD enters as a phrase when it ARRIVES on a standing tile (a one-shot on its own node — the node is keyed on
+           its text; a tile mounted already holding plays nothing): the moment the effect becomes the viewer's is read, not blinked. -->
+      <span v-if="roll === '' && pick === undefined && reason === '' && stateText !== ''" :key="stateText" class="con-pseal__state-text" :class="{'con-pseal__state-text--held': state?.held === true && heldAtMount === false}">{{ stateText }}</span>
       <!-- POPULAR SUPPORT — three places, ALWAYS reserved (v3 В3): a socket that appears when the first
            cube lands would make the arrival its own layout jump. Empty sockets read as empty sockets; the
            landing socket answers ONCE, on contact (`--landed`, the director adds it at the touchdown).
@@ -146,12 +154,12 @@
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {ReduxParty, PARTY_EFFECT_DELEGATES} from '@/common/parliament/ParliamentTypes';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
+import {PARTY_EFFECT_PLACES, PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText} from '@/client/directives/i18n';
 
@@ -205,6 +213,15 @@ export default defineComponent({
     /** THE RECOUNT'S MARKS on this plaque's places (TR31): the first N standing cubes counted so far. */
     supportCounted: {type: Number, default: 0},
   },
+  data() {
+    return {
+      /** Was the effect the viewer's when this tile MOUNTED? The held word's entry plays only for a change the tile witnessed. */
+      heldAtMount: undefined as boolean | undefined,
+    };
+  },
+  mounted() {
+    this.heldAtMount = this.state?.held === true;
+  },
   methods: {
     partyNameKey(party: string): string {
       return partyNameKey(party);
@@ -224,8 +241,13 @@ export default defineComponent({
       // sockets, never the access counter of an opposition tile (v4 §2.5 — «0/2» стояло на месте правителя).
       return !this.ruling && state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates');
     },
+    /** The PRINTED places (always drawn, in the flow). */
     placesCount(): number {
-      return PARTY_EFFECT_DELEGATES;
+      return PARTY_EFFECT_PLACES;
+    },
+    /** …and how many of them are LIVE for this viewer — the state's own threshold (the model's number, never a constant here). */
+    liveCount(): number {
+      return Math.max(1, Math.min(PARTY_EFFECT_PLACES, this.state?.effectDelegates ?? PARTY_EFFECT_PLACES));
     },
     placeCubePx(): number {
       return Math.round((this.size === 'tile' ? 9 : 11) * conUiScale());

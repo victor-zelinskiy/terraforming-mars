@@ -121,16 +121,25 @@
                 <span v-else class="con-parl__tally-row con-parl__tally-row--none" aria-hidden="true">—</span>
               </span>
               <span class="con-parl__tally-line con-parl__tally-line--mine">
+                <!-- THE PLACES are the PRINTED two, always in the flow; a place past the viewer's OWN threshold for this
+                     party (a card lowered it — TR36) is VOID: hidden, its room kept. «Эффект ваш» is judged by that same
+                     number, and it ENTERS as a phrase on a well that opens (one class flip; the row re-centres over the
+                     same motion instead of jumping) — the moment the effect becomes the viewer's is read, never blinked. -->
                 <span v-if="viewerParticipates && viewerColor !== undefined" class="con-parl__tally-row con-parl__tally-row--mine"
-                      :class="{'con-parl__tally-row--held': tallyOf(slot, i).mine >= PARTY_EFFECT_THRESHOLD}" data-parl-mine>
+                      :class="{'con-parl__tally-row--held': tallyOf(slot, i).mine >= slot.viewerEffectDelegates}" data-parl-mine
+                      :data-parl-mine-threshold="slot.viewerEffectDelegates">
                   <span class="con-parl__tally-key">{{ $t('Yours') }}</span>
                   <span class="con-parl__places" aria-hidden="true">
-                    <span v-for="n in PARTY_EFFECT_THRESHOLD" :key="n" class="con-parl__place" :class="{'con-parl__place--on': n <= tallyOf(slot, i).mine}">
-                      <PlayerCube v-if="n <= tallyOf(slot, i).mine" :color="viewerColor" :size="cubePx(10)" :glow="false" />
+                    <span v-for="n in PARTY_EFFECT_PLACES" :key="n" class="con-parl__place"
+                          :class="{'con-parl__place--on': n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates, 'con-parl__place--void': n > slot.viewerEffectDelegates}"
+                          :data-parl-place-void="n > slot.viewerEffectDelegates ? '' : undefined">
+                      <PlayerCube v-if="n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates" :color="viewerColor" :size="cubePx(10)" :glow="false" />
                     </span>
                   </span>
                   <b :key="'m' + tallyOf(slot, i).mine" class="con-parl__tick">{{ tallyOf(slot, i).mine }}</b>
-                  <span v-if="tallyOf(slot, i).mine >= PARTY_EFFECT_THRESHOLD" class="con-parl__tally-held">{{ $t('effect is yours') }}</span>
+                  <span class="con-parl__tally-heldwell" :class="{'con-parl__tally-heldwell--on': tallyOf(slot, i).mine >= slot.viewerEffectDelegates}" aria-hidden="true">
+                    <span class="con-parl__tally-held" :data-parl-held="tallyOf(slot, i).mine >= slot.viewerEffectDelegates ? '' : undefined">{{ $t('effect is yours') }}</span>
+                  </span>
                 </span>
               </span>
             </div>
@@ -164,7 +173,7 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
-import {PARLIAMENT_VOTING_SLOTS, PARTY_EFFECT_DELEGATES as PARTY_EFFECT_THRESHOLD, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PARLIAMENT_VOTING_SLOTS, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
@@ -178,7 +187,7 @@ import {rallyMarked, rallyVoteKey, rallyWinnerShown} from '@/client/console/parl
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {CardArtTier} from '@/client/cards/cardArt';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
-import {ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
+import {PARTY_EFFECT_PLACES, ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
   DENSE_RIBBON, placeShownOn, RIBBON_CUBE, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf,
 } from '@/client/console/parliament/parliamentVoteView';
@@ -211,7 +220,7 @@ export default defineComponent({
     sittingStage: {type: String, default: ''},
   },
   data() {
-    return {DENSE_RIBBON, PARTY_EFFECT_THRESHOLD, RIBBON_CUBE};
+    return {DENSE_RIBBON, PARTY_EFFECT_PLACES, RIBBON_CUBE};
   },
   computed: {
     /**

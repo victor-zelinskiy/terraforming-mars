@@ -34,7 +34,7 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
-import {ParliamentPartyVm, ParliamentSlotVm, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
+import {ParliamentPartyVm, ParliamentSlotVm, PARTY_EFFECT_PLACES, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {
   levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
   productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
@@ -427,7 +427,8 @@ export function voteFactsOf(input: VoteFactsInput): VoteFactsVm {
       after: access.heldByOther || access.after >= access.threshold ? held : places(access.after),
       unchanged: access.heldByOther || access.before === access.after || (access.before >= access.threshold && access.after >= access.threshold),
       tone: accessTone,
-      note: access.heldByOther ? access.reason : (unlocks ? 'two of your delegates' : undefined),
+      // The edge is the viewer's OWN threshold: the printed two, or one under a card's lowered law (TR36).
+      note: access.heldByOther ? access.reason : (unlocks ? (access.threshold < PARTY_EFFECT_PLACES ? 'one of your delegates' : 'two of your delegates') : undefined),
     },
   };
 }

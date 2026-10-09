@@ -82,7 +82,7 @@ describe('resolutionInspectModel — the footer\'s standing and access', () => {
     const ruling = resolutionStatusOf(AQUIFER,
       model([slot({instance: `${AQUIFER}#0`, resolution: AQUIFER, party: PartyName.GREENS})], access()), 'blue');
     expect(ruling?.access).to.deep.include({kind: 'held', basis: 'ruling', mine: 0, places: false});
-    const granted = resolutionStatusOf(GRID, model([slot()], access({granted: ['Council Seat'], hasEffect: true})), 'blue');
+    const granted = resolutionStatusOf(GRID, model([slot()], access({granted: ['Septem Tribus'], hasEffect: true})), 'blue');
     expect(granted?.access).to.deep.include({kind: 'held', basis: 'granted', mine: 0, places: false});
   });
 

@@ -17,7 +17,7 @@ import {PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
  * fact (`rulesByCard`); the plaque only ever combines it with `ruling`.
  */
 /** A tile's foot exists only with a viewer state (the foot IS the viewer's relation to the party); an absent party will do. */
-const STATE: PartyStateVm = {kind: 'absent', label: 'Not in the vote', params: [], tone: 'dim', held: false, delegates: 0};
+const STATE: PartyStateVm = {kind: 'absent', label: 'Not in the vote', params: [], tone: 'dim', held: false, delegates: 0, effectDelegates: 2};
 
 function make(props: Record<string, unknown> = {}) {
   return mount(ConsolePartyPlaque, {

@@ -35,7 +35,7 @@ import {IClientPartyEffect} from '@/common/parliament/IClientResolution';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {Color} from '@/common/Color';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {accessReasonRows} from './consoleParliamentModel';
+import {accessReasonRows, effectDelegatesLowered, effectDelegatesSourceOf} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
@@ -453,9 +453,8 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
   const out: Array<CardAnnotation> = partyMechanicBlocks(effect, PARTY_INSPECTOR_LABELS);
   // 3. FOR YOU — the viewer's STATE: the live bases of the effect (held / not
   //    held) and the action's live state, never the rule restated.
+  const access = viewer === undefined ? undefined : model?.players.find((p) => p.color === viewer)?.access.find((a) => a.party === party);
   if (model !== undefined && viewer !== undefined) {
-    const me = model.players.find((p) => p.color === viewer);
-    const access = me?.access.find((a) => a.party === party);
     if (access !== undefined) {
       const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
       const rows: Array<string | RowText> = accessReasonRows(access, {
@@ -476,9 +475,13 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
       out.push(block('group:you', 'note', 'For you', rows, 2));
     }
   }
-  // 4. THE REFERENCE — how a party effect is held: the whole rule, once.
+  // 4. THE REFERENCE — how a party effect is held: the whole rule, once — in the VIEWER's own law. Under a card that
+  //    lowered the threshold (TR36) the printed sentence («two of your delegates») would state a rule this table no
+  //    longer follows for the viewer, so the reference names the lowered law and the card (PL-113).
   out.push(block('group:access', 'note', 'Access', [
-    'The ruling party\'s effect is everyone\'s. A party with two of your delegates on its resolution gives you its effect too.',
+    effectDelegatesLowered(access) ?
+      {text: 'The ruling party\'s effect is everyone\'s. A party with one of your delegates on its resolution gives you its effect too (${0}).', params: [effectDelegatesSourceOf(access)]} :
+      'The ruling party\'s effect is everyone\'s. A party with two of your delegates on its resolution gives you its effect too.',
   ], 3));
   return out;
 }

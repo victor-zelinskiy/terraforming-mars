@@ -218,7 +218,7 @@ describe('voteInfoModel — the ledger in the vote panel', () => {
     });
     const slot: ParliamentSlotVm = {
       instance, resolutionId: COLONIAL, resolution, party: PartyName.UNITY, votes: table.slots[0].votes, totalVotes: 1, leader: RED, leaderVotes: 1,
-      isWinning: false, tiePriority: 1, viewerVotes: 0, projection: table.viewer!.vote.projections[0],
+      isWinning: false, tiePriority: 1, viewerVotes: 0, viewerEffectDelegates: 2, projection: table.viewer!.vote.projections[0],
     };
     const party: ParliamentPartyVm = {party: PartyName.UNITY, effect: undefined, rule: '', support: 0, inArea: true, ruling: false, access: undefined, actionId: undefined, action: undefined};
     const facts = voteFactsOf({slot, party, viewer: BLUE, forecast: voteForecastOf(slot, BLUE, table.viewer!.vote), snapshot: undefined, landed: false, mineBefore: 0, mineAfter: 1, nameOf: (c) => c});

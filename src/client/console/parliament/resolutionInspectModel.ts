@@ -20,7 +20,8 @@
  */
 import {Color} from '@/common/Color';
 import {ParliamentModel, ParliamentPlayerModel, PartyAccessModel, seatEnacts} from '@/common/models/ParliamentModel';
-import {PARTY_EFFECT_DELEGATES, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {effectDelegatesOf} from './consoleParliamentModel';
 
 export type ResolutionLifecycle = 'vote' | 'enacted';
 
@@ -93,10 +94,11 @@ export function resolutionStatusOf(id: ResolutionId, model: ParliamentModel | un
   if (model === undefined) {
     return undefined;
   }
-  const threshold = PARTY_EFFECT_DELEGATES;
   const enacted = model.enacted?.resolution === id ? model.enacted : undefined;
   if (enacted !== undefined) {
     const seat = viewerSeat(model, viewer);
+    // The viewer's OWN threshold for this party (the printed two, or a card's lower one — TR36): the footer's places are drawn by it.
+    const threshold = effectDelegatesOf(seat?.access.find((a) => a.party === enacted.party));
     return {
       lifecycle: 'enacted',
       winning: false,
@@ -115,6 +117,7 @@ export function resolutionStatusOf(id: ResolutionId, model: ParliamentModel | un
   // Only the VIEWER's delegates count toward their personal threshold.
   const mine = slot.votes.filter((vote) => vote.owner === viewer).length;
   const access = seat.access.find((a) => a.party === slot.party);
+  const threshold = effectDelegatesOf(access);
   if (access !== undefined && access.hasEffect) {
     const basis = basisOf(access);
     return {

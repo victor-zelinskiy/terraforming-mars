@@ -107,7 +107,7 @@ function tableFor(resolution: IClientResolution, agenda: number, edge: boolean, 
   };
   const slot: ParliamentSlotVm = {
     instance, resolutionId: resolution.id, resolution, party: resolution.party, votes, totalVotes: votes.length, leader: RED, leaderVotes: 1,
-    isWinning: false, tiePriority: 1, viewerVotes: mine, projection,
+    isWinning: false, tiePriority: 1, viewerVotes: mine, viewerEffectDelegates: 2, projection,
   };
   const party: ParliamentPartyVm = {
     party: resolution.party, effect: getPartyEffect(resolution.party), rule: undefined, support: 0, inArea: true, ruling: false, access, actionId: undefined, action: undefined,

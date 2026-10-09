@@ -142,7 +142,7 @@ describe('voteInfoModel — the reading', () => {
 function slotVm(over: Partial<ParliamentSlotVm> = {}): ParliamentSlotVm {
   return {
     instance: `${AQUIFER}#0`, resolutionId: AQUIFER, resolution: shipped(AQUIFER), party: PartyName.GREENS,
-    votes: [], totalVotes: 0, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 1, viewerVotes: 0, projection: undefined, ...over,
+    votes: [], totalVotes: 0, leader: undefined, leaderVotes: 0, isWinning: false, tiePriority: 1, viewerVotes: 0, viewerEffectDelegates: 2, projection: undefined, ...over,
   };
 }
 
@@ -192,7 +192,7 @@ describe('voteInfoModel — the facts', () => {
   });
 
   it('the party effect is a panel fact ONLY on the edge — the delegate that grants it', () => {
-    const edge = facts(slotVm({viewerVotes: 1, projection: projection({unlocksEffect: true})}), partyVm({access: {party: PartyName.GREENS, ruling: false, delegates: 1, byDelegates: false, granted: [], hasEffect: false, satisfiesRequirement: false}}));
+    const edge = facts(slotVm({viewerVotes: 1, viewerEffectDelegates: 2, projection: projection({unlocksEffect: true})}), partyVm({access: {party: PartyName.GREENS, ruling: false, delegates: 1, byDelegates: false, granted: [], hasEffect: false, satisfiesRequirement: false}}));
     expect(edge.access.before).deep.eq({key: '${0} of ${1}', params: ['1', '2']});
     expect(edge.access.after).deep.eq({key: 'effect is yours'});
     expect(edge.access).deep.include({unchanged: false, tone: 'gain', note: 'two of your delegates'});
