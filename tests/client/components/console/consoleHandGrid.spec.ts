@@ -203,7 +203,9 @@ describe('consoleHandGrid', () => {
       expect(shortBlockerLabel([reason('production', 'Requires ${0} production')])).to.eq('Production');
       expect(shortBlockerLabel([reason('party', 'Requires a specific political situation')])).to.eq('Politics');
       expect(shortBlockerLabel([reason('tr', 'Requires a terraform rating of ${0}')])).to.eq('Rating');
-      expect(shortBlockerLabel([reason('resource', 'Not enough energy')])).to.eq('Resource');
+      // A resource blocker NAMES the resource — its own short key («Not enough energy»), never a bare «Resource».
+      expect(shortBlockerLabel([reason('resource', 'Not enough energy')])).to.eq('Not enough energy');
+      expect(shortBlockerLabel([reason('resource', 'Not enough steel')])).to.eq('Not enough steel');
       expect(shortBlockerLabel([reason('count', 'Requires ${0} city tile(s)')])).to.eq('Condition');
       expect(shortBlockerLabel([reason('rule', 'Card is unavailable')])).to.eq('Condition');
     });

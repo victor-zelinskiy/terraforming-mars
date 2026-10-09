@@ -334,7 +334,9 @@ export function shortBlockerLabel(reasons: ReadonlyArray<UnplayableReason>): str
   case 'tr':
     return 'Rating';
   case 'resource':
-    return 'Resource';
+    // The reason's own message IS the compact label — the `notEnough*` family («Not enough steel»), one short
+    // translated key each, like the M€ chip's. A bare «Resource» told the player nothing about WHICH one.
+    return r.params === undefined ? r.message : 'Resource';
   case 'globalParameter':
     // Structural parameter from the server (language-independent). The
     // message-word probe is a fallback only for older data predating the field.
