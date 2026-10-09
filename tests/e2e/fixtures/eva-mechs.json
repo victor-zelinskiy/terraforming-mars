@@ -578,7 +578,7 @@
    "Inventrix"
   ]
  },
- "createdTimeMs": 1791568910208,
+ "createdTimeMs": 1791577507180,
  "currentSeed": 467049282315,
  "deferredActions": [],
  "donePlayers": [],
@@ -598,7 +598,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791568910208
+   "timestamp": 1791577507180
   },
   {
    "message": "Good luck ${0}!",
@@ -608,7 +608,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "playerId": "p-player1-id"
   },
   {
@@ -619,7 +619,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "playerId": "p-player2-id"
   },
   {
@@ -630,7 +630,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "type": 1
   },
   {
@@ -645,7 +645,7 @@
      "value": "Interplanetary Cinematics"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -667,7 +667,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -684,7 +684,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -701,7 +701,7 @@
      "value": "Saturn Systems"
     }
    ],
-   "timestamp": 1791568910208,
+   "timestamp": 1791577507180,
    "correlationId": 3,
    "parentId": 3,
    "role": "root-action",
@@ -723,7 +723,7 @@
      "value": "titanium"
     }
    ],
-   "timestamp": 1791568910209,
+   "timestamp": 1791577507180,
    "correlationId": 3,
    "parentId": 3,
    "role": "detail"
@@ -740,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910209,
+   "timestamp": 1791577507180,
    "correlationId": 3,
    "parentId": 3,
    "role": "detail"
@@ -765,7 +765,7 @@
      "value": "Saturn Systems"
     }
    ],
-   "timestamp": 1791568910209,
+   "timestamp": 1791577507180,
    "correlationId": 3,
    "parentId": 5,
    "role": "effect-result"
@@ -1056,7 +1056,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Cold Flux Current",
+ "name": "Binary Stellar State",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1159,10 +1159,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791568910209,
+    "startedAt": 1791577507181,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791568910209
+    "lastStoppedAt": 1791577507181
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1276,10 +1276,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791568910208,
+    "startedAt": 1791577507180,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791568910209
+    "lastStoppedAt": 1791577507181
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

@@ -629,7 +629,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791568910180,
+ "createdTimeMs": 1791577507172,
  "currentSeed": 690500311501,
  "deferredActions": [],
  "donePlayers": [],
@@ -649,7 +649,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791568910180
+   "timestamp": 1791577507171
   },
   {
    "message": "Good luck ${0}!",
@@ -659,7 +659,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791568910180,
+   "timestamp": 1791577507172,
    "playerId": "p-player1-id"
   },
   {
@@ -670,7 +670,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791568910180,
+   "timestamp": 1791577507172,
    "playerId": "p-player2-id"
   },
   {
@@ -681,7 +681,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791568910180,
+   "timestamp": 1791577507172,
    "type": 1
   },
   {
@@ -696,7 +696,7 @@
      "value": "Manutech"
     }
    ],
-   "timestamp": 1791568910180,
+   "timestamp": 1791577507172,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -718,7 +718,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1791568910180,
+   "timestamp": 1791577507172,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -735,7 +735,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910181,
+   "timestamp": 1791577507172,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -752,7 +752,7 @@
      "value": "Pharmacy Union"
     }
    ],
-   "timestamp": 1791568910181,
+   "timestamp": 1791577507173,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -778,7 +778,7 @@
      }
     }
    ],
-   "timestamp": 1791568910181,
+   "timestamp": 1791577507173,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -797,7 +797,7 @@
      ]
     }
    ],
-   "timestamp": 1791568910181,
+   "timestamp": 1791577507173,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -814,7 +814,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910181,
+   "timestamp": 1791577507173,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -839,7 +839,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910182,
+   "timestamp": 1791577507174,
    "correlationId": 5,
    "parentId": 7,
    "role": "effect-result"
@@ -1250,7 +1250,7 @@
   "Planner",
   "Hoverlord"
  ],
- "name": "Faint Isotope Loop",
+ "name": "Faint Carbon Loop",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1385,10 +1385,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1791568910182,
+    "startedAt": 1791577507174,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791568910182
+    "lastStoppedAt": 1791577507174
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1502,10 +1502,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1791568910181,
+    "startedAt": 1791577507173,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791568910182
+    "lastStoppedAt": 1791577507174
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

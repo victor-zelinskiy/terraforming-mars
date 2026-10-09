@@ -576,7 +576,7 @@
    "trackPosition": 1
   },
   {
-   "name": "Europa",
+   "name": "Io",
    "colonies": [],
    "isActive": true,
    "trackPosition": 2
@@ -602,26 +602,26 @@
  ],
  "corporationDeck": {
   "drawPile": [
-   "Polyphemos",
-   "Mining Guild",
-   "Ecoline",
-   "Poseidon",
-   "Tharsis Republic",
-   "CrediCor",
-   "Helion",
    "Interplanetary Cinematics",
-   "PhoboLog",
    "Saturn Systems",
+   "CrediCor",
+   "PhoboLog",
+   "Mining Guild",
    "ThorGate",
-   "Arklight",
-   "United Nations Mars Initiative",
+   "Ecoline",
+   "Helion",
    "Stormcraft Incorporated",
+   "Tharsis Republic",
+   "Arklight",
+   "Poseidon",
+   "Polyphemos",
+   "United Nations Mars Initiative",
    "Inventrix"
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791568910503,
- "currentSeed": 708815969631,
+ "createdTimeMs": 1791577507328,
+ "currentSeed": 710647535444,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
@@ -630,7 +630,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 38,
+ "gameAge": 39,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791568910503
+   "timestamp": 1791577507328
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791568910539,
+   "timestamp": 1791577507328,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791568910539,
+   "timestamp": 1791577507328,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791568910539,
+   "timestamp": 1791577507328,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791568910540,
+   "timestamp": 1791577507329,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910540,
+   "timestamp": 1791577507329,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -722,7 +722,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791568910541,
+   "timestamp": 1791577507329,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -740,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910541,
+   "timestamp": 1791577507329,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -753,7 +753,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -772,7 +772,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -789,7 +789,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -806,7 +806,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -816,7 +816,7 @@
    "data": [
     {
      "type": 8,
-     "value": "Scientists"
+     "value": "Unity"
     },
     {
      "type": 1,
@@ -831,7 +831,32 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Greens"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -856,7 +881,32 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
+   "data": [
+    {
+     "type": 8,
+     "value": "Scientists"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 1,
+     "value": "2"
+    },
+    {
+     "type": 1,
+     "value": "3"
+    }
+   ],
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -881,57 +931,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791568910551,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Greens"
-    },
-    {
-     "type": 1,
-     "value": "2"
-    },
-    {
-     "type": 1,
-     "value": "2"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791568910551,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Unity"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791568910551,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -944,7 +944,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1791568910552,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -957,7 +957,7 @@
      "value": "Mars First"
     }
    ],
-   "timestamp": 1791568910552,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -974,7 +974,7 @@
      "value": "Play 2 building tags"
     }
    ],
-   "timestamp": 1791568910552,
+   "timestamp": 1791577507331,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1015,7 +1015,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791568910553,
+   "timestamp": 1791577507332,
    "correlationId": 5,
    "parentId": 8,
    "role": "detail"
@@ -1036,7 +1036,7 @@
      "value": "RDX_MARS_ARCHITECTURE_AWARD"
     }
    ],
-   "timestamp": 1791568910553,
+   "timestamp": 1791577507332,
    "correlationId": 5,
    "parentId": 10,
    "role": "detail"
@@ -1046,10 +1046,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_GREENS_MOHOLE_CONTEST"
+     "value": "RDX_SCIENTISTS_SCIENTISTS_BUDGET"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1059,10 +1059,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_UNITY_JOVIAN_TAX_RIGHTS"
+     "value": "RDX_REDS_HEAT_CAPTURE"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1072,10 +1072,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION"
+     "value": "RDX_SCIENTISTS_MEDICAL_DATABASE"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1085,18 +1085,18 @@
    "data": [
     {
      "type": 1,
-     "value": "1"
+     "value": "2"
     },
     {
      "type": 8,
-     "value": "Industrialists"
+     "value": "Scientists"
     },
     {
      "type": 16,
-     "value": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION"
+     "value": "RDX_SCIENTISTS_MEDICAL_DATABASE"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1106,10 +1106,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_UNITY_TRADE_INDUSTRIES"
+     "value": "RDX_UNITY_UNITY_BUDGET"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1127,10 +1127,23 @@
     },
     {
      "type": 16,
-     "value": "RDX_UNITY_TRADE_INDUSTRIES"
+     "value": "RDX_UNITY_UNITY_BUDGET"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
+   "correlationId": 5,
+   "parentId": 5,
+   "role": "detail"
+  },
+  {
+   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
+   "data": [
+    {
+     "type": 16,
+     "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
+    }
+   ],
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1140,10 +1153,10 @@
    "data": [
     {
      "type": 16,
-     "value": "RDX_SCIENTISTS_MEDICAL_DATABASE"
+     "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1157,14 +1170,14 @@
     },
     {
      "type": 8,
-     "value": "Scientists"
+     "value": "Greens"
     },
     {
      "type": 16,
-     "value": "RDX_SCIENTISTS_MEDICAL_DATABASE"
+     "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1172,7 +1185,7 @@
   {
    "message": "Every player's free delegate returns to the lobby",
    "data": [],
-   "timestamp": 1791568910554,
+   "timestamp": 1791577507333,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1185,7 +1198,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791568910557,
+   "timestamp": 1791577507334,
    "type": 1
   },
   {
@@ -1196,7 +1209,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791568910557
+   "timestamp": 1791577507334
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1214,7 +1227,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1791568910559
+   "timestamp": 1791577507335
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1232,7 +1245,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1791568910559
+   "timestamp": 1791577507335
   }
  ],
  "gameEvents": [
@@ -1540,7 +1553,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Static Proton Point",
+ "name": "Polar Fusion Field",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1585,19 +1598,19 @@
    "dealtPreludeCards": [],
    "dealtCeoCards": [],
    "dealtProjectCards": [
-    "Magnetic Field Generators",
+    "Mangrove",
     "Adaptation Technology",
     "Industrial Microbes",
     "Fusion Power",
-    "Windmills",
+    "Worms",
     "Energy Tapping",
-    "Media Group",
-    "Power Supply Consortium",
+    "Medical Lab",
+    "Protected Habitats",
     "Underground Detonations",
-    "Interstellar Colony Ship"
+    "Invention Contest"
    ],
    "cardsInHand": [
-    "Magnetic Field Generators",
+    "Mangrove",
     "Adaptation Technology"
    ],
    "pendingCardIntakes": [],
@@ -1636,11 +1649,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 18,
-    "startedAt": 1791568910554,
+    "sumElapsed": 7,
+    "startedAt": 1791577507333,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791568910559
+    "lastStoppedAt": 1791577507335
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [
@@ -1707,13 +1720,13 @@
    "dealtProjectCards": [
     "Lake Marineris",
     "Decomposers",
-    "Titan Shuttles",
-    "Small Animals",
+    "Trading Colony",
+    "Soil Factory",
     "Terraforming Ganymede",
-    "Physics Complex",
-    "Ice Moon Colony",
+    "Power Infrastructure",
+    "Impactor Swarm",
     "Mars University",
-    "Nationalist Movement",
+    "Red Tech Convention",
     "Ecological Zone"
    ],
    "cardsInHand": [
@@ -1757,11 +1770,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 10,
-    "startedAt": 1791568910559,
+    "sumElapsed": 5,
+    "startedAt": 1791577507335,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791568910559
+    "lastStoppedAt": 1791577507335
    },
    "actionsTakenThisGame": 2,
    "victoryPointsByGeneration": [
@@ -1787,336 +1800,337 @@
  ],
  "preludeDeck": {
   "drawPile": [
-   "UNMI Contractor",
-   "Great Aquifer",
-   "Power Generation",
-   "Martian Industries",
-   "Orbital Construction Yard",
-   "Smelting Plant",
-   "Research Network",
-   "Io Research Outpost",
-   "Metals Company",
-   "Huge Asteroid",
-   "Biofuels",
-   "Ecology Experts",
-   "Loan",
-   "Self-Sufficient Settlement",
-   "Dome Farming",
-   "Donation",
-   "Nitrogen Shipment",
-   "Mohole Excavation",
-   "Biosphere Support",
-   "Society Support",
-   "Business Empire",
-   "Supply Drop",
-   "Galilean Mining",
-   "Metal-Rich Asteroid",
-   "Mohole",
-   "Experimental Forest",
-   "Early Settlement",
-   "Aquifer Turbines",
    "Biolab",
-   "Mining Operations",
-   "Acquired Space Agency",
+   "Self-Sufficient Settlement",
+   "Loan",
+   "UNMI Contractor",
+   "Io Research Outpost",
+   "Business Empire",
+   "Biofuels",
+   "Great Aquifer",
    "Polar Industries",
-   "Allied Bank",
    "Eccentric Sponsor",
-   "Supplier"
+   "Metals Company",
+   "Power Generation",
+   "Experimental Forest",
+   "Mohole",
+   "Acquired Space Agency",
+   "Dome Farming",
+   "Nitrogen Shipment",
+   "Smelting Plant",
+   "Metal-Rich Asteroid",
+   "Biosphere Support",
+   "Galilean Mining",
+   "Donation",
+   "Supply Drop",
+   "Huge Asteroid",
+   "Orbital Construction Yard",
+   "Aquifer Turbines",
+   "Supplier",
+   "Early Settlement",
+   "Mohole Excavation",
+   "Martian Industries",
+   "Mining Operations",
+   "Research Network",
+   "Society Support",
+   "Allied Bank",
+   "Ecology Experts"
   ],
   "discardPile": []
  },
  "projectDeck": {
   "drawPile": [
-   "Carbonate Processing",
-   "Imported Hydrogen",
-   "GHG Producing Bacteria",
-   "Research Outpost",
-   "Space Port Colony",
-   "Algae",
-   "Aerobraked Ammonia Asteroid",
-   "Viral Enhancers",
-   "Heat Trappers",
-   "Steelworks",
-   "Solar Probe",
-   "Noctis City",
-   "Greenhouses",
-   "Noctis Farming",
-   "Sponsors",
-   "Mining Area",
-   "Underground City",
-   "Mining Expedition",
-   "Lagrange Observatory",
-   "Fringe Colony",
-   "Farming",
-   "Earth Army Contract",
-   "Invention Contest",
-   "Formula Zero",
-   "Black Polar Dust",
-   "Sabotage",
-   "Magnetic Field Dome",
-   "Fuel Factory",
-   "Business Network",
-   "Natural Preserve",
-   "Advanced Alloys",
-   "Imported Nitrogen",
-   "Exclusive Colony",
-   "Rad-Chem Factory",
-   "Gene Repair",
-   "Lava Flows",
-   "Immigration Shuttles",
-   "Minority Refuge",
-   "Robotic Workforce",
+   "Predators",
+   "Spaceship Recycling",
+   "Pets",
    "Great Escarpment Consortium",
-   "Caretaker Contract",
-   "Hired Raiders",
-   "Methane From Titan",
-   "Local Heat Trapping",
-   "Peroxide Power",
-   "Mineral Deposit",
-   "Tropical Resort",
-   "Corona Extractor",
-   "Flooding",
-   "Air Raid",
-   "Restricted Area",
-   "Space Elevator",
-   "Conscription",
-   "Productive Outpost",
-   "Automated Convoys",
-   "Ecology Research",
-   "Wave Power",
-   "Space Port",
-   "Nitrogen-Rich Asteroid",
-   "Regolith Eaters",
-   "Comet",
-   "Red Spot Observatory",
-   "Micro-Mills",
-   "Bribed Committee",
-   "Asteroid Mining",
-   "Business Contacts",
-   "AI Central",
-   "Kelp Farming",
-   "Giant Space Mirror",
-   "Deimos Down",
-   "Red Museum",
-   "Lichen",
-   "Ganymede Colony",
-   "Dust Seals",
-   "Deep Well Heating",
+   "Callisto Penal Mines",
+   "Vesta Shipyard",
+   "Algae",
+   "Noctis Farming",
+   "Magnetic Field Generators",
+   "Political Science",
+   "Indentured Workers",
+   "Aerobraked Ammonia Asteroid",
+   "Nuclear Power",
+   "Market Manipulation",
+   "Earth Catapult",
+   "Security Fleet",
+   "Immigrant City",
+   "Mohole Area",
+   "Imported Nitrogen",
+   "Vector Computations",
+   "Virus",
    "Cartel",
-   "Subterranean Reservoir",
-   "Nova City",
-   "Molecular Printing",
-   "Heavy Taxation",
-   "Sky Docks",
-   "UNMI Liner",
-   "Electro Catapult",
    "Imported GHG",
-   "Impactor Swarm",
-   "Search For Life",
+   "Urban Decomposers",
+   "Mining Expedition",
+   "Farming",
+   "Strip Mine",
+   "Gene Repair",
+   "Habitat Science",
+   "Warp Drive",
+   "Robotic Workforce",
+   "AI Central",
+   "Titan Shuttles",
+   "Corona Extractor",
+   "Floater Leasing",
+   "Ganymede Colony",
+   "Lichen",
+   "Regolith Eaters",
+   "Molecular Printing",
+   "Space Port Colony",
+   "Reds News Outlet",
+   "Floater Technology",
+   "Herbivores",
+   "Micro-Mills",
+   "Spin-off Department",
+   "Rover Construction",
+   "Satellites",
+   "CEO's Favorite Project",
+   "Release of Inert Gases",
+   "Flooding",
+   "Atmo Collectors",
+   "Nitrogen-Rich Asteroid",
+   "Lava Flows",
+   "Restricted Area",
+   "Deimos Down",
+   "Heat Trappers",
+   "Rim Freighters",
+   "Land Claim",
+   "Interplanetary Colony Ship",
+   "Mining Area",
+   "Io Mining Industries",
+   "Investment Loan",
+   "Research Colony",
+   "Automated Convoys",
+   "Equatorial Magnetizer",
+   "Asteroid Mining",
+   "Building Industries",
+   "Domed Crater",
+   "UNMI Liner",
+   "Giant Space Mirror",
+   "Mech Sports",
+   "Cryo-Sleep",
+   "Livestock",
+   "Industrial Center",
+   "Anti-Gravity Technology",
+   "Deep Well Heating",
+   "Martian Census",
+   "Tardigrades",
+   "Natural Preserve",
+   "Nitrogen from Titan",
+   "Ice Moon Colony",
+   "Space Port",
+   "Earth Army Contract",
+   "Martian Rails",
+   "Imported Hydrogen",
+   "Birds",
+   "Shuttles",
    "Beam From A Thorium Asteroid",
-   "Earth Office",
+   "Electro Catapult",
    "Eos Chasma National Park",
    "Designed Microorganisms",
    "Ice Cap Melting",
-   "Titan Floating Launch-pad",
-   "Urban Decomposers",
+   "Formula Zero",
+   "Noctis City",
    "Biomass Combustors",
-   "Research",
-   "Luna Governor",
-   "Soil Factory",
-   "Development Center",
-   "Virus",
-   "Investment Loan",
-   "GHG Factories",
-   "Zeppelins",
-   "Spin-off Department",
-   "Construction Mechs",
-   "Asteroid Mining Consortium",
-   "Worms",
-   "Cloud Seeding",
-   "Immigrant City",
-   "Tardigrades",
-   "Media Archives",
-   "Soletta",
-   "Earth Elevator",
-   "Herbivores",
-   "Trees",
-   "Supreme Expertise",
-   "Sponsored Settlement",
-   "Livestock",
-   "Large Convoy",
-   "Industrial Center",
-   "Pioneer Settlement",
-   "Phobos Space Haven",
-   "Pets",
-   "Security Fleet",
-   "Warp Drive",
-   "Airliners",
-   "Quantum Extractor",
-   "Arctic Algae",
-   "Trading Colony",
-   "Power Infrastructure",
-   "Cupola City",
-   "Titan Air-scrapping",
-   "Domed Crater",
-   "Political Think Tank",
-   "Cryo-Sleep",
-   "Ore Processor",
-   "Land Claim",
-   "Optimal Aerobraking",
-   "Martian Rails",
-   "Io Mining Industries",
-   "Satellites",
-   "Anti-Gravity Technology",
-   "Bushes",
-   "Energy Saving",
-   "Atmo Collectors",
-   "Ironworks",
-   "Water Hauling",
-   "Water Splitting Plant",
-   "Sub-zero Salt Fish",
-   "Asteroid",
-   "Rim Freighters",
-   "Fueled Generators",
-   "Solar Reflectors",
-   "Floater Technology",
-   "Mining Rights",
-   "Arboretum",
-   "Extreme-Cold Fungus",
-   "Predators",
-   "Earth Catapult",
-   "Vector Computations",
-   "Political Science",
-   "Towing A Comet",
-   "Red Tech Convention",
-   "Research Colony",
-   "Re-settlement",
-   "Floater Prototypes",
-   "Solar Wind Power",
-   "Artificial Lake",
-   "Mine",
-   "Habitat Science",
-   "CEO's Favorite Project",
-   "Big Asteroid",
-   "Mech Sports",
-   "Interplanetary Colony Ship",
-   "Advanced Ecosystems",
-   "Trans-Neptune Probe",
-   "Building Industries",
-   "Power Grid",
-   "Floater Leasing",
-   "Shuttles",
-   "Power Plant",
    "Lunar Beam",
-   "Martian Census",
-   "Party Sanctions",
-   "Jovian Lanterns",
-   "Technology Demonstration",
-   "Corporate Stronghold",
-   "EVA Mechs",
-   "Nitrogen from Titan",
-   "Protected Habitats",
    "Lunar Exports",
-   "Reds News Outlet",
+   "Jovian Lanterns",
+   "Ironworks",
+   "Airliners",
+   "Mine",
+   "GHG Producing Bacteria",
+   "Supreme Expertise",
+   "Tropical Resort",
+   "Party Sanctions",
+   "Bribed Committee",
+   "Trade Envoys",
+   "Cloud Seeding",
+   "Immigration Shuttles",
+   "Technology Demonstration",
+   "Media Group",
+   "Space Mirrors",
+   "Ecology Research",
+   "Martian Roads",
+   "Tundra Farming",
+   "Greenhouses",
+   "Mass Converter",
+   "Local Heat Trapping",
+   "Large Convoy",
+   "Interstellar Colony Ship",
+   "Productive Outpost",
+   "Plantation",
+   "Phobos Space Haven",
+   "Space Elevator",
+   "Sabotage",
+   "Air Raid",
+   "Rad-Suits",
+   "Arctic Algae",
+   "GHG Factories",
+   "Power Supply Consortium",
+   "Cupola City",
+   "Titan Floating Launch-pad",
+   "Dust Seals",
+   "Comet",
+   "Earth Elevator",
+   "Business Network",
+   "Lightning Harvest",
+   "Ore Processor",
+   "Methane From Titan",
+   "Lagrange Observatory",
    "Symbiotic Fungus",
-   "Minority Representation",
-   "Mining Colony",
-   "Market Manipulation",
+   "Asteroid Mining Consortium",
+   "Bushes",
+   "Space Station",
+   "Community Services",
+   "Kelp Farming",
+   "Colony Sponsors",
+   "Wave Power",
+   "Steelworks",
+   "Asteroid",
+   "Grass",
+   "Fueled Generators",
+   "Water Splitting Plant",
+   "Galilean Waystation",
+   "Mining Rights",
+   "Nova City",
+   "Extreme-Cold Fungus",
+   "Protected Valley",
+   "Earth Office",
    "Political Donation",
-   "Urbanized Area",
+   "Advanced Alloys",
+   "Trees",
+   "Windmills",
+   "Fuel Factory",
+   "Towing A Comet",
+   "Capital",
+   "Soletta",
+   "Artificial Lake",
+   "Mineral Deposit",
+   "Exclusive Colony",
+   "Commercial District",
+   "Big Asteroid",
+   "Political Think Tank",
+   "Solar Wind Power",
+   "Advanced Ecosystems",
+   "Solar Reflectors",
+   "Business Contacts",
+   "Power Grid",
+   "Floater Prototypes",
+   "Small Animals",
+   "Power Plant",
+   "Magnetic Field Dome",
+   "Construction Mechs",
+   "Insects",
+   "Jupiter Floating Station",
+   "Arboretum",
+   "Development Center",
+   "Energy Saving",
+   "Pioneer Settlement",
+   "Quantum Extractor",
+   "Lunar Mining",
+   "Mars Army Mechs",
+   "Titanium Mine",
+   "Water Hauling",
+   "Minority Refuge",
+   "Mining Colony",
+   "Optimal Aerobraking",
+   "Sky Docks",
    "Import of Advanced GHG",
    "Food Factory",
-   "Commercial District",
-   "Strip Mine",
+   "Corporate Stronghold",
+   "Subterranean Reservoir",
    "Artificial Photosynthesis",
-   "Spaceship Recycling",
-   "Space Mirrors",
+   "Red Museum",
+   "Titan Air-scrapping",
    "Inventors' Guild",
-   "Medical Lab",
+   "Nationalist Movement",
    "ArchaeBacteria",
-   "Mangrove",
-   "Colony Sponsors",
+   "Quantum Communications",
+   "Permafrost Extraction",
    "Giant Ice Asteroid",
-   "Capital",
-   "Lightning Harvest",
-   "Olympus Conference",
-   "Hackers",
+   "Carbonate Processing",
+   "Fringe Colony",
+   "Sub-zero Salt Fish",
+   "Hired Raiders",
    "Ice Asteroid",
-   "Birds",
-   "Space Station",
-   "Protected Valley",
-   "Titanium Mine",
-   "Jupiter Floating Station",
-   "Great Dam",
+   "Black Polar Dust",
+   "Sponsors",
+   "Rad-Chem Factory",
+   "Toll Station",
+   "Luna Governor",
+   "Refugee Camps",
+   "Red Lawyers",
+   "Media Archives",
    "Council Seat",
-   "Mass Converter",
-   "Mars Army Ships",
    "Fish",
    "Adapted Lichen",
    "Breathing Filters",
    "Solar Power",
-   "Rover Construction",
-   "Lunar Mining",
-   "Nuclear Power",
-   "Aquifer Pumping",
-   "Martian Fiber",
-   "Grass",
-   "Permafrost Extraction",
+   "Search For Life",
+   "Martian Zoo",
    "Nuclear Zone",
+   "Aquifer Pumping",
+   "Sponsored Settlement",
+   "Great Dam",
+   "Peroxide Power",
+   "Minority Representation",
    "Water Import From Europa",
-   "Tundra Farming",
-   "Quantum Communications",
-   "Rad-Suits",
-   "Martian Roads",
+   "Underground City",
+   "Red Spot Observatory",
+   "Research",
+   "Physics Complex",
    "Special Design",
-   "Release of Inert Gases",
-   "Vesta Shipyard",
-   "Moss",
+   "Research Outpost",
+   "Viral Enhancers",
+   "EVA Mechs",
    "Geothermal Power",
-   "Insulation",
-   "Nitrophilic Moss",
-   "Mars Army Mechs",
-   "Mohole Area",
    "Administration District",
+   "Nitrophilic Moss",
+   "Mars Army Ships",
+   "Moss",
+   "Martian Fiber",
    "Heather",
    "Acquired Company",
    "Standard Technology",
    "Convoy From Europa",
    "Open City",
    "Tectonic Stress Power",
-   "Callisto Penal Mines",
-   "Refugee Camps",
-   "Community Services",
+   "Caretaker Contract",
+   "Solar Probe",
+   "Conscription",
    "Colonizer Training Camp",
    "Nitrite Reducing Bacteria",
-   "Galilean Waystation",
-   "Insects"
+   "Heavy Taxation",
+   "Insulation"
   ],
   "discardPile": [
    "Industrial Microbes",
    "Fusion Power",
-   "Windmills",
+   "Worms",
    "Energy Tapping",
-   "Media Group",
-   "Power Supply Consortium",
+   "Medical Lab",
+   "Protected Habitats",
    "Underground Detonations",
-   "Interstellar Colony Ship",
-   "Titan Shuttles",
-   "Small Animals",
+   "Invention Contest",
+   "Trading Colony",
+   "Soil Factory",
    "Terraforming Ganymede",
-   "Physics Complex",
-   "Ice Moon Colony",
+   "Power Infrastructure",
+   "Impactor Swarm",
    "Mars University",
-   "Nationalist Movement",
+   "Red Tech Convention",
    "Ecological Zone",
-   "Toll Station",
-   "Equatorial Magnetizer",
-   "Trade Envoys",
+   "Trans-Neptune Probe",
    "Miranda Resort",
-   "Martian Zoo",
-   "Indentured Workers",
    "Ants",
-   "Plantation"
+   "Hackers",
+   "Olympus Conference",
+   "Re-settlement",
+   "Zeppelins",
+   "Urbanized Area"
   ]
  },
  "researchedPlayers": [],
@@ -2124,15 +2138,15 @@
  "someoneHasRemovedOtherPlayersPlants": false,
  "spectatorId": "spectator-id",
  "tags": [
-  "space",
-  "building",
-  "jovian",
-  "animal",
-  "microbe",
-  "plant",
-  "earth",
   "science",
+  "space",
+  "jovian",
+  "microbe",
+  "earth",
+  "building",
   "city",
+  "animal",
+  "plant",
   "power",
   "mars",
   "wild"
@@ -2150,17 +2164,12 @@
   "version": 1,
   "slots": [
    {
-    "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
+    "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
     "votes": [
      {
       "owner": "NEUTRAL",
       "seq": 4
-     }
-    ]
-   },
-   {
-    "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-    "votes": [
+     },
      {
       "owner": "NEUTRAL",
       "seq": 5
@@ -2168,11 +2177,20 @@
     ]
    },
    {
-    "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+    "instance": "RDX_UNITY_UNITY_BUDGET#0",
     "votes": [
      {
       "owner": "NEUTRAL",
       "seq": 6
+     }
+    ]
+   },
+   {
+    "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+    "votes": [
+     {
+      "owner": "NEUTRAL",
+      "seq": 7
      }
     ]
    }
@@ -2194,13 +2212,13 @@
    "p-player1-id",
    "p-player2-id"
   ],
-  "voteSeq": 6,
+  "voteSeq": 7,
   "popularSupport": {
+   "Unity": 0,
+   "Greens": 0,
+   "Industrialists": 1,
    "Scientists": 0,
-   "Industrialists": 0,
-   "Reds": 1,
-   "Greens": 2,
-   "Unity": 0
+   "Reds": 1
   },
   "agenda": {
    "p-player1-id": 1
@@ -2210,36 +2228,36 @@
   "partyActionUses": {},
   "resolutionActionUses": {},
   "deck": [
-   "RDX_GREENS_AQUIFER_CONTEST#0",
-   "RDX_REDS_WATER_EXPORT#0",
-   "RDX_MARSFIRST_MIGRATION_FUNDING#0",
+   "RDX_UNITY_TRADE_INDUSTRIES#0",
    "RDX_GREENS_FORESTRY_SUPPORT#0",
-   "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
-   "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+   "RDX_REDS_WATER_EXPORT#0",
    "RDX_INDUSTRIALISTS_MINING_INCENTIVES#0",
+   "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+   "RDX_GREENS_MOHOLE_CONTEST#0",
    "RDX_UNITY_COLONY_CONTEST#0",
-   "RDX_MARS_URBAN_DEVELOPMENT#0",
+   "RDX_MARS_URBAN_RESEARCH#0",
    "RDX_GREENS_GREENS_BUDGET#0",
-   "RDX_SCIENTISTS_RD_FUNDING#0",
+   "RDX_UNITY_COLONIZATION_FUNDING#0",
    "RDX_MARS_DEVELOPMENT_CRAZE#0",
-   "RDX_MARS_SKYSCRAPERS#0",
+   "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
    "RDX_GREENS_BIODOME_CONTEST#0",
    "RDX_UNITY_COLONIAL_AFFAIRS#0",
+   "RDX_SCIENTISTS_RD_FUNDING#0",
    "RDX_REDS_PLANT_BAN#0",
-   "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
    "RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID#0",
-   "RDX_MARS_URBAN_RESEARCH#0",
+   "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
    "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
    "RDX_GREENS_CLIMATE_RESEARCH#0",
-   "RDX_UNITY_UNITY_BUDGET#0",
+   "RDX_MARS_URBAN_DEVELOPMENT#0",
    "RDX_SCIENTISTS_JOINT_RESEARCH#0",
    "RDX_GREENS_GENEROUS_FUNDING#0",
-   "RDX_UNITY_COLONIZATION_FUNDING#0",
-   "RDX_REDS_HEAT_CAPTURE#0"
+   "RDX_MARS_SKYSCRAPERS#0"
   ],
   "discard": [
-   "RDX_GREENS_MOHOLE_CONTEST#0",
-   "RDX_UNITY_JOVIAN_TAX_RIGHTS#0"
+   "RDX_MARSFIRST_MIGRATION_FUNDING#0",
+   "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+   "RDX_REDS_HEAT_CAPTURE#0",
+   "RDX_SCIENTISTS_OPEN_IP_TRADE#0"
   ],
   "lastPhase": {
    "generation": 1,
@@ -2252,7 +2270,13 @@
    },
    "support": [
     {
-     "party": "Scientists",
+     "party": "Unity",
+     "gained": 1,
+     "total": 1,
+     "reason": "absent"
+    },
+    {
+     "party": "Greens",
      "gained": 1,
      "total": 1,
      "reason": "absent"
@@ -2264,19 +2288,13 @@
      "reason": "absent"
     },
     {
-     "party": "Reds",
-     "gained": 1,
-     "total": 1,
-     "reason": "absent"
-    },
-    {
-     "party": "Greens",
+     "party": "Scientists",
      "gained": 2,
      "total": 2,
      "reason": "lost-with-player-vote"
     },
     {
-     "party": "Unity",
+     "party": "Reds",
      "gained": 1,
      "total": 1,
      "reason": "lost"
@@ -2285,15 +2303,15 @@
    "enacted": "RDX_MARS_ARCHITECTURE_AWARD#0",
    "refreshed": [
     {
-     "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-     "neutralVotes": 1
-    },
-    {
-     "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-     "neutralVotes": 1
-    },
-    {
      "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+     "neutralVotes": 2
+    },
+    {
+     "instance": "RDX_UNITY_UNITY_BUDGET#0",
+     "neutralVotes": 1
+    },
+    {
+     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
      "neutralVotes": 1
     }
    ],
@@ -2347,7 +2365,7 @@
    "renewal": [
     {
      "kind": "leave",
-     "instance": "RDX_GREENS_MOHOLE_CONTEST#0",
+     "instance": "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
      "slot": 0,
      "returned": [
       {
@@ -2358,44 +2376,50 @@
     },
     {
      "kind": "leave",
-     "instance": "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
+     "instance": "RDX_REDS_HEAT_CAPTURE#0",
      "slot": 2,
      "returned": []
     },
     {
      "kind": "deal",
-     "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-     "slot": 0,
-     "source": "deck"
-    },
-    {
-     "kind": "support",
-     "party": "Industrialists",
-     "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-     "count": 1
-    },
-    {
-     "kind": "deal",
-     "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-     "slot": 1,
-     "source": "deck"
-    },
-    {
-     "kind": "support",
-     "party": "Unity",
-     "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-     "count": 1
-    },
-    {
-     "kind": "deal",
      "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
-     "slot": 2,
+     "slot": 0,
      "source": "deck"
     },
     {
      "kind": "support",
      "party": "Scientists",
      "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+     "count": 2
+    },
+    {
+     "kind": "deal",
+     "instance": "RDX_UNITY_UNITY_BUDGET#0",
+     "slot": 1,
+     "source": "deck"
+    },
+    {
+     "kind": "support",
+     "party": "Unity",
+     "instance": "RDX_UNITY_UNITY_BUDGET#0",
+     "count": 1
+    },
+    {
+     "kind": "reject",
+     "instance": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
+     "slot": 2,
+     "reason": "party-in-area"
+    },
+    {
+     "kind": "deal",
+     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+     "slot": 2,
+     "source": "deck"
+    },
+    {
+     "kind": "support",
+     "party": "Greens",
+     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
      "count": 1
     },
     {
@@ -2404,8 +2428,8 @@
     }
    ],
    "discarded": [
-    "RDX_GREENS_MOHOLE_CONTEST#0",
-    "RDX_UNITY_JOVIAN_TAX_RIGHTS#0"
+    "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+    "RDX_REDS_HEAT_CAPTURE#0"
    ]
   },
   "phaseSeq": 1,
@@ -2421,7 +2445,13 @@
     },
     "support": [
      {
-      "party": "Scientists",
+      "party": "Unity",
+      "gained": 1,
+      "total": 1,
+      "reason": "absent"
+     },
+     {
+      "party": "Greens",
       "gained": 1,
       "total": 1,
       "reason": "absent"
@@ -2433,19 +2463,13 @@
       "reason": "absent"
      },
      {
-      "party": "Reds",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Greens",
+      "party": "Scientists",
       "gained": 2,
       "total": 2,
       "reason": "lost-with-player-vote"
      },
      {
-      "party": "Unity",
+      "party": "Reds",
       "gained": 1,
       "total": 1,
       "reason": "lost"
@@ -2454,15 +2478,15 @@
     "enacted": "RDX_MARS_ARCHITECTURE_AWARD#0",
     "refreshed": [
      {
-      "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-      "neutralVotes": 1
-     },
-     {
-      "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-      "neutralVotes": 1
-     },
-     {
       "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+      "neutralVotes": 2
+     },
+     {
+      "instance": "RDX_UNITY_UNITY_BUDGET#0",
+      "neutralVotes": 1
+     },
+     {
+      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
       "neutralVotes": 1
      }
     ],
@@ -2516,7 +2540,7 @@
     "renewal": [
      {
       "kind": "leave",
-      "instance": "RDX_GREENS_MOHOLE_CONTEST#0",
+      "instance": "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
       "slot": 0,
       "returned": [
        {
@@ -2527,44 +2551,50 @@
      },
      {
       "kind": "leave",
-      "instance": "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
+      "instance": "RDX_REDS_HEAT_CAPTURE#0",
       "slot": 2,
       "returned": []
      },
      {
       "kind": "deal",
-      "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-      "slot": 0,
-      "source": "deck"
-     },
-     {
-      "kind": "support",
-      "party": "Industrialists",
-      "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-      "count": 1
-     },
-     {
-      "kind": "deal",
-      "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-      "slot": 1,
-      "source": "deck"
-     },
-     {
-      "kind": "support",
-      "party": "Unity",
-      "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-      "count": 1
-     },
-     {
-      "kind": "deal",
       "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
-      "slot": 2,
+      "slot": 0,
       "source": "deck"
      },
      {
       "kind": "support",
       "party": "Scientists",
       "instance": "RDX_SCIENTISTS_MEDICAL_DATABASE#0",
+      "count": 2
+     },
+     {
+      "kind": "deal",
+      "instance": "RDX_UNITY_UNITY_BUDGET#0",
+      "slot": 1,
+      "source": "deck"
+     },
+     {
+      "kind": "support",
+      "party": "Unity",
+      "instance": "RDX_UNITY_UNITY_BUDGET#0",
+      "count": 1
+     },
+     {
+      "kind": "reject",
+      "instance": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
+      "slot": 2,
+      "reason": "party-in-area"
+     },
+     {
+      "kind": "deal",
+      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
+      "slot": 2,
+      "source": "deck"
+     },
+     {
+      "kind": "support",
+      "party": "Greens",
+      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
       "count": 1
      },
      {
@@ -2573,8 +2603,8 @@
      }
     ],
     "discarded": [
-     "RDX_GREENS_MOHOLE_CONTEST#0",
-     "RDX_UNITY_JOVIAN_TAX_RIGHTS#0"
+     "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+     "RDX_REDS_HEAT_CAPTURE#0"
     ]
    }
   ],

@@ -1,5 +1,5 @@
 {
- "activePlayer": "p-player2-id",
+ "activePlayer": "p-player1-id",
  "awards": [
   "Landlord",
   "Scientist",
@@ -579,35 +579,35 @@
    "name": "Io",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   },
   {
    "name": "Luna",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   },
   {
    "name": "Pluto Redux",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   },
   {
    "name": "Triton",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   }
  ],
  "corporationDeck": {
   "drawPile": [
    "Interplanetary Cinematics",
-   "Saturn Systems",
+   "Aridor",
    "CrediCor",
    "PhoboLog",
    "Mining Guild",
-   "ThorGate",
+   "United Nations Mars Initiative",
    "Ecoline",
    "Helion",
    "Stormcraft Incorporated",
@@ -615,12 +615,12 @@
    "Arklight",
    "Poseidon",
    "Polyphemos",
-   "United Nations Mars Initiative",
+   "Saturn Systems",
    "Inventrix"
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791577508267,
+ "createdTimeMs": 1791577507419,
  "currentSeed": 710647535444,
  "deferredActions": [],
  "donePlayers": [],
@@ -630,7 +630,7 @@
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 13,
+ "gameAge": 10,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791577508267
+   "timestamp": 1791577507419
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791577508267,
+   "timestamp": 1791577507420,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791577508267,
+   "timestamp": 1791577507420,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791577508267,
+   "timestamp": 1791577507420,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791577508267,
+   "timestamp": 1791577507420,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791577508267,
+   "timestamp": 1791577507420,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -719,14 +719,35 @@
     },
     {
      "type": 3,
-     "value": "Aridor"
+     "value": "ThorGate"
     }
    ],
-   "timestamp": 1791577508268,
+   "timestamp": 1791577507420,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
    "category": "card-play"
+  },
+  {
+   "message": "${0} gained ${1} ${2} production",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "energy"
+    }
+   ],
+   "timestamp": 1791577507420,
+   "correlationId": 2,
+   "parentId": 2,
+   "role": "detail"
   },
   {
    "message": "${0} kept ${1} project cards",
@@ -740,58 +761,9 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791577508268,
+   "timestamp": 1791577507420,
    "correlationId": 2,
    "parentId": 2,
-   "role": "detail"
-  },
-  {
-   "message": "The Mars Parliament of generation ${0} convenes",
-   "data": [
-    {
-     "type": 1,
-     "value": "1"
-    }
-   ],
-   "timestamp": 1791577508269,
-   "type": 2,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "root-action",
-   "category": "political-phase"
-  },
-  {
-   "message": "Resolution ${0} wins the vote with ${1} delegate(s)",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_SCIENTISTS_BUDGET"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    }
-   ],
-   "timestamp": 1791577508269,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} is the winning player of ${1}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_SCIENTISTS_BUDGET"
-    }
-   ],
-   "timestamp": 1791577508269,
-   "correlationId": 5,
-   "parentId": 5,
    "role": "detail"
   }
  ],
@@ -825,7 +797,7 @@
    "visibility": "journal",
    "source": {
     "kind": "corporation",
-    "card": "Aridor",
+    "card": "ThorGate",
     "owner": "red"
    },
    "player": "red",
@@ -836,6 +808,35 @@
   },
   {
    "id": 3,
+   "generation": 1,
+   "phase": "research",
+   "type": "production-changed",
+   "impact": {
+    "production": {
+     "energy": 1
+    },
+    "snapshot": {
+     "resource": "energy",
+     "scope": "production",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 2,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "ThorGate",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "production"
+   ],
+   "parentId": 2
+  },
+  {
+   "id": 4,
    "generation": 1,
    "phase": "research",
    "type": "resource-changed",
@@ -861,7 +862,7 @@
    "parentId": 1
   },
   {
-   "id": 4,
+   "id": 5,
    "generation": 1,
    "phase": "research",
    "type": "resource-changed",
@@ -872,32 +873,19 @@
     "snapshot": {
      "resource": "megacredits",
      "scope": "stock",
-     "before": 40,
-     "after": 34
+     "before": 48,
+     "after": 42
     }
    },
    "correlationId": 2,
    "visibility": "analytics",
    "source": {
     "kind": "corporation",
-    "card": "Aridor",
+    "card": "ThorGate",
     "owner": "red"
    },
    "player": "red",
    "parentId": 2
-  },
-  {
-   "id": 5,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "parliament"
-   },
-   "category": "political-phase"
   }
  ],
  "eventSeq": 5,
@@ -918,7 +906,7 @@
   "customColoniesList": [],
   "customCorporationsList": [
    "Teractor",
-   "Aridor"
+   "ThorGate"
   ],
   "customPreludes": [],
   "customProjectCards": [],
@@ -991,10 +979,10 @@
   "Builder",
   "Planner"
  ],
- "name": "Erratic Flux Unit",
+ "name": "Remote Particle Surge",
  "oxygenLevel": 0,
  "passedPlayers": [],
- "phase": "parliament",
+ "phase": "action",
  "players": [
   {
    "id": "p-player1-id",
@@ -1004,7 +992,7 @@
    "hasIncreasedTerraformRatingThisGeneration": false,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 60,
+   "megaCredits": 10,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -1049,7 +1037,8 @@
    ],
    "cardsInHand": [
     "Mangrove",
-    "Adaptation Technology"
+    "Adaptation Technology",
+    "Red Lawyers"
    ],
    "pendingCardIntakes": [],
    "preludeCardsInHand": [],
@@ -1059,18 +1048,6 @@
      "name": "Teractor",
      "resourceCount": 0,
      "isDisabled": false
-    },
-    {
-     "name": "Research",
-     "resourceCount": 0
-    },
-    {
-     "name": "GHG Producing Bacteria",
-     "resourceCount": 0
-    },
-    {
-     "name": "Nobel Prize",
-     "resourceCount": 0
     }
    ],
    "draftedCards": [],
@@ -1099,15 +1076,15 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 2,
-    "startedAt": 1791577508269,
+    "sumElapsed": 0,
+    "startedAt": 1791577507420,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791577508269
+    "lastStoppedAt": 1791577507420
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
-   "totalDelegatesPlaced": 0,
+   "totalDelegatesPlaced": 2,
    "underworldData": {
     "corruption": 0,
     "tokens": []
@@ -1126,13 +1103,13 @@
   },
   {
    "id": "p-player2-id",
-   "pickedCorporationCard": "Aridor",
+   "pickedCorporationCard": "ThorGate",
    "initialCardSelectionDone": true,
    "terraformRating": 20,
    "hasIncreasedTerraformRatingThisGeneration": false,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 50,
+   "megaCredits": 30,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -1141,7 +1118,7 @@
    "plants": 0,
    "plantProduction": 0,
    "energy": 0,
-   "energyProduction": 0,
+   "energyProduction": 1,
    "heat": 0,
    "heatProduction": 0,
    "titaniumValue": 3,
@@ -1157,11 +1134,9 @@
    "bonusActionsGranted": 0,
    "pendingBonusGains": [],
    "actionsThisGeneration": [],
-   "pendingInitialActions": [
-    "Aridor"
-   ],
+   "pendingInitialActions": [],
    "dealtCorporationCards": [
-    "Aridor"
+    "ThorGate"
    ],
    "dealtPreludeCards": [],
    "dealtCeoCards": [],
@@ -1186,10 +1161,9 @@
    "ceoCardsInHand": [],
    "playedCards": [
     {
-     "name": "Aridor",
+     "name": "ThorGate",
      "resourceCount": 0,
-     "isDisabled": false,
-     "allTags": []
+     "isDisabled": false
     }
    ],
    "draftedCards": [],
@@ -1218,13 +1192,13 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1791577508269,
-    "running": true,
+    "sumElapsed": 0,
+    "startedAt": 1791577507420,
+    "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791577508269
+    "lastStoppedAt": 1791577507420
    },
-   "actionsTakenThisGame": 1,
+   "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
    "totalDelegatesPlaced": 1,
    "underworldData": {
@@ -1516,7 +1490,6 @@
    "Toll Station",
    "Luna Governor",
    "Refugee Camps",
-   "Red Lawyers",
    "Media Archives",
    "Council Seat",
    "Fish",
@@ -1610,21 +1583,30 @@
   "version": 1,
   "slots": [
    {
-    "instance": "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+    "instance": "RDX_REDS_HEAT_CAPTURE#0",
     "votes": [
      {
-      "owner": "p-player2-id",
+      "owner": "p-player1-id",
       "seq": 1
+     },
+     {
+      "owner": "p-player1-id",
+      "seq": 2
      }
     ]
    },
    {
-    "instance": "RDX_MARS_SKYSCRAPERS#0",
+    "instance": "RDX_DEV_SCIENCE#0",
     "votes": []
    },
    {
-    "instance": "RDX_REDS_HEAT_CAPTURE#0",
-    "votes": []
+    "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
+    "votes": [
+     {
+      "owner": "p-player2-id",
+      "seq": 3
+     }
+    ]
    }
   ],
   "quest": {
@@ -1640,13 +1622,14 @@
    "progress": {}
   },
   "lobby": [
-   "p-player1-id"
+   "p-player1-id",
+   "p-player2-id"
   ],
-  "voteSeq": 1,
+  "voteSeq": 3,
   "popularSupport": {},
   "agenda": {
-   "p-player1-id": 4,
-   "p-player2-id": 1
+   "p-player1-id": 6,
+   "p-player2-id": 3
   },
   "influenceBonus": {},
   "grantedEffects": {},
@@ -1666,7 +1649,6 @@
    "RDX_UNITY_COLONY_CONTEST#0",
    "RDX_MARS_URBAN_RESEARCH#0",
    "RDX_GREENS_GREENS_BUDGET#0",
-   "RDX_MARS_ARCHITECTURE_AWARD#0",
    "RDX_UNITY_COLONIZATION_FUNDING#0",
    "RDX_MARS_DEVELOPMENT_CRAZE#0",
    "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
@@ -1680,34 +1662,14 @@
    "RDX_GREENS_CLIMATE_RESEARCH#0",
    "RDX_MARS_URBAN_DEVELOPMENT#0",
    "RDX_SCIENTISTS_JOINT_RESEARCH#0",
-   "RDX_GREENS_GENEROUS_FUNDING#0"
+   "RDX_GREENS_GENEROUS_FUNDING#0",
+   "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
+   "RDX_MARS_SKYSCRAPERS#0"
   ],
   "discard": [
    "RDX_MARSFIRST_MIGRATION_FUNDING#0"
   ],
-  "phase": {
-   "generation": 1,
-   "final": false,
-   "step": "assembly",
-   "applied": [],
-   "summary": {
-    "generation": 1,
-    "final": false,
-    "winner": {
-     "instance": "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
-     "votes": 1,
-     "player": "p-player2-id",
-     "slot": 0
-    },
-    "support": [],
-    "enacted": "RDX_SCIENTISTS_SCIENTISTS_BUDGET#0",
-    "refreshed": [],
-    "lobbyRefilled": [],
-    "seq": 1,
-    "correlationId": 5
-   }
-  },
-  "phaseSeq": 1,
+  "phaseSeq": 0,
   "botMode": "politics"
  }
 }

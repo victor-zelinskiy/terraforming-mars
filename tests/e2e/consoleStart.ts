@@ -2403,6 +2403,13 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // Mars First's — red's cube only]; Tardigrades on blue's table so the Scientists' action has a holder
   // (docs/TURMOIL_REDUX_COUNCIL_SEAT.md).
   'council-seat' |
+  // TR37 Red Lawyers: blue's action phase with the card in hand, 10 M€, two of blue's cubes on a quiet Reds card (the
+  // requirement's «2 delegates» road), the Greens ruling by the starting rule, red on step 3. The walk 6 → ⑦ CARD → ⑧
+  // (the card step in the MIDDLE), `-tr-first` 5 → ⑥ TR → ⑦ CARD (the card step LAST, the Greens answer the TR),
+  // `-end` 11 → ⑫ (one step and the cut).
+  'red-lawyers' |
+  'red-lawyers-tr-first' |
+  'red-lawyers-end' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

@@ -690,6 +690,16 @@ type ParliamentFixtureSpec = {
 const REDUX_TABLE_CORPORATIONS: ReadonlyArray<CardName> = [
   CardName.TERACTOR, CardName.ARIDOR, CardName.THORGATE, CardName.ARKLIGHT, CardName.THARSIS_REPUBLIC, CardName.POSEIDON,
 ];
+/**
+ * The FREE-STANDING tables (`parliament-chairman-quest`, `parliament-seat`, `parliament-dense` — built on `testGame`,
+ * not on `reduxTable`) are PINNED to corporations with NO first action. Left to the deal they moved with the deck:
+ * TR37 grew it by one card and Inventrix's pending first action landed on the VIEWER, whose start workspace then
+ * stood over the Parliament (`console-parliament-chairman-quest`: «first bad hit: con-start__frame»). A table
+ * that is not about a first action must not depend on who was dealt one.
+ */
+const NO_FIRST_ACTION_CORPORATIONS: ReadonlyArray<CardName> = [
+  CardName.TERACTOR, CardName.THORGATE, CardName.ARKLIGHT, CardName.HELION, CardName.MINING_GUILD,
+];
 /** The VENUS tables (Cloud Development, Gas Export) were dealt UNMI / PhoboLog — kept, so their fixtures do not move. */
 const VENUS_TABLE_CORPORATIONS: ReadonlyArray<CardName> = [
   CardName.UNITED_NATIONS_MARS_INITIATIVE, CardName.PHOBOLOG, CardName.THORGATE, CardName.ARKLIGHT, CardName.THARSIS_REPUBLIC, CardName.POSEIDON,
@@ -1180,6 +1190,68 @@ parliamentFixture('minority-representation', {
     parliament.assertLedger(game);
   },
 });
+// ── TR37 · RED LAWYERS — TR04's printed walk WITHOUT the influence ceiling: the card for which a CARD step in the
+//    MIDDLE of a walk became reachable (docs/TURMOIL_REDUX_MINORITY_REPRESENTATION.md §7 — the gap this closes).
+//    Blue's action phase, the card in hand (off the real deck), 10 M€; the Greens rule BY THE STARTING RULE (so the
+//    walked TR of the `tr-first` table is answered with their +2 M€ — PL-002's reproduction); slot 0 — a quiet Reds
+//    card with TWO of blue's cubes (the requirement's «2 delegates» road, so the rule stands whoever rules), slots
+//    1–2 quiet Scientists / Mars First cards; red's cube on Mars First; red's marker on 3. Three tables, one per
+//    reading of the walk: 6 → ⑦ CARD → ⑧ influence 4 (the card step in the MIDDLE), 5 → ⑥ TR → ⑦ CARD (the card step
+//    LAST, the Greens' answer to the TR), 11 → ⑫ (one step and the line — the end of the track). The corporations
+//    are PINNED to two without a first action (the TR24 trap: red's Aridor would hold its own prompt and the
+//    rival's table could never be opened). The dry run checks the walk's record on a copy. ──
+function redLawyersFixture(name: string, from: number, steps: ReadonlyArray<{to: number, bonus?: 'tr' | 'card'}>): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    agenda: [from, 3],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.REDS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+      parliament.placeVote(p1, parliament.slots[0], 'reserve');
+      parliament.placeVote(p1, parliament.slots[0], 'reserve');
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      moveToDeckTop(game, CardName.RED_LAWYERS);
+      p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.RED_LAWYERS);
+      const parties = parliament.slots.map((s) => parliament.resolutionOf(s.instance).party);
+      // THE DRY RUN — the play for real, on a copy: the record the console will play, step by step.
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const lawyers = blue.cardsInHand.find((c) => c.name === CardName.RED_LAWYERS) as IProjectCard;
+      blue.playCard(lawyers);
+      runAllActions(copy);
+      const walked = copy.parliament!.lastAdvance;
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card),
+        agenda: `${parliament.agendaOf(p1)}/${parliament.agendaOf(p2)}`,
+        ruling: parliament.rulingParty(),
+        parties: parties.join(','),
+        redsCubes: parliament.slots[0].votes.filter((v) => v.owner === p1.id).length,
+        requirement: parliament.satisfiesPartyRequirement(p1, PartyName.REDS),
+        steps: JSON.stringify(walked?.steps ?? []),
+        reason: walked?.reason ?? 'none',
+        hand: blue.cardsInHand.length - (p1.cardsInHand.length - 1),
+      };
+      const expected = {
+        playable: true, agenda: `${from}/3`, ruling: PartyName.GREENS, parties: [PartyName.REDS, PartyName.SCIENTISTS, PartyName.MARS].join(','),
+        redsCubes: 2, requirement: true, steps: JSON.stringify(steps), reason: steps.length > 0 ? 'card' : 'none',
+        hand: steps.filter((s) => s.bonus === 'card').length,
+      };
+      if (JSON.stringify(facts) !== JSON.stringify(expected)) {
+        throw new Error(`the ${name} fixture expected a playable card on a table whose walk is ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+redLawyersFixture('red-lawyers', 6, [{to: 7, bonus: 'card'}, {to: 8}]);
+redLawyersFixture('red-lawyers-tr-first', 5, [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]);
+redLawyersFixture('red-lawyers-end', 11, [{to: 12}]);
 // ── TR31 · NATIONALIST MOVEMENT — a card's RALLY of neutral delegates as the OUTCOME of its play
 //    (docs/TURMOIL_REDUX_NATIONALIST_MOVEMENT.md): blue's action phase, the card in hand, 12 M€; the
 //    Industrialists rule QUIETLY by Central Power Grid (an enacted card, so the Reds' card may stand in the
@@ -3782,12 +3854,17 @@ parliamentFixture('parliament-climate-recap', climateTable(4, 2, 'done', {
 //      · Agenda markers spread across the track, a chairman seated, quest
 //        progress for several seats. ──
 {
+  // PINNED, every one without a corporation first action (the free-standing tables' class — see
+  // `NO_FIRST_ACTION_CORPORATIONS`): an unpinned deal moves with the deck, and TR37's one card put Aridor's and
+  // Inventrix's pending first actions on two other seats.
+  const pinned = NO_FIRST_ACTION_CORPORATIONS.slice(0, 5);
   const players = testGame(5, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
+    startingCorporations: 1, customCorporationsList: [...pinned],
   });
   const game = players[0];
   const seats = players.slice(1) as Array<TestPlayer>;
+  assignPinnedCorporations('parliament-dense', seats, pinned);
   if (!(seats[0].getWaitingFor() instanceof SelectInitialCards)) {
     throw new Error('parliament-dense: expected SelectInitialCards');
   }
@@ -3910,10 +3987,12 @@ parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLU
 //    from one of them (the mandatory `chairman-seat` pick). The quest reads as
 //    finished, with its winner, while the pick stands. ──
 {
+  const pinned = NO_FIRST_ACTION_CORPORATIONS.slice(0, 2);
   const [game, p1, p2] = testGame(2, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
+    startingCorporations: 1, customCorporationsList: [...pinned],
   });
+  assignPinnedCorporations('parliament-seat', [p1, p2], pinned);
   if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
     throw new Error('parliament-seat: expected SelectInitialCards');
   }
@@ -3958,10 +4037,12 @@ parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLU
 //    («ПРЕДСЕДАТЕЛЬСТВО»), and the Agenda step it pays is a TR one (step 2),
 //    so the reward has a chip to fly. ──
 {
+  const pinned = NO_FIRST_ACTION_CORPORATIONS.slice(0, 2);
   const [game, p1, p2] = testGame(2, {
     skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
-    startingCorporations: 1,
+    startingCorporations: 1, customCorporationsList: [...pinned],
   });
+  assignPinnedCorporations('parliament-chairman-quest', [p1, p2], pinned);
   if (!(p1.getWaitingFor() instanceof SelectInitialCards)) {
     throw new Error('parliament-chairman-quest: expected SelectInitialCards');
   }
