@@ -33,6 +33,7 @@ import {CardResource} from '@/common/CardResource';
 import {cardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
+import {armCommitImpulse, landCommitImpulse} from '@/client/console/consoleActionCommit';
 import type {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
@@ -360,12 +361,15 @@ export function pulseCommitRing(rect: {x: number, y: number, w: number, h: numbe
  */
 export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommitMotionHandle {
   killLiveEpisode();
+  // The impulse latch (PL-103): a beat chained on «the impulse has landed» waits from HERE to the handoff below.
+  armCommitImpulse();
 
   let done = false;
   let handoffFired = false;
   const fireHandoff = () => {
     if (!handoffFired) {
       handoffFired = true;
+      landCommitImpulse();
       args.onHandoff?.();
     }
   };
@@ -377,6 +381,8 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
     if (handoff) {
       fireHandoff();
     }
+    // Any other ending (killed before the handoff) lands the latch too — a waiter is never stranded.
+    landCommitImpulse();
     args.onSettled();
   };
 

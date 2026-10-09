@@ -214,6 +214,67 @@ export function abortConsoleActionCommit(): void {
 export function resetActionCommit(): void {
   releaseActionCommit('reset');
   actionCommitState.abortNonce = 0;
+  landCommitImpulse();
+}
+
+// ── the impulse latch (PL-103) ──────────────────────────────────────────────
+
+/**
+ * THE IMPULSE LATCH — «has the commit's impulse LANDED on the result icon?»
+ * (PL-103, the TR35 walk). A beat that is the commit's CONSEQUENCE but is
+ * driven by the SERVER's answer — the staged vote's price token (PL-100:
+ * «impulse → price → cube») — asked the answer and not the impulse, so on a
+ * fast server the price left the card while the impulse was still running its
+ * row, and the order the player read depended on latency (two clocks). The
+ * motion ARMS the latch when its episode starts and LANDS it at the impulse's
+ * handoff — or at any other ending (killed, reduced motion, nothing to sweep),
+ * so a waiter can never be stranded; the net below bounds a stalled timeline.
+ * With no impulse in flight a waiter runs at once.
+ */
+const impulseLatch = {
+  live: false,
+  waiters: [] as Array<() => void>,
+  net: undefined as ReturnType<typeof setTimeout> | undefined,
+};
+
+/** A stalled timeline (a backgrounded tab) must not hold a waiter past the whole commit's own backstop. */
+const IMPULSE_NET_MS = SETTLE_SAFETY_MS;
+
+/** The commit's impulse starts (the motion episode begins) — waiters now wait for its landing. */
+export function armCommitImpulse(): void {
+  landCommitImpulse();
+  impulseLatch.live = true;
+  if (typeof setTimeout === 'function') {
+    impulseLatch.net = setTimeout(() => {
+      impulseLatch.net = undefined;
+      landCommitImpulse();
+    }, IMPULSE_NET_MS);
+  }
+}
+
+/** The impulse landed (or its episode ended any other way) — every waiter runs, once, in arrival order. */
+export function landCommitImpulse(): void {
+  if (impulseLatch.net !== undefined) {
+    clearTimeout(impulseLatch.net);
+    impulseLatch.net = undefined;
+  }
+  impulseLatch.live = false;
+  const waiters = impulseLatch.waiters.splice(0);
+  waiters.forEach((run) => run());
+}
+
+/** Run `then` once the commit's impulse has landed — at once when none is in flight. */
+export function afterCommitImpulse(then: () => void): void {
+  if (!impulseLatch.live) {
+    then();
+    return;
+  }
+  impulseLatch.waiters.push(then);
+}
+
+/** Is an impulse in flight (a waiter would wait)? — the probe / spec reading. */
+export function commitImpulseLive(): boolean {
+  return impulseLatch.live;
 }
 
 // ── the pure plan builders ──────────────────────────────────────────────────

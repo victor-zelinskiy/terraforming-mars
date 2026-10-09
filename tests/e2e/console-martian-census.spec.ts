@@ -27,7 +27,8 @@ import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, 
  *      reserve stack first (the capsule reads 3 until the token departs, then
  *      0 — never anything between; the stack answers), THEN the cube leaves
  *      the RESERVE stack for the card's ribbon; the lobby's socket stands full
- *      before and after.
+ *      before and after. The token is born only once the ACTION COMMIT's
+ *      impulse has landed (PL-103 — never on the server's clock).
  *   6. The server: 0 data on the card, the viewer's vote on the slot, the
  *      action used this generation, the reserve one short, the lobby intact.
  *   7. It ends on the board: no workspace, nothing stranded, no overflow, no
@@ -94,6 +95,8 @@ type Probe = {
   votes: Array<[number, number]>;
   capsule: Array<[number, number]>;
   lobbyEmptied: boolean;
+  /** When the ACTION COMMIT's ring first lit on the result icon (the impulse landing) — -1 never (PL-103). */
+  ringAt: number;
 };
 
 /** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
@@ -102,7 +105,7 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
     const w = window as unknown as {__tr15: Probe};
     const p: Probe = {
       samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutside: false, parlMax: 0, wsMax: 0, ownHead: false,
-      gaps: [], ghosts: [], degraded: [], stranded: false, flights: {}, reserve: [], votes: [], capsule: [], lobbyEmptied: false,
+      gaps: [], ghosts: [], degraded: [], stranded: false, flights: {}, reserve: [], votes: [], capsule: [], lobbyEmptied: false, ringAt: -1,
     };
     w.__tr15 = p;
     const t0 = Date.now();
@@ -199,6 +202,9 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
       note(p.reserve, document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count'));
       note(p.votes, document.querySelector('[data-parl-vote-ribbon]')?.getAttribute('data-votes'));
       note(p.capsule, text(document.querySelector('.con-cardactions .con-composer__actcard .pcard__res-count')));
+      if (p.ringAt < 0 && Array.from(document.querySelectorAll('.con-commit-ring')).some((el) => Number(getComputedStyle(el).opacity) > 0.05)) {
+        p.ringAt = Date.now() - t0;
+      }
       const lobby = document.querySelector(`[data-parl-seat-lobby="${viewer}"]`);
       if (lobby !== null && lobby.classList.contains('con-parl__socket--empty')) {
         p.lobbyEmptied = true;
@@ -431,6 +437,10 @@ for (const preset of PRESETS) {
       expect(near(price[0].first, sources.capsule), `…born on the hero's capsule (${dump})`).toBe(true);
       expect(near(price[0].last, sources.reserve), `…and absorbed by the reserve stack (${dump})`).toBe(true);
       expect(own[0].firstAt, `the cube lifted only after the price token had landed (${dump})`).toBeGreaterThanOrEqual(price[0].lastAt - 60);
+      // PL-103: the price is the commit's CONSEQUENCE — its token is born only once the impulse has landed (the ring
+      // lit on the result icon), however fast the server answered (a fast answer once let it leave at ≈ 0.26 s).
+      expect(probe.ringAt, `the commit's ring lit (${dump})`).toBeGreaterThanOrEqual(0);
+      expect(price[0].firstAt, `the price token was born AFTER the impulse landed (ring at ${probe.ringAt} ms; ${dump})`).toBeGreaterThanOrEqual(probe.ringAt - 60);
       expect(probe.capsule[1][0], `the data left the card as the token departed — after its birth (${dump})`).toBeGreaterThanOrEqual(price[0].firstAt - 60);
       expect(probe.capsule[1][0], `…and before the cube lifted (${dump})`).toBeLessThanOrEqual(own[0].firstAt + 60);
       expect(probe.lobbyEmptied, 'the lobby\'s socket was never empty').toBe(false);

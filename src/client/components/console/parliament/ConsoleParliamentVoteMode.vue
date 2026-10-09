@@ -298,6 +298,7 @@ import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/con
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {StagedReceipt} from '@/client/console/stagedPlay';
+import {afterCommitImpulse} from '@/client/console/consoleActionCommit';
 import {stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -1170,6 +1171,19 @@ export default defineComponent({
         launch();
         return;
       }
+      // THE PRICE WAITS FOR ITS CAUSE (PL-103): the answer may land while the ACTION COMMIT's impulse is still
+      // running row B (a fast server: the token left the capsule at ≈ 0.26 s, the ring reached the delegate icon at
+      // ≈ 0.5 s). The token is born when the impulse has LANDED — on the motion's own clock (the latch), at once
+      // when no impulse is in flight; a flow that moved on meanwhile flies nothing.
+      afterCommitImpulse(() => {
+        if (parliamentFlow.stage === 'landed' && parliamentFlow.voteSnapshot !== undefined) {
+          this.launchPriceToken(receipt, me, launch);
+        }
+      });
+    },
+    /** The price token's flight itself (PL-100) — capsule → reserve stack, the cube's launch on its absorption. */
+    launchPriceToken(receipt: StagedReceipt, me: Color, launch: () => void): void {
+      const f = parliamentFlow;
       // The hero's capsule in the «Действия карт» composer that hosts this Parliament — the place the resource LEAVES.
       const capsule = document.querySelector<HTMLElement>('.con-cardactions .con-composer__actcardwrap .pcard__res');
       const stack = document.querySelector<HTMLElement>(`[data-parl-seat-reserve="${me}"]`);
