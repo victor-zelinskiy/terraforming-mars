@@ -1112,6 +1112,12 @@
     /* The NEXT step — a light gold ring, an invitation to read, never a focus. */
     &__step--next &__step-node::after { content: ''; position: absolute; inset: -.24rem; border-radius: inherit; border: .07rem dashed fade(@con-parl-gold, 62%); pointer-events: none; }
     &__step--pulse &__step-node { animation: con-parl-node-bloom calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    /* …and on an INFLUENCE step the LEVEL BADGE answers the SAME landing in the SAME class flip (К-M3, TR37): an
+       influence step pays nothing on the spot, so the level it sets is the whole reward — the badge blooms with
+       the node (scale + gold), and the head's counter, re-keyed in the same flush, flashes the same gold
+       (`con-parl-level-flash` below). One class, one frame, no second clock. */
+    &__step--influence&__step--pulse &__step-level { animation: con-parl-level-bloom calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    &__agenda-me [data-parl-influence] { animation: con-parl-tick calc(420ms * var(--motion-scale, 1)) @con-ease-standard both, con-parl-level-flash calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
     /* THE INFLUENCE NODE (v3 В4) carries its own GLYPH with the LEVEL on it — the same disc, the same
        frame and the same size as the TR and card nodes, so the three rewards read as three rewards. A
        bare numeral in a circle read as an ordinal step, and the panel printed the same numeral about the
@@ -1420,6 +1426,18 @@
     0% { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 90%), 0 0 0 rgba(230, 195, 74, 0); }
     35% { box-shadow: inset 0 0 0 .1rem @con-parl-gold, 0 0 1.1rem fade(@con-parl-gold, 60%); }
     100% { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 45%), 0 0 0 rgba(230, 195, 74, 0); }
+}
+/* AN INFLUENCE LEVEL IS READ ON THE LANDING (К-M3): the node's badge grows a touch and goes white-hot at the bloom's
+   peak, back to gold with it; the head's counter flashes the same gold on the same frame. */
+@keyframes con-parl-level-bloom {
+    0% { transform: scale(1); color: @con-parl-gold; box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 72%); }
+    35% { transform: scale(1.3); color: #fff; box-shadow: inset 0 0 0 .08rem @con-parl-gold, 0 0 .55rem fade(@con-parl-gold, 70%); }
+    100% { transform: scale(1); color: @con-parl-gold; box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 72%); }
+}
+@keyframes con-parl-level-flash {
+    0% { color: inherit; }
+    35% { color: @con-parl-gold; }
+    100% { color: inherit; }
 }
 @keyframes con-parl-ghost {
     from { opacity: .35; }
