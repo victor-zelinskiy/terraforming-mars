@@ -4105,30 +4105,6 @@ each(@players, {
         right: calc(var(--valbadge-size, .92rem) * -.34);
         bottom: calc(var(--valbadge-size, .92rem) * -.18);
     }
-    /* A ROLE badge (PL-030) — the same corner as the coin: a chip of a type SPLIT by role says what its
-       resource is FOR. The delegate role wears the delegate's own sprite in a small dark disc. */
-    &__rolebadge--icon {
-        position: absolute;
-        right: calc(var(--valbadge-size, .92rem) * -.34);
-        bottom: calc(var(--valbadge-size, .92rem) * -.18);
-        width: var(--valbadge-size, .92rem);
-        height: var(--valbadge-size, .92rem);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: rgba(8, 14, 24, .96);
-        box-shadow: 0 0 0 .05rem rgba(255, 255, 255, .18), 0 .1rem .3rem rgba(0, 0, 0, .55);
-        pointer-events: none;
-    }
-    &__roleicon {
-        display: block;
-        width: 72%;
-        height: 72%;
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
     &__value {
         font-size: 1.25rem;
         font-weight: 700;
@@ -4731,6 +4707,39 @@ each(@players, {
     &__mcbadge {
         right: calc(var(--valbadge-size, .92rem) * -.3);
         bottom: calc(var(--valbadge-size, .92rem) * -.15);
+    }
+    /* A ROLE badge (PL-030) — the same corner as the coin: a chip of a type SPLIT by role says what its
+       resource is FOR. The delegate role wears the delegate's own sprite in a small dark disc. It lives in THIS
+       block because the satellite is the only host (PL-102): written under `.con-res` (the rail's rows) it
+       compiled to a class no element carries, and the delegate's icon fell out of the chip as an unsized inline
+       span — a grey blob between two chips, and two fighter chips (TR35's delegates beside the VP / storage
+       ones) that read as the same thing. */
+    /* The element: the coin's corner (the VP / trade shield also carries `__mcbadge`, which says the same). */
+    &__rolebadge {
+        right: calc(var(--valbadge-size, .92rem) * -.3);
+        bottom: calc(var(--valbadge-size, .92rem) * -.15);
+    }
+    /* The modifier: the delegate's sprite in a small dark disc. */
+    &__rolebadge--icon {
+        position: absolute;
+        width: var(--valbadge-size, .92rem);
+        height: var(--valbadge-size, .92rem);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(8, 14, 24, .96);
+        box-shadow: 0 0 0 .05rem rgba(255, 255, 255, .18), 0 .1rem .3rem rgba(0, 0, 0, .55);
+        pointer-events: none;
+    }
+    /* Two classes: the sprite's own `.resource_icon` sizes it to a whole token (36 px) at equal specificity. */
+    &__rolebadge--icon > &__roleicon {
+        display: block;
+        width: 72%;
+        height: 72%;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
     }
     &__value {
         font-size: 1.05rem;
