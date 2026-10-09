@@ -221,7 +221,7 @@ describe('MilestoneAwardSelector', () => {
         expect(milestones, `should exclude ${excluded}`).to.not.include(excluded);
       }
       // The kept halves are present.
-      for (const kept of ['Terraformer29', 'Tycoon10', 'Spacefarer', 'Builder', 'Terran', 'Legend', 'Tactician', 'Pioneer']) {
+      for (const kept of ['Terraformer29', 'Tycoon10', 'T. Spacefarer', 'Builder', 'Terran', 'Legend', 'Tactician', 'Pioneer']) {
         expect(milestones, `should include ${kept}`).to.include(kept);
       }
     });
