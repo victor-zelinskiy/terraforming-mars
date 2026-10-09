@@ -16,6 +16,7 @@ import https from 'https';
 import http from 'http';
 import fs from 'fs';
 import * as v8 from 'node:v8';
+import {performance} from 'node:perf_hooks';
 import prometheus from 'prom-client';
 import * as responses from './server/responses';
 
@@ -54,6 +55,9 @@ export type RunningGameServer = {
   stop(): Promise<void>;
 };
 
+// The event loop utilization snapshot from the previous scrape.
+let lastEventLoopUtilization = performance.eventLoopUtilization();
+
 const metrics = {
   startDatabase: new prometheus.Gauge({
     name: 'server_start_database',
@@ -77,6 +81,19 @@ const metrics = {
     registers: [prometheus.register],
     collect() {
       this.set(v8.getHeapStatistics().number_of_detached_contexts);
+    },
+  }),
+  // Fraction of time the event loop was busy (0 to 1) since the previous scrape.
+  // Idle time is 1 minus this value. Not included in prom-client's default
+  // metrics (upstream cbea00e6db).
+  eventLoopUtilization: new prometheus.Gauge({
+    name: 'nodejs_eventloop_utilization',
+    help: 'Fraction of time the event loop was busy since the last scrape',
+    registers: [prometheus.register],
+    collect() {
+      const current = performance.eventLoopUtilization();
+      this.set(performance.eventLoopUtilization(current, lastEventLoopUtilization).utilization);
+      lastEventLoopUtilization = current;
     },
   }),
 };
