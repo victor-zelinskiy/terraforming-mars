@@ -31311,6 +31311,18 @@ html.console-mode {
            a line — the same hyphenation the rules panel's dense tier uses. */
         hyphens: auto;
     }
+    /* THE COLUMN HAS THE LAST WORD (PL-123, `descTier.fitDescTiers`): a
+       caption its ladder tier's face does not hold steps down here instead
+       of being cut — an attribute, so it outranks the class Vue owns. */
+    &__desc[data-desc-fit='regular'] {
+        --act-desc-fs: var(--act-desc-fs-reg);
+        --act-desc-lines: var(--act-desc-lines-reg);
+    }
+    &__desc[data-desc-fit='dense'] {
+        --act-desc-fs: var(--act-desc-fs-dense);
+        --act-desc-lines: var(--act-desc-lines-dense);
+        hyphens: auto;
+    }
     &__tile--focused &__desc { color: fade(@con-text, 92%); }
     @media (prefers-reduced-motion: reduce) {
         &__desc { transition: none; }
@@ -31978,6 +31990,9 @@ html.console-mode {
     &__desc--brief { --efx-desc-fs: var(--efx-desc-fs-brief); --efx-desc-lines: var(--efx-desc-lines-brief); }
     &__desc--regular { --efx-desc-fs: var(--efx-desc-fs-reg); --efx-desc-lines: var(--efx-desc-lines-reg); }
     &__desc--dense { --efx-desc-fs: var(--efx-desc-fs-dense); --efx-desc-lines: var(--efx-desc-lines-dense); hyphens: auto; }
+    /* The fitted step (PL-123, `descTier.fitDescTiers`) — the column's verdict outranks the ladder's class. */
+    &__desc[data-desc-fit='regular'] { --efx-desc-fs: var(--efx-desc-fs-reg); --efx-desc-lines: var(--efx-desc-lines-reg); }
+    &__desc[data-desc-fit='dense'] { --efx-desc-fs: var(--efx-desc-fs-dense); --efx-desc-lines: var(--efx-desc-lines-dense); hyphens: auto; }
     &__tile--focused &__desc { color: @con-text; }
     @media (prefers-reduced-motion: reduce) {
         &__desc { transition: none; }

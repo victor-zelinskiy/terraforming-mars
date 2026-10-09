@@ -438,6 +438,7 @@ import {
 import {EffectsExplorerUi, effectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 import {actionDescTier, stepActionRows} from '@/client/console/consoleCardActions';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
+import {fitDescTiers} from '@/client/console/descTier';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -1334,6 +1335,8 @@ export default defineComponent({
           canvasClass: 'con-efx__canvas',
           varName: '--efx-fit',
         });
+        // The caption's tier is the column's to decide (PL-123): this column is ~20% narrower than the action centre's.
+        fitDescTiers(this.$refs.rootEl as HTMLElement | undefined, {selector: '.con-efx__desc', classPrefix: 'con-efx__desc'});
         // The dossier column composes rather than scrolls (no reachable
         // scroll context there) — the measured ladder steps it down only as
         // far as a real overflow demands.

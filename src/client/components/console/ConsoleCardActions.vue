@@ -591,6 +591,7 @@ import {
 } from '@/client/console/consoleCardActions';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
+import {fitDescTiers} from '@/client/console/descTier';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {buildActionBatch, cardPickAskKey, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
@@ -833,6 +834,8 @@ export default defineComponent({
       shakeTimer: undefined as number | undefined,
       /** The pending canvas-fit frame (one per paint, never per slot). */
       canvasFitFrame: undefined as number | undefined,
+      /** A resize asks the caption fit to clear its steps (a wider column grows them back — PL-123). */
+      descRegrow: false,
       /** The Smart Detail Composer's current rung (0 = comfortable). */
       detailFit: 0,
       /** The pending detail measurement (a fast walk cancels the previous). */
@@ -2384,6 +2387,7 @@ export default defineComponent({
      */
     /** A profile flip / window resize changes BOTH measured boxes. */
     onViewportResize(): void {
+      this.descRegrow = true;
       this.scheduleCanvasFit();
       this.scheduleDetailFit();
     },
@@ -2397,6 +2401,9 @@ export default defineComponent({
       this.canvasFitFrame = window.requestAnimationFrame(() => {
         this.canvasFitFrame = undefined;
         fitActionCanvases(this.$refs.rootEl as HTMLElement | undefined);
+        // The caption's tier is the column's to decide (PL-123) — measured in the same paint.
+        fitDescTiers(this.$refs.rootEl as HTMLElement | undefined, {selector: '.con-cardactions__desc', classPrefix: 'con-cardactions__desc', regrow: this.descRegrow});
+        this.descRegrow = false;
       });
     },
     /**
