@@ -170,16 +170,31 @@ async function focusParty(page: Page, party: string): Promise<void> {
   expect(await walkFocusUntil(page, async () => await partyFocused() === party, partyFocused, 14), `never focused the «${party}» plaque`).toBeTruthy();
 }
 
-/** The fullscreen inspector's rules text (every group), opened with X over the focused object. */
+/**
+ * The fullscreen inspector's rules text (every group), opened with X over the focused object — and its FIT: the rules
+ * body must not need its scroll (PL-042: under the lowered law the two «ДЛЯ ВАС» rows pushed the «ДОСТУП» reference
+ * past the panel's fold on the TV; the reference no longer stands beside «ДЛЯ ВАС» at all).
+ */
 async function inspectText(page: Page, preset: string, name: string): Promise<string> {
   await openZoomViewer(page);
   await expect(page.locator('.con-zoom-rules').first()).toBeVisible({timeout: 10_000});
   await settle(page, {timeoutMs: 8_000});
   await shoot(page, preset, name);
-  const text = await page.evaluate(() => Array.from(document.querySelectorAll('dialog.con-zoom[open] .con-zoom-rules'))
-    .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' | '));
+  const read = await page.evaluate(() => {
+    const text = Array.from(document.querySelectorAll('dialog.con-zoom[open] .con-zoom-rules'))
+      .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' | ');
+    const overflow: Array<string> = [];
+    for (const scroll of Array.from(document.querySelectorAll<HTMLElement>('dialog.con-zoom[open] .con-zoom-rules__scroll'))) {
+      const inner = scroll.querySelector<HTMLElement>('.con-zoom-rules__body') ?? scroll;
+      if (inner.scrollHeight > scroll.clientHeight + 2) {
+        overflow.push(`${inner.scrollHeight} > ${scroll.clientHeight}`);
+      }
+    }
+    return {text, overflow};
+  });
+  expect(read.overflow, `${name}: the inspector's rules need no scroll (PL-042)`).toEqual([]);
   await closeZoomViewer(page);
-  return text;
+  return read.text;
 }
 
 const voteStep = (page: Page) => page.locator('.con-parl__vote.con-parl__vote--up');
@@ -342,13 +357,13 @@ for (const preset of PRESETS) {
       const sciText = await inspectText(page, preset.id, '04-inspect-scientists');
       expect(sciText, 'the Scientists: held by the one cube, the card named').toMatch(/Доступен · ваш делегат на её резолюции \(«Место в совете»: достаточно одного\)/);
       expect(sciText, '…and the requirement\'s note in the threshold\'s own words').toMatch(/один делегат открывает эффект, требованию по-прежнему нужны два/);
-      expect(sciText, 'the reference block speaks the viewer\'s own law (PL-113)').toMatch(/Партия, на резолюции которой один ваш делегат, даёт свой эффект и вам \(«Место в совете»\)/);
-      expect(sciText, '…never the printed two over a lowered table').not.toMatch(/два ваших делегата, даёт/);
+      expect(sciText, 'no printed reference beside «для вас» — never «two of your delegates» over a lowered table (PL-042)').not.toMatch(/Эффект правящей партии есть у всех/);
       await focusParty(page, REDS);
       const redsText = await inspectText(page, preset.id, '04b-inspect-reds');
       expect(redsText, 'the Reds: the printed road — two cubes').toMatch(/Доступен · два ваших делегата на её резолюции/);
       expect(redsText, 'the Reds\' requirement is met — no «не выполнено»').not.toMatch(/не выполнено/);
-      expect(redsText, 'the card is not what holds the Reds — only the reference names it').not.toMatch(/Доступен · ваш делегат/);
+      expect(redsText, 'the card is not what holds the Reds').not.toMatch(/Доступен · ваш делегат/);
+      expect(redsText, 'no reference beside «для вас» on the printed road either').not.toMatch(/Эффект правящей партии есть у всех/);
 
       // ── 6. the vote mode: the edge at ONE on an empty card, no effect fact on a held one ──
       await focusParliamentZone(page, 'voting');

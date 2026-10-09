@@ -92,15 +92,22 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     ]);
   });
 
-  it('a party opened on its own: the mechanics, «for you» with the action\'s live state, and ONE reference line — each once', () => {
+  it('a party opened on its own: the mechanics and «for you» with the action\'s live state — each once, and no reference beside «for you» (PL-042)', () => {
     const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'blue', true);
-    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party action', 'For you', 'Access']);
+    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party action', 'For you']);
     expect(blocks[0].rows.map((r) => r.text), 'the action block is the printed text alone').to.have.length(1);
     const you = blocks[1].rows.map((r) => r.text);
     expect(you[you.length - 1], 'the live state closes «for you»').to.eq('Action available this generation');
-    expect(blocks[2].rows.length, 'the reference is one line').to.eq(1);
     const all = texts(blocks);
     expect(new Set(all).size).to.eq(all.length);
+  });
+
+  it('the ONE reference line stands only for a reader with no «for you» (a spectator, no model) — never beside the state rows', () => {
+    const spectator = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'yellow' as never, true);
+    expect(spectator.map((b) => b.labelKey)).to.deep.eq(['Party action', 'Access']);
+    expect(spectator[1].rows.length, 'the reference is one line').to.eq(1);
+    const outside = partyAnnotations(PartyName.INDUSTRIALISTS, undefined, undefined);
+    expect(outside.map((b) => b.labelKey)).to.deep.eq(['Party action', 'Access']);
   });
 
   it('the action\'s state is told apart: used · available on your turn · a server reason — and nothing without access', () => {
@@ -122,7 +129,7 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
 
   it('a passive party (the Greens) prints its effect once and no action block', () => {
     const blocks = partyAnnotations(PartyName.GREENS, model(), 'blue');
-    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party effect', 'For you', 'Access']);
+    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party effect', 'For you']);
     expect(blocks[0].rows.length).to.eq(1);
   });
 

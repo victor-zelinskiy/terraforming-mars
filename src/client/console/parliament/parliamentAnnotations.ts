@@ -35,7 +35,7 @@ import {IClientPartyEffect} from '@/common/parliament/IClientResolution';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {Color} from '@/common/Color';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {accessReasonRows, effectDelegatesLowered, effectDelegatesSourceOf} from './consoleParliamentModel';
+import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
@@ -453,8 +453,10 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
   const out: Array<CardAnnotation> = partyMechanicBlocks(effect, PARTY_INSPECTOR_LABELS);
   // 3. FOR YOU — the viewer's STATE: the live bases of the effect (held / not
   //    held) and the action's live state, never the rule restated.
-  const access = viewer === undefined ? undefined : model?.players.find((p) => p.color === viewer)?.access.find((a) => a.party === party);
+  let forYou = false;
   if (model !== undefined && viewer !== undefined) {
+    const me = model.players.find((p) => p.color === viewer);
+    const access = me?.access.find((a) => a.party === party);
     if (access !== undefined) {
       const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
       const rows: Array<string | RowText> = accessReasonRows(access, {
@@ -473,15 +475,18 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
         rows.push(actionState);
       }
       out.push(block('group:you', 'note', 'For you', rows, 2));
+      forYou = true;
     }
   }
-  // 4. THE REFERENCE — how a party effect is held: the whole rule, once — in the VIEWER's own law. Under a card that
-  //    lowered the threshold (TR36) the printed sentence («two of your delegates») would state a rule this table no
-  //    longer follows for the viewer, so the reference names the lowered law and the card (PL-113).
-  out.push(block('group:access', 'note', 'Access', [
-    effectDelegatesLowered(access) ?
-      {text: 'The ruling party\'s effect is everyone\'s. A party with one of your delegates on its resolution gives you its effect too (${0}).', params: [effectDelegatesSourceOf(access)]} :
+  // 4. THE REFERENCE — how a party effect is held: the whole rule, once — ONLY for a reader with no «for you» block
+  //    (a spectator, the bot's screen, a zoom outside a live game). Beside «for you» it re-told what the state rows had
+  //    just said, and on the TV it pushed the panel past its fold (PL-042, the owner's decision 2026-10-09 in the TR36
+  //    batch) — and under a card that lowered the law (TR36) its printed «two of your delegates» stated a rule the
+  //    viewer's table no longer follows. The state rows name the viewer's own law, so the reference is not needed there.
+  if (!forYou) {
+    out.push(block('group:access', 'note', 'Access', [
       'The ruling party\'s effect is everyone\'s. A party with two of your delegates on its resolution gives you its effect too.',
-  ], 3));
+    ], 3));
+  }
   return out;
 }

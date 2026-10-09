@@ -52,7 +52,6 @@ const CANON: Record<string, string> = {
   'You do not have it — one of your delegates on its resolution would grant it (${0})': 'Недоступен · один ваш делегат на её резолюции откроет его («${0}»)',
   'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two': 'Требование этой партии на картах: не выполнено — один делегат открывает эффект, требованию по-прежнему нужны два',
   'Unlocks the party effect for you (1 delegate — ${0})': 'Откроет вам эффект партии (1 делегат — «${0}»)',
-  'The ruling party\'s effect is everyone\'s. A party with one of your delegates on its resolution gives you its effect too (${0}).': 'Эффект правящей партии есть у всех. Партия, на резолюции которой один ваш делегат, даёт свой эффект и вам («${0}»).',
   'Chairmanship': 'Председательство',
   'Chairmanship (kept)': 'Председательство (сохраняется)',
   // «ПРЕДСЕДАТЕЛЬСТВО» (the chairman-quest flow): the crumb's two stages, one
@@ -207,7 +206,10 @@ const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
 // «Итоги: честность» Ф1: the results panel's «В ЛОББИ» row restated the delegates ledger, which shows
 // every seat's lobby socket and reserve stack by name — and said less (`lobbyRefilled` is «whose lobby was
 // EMPTY and got filled»). Its place is now the EXCEPTION: «Без свободного делегата».
-const GONE = ['Ruling · starting rule', 'No delegates yet', 'No leader yet', 'To the lobby'];
+const GONE = ['Ruling · starting rule', 'No delegates yet', 'No leader yet', 'To the lobby',
+  // TR36 (PL-113 → PL-042): the inspector's reference in the lowered law's words — retired the day the reference stopped
+  // standing beside «для вас» at all; the state rows quote the card instead.
+  'The ruling party\'s effect is everyone\'s. A party with one of your delegates on its resolution gives you its effect too (${0}).'];
 
 function listFiles(dir: string): Array<string> {
   const abs = path.join(ROOT, dir);

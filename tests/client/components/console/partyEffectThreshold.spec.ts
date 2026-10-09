@@ -155,25 +155,22 @@ describe('the lowered law of access (TR36) — the ONE client reading', () => {
   });
 });
 
-describe('the party inspector\'s reference block speaks the viewer\'s own law (PL-113)', () => {
+describe('the party inspector under the lowered law: «for you» quotes the card, and no printed reference stands beside it (PL-113 → PL-042)', () => {
   const modelWith = (a: PartyAccessModel): ParliamentModel => ({
     slots: [{instance: 'RDX_SCIENTISTS_1#0', resolution: 'RDX_SCIENTISTS_1', party: S, votes: [], totalVotes: 0, leader: undefined, isWinning: false, tiePriority: 1, viewerVotes: a.delegates}],
     rulingParty: PartyName.GREENS, popularSupport: {},
     players: [{color: BLUE, participates: true, lobby: true, reserve: 5, onResolutions: 0, chairman: false, agenda: 0, influence: 0, access: [a], partyActionUses: {}, resolutionActionUses: 0}],
     deckSize: 0, discardSize: 0, neutralSupply: 0, botMode: 'none',
   } as unknown as ParliamentModel);
-  const reference = (a: PartyAccessModel) => partyAnnotations(S, modelWith(a), BLUE).find((b) => b.id === 'group:access')?.rows[0];
 
-  it('the printed two for the printed law; one delegate and the card under the lowered law — the «for you» rows quote the card too', () => {
-    expect(reference(access())).to.deep.include({text: 'The ruling party\'s effect is everyone\'s. A party with two of your delegates on its resolution gives you its effect too.'});
-    expect(reference(lowered(1))).to.deep.include({
-      text: 'The ruling party\'s effect is everyone\'s. A party with one of your delegates on its resolution gives you its effect too (${0}).', params: ['Council Seat'],
-    });
-    const you = partyAnnotations(S, modelWith(lowered(1)), BLUE).find((b) => b.id === 'group:you')?.rows.map((r) => r.text);
-    expect(you).to.deep.eq([
+  it('the state rows name the card; the printed «two of your delegates» reference is gone for the owner of the card — and for every seat', () => {
+    const blocks = partyAnnotations(S, modelWith(lowered(1)), BLUE);
+    expect(blocks.map((b) => b.id)).to.not.include('group:access');
+    expect(blocks.find((b) => b.id === 'group:you')?.rows.map((r) => r.text)).to.deep.eq([
       'You have it: one of your delegates is on its resolution (${0}: one is enough)',
       'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two',
     ]);
+    expect(partyAnnotations(S, modelWith(access()), BLUE).map((b) => b.id), 'the printed law\'s seat reads its own rows too').to.not.include('group:access');
   });
 });
 
