@@ -3,7 +3,9 @@ import {BoardName} from '../common/boards/BoardName';
 import {ElysiumBoard} from './boards/ElysiumBoard';
 import {IGame} from './IGame';
 import {GameOptions} from './game/GameOptions';
-import {GameId, isPlayerId, safeCast} from '../common/Types';
+import {GameId, SpaceId, isPlayerId, safeCast} from '../common/Types';
+import {SpaceType} from '../common/boards/SpaceType';
+import {SerializedBoard} from './boards/SerializedBoard';
 import {HellasBoard} from './boards/HellasBoard';
 import {TharsisBoard} from './boards/TharsisBoard';
 import {IPlayer} from './IPlayer';
@@ -59,6 +61,7 @@ export class GameSetup {
     const playersForBoard = players.length !== 1 ? players : [players[0], GameSetup.neutralPlayerFor(d.id)];
     // The saved list of cells, plus any expansion space colony the options call
     // for that the save predates (an old save meets a cell added since — TR22).
+    migrateColonySpaceIds(d.board);
     const deserialized = restoreExpansionSpaceColonies(Board.deserialize(d.board, playersForBoard).spaces, gameOptions);
     const Factory: BoardFactory = boards[gameOptions.boardName];
     return new Factory(deserialized);
@@ -100,5 +103,16 @@ export class GameSetup {
 
     placeCityAndForest(game, 'top');
     placeCityAndForest(game, 'bottom');
+  }
+}
+
+// TODO(kberg): Remove after 2028-01-01
+// Mars colony spaces used to have bare two-digit ids ('01', '02', '69'-'80' — the fork's Nova City '79' and
+// Aurora Station '80' included). They now lead with 'c'.
+function migrateColonySpaceIds(board: SerializedBoard): void {
+  for (const space of board.spaces) {
+    if (space.spaceType === SpaceType.COLONY && !space.id.startsWith('c')) {
+      space.id = `c${space.id}` as SpaceId;
+    }
   }
 }
