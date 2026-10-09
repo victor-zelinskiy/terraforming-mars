@@ -25,7 +25,19 @@
 
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {arriveReadyMs, markerTimings, MarkerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
+
+/**
+ * THE LIFT OFF THE RAIL, in LOGICAL px (the 1080-logical layout every console
+ * object is authored in): the marker's small arc reads as «off the rail,
+ * travelling» only in proportion to the marker itself — 8 CSS px under a
+ * 12-logical cube at 1080, and the SAME proportion on the couch (`conLogicalPx`
+ * → ~15 px at 4K), where a fixed 8 px was a third of the cube and the lift
+ * had vanished (TR37's walk read as a slide). One language for every track
+ * this director drives: the Hydronetwork's and the Parliament's Agenda.
+ */
+const MARKER_LIFT_LOGICAL_PX = 8;
 
 /** Phase notifications back to the controller (injected — no import cycle). */
 export type MarkerPhaseName = 'charge' | 'glide' | 'arrive' | 'lock' | 'pulse';
@@ -128,7 +140,7 @@ export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHan
       const p = prog.p;
       const x = from.x + (to.x - from.x) * p;
       const y = from.y + (to.y - from.y) * p;
-      const lift = reduced ? 0 : Math.sin(p * Math.PI) * 8; // small arc off the rail
+      const lift = reduced ? 0 : Math.sin(p * Math.PI) * conLogicalPx(MARKER_LIFT_LOGICAL_PX); // small arc off the rail, in the profile's scale
       const scale = reduced ? startScale : startScale * (1.12 - 0.12 * p);
       setAt({x, y}, scale, lift);
     },
