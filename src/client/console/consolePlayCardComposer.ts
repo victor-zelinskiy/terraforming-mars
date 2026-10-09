@@ -30,7 +30,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
-import {ActionEffect, ActionPreviewBranch, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch, AgendaWalkModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import type {Units} from '@/common/Units';
 import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActionComposer';
@@ -292,6 +292,33 @@ export function playCommitVerb(door: PlayDoor | undefined): string {
   case 'colonies': return door.staged.prompt.rosterChange !== undefined ? 'Choose the tile' : 'Choose the colony';
   default: return 'Play card';
   }
+}
+
+/** One «what happens next» row, as a key the host translates (with its params). */
+export type NextRowKey = {key: string, params?: ReadonlyArray<string>};
+
+/**
+ * THE WALK'S OWN «next» ROWS (TR04 — the SHOW step of a card that advances the
+ * Agenda marker): the name of the coming stage and what the marker will do
+ * there, from the server's own reading of the walk, with the cut at the
+ * track's end NAMED («1 из 2 · конец трека»). ONE step reads in its own words
+ * (TR12: the plural key's RU line is written for 2+). At the END of the track
+ * (`walked` 0 — TR37, playable from 12) only the cut speaks: a stage line
+ * promising «the marker walks 0 steps» would announce a stage nobody enters
+ * (К-R2) — the composer's chip already shows «0», and the flow lands as an
+ * ordinary play.
+ */
+export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
+  const rows: Array<NextRowKey> = [];
+  if (walk.walked === 1) {
+    rows.push({key: 'Agenda — the marker walks 1 step in the Parliament'});
+  } else if (walk.walked > 1) {
+    rows.push({key: 'Agenda — the marker walks ${0} steps in the Parliament', params: [String(walk.walked)]});
+  }
+  if (walk.walked < walk.printed) {
+    rows.push({key: '${0} of ${1} · end of the track', params: [String(walk.walked), String(walk.printed)]});
+  }
+  return rows;
 }
 
 /**

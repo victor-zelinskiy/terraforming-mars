@@ -27,7 +27,7 @@ import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 import {CardModel} from '@/common/models/CardModel';
 import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
-import {heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
+import {agendaWalkNextRows, heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
 import {AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 
@@ -515,6 +515,23 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       } finally {
         parl.remove();
       }
+    });
+  });
+
+  describe('THE COMPOSER\'S «next» ROWS of the walk — the stage named, the cut named, nothing promised at the end (К-R2, TR37)', () => {
+    const walk = (walked: number, printed = 2): AgendaWalkModel => ({from: 12 - walked, to: 12, printed, walked, steps: [], influence: {current: 4, resulting: 5}});
+
+    it('two steps: the stage line in the plural; one: in its own words; a cut: the stage line AND «N of M · end of the track»', () => {
+      expect(agendaWalkNextRows(walk(2))).deep.eq([{key: 'Agenda — the marker walks ${0} steps in the Parliament', params: ['2']}]);
+      expect(agendaWalkNextRows(walk(1))).deep.eq([
+        {key: 'Agenda — the marker walks 1 step in the Parliament'},
+        {key: '${0} of ${1} · end of the track', params: ['1', '2']},
+      ]);
+      expect(agendaWalkNextRows(walk(1, 1)), 'a printed walk of one that walks one — no cut').deep.eq([{key: 'Agenda — the marker walks 1 step in the Parliament'}]);
+    });
+
+    it('at the END of the track (walked 0) ONLY the cut speaks — a stage line promising a walk of 0 steps would announce a stage nobody enters', () => {
+      expect(agendaWalkNextRows(walk(0))).deep.eq([{key: '${0} of ${1} · end of the track', params: ['0', '2']}]);
     });
   });
 
