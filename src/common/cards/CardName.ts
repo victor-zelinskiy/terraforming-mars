@@ -1105,6 +1105,7 @@ export enum CardName {
   RED_TECH_CONVENTION = 'Red Tech Convention',
   REDS_NEWS_OUTLET = 'Reds News Outlet',
   MARS_ARMY_MECHS = 'Mars Army Mechs',
+  MARS_ARMY_SHIPS = 'Mars Army Ships',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

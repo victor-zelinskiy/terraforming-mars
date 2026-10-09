@@ -124,5 +124,10 @@
 
     "Mars Army Mechs": "Мехи армии Марса",
     "Action: Spend 1 mech from here to add a delegate to a resolution.": "Действие: потратьте 1 мех с этой карты, чтобы добавить делегата на резолюцию.",
-    "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех."
+    "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех.",
+
+    "Mars Army Ships": "Корабли армии Марса",
+    "Action: Pay 1 titanium to add a fighter resource to this card.": "Действие: заплатите 1 титан, чтобы положить 1 истребитель на эту карту.",
+    "Action: Spend 1 fighter from here to add a delegate to a resolution.": "Действие: потратьте 1 истребитель с этой карты, чтобы добавить делегата на резолюцию.",
+    "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 fighter resource to this card.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 истребитель."
 }

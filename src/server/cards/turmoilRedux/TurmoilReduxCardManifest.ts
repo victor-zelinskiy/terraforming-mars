@@ -35,6 +35,7 @@ import {NationalistMovement} from './NationalistMovement';
 import {RedTechConvention} from './RedTechConvention';
 import {RedsNewsOutlet} from './RedsNewsOutlet';
 import {MarsArmyMechs} from './MarsArmyMechs';
+import {MarsArmyShips} from './MarsArmyShips';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -181,5 +182,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // again, and the CENSUS ACTION with a PAID variant A — the one module `censusAction.ts` with the spec
     // {mech · 1 energy · 1}: TR15 / TR24 take the data spec of the same module, TR35 the fighter spec.
     [CardName.MARS_ARMY_MECHS]: {Factory: MarsArmyMechs},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The sister of TR34
+    // to the letter: the same census module with the spec {fighter · 1 titanium → fighter · 1 fighter → delegate}.
+    [CardName.MARS_ARMY_SHIPS]: {Factory: MarsArmyShips},
   },
 });

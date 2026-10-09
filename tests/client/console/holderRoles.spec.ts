@@ -92,6 +92,17 @@ describe('additionalResourceRoleGroups — a chip per MEANING, never one number 
     expect(groups[1].role.kind, 'VP mixed with storage reads as storage — a VP badge over a draw card would lie').to.eq('store');
   });
 
+  it('five FIGHTER holders, three meanings (TR35): Security Fleet / TR08 score, TR28 / TR29 store — ONE plain chip; Mars Army Ships\' delegates apart', () => {
+    expect([CardName.SECURITY_FLEET, CardName.FORMULA_ZERO, CardName.EARTH_ARMY_CONTRACT, CardName.SPACESHIP_RECYCLING, CardName.MARS_ARMY_SHIPS]
+      .map((name) => holderRoleOf(name).kind)).to.deep.eq(['vp', 'vp', 'store', 'store', 'delegate']);
+    const groups = additionalResourceRoleGroups([
+      card(CardName.SECURITY_FLEET, 2), card(CardName.MARS_ARMY_SHIPS, 2), card(CardName.FORMULA_ZERO, 1), card(CardName.EARTH_ARMY_CONTRACT, 1), card(CardName.SPACESHIP_RECYCLING, 0),
+    ]);
+    expect(groups.map((g) => [g.key, g.total, g.split])).to.deep.eq([['fighter', 4, true], ['fighter:delegate', 2, true]]);
+    expect(groups[0].role.kind, 'VP mixed with storage reads as storage — no VP badge over TR28\'s TR fuel').to.eq('store');
+    expect(groups[1].cards.map((c) => c.name)).to.deep.eq([CardName.MARS_ARMY_SHIPS]);
+  });
+
   it('a VP holder beside a storage holder of one type is NOT a split (Tardigrades + Nitrite Reducing Bacteria): one «microbe» chip, as it always was', () => {
     const groups = additionalResourceRoleGroups([card(CardName.TARDIGRADES, 1), card(CardName.NITRITE_REDUCING_BACTERIA, 3)]);
     expect(groups.map((g) => [g.key, g.total, g.split, g.role.kind])).to.deep.eq([['microbe', 4, false, 'store']]);
@@ -125,6 +136,14 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     const impacts = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, input([{name: CardName.EVA_MECHS, resources: 1}]), CardName.EVA_MECHS, [onCardGain('mech', 1)]));
     expect(impacts[1]).to.include({label: 'Pays ${0} M€ per unit', tail: 'for cards with a space tag', value: true, icon: 'megacredits'});
     expect(impacts[1].params).to.deep.eq(['5']);
+  });
+
+  it('a fighter spent FROM Mars Army Ships (TR29\'s source step, −1): the counter falls, and the same value line says what leaves — a delegate\'s fuel', () => {
+    const step = {kind: 'input', amount: -1, cardResource: 'fighter'} as never;
+    const impacts = playedTargetQuickImpacts(playedTargetPreviewFor(step, input([{name: CardName.MARS_ARMY_SHIPS, resources: 2}]), CardName.MARS_ARMY_SHIPS));
+    expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'A delegate on a resolution per unit']);
+    expect(impacts[0]).to.include({from: 2, to: 1, icon: 'fighter'});
+    expect(impacts[1]).to.include({value: true, icon: 'delegate'});
   });
 
   it('a mech onto Mech Sports: no value line of its own — the VP line is the step\'s, and storage says nothing', () => {
