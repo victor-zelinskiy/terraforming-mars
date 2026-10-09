@@ -246,8 +246,15 @@ export class Turmoil {
     });
   }
 
-  // Launch the turmoil phase
-  public endGeneration(game: IGame): void {
+  /**
+   * Run the turmoil phase (the end of the generation).
+   *
+   * The global event may add deferred actions (an ocean to place, a card to
+   * discard); they are resolved BEFORE the new government starts, so a policy
+   * change never races the event that preceded it (upstream #4157). `cb` runs
+   * once the new government is in place.
+   */
+  public endGeneration(game: IGame, cb: () => void = () => {}): void {
     // 1 - All player lose 1 TR
     game.log('All players lose 1 TR.');
     game.players.forEach((player) => {
@@ -258,21 +265,17 @@ export class Turmoil {
     if (this.currentGlobalEvent !== undefined) {
       const currentGlobalEvent: IGlobalEvent = this.currentGlobalEvent;
       game.log('Resolving global event ${0}', (b) => b.globalEvent(currentGlobalEvent));
-      // TODO(kberg): if current global event adds an action, all of the rest of this should wait.
       currentGlobalEvent.resolve(game, this);
     }
 
-    // WOW THIS BREAKS THINGS
-    //   this.startNewGovernment(game);
-    // }
-    // private startNewGovernment(game: IGame) {
-    //   if (game.deferredActions.length > 0) {
-    //     game.deferredActions.runAll(() => {
-    //       this.startNewGovernment(game);
-    //     });
-    //     return;
-    //   }
+    game.deferredActions.runAll(() => {
+      this.startNewGovernment(game);
+      cb();
+    });
+  }
 
+  /** Steps 3–4 of the turmoil phase — after the global event has fully resolved. */
+  private startNewGovernment(game: IGame): void {
     // 3 - New Government
 
     // 3.a - Ruling Policy change

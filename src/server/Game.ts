@@ -1235,21 +1235,26 @@ export class Game implements IGame, Logger {
     }
     UnderworldExpansion.endGeneration(this);
 
-    Turmoil.ifTurmoil(this, (turmoil) => {
-      // this.phase = Phase.TURMOIL;
-      this.inTurmoil = true;
-      turmoil.endGeneration(this);
+    const turmoil = this.turmoil;
+    if (turmoil === undefined) {
+      this.startGeneration();
+      return;
+    }
+
+    // this.phase = Phase.TURMOIL;
+    this.inTurmoil = true;
+    // The global event resolves first (its deferred actions included); the new
+    // government follows in the callback (upstream #4157).
+    turmoil.endGeneration(this, () => {
       // Behold The Emperor hook
       this.beholdTheEmperor = false;
+      // The new government might have added actions (a chairman's TR gain);
+      // `inTurmoil` clears once they ran, never before.
+      this.deferredActions.runAll(() => {
+        this.inTurmoil = false;
+        this.startGeneration();
+      });
     });
-
-    // turmoil.endGeneration might have added actions.
-    if (this.deferredActions.length > 0) {
-      this.deferredActions.runAll(() => this.startGeneration());
-    } else {
-      this.inTurmoil = false;
-      this.startGeneration();
-    }
   }
 
   private updatePlayerVPForTheGeneration(): void {
