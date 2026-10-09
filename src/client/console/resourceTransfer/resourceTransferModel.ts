@@ -216,6 +216,45 @@ export function transferLiftBias(i: number): number {
   return ((i % 3) - 1) * 0.18;
 }
 
+/**
+ * HOW A CHIP LEAVES ITS SOURCE. `toss` — the reward language: a clean upward
+ * throw over the higher end (a gain born on a card, flying to the rail). `side`
+ * — a DEPARTURE FROM A RAIL ROW (PL-104, the TR35 walk: a price paid off the
+ * rail, PL-099's class): the rail is a column of counters, and a toss from one
+ * row climbed over the rows above it — the titanium token crossed the steel
+ * row and topped out on the M€ plate before falling to the card, reading as a
+ * price that passed through the money. A side launch leaves HORIZONTALLY at
+ * its own row's height and bends toward its target only once clear of the
+ * column, so it never crosses another counter.
+ */
+export type TransferLaunch = 'toss' | 'side';
+
+/**
+ * WHICH LAUNCH a flight takes: a LOSS that leaves a rail row — the stock / production channel, flying from the row's
+ * own ink (`targetPointFor`), no run-level destination standing in for the row — leaves SIDEWAYS; everything else
+ * (every gain, a card-resource spend leaving a card's face, a run whose «row» is some other surface) is the toss.
+ */
+export function transferLaunchFor(spec: Pick<ResourceTransferSpec, 'channel' | 'direction'>, runDestination: boolean): TransferLaunch {
+  return spec.direction === 'loss' && !runDestination && (spec.channel === 'stock' || spec.channel === 'production') ? 'side' : 'toss';
+}
+
+/** How far along the horizontal span the side launch's control point stands — the share of the trip spent «leaving». */
+const SIDE_LAUNCH_REACH = 0.75;
+
+/**
+ * The SIDE launch: a quadratic whose control point stands at the SOURCE's
+ * height, `SIDE_LAUNCH_REACH` of the way across — the tangent at the source is
+ * horizontal, y moves as t² (never beyond either end: the curve cannot rise
+ * above the higher endpoint nor sink below the lower), x moves monotonically.
+ */
+export function transferSideArcPlan(from: TransferPoint, to: TransferPoint): TransferArcPlan {
+  return {
+    p0: from,
+    c: {x: from.x + (to.x - from.x) * SIDE_LAUNCH_REACH, y: from.y},
+    p1: to,
+  };
+}
+
 export interface TransferArcPlan {
   /** Quadratic Bézier: P0 = source, C = control, P1 = destination. */
   p0: TransferPoint;
@@ -243,7 +282,10 @@ function clamp(lo: number, hi: number, v: number): number {
  * it (the same toss, lower); an arc that stays inside is byte for byte the
  * one it always was. An endpoint already above the line cannot be helped.
  */
-export function transferArcPlan(from: TransferPoint, to: TransferPoint, liftBias = 0, ceilingY?: number): TransferArcPlan {
+export function transferArcPlan(from: TransferPoint, to: TransferPoint, liftBias = 0, ceilingY?: number, launch: TransferLaunch = 'toss'): TransferArcPlan {
+  if (launch === 'side') {
+    return transferSideArcPlan(from, to);
+  }
   const dist = Math.hypot(to.x - from.x, to.y - from.y);
   const lift = clamp(44, 160, dist * 0.30) * (1 + liftBias);
   const apex = {

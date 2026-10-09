@@ -42,7 +42,7 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
-  TRANSFER_BEAT_MS, clampTransferPace, RATING_RAIL_KEY,
+  TRANSFER_BEAT_MS, clampTransferPace, RATING_RAIL_KEY, transferLaunchFor,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferStagePiece, runTransferFlight, settleTransferChip, killTransferPiece,
@@ -605,6 +605,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         uiScale,
         hold: run.arrival === 'hold',
         pace,
+        launch: transferLaunchFor(e.spec, run.destination !== undefined),
       });
       const loss = e.spec.direction === 'loss';
       // A LOSS is fixed at its DEPARTURE: the row's counter ticks the moment the chip leaves it.

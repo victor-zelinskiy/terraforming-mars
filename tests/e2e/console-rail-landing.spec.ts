@@ -21,7 +21,9 @@ import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, 
  * ticks silently at the server's answer: its token is born on the row's
  * digits, flies INTO the printed icon of that very cost on the hero card (the
  * row ticks on the departure), and only after it has been absorbed is the
- * result born at the result icon and flown to the rail.
+ * result born at the result icon and flown to the rail. It leaves its row
+ * SIDEWAYS (PL-104): never higher than its own row's ink, so it never crosses
+ * the counters above it on the way to the card.
  *
  * Three flights, two profiles, one probe (`MutationObserver` + `setInterval`,
  * never rAF), armed before the press:
@@ -267,6 +269,12 @@ function expectDeparture(tag: string, samples: Array<Sample>, amount: string, ro
   expect(costIcons.length, `${tag}: the hero prints the cost's icon`).toBeGreaterThan(0);
   expect(costIcons.some((r) => inside(landing!.chip, r, slack)), `${tag}: the price is absorbed at the printed cost icon — ${landing!.chip.x},${landing!.chip.y} vs ${JSON.stringify(costIcons)}`).toBe(true);
   expect(costIcons.some((r) => inside(landing!.beat, r, slack)), `${tag}: the contact beat wakes on the cost icon — ${JSON.stringify(landing!.beat)}`).toBe(true);
+  // PL-104: a departure LEAVES SIDEWAYS — the price never climbs over the counters above its own row (the reward's
+  // toss once carried TR35's titanium over the steel row and topped it out on the M€ plate). Every painted sample of
+  // the chip stands no higher than its own row's ink top.
+  const climbed = samples.flatMap((s) => s.chips.filter((c) => c.v === amount && c.op > 0.05 && c.y < rowInk!.t - slack)
+    .map((c) => `${Math.round(s.t)}:${Math.round(c.x)},${Math.round(c.y)}`));
+  expect(climbed, `${tag}: the «${amount}» chip never rose above its own row (ink top ${rowInk!.t})`).toEqual([]);
   const ticked = samples.find((s) => s.readouts[readout] === after);
   expect(ticked, `${tag}: the row «${readout}» read ${after}`).toBeTruthy();
   expect(ticked!.t, `${tag}: the row ticked (${ticked!.t}) no earlier than the chip's birth (${birth!.s.t})`).toBeGreaterThanOrEqual(birth!.s.t - 60);

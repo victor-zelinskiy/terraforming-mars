@@ -4,7 +4,7 @@ import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewMode
 import {
   mergeTransferSpecs, transferWaveDelayMs, transferArcPlan, transferArcPoint, transferArcTop, transferCeilingFor, transferCeilingY,
   transferChipScaleAt, sourceSpawnPoint, cardResourceKey, extractPlayRewards,
-  clampTransferPace, ResourceTransferSpec, TRANSFER_CONCURRENT_PACE,
+  clampTransferPace, ResourceTransferSpec, TRANSFER_CONCURRENT_PACE, transferLaunchFor, transferSideArcPlan,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 describe('resourceTransferModel (pure math of the shared resource-transfer language)', () => {
@@ -56,6 +56,51 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
     expect(transferArcPoint(plan, 1)).to.deep.eq(to);
     const mid = transferArcPoint(plan, 0.5);
     expect(mid.y).to.be.lessThan((from.y + to.y) / 2); // a toss, not a slide
+  });
+
+  /*
+   * A DEPARTURE FROM A RAIL ROW LEAVES SIDEWAYS (PL-104, the TR35 walk). The rail is a column of counters; a price
+   * paid off it (PL-099's class) used the reward's toss and climbed over the rows above its own — TR35's titanium
+   * token (the 3rd row, 1080: the digits ≈ 130,259 → the printed titanium icon ≈ 463,664) crossed the steel row and
+   * topped out on the M€ plate before falling to the card.
+   */
+  describe('the side launch — a price leaving the rail never crosses another counter', () => {
+    const row = {x: 130, y: 259};
+    const icon = {x: 463, y: 664};
+    const samples = (plan: ReturnType<typeof transferArcPlan>) => Array.from({length: 41}, (_, i) => transferArcPoint(plan, i / 40));
+
+    it('the toss from that row DID climb over the rows above it (the defect, pinned)', () => {
+      expect(transferArcTop(transferArcPlan(row, icon)), 'the apex stood ~100 px over its own row — the M€ plate').to.be.lessThan(row.y - 60);
+    });
+
+    it('the side arc starts on the row, ends on the icon, never rises above its row and leaves it HORIZONTALLY', () => {
+      const plan = transferArcPlan(row, icon, 0, undefined, 'side');
+      expect(plan).to.deep.eq(transferSideArcPlan(row, icon));
+      expect(transferArcPoint(plan, 0)).to.deep.eq(row);
+      expect(transferArcPoint(plan, 1)).to.deep.eq(icon);
+      const points = samples(plan);
+      expect(Math.min(...points.map((p) => p.y)), 'never above its own row').to.be.gte(row.y - 1e-9);
+      points.slice(1).forEach((p, i) => expect(p.x, 'x only moves toward the target').to.be.gte(points[i].x));
+      // Clear of a 70 px column while still inside its own row's band (a rail row is ~55 px tall at 1080).
+      const out = points.find((p) => p.x >= row.x + 70);
+      expect(out, 'the chip clears the column').to.not.eq(undefined);
+      expect(out!.y - row.y, `…still within its own row when it does (${JSON.stringify(out)})`).to.be.lessThan(20);
+    });
+
+    it('a target ABOVE the row: the arc stays between the two heights (no overshoot either way)', () => {
+      const up = {x: 900, y: 120};
+      const points = samples(transferArcPlan(row, up, 0, undefined, 'side'));
+      points.forEach((p) => expect(p.y).to.be.within(up.y - 1e-9, row.y + 1e-9));
+    });
+
+    it('which flights take it: a LOSS leaving a stock / production row with no run-level destination — nothing else', () => {
+      expect(transferLaunchFor({channel: 'stock', direction: 'loss'}, false)).eq('side');
+      expect(transferLaunchFor({channel: 'production', direction: 'loss'}, false)).eq('side');
+      expect(transferLaunchFor({channel: 'stock', direction: 'gain'}, false), 'every gain keeps the toss').eq('toss');
+      expect(transferLaunchFor({channel: 'stock'}, false), 'absent direction = gain').eq('toss');
+      expect(transferLaunchFor({channel: 'card-resource', direction: 'loss'}, false), 'a spend off a card\'s face is not a rail row').eq('toss');
+      expect(transferLaunchFor({channel: 'stock', direction: 'loss'}, true), 'a run-level destination stands in for the row').eq('toss');
+    });
   });
 
   /*

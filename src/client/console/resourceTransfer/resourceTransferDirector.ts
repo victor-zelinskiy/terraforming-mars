@@ -18,7 +18,7 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferLiftBias,
+  TransferLaunch, TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferLiftBias,
   TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -41,6 +41,8 @@ export type TransferFlightOpts = {
   /** Wave tempo (already clamped by the run, ≤1 = quicker) — scales the
    *  flight's own durations, never its arc or easing. Default 1. */
   pace?: number;
+  /** How the chip leaves its source (`transferArcPlan`) — `side` for a departure off a RAIL row (PL-104). Default `toss`. */
+  launch?: TransferLaunch;
 };
 
 export type TransferFlightHandles = {
@@ -138,7 +140,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   // HUD rail — the flight layer paints UNDER the cockpit rails, so a chip above that edge is a chip cut in half —
   // and, for a row that itself stands above that line, the top of the screen.
   const ceiling = transferCeilingFor(opts.from, opts.to, h, opts.uiScale, topRailBottom());
-  const plan = transferArcPlan(opts.from, opts.to, transferLiftBias(opts.index), ceiling);
+  const plan = transferArcPlan(opts.from, opts.to, transferLiftBias(opts.index), ceiling, opts.launch);
   const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
   const settlePx = Math.max(2, Math.round(2.5 * opts.uiScale));
   const pace = opts.pace ?? 1;
