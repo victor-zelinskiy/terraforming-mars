@@ -14,7 +14,7 @@ import {TileType} from '../../common/TileType';
 type Options = {
   title?: string | Message,
   on?: PlacementType,
-  spaces?: Array<Space>,
+  spaces?: ReadonlyArray<Space>,
   /** For Icy Impactors */
   creditedPlayer?: IPlayer,
   // Card-specific per-cell reason for cells excluded by a custom `spaces`
@@ -49,9 +49,10 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       const whales = this.creditedPlayer.tableau.get(CardName.WHALES);
       if (whales !== undefined) {
         this.player.addResourceTo(whales, {qty: 1, log: true});
-        const input = this.cb(undefined);
-        this.player?.defer(input);
       }
+      // The chain continues whether or not Whales paid (upstream 139f69b9c6).
+      const input = this.cb(undefined);
+      this.player?.defer(input);
       return undefined;
     }
 
@@ -63,7 +64,10 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       placementType = this.options.on;
     } else {
       const on = this.options?.on || 'ocean';
-      availableSpaces = this.player.game.board.getAvailableSpacesForType(this.player, on);
+      // Oceans aren't subject to Ares hazard adjacency costs (upstream 2815fd6882).
+      availableSpaces = on === 'land' ?
+        this.player.game.board.getAvailableSpacesOnLand(this.player, undefined, false) :
+        this.player.game.board.getAvailableSpacesForType(this.player, on);
       title = this.options?.title ?? this.getTitle(on);
       placementType = on;
     }

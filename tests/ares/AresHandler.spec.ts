@@ -17,6 +17,8 @@ import {SeededRandom} from '../../src/common/utils/Random';
 import {Units} from '../../src/common/Units';
 import {addOcean, runAllActions, setRulingParty} from '../TestingUtils';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+import {PlaceOceanTile} from '../../src/server/deferredActions/PlaceOceanTile';
+import {Athena} from '../../src/server/cards/community/Athena';
 import {testGame} from '../TestGame';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {cast} from '../../src/common/utils/utils';
@@ -177,6 +179,29 @@ describe('AresHandler', () => {
     expect(player.production.plants).eq(0);
   });
 
+  it('available spaces - oceans on land ignore hazard production costs', () => {
+    const firstSpace = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, firstSpace, TileType.DUST_STORM_SEVERE);
+    const adjacentSpace = game.board.getAdjacentSpaces(firstSpace).find((s) => s.spaceType === SpaceType.LAND)!;
+
+    player.production.add(Resource.MEGACREDITS, -5);
+    expect(game.board.getAvailableSpacesOnLand(player)).does.not.include(adjacentSpace);
+
+    const selectSpace = cast(new PlaceOceanTile(player, {on: 'land'}).execute(), SelectSpace);
+    expect(selectSpace.spaces).includes(adjacentSpace);
+  });
+
+  it('available spaces - Athena ignores hazard production costs', () => {
+    const firstSpace = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, firstSpace, TileType.DUST_STORM_SEVERE);
+    const adjacentSpace = game.board.getAdjacentSpaces(firstSpace).find((s) => s.spaceType === SpaceType.LAND)!;
+
+    player.production.add(Resource.MEGACREDITS, -5);
+    expect(game.board.getAvailableSpacesOnLand(player)).does.not.include(adjacentSpace);
+
+    player.playedCards.push(new Athena());
+    expect(game.board.getAvailableSpacesOnLand(player)).includes(adjacentSpace);
+  });
   it('Adjacenct hazard costs do not apply to oceans', () => {
     const firstSpace = game.board.getAvailableSpacesOnLand(player)[0];
     AresHazards.putHazardAt(game, firstSpace, TileType.DUST_STORM_MILD);

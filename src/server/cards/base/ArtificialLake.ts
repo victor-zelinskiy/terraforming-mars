@@ -35,14 +35,15 @@ export class ArtificialLake extends Card implements IProjectCard {
     if (!player.game.canAddOcean()) {
       return true;
     } // Card is playable, it just has no effect.
-    return player.game.board.getAvailableSpacesOnLand(player, canAffordOptions).length > 0;
+    // Oceans aren't subject to Ares hazard adjacency costs.
+    return player.game.board.getAvailableSpacesOnLand(player, canAffordOptions, false).length > 0;
   }
 
   // The ocean-on-land placement isn't covered by the generic explainer (it checks
   // `behavior.tile`, not `behavior.ocean`). When oceans aren't maxed the only
   // residual blocker is "no land space" — name it.
   public unplayableReason(player: IPlayer): UnplayableReason | undefined {
-    if (player.game.canAddOcean() && player.game.board.getAvailableSpacesOnLand(player).length === 0) {
+    if (player.game.canAddOcean() && player.game.board.getAvailableSpacesOnLand(player, undefined, false).length === 0) {
       return reason.placementReason('No space available for the tile');
     }
     return undefined;

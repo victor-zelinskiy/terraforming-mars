@@ -241,8 +241,19 @@ export abstract class Board {
     return costs;
   }
 
-  public canAfford(player: IPlayer, space: Space, canAffordOptions?: CanAffordOptions) {
-    const additionalCosts = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
+  /**
+   * Whether `player` can pay the additional costs of placing a tile on `space`.
+   *
+   * `subjectToHazardAdjacency` is false for OCEAN tiles, which never pay the Ares
+   * hazard-adjacency production cost; Athena's owner never pays it either — the
+   * ONE predicate `AresHandler.subjectToHazardAdjacency` decides, exactly as the
+   * commit path (`Game.addTile`) charges, so a cell is never hidden for a cost
+   * the placement would not take (upstream 2815fd6882 / 02c902577a).
+   */
+  public canAfford(player: IPlayer, space: Space, canAffordOptions?: CanAffordOptions, subjectToHazardAdjacency: boolean = true) {
+    const additionalCosts = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier, {
+      subjectToHazardAdjacency: subjectToHazardAdjacency && AresHandler.subjectToHazardAdjacency(player, undefined),
+    });
     if (additionalCosts.megacredits > 0) {
       const plan: CanAffordOptions = canAffordOptions !== undefined ? {...canAffordOptions} : {cost: 0, tr: {}};
       plan.cost += additionalCosts.megacredits;
@@ -279,7 +290,8 @@ export abstract class Board {
     return true;
   }
 
-  public getAvailableSpacesOnLand(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
+  /** `subjectToHazardAdjacency` — false when the tile to place is an OCEAN (see `canAfford`). */
+  public getAvailableSpacesOnLand(player: IPlayer, canAffordOptions?: CanAffordOptions, subjectToHazardAdjacency: boolean = true): ReadonlyArray<Space> {
     // Does this also apply to cove spaces?
     const landSpaces = this.getSpaces(SpaceType.LAND).filter((space) => {
       // A space is available if it doesn't have a player marker on it, or it belongs to |player|
@@ -301,7 +313,7 @@ export abstract class Board {
         return false;
       }
 
-      return this.canAfford(player, space, canAffordOptions);
+      return this.canAfford(player, space, canAffordOptions, subjectToHazardAdjacency);
     });
     return landSpaces;
   }

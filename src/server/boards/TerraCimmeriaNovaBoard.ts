@@ -53,8 +53,8 @@ export class TerraCimmeriaNovaBoard extends MarsBoard {
     return costs;
   }
 
-  public override getAvailableSpacesOnLand(player: IPlayer, canAffordOptions?: CanAffordOptions) {
-    return super.getAvailableSpacesOnLand(player, canAffordOptions).filter((space) => {
+  public override getAvailableSpacesOnLand(player: IPlayer, canAffordOptions?: CanAffordOptions, subjectToHazardAdjacency: boolean = true) {
+    return super.getAvailableSpacesOnLand(player, canAffordOptions, subjectToHazardAdjacency).filter((space) => {
       if (space.bonus.includes(SpaceBonus.COLONY)) {
         if (player.colonies.getPlayableColonies().length === 0) {
           return false;
