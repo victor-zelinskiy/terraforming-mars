@@ -333,3 +333,81 @@ now derives the counted terms from `RESOLUTION_COUNT_IDS` (it was three terms be
 the RX15 «levy nets alone» expectation was superseded by RX25's «no net that restates one
 part» (spec + docblock). `effectForecastParity` only times out under machine load.
 Full suite after the fixes: 13041 passing, 0 failing.
+
+---
+
+## F. The 2026-10 window (137 upstream commits, `9f68b8e204..369c76aded`, audited 2026-10-09)
+
+**Taken as cherry-picks (`-x`):** NewGameConfig interface→type + readonly lists (`4940d4ad8c`,
+`90dd3686c0` — the fork's own list fields made readonly too); the Timer hours wrap + simplify
+(`9445342bea`, `41a1b005de`, `686c037ec6`); Robotic Workforce ×3 cards + the tightened all-cards
+test (`6e1ac5431c`, `d05ae06e94`); Mars U priority tests (`9c1cd4308f` carrying `fe418ee9b0`);
+the Playwrights cluster (`08a61b680a`, `8fbac33b2d`, `26d9ebc28f`, `6b2d903fca`, `fb5954ee79`);
+Reds solo bonuses once (`d89fd670b7` — resolved in the fork's `getScore` shape); test refreshes
+(`97c9e7037d`, `3464dc3955`); payment cleanups (`92eda37dd0`, `05bef27d3c`); the Unity discount
+callback (`9c7222e9d3` — the fork keeps its itemized `discounts` row, the amount comes from the
+policy); `no-sequences` (`1c44e7d06e` — the fork code was already clean); TODO/test resolutions
+(`a065c6af5e` minus the Geologist list: the fork's `getCandidates({hasVolcanicSpaces})` reads the
+real board); logging TODOs (`7780b5070e` + RU keys); Hostile Takeover warning (`3cdf3d4e5c` + the
+console `cardWarnings` row); the 3 M€ → 4 M€ temperature bonus (`43fe40634f` + the fork-only readers:
+`placementCostInfo`, `BoardInformationEngine`, the creator's board miniature; the two upstream cube
+tests that rode along belong to the deferred `79ffa23390` and were dropped); Spacefarer → T. Spacefarer
+(`630a975b69` + the fork exclusion group; RU keeps «Космонавт» — the «T.» is a key marker, like
+T. Collector); Warmonger wording (`369c76aded` — the fork's RU translation re-keyed, not rewritten);
+`310baaec8c`.
+
+**Adapted by hand:** **X87 Shipment to Earth** (`b7848f3663`) — see the card file's header: the loss
+runs in `bespokePlayBefore` so printed = executed order, `minus()` instead of upstream's negative
+amounts, co-located `unplayableReason` / `cardPlayPreview`, authored information blocks, RU, lore, art;
+the deep premium pass is the separate prompt `docs/claude/prompts/promo-x87-shipment-to-earth.md`.
+Negative Escape Velocity refused (`5a8e1ad3a3` — route half only). Turmoil's new government waits
+for the global event (`55516ec8fc` + `ffd215fd83` + the `09944e5906` sanity test) on the fork's
+end-of-generation with the Parliament branch untouched. Ares AVAILABILITY asks the commit path's
+predicate (`2815fd6882` + `02c902577a` + `139f69b9c6`): oceans on land and Athena no longer hide
+cells for a production cost the placement never charges. The input route's 400 body through
+`responses.badInputRequest` (`d31d1d1b1e`). Event-loop utilization gauge in `GameServer.ts`
+(`cbea00e6db`). Induced Tremor's optional discard on the fork's premium prompts (`e469b12244`).
+
+**Declined:** `93b146c7d3` + `d7886c307a` (negative render amounts / `amount: undefined` instead of
+`-1` — 168 card files, and the premium face reads the `-1` sentinel; X87 is written with `minus()`
+instead — revisit only as its own iteration); `a4b4bc44cd` (`PRODUCTION_MINIMUMS` — the fork already
+has `productionFloor()` with the MarsBot branch); `93623db6c4` (RemoveResourcesFromCard log default
+flip — the fork's removal path logs through the recorder); `36795d0d58`, `cb9e00ed6f`, `793c86cd10`,
+`774235a8ec`, `97bb3d102a`, `f91e1e2574` (Turmoil/Moon refactors of Game.ts the Parliament branch
+has restructured — no behaviour); `bb27482c25`, `7038162340`, `c2e02e9937` (TODO cleanups on deleted
+desktop files); `3c611406b7` + `60f5a67ed4` (create-game validation — encodes «custom list = the whole
+pool», the semantics of `9960c15601` declined in §E; the fork's list is cards-on-top); `43fb2c9fd3`
+(client getColony rename churn); `ce33b82852` (a dead `undefined` check the type already rules out);
+every desktop/Vue refactor, help-page, draft-polling, create-form and style commit of the window
+(`29bbc4b00d`, `52aca06707`, `8f27b180bf`, `c5fba77cf5`, `facec50787`, `5bc1af9a38`, `3c16024ff0`,
+`27df5ea506`, `cbbcaf228d`, `7833081055`, `d92487b7af`, `ed39bd1349`, `65661a2534`, `4d37552429`,
+`70bc60e1eb`, `3a7919c394`, `a742454c28`, `939cbbc788`, `1ea8202661`, `6f996c531f`, `9ebb27c81a`,
+`bbfeecb11f`, `d69e20e7e5`, `4d5664dc8e`, `613e4b9775`, `ac87706a0c`, `ccd14be7fc`, `63c17ea5f1`,
+`e237c75f50`, `a3d8219a60`, `d68ffa0e15`, `ae2d0c162d`, `48a075fc9e`, `41a20cc48a`, `160331844b`,
+`6e8f01c30d`, `b669327fdb`, `998e70b80e`, `583bdade6a`, `798ba6313f`, `fc916cec06`, `46d8eda598`,
+`e505754e61`, `c84f104f65`, `c7a24fb210`, `e3f0e1e665`, `115b292807`, `9fa3791da2`, `430da290af`,
+`97d285e147`, `3878d01d75`, `78e42d07ea`, `6d04a0cddb`, `3350ba3eb2`, `696e2eb03a`, `72d6ea73c7`,
+`797fce4755`, `51f0eeca96`, `a652f38794`, `8beae85352`, `611f9ff109`, `eb14484508`, `6a1aed8ff1` —
+the last one retires PUT /game, which the fork's load-game form still calls).
+
+**Deferred — worth their own iteration (highlighted, not taken):**
+- **Ares severe hazards: 2 steps from ONE production** (`7f94c96ac9` + `1903a73197`) — a rules fix for an
+  in-scope expansion. Server: `AdjacencyCost.production` becomes `{mild, severe}`, `AresHandler.canPayProduction`
+  (pairs arithmetic), `SelectProductionToLose.pairs` + validation, the deferred action's `warning`.
+  Fork cost: the console surface `ConsoleProductionLoss.vue` / `consoleProductionLoss.ts` must SHOW the
+  pair rule and refuse a split before submit; `MarsBoard.placementCostInfo.production` (a number today)
+  feeds the board information layer; the MarsBot bypass (`player.isMarsBot`) stays. Medium-large.
+- **Aquifer Turbines pays itself** (`945516b34c` + `47b8801c34`; `ICard.gainsFromTilePlacement`,
+  `MarsBoard.megacreditsFromOceanPlacement`) — prelude in scope; the ocean leaves `behavior` for a
+  filtered `PlaceOceanTile`, so the fork needs the `placementPreview` hook + a staged reasoner (Boom Town
+  is the model). Upstream calls it a trial.
+- `0b3efb7d95` `Game.drainQueue` — a 250-line reindent of `Player.takeAction`; no behaviour. Take when
+  the Parliament's end-of-generation is next touched.
+- `a24f78b198` MIN_RESPONSE_INTERVAL_MS — off by default; if ever enabled the console's
+  `submitBatch` (sequential inputs in one press) must be exempt. Carries a response-interval histogram.
+- `66d49fb387` (stylelint bump + lock) and the dependabot bumps (webpack 5.111.1 — check against the
+  5.110 codegen bug memory; vue-tsc 3.3.11; mocha 12.0.2 — see §E's Mocha 12 note; globals, undici,
+  fast-uri, brace-expansion) — a deps pass of its own.
+- Console-backlog ideas from declined desktop commits: the tag-substitution marker on Earth/Science tags
+  (`aaa9095a1e`), the conditional hand-discount marker (`747567d4b1`), the prelude-drawing warning for
+  the creator (`2979458aad` / `preludeDrawingCards.ts`).
