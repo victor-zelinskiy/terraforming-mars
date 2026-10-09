@@ -2159,8 +2159,9 @@ export default defineComponent({
         return 'landed';
       }
       // 'preparing' still measures/blanks the pressed slot — the release
-      // starts one phase later, when the proxy already owns the pixels.
-      return playedHeroHolding() && playedHeroState.phase !== 'preparing' ? 'depart' : 'staged';
+      // starts one phase later, when the proxy already owns the pixels
+      // ('shipping' is earlier still: the card stands while its price leaves the rail).
+      return playedHeroHolding() && playedHeroState.phase !== 'preparing' && playedHeroState.phase !== 'shipping' ? 'depart' : 'staged';
     },
     /** Presence key of the live drawn-reveal event (claim lifecycle driver). */
     revealEventKey(): string {
@@ -3049,7 +3050,7 @@ export default defineComponent({
       // lands over it) — hiding a frame earlier reads as the card blinking
       // out before anything picks it up.
       const p = hero.phase;
-      return p === 'idle' || p === 'armed' || p === 'failed' || p === 'preparing' ? undefined : hero.card;
+      return p === 'idle' || p === 'armed' || p === 'shipping' || p === 'failed' || p === 'preparing' ? undefined : hero.card;
     },
     picks() {
       return {

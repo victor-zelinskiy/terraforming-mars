@@ -649,7 +649,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {actionKnownRailMoves, playRailReward} from '@/client/console/consoleActionCommit';
+import {actionKnownRailMoves, playRailReward, playSpendReward} from '@/client/console/consoleActionCommit';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -3909,6 +3909,10 @@ export default defineComponent({
         // along for the diff check the seed makes against the two views.
         rail: playRailReward(b, heroRewardEffectsOf(b), this.captured, payment,
           reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts)),
+        // …and THE PRICE THE PLAY TAKES OFF THE RAIL (the rail-spend law at the play door — PL-107): the branch's
+        // stock cost chips (X87's plants and steel), flown by the landing scene INTO the standing card before it
+        // lifts, each row ticking on its token's departure. Never the card's own price (the payment panel's).
+        spends: playSpendReward(this.cardName, b, this.captured, payment),
         draws: heroRewardEffectsOf(b).reduce((n, e) =>
           (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0),
         // ProjectInspection: the chosen already-used action + its composed

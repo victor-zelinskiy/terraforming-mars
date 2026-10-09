@@ -13,12 +13,14 @@ import {
   playedHeroHolding,
   playedHeroLandingPrewarm,
   playedHeroLandingUp,
+  playedHeroIncomingCard,
   playedHeroCardTargets,
   playedHeroState,
   provideReceivingEffectHooks,
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {panelRewardHold, heldStock, heldProduction} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {stagePlayedCardReturns, resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 
@@ -283,6 +285,160 @@ describe('consolePlayedHero (the animation transaction)', function() {
     skipPlayedHeroResult();
     await end;
     expect(playedHeroState.phase).to.eq('idle');
+  });
+
+  // ── THE SHIPMENT BEAT (PL-107 — the rail-spend law at the play door) ─────
+  describe('the shipment beat — the price a play takes OFF THE RAIL leaves before the lift', () => {
+    const shipment = () => ({
+      cause: [
+        {channel: 'stock', resource: 'plants', amount: 3, direction: 'loss'},
+        {channel: 'stock', resource: 'steel', amount: 3, direction: 'loss'},
+      ] as Array<ResourceTransferSpec>,
+      reactions: [],
+      known: {'stock:megacredits': -17},
+    });
+    const seat = (plants: number, steel: number, megacredits: number, tableau: Array<CardName>): PlayerViewModel => ({
+      id: 'p-blue',
+      thisPlayer: {plants, steel, megacredits, tableau: tableau.map((n) => ({name: n}))},
+      waitingFor: undefined,
+    } as unknown as PlayerViewModel);
+    /**
+     * A STANDING CARD in the composer — the beat's source. JSDOM measures every box at zero, so the card's own
+     * rect is stubbed (the lift's source poll reads the same box); the rail rows are not in this DOM, so each
+     * token DEGRADES (`no-destination`) — and a loss releases at its launch either way, which is the contract
+     * under test: the departure hold, not the geometry.
+     */
+    let standing: HTMLElement | undefined;
+    const mountStandingCard = () => {
+      standing = document.createElement('div');
+      standing.className = 'con-composer con-composer--play';
+      standing.innerHTML = '<div data-zoom-handoff="play-card"><div class="pcard"><div class="pcard__mech"></div></div></div>';
+      document.body.appendChild(standing);
+      const pcard = standing.querySelector<HTMLElement>('.pcard')!;
+      pcard.getBoundingClientRect = () => ({x: 100, y: 100, width: 200, height: 300, left: 100, top: 100, right: 300, bottom: 400, toJSON: () => ({})}) as DOMRect;
+    };
+    afterEach(() => {
+      standing?.remove();
+      standing = undefined;
+    });
+
+    it('the rows tick on the DEPARTURE (a departure hold against the not-yet-applied view), the commit releases it without a transition', async () => {
+      mountStandingCard();
+      armPlayedHero(CardName.SHIPMENT_TO_EARTH, true, {manualTableOpen: false, spends: shipment()});
+      const before = seat(5, 4, 30, []);
+      const after = seat(2, 1, 13, [CardName.SHIPMENT_TO_EARTH]);
+      expect(detectPlayedHero(after)).to.not.be.undefined;
+      expect(panelRewardHold.active, 'nothing held at the arm').to.be.false;
+      // A LOSS releases at its launch: the departure holds are seeded inside the run — the rows read
+      // `committed − amount` from the moment the tokens leave, long before the commit.
+      const run = runPlayedHero(after, before);
+      await until(() => heldStock('plants') === 3 && heldStock('steel') === 3);
+      expect(heldStock('plants'), 'the plants row ticked at the departure — 5 → 2 on the pre-commit view').to.eq(3);
+      expect(heldStock('steel')).to.eq(3);
+      expect(['shipping', 'preparing', 'lifting', 'landing']).to.include(playedHeroState.phase);
+      await run;
+      expect(playedHeroState.shipment, 'the beat names itself: it flew (degraded tokens still count as flown here)').to.match(/^(flown|degraded)/);
+      expect(heldStock('plants'), 'still held through the flight — the commit has not happened').to.eq(3);
+      // THE COMMIT'S BLOCK: the applied view already carries the shipment, so the release is no transition.
+      seedPlayedHeroRewardHold(before, after);
+      expect(heldStock('plants')).to.eq(0);
+      expect(heldStock('steel')).to.eq(0);
+      expect(panelRewardHold.active).to.be.false;
+      await endPlayedHero();
+      expect(playedHeroState.phase).to.eq('idle');
+    });
+
+    it('a mismatch (the answer did not take what was promised) ships nothing and names itself — the rows tick with the commit', async () => {
+      mountStandingCard();
+      armPlayedHero(CardName.SHIPMENT_TO_EARTH, true, {manualTableOpen: false, spends: shipment()});
+      const before = seat(5, 4, 30, []);
+      const after = seat(5, 4, 13, [CardName.SHIPMENT_TO_EARTH]); // the plants and the steel never left
+      expect(detectPlayedHero(after)).to.not.be.undefined;
+      await runPlayedHero(after, before);
+      expect(playedHeroState.shipment).to.match(/^mismatch:/);
+      expect(panelRewardHold.active, 'no departure hold on a promise the answer broke').to.be.false;
+      seedPlayedHeroRewardHold(before, after);
+      await endPlayedHero();
+      expect(playedHeroState.phase).to.eq('idle');
+    });
+
+    it('without the two views (a staged ceremony, a caller that has none) nothing ships', async () => {
+      armPlayedHero(CardName.SHIPMENT_TO_EARTH, true, {manualTableOpen: false, spends: shipment()});
+      expect(detectPlayedHero(viewWithTableau([CardName.SHIPMENT_TO_EARTH]))).to.not.be.undefined;
+      await runPlayedHero(viewWithTableau([CardName.SHIPMENT_TO_EARTH]));
+      expect(playedHeroState.shipment).to.match(/^mismatch:/);
+      expect(panelRewardHold.active).to.be.false;
+      await endPlayedHero();
+    });
+
+    it('an abort before the commit refunds the departure — the rows return to the truth, nothing stays held', async () => {
+      mountStandingCard();
+      armPlayedHero(CardName.SHIPMENT_TO_EARTH, true, {manualTableOpen: false, spends: shipment()});
+      const before = seat(5, 4, 30, []);
+      const after = seat(2, 1, 13, [CardName.SHIPMENT_TO_EARTH]);
+      expect(detectPlayedHero(after)).to.not.be.undefined;
+      const run = runPlayedHero(after, before);
+      await until(() => heldStock('plants') === 3);
+      expect(heldStock('plants'), 'the departure was held').to.eq(3);
+      abortPlayedHero();
+      await run;
+      expect(panelRewardHold.active).to.be.false;
+      expect(heldStock('plants')).to.eq(0);
+      expect(heldStock('steel')).to.eq(0);
+      await settle(5);
+      expect(playedHeroState.phase).to.eq('idle');
+    });
+
+    it('a play that takes nothing off the rail has no beat and no name', async () => {
+      armPlayedHero(CardName.TREES, false, {manualTableOpen: false});
+      expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
+      await runPlayedHero(viewWithTableau([CardName.TREES]), viewWithTableau([]));
+      expect(playedHeroState.shipment).to.eq('');
+      expect(panelRewardHold.active).to.be.false;
+      await endPlayedHero();
+    });
+
+    it('a standing card nobody can measure ships nothing and says so (`no-source`)', async () => {
+      armPlayedHero(CardName.SHIPMENT_TO_EARTH, true, {manualTableOpen: false, spends: shipment()});
+      const before = seat(5, 4, 30, []);
+      const after = seat(2, 1, 13, [CardName.SHIPMENT_TO_EARTH]);
+      expect(detectPlayedHero(after)).to.not.be.undefined;
+      await runPlayedHero(after, before);
+      expect(playedHeroState.shipment).to.eq('no-source');
+      expect(panelRewardHold.active).to.be.false;
+      seedPlayedHeroRewardHold(before, after);
+      await endPlayedHero();
+    });
+
+    it('the shipment phase is BEFORE the landing stage: the workspace stage stays in prewarm, nothing incoming yet', async () => {
+      mountStandingCard();
+      armPlayedHero(CardName.SHIPMENT_TO_EARTH, true, {manualTableOpen: false, host: 'workspace', spends: shipment()});
+      const before = seat(5, 4, 30, []);
+      const after = seat(2, 1, 13, [CardName.SHIPMENT_TO_EARTH]);
+      expect(detectPlayedHero(after)).to.not.be.undefined;
+      let sawShipping = false;
+      let stageUpWhileShipping = false;
+      let incomingWhileShipping: unknown = undefined;
+      const stop = watch(() => playedHeroState.phase, (p) => {
+        if (p === 'shipping') {
+          sawShipping = true;
+          stageUpWhileShipping = playedHeroLandingUp();
+          incomingWhileShipping = playedHeroIncomingCard();
+          expect(playedHeroLandingPrewarm(), 'the stage stays MOUNTED (prewarm) while the price leaves').to.be.true;
+          expect(playedHeroHolding(), 'the beat holds the foreground').to.be.true;
+        }
+      }, {flush: 'sync'});
+      try {
+        await runPlayedHero(after, before);
+      } finally {
+        stop();
+      }
+      expect(sawShipping, 'the beat published its phase').to.be.true;
+      expect(stageUpWhileShipping, 'the landing stage is NOT up while the card still stands').to.be.false;
+      expect(incomingWhileShipping, 'the tableau reserves no slot yet').to.be.undefined;
+      seedPlayedHeroRewardHold(before, after);
+      await endPlayedHero();
+    });
   });
 
   // ── the WORKSPACE host (the Card Play Workspace landing stage) ──────────

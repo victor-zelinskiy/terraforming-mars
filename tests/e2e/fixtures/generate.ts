@@ -54,6 +54,9 @@ import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
 import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
 import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
+import {ShipmentToEarth} from '../../../src/server/cards/promo/ShipmentToEarth';
+import {Sponsors} from '../../../src/server/cards/base/Sponsors';
+import {Cartel} from '../../../src/server/cards/base/Cartel';
 import {CarbonNanosystems} from '../../../src/server/cards/promo/CarbonNanosystems';
 import {OlympusConference} from '../../../src/server/cards/base/OlympusConference';
 import {RoverConstruction} from '../../../src/server/cards/base/RoverConstruction';
@@ -250,8 +253,14 @@ function answerStartFlow(game: IGame, players: ReadonlyArray<TestPlayer>): void 
   throw new Error('the start flow never settled in 40 rounds');
 }
 
-function soloActionPhase(): {game: IGame, player: TestPlayer} {
-  const [game, player] = testGame(1, {skipInitialCardSelection: false});
+/**
+ * A solo table at its first action. `options` ride into `testGame` — a CALM corporation (`customCorporationsList`
+ * + `startingCorporations: 1`: the list goes on top of the corporation deck, the one seat draws it) keeps a scene
+ * about the card alone: the seeded deal once handed X87's table Interplanetary Cinematics, whose event trigger
+ * answered every play with «+2» the spec had to explain away.
+ */
+function soloActionPhase(options: Partial<TestGameOptions> = {}): {game: IGame, player: TestPlayer} {
+  const [game, player] = testGame(1, {skipInitialCardSelection: false, ...options});
   const wf = player.getWaitingFor();
   if (!(wf instanceof SelectInitialCards)) {
     throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
@@ -361,6 +370,31 @@ function write(name: string, game: IGame): void {
   player.playedCards.push(new ElectroCatapult(), new SpaceMirrors());
   runAllActions(game);
   write('rail-reward-action', game);
+}
+
+// ── shipment-to-earth: X87 SHIPMENT TO EARTH — the first EVENT whose effect takes TWO resources OFF THE RAIL
+//    (docs/claude/prompts/promo-x87-shipment-to-earth.md § 2 B3 — the shipment beat before the lift). A solo
+//    action phase with the card in hand, 5 plants and 4 steel (3 + 3 leave; both rows stay above zero so the tick
+//    is a number, never an empty row), 30 M€ (the printed 17 — no discount card in the tableau), no titanium and
+//    no heat (one payment path), TWO plain Earth tags in the tableau (Sponsors, Cartel — no trigger of their own:
+//    the card pays +4 M€ and nothing else answers), CrediCor (no trigger, no discount). The «short» variant of the
+//    spec arranges the serialized steel down to 2 at boot. ──
+{
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.CREDICOR], startingCorporations: 1});
+  player.megaCredits = 30;
+  player.plants = 5;
+  player.steel = 4;
+  player.titanium = 0;
+  player.heat = 0;
+  player.cardsInHand.push(new ShipmentToEarth());
+  player.playedCards.push(new Sponsors(), new Cartel());
+  runAllActions(game);
+  const card = player.cardsInHand.find((c) => c.name === CardName.SHIPMENT_TO_EARTH);
+  if (card === undefined || !player.canPlay(card) || player.tags.count(Tag.EARTH) !== 2 || player.getCardCost(card) !== 17 ||
+      !player.playedCards.has(CardName.CREDICOR)) {
+    throw new Error(`the shipment-to-earth fixture expected the card playable at 17 with two Earth tags and CrediCor — got card=${card !== undefined} playable=${card !== undefined && player.canPlay(card)} earth=${player.tags.count(Tag.EARTH)} cost=${card === undefined ? '?' : player.getCardCost(card)} corp=${player.playedCards.corporations().map((c) => c.name).join(',')}`);
+  }
+  write('shipment-to-earth', game);
 }
 
 // ── two-player-pre-endgame: a 2p table, every dial but oxygen maxed, the

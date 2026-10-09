@@ -705,7 +705,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           stagePlayedCardReturns(currentView(), newView);
           transportHolds.playedHero = true;
           try {
-            await runPlayedHero(newView);
+            // The applied view rides along: the shipment beat (the price the play takes off the rail) checks
+            // its promise against the diff of the two before it flies — before anything is committed.
+            await runPlayedHero(newView, currentView());
           } finally {
             transportHolds.playedHero = false;
           }

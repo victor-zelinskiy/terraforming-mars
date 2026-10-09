@@ -359,7 +359,13 @@ T. Collector); Warmonger wording (`369c76aded` — the fork's RU translation re-
 **Adapted by hand:** **X87 Shipment to Earth** (`b7848f3663`) — see the card file's header: the loss
 runs in `bespokePlayBefore` so printed = executed order, `minus()` instead of upstream's negative
 amounts, co-located `unplayableReason` / `cardPlayPreview`, authored information blocks, RU, lore, art;
-the deep premium pass is the separate prompt `docs/claude/prompts/promo-x87-shipment-to-earth.md`.
+the deep premium pass (`docs/claude/prompts/promo-x87-shipment-to-earth.md`) is DONE 2026-10-09: the
+reading rules pinned one by one in `tests/cards/promo/ShipmentToEarth.spec.ts` (floodgate steel never
+counts, no insurance on one's own loss, the Reds tax on the shared path, wild / Earth Embassy tags,
+Playwrights through `canPlay`, the journal in the printed order, the zero M€ chip with its basis),
+`playPreview({extrasFirst})` so the loss reads first (Moss too), and the console's SHIPMENT BEAT — the
+price a play takes off the rail leaves into the standing card before it lifts (PL-107,
+`consolePlayedHero.ts`; e2e `console-x87-shipment-to-earth.spec.ts`, fixture `shipment-to-earth`).
 Negative Escape Velocity refused (`5a8e1ad3a3` — route half only). Turmoil's new government waits
 for the global event (`55516ec8fc` + `ffd215fd83` + the `09944e5906` sanity test) on the fork's
 end-of-generation with the Parliament branch untouched. Ares AVAILABILITY asks the commit path's

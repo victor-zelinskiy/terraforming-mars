@@ -37,6 +37,7 @@
  */
 
 import {reactive, nextTick} from 'vue';
+import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -61,15 +62,15 @@ import {
   resetCardResourceLandings,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  ResourceTransferSpec, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS,
+  ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS, transferFlightBudgetMs, transferWaveDelayMs,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   abortPlayedCardReturns, capturePlayedCardReturnSource, hasPendingPlayedReturns, runPlayedCardReturns,
 } from '@/client/console/played/playedCardReturn';
 import {splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
-import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {iconNeedlesFor} from '@/client/console/consoleActionCommitMotion';
+import {iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
 
 /** The result beat is SHORT when the server already queued the next decision
  *  — the demonstration yields to the game (spec §13). */
@@ -144,6 +145,14 @@ export const playedHeroState = reactive({
   autoClose: true,
   /** The flying proxy geometry (undefined → no-flight fallback path). */
   proxy: undefined as PlayedHeroProxy | undefined,
+  /**
+   * THE SHIPMENT BEAT's outcome, named ('' — the play takes nothing off the
+   * rail): `flying` → `flown`, or why it was not shown as promised (`reduced`,
+   * `mismatch: …`, `no-source`, `degraded: …`) — the rows ticked with the
+   * commit then, honestly late. Read by the e2e probe through the readiness
+   * snapshot.
+   */
+  shipment: '' as string,
 });
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
@@ -192,6 +201,46 @@ let heldRewards: Array<ResourceTransferSpec> = [];
 let pendingRail: RailReward | undefined;
 /** The rail reward this transaction SEEDED (its owner key) — undefined: nothing of it is held. */
 let heldRailKey: string | undefined;
+
+/**
+ * THE SHIPMENT BEAT (PL-107 — the rail-spend law, PL-099, at the play door):
+ * the stock prices the play takes OFF THE RAIL as an EFFECT (X87 Shipment to
+ * Earth's 3 plants and 3 steel, Moss's plant — a `cost` chip of a standard
+ * resource, never the card's own price), promised at the arm
+ * (`consoleActionCommit.playSpendReward`), checked against the two views
+ * once the answer is in (`verifyRailReward` — a row that moved otherwise is
+ * not flown and names itself), and flown BEFORE THE LIFT: the card still
+ * stands in the composer, so each token is born on its row's digits, leaves
+ * SIDEWAYS (PL-104) and is absorbed at the printed icon of that very
+ * resource on the standing card — the shipment goes INTO the card, then the
+ * card goes to the table, and only then the card pays back (the reward beat).
+ *
+ * The row ticks on the DEPARTURE through a DEPARTURE HOLD: the view is not
+ * applied yet (the commit waits for the landing), so from the token's launch
+ * the row reads `committed − amount` (a gain-shaped hold on the pre-commit
+ * value — the only transition the rail makes, and it is the departure's own),
+ * and the commit's block releases the hold against the applied view: the same
+ * number, no transition, no second chip. An abort before the commit lets go of
+ * it and the row returns to the truth — a failed play ships nothing.
+ */
+let pendingSpends: RailReward | undefined;
+/** The departure holds this transaction seeded (gain-shaped) — released by the commit's block, or by an abort. */
+const departureHolds: Array<ResourceTransferSpec> = [];
+/** The applied view the answer is checked against (handed in with the answer — `runPlayedHero`). */
+let beforeView: PlayerViewModel | undefined;
+
+/** The shipment beat's longest run — one wave of tokens and the absorb beat — for the scene's safety net. */
+function shipmentBudgetMs(): number {
+  return motionMs(transferFlightBudgetMs() + transferWaveDelayMs(1, 2) + TRANSFER_BEAT_MS);
+}
+
+/** Let go of every departure hold this transaction seeded (the commit's block, an abort, the finish) — idempotent. */
+function releaseDepartures(): void {
+  const left = departureHolds.splice(0);
+  for (const hold of left) {
+    releasePanelRewardHold(hold);
+  }
+}
 
 function playedHeroRailKey(card: CardName): string {
   return `played-hero:${card}`;
@@ -346,7 +395,8 @@ export function playedHeroHolding(): boolean {
  * 'workspace' host — the composer renders its landing layer off this.
  */
 export function playedHeroLandingUp(): boolean {
-  return playedHeroState.host === 'workspace' && playedHeroHolding();
+  // Not while the shipment leaves the rail: the card still STANDS in the composer then — the stage waits, mounted.
+  return playedHeroState.host === 'workspace' && playedHeroHolding() && playedHeroState.phase !== 'shipping';
 }
 
 /**
@@ -358,7 +408,7 @@ export function playedHeroLandingUp(): boolean {
  */
 export function playedHeroLandingPrewarm(): boolean {
   return playedHeroState.host === 'workspace' && playedHeroState.active &&
-    playedHeroState.phase === 'armed';
+    (playedHeroState.phase === 'armed' || playedHeroState.phase === 'shipping');
 }
 
 /**
@@ -372,7 +422,7 @@ export function playedHeroIncomingCard(): {name: CardName} | undefined {
     return undefined;
   }
   const p = playedHeroState.phase;
-  if (p === 'armed' || p === 'idle' || p === 'failed') {
+  if (p === 'armed' || p === 'shipping' || p === 'idle' || p === 'failed') {
     return undefined;
   }
   return {name: playedHeroState.card};
@@ -398,6 +448,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   rewards?: ReadonlyArray<ResourceTransferSpec>,
   /** The play's rail half — its direct TR and the table's answer (see `pendingRail`). */
   rail?: RailReward,
+  /** The stock prices the play takes OFF THE RAIL — the shipment beat before the lift (see `pendingSpends`). */
+  spends?: RailReward,
   host?: PlayedHeroHost,
   /** The picture the card wears where it LIFTS from (default: the composer's
    *  stationary hero — `normal` tier, no live model). */
@@ -412,6 +464,10 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   pendingRewards = opts.rewards ?? [];
   releaseHeroRail('re-armed');
   pendingRail = opts.rail;
+  releaseDepartures();
+  pendingSpends = opts.spends;
+  beforeView = undefined;
+  playedHeroState.shipment = '';
   // THIS payout's touchdown tally starts empty (the colony flows arm the same
   // way) — a stale count would tick a fresh target before its chip ever flew.
   resetCardResourceLandings();
@@ -520,17 +576,19 @@ export function detectPlayedHero(view: PlayerViewModel): {card: CardName} | unde
  * NEVER rejects; every failure degrades to the no-flight fallback and the
  * promise still resolves (the commit gate can never hang).
  */
-export function runPlayedHero(view: PlayerViewModel): Promise<void> {
+export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): Promise<void> {
   // The authoritative answer: the LANDING face is drawn from it (the
   // committed tableau model of the played card), so the picture the proxy
   // wears from the apex on is exactly what the destination will paint.
   landingView = view;
+  // …and the view it REPLACES: the shipment beat's promise is checked against the diff of the two.
+  beforeView = before;
   return new Promise<void>((resolve) => {
     runResolve = resolve;
     sceneSafety = window.setTimeout(() => {
       // rAF stall / lost element — force the gate open, degrade gracefully.
       freeRunGate();
-    }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
+    }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 + (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0));
     void executeFlight().finally(() => {
       // PRE-COMMIT, table on screen: measure where the cards this play sends
       // back to hand are lying. The commit removes them from the tableau one
@@ -566,6 +624,12 @@ export function runPlayedHero(view: PlayerViewModel): Promise<void> {
  * itself.
  */
 export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: PlayerViewModel): void {
+  // THE DEPARTURE HOLDS END HERE — in the commit's own block: the rows the shipment left already read the
+  // applied number, so the release is no transition at all (and never a chip). Before the early returns: a
+  // play with nothing else to hold still shipped.
+  if (playedHeroState.active) {
+    releaseDepartures();
+  }
   if (!playedHeroState.active || rewardHoldSeeded || (pendingRewards.length === 0 && pendingRail === undefined)) {
     return;
   }
@@ -618,6 +682,12 @@ async function executeFlight(): Promise<void> {
    */
   const episode = playedHeroState.nonce;
   const mine = () => playedHeroState.active && playedHeroState.nonce === episode;
+  // THE SHIPMENT BEAT comes first — the price the play takes off the rail leaves into the card while it still
+  // stands in the composer; only then does the card lift. Nothing of the scene below has started yet.
+  await shipPrice(mine);
+  if (!mine()) {
+    return; // aborted during the shipment — the abort already cleaned up
+  }
   playedHeroState.phase = 'preparing';
   // The table opens NOW (play-animation mode) so its +1 layout settles while
   // the card lifts; a manually-open table just gains the reserved slot. The
@@ -744,6 +814,96 @@ async function executeFlight(): Promise<void> {
     });
   }
   playedHeroState.phase = 'landing';
+}
+
+/**
+ * THE SHIPMENT BEAT (see `pendingSpends`): the price the play takes off the
+ * rail flies into the standing card. Resolves when every token has been
+ * absorbed (plus the absorb beat on the animation clock); a beat that cannot
+ * be shown as promised resolves at once and names itself — the rows then tick
+ * with the commit, honestly late. Never rejects.
+ */
+async function shipPrice(mine: () => boolean): Promise<void> {
+  const reward = pendingSpends;
+  pendingSpends = undefined;
+  const card = playedHeroState.card;
+  if (reward === undefined || card === undefined || !mine()) {
+    return;
+  }
+  if (consoleReducedMotionActive()) {
+    playedHeroState.shipment = 'reduced';
+    return;
+  }
+  // The promise against the answer: every row the shipment names must have moved by exactly the shipment plus
+  // the response's other known moves (the price). A row that disagrees is not flown — it ticks with the commit.
+  const verdict = verifyRailReward(reward, beforeView, landingView);
+  if (verdict.cause.length === 0) {
+    playedHeroState.shipment = `mismatch: ${verdict.mismatches.join('; ')}`;
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[played-hero] ${card}: the shipment was not shown as promised — ${verdict.mismatches.join('; ')}`);
+    }
+    return;
+  }
+  // The standing card — the first MEASURABLE match of the source selector (a parked layer may hold the same
+  // card identity with a zero rect). Its printed icons are where the tokens are absorbed: the k-th token of a
+  // resource on the k-th icon that prints it (the action commit's own icon grammar), the card's body when the
+  // face prints none.
+  const el = standingSourceEl();
+  if (el === undefined) {
+    playedHeroState.shipment = 'no-source';
+    return;
+  }
+  const anchors = resolveActionCommitAnchors(el, undefined);
+  const specs = verdict.cause;
+  const origins = resolveSpendIconOrigins(anchors, specs);
+  const body = anchors.cardEl.getBoundingClientRect();
+  playedHeroState.phase = 'shipping';
+  playedHeroState.shipment = 'flying';
+  await runResourceTransfers({
+    specs,
+    source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
+    origins,
+    arrival: 'auto',
+    // A LOSS releases at its LAUNCH (the transfer language's own law): the row ticks the moment the token leaves
+    // it — the departure hold is seeded right there, against the not-yet-applied view.
+    onArrive: (spec) => {
+      if (mine()) {
+        seedDeparture(spec);
+      }
+    },
+    onDegrade: (spec, why) => {
+      playedHeroState.shipment = `degraded: ${why} (${spec.resource})`;
+    },
+  });
+  if (!mine()) {
+    return;
+  }
+  // The absorb beat: the card takes the shipment in before it lifts — one beat of the animation clock.
+  await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+  if (mine() && playedHeroState.shipment === 'flying') {
+    playedHeroState.shipment = 'flown';
+  }
+}
+
+/** Seed ONE departure hold: from here the row reads `committed − amount` — the pre-commit value minus what just left. */
+function seedDeparture(spec: ResourceTransferSpec): void {
+  const hold: ResourceTransferSpec = {channel: 'stock', resource: spec.resource, amount: spec.amount};
+  departureHolds.push(hold);
+  beginPanelRewardHold([hold]);
+}
+
+/** The card standing in the composer (the lift's source) — the first measurable match, never just the first. */
+function standingSourceEl(): HTMLElement | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  for (const el of document.querySelectorAll<HTMLElement>(sourceSelector)) {
+    const r = el.getBoundingClientRect();
+    if (r.width >= 10 && r.height >= 10) {
+      return el;
+    }
+  }
+  return undefined;
 }
 
 /** The LANDING picture, resolved from the answer (see `HeroLandingFaceSpec`). */
@@ -1015,6 +1175,10 @@ export function abortPlayedHero(): void {
   abortPlayedCardReturns();
   releaseHeroRewards();
   releaseHeroRail('aborted');
+  // A failed play ships nothing: the rows the shipment left return to the truth (one honest transition).
+  releaseDepartures();
+  pendingSpends = undefined;
+  beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;
@@ -1045,6 +1209,9 @@ function finish(): void {
   abortPlayedCardReturns();
   releaseHeroRewards(); // safety — the reward beat leaves it empty
   releaseHeroRail('finished'); // safety — the reward beat flies it; an ending that skipped the beat lets go
+  releaseDepartures(); // safety — the commit's block released them; an ending that skipped the commit lets go
+  pendingSpends = undefined;
+  beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
   targetSelectorOverride = undefined;

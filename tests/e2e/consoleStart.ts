@@ -2328,6 +2328,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // The Redux Vesta trade: TWO holders of different kinds (asteroids, fighters) → a real pick whose card decides the kind.
   'vesta-trade' |
   'play-scale-card' | 'effect-forecast' |
+  // X87 Shipment to Earth: a solo action phase with the card in hand, 5 plants / 4 steel / 30 M€, two plain Earth tags
+  // in the tableau — the price the play takes OFF THE RAIL leaves into the standing card before it lifts (PL-107).
+  'shipment-to-earth' |
   // TR09 EVA Mechs: blue holds the card with 2 mechs, 1 energy, 3 M€ and Trans-Neptune Probe in hand (docs/TURMOIL_REDUX_EVA_MECHS.md).
   'eva-mechs' |
   // TR25 Exclusive Colony: blue holds the card with 30 M€ and Unity's access; Luna at its printed limit (red ×2, blue ×1,

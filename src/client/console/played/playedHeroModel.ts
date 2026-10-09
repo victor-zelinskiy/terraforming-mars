@@ -36,6 +36,7 @@ export type HeroRect = {
 export type PlayedHeroPhase =
   | 'idle'
   | 'armed' // confirm pressed — submit in flight, nothing visual yet
+  | 'shipping' // server success proven; the price the play takes OFF THE RAIL leaves into the standing card (the shipment beat) — before the lift
   | 'preparing' // server success proven; measuring source, opening the table
   | 'lifting' // the card separates from the composer
   | 'flying' // the hero arc (event flip rides its middle)

@@ -778,18 +778,7 @@ export function commitRailPlan(
   }
   // The rows the CHAIN now carries are its own promise, never a «known» move beside it: the result's gains and —
   // the rail-spend law — the prices that LEAVE a row (a loss link's row would otherwise be counted twice).
-  const known = actionKnownRailMoves(branch, stepResponses);
-  for (const spec of [...result, ...spends]) {
-    if (spec.channel === 'stock' || spec.channel === 'production') {
-      const row = railRowKey(spec);
-      const left = (known[row] ?? 0) - (spec.direction === 'loss' ? -spec.amount : spec.amount);
-      if (left === 0) {
-        delete known[row];
-      } else {
-        known[row] = left;
-      }
-    }
-  }
+  const known = withoutChainRows(actionKnownRailMoves(branch, stepResponses), [...result, ...spends]);
   const vp = cause.map((spec) => causeVictoryPoints(spec, branch, stepResponses, spend));
   const capsules = [...new Set(cause
     .filter((spec) => spec.channel === 'card-resource' && spec.targetCard !== undefined &&
@@ -825,6 +814,58 @@ export function playRailReward(
     return undefined;
   }
   return {cause, reactions: [...reactions], known: actionKnownRailMoves(branch, stepResponses, paid)};
+}
+
+/**
+ * THE PRICE A PLAY TAKES OFF THE RAIL — the rail-spend law (PL-099) at the
+ * play door (PL-107, X87 Shipment to Earth): the branch's `cost` chips of a
+ * STANDARD resource with no note — a loss the card's EFFECT takes (X87's 3
+ * plants and 3 steel, Moss's plant, Local Heat Trapping's heat), never the
+ * card's own price (`paid` — the payment panel states it, and it ticks with
+ * the landing as it always has) — as `stock` links flying `loss`, in the
+ * chips' (printed) order. The same pure reading the action commit makes
+ * (`spendLinkSpecs`), narrowed to the rail: a card resource a play spends
+ * has no standing source on this door. The landing scene flies them BEFORE
+ * THE LIFT — the card still stands in the composer, so each token leaves its
+ * row's digits sideways and is absorbed at the printed icon of that resource
+ * on the standing card; the row ticks on the departure
+ * (`consolePlayedHero.ts` — the shipment beat). `known` is the response's
+ * other moves on the rail with the price, minus the rows the links carry,
+ * for the diff check the seed makes. Undefined when the play takes nothing
+ * off the rail.
+ */
+export function playSpendReward(
+  cardName: CardName,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+  paid: Payment | undefined,
+): RailReward | undefined {
+  const cause = spendLinkSpecs(cardName, branch, stepResponses).filter((spec) => spec.channel === 'stock');
+  if (cause.length === 0) {
+    return undefined;
+  }
+  return {cause, reactions: [], known: withoutChainRows(actionKnownRailMoves(branch, stepResponses, paid), cause)};
+}
+
+/**
+ * The known moves WITHOUT the rows a chain carries itself: a link's row is the
+ * chain's own promise (a gain's as a positive, a loss's as a negative), never
+ * a «known» move beside it — the diff check would count it twice.
+ */
+function withoutChainRows(known: Record<string, number>, chain: ReadonlyArray<ResourceTransferSpec>): Record<string, number> {
+  const out = {...known};
+  for (const spec of chain) {
+    if (spec.channel === 'stock' || spec.channel === 'production') {
+      const row = railRowKey(spec);
+      const left = (out[row] ?? 0) - (spec.direction === 'loss' ? -spec.amount : spec.amount);
+      if (left === 0) {
+        delete out[row];
+      } else {
+        out[row] = left;
+      }
+    }
+  }
+  return out;
 }
 
 /**

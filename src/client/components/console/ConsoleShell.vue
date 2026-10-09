@@ -3441,7 +3441,7 @@ export default defineComponent({
         return undefined;
       }
       const p = playedHeroState.phase;
-      if (p === 'armed' || p === 'idle' || p === 'failed') {
+      if (p === 'armed' || p === 'shipping' || p === 'idle' || p === 'failed') {
         return undefined;
       }
       return {name: playedHeroState.card} as CardModel;
@@ -15999,7 +15999,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, rail?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -16171,6 +16171,8 @@ export default defineComponent({
         manualTableOpen: this.playedOpen,
         rewards: payload.rewards,
         rail: payload.rail,
+        // The price the play takes OFF THE RAIL (X87's shipment): flown into the standing card before the lift.
+        spends: payload.spends,
         host: workspaceFrameDescended('hand') && !this.playedOpen ? 'workspace' : 'overlay',
         // THE PICTURE THE CARD WEARS: it lifts off the composer's stationary
         // hero (`normal` tier over the hand model) and lands on the receiving

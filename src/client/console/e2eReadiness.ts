@@ -37,6 +37,7 @@ import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {railRewardDiag} from '@/client/console/resourceTransfer/railReward';
 import {actionCommitRailState} from '@/client/console/consoleActionCommitRail';
+import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 
 export type ConsoleReadinessSnapshot = {
   input: InputEchoSnapshot;
@@ -59,6 +60,8 @@ export type ConsoleReadinessSnapshot = {
   railReward: ReturnType<typeof railRewardDiag>;
   /** A card action's RAIL HALF (a direct TR, a capsule timeline — TR28): whose, its phase, the link in the air, why the last one ended early. */
   actionCommitRail: {card: string, phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string};
+  /** The card PLAY's landing scene: its phase and how its SHIPMENT BEAT (the price taken off the rail — PL-107) ended, by name. */
+  playedHero: {phase: string, shipment: string};
   at: number;
 };
 
@@ -75,6 +78,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     colonyTrackWave: colonyTrackWaveDiag(),
     railReward: railRewardDiag(),
     actionCommitRail: {card: actionCommitRailState.card, phase: actionCommitRailState.phase, link: actionCommitRailState.link, lastEnd: actionCommitRailState.lastEnd, capsules: [...actionCommitRailState.capsules], fallback: actionCommitRailState.fallback},
+    playedHero: {phase: playedHeroState.phase, shipment: playedHeroState.shipment},
     partyFlow: consoleCardActionsUi.partyFlow === undefined ? undefined : {
       party: consoleCardActionsUi.partyFlow.party, resolution: consoleCardActionsUi.partyFlow.resolution,
       stage: consoleCardActionsUi.partyFlow.stage, fleetBefore: consoleCardActionsUi.partyFlow.fleetBefore,
