@@ -87,7 +87,9 @@ chip) + one TILE per effect with the fixed slot anatomy (`--efx-*` tokens
 blocks in `console.less` / `console_tv.less` say so in their headers). Tile
 zones: head («Эффект N» way-finder + family chip) · canvas (render-DSL
 graphic, `fitActionCanvases` with the `--efx-fit` options) · caption
-(`actionDescTier` ladder) · META — the honest one-liner (`effectTileMeta`):
+(`actionDescTier` ladder as the STARTING tier, then `fitDescTiers` in the same per-paint fit — this column is
+~20 % narrower than the action centre's, so on the TV a caption its face does not hold steps down a tier instead of being cut;
+PL-123, `src/client/console/descTier.ts`, guard `console-desc-tier-fit`) · META — the honest one-liner (`effectTileMeta`):
 stat / «Ещё не срабатывал» / «Статистика всей карты» / nothing while
 loading. Multi-effect groups are `--wide` (tiles abreast, NO «или» seam —
 effects are conjunctive).
