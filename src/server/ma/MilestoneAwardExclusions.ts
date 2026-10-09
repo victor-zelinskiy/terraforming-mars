@@ -57,7 +57,7 @@ export const RANDOM_EXCLUSION_GROUPS: Readonly<Record<string, ReadonlyArray<MANa
   'power-tags': ['V. Electrician', 'Electrician'],
   'earth-tags': ['Terran', 'Investor'],
   'jovian-tags': ['Rim Settler', 'Voyager'],
-  'space-tags': ['Spacefarer', 'V. Spacefarer', 'Space Baron'],
+  'space-tags': ['T. Spacefarer', 'V. Spacefarer', 'Space Baron'],
   'bio-tags': ['Ecologist', 'Biologist'],
   'moon-tags': ['One Giant Step', 'Full Moon'],
 
