@@ -96,14 +96,15 @@ export function censusActionPreview(player, card, spec): ActionPreview;    // д
 | --- | --- | --- | --- | --- |
 | TR15 Martian Census · TR24 Venusian Census | `DATA_CENSUS` (в модуле) | +1 data, бесплатно | 3 data → делегат | «Add 1 data resource to this card» · «${0} of 3 data on this card» |
 | TR34 Mars Army Mechs | `MARS_ARMY_MECHS_CENSUS` (в файле карты) | 1 энергия → +1 мех | 1 мех → делегат | ряд A — ключ TR09 дословно; «${0} of 1 mech on this card» |
-| TR35 Mars Army Ships (не сдана) | `{FIGHTER, {titanium: 1}, 1}` — та же декларация, другие константы | 1 титан → +1 истребитель | 1 истребитель → делегат | свои ключи (плюрал RU) |
+| TR35 Mars Army Ships (сдана 2026-10-09) | `MARS_ARMY_SHIPS_CENSUS` (в файле карты) — `{FIGHTER, {titanium: 1}, 1}`, константы спека TR34 перенесены дословно | 1 титан → +1 истребитель | 1 истребитель → делегат | свой ряд A («Pay 1 titanium to add a fighter resource to this card.» — не ключ Охранного флота); «${0} of 1 fighter on this card»; ДВА курируемых капшена (A 54 знака — над бюджетом) |
 
 **TR15 / TR24 не изменились**: `VenusianCensus.spec` пересобирает билдер TR15 до выноса и сравнивает `renderData` побайтно
 (лицо TR15 то же); их спеки прошли без правок ожиданий (только сигнатуры: `canAct(player)`, `censusGrant(…, DATA_CENSUS)`);
 `canAct` обеих — `censusCanAct` (всегда true при бесплатном A), `actionUnavailableReason` — `censusUnavailableReason`
 (всегда undefined там же; гард `actionReasonCoverage` требует хук у `canAct(player)`). Модульность TR35 закреплена спеком
 без карты: `MarsArmyMechs.spec` § «censusAction — ONE module» строит спеку истребителей на `fakeCard` и проверяет ряды
-(титан → истребитель), причины (титан / «0 of 1 fighter»), A и B.
+(титан → истребитель), причины (титан / «0 of 1 fighter»), A и B; с TR35 эта спека — декларация настоящей карты, и
+`MarsArmyShips.spec` сверяет её с константами побайтно (случай на `fakeCard` остался — модульность модуля отдельно от карты).
 **`PlaceDelegatesOnResolution` получил опцию `price?: {card, count}`**: `offer()` отказывает, если цены нет; в ответе —
 перечитать резерв → проверить цену → `payPrice()` → `placeVote`; ветка бота платит так же. В файле карты нет ни
 `SelectParty`, ни `placeVote`. **Строка журнала цены — своя** (TR34 A3): «${0} spent ${1} ${2} from ${3} for a delegate»
@@ -178,6 +179,13 @@ e2e `console-political-donation` · `console-colony-sponsors` · `console-staged
   § PL-100 (холд отпускается на `departed`, не на отрыве куба; без жетона — на отрыве куба), e2e
   `console-martian-census.spec.ts` § 5 (жетон `price…` рождён на капсуле и впитан стопкой, куб стартует после его посадки,
   капсула 3 → 0 между рождением жетона и стартом куба).
+- **ИМПУЛЬС → ЦЕНА — ТОЖЕ ЧАСЫ МОТОРА (PL-103, решение владельца 2026-10-09).** До TR35 жетон цены стартовал от ОТВЕТА сервера
+  (`landVote` → `flyPriceThenDelegates`), импульс ряда B — от нажатия: на быстром сервере жетон отрывался на ≈ 0.26 с, а кольцо
+  импульса садилось на значок делегата на ≈ 0.45–0.57 с, когда жетон был уже у резерва. Теперь жетон рождается после ПОСАДКИ
+  импульса: защёлка `armCommitImpulse` / `landCommitImpulse` / `afterCommitImpulse` (`consoleActionCommit.ts`), мотор
+  (`runActionCommitMotion`) взводит её в начале эпизода и опускает на handoff или на любом другом конце эпизода, сеть 1.4 с;
+  без импульса в полёте (дверь розыгрыша, живая дверь) — сразу, как прежде. Гарды: `tests/console/commitImpulseLatch.spec.ts`,
+  `console-martian-census` § 5 (жетон не раньше кольца `.con-commit-ring`).
 - **…И СЛОЙ ПОЛЁТОВ НЕСЁТ СВОЙ УРОВЕНЬ САМ (PL-101).** `.con-parl-flightlayer` — `position: fixed`, а fixed открывает контекст
   наложения и без z-index: с 2026-09-20 слой сидел на уровне 0 `.con-root`, и каждый куб и жетон (этот в том числе) рисовался ПОД
   `.con-main` и под лентой «Действий карт» при зелёных rect-пробниках. Слой держит `z-index: 11499` сам (над лентами, под барами);
