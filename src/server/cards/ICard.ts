@@ -224,6 +224,19 @@ export interface ICard {
   /** Returns any dynamic influence value */
   getInfluenceBonus?: (player: IPlayer) => number;
   /**
+   * Turmoil Redux — THE LAW OF ACCESS, lowered by a card: own delegates on ONE
+   * resolution that give this card's OWNER the party's effect (TR36 Council
+   * Seat: 1 instead of the printed 2). `Parliament.effectDelegatesOf` walks the
+   * tableau and the MINIMUM wins — never below 1 and never above
+   * `PARTY_EFFECT_DELEGATES`. A THRESHOLD, not a grant: it is read live from
+   * the table at every `access()` (no state, no save field, nothing to revoke),
+   * so a cube already standing opens the effect the moment the card lands and
+   * a cube gone closes it. The card REQUIREMENT never reads it (rulebook FAQ
+   * p.19 — «Council Seat only grants you the effect of the party. Not its
+   * full favor»).
+   */
+  readonly partyEffectDelegates?: number;
+  /**
    * Turmoil Redux — a hook the SITTING calls: at the refresh step of the
    * political phase (`ParliamentPhase.stepRefresh`) every UNENACTED resolution
    * leaves the voting area and its delegates go home; for each such card that

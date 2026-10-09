@@ -165,7 +165,7 @@ describe('RedMuseum', () => {
     it('a party effect GRANTED by a card is not a road (FAQ p.19)', () => {
       const t = table();
       t.p1.megaCredits = 20;
-      t.parliament.grantPartyEffect(t.p1, R, 'Council Seat');
+      t.parliament.grantPartyEffect(t.p1, R, 'Septem Tribus');
       expect(t.parliament.access(t.p1, R).hasEffect).is.true;
       expect(t.p1.canPlay(t.card)).is.false;
     });

@@ -65,10 +65,21 @@ export type ParliamentQuestModel = {
 export type PartyAccessModel = {
   party: ReduxParty;
   ruling: boolean;
-  /** Own delegates on the party's resolution (≥ PARTY_EFFECT_DELEGATES grants access). */
+  /** Own delegates on the party's resolution (≥ `effectDelegates` grants the effect; ≥ PARTY_EFFECT_DELEGATES the requirement). */
   delegates: number;
+  /**
+   * THE SEAT'S OWN THRESHOLD of the delegates road — the printed two, or what
+   * a card of theirs lowered it to (TR36 Council Seat: 1). The ONE number every
+   * client surface draws its places and chooses its phrases by; a fixture
+   * written before the field reads the printed default through the client's
+   * `effectDelegatesOf` (the `enactment` → `seatEnacts` pattern). The card
+   * REQUIREMENT is never this number (FAQ p.19).
+   */
+  effectDelegates?: number;
+  /** The card that lowered the threshold — named by the surfaces that explain it (absent at the printed default). */
+  effectDelegatesBy?: CardName;
   byDelegates: boolean;
-  /** Card-granted access (a future Septem Tribus / Council Seat) — effect only, never the requirement. */
+  /** Card-granted access (a future Septem Tribus) — effect only, never the requirement. */
   granted: ReadonlyArray<string>;
   hasEffect: boolean;
   satisfiesRequirement: boolean;

@@ -97,7 +97,15 @@ export const SUPPORT_LIMIT_REASON: Readonly<Record<NonNullable<SupportRoom['limi
 /** The chip icon of a neutral delegate (the dark figure) — and of a player's own. */
 export const NEUTRAL_DELEGATE_ICON = 'neutral-delegate';
 export const DELEGATE_ICON = 'delegate';
-/** Own delegates on a party's resolution that grant its effect AND satisfy its card requirement. */
+/**
+ * Own delegates on a party's resolution (rulebook p.7) — TWO numbers that happen to coincide:
+ *  · the threshold of the party's EFFECT BY DEFAULT — a card in the tableau may LOWER it for its
+ *    owner (TR36 Council Seat: «you only need 1 delegate»), and every surface reads the viewer's
+ *    own threshold off the model (`PartyAccess.effectDelegates`), never this constant;
+ *  · the threshold of a party's CARD REQUIREMENT — ALWAYS this number: a card-lowered effect never
+ *    satisfies a requirement (FAQ p.19), so `satisfiesRequirement`, the hand's reason and the
+ *    vote's `unlocksRequirement` read the constant on purpose.
+ */
 export const PARTY_EFFECT_DELEGATES = 2;
 export const PARLIAMENT_AGENDA_STEPS = 12;
 

@@ -134,6 +134,8 @@ export class ReduxPoliticalOps implements PoliticalOps {
       return undefined;
     }
     const access = this.parliament.access(player, normalized);
+    // `required` is the REQUIREMENT's threshold — the printed two, never the seat's
+    // `effectDelegates` (a card-lowered effect threshold does not help a card requirement, FAQ p.19).
     return {party: normalized, ruling: access.ruling, delegates: access.delegates, required: PARTY_EFFECT_DELEGATES, onVote: access.onVote};
   }
   public hasPartyEffect(player: IPlayer, party: PartyName): boolean {

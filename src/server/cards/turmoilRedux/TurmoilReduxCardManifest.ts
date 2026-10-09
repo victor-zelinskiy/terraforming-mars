@@ -36,6 +36,7 @@ import {RedTechConvention} from './RedTechConvention';
 import {RedsNewsOutlet} from './RedsNewsOutlet';
 import {MarsArmyMechs} from './MarsArmyMechs';
 import {MarsArmyShips} from './MarsArmyShips';
+import {CouncilSeat} from './CouncilSeat';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -185,5 +186,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The sister of TR34
     // to the letter: the same census module with the spec {fighter · 1 titanium → fighter · 1 fighter → delegate}.
     [CardName.MARS_ARMY_SHIPS]: {Factory: MarsArmyShips},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The Reds' plate a
+    // seventh time, and the set's first card that changes THE LAW OF ACCESS rather than the table: one passive
+    // threshold hook (`partyEffectDelegates = 1`) the Parliament reads live — no behavior, no action, no grant.
+    [CardName.COUNCIL_SEAT]: {Factory: CouncilSeat},
   },
 });

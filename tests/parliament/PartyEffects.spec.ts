@@ -119,7 +119,7 @@ describe('Party effects', () => {
       expect((parliament.lastPhase?.outcomes ?? []).some((o) => o.kind === 'reaction')).is.false;
       game.phase = Phase.ACTION;
       // Mars First rules now; the Greens' effect reaches p1 by a card grant — the hook fires, the sitting is over.
-      parliament.grantPartyEffect(p1, PartyName.GREENS, 'Council Seat');
+      parliament.grantPartyEffect(p1, PartyName.GREENS, 'Septem Tribus');
       const megacredits = p1.production.megacredits;
       p1.production.add(Resource.HEAT, 2);
       expect(p1.production.megacredits, 'the Greens answered the action-phase raise').eq(megacredits + 2);

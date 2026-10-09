@@ -149,12 +149,12 @@ describe('Parliament', () => {
       expect(parliament.satisfiesPartyRequirement(p1, party)).is.true;
       expect(parliament.hasPartyEffect(p2, party)).is.false;
 
-      parliament.grantPartyEffect(p2, party, 'Council Seat');
+      parliament.grantPartyEffect(p2, party, 'Septem Tribus');
       expect(parliament.hasPartyEffect(p2, party)).is.true;
       expect(parliament.satisfiesPartyRequirement(p2, party), 'a granted effect never satisfies the requirement').is.false;
       const access = parliament.access(p2, party);
-      expect(access.granted).deep.eq(['Council Seat']);
-      parliament.revokePartyEffect(p2, party, 'Council Seat');
+      expect(access.granted).deep.eq(['Septem Tribus']);
+      parliament.revokePartyEffect(p2, party, 'Septem Tribus');
       expect(parliament.hasPartyEffect(p2, party)).is.false;
     });
 

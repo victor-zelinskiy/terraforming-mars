@@ -212,6 +212,8 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
       party,
       ruling: a.ruling,
       delegates: a.delegates,
+      effectDelegates: a.effectDelegates,
+      ...(a.effectDelegatesBy === undefined ? {} : {effectDelegatesBy: a.effectDelegatesBy}),
       byDelegates: a.byDelegates,
       granted: a.granted,
       hasEffect: a.hasEffect,
@@ -340,7 +342,9 @@ function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot:
     votesAfter: target.votes.length,
     viewerLeads: leader?.owner === viewer.id,
     becomesWinning: winner?.instance === slot.instance,
-    unlocksEffect: !before.hasEffect && afterVotes >= PARTY_EFFECT_DELEGATES,
+    // The EFFECT opens at the viewer's own threshold (a card may have lowered it — TR36);
+    // the REQUIREMENT at the printed two, always (FAQ p.19).
+    unlocksEffect: !before.hasEffect && afterVotes >= before.effectDelegates,
     unlocksRequirement: !before.satisfiesRequirement && afterVotes >= PARTY_EFFECT_DELEGATES,
   };
   if (leader !== undefined) {

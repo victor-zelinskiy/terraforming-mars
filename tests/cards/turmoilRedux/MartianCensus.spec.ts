@@ -151,7 +151,7 @@ describe('MartianCensus', () => {
     it('a party effect GRANTED by a card is not a road (FAQ p.19)', () => {
       const t = table();
       t.p1.megaCredits = 20;
-      t.parliament.grantPartyEffect(t.p1, M, 'Council Seat');
+      t.parliament.grantPartyEffect(t.p1, M, 'Septem Tribus');
       expect(t.parliament.access(t.p1, M).hasEffect, 'the effect is held').is.true;
       expect(t.p1.canPlay(t.card), 'the requirement is not').is.false;
     });

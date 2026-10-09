@@ -15,6 +15,7 @@
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {PlayerId} from '../../common/Types';
+import {CardName} from '../../common/cards/CardName';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {
   AGENDA_TRACK, AgendaStep, BotParliamentMode, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS, PARLIAMENT_DELEGATES_PER_PLAYER,
@@ -86,11 +87,22 @@ export type PartyAccess = {
    * (the party requirement's named reason says which — TR15).
    */
   onVote: boolean;
+  /**
+   * THE PLAYER'S OWN THRESHOLD of the delegates road: `PARTY_EFFECT_DELEGATES`
+   * unless a card of theirs lowers it (TR36 Council Seat → 1). `byDelegates`
+   * is judged against THIS number; the card requirement never is.
+   */
+  effectDelegates: number;
+  /** The card that lowered the threshold (absent at the printed default). */
+  effectDelegatesBy?: CardName;
   byDelegates: boolean;
   granted: ReadonlyArray<string>;
   hasEffect: boolean;
   satisfiesRequirement: boolean;
 };
+
+/** The one reading of a player's effect threshold: how many own delegates, and which card says so. */
+export type EffectDelegates = {count: number; source?: CardName};
 
 export type VoteAvailability =
   | {ok: true; source: 'lobby' | 'reserve'; cost: number}
@@ -472,7 +484,10 @@ export class Parliament {
     const ruling = participates && this.rulingParty() === party;
     const slot = this.slotOf(party);
     const delegates = participates && slot !== undefined ? this.votesOf(player, slot) : 0;
-    const byDelegates = delegates >= PARTY_EFFECT_DELEGATES;
+    // THE LAW OF ACCESS is the player's own: the printed two, or what a card of
+    // theirs lowered it to (TR36) — read off the tableau right now, never stored.
+    const effect = this.effectDelegatesOf(player);
+    const byDelegates = delegates >= effect.count;
     const granted = participates ?
       (this.grantedEffects.get(player.id) ?? []).filter((grant) => grant.party === party).map((grant) => grant.source) :
       [];
@@ -481,12 +496,47 @@ export class Parliament {
       ruling,
       delegates,
       onVote: slot !== undefined,
+      effectDelegates: effect.count,
+      ...(effect.source === undefined ? {} : {effectDelegatesBy: effect.source}),
       byDelegates,
       granted,
       hasEffect: ruling || byDelegates || granted.length > 0,
-      // A card-granted effect never satisfies a card REQUIREMENT (rulebook FAQ p.19).
-      satisfiesRequirement: ruling || byDelegates,
+      // A card-granted effect never satisfies a card REQUIREMENT, and neither does
+      // a card-LOWERED threshold: the requirement is the printed two, always
+      // (rulebook FAQ p.19 — Septem Tribus and Council Seat «only grant you the
+      // effect of the party. Not its full favor»).
+      satisfiesRequirement: ruling || delegates >= PARTY_EFFECT_DELEGATES,
     };
+  }
+
+  /**
+   * HOW MANY OWN DELEGATES on one resolution give `player` its party's effect —
+   * the printed `PARTY_EFFECT_DELEGATES`, or the LOWEST `partyEffectDelegates`
+   * a card of their tableau declares (TR36 Council Seat: 1), clamped to
+   * [1, PARTY_EFFECT_DELEGATES] (two such cards still read 1, never 0; a card
+   * can never RAISE the bar). Read live, like `influence` reads
+   * `getInfluenceBonus`: the Parliament asks the card, it never knows the
+   * card's name. A seat outside the PARTY-EFFECTS aspect (MarsBot) holds no
+   * effect by any road — its threshold is the printed one and never applies.
+   */
+  public effectDelegatesOf(player: IPlayer): EffectDelegates {
+    if (!this.participates(player, 'party-effects')) {
+      return {count: PARTY_EFFECT_DELEGATES};
+    }
+    let count = PARTY_EFFECT_DELEGATES;
+    let source: CardName | undefined;
+    for (const card of player.tableau) {
+      const declared = card.partyEffectDelegates;
+      if (declared === undefined) {
+        continue;
+      }
+      const clamped = Math.min(PARTY_EFFECT_DELEGATES, Math.max(1, Math.floor(declared)));
+      if (clamped < count) {
+        count = clamped;
+        source = card.name;
+      }
+    }
+    return source === undefined ? {count} : {count, source};
   }
 
   public hasPartyEffect(player: IPlayer, party: PartyName): boolean {
