@@ -43,9 +43,25 @@ import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/Parliamen
 import {AgendaAdvanceStep} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {buildParliamentView, ParliamentQuestVm} from './consoleParliamentModel';
 import {AgendaBonusOwed, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
+
+/**
+ * THE TABLE'S ANSWER to the walk's TR step, promised at the press (PL-002):
+ * the forecast's reaction specs (the ruling Greens' M€ for a rating step —
+ * `reactionRailSpecs`, the landing scene's own reading) and the response's
+ * other KNOWN moves on the rail's rows (the play's price), for the diff check
+ * the seed makes. A reaction never ticks before its reason: the answer is
+ * held with the TR step's rating and released a beat after its chip has
+ * touched the rail (`parliamentRewardBeat` — `AgendaBonusOwed.reactions`).
+ */
+export type AgendaWalkRailPromise = {
+  reactions: ReadonlyArray<ResourceTransferSpec>;
+  known: Readonly<Record<string, number>>;
+};
 
 /** WHO PLAYS the walk: the hand that hosts the Parliament as a step, or a Parliament standing on its own. */
 export type AgendaWalkHost = 'hand' | 'parliament';
@@ -75,7 +91,7 @@ export const agendaWalkFlow = reactive({
    * arrives the flow OWES a step (`owed-step`): the hand may not conclude,
    * and the crumb's tail already names the coming stage.
    */
-  promised: undefined as {card: CardName, host: AgendaWalkHost} | undefined,
+  promised: undefined as {card: CardName, host: AgendaWalkHost, rail?: AgendaWalkRailPromise} | undefined,
   /** The walk the answer carried, seeded with its holds, waiting for (or being played by) its host. */
   owed: undefined as OwedAgendaWalk | undefined,
   /** The walk is the Parliament's subject right now (the section opened the walk pose on it). */
@@ -95,9 +111,9 @@ export function resetAgendaWalkFlow(): void {
 
 // ── the promise (the press) ────────────────────────────────────────────────
 
-/** The play's preview says the marker will walk: the flow owes that step until the record arrives. */
-export function promiseAgendaWalk(card: CardName, host: AgendaWalkHost): void {
-  agendaWalkFlow.promised = {card, host};
+/** The play's preview says the marker will walk: the flow owes that step until the record arrives — with the table's answer to its TR step, if the press knew one. */
+export function promiseAgendaWalk(card: CardName, host: AgendaWalkHost, rail?: AgendaWalkRailPromise): void {
+  agendaWalkFlow.promised = rail === undefined ? {card, host} : {card, host, rail};
 }
 
 /** The play was refused, or the answer carried no walk (the track's end took every step): nothing is owed. */
@@ -147,17 +163,49 @@ export function agendaWalkHostFor(): AgendaWalkHost | undefined {
   return undefined;
 }
 
-/** The queue of a walk's bonuses, one entry per step that pays, in the walk's order. */
-export function agendaWalkBonuses(record: AgendaWalkRecord, generation: number): Array<AgendaBonusOwed> {
+/**
+ * The queue of a walk's bonuses, one entry per step that pays, in the walk's
+ * order. `reactions` — the table's VERIFIED answer to the walk's rating — ride
+ * the TR step's entry (a walk of two never takes two TR steps: they are never
+ * adjacent on the printed track), held with its rating and released a beat
+ * after its chip has landed.
+ */
+export function agendaWalkBonuses(record: AgendaWalkRecord, generation: number, reactions: ReadonlyArray<ResourceTransferSpec> = []): Array<AgendaBonusOwed> {
   const out: Array<AgendaBonusOwed> = [];
+  let answered = false;
   for (const step of record.steps) {
     if (step.bonus === 'tr') {
-      out.push({generation, player: record.player, step: step.to, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}});
+      const spec: ResourceTransferSpec = {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1};
+      out.push(answered || reactions.length === 0 ?
+        {generation, player: record.player, step: step.to, kind: 'tr', spec} :
+        {generation, player: record.player, step: step.to, kind: 'tr', spec, reactions: [...reactions]});
+      answered = true;
     } else if (step.bonus === 'card') {
       out.push({generation, player: record.player, step: step.to, kind: 'card'});
     }
   }
   return out;
+}
+
+/**
+ * THE TABLE'S ANSWER THE SEED MAY HOLD (pure): the promised reactions, checked
+ * against the two views by the rail reward's own verdict — the rating row must
+ * have moved by exactly the walk's TR steps, and every reaction row by the
+ * reaction plus the known moves (the price). A walk with no TR step, no
+ * promise, or a row that moved otherwise holds no answer: the rows tick with
+ * the commit, honestly (`verifyRailReward` names the mismatch).
+ */
+export function agendaWalkReactions(record: AgendaWalkRecord, rail: AgendaWalkRailPromise | undefined, before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): Array<ResourceTransferSpec> {
+  const trSteps = record.steps.filter((step) => step.bonus === 'tr').length;
+  if (rail === undefined || rail.reactions.length === 0 || trSteps === 0) {
+    return [];
+  }
+  const verdict = verifyRailReward({
+    cause: [{channel: 'stock', resource: RATING_RAIL_KEY, amount: trSteps}],
+    reactions: rail.reactions,
+    known: rail.known,
+  }, before, after);
+  return verdict.cause.length === 0 ? [] : verdict.reactions;
 }
 
 /**
@@ -177,7 +225,9 @@ export function seedAgendaWalkHolds(before: PlayerViewModel | undefined, after: 
   if (advance === undefined) {
     return;
   }
-  // The promise is kept, whoever plays it: the record IS the answer.
+  // The promise is kept, whoever plays it: the record IS the answer — and the table's answer it promised rides the
+  // TR step's own entry (PL-002), checked against the two views below.
+  const rail = agendaWalkFlow.promised?.rail;
   agendaWalkFlow.promised = undefined;
   const host = agendaWalkHostFor();
   if (host === undefined || consoleReducedMotionActive()) {
@@ -186,7 +236,7 @@ export function seedAgendaWalkHolds(before: PlayerViewModel | undefined, after: 
   const record: AgendaWalkRecord = {player: advance.player, from: advance.from, to: advance.to, steps: advance.steps};
   flushAgendaBonus('re-seed');
   parliamentHolds.agendaAwaits = {player: record.player, from: record.from, to: record.to};
-  queueAgendaBonuses(agendaWalkBonuses(record, after.game.generation));
+  queueAgendaBonuses(agendaWalkBonuses(record, after.game.generation, agendaWalkReactions(record, rail, before, after)));
   // …and the chairman quest a step's TR moved keeps its old face until the walk's rewards have landed.
   parliamentHolds.questWalkBefore = questBeforeWalk(before, after);
   agendaWalkFlow.owed = {...record, seq: advance.seq, card: advance.card, generation: after.game.generation, host};

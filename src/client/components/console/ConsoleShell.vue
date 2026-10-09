@@ -1729,7 +1729,7 @@ import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentIn
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {parliamentVoteSubject} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
-import {agendaWalkFlow, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
+import {agendaWalkFlow, AgendaWalkRailPromise, promiseAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow, promiseNeutralRally} from '@/client/console/parliament/neutralRally';
 import {
   dropHostedStepPromises, HostedParliamentStepKind, hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo, hostedStepToEnter,
@@ -16005,7 +16005,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -16166,7 +16166,8 @@ export default defineComponent({
       // descent hosts it; a play with no descent behind it (the standalone
       // band, an open table) lets the state update and the journal tell.
       if (payload.agendaWalk !== undefined && payload.agendaWalk.walked > 0 && workspaceFrameDescended('hand') && !this.playedOpen) {
-        promiseAgendaWalk(pending.cardName, 'hand');
+        // …with the table's answer to the walk's TR step (PL-002): held with that step, released after its chip.
+        promiseAgendaWalk(pending.cardName, 'hand', payload.agendaWalkRail);
       }
       // «ДЕЛЕГАТЫ» (TR31): the preview's SHOW step says neutral cubes will be placed and a recount paid — the same
       // promise, with the play's own price as the rail's known move (the M€ row moves by both in one answer).

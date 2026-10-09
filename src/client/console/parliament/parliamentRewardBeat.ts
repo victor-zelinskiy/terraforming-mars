@@ -54,11 +54,12 @@ import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
 import {RewardDelivery, rewardAddressOf} from '@/common/parliament/rewardAddress';
-import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {beginPanelRewardHold, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi} from './consoleParliamentFlow';
+import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
 
 /** The rail's key for the terraform rating (the score cell) — the transfer model's own (`resourceTransferModel.ts`), re-exported for the parliament's seeders. */
@@ -87,6 +88,15 @@ export type AgendaBonusOwed = {
   kind: 'tr' | 'card';
   /** The rail chip of a TR step. */
   spec?: ResourceTransferSpec;
+  /**
+   * THE TABLE'S ANSWER to a TR step (PL-002 — the ruling Greens' M€ for a
+   * rating): held on its rows WITH the rating from the seed, never flown, and
+   * released one beat of the animation clock after the step's chip has
+   * touched the rail — a reaction never ticks before its reason (the rail
+   * reward's own law, `railReward.ts`). Verified against the two views by the
+   * seeder before it is queued.
+   */
+  reactions?: ReadonlyArray<ResourceTransferSpec>;
   /**
    * A CARD step's cover has LIFTED off its node (TR37 — a card step in the
    * MIDDLE of a walk): the cover scene owns the batch from here, so the park
@@ -152,7 +162,33 @@ registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPe
  * net, so the ledger stands down there and the scene's own holds take over.
  */
 export function parliamentAgendaBonusHeld(): boolean {
-  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind !== 'card' || bonus.lifted !== true);
+  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind !== 'card' || bonus.lifted !== true) || answering.size > 0;
+}
+
+/**
+ * THE ANSWER BEATS in flight: a TR step's chip has landed and the table's
+ * reactions wait one beat of the animation clock before they tick (by step).
+ * A flush releases them at once and kills the beat.
+ */
+const answering = new Map<number, {beat: ParliamentBeat, specs: ReadonlyArray<ResourceTransferSpec>}>();
+
+function answerAgendaStep(step: number, specs: ReadonlyArray<ResourceTransferSpec>): void {
+  answering.get(step)?.beat.kill();
+  const beat = scheduleParliamentBeat(TOUCHDOWN_TICK_GAP_MS, () => {
+    answering.delete(step);
+    specs.forEach((spec) => releasePanelRewardHold(spec));
+    trail('answer-agenda', {step, specs: specs.map((spec) => `${spec.channel}:${spec.resource}+${spec.amount}`)});
+  });
+  answering.set(step, {beat, specs});
+}
+
+function flushAgendaAnswers(why: RewardReleaseReason | string): void {
+  for (const [step, pending] of answering) {
+    pending.beat.kill();
+    pending.specs.forEach((spec) => releasePanelRewardHold(spec));
+    trail('flush-answer', {why, step});
+  }
+  answering.clear();
 }
 
 /** The Agenda bonuses ride the same law: held until each step's own landing, bounded by the registry's ceiling alone. */
@@ -353,7 +389,7 @@ export function flushParliamentRewards(why: RewardReleaseReason | string = 'flus
   }
 }
 
-/** Release EVERY Agenda bonus's hold at once (a stage's end, the ceiling, a glide that never came). `why` is for the trail. */
+/** Release EVERY Agenda bonus's hold at once (a stage's end, the ceiling, a glide that never came) — the table's answers with them. `why` is for the trail. */
 export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush'): void {
   const bonuses = parliamentRewardState.agendaBonuses.splice(0);
   for (const bonus of bonuses) {
@@ -361,7 +397,9 @@ export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush'): v
     if (bonus.spec !== undefined) {
       releasePanelRewardHold(bonus.spec);
     }
+    bonus.reactions?.forEach((spec) => releasePanelRewardHold(spec));
   }
+  flushAgendaAnswers(why);
 }
 
 /**
@@ -373,10 +411,10 @@ export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush'): v
 export function queueAgendaBonuses(bonuses: ReadonlyArray<AgendaBonusOwed>): void {
   for (const bonus of bonuses) {
     if (bonus.spec !== undefined) {
-      beginPanelRewardHold([bonus.spec]);
+      beginPanelRewardHold([bonus.spec, ...(bonus.reactions ?? [])]);
     }
     parliamentRewardState.agendaBonuses.push(bonus);
-    trail('owe-agenda', {kind: bonus.kind, step: bonus.step, generation: bonus.generation});
+    trail('owe-agenda', {kind: bonus.kind, step: bonus.step, generation: bonus.generation, reactions: bonus.reactions?.length ?? 0});
   }
 }
 
@@ -491,6 +529,10 @@ export function markAgendaBonusLanded(step?: number): void {
   trail('flush-agenda', {why: 'landed', kind: bonus.kind, step: bonus.step, generation: bonus.generation});
   if (bonus.spec !== undefined) {
     releasePanelRewardHold(bonus.spec);
+  }
+  // The table's answer ticks one beat AFTER its reason (never with it, never before).
+  if (bonus.reactions !== undefined && bonus.reactions.length > 0) {
+    answerAgendaStep(bonus.step, bonus.reactions);
   }
 }
 

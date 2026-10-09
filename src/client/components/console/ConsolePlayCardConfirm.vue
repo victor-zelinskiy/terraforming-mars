@@ -3946,6 +3946,14 @@ export default defineComponent({
         // door (nothing is chosen, the play submits here as any other): the shell reads it to owe the hosted
         // outcome to this workspace from the press on.
         agendaWalk: this.agendaWalkOf(b),
+        // …and THE TABLE'S ANSWER to the walk's TR step (PL-002): the forecast's reaction specs (the ruling Greens'
+        // M€ for a rating step — the same reading the landing scene's rail half makes) with the play's own price as
+        // the rail's known move. The walk's seed checks them against the two views and holds the answer until the
+        // step's chip has touched the rail — a reaction never ticks before its reason.
+        agendaWalkRail: this.agendaWalkOf(b) === undefined ? undefined : {
+          reactions: reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts),
+          known: actionKnownRailMoves(b, this.captured, payment),
+        },
         // «ДЕЛЕГАТЫ» (Turmoil Redux TR31): the branch's SHOW step — the rally of neutral delegates the play will
         // produce, with the play's own price as the rail's known move (the M€ row moves by the recount AND the
         // price in one answer; the seed's diff check tells them apart). Not a door: the play submits here.

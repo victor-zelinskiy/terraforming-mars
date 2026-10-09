@@ -13,7 +13,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {
-  agendaCardOwed, detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushParliamentRewards, markAgendaBonusLanded, markAgendaCardLifted,
+  agendaCardOwed, detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markAgendaCardLifted,
   markRewardLanded, parliamentAgendaBonusHeld, parliamentParksReveal,
   parliamentRewardDiag, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, releaseParliamentRewards, resetParliamentRewards,
   rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, queueAgendaBonuses, takeOwedRewards, waveSpecOf,
@@ -298,6 +298,37 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(parliamentRewardState.agendaBonuses).deep.eq([]);
     markAgendaBonusLanded(9);
     expect(parliamentRewardState.agendaBonuses, 'a second landing of the same step is a no-op').deep.eq([]);
+  });
+
+  it('THE TABLE\'S ANSWER TO A TR STEP (PL-002): held with the rating from the seed, released one beat AFTER the step\'s chip has landed — never with it, never before; a flush lets both go at once', async () => {
+    consoleParliamentUi.stageStanding = true;
+    const spec = {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1};
+    const answer = {channel: 'stock' as const, resource: 'megacredits', amount: 2};
+    queueAgendaBonuses([{generation: 3, player: BLUE, step: 6, kind: 'tr', spec, reactions: [answer]}]);
+    expect(heldStock(RATING_RAIL_KEY)).eq(1);
+    expect(heldStock('megacredits'), 'the answer is held with its reason').eq(2);
+    markAgendaBonusLanded(6);
+    expect(heldStock(RATING_RAIL_KEY), 'the rating ticks on the touchdown').eq(0);
+    expect(heldStock('megacredits'), 'the answer waits one beat').eq(2);
+    expect(parliamentAgendaBonusHeld(), 'the beat in flight still holds the foreground').is.true;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(heldStock('megacredits'), 'the answer ticked one beat after its reason').eq(0);
+    expect(parliamentAgendaBonusHeld()).is.false;
+    // A flush (the section unmounts, the motion is cut) lets the held answer go at once.
+    queueAgendaBonuses([{generation: 3, player: BLUE, step: 9, kind: 'tr', spec, reactions: [answer]}]);
+    expect(heldStock('megacredits')).eq(2);
+    flushAgendaBonus('unmount');
+    expect(heldStock('megacredits')).eq(0);
+    expect(heldStock(RATING_RAIL_KEY)).eq(0);
+    // …and a flush DURING the answer's beat kills the beat and releases at once.
+    queueAgendaBonuses([{generation: 3, player: BLUE, step: 9, kind: 'tr', spec, reactions: [answer]}]);
+    markAgendaBonusLanded(9);
+    expect(heldStock('megacredits')).eq(2);
+    flushAgendaBonus('unmount');
+    expect(heldStock('megacredits')).eq(0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(heldStock('megacredits'), 'the killed beat released nothing twice').eq(0);
+    expect(parliamentRewardDiag().trail.some((e) => e.ev === 'answer-agenda'), 'the answer is on the trail').is.true;
   });
 
   it('A CARD STEP\'S COVER LIFTS (TR37): the park lets the batch go and the ledger\'s hold stands down, while the step stays OWED until the card has LANDED in the dock', () => {

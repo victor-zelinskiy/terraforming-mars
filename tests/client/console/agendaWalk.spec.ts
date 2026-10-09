@@ -6,9 +6,11 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {markerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {
-  agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, agendaWalkLiveIn, agendaWalkOwedTo, detectAgendaWalk, dropAgendaWalkPromise,
+  agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, agendaWalkLiveIn, agendaWalkOwedTo, agendaWalkReactions, detectAgendaWalk, dropAgendaWalkPromise,
   promiseAgendaWalk, questBeforeWalk, releaseAgendaWalkHolds, releaseAgendaWalkQuest, resetAgendaWalkFlow, seedAgendaWalkHolds,
 } from '@/client/console/parliament/agendaWalk';
+import {heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   AGENDA_BEAT_GAP_MS, AGENDA_SEGMENT_MS, AGENDA_WALK_HOLD_BASE_MS, AGENDA_WALK_HOLD_STEP_MS, AgendaWalkBeatScheduler, AgendaWalkLeg, agendaWalkBudgetMs,
   agendaWalkHoldMs, agendaWalkPlan, runAgendaWalk,
@@ -65,6 +67,16 @@ function view(parliament: ParliamentModel, generation = 3): PlayerViewModel {
 
 /** The walk TR04 makes from step 1: the TR of step 2, then the influence of step 3. */
 const WALK: ParliamentAdvanceModel = {seq: 5, player: BLUE, from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card', card: CARD, generation: 3};
+/** The ruling Greens' answer to a rating step — 2 M€ (PL-002). */
+const MC2: ResourceTransferSpec = {channel: 'stock', resource: 'megacredits', amount: 2};
+
+/** A view of the SEAT's own rail (M€ and the rating) beside the parliament model — what the rail-reward verdict reads. */
+function seatView(megacredits: number, terraformRating: number, over: Partial<ParliamentModel> = {}): PlayerViewModel {
+  const v = view(model(over));
+  (v as unknown as {thisPlayer: Record<string, unknown>}).thisPlayer = {color: BLUE, megacredits, terraformRating, tableau: []};
+  (v as unknown as {id: string}).id = 'p-blue';
+  return v;
+}
 
 function pair(after: Partial<ParliamentAdvanceModel> = {}) {
   const before = view(model({lastAdvance: {seq: 4, player: RED, from: 0, to: 1, steps: [{to: 1}], reason: 'phase', generation: 2}} as never));
@@ -186,8 +198,46 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
     it('the bonuses of a walk, in the walk\'s order: a TR step holds a rating, a card step parks a reveal, an influence step owes nothing', () => {
       const bonuses = agendaWalkBonuses({player: BLUE, from: 5, to: 8, steps: [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}, {to: 8}]}, 4);
       expect(bonuses.map((b) => [b.step, b.kind, b.generation])).deep.eq([[6, 'tr', 4], [7, 'card', 4]]);
+      expect(bonuses[0].reactions, 'no answer promised — none held').is.undefined;
+      const answered = agendaWalkBonuses({player: BLUE, from: 5, to: 7, steps: [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]}, 4, [MC2]);
+      expect(answered[0].reactions, 'the table\'s answer rides the TR step\'s entry').deep.eq([MC2]);
+      expect(answered[1].reactions, '…never a card step\'s').is.undefined;
     });
 
+    it('THE TABLE\'S ANSWER (PL-002): the promised reactions are held with the TR step only when the two views agree — the rating by the walk\'s steps, the M€ by the answer plus the price', () => {
+      const record = {player: BLUE, from: 5, to: 7, steps: [{to: 6, bonus: 'tr' as const}, {to: 7, bonus: 'card' as const}]};
+      const rail = {reactions: [MC2], known: {'stock:megacredits': -6}};
+      const views = (mcBefore: number, mcAfter: number, trBefore: number, trAfter: number) => ({
+        before: seatView(mcBefore, trBefore),
+        after: seatView(mcAfter, trAfter),
+      });
+      // The Greens paid 2 for the rating, the card cost 6: 20 → 16, the rating 20 → 21.
+      const agree = views(20, 16, 20, 21);
+      expect(agendaWalkReactions(record, rail, agree.before, agree.after)).deep.eq([MC2]);
+      // The M€ moved otherwise (something else paid too): no answer is held — the row ticks with the commit.
+      const other = views(20, 18, 20, 21);
+      expect(agendaWalkReactions(record, rail, other.before, other.after)).deep.eq([]);
+      // The rating did not move by the walk's step: nothing is held at all.
+      const noTr = views(20, 16, 20, 20);
+      expect(agendaWalkReactions(record, rail, noTr.before, noTr.after)).deep.eq([]);
+      // No TR step in the walk (6 → 8: a card, then influence), no promise, or an empty one: nothing.
+      expect(agendaWalkReactions({player: BLUE, from: 6, to: 8, steps: [{to: 7, bonus: 'card'}, {to: 8}]}, rail, agree.before, agree.after)).deep.eq([]);
+      expect(agendaWalkReactions(record, undefined, agree.before, agree.after)).deep.eq([]);
+      expect(agendaWalkReactions(record, {reactions: [], known: {}}, agree.before, agree.after)).deep.eq([]);
+    });
+
+    it('SEED carries the promised answer onto the TR step\'s entry — verified against the two views — and the M€ row is held with the rating', () => {
+      handDescended();
+      promiseAgendaWalk(CARD, 'hand', {reactions: [MC2], known: {'stock:megacredits': -6}});
+      const before = seatView(20, 20, {lastAdvance: {seq: 4, player: RED, from: 0, to: 1, steps: [{to: 1}], reason: 'phase', generation: 2}});
+      const after = seatView(16, 21, {lastAdvance: {...WALK, from: 5, to: 7, steps: [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]}});
+      seedAgendaWalkHolds(before, after);
+      expect(agendaWalkFlow.promised, 'the promise is spent').is.undefined;
+      const tr = parliamentRewardState.agendaBonuses.find((b) => b.kind === 'tr');
+      expect(tr?.reactions, 'the answer rides the TR step').deep.eq([MC2]);
+      expect(heldStock(RATING_RAIL_KEY), 'the rating is held').eq(1);
+      expect(heldStock('megacredits'), 'and so is the table\'s answer — the M€ row reads without it until the chip has landed').eq(2);
+    });
   });
 
   describe('THE CONCLUSION reads the walk — owed, then live', () => {
