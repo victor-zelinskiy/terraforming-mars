@@ -40,7 +40,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {
-  abortBoardCardBonus, agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isAgendaReveal, isVenusScaleReveal,
+  abortBoardCardBonus, agendaCoverWaitsForSettle, agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isAgendaReveal, isVenusScaleReveal,
   markBonusZoomEntryReady, registerBoardCardBonusHandle, registerBonusZoomOrigin, revealMatchesSource,
   setBoardCardBonusPhase, stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -54,7 +54,7 @@ import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {concurrentResourcePayout, waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
-import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
+import {markAgendaCardLifted, parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {probeTick} from '@/client/console/probeTick';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
@@ -369,9 +369,11 @@ export default defineComponent({
       registerBoardCardBonusHandle({abort: (mode) => this.onAbort(mode)});
       registerBonusZoomOrigin(() => this.proxyCardEl());
       const source = boardCardBonusState.source;
-      if (source.kind === 'agenda-step') {
-        // The reward FOLLOWS the marker: the cover lifts once the marker has
-        // settled on the step (bounded — a stalled glide never holds the scene).
+      if (agendaCoverWaitsForSettle(source)) {
+        // The reward FOLLOWS the marker: a cover the REVEAL armed lifts once the
+        // marker has settled on the step (bounded — a stalled glide never holds
+        // the scene). A cover the WALK armed at the marker's lock (`landed`)
+        // lifts at once — the marker is standing on the very node.
         await this.waitAgendaSettled();
         if (!boardCardBonusState.active) {
           return;
@@ -411,6 +413,11 @@ export default defineComponent({
         reduced: consoleReducedMotionActive(),
         onLifted: () => setBoardCardBonusPhase('hover'),
       });
+      if (source.kind === 'agenda-step') {
+        // THE COVER IS OFF THE NODE: the Parliament's park lets the batch go (this scene owns it from here) and
+        // the ledger's hold stands down — what follows is the player's take, never a beat on a clock.
+        markAgendaCardLifted(source.step);
+      }
     },
     /**
      * A card-proportioned anchor at the paying TILE's centre (the

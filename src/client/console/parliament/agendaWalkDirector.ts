@@ -32,12 +32,31 @@
  * never a wall clock; `skip()` is idempotent and tears down the beats — the
  * tier's own teardown takes the poses to their final state.
  */
+import {reactive, watch} from 'vue';
 import {Color} from '@/common/Color';
 import {AgendaAdvanceStep} from '@/common/parliament/ParliamentTypes';
 import {markerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
+import {agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, isAgendaReveal} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {onIntakeTouchdown} from '@/client/console/handDock/handDeliveryState';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
-import {flushAgendaBonus, markAgendaBonusLanded, takeAgendaBonus} from './parliamentRewardBeat';
+import {agendaCardOwed, flushAgendaBonus, markAgendaBonusLanded, markAgendaCardLifted, takeAgendaBonus} from './parliamentRewardBeat';
+
+/**
+ * THE WALK'S MOTION STATE its holders read (the tier's glide hold, the
+ * section's walk hold): a CARD step whose reward is in the PLAYER's hands —
+ * the cover has been lifted off the node, the card flies to the viewer, the
+ * viewer waits for «Взять», the card flies to the dock — is not animation the
+ * walk owns, so the walk's animation holds STAND DOWN for it (a wall clock
+ * over a player's reading is a wedge net over nothing) and stand up again
+ * for the legs that follow. `awaitingCard` names the step while that take is
+ * owed; `undefined` otherwise.
+ */
+export const agendaWalkMotion = reactive({
+  awaitingCard: undefined as number | undefined,
+});
 
 /** The segment lead — ONE segment lights before the marker leaves (the sitting's own constant, v4). */
 export const AGENDA_SEGMENT_MS = 150;
@@ -217,10 +236,11 @@ export function runAgendaWalk(record: AgendaWalkRecordLike, stage: AgendaWalkSta
  * THE DEFAULT REWARD OF A STEP — what the ledger owes for it, delivered from
  * the step's own node on `root`: a TR step's chip leaves the step's printed
  * rating glyph for the rail (the counter ticks on contact —
- * `markAgendaBonusLanded(step)` releases exactly that step's hold); a card
- * step lets its parked reveal go (the cover scene lifts it off THIS step once
- * the track has settled); nothing owed → nothing flies. An unmeasurable step
- * releases the hold at once (honestly late, never lost). `generation`
+ * `markAgendaBonusLanded(step)` releases exactly that step's hold); a CARD
+ * step arms the cover scene off THIS node now that the marker has LOCKED on
+ * it, and `done` fires when the card has LANDED in the dock
+ * (`deliverAgendaCardStep`); nothing owed → nothing flies. An unmeasurable
+ * step releases the hold at once (honestly late, never lost). `generation`
  * undefined accepts any owed entry of the step (the tier's own watcher path).
  */
 export function deliverAgendaStepReward(root: HTMLElement, generation: number | undefined, step: number, done: () => void): void {
@@ -229,7 +249,11 @@ export function deliverAgendaStepReward(root: HTMLElement, generation: number | 
     done();
     return;
   }
-  if (bonus.kind === 'card' || bonus.spec === undefined) {
+  if (bonus.kind === 'card') {
+    deliverAgendaCardStep(step, done);
+    return;
+  }
+  if (bonus.spec === undefined) {
     markAgendaBonusLanded(step);
     done();
     return;
@@ -248,4 +272,66 @@ export function deliverAgendaStepReward(root: HTMLElement, generation: number | 
     arrival: 'auto',
     onArrive: () => markAgendaBonusLanded(step),
   }).then(done, done);
+}
+
+/**
+ * THE CARD STEP'S REWARD (TR37 — the card step in the MIDDLE of a walk, and
+ * the same path for a card step LAST): the marker has LOCKED on `step`, so
+ * the cover scene is ARMED off that very node NOW — «the marker sat on k» is
+ * the scene's signal, never «the track has settled» (TR04's «honestly late»).
+ * The scene lifts the cover, flies it to the viewer, the viewer waits for
+ * «Взять», the card flies into the dock — and `done` fires on that TOUCHDOWN
+ * (the next leg waits for the reward to LAND, as a TR step's waits for its
+ * chip to touch the rail; the owner's decision 4). Every wait is a real
+ * signal: the dock's touchdown of one of THIS batch's cards, the ledger's
+ * entry leaving the queue (the touchdown, a flush, the registry's ceiling),
+ * the scene's own end. Nothing to lift (an empty deck dealt no card), no
+ * track on screen, reduced motion, or another scene owning the layer →
+ * released at once, honestly — the standard draw presents what there is.
+ */
+function deliverAgendaCardStep(step: number, done: () => void): void {
+  const batch = pendingRevealEvents().find((e) => isAgendaReveal(e.source) && e.cards.length > 0);
+  if (batch === undefined || !agendaTrackOnScreen() || consoleReducedMotionActive() || boardCardBonusState.active) {
+    markAgendaBonusLanded(step);
+    done();
+    return;
+  }
+  const names = batch.cards.map((c) => c.name);
+  armBoardCardBonus({kind: 'agenda-step', step, landed: true});
+  agendaWalkMotion.awaitingCard = step;
+  let finished = false;
+  const finish = (): void => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    stopOwed();
+    stopScene();
+    offTouchdown();
+    if (agendaWalkMotion.awaitingCard === step) {
+      agendaWalkMotion.awaitingCard = undefined;
+    }
+    done();
+  };
+  // THE TOUCHDOWN: one of the batch's cards landed in the dock — the step's reward has LANDED.
+  const offTouchdown = onIntakeTouchdown((name) => {
+    if (names.includes(name)) {
+      markAgendaBonusLanded(step);
+    }
+  });
+  // The entry leaves the queue — by the touchdown above, by a flush (the section unmounts, the motion is cut), or
+  // by the registry's ceiling: the walk goes on either way, never earlier.
+  const stopOwed = watch(() => agendaCardOwed(step), (owed) => {
+    if (!owed) {
+      finish();
+    }
+  }, {flush: 'sync'});
+  // The scene ended before its cover lifted (no measurable node, its own safety): the park may not outlive the
+  // scene — lifted or not, the batch is free for the standard draw to present, and the walk still waits for the
+  // card to land.
+  const stopScene = watch(() => boardCardBonusState.active, (active) => {
+    if (!active) {
+      markAgendaCardLifted(step);
+    }
+  }, {flush: 'sync'});
 }

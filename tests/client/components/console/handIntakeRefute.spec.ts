@@ -6,7 +6,7 @@ import {
   runHandIntake, SAFETY_EXTENSIONS_MAX,
 } from '@/client/console/handDock/handDeliveryDirector';
 import {PROBE_TICK_FALLBACK_MS} from '@/client/console/probeTick';
-import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
+import {handDeliveryState, onIntakeTouchdown, releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 
 /**
  * THE WITHHELD-INTAKE REFUTATION — the class of bug it closes:
@@ -123,5 +123,51 @@ describe('handDeliveryDirector — the landing poll budget', () => {
     expect(pollTickCost('timer')).to.eq(POLL_TIMER_TICK_FRAMES);
     expect(POLL_TIMER_TICK_FRAMES).to.eq(Math.round(PROBE_TICK_FALLBACK_MS / (1000 / 60)));
     expect(POLL_TIMER_TICK_FRAMES).to.be.greaterThan(1);
+  });
+});
+
+/**
+ * THE TOUCHDOWN BUS — «the card has landed in the dock» as a signal somebody
+ * else may wait on (the Parliament's card step, TR37): fired by the very
+ * release that materializes the dock card and ticks the counter, for every
+ * intake path alike; a listener that throws never breaks the landing.
+ */
+describe('handDeliveryState — the touchdown bus', () => {
+  afterEach(() => {
+    resetHandDelivery();
+  });
+
+  it('every touchdown names its card; unsubscribing is idempotent; a throwing listener does not stop the release', () => {
+    const landed: Array<string> = [];
+    const off = onIntakeTouchdown((name) => landed.push(name));
+    const offThrowing = onIntakeTouchdown(() => {
+      throw new Error('a listener that misbehaves');
+    });
+    // The warn is captured, never printed: formatting the Error's stack resolves it through the WHOLE suite
+    // bundle's source map — seconds on the first trace, past this test's timeout in the full client run.
+    const warned: Array<unknown> = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: Array<unknown>) => {
+      warned.push(args[0]);
+    };
+    try {
+      handDeliveryState.inFlight = [CardName.FISH, CardName.BIRDS];
+      releaseInFlight(CardName.FISH);
+      expect(handDeliveryState.inFlight, 'the in-flight copy is released').to.deep.eq([CardName.BIRDS]);
+      expect(landed).to.deep.eq([CardName.FISH]);
+      // A touchdown of a card that was never held in flight (a degraded run) still tells.
+      releaseInFlight(CardName.BIRDS);
+      releaseInFlight(CardName.BIRDS);
+      expect(landed).to.deep.eq([CardName.FISH, CardName.BIRDS, CardName.BIRDS]);
+      expect(warned, 'the misbehaving listener is named on every touchdown it threw on').to.have.lengthOf(3);
+      off();
+      off();
+      offThrowing();
+      releaseInFlight(CardName.FISH);
+    } finally {
+      console.warn = originalWarn;
+    }
+    expect(landed, 'unsubscribed — nothing more').to.have.lengthOf(3);
+    expect(warned, 'unsubscribed — the thrower is not asked again').to.have.lengthOf(3);
   });
 });

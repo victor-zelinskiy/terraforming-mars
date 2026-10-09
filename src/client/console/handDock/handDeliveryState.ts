@@ -43,7 +43,26 @@ export const handDeliveryState = reactive({
   flights: [] as Array<DeliveryFlight>,
 });
 
-/** Remove ONE copy of `name` from the in-flight multiset (a touchdown). */
+/** A TOUCHDOWN listener: one copy of `name` has physically landed in the dock (the «КАРТЫ» counter ticks on this very release). */
+export type IntakeTouchdownListener = (name: CardName) => void;
+const touchdownListeners = new Set<IntakeTouchdownListener>();
+
+/**
+ * Subscribe to the dock's TOUCHDOWNS — the one signal «the card has landed
+ * in the hand» (the Parliament's CARD step waits for ITS card to land before
+ * the next leg of the walk — `agendaWalkDirector`). Fired for every intake
+ * path alike (a reveal take, the fullscreen take, a deal, a degraded run),
+ * because every one of them releases its in-flight copy here. Returns the
+ * unsubscribe (idempotent).
+ */
+export function onIntakeTouchdown(listener: IntakeTouchdownListener): () => void {
+  touchdownListeners.add(listener);
+  return () => {
+    touchdownListeners.delete(listener);
+  };
+}
+
+/** Remove ONE copy of `name` from the in-flight multiset (a touchdown) — and tell whoever waits for it. */
 export function releaseInFlight(name: CardName): void {
   const i = handDeliveryState.inFlight.indexOf(name);
   if (i >= 0) {
@@ -51,6 +70,13 @@ export function releaseInFlight(name: CardName): void {
       ...handDeliveryState.inFlight.slice(0, i),
       ...handDeliveryState.inFlight.slice(i + 1),
     ];
+  }
+  for (const listener of [...touchdownListeners]) {
+    try {
+      listener(name);
+    } catch (e) {
+      console.warn('[hand-intake] a touchdown listener threw', e);
+    }
   }
 }
 

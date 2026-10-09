@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  abortBoardCardBonus, agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, bonusHoldingSingleZoom,
+  abortBoardCardBonus, agendaCoverWaitsForSettle, agendaTrackOnScreen, armBoardCardBonus, boardCardBonusState, bonusHoldingSingleZoom,
   bonusZoomOriginEl, endBoardCardBonus, isBoardCardBonusActive, isBonusRevealStaged,
   isVenusScaleReveal, markBonusZoomEntryReady, registerBoardCardBonusHandle,
   registerBonusZoomOrigin, resetBoardCardBonus, revealMatchesSource, setBoardCardBonusPhase,
@@ -76,6 +76,17 @@ describe('consoleBoardCardBonus', () => {
     expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, step)).to.be.false;
     expect(revealMatchesSource({type: 'agenda'} as any, CELL)).to.be.false;
     expect(revealMatchesSource({type: 'agenda'} as any, VENUS)).to.be.false;
+  });
+
+  it('agendaCoverWaitsForSettle — a cover the WALK armed at the marker\'s lock lifts at once; one the reveal self-armed waits for the track to settle (TR37)', () => {
+    expect(agendaCoverWaitsForSettle({kind: 'agenda-step', step: 7, landed: true}), 'the marker is standing on the node — no wait').to.be.false;
+    expect(agendaCoverWaitsForSettle({kind: 'agenda-step', step: 7}), 'self-armed from the reveal — the walk\'s end is its only signal').to.be.true;
+    expect(agendaCoverWaitsForSettle(CELL), 'a board cell never waits for the track').to.be.false;
+    expect(agendaCoverWaitsForSettle(VENUS)).to.be.false;
+    // The arm carries the signal through to the scene's source.
+    armBoardCardBonus({kind: 'agenda-step', step: 7, landed: true});
+    expect(boardCardBonusState.source).to.deep.eq({kind: 'agenda-step', step: 7, landed: true});
+    expect(revealMatchesSource({type: 'agenda'} as any, boardCardBonusState.source), 'the walk-armed scene claims the agenda batch like any agenda-step scene').to.be.true;
   });
 
   it('agendaTrackOnScreen — the Parliament\'s track is on screen only while its section stands and is not handed over (one predicate for the scene and the deck-draw verdict)', () => {

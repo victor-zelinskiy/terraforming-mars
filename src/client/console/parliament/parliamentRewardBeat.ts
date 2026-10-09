@@ -87,6 +87,15 @@ export type AgendaBonusOwed = {
   kind: 'tr' | 'card';
   /** The rail chip of a TR step. */
   spec?: ResourceTransferSpec;
+  /**
+   * A CARD step's cover has LIFTED off its node (TR37 — a card step in the
+   * MIDDLE of a walk): the cover scene owns the batch from here, so the park
+   * lets go and the ledger's own hold stands down — the take is the PLAYER's
+   * (the viewer waits for «Взять»), never a beat on a clock. The entry stays
+   * owed until the card has LANDED in the dock (`markAgendaBonusLanded`): the
+   * walk's next leg waits for exactly that.
+   */
+  lifted?: boolean;
 };
 
 export const parliamentRewardState = reactive({
@@ -135,8 +144,19 @@ registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPe
   expire: () => flushParliamentRewards('ceiling'),
 });
 
+/**
+ * An Agenda bonus the ledger still HOLDS the foreground for: every TR step
+ * until its chip lands, a card step until its cover has lifted off the node.
+ * A LIFTED card step is in the player's hands (the cover scene, then the
+ * viewer's «Взять») — a wall clock over a player's reading is not a wedge
+ * net, so the ledger stands down there and the scene's own holds take over.
+ */
+export function parliamentAgendaBonusHeld(): boolean {
+  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind !== 'card' || bonus.lifted !== true);
+}
+
 /** The Agenda bonuses ride the same law: held until each step's own landing, bounded by the registry's ceiling alone. */
-registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentRewardState.agendaBonuses.length > 0, {
+registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentAgendaBonusHeld(), {
   diagnose: () => ({
     sitting: parliamentRewardState.sitting,
     bonuses: parliamentRewardState.agendaBonuses.map((bonus) => ({kind: bonus.kind, step: bonus.step, generation: bonus.generation})),
@@ -480,16 +500,39 @@ export function parliamentRewardPending(): boolean {
 }
 
 /**
- * THE AGENDA CARD PARK: while the viewer's CARD-step bonus is owed, the
- * `agenda`-sourced reveal batch the server dealt with the summary presents
- * NOWHERE — its one honest presentation is the cover lifting off the step the
- * marker reached, on a track the player can SEE, after the enactment's glide
- * (`launchAgendaBonus` → `markAgendaBonusLanded` releases it). Same law and
- * shape as the board-beat park: scoped to the batch it parks, never «the
- * reveal»; bounded by the idle net (then the standard draw presents it).
+ * The CARD step's cover has LIFTED off its node: the park lets the batch go
+ * (the scene that lifted it owns it from here), the ledger's hold stands
+ * down, and the entry stays OWED until the card has landed in the dock. A
+ * step with no card entry (flushed, landed, never owed) is a no-op.
+ */
+export function markAgendaCardLifted(step: number): void {
+  const bonus = parliamentRewardState.agendaBonuses.find((entry) => entry.step === step && entry.kind === 'card');
+  if (bonus === undefined || bonus.lifted === true) {
+    return;
+  }
+  bonus.lifted = true;
+  trail('lift-agenda', {step: bonus.step, generation: bonus.generation});
+}
+
+/** The CARD step's entry is still owed — its card has not LANDED in the dock yet (lifted or not). */
+export function agendaCardOwed(step: number): boolean {
+  return parliamentRewardState.agendaBonuses.some((entry) => entry.step === step && entry.kind === 'card');
+}
+
+/**
+ * THE AGENDA CARD PARK: while the viewer's CARD-step bonus is owed and its
+ * cover has NOT lifted yet, the `agenda`-sourced reveal batch the server dealt
+ * with the summary presents NOWHERE — its one honest presentation is the
+ * cover lifting off the step the marker reached, on a track the player can
+ * SEE, once the marker has LOCKED on that step (a walk's own signal —
+ * `deliverAgendaStepReward` arms the cover scene at the lock; the sitting's
+ * and the quest's one-step `launchAgendaBonus` → `markAgendaBonusLanded`
+ * release it at the landing). Same law and shape as the board-beat park:
+ * scoped to the batch it parks, never «the reveal»; bounded by the idle net
+ * (then the standard draw presents it).
  */
 export function parliamentParksReveal(source: {type?: string} | undefined): boolean {
-  return source?.type === 'agenda' && parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind === 'card');
+  return source?.type === 'agenda' && parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind === 'card' && bonus.lifted !== true);
 }
 
 /** This record's chip has landed (or the record never had a wave to wait for). */

@@ -43,12 +43,31 @@ export type BonusCoverSource =
   | {kind: 'board-tile', spaceId: string}
   | {kind: 'venus-scale'}
   | {kind: 'colony-cell', colonyName: string, slotIndex: number}
-  /** The Parliament's Agenda track (Turmoil Redux): a card step the viewer's marker reached — the cover lifts off the step's card glyph. */
-  | {kind: 'agenda-step', step: number};
+  /**
+   * The Parliament's Agenda track (Turmoil Redux): a card step the viewer's
+   * marker reached — the cover lifts off the step's card glyph. `landed` is
+   * the WALK's own arm (`agendaWalkDirector.deliverAgendaStepReward`, at the
+   * marker's LOCK on that step — TR37's card step in the middle of a walk):
+   * the marker IS on the step, the cover lifts at once. A scene the reveal
+   * self-arms (the sitting's and the quest's one-step walks, a reload) has no
+   * such signal and waits for the track to settle.
+   */
+  | {kind: 'agenda-step', step: number, landed?: true};
 
 /** The reveal source an `agenda-step` scene claims (the Agenda track's card reward). */
 export function isAgendaReveal(source: CardDrawRevealSource | undefined): boolean {
   return source?.type === 'agenda';
+}
+
+/**
+ * Does THIS agenda-step cover have to wait for «the track has settled»
+ * before it lifts? Only a scene without the walk's own signal: armed at the
+ * marker's lock (`landed`), the cover lifts off a step the marker already
+ * stands on — waiting for the END of the whole walk there is exactly the
+ * «honestly late» TR04 left open. Pure; guarded by the layer's spec.
+ */
+export function agendaCoverWaitsForSettle(source: BonusCoverSource): boolean {
+  return source.kind === 'agenda-step' && source.landed !== true;
 }
 
 /**

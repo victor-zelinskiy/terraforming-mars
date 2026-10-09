@@ -13,7 +13,8 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {
-  detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushParliamentRewards, markAgendaBonusLanded, markRewardLanded, parliamentParksReveal,
+  agendaCardOwed, detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushParliamentRewards, markAgendaBonusLanded, markAgendaCardLifted,
+  markRewardLanded, parliamentAgendaBonusHeld, parliamentParksReveal,
   parliamentRewardDiag, parliamentRewardPending, parliamentRewardState, RATING_RAIL_KEY, releaseParliamentRewards, resetParliamentRewards,
   rewardBeatKey, rewardLanded, seedParliamentRewardHold, sittingKeyOf, takeAgendaBonus, queueAgendaBonuses, takeOwedRewards, waveSpecOf,
 } from '@/client/console/parliament/parliamentRewardBeat';
@@ -297,6 +298,32 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(parliamentRewardState.agendaBonuses).deep.eq([]);
     markAgendaBonusLanded(9);
     expect(parliamentRewardState.agendaBonuses, 'a second landing of the same step is a no-op').deep.eq([]);
+  });
+
+  it('A CARD STEP\'S COVER LIFTS (TR37): the park lets the batch go and the ledger\'s hold stands down, while the step stays OWED until the card has LANDED in the dock', () => {
+    consoleParliamentUi.stageStanding = true;
+    const spec = {channel: 'stock' as const, resource: RATING_RAIL_KEY, amount: 1};
+    queueAgendaBonuses([
+      {generation: 3, player: BLUE, step: 7, kind: 'card'},
+      {generation: 3, player: BLUE, step: 9, kind: 'tr', spec},
+    ]);
+    expect(parliamentParksReveal({type: 'agenda'}), 'parked until the cover is off the node').is.true;
+    expect(parliamentAgendaBonusHeld(), 'held — nothing has lifted').is.true;
+    expect(agendaCardOwed(7)).is.true;
+    markAgendaCardLifted(7);
+    expect(parliamentParksReveal({type: 'agenda'}), 'the cover is in the air: the scene owns the batch, the park lets go').is.false;
+    expect(agendaCardOwed(7), '…but the step is still owed — the card has not landed').is.true;
+    expect(parliamentAgendaBonusHeld(), 'the TR step still holds').is.true;
+    markAgendaBonusLanded(9);
+    expect(parliamentAgendaBonusHeld(), 'a lifted card step alone holds nothing — the take is the player\'s, never a beat on a clock').is.false;
+    expect(parliamentRewardState.agendaBonuses.map((b) => b.step), 'the entry stands').deep.eq([7]);
+    markAgendaCardLifted(7);
+    markAgendaCardLifted(11);
+    expect(parliamentRewardState.agendaBonuses.filter((b) => b.lifted).length, 'a second lift and an unknown step are no-ops').eq(1);
+    markAgendaBonusLanded(7);
+    expect(agendaCardOwed(7), 'LANDED: the step is paid').is.false;
+    expect(parliamentRewardState.agendaBonuses).deep.eq([]);
+    expect(parliamentRewardDiag().trail.some((e) => e.ev === 'lift-agenda'), 'the lift is on the trail').is.true;
   });
 
   it('v2 — NO WALL CLOCK: seeding arms no timer; a hold outlives any pause and ends only by a touchdown, an explicit end of the stage, or the registry\'s ceiling', () => {

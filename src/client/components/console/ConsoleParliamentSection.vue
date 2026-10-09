@@ -232,7 +232,7 @@ import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf
 import {BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
-  AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, deliverAgendaStepReward,
+  AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {flyCube, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeCubeRect} from '@/client/console/parliament/parliamentFlights';
@@ -704,6 +704,10 @@ export default defineComponent({
     walkBeat(): string {
       return agendaWalkFlow.live ? agendaWalkFlow.beat : '';
     },
+    /** A card step's take is in the PLAYER's hands (TR37) — the walk's hold stands down for it. */
+    walkAwaitingCard(): boolean {
+      return agendaWalkMotion.awaitingCard !== undefined;
+    },
     /** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
     walkOwedSeq(): number {
       return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded ? agendaWalkFlow.owed.seq : 0;
@@ -1060,6 +1064,24 @@ export default defineComponent({
           this.openWalkFlow();
         }
       },
+    },
+    /**
+     * A CARD STEP'S TAKE (TR37): the walk's hold stands DOWN while the card is
+     * the player's to take (the cover scene and the viewer own that moment —
+     * a ceiling over a player's reading would fire as a «leaked hold») and
+     * stands UP again, with the walk's own budget, once the card has landed.
+     */
+    'walkAwaitingCard'(waiting: boolean): void {
+      const owed = agendaWalkFlow.owed;
+      if (!agendaWalkFlow.live || owed === undefined || agendaWalkFlow.beat !== 'walk') {
+        return;
+      }
+      if (waiting) {
+        this.walkHold?.release();
+        this.walkHold = undefined;
+      } else if (this.walkHold === undefined) {
+        this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
+      }
     },
     /**
      * «ДЕЛЕГАТЫ» (TR31): the section was pushed INTO the hand's zone with a rally owed to it — the pose opens

@@ -91,7 +91,7 @@ import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHold
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {AgendaVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
-  AgendaWalkBeatScheduler, AgendaWalkHandle, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkPlan, deliverAgendaStepReward, runAgendaWalk,
+  AgendaWalkBeatScheduler, AgendaWalkHandle, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, agendaWalkPlan, deliverAgendaStepReward, runAgendaWalk,
 } from '@/client/console/parliament/agendaWalkDirector';
 import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 
@@ -128,6 +128,8 @@ export default defineComponent({
       /** The phrase over the legs (the order and the waits) — one per walk. */
       agendaWalk: undefined as AgendaWalkHandle | undefined,
       agendaGlideHold: undefined as AnimationHold | undefined,
+      /** The running walk's hold budget (re-armed after a card step's take, which the hold stands down for). */
+      agendaGlideHoldMs: 0,
       /** The caller's «the marker has settled» callback of the running glide (fired once, on every ending). */
       onGlideLanded: undefined as (() => void) | undefined,
     };
@@ -135,6 +137,10 @@ export default defineComponent({
   computed: {
     flow() {
       return parliamentFlow;
+    },
+    /** A card step's take is in the PLAYER's hands (the viewer waits for «Взять») — the walk's animation holds stand down. */
+    walkAwaitingCard(): boolean {
+      return agendaWalkMotion.awaitingCard !== undefined;
     },
     /** The server's record of the LAST Agenda advance (its serial) — a live change plays the marker's move. */
     lastAdvanceSeq(): number {
@@ -184,6 +190,24 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A CARD STEP'S TAKE (TR37): the cover is off the node and the card is the
+     * player's to take — nothing the walk owns is moving, so its glide hold
+     * stands DOWN for the length of the take (a ceiling over a player's reading
+     * would fire as a «leaked hold») and stands UP again, with the walk's own
+     * budget, the moment the card has landed and the next leg is due.
+     */
+    walkAwaitingCard(waiting: boolean): void {
+      if (this.agendaWalk === undefined || !this.agendaWalk.active()) {
+        return;
+      }
+      if (waiting) {
+        this.agendaGlideHold?.release();
+        this.agendaGlideHold = undefined;
+      } else if (this.agendaGlideHold === undefined) {
+        this.agendaGlideHold = beginAnimationHold('parliament-agenda-glide', {maxHoldMs: this.agendaGlideHoldMs});
+      }
+    },
     /**
      * AN AGENDA ADVANCE, LIVE: the marker walks from the step it left to the
      * step it reached — one leg per recorded step (a rival's card walks it
@@ -309,7 +333,8 @@ export default defineComponent({
       this.agendaHidden = {color, step: record.to};
       this.agendaFlight = {color};
       consoleParliamentUi.agendaSettling = true;
-      this.agendaGlideHold = beginAnimationHold('parliament-agenda-glide', {maxHoldMs: agendaWalkHoldMs(record)});
+      this.agendaGlideHoldMs = agendaWalkHoldMs(record);
+      this.agendaGlideHold = beginAnimationHold('parliament-agenda-glide', {maxHoldMs: this.agendaGlideHoldMs});
       const reduced = consoleReducedMotionActive();
       const rewardStep = opts?.rewardStep ?? ((leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, undefined, leg.to, done));
       const cubeRect = (step: number): DOMRect | undefined => {

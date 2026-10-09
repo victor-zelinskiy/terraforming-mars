@@ -15,7 +15,14 @@ import {
 } from '@/client/console/parliament/agendaWalkDirector';
 import {finishParliamentFlights, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
-import {parliamentRewardState, RATING_RAIL_KEY, resetParliamentRewards} from '@/client/console/parliament/parliamentRewardBeat';
+import {
+  agendaCardOwed, parliamentAgendaBonusHeld, parliamentParksReveal, parliamentRewardState, queueAgendaBonuses, RATING_RAIL_KEY, resetParliamentRewards,
+} from '@/client/console/parliament/parliamentRewardBeat';
+import {agendaWalkMotion, deliverAgendaStepReward} from '@/client/console/parliament/agendaWalkDirector';
+import {abortBoardCardBonus, boardCardBonusState, resetBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {drawnCardsState, reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
+import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
+import {CardModel} from '@/common/models/CardModel';
 import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
@@ -71,6 +78,25 @@ function resetAll(): void {
   resetParliamentRewards();
   resetParliamentFlow();
   resetWorkspaceStack();
+  resetBoardCardBonus();
+  reconcileDrawnCards([]);
+  agendaWalkMotion.awaitingCard = undefined;
+}
+
+/** A Parliament with its Agenda track ON SCREEN (the cover scene's one precondition), torn down by the caller. */
+function trackOnScreen(): HTMLElement {
+  const parl = document.createElement('div');
+  parl.className = 'con-parl';
+  const track = document.createElement('div');
+  track.setAttribute('data-parl-agenda', '');
+  parl.appendChild(track);
+  document.body.appendChild(parl);
+  return parl;
+}
+
+/** The server dealt the card step's batch with the answer: ONE reveal of `source: agenda`. */
+function agendaBatch(name: CardName, id = 41): void {
+  reconcileDrawnCards([{id, source: {type: 'agenda'}, cards: [{name} as CardModel]}]);
 }
 
 /** The hand the card was played from, with its descent standing (the composer's home). */
@@ -161,6 +187,7 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       const bonuses = agendaWalkBonuses({player: BLUE, from: 5, to: 8, steps: [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}, {to: 8}]}, 4);
       expect(bonuses.map((b) => [b.step, b.kind, b.generation])).deep.eq([[6, 'tr', 4], [7, 'card', 4]]);
     });
+
   });
 
   describe('THE CONCLUSION reads the walk — owed, then live', () => {
@@ -329,6 +356,115 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       expect(trail).deep.eq(['pending', 'armed']);
       setParliamentFlightsHurried(false);
       pending.kill();
+    });
+  });
+
+  describe('THE CARD STEP\'S REWARD (TR37) — the cover scene armed at the marker\'s LOCK, `done` on the card\'s TOUCHDOWN', () => {
+    const root = () => document.createElement('div');
+
+    it('the marker locked on ⑦: the scene is armed off THAT node at once (`landed`), the walk holds stand down, and the next leg waits for the card to land in the dock', () => {
+      const parl = trackOnScreen();
+      try {
+        agendaBatch(CardName.FISH);
+        queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}, {generation: 3, player: BLUE, step: 8, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}}]);
+        let done = 0;
+        deliverAgendaStepReward(root(), 3, 7, () => done++);
+        expect(boardCardBonusState.active, 'the cover scene is armed').is.true;
+        expect(boardCardBonusState.source).deep.eq({kind: 'agenda-step', step: 7, landed: true});
+        expect(agendaWalkMotion.awaitingCard, 'the take is the player\'s: the holds stand down').eq(7);
+        expect(done, 'the next leg WAITS').eq(0);
+        expect(agendaCardOwed(7), 'the step is owed until the card has landed').is.true;
+        // Another card landing in the dock (an unrelated intake) is not this step's.
+        releaseInFlight(CardName.BIRDS);
+        expect(done).eq(0);
+        // THE TOUCHDOWN of the batch's own card: the step is paid, the walk goes on, the holds stand up again.
+        releaseInFlight(CardName.FISH);
+        expect(done, 'done on the touchdown').eq(1);
+        expect(agendaCardOwed(7)).is.false;
+        expect(agendaWalkMotion.awaitingCard).is.undefined;
+        expect(parliamentRewardState.agendaBonuses.map((b) => b.step), 'the TR step is still queued for its own leg').deep.eq([8]);
+        releaseInFlight(CardName.FISH);
+        expect(done, 'a later touchdown of the same name is nobody\'s').eq(1);
+      } finally {
+        parl.remove();
+      }
+    });
+
+    it('the scene dies before its cover lifts (no measurable node): the park lets the batch go so the standard draw presents it, and the walk still waits for the touchdown', () => {
+      const parl = trackOnScreen();
+      try {
+        agendaBatch(CardName.FISH);
+        queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}]);
+        let done = 0;
+        deliverAgendaStepReward(root(), 3, 7, () => done++);
+        expect(parliamentParksReveal({type: 'agenda'}), 'parked while the cover is still to lift').is.true;
+        expect(parliamentAgendaBonusHeld(), 'the ledger holds until the lift').is.true;
+        abortBoardCardBonus('instant', 'no-source-icon');
+        expect(parliamentParksReveal({type: 'agenda'}), 'the scene is gone: the park may not outlive it').is.false;
+        expect(parliamentAgendaBonusHeld(), 'a lifted card step holds nothing — the take is the player\'s').is.false;
+        expect(done, 'the walk still waits for the card to land').eq(0);
+        expect(agendaCardOwed(7)).is.true;
+        releaseInFlight(CardName.FISH);
+        expect(done).eq(1);
+      } finally {
+        parl.remove();
+      }
+    });
+
+    it('a flush (the section unmounts, the motion is cut) ends the wait honestly', () => {
+      const parl = trackOnScreen();
+      try {
+        agendaBatch(CardName.FISH);
+        queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}]);
+        let done = 0;
+        deliverAgendaStepReward(root(), 3, 7, () => done++);
+        expect(done).eq(0);
+        resetParliamentRewards();
+        expect(done, 'the entry left the queue — the walk goes on').eq(1);
+        expect(agendaWalkMotion.awaitingCard).is.undefined;
+      } finally {
+        parl.remove();
+      }
+    });
+
+    it('nothing to lift — no batch (an empty deck), no track on screen, or another scene owning the layer: released at once, honestly', () => {
+      queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}]);
+      let done = 0;
+      deliverAgendaStepReward(root(), 3, 7, () => done++);
+      expect(done, 'no track on screen — the standard draw presents it').eq(1);
+      expect(boardCardBonusState.active).is.false;
+      expect(agendaCardOwed(7), 'paid at once').is.false;
+
+      const parl = trackOnScreen();
+      try {
+        queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}]);
+        deliverAgendaStepReward(root(), 3, 7, () => done++);
+        expect(done, 'no batch to lift (the deck was empty) — at once').eq(2);
+        expect(boardCardBonusState.active).is.false;
+
+        agendaBatch(CardName.FISH);
+        queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}]);
+        boardCardBonusState.active = true; // another scene owns the layer
+        deliverAgendaStepReward(root(), 3, 7, () => done++);
+        expect(done, 'the layer is taken — at once').eq(3);
+        expect(agendaWalkMotion.awaitingCard).is.undefined;
+      } finally {
+        parl.remove();
+      }
+      expect(drawnCardsState.events, 'the batch is untouched — the standard draw presents it').has.lengthOf(1);
+    });
+
+    it('a step that pays no card (a TR step, nothing owed) never touches the scene', () => {
+      const parl = trackOnScreen();
+      try {
+        agendaBatch(CardName.FISH);
+        let done = 0;
+        deliverAgendaStepReward(root(), 3, 8, () => done++);
+        expect(done, 'nothing owed → at once').eq(1);
+        expect(boardCardBonusState.active).is.false;
+      } finally {
+        parl.remove();
+      }
     });
   });
 
