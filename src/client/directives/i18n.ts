@@ -8,6 +8,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {tileTypeToString} from '@/common/TileType';
 import {Color} from '@/common/Color';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 
 type Context = {
   playerView: PlayerViewModel | undefined;
@@ -94,6 +95,18 @@ export function translateMessage(message: Message): string {
       // its localized NAME (a prompt title «Add 3 animals from Aquifer
       // Contest» must never print `RDX_GREENS_AQUIFER_CONTEST`).
       return translateText(resolutionName(String(datum.value)));
+    case LogMessageDataType.PARTY: {
+      // A PARTY token speaks the parliament's ONE glossary (`party name: X` —
+      // «Марс вперёд», «Учёные»; docs/claude/parliament-glossary.md), never the
+      // upstream Turmoil dictionary's «Марс вперед» / «Ученые» the bare name
+      // falls to (PL-109): the journal's chip already does, so a text render of
+      // the same token («Trade for free (Unity action)», TR36's composer note)
+      // must not name the party differently. Where the glossary key has no
+      // translation (English, a non-Redux party) the bare name stands.
+      const key = partyNameKey(String(datum.value));
+      const named = translateText(key);
+      return named === key ? translateText(String(datum.value)) : named;
+    }
     case LogMessageDataType.RAW_STRING:
       // RAW means RAW (LogMessageDataType: "Raw strings are untranslated") —
       // it is the type for a value that is already final: a glyph label, a

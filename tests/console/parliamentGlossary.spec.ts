@@ -280,6 +280,14 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     expect(commands!.text.includes("label: 'Party effect'"), 'no «Party effect» command label').to.equal(false);
   });
 
+  it('a party is named through `partyNameKey` wherever a party is printed OUTSIDE the parliament trees too — the action centre\'s plate and detail (PL-110), the message renderer\'s PARTY token (PL-109)', () => {
+    const actions = fs.readFileSync(path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsoleCardActions.vue'), 'utf8');
+    expect(/\$t\((?:group|focusedTile|tile)\.party\b/.test(actions), 'the action centre prints a party by its bare upstream key').to.equal(false);
+    expect(actions.includes('partyNameKeyOf(group.party)') && actions.includes('partyNameKeyOf(focusedTile.party)'), 'the plate and the detail go through the glossary key').to.equal(true);
+    const i18n = fs.readFileSync(path.join(ROOT, 'src', 'client', 'directives', 'i18n.ts'), 'utf8');
+    expect(/case LogMessageDataType\.PARTY:[\s\S]{0,900}partyNameKey\(/.test(i18n), 'a PARTY token of a rendered message speaks the glossary key').to.equal(true);
+  });
+
   it('the resolution\'s party column and the party inspector name the mechanics the same way', () => {
     const annotations = sources.find(({p}) => p.endsWith('parliamentAnnotations.ts'));
     expect(annotations, 'parliamentAnnotations.ts is in the tree').to.not.equal(undefined);

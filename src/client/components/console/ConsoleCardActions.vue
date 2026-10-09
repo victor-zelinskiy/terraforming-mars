@@ -49,7 +49,7 @@
                      :wheelAnchor="repeat ? repeatCrumbEmblem.wheelAnchor : hostCrumb.wheelAnchor"
                      :context="repeat ? repeatCrumbContext : ''"
                      :subject="repeatStepCrumb !== undefined ? repeatStepCrumb.subject :
-                       (composer !== undefined ? (resolutionNameOf(composer.resolution) ?? composer.party ?? composer.cardName) : '')"
+                       (composer !== undefined ? (resolutionNameOf(composer.resolution) ?? partyNameKeyOf(composer.party) ?? composer.cardName) : '')"
                      :stage="repeatStepCrumb !== undefined ? repeatStepCrumb.stage :
                        (yieldedToStep ? steppedStage : (composer !== undefined ? focusKickerKey : ''))"
                      :stageRaw="repeatStepCrumb !== undefined ? false : (yieldedToStep ? false : focusKickerRaw)"
@@ -161,7 +161,7 @@
              `data-fit` is that step; everything below it is pure CSS. -->
         <aside class="con-cardactions__detail" v-if="focusedTile !== undefined"
                ref="detailEl" :data-fit="detailFit">
-          <div class="con-cardactions__detail-name">{{ $t(resolutionNameOf(focusedTile.resolutionAction) ?? focusedTile.party ?? focusedTile.cardName) }}</div>
+          <div class="con-cardactions__detail-name">{{ $t(resolutionNameOf(focusedTile.resolutionAction) ?? partyNameKeyOf(focusedTile.party) ?? focusedTile.cardName) }}</div>
           <div v-if="focusedTile.party !== undefined" class="con-cardactions__detail-variant">{{ $t('Party action') }}</div>
           <div v-if="focusedGroup !== undefined && focusedGroup.tiles.length > 1" class="con-cardactions__detail-variant">
             {{ $t('Option') }} {{ focusedTile.nodeIndex + 1 }} / {{ focusedGroup.tiles.length }}
@@ -320,7 +320,8 @@
               <img v-else-if="group.resolutionParty !== undefined" class="con-cardactions__plate-emblem" :src="partyEmblemOf(group.resolutionParty)" alt="" />
               <span v-if="group.party !== undefined" class="con-cardactions__plate-kicker">{{ $t('Party action') }}</span>
               <span v-else-if="group.resolutionAction !== undefined" class="con-cardactions__plate-kicker">{{ $t('Resolution action') }}</span>
-              <span class="con-cardactions__plate-name">{{ $t(group.party ?? resolutionNameOf(group.resolutionAction) ?? group.cardName) }}</span>
+              <!-- A party is named by the parliament's ONE glossary key («Учёные», never the upstream «Ученые» — PL-110). -->
+              <span class="con-cardactions__plate-name">{{ $t(partyNameKeyOf(group.party) ?? resolutionNameOf(group.resolutionAction) ?? group.cardName) }}</span>
               <span v-if="(group.party !== undefined || group.resolutionAction !== undefined) && group.tiles[0] !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--uses">
                 <b>{{ sourceUsesText(group.tiles[0]) }}</b>
               </span>
@@ -641,6 +642,7 @@ import {InputResponse} from '@/common/inputs/InputResponse';
 import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
@@ -3029,6 +3031,10 @@ export default defineComponent({
     /** The law's printed name (an i18n key) for its plate — never the catalog id. */
     resolutionNameOf(id: ResolutionId | undefined): string | undefined {
       return id === undefined ? undefined : (getResolution(id)?.text.name ?? id);
+    },
+    /** A party's name KEY — the parliament's glossary key («Учёные»), never the bare upstream one («Ученые», PL-110). */
+    partyNameKeyOf(party: string | undefined): string | undefined {
+      return party === undefined ? undefined : partyNameKey(party);
     },
     sourceUsesText(tile: ConsoleActionTile): string {
       const source = this.parliamentActionSources.find((s) => isResolutionActionSource(s) ?
