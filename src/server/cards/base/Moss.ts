@@ -61,11 +61,12 @@ export class Moss extends Card implements IProjectCard {
 
   // The on-play preview: `playPreview` auto-includes the declarative +1 plant
   // production chip; we add the bespoke 1-plant COST (`bespokePlay`'s
-  // `player.plants--`, not in `behavior`) so the modal shows the full trade.
+  // `player.plants--`, not in `behavior`) so the modal shows the full trade —
+  // the loss FIRST, as the card's text and its information blocks read it.
   public cardPlayPreview(player: IPlayer): ActionPreview {
     return actionPreviews.playPreview(this, player, [
       actionPreviews.stockCost(player, Resource.PLANTS, 1),
-    ]);
+    ], [], {extrasFirst: true});
   }
 }
 

@@ -1047,13 +1047,22 @@ export function singleBranch(
  * then the explicit `extraEffects` and `steps`. `available` is always true — the
  * route only previews cards already in `getPlayableCards()`. A `undefined` step
  * (an auto-resolved / no-candidate choice) is dropped, exactly like the live play.
+ *
+ * `opts.extrasFirst` puts the bespoke extras BEFORE the behavior's chips. The
+ * composer reads the chips in list order, and a card whose bespoke half is
+ * PRINTED first (Moss «lose 1 plant», X87 Shipment to Earth «lose 3 plants and
+ * 3 steel» — a loss that runs in `bespokePlayBefore`, ahead of the behavior)
+ * must read in its printed order, not the builder's. ONE option here, never a
+ * hand-assembled branch at the hook: every consumer of the chips (the reward
+ * extraction, the rail rule, the forecast's grants) is order-agnostic, so only
+ * the reading changes.
  */
 export function playPreview(
   card: ICard,
   player: IPlayer,
   extraEffects: ReadonlyArray<ActionEffect> = [],
   steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
-  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}, colonyBonuses?: AllColonyBonusesModel} = {},
+  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}, colonyBonuses?: AllColonyBonusesModel, extrasFirst?: boolean} = {},
 ): ActionPreview {
   const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
   const branch: ActionPreviewBranch = {
@@ -1061,7 +1070,7 @@ export function playPreview(
     title: '',
     available: true,
     renderKeys: [],
-    effects: [...behaviorEffects, ...extraEffects],
+    effects: opts.extrasFirst === true ? [...extraEffects, ...behaviorEffects] : [...behaviorEffects, ...extraEffects],
     steps: definedSteps(steps),
     mergeCardSteps: opts.mergeCardSteps,
     ...(opts.colonyBonuses !== undefined ? {colonyBonuses: opts.colonyBonuses} : {}),

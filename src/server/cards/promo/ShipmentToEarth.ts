@@ -77,16 +77,22 @@ export class ShipmentToEarth extends Card implements IProjectCard {
   }
 
   public override bespokePlayBefore(player: IPlayer): void {
-    player.stock.adjust(Units.negative(ShipmentToEarth.SHIPMENT), {log: true, from: {card: this}});
+    // Unit by unit, in the PRINTED order (plants, then steel): `stock.adjust`
+    // walks `Units.keys` (steel before plants) and the journal would read the
+    // shipment backwards.
+    for (const resource of [Resource.PLANTS, Resource.STEEL] as const) {
+      player.stock.add(resource, -ShipmentToEarth.SHIPMENT[resource], {log: true, from: {card: this}});
+    }
   }
 
   // The on-play preview: `playPreview` auto-includes the declarative chips (+3 TR,
   // the M€ per Earth tag); the bespoke shipment is added as COST chips so the
-  // modal shows the whole trade — the player never ships blind.
+  // modal shows the whole trade — the player never ships blind. The shipment
+  // reads FIRST (`extrasFirst`): it is printed first and it runs first.
   public cardPlayPreview(player: IPlayer): ActionPreview {
     return actionPreviews.playPreview(this, player, [
       actionPreviews.stockCost(player, Resource.PLANTS, ShipmentToEarth.SHIPMENT.plants),
       actionPreviews.stockCost(player, Resource.STEEL, ShipmentToEarth.SHIPMENT.steel),
-    ]);
+    ], [], {extrasFirst: true});
   }
 }

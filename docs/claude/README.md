@@ -28,7 +28,7 @@ Nothing was thrown away: every character of the old file is either in `CLAUDE.md
 | `energy-heat-conversion.md` | touching the end-of-generation energy→heat transition |
 | `delta-movement-contract.md` | anything that reacts to, projects or performs a position change on the Hydronet­work track — the ONE position writer (`commitDeltaMovement`), the pure `deltaMovementBonus` hook that the commit and the planning preview both read, why MarsBot is not a special case, and the «ДОПОЛНИТЕЛЬНО» reading/flight contract |
 | `modal-inputs-and-metadata-contract.md` | routing a new modal input type or attaching per-card option metadata |
-| `action-prompt-audit.md` | writing or editing a card `action()` / `actionPreview()` / `cardPlayPreview()` — the pre-collect contract, the six leftover-prompt classes it broke (incl. **CLASS 6: a triggered effect asked BEFORE the card's own input, which used to throw the pre-selected answer away**) and the guards that now enforce it |
+| `action-prompt-audit.md` | writing or editing a card `action()` / `actionPreview()` / `cardPlayPreview()` — the pre-collect contract, the six leftover-prompt classes it broke (incl. **CLASS 6: a triggered effect asked BEFORE the card's own input, which used to throw the pre-selected answer away**) and the guards that now enforce it. A bespoke loss the card PRINTS before its behavior (Moss, X87 Shipment to Earth) reads first through `playPreview(…, [], {extrasFirst: true})` — the one option, never a hand-assembled branch |
 | `premium-tooltips.md` | the full tooltip rationale + adopter list |
 | `start-game-flow.md` | touching the generation-1 orchestration modal |
 | `rematch-flow.md` | touching the end-of-game rematch subsystem |
