@@ -1954,7 +1954,7 @@ import {colonyCursorStep, FleetDockView, fleetDockViews} from '@/client/console/
 import {releaseFleetDockHoldWhenGone, endFleetDockScene, fleetDockSceneState} from '@/client/console/colonyTrade/fleetDockScene';
 import type {FleetDockConfirmPayload} from '@/client/components/console/ConsoleFleetDockStage.vue';
 import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
-import {consolePlayCardUi, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
+import {consolePlayCardUi, releaseConsolePlayCardCommands, restoreConsolePlayCardCommands, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
@@ -8442,7 +8442,10 @@ export default defineComponent({
         // (The host is the FLOW's: the hand for a play, «Действия карт» for an action — TR15.)
         return workspaceFrameRoot(stagedHost ?? 'hand');
       }
-      if (this.pendingPlayCard !== undefined) {
+      // …and once the composer has LET GO (a hosted step rising out of its rect — TR04's walk, TR31's rally; PL-084)
+      // the bar reads as the step's host does below (the hand's root), from the frame the step is pushed — never
+      // the stage name for the fade's length and the host's root after it.
+      if (this.pendingPlayCard !== undefined && !consolePlayCardUi.released) {
         // Inside the hand workspace the bar names the STAGE, not the surface —
         // the breadcrumb above already says which workspace and which card, and
         // repeating that in the footer is the duplication the one-bar rule
@@ -8838,7 +8841,10 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Back'});
         return cmds;
       }
-      if (this.pendingPlayCard !== undefined) {
+      // …unless the composer has LET GO of the bar (PL-084): a hosted step is rising out of its rect while it
+      // fades, its frame already past the commit — the bar then reads the STEP's own contract below, never the
+      // composer's verbs over a surface that accepts none of them.
+      if (this.pendingPlayCard !== undefined && !consolePlayCardUi.released) {
         // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
         // resolved choice / X inspects / LB·RB only where a value dials / LT
         // only when the payment is configurable) — the bar mirrors them
@@ -20111,6 +20117,12 @@ export default defineComponent({
       // «Разыграно» stage (its setup let go at the press) and the landed card's
       // proxy above it. Both let go IN PLACE, together, while the Parliament
       // rises out of the same rect (its own entry, `.con-parl--embedded`).
+      // …and the composer lets go of the BAR at the start of its fade (PL-084): the bar reads the step's own
+      // contract from this frame, never the composer's verbs over a frame past the commit. Only a STANDING
+      // composer lets go — its unmount is what clears the flag, so a release with nobody to unmount would latch.
+      if (this.pendingPlayCard !== undefined) {
+        releaseConsolePlayCardCommands();
+      }
       const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
       const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
       const fades = [composer, proxy].flatMap((el) =>
@@ -20132,8 +20144,9 @@ export default defineComponent({
       } else {
         // The door closed under the release (the staged preview was voided and
         // `cancelStagedPlay` handed the screen back): the composer stays, so it
-        // may not stay faded.
+        // may not stay faded — and its verbs read on the bar again.
         fades.forEach((fade) => fade.cancel());
+        restoreConsolePlayCardCommands();
       }
       void finishStagedPlayedLanding();
     },
@@ -20171,6 +20184,12 @@ export default defineComponent({
         nest: workspaceFrameKnown('parliament'),
         sourceCard: owed.card ?? '',
       });
+      // The composer lets go of the BAR at the start of its fade (PL-084): from this frame the bar reads the
+      // step's own contract («Выполняется…»), never «A РАЗЫГРАТЬ · B ОТМЕНА» over a frame past the commit. Only a
+      // STANDING composer lets go (its unmount clears the flag — a release with no composer would latch).
+      if (this.pendingPlayCard !== undefined) {
+        releaseConsolePlayCardCommands();
+      }
       const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
       const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
       const fades = [composer, proxy].flatMap((el) =>

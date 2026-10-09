@@ -32,10 +32,32 @@ export const consolePlayCardUi = reactive({
    * by ConsolePlayCardConfirm.
    */
   stagedDraft: undefined as PlayComposerDraft | undefined,
+  /**
+   * THE COMPOSER HAS LET GO OF THE BAR (PL-084): a hosted step is entering —
+   * the composer is fading in place under a Parliament / a colony grid rising
+   * out of its rect, its frame already `committed` / `executing` — and for
+   * that fade's length the bar may not read «A РАЗЫГРАТЬ · B ОТМЕНА» over a
+   * surface that accepts neither. Set by the shell at the START of the fade
+   * (one point for every hosted entrance: TR03 / TR04 / TR07 / TR12 / TR31),
+   * cleared with the composer (`resetConsolePlayCardUi`) or when a door
+   * closes under the release and the composer stays (`restore…`). While it
+   * stands the shell's bar reads the step's own contract instead.
+   */
+  released: false,
 });
 
 export function setConsolePlayCardCommands(commands: ReadonlyArray<FootHint>): void {
   consolePlayCardUi.commands = commands;
+}
+
+/** The composer lets go of the bar for the hosted step's entrance (the hints stay — a cancelled release gives them back). */
+export function releaseConsolePlayCardCommands(): void {
+  consolePlayCardUi.released = true;
+}
+
+/** The door closed under the release and the composer stays: its hints read again. */
+export function restoreConsolePlayCardCommands(): void {
+  consolePlayCardUi.released = false;
 }
 
 export function setPlayComposerStagedDraft(draft: PlayComposerDraft | undefined): void {
@@ -56,4 +78,5 @@ export function takePlayComposerStagedDraft(cardName: string): PlayComposerDraft
 export function resetConsolePlayCardUi(): void {
   consolePlayCardUi.commands = [];
   consolePlayCardUi.stagedDraft = undefined;
+  consolePlayCardUi.released = false;
 }
