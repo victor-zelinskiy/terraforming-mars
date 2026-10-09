@@ -477,6 +477,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -845,7 +846,7 @@ export default defineComponent({
       }
       if (s.type === 'party') {
         // Turmoil Redux: the party action that drew them (the Reds' recycle).
-        return {name: translateTextWithParams('Party action of ${0}', [translateText(s.party)]), inspectable: false};
+        return {name: translateTextWithParams('Party action of ${0}', [translateText(partyNameKey(s.party))]), inspectable: false};
       }
       if (s.type === 'resolution') {
         // Turmoil Redux: the enacted resolution's action drew them (Open IP Trade) — the law's own name.

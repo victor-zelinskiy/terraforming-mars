@@ -282,12 +282,40 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     expect(commands!.text.includes("label: 'Party effect'"), 'no «Party effect» command label').to.equal(false);
   });
 
-  it('a party is named through `partyNameKey` wherever a party is printed OUTSIDE the parliament trees too — the action centre\'s plate and detail (PL-110), the message renderer\'s PARTY token (PL-109)', () => {
+  it('a party is named through `partyNameKey` wherever a party is printed OUTSIDE the parliament trees too — the action centre\'s plate and detail (PL-110), the message renderer\'s PARTY token (PL-109), the effects strip and a party-drawn reveal\'s source (PL-122)', () => {
     const actions = fs.readFileSync(path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsoleCardActions.vue'), 'utf8');
     expect(/\$t\((?:group|focusedTile|tile)\.party\b/.test(actions), 'the action centre prints a party by its bare upstream key').to.equal(false);
     expect(actions.includes('partyNameKeyOf(group.party)') && actions.includes('partyNameKeyOf(focusedTile.party)'), 'the plate and the detail go through the glossary key').to.equal(true);
     const i18n = fs.readFileSync(path.join(ROOT, 'src', 'client', 'directives', 'i18n.ts'), 'utf8');
     expect(/case LogMessageDataType\.PARTY:[\s\S]{0,900}partyNameKey\(/.test(i18n), 'a PARTY token of a rendered message speaks the glossary key').to.equal(true);
+    // The «ЭФФЕКТЫ ПАРТИЙ» strip titles a row by the party (PL-122 — it printed «Ученые» while the Parliament says «Учёные»).
+    const strip = fs.readFileSync(path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsolePartyEffectsStrip.vue'), 'utf8');
+    expect(strip.includes('title: partyNameKey(party)'), 'the effects strip titles a party row by the glossary key').to.equal(true);
+  });
+
+  it('THE CLASS: no client file translates a party by its bare upstream key — `$t(x.party)` / `translateText(party)` (PL-109 / PL-110 / PL-122)', () => {
+    // Three sites shipped one at a time, each found by eye on a different screen. The upstream key reads
+    // «Ученые» / «Марс вперед»; the glossary's `party name: X` keys read «Учёные» / «Марс вперёд».
+    const ALLOWED: Record<string, string> = {
+      // Classic Turmoil only: a Redux party draws its EMBLEM there, the text label is for a party without one.
+      [path.join('src', 'client', 'components', 'premiumCard', 'PremiumRequirementsBar.vue')]: 'translateText(req.party)',
+    };
+    const bare = /(?:\$t|translateText)\(\s*[\w.]*[pP]arty\s*\)/g;
+    const files = listFiles(path.join('src', 'client'));
+    expect(files.length, 'the sweep reads the client tree').to.be.greaterThan(500);
+    const hits: Array<string> = [];
+    for (const file of files) {
+      const rel = path.relative(ROOT, file);
+      for (const match of fs.readFileSync(file, 'utf8').match(bare) ?? []) {
+        if (ALLOWED[rel] !== match) {
+          hits.push(`${rel}: ${match}`);
+        }
+      }
+    }
+    expect(hits, 'print a party through partyNameKey(…)').to.deep.equal([]);
+    for (const [file, match] of Object.entries(ALLOWED)) {
+      expect(fs.readFileSync(path.join(ROOT, file), 'utf8').includes(match), `the allow-list row for ${file} still names a live site`).to.equal(true);
+    }
   });
 
   it('the resolution\'s party column and the party inspector name the mechanics the same way', () => {

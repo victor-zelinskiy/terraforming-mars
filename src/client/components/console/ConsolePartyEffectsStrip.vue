@@ -36,6 +36,7 @@ import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/party
 import {accessReasonRows, AccessReasonRow, effectDelegatesLowered, effectDelegatesSourceOf} from '@/client/console/parliament/consoleParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 
@@ -101,7 +102,8 @@ export default defineComponent({
         out.push({
           key: party,
           party,
-          title: party,
+          // The parliament's glossary name («Учёные», «Марс вперёд»), never the upstream key (PL-122).
+          title: partyNameKey(party),
           emblem: partyEmblemUrl(party),
           accent: partyAccent(party),
           reasons,
