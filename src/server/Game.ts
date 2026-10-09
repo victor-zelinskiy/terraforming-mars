@@ -108,7 +108,7 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {AddTileOptions, CellBonusPaid, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
+import {AddTileOptions, CellBonusPaid, GlobalParameterMaximums, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
 import {liftTopCity} from './boards/cityStack';
 import {buriedOceanOf, liftOcean} from './boards/cellPieces';
@@ -215,6 +215,7 @@ export class Game implements IGame, Logger {
   // bonus was passed during World Government terraforming (claimed by no one).
   // Public, additive — surfaced to every client so the claim shows for all.
   public scaleBonusClaims: Map<string, Color> = new Map();
+  public readonly max: GlobalParameterMaximums;
 
   // Player data
   public activePlayer: IPlayer;
@@ -344,6 +345,12 @@ export class Game implements IGame, Logger {
     this.preludeDeck = preludeDeck;
     this.ceoDeck = ceoDeck;
     this.board = board;
+    this.max = {
+      temperature: constants.MAX_TEMPERATURE,
+      oxygen: constants.MAX_OXYGEN_LEVEL,
+      oceans: constants.MAX_OCEAN_TILES,
+      venus: constants.MAX_VENUS_SCALE,
+    };
 
     this.players.forEach((player) => {
       player.setup(this);
