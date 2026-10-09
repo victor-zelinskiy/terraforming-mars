@@ -388,6 +388,20 @@ describe('ApiCreateGame', () => {
   // than players x starting cards is legitimate: it is how the dev «guaranteed cards» switch
   // forces one card into the first hand. Upstream 64641f602a refuses such a list, because
   // upstream (9960c15601, declined here) made the list the whole pool instead.
+  it('rejects negative escape velocity options', async () => {
+    const post = scaffolding.post(apiCreateGame, res);
+    const emit = Promise.resolve().then(() => {
+      req.emitter.emit('data', JSON.stringify({
+        players: [{name: 'a', color: 'red', beginner: false, handicap: 0, first: true}],
+        escapeVelocity: {thresholdMinutes: -5, bonusSectionsPerAction: 2, penaltyPeriodMinutes: 2, penaltyVPPerPeriod: 1},
+      }));
+      req.emitter.emit('end');
+    });
+    await Promise.all(([emit, post]));
+
+    expect(res.statusCode).eq(statusCode.badRequest);
+    expect(res.content).contains('Escape Velocity values cannot be negative');
+  });
   it('a custom corporation list shorter than the deal is accepted and rides the top of the deck', async () => {
     const post = scaffolding.post(apiCreateGame, res);
     const emit = Promise.resolve().then(() => {

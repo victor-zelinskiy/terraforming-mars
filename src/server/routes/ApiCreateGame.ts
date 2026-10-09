@@ -12,6 +12,7 @@ import {GameOptions} from '../game/GameOptions';
 import {Player} from '../Player';
 import {Server} from '../models/ServerModel';
 import {NewGameConfig} from '../../common/game/NewGameConfig';
+import {hasNegativeEscapeVelocityOption} from '../../common/game/escapeVelocity';
 import {safeCast, isGameId, isSpectatorId, isPlayerId} from '../../common/Types';
 import {generateRandomId} from '../utils/server-ids';
 import {IGame} from '../IGame';
@@ -84,6 +85,11 @@ export class ApiCreateGame extends Handler {
       req.once('end', async () => {
         try {
           const gameReq = JSON.parse(body) as NewGameConfig;
+          if (gameReq.escapeVelocity !== undefined && hasNegativeEscapeVelocityOption(gameReq.escapeVelocity)) {
+            responses.badRequest(req, res, 'Escape Velocity values cannot be negative');
+            resolve();
+            return;
+          }
           const gameId = safeCast(generateRandomId('g'), isGameId);
           const spectatorId = safeCast(generateRandomId('s'), isSpectatorId);
           const players = gameReq.players.map((p) => {
