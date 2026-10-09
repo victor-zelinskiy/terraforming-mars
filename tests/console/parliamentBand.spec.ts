@@ -118,7 +118,8 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       const two = parliamentBandLine({standing: {votes: 0}, walk: {player: BLUE, landed: [{to: 2, bonus: 'tr'}, {to: 3, level: 2}]}});
       expect(kinds(two.chips)).deep.eq(['player', 'agenda', 'agenda']);
       expect(two.chips[2], 'an influence step is the glyph with its level — never a bare ordinal (law 14)').deep.eq({kind: 'agenda', to: 3, level: 2});
-      expect(new Set([none.key, one.key, two.key]).size, 'the crossfade fires once per landing').eq(3);
+      expect(new Set([none.key, one.key, two.key]).size,
+        'the line stands for the whole walk — a landing grows a chip, never re-crossfades the line (PL-119)').eq(1);
     });
     it('«ДЕЛЕГАТЫ» (TR31) outranks the overview the same way: the neutral cube, the landed votes, the read areas, the count', () => {
       const rally = parliamentBandLine({standing: {votes: 2, player: RED, resolution: {resolution: ARCHITECTURE, party: PartyName.MARS}}, rally: {votes: [{resolution: ARCHITECTURE, party: PartyName.MARS}], support: [{party: PartyName.REDS, gained: 0, limit: 'supply'}], counted: 11}});

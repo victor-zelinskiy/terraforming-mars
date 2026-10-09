@@ -336,15 +336,17 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
  * КАРЬЕРА — a card's walk: the seat's cube, then one chip per LANDED step in
  * the walk's order — an influence step as the glyph with its level, a paying
  * step with its bonus. Past the commit throughout (the play is made; the
- * record is the answer). The line's key grows with every landing, so the band
- * crossfades once per step and stands still between them.
+ * record is the answer). The line's key stands for the WHOLE walk (PL-119): a
+ * landing grows one chip, which enters by itself (the band keys it on its
+ * step), while the chips already read stand still — a key that grew per step
+ * re-crossfaded the unchanged line on every landing.
  */
 function walkLine(walk: BandWalk): BandLine {
   const chips: Array<BandChip> = [{kind: 'player', player: walk.player}];
   for (const step of walk.landed) {
     chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus})});
   }
-  return {kicker: 'Agenda track', key: `walk:${walk.player}:${walk.landed.map((s) => s.to).join(',')}`, chips, committed: true};
+  return {kicker: 'Agenda track', key: `walk:${walk.player}`, chips, committed: true};
 }
 
 /**

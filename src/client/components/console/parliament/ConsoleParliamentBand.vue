@@ -21,7 +21,9 @@
               :class="{'con-band__state--received': stateKey === 'Received' || stateKey === 'Taken'}"
               :data-parl-band-state="stateKey">{{ $t(stateKey) }}</span>
         <span class="con-band__chips">
-          <template v-for="(chip, index) in line.chips" :key="index">
+          <!-- A walk's step chip is keyed on its STEP: the line stands for the whole walk and a landing inserts one
+               node, whose own entrance is the step's arrival (PL-119) — the chips already read keep theirs. -->
+          <template v-for="(chip, index) in line.chips" :key="chip.kind === 'agenda' ? 'agenda:' + chip.to : index">
             <span v-if="chip.kind === 'label'" class="con-band__chip con-band__chip--label"
                   :class="{'con-band__chip--quiet': chip.tone === 'quiet'}" data-parl-band-chip="label">
               <span class="con-band__text">{{ $t(chip.key) }}</span>

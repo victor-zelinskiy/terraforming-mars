@@ -1259,6 +1259,10 @@
            programme rolled over every world, nothing to celebrate. */
         &--tracks { flex: 1 1 0; min-width: 0; max-width: max-content; gap: .34rem; }
         &--tracks-blocked { opacity: .78; }
+        /* A WALK'S STEP ENTERS BY ITSELF (PL-119, TR37): the line's key stands for the whole walk, so a landing
+           grows ONE chip — keyed on its step, a one-shot on its own insertion — while the chips already read
+           stand still. Never the whole line re-crossfaded per step. */
+        &--agenda { animation: con-band-chip-in calc(260ms * var(--motion-scale, 1)) @con-ease-standard both; }
     }
     &__track {
         display: inline-flex; align-items: center; gap: .18rem; flex-shrink: 0;
@@ -1312,6 +1316,10 @@
 
 /* The crossfade: ONE cell, both lines in it — `mode="out-in"` would empty the
    cell for the length of the leave and the band would blink. */
+@keyframes con-band-chip-in {
+    from { transform: translateX(-.4rem); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
 .con-band-fade-enter-active,
 .con-band-fade-leave-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
 .con-band-fade-enter-from,

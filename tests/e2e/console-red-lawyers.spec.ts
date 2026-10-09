@@ -565,6 +565,13 @@ for (const preset of PRESETS) {
       expect(on8!, `⑧ before (or with) the influence tick (${dump})`).toBeLessThanOrEqual(influenced!);
       expect(bandSeven, `the band's ⑦ chip appeared (${dump})`).toBeDefined();
       expect(bandSeven!, `…before the marker reached ⑧ (${dump})`).toBeLessThan(on8!);
+      // PL-119: a landing GROWS the line by one chip — the unchanged line is never re-crossfaded, so no sample ever
+      // holds two chips of one step (the old per-step crossfade read «7» → «7,7,8» → «7,8»).
+      const doubled = probe.band.filter(([, v]) => {
+        const steps = v.split(',').filter((s) => s !== '');
+        return new Set(steps).size !== steps.length;
+      });
+      expect(doubled, `the band never holds two chips of one step (PL-119) (${dump})`).toEqual([]);
       expectCoverBornAtNode(probe, dump);
       expect(probe.chip.length, `no rating chip on this walk (${dump})`).toBe(0);
       expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(2);
