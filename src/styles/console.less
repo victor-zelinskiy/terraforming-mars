@@ -4262,24 +4262,26 @@ each(@players, {
     }
     /* The law behind the «+N» cells — its own line under the head, in the
        same mint as the additions it explains (the colour is what ties the
-       two). One line, ellipsis in its OWN box, and it exists only while such
-       a law stands: the grid below is a flex child that re-solves its rows
-       into whatever height is left, so the line costs the matrix nothing it
-       cannot absorb. */
+       two). It exists only while such a law stands: the grid below is a flex
+       child that re-solves its rows into whatever height is left, so the line
+       costs the matrix nothing it cannot absorb. A NAME WRAPS, it is never cut
+       (PL-097, the owner's decision 2026-10-08): the Deck's rail is ~135 px
+       and «Финансирование исследований» needs 163 — an ellipsis there named
+       the law only by luck, while the matrix below had height to spare. Where
+       the name fits (fhd, 4K) the line is the one line it always was; a word
+       longer than the rail breaks rather than overflow. */
     &__lawnote {
         flex: 0 0 auto;
         min-width: 0;
         max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: normal;
+        overflow-wrap: break-word;
         margin: -.25rem 0 .35rem;
         font-size: .55rem;
         line-height: 1.1;
         /* A NAME, not a label: sentence case (the law's own printed name) is
-           ~20 % narrower than tracked caps and is what lets «Финансирование
-           исследований» stand whole in a 190 px rail — the caps form cut it
-           to «ФИНАНСИРОВАНИЕ ИССЛ…», which identifies a law only by luck. */
+           ~20 % narrower than tracked caps — fewer lines where it must wrap,
+           one where it need not. */
         letter-spacing: 0;
         font-weight: 700;
         color: @con-mint;

@@ -83,6 +83,49 @@ async function focusLawTile(page: Page): Promise<void> {
   expect(await focused(), 'never focused the law\'s tile').toBe(LAW);
 }
 
+/**
+ * THE LAW'S NAME over the МЕТКИ matrix (PL-097): never cut — no overflow in its
+ * own box, inside the matrix's column, and the matrix's last row still whole
+ * above the zone's bottom (the second line is paid by the grid, which re-solves
+ * its rows into the height left). `lines` is the rendered line count.
+ */
+async function lawNoteFit(page: Page): Promise<{whole: boolean, lines: number, text: string, box: string}> {
+  return page.locator('[data-tag-bonus-law]').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const zone = el.closest('.con-tagmx')?.getBoundingClientRect();
+    const cells = Array.from(el.closest('.con-tagmx')?.querySelectorAll('.con-tagmx__cell') ?? []);
+    const lastBottom = Math.max(...cells.map((c) => c.getBoundingClientRect().bottom));
+    const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.1;
+    const whole = el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1 &&
+      zone !== undefined && r.left >= zone.left - 1 && r.right <= zone.right + 1 && lastBottom <= zone.bottom + 1;
+    return {
+      whole, lines: Math.round(r.height / lineHeight), text: (el.textContent ?? '').trim(),
+      box: `${Math.round(r.width)}x${Math.round(r.height)} sw=${el.scrollWidth} cw=${el.clientWidth} zone=${zone === undefined ? '-' : `${Math.round(zone.left)}..${Math.round(zone.right)}/${Math.round(zone.bottom)}`} last=${Math.round(lastBottom)}`,
+    };
+  });
+}
+
+/** The narrow rail (PL-097): 1280 × 800 handheld — the name wraps whole, it is never an ellipsis. */
+const DECK = {id: 'deck-800', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'} as const;
+
+test.describe(`R&D Funding · ${DECK.id}`, () => {
+  test.use({viewport: DECK.viewport});
+
+  test('PL-097 — the law\'s name over the МЕТКИ matrix stands WHOLE in the Deck\'s rail: a second line, never an ellipsis', async ({page, request}) => {
+    test.setTimeout(240_000);
+    await bootFixtureSeats(page, request, 'parliament-rdfunding-enacted', {query: DECK.query});
+    await waitForBoardHome(page, 40);
+    await settle(page, {timeoutMs: 20_000});
+    await expect(page.locator('[data-tag-bonus-law]'), 'the head names the law').toHaveText(/Финансирование исследований/i);
+    const note = await lawNoteFit(page);
+    expect(note.whole, `the law's name stands whole in the narrow rail (${JSON.stringify(note)})`).toBe(true);
+    expect(note.lines, `it takes a second line rather than an ellipsis (${JSON.stringify(note)})`).toBeLessThanOrEqual(2);
+    await expect(page.locator('[data-tag-cell="science"] .con-tagmx__bonus'), 'the addition still stands beside the count').toBeVisible();
+    await shoot(page, `deck-01-tag-zone-law`);
+  });
+});
+
 test.describe(`R&D Funding · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
 
@@ -112,6 +155,9 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     // No other cell gained anything: the addition belongs to ONE tag.
     await expect(page.locator('.con-tagmx__bonus'), 'exactly one cell carries an addition').toHaveCount(1);
     expect((await cell.getAttribute('aria-label') ?? ''), 'the cell\'s own sentence names the law too').toMatch(/Финансирование исследований/i);
+    const note = await lawNoteFit(page);
+    expect(note.whole, `the law's name stands whole (${JSON.stringify(note)})`).toBe(true);
+    expect(note.lines, `where it fits, the name is the ONE line it always was (${JSON.stringify(note)})`).toBe(1);
     await shoot(page, '01-tag-zone-addition');
 
     // ── ② THE LAW'S STAGE: the repeat is a SLOT, empty and inviting.
