@@ -3,6 +3,8 @@ import {Context} from '../routes/IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {statusCode} from '../../common/http/statusCode';
+import {AppError} from './AppError';
+import {AppErrorResponse} from '../../common/app/AppErrorId';
 
 export function badRequest(req: Request, res: Response, err?: string): void {
   console.warn('bad request', req.url);
@@ -15,6 +17,17 @@ export function badRequest(req: Request, res: Response, err?: string): void {
   res.end();
 }
 
+/** A refused player input: 400 with `{id, message}` — the id names an AppError the client reacts to. */
+export function badInputRequest(_req: Request, res: Response, e: unknown) {
+  res.writeHead(statusCode.badRequest, {
+    'Content-Type': 'application/json',
+  });
+  const id = e instanceof AppError ? e.id : undefined;
+  const message = e instanceof Error ? e.message : String(e);
+  const response: AppErrorResponse = {id, message};
+  res.write(JSON.stringify(response));
+  res.end();
+}
 export function notFound(req: Request, res: Response, err?: string): void {
   if (!process.argv.includes('hide-not-found-warnings')) {
     console.warn('Not found', req.method, req.url);
