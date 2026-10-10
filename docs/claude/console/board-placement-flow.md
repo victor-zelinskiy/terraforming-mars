@@ -187,6 +187,35 @@ both readers (the binder's `topLevelSpaceInput`, the shell's
 `placementSpaceModel`) take it from there. The machine in `placementFlow.ts`
 (dwell, release gate) is unchanged: a lifted city is not a phase of it.
 
+**The levels are named for what they ARE — `source` and `cell` — and the
+WORDS belong to the FAMILY** (TR39 Canyon Carving, 2026-10-10: the same two
+levels move an OCEAN). The family is the prompt's own `placementType`
+(`placementMove.moveFamily`: `'ocean-move'` → the ocean's, every other move
+prompt the city's — a server marker, never a title), and every surface speaks
+it:
+
+| | city (`'city-move'`, TR14) | ocean (`'ocean-move'`, TR39) |
+| --- | --- | --- |
+| source-level banner | «Выберите свой город» | «Выберите океан» |
+| legal cells on the source level | the player's own cities that may move | EVERY plain ocean that may move — anybody's (an ocean is nobody's) |
+| a cell that is no source | «Не ваш город на Марсе» (`not-your-city`) | «Не тайл океана» (`not-an-ocean-tile`) |
+| a source that may not move | `no-space-to-move` · `city-stands-on-ocean` | `ocean-no-space-to-move` · `upgraded-ocean` |
+| A on the source level | «Взять город» | «Взять океан» |
+| the dossier's source section | «ЭТОТ ГОРОД» (+ «Сейчас приносит», the stack) | «ЭТОТ ОКЕАН» (+ the Capital beside it that loses, whoever owns it) |
+| the reticle's default tile | a plain city | a plain ocean |
+| the projection on the cell level | the `arrives` tile + the owner's cube | the ocean — no cube |
+| what the MOVE itself pays, after the landing's own rewards | nothing (a city move pays no rating) | +1 TR as the landing's LAST beat — the token born at the landed ocean flies to the score cell, the table's answer (the Greens' M€) one tick-gap after its touchdown; the server's `lastTileMoveReward` says both (PL-133) |
+| B on the cell level | «Другой город» | «Другой океан» |
+| A in single-press mode | «Переселить сюда» | «Перенести сюда» |
+| A on the locked cell | «Подтвердить переселение» | «Подтвердить перенос» |
+| the commit's status | «Переселение…» | «Перенос…» |
+| the «ДАЛЕЕ» row of the composer | «переселите свой город» | «перенесите тайл океана» |
+| the dossier's destination | the city's VP as one vector, «ПРЕЖНЯЯ КЛЕТКА» | +1 TR for the move, the OTHER oceans' adjacency, the Capitals as one vector each, «ПРЕЖНЯЯ КЛЕТКА» — never the ocean counter's line |
+| the sibling-cell reason | `not-adjacent-to-the-city` | `not-adjacent-to-the-ocean` |
+
+The family defaults to the city's wherever a caller predates the ocean, so
+TR14 reads byte for byte as before (`placementMove.spec.ts` pins both).
+
 On the field, once a city is lifted (all board px-space, transform / opacity
 only, none of it a loop):
 - **the origin** — the real tile STAYS (nothing has happened yet) and turns

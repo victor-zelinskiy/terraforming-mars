@@ -66,14 +66,28 @@ TR14, 7 M€, AUTOMATED, метки Город + Строительство, `re
 ⚠ Отступление от сигнатуры промпта: параметра `cause` НЕТ — событие едет в живом скоупе, который захватила очередь
 отложенных действий (карта разыгрывается → её `MoveCityTile` выполняется в её же скоупе), а не в аргументе.
 
-### 2.2 Набор — `boards/cityMove.ts`
+### 2.2 Набор — ПО ВИДУ ТАЙЛА, в одной форме (`boards/tileMove.ts` + `boards/cityMove.ts` + `boards/oceanMove.ts`)
 
-`cityMoveOffer(player, canAffordOptions?) → {sources: MovableCity[], disabledSources: [{space, reason}]}`;
-`MovableCity = {from, tileType, card?, tiers, arrives, to[], illegal[]}` (`to` — по часовой от восточного соседа;
-`illegal` — клетки, предложенные ДРУГОМУ городу, с причиной `not-adjacent-to-the-city`). `movableCities` — только
-источники; `cityMoveDestinations` — объединение; `findCityMove(offer, from, to)` — проверка пары;
-`cityMoveReasoner(player, offer)`; `cityMovePromptModel(offer)`. Блокировки: `city-stands-on-ocean`,
-`no-space-to-move`. `ignoreRestrictionsCity` получил `adjacentTo?: Space` — правило набора одно.
+**Форма одна (2026-10-10, TR39):** `boards/tileMove.ts` — `TileMoveOffer = {sources: MovableTile[], disabledSources:
+[{space, reason: TileMoveBlock}]}`, `MovableTile = {from, tileType, card?, tiers, arrives, to[], illegal[]}` (`to` — по
+часовой от восточного соседа: `destinationsClockwise`; `illegal` — клетки, предложенные ДРУГОМУ источнику: `markSiblingCells`),
+`tileMoveDestinations` — объединение, `findTileMove(offer, from, to)` — проверка пары, `tileMovePromptModel` — модель для
+клиента. Шаг, промпт (`SelectSpace.tileMove: TileMoveOffer`), staged-близнец, гипотеза досье и валидация коммита читают
+переезд, не зная, какой это тайл.
+
+**Наборы — по виду тайла**, каждый решает только «кто едет и куда» своими источниками правил:
+- **город** — `cityMoveOffer(player, canAffordOptions?)` (`cityMove.ts`): свой город на Марсе; назначения —
+  `cityIgnoringRestrictions(player, {adjacentTo})`; блокировки `city-stands-on-ocean`, `no-space-to-move`; причина
+  чужой клетки `not-adjacent-to-the-city`. `movableCities`, `cityMoveReasoner`; `cityMoveDestinations` / `findCityMove` /
+  `cityMovePromptModel` — псевдонимы общих функций (спеки TR14 без правок).
+- **океан** (TR39 Canyon Carving) — `oceanMoveOffer(player, canAffordOptions?)` (`oceanMove.ts`): ЛЮБОЙ простой океан на
+  поле (у океана нет владельца — `space.player` undefined; на отведённой клетке или на суше); улучшенный океан
+  (Ocean City / Farm / Sanctuary / New Holland) и Wetlands — `disabledSources` с `upgraded-ocean`; назначения — ДВЕ семьи
+  соседей (`oceanMoveCells`): пустая отведённая клетка без чужой заявки (`getAvailableSpacesForOcean`) ∪ суша «не отведённая
+  ни подо что» по Artificial Lake (`getAvailableSpacesOnLand(player, canAffordOptions, false)` — не Ноктис, не лагерь,
+  не чужая заявка, опасность Ares за свою цену, соседство опасностей океан не платит); клетка-колония — нет; океан без
+  соседей — `ocean-no-space-to-move`; причина чужой клетки `not-adjacent-to-the-ocean`; на уровне источника остальные
+  клетки — `not-an-ocean-tile` (клиент, по маркеру `placementType: 'ocean-move'`). `movableOceans`, `oceanMoveReasoner`.
 
 ### 2.3 Один вопрос — один ответ
 
@@ -104,11 +118,54 @@ Staged-хвост (`inputs/deferredInputBatch.ts`): базовые подпис�
 прецедент `aresAdjacencyGrants`. Единственное право клиента считать «снятие на A + посадку на B» одним переездом.
 Перезапуск сервера теряет анимацию, не правило.
 
-### 2.6 Что получает следующая карта «передвинь тайл» даром
+### 2.6 Что получает следующая карта «передвинь тайл» даром — и что потребовал ВТОРОЙ вид тайла (TR39, 2026-10-10)
 
-Маркер и форма ответа, двухуровневый выбор на поле (город → клетка) со staged-коммитом и B-лестницей, досье переезда,
-превью-гипотеза, сцена героя и remote-сцена по записи, строка журнала. Требует руки: своя функция набора (кто едет и
-куда) и свой `moveXTile` в `Game`, если едет не город (сцена и клиент читают вид тайла из маркера и диффа).
+Даром: маркер и форма ответа, двухуровневый выбор на поле (источник → клетка) со staged-коммитом и B-лестницей, досье
+переезда, превью-гипотеза, сцена героя и remote-сцена по записи, строка журнала. Требует руки: своя функция набора (кто
+едет и куда) и свой `moveXTile` в `Game`, если едет не город (сцена и клиент читают вид тайла из маркера и диффа).
+
+**Океан сел (TR39 Canyon Carving — `docs/claude/turmoil-redux-cards-progress.md` § TR39). Что встало само:** маркер
+`tileMove` и ответ `{spaceId, movedFrom}`, staged-дверь «Разыграть на поле» с B-лестницей, `verifyPlacement` с
+объявленной парой, прокси ОДНОГО объекта у себя и у соперника (`pairTileMoves` по записи `tileMoves`), `applyVacatePreview` /
+`revealVacatedBonuses` / `markCellVacated`, награды посадки `endTilePlacement` (бонус клетки, вода, Ares, закон), событие
+`tile-moved` и строка журнала «Перемещение тайла», стопка — нет (у океана `tiers: 1`). **Что потребовало руки:**
+1. **Набор** `boards/oceanMove.ts` и общая форма `boards/tileMove.ts` (§2.2) — `cityMove.ts` стал одним из двух наборов.
+2. **Писатель** `Game.moveOceanTile(player, from, to)`: валидация по набору → подъём (`from.tile = undefined` — у океана нет
+   владельца, стопки, `adjacency`, `coOwner`, собора) → `addTile(player, to, {OCEAN}, {moved: {from}})` →
+   **`player.increaseTerraformRating(1, {log: true})` явно** (РТ — сегмент КАРТЫ в разбивке счёта, атрибуция — живой скоуп
+   розыгрыша) → `recordTileMove` (цвет записи — кто переместил, не владелец). **НЕ `addOcean`**: параметр читается с
+   доски и не меняется, ворота 9 не действуют (при 9 океанах переезд законен и платит РТ), `maybeLogMarsIsTerraformed` /
+   `onGlobalParameterIncrease` / `recordGlobalParameterChange` / Ares `onOceanPlaced` не зовутся; соседство океанов при
+   посадке — только с ДРУГИМИ океанами (A снят до посадки); Столица (своя или чужая) пересчитывается по доске.
+3. **Шаг** обобщён: `deferredActions/MoveTile.ts` — один класс с `TileMoveRule {placementType, tileType, offer, reasoner,
+   move, title, constraint, noMoveReason, skipLabel}`; `MoveCityTile` и `MoveOceanTile` — два правила и два подкласса в один
+   конструктор; названный пропуск `skippedTileMove(rule)` (`skippedCityMove` / `skippedOceanMove`). `SelectSpace.process`
+   называет объект отказа по `placementType` промпта («This ocean tile cannot be moved to that space»).
+4. **Вид превью** `'ocean-move'` (`PlacementType`, `BoardPlacementKind`, `getAvailableSpacesForType`, ветка
+   `deriveIllegalReason` — отведённая клетка никогда не «ocean-only», суша — цена; `ApiGameBoardCellPreview` принимает `from=`
+   для обоих видов). Движок: `tileMovePreview(kind)` над `MOVE_FAMILIES` — источник (`move-reach` со словом семьи
+   «Spaces to move the ocean to», Столица соседа теряет — `capitalOceanLossFacts`, общие с фактами снятия RX33) и назначение
+   (`withTileLifted(kind)` = `withCityLifted` | `withOceanLifted`; скелет посадки общий; для океана — факт `move-tr`
+   «+1 РТ · Tile relocation» ДО `partyReactionFacts`, `capitalMoveFacts` — один вектор на Столицу (потеря / получение /
+   «без изменений»), `departureFacts`; **строки параметра океанов и «РТ никто не теряет» нет**). `withHypotheticalMove`
+   читает вид по тайлу на `from`.
+5. **Слова клиента** — по семье промпта (`placementMove.moveFamily`: `placementType === 'ocean-move'` → океан): уровни
+   переименованы в `'source' | 'cell'`; `placementCommands` берёт `moveFamily` («Взять океан» / «Другой океан» /
+   «Перенести сюда» / «Подтвердить перенос» / «Перенос…»), баннер «Выберите океан», досье «Этот океан», ряд «ДАЛЕЕ»
+   «перенесите тайл океана», исключение «не тайл океана»; `verifyMove` принимает пару «океан ничей → пусто, пусто → океан
+   ничей» — `departingCubePose(undefined)` = куба нет, прокси в арте океана. Строка журнала — по виду тайла
+   (`LogHelper.logTileMove(…, tileType)`: «${0} moved an ocean tile · ${1} → ${2}»).
+6. **Награда САМОГО переезда — такт посадки (PL-133).** Транзакция посадки держит и платит по порядку движка только то,
+   что даёт `addTile`; РТ переезда идёт ПОСЛЕ него и не шаг шкалы (параметр стоит), поэтому не удерживался: тикал голым
+   числом в момент коммита (сразу после касания), раньше растения и воды и без жетона, а ответ Зелёных (+2 M€ за шаг)
+   складывался с ценой карты в один чип («−4»). Писатель публикует
+   `player.lastTileMoveReward` (`TileMoveRewardModel` — закон `lastOceanBonus`: пара, `rating`, `reactions` ИЗМЕРЕНЫ по стоку
+   до/после `increaseTerraformRating`; клиент ничего не выводит); транзакция держит оба до касания и играет последним
+   тактом (`runMoveRewardBeat`: жетон РТ с севшего тайла в ячейку счёта, ответ стола через такт после касания — PL-002).
+   Ряд M€ говорит три фразы: цена одна при ответе, вода после касания, Зелёные после РТ. Город (TR14) РТ не платит —
+   запись у него не рождается, его сцена байт-в-байт.
+7. **Чего НЕ потребовалось:** второй сцены, второго прокси, правок таймингов TR14 (`tileMoveScene.spec` пинит), правок
+   `TileMoveSourceModel` / `TileMoveFact` / `TileMoveRecordModel`, правок staged-хвоста и парковки.
 
 ## 3. Клиент — ВЫБОР (коммит 3)
 

@@ -279,6 +279,46 @@ the proxy takes it over, B stays hidden until the touchdown. No record → the t
 changes keep their separate beats. `stageRemoteTileEvents` skips BOTH cells of
 the viewer's own live hero, and the hero claims its own record at detect.
 
+**The piece has a KIND, and the kind decides what rides the proxy (TR39 Canyon
+Carving — an ocean, 2026-10-10).** The same fourth case plays a tile NOBODY
+owns: `verifyMove` reads the pair «a plain ocean of nobody's on A → EMPTY,
+EMPTY → a plain ocean of nobody's on B» beside the city's pairs, and the proxy
+is born in the OCEAN's art (`departingTile` = the record's tile) with **no
+owner cube** — `departingCubePose(undefined)` is no cube, so neither the hero
+(`landed.moves.color`) nor the remote stage (`move.color`) seats one; the
+remote record's `color` is who MOVED the tile (whose scene it is), never an
+owner. Nothing else differs: the same `playTileMove` clock, the same
+`applyVacatePreview` (an ocean reserve surfaces its printed icons under the
+lifting tile exactly as bare land does), the same `markCellVacated`, the same
+landing rewards — and because the ocean parameter is read off the board and
+the count does not change, no scale marker, no HUD «N/9» and no board-beat
+park moves (the e2e samples all three on every tick). A second scene for a
+second tile would have been the defect.
+
+**What the MOVE itself pays is the landing's LAST beat (PL-133, 2026-10-10).**
+The transaction holds and pays, in the engine's order, what `addTile` grants —
+the cell, the water, the neighbours, the law. An ocean move pays a rating AFTER
+`addTile`, and that rating is neither a scale step (the parameter stands, so
+no scale story tells it) nor a cell bonus — so it was not held: it ticked as
+a bare number at the commit (which the transport holds to the touchdown — so
+right after the landing), BEFORE the cell's bonus and the water and with no
+token of its own (the plant and the water are SHOWN by their beats; the
+rating was merely told), and the Greens' answer to it was netted into the
+card's price («−4» for −6 + 2). The server now publishes `thisPlayer.lastTileMoveReward`
+(`TileMoveRewardModel` — the `lastOceanBonus` law: the pair, the rating, and
+the table's answer MEASURED on the mover's stock around the grant), the detect
+claims it on the armed pair only, `seedTilePlacementRewardHold` holds both,
+and `runMoveRewardBeat` plays them after the law's wave: the rating token is
+born at the landed tile and flies to the score cell, the answer is released
+one tick-gap after the touchdown (PL-002 — an answer never before its cause).
+The M€ row therefore makes three statements: the price alone at the commit,
+the water after the cell's plant, the Greens one beat after the rating (fhd
+trace: landing 1399 → price 1506 → plant 2496 → water 4212 → rating 5069 →
+Greens 5170 ms). The e2e's «landed» is the SCENE's own word — the hero's
+`data-tile-phase` reaching `landed` (the contact), the remote stage's reveal
+hold releasing — never the DOM's «a tile exists on B»: the hero's real tile
+can stand in the DOM under a proxy that is still flying.
+
 **Degrades.** No stage / no measurable hex → both cells take their final poses
 in one turn and the layer root carries `data-tile-move-degraded` for the scene's
 length (the e2e demands its absence). Reduced motion is not a degrade: final
