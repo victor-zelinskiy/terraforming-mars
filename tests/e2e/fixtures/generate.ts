@@ -1252,6 +1252,41 @@ function redLawyersFixture(name: string, from: number, steps: ReadonlyArray<{to:
 redLawyersFixture('red-lawyers', 6, [{to: 7, bonus: 'card'}, {to: 8}]);
 redLawyersFixture('red-lawyers-tr-first', 5, [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]);
 redLawyersFixture('red-lawyers-end', 11, [{to: 12}]);
+
+// TR38 BIOLOGICAL SIMULATIONS — the set's first Greens' plate: a data holder with a TWO-TAG trigger and an action that
+// buys PLANT PRODUCTION. Blue's action phase, the Greens ruling by the STARTING RULE (nothing enacted — generation 1),
+// TR38 on blue's table with 2 data, Tardigrades (a microbe tag) in hand, 30 M€. Two classes the card carries first:
+//   (A) the TABLE'S ANSWER TO A PLAY flies — Tardigrades' microbe tag wakes the holder: «+1 data» from the printed tag
+//       into TR38's capsule, the holder emerging from its strip (К-S1);
+//   (B) a PRODUCTION answer after an action — the action's plant step on the rail, the Greens' «+1 M€ production» a
+//       beat AFTER its touchdown (the first e2e of the production-answer class).
+// Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open).
+parliamentFixture('biological-simulations', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+    seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+    moveToDeckTop(game, CardName.BIOLOGICAL_SIMULATIONS);
+    const simulations = game.projectDeck.drawPile.pop() as IProjectCard;
+    simulations.resourceCount = 2;
+    p1.playedCards.push(simulations);
+    moveToDeckTop(game, CardName.TARDIGRADES);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+  },
+  expect: ({game, parliament, p1}) => {
+    const simulations = p1.playedCards.get(CardName.BIOLOGICAL_SIMULATIONS) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+    const tardigrades = p1.cardsInHand.find((c) => c.name === CardName.TARDIGRADES);
+    if (parliament.rulingParty() !== PartyName.GREENS || !parliament.hasPartyEffect(p1, PartyName.GREENS) ||
+        simulations === undefined || simulations.resourceCount !== 2 || !simulations.canAct(p1) ||
+        tardigrades === undefined || !p1.canPlay(tardigrades)) {
+      throw new Error(`the biological-simulations fixture expected the Greens ruling by the starting rule, TR38 on blue's table with 2 data and able to act, Tardigrades playable — got ruling=${parliament.rulingParty()} data=${simulations?.resourceCount} tardigrades=${tardigrades !== undefined && p1.canPlay(tardigrades)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
 // ── TR31 · NATIONALIST MOVEMENT — a card's RALLY of neutral delegates as the OUTCOME of its play
 //    (docs/TURMOIL_REDUX_NATIONALIST_MOVEMENT.md): blue's action phase, the card in hand, 12 M€; the
 //    Industrialists rule QUIETLY by Central Power Grid (an enacted card, so the Reds' card may stand in the

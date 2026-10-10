@@ -1,5 +1,5 @@
 {
- "activePlayer": "p-player2-id",
+ "activePlayer": "p-player1-id",
  "awards": [
   "Landlord",
   "Scientist",
@@ -579,7 +579,7 @@
    "name": "Ganymede",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   },
   {
    "name": "Miranda",
@@ -591,13 +591,13 @@
    "name": "Pluto Redux",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   },
   {
    "name": "Triton",
    "colonies": [],
    "isActive": true,
-   "trackPosition": 2
+   "trackPosition": 1
   }
  ],
  "corporationDeck": {
@@ -612,25 +612,25 @@
    "Ecoline",
    "Interplanetary Cinematics",
    "Inventrix",
-   "ThorGate",
-   "Polyphemos",
    "United Nations Mars Initiative",
+   "Polyphemos",
+   "Saturn Systems",
    "Poseidon",
-   "Saturn Systems"
+   "Aridor"
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791592446086,
+ "createdTimeMs": 1791592445296,
  "currentSeed": 712479101257,
  "deferredActions": [],
  "donePlayers": [],
  "draftRound": 1,
  "exploitationOfVenusInEffect": false,
- "first": "p-player2-id",
+ "first": "p-player1-id",
  "fundedAwards": [],
  "gagarinBase": [],
  "stJosephCathedrals": [],
- "gameAge": 44,
+ "gameAge": 10,
  "gameLog": [
   {
    "message": "First player this generation is ${0}",
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791592446086
+   "timestamp": 1791592445296
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445296,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445296,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445296,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445297,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445297,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -719,14 +719,35 @@
     },
     {
      "type": 3,
-     "value": "Aridor"
+     "value": "ThorGate"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445297,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
    "category": "card-play"
+  },
+  {
+   "message": "${0} gained ${1} ${2} production",
+   "data": [
+    {
+     "type": 2,
+     "value": "red"
+    },
+    {
+     "type": 1,
+     "value": "1"
+    },
+    {
+     "type": 15,
+     "value": "energy"
+    }
+   ],
+   "timestamp": 1791592445297,
+   "correlationId": 2,
+   "parentId": 2,
+   "role": "detail"
   },
   {
    "message": "${0} kept ${1} project cards",
@@ -740,588 +761,10 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791592446087,
+   "timestamp": 1791592445297,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
-  },
-  {
-   "message": "The Mars Parliament of generation ${0} convenes",
-   "data": [
-    {
-     "type": 1,
-     "value": "1"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "type": 2,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "root-action",
-   "category": "political-phase"
-  },
-  {
-   "message": "Resolution ${0} wins the vote with ${1} delegate(s)",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} is the winning player of ${1}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} advances on the Agenda track to step ${1}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 6,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Greens"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Industrialists"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Reds"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Mars First"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} gain ${1} neutral delegate(s) in Popular Support (${2}/${3})",
-   "data": [
-    {
-     "type": 8,
-     "value": "Unity"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 1,
-     "value": "3"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is enacted",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} is now the ruling party — every player has its effect",
-   "data": [
-    {
-     "type": 8,
-     "value": "Scientists"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Chairman quest for generation ${0}: ${1}",
-   "data": [
-    {
-     "type": 1,
-     "value": "2"
-    },
-    {
-     "type": 0,
-     "value": "Play 2 green cards"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} drew ${1} card(s)",
-   "data": [
-    {
-     "type": 2,
-     "value": "blue"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 8,
-   "role": "detail"
-  },
-  {
-   "message": "${0} drew ${1}",
-   "data": [
-    {
-     "type": 0,
-     "value": "You"
-    },
-    {
-     "type": 14,
-     "value": [
-      "Insulation"
-     ]
-    }
-   ],
-   "timestamp": 1791592446089,
-   "playerId": "p-player1-id",
-   "correlationId": 5,
-   "parentId": 8,
-   "role": "detail"
-  },
-  {
-   "message": "${0} draws ${1} card(s) from ${2}: 1 per point of influence, influence ${3}",
-   "data": [
-    {
-     "type": 2,
-     "value": "blue"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
-    },
-    {
-     "type": 1,
-     "value": "1"
-    }
-   ],
-   "timestamp": 1791592446089,
-   "correlationId": 5,
-   "parentId": 8,
-   "role": "detail"
-  },
-  {
-   "message": "${0} drew ${1} card(s)",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 1,
-     "value": "2"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 10,
-   "role": "detail"
-  },
-  {
-   "message": "${0} drew ${1}",
-   "data": [
-    {
-     "type": 0,
-     "value": "You"
-    },
-    {
-     "type": 14,
-     "value": [
-      "Ice Moon Colony",
-      "Nitrite Reducing Bacteria"
-     ]
-    }
-   ],
-   "timestamp": 1791592446090,
-   "playerId": "p-player2-id",
-   "correlationId": 5,
-   "parentId": 10,
-   "role": "detail"
-  },
-  {
-   "message": "${0} draws ${1} card(s) from ${2}: 1 per point of influence, influence ${3}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 1,
-     "value": "2"
-    },
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
-    },
-    {
-     "type": 1,
-     "value": "2"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 10,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} leaves the voting area",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_MARS_ARCHITECTURE_AWARD"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} leaves the voting area",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_UNITY_TRADE_INDUSTRIES"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_SCIENTISTS_JOINT_RESEARCH"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} enters the voting area",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_INDUSTRIALISTS_METAL_RESEARCH"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
-   "data": [
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 8,
-     "value": "Industrialists"
-    },
-    {
-     "type": 16,
-     "value": "RDX_INDUSTRIALISTS_METAL_RESEARCH"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} enters the voting area",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_UNITY_COLONY_CONTEST"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
-   "data": [
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 8,
-     "value": "Unity"
-    },
-    {
-     "type": 16,
-     "value": "RDX_UNITY_COLONY_CONTEST"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} is revealed and discarded: its party is already represented",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Resolution ${0} enters the voting area",
-   "data": [
-    {
-     "type": 16,
-     "value": "RDX_GREENS_AQUIFER_CONTEST"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "${0} neutral delegate(s) from ${1} Popular Support vote for ${2}",
-   "data": [
-    {
-     "type": 1,
-     "value": "1"
-    },
-    {
-     "type": 8,
-     "value": "Greens"
-    },
-    {
-     "type": 16,
-     "value": "RDX_GREENS_AQUIFER_CONTEST"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Every player's free delegate returns to the lobby",
-   "data": [],
-   "timestamp": 1791592446090,
-   "correlationId": 5,
-   "parentId": 5,
-   "role": "detail"
-  },
-  {
-   "message": "Generation ${0}",
-   "data": [
-    {
-     "type": 1,
-     "value": "2"
-    }
-   ],
-   "timestamp": 1791592446090,
-   "type": 1
-  },
-  {
-   "message": "First player this generation is ${0}",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    }
-   ],
-   "timestamp": 1791592446090
-  },
-  {
-   "message": "${0} ${1} ${2} card(s)",
-   "data": [
-    {
-     "type": 2,
-     "value": "blue"
-    },
-    {
-     "type": 0,
-     "value": "bought"
-    },
-    {
-     "type": 1,
-     "value": "0"
-    }
-   ],
-   "timestamp": 1791592446091
-  },
-  {
-   "message": "${0} ${1} ${2} card(s)",
-   "data": [
-    {
-     "type": 2,
-     "value": "red"
-    },
-    {
-     "type": 0,
-     "value": "bought"
-    },
-    {
-     "type": 1,
-     "value": "0"
-    }
-   ],
-   "timestamp": 1791592446091
   }
  ],
  "gameEvents": [
@@ -1354,7 +797,7 @@
    "visibility": "journal",
    "source": {
     "kind": "corporation",
-    "card": "Aridor",
+    "card": "ThorGate",
     "owner": "red"
    },
    "player": "red",
@@ -1365,6 +808,35 @@
   },
   {
    "id": 3,
+   "generation": 1,
+   "phase": "research",
+   "type": "production-changed",
+   "impact": {
+    "production": {
+     "energy": 1
+    },
+    "snapshot": {
+     "resource": "energy",
+     "scope": "production",
+     "before": 0,
+     "after": 1
+    }
+   },
+   "correlationId": 2,
+   "visibility": "analytics",
+   "source": {
+    "kind": "corporation",
+    "card": "ThorGate",
+    "owner": "red"
+   },
+   "player": "red",
+   "tags": [
+    "production"
+   ],
+   "parentId": 2
+  },
+  {
+   "id": 4,
    "generation": 1,
    "phase": "research",
    "type": "resource-changed",
@@ -1390,7 +862,7 @@
    "parentId": 1
   },
   {
-   "id": 4,
+   "id": 5,
    "generation": 1,
    "phase": "research",
    "type": "resource-changed",
@@ -1401,151 +873,22 @@
     "snapshot": {
      "resource": "megacredits",
      "scope": "stock",
-     "before": 40,
-     "after": 34
+     "before": 48,
+     "after": 42
     }
    },
    "correlationId": 2,
    "visibility": "analytics",
    "source": {
     "kind": "corporation",
-    "card": "Aridor",
+    "card": "ThorGate",
     "owner": "red"
    },
    "player": "red",
    "parentId": 2
-  },
-  {
-   "id": 5,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "parliament"
-   },
-   "category": "political-phase"
-  },
-  {
-   "id": 6,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "parliament"
-   },
-   "player": "red",
-   "category": "political-phase",
-   "parentId": 5
-  },
-  {
-   "id": 7,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "agenda-advanced",
-   "impact": {
-    "agenda": {
-     "from": 2,
-     "to": 3,
-     "steps": [
-      {
-       "to": 3
-      }
-     ],
-     "reason": "phase"
-    }
-   },
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "parliament"
-   },
-   "player": "red",
-   "parentId": 6
-  },
-  {
-   "id": 8,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "resolution",
-    "id": "RDX_SCIENTISTS_OPEN_IP_TRADE",
-    "owner": "blue"
-   },
-   "player": "blue",
-   "category": "political-phase",
-   "parentId": 5
-  },
-  {
-   "id": 9,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "cards-drawn",
-   "impact": {
-    "cardsDrawn": 1
-   },
-   "correlationId": 5,
-   "visibility": "analytics",
-   "source": {
-    "kind": "resolution",
-    "id": "RDX_SCIENTISTS_OPEN_IP_TRADE",
-    "owner": "blue"
-   },
-   "player": "blue",
-   "tags": [
-    "external-intake"
-   ],
-   "parentId": 8
-  },
-  {
-   "id": 10,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "action",
-   "impact": {},
-   "correlationId": 5,
-   "visibility": "journal",
-   "source": {
-    "kind": "resolution",
-    "id": "RDX_SCIENTISTS_OPEN_IP_TRADE",
-    "owner": "red"
-   },
-   "player": "red",
-   "category": "political-phase",
-   "parentId": 5
-  },
-  {
-   "id": 11,
-   "generation": 1,
-   "phase": "parliament",
-   "type": "cards-drawn",
-   "impact": {
-    "cardsDrawn": 2
-   },
-   "correlationId": 5,
-   "visibility": "analytics",
-   "source": {
-    "kind": "resolution",
-    "id": "RDX_SCIENTISTS_OPEN_IP_TRADE",
-    "owner": "red"
-   },
-   "player": "red",
-   "tags": [
-    "external-intake"
-   ],
-   "parentId": 10
   }
  ],
- "eventSeq": 11,
+ "eventSeq": 5,
  "gameOptions": {
   "altVenusBoard": false,
   "aresExtension": false,
@@ -1563,7 +906,7 @@
   "customColoniesList": [],
   "customCorporationsList": [
    "Teractor",
-   "Aridor"
+   "ThorGate"
   ],
   "customPreludes": [],
   "customProjectCards": [],
@@ -1624,14 +967,8 @@
   "twoCorpsVariant": false,
   "skipInitialCardSelection": false
  },
- "generation": 2,
- "globalsPerGeneration": [
-  {
-   "temperature": -30,
-   "oxygen": 0,
-   "oceans": 0
-  }
- ],
+ "generation": 1,
+ "globalsPerGeneration": [],
  "id": "game-id",
  "initialDraftIteration": 1,
  "lastSaveId": 0,
@@ -1642,7 +979,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Thermal Flux Drift",
+ "name": "Synthetic Matter Beam",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1655,7 +992,7 @@
    "hasIncreasedTerraformRatingThisGeneration": false,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 60,
+   "megaCredits": 30,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -1701,7 +1038,7 @@
    "cardsInHand": [
     "Mangrove",
     "Adaptation Technology",
-    "Insulation"
+    "Tardigrades"
    ],
    "pendingCardIntakes": [],
    "preludeCardsInHand": [],
@@ -1711,6 +1048,10 @@
      "name": "Teractor",
      "resourceCount": 0,
      "isDisabled": false
+    },
+    {
+     "name": "Biological Simulations",
+     "resourceCount": 2
     }
    ],
    "draftedCards": [],
@@ -1739,16 +1080,14 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 4,
-    "startedAt": 1791592446090,
-    "running": false,
+    "sumElapsed": 0,
+    "startedAt": 1791592445297,
+    "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791592446091
+    "lastStoppedAt": 1791592445297
    },
    "actionsTakenThisGame": 1,
-   "victoryPointsByGeneration": [
-    20
-   ],
+   "victoryPointsByGeneration": [],
    "totalDelegatesPlaced": 0,
    "underworldData": {
     "corruption": 0,
@@ -1768,13 +1107,13 @@
   },
   {
    "id": "p-player2-id",
-   "pickedCorporationCard": "Aridor",
+   "pickedCorporationCard": "ThorGate",
    "initialCardSelectionDone": true,
    "terraformRating": 20,
    "hasIncreasedTerraformRatingThisGeneration": false,
    "terraformRatingFromCards": 0,
    "terraformRatingSources": [],
-   "megaCredits": 50,
+   "megaCredits": 30,
    "megaCreditProduction": 0,
    "steel": 0,
    "steelProduction": 0,
@@ -1783,7 +1122,7 @@
    "plants": 0,
    "plantProduction": 0,
    "energy": 0,
-   "energyProduction": 0,
+   "energyProduction": 1,
    "heat": 0,
    "heatProduction": 0,
    "titaniumValue": 3,
@@ -1799,11 +1138,9 @@
    "bonusActionsGranted": 0,
    "pendingBonusGains": [],
    "actionsThisGeneration": [],
-   "pendingInitialActions": [
-    "Aridor"
-   ],
+   "pendingInitialActions": [],
    "dealtCorporationCards": [
-    "Aridor"
+    "ThorGate"
    ],
    "dealtPreludeCards": [],
    "dealtCeoCards": [],
@@ -1821,22 +1158,16 @@
    ],
    "cardsInHand": [
     "Lake Marineris",
-    "Decomposers",
-    "Trees",
-    "Fish",
-    "Adapted Lichen",
-    "Ice Moon Colony",
-    "Nitrite Reducing Bacteria"
+    "Decomposers"
    ],
    "pendingCardIntakes": [],
    "preludeCardsInHand": [],
    "ceoCardsInHand": [],
    "playedCards": [
     {
-     "name": "Aridor",
+     "name": "ThorGate",
      "resourceCount": 0,
-     "isDisabled": false,
-     "allTags": []
+     "isDisabled": false
     }
    ],
    "draftedCards": [],
@@ -1865,17 +1196,15 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1791592446091,
-    "running": true,
+    "sumElapsed": 0,
+    "startedAt": 1791592445297,
+    "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791592446091
+    "lastStoppedAt": 1791592445297
    },
-   "actionsTakenThisGame": 2,
-   "victoryPointsByGeneration": [
-    20
-   ],
-   "totalDelegatesPlaced": 1,
+   "actionsTakenThisGame": 0,
+   "victoryPointsByGeneration": [],
+   "totalDelegatesPlaced": 0,
    "underworldData": {
     "corruption": 0,
     "tokens": []
@@ -1935,6 +1264,14 @@
  },
  "projectDeck": {
   "drawPile": [
+   "Sky Docks",
+   "Tropical Resort",
+   "Phobos Space Haven",
+   "Inventors' Guild",
+   "Political Donation",
+   "Security Fleet",
+   "Arboretum",
+   "Anti-Gravity Technology",
    "Magnetic Field Generators",
    "Import of Advanced GHG",
    "Micro-Mills",
@@ -2158,7 +1495,6 @@
    "Trans-Neptune Probe",
    "Luna Governor",
    "Greenhouses",
-   "Biological Simulations",
    "Media Group",
    "Red Lawyers",
    "Fish",
@@ -2190,14 +1526,16 @@
    "Sponsored Settlement",
    "Heather",
    "Advanced Alloys",
-   "Tardigrades",
    "Convoy From Europa",
    "Open City",
    "Towing A Comet",
    "Caretaker Contract",
    "Solar Reflectors",
    "Corona Extractor",
-   "Colonizer Training Camp"
+   "Colonizer Training Camp",
+   "Nitrite Reducing Bacteria",
+   "Ice Moon Colony",
+   "Insulation"
   ],
   "discardPile": [
    "Insects",
@@ -2215,15 +1553,7 @@
    "Interplanetary Colony Ship",
    "Mass Converter",
    "Reds News Outlet",
-   "Ecological Zone",
-   "Sky Docks",
-   "Tropical Resort",
-   "Phobos Space Haven",
-   "Inventors' Guild",
-   "Political Donation",
-   "Security Fleet",
-   "Arboretum",
-   "Anti-Gravity Technology"
+   "Ecological Zone"
   ]
  },
  "researchedPlayers": [],
@@ -2257,71 +1587,51 @@
   "version": 1,
   "slots": [
    {
-    "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-    "votes": [
-     {
-      "owner": "NEUTRAL",
-      "seq": 2
-     }
-    ]
-   },
-   {
-    "instance": "RDX_UNITY_COLONY_CONTEST#0",
-    "votes": [
-     {
-      "owner": "NEUTRAL",
-      "seq": 3
-     }
-    ]
-   },
-   {
     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-    "votes": [
-     {
-      "owner": "NEUTRAL",
-      "seq": 4
-     }
-    ]
+    "votes": []
+   },
+   {
+    "instance": "RDX_DEV_SCIENCE#0",
+    "votes": []
+   },
+   {
+    "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
+    "votes": []
    }
   ],
-  "enacted": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
   "quest": {
    "definition": {
     "goal": {
-     "kind": "cardsPlayed",
-     "cardType": "automated"
+     "kind": "production",
+     "resource": "heat"
     },
-    "count": 2
+    "count": 3
    },
-   "source": "RDX_SCIENTISTS_OPEN_IP_TRADE",
-   "generation": 2,
+   "source": "starter",
+   "generation": 1,
    "progress": {}
   },
   "lobby": [
    "p-player1-id",
    "p-player2-id"
   ],
-  "voteSeq": 4,
-  "popularSupport": {
-   "Greens": 0,
-   "Industrialists": 0,
-   "Reds": 1,
-   "Mars First": 1,
-   "Unity": 0
-  },
-  "agenda": {
-   "p-player1-id": 1,
-   "p-player2-id": 3
-  },
+  "voteSeq": 0,
+  "popularSupport": {},
+  "agenda": {},
   "influenceBonus": {},
   "grantedEffects": {},
   "partyActionUses": {},
   "resolutionActionUses": {},
   "deck": [
+   "RDX_SCIENTISTS_JOINT_RESEARCH#0",
+   "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
+   "RDX_UNITY_COLONY_CONTEST#0",
+   "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
    "RDX_UNITY_UNITY_BUDGET#0",
    "RDX_GREENS_GENEROUS_FUNDING#0",
    "RDX_GREENS_GREENS_BUDGET#0",
    "RDX_GREENS_MOHOLE_CONTEST#0",
+   "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
    "RDX_MARS_SKYSCRAPERS#0",
    "RDX_MARS_DEVELOPMENT_CRAZE#0",
    "RDX_MARS_URBAN_RESEARCH#0",
@@ -2340,365 +1650,13 @@
    "RDX_GREENS_CLIMATE_RESEARCH#0",
    "RDX_MARS_URBAN_DEVELOPMENT#0",
    "RDX_UNITY_JOVIAN_TAX_RIGHTS#0",
-   "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0"
+   "RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET#0",
+   "RDX_UNITY_TRADE_INDUSTRIES#0"
   ],
   "discard": [
-   "RDX_INDUSTRIALISTS_MINING_INCENTIVES#0",
-   "RDX_MARS_ARCHITECTURE_AWARD#0",
-   "RDX_UNITY_TRADE_INDUSTRIES#0",
-   "RDX_SCIENTISTS_JOINT_RESEARCH#0",
-   "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0"
+   "RDX_INDUSTRIALISTS_MINING_INCENTIVES#0"
   ],
-  "lastPhase": {
-   "generation": 1,
-   "final": false,
-   "winner": {
-    "instance": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
-    "votes": 1,
-    "player": "p-player2-id",
-    "slot": 0
-   },
-   "support": [
-    {
-     "party": "Greens",
-     "gained": 1,
-     "total": 1,
-     "reason": "absent"
-    },
-    {
-     "party": "Industrialists",
-     "gained": 1,
-     "total": 1,
-     "reason": "absent"
-    },
-    {
-     "party": "Reds",
-     "gained": 1,
-     "total": 1,
-     "reason": "absent"
-    },
-    {
-     "party": "Mars First",
-     "gained": 1,
-     "total": 1,
-     "reason": "lost"
-    },
-    {
-     "party": "Unity",
-     "gained": 1,
-     "total": 1,
-     "reason": "lost"
-    }
-   ],
-   "enacted": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
-   "refreshed": [
-    {
-     "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-     "neutralVotes": 1
-    },
-    {
-     "instance": "RDX_UNITY_COLONY_CONTEST#0",
-     "neutralVotes": 1
-    },
-    {
-     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-     "neutralVotes": 1
-    }
-   ],
-   "lobbyRefilled": [
-    "p-player2-id"
-   ],
-   "seq": 1,
-   "correlationId": 5,
-   "agenda": {
-    "player": "p-player2-id",
-    "from": 2,
-    "to": 3
-   },
-   "returned": [
-    {
-     "owner": "p-player2-id",
-     "count": 1
-    }
-   ],
-   "outcomes": [
-    {
-     "player": "p-player1-id",
-     "step": "draw",
-     "part": "effect",
-     "kind": "cards",
-     "effect": "draw",
-     "amount": 1,
-     "drawn": 1,
-     "intake": 1,
-     "influence": 1
-    },
-    {
-     "player": "p-player2-id",
-     "step": "draw",
-     "part": "effect",
-     "kind": "cards",
-     "effect": "draw",
-     "amount": 2,
-     "drawn": 2,
-     "intake": 1,
-     "influence": 2
-    }
-   ],
-   "renewal": [
-    {
-     "kind": "leave",
-     "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
-     "slot": 1,
-     "returned": []
-    },
-    {
-     "kind": "leave",
-     "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-     "slot": 2,
-     "returned": []
-    },
-    {
-     "kind": "reject",
-     "instance": "RDX_SCIENTISTS_JOINT_RESEARCH#0",
-     "slot": 0,
-     "reason": "party-enacted"
-    },
-    {
-     "kind": "deal",
-     "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-     "slot": 0,
-     "source": "deck"
-    },
-    {
-     "kind": "support",
-     "party": "Industrialists",
-     "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-     "count": 1
-    },
-    {
-     "kind": "deal",
-     "instance": "RDX_UNITY_COLONY_CONTEST#0",
-     "slot": 1,
-     "source": "deck"
-    },
-    {
-     "kind": "support",
-     "party": "Unity",
-     "instance": "RDX_UNITY_COLONY_CONTEST#0",
-     "count": 1
-    },
-    {
-     "kind": "reject",
-     "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-     "slot": 2,
-     "reason": "party-in-area"
-    },
-    {
-     "kind": "deal",
-     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-     "slot": 2,
-     "source": "deck"
-    },
-    {
-     "kind": "support",
-     "party": "Greens",
-     "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-     "count": 1
-    },
-    {
-     "kind": "lobby",
-     "player": "p-player2-id"
-    }
-   ],
-   "discarded": [
-    "RDX_MARS_ARCHITECTURE_AWARD#0",
-    "RDX_UNITY_TRADE_INDUSTRIES#0"
-   ]
-  },
-  "phaseSeq": 1,
-  "phaseHistory": [
-   {
-    "generation": 1,
-    "final": false,
-    "winner": {
-     "instance": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
-     "votes": 1,
-     "player": "p-player2-id",
-     "slot": 0
-    },
-    "support": [
-     {
-      "party": "Greens",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Industrialists",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Reds",
-      "gained": 1,
-      "total": 1,
-      "reason": "absent"
-     },
-     {
-      "party": "Mars First",
-      "gained": 1,
-      "total": 1,
-      "reason": "lost"
-     },
-     {
-      "party": "Unity",
-      "gained": 1,
-      "total": 1,
-      "reason": "lost"
-     }
-    ],
-    "enacted": "RDX_SCIENTISTS_OPEN_IP_TRADE#0",
-    "refreshed": [
-     {
-      "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-      "neutralVotes": 1
-     },
-     {
-      "instance": "RDX_UNITY_COLONY_CONTEST#0",
-      "neutralVotes": 1
-     },
-     {
-      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-      "neutralVotes": 1
-     }
-    ],
-    "lobbyRefilled": [
-     "p-player2-id"
-    ],
-    "seq": 1,
-    "correlationId": 5,
-    "agenda": {
-     "player": "p-player2-id",
-     "from": 2,
-     "to": 3
-    },
-    "returned": [
-     {
-      "owner": "p-player2-id",
-      "count": 1
-     }
-    ],
-    "outcomes": [
-     {
-      "player": "p-player1-id",
-      "step": "draw",
-      "part": "effect",
-      "kind": "cards",
-      "effect": "draw",
-      "amount": 1,
-      "drawn": 1,
-      "intake": 1,
-      "influence": 1
-     },
-     {
-      "player": "p-player2-id",
-      "step": "draw",
-      "part": "effect",
-      "kind": "cards",
-      "effect": "draw",
-      "amount": 2,
-      "drawn": 2,
-      "intake": 1,
-      "influence": 2
-     }
-    ],
-    "renewal": [
-     {
-      "kind": "leave",
-      "instance": "RDX_MARS_ARCHITECTURE_AWARD#0",
-      "slot": 1,
-      "returned": []
-     },
-     {
-      "kind": "leave",
-      "instance": "RDX_UNITY_TRADE_INDUSTRIES#0",
-      "slot": 2,
-      "returned": []
-     },
-     {
-      "kind": "reject",
-      "instance": "RDX_SCIENTISTS_JOINT_RESEARCH#0",
-      "slot": 0,
-      "reason": "party-enacted"
-     },
-     {
-      "kind": "deal",
-      "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-      "slot": 0,
-      "source": "deck"
-     },
-     {
-      "kind": "support",
-      "party": "Industrialists",
-      "instance": "RDX_INDUSTRIALISTS_METAL_RESEARCH#0",
-      "count": 1
-     },
-     {
-      "kind": "deal",
-      "instance": "RDX_UNITY_COLONY_CONTEST#0",
-      "slot": 1,
-      "source": "deck"
-     },
-     {
-      "kind": "support",
-      "party": "Unity",
-      "instance": "RDX_UNITY_COLONY_CONTEST#0",
-      "count": 1
-     },
-     {
-      "kind": "reject",
-      "instance": "RDX_INDUSTRIALISTS_VERTICAL_INTEGRATION#0",
-      "slot": 2,
-      "reason": "party-in-area"
-     },
-     {
-      "kind": "deal",
-      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-      "slot": 2,
-      "source": "deck"
-     },
-     {
-      "kind": "support",
-      "party": "Greens",
-      "instance": "RDX_GREENS_AQUIFER_CONTEST#0",
-      "count": 1
-     },
-     {
-      "kind": "lobby",
-      "player": "p-player2-id"
-     }
-    ],
-    "discarded": [
-     "RDX_MARS_ARCHITECTURE_AWARD#0",
-     "RDX_UNITY_TRADE_INDUSTRIES#0"
-    ]
-   }
-  ],
-  "lastAdvance": {
-   "seq": 1,
-   "player": "p-player2-id",
-   "from": 2,
-   "to": 3,
-   "steps": [
-    {
-     "to": 3
-    }
-   ],
-   "reason": "phase",
-   "generation": 1
-  },
+  "phaseSeq": 0,
   "botMode": "politics"
  }
 }
