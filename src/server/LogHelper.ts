@@ -8,6 +8,7 @@ import {CardResource} from '../common/CardResource';
 import {GlobalParameter} from '../common/GlobalParameter';
 import {From} from './logs/From';
 import {MessageBuilder} from './logs/MessageBuilder';
+import {SpaceType} from '@/common/boards/SpaceType';
 
 // Appends a card's resource as a premium icon token (`${2}` in the templates
 // below). The resource WORD is replaced by its sprite, so plural handling is
@@ -57,7 +58,7 @@ export class LogHelper {
    * the water it stands on is the whole point of the card.
    */
   static logTilePlacementOverOcean(player: IPlayer, space: Space) {
-    if ((space.x === -1 && space.y === -1) || player.name === 'neutral') {
+    if (space.spaceType === SpaceType.COLONY || player.name === 'neutral') {
       return;
     }
     player.game.log('${0} placed a city tile on top of the ocean tile · ${1}', (b) => b.player(player).space(space));
@@ -84,7 +85,7 @@ export class LogHelper {
 
   static logBoardTileAction(player: IPlayer, space: Space, description: string, action: string = 'placed') {
     // Skip off-grid tiles
-    if (space.x === -1 && space.y === -1) {
+    if (space.spaceType === SpaceType.COLONY) {
       return;
     }
     // Skip solo play random tiles
