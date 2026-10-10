@@ -451,6 +451,22 @@ describe('placementDossier', () => {
       expect(identity({placementType: 'city-move', placementEffect: 'move'}).tileType, 'the kind alone still draws a city').to.equal(TileType.CITY);
     });
 
+    it('AN OCEAN\'S move (TR39): the object is the ocean that travels — the kind titles «Ocean», draws the ocean, and the SOURCE reading is «This ocean»', () => {
+      const ocean = identity({placementType: 'ocean-move', placementEffect: 'move', tileType: TileType.OCEAN}, ru);
+      expect(ocean.title).to.equal(RU['Ocean']);
+      expect(ocean.tileType).to.equal(TileType.OCEAN);
+      expect(identity({placementType: 'ocean-move', placementEffect: 'move'}).tileType, 'the kind alone still draws an ocean').to.equal(TileType.OCEAN);
+      const p = preview({
+        kind: 'ocean-move', placesTile: false,
+        ruleFacts: [fact({id: 'move-reach', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'}, title: 'Spaces to move to: ${0}', params: ['4'], spaces: ['06']})],
+      });
+      const sections = dossierSections(p);
+      expect(sections.map((s) => s.key)).to.deep.equal(['source']);
+      expect(sections[0].titleKey).to.equal('This ocean');
+      expect(RU['This ocean'], 'missing RU translation').to.equal('Этот океан');
+      expect(dossierSections(preview({kind: 'ocean-move', placesTile: true, ruleFacts: [freed]}))[0].titleKey, 'the destination reading keeps «Former space»').to.equal('Former space');
+    });
+
     it('the DESTINATION reading: the former cell is a section of its own, between «others» and the progress', () => {
       const p = preview({
         immediateFacts: [fact({id: 'g'})],

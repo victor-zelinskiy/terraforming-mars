@@ -125,7 +125,7 @@
                            :placementShape="placementShape"
                            :cellPreview="selectedCellPreview"
                            :legalSpaces="placementSpaceModel?.spaces ?? []"
-                           :movePick="placementMoveLevelNow === 'city'"
+                           :movePick="placementMoveLevelNow === 'source'"
                            :moveFrom="placementMoveFrom"
                            :inspecting="consoleState.inspecting" />
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
@@ -2077,6 +2077,8 @@ import {
   unlockPlacementCell,
 } from '@/client/console/tilePlacement/placementFlow';
 import {
+  MOVE_SOURCE_BANNER,
+  moveFamily,
   moveFirstDestination,
   moveFocusTile,
   moveLevelPrompt,
@@ -2086,6 +2088,7 @@ import {
   placementMoveState,
   putDownMoveSource,
   resetPlacementMove,
+  PlacementMoveFamily,
   PlacementMoveLevel,
 } from '@/client/console/tilePlacement/placementMove';
 import {placementCommands} from '@/client/console/tilePlacement/placementCommands';
@@ -6098,11 +6101,15 @@ export default defineComponent({
       }
       return this.convertPlantsPrompt ?? this.taskSpacePrompt ?? this.stagedPlayPrompt;
     },
-    /** A move's level right now — `city` (which city leaves) / `cell` (where it lands); undefined for any other placement. */
+    /** A move's level right now — `source` (which tile leaves) / `cell` (where it lands); undefined for any other placement. */
     placementMoveLevelNow(): PlacementMoveLevel | undefined {
       return this.placementActive ? placementMoveLevel(this.placementRawSpaceModel, placementMoveState.from) : undefined;
     },
-    /** The city the player has LIFTED (its cell) — only while the prompt still offers it. */
+    /** A move's FAMILY — the words its levels speak (a city's, an ocean's) — by the prompt's own kind; undefined for any other placement. */
+    placementMoveFamilyNow(): PlacementMoveFamily | undefined {
+      return this.placementActive ? moveFamily(this.placementRawSpaceModel) : undefined;
+    },
+    /** The tile the player has LIFTED (its cell) — only while the prompt still offers it. */
     placementMoveFrom(): SpaceId | undefined {
       return this.placementMoveLevelNow === 'cell' ? placementMoveState.from : undefined;
     },
@@ -7037,9 +7044,9 @@ export default defineComponent({
         if (this.consoleState.freeRoam) {
           return translateText('Inspecting all cells');
         }
-        // A MOVE asks two things in turn — the banner names the one being asked.
+        // A MOVE asks two things in turn — the banner names the one being asked, in the family's words.
         const level = this.placementMoveLevelNow;
-        return translateText(level === 'city' ? 'Choose your city' :
+        return translateText(level === 'source' ? MOVE_SOURCE_BANNER[this.placementMoveFamilyNow ?? 'city'] :
           level === 'cell' ? 'Choose an adjacent space' : 'Choose a location on the board');
       }
       if (this.consoleState.fallbackActive) {
@@ -9259,6 +9266,7 @@ export default defineComponent({
           freeRoam: this.consoleState.freeRoam,
           sourceInspectable: this.placementSourceInspectable,
           moveLevel: this.placementMoveLevelNow,
+          moveFamily: this.placementMoveFamilyNow,
         });
       }
       if (this.consoleState.sale.active) {
@@ -14837,11 +14845,11 @@ export default defineComponent({
             this.showNotice('Cannot place here');
             return;
           }
-          // A MOVE's CITY LEVEL (Turmoil Redux TR14): A LIFTS the focused
-          // city — one press in BOTH confirm modes, pure presentation (nothing
-          // is sent; B puts it down). The legal set becomes that city's
-          // destinations and the pick continues as an ordinary placement.
-          if (this.placementMoveLevelNow === 'city') {
+          // A MOVE's SOURCE LEVEL (Turmoil Redux TR14 / TR39): A LIFTS the
+          // focused tile — one press in BOTH confirm modes, pure presentation
+          // (nothing is sent; B puts it down). The legal set becomes that
+          // tile's destinations and the pick continues as an ordinary placement.
+          if (this.placementMoveLevelNow === 'source') {
             pickUpMoveSource(targetId as SpaceId);
             return;
           }
@@ -15285,7 +15293,7 @@ export default defineComponent({
           unlockPlacementCell();
           return;
         }
-        // A MOVE with a city lifted: B puts it down — back to «which city»,
+        // A MOVE with a tile lifted: B puts it down — back to «which tile»,
         // still nothing sent. The whole-flow cancel is one more B away.
         if (this.placementMoveLevelNow === 'cell') {
           putDownMoveSource();

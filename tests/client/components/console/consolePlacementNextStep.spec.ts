@@ -86,6 +86,17 @@ describe('consolePlacementNextStep', () => {
     expect(row.full).to.equal('переселите свой город — на соседнюю незарезервированную клетку · прочие ограничения не действуют');
   });
 
+  it('an OCEAN MOVE (TR39) names itself: «перенесите тайл океана» — never «разместите тайл океана», the ocean icon kept', () => {
+    const move = step({placementType: 'ocean-move', tileType: TileType.OCEAN, constraint: 'to an adjacent space reserved for ocean or not reserved at all'});
+    const d = describeTilePlacement(move, ru);
+    expect(d.key).to.equal('Move an ocean tile');
+    expect(d.label).to.equal('перенесите тайл океана');
+    expect(d.tileType, 'the row still draws the ocean tile').to.equal(TileType.OCEAN);
+    expect(d.special).to.be.false;
+    const row = placementRow(move, ru, (text) => ru(typeof text === 'string' ? text : text.message));
+    expect(row.full).to.equal('перенесите тайл океана — на соседнюю клетку, отведённую под океан или не отведённую ни подо что');
+  });
+
   it('an OCEAN tile names its type', () => {
     const d = describeTilePlacement(step({placementType: 'ocean', tileType: TileType.OCEAN}), ru);
     expect(d.label).to.equal('разместите тайл океана');

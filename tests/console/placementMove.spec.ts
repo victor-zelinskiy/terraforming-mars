@@ -15,7 +15,7 @@ import {TileType} from '../../src/common/TileType';
 import {CardName} from '../../src/common/cards/CardName';
 import {SpaceId} from '../../src/common/Types';
 import {
-  isMovePrompt, moveFirstDestination, moveFocusTile, moveLevelPrompt, moveSourceOf, pickUpMoveSource,
+  MOVE_SOURCE_BANNER, isMovePrompt, moveFamily, moveFirstDestination, moveFocusTile, moveLevelPrompt, moveSourceOf, pickUpMoveSource,
   placementMoveLevel, placementMoveState, putDownMoveSource, resetPlacementMove,
 } from '../../src/client/console/tilePlacement/placementMove';
 import {placementCommands, PlacementCommandState} from '../../src/client/console/tilePlacement/placementCommands';
@@ -60,6 +60,40 @@ function plainPrompt(): SelectSpaceModel {
   return {type: 'space', title: 'Select space for city tile', buttonLabel: '', spaces: ['03'], placementType: 'city'};
 }
 
+/**
+ * AN OCEAN'S MOVE (TR39 Canyon Carving): two plain oceans — 10 (→ 03, 04, 11)
+ * and 20 (→ 11, 21) — nobody's, and one upgraded ocean that may not (22).
+ * The family is the prompt's `placementType`, never a title.
+ */
+function oceanMovePrompt(): SelectSpaceModel {
+  return {
+    type: 'space',
+    title: 'Move any ocean tile',
+    buttonLabel: '',
+    spaces: ['03', '04', '11', '21'],
+    illegalSpaces: [
+      {spaceId: '05', reason: 'not-adjacent-to-the-ocean'},
+      {spaceId: '10', reason: 'occupied'},
+      {spaceId: '12', reason: 'reserved-noctis'},
+      {spaceId: '20', reason: 'occupied'},
+      {spaceId: '22', reason: 'occupied'},
+    ],
+    placementType: 'ocean-move',
+    placementEffect: 'move',
+    tileType: TileType.OCEAN,
+    sourceCard: CardName.CANYON_CARVING,
+    tileMove: {
+      sources: [
+        {from: '10', tileType: TileType.OCEAN, tiers: 1, arrives: TileType.OCEAN, to: ['11', '04', '03'],
+          illegal: [{spaceId: '21', reason: 'not-adjacent-to-the-ocean'}]},
+        {from: '20', tileType: TileType.OCEAN, tiers: 1, arrives: TileType.OCEAN, to: ['21', '11'],
+          illegal: [{spaceId: '03', reason: 'not-adjacent-to-the-ocean'}, {spaceId: '04', reason: 'not-adjacent-to-the-ocean'}]},
+      ],
+      disabledSources: [{spaceId: '22', reason: 'upgraded-ocean'}],
+    },
+  };
+}
+
 const reasonOf = (prompt: SelectSpaceModel, id: SpaceId) => prompt.illegalSpaces?.find((e) => e.spaceId === id)?.reason;
 
 describe('placementMove', () => {
@@ -84,15 +118,15 @@ describe('placementMove', () => {
       expect(placementMoveLevel(plainPrompt(), '10')).is.undefined;
       expect(placementMoveLevel(undefined, '10')).is.undefined;
       expect(isMovePrompt(movePrompt())).is.true;
-      expect(placementMoveLevel(movePrompt(), undefined)).eq('city');
+      expect(placementMoveLevel(movePrompt(), undefined)).eq('source');
       expect(placementMoveLevel(movePrompt(), '10')).eq('cell');
-      expect(placementMoveLevel(movePrompt(), '22'), 'a city that cannot move offers no destinations').eq('city');
-      expect(placementMoveLevel(movePrompt(), '99'), 'a stale lift never opens the cell level').eq('city');
+      expect(placementMoveLevel(movePrompt(), '22'), 'a city that cannot move offers no destinations').eq('source');
+      expect(placementMoveLevel(movePrompt(), '99'), 'a stale lift never opens the cell level').eq('source');
       expect(moveSourceOf(movePrompt(), '20')?.card).eq(CardName.CAPITAL);
     });
 
     it('with no explicit argument the level reads the module\'s own lift', () => {
-      expect(placementMoveLevel(movePrompt())).eq('city');
+      expect(placementMoveLevel(movePrompt())).eq('source');
       pickUpMoveSource('20');
       expect(placementMoveLevel(movePrompt())).eq('cell');
     });
@@ -154,6 +188,38 @@ describe('placementMove', () => {
       }
     });
 
+    it('THE FAMILY is the prompt\'s own kind: a city\'s move, an ocean\'s move — and no family for a prompt that is not a move', () => {
+      expect(moveFamily(movePrompt())).eq('city');
+      expect(moveFamily(oceanMovePrompt())).eq('ocean');
+      expect(moveFamily(plainPrompt())).is.undefined;
+      expect(moveFamily(undefined)).is.undefined;
+      expect(MOVE_SOURCE_BANNER.city).eq('Choose your city');
+      expect(MOVE_SOURCE_BANNER.ocean).eq('Choose an ocean');
+    });
+
+    it('AN OCEAN\'S SOURCE level: the legal cells are the oceans that may move; an upgraded one states its reason; every other cell is «not an ocean tile» — never «not your city»', () => {
+      const level = moveLevelPrompt(oceanMovePrompt(), undefined, BOARD);
+      expect(placementMoveLevel(oceanMovePrompt(), undefined)).eq('source');
+      expect(level.spaces).deep.eq(['10', '20']);
+      expect(reasonOf(level, '22')).eq('upgraded-ocean');
+      for (const id of ['03', '04', '05', '11', '12', '21'] as const) {
+        expect(reasonOf(level, id), id).eq('not-an-ocean-tile');
+      }
+      expect(level.illegalSpaces?.some((e) => e.reason === 'not-your-city'), 'a city\'s word on the ocean\'s road').is.false;
+    });
+
+    it('AN OCEAN\'S CELL level: the lifted ocean\'s destinations, a sibling\'s cell with the ocean\'s reason, and an OCEAN lands', () => {
+      const level = moveLevelPrompt(oceanMovePrompt(), '10', BOARD);
+      expect(placementMoveLevel(oceanMovePrompt(), '10')).eq('cell');
+      expect(level.spaces).deep.eq(['11', '04', '03']);
+      expect(reasonOf(level, '21')).eq('not-adjacent-to-the-ocean');
+      expect(reasonOf(level, '12')).eq('reserved-noctis');
+      expect(level.tileType).eq(TileType.OCEAN);
+      expect(moveFocusTile(oceanMovePrompt(), undefined, '05'), 'any other cell names the family\'s own tile').eq(TileType.OCEAN);
+      expect(moveFocusTile(oceanMovePrompt(), '10', '11')).eq(TileType.OCEAN);
+      expect(moveFirstDestination(oceanMovePrompt(), '20')).eq('21');
+    });
+
     it('the level prompt never mutates the prompt it reads', () => {
       const prompt = movePrompt();
       const snapshot = JSON.stringify(prompt);
@@ -200,7 +266,7 @@ describe('placementMove', () => {
     });
 
     it('CITY level: A «Take the city», B the whole-flow cancel, R3 and L3 stand', () => {
-      const state: PlacementCommandState = {...base, moveLevel: 'city'};
+      const state: PlacementCommandState = {...base, moveLevel: 'source'};
       expect(labels(state)).deep.eq(['dpad:Navigate', 'confirm:Take the city', 'stickL:Source', 'stickR:All cells', 'back:Cancel placement']);
       // The same verb in single-press mode: lifting is one press in BOTH modes.
       expect(labels({...state, twoStep: false})[1]).eq('confirm:Take the city');
@@ -229,8 +295,24 @@ describe('placementMove', () => {
       }
     });
 
+    it('AN OCEAN\'S move speaks the ocean\'s words on every level — «Take the ocean», «Another ocean», «Move here», «Confirm the move», «Moving the ocean»', () => {
+      const ocean: PlacementCommandState = {...base, moveLevel: 'source', moveFamily: 'ocean'};
+      expect(labels(ocean)).deep.eq(['dpad:Navigate', 'confirm:Take the ocean', 'stickL:Source', 'stickR:All cells', 'back:Cancel placement']);
+      const cellLevel = {...ocean, moveLevel: 'cell' as const};
+      expect(labels(cellLevel)).deep.eq(['dpad:Navigate', 'confirm:Select cell', 'stickL:Source', 'stickR:All cells', 'back:Another ocean']);
+      expect(labels({...cellLevel, twoStep: false})[1]).eq('confirm:Move here');
+      expect(labels({...cellLevel, phase: 'locked'})).deep.eq(['confirm:Confirm the move', 'back:Change cell', 'stickL:Source']);
+      expect(placementCommands({...cellLevel, phase: 'committing'}).map((c) => c.label)).deep.eq(['Moving the ocean']);
+      // No city's word anywhere on the ocean's road.
+      for (const state of [ocean, cellLevel, {...cellLevel, twoStep: false}, {...cellLevel, phase: 'locked' as const}, {...cellLevel, phase: 'committing' as const}]) {
+        expect(labels(state).join(' ')).to.not.match(/city|relocat/i);
+      }
+      // …and the family defaults to the city's, so every caller that predates the ocean reads as before.
+      expect(labels({...base, moveLevel: 'source'})).deep.eq(labels({...base, moveLevel: 'source', moveFamily: 'city'}));
+    });
+
     it('the stick hints keep their explicit priorities — a verb with no other home is never the first to drop', () => {
-      for (const moveLevel of [undefined, 'city', 'cell'] as const) {
+      for (const moveLevel of [undefined, 'source', 'cell'] as const) {
         const cmds = placementCommands({...base, moveLevel});
         expect(cmds.find((c) => c.control === 'stickL')?.priority, String(moveLevel)).eq(1);
         expect(cmds.find((c) => c.control === 'stickR')?.priority, String(moveLevel)).eq(2);

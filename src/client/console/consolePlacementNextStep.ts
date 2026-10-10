@@ -71,6 +71,7 @@ const SINGULAR: Readonly<Record<PlacementShape, string>> = {
   special: 'Place the special tile',
   colony: 'Choose where to build a colony',
   move: 'Move your city',
+  moveOcean: 'Move an ocean tile',
 };
 const PLURAL: Readonly<Record<PlacementShape, string>> = {
   generic: 'Place ${0} tiles',
@@ -81,6 +82,8 @@ const PLURAL: Readonly<Record<PlacementShape, string>> = {
   colony: 'Choose where to build ${0} colonies',
   // Defensive only: no card moves several cities in one step today.
   move: 'Move ${0} of your cities',
+  // Defensive only: no card moves several oceans in one step today.
+  moveOcean: 'Move ${0} ocean tiles',
 };
 /** A special tile that HAS a name. Each language picks its own word order — EN
  *  reads «Place the Solar Farm special tile», RU «разместите особый тайл «…»» —
@@ -90,7 +93,7 @@ const SPECIAL_NAMED = 'Place the ${0} special tile';
  *  (`behavior.tile` carries no count), but the name must survive if one ever does. */
 const SPECIAL_NAMED_PLURAL = 'Place the ${0} special tile (×${1})';
 
-type PlacementShape = 'generic' | 'city' | 'ocean' | 'greenery' | 'special' | 'colony' | 'move';
+type PlacementShape = 'generic' | 'city' | 'ocean' | 'greenery' | 'special' | 'colony' | 'move' | 'moveOcean';
 
 /** The ordinary tiles that have their own localized noun («тайл океана»). */
 const ORDINARY_SHAPE: Partial<Record<TileType, PlacementShape>> = {
@@ -215,12 +218,16 @@ export function placementRow(
 }
 
 function shapeOf(step: BoardPlacementStep, special: boolean): PlacementShape {
-  // A MOVE (Turmoil Redux TR14 Re-settlement) — the step names itself
-  // (`placementType: 'city-move'`): a tile the player already owns travels, so
-  // «place the city tile» would promise a second city. The tile's icon stays
-  // the city's (the step still carries `tileType`).
+  // A MOVE — the step names itself by its kind: a city of the player's own
+  // (`'city-move'`, Turmoil Redux TR14 Re-settlement) or any plain ocean
+  // (`'ocean-move'`, TR39 Canyon Carving) TRAVELS, so «place the … tile» would
+  // promise a second tile. The tile's icon stays the tile's (the step still
+  // carries `tileType`).
   if (step.placementType === 'city-move') {
     return 'move';
+  }
+  if (step.placementType === 'ocean-move') {
+    return 'moveOcean';
   }
   // A colony is built off-Mars: no tile, so neither a name nor "special".
   if (step.tileType === undefined) {

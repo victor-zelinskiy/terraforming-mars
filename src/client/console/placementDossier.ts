@@ -122,6 +122,8 @@ const KIND_TITLE: Partial<Record<BoardPlacementKind, string>> = {
   'ocean-removal': 'Ocean',
   // A CITY MOVE (Re-settlement): the object is the city that travels (a Capital names itself by its tile).
   'city-move': 'City',
+  // AN OCEAN MOVE (Canyon Carving): the object is the ocean that travels.
+  'ocean-move': 'Ocean',
 };
 
 /**
@@ -231,7 +233,8 @@ export function swatchForKind(kind: BoardPlacementKind | undefined): TileType | 
   case 'city':
   case 'city-tier':
   case 'city-move': return TileType.CITY;
-  case 'ocean': return TileType.OCEAN;
+  case 'ocean':
+  case 'ocean-move': return TileType.OCEAN;
   default: return undefined;
   }
 }
@@ -772,11 +775,12 @@ export function dossierSections(
     out.push(section('tile', 'When placed adjacent', standing, ['rule']));
   }
   if (move.length > 0) {
-    // The SOURCE reading puts nothing down (`placesTile: false` — a city is only
-    // being pointed at): its facts are the city's own. The DESTINATION
-    // reading's are the cell the city leaves.
+    // The SOURCE reading puts nothing down (`placesTile: false` — a tile is only
+    // being pointed at): its facts are the tile's own, titled by the move's
+    // KIND (the preview's own `kind`, a server marker — «This city» / «This
+    // ocean»). The DESTINATION reading's are the cell the tile leaves.
     out.push(preview.placesTile === false ?
-      section('source', 'This city', move, ['rule']) :
+      section('source', preview.kind === 'ocean-move' ? 'This ocean' : 'This city', move, ['rule']) :
       section('departure', 'Former space', move, ['rule']));
   }
   const progress = preview.progressFacts ?? [];

@@ -718,8 +718,9 @@ export type VerifiedMove = {
  * THE MOVE's proof — exactly the declared pair, nothing looser:
  *   B (`to`)   EMPTY → a city of the owner who held A; a tile that left whole
  *              is the SAME tile (a Capital stays the Capital), a stack's top
- *              tier lands as a plain city;
- *   A (`from`) a city → EMPTY, or the same city one tier lower.
+ *              tier lands as a plain city; for an OCEAN (TR39) — a plain ocean
+ *              of nobody's, as the one that left;
+ *   A (`from`) a city → EMPTY, or the same city one tier lower; an ocean → EMPTY.
  * Anything else (the destination was not empty, the owner differs, the source
  * did not change, a hazard on either side) is not this move.
  */
@@ -736,10 +737,19 @@ export function verifyMove(
   if (a === undefined || a2 === undefined || b === undefined || b2 === undefined || from === to) {
     return undefined;
   }
-  if (a.tileType === undefined || !CITY_TILES.has(a.tileType) || a.color === undefined) {
+  if (a.tileType === undefined || b.tileType !== undefined || b2.tileType === undefined) {
     return undefined;
   }
-  if (b.tileType !== undefined || b2.tileType === undefined || !CITY_TILES.has(b2.tileType) || b2.color !== a.color) {
+  // AN OCEAN (TR39 Canyon Carving): a plain ocean of NOBODY'S left A whole and the same plain ocean stands on B —
+  // nobody's again. No owner rides it (there is no cube on the proxy), no stack exists for it.
+  if (a.tileType === TileType.OCEAN) {
+    return a.color === undefined && a2.tileType === undefined && b2.tileType === TileType.OCEAN && b2.color === undefined && (a.stackHeight ?? 1) === 1 ?
+      {tileType: TileType.OCEAN, color: undefined, moves: {from: a.id, tileType: TileType.OCEAN, color: undefined}} : undefined;
+  }
+  if (!CITY_TILES.has(a.tileType) || a.color === undefined) {
+    return undefined;
+  }
+  if (!CITY_TILES.has(b2.tileType) || b2.color !== a.color) {
     return undefined;
   }
   const before = a.stackHeight ?? 1;

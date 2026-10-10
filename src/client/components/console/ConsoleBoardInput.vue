@@ -471,12 +471,13 @@ export default defineComponent({
       this.wireBoard();
     },
     onTileSelected(tile: HTMLElement) {
-      // A MOVE's CITY LEVEL (Turmoil Redux TR14): the click LIFTS the city —
-      // one press of pure presentation in BOTH confirm modes (nothing is sent,
-      // B puts it down). The legal set then becomes that city's destinations
-      // (the `playerinput.spaces` watcher re-hangs the wiring), and from there
-      // the pick is an ordinary placement: lock → confirm, or one press.
-      if (placementMoveLevel(this.playerinput) === 'city') {
+      // A MOVE's SOURCE LEVEL (Turmoil Redux TR14 / TR39): the click LIFTS the
+      // tile — one press of pure presentation in BOTH confirm modes (nothing is
+      // sent, B puts it down). The legal set then becomes that tile's
+      // destinations (the `playerinput.spaces` watcher re-hangs the wiring),
+      // and from there the pick is an ordinary placement: lock → confirm, or
+      // one press.
+      if (placementMoveLevel(this.playerinput) === 'source') {
         const spaceId = tile.getAttribute('data_space_id') as SpaceId | null;
         if (spaceId !== null && placementFlowState.phase !== 'committing') {
           pickUpMoveSource(spaceId);

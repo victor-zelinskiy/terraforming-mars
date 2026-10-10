@@ -14,22 +14,25 @@
  * bar; a NON-cancellable B is not an action, so it is not a hint (the panel
  * and the B-toast explain a mandatory placement).
  *
- * A MOVE (Turmoil Redux TR14 Re-settlement — `moveLevel`) says the same four
- * things in its own words — the tile is not placed, it is RELOCATED — and
- * adds a level of its own in front of the cell: which city.
+ * A MOVE (Turmoil Redux TR14 Re-settlement — a city; TR39 Canyon Carving —
+ * an ocean: `moveLevel` + `moveFamily`) says the same four things in its own
+ * words — the tile is not placed, it is RELOCATED — and adds a level of its
+ * own in front of the cell: which tile. The words are the FAMILY's (the
+ * prompt's `placementType`, a server marker): a city is «переселяется», an
+ * ocean «переносится»; one family's verb on the other's road is a lie.
  *
- *   city level   A «Взять город» · B «Отменить размещение» · R3 · L3
- *   cell level   A «Выбрать клетку» («Переселить сюда» in single-press mode)
- *                · B «Другой город» — ONE level back, mandatory or not
- *   locked       A «Подтвердить переселение» · B «Изменить клетку»
- *   committing   the status «Переселение…», no live verb
+ *   source level  A «Взять город» / «Взять океан» · B «Отменить размещение» · R3 · L3
+ *   cell level    A «Выбрать клетку» («Переселить сюда» / «Перенести сюда» in single-press mode)
+ *                 · B «Другой город» / «Другой океан» — ONE level back, mandatory or not
+ *   locked        A «Подтвердить переселение» / «Подтвердить перенос» · B «Изменить клетку»
+ *   committing    the status «Переселение…» / «Перенос…», no live verb
  *
  * No button is ever named here: the controls are semantic (`confirm`, `back`,
  * `stickL` …) and the bar draws their glyphs.
  */
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import type {PlacementFlowPhase} from '@/client/console/tilePlacement/placementFlow';
-import type {PlacementMoveLevel} from '@/client/console/tilePlacement/placementMove';
+import type {PlacementMoveFamily, PlacementMoveLevel} from '@/client/console/tilePlacement/placementMove';
 
 export type PlacementCommandState = {
   /** The two-phase confirm machine's phase (`placementFlow.ts`). */
@@ -46,34 +49,56 @@ export type PlacementCommandState = {
   sourceInspectable: boolean;
   /** A move's level — undefined for every other placement. */
   moveLevel?: PlacementMoveLevel;
+  /** A move's family — the words the levels speak. Defaults to the city's (the family that existed first). */
+  moveFamily?: PlacementMoveFamily;
+};
+
+/** The move's verbs, per family — English i18n keys. */
+type MoveWords = {
+  /** A on the source level: lift the tile. */
+  take: string;
+  /** B on the cell level: put the tile down, pick another. */
+  another: string;
+  /** A on the cell level in single-press mode: commit here. */
+  here: string;
+  /** A on the locked cell: the second half of the decision. */
+  confirm: string;
+  /** The commit on the wire — a status, not a verb. */
+  busy: string;
+};
+
+const MOVE_WORDS: Readonly<Record<PlacementMoveFamily, MoveWords>> = {
+  city: {take: 'Take the city', another: 'Another city', here: 'Relocate here', confirm: 'Confirm relocation', busy: 'Relocating the city'},
+  ocean: {take: 'Take the ocean', another: 'Another ocean', here: 'Move here', confirm: 'Confirm the move', busy: 'Moving the ocean'},
 };
 
 export function placementCommands(state: PlacementCommandState): Array<ConsoleCommand> {
   const move = state.moveLevel !== undefined;
+  const words = MOVE_WORDS[state.moveFamily ?? 'city'];
   const source: Array<ConsoleCommand> = state.sourceInspectable ? [{control: 'stickL', label: 'Source', priority: 1}] : [];
 
   // A COMMIT ON THE WIRE: one calm status, no live verbs — every press is
   // absorbed by the flow anyway, and the bar must say so.
   if (state.phase === 'committing') {
-    return [{control: 'confirm', label: move ? 'Relocating the city' : 'Placing the tile', enabled: false}];
+    return [{control: 'confirm', label: move ? words.busy : 'Placing the tile', enabled: false}];
   }
   // THE LOCKED PHASE: the bar relabels to the second half of the decision — A
   // confirms THE choice, B steps back to cell choice. The whole-flow cancel
   // stays further B's away (the back hierarchy is one level per press).
   if (state.phase === 'locked') {
     return [
-      {control: 'confirm', label: move ? 'Confirm relocation' : 'Confirm placement', enabled: true, highlight: true},
+      {control: 'confirm', label: move ? words.confirm : 'Confirm placement', enabled: true, highlight: true},
       {control: 'back', label: 'Change cell'},
       ...source,
     ];
   }
   const roam: ConsoleCommand = {control: 'stickR', label: state.freeRoam ? 'Available only' : 'All cells', priority: 2};
-  // A MOVE's CITY LEVEL: A lifts the focused city — one press in both confirm
+  // A MOVE's SOURCE LEVEL: A lifts the focused tile — one press in both confirm
   // modes, pure presentation; B is the whole-flow cancel.
-  if (state.moveLevel === 'city') {
+  if (state.moveLevel === 'source') {
     return [
       {control: 'dpad', label: 'Navigate'},
-      {control: 'confirm', label: 'Take the city', enabled: state.legal, highlight: state.legal},
+      {control: 'confirm', label: words.take, enabled: state.legal, highlight: state.legal},
       // L3 — the SOURCE card fullscreen, the same verb it carries on every other surface in the shell.
       ...source,
       roam,
@@ -84,7 +109,7 @@ export function placementCommands(state: PlacementCommandState): Array<ConsoleCo
     {control: 'dpad', label: 'Navigate'},
     {
       control: 'confirm',
-      label: state.twoStep ? 'Select cell' : (move ? 'Relocate here' : 'Place here'),
+      label: state.twoStep ? 'Select cell' : (move ? words.here : 'Place here'),
       enabled: state.legal,
       highlight: state.legal,
     },
@@ -92,8 +117,8 @@ export function placementCommands(state: PlacementCommandState): Array<ConsoleCo
     roam,
   ];
   if (state.moveLevel === 'cell') {
-    // A city is lifted: B is ONE level — it stands back on its cell, whether or not the flow can be cancelled.
-    cmds.push({control: 'back', label: 'Another city'});
+    // A tile is lifted: B is ONE level — it stands back on its cell, whether or not the flow can be cancelled.
+    cmds.push({control: 'back', label: words.another});
   } else if (state.cancellable) {
     cmds.push({control: 'back', label: 'Cancel placement'});
   }

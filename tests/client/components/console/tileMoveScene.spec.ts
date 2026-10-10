@@ -5,7 +5,7 @@ import {SpaceId} from '@/common/Types';
 import {TileType} from '@/common/TileType';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {
-  verifyPlacement, verifyMove, applyVacatePreview, applySpacePreview,
+  verifyPlacement, verifyMove, applyVacatePreview, applySpacePreview, departingCubePose,
   movePlan, moveLiftPose, moveCarryPose, moveLandPose, moveShadowAt, moveSourceRect, moveSceneMs,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, MOVE_LIFT_PX, MOVE_CARRY_SCALE, MOVE_VACATED_T, MOVE_ARC_RISE, MOVE_DESCENT_T,
   stackLandingRect, STACK_SCALE, BONUS_PRELIFT_START_T,
@@ -161,6 +161,22 @@ describe('TR14 Re-settlement — the MOVE scene', () => {
       const three = stackMove(3);
       const collapsed = [space(A, {tileType: TileType.CITY, color: 'red'}), three.next[1]];
       expect(verifyMove(three.prev, collapsed, A, B), 'a stack loses exactly ONE tier to a move').is.undefined;
+    });
+
+    it('AN OCEAN (TR39): a plain ocean of nobody\'s left A whole and stands on B — no owner on the proxy, nothing looser', () => {
+      const prev = [space(A, {tileType: TileType.OCEAN}), space(B), space('12')];
+      const next = [space(A), space(B, {tileType: TileType.OCEAN}), space('12')];
+      expect(verifyPlacement(prev, next, B, {movedFrom: A})).deep.eq({
+        tileType: TileType.OCEAN, color: undefined, moves: {from: A, tileType: TileType.OCEAN, color: undefined},
+      });
+      // The cube pose of a tile nobody owns is no cube at all.
+      expect(departingCubePose(undefined, {x: 0, y: 0, w: 46, h: 51})).is.undefined;
+      // An ocean that «arrived» owned, or as another tile, is not this move. (An Ocean City is a CITY tile of its owner —
+      // the city's own pair proof reads it, as the server's rule for it would; the server never makes that move.)
+      expect(verifyMove(prev, [space(A), space(B, {tileType: TileType.OCEAN, color: 'red'}), space('12')], A, B), 'an owned ocean').is.undefined;
+      expect(verifyMove(prev, [space(A), space(B, {tileType: TileType.GREENERY, color: 'red'}), space('12')], A, B), 'not an ocean').is.undefined;
+      expect(verifyMove(prev, [space(A, {tileType: TileType.OCEAN}), space(B, {tileType: TileType.OCEAN}), space('12')], A, B), 'A did not change').is.undefined;
+      expect(verifyMove([space(A, {tileType: TileType.OCEAN}), space(B, {tileType: TileType.OCEAN}), space('12')], next, A, B), 'B was not empty').is.undefined;
     });
 
     it('WITHOUT the declaration the landing on B is an ordinary landing — it claims no move', () => {
