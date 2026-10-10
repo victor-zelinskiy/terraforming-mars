@@ -44,6 +44,14 @@ export const consolePlayCardUi = reactive({
    * stands the shell's bar reads the step's own contract instead.
    */
   released: false,
+  /**
+   * THE COMPOSER DECLARES A HOSTED PARLIAMENT STEP (PL-127): the card standing in the composer promises, by its
+   * server preview, a walk of the Agenda track (TR04 / TR37) or a rally of neutral delegates (TR31) — an outcome the
+   * hand will host inside its own zone after the play. Published by the composer (the card's name; '' = none) so the
+   * shell may WARM the Parliament's surface while the player reads the composer — the one moment of the flow with
+   * nothing moving — instead of in the frame of the press.
+   */
+  hostedStepDeclared: '' as string,
 });
 
 export function setConsolePlayCardCommands(commands: ReadonlyArray<FootHint>): void {
@@ -75,8 +83,14 @@ export function takePlayComposerStagedDraft(cardName: string): PlayComposerDraft
   return draft;
 }
 
+/** The composer names the card whose play will host a Parliament step ('' — none, or the composer is gone). */
+export function setPlayComposerHostedStep(card: string): void {
+  consolePlayCardUi.hostedStepDeclared = card;
+}
+
 export function resetConsolePlayCardUi(): void {
   consolePlayCardUi.commands = [];
   consolePlayCardUi.stagedDraft = undefined;
   consolePlayCardUi.released = false;
+  consolePlayCardUi.hostedStepDeclared = '';
 }

@@ -226,6 +226,13 @@
            landing ritual (`preloadResolutionArt`), so there is nothing left to fade in. */
         .pcard__art img { opacity: 1; transition: none; }
     }
+    /* WARMED (PL-127): the section a card's play OWES the hand (a walk, a rally) is mounted by the shell while the
+       landing ritual plays — laid out, fitted, its art decoded — and UNVEILED by the frame's push: the step's rise
+       is then one class flip and its own CSS entry, never the mount of six plaques, the track and the cards in the
+       frame the eye is on the docked card. Invisible and inert while warm, with NO entry (`animation: none` wins
+       over the embedded rule above at equal specificity); the moment this rule stops matching the embedded rule's
+       `con-parl-step-in` applies afresh and plays from its first frame. */
+    &--warm { visibility: hidden; pointer-events: none; animation: none; }
     /* «КАРЬЕРА» — a card's WALK shown as the outcome of its play (TR04): the track is the hero for the walk's
        length; the government, the voting area and the parties' row RECEDE — opacity only, the tiers keep their
        boxes and nothing re-solves (the same law as the sitting's park). The band reads the steps as they land. */

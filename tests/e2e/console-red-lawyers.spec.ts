@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle} from './consoleStart';
 import {openParliament} from './parliamentDrive';
+import {startTrace} from './traceProbe';
 
 /**
  * TR37 «ЮРИСТЫ КРАСНЫХ» — TR04's walk WITHOUT the influence ceiling: the CARD
@@ -87,7 +88,11 @@ type Probe = {
   degraded: Array<string>;
   stranded: boolean;
   /** The Parliament's FIRST sample: its pose class and the crumb's tail at that very moment (the entrance's one phrase). */
-  parlFirst: {walk: boolean, tail: string, ms: number} | undefined;
+  parlFirst: {walk: boolean, tail: string, ms: number, opacity: number} | undefined;
+  /** The main thread's LONG TASKS on the probe's clock (PL-127: the step's rise was a mount in the frame of the dock). */
+  longTasks: Array<{t: number, ms: number}>;
+  /** `performance.now()` at the probe's zero — the trace's alignment (`traceProbe.ts`). */
+  pt0: number;
   /** The landed card REVEALED on the receiving stage (the real card under the proxy): the first sample, ms (PL-120). */
   landedMs: number | undefined;
   /** The command bar's text on every change (task samples). */
@@ -123,9 +128,23 @@ async function armProbe(page: Page, viewer: string, cardStep: number, endStep: n
       samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
       degraded: [], stranded: false, parlFirst: undefined, landedMs: undefined, bar: [], cube: [], cubeDrawn: [], tr: [], mc: [], inf: [], band: [], beat: [], hand: [],
       cover: [], coverBirth: undefined, nodeAtBirth: undefined, nodeWidth: 0, viewer: [], chip: [], proxy: [], lift: {max: 0, cube: 0}, cubesOnEnd: [],
+      longTasks: [], pt0: 0,
     };
     w.__tr37 = p;
     const t0 = Date.now();
+    // THE MAIN THREAD'S LONG TASKS (PL-127): a frozen thread is a hole in the samples and in the storyboard — named by
+    // its own clock, so the rise of the step can be told from the mount of its surface.
+    const pt0 = performance.now();
+    p.pt0 = pt0;
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          p.longTasks.push({t: Math.round(entry.startTime - pt0), ms: Math.round(entry.duration)});
+        }
+      }).observe({type: 'longtask', buffered: true});
+    } catch {
+      // No longtask support — the holes still speak.
+    }
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const note = (series: Series, value: string | undefined) => {
       if (value !== undefined && value !== '' && series[series.length - 1]?.[1] !== value) {
@@ -185,10 +204,12 @@ async function armProbe(page: Page, viewer: string, cardStep: number, endStep: n
       if (p.landedMs === undefined && document.querySelector('.con-recv [data-recv-front][data-played-key]') !== null) {
         p.landedMs = Date.now() - t0;
       }
-      const parls = document.querySelectorAll('.con-parl');
+      // A WARMED Parliament (PL-127: mounted invisible ahead of its frame, from the press) is not on screen — the
+      // first sample that counts is the unveiled one.
+      const parls = document.querySelectorAll<HTMLElement>('.con-parl:not(.con-parl--warm)');
       p.parlMax = Math.max(p.parlMax, parls.length);
       if (parls.length > 0 && p.parlFirst === undefined) {
-        p.parlFirst = {walk: parls[0].classList.contains('con-parl--walk'), tail, ms: Date.now() - t0};
+        p.parlFirst = {walk: parls[0].classList.contains('con-parl--walk'), tail, ms: Date.now() - t0, opacity: Number(getComputedStyle(parls[0]).opacity)};
       }
       parls.forEach((el) => {
         if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
@@ -467,7 +488,16 @@ function expectOneFlow(probe: Probe, run: Run, dump: string): void {
   expect(probe.landedMs, `the landed card was revealed on the stage (${dump})`).toBeDefined();
   // The measured rise is printed on every run — the A/B of the entrance is read here, never guessed from frames.
   console.log(`[PL-120] landed ${probe.landedMs} → the Parliament's first sample ${probe.parlFirst!.ms} (rise ${probe.parlFirst!.ms - probe.landedMs!} ms, budget ${PL120_RISE_BUDGET_MS})`);
+  // PL-127 (measured, printed on every run): the main thread's long tasks around the rise — the mount of the Parliament
+  // used to be the longest of the whole play; warmed from the press, the rise is a class flip and the long task moves
+  // to the press, where nothing is moving yet.
+  const riseAt = probe.parlFirst!.ms;
+  const around = probe.longTasks.filter((task) => task.t >= riseAt - 800 && task.t <= riseAt + 1200);
+  console.log(`[PL-127] long tasks within −0.8…+1.2 s of the rise (${riseAt} ms): ${JSON.stringify(around)} · longest ${Math.max(0, ...around.map((task) => task.ms))} ms · all: ${JSON.stringify(probe.longTasks)}`);
   expect(probe.parlFirst!.ms - probe.landedMs!, `the Parliament rose within the landing's own phrase of the dock (landed ${probe.landedMs}, risen ${probe.parlFirst!.ms})`).toBeLessThanOrEqual(PL120_RISE_BUDGET_MS);
+  // PL-127: the warmed section UNVEILS through its own CSS entry — its first visible sample is the entry's first
+  // frame (opacity below 1), never a surface cut in at full strength (a warm mount shown by a class flip alone).
+  expect(probe.parlFirst!.opacity, `the Parliament's first visible sample was the start of its entry, not a cut (opacity ${probe.parlFirst!.opacity})`).toBeLessThan(1);
   // PL-084: from the frame the Parliament rises (the composer fading under it, its frame past the commit) the bar
   // never reads the composer's verbs again — the step's own status, never «A РАЗЫГРАТЬ · B ОТМЕНА» over a frame
   // that accepts neither.
@@ -535,6 +565,7 @@ for (const preset of PRESETS) {
 
       await armProbe(page, viewer, 7, 8);
       const stopStory = await storyboard(page, preset.id, 'walk-6');
+      const stopTrace = await startTrace(page);
       await pressA(page, run);
 
       // ── 2. the walk inside the hand: ⑦'s cover → the viewer → A → the dock → ⑧ → the flow leaves ──
@@ -556,6 +587,15 @@ for (const preset of PRESETS) {
       expect(after.game.parliament.lastAdvance, 'ONE record, the card\'s, with both steps').toMatchObject({from: 6, to: 8, reason: 'card', card: CARD, steps: [{to: 7, bonus: 'card'}, {to: 8}]});
 
       const probe = await readProbe(page);
+      // THE RISE, TRACED (`TM_E2E_TRACE=1` — PL-127's attribution): what the renderer did in the second around the
+      // Parliament's unveiling (style recalc / layout / paint by name, the longest events) and around the press.
+      if (probe.parlFirst !== undefined) {
+        const say = (tag: string, value: unknown) => console.log(`[${tag}] ${JSON.stringify(value)}`);
+        await stopTrace([
+          {from: probe.parlFirst.ms - 800, to: probe.parlFirst.ms + 1200, label: `rise-${preset.id}`},
+          {from: -50, to: 700, label: `press-${preset.id}`},
+        ], probe.pt0, say);
+      }
       const dump = JSON.stringify({steps: probe.steps, parlFirst: probe.parlFirst, cube: probe.cube, cubeDrawn: probe.cubeDrawn, inf: probe.inf, band: probe.band, beat: probe.beat,
         hand: probe.hand, cover: probe.cover, coverBirth: probe.coverBirth, nodeAtBirth: probe.nodeAtBirth, viewer: probe.viewer, lift: probe.lift, proxy: probe.proxy.length, cubesOnEnd: probe.cubesOnEnd});
       fs.mkdirSync('test-results', {recursive: true});

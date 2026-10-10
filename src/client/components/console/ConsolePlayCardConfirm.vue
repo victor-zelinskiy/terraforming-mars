@@ -704,7 +704,7 @@ import {
   initialCounts, dialLaneCount, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
-import {consolePlayCardUi, setConsolePlayCardCommands, resetConsolePlayCardUi, takePlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
+import {consolePlayCardUi, setConsolePlayCardCommands, resetConsolePlayCardUi, setPlayComposerHostedStep, takePlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 import {setWorkspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
@@ -1168,6 +1168,16 @@ export default defineComponent({
      */
     resultHeading(): string {
       return this.hasVariantChoice ? 'Choose the result' : 'Result';
+    },
+    /**
+     * THE PLAY WILL HOST A PARLIAMENT STEP (PL-127): the chosen branch's SHOW step — a walk of the Agenda track
+     * (TR04 / TR37) or a rally of neutral delegates (TR31) — read off the server's preview, published to the shell
+     * (`consolePlayCardUi.hostedStepDeclared`) so the Parliament's surface is warmed while the player reads this
+     * composer, never in the frame of the press. The card's name while declared, '' otherwise.
+     */
+    hostedStepDeclared(): string {
+      const b = this.selectedBranch;
+      return b !== undefined && b.steps.some((s) => s.kind === 'agendaWalk' || s.kind === 'neutralRally') ? this.cardName : '';
     },
     selectedBranch(): ActionPreviewBranch | undefined {
       if (this.selectedPos !== undefined) {
@@ -2037,6 +2047,13 @@ export default defineComponent({
     },
   },
   watch: {
+    /** PL-127: the hosted-step declaration, handed to the shell as it changes (cleared with the composer by `resetConsolePlayCardUi`). */
+    hostedStepDeclared: {
+      immediate: true,
+      handler(card: string): void {
+        setPlayComposerHostedStep(card);
+      },
+    },
     /**
      * The SYSTEM OUTCOME of an espionage play with NO legal target: the pick
      * is captured as the explicit no-target response the moment the

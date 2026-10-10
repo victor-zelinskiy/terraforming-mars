@@ -20,6 +20,7 @@
            :class="{
              'con-ws': !embedded,
              'con-parl--embedded': embedded,
+             'con-parl--warm': warm,
              'con-parl--handed-over': sceneHandedOver,
              'con-parl--stage': stagePanelUp,
              'con-parl--vote': voteUp,
@@ -51,6 +52,8 @@
            :data-parl-reading-up="stagePanelUp ? '' : undefined"
            :data-parl-unfolding="stageEntering ? '' : undefined"
            :data-parl-leaving="leaving ? '' : undefined"
+           :data-surface-warm="warm ? '' : undefined"
+           :aria-hidden="warm ? 'true' : undefined"
            :data-parl-grant-degraded="flow.grantDegraded !== '' ? flow.grantDegraded : undefined"
            :data-parl-support-degraded="supportDegraded !== '' ? supportDegraded : undefined"
            data-motion-panel>
@@ -288,6 +291,13 @@ export default defineComponent({
      * ГОЛОСОВАНИЕ»); logic, state and the submit path are untouched.
      */
     embedded: {type: Boolean, default: false},
+    /**
+     * WARMED (PL-127): mounted by the shell ahead of its frame — invisible in the hand's zone while a play's
+     * landing ritual plays, so the hosted step's rise is one class flip and its CSS entry, never a mount. While
+     * warm the surface is laid out and fitted but shows nothing, publishes no stage, opens no pose and plays no
+     * beat (the owed record is read only once the frame stands — `walkOwedSeq` / `rallyOwedSeq`).
+     */
+    warm: {type: Boolean, default: false},
     /**
      * A STAGED VOTE (a card that places a delegate by being played — Turmoil Redux TR03): the play
      * preview's staged grant, held by the shell's staged-play store while the resolution is chosen HERE.
@@ -710,7 +720,7 @@ export default defineComponent({
     },
     /** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
     walkOwedSeq(): number {
-      return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded ? agendaWalkFlow.owed.seq : 0;
+      return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded && !this.warm ? agendaWalkFlow.owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
     rallyUp(): boolean {
@@ -726,7 +736,7 @@ export default defineComponent({
     },
     /** The rally the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
     rallyOwedSeq(): number {
-      return neutralRallyFlow.owed !== undefined && neutralRallyFlow.owed.host === 'hand' && this.embedded ? neutralRallyFlow.owed.seq : 0;
+      return neutralRallyFlow.owed !== undefined && neutralRallyFlow.owed.host === 'hand' && this.embedded && !this.warm ? neutralRallyFlow.owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ»'s band line: the votes landed, the areas read, the recount's number once it has begun. */
     rallyBand(): BandRally | undefined {

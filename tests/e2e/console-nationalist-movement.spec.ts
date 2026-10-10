@@ -205,7 +205,8 @@ async function armProbe(page: Page): Promise<void> {
           }
         });
       }
-      const parls = document.querySelectorAll('.con-parl');
+      // A WARMED Parliament (PL-127: mounted invisible ahead of its frame, from the press) is not on screen yet.
+      const parls = document.querySelectorAll('.con-parl:not(.con-parl--warm)');
       p.parlMax = Math.max(p.parlMax, parls.length);
       parls.forEach((el) => {
         if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {

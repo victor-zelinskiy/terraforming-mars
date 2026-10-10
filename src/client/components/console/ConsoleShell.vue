@@ -352,6 +352,7 @@
                                   ref="parliamentSection"
                                   :playerView="playerView"
                                   :leaving="parliamentLeaving"
+                                  :warm="parliamentWarm"
                                   :embedded="parliamentEmbedActive"
                                   :myTurn="myTurn"
                                   :awaitingInput="awaitingInput"
@@ -2325,6 +2326,8 @@ const OWED_CONCLUSION_FORCE_MS = 8000;
  * beat — every hold in this console is bounded and named.
  */
 const PARLIAMENT_LEAVE_NET_MS = 900;
+/** PL-127: the composer's unfold is over by then — the warm mount of a declared hosted step lands in the reading pause. */
+const PARLIAMENT_WARM_SETTLE_MS = 450;
 /** A HOSTED Parliament step's leave — a dissolve in place inside its host's zone (the embed contract strips the band phrase). */
 const PARLIAMENT_STEP_LEAVE_MS = 240;
 /** The staged vote's RELEASE: the landing scene (the «Разыграно» stage + the landed card's proxy) lets go in place while the Parliament rises — the ONE release beat every staged host shares (`stagedPlay.ts`). */
@@ -2484,6 +2487,14 @@ export default defineComponent({
       handDeliveryState,
       /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
       parliamentLeaving: false,
+      /**
+       * THE WARM MOUNT IS ARMED FROM THE COMPOSER'S READING PAUSE (PL-127): the composer declared a hosted step and
+       * its own unfold has settled — the Parliament's surface is mounted invisible NOW, while nothing moves, not in
+       * the frame of the press (measured at 4K: the mount cost the press frame 320–410 ms of forced style and
+       * layout — a sticky A). Cleared with the declaration (the composer closed, another card).
+       */
+      parliamentWarmArmed: false,
+      parliamentWarmTimer: undefined as number | undefined,
       /** The zone the Parliament was hosted in, LATCHED for its leave: the frame pops first, and a leaving step
        *  re-rendered as a standalone band (`con-ws`, its own head) is the flash the embed contract forbids. */
       parliamentEmbedLatch: '',
@@ -4440,18 +4451,41 @@ export default defineComponent({
     parliamentShown(): boolean {
       return workspaceFrameRenders('parliament');
     },
-    /** …and the section stays MOUNTED through its leave (v3 В1): presence, or the leave still playing over the latched surface. */
+    /**
+     * THE HOSTED STEP IS WARMED (PL-127, the owner's decision 2026-10-10). A Parliament a card's play OWES the hand
+     * — a walk of the Agenda track (TR04 / TR37), a rally of neutral delegates (TR31): promised at the press,
+     * recorded with the answer, entered from the landing's commit — is mounted INVISIBLE in the hand's own zone
+     * from the press, while the landing ritual plays: laid out, fitted, its art decoded. The frame's push then
+     * UNVEILS the same instance (one class flip + the step's own CSS entry) instead of mounting six plaques, the
+     * track and the cards in the very frame the eye is on the docked card (measured at 4K: the rise's whole budget
+     * was that mount). Presence stays the stack's: the warm mount has no frame, serves nothing, owns no input, is
+     * inert to the leak detector (`data-surface-warm`), and leaves with a refused play (the promise is dropped).
+     * Never while a Parliament is KNOWN (live or parked — a second instance would reset the flow record the
+     * parked one keeps), and only once the hand has published the zone the step will stand in.
+     */
+    parliamentWarm(): boolean {
+      return !workspaceFrameKnown('parliament') && !this.parliamentLeaving &&
+        workspaceFrameDescended('hand') && workspaceFrameSlot('hand') !== '' &&
+        (hostedStepOwedTo('hand') || this.parliamentWarmArmed);
+    },
+    /** The composer's declaration (PL-127): the card in the composer whose play will host a Parliament step. */
+    hostedStepDeclaredCard(): string {
+      return this.pendingPlayCard !== undefined ? consolePlayCardUi.hostedStepDeclared : '';
+    },
+    /** …and the section stays MOUNTED through its leave (v3 В1): presence, or the leave still playing over the latched surface — or the warm mount. */
     parliamentMounted(): boolean {
-      return this.parliamentShown || this.parliamentLeaving;
+      return this.parliamentShown || this.parliamentLeaving || this.parliamentWarm;
     },
     /**
      * THE PARLIAMENT AS A HOSTED STEP — the zone of the frame below it (the
      * colonies' `[data-embed-slot="colonies-parliament"]` for the Redux
      * Venus's delegate grant). `undefined` = the Parliament stands in its own
      * band, as it always did. The stack's teleport chain, nothing more.
+     * WARM (PL-127): the hand's zone — the very selector the pushed frame will
+     * resolve, so the push changes no `to` and the teleport never re-resolves.
      */
     parliamentEmbedTarget(): string | undefined {
-      return workspaceFrameTarget('parliament');
+      return workspaceFrameTarget('parliament') ?? (this.parliamentWarm ? workspaceFrameSlot('hand') : undefined);
     },
     parliamentEmbedActive(): boolean {
       return this.parliamentEmbedTarget !== undefined || (this.parliamentLeaving && this.parliamentEmbedLatch !== '');
@@ -10977,6 +11011,23 @@ export default defineComponent({
           this.stagedVoteLatch = {vote, receipt: stagedPlayState.arm?.receipt, flow: stagedPlayState.arm?.flow ?? 'play'};
         }
       },
+    },
+    /**
+     * The composer's hosted-step declaration (PL-127): arm the warm mount one settle after it — the composer's
+     * unfold (≈ 300 ms) must be over, so the mount's own layout lands in the reading pause and never in a motion.
+     * A scheduling deferral, not a hold: nothing waits on it, and a declaration that ends clears it.
+     */
+    hostedStepDeclaredCard(card: string): void {
+      window.clearTimeout(this.parliamentWarmTimer);
+      this.parliamentWarmTimer = undefined;
+      if (card === '') {
+        this.parliamentWarmArmed = false;
+        return;
+      }
+      this.parliamentWarmTimer = window.setTimeout(() => {
+        this.parliamentWarmTimer = undefined;
+        this.parliamentWarmArmed = this.hostedStepDeclaredCard === card;
+      }, motionMs(PARLIAMENT_WARM_SETTLE_MS));
     },
     parliamentShown(shown: boolean, was: boolean): void {
       window.clearTimeout(this.parliamentLeaveNet);

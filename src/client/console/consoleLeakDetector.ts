@@ -277,7 +277,9 @@ function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
     ...(EXTRA_KIND_SURFACES[task.kind] ?? []),
   ].join(',');
   for (const el of document.querySelectorAll(joined)) {
-    if ((el as HTMLElement).getClientRects().length > 0) {
+    // A WARMED surface — mounted invisible AHEAD of its frame (the hosted Parliament, PL-127) — has layout but
+    // serves nothing yet; counting it would let a stranded prompt hide behind a surface the player cannot see.
+    if ((el as HTMLElement).getClientRects().length > 0 && !(el as HTMLElement).hasAttribute('data-surface-warm')) {
       return true;
     }
   }
