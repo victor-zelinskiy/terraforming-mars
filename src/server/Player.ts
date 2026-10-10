@@ -46,7 +46,7 @@ import {CapturedEventContext} from './events/EventRecorder';
 import {MoonExpansion} from './moon/MoonExpansion';
 import {IStandardProjectCard} from './cards/IStandardProjectCard';
 import {ConvertPlants} from './cards/base/standardActions/ConvertPlants';
-import {ConvertHeat} from './cards/base/standardActions/ConvertHeat';
+import {ConvertHeat, heatConversionMetadata} from './cards/base/standardActions/ConvertHeat';
 import {KELVINISTS_POLICY_3} from './turmoil/parties/Kelvinists';
 import {GlobalParameter} from '../common/GlobalParameter';
 import {LogHelper} from './LogHelper';
@@ -2797,7 +2797,10 @@ export class Player implements IPlayer {
     // Convert Heat. Kelvinists kp03 swaps in a 6-heat variant in this slot.
     if (PartyHooks.shouldApplyPolicy(this, PartyName.KELVINISTS, 'kp03')) {
       if (KELVINISTS_POLICY_3.canAct(this)) {
-        action.options.push(KELVINISTS_POLICY_3.action(this));
+        const option = KELVINISTS_POLICY_3.action(this);
+        // The option's reading (PL-067): the formula and what the table answers — the same shape as the 8-heat one.
+        option.metadata = heatConversionMetadata(this, 6);
+        action.options.push(option);
       }
     } else {
       const convertHeat = new ConvertHeat();
@@ -2805,6 +2808,9 @@ export class Player implements IPlayer {
         const option = new SelectOption('Convert 8 heat into temperature', 'Convert heat').andThen(() => {
           return convertHeat.action(this);
         });
+        // The option's reading (PL-067): «8 → 0 heat · temperature −30 → −28 °C · +1 TR» and the table's answer, so the
+        // console's one-press conversion opens its mini-stage exactly when something reacts.
+        option.metadata = heatConversionMetadata(this, constants.HEAT_FOR_TEMPERATURE);
         if (convertHeat.warnings.size > 0) {
           option.warnings = Array.from(convertHeat.warnings);
           if (convertHeat.warnings.has('maxtemp')) {

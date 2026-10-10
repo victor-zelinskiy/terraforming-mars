@@ -1,6 +1,7 @@
 import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
+import type {EffectForecast} from './EffectForecastModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
 import type {ExternalDrawTakeMeta} from './ExternalDrawPromptModel';
 import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
@@ -825,6 +826,15 @@ export type OptionMetadata = {
    *  modal renders them with the same `ActionEffectChip` the action-confirm modal
    *  uses (e.g. Pharmacy Union's "+3 TR"). */
   effects?: ReadonlyArray<ActionEffect>;
+  /**
+   * WHAT THE TABLE ANSWERS to this option (PL-067) — the forecast engine's own
+   * pass over `effects` (`effectForecast.rewardReactionForecast`), the SAME
+   * twins the composers' «Сработает» row reads. A one-press verb (the heat
+   * conversion off the wheel / the rail) stands up its mini-stage exactly when
+   * this carries a fact: the ruling Greens' 2 M€ on the temperature step, a
+   * bonus step the raise crosses. Absent = nothing reacts, one press.
+   */
+  forecast?: EffectForecast;
   /** A NON-numeric downside of taking this option, shown as a warning chip (e.g.
    *  "Card turned face down — its effect stops"). i18n text/Message. */
   tradeoff?: string | Message;

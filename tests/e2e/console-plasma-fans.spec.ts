@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, openMandatoryAnnounce, press, pressUntil,
   settle, waitForBoardHome,
 } from './consoleStart';
-import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {armLeakWitness, expectRailHonest, strandedReports} from './parliamentDrive';
 
 /**
  * TR41 «ПЛАЗМЕННЫЕ ВЕНТИЛЯТОРЫ» — the Greens' fourth plate, the set's second
@@ -80,7 +80,7 @@ type Wire = {
     tableau: Array<{name: string, resources?: number}>,
   };
   players: Array<{color: string, megacredits: number, terraformRating: number}>;
-  game: {venusScaleLevel: number, parliament?: {chairman?: string, quest?: {completedBy?: string}}};
+  game: {venusScaleLevel: number, temperature: number, parliament?: {chairman?: string, quest?: {completedBy?: string}}};
 };
 
 async function wireOf(request: APIRequestContext, playerId: string): Promise<Wire> {
@@ -576,13 +576,58 @@ for (const preset of PRESETS) {
       const redAfter = after.players.find((p) => p.color !== blue)!;
       expect(redAfter.megacredits, 'Aphrodite answered the step with 2 M€').toBe(redBefore.megacredits + 2);
       await red.bringToFront();
-      // Red's card: blue's ACTION with Aphrodite's own +2 inside it (the card names the action's kind and Aphrodite — the
-      // action's CARD is not named on it: PL-150, the journal line below it carries the deltas only).
+      // Red's card: blue's ACTION with Aphrodite's own +2 inside it — and the kicker names the action's CARD (PL-150:
+      // the viewer's own gain used to displace the one body line that named it).
       await expect.poll(async () => (await readRedProbe(red)).some((n) => /Действие карты/.test(n.text) && /Aphrodite|Афродит/.test(n.text)), {timeout: 30_000, message: 'red was told of the action'}).toBe(true);
+      await expect.poll(async () => (await readRedProbe(red)).some((n) => /Действие карты/.test(n.text) && /Плазменные вентиляторы/.test(n.text)), {timeout: 10_000, message: 'the kicker names the card (PL-150)'}).toBe(true);
       await expect.poll(async () => (await readRedMc(red)).some(([, v]) => v === String(redBefore.megacredits + 2)), {timeout: 30_000, message: 'red\'s own M€ read +2 on red\'s screen'}).toBe(true);
       await shoot(red, preset.id, 'a-04-red');
       expect(redErrors, 'no page error on red\'s page').toEqual([]);
       await red.close();
+    });
+
+    /**
+     * (C) PL-067 — THE ONE-PRESS VERB STANDS A STAGE UP WHEN THE TABLE ANSWERS: the standard heat conversion off
+     * the basic-actions wheel (LT → right) used to spend 8 heat on the direction press, the ruling Greens' 2 M€
+     * arriving as a surprise. Under a reacting table the press now lands on the confirm card's mini-stage —
+     * the formula «8 → 0 [heat] · [temp] −30 → −28 · +1 [TR]» and the «Сработает» row — and A commits; the server
+     * agrees. (On a quiet table the one press stays — the wheel-rework journey covers it.)
+     */
+    test(`(C) the heat conversion off the wheel under the ruling Greens: a MINI-STAGE with the formula and «Сработает», A commits — one POST (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(240_000);
+      const seen = watchPage(page);
+      const {playerId} = await bootFixtureSeats(page, request, 'plasma-fans', {query: preset.query});
+      await settle(page);
+      const before = await wireOf(request, playerId);
+      expect(before.thisPlayer.heat, 'the fixture: 8 heat').toBe(8);
+      const trBefore = before.thisPlayer.terraformRating;
+      const mcBefore = before.thisPlayer.megacredits;
+      const tempBefore = before.game.temperature;
+      expect(await pressUntil(page, 'Escape', onBoard(page), {tries: 4, settleMs: 1200}), 'blue stands on the board').toBe(true);
+      // LT → the basic-actions wheel; the right arm is the heat conversion; on a quick wheel the direction IS the press.
+      expect(await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 900}), 'the basic-actions wheel opens').toBe(true);
+      const stage = page.locator('.con-confirm[data-motion-surface="confirm"]');
+      expect(await pressUntil(page, 'ArrowRight', async () => await stage.count() > 0, {tries: 3, settleMs: 1200}), 'the direction press lands on the mini-stage, not on the server').toBe(true);
+      const mid = await wireOf(request, playerId);
+      expect(mid.thisPlayer.heat, 'nothing sent before the confirm').toBe(8);
+      await expect(stage.locator('[data-confirm-formula] .action-effect-chip'), 'the formula: the price, the step, its implied rating').toHaveCount(3);
+      await expect(stage.locator('[data-confirm-formula] .action-effect-chip').nth(0)).toContainText('8');
+      await expect(stage.locator('[data-confirm-formula] .action-effect-chip').nth(1)).toContainText('°C');
+      await expect(stage.locator('[data-confirm-formula] .action-effect-chip--implied'), 'the step\'s rating is the quiet chip').toHaveCount(1);
+      await expect(stage.locator('[data-forecast-row]'), 'the «Сработает» row stands').toHaveCount(1);
+      await expect(stage.locator('[data-forecast-row]')).toContainText('+2');
+      await expect(stage.locator('.con-confirm__body'), 'no warning sentence on a reacting table — the stage is the formula').toHaveCount(0);
+      await shoot(page, preset.id, 'c-01-mini-stage');
+      await press(page, 'Enter', 1500);
+      await expect(stage).toHaveCount(0, {timeout: 15_000});
+      await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.heat, {timeout: 20_000, message: 'the server took the 8 heat'}).toBe(0);
+      const after = await wireOf(request, playerId);
+      expect(after.game.temperature, 'the temperature rose a step').toBe(tempBefore + 2);
+      expect(after.thisPlayer.terraformRating, 'the step\'s rating').toBe(trBefore + 1);
+      expect(after.thisPlayer.megacredits, 'the Greens paid 2 M€').toBe(mcBefore + 2);
+      await settle(page, {timeoutMs: 30_000});
+      await shoot(page, preset.id, 'c-02-after');
+      expect(seen.errors, 'no page error').toEqual([]);
     });
 
     test(`(B) the PLAY that closes the printed generation-1 quest: +3 heat production from the printed box, the Greens' +3 M€ production a beat after, the chairman plate AFTER the landing, the office on a Parliament that is on screen (${preset.id})`, async ({page, request}) => {
@@ -621,6 +666,15 @@ for (const preset of PRESETS) {
       expect(await openMandatoryAnnounce(page), 'A on the plate opens the Parliament').toBeTruthy();
       await settle(page, {timeoutMs: 25_000});
       await shoot(page, preset.id, 'b-03-parliament');
+      // PL-148: the hosted step's crumb «ПАРЛАМЕНТ › ПРЕДСЕДАТЕЛЬСТВО › КАРЬЕРА» is WHOLE on every profile (it
+      // ellipsized to «ПРЕДСЕДАТЕЛЬС…» at the old reserve), and the delegates zone beside it yields honestly.
+      const crumb = await page.evaluate(() => {
+        const s = document.querySelector<HTMLElement>('.con-parl .con-wshead__subject');
+        return s === null ? undefined : {text: (s.textContent ?? '').trim(), cut: s.scrollWidth > s.clientWidth, w: s.clientWidth};
+      });
+      expect(crumb, 'the crumb\'s subject stands').toBeDefined();
+      expect(crumb!.cut, `the crumb's subject «${crumb!.text}» is whole — never an ellipsis (PL-148; box ${crumb!.w})`).toBe(false);
+      await expectRailHonest(page, `${preset.id} parliament delegates zone (PL-148)`, '.con-parl__seats');
       await stopStory();
       const {samples} = await readProbe(page);
       keepTrail(preset.id, 'play', samples);

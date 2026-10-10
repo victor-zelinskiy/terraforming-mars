@@ -15649,6 +15649,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: @con-text-dim;
         margin-bottom: 1.1rem;
     }
+    /* THE MINI-STAGE's formula (PL-067): the one chip row every door prints, centred; the «Сработает» row under
+       it is the shared forecast row (its own chassis), centred like the formula. */
+    &__formula {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: .45rem;
+        margin: .25rem 0 .75rem;
+    }
+    &__forecast {
+        justify-content: center;
+        margin: 0 auto .95rem;
+    }
     &__actions {
         display: flex;
         justify-content: center;

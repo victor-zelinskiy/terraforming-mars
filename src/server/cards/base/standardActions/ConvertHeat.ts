@@ -4,6 +4,28 @@ import {CardRenderer} from '../../render/CardRenderer';
 import {IPlayer} from '../../../IPlayer';
 import {HEAT_FOR_TEMPERATURE, MAX_TEMPERATURE} from '../../../../common/constants';
 import {Units} from '../../../../common/Units';
+import {Resource} from '../../../../common/Resource';
+import {OptionMetadata} from '../../../../common/models/PlayerInputModel';
+import * as actionPreviews from '../../actionPreviews';
+import {rewardReactionForecast} from '../../../models/effectForecast';
+
+/**
+ * THE OPTION'S READING (PL-067): the price and the step as chips — the step's
+ * own rating implied after it, the one formula every door prints — and what
+ * the TABLE answers to the step: the forecast engine's own pass (the ruling
+ * Greens' 2 M€ per rating step, a bonus step the raise crosses), so the
+ * console's one-press conversion can stand up a mini-stage exactly when
+ * something reacts and send in one press when nothing does. Shared with the
+ * Kelvinists' 6-heat variant (the same formula at another price). Read-only.
+ */
+export function heatConversionMetadata(player: IPlayer, heat: number): OptionMetadata {
+  const effects = actionPreviews.withImpliedRating([
+    actionPreviews.stockCost(player, Resource.HEAT, heat),
+    actionPreviews.globalGain(player, 'temperature', 1),
+  ]);
+  const forecast = rewardReactionForecast(player, undefined, effects);
+  return {kind: 'globalParameter', icon: 'temperature', amount: 1, effects, ...(forecast !== undefined ? {forecast} : {})};
+}
 
 
 export class ConvertHeat extends StandardActionCard {

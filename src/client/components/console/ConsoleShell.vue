@@ -626,7 +626,14 @@
           </span>
           <span>{{ $t(confirmTitle) }}</span>
         </div>
-        <div class="con-confirm__body">{{ $t(confirmBody) }}</div>
+        <!-- THE FORMULA (PL-067): the conversion's price, the step and its implied rating as the one chip row every
+             door prints, and under it the «Сработает» row — what the table answers (the server's forecast on the
+             option). The body sentence stays for the one case that is a warning (the temperature's maximum). -->
+        <div v-if="confirmEffects.length > 0" class="con-confirm__formula" data-confirm-formula>
+          <ActionEffectChip v-for="(eff, i) in confirmEffects" :key="i" :effect="eff" />
+        </div>
+        <ConsoleForecastRow v-if="confirmForecast !== undefined" class="con-confirm__forecast" :forecast="confirmForecast" />
+        <div v-if="confirmBody !== ''" class="con-confirm__body">{{ $t(confirmBody) }}</div>
         <!-- T7 info parity: the desktop PassConfirmContent warnings (unused
              actions / free trade fleet / conversions / hydro) carry over. -->
         <div v-if="confirmWarnings.length > 0" class="con-confirm__warns">
@@ -2248,7 +2255,10 @@ import {
   clearStagedPlay,
 } from '@/client/console/stagedPlay';
 import type {PlayComposerDraft, StagedPlayArm, StagedReceipt} from '@/client/console/stagedPlay';
-import type {AgendaWalkModel, NeutralRallyModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import type {ActionEffect, AgendaWalkModel, NeutralRallyModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import type {EffectForecast} from '@/common/models/EffectForecastModel';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
 import {
   clearColonyTrackMove, colonyTrackMoveAnswered, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove,
   registerColonyTrackMoveHost,
@@ -2361,6 +2371,8 @@ function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
+    ActionEffectChip,
+    ConsoleForecastRow,
     ConsoleDrawSearchRule,
     ConsoleStatusStrip,
     ConsoleMandatoryAnnounce,
@@ -7120,9 +7132,26 @@ export default defineComponent({
       return this.consoleState.confirm === 'pass' ? 'Pass for this generation' : 'Convert heat';
     },
     confirmBody(): string {
-      return this.consoleState.confirm === 'pass' ?
-        'You will take no more actions this generation.' :
-        'The temperature is already at its maximum.';
+      if (this.consoleState.confirm === 'pass') {
+        return 'You will take no more actions this generation.';
+      }
+      // The sentence is a WARNING's — only when the step is empty (PL-067: the reacting-table stage has none).
+      const found = findConvertHeatOption(this.playerView.waitingFor);
+      return (found?.option.warnings ?? []).includes('maxtemp') ? 'The temperature is already at its maximum.' : '';
+    },
+    /** The conversion's formula chips — the server's reading of the option (PL-067); none for the pass. */
+    confirmEffects(): ReadonlyArray<ActionEffect> {
+      if (this.consoleState.confirm !== 'convertHeat') {
+        return [];
+      }
+      return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.effects ?? [];
+    },
+    /** What the table answers to the conversion — the «Сработает» row (PL-067). */
+    confirmForecast(): EffectForecast | undefined {
+      if (this.consoleState.confirm !== 'convertHeat') {
+        return undefined;
+      }
+      return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.forecast;
     },
     /** T7 info parity: the desktop PassConfirmContent warning set. */
     confirmWarnings(): Array<string> {
@@ -14466,7 +14495,11 @@ export default defineComponent({
         if (found === undefined) {
           return;
         }
-        if ((found.option.warnings ?? []).includes('maxtemp')) {
+        // THE MINI-STAGE (PL-067): a one-press verb stands a stage up exactly when the table ANSWERS it (the
+        // server's own forecast on the option — the ruling Greens' 2 M€, a bonus step the raise crosses) or
+        // when the step is empty (the temperature's maximum). A quiet table keeps the one press.
+        const reacts = (found.option.metadata?.forecast?.facts.length ?? 0) > 0;
+        if ((found.option.warnings ?? []).includes('maxtemp') || reacts) {
           // The commit resolves into the confirm card, not a direct spend —
           // the ECHO follows the question instead of the reservoir.
           retargetWheelEcho(CONFIRM_HANDOFF.echo);
