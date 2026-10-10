@@ -39,6 +39,9 @@ const CARD = 'Red Lawyers';
 const CARD_RU = 'Юристы Красных';
 const ROOT_RU = 'Карты в руке';
 const OUT = path.resolve('screenshots', 'red-lawyers');
+/** PL-120: from the card's reveal on the stage to the Parliament's first sample — the composer's release (200 ms) and the
+ *  section's entry (240 ms) at motion scale 1, a frame of slack for the 4K layout. Was ≈ 1000 ms before the commit entrance. */
+const PL120_RISE_BUDGET_MS = 560;
 
 const PRESETS = [
   {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
@@ -85,6 +88,8 @@ type Probe = {
   stranded: boolean;
   /** The Parliament's FIRST sample: its pose class and the crumb's tail at that very moment (the entrance's one phrase). */
   parlFirst: {walk: boolean, tail: string, ms: number} | undefined;
+  /** The landed card REVEALED on the receiving stage (the real card under the proxy): the first sample, ms (PL-120). */
+  landedMs: number | undefined;
   /** The command bar's text on every change (task samples). */
   bar: Series;
   cube: Series;
@@ -116,7 +121,7 @@ async function armProbe(page: Page, viewer: string, cardStep: number, endStep: n
     const w = window as unknown as {__tr37: Probe};
     const p: Probe = {
       samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
-      degraded: [], stranded: false, parlFirst: undefined, bar: [], cube: [], cubeDrawn: [], tr: [], mc: [], inf: [], band: [], beat: [], hand: [],
+      degraded: [], stranded: false, parlFirst: undefined, landedMs: undefined, bar: [], cube: [], cubeDrawn: [], tr: [], mc: [], inf: [], band: [], beat: [], hand: [],
       cover: [], coverBirth: undefined, nodeAtBirth: undefined, nodeWidth: 0, viewer: [], chip: [], proxy: [], lift: {max: 0, cube: 0}, cubesOnEnd: [],
     };
     w.__tr37 = p;
@@ -176,6 +181,9 @@ async function armProbe(page: Page, viewer: string, cardStep: number, endStep: n
           }
         });
         tail = text(stepEls[stepEls.length - 1] ?? null);
+      }
+      if (p.landedMs === undefined && document.querySelector('.con-recv [data-recv-front][data-played-key]') !== null) {
+        p.landedMs = Date.now() - t0;
       }
       const parls = document.querySelectorAll('.con-parl');
       p.parlMax = Math.max(p.parlMax, parls.length);
@@ -328,6 +336,12 @@ const textOf = (page: Page, selector: string) => page.evaluate((sel) =>
 
 /** The first ms `series` read `value`; undefined when it never did. */
 const at = (series: Series, value: string): number | undefined => series.find(([, v]) => v === value)?.[0];
+/**
+ * The LANDINGS of a walk — the cube series without the marker's START step: since PL-120 the Parliament rises from the
+ * landing's commit, so the probe may sample the real cube standing on `from` (the hold) before the first lead; a landing is
+ * every position after it.
+ */
+const landings = (series: Series, from: number): Array<string> => series.map(([, v]) => v).filter((v, i) => !(i === 0 && v === String(from)));
 
 /**
  * The dock's COUNT of the step's card: the first ms the total reads `before` again AFTER the played card left
@@ -448,6 +462,12 @@ function expectOneFlow(probe: Probe, run: Run, dump: string): void {
   expect(probe.parlFirst, `the Parliament was seen (${dump})`).toBeDefined();
   expect(probe.parlFirst!.walk, `the Parliament stood in its WALK pose on its first sample — never «overview, then dimmed» (${dump})`).toBe(true);
   expect(probe.parlFirst!.tail, `the crumb read «Карьера» no later than the track was in the DOM (${dump})`).toBe('Карьера');
+  // PL-120: the hosted step enters FROM THE COMMIT — the Parliament rises within one phrase of the card's docking
+  // (the composer's release + the section's own entry), never after a reading pause over an empty zone.
+  expect(probe.landedMs, `the landed card was revealed on the stage (${dump})`).toBeDefined();
+  // The measured rise is printed on every run — the A/B of the entrance is read here, never guessed from frames.
+  console.log(`[PL-120] landed ${probe.landedMs} → the Parliament's first sample ${probe.parlFirst!.ms} (rise ${probe.parlFirst!.ms - probe.landedMs!} ms, budget ${PL120_RISE_BUDGET_MS})`);
+  expect(probe.parlFirst!.ms - probe.landedMs!, `the Parliament rose within the landing's own phrase of the dock (landed ${probe.landedMs}, risen ${probe.parlFirst!.ms})`).toBeLessThanOrEqual(PL120_RISE_BUDGET_MS);
   // PL-084: from the frame the Parliament rises (the composer fading under it, its frame past the commit) the bar
   // never reads the composer's verbs again — the step's own status, never «A РАЗЫГРАТЬ · B ОТМЕНА» over a frame
   // that accepts neither.
@@ -543,7 +563,7 @@ for (const preset of PRESETS) {
       expectOneFlow(probe, run, dump);
 
       // ── 4. THE ORDER: ⑦ → the cover off ⑦ → the viewer → the dock counts the card → ⑧ → the influence 4 ──
-      expect(probe.cube.map(([, s]) => s), `the landings, in order (${dump})`).toEqual(['7', '8']);
+      expect(landings(probe.cube, 6), `the landings, in order (${dump})`).toEqual(['7', '8']);
       expect(probe.inf[0]?.[1], `the influence still read 3 when the Parliament rose (${dump})`).toBe('3');
       const on7 = at(probe.cube, '7');
       const on8 = at(probe.cube, '8');
@@ -638,7 +658,7 @@ for (const preset of PRESETS) {
       expectOneFlow(probe, run, dump);
 
       // ── THE ORDER: ⑥ → the rating chip lands (+1) → the Greens' +2 M€ no earlier → ⑦ → the cover → the viewer → the dock ──
-      expect(probe.cube.map(([, s]) => s), `the landings, in order (${dump})`).toEqual(['6', '7']);
+      expect(landings(probe.cube, 5), `the landings, in order (${dump})`).toEqual(['6', '7']);
       expect(probe.tr[0]?.[1], `the rail still said the old rating (${dump})`).toBe(String(trBefore));
       const on6 = at(probe.cube, '6');
       const on7 = at(probe.cube, '7');
@@ -695,7 +715,7 @@ for (const preset of PRESETS) {
       const dump = JSON.stringify({steps: probe.steps, parlFirst: probe.parlFirst, cube: probe.cube, inf: probe.inf, band: probe.band, beat: probe.beat, proxy: probe.proxy.length});
       fs.writeFileSync(`test-results/red-lawyers-end-${preset.id}.json`, JSON.stringify(probe, null, 1));
       expectOneFlow(probe, run, dump);
-      expect(probe.cube.map(([, s]) => s), `one landing, on ⑫ (${dump})`).toEqual(['12']);
+      expect(landings(probe.cube, 11), `one landing, on ⑫ (${dump})`).toEqual(['12']);
       expect(probe.band[probe.band.length - 1]?.[1], `the band grew exactly one chip (${dump})`).toBe('12');
       expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(2);
       expect(at(probe.inf, '5'), `the influence ticked to 5 on the landing (${dump})`).toBeDefined();

@@ -10676,10 +10676,15 @@ export default defineComponent({
       if (phase === 'closing' && playedHeroState.host === 'workspace') {
         // «КАРЬЕРА» / «ДЕЛЕГАТЫ»: the answer carried a record for THIS hand (the marker's walk — TR04; a rally of
         // neutral delegates — TR31) — the Parliament is pushed into the hand's own zone to play it, and the play's
-        // ending waits for the step (`onParliamentFlowComplete('walk' | 'rally')`).
+        // ending waits for the step (`onParliamentFlowComplete('walk' | 'rally')`). It is normally ALREADY IN
+        // (entered from the landing's commit — PL-120); this is the late road of a record that arrived after it.
         const hosted = hostedStepToEnter();
         if (hosted !== undefined) {
           void this.enterHostedParliamentStep(hosted);
+          return;
+        }
+        if (hostedStepLiveIn('hand') || this.hostedStepEntered()) {
+          // The step is on screen and playing: its own completion ends the flow (`onParliamentFlowComplete`).
           return;
         }
         // The answer is in and carried no record (the track's end took every
@@ -10701,6 +10706,18 @@ export default defineComponent({
       if (phase === 'committing' && playedHeroState.host === 'workspace' &&
           workspaceOutcomeClaimed()) {
         markWorkspaceOutcomeBeatDone();
+      }
+      // THE HOSTED STEP ENTERS FROM THE COMMIT (PL-120): a play whose answer carried a record for THIS hand (a walk
+      // of the Agenda track — TR04 / TR37; a rally — TR31) does not read the landed tableau for a beat and then fold
+      // into an empty zone before the Parliament rises — the story continues IN the step, so the step UNFOLDS out of
+      // the landed card's rect the moment the card has docked (the composer and the proxy let go in place under it).
+      // The landing scene's own reading pause is skipped (its remaining beats run under the risen step).
+      if (phase === 'committing' && playedHeroState.host === 'workspace') {
+        const hosted = hostedStepToEnter();
+        if (hosted !== undefined) {
+          skipPlayedHeroResult();
+          void this.enterHostedParliamentStep(hosted);
+        }
       }
       if (phase === 'failed') {
         // A refused play walks nothing and rallies nobody: the promises are dropped with the move.
@@ -20170,11 +20187,16 @@ export default defineComponent({
      * `onParliamentFlowComplete('walk')` takes the step and the hand down as
      * ONE surface. An outcome, never a door: nothing here is submitted.
      */
+    /** The hosted step's frame already stands on the hand (entered from the commit, or the late road) — never twice. */
+    hostedStepEntered(): boolean {
+      const stage = workspaceFrameKnown('parliament') ? workspaceFrameStage('parliament') : '';
+      return workspaceFrameHost('parliament') === 'hand' && (stage === AGENDA_WALK_STEP_STAGE || stage === NEUTRAL_RALLY_STEP_STAGE);
+    },
     async enterHostedParliamentStep(kind: HostedParliamentStepKind): Promise<void> {
       // ONE entrance for both hosted outcomes (TR04's walk, TR31's rally): the record owed to the hand, not yet live.
       const owed = kind === 'walk' ? agendaWalkFlow.owed : neutralRallyFlow.owed;
       const live = kind === 'walk' ? agendaWalkFlow.live : neutralRallyFlow.live;
-      if (owed === undefined || owed.host !== 'hand' || live || !workspaceFrameDescended('hand')) {
+      if (owed === undefined || owed.host !== 'hand' || live || !workspaceFrameDescended('hand') || this.hostedStepEntered()) {
         return;
       }
       setWorkspaceFramePhase('hand', 'committed');
