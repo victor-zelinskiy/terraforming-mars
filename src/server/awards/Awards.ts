@@ -52,6 +52,8 @@ import {Collector} from './modular/Collector';
 import {Politician} from './modular/Politician';
 import {Manufacturer} from './modular/Manufacturer';
 import {Incorporator} from './modular/Incorporator';
+import {Innovator} from '@/server/awards/Innovator';
+import {Physicist} from '@/server/awards/Physicist';
 import {Rugged} from './Rugged';
 import {BoardName} from '../../common/boards/BoardName';
 import {AwardName} from '../../common/ma/AwardName';
@@ -73,8 +75,8 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Blacksmith': {Factory: Blacksmith},
     'Botanist': {Factory: Botanist, random: 'both'},
     'Celebrity': {Factory: Celebrity, random: 'both'},
-    'Collector': {Factory: Collector, random: 'modular'},
-    'Constructor': {Factory: Constructor, compatibility: 'colonies', random: 'modular'},
+    'Collector': {Factory: Collector, random: 'both'},
+    'Constructor': {Factory: Constructor, compatibility: 'colonies', random: 'both'},
     'Contractor': {Factory: Contractor, random: 'both'},
     'Cosmic Settler': {Factory: CosmicSettler},
     'Cultivator': {Factory: Cultivator, random: 'both'},
@@ -94,17 +96,19 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     'Industrialist': {Factory: Industrialist, random: 'both'},
     // Turmoil Redux: the furthest Agenda (Career) marker — the track exists only under the Redux Parliament.
     'Influencer': {Factory: Influencer, compatibility: 'turmoilRedux', random: 'both'},
+    'Innovator': {Factory: Innovator},
     'Investor': {Factory: Investor, random: 'modular'},
     'Kingpin': {Factory: Kingpin, compatibility: 'underworld'},
     'Landlord': {Factory: Landlord, random: 'both'},
     'Landscaper': {Factory: Landscaper, random: 'modular'},
     'Lunar Magnate': {Factory: LunarMagnate, compatibility: 'moon'},
     'Magnate': {Factory: Magnate, random: 'both'},
-    'Manufacturer': {Factory: Manufacturer, random: 'modular'},
+    'Manufacturer': {Factory: Manufacturer, random: 'both'},
     'Metropolist': {Factory: Metropolist, random: 'modular'},
     'Miner': {Factory: Miner, random: 'both'},
     'Mogul': {Factory: Mogul, random: 'modular'},
     'Naturalist': {Factory: Naturalist},
+    'Physicist': {Factory: Physicist},
     // vize1215 fork: RETIRED — the Redux FAQ bars it (delegates no longer sit in parties) and the classic Turmoil is not
     // supported. Kept only so an old save loads; it can never enter a new game (`retired`).
     'Politician': {Factory: Politician, compatibility: 'turmoil', deprecated: true, retired: RETIRED_WITH_CLASSIC_TURMOIL},
@@ -140,7 +144,7 @@ export const awardManifest: MAManifest<AwardName, IAward> = {
     [BoardName.VASTITAS_BOREALIS_NOVA]: ['Traveller', 'Landscaper', 'Highlander', 'Promoter', 'Blacksmith'],
     [BoardName.TERRA_CIMMERIA_NOVA]: ['Electrician', 'Founder', 'Mogul', 'A. Zoologist', 'Forecaster'],
     [BoardName.HOLLANDIA]: [],
-    [BoardName.AMAZONIS_PLANITIA]: [],
+    [BoardName.AMAZONIS_PLANITIA]: ['Collector', 'Innovator', 'Constructor', 'Manufacturer', 'Physicist'],
   },
   expansions: {
     venus: ['Venuphile'],

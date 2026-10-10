@@ -123,6 +123,9 @@ export function chooseMilestonesAndAwards(
       push(milestoneManifest.boards[boardName], awardManifest.boards[gameOptions.boardName]);
       break;
     default:
+      // vize1215 fork: Amazonis Planitia's printed set (the manifest's `boards` row, upstream fc8bd8e0e1) carries Lobbyist,
+      // RETIRED here with the classic Turmoil — the base adaptation (2026-11-06) draws it like Hollandia until its full
+      // adaptation names the Redux substitute.
       // vize1215 fork: boards without a fixed MA set (e.g. Hollandia) draw from the unified
       // "all" pool — pure random, deduped, expansion-filtered — same as the ALL button,
       // instead of the old synergy-limited classic-only fallback.

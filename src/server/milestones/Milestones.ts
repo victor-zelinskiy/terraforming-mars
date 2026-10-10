@@ -58,6 +58,7 @@ import {Purifier} from './Purifier';
 import {VSpacefarer} from './VSpacefarer';
 import {Agronomist} from './Agronomist';
 import {Merchant} from './modular/Merchant';
+import {Merchant3} from '@/server/milestones/Merchant3';
 import {MAManifest, RETIRED_WITH_CLASSIC_TURMOIL} from '../ma/MAManifest';
 import {MilestoneName} from '../../common/ma/MilestoneName';
 import {BoardName} from '../../common/boards/BoardName';
@@ -111,7 +112,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Hydrologist': {Factory: Hydrologist, random: 'modular'},
     'Irrigator': {Factory: Irrigator, deprecated: true},
     'Land Specialist': {Factory: LandSpecialist},
-    'Landshaper': {Factory: Landshaper, random: 'modular'},
+    'Landshaper': {Factory: Landshaper, random: 'both'},
     'Legend': {Factory: Legend},
     'Legend4': {Factory: Legend4, random: 'modular'},
     // vize1215 fork: RETIRED — the Redux FAQ bars it (delegates no longer sit in parties) and the classic Turmoil is not
@@ -121,6 +122,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Martian': {Factory: Martian, compatibility: 'pathfinders'},
     'Mayor': {Factory: Mayor, random: 'both'},
     'Merchant': {Factory: Merchant, random: 'modular'},
+    'Merchant3': {Factory: Merchant3},
     // vize1215 fork: Metallurgist (6 steel+titanium production) is a threshold clone of Smith (7 of the
     // same), which has a board home (Vastitas Borealis). Smith is the canonical version; Metallurgist is
     // deprecated so it never enters the random pool (kept in the manifest for save compatibility).
@@ -143,7 +145,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'T. Spacefarer': {Factory: Spacefarer},
     'Spacefarer4': {Factory: Spacefarer4, random: 'modular'},
     'Specialist': {Factory: Specialist},
-    'Sponsor': {Factory: Sponsor, random: 'modular'},
+    'Sponsor': {Factory: Sponsor, random: 'both'},
     'T. Collector': {Factory: Collector},
     'Tactician': {Factory: Tactician},
     'Tactician4': {Factory: Tactician4, random: 'modular'},
@@ -155,7 +157,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     'Terraformer': {Factory: Terraformer, deprecated: true},
     'Terraformer29': {Factory: Terraformer29, random: 'modular'},
     'Terran': {Factory: Terran},
-    'Terran5': {Factory: Terran5, random: 'modular'},
+    'Terran5': {Factory: Terran5, random: 'both'},
     'Thawer': {Factory: Thawer, random: 'modular'},
     // vize1215 fork: Trader (3 different card-resource types) is an effect clone of Tradesman (the same,
     // plus a corruption bonus), which has a board home (Vastitas Borealis). Tradesman is the canonical
@@ -188,7 +190,7 @@ export const milestoneManifest: MAManifest<MilestoneName, IMilestone> = {
     [BoardName.VASTITAS_BOREALIS_NOVA]: ['Agronomist', 'V. Spacefarer', 'Geologist', 'Engineer', 'Farmer'],
     [BoardName.TERRA_CIMMERIA_NOVA]: ['Planetologist', 'Architect', 'Coastguard', 'C. Forester', 'Fundraiser'],
     [BoardName.HOLLANDIA]: [],
-    [BoardName.AMAZONIS_PLANITIA]: [],
+    [BoardName.AMAZONIS_PLANITIA]: ['Terran5', 'Landshaper', 'Merchant3', 'Sponsor', 'Lobbyist'],
   },
   expansions: {
     venus: ['Hoverlord'],

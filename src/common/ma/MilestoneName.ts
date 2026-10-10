@@ -90,6 +90,7 @@ export const milestoneNames = [
   'Legend4',
   'Lobbyist',
   'Merchant',
+  'Merchant3',
   'Metallurgist', // Same as Smith
   'Philantropist',
   'Pioneer4',
