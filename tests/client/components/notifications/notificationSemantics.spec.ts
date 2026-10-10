@@ -4,6 +4,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {Phase} from '@/common/Phase';
 import {TileType} from '@/common/TileType';
+import {GlobalParameter} from '@/common/GlobalParameter';
 import {GameEvent} from '@/common/events/GameEvent';
 import {EventImpact} from '@/common/events/EventImpact';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
@@ -271,6 +272,19 @@ describe('notificationSemantics (viewer-relative sign + importance)', () => {
       expect(cause.own, 'the corp is the VIEWER\'s own').eq(true);
       expect(cause.trigger).eq('tile-placed');
       expect(cause.triggerTile, 'the one placed tile names the trigger').eq(TileType.CITY);
+    });
+
+    it('a scale-step payout names the ONE scale the chain raised (PL-051): Aphrodite\'s 2 M€ «for a Venus step»', () => {
+      const chain = [
+        event({id: 1, type: 'action', player: RED, correlationId: 1, source: {kind: 'card', card: CardName.PLASMA_FANS, owner: RED}, impact: {}}),
+        event({id: 2, type: 'global-parameter-changed', player: RED, correlationId: 1, impact: {globalParameter: {parameter: GlobalParameter.VENUS, steps: 1}}}),
+        event({id: 3, type: 'effect-triggered', player: BLUE, correlationId: 1, parentId: 1, trigger: 'global-parameter', source: {kind: 'corporation', card: CardName.APHRODITE, owner: BLUE}, impact: {}}),
+        event({id: 4, type: 'resource-changed', player: BLUE, correlationId: 1, parentId: 3, source: {kind: 'corporation', card: CardName.APHRODITE, owner: BLUE}, impact: {stock: {megacredits: 2}}}),
+      ];
+      const impact = viewerImpactOfChain(chain, BLUE, RED);
+      expect(impact.causes).has.length(1);
+      expect(impact.causes[0].trigger).eq('global-parameter');
+      expect(impact.causes[0].triggerParameter, 'the one raised scale names the trigger').eq(GlobalParameter.VENUS);
     });
 
     it('a source-less delta falls back to the chain ROOT (the acting card) — never to nothing', () => {

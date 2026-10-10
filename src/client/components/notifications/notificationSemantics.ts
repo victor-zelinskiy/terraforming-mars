@@ -1,6 +1,7 @@
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {TileType} from '@/common/TileType';
+import {GlobalParameter} from '@/common/GlobalParameter';
 import {EventTrigger, GameEvent, JournalActionCategory} from '@/common/events/GameEvent';
 import {EventImpact} from '@/common/events/EventImpact';
 import {EventSource, sourceKey} from '@/common/events/EventSource';
@@ -73,6 +74,8 @@ export type ViewerImpactCause = {
   triggerTile?: TileType;
   /** For a 'card-played*' trigger: the played card, when known. */
   triggerCard?: CardName;
+  /** For a 'global-parameter' trigger: the ONE scale the chain raised, when unambiguous (PL-051 — «за шаг Венеры»). */
+  triggerParameter?: GlobalParameter;
   gains: ReadonlyArray<JournalImpactChip>;
   losses: ReadonlyArray<JournalImpactChip>;
 };
@@ -249,7 +252,7 @@ function causeOfEvent(e: GameEvent, byId: ReadonlyMap<number, GameEvent>, root: 
 /** Structural context for the trigger phrase: the ONE tile the chain placed /
  *  the root card that was played — only when unambiguous. */
 function triggerContextOf(cause: {trigger?: EventTrigger}, chain: ReadonlyArray<GameEvent>, root: GameEvent | undefined):
-  {triggerTile?: TileType; triggerCard?: CardName} {
+  {triggerTile?: TileType; triggerCard?: CardName; triggerParameter?: GlobalParameter} {
   if (cause.trigger === 'tile-placed') {
     const tiles = chain.filter((e) => e.type === 'tile-placed' && e.tile !== undefined);
     if (tiles.length === 1) {
@@ -261,6 +264,16 @@ function triggerContextOf(cause: {trigger?: EventTrigger}, chain: ReadonlyArray<
     const s = root?.source;
     if (s !== undefined && (s.kind === 'card' || s.kind === 'corporation')) {
       return {triggerCard: s.card};
+    }
+  }
+  if (cause.trigger === 'global-parameter') {
+    // The scale the chain RAISED (a lowering is no trigger): one parameter names it, two keep the generic tail.
+    const raised = new Set(chain
+      .map((e) => (e.type === 'global-parameter-changed' ? e.impact.globalParameter : undefined))
+      .filter((g): g is {parameter: GlobalParameter, steps: number} => g !== undefined && g.steps > 0)
+      .map((g) => g.parameter));
+    if (raised.size === 1) {
+      return {triggerParameter: [...raised][0]};
     }
   }
   return {};

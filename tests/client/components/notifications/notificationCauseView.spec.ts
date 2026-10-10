@@ -94,6 +94,19 @@ describe('notificationCauseView (the «почему» grammar)', () => {
     expect(self?.triggerParamKey).is.undefined;
   });
 
+  it('a global-parameter trigger names ITS scale (PL-051); with no parameter known the generic tail stays', () => {
+    const venus = causeLineOf(cause({kind: 'corporation', card: CardName.APHRODITE, owner: 'red'},
+      {own: true, trigger: 'global-parameter', triggerParameter: GlobalParameter.VENUS}));
+    expect(venus?.triggerKey).eq('for a Venus step');
+    expect(venus?.triggerParamKey).is.undefined;
+    const temperature = causeLineOf(cause({kind: 'card', card: CardName.CAPITAL, owner: 'red'},
+      {own: true, trigger: 'global-parameter', triggerParameter: GlobalParameter.TEMPERATURE}));
+    expect(temperature?.triggerKey).eq('for a temperature step');
+    const generic = causeLineOf(cause({kind: 'corporation', card: CardName.APHRODITE, owner: 'red'},
+      {own: true, trigger: 'global-parameter'}));
+    expect(generic?.triggerKey).eq('for a global parameter step');
+  });
+
   it('a tile-placed trigger with NO unambiguous tile keeps the generic tail', () => {
     const line = causeLineOf(cause({kind: 'corporation', card: CardName.THARSIS_REPUBLIC, owner: 'blue'},
       {own: true, trigger: 'tile-placed'}));

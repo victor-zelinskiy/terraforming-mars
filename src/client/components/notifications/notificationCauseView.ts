@@ -98,6 +98,14 @@ const TRIGGER_WITH_PARAM: Partial<Record<EventTrigger, string>> = {
 /** The three base tiles read as complete phrases (clean declension in RU —
  *  «за размещение города», never «за размещение: город»); a special tile's
  *  name is a CardName and rides the `${0}` template instead. */
+/** A scale step names ITS scale (PL-051): «за шаг Венеры», never «за шаг глобального параметра». */
+const PARAM_STEP_TRIGGER: Partial<Record<GlobalParameter, string>> = {
+  [GlobalParameter.VENUS]: 'for a Venus step',
+  [GlobalParameter.TEMPERATURE]: 'for a temperature step',
+  [GlobalParameter.OXYGEN]: 'for an oxygen step',
+  [GlobalParameter.OCEANS]: 'for an ocean step',
+};
+
 const BASE_TILE_TRIGGER: Partial<Record<TileType, string>> = {
   [TileType.CITY]: 'for a placed city',
   [TileType.GREENERY]: 'for a placed greenery',
@@ -115,6 +123,12 @@ function triggerOf(cause: ViewerImpactCause, nameKey: string): {triggerKey?: str
       return {triggerKey: base};
     }
     return {triggerKey: TRIGGER_WITH_PARAM[trigger], triggerParamKey: tileTypeToString[cause.triggerTile]};
+  }
+  if (trigger === 'global-parameter' && cause.triggerParameter !== undefined) {
+    const step = PARAM_STEP_TRIGGER[cause.triggerParameter];
+    if (step !== undefined) {
+      return {triggerKey: step};
+    }
   }
   // «за розыгрыш: X» where X is the very card already named as the source
   // says nothing twice — the generic tail reads better.
