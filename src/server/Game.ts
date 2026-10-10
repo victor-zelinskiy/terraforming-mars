@@ -125,6 +125,7 @@ import {newInitialDraft, newPreludeDraft, newCEOsDraft, newStandardDraft} from '
 import {newAutomaDraft} from './automa/AutomaDraft';
 import {partition, sum, toID, toName} from '../common/utils/utils';
 import {OrOptions} from './inputs/OrOptions';
+import {SelectResource} from './inputs/SelectResource';
 import {SelectOption} from './inputs/SelectOption';
 import {createMarsSelectSpace} from './boards/marsSelectSpaceHelper';
 import {maybeRenamedMilestone} from '../common/ma/MilestoneName';
@@ -3133,6 +3134,15 @@ export class Game implements IGame, Logger {
           cause: cellGiver(),
         }))
         .andThen(() => this.defer(new BuildColony(player, {giver: cellGiver()})));
+      return {kind: 'other'};
+    case SpaceBonus.STANDARD_RESOURCE:
+      // A space has this bonus at most once. If one ever has more, use SelectResources (see Philares).
+      player.defer(new SelectResource('Select a standard resource to gain')
+        .withGainAmount(1)
+        .andThen((resource) => {
+          player.stock.add(resource, 1, {log: true});
+          return undefined;
+        }));
       return {kind: 'other'};
     default:
       throw new Error('Unhandled space bonus ' + spaceBonus + '. Report this exact error, please.');
