@@ -125,8 +125,8 @@ describe('BiologicalSimulations', () => {
       // The live hook carries its forecast twin (the coverage guard's pair); no non-card hook (rule 4); plain storage (decision 4).
       expect(typeof card.onCardPlayed).eq('function');
       expect(typeof card.cardPlayedForecast).eq('function');
-      expect(card.onNonCardTagAdded, 'no microbe / animal tag ever arrives without a card').is.undefined;
-      expect(card.resourceRole, 'a plain data store — no claiming role').is.undefined;
+      expect((card as ICard).onNonCardTagAdded, 'no microbe / animal tag ever arrives without a card').is.undefined;
+      expect((card as ICard).resourceRole, 'a plain data store — no claiming role').is.undefined;
     });
 
     it('the structured text prints the rule itself — the requirement line, the play, the effect, the action with their shorts', () => {

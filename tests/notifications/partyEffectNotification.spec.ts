@@ -62,7 +62,7 @@ describe('PL-112 — a party\'s effect gained / lost: the owner\'s notification'
 
     const mine = partyEffectCards(game, p1.color);
     expect(mine).has.length(1);
-    expect(mine[0].header.message).eq('${0} gains the ${1} party effect: ${2} delegate(s) on its resolution');
+    expect(mine[0].header?.message).eq('${0} gains the ${1} party effect: ${2} delegate(s) on its resolution');
     expect(mine[0].typeLabelKey).eq('Party effect');
     expect(mine[0].kind, 'never suppressed as the viewer\'s own routine action').eq('important');
     expect(mine[0].cta).deep.eq({labelKey: 'Open the Parliament', action: 'open-parliament'});
@@ -81,7 +81,7 @@ describe('PL-112 — a party\'s effect gained / lost: the owner\'s notification'
     parliament.grantPartyEffect(p1, PartyName.MARS, 'Septem Tribus');
     parliament.announceAccessChanges(game);
     const cards = partyEffectCards(game, p1.color);
-    expect(cards.map((c) => c.header.message)).deep.eq([
+    expect(cards.map((c) => c.header?.message)).deep.eq([
       '${0} gains the ${1} party effect: ${2} delegate(s) on its resolution',
       '${0} loses the ${1} party effect: fewer than ${2} delegate(s) on its resolution',
       '${0} gains the ${1} party effect — granted by ${2}',
