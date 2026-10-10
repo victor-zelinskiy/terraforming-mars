@@ -297,6 +297,10 @@ export class Server {
       // the premium scene's own extra wave. Already a serialized
       // PlacementLawPayoutModel (or undefined).
       lastPlacementLawPayout: player.lastPlacementLawPayout,
+      // Self-only + transient: what a tile MOVE paid beyond its cell (its rating
+      // and the table's measured answer) — the landing scene's own last beats.
+      // Already a serialized TileMoveRewardModel (or undefined).
+      lastTileMoveReward: player.lastTileMoveReward,
       // Self-only + transient: the start-of-game corporation setup (starting
       // bonuses + card payment) for the premium start-flow reveal stages.
       // Already a serialized StartingSetupModel (or undefined).

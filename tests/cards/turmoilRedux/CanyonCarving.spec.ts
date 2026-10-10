@@ -27,6 +27,7 @@ import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {SpaceType} from '../../../src/common/boards/SpaceType';
 import {SpaceId} from '../../../src/common/Types';
 import {TileType} from '../../../src/common/TileType';
+import {Resource} from '../../../src/common/Resource';
 import {CardRenderItemType} from '../../../src/common/cards/render/CardRenderItemType';
 import {ActionPreviewStep} from '../../../src/common/models/ActionPreviewModel';
 import {aggregateByPlayer} from '../../../src/common/events/aggregate';
@@ -283,6 +284,9 @@ describe('CanyonCarving', () => {
       expect(cell(t.game, A).tile).is.undefined;
       expect(cell(t.game, B_LAND).tile?.tileType).eq(TileType.OCEAN);
       expect(cell(t.game, B_LAND).player).is.undefined;
+      // …and the landing's scene is TOLD what the move paid beyond the cell — the rating, and the table's answer to
+      // it MEASURED on the mover's stock (the Greens' 2 M€): the `lastOceanBonus` law, nothing for the client to derive.
+      expect(t.p1.lastTileMoveReward).deep.eq({spaceId: B_LAND, from: A, rating: 1, reactions: [{resource: Resource.MEGACREDITS, amount: 2}]});
     });
 
     it('at NINE oceans the move is legal and pays its TR — no gate, no «Mars is terraformed», no parameter record', () => {
@@ -316,6 +320,9 @@ describe('CanyonCarving', () => {
       runAllActions(t.game);
       expect(t.p1.steel).eq(1);
       expect(t.p1.cardsInHand.length).eq(hand);
+      // The steel is the LANDING's (a placement passive, inside `addTile`) and is NOT in the move's own record — only
+      // what answered the RATING is (the Greens still rule by the starting rule: their 2 M€ for the step).
+      expect(t.p1.lastTileMoveReward).deep.eq({spaceId: B_OCEAN, from: A, rating: 1, reactions: [{resource: Resource.MEGACREDITS, amount: 2}]});
     });
 
     it('every «ocean tile placed» trigger fires: another player\'s Arctic Algae gains 2 plants — and the forecast said so first', () => {

@@ -19,6 +19,7 @@ import {RevealResultModel} from './RevealResultModel';
 import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from './OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from './PlacementLawPayoutModel';
+import {TileMoveRewardModel} from './TileMoveRewardModel';
 import {StartingSetupModel} from './StartingSetupModel';
 import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
 import {ColonyTradeBlockModel} from './ColonyModel';
@@ -281,6 +282,12 @@ export interface PlayerViewModel extends ViewModel {
   // placement scene plays it as its OWN wave from the same cell; nothing is
   // re-derived. Absent unless a passive paid. See PlacementLawPayoutModel.
   lastPlacementLawPayout?: PlacementLawPayoutModel;
+  // Self-only, transient (cleared on the next input): what a TILE MOVE paid
+  // beyond the cell — the move's own rating and what the table answered it with
+  // (TR39 Canyon Carving: +1 TR, the Greens' M€). The premium scene holds both
+  // to the landing and pays them in the engine's order; nothing is re-derived.
+  // Absent unless a move paid a rating. See TileMoveRewardModel.
+  lastTileMoveReward?: TileMoveRewardModel;
   // Self-only, transient (cleared on the next input): the start-of-game setup the
   // corporation just applied — its starting bonuses + the M€ paid for the bought
   // project cards, over the pre-corp baseline. Drives the premium start flow's

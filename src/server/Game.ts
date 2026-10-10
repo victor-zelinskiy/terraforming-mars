@@ -43,7 +43,7 @@ import {Player} from './Player';
 import {PlayerId, GameId, SpectatorId, SpaceId} from '../common/Types';
 import {PlayerInput} from './PlayerInput';
 import {CardResource} from '../common/CardResource';
-import {Resource} from '../common/Resource';
+import {ALL_RESOURCES, Resource} from '../common/Resource';
 import {AndThen, DeferredAction, SimpleDeferredAction} from './deferredActions/DeferredAction';
 import {ExternalDrawIntake} from './deferredActions/ExternalDrawIntake';
 import {Priority} from './deferredActions/Priority';
@@ -126,6 +126,18 @@ let createGameLog: () => Array<LogMessage> = () => [];
 
 export function setGameLog(f: () => Array<LogMessage>) {
   createGameLog = f;
+}
+
+/** The mover's standard stock, read for the measured answer of a tile move's rating (`lastTileMoveReward`). */
+function stockSnapshot(player: IPlayer): Record<Resource, number> {
+  return {
+    [Resource.MEGACREDITS]: player.megaCredits,
+    [Resource.STEEL]: player.steel,
+    [Resource.TITANIUM]: player.titanium,
+    [Resource.PLANTS]: player.plants,
+    [Resource.ENERGY]: player.energy,
+    [Resource.HEAT]: player.heat,
+  };
 }
 
 export class Game implements IGame, Logger {
@@ -2435,7 +2447,20 @@ export class Game implements IGame, Logger {
     }
     from.tile = undefined;
     this.addTile(player, to, {tileType: TileType.OCEAN}, {moved: {from}});
+    // THE MOVE'S OWN RATING, and what the table answers it with — published
+    // for the landing's scene (`lastTileMoveReward`, the `lastOceanBonus`
+    // law): the mover's stock is read before and after the grant, so the
+    // answer (the Greens' 2 M€ per step, any passive on a rating gain) is
+    // MEASURED, never re-derived, and the scene can hold both to the landing.
+    const before = stockSnapshot(player);
     player.increaseTerraformRating(1, {log: true});
+    const after = stockSnapshot(player);
+    player.lastTileMoveReward = {
+      spaceId: to.id,
+      from: from.id,
+      rating: 1,
+      reactions: ALL_RESOURCES.filter((r) => after[r] > before[r]).map((r) => ({resource: r, amount: after[r] - before[r]})),
+    };
     this.recordTileMove({from: from.id, to: to.id, tileType: TileType.OCEAN, color: player.color});
   }
 

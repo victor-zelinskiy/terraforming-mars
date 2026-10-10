@@ -3,6 +3,7 @@ import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceId} from '@/common/Types';
 import {TileType} from '@/common/TileType';
+import {Resource} from '@/common/Resource';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {
   verifyPlacement, verifyMove, applyVacatePreview, applySpacePreview, departingCubePose,
@@ -420,6 +421,36 @@ describe('TR14 Re-settlement — the MOVE scene', () => {
       seedTilePlacementRewardHold();
       expect(heldStock('steel')).eq(1);
       expect(heldStock('titanium'), 'the cell the city LEFT pays nothing').eq(0);
+      await endTilePlacement();
+      expect(heldStock('steel')).eq(0);
+    });
+
+    it('what the MOVE itself paid (TR39: its rating, the table\'s measured answer) is held to the landing with the cell\'s own and released by its beat', async () => {
+      cells(1);
+      armTilePlacement({spaceId: B, movedFrom: A});
+      const {prev, next} = singleMove({b: [SpaceBonus.STEEL]});
+      detectTilePlacement(prev, next, {moveReward: {spaceId: B, from: A, rating: 1, reactions: [{resource: Resource.MEGACREDITS, amount: 2}]}});
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(heldStock('steel')).eq(1);
+      expect(heldStock('rating'), 'the score cell keeps its pre-move value until the token touches down').eq(1);
+      expect(heldStock('megacredits'), 'the table\'s answer waits for the rating — never netted into the price').eq(2);
+      await endTilePlacement();
+      expect(heldStock('rating')).eq(0);
+      expect(heldStock('megacredits')).eq(0);
+      expect(heldStock('steel')).eq(0);
+    });
+
+    it('a move reward naming ANOTHER pair is a stale record — nothing of it is held', async () => {
+      cells(1);
+      armTilePlacement({spaceId: B, movedFrom: A});
+      const {prev, next} = singleMove({b: [SpaceBonus.STEEL]});
+      detectTilePlacement(prev, next, {moveReward: {spaceId: '12', from: A, rating: 1, reactions: [{resource: Resource.MEGACREDITS, amount: 2}]}});
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(heldStock('steel')).eq(1);
+      expect(heldStock('rating')).eq(0);
+      expect(heldStock('megacredits')).eq(0);
       await endTilePlacement();
       expect(heldStock('steel')).eq(0);
     });

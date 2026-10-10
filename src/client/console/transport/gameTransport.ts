@@ -804,6 +804,10 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // …and the server's move ring: a MOVE the hero plays claims its
             // own record, so the remote stage can never replay it.
             tileMoves: newView.game?.tileMoves,
+            // …and what the MOVE itself paid beyond the cell (TR39: its rating, the
+            // table's measured answer) — the landing's own last beats, held to the
+            // touchdown and paid in the engine's order; nothing re-derived.
+            moveReward: newView.lastTileMoveReward,
             // …and its per-neighbour card payouts (TR21: the data the cities paid onto the chosen
             // card) — the hero plays THIS cell's record and claims it; the card's face comes from the tableau.
             cardPayouts: newView.game?.cardAdjacencyPayouts,

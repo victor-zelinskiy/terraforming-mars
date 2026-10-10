@@ -86,6 +86,7 @@ import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from '../common/models/PlacementLawPayoutModel';
+import {TileMoveRewardModel} from '../common/models/TileMoveRewardModel';
 import {StartingSetupModel, StartingSetupSnapshot} from '../common/models/StartingSetupModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
@@ -321,6 +322,10 @@ export class Player implements IPlayer {
   // Transient snapshot of what the ENACTED LAW paid on a placement (self-only,
   // cleared at the start of the next input). See IPlayer.lastPlacementLawPayout.
   public lastPlacementLawPayout: PlacementLawPayoutModel | undefined = undefined;
+  // Transient (NOT serialized): what a TILE MOVE paid beyond the cell (the move's
+  // rating + the table's measured answer), cleared at the start of the next
+  // input. See IPlayer.lastTileMoveReward.
+  public lastTileMoveReward: TileMoveRewardModel | undefined = undefined;
   // Transient snapshot of the start-of-game corporation setup (starting bonuses
   // + card payment) over the pre-corp baseline (self-only, cleared at the start
   // of the next input). Drives the premium start flow's explicit reveal stages.
@@ -2934,6 +2939,8 @@ export class Player implements IPlayer {
     this.lastOceanBonus = undefined;
     // …and what the enacted law paid on that placement (the same one-shot scene).
     this.lastPlacementLawPayout = undefined;
+    // …and what a tile MOVE paid beyond its cell (the same one-shot landing scene).
+    this.lastTileMoveReward = undefined;
     // The start-of-game setup reveal is a one-shot at the ceremony; the player's
     // next input (their first prelude / corp action) means that moment passed.
     this.startingSetup = undefined;

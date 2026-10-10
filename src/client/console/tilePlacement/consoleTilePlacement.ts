@@ -166,7 +166,9 @@ import {
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {
   ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
+  RATING_RAIL_KEY, TOUCHDOWN_TICK_GAP_MS, isStandardResource,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
+import {TileMoveRewardModel} from '@/common/models/TileMoveRewardModel';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
 
@@ -258,6 +260,30 @@ let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
  *  paid over and above the engine's own bonuses (captured at detect, matched
  *  on the armed space): the law wave's manifest. */
 let pendingLawWave: PlacementLawWave | undefined;
+/**
+ * What the MOVE ITSELF paid beyond the cell (Turmoil Redux TR39 Canyon Carving:
+ * the ocean's +1 TR, and the table's MEASURED answer to it — the Greens' M€),
+ * the SERVER's record (`thisPlayer.lastTileMoveReward`, matched on the armed
+ * pair at detect). The landing's LAST beats, after everything the cell paid:
+ * the engine grants the cell, the water, the neighbours and the law inside
+ * `addTile`, and the rating after it — so the token flies after them, and the
+ * answer ticks one beat after its touchdown, never before its cause (PL-002).
+ */
+type PendingMoveReward = {rating: ResourceTransferSpec | undefined, reactions: ReadonlyArray<ResourceTransferSpec>};
+let pendingMoveReward: PendingMoveReward | undefined;
+
+/** The move's own reward, accepted only when the server's record names the PAIR we armed — never a stale one. */
+function moveRewardFor(reward: TileMoveRewardModel | undefined, from: string, spaceId: string): PendingMoveReward | undefined {
+  if (reward === undefined || reward.spaceId !== spaceId || reward.from !== from) {
+    return undefined;
+  }
+  const rating: ResourceTransferSpec | undefined = reward.rating > 0 ?
+    {channel: 'stock', resource: RATING_RAIL_KEY, amount: reward.rating} : undefined;
+  const reactions: Array<ResourceTransferSpec> = reward.reactions
+    .filter((r) => r.amount > 0 && isStandardResource(r.resource))
+    .map((r) => ({channel: 'stock', resource: r.resource, amount: r.amount}));
+  return rating === undefined && reactions.length === 0 ? undefined : {rating, reactions};
+}
 /**
  * The SERVER's «A TILE PAYS A CARD» records of THIS placement (`cards/tilePayout.ts`
  * — TR21 Arboretum's neighbouring cities, TR30 Red Museum / Pets / Martian Census
@@ -424,6 +450,7 @@ export function armTilePlacement(opts: {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
+  pendingMoveReward = undefined;
   pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   hexRect = undefined;
@@ -482,6 +509,9 @@ export function detectTilePlacement(
     /** The SERVER's move ring (`game.tileMoves`): the record of THIS move is
      *  claimed here, so the remote stage can never replay what the hero played. */
     tileMoves?: ReadonlyArray<TileMoveRecordModel>,
+    /** What the MOVE itself paid beyond the cell (`thisPlayer.lastTileMoveReward`, TR39):
+     *  accepted only when it names the pair WE armed — the landing's own last beats. */
+    moveReward?: TileMoveRewardModel,
     /** The SERVER's per-neighbour card payout ring (`game.cardAdjacencyPayouts`, TR21): THIS
      *  cell's record for the viewer is claimed here — the hero plays it, the remote stage never will. */
     cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
@@ -526,6 +556,8 @@ export function detectTilePlacement(
     if (record !== undefined) {
       claimTileMove(record.seq);
     }
+    // …and what the move ITSELF paid beyond the cell (its rating, the table's answer): held to the landing, paid last.
+    pendingMoveReward = moveRewardFor(opts?.moveReward, landed.moves.from, spaceId);
   }
   if (landed.stacks !== undefined) {
     // A CITY TIER pays the cell NOTHING again — no printed bonus, no water,
@@ -1013,7 +1045,7 @@ async function runDeparture(hex: TileRect): Promise<void> {
 export function seedTilePlacementRewardHold(): void {
   if (!tilePlacementState.active || bonusHoldSeeded ||
       (pendingBonuses.length === 0 && pendingOceanBonus === undefined && pendingAresFlights.length === 0 && pendingLawWave === undefined &&
-       pendingCityPayouts.length === 0)) {
+       pendingMoveReward === undefined && pendingCityPayouts.length === 0)) {
     return;
   }
   if (tilePlacementState.reducedMotion) {
@@ -1021,6 +1053,7 @@ export function seedTilePlacementRewardHold(): void {
     pendingOceanBonus = undefined;
     pendingAresFlights = [];
     pendingLawWave = undefined;
+    pendingMoveReward = undefined;
     pendingCityPayouts = [];
     return;
   }
@@ -1053,6 +1086,15 @@ export function seedTilePlacementRewardHold(): void {
   // its pre-payout count until the receiving card comes HOME; what the table answered (Martian Fiber's M€) waits
   // for its own flight. Another seat's records hold nothing here — their chip is not this panel.
   specs.push(...ownCityPayoutHolds(pendingCityPayouts));
+  // THE MOVE'S OWN share (TR39): the rating it pays and the table's answer are held to the landing too — the score
+  // cell keeps its pre-move value until the token touches down, and the answer waits for that touchdown (so the
+  // card's price leaves the M€ row ALONE at the response, never netted with an answer that has no cause yet).
+  if (pendingMoveReward !== undefined) {
+    if (pendingMoveReward.rating !== undefined) {
+      specs.push(pendingMoveReward.rating);
+    }
+    specs.push(...pendingMoveReward.reactions);
+  }
   beginPanelRewardHold(specs);
   // …and the points they bring their cards (the museum's «1 per 2 data»): the VP cell is derived (PL-014 / PL-073).
   beginPanelVpHold(ownCityPayoutVp(pendingCityPayouts));
@@ -1075,10 +1117,12 @@ export async function endTilePlacement(): Promise<void> {
   const aresFlights = pendingAresFlights;
   const lawWave = pendingLawWave;
   const cityPayouts = pendingCityPayouts;
+  const moveReward = pendingMoveReward;
   pendingBonuses = [];
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
+  pendingMoveReward = undefined;
   pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   // THE TILE PAYS AFTER THE FIELD HAS SPOKEN (TR21, TR30): the cards' scene is not a beat of this transaction —
@@ -1092,7 +1136,7 @@ export async function endTilePlacement(): Promise<void> {
     }
   };
   if (tilePlacementState.reducedMotion ||
-      (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0 && lawWave === undefined)) {
+      (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0 && lawWave === undefined && moveReward === undefined)) {
     finish();
     kickCityPayout();
     return;
@@ -1116,6 +1160,12 @@ export async function endTilePlacement(): Promise<void> {
   // …and then, IN TURN, what the enacted LAW paid for the very same cell.
   if (lawWave !== undefined && tilePlacementState.active) {
     await runLawWave(lawWave);
+  }
+  // …and LAST, what the MOVE itself paid (TR39) — the engine's order: the cell, the water, the neighbours and the law
+  // are `addTile`'s, the rating comes after it. The token condenses out of the landed tile and flies to the score
+  // cell; the table's answer ticks one beat after its touchdown, never before its cause (PL-002).
+  if (moveReward !== undefined && tilePlacementState.active) {
+    await runMoveRewardBeat(moveReward);
   }
   // Belt-and-braces: any hold a degraded transfer left behind snaps to the
   // committed truth now (its chip fires marginally late, never lost).
@@ -1154,6 +1204,44 @@ async function runLawWave(wave: PlacementLawWave): Promise<void> {
   } finally {
     tilePlacementState.lawWave = false;
   }
+}
+
+/**
+ * THE MOVE'S OWN BEAT (Turmoil Redux TR39 Canyon Carving) — «the ocean I
+ * carried paid its rating, and the table answered». The rating token is born
+ * at the LANDED tile (the move is what pays it — the parameter never moved, so
+ * no scale tells this story) and rides the shared Resource Transfer Framework
+ * onto the score cell, which ticks at the touchdown. The table's answer (the
+ * Greens' M€ for the step) is released ONE tick-gap after that touchdown: an
+ * answer may never tick before its cause, and a beat — not a frame — is what
+ * lets the player read two statements. No stage / no rect → both release at
+ * once (the honest tick, no flight). Nothing here decides an amount: the
+ * server measured both (`TileMoveRewardModel`).
+ */
+async function runMoveRewardBeat(reward: PendingMoveReward): Promise<void> {
+  const releaseReactions = () => reward.reactions.forEach((spec) => releasePanelRewardHold(spec));
+  if (reward.rating !== undefined) {
+    const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
+    if (tileRect === undefined) {
+      releasePanelRewardHold(reward.rating);
+    } else {
+      const centre = {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2};
+      await runResourceTransfers({
+        specs: [reward.rating],
+        source: {point: centre},
+        arrival: 'auto',
+        pace: tileRewardTransferPace(),
+        fromBoard: true,
+        onArrive: (spec) => releasePanelRewardHold(spec),
+      });
+      if (!tilePlacementState.active) {
+        releaseReactions();
+        return;
+      }
+      await wait(motionMs(TOUCHDOWN_TICK_GAP_MS));
+    }
+  }
+  releaseReactions();
 }
 
 /**
@@ -1422,6 +1510,7 @@ export function abortTilePlacement(): void {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
+  pendingMoveReward = undefined;
   pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   hexRect = undefined;
@@ -1468,6 +1557,7 @@ function finish(): void {
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
+  pendingMoveReward = undefined;
   pendingCityPayouts = [];
   tilePlacementState.lawWave = false;
   hexRect = undefined;

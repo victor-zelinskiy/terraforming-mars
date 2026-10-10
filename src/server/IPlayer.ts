@@ -37,6 +37,7 @@ import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from '../common/models/PlacementLawPayoutModel';
+import {TileMoveRewardModel} from '../common/models/TileMoveRewardModel';
 import {StartingSetupModel} from '../common/models/StartingSetupModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
@@ -309,6 +310,14 @@ export interface IPlayer {
    * own wave from the same cell. See PlacementLawPayoutModel.
    */
   lastPlacementLawPayout: PlacementLawPayoutModel | undefined;
+  /**
+   * Transient (NOT serialized) snapshot of what a TILE MOVE paid beyond the
+   * cell — the move's own rating and the table's measured answer to it — set
+   * by the one function that pays a move (`Game.moveOceanTile`), serialized
+   * self-only, cleared at the start of the next input. The premium scene holds
+   * both to the landing. See TileMoveRewardModel.
+   */
+  lastTileMoveReward: TileMoveRewardModel | undefined;
   /**
    * Transient (NOT serialized) snapshot of the start-of-game setup applied by
    * this player's corporation — its starting bonuses + the M€ paid for the
