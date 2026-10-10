@@ -93,13 +93,17 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
       points.forEach((p) => expect(p.y).to.be.within(up.y - 1e-9, row.y + 1e-9));
     });
 
-    it('which flights take it: a LOSS leaving a stock / production row with no run-level destination — nothing else', () => {
+    it('which flights take it: a LOSS leaving a stock / production row with no run-level destination, and a SPEND off a card\'s capsule bound for a printed result (PL-140) — nothing else', () => {
       expect(transferLaunchFor({channel: 'stock', direction: 'loss'}, false)).eq('side');
       expect(transferLaunchFor({channel: 'production', direction: 'loss'}, false)).eq('side');
       expect(transferLaunchFor({channel: 'stock', direction: 'gain'}, false), 'every gain keeps the toss').eq('toss');
       expect(transferLaunchFor({channel: 'stock'}, false), 'absent direction = gain').eq('toss');
-      expect(transferLaunchFor({channel: 'card-resource', direction: 'loss'}, false), 'a spend off a card\'s face is not a rail row').eq('toss');
+      expect(transferLaunchFor({channel: 'card-resource', direction: 'loss'}, false), 'a spend off a card\'s face with no destination is not a rail row').eq('toss');
       expect(transferLaunchFor({channel: 'stock', direction: 'loss'}, true), 'a run-level destination stands in for the row').eq('toss');
+      // PL-140: the price off the hero's capsule crosses to the printed result beside it under the rows above — the
+      // side arc never rises above the higher of its two ends.
+      expect(transferLaunchFor({channel: 'card-resource', direction: 'loss'}, true), 'a spend into the printed result leaves sideways').eq('side');
+      expect(transferLaunchFor({channel: 'card-resource', direction: 'gain'}, true), 'a result born on a card keeps the toss').eq('toss');
     });
   });
 

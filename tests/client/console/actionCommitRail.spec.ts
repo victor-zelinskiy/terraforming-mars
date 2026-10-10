@@ -11,9 +11,10 @@ import {
   actionCommitRailHoldsCapsule, actionCommitRailState, flyActionCommitRail, resetActionCommitRail, seedActionCommitRail,
 } from '@/client/console/consoleActionCommitRail';
 import {clearPanelRewardHold, heldCardCapsule, heldCardResource, heldStock, heldVictoryPoints} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
+import {RATING_RAIL_KEY, TRANSFER_BEAT_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {railRewardPending, railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
+import {motionMs} from '@/client/components/motion/motionTokens';
 
 /*
  * THE ACTION COMMIT'S RAIL HALF (`consoleActionCommitRail.ts`) — PL-001 for
@@ -26,14 +27,14 @@ import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 const EAC = CardName.EARTH_ARMY_CONTRACT;
 const UNMI = CardName.UNITED_NATIONS_MARS_INITIATIVE;
 
-function view(p: {tr: number, mc?: number, fighters?: number}): PlayerViewModel {
+function view(p: {tr: number, mc?: number, fighters?: number, heat?: number}): PlayerViewModel {
   return {
     id: 'p-viewer',
     thisPlayer: {
       color: 'blue',
       terraformRating: p.tr,
       megacredits: p.mc ?? 0,
-      energy: 0, steel: 0, titanium: 0, plants: 0, heat: 0,
+      energy: 0, steel: 0, titanium: 0, plants: 0, heat: p.heat ?? 0,
       megacreditProduction: 0, steelProduction: 0, titaniumProduction: 0, plantProduction: 0, energyProduction: 0, heatProduction: 0,
       tableau: p.fighters === undefined ? [] : [{name: EAC, resources: p.fighters}],
     },
@@ -161,6 +162,36 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       stop();
       expect(seen, 'the row reads 20, then 17 on the departure, the rating only after').deep.eq(['mc20|tr20', 'mc17|tr20', 'mc17|tr21']);
       expect(foldedAt, 'the surface stood while the card was absorbing the price').not.eq('mc20|tr20');
+      expect(actionCommitRailState.phase).eq('idle');
+    });
+
+    /* THE PRICE IS THE LAST LINK (the TR41 walk, 2026-10-10): «8 heat → a Venus step», a tile's price before the board —
+       no rail result follows, so the price link is the chain's last. It is absorbed at the hero's printed cost icon,
+       and the surface stood on the POP (`markFoldable` 150 ms after the token's birth): the «−8» touched down where the
+       icon had been, over the bare board. The fold waits for the touchdown and the contact beat, as a landing does. */
+    it('PL-099 — a price with NOTHING after it (the last link is a loss): the surface stands to the token\'s touchdown and one beat, never the pop', async () => {
+      const branch = {
+        index: -1, title: '', available: true, renderKeys: [], steps: [],
+        effects: [{direction: 'cost', icon: 'heat', amount: 8, current: 10, resulting: 2}],
+      } as ActionPreviewBranch;
+      const plan = arm(UNMI, branch);
+      expect(plan.rail?.links, 'one link — the price').deep.eq([[0]]);
+      expect(plan.rail?.holdsSurface, 'a price off the rail holds the surface').is.true;
+      seedActionCommitRail(view({tr: 20, mc: 20, heat: 10}), view({tr: 20, mc: 20, heat: 2}));
+      expect(actionCommitRailState.phase).eq('seeded');
+      const started = performance.now();
+      const flight = flyActionCommitRail(plan);
+      let foldedAfterMs = -1;
+      let pendingAtFold = false;
+      void flight.foldable.then(() => {
+        foldedAfterMs = performance.now() - started;
+        pendingAtFold = railRewardPending(plan.rail!.key);
+      });
+      await flight.done;
+      expect(foldedAfterMs, 'folded').to.be.at.least(0);
+      expect(foldedAfterMs, 'not on the pop (150 ms) — after the touchdown and the contact beat').to.be.at.least(motionMs(TRANSFER_BEAT_MS) * 0.8);
+      expect(pendingAtFold, 'the table\'s answer had not been flown yet when the surface was released: the fold sits between the price\'s beat and the answer').is.true;
+      expect(heldStock('heat'), 'the row has ticked').eq(0);
       expect(actionCommitRailState.phase).eq('idle');
     });
 
@@ -297,6 +328,8 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       expect(seen, 'Formula Zero −1 (and its point) on the departure, Mech Sports +1 (and its point) on the touchdown')
         .deep.eq(['fz1|ms0|vp21', 'fz0|ms0|vp20', 'fz0|ms1|vp21']);
       expect(foldedAt, 'the workspace stood until the mech had landed on its card').eq('fz0|ms1|vp21');
+      // (PL-138's quick beat after the touchdown is pinned by e2e — `console-spaceship-recycling` B: under jsdom no
+      // composer card has a point, so this case runs the pop branch, not the landing one.)
     });
 
     it('reduced motion seeds nothing: the counters tick with the commit', () => {

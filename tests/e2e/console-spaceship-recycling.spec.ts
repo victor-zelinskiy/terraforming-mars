@@ -573,6 +573,11 @@ for (const preset of PRESETS) {
       expect(vpBack, 'the point came back with the mech').toBeGreaterThan(mech!.at);
       const wsGone = samples.findIndex((s) => s.ws === 0);
       expect(wsGone, 'the workspace stood until the mech had landed on its card').toBeGreaterThanOrEqual(msOne);
+      // PL-138 (the owner's decision 2026-10-10): …and not for long — the token sinks into the card in one quick beat
+      // and the workspace leaves; a surface standing ≈ 0.5 s past its own last tick («Выполняется…» over a card that
+      // had already answered) was the pause the A scene of every mech paid. Budget: the quick absorb (180) + the
+      // surface's leave (≈ 150) + the renderer's commit of the board's return (≈ 200 at 4K), with room for a loaded runner.
+      expect(samples[wsGone].t - samples[msOne].t, `the workspace left within one quick beat of the capsule's tick (tick ${samples[msOne].t}, gone ${samples[wsGone].t})`).toBeLessThanOrEqual(550);
       const highest = Math.min(...samples.flatMap((s) => s.chips).map((c) => c.y - c.h / 2));
       expect(highest, `no token above the screen — y = ${highest}`).toBeGreaterThanOrEqual(0);
       const ready = await readyOf(page);

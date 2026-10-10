@@ -57,7 +57,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRelease} from '@/client/console/consoleActionCommit';
 import {pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
-import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_POP_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_POP_MS, TRANSFER_QUICK_ABSORB_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {flyRailReward, flyRailRewardLink, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 
 export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
@@ -255,10 +255,24 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
         const landing = specs.findIndex((spec, n) => points[n] !== undefined && spec.direction !== 'loss');
         if (landing >= 0) {
           const onSurface = specs.filter((spec, n) => points[n] !== undefined && spec.direction !== 'loss');
-          await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing]});
-          // The run resolves on the touchdown; the token is ABSORBED into the card over the contact beat — the card it
+          // The result lands on the surface and is absorbed QUICKLY (PL-138 — the owner's decision 2026-10-10): the
+          // capsule ticks on the touchdown, the token sinks into it in `TRANSFER_QUICK_ABSORB_MS` with no settle on the
+          // box, and the surface may fold ONE such beat later — a workspace standing ≈ 0.5 s past its own last tick,
+          // «Выполняется…» over a card that had already answered, was the pause the A scene paid on every mech.
+          await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing], absorb: 'quick'});
+          // The run resolves on the touchdown; the token is ABSORBED into the card over the quick beat — the card it
           // lands on must still be there for that (folded on the touchdown, the chip hung over the board where its
           // card had been). One beat of the animation clock, never a timer.
+          await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_QUICK_ABSORB_MS) / 1000, resolve));
+          markFoldable();
+          await flyRailReward(rail.key, originOf);
+        } else if (specs.every((spec) => spec.direction === 'loss')) {
+          // THE PRICE IS THE LAST LINK (PL-099 — TR41's 8 heat into the printed heat before a scale step, a tile's price
+          // before the board, a spend off the capsule with no rail result): a loss is ABSORBED at the hero's own printed
+          // icon, so the surface it stands on must stay to the touchdown and the contact beat — folded on the pop, the
+          // «−8» landed where the icon had been, over the bare board (the TR41 walk, 2026-10-10). Symmetric to the
+          // landing above: the touchdown, one beat of the animation clock, then the fold; the table's answer after.
+          await flyRailRewardLink(rail.key, specs, originOf);
           await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
           markFoldable();
           await flyRailReward(rail.key, originOf);
@@ -269,7 +283,9 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
         }
       } else {
         const destination = points.find((p) => p !== undefined);
-        await flyRailRewardLink(rail.key, specs, originOf, destination !== undefined ? {destination} : {});
+        // A SPEND drawn into the printed result it buys is absorbed QUICKLY (PL-140): no settle on the box, one short
+        // beat, the result born out of it — a token standing on the result for a third of a second read as a pause.
+        await flyRailRewardLink(rail.key, specs, originOf, destination !== undefined ? {destination, absorb: 'quick'} : {});
         actionCommitRailState.link = -1;
       }
     }

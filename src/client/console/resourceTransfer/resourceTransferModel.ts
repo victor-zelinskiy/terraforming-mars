@@ -74,6 +74,11 @@ export const TRANSFER_ARC_MS = 470;
 export const TRANSFER_SETTLE_MS = 140;
 /** The contact beat at the destination (halo + the chip being absorbed). */
 export const TRANSFER_BEAT_MS = 320;
+/**
+ * The QUICK absorb (PL-140): a price token drawn INTO the printed result it buys — no settle, one short beat — so the
+ * result is born out of it at once instead of after a token standing on the box for a third of a second.
+ */
+export const TRANSFER_QUICK_ABSORB_MS = 180;
 /** The quiet "read the landed card" beat BEFORE a play-reward wave starts. */
 export const TRANSFER_READ_MS = 240;
 /** The residual result pause AFTER a play-reward wave (the scene breathes,
@@ -235,7 +240,16 @@ export type TransferLaunch = 'toss' | 'side';
  * (every gain, a card-resource spend leaving a card's face, a run whose «row» is some other surface) is the toss.
  */
 export function transferLaunchFor(spec: Pick<ResourceTransferSpec, 'channel' | 'direction'>, runDestination: boolean): TransferLaunch {
-  return spec.direction === 'loss' && !runDestination && (spec.channel === 'stock' || spec.channel === 'production') ? 'side' : 'toss';
+  if (spec.direction !== 'loss') {
+    return 'toss';
+  }
+  // A price off the RAIL leaves its row sideways (PL-104); a price off a CARD'S CAPSULE bound for the printed result
+  // beside it (PL-140 — TR29 / TR38 / TR40 B) leaves the same way: the side arc never rises above the higher of its
+  // two ends, so the token crosses to the result box without an apex over the printed rows above it.
+  if (!runDestination) {
+    return spec.channel === 'stock' || spec.channel === 'production' ? 'side' : 'toss';
+  }
+  return spec.channel === 'card-resource' ? 'side' : 'toss';
 }
 
 /** How far along the horizontal span the side launch's control point stands — the share of the trip spent «leaving». */

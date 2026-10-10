@@ -400,7 +400,7 @@ export function flyRailRewardLink(
   key: string,
   specs: ReadonlyArray<ResourceTransferSpec>,
   originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined,
-  opts: {destination?: TransferPoint} = {},
+  opts: {destination?: TransferPoint, absorb?: 'quick'} = {},
 ): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   const held = entry === undefined ? [] : specs.filter((spec) => entry.cause.includes(spec));
@@ -422,6 +422,7 @@ export function flyRailRewardLink(
     origins,
     arrival: 'auto',
     ...(opts.destination !== undefined ? {destination: opts.destination} : {}),
+    ...(opts.absorb !== undefined ? {absorb: opts.absorb} : {}),
     onArrive: (spec) => {
       const live = entryOf(key);
       if (live !== undefined) {

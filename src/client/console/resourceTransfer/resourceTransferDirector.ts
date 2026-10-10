@@ -19,7 +19,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   TransferLaunch, TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferLiftBias,
-  TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS,
+  TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS, TRANSFER_QUICK_ABSORB_MS,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export type TransferStagePiece = {
@@ -43,6 +43,11 @@ export type TransferFlightOpts = {
   pace?: number;
   /** How the chip leaves its source (`transferArcPlan`) — `side` for a departure off a RAIL row (PL-104). Default `toss`. */
   launch?: TransferLaunch;
+  /**
+   * `quick` (PL-140): a price token drawn INTO the printed result it buys — no settle at the touchdown, the short
+   * absorb beat (`TRANSFER_QUICK_ABSORB_MS`) — so the result is born out of it at once.
+   */
+  absorb?: 'quick';
 };
 
 export type TransferFlightHandles = {
@@ -146,7 +151,8 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   const pace = opts.pace ?? 1;
   const popMs = motionMs(TRANSFER_POP_MS) * pace;
   const arcMs = motionMs(TRANSFER_ARC_MS) * pace;
-  const settleMs = motionMs(TRANSFER_SETTLE_MS) * pace;
+  const settleMs = opts.absorb === 'quick' ? 0 : motionMs(TRANSFER_SETTLE_MS) * pace;
+  const absorbMs = opts.absorb === 'quick' ? motionMs(TRANSFER_QUICK_ABSORB_MS) : motionMs(TRANSFER_BEAT_MS) * pace;
 
   gsap.set(chip, {
     x: opts.from.x - w / 2,
@@ -186,16 +192,18 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
         });
       },
     }, 0);
-    // Touchdown: microscopic damped weight — felt, not seen.
-    tl.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
-    tl.to(chip, {y: `-=${settlePx}`, duration: (settleMs / 1000) - 0.08, ease: 'power2.out'});
+    // Touchdown: microscopic damped weight — felt, not seen. (A QUICK absorb has no settle: the token is drawn in.)
+    if (settleMs > 0) {
+      tl.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
+      tl.to(chip, {y: `-=${settlePx}`, duration: (settleMs / 1000) - 0.08, ease: 'power2.out'});
+    }
   }), opts.delayMs + popMs + arcMs + settleMs);
 
   const finished: Promise<'landed' | 'done'> = touched.then(() => {
     if (opts.hold) {
       return 'landed' as const;
     }
-    return absorbChip(piece, opts.to, motionMs(TRANSFER_BEAT_MS) * pace).then(() => 'done' as const);
+    return absorbChip(piece, opts.to, absorbMs).then(() => 'done' as const);
   });
   // A launch that never fired (a killed timeline, the guard's budget) resolves with the touchdown: never a hang.
   const launched = Promise.race([launchedAt, touched]);
@@ -209,6 +217,11 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
  * no bloom, no bounce.
  */
 function absorbChip(piece: TransferStagePiece, at: TransferPoint, beatMs: number): Promise<void> {
+  // THE HALO KEEPS ITS FULL BEAT whatever the absorb's speed: a QUICK absorb (PL-140) sinks the chip in 180 ms, but the
+  // contact's mark is what the eye (and every probe) reads as «it landed» — shortened with the sink it was visible for
+  // ≈ 120 ms and fell inside one stalled frame on a loaded 4K runner. Only the piece's removal waits for it; the
+  // touchdown (and so the next link's birth) was released before this ran.
+  const haloMs = Math.max(beatMs, motionMs(TRANSFER_BEAT_MS));
   return guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
     if (piece.beat !== undefined) {
@@ -220,10 +233,10 @@ function absorbChip(piece: TransferStagePiece, at: TransferPoint, beatMs: number
         autoAlpha: 0.5,
         transformOrigin: 'center center',
       });
-      tl.to(piece.beat, {scale: 1.35, autoAlpha: 0, duration: beatMs / 1000, ease: 'power2.out'}, 0);
+      tl.to(piece.beat, {scale: 1.35, autoAlpha: 0, duration: haloMs / 1000, ease: 'power2.out'}, 0);
     }
     tl.to(piece.chip, {scale: 0.5, autoAlpha: 0, duration: Math.min(0.24, beatMs / 1000), ease: 'power2.in'}, 0.02);
-  }, beatMs + 200);
+  }, haloMs + 200);
 }
 
 /** Absorb a RESTING (hold-mode) chip — the sale's post-commit settle. */

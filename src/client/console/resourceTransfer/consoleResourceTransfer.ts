@@ -394,6 +394,11 @@ export type ResourceTransferRun = {
    * every duration (stagger, pop/arc/settle, absorb) a touch quicker.
    */
   pace?: number;
+  /**
+   * `quick` (PL-140): the tokens are prices drawn INTO the printed result they buy — no settle, the short absorb beat
+   * — so the result is born out of them at once (the ACTION COMMIT's spend links).
+   */
+  absorb?: 'quick';
   /** Fired at each transfer's TOUCHDOWN (release the hold / free a gate). */
   onArrive?: (spec: ResourceTransferSpec) => void;
   /**
@@ -607,6 +612,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         hold: run.arrival === 'hold',
         pace,
         launch: transferLaunchFor(e.spec, run.destination !== undefined),
+        ...(run.absorb === undefined ? {} : {absorb: run.absorb}),
       });
       const loss = e.spec.direction === 'loss';
       // A LOSS is fixed at its DEPARTURE: the row's counter ticks the moment the chip leaves it.
