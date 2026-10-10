@@ -231,6 +231,19 @@
                     aria-hidden="true">{{ discard !== undefined ? '⌫ ' + $t('Discarded') : '✓ ' + $t('Card selected') }}</span>
               <span v-else-if="selectActive && !isSelectable(cell.e.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
               <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(cell.e) || '') }}</span>
+              <!-- THE WALK'S FORECAST (К-H1, the owner's decision 2026-10-10): a card that advances the Agenda marker
+                   says HOW FAR before the composer opens — «[★] 2», the server's own reading of THIS player's walk
+                   (`CardModel.agendaWalk`: TR42 counts it from the rating, TR04 / TR37 / TR12 print it and the track
+                   may cut it). Quiet, never a blocker: no red, the art's lower edge, a zero muted («[★] 0» — the
+                   composer and the inspector say why). Rules-playable only — a refusal speaks first. -->
+              <span v-else-if="!saleActive && !selectActive && cell.e.potential && cell.e.card.agendaWalk !== undefined"
+                    class="con-hand__walk"
+                    :class="{'con-hand__walk--zero': cell.e.card.agendaWalk.walked === 0}"
+                    :data-hand-walk="cell.e.card.agendaWalk.walked"
+                    aria-hidden="true">
+                <span class="con-hand__walk-icon resource_icon resource_icon--agenda-step"></span>
+                <span class="con-hand__walk-n">{{ cell.e.card.agendaWalk.walked }}</span>
+              </span>
             </div>
           </div>
         </div>

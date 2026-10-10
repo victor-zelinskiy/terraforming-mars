@@ -9414,6 +9414,39 @@ html.console-mode {
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
     }
+    /* THE WALK'S FORECAST plate (К-H1, TR42): «[★] 2» on a card that advances the Agenda marker — how far THIS
+       player's play would walk, read off the server's `CardModel.agendaWalk`. Information, never a blocker: the
+       blocker chip's place and counter-zoom, quieter — the cyan kant of a positive reading at the art's lower edge
+       (the mechanics plate stays clear), a zero muted by weight and colour. */
+    &__walk {
+        position: absolute;
+        left: 50%;
+        top: 56%;
+        transform: translate(-50%, -50%);
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .2rem .55rem .2rem .4rem;
+        border-radius: .55rem;
+        background: rgba(8, 13, 20, 0.88);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 .3rem .9rem rgba(0, 0, 0, 0.5);
+        color: #e8fbff;
+        font-size: 1.05rem;
+        font-weight: 800;
+        line-height: 1;
+        zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
+        pointer-events: none;
+        &--zero {
+            box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 45%), 0 .3rem .9rem rgba(0, 0, 0, 0.5);
+            color: @con-text-dim;
+            font-weight: 600;
+        }
+    }
+    &__walk-icon {
+        display: inline-block;
+        width: 1.25rem;
+        height: 1.25rem;
+    }
     /* The «Роботы» badge (a card hosted on Self-Replicating Robots).
        ⚠️ ROOT CAUSE OF THE OVERSIZED PLATE, and the reason this comment
        exists: it carried `zoom: 1.5` — a CONSTANT multiplier inside a slot
