@@ -237,8 +237,8 @@ import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
-import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
-import {flyCube, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeCubeRect} from '@/client/console/parliament/parliamentFlights';
+import {ParliamentBeat} from '@/client/console/parliament/parliamentBeat';
+import {finishParliamentFlights, flyCube, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeCubeRect, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
@@ -1546,6 +1546,12 @@ export default defineComponent({
         (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
         return;
       case 'walk':
+        // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand. A = «дожать»
+        // (К-W1): the walk's waits collapse, its legs and rewards play whole.
+        if (consoleActionOf(intent) === 'primary') {
+          this.hurryOwedWalk();
+        }
+        return;
       case 'rally':
         // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand.
         return;
@@ -1714,7 +1720,12 @@ export default defineComponent({
       this.walkHold?.release();
       this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
       const generation = owed.generation;
+      // «ДОЖАТЬ» (К-W1, the owner's decision 2026-10-10): the walk's own WAITS — the lead before each leg, the gap
+      // after each landed reward, the read — ride the sitting's hurriable clock, so A during the walk pose moves the
+      // marker NOW (`hurryOwedWalk`); the legs and the rewards' flights are never cut. A fresh walk starts unhurried.
+      setParliamentFlightsHurried(false);
       void agenda.playAgendaWalk(owed, {
+        beat: scheduleHurriedParliamentBeat,
         rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
         onStep: (leg: AgendaWalkLeg) => {
           agendaWalkFlow.landed.push(leg.step);
@@ -1730,7 +1741,7 @@ export default defineComponent({
             releaseAgendaWalkQuest();
             agendaWalkFlow.beat = 'read';
             this.walkReadBeat?.kill();
-            this.walkReadBeat = scheduleParliamentBeat(AGENDA_WALK_READ_MS, () => {
+            this.walkReadBeat = scheduleHurriedParliamentBeat(AGENDA_WALK_READ_MS, () => {
               this.walkReadBeat = undefined;
               if (agendaWalkFlow.live) {
                 onDone();
@@ -1740,8 +1751,21 @@ export default defineComponent({
         },
       });
     },
+    /**
+     * «ДОЖАТЬ» the card's walk (К-W1): every wait still ahead — the next lead, the gaps, the read — fires at once,
+     * a pending one now; the marker's legs and every reward's flight play whole (a reward is a cause the player must
+     * see land). Unadvertised, as the sitting's: the bar stays the walk's status (`parliamentCommandsOf`).
+     */
+    hurryOwedWalk(): void {
+      if (!agendaWalkFlow.live) {
+        return;
+      }
+      setParliamentFlightsHurried(true);
+      finishParliamentFlights();
+    },
     /** The owed walk is over: its hold lets go, its read beat is cut, the flow reads «done». */
     finishOwedWalk(): void {
+      setParliamentFlightsHurried(false);
       this.walkReadBeat?.kill();
       this.walkReadBeat = undefined;
       this.walkHold?.release();
