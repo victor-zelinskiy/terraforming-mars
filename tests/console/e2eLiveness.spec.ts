@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  CopyRef, copyRefs, copyVocabulary, e2eFiles, e2eWrittenHooks, HookRef, hookAlive, hookRefs, indexCorpus, productCorpus,
+  CopyRef, copyRefs, copyVocabulary, e2eFiles, e2eWrittenHooks, HookRef, hookAlive, hookRefs, indexCorpus, pluralVariants, productCorpus,
 } from './e2eContract';
 
 /**
@@ -98,6 +98,12 @@ describe('e2e liveness — specs wait only for what the product renders', () => 
       }
       return verdict;
     };
+
+    it('a plural group is said in each of its forms (`{шаг|шага|шагов}` → «шаг», «шага», «шагов»), never as the raw group', () => {
+      expect(pluralVariants('пройдёт ${0} {шаг|шага|шагов} в Парламенте')).deep.eq(['пройдёт ${0} шаг в Парламенте', 'пройдёт ${0} шага в Парламенте', 'пройдёт ${0} шагов в Парламенте']);
+      expect(pluralVariants('без группы')).deep.eq(['без группы']);
+      expect(said('шагов в парламенте'), 'the live RU vocabulary carries the forms').is.true;
+    });
 
     it('reads real text assertions (anti-vacuous)', () => {
       expect(copy.length, 'Russian phrases found in text assertions').to.be.greaterThan(100);

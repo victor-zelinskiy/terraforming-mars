@@ -158,12 +158,36 @@ export function productCorpus(): string {
   return files.map((f) => stripComments(fs.readFileSync(f, 'utf8'))).join('\n');
 }
 
+/**
+ * A translation's PLURAL GROUPS read as the sentences the pipeline renders (`client/i18n/pluralForms.ts`):
+ * «пройдёт ${0} {шаг|шага|шагов}» is said as «… шаг», «… шага» and «… шагов» — the i-th form of every group at once
+ * (the forms of one sentence agree with one number). A string with no group is itself.
+ */
+export function pluralVariants(s: string): Array<string> {
+  // The pipeline's own group shape: at least one `|`, no nested braces, no `$` (a param is never a group).
+  const group = /\{([^{}|$]*\|[^{}$]*)\}/g;
+  const groups = [...s.matchAll(group)].map((m) => m[1].split('|'));
+  if (groups.length === 0) {
+    return [s];
+  }
+  const forms = Math.max(...groups.map((g) => g.length));
+  const out: Array<string> = [];
+  for (let i = 0; i < forms; i++) {
+    let k = 0;
+    out.push(s.replace(group, () => {
+      const g = groups[k++];
+      return g[Math.min(i, g.length - 1)];
+    }));
+  }
+  return out;
+}
+
 /** Every RU translation value + the client's own text — the vocabulary a text assertion may wait for. */
 export function copyVocabulary(): string {
   const values: Array<string> = [];
   const collect = (v: unknown) => {
     if (typeof v === 'string') {
-      values.push(normPhrase(v));
+      values.push(...pluralVariants(v).map(normPhrase));
     } else if (v !== null && typeof v === 'object') {
       Object.values(v).forEach(collect);
     }
