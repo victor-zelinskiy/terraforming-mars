@@ -815,7 +815,7 @@ export function playRailReward(
   promisedReactions: ReadonlyArray<ResourceTransferSpec>,
 ): RailReward | undefined {
   const cause = playRailTrSpecs(branch, effects, stepResponses);
-  const reactions = withoutScaleStepAnswers(branch, stepResponses, cause, promisedReactions, effects);
+  const reactions = withoutAgendaWalkAnswers(branch, cause, withoutScaleStepAnswers(branch, stepResponses, cause, promisedReactions, effects));
   if (cause.length === 0 && reactions.length === 0) {
     return undefined;
   }
@@ -847,6 +847,32 @@ export function withoutScaleStepAnswers(
   const effects = [...branchEffects, ...chosenStepEffects(branch, stepResponses)];
   const scaleStep = effects.some((e) => e.direction === 'gain' && e.amount > 0 && SCALE_ICONS.has(e.icon) && e.icon !== 'oceans');
   return scaleStep ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits')) : reactions;
+}
+
+/**
+ * THE WALK ANSWERS ITS OWN RATING (PL-151, TR42 — the class of TR04 / TR12 /
+ * TR37). A play whose SHOW step walks the Agenda marker over a TR step pays a
+ * rating the landing scene never flies (`heroRewardEffectsOf` hands the walk's
+ * icons to the hosted step), and the ruling Greens' M€ for THAT rating is the
+ * walk's answer: the walk's seed holds it per TR step (`agendaWalkRail` →
+ * `agendaWalkBonuses`) and ticks it a beat after that step's chip has landed.
+ * Held here TOO, the M€ row read «committed − the answer − the answer» from the
+ * press until the landing's rail let its copy go: a dip of the whole answer,
+ * then a tick with no cause on screen (measured: 10 → 6 → 8 → 10 for TR 33, 10 →
+ * 4 → 8 → 12 for TR 45). So when the branch walks over a rating and the chain
+ * carries no rating of its own, the STOCK M€ answers are the walk's; a
+ * production answer stays the chain's. Pure.
+ */
+export function withoutAgendaWalkAnswers(
+  branch: ActionPreviewBranch | undefined,
+  cause: ReadonlyArray<ResourceTransferSpec>,
+  reactions: ReadonlyArray<ResourceTransferSpec>,
+): ReadonlyArray<ResourceTransferSpec> {
+  if (branch === undefined || cause.some((spec) => spec.resource === RATING_RAIL_KEY)) {
+    return reactions;
+  }
+  const walksOverRating = branch.steps.some((step) => step.kind === 'agendaWalk' && step.walk.steps.some((s) => s.kind === 'tr'));
+  return walksOverRating ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits')) : reactions;
 }
 
 /**

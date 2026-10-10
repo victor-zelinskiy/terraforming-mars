@@ -165,26 +165,55 @@ export function agendaWalkHostFor(): AgendaWalkHost | undefined {
 
 /**
  * The queue of a walk's bonuses, one entry per step that pays, in the walk's
- * order. `reactions` — the table's VERIFIED answer to the walk's rating — ride
- * the TR step's entry (a walk of two never takes two TR steps: they are never
- * adjacent on the printed track), held with its rating and released a beat
- * after its chip has landed.
+ * order. `reactions` — the table's VERIFIED answer to the walk's rating — are
+ * shared out over the walk's TR steps (`answersPerRatingStep`): each TR step's
+ * entry carries ITS answer, held with its rating and released a beat after its
+ * own chip has landed. A walk takes several TR steps once its length is
+ * COUNTED (TR42 from step 0: ② and ④ — the ruling Greens' 2 M€ each); hung on
+ * the first entry, the second rating's answer ticked on the FIRST rating's
+ * touchdown, three seconds before its own cause (PL-151).
  */
 export function agendaWalkBonuses(record: AgendaWalkRecord, generation: number, reactions: ReadonlyArray<ResourceTransferSpec> = []): Array<AgendaBonusOwed> {
   const out: Array<AgendaBonusOwed> = [];
-  let answered = false;
+  const trSteps = record.steps.filter((step) => step.bonus === 'tr').length;
+  const shares = answersPerRatingStep(reactions, trSteps);
+  let rating = 0;
   for (const step of record.steps) {
     if (step.bonus === 'tr') {
       const spec: ResourceTransferSpec = {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1};
-      out.push(answered || reactions.length === 0 ?
+      const answer = shares[rating] ?? [];
+      out.push(answer.length === 0 ?
         {generation, player: record.player, step: step.to, kind: 'tr', spec} :
-        {generation, player: record.player, step: step.to, kind: 'tr', spec, reactions: [...reactions]});
-      answered = true;
+        {generation, player: record.player, step: step.to, kind: 'tr', spec, reactions: answer});
+      rating++;
     } else if (step.bonus === 'card') {
       out.push({generation, player: record.player, step: step.to, kind: 'card'});
     }
   }
   return out;
+}
+
+/**
+ * THE TABLE'S ANSWER, ONE SHARE PER RATING STEP (pure): a reaction that answers
+ * every walked rating alike (the Greens' 2 M€ per step — the forecast states
+ * their SUM) is split evenly, one share per TR step; one that does not divide
+ * evenly is never split by a guess — it rides the LAST TR step whole, after
+ * every rating it may answer has landed (late, never early). `trSteps` 0 → no
+ * share at all.
+ */
+export function answersPerRatingStep(reactions: ReadonlyArray<ResourceTransferSpec>, trSteps: number): Array<Array<ResourceTransferSpec>> {
+  const shares: Array<Array<ResourceTransferSpec>> = Array.from({length: Math.max(0, trSteps)}, () => []);
+  if (trSteps <= 0) {
+    return shares;
+  }
+  for (const spec of reactions) {
+    if (spec.amount % trSteps === 0) {
+      shares.forEach((share) => share.push({...spec, amount: spec.amount / trSteps}));
+    } else {
+      shares[trSteps - 1].push({...spec});
+    }
+  }
+  return shares;
 }
 
 /**

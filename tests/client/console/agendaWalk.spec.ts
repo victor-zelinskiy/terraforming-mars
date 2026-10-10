@@ -6,7 +6,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {markerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {
-  agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, agendaWalkLiveIn, agendaWalkOwedTo, agendaWalkReactions, detectAgendaWalk, dropAgendaWalkPromise,
+  agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, answersPerRatingStep, agendaWalkLiveIn, agendaWalkOwedTo, agendaWalkReactions, detectAgendaWalk, dropAgendaWalkPromise,
   promiseAgendaWalk, questBeforeWalk, releaseAgendaWalkHolds, releaseAgendaWalkQuest, resetAgendaWalkFlow, seedAgendaWalkHolds,
 } from '@/client/console/parliament/agendaWalk';
 import {heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -203,6 +203,17 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       const answered = agendaWalkBonuses({player: BLUE, from: 5, to: 7, steps: [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]}, 4, [MC2]);
       expect(answered[0].reactions, 'the table\'s answer rides the TR step\'s entry').deep.eq([MC2]);
       expect(answered[1].reactions, '…never a card step\'s').is.undefined;
+    });
+
+    it('PL-151 — a COUNTED walk over TWO ratings (TR42 from 0): each TR step carries ITS share of the answer, never the first one all of it', () => {
+      const record = {player: BLUE, from: 0, to: 5, steps: [{to: 1}, {to: 2, bonus: 'tr' as const}, {to: 3}, {to: 4, bonus: 'tr' as const}, {to: 5}]};
+      const MC4 = {...MC2, amount: 4};
+      const bonuses = agendaWalkBonuses(record, 4, [MC4]);
+      expect(bonuses.map((b) => [b.step, b.kind, b.reactions?.map((r) => r.amount)])).deep.eq([[2, 'tr', [2]], [4, 'tr', [2]]]);
+      // An answer that does not divide by the ratings is never split by a guess: it rides the LAST rating, whole.
+      const MC3 = {...MC2, amount: 3};
+      expect(agendaWalkBonuses(record, 4, [MC3]).map((b) => b.reactions?.map((r) => r.amount))).deep.eq([undefined, [3]]);
+      expect(answersPerRatingStep([MC4], 0), 'no rating — no share').deep.eq([]);
     });
 
     it('THE TABLE\'S ANSWER (PL-002): the promised reactions are held with the TR step only when the two views agree — the rating by the walk\'s steps, the M€ by the answer plus the price', () => {

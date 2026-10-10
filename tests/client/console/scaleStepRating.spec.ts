@@ -23,7 +23,7 @@ import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {
   resetScaleStepRating, scaleStepRatingBusy, scaleStepRatingPlan, scaleStepRatingState, seedScaleStepRatingHold,
 } from '@/client/console/scaleStepReward/scaleStepRatingBeat';
-import {commitRailPlan, playRailReward, withoutScaleStepAnswers} from '@/client/console/consoleActionCommit';
+import {commitRailPlan, playRailReward, withoutAgendaWalkAnswers, withoutScaleStepAnswers} from '@/client/console/consoleActionCommit';
 import {noteScaleMarkerMoving, noteScaleMarkerSettled, resetScaleMarkerPoses} from '@/client/components/board/scaleMarkerArrival';
 import {boardBeatParkState, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -117,6 +117,19 @@ describe('withoutScaleStepAnswers — the Greens\' TR answer is the scale-step b
     const rail = commitRailPlan(CardName.PLASMA_FANS, venusBranch(), {}, [mc(2)])!;
     expect(rail.reward.cause.map((s) => `${s.channel}:${s.resource}${s.direction === 'loss' ? '-' : '+'}${s.amount}`)).deep.eq(['stock:heat-8']);
     expect(rail.reward.reactions).deep.eq([]);
+  });
+
+  it('PL-151 — a play that WALKS over a rating hands the M€ answer to the walk (its seed holds it per TR step); a walk with no TR step, or a chain with its own rating, keeps it', () => {
+    const walk = (steps: Array<{to: number, kind: 'tr' | 'influence' | 'card'}>): ActionPreviewBranch => ({
+      index: -1, title: '', available: true, renderKeys: [], effects: [],
+      steps: [{kind: 'agendaWalk', walk: {from: 1, to: 1 + steps.length, printed: steps.length, walked: steps.length, steps, influence: {current: 1, resulting: 2}}}],
+    } as unknown as ActionPreviewBranch);
+    const overRating = walk([{to: 2, kind: 'tr'}, {to: 3, kind: 'influence'}]);
+    expect(withoutAgendaWalkAnswers(overRating, [], [mc(2), mcProd(1)])).deep.eq([mcProd(1)]);
+    expect(playRailReward(overRating, [], {}, undefined, [mc(2)]), 'nothing left for the landing\'s rail — no dip, no early tick').is.undefined;
+    expect(withoutAgendaWalkAnswers(walk([{to: 7, kind: 'card'}, {to: 8, kind: 'influence'}]), [], [mc(2)]), 'no rating on the walk').deep.eq([mc(2)]);
+    const rating: ResourceTransferSpec = {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1};
+    expect(withoutAgendaWalkAnswers(overRating, [rating], [mc(2)]), 'the chain flies its own rating').deep.eq([mc(2)]);
   });
 
   it('the play\'s rail half: a scale play with no direct TR hands the M€ answer over and keeps a production answer', () => {
