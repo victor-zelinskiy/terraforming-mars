@@ -58,7 +58,7 @@ describe('notificationFeedPolicy (the ONE quick-toast filter)', () => {
       // so a rename/removal surfaces here instead of silently fail-opening.
       expect(Object.keys(VARIANT_RELEVANCE).sort()).to.deep.eq([
         'action-required', 'award', 'blue-action', 'bot-turn', 'chairman', 'colony',
-        'destroy', 'event', 'generation', 'hydronetwork', 'milestone', 'pass',
+        'destroy', 'event', 'generation', 'hydronetwork', 'milestone', 'party-effect', 'pass',
         'passive-effect', 'planetary-event', 'play-card', 'production-reduction',
         'production-transfer', 'reveal-deck', 'reveal-hand', 'standard-project',
         'steal', 'terraforming-complete', 'threat', 'vp-loss', 'warning',

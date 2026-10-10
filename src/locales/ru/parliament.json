@@ -1193,5 +1193,13 @@
   "${0} adds 1 neutral delegate to ${1}": "${0}: +1 нейтральный делегат — за ${1}",
   "${0} gains ${1} M€ — ${2} neutral delegate(s) in use": "${0} получает ${1} M€ — в игре ${2} {нейтральный делегат|нейтральных делегата|нейтральных делегатов}",
   "+0 · the area is full": "+0 · область заполнена",
-  "+0 · no neutral delegates left": "+0 · нейтральных не осталось"
+  "+0 · no neutral delegates left": "+0 · нейтральных не осталось",
+  "${0} gains the ${1} party effect: ${2} delegate(s) on its resolution": "${0} получает эффект партии ${1}: ${2} {делегат|делегата|делегатов} на её резолюции",
+  "${0} gains the ${1} party effect — granted by ${2}": "${0} получает эффект партии ${1} — дан «${2}»",
+  "${0} loses the ${1} party effect: fewer than ${2} delegate(s) on its resolution": "${0} теряет эффект партии ${1}: на её резолюции меньше ${2} {делегата|делегатов|делегатов}",
+  "${0} loses the ${1} party effect — the grant is gone": "${0} теряет эффект партии ${1} — грант отозван",
+  "Party effect gained": "Эффект партии получен",
+  "Party effect lost": "Эффект партии потерян",
+  "The ${0} party effect is now everyone's": "Эффект партии ${0} — теперь у всех",
+  "The ${0} party effect is no longer everyone's": "Эффект партии ${0} — больше не у всех"
 }

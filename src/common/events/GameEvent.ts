@@ -102,6 +102,22 @@ export type GameEventType =
    */
   | 'popular-support-discarded'
   /**
+   * A SEAT GAINED / LOST A PARTY'S EFFECT (Turmoil Redux — PL-112). The law of
+   * access (`Parliament.access`) is read live, so until this event nothing
+   * told the player that their second cube on a resolution opened the party's
+   * effect, or that the refresh took it away. Written by ONE diff
+   * (`Parliament.announceAccessChanges`) against the snapshot the Parliament
+   * keeps and serializes, after every input a player answered and after every
+   * step of a sitting. `impact.partyEffect` names the party and the ROAD —
+   * `delegates` (with how many opened it: the printed two, or one under TR36),
+   * `card` (a grant, the card riding `source`). A change the RULING PARTY
+   * made (the enactment) is NOT this event: it is everyone's, told once by the
+   * sitting's own line and its results panel. MarsBot holds no effect and gets
+   * none. Journal-visible, never a delta.
+   */
+  | 'party-effect-gained'
+  | 'party-effect-lost'
+  /**
    * A TRADE FLEET WAS SENT TO A CARD (Turmoil Redux — a fleet dock: TR06 Water
    * Hauling and its sisters TR26 / TR27). `player` is the trader (always the
    * card's owner — FAQ p.19), `target.card` and the event's `source` name the

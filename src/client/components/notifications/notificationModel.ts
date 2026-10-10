@@ -81,6 +81,10 @@ function rootVariant(header: LogMessage, chain: ReadonlyArray<GameEvent>): Notif
   if (chain.some((e) => e.type === 'chairman-seated')) {
     return 'chairman';
   }
+  // A PARTY'S EFFECT GAINED / LOST (PL-112): the diff's own root — the line and the typed event, nothing else.
+  if (partyEffectIn(chain)) {
+    return 'party-effect';
+  }
   if (header.category === 'milestone' || chain.some((e) => e.type === 'milestone-claimed')) {
     return 'milestone';
   }
@@ -174,6 +178,11 @@ const PARLIAMENT_OUTCOME_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'delegates-placed', 'neutral-delegates-placed', 'popular-support-gained', 'popular-support-discarded', 'agenda-advanced',
 ]);
 
+/** A party's effect gained / lost by the seat (PL-112) rides this chain. */
+export function partyEffectIn(chain: ReadonlyArray<GameEvent>): boolean {
+  return chain.some((e) => e.type === 'party-effect-gained' || e.type === 'party-effect-lost');
+}
+
 /** Does this chain carry a Parliament outcome a card produced (never the sitting's own steps — those ride the sitting)? */
 export function parliamentOutcomeIn(chain: ReadonlyArray<GameEvent>): boolean {
   return chain.some((e) => PARLIAMENT_OUTCOME_EVENTS.has(e.type) && e.source?.kind !== 'parliament');
@@ -249,7 +258,10 @@ function variantKind(variant: NotificationVariant): NotificationKind {
     return 'negative';
   // …and the chairmanship: a generation's quest is closed and an office
   // changed hands — a fact of the table, not one player's routine action.
+  // …and a party's effect that is now (or no longer) the viewer's: the law of access moved for THEM — never an
+  // «own ordinary action» to suppress, however it was caused (their second cube, their card).
   case 'chairman':
+  case 'party-effect':
   case 'milestone':
   case 'award':
   case 'threat':
@@ -266,6 +278,7 @@ function variantTypeLabel(variant: NotificationVariant, category: JournalActionC
   case 'milestone': return 'Achievement';
   case 'award': return 'Award';
   case 'chairman': return 'Chairmanship';
+  case 'party-effect': return 'Party effect';
   case 'passive-effect': return 'Effect triggered';
   case 'hydronetwork': return 'Hydronetwork';
   case 'planetary-event': return 'Planetary event';
@@ -523,6 +536,11 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   if (variant === 'chairman' && actor !== undefined && actor === viewerColor) {
     return undefined;
   }
+  // A PARTY'S EFFECT gained / lost is told to the seat it is about and to nobody else (the owner's default — a
+  // rival reads another seat's access in the journal; the enactment, everyone's, is the sitting's own telling).
+  if (variant === 'party-effect' && actor !== viewerColor) {
+    return undefined;
+  }
 
   // The viewer's own typed deltas inside this chain (empty when they ARE the
   // actor — an own highlight presents action-first, not "you paid 8 M€").
@@ -597,7 +615,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     // THE OBJECT THE CARD IS ABOUT: a chairmanship card opens the Parliament,
     // where the office, the quest and the Agenda track all read as they stand
     // now (nothing is replayed — the beats belonged to the player who acted).
-    cta: variant === 'chairman' || parliamentOutcomeIn(chain) ?
+    cta: variant === 'chairman' || variant === 'party-effect' || parliamentOutcomeIn(chain) ?
       {labelKey: 'Open the Parliament', action: 'open-parliament'} :
       variant === 'passive-effect' ?
         effectCta(effectSourceOf(chain, input.correlationId)) :

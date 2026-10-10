@@ -438,6 +438,17 @@ export class EventRecorder {
   }
 
   /**
+   * A SEAT GAINED / LOST A PARTY'S EFFECT (Turmoil Redux — PL-112). Written
+   * only by `Parliament.announceAccessChanges` — the ONE diff of the law of
+   * access against its snapshot — inside the root it opens for the line
+   * («0 gains the 1 party effect …»), so the owner's notification and
+   * the rival's journal entry stand on a group of their own.
+   */
+  public recordPartyEffectChanged(player: IPlayer, gained: boolean, partyEffect: NonNullable<EventImpact['partyEffect']>): void {
+    this.record({type: gained ? 'party-effect-gained' : 'party-effect-lost', player: player.color, impact: {partyEffect}, visibility: 'journal'});
+  }
+
+  /**
    * A TRADE FLEET LANDED ON A CARD (Turmoil Redux — a fleet dock: TR06 Water
    * Hauling and its sisters). Recorded under the card's own source inside the
    * trade's chain, so the journal's row and the rival's notification name the

@@ -120,6 +120,7 @@ export type NotificationVariant =
   | 'planetary-event' // an Ares planetary event (hazards appear / intensify / recede)
   | 'milestone' // an achievement was claimed
   | 'chairman' // the Mars Parliament's chairmanship changed hands (Turmoil Redux)
+  | 'party-effect' // the viewer gained / lost a party's effect by their own delegates or a card (Turmoil Redux, PL-112)
   | 'award' // an award was funded
   | 'terraforming-complete' // Temperature + Oxygen + Oceans first reached completion
   | 'generation' // a new generation began

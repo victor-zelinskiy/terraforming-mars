@@ -28,6 +28,9 @@ export type CardResourceBasis = {count: number; unitKey: string};
  *
  * All numeric deltas are SIGNED (a loss is negative). Empty fields are omitted.
  */
+/** THE ROAD a party's effect came or went by (`EventImpact.partyEffect`). */
+export type PartyEffectBasis = 'ruling' | 'delegates' | 'card';
+
 export type EventImpact = {
   /** Standard resource stock change (signed). */
   stock?: Partial<Units>;
@@ -166,6 +169,16 @@ export type EventImpact = {
    * how many left the area for the common supply — and `total` after it.
    */
   popularSupport?: {party: PartyName; gained: number; total: number};
+  /**
+   * A PARTY'S EFFECT changed hands for the event's seat (`party-effect-gained`
+   * / `party-effect-lost`, Turmoil Redux — PL-112): the party and the ROAD the
+   * change took — `delegates` (the seat's own cubes on the party's resolution
+   * reached / fell under the law's number, `delegates` = that number), or
+   * `card` (a grant given / revoked, the card's name in `source`). A gain
+   * never names `ruling`: the enactment is told once, for everyone, by the
+   * sitting.
+   */
+  partyEffect?: {party: PartyName; basis: PartyEffectBasis; delegates?: number; source?: string};
   /**
    * A WALK OF THE AGENDA TRACK (`agenda-advanced`, Turmoil Redux): where the
    * marker started and ended, EVERY step in order with the bonus that step

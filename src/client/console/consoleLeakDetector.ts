@@ -139,14 +139,17 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
  *  · `.con-composer--play` — the play-card pre-select composer, a PHASE of the
  *    hand's frame rather than a workspace;
  *  · `.con-sheet` — the generic bottom sheet;
- *  · `.con-played` — the «Разыграно» overlay hosting a TABLEAU pick for a
- *    hidden play composer (Robotic Workforce under Eccentric Sponsor);
  *  · `.con-composer--corpfirst` — the corporation first-action confirm modal;
  *  · `.con-draftwait` — the optional draft re-pick's calm banner.
+ * (`.con-played` is NOT a serving surface any more — the `tableauPick` mode
+ * that once handed a play's pick to the «Разыграно» overlay is gone
+ * (`consolePlayCardComposer.ts`: both composers descend into the embedded
+ * step; «Разыграно» is a BROWSING surface only). Keeping it here let a
+ * stuck `projectCard` prompt hide behind an open «Разыграно» — audit п.25.)
  */
 const EXTRA_KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   // `.con-task` — the GENERIC shape (wave 2) is served by ConsoleTaskHost.
-  projectCard: ['.con-sheet', '.con-composer--play', '.con-played', '.con-task'],
+  projectCard: ['.con-sheet', '.con-composer--play', '.con-task'],
   corpFirstAction: ['.con-composer--corpfirst'],
   draftWait: ['.con-draftwait'],
 };

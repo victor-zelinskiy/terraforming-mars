@@ -1,4 +1,5 @@
 import {PlayerId, SpaceId} from '../../common/Types';
+import {PartyEffectBasis} from '../../common/events/EventImpact';
 import {Color} from '../../common/Color';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {CardName} from '../../common/cards/CardName';
@@ -453,6 +454,9 @@ export type SerializedPendingAction =
  */
 export type SerializedInfluenceBonus = {amount: number; source?: string};
 
+/** The road a seat holds a party's effect by (`SerializedParliament.partyEffectAccess`) — the event's own vocabulary. */
+export type {PartyEffectBasis};
+
 export type SerializedParliament = {
   version: number;
   slots: Array<SerializedSlot>;
@@ -485,4 +489,11 @@ export type SerializedParliament = {
   lastAdvance?: SerializedAdvance;
   pendingActions?: Array<SerializedPendingAction>;
   botMode: BotParliamentMode;
+  /**
+   * THE SNAPSHOT OF ACCESS (PL-112): per seat, the parties whose effect it held
+   * at the last diff, each with the road it held it by. The next diff announces
+   * only what changed against it — so a reload announces nothing twice, and a
+   * save from before this field takes its snapshot silently on the first diff.
+   */
+  partyEffectAccess?: Record<PlayerId, Partial<Record<PartyName, PartyEffectBasis>>>;
 };

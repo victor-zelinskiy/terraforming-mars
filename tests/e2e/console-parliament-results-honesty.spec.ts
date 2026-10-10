@@ -70,7 +70,13 @@ const ZONE_WORDS: ReadonlyArray<{zone: string, selector: string, why: string}> =
  * not part of this task, so it is excluded HERE, by name, where the next reader can see the question —
  * never by weakening the rule.
  */
-const PANEL_EXCEPTIONS: ReadonlyArray<string> = ['[data-sit-row="results-fresh"]'];
+const PANEL_EXCEPTIONS: ReadonlyArray<string> = [
+  '[data-sit-row="results-fresh"]',
+  // «ЭФФЕКТ ПАРТИИ» (PL-112, the owner's decision 2026-10-09): the plaque in the government says WHO rules; this row
+  // says the effect CHANGED HANDS for everyone at this sitting — a change the panel alone tells, printed through the
+  // ruler's own name because there is no other word for the party.
+  '[data-sit-row="results-party-effect"]',
+];
 
 const OUT_DIR = path.resolve(__dirname, '..', '..', 'artifacts', 'parliament-v5');
 

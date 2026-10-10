@@ -27,7 +27,7 @@ import type {ParliamentRallyRecord} from './RallyNeutralDelegates';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
-  PARLIAMENT_PHASE_HISTORY_CAP, PARLIAMENT_SAVE_VERSION, SerializedAdvance, SerializedParliament, SerializedPendingAction,
+  PARLIAMENT_PHASE_HISTORY_CAP, PARLIAMENT_SAVE_VERSION, PartyEffectBasis, SerializedAdvance, SerializedParliament, SerializedPendingAction,
   SerializedPhaseProgress, SerializedPhaseSummary, SerializedQuest, SerializedSlot,
 } from './SerializedParliament';
 import {IncompatibleParliamentSaveError} from './ParliamentErrors';
@@ -165,6 +165,13 @@ export class Parliament {
    */
   public lastRally: ParliamentRallyRecord | undefined = undefined;
   public pendingActions: Array<SerializedPendingAction> = [];
+  /**
+   * THE SNAPSHOT OF ACCESS (PL-112): per seat, the parties whose effect the seat
+   * held at the last diff and the road it held each by. `undefined` until the
+   * first diff (a new game, or a save from before the field) — that first diff
+   * only takes the picture and announces nothing. See `announceAccessChanges`.
+   */
+  public partyEffectAccess: Map<PlayerId, Partial<Record<ReduxParty, PartyEffectBasis>>> | undefined = undefined;
 
   constructor(botMode: BotParliamentMode = 'none', catalog: ResolutionCatalog = REDUX_RESOLUTION_CATALOG) {
     this.catalog = catalog;
@@ -539,6 +546,108 @@ export class Parliament {
     return source === undefined ? {count} : {count, source};
   }
 
+  /**
+   * THE ROAD a seat holds `party`'s effect by right now — the ruling party
+   * first (everyone's), then the seat's own delegates, then a card's grant —
+   * or `undefined` when it holds none.
+   */
+  public accessBasis(player: IPlayer, party: ReduxParty): PartyEffectBasis | undefined {
+    const a = this.access(player, party);
+    if (a.ruling) {
+      return 'ruling';
+    }
+    if (a.byDelegates) {
+      return 'delegates';
+    }
+    return a.granted.length > 0 ? 'card' : undefined;
+  }
+
+  /** The current picture of access for every seat that takes part in party effects (MarsBot holds none). */
+  private accessPicture(game: IGame): Map<PlayerId, Partial<Record<ReduxParty, PartyEffectBasis>>> {
+    const picture = new Map<PlayerId, Partial<Record<ReduxParty, PartyEffectBasis>>>();
+    for (const player of game.players) {
+      if (!this.participates(player, 'party-effects')) {
+        continue;
+      }
+      const held: Partial<Record<ReduxParty, PartyEffectBasis>> = {};
+      for (const party of REDUX_PARTIES) {
+        const basis = this.accessBasis(player, party);
+        if (basis !== undefined) {
+          held[party] = basis;
+        }
+      }
+      picture.set(player.id, held);
+    }
+    return picture;
+  }
+
+  /**
+   * ANNOUNCE WHAT THE LAW OF ACCESS CHANGED (PL-112) — the ONE diff of every
+   * seat's access against the snapshot, called after every input a player
+   * answered (`Player.process`) and after every step of a sitting
+   * (`ParliamentPhase.drive`). A party's effect a seat GAINED by its own
+   * delegates (the second cube; the first under TR36) or by a card's grant,
+   * and one it LOST (a cube taken back, the refresh discarding its resolution,
+   * a grant revoked) each get ONE journal root of their own: the line, then the
+   * typed event — the owner's notification and the rival's journal entry stand
+   * on it. A change the RULING PARTY made is everyone's and is told ONCE by
+   * the sitting (its own line, its results panel): here it only moves the
+   * snapshot. The first call (no snapshot yet — a new game, an older save)
+   * takes the picture and announces nothing: the starting rule's Greens are
+   * not news, and a reload never tells a thing twice.
+   */
+  public announceAccessChanges(game: IGame): void {
+    const now = this.accessPicture(game);
+    const before = this.partyEffectAccess;
+    this.partyEffectAccess = now;
+    if (before === undefined) {
+      return;
+    }
+    for (const player of game.players) {
+      const was = before.get(player.id);
+      const is = now.get(player.id);
+      if (was === undefined || is === undefined) {
+        continue;
+      }
+      for (const party of REDUX_PARTIES) {
+        const from = was[party];
+        const to = is[party];
+        if (from === to || (from !== undefined && to !== undefined)) {
+          continue; // the same, or held before and after (a road swapped under a standing effect is no news)
+        }
+        const basis = to ?? from;
+        if (basis === undefined || basis === 'ruling') {
+          continue; // the enactment is told once, for everyone
+        }
+        this.announceAccessChange(game, player, party, to !== undefined, basis);
+      }
+    }
+  }
+
+  private announceAccessChange(game: IGame, player: IPlayer, party: ReduxParty, gained: boolean, basis: Exclude<PartyEffectBasis, 'ruling'>): void {
+    const events = game.events;
+    const grant = (this.grantedEffects.get(player.id) ?? []).find((g) => g.party === party);
+    const delegates = this.effectDelegatesOf(player).count;
+    const impact = basis === 'card' ?
+      {party, basis, ...(grant === undefined ? {} : {source: grant.source})} :
+      {party, basis, delegates};
+    events.beginAction(player, {kind: 'parliament'}, {category: 'parliament'});
+    try {
+      if (gained && basis === 'delegates') {
+        game.log('${0} gains the ${1} party effect: ${2} delegate(s) on its resolution', (b) => b.player(player).partyName(party).number(delegates));
+      } else if (gained) {
+        game.log('${0} gains the ${1} party effect — granted by ${2}', (b) => b.player(player).partyName(party).string(grant?.source ?? ''));
+      } else if (basis === 'delegates') {
+        game.log('${0} loses the ${1} party effect: fewer than ${2} delegate(s) on its resolution', (b) => b.player(player).partyName(party).number(delegates));
+      } else {
+        game.log('${0} loses the ${1} party effect — the grant is gone', (b) => b.player(player).partyName(party));
+      }
+      events.recordPartyEffectChanged(player, gained, impact);
+    } finally {
+      events.endScope();
+    }
+  }
+
   public hasPartyEffect(player: IPlayer, party: PartyName): boolean {
     return isReduxPartyName(party) && this.access(player, party).hasEffect;
   }
@@ -860,6 +969,9 @@ export class Parliament {
       pendingActions: this.pendingActions.length > 0 ? this.pendingActions.map((action) => ({...action})) : undefined,
       botMode: this.botMode,
     };
+    if (this.partyEffectAccess !== undefined) {
+      result.partyEffectAccess = Object.fromEntries(Array.from(this.partyEffectAccess, ([player, held]) => [player, {...held}]));
+    }
     return result;
   }
 
@@ -950,6 +1062,19 @@ export class Parliament {
       steps: d.lastAdvance.steps ?? [d.lastAdvance.bonus === undefined ? {to: d.lastAdvance.to} : {to: d.lastAdvance.to, bonus: d.lastAdvance.bonus}],
     };
     parliament.pendingActions = [...(d.pendingActions ?? [])];
+    // The snapshot of access (PL-112): absent on an older save — the first diff takes it silently.
+    if (d.partyEffectAccess !== undefined) {
+      parliament.partyEffectAccess = new Map();
+      for (const [player, held] of playerEntries(d.partyEffectAccess)) {
+        const kept: Partial<Record<ReduxParty, PartyEffectBasis>> = {};
+        for (const [party, basis] of Object.entries(held)) {
+          if (isReduxPartyName(party as PartyName) && basis !== undefined) {
+            kept[party as ReduxParty] = basis;
+          }
+        }
+        parliament.partyEffectAccess.set(player, kept);
+      }
+    }
     if (carriedRetired) {
       parliament.rebuildAfterRetirement(table);
     }

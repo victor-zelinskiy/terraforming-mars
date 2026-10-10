@@ -217,6 +217,14 @@ export type ResultsTable = {
    * delegates ledger's, seat by seat, at the top of the screen).
    */
   noDelegate: ReadonlyArray<Color>;
+  /**
+   * THE RULING EFFECT CHANGED HANDS (PL-112): the enactment gave everyone the
+   * winner's party effect, and took the previous ruling party's away — told
+   * ONCE, here, for the whole table (a seat's OWN gain or loss by its cubes or
+   * a card is its own journal root and notification, never this row). Absent
+   * when the same party rules on (the effect is nobody's news).
+   */
+  rulingEffect?: {gained: ReduxParty, lost?: ReduxParty};
 };
 
 /**
@@ -448,6 +456,16 @@ export function netOfParts(parts: ReadonlyArray<ResultsPayoutPart>): {unit: stri
  * resolution that pays nobody, and it replaces the rows rather than printing an
  * empty one per seat.
  */
+/** The ruling effect's change (PL-112) — the winner's party against the party that ruled before, when they differ. */
+function rulingEffectOf(summary: ParliamentPhaseSummaryModel): {rulingEffect?: {gained: ReduxParty, lost?: ReduxParty}} {
+  const gained = summary.enacted.party;
+  const lost = summary.discardedEnacted?.party;
+  if (lost === gained) {
+    return {};
+  }
+  return {rulingEffect: lost === undefined ? {gained} : {gained, lost}};
+}
+
 export function resultsReadingOf(
   summary: ParliamentPhaseSummaryModel,
   seats: ReadonlyArray<ResultsSeat>,
@@ -500,6 +518,7 @@ export function resultsReadingOf(
       // opens» is a state, never the step's own record — `lobbyRefilled` names whose lobby was EMPTY
       // and got filled, which says nothing about a seat that still holds last generation's delegate.
       noDelegate: seats.filter((seat) => !seat.lobby && seat.reserve <= 0).map((seat) => seat.player),
+      ...rulingEffectOf(summary),
     },
   };
   const planet = resultsPlanetMoves(summary);

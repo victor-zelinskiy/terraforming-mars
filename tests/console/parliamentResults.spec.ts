@@ -203,6 +203,28 @@ describe('parliamentResultsModel — the sitting\'s last reading, in two section
     expect(reading.table.noDelegate, 'both seats can vote, so the exception is empty').deep.eq([]);
   });
 
+  describe('ЭФФЕКТ ПАРТИИ — the enactment\'s one change that is nowhere else (PL-112)', () => {
+    it('the winner\'s party differs from the one that ruled: «now everyone\'s» + «no longer everyone\'s»', () => {
+      const reading = resultsReadingOf(summary({
+        enacted: {instance: `${AQUIFER}#0`, resolution: AQUIFER, party: PartyName.GREENS},
+        discardedEnacted: {instance: `${ARCHITECTURE}#0`, resolution: ARCHITECTURE, party: PartyName.MARS},
+      }), [seat(BLUE)], SUPPORT);
+      expect(reading.table.rulingEffect).deep.eq({gained: PartyName.GREENS, lost: PartyName.MARS});
+    });
+
+    it('the first sitting (nothing ruled by a card before): the gain alone', () => {
+      const reading = resultsReadingOf(summary(), [seat(BLUE)], SUPPORT);
+      expect(reading.table.rulingEffect).deep.eq({gained: PartyName.GREENS});
+    });
+
+    it('the same party rules on: no row — the effect changed hands for nobody', () => {
+      const reading = resultsReadingOf(summary({
+        discardedEnacted: {instance: `${AQUIFER}#1`, resolution: AQUIFER, party: PartyName.GREENS},
+      }), [seat(BLUE)], SUPPORT);
+      expect(reading.table.rulingEffect).is.undefined;
+    });
+  });
+
   describe('БЕЗ СВОБОДНОГО ДЕЛЕГАТА — the exception, never a roster', () => {
     it('names the seats that enter the next vote with an empty lobby AND an empty reserve', () => {
       const reading = resultsReadingOf(summary({lobbyRefilled: [RED]}), [

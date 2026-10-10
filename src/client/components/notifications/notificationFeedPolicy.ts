@@ -62,6 +62,12 @@ export const VARIANT_RELEVANCE: Readonly<Record<NotificationVariant, FeedRelevan
    * miss (the header of this table says exactly that).
    */
   'chairman': 'exempt',
+  /*
+   * A PARTY'S EFFECT GAINED / LOST (PL-112) — built for its OWNER ONLY (the
+   * root builder gives a rival nothing: they read it in the journal), so the
+   * filter has nothing to cut: the one reader is the seat it is about.
+   */
+  'party-effect': 'exempt',
   // ── Involves: another participant's activity — presents only when the
   //    structured data says the viewer is directly in it. ────────────────────
   'bot-turn': 'involves',

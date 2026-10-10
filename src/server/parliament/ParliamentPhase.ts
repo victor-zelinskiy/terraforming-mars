@@ -290,6 +290,9 @@ export class ParliamentPhase {
       if (this.drainDeferred() === 'waiting') {
         return undefined;
       }
+      // THE LAW OF ACCESS, DIFFED after every step of the sitting (PL-112): the refresh that discarded a seat's
+      // resolution took its cubes' road away; the enactment's change is everyone's and moves only the snapshot.
+      this.parliament.announceAccessChanges(this.game);
     }
   }
 
@@ -1046,6 +1049,7 @@ export class ParliamentPhase {
     }
     const final = p.final;
     this.parliament.phase = undefined;
+    this.parliament.announceAccessChanges(this.game);
     this.parliament.assertLedger(this.game);
     return {final};
   }

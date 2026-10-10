@@ -2966,6 +2966,10 @@ export class Player implements IPlayer {
       this.waitingForContext = waitingForContext;
       throw err;
     }
+    // THE LAW OF ACCESS, DIFFED (Turmoil Redux — PL-112): whatever this answer moved on the table (a cube placed or
+    // taken back, a grant, a card that lowered the threshold) is announced now, as its own journal root — after the
+    // answer's own chain closed, never inside it.
+    this.game.parliament?.announceAccessChanges(this.game);
   }
 
   public getWaitingFor(): PlayerInput | undefined {

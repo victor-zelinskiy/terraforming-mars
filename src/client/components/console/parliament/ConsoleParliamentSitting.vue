@@ -235,6 +235,20 @@
                HAS a delegate). What the ledger never says out loud is the consequence: an empty socket
                over an empty reserve means this seat cannot vote at all next generation. Almost never
                true, so almost never on screen — and when it is, it is stated, never left silent. -->
+          <!-- ЭФФЕКТ ПАРТИИ — the one change of the enactment that is nowhere else: the government's zone shows WHO
+               rules, never that the effect just changed hands for everyone (PL-112). A seat's own gain or loss by its
+               cubes or a card is its own journal root and notification — never this row. -->
+          <div v-if="results.table.rulingEffect !== undefined && !handheld" class="con-sit__row" data-sit-row="results-party-effect">
+            <span class="con-parl__chip-dim">{{ $t('Party effect') }}</span>
+            <span class="con-sit__chips">
+              <span class="con-sit__chip" data-sit-party-effect="gained" :data-sit-party-effect-party="results.table.rulingEffect.gained">
+                <img class="con-sit__emblem" :src="emblemUrl(results.table.rulingEffect.gained)" alt="" /><b>{{ rulingEffectLabel(results.table.rulingEffect.gained, true) }}</b>
+              </span>
+              <span v-if="results.table.rulingEffect.lost !== undefined" class="con-sit__chip con-sit__chip--dim" data-sit-party-effect="lost" :data-sit-party-effect-party="results.table.rulingEffect.lost">
+                <img class="con-sit__emblem" :src="emblemUrl(results.table.rulingEffect.lost)" alt="" /><b>{{ rulingEffectLabel(results.table.rulingEffect.lost, false) }}</b>
+              </span>
+            </span>
+          </div>
           <div v-if="results.table.noDelegate.length > 0" class="con-sit__row con-sit__row--warn" data-sit-row="results-nodelegate">
             <span class="con-parl__chip-dim">{{ $t('Without a free delegate') }}</span>
             <span class="con-sit__chips">
@@ -259,7 +273,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {conLogicalPx, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -271,7 +285,8 @@ import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
 import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -315,6 +330,14 @@ export default defineComponent({
     }
   },
   computed: {
+    /**
+     * The handheld profile (the Deck): the results panel's pose has no row of height to spare there (И6 — the
+     * panel spilled by one row), and Deck-only polish is not done (PL-105) — the ruling effect's change stays
+     * the sitting's own journal line on that profile.
+     */
+    handheld(): boolean {
+      return consoleLayoutState.profile === 'handheld';
+    },
     /** Any of the planet's moves was made with nobody credited — the line says so ONCE, not per move. */
     planetUnrewarded(): boolean {
       return (this.results?.planet ?? []).some((move) => move.unrewarded && move.skipped === undefined && move.steps !== 0);
@@ -399,6 +422,11 @@ export default defineComponent({
     },
     nameOfColor(color: Color): string {
       return parliamentPlayerName(this.playerView.players, color);
+    },
+    /** «Эффект партии Зелёные — теперь у всех» / «… — больше не у всех» (PL-112): the party by its ONE key (PL-109). */
+    rulingEffectLabel(party: ReduxParty, gained: boolean): string {
+      return translateTextWithParams(gained ? 'The ${0} party effect is now everyone\'s' : 'The ${0} party effect is no longer everyone\'s',
+        [translateText(partyNameKey(party))]);
     },
     /** The first part of its tile among a seat's parts — the one that carries the tile's name (the panel groups by tile). */
     colonyLeads(parts: ReadonlyArray<ResultsPayoutPart>, part: ResultsPayoutPart): boolean {
