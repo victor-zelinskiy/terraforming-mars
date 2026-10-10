@@ -142,13 +142,19 @@ export function premiumCardArt(name: CardName): PremiumCardArt {
  * scene that spawns card proxies should call it at ARM time, which is where
  * the round-trip pays for the decode.
  */
-export function preloadPremiumCardArt(names: ReadonlyArray<CardName>): void {
+export function preloadPremiumCardArt(names: ReadonlyArray<CardName>, tiers: ReadonlyArray<CardArtTier> = ['full']): void {
   if (typeof Image === 'undefined') {
     return; // JSDOM / SSR — nothing to warm.
   }
+  // THE TIER THE HOST WILL PAINT: a lightweight face (the receiving stage's strips and its emerged target, the
+  // landing face) draws the THUMB file — warming the full one leaves it blank for its first frames all the same
+  // (К-S1: TR38 emerged with an empty art box at 4K while its thumb was still on the wire).
   for (const name of names) {
-    const img = new Image();
-    img.src = premiumCardArt(name).url;
-    void img.decode?.().catch(() => undefined);
+    const art = premiumCardArt(name);
+    for (const tier of tiers) {
+      const img = new Image();
+      img.src = cardArtUrlAtTier(art.url, tier);
+      void img.decode?.().catch(() => undefined);
+    }
   }
 }

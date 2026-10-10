@@ -651,6 +651,7 @@ import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentType
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {actionKnownRailMoves, playRailReward, playSpendReward} from '@/client/console/consoleActionCommit';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
+import {playCardReactions} from '@/client/console/played/receivingStageModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Payment} from '@/common/inputs/Payment';
@@ -3906,6 +3907,11 @@ export default defineComponent({
         // along for the diff check the seed makes against the two views.
         rail: playRailReward(b, heroRewardEffectsOf(b), this.captured, payment,
           reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts)),
+        // …and THE TABLE'S ANSWER ON THE CARDS (К-S1 — PL-124): the holders of this seat the play wakes (an EXACT
+        // forecast fact addressed to «you» whose source is a card — TR05's science data, Decomposers' microbe), with
+        // the printed tag that woke each: the landing scene verifies them against the two views and flies each as
+        // its own EFFECT RESOLUTION group after the card's own gains. A question or an unknown is never promised.
+        reactions: playCardReactions(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts),
         // …and THE PRICE THE PLAY TAKES OFF THE RAIL (the rail-spend law at the play door — PL-107): the branch's
         // stock cost chips (X87's plants and steel), flown by the landing scene INTO the standing card before it
         // lifts, each row ticking on its token's departure. Never the card's own price (the payment panel's).

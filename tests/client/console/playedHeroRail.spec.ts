@@ -4,11 +4,13 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {Payment} from '@/common/inputs/Payment';
 import {blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
+import {Tag} from '@/common/cards/Tag';
 import {playRailReward} from '@/client/console/consoleActionCommit';
 import {
-  abortPlayedHero, armPlayedHero, playedHeroState, seedPlayedHeroRewardHold,
+  abortPlayedHero, armPlayedHero, playedHeroCardGainTotals, playedHeroCardTargets, playedHeroState, seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
-import {clearPanelRewardHold, heldProduction, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {PlayReaction} from '@/client/console/played/receivingStageModel';
+import {cardResourceLanded, clearPanelRewardHold, heldCardCapsule, heldProduction, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
@@ -79,9 +81,17 @@ describe('the played-card scene\'s rail half — PL-001 for plays', () => {
       expect(rail?.known).deep.eq({'production:energy': -2, 'production:plants': 1, 'stock:megacredits': -5});
     });
 
-    it('no direct TR, no rail half', () => {
+    it('no direct TR and no answer: no rail half', () => {
       const noTr = {...domeBranch(), effects: domeBranch().effects.filter((e) => e.icon !== 'tr')};
-      expect(playRailReward(noTr, noTr.effects, {}, pay(5), greens(2))).is.undefined;
+      expect(playRailReward(noTr, noTr.effects, {}, pay(5), [])).is.undefined;
+    });
+
+    it('PL-035 — no direct TR but an answer of the table: the rail half holds the answer alone (no cause), the price and the branch\'s moves KNOWN', () => {
+      const noTr = {...domeBranch(), effects: domeBranch().effects.filter((e) => e.icon !== 'tr')};
+      const rail = playRailReward(noTr, noTr.effects, {}, pay(5), [{channel: 'production', resource: 'megacredits', amount: 1}]);
+      expect(rail?.cause).deep.eq([]);
+      expect(rail?.reactions).deep.eq([{channel: 'production', resource: 'megacredits', amount: 1}]);
+      expect(rail?.known).deep.eq({'production:energy': -2, 'production:plants': 1, 'stock:megacredits': -5});
     });
 
     it('a DRAW does not own a play\'s TR (UNMI Contractor) — an action\'s draw still does', () => {
@@ -140,6 +150,78 @@ describe('the played-card scene\'s rail half — PL-001 for plays', () => {
       seedPlayedHeroRewardHold(view({tr: 20, mc: 60}), view({tr: 22, mc: 53}));
       seedPlayedHeroRewardHold(view({tr: 22, mc: 53}), view({tr: 22, mc: 53}));
       expect(heldStock(RATING_RAIL_KEY)).eq(2);
+    });
+
+    describe('THE TABLE\'S ANSWER ON THE CARDS (К-S1 — PL-124): a promised holder is held only when its counter moved by the promise', () => {
+      const HOLDER = CardName.VECTOR_COMPUTATIONS;
+      const withHolder = (p: {tr: number, mc: number, data: number}): PlayerViewModel => {
+        const v = view(p);
+        (v.thisPlayer as unknown as {tableau: Array<{name: CardName, resources: number}>}).tableau = [{name: HOLDER, resources: p.data}];
+        return v;
+      };
+      const reaction = (amount: number): PlayReaction => ({spec: {channel: 'card-resource', resource: 'data', amount, targetCard: HOLDER}, tag: Tag.SCIENCE});
+
+      it('a play with NO direct TR and no own gains: the holder\'s capsule is held by exactly the promise; the price ticks with the commit', () => {
+        armPlayedHero(CardName.RESEARCH, false, {manualTableOpen: false, reactions: [reaction(2)]});
+        seedPlayedHeroRewardHold(withHolder({tr: 20, mc: 60, data: 0}), withHolder({tr: 20, mc: 49, data: 2}));
+        expect(heldCardCapsule(HOLDER)).eq(2);
+        expect(playedHeroState.reactions).eq('held');
+      });
+
+      it('the promised holder is listed among the beat\'s card targets and totals — the stage prewarms it and latches its count', () => {
+        armPlayedHero(CardName.RESEARCH, false, {manualTableOpen: false, reactions: [reaction(2)]});
+        expect(playedHeroCardTargets()).deep.eq([HOLDER]);
+        expect(playedHeroCardGainTotals()).deep.eq({[HOLDER]: 2});
+      });
+
+      it('a counter that moved OTHERWISE is not held: it names itself and is tallied as landed (the capsule reads the commit at once)', () => {
+        armPlayedHero(CardName.RESEARCH, false, {manualTableOpen: false, reactions: [reaction(2)]});
+        seedPlayedHeroRewardHold(withHolder({tr: 20, mc: 60, data: 0}), withHolder({tr: 20, mc: 49, data: 3}));
+        expect(heldCardCapsule(HOLDER)).eq(0);
+        expect(playedHeroState.reactions).match(/^mismatch: card-resource:data@Vector Computations/);
+        expect(cardResourceLanded(HOLDER), 'tallied as landed without a flight').eq(2);
+      });
+
+      it('each holder on its own: one that disagrees is dropped alone, the other stays held', () => {
+        const other = CardName.DECOMPOSERS;
+        const v = (data: number, microbes: number): PlayerViewModel => {
+          const x = view({tr: 20, mc: 60});
+          (x.thisPlayer as unknown as {tableau: Array<{name: CardName, resources: number}>}).tableau = [{name: HOLDER, resources: data}, {name: other, resources: microbes}];
+          return x;
+        };
+        armPlayedHero(CardName.RESEARCH, false, {manualTableOpen: false, reactions: [
+          reaction(2), {spec: {channel: 'card-resource', resource: 'microbe', amount: 1, targetCard: other}},
+        ]});
+        seedPlayedHeroRewardHold(v(0, 0), v(2, 0));
+        expect(heldCardCapsule(HOLDER)).eq(2);
+        expect(heldCardCapsule(other)).eq(0);
+        expect(playedHeroState.reactions).match(/^mismatch: card-resource:microbe@Decomposers/);
+      });
+
+      it('the play\'s OWN gain on the same holder is a KNOWN move beside the promise', () => {
+        armPlayedHero(HOLDER, false, {
+          manualTableOpen: false,
+          rewards: [{channel: 'card-resource', resource: 'data', amount: 2, targetCard: HOLDER}],
+          reactions: [reaction(2)],
+        });
+        // «Including this»: the play puts 2 on itself, the trigger 2 more — the counter moved by 4.
+        seedPlayedHeroRewardHold(withHolder({tr: 20, mc: 60, data: 0}), withHolder({tr: 20, mc: 54, data: 4}));
+        expect(heldCardCapsule(HOLDER)).eq(4);
+        expect(playedHeroState.reactions).eq('held');
+      });
+
+      it('reduced motion holds nothing; an abort lets go', () => {
+        reduceMotionOverrideState.enabled = true;
+        armPlayedHero(CardName.RESEARCH, false, {manualTableOpen: false, reactions: [reaction(2)]});
+        seedPlayedHeroRewardHold(withHolder({tr: 20, mc: 60, data: 0}), withHolder({tr: 20, mc: 49, data: 2}));
+        expect(heldCardCapsule(HOLDER)).eq(0);
+        reduceMotionOverrideState.enabled = false;
+        armPlayedHero(CardName.RESEARCH, false, {manualTableOpen: false, reactions: [reaction(2)]});
+        seedPlayedHeroRewardHold(withHolder({tr: 20, mc: 60, data: 0}), withHolder({tr: 20, mc: 49, data: 2}));
+        expect(heldCardCapsule(HOLDER)).eq(2);
+        abortPlayedHero();
+        expect(heldCardCapsule(HOLDER)).eq(0);
+      });
     });
 
     it('reduced motion holds nothing', () => {

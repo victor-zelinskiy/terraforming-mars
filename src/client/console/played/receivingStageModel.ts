@@ -35,6 +35,8 @@
  */
 
 import {CardName} from '@/common/cards/CardName';
+import {Tag} from '@/common/cards/Tag';
+import {EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
 import {Color} from '@/common/Color';
@@ -412,4 +414,47 @@ export function cardTargetGroups(
     specs: byTarget.get(target) ?? [],
     self: target === playedCard,
   }));
+}
+
+// ── THE TABLE'S ANSWER TO A PLAY (К-S1 — PL-124) ────────────────────────────
+
+/**
+ * A REACTION OF THE TABLE to the play — a card of the viewer's own tableau
+ * that the play woke (a holder paid by the played card's tag: TR05's science
+ * data, Decomposers' microbe, TR38's microbe / animal data), read off the
+ * EXACT forecast facts the composer showed BEFORE the press and verified
+ * against the two views in the apply block (the rail's own class,
+ * `verifyRailReward` — a counter that moved otherwise is never flown). The
+ * spec lands on the holder's capsule; `tag` names the PRINTED TAG of the
+ * landed card the chip is born on — the cause, where the eye looks for it —
+ * and is absent for a hook that names no tag (the chip is born on the card).
+ */
+export type PlayReaction = {spec: ResourceTransferSpec, tag?: Tag};
+
+/**
+ * The reactions the forecast PROMISES this seat (pure): only an `exact` fact
+ * addressed to «you» whose source is a CARD, and only its «on this card»
+ * gains of a real card resource. A question (`asks`), a deferred payout, an
+ * uncomputed reaction (`unknown`) and another seat's gain are named on the
+ * composer and NEVER flown — a flight of a number the server may not apply is
+ * a lie. Order: the forecast's own (the server's reactor order).
+ */
+export function playCardReactions(facts: ReadonlyArray<EffectForecastFact> | undefined): Array<PlayReaction> {
+  const out: Array<PlayReaction> = [];
+  for (const fact of facts ?? []) {
+    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.kind !== 'card') {
+      continue;
+    }
+    const target = fact.source.name as CardName;
+    for (const effect of fact.effects) {
+      if (effect.direction !== 'gain' || effect.amount <= 0 || effect.note !== 'on this card' || effect.icon === 'resources' || effect.unit !== undefined) {
+        continue;
+      }
+      out.push({
+        spec: {channel: 'card-resource', resource: effect.icon, amount: effect.amount, targetCard: target},
+        ...(fact.reasonTag !== undefined ? {tag: fact.reasonTag} : {}),
+      });
+    }
+  }
+  return out;
 }

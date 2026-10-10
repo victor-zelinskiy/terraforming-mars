@@ -445,7 +445,8 @@ export default defineComponent({
       this.latchedGainTotals = playedHeroCardGainTotals();
       const targets = playedHeroCardTargets();
       if (targets.length > 0) {
-        preloadPremiumCardArt(targets);
+        // The stage's faces are lightweight: the THUMB tier is what an emerged target paints.
+        preloadPremiumCardArt(targets, ['thumb']);
       }
     },
     /**
@@ -651,8 +652,10 @@ export default defineComponent({
      */
     async emergeTarget(card: CardName): Promise<void> {
       this.targetAccent = undefined;
-      if (this.view.prevTop === card && this.emerged === undefined) {
-        // Already lying open right under the played card — no emergence.
+      if (this.view.prevTop === card && this.emerged === undefined && !this.revealed) {
+        // Already lying open right under the played card — no emergence. Once the landed card COVERS it (the
+        // reveal turned its face into a strip), it emerges like any strip: its capsule is the counter that ticks
+        // (К-S1 — a holder under the card that woke it).
         this.targetAccent = card;
         await this.wait(motionMs(120));
         return;

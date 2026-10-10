@@ -278,10 +278,10 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     wrapper.unmount();
   });
 
-  it('the OPEN previous top needs no emergence — an accent marks it and releases', async () => {
+  it('the OPEN previous top (before the reveal) needs no emergence — an accent marks it and releases', async () => {
     armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
-    playedHeroState.phase = 'showing-result';
-    playedHeroState.revealed = true;
+    playedHeroState.phase = 'landing';
+    playedHeroState.revealed = false;
     const wrapper = make(view([CardName.BUSHES, CardName.GRASS, CardName.TREES]));
     await wrapper.vm.$nextTick();
     const promise = wrapper.vm.emergeTarget(CardName.GRASS);
@@ -292,6 +292,25 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     await wrapper.vm.settleTarget(CardName.GRASS);
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.con-recv__strip--accent').exists()).to.be.false;
+    wrapper.unmount();
+  });
+
+  it('the previous top COVERED by the landed card (after the reveal) emerges like any strip — its capsule is the counter that ticks (К-S1)', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'showing-result';
+    playedHeroState.revealed = true;
+    const wrapper = make(view([CardName.BUSHES, CardName.GRASS, CardName.TREES]));
+    await wrapper.vm.$nextTick();
+    const promise = wrapper.vm.emergeTarget(CardName.GRASS);
+    await wrapper.vm.$nextTick();
+    const layer = wrapper.find('.con-recv__emerge');
+    expect(layer.exists(), 'the emergence layer carries the covered previous top forward').to.be.true;
+    expect(layer.attributes('data-played-key')).to.eq(CardName.GRASS);
+    expect(wrapper.find('.con-recv__strip--accent').exists(), 'no accent — the card itself is out').to.be.false;
+    await promise;
+    await wrapper.vm.settleTarget(CardName.GRASS);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.con-recv__emerge').exists(), 'settled back').to.be.false;
     wrapper.unmount();
   });
 });

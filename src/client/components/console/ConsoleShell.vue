@@ -2053,6 +2053,7 @@ import ConsolePatentSaleLayer from '@/client/components/console/patentSale/Conso
 import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {PlayReaction} from '@/client/console/played/receivingStageModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
@@ -16005,7 +16006,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -16177,6 +16178,8 @@ export default defineComponent({
       armPlayedHero(pending.cardName, isEvent, {
         manualTableOpen: this.playedOpen,
         rewards: payload.rewards,
+        // The table's answer on the cards (К-S1): the holders the forecast promised, verified and flown by the scene.
+        reactions: payload.reactions,
         rail: payload.rail,
         // The price the play takes OFF THE RAIL (X87's shipment): flown into the standing card before the lift.
         spends: payload.spends,

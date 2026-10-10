@@ -3,12 +3,14 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
 import {Color} from '@/common/Color';
+import {Tag} from '@/common/cards/Tag';
+import {EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {buildPlayedZones, PLAYED_CARD_NATURAL_H, PLAYED_PEEK_NATURAL} from '@/client/components/console/consolePlayedModel';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   familyForCardType, receivingStackView, planReceivingStage, receivingMinis,
-  foreignTargetMinis, splitPlayRewards, cardTargetGroups, RECEIVING_MAX_STRIPS,
+  foreignTargetMinis, splitPlayRewards, cardTargetGroups, playCardReactions, RECEIVING_MAX_STRIPS,
 } from '@/client/console/played/receivingStageModel';
 
 function cards(...names: Array<CardName>): Array<CardModel> {
@@ -175,6 +177,61 @@ describe('receivingStageModel (the workspace receiving scene, pure)', () => {
       expect(groups[0].self).to.be.true;
       expect(groups[0].specs).to.have.length(2);
       expect(groups[1].self).to.be.false;
+    });
+  });
+
+  describe('the table\'s answer on the cards (К-S1 — PL-124): the forecast\'s promise as reaction specs', () => {
+    const fact = (over: Partial<EffectForecastFact>): EffectForecastFact => ({
+      id: 'blue-Vector Computations-1',
+      source: {kind: 'card', name: CardName.VECTOR_COMPUTATIONS, owner: 'blue' as Color, channel: 'card-played'},
+      certainty: 'exact',
+      recipient: {kind: 'you'},
+      timing: 'immediate',
+      effects: [{direction: 'gain', icon: 'data', amount: 2, current: 0, resulting: 2, note: 'on this card'}],
+      reason: 'You play a card with a science tag',
+      reasonTag: Tag.SCIENCE,
+      ...over,
+    } as EffectForecastFact);
+
+    it('an EXACT fact addressed to «you» from a CARD: one card-resource spec on the holder, with the tag that woke it', () => {
+      expect(playCardReactions([fact({})])).to.deep.eq([{
+        spec: {channel: 'card-resource', resource: 'data', amount: 2, targetCard: CardName.VECTOR_COMPUTATIONS},
+        tag: Tag.SCIENCE,
+      }]);
+    });
+
+    it('a hook that names no tag: the spec alone (the chip is born on the card)', () => {
+      const [reaction] = playCardReactions([fact({reasonTag: undefined})]);
+      expect(reaction.tag).to.be.undefined;
+      expect(reaction.spec.targetCard).to.eq(CardName.VECTOR_COMPUTATIONS);
+    });
+
+    it('NEVER a question, a deferred payout, an unknown, another seat\'s gain, a party\'s or a rule\'s source', () => {
+      expect(playCardReactions([fact({certainty: 'asks'})])).to.deep.eq([]);
+      expect(playCardReactions([fact({certainty: 'deferred', timing: 'after-placement'})])).to.deep.eq([]);
+      expect(playCardReactions([fact({certainty: 'unknown', effects: []})])).to.deep.eq([]);
+      expect(playCardReactions([fact({recipient: {kind: 'player', color: 'red' as Color}})])).to.deep.eq([]);
+      expect(playCardReactions([fact({source: {kind: 'party', name: 'Greens', owner: 'blue' as Color, channel: 'tr-increase'} as EffectForecastFact['source']})])).to.deep.eq([]);
+    });
+
+    it('only the «on this card» gains of a real card resource — a stock chip, a draw, an untyped resource and a loss are not a holder\'s', () => {
+      const mixed = fact({effects: [
+        {direction: 'gain', icon: 'megacredits', amount: 2, current: 0, resulting: 2},
+        {direction: 'gain', icon: 'cards', amount: 1, note: 'draw'},
+        {direction: 'gain', icon: 'resources', amount: 1, note: 'on this card'},
+        {direction: 'cost', icon: 'data', amount: 1, note: 'on this card'},
+        {direction: 'gain', icon: 'microbe', amount: 1, current: 1, resulting: 2, note: 'on this card'},
+      ]});
+      expect(playCardReactions([mixed]).map((r) => r.spec)).to.deep.eq([
+        {channel: 'card-resource', resource: 'microbe', amount: 1, targetCard: CardName.VECTOR_COMPUTATIONS},
+      ]);
+    });
+
+    it('keeps the forecast\'s order (the server\'s reactor order) and tolerates no forecast at all', () => {
+      const second = fact({id: 'blue-Decomposers-2', source: {kind: 'card', name: CardName.DECOMPOSERS, owner: 'blue' as Color, channel: 'card-played'}, reasonTag: undefined,
+        effects: [{direction: 'gain', icon: 'microbe', amount: 1, current: 0, resulting: 1, note: 'on this card'}]});
+      expect(playCardReactions([fact({}), second]).map((r) => r.spec.targetCard)).to.deep.eq([CardName.VECTOR_COMPUTATIONS, CardName.DECOMPOSERS]);
+      expect(playCardReactions(undefined)).to.deep.eq([]);
     });
   });
 });

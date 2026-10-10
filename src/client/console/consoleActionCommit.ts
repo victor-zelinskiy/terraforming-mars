@@ -800,7 +800,11 @@ export function commitRailPlan(
  * the table's answer (an `exact` forecast fact addressed to «you» —
  * `reactionRailSpecs`, handed in), and the branch's other known moves with the
  * play's own price (`paid` — the composer's payment, never a chip of the
- * branch). Undefined when the play gains no direct TR.
+ * branch). Undefined when the play gains no direct TR AND the table answers
+ * nothing — the table's answer rides WITHOUT a TR too (PL-035: the Greens'
+ * M€ production for a plant step, a stock answer to a play with no rating):
+ * the rail then holds no cause and ticks the answer one beat after the
+ * landing scene's own wave, never with the commit.
  */
 export function playRailReward(
   branch: ActionPreviewBranch | undefined,
@@ -810,7 +814,7 @@ export function playRailReward(
   reactions: ReadonlyArray<ResourceTransferSpec>,
 ): RailReward | undefined {
   const cause = playRailTrSpecs(branch, effects, stepResponses);
-  if (cause.length === 0) {
+  if (cause.length === 0 && reactions.length === 0) {
     return undefined;
   }
   return {cause, reactions: [...reactions], known: actionKnownRailMoves(branch, stepResponses, paid)};

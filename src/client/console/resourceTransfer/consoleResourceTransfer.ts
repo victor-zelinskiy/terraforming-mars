@@ -252,7 +252,8 @@ export function cardResourceLanded(card: string): number {
   return cardResourceLandings.by[card] ?? 0;
 }
 
-function noteCardResourceLanding(spec: ResourceTransferSpec): void {
+/** Tally a card-resource spec as LANDED without a flight — a promise that did not verify ticks the capsule with the commit (К-S1). */
+export function noteCardResourceLanding(spec: ResourceTransferSpec): void {
   if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
     return;
   }
