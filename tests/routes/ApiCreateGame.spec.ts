@@ -25,7 +25,7 @@ describe('ApiCreateGame', () => {
   });
 
   it('Official random boards do not include fan maps', () => {
-    expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL)).deep.eq([BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM]);
+    expect(ApiCreateGame.boardOptions(RandomBoardOption.OFFICIAL)).to.have.members([BoardName.THARSIS, BoardName.HELLAS, BoardName.ELYSIUM]);
   });
   it('Fully random boards include fan maps but exclude unadapted-bonus maps', () => {
     // Arabia Terra is temporarily excluded from the random-all pool (its

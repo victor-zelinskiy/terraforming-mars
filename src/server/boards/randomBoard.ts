@@ -12,7 +12,11 @@ import {AUTOMA_SUPPORTED_BOARDS} from '../../common/automa/automaCompatibility';
 // Arabia Terra left it on 2026-11-05: its data / science / energy-production cell
 // bonuses and its coves are in the premium scope (the dossier names a bonus no
 // card can hold before the press), and MarsBot plays the map on its own board.
-const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [];
+//
+// Amazonis Planitia (the official eleven-row board, upstream 900e758a78) joined on 2026-11-06 with its BASE adaptation
+// only: the engine plays it, the premium scope does not cover it yet (the larger scales, the board fit, MarsBot).
+// It leaves the list with its full adaptation.
+const RANDOM_ALL_EXCLUSIONS: ReadonlyArray<BoardName> = [BoardName.AMAZONIS_PLANITIA];
 
 /** Facts about the game being created that narrow a random pool. */
 export type RandomBoardContext = {

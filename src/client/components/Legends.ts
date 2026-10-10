@@ -19,4 +19,5 @@ export const LEGENDS: Record<BoardName, Array<Key>> = {
   [BoardName.TERRA_CIMMERIA]: [],
   [BoardName.TERRA_CIMMERIA_NOVA]: [],
   [BoardName.HOLLANDIA]: [],
+  [BoardName.AMAZONIS_PLANITIA]: [],
 };
