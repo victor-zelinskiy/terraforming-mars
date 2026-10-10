@@ -57,7 +57,9 @@
          to be replaced, which made a zero PRODUCTION chip indistinguishable
          from a zero STOCK chip of the same resource — the same hazard the VP
          badge above is spelled out for. -->
-    <span v-if="effect.note" class="action-effect-chip__note" v-i18n>{{ effect.note }}</span>
+    <!-- A note with PARAMS is a sentence about this chip's number (TR42: «2 набора по 5 РТ сверх 20» on the
+         Agenda chip — why the walk is this long); a plain note is vocabulary («на эту карту»). -->
+    <span v-if="effect.note" class="action-effect-chip__note" v-i18n="effect.noteParams">{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
 
     <!-- A FILTERED DRAW's RULE (PL-021) — «+3 взять | без меток [P̸][M̸][A̸]»: the

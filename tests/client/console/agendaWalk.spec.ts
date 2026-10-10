@@ -30,6 +30,7 @@ import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/clie
 import {agendaWalkNextRows, heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
 import {AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
+import {thresholdBreakdown} from '@/common/parliament/resolutionCounts';
 
 /*
  * «КАРЬЕРА» — a card's WALK of the Agenda track (TR04 Minority Representation),
@@ -522,7 +523,7 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
     const walk = (walked: number, printed = 2): AgendaWalkModel => ({from: 12 - walked, to: 12, printed, walked, steps: [], influence: {current: 4, resulting: 5}});
 
     it('two steps: the stage line in the plural; one: in its own words; a cut: the stage line AND «N of M · end of the track»', () => {
-      expect(agendaWalkNextRows(walk(2))).deep.eq([{key: 'Agenda — the marker walks ${0} steps in the Parliament', params: ['2']}]);
+      expect(agendaWalkNextRows(walk(2))).deep.eq([{key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['2']}]);
       expect(agendaWalkNextRows(walk(1))).deep.eq([
         {key: 'Agenda — the marker walks 1 step in the Parliament'},
         {key: '${0} of ${1} · end of the track', params: ['1', '2']},
@@ -532,6 +533,51 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
 
     it('at the END of the track (walked 0) ONLY the cut speaks — a stage line promising a walk of 0 steps would announce a stage nobody enters', () => {
       expect(agendaWalkNextRows(walk(0))).deep.eq([{key: '${0} of ${1} · end of the track', params: ['0', '2']}]);
+    });
+
+    // TR42 Green Allegiance — the steps are COUNTED («1 per set of 5 TR over 20»): the server's breakdown rides the walk.
+    const sets = (value: number, from: number, walked?: number): AgendaWalkModel => {
+      const basis = thresholdBreakdown('terraformRating', value, 20, 5);
+      const moved = walked ?? basis.sets;
+      return {from, to: from + moved, printed: basis.sets, walked: moved, steps: [], influence: {current: 1, resulting: 1}, basis};
+    };
+    const why = (value: number, n: number, toNext: number) => ({key: 'Agenda steps by TR:', parts: [
+      {key: 'TR ${0}', params: [String(value)]},
+      {key: 'threshold ${0}', params: ['20']},
+      {key: '${0} complete set(s)', params: [String(n)]},
+      {key: '${0} to the next set', params: [String(toNext)]},
+    ]});
+
+    it('a COUNTED walk says WHY first, in the Parliament\'s own words — then the stage, then a cut', () => {
+      expect(agendaWalkNextRows(sets(33, 1)), 'TR 33: two sets, two short of a third').deep.eq([
+        why(33, 2, 2),
+        {key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['2']},
+      ]);
+      expect(agendaWalkNextRows(sets(25, 1)), 'TR 25: exactly one set — a whole set to the next').deep.eq([
+        why(25, 1, 5),
+        {key: 'Agenda — the marker walks 1 step in the Parliament'},
+      ]);
+      expect(agendaWalkNextRows(sets(45, 0)), 'TR 45 from 0: the longest walk of the set').deep.eq([
+        why(45, 5, 5),
+        {key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['5']},
+      ]);
+      expect(agendaWalkNextRows(sets(35, 10, 2)), 'TR 35 from 10: three sets, the track takes two — the cut named after the why').deep.eq([
+        why(35, 3, 5),
+        {key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['2']},
+        {key: '${0} of ${1} · end of the track', params: ['2', '3']},
+      ]);
+    });
+
+    it('ZERO counted steps is not a cut and not a stage — ONE row naming the zero and how far the first set is (PL-118)', () => {
+      const rows = agendaWalkNextRows(sets(23, 1));
+      expect(rows).deep.eq([{key: 'The Agenda marker stays:', parts: [
+        {key: 'TR ${0}', params: ['23']},
+        {key: 'threshold ${0}', params: ['20']},
+        {key: 'no complete set of ${0}', params: ['5']},
+        {key: '${0} to the first set', params: ['2']},
+      ]}]);
+      expect(agendaWalkNextRows(sets(14, 1))[0].parts?.[3], 'the solo start: 11 to the first set').deep.eq({key: '${0} to the first set', params: ['11']});
+      expect(rows.some((r) => r.key.startsWith('Agenda — the marker walks')), 'no stage is promised').is.false;
     });
   });
 

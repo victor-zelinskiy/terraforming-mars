@@ -339,6 +339,21 @@ export type ResolutionCountMetricModel = {
 };
 
 /**
+ * THE ONE WRITER of a threshold breakdown: `value` of `metric` read against
+ * `over` in sets of `step` — the sets by the family's one division
+ * ({@link thresholdSets}) and how far the value stands from the next full
+ * set. Generous Funding (RX13, «sets of 5 TR over 15») and every CARD that
+ * counts the same kind of thing (Turmoil Redux TR42 Green Allegiance, «a step
+ * per set of 5 TR over 20» — its walk's `basis`) read their number here, so
+ * the payout, the preview and the reading cannot divide apart.
+ */
+export function thresholdBreakdown(metric: ResolutionCountMetric, value: number, over: number, step: number): ResolutionCountMetricModel {
+  const sets = thresholdSets(value, over, step);
+  const toNext = over + (sets + 1) * step - Math.floor(value);
+  return {metric, value, over, step, sets, toNext};
+}
+
+/**
  * Count one player METRIC toward a threshold count `id` — the reading the
  * server makes of the engine's value and the stand makes of a synthetic one.
  * A non-threshold id counts nothing this way (the model says so with a zero,
@@ -349,9 +364,8 @@ export function countMetricToward(id: ResolutionCountId, value: number): Resolut
   if (kind.kind !== 'threshold') {
     return {id, count: 0, cards: []};
   }
-  const sets = thresholdSets(value, kind.over, kind.step);
-  const toNext = kind.over + (sets + 1) * kind.step - Math.floor(value);
-  return {id, count: sets, cards: [], metric: {metric: kind.metric, value, over: kind.over, step: kind.step, sets, toNext}};
+  const metric = thresholdBreakdown(kind.metric, value, kind.over, kind.step);
+  return {id, count: metric.sets, cards: [], metric};
 }
 
 /** ONE tag's share of a multi-tag count («Venus 1 · Jovian 2»). */

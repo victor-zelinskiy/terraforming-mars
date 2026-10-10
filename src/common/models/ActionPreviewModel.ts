@@ -13,6 +13,7 @@ import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
 import type {DrawSearchModel} from './CardDrawRevealModel';
 import type {ReduxParty, ResolutionId, ResolutionInstanceId} from '../parliament/ParliamentTypes';
+import type {ResolutionCountMetricModel} from '../parliament/resolutionCounts';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -129,6 +130,13 @@ export type ActionEffect = {
   unit?: string;
   /** Optional i18n note under the value (e.g. `'on this card'`, `'to a card'`). */
   note?: string;
+  /**
+   * The note's params, when the note is a sentence about THIS chip's number
+   * (TR42: the Agenda chip's «${0} set(s) of 5 TR over ${1}» — why the walk is
+   * this long). Consumers that match a note as vocabulary («on this card»,
+   * «production») never see one: those notes carry no params.
+   */
+  noteParams?: ReadonlyArray<string>;
   /**
    * The CARD whose resource pool this chip moves, when it is exactly one card
    * — the effect forecast's explicit target marker. Stamped by the forecast
@@ -712,6 +720,16 @@ export type AgendaWalkModel = {
   steps: ReadonlyArray<{to: number, kind: 'influence' | 'tr' | 'card', level?: number}>;
   /** The player's WHOLE influence now → after the walk. */
   influence: {current: number, resulting: number};
+  /**
+   * WHY `printed` is this many, when the card does not print the number but
+   * COUNTS it (Turmoil Redux TR42 Green Allegiance — «1 step for every set of
+   * 5 TR you have over 20»): the threshold count's own breakdown, the same
+   * model the Parliament explains Generous Funding's sets with («TR 33 ·
+   * threshold 20 · 2 complete sets · 2 to the next»), `sets === printed`.
+   * Read by the server ONCE, before the walk (the walk's own TR steps add no
+   * set); a zero is an answer here, never an absence. Absent for a printed N.
+   */
+  basis?: ResolutionCountMetricModel;
 };
 
 /**

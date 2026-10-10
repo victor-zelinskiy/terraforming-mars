@@ -30,6 +30,7 @@ import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferre
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {DiscardPopularSupport, skippedSupportDiscard} from '../parliament/DiscardPopularSupport';
 import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, NEUTRAL_DELEGATE_ICON, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
+import type {ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectPlayer} from '../inputs/SelectPlayer';
@@ -535,8 +536,15 @@ export const INFLUENCE_ICON = 'influence';
  * every step with what it pays, and the WHOLE influence now → after. Pure:
  * the printed track and the position, nothing mutated, nothing the client
  * has to compute.
+ *
+ * `basis` — a card that COUNTS its steps instead of printing them (TR42
+ * Green Allegiance: «1 step per set of 5 TR over 20») hands the threshold
+ * breakdown it counted `printed` from; it rides the model untouched, so the
+ * composer, the chip and the inspector explain the number with the server's
+ * own reading. A zero `printed` is legal here: the walk takes no step and
+ * the breakdown is the whole answer.
  */
-export function agendaWalkModel(player: IPlayer, printed: number): AgendaWalkModel {
+export function agendaWalkModel(player: IPlayer, printed: number, basis?: ResolutionCountMetricModel): AgendaWalkModel {
   const parliament = player.game.parliament;
   const from = parliament?.agendaOf(player) ?? 0;
   const current = parliament?.influence(player) ?? 0;
@@ -549,8 +557,12 @@ export function agendaWalkModel(player: IPlayer, printed: number): AgendaWalkMod
   return {
     from, to, printed, walked: to - from, steps,
     influence: {current, resulting: current + influenceAtAgenda(to) - influenceAtAgenda(from)},
+    ...(basis === undefined ? {} : {basis: {...basis}}),
   };
 }
+
+/** The Agenda chip's note for a COUNTED walk (TR42) — why it is this long: «2 sets of 5 TR over 20». */
+export const AGENDA_SETS_NOTE = '${0} set(s) of ${1} TR over ${2}';
 
 /**
  * The walk's chips, in the order the steps pay: the track chip («1 → 3», a
@@ -558,11 +570,23 @@ export function agendaWalkModel(player: IPlayer, printed: number): AgendaWalkMod
  * the one the effect forecast reads the ruling Greens' «+2 M€» from, so it is
  * never folded into the track chip; the influence chip states the level the
  * walk sets.
+ *
+ * A COUNTED walk (TR42, `walk.basis`) notes the chip with its sets («★ 1 → 3 ·
+ * 2 sets of 5 TR over 20») — unless the track's end cut it, when the cut is
+ * the chip's news and the breakdown stays in the «next» row (one chip, one
+ * note). A walk of ZERO counted steps draws NO chip at all: «★ 1 → 1» would
+ * promise a stage nobody enters (PL-118) — the breakdown row says why.
  */
 export function agendaWalkEffects(player: IPlayer, walk: AgendaWalkModel): Array<ActionEffect> {
+  if (walk.printed <= 0) {
+    return [];
+  }
+  const cut = walk.walked < walk.printed;
+  const basis = walk.basis;
   const effects: Array<ActionEffect> = [{
     direction: 'gain', icon: AGENDA_TRACK_ICON, amount: walk.walked, current: walk.from, resulting: walk.to,
-    ...(walk.walked < walk.printed ? {note: 'end of the track'} : {}),
+    ...(cut ? {note: 'end of the track'} : basis === undefined ? {} :
+      {note: AGENDA_SETS_NOTE, noteParams: [String(basis.sets), String(basis.step), String(basis.over)]}),
   }];
   const trSteps = walk.steps.filter((step) => step.kind === 'tr').length;
   const cardSteps = walk.steps.filter((step) => step.kind === 'card').length;

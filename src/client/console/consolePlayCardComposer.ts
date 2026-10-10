@@ -37,6 +37,7 @@ import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActio
 import {repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {countedMetricParts, metricLabelKeyOf} from '@/client/console/parliament/influenceYieldModel';
 
 // The premium payment PRESENTATION model lives in the SHARED `paymentPlan`
 // module so EVERY payment surface (card play, blue action, standalone
@@ -294,8 +295,14 @@ export function playCommitVerb(door: PlayDoor | undefined): string {
   }
 }
 
-/** One «what happens next» row, as a key the host translates (with its params). */
-export type NextRowKey = {key: string, params?: ReadonlyArray<string>};
+/**
+ * One «what happens next» row, as a key the host translates (with its params).
+ * `parts` — a READING after the key, joined «a · b · c» (TR42: «Шаги Карьеры по
+ * РТ: РТ 33 · порог 20 · 2 полных набора · до следующего 2»); the parts are
+ * the Parliament's own vocabulary of a threshold count (`countedMetricParts`),
+ * never a second dictionary.
+ */
+export type NextRowKey = {key: string, params?: ReadonlyArray<string>, parts?: ReadonlyArray<NextRowKey>};
 
 /**
  * THE WALK'S OWN «next» ROWS (TR04 — the SHOW step of a card that advances the
@@ -307,13 +314,32 @@ export type NextRowKey = {key: string, params?: ReadonlyArray<string>};
  * promising «the marker walks 0 steps» would announce a stage nobody enters
  * (К-R2) — the composer's chip already shows «0», and the flow lands as an
  * ordinary play.
+ *
+ * A COUNTED walk (TR42 — `walk.basis`, the server's threshold breakdown)
+ * says WHY first: «Шаги Карьеры по РТ: РТ 33 · порог 20 · 2 полных набора ·
+ * до следующего 2», then the stage, then a cut. Zero counted steps is not a
+ * cut and not a stage — it is ONE row naming the zero and how far the first
+ * set is («Маркер Карьеры не двинется: РТ 23 · порог 20 · ни одного полного
+ * набора по 5 · до первого 2»); no stage is promised (PL-118).
  */
 export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
   const rows: Array<NextRowKey> = [];
+  const basis = walk.basis;
+  if (basis !== undefined) {
+    if (basis.sets <= 0) {
+      return [{key: 'The Agenda marker stays:', parts: [
+        {key: metricLabelKeyOf(basis.metric), params: [String(basis.value)]},
+        {key: 'threshold ${0}', params: [String(basis.over)]},
+        {key: 'no complete set of ${0}', params: [String(basis.step)]},
+        {key: '${0} to the first set', params: [String(basis.toNext)]},
+      ]}];
+    }
+    rows.push({key: 'Agenda steps by TR:', parts: countedMetricParts(basis)});
+  }
   if (walk.walked === 1) {
     rows.push({key: 'Agenda — the marker walks 1 step in the Parliament'});
   } else if (walk.walked > 1) {
-    rows.push({key: 'Agenda — the marker walks ${0} steps in the Parliament', params: [String(walk.walked)]});
+    rows.push({key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: [String(walk.walked)]});
   }
   if (walk.walked < walk.printed) {
     rows.push({key: '${0} of ${1} · end of the track', params: [String(walk.walked), String(walk.printed)]});

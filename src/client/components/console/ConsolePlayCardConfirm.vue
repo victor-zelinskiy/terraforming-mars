@@ -693,7 +693,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, NextRowKey,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -821,6 +821,12 @@ function textOf(v: string | Message | undefined): string {
     return '';
   }
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
+}
+
+/** One «next» row of the composer's pure helpers, translated: the key, then its reading «a · b · c» when it has one. */
+function nextRowText(row: NextRowKey): string {
+  const head = row.params === undefined ? translateText(row.key) : translateTextWithParams(row.key, [...row.params]);
+  return row.parts === undefined || row.parts.length === 0 ? head : `${head} ${row.parts.map(nextRowText).join(' · ')}`;
 }
 
 // Pre-collect classification lives in the PURE `playChoiceMode` (inline sub /
@@ -1743,9 +1749,10 @@ export default defineComponent({
         } else if (s.kind === 'agendaWalk') {
           // THE SHOW STEP's own rows (TR04): the name of the coming stage and what the marker will do there — from
           // the server's own reading of the walk, the cut at the track's end named («1 из 2 · конец трека»); at the
-          // end itself (TR37, walked 0) only the cut (`agendaWalkNextRows` — pure, spec'd).
+          // end itself (TR37, walked 0) only the cut; a COUNTED walk (TR42) its WHY first — the threshold
+          // breakdown in the Parliament's own words (`agendaWalkNextRows` — pure, spec'd).
           for (const row of agendaWalkNextRows(s.walk)) {
-            out.push(noteRow(row.params === undefined ? translateText(row.key) : translateTextWithParams(row.key, [...row.params])));
+            out.push(noteRow(nextRowText(row)));
           }
         } else if (s.kind === 'neutralRally') {
           // THE SHOW STEP's own rows (TR31): the coming stage, then EVERYTHING the server's plan says, one row per
