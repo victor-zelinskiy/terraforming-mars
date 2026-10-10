@@ -12,6 +12,7 @@ import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {
   mergeChips,
   summarizeImpact,
+  contextPillGroups,
   diffRootNotifications,
   diffNegativeNotifications,
   diffRevealNotifications,
@@ -77,18 +78,30 @@ describe('notificationModel (pure)', () => {
       const {pills, detailCount} = summarizeImpact(vms, 2);
       expect(detailCount).to.eq(3);
       expect(pills).to.have.length(2);
-      // TR is the most salient → first.
-      expect(pills[0].icon).to.eq('tr');
+      // The cut keeps the FIRST pills of the chain, never the «most salient» (PL-076).
+      expect(pills.map((p) => p.icon)).to.deep.eq(['energy', 'megacredits']);
     });
 
-    it('orders pills GAINS-first, the cost last', () => {
+    it('orders pills in EVENT order — the cost first, then what it bought (PL-076: «[fighter] → [mech]», never «+1 +1 −1»)', () => {
       const vms = [
         {source: {kind: 'label', label: 'Payment'} as const, bucket: 'payment' as const, chips: [chip('megacredits', '−1')]},
         {source: {kind: 'none'} as const, bucket: 'card' as const, chips: [chip('energy', '+1')]},
         {source: {kind: 'none'} as const, bucket: 'card' as const, chips: [chip('tr', '+1')]},
       ];
       const {pills} = summarizeImpact(vms, 5);
-      expect(pills.map((p) => p.icon)).to.deep.eq(['tr', 'energy', 'megacredits']);
+      expect(pills.map((p) => p.icon)).to.deep.eq(['megacredits', 'energy', 'tr']);
+      // A spend-then-gain card action (TR29 / TR35 / TR40 B): the price leads, the two gains follow in their order.
+      const spendThenGain = [
+        {source: {kind: 'none'} as const, bucket: 'card' as const, chips: [chip('mech', '−1')]},
+        {source: {kind: 'none'} as const, bucket: 'card' as const, chips: [chip('plants', '+1', {production: true})]},
+        {source: {kind: 'none'} as const, bucket: 'card' as const, chips: [chip('megacredits', '+1', {production: true})]},
+      ];
+      expect(summarizeImpact(spendThenGain, 3).pills.map((p) => `${p.icon}${p.text}`)).to.deep.eq(['mech−1', 'plants+1', 'megacredits+1']);
+      // …and the OWNERSHIP CLUSTER the rival reads (the actor's own chips) keeps the same order: the TR40 B card read
+      // «player1 +1 +1 −1» with the clusters still sorted by salience after the flat summary had been fixed.
+      const groups = contextPillGroups(spendThenGain, 4);
+      expect(groups.map((g) => g.scope)).to.deep.eq(['actor']);
+      expect(groups[0].chips.map((p) => `${p.icon}${p.text}`)).to.deep.eq(['mech−1', 'plants+1', 'megacredits+1']);
     });
   });
 

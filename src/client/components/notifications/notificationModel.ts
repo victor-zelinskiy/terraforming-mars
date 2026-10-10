@@ -221,7 +221,8 @@ function lawAnswerNotification(input: RootBuildInput, actor: Color): Notificatio
   }
   const own = input.children.find((m) => m.parentId === marker.id);
   const header: LogMessage = own ?? new LogMessage(LogMessageType.DEFAULT, 'Effect triggered: ${0}', [{type: LogMessageDataType.RESOLUTION, value: source.resolution}]);
-  const pills = chips.sort((a, b) => chipRank(a) - chipRank(b)).slice(0, 3);
+  // Event order, never salience (PL-076) — a law's price before what it pays.
+  const pills = chips.slice(0, 3);
   return {
     id: `g${input.correlationId}:law`,
     kind: 'normal',
@@ -399,8 +400,11 @@ export function contextPillGroups(vms: ReadonlyArray<JournalChildVM>, maxPerGrou
     }
     actor.push(...vm.chips);
   }
+  // A cluster's pills read in EVENT order too (PL-076): the actor's «−1 [mech] · +1 [plant production] · +1 [M€
+  // production]» is the rival's whole reading of the action, and sorted by salience it read «+1 +1 −1» — the two
+  // results ahead of the price that bought them.
   const pack = (chips: Array<JournalImpactChip>): Array<JournalImpactChip> =>
-    mergeChips(chips).sort((a, b) => chipRank(a) - chipRank(b)).slice(0, maxPerGroup);
+    mergeChips(chips).slice(0, maxPerGroup);
   const groups: Array<NotificationPillGroup> = [];
   const packedPlanet = pack(planet);
   if (packedPlanet.length > 0) {
@@ -428,7 +432,12 @@ export function summarizeImpact(vms: ReadonlyArray<JournalChildVM>, maxPills = 3
   for (const vm of vms) {
     all.push(...vm.chips);
   }
-  const merged = mergeChips(all).sort((a, b) => chipRank(a) - chipRank(b));
+  // THE PILLS READ IN EVENT ORDER (PL-076, the owner's decision 2026-10-10): the price first, then what it bought —
+  // the order the printed row and the journal already speak («[fighter] → [mech]», «−1 → +1»). A salience sort
+  // once put every gain ahead of the cost («+1 +1 −1» for a spend-then-gain action), which reversed cause and
+  // consequence on the one card the rival reads. `mergeChips` keeps first appearance, so the chain's order is the
+  // pills' order; the cut keeps the first few, never the «most salient».
+  const merged = mergeChips(all);
   return {pills: merged.slice(0, maxPills), detailCount: vms.length};
 }
 
