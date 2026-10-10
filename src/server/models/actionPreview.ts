@@ -42,6 +42,19 @@ import {drawSearchOf} from '../deferredActions/drawSearch';
  * (which add `card.warnings`) — only read-only checks + pure model construction.
  */
 export function actionPreview(player: IPlayer, card: ICard & IActionCard): ActionPreview {
+  return withImpliedRatings(actionPreviewOf(player, card));
+}
+
+/**
+ * Every branch's chips with each scale step's own rating stated after it
+ * (PL-147, `actionPreviews.withImpliedRating`) — the door's ONE exit pass, so
+ * a bespoke `actionPreview` hook and a declaration print the same formula.
+ */
+export function withImpliedRatings(preview: ActionPreview): ActionPreview {
+  return {...preview, branches: preview.branches.map((b) => ({...b, effects: actionPreviews.withImpliedRating(b.effects)}))};
+}
+
+function actionPreviewOf(player: IPlayer, card: ICard & IActionCard): ActionPreview {
   if (card.actionPreview !== undefined) {
     return card.actionPreview(player);
   }

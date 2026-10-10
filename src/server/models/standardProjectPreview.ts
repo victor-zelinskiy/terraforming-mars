@@ -77,7 +77,8 @@ export function buildStandardProjectPreview(
   if (extras !== undefined) {
     effects.push(...extras);
   }
-  const model: StandardProjectPreviewModel = {effects};
+  // The door's exit pass (PL-147): the step's own rating after the scale that pays it — the same formula the card doors print.
+  const model: StandardProjectPreviewModel = {effects: preview.withImpliedRating(effects)};
   const target = card.standardProjectTarget?.(player);
   if (target !== undefined) {
     model.target = target;

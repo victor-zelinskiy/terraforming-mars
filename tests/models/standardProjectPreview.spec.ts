@@ -10,7 +10,7 @@ import {GreeneryStandardProject} from '../../src/server/cards/base/standardProje
 import {CityStandardProject} from '../../src/server/cards/base/standardProjects/CityStandardProject';
 import {BuildColonyStandardProject} from '../../src/server/cards/colonies/BuildColonyStandardProject';
 import {setTemperature, maxOutOceans} from '../TestingUtils';
-import {MAX_TEMPERATURE} from '../../src/common/constants';
+import {MAX_TEMPERATURE, TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_FOR_OCEAN_BONUS} from '../../src/common/constants';
 import {Resource} from '../../src/common/Resource';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
@@ -51,6 +51,17 @@ describe('standardProjectPreview', () => {
     const temp = preview.effects.find((e) => e.icon === 'temperature');
     expect(temp!.current).to.eq(MAX_TEMPERATURE);
     expect(temp!.resulting).to.eq(MAX_TEMPERATURE);
+    expect(preview.effects.some((e) => e.icon === 'tr'), 'a step the ceiling cuts carries no rating chip (PL-147)').is.false;
+  });
+
+  /** PL-147: the formula read «−30 → −28 °C» and said nothing of the TR the press pays. */
+  it('the step\'s OWN RATING follows the scale chip — implied, bare, on every door alike', () => {
+    const asteroid = buildStandardProjectPreview(player, new AsteroidStandardProject(), 14);
+    const temp = asteroid.effects.findIndex((e) => e.icon === 'temperature');
+    expect(asteroid.effects[temp + 1]).deep.eq({direction: 'gain', icon: 'tr', amount: 1, implied: true});
+    const aquifer = buildStandardProjectPreview(player, new AquiferStandardProject(), 18);
+    const oceans = aquifer.effects.findIndex((e) => e.icon === 'oceans');
+    expect(aquifer.effects[oceans + 1], 'an ocean tile is a rating step too').deep.eq({direction: 'gain', icon: 'tr', amount: 1, implied: true});
   });
 
   it('oceans count their own tiles (oceans chip + target)', () => {
@@ -135,5 +146,62 @@ describe('standardProjectPreview — what the TABLE answers (the forecast, PL-06
     const [, player] = testGame(2);
     player.megaCredits = 30;
     expect(buildStandardProjectPreview(player, new PowerPlantStandardProject(), 11).forecast).is.undefined;
+  });
+});
+
+/** PL-147: the thresholds a raise crosses are the engine's own (`claimCrossedScaleBonuses`) — the composer never named them. */
+describe('standardProjectPreview — the BONUS STEPS the raise crosses (PL-147)', () => {
+  function reduxTable(): [IGame, TestPlayer] {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    expect(game.parliament!.rulingParty(), 'a fresh Redux table: the Greens').eq(PartyName.GREENS);
+    player.megaCredits = 30;
+    return [game, player];
+  }
+
+  it('an asteroid at −26 °C crosses −24 °C: the heat production step is a fact of the track, and the Greens answer THAT production too', () => {
+    const [game, player] = reduxTable();
+    setTemperature(game, TEMPERATURE_BONUS_FOR_HEAT_1 - 2);
+    const facts = buildStandardProjectPreview(player, new AsteroidStandardProject(), 14).forecast?.facts ?? [];
+    const heat = facts.find((f) => f.id.endsWith('temperature-heat-bonus-1'));
+    expect(heat, JSON.stringify(facts.map((f) => f.id))).is.not.undefined;
+    expect(heat!.source).deep.include({kind: 'rule', name: 'Temperature track bonus'});
+    expect(heat!.recipient.kind).eq('you');
+    expect(heat!.certainty).eq('exact');
+    expect(heat!.effects[0]).deep.include({direction: 'gain', icon: 'heat', amount: 1, note: 'production'});
+    const greensProduction = facts.find((f) => f.id.endsWith('greens-production'));
+    expect(greensProduction, 'the Greens raise the M€ production with the heat production the track grants').is.not.undefined;
+    expect(greensProduction!.effects[0]).deep.include({icon: 'megacredits', amount: 1, note: 'production'});
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'and 2 M€ for the one TR step').eq(2);
+  });
+
+  it('an asteroid at −2 °C crosses 0 °C: the ocean is a fact of the track (asked once the step is made), its own TR counted for the Greens', () => {
+    const [game, player] = reduxTable();
+    setTemperature(game, TEMPERATURE_FOR_OCEAN_BONUS - 2);
+    const facts = buildStandardProjectPreview(player, new AsteroidStandardProject(), 14).forecast?.facts ?? [];
+    const ocean = facts.find((f) => f.id.endsWith('temperature-ocean-bonus'));
+    expect(ocean, JSON.stringify(facts.map((f) => f.id))).is.not.undefined;
+    expect(ocean!.certainty).eq('exact');
+    expect(ocean!.timing).eq('after-card');
+    expect(ocean!.effects[0]).deep.include({direction: 'gain', icon: 'oceans', amount: 1});
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'the temperature step AND the ocean tile: two rating steps').eq(4);
+  });
+
+  it('…and with no ocean left the crossing is a NAMED skip, never silence', () => {
+    const [game, player] = reduxTable();
+    setTemperature(game, TEMPERATURE_FOR_OCEAN_BONUS - 2);
+    maxOutOceans(player);
+    const facts = buildStandardProjectPreview(player, new AsteroidStandardProject(), 14).forecast?.facts ?? [];
+    const ocean = facts.find((f) => f.id.endsWith('temperature-ocean-bonus'));
+    expect(ocean!.certainty).eq('skipped');
+    expect(ocean!.note).eq('No ocean is left to place');
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'one rating step only').eq(2);
+  });
+
+  it('a step that crosses nothing names nothing', () => {
+    const [game, player] = reduxTable();
+    setTemperature(game, -10);
+    const facts = buildStandardProjectPreview(player, new AsteroidStandardProject(), 14).forecast?.facts ?? [];
+    expect(facts.filter((f) => f.source.kind === 'rule')).deep.eq([]);
   });
 });

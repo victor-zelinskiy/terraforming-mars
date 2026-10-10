@@ -119,11 +119,10 @@ export class WaterHauling extends Card implements IProjectCard {
   /** The dock's own part: the reward (rule 6), its one blocker (rule 7), its preview. */
   public readonly fleetDock: FleetDock = {
     rewardBlockedReason: (player) => player.game.canAddOcean() ? undefined : WATER_HAULING_NO_OCEAN_REASON,
-    // The ocean and its TR as two chips: the effect forecast reads the ruling
-    // Greens' «+2 M€» off the TR chip, never off the tile.
-    // The TR chip beside the ocean is the ocean's OWN step made visible (the stage reads «[океан] 3 → 4 · [РТ] 20 → 21»);
-    // for the forecast's grants it is IMPLIED by the ocean — the Greens are paid once (PL-066).
-    previewEffects: (player) => [actionPreviews.oceanGain(player, 1), {...actionPreviews.trGain(player, 1), implied: true}],
+    // The ocean and its TR as two chips: the TR chip beside the ocean is the ocean's OWN step made visible (the stage
+    // reads «[океан] 3 → 4 · +1 [РТ]»); for the forecast's grants it is IMPLIED by the ocean — the Greens are paid once
+    // (PL-066). The SAME pass every door runs (PL-147): the bare, quiet face, and no chip at all once the oceans are full.
+    previewEffects: (player) => actionPreviews.withImpliedRating([actionPreviews.oceanGain(player, 1)]),
     previewFollowUps: () => [{kind: 'note', role: 'tradeReward', note: 'placeOcean'}],
     receive: (player) => {
       player.game.defer(new PlaceOceanTile(player, {

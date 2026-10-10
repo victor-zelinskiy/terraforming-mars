@@ -59,6 +59,9 @@ describe('actionPreview', () => {
     expect(oxygenGain?.direction).eq('gain');
     expect(oxygenGain?.unit).eq('%');
     expect(oxygenGain?.resulting).eq((oxygenGain?.current ?? 0) + 1);
+    // The step's OWN RATING right after the scale that pays it — implied, bare, counted by nobody (PL-147).
+    const impliedTr = spend.effects[spend.effects.indexOf(oxygenGain!) + 1];
+    expect(impliedTr, 'the scale step\'s rating follows the scale').deep.eq({direction: 'gain', icon: 'tr', amount: 1, implied: true});
 
     // The add branch resolves immediately — a single gain chip, no steps.
     expect(add.steps).has.length(0);

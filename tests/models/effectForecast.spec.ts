@@ -11,7 +11,7 @@ import {Priority} from '../../src/server/deferredActions/Priority';
 import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {actionPreview} from '../../src/server/models/actionPreview';
-import {effectForecastForAction, effectForecastForPlay, grantOfEffect, tilesOfBranch} from '../../src/server/models/effectForecast';
+import {effectForecastForAction, effectForecastForPlay, grantOfEffect, rewardReactionForecast, tilesOfBranch} from '../../src/server/models/effectForecast';
 import {allForecastFacts, forecastIsEmpty} from '../../src/common/models/EffectForecastModel';
 import {CarbonNanosystems} from '../../src/server/cards/promo/CarbonNanosystems';
 import {OlympusConference} from '../../src/server/cards/base/OlympusConference';
@@ -49,7 +49,10 @@ import {Research} from '../../src/server/cards/base/Research';
 import {ImportedHydrogen} from '../../src/server/cards/base/ImportedHydrogen';
 import {NeptunianPowerConsultants} from '../../src/server/cards/promo/NeptunianPowerConsultants';
 import {LakeMarineris} from '../../src/server/cards/base/LakeMarineris';
-import {maxOutOceans} from '../TestingUtils';
+import {maxOutOceans, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../TestingUtils';
+import {PlasmaFans} from '../../src/server/cards/turmoilRedux/PlasmaFans';
+import {globalGain} from '../../src/server/cards/actionPreviews';
+import {MAX_TEMPERATURE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_BONUS_FOR_HEAT_1, VENUS_LEVEL_FOR_CARD_BONUS, VENUS_LEVEL_FOR_TR_BONUS} from '../../src/common/constants';
 import {MAX_OCEAN_TILES} from '../../src/common/constants';
 import {ICard} from '../../src/server/cards/ICard';
 import {IPlayer} from '../../src/server/IPlayer';
@@ -650,5 +653,89 @@ describe('effectForecast (engine)', () => {
     player.cardsInHand.push(photosynthesis);
     const forecast = playForecast(player, photosynthesis);
     expect(allForecastFacts(forecast)).to.have.length(2);
+  });
+});
+
+/**
+ * PL-147 (TR41): the BONUS STEPS a raise crosses are the engine's own thresholds
+ * (`Game.claimCrossedScaleBonuses`); the composer read «Venus 6 % → 8 %» and said
+ * nothing of the card the press draws. Each crossing is a fact under a RULE source,
+ * and what it grants joins the grants the party effects read.
+ */
+describe('effectForecast — the bonus steps a raise crosses (PL-147)', () => {
+  function reduxVenusTable(venus: number): {player: TestPlayer, card: PlasmaFans} {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
+    game.phase = Phase.ACTION;
+    expect(game.parliament!.rulingParty(), 'a fresh Redux table: the Greens').eq(PartyName.GREENS);
+    setVenusScaleLevel(game, venus);
+    const card = new PlasmaFans();
+    player.playedCards.push(card);
+    player.heat = 8;
+    return {player, card};
+  }
+  const actionFacts = (player: TestPlayer, card: PlasmaFans) => effectForecastForAction(player, card, actionPreview(player, card)).facts;
+
+  it('Venus 6 % → 8 %: the card the track draws is a fact of its own — rule-sourced, yours, exact — beside the Greens\' 2 M€', () => {
+    const {player, card} = reduxVenusTable(VENUS_LEVEL_FOR_CARD_BONUS - 2);
+    const facts = actionFacts(player, card);
+    const bonus = facts.find((f) => f.id.endsWith('venus-card-bonus'));
+    expect(bonus, JSON.stringify(facts.map((f) => f.id))).is.not.undefined;
+    expect(bonus!.source).deep.include({kind: 'rule', name: 'Venus track bonus', owner: player.color});
+    expect(bonus!.recipient.kind).eq('you');
+    expect(bonus!.certainty).eq('exact');
+    expect(bonus!.effects).deep.eq([{direction: 'gain', icon: 'cards', amount: 1, note: 'draw'}]);
+    expect(bonus!.reason).eq('Crossing 8 % Venus draws a card');
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'one rating step → 2 M€').eq(2);
+    expect(facts.find((f) => f.id.endsWith('venus-tr-bonus')), 'the 16 % step is not crossed').is.undefined;
+  });
+
+  it('Venus 14 % → 16 %: the track\'s rating step is a fact AND a TR step the Greens pay for — 4 M€, the number the live hook pays', () => {
+    const {player, card} = reduxVenusTable(VENUS_LEVEL_FOR_TR_BONUS - 2);
+    const facts = actionFacts(player, card);
+    const bonus = facts.find((f) => f.id.endsWith('venus-tr-bonus'));
+    expect(bonus, JSON.stringify(facts.map((f) => f.id))).is.not.undefined;
+    // The card's own chips touch the TR pool (the implied rating), so the bonus reads as a bare delta — two readings of one pool cannot both be right.
+    expect(bonus!.effects).deep.eq([{direction: 'gain', icon: 'tr', amount: 1}]);
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount).eq(4);
+    expect(facts.find((f) => f.id.endsWith('venus-card-bonus')), 'the 8 % card lies behind').is.undefined;
+    const before = player.megaCredits;
+    card.action(player);
+    player.game.deferredActions.runAll(() => {});
+    expect(player.megaCredits - before, 'the live Greens pay the forecast\'s number').eq(4);
+  });
+
+  it('a step the ceiling cuts crosses nothing', () => {
+    const {player, card} = reduxVenusTable(30);
+    const facts = actionFacts(player, card);
+    expect(facts.filter((f) => f.source.kind === 'rule')).deep.eq([]);
+    expect(facts.find((f) => f.id.endsWith('greens-tr')), 'no step, no rating, no answer').is.undefined;
+  });
+
+  it('oxygen 7 % → 8 %: the temperature step is a fact of the oxygen track, a scale step of its own (the Greens count both), and it walks ITS thresholds too', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    setOxygenLevel(game, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS - 1);
+    setTemperature(game, TEMPERATURE_BONUS_FOR_HEAT_1 - 2);
+    const facts = rewardReactionForecast(player, undefined, [globalGain(player, 'oxygen', 1)])?.facts ?? [];
+    const temperature = facts.find((f) => f.id.endsWith('oxygen-temperature-bonus'));
+    expect(temperature, JSON.stringify(facts.map((f) => f.id))).is.not.undefined;
+    expect(temperature!.source).deep.include({kind: 'rule', name: 'Oxygen track bonus'});
+    expect(temperature!.certainty).eq('exact');
+    expect(temperature!.effects[0]).deep.include({direction: 'gain', icon: 'temperature', amount: 2, current: TEMPERATURE_BONUS_FOR_HEAT_1 - 2, resulting: TEMPERATURE_BONUS_FOR_HEAT_1, unit: '°C'});
+    expect(facts.find((f) => f.id.endsWith('temperature-heat-bonus-1')), 'the granted temperature step crosses −24 °C: the heat production too').is.not.undefined;
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'oxygen step + temperature step = 4 M€').eq(4);
+    expect(facts.find((f) => f.id.endsWith('greens-production'))!.effects[0].amount, 'the heat production step: +1 M€ production').eq(1);
+  });
+
+  it('oxygen 7 % → 8 % at the temperature\'s maximum: the bonus is a NAMED skip and counts no step', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    setOxygenLevel(game, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS - 1);
+    setTemperature(game, MAX_TEMPERATURE);
+    const facts = rewardReactionForecast(player, undefined, [globalGain(player, 'oxygen', 1)])?.facts ?? [];
+    const temperature = facts.find((f) => f.id.endsWith('oxygen-temperature-bonus'));
+    expect(temperature!.certainty).eq('skipped');
+    expect(temperature!.note).eq('The temperature is at its maximum');
+    expect(facts.find((f) => f.id.endsWith('greens-tr'))!.effects[0].amount, 'the oxygen step alone').eq(2);
   });
 });

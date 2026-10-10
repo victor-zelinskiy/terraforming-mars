@@ -10,7 +10,10 @@ import {Resource} from '../../common/Resource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
-import {MAX_OCEAN_TILES} from '../../common/constants';
+import {
+  ALT_VENUS_MINIMUM_BONUS, MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS,
+  TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_FOR_OCEAN_BONUS, VENUS_LEVEL_FOR_CARD_BONUS, VENUS_LEVEL_FOR_TR_BONUS,
+} from '../../common/constants';
 import {Behavior} from '../behavior/Behavior';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -30,7 +33,7 @@ import {
   emptyEffectForecast,
 } from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
-import {cardResourceIcon, drawGain, globalParameterStepSize, productionChange, stockGain} from '../cards/actionPreviews';
+import {cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '../../common/inputs/Spendable';
@@ -519,6 +522,115 @@ function grantsOf(effects: ReadonlyArray<ActionEffect>): Array<EffectForecastGra
   return out;
 }
 
+/** The three scales whose raise can cross a printed bonus step (the oceans count tiles — a tile's own bonus is the cell dossier's). */
+type BonusScale = 'venus' | 'oxygen' | 'temperature';
+
+const BONUS_SCALE_OF: Partial<Record<GlobalParameter, BonusScale>> = {
+  [GlobalParameter.VENUS]: 'venus',
+  [GlobalParameter.OXYGEN]: 'oxygen',
+  [GlobalParameter.TEMPERATURE]: 'temperature',
+};
+
+/**
+ * THE BONUS STEPS A RAISE CROSSES (PL-147) — the engine's own thresholds
+ * (`Game.claimCrossedScaleBonuses` and the `constants` it reads): Venus 8 %
+ * draws a card and 16 % pays a rating step; oxygen 8 % raises the temperature
+ * a step; temperature −24 °C and −20 °C each raise the heat production, 0 °C
+ * places an ocean. The composer printed none of them — «Venus 6 % → 8 %» stood
+ * with no word of the card the press draws — so each crossing is a fact of its
+ * own under a RULE source (the «Сработает» row's «+1 [карта]» beside the
+ * Greens' M€; the layer names the track), and what a crossing GRANTS joins the
+ * grants the reactors and the party effects read: the 16 % rating is a TR
+ * step the Greens pay for, the 8 % temperature step is a scale step like any
+ * other (its own thresholds included — the pass walks the step it grants), a
+ * heat production step is a production gain. One operation can move one
+ * scale twice (a card's own step, then the oxygen bonus's), so a CURSOR per
+ * scale carries the level forward instead of re-reading the board. A step
+ * the ceiling cuts crosses nothing. The alternate Venus track pays resources
+ * of the player's choice past 16 % — an honest unknown. The 0 °C ocean with
+ * no ocean left is a named skip, never silence. Read-only.
+ */
+function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>): {facts: Array<EffectForecastFact>, grants: Array<EffectForecastGrant>} {
+  const game = player.game;
+  const facts: Array<EffectForecastFact> = [];
+  const extra: Array<EffectForecastGrant> = [];
+  const cursor: Record<BonusScale, number> = {venus: game.getVenusScaleLevel(), oxygen: game.getOxygenLevel(), temperature: game.getTemperature()};
+  const crosses = (from: number, to: number, threshold: number): boolean => from < threshold && to >= threshold;
+  const visit = (scale: BonusScale, steps: number): void => {
+    if (steps <= 0) {
+      return;
+    }
+    const from = cursor[scale];
+    if (scale === 'venus') {
+      const to = Math.min(MAX_VENUS_SCALE, from + steps * globalParameterStepSize('venus'));
+      cursor.venus = to;
+      const source = ruleSource('Venus track bonus', player);
+      if (crosses(from, to, VENUS_LEVEL_FOR_CARD_BONUS) && !player.isMarsBot) {
+        facts.push(forecast.exact(source, [drawGain(1)], 'Crossing 8 % Venus draws a card', {id: 'venus-card-bonus'}));
+      }
+      if (crosses(from, to, VENUS_LEVEL_FOR_TR_BONUS)) {
+        facts.push(forecast.exact(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus'}));
+        extra.push({kind: 'tr', amount: 1});
+      }
+      if (game.gameOptions.altVenusBoard && (Math.min(to, MAX_VENUS_SCALE) - Math.max(from, ALT_VENUS_MINIMUM_BONUS) > 0 || to >= MAX_VENUS_SCALE)) {
+        facts.push(forecast.unknown(source, 'The alternate Venus track pays a bonus of your choice past 16 %'));
+      }
+      return;
+    }
+    if (scale === 'oxygen') {
+      const to = Math.min(MAX_OXYGEN_LEVEL, from + steps * globalParameterStepSize('oxygen'));
+      cursor.oxygen = to;
+      if (crosses(from, to, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS)) {
+        const source = ruleSource('Oxygen track bonus', player);
+        const reason = 'Crossing 8 % oxygen raises the temperature a step';
+        // The chip reads the temperature where the operation has already left it (a card raising both scales).
+        const chip: ActionEffect = {...globalGain(player, 'temperature', 1), current: cursor.temperature, resulting: Math.min(MAX_TEMPERATURE, cursor.temperature + globalParameterStepSize('temperature'))};
+        const grant = grantOfEffect(chip);
+        if (grant === undefined) {
+          facts.push(forecast.skipped(source, [chip], reason, {id: 'oxygen-temperature-bonus', note: 'The temperature is at its maximum'}));
+          return;
+        }
+        facts.push(forecast.exact(source, [chip], reason, {id: 'oxygen-temperature-bonus'}));
+        extra.push(grant);
+        visit('temperature', grant.kind === 'global' ? grant.steps : 0);
+      }
+      return;
+    }
+    const to = Math.min(MAX_TEMPERATURE, from + steps * globalParameterStepSize('temperature'));
+    cursor.temperature = to;
+    const source = ruleSource('Temperature track bonus', player);
+    const heatSteps: ReadonlyArray<{threshold: number, reason: string, id: string}> = [
+      {threshold: TEMPERATURE_BONUS_FOR_HEAT_1, reason: 'Crossing −24 °C raises your heat production a step', id: 'temperature-heat-bonus-1'},
+      {threshold: TEMPERATURE_BONUS_FOR_HEAT_2, reason: 'Crossing −20 °C raises your heat production a step', id: 'temperature-heat-bonus-2'},
+    ];
+    for (const step of heatSteps) {
+      if (crosses(from, to, step.threshold)) {
+        facts.push(forecast.exact(source, [productionChange(player, Resource.HEAT, 1)], step.reason, {id: step.id}));
+        extra.push({kind: 'production', resource: Resource.HEAT, amount: 1});
+      }
+    }
+    if (crosses(from, to, TEMPERATURE_FOR_OCEAN_BONUS)) {
+      const reason = 'Crossing 0 °C places an ocean tile';
+      if (game.canAddOcean()) {
+        facts.push(forecast.exact(source, [oceanGain(player, 1)], reason, {id: 'temperature-ocean-bonus', timing: 'after-card', note: 'Asked once the step is made'}));
+        extra.push({kind: 'global', parameter: GlobalParameter.OCEANS, steps: 1});
+      } else {
+        facts.push(forecast.skipped(source, [oceanGain(player, 1)], reason, {id: 'temperature-ocean-bonus', note: 'No ocean is left to place'}));
+      }
+    }
+  };
+  for (const grant of grants) {
+    if (grant.kind !== 'global') {
+      continue;
+    }
+    const scale = BONUS_SCALE_OF[grant.parameter];
+    if (scale !== undefined) {
+      visit(scale, grant.steps);
+    }
+  }
+  return {facts, grants: [...grants, ...extra]};
+}
+
 /** The seat a fact's recipient stands for. */
 function playerOfRecipient(game: IGame, active: IPlayer, recipient: EffectForecastRecipient): IPlayer | undefined {
   if (recipient.kind === 'you') {
@@ -972,12 +1084,18 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   const facts: Array<EffectForecastFact> = [...played];
   const ownEffects: Array<ActionEffect> = [];
   const byBranch: Record<number, Array<EffectForecastFact>> = {};
+  // The grants the party effects read — the chips' own PLUS what the bonus steps they cross grant (PL-147).
+  let ownGrants: Array<EffectForecastGrant> = [];
+  const branchGrants: Record<number, Array<EffectForecastGrant>> = {};
   if (single) {
     // A lone branch the rules refuse (a blocked action's setup) grants and
     // places nothing — its reactions would describe an operation that cannot run.
     const effects = branches[0]?.available === false ? [] : (branches[0]?.effects ?? []);
     ownEffects.push(...effects);
-    facts.push(...grantFacts(player, player, card, grantsOf(effects), ctx));
+    const bonuses = scaleBonusPass(player, grantsOf(effects));
+    ownGrants = bonuses.grants;
+    facts.push(...bonuses.facts);
+    facts.push(...grantFacts(player, player, card, ownGrants, ctx));
     facts.push(...basisGrantFacts(player, card, branches[0]?.available === false ? [] : (branches[0]?.steps ?? []), ctx));
     facts.push(...tileFacts(player, card, branches[0]?.available === false ? [] : sharedTiles, ctx));
     facts.push(...colonyBuiltFacts(player, card, branches[0] === undefined || branches[0].available === false ? 0 : colonyBuildsOfBranch(branches[0]), ctx));
@@ -994,8 +1112,11 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
       // The hooks see every tile THIS option would place (shared ones included);
       // only the option's OWN remainder is asked as a branch-tied tile pass.
       const branchCtx: EffectForecastContext = {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos};
+      const bonuses = scaleBonusPass(player, grantsOf(branch.effects));
+      branchGrants[pos] = bonuses.grants;
       const branchFacts = [
-        ...grantFacts(player, player, card, grantsOf(branch.effects), branchCtx),
+        ...bonuses.facts,
+        ...grantFacts(player, player, card, bonuses.grants, branchCtx),
         ...tileFacts(player, card, ownTilesOf(perBranchTiles[pos], sharedTiles), branchCtx),
         // A colony an OPTION builds is that option's (no card builds one in every option today).
         ...colonyBuiltFacts(player, card, colonyBuildsOfBranch(branch), branchCtx),
@@ -1015,8 +1136,8 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   // Turmoil Redux: the acting seat's PARTY EFFECTS answer its own grants and
   // tiles — the branch-independent ones in `facts`, an option's own inside it.
   facts.push(
-    ...partyFacts(player, single ? grantsOf(ownEffects) : [], sharedTiles),
-    ...resolutionFacts(player, single ? grantsOf(ownEffects) : [], sharedTiles));
+    ...partyFacts(player, ownGrants, sharedTiles),
+    ...resolutionFacts(player, ownGrants, sharedTiles));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
       const branch = branches[pos];
@@ -1024,8 +1145,8 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
         continue;
       }
       const own = [
-        ...partyFacts(player, grantsOf(branch.effects), ownTilesOf(perBranchTiles[pos], sharedTiles)),
-        ...resolutionFacts(player, grantsOf(branch.effects), ownTilesOf(perBranchTiles[pos], sharedTiles)),
+        ...partyFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles)),
+        ...resolutionFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles)),
       ];
       if (own.length > 0) {
         const list = byBranch[pos] ?? (byBranch[pos] = []);
@@ -1082,8 +1203,10 @@ export function rewardReactionFacts(
   opts: {coloniesBuilt?: number} = {},
 ): Array<EffectForecastFact> {
   const ctx: EffectForecastContext = {operation: 'action', ...(card !== undefined ? {card} : {}), tiles: []};
-  const grants = grantsOf(effects);
-  const facts = grantFacts(player, player, card, grants, ctx);
+  // The bonus steps the raise crosses (PL-147) come first: their grants are what the reactors and the parties read.
+  const bonuses = scaleBonusPass(player, grantsOf(effects));
+  const grants = bonuses.grants;
+  const facts = [...bonuses.facts, ...grantFacts(player, player, card, grants, ctx)];
   facts.push(...cascadeFacts(player, card, facts, ctx));
   facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
   facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));

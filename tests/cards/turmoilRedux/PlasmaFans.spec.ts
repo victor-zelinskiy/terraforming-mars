@@ -343,9 +343,10 @@ describe('PlasmaFans', () => {
       expect(preview.branches).has.length(1);
       const [branch] = preview.branches;
       expect(branch.available).is.true;
-      expect(branch.effects).deep.eq([
+      expect(branch.effects, 'the rating of the step stated after the scale, implied (PL-147)').deep.eq([
         {direction: 'cost', icon: Resource.HEAT, amount: 8, current: 8, resulting: 0},
         {direction: 'gain', icon: 'venus', amount: 2, current: 0, resulting: 2, unit: '%'},
+        {direction: 'gain', icon: 'tr', amount: 1, implied: true},
       ]);
       const forecast = effectForecastForAction(t.player, t.card, preview);
       const greens = forecast.facts.find((f) => f.id?.endsWith('greens-tr'));
@@ -367,7 +368,7 @@ describe('PlasmaFans', () => {
       const branch = actionPreview(t.player, t.card).branches[0];
       expect(branch.available).is.false;
       expect(branch.unavailableReason).eq('Not enough heat');
-      expect(branch.effects.map((e) => e.icon), 'the refused action still shows its chips').deep.eq([Resource.HEAT, 'venus']);
+      expect(branch.effects.map((e) => e.icon), 'the refused action still shows its chips').deep.eq([Resource.HEAT, 'venus', 'tr']);
     });
 
     it('Venus at 30 % — THE OFFICIAL RULE: the action stays legal, the price is paid, the scale and the rating do not move; the composer reads «30 → 30» and names the lost gain', () => {
@@ -379,6 +380,7 @@ describe('PlasmaFans', () => {
       const branch = actionPreview(t.player, t.card).branches[0];
       expect(branch.available).is.true;
       expect(branch.effects[1]).deep.include({direction: 'gain', icon: 'venus', current: 30, resulting: 30});
+      expect(branch.effects.some((e) => e.icon === 'tr'), 'a step the ceiling cuts carries no rating chip (PL-147)').is.false;
       const tr = t.player.terraformRating;
       act(t);
       expect(t.player.heat, 'the price is paid — the rulebook lets the action happen').eq(0);

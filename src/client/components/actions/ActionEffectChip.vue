@@ -14,6 +14,7 @@
           'action-effect-chip--danger': danger && !shortfall,
           'action-effect-chip--bare': iconClass === '' && !isVictoryPoints,
           'action-effect-chip--timeline': moves !== undefined,
+          'action-effect-chip--implied': effect.implied === true,
         }]">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
@@ -220,6 +221,14 @@ export default defineComponent({
   // No sprite → no reserved icon box, so the pill stays symmetric.
   &--bare {
     padding-left: 10px;
+  }
+  // A chip that RESTATES a step another chip of the row already pays — a scale step's own TR drawn after the scale
+  // (PL-147): the quiet voice. Same chassis and baseline, a dimmer rim and glass, so the eye reads the scale first and
+  // the rating as its consequence — never as a second thing the card adds.
+  &--implied {
+    --chip-rim: rgba(110, 235, 180, 0.24);
+    --chip-bg: rgba(20, 54, 44, 0.3);
+    --chip-accent: #9fdcc0;
   }
   // No-op gain (capped at max) — muted, so it reads as "this won't do anything".
   &--noeffect {

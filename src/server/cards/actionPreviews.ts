@@ -134,6 +134,71 @@ export function oceanGain(player: IPlayer, amount: number): ActionEffect {
   const current = player.game.board.getOceanSpaces().length;
   return {direction: 'gain', icon: 'oceans', amount, current, resulting: Math.min(MAX_OCEAN_TILES, current + amount)};
 }
+/** The scales whose STEP is a terraform-rating step for the raiser (and the oceans — a placed tile is one too), in the units `globalGain` / `oceanGain` write. */
+const RATING_STEP_UNIT: Readonly<Record<string, number>> = {oxygen: 1, temperature: 2, venus: 2, oceans: 1};
+
+/**
+ * THE RATING A SCALE STEP CARRIES, as its own chip (PL-147). A temperature,
+ * oxygen or Venus step — and an ocean tile — is a terraform-rating step for
+ * the raiser by the engine's own rule, and the composer never printed it: the
+ * formula read «8 → 0 heat · Venus 6 % → 8 %» and said nothing of the +1 TR
+ * the press pays, while the Greens' «+2 M€» beside it stood without its
+ * cause. This chip RESTATES that step (`implied`): a BARE «+N», never a
+ * `current → resulting` (an explicit TR chip of the same card — the greenery
+ * revision's second step — already reads the pool, and two readings of one
+ * pool cannot both be right), counted by nobody (the forecast's grants, the
+ * rail's specs and the commit's TR flight all skip `implied`), drawn quieter
+ * than the scale it follows. Steps the ceiling cuts are not steps: a raise
+ * read «30 % → 30 %» carries none.
+ */
+export function impliedRatingOf(effect: ActionEffect): ActionEffect | undefined {
+  const unit = RATING_STEP_UNIT[effect.icon];
+  if (unit === undefined || effect.direction !== 'gain' || effect.implied === true) {
+    return undefined;
+  }
+  const delta = effect.current !== undefined && effect.resulting !== undefined ? effect.resulting - effect.current : effect.amount;
+  const steps = Math.floor(delta / unit);
+  return steps > 0 ? {direction: 'gain', icon: 'tr', amount: steps, implied: true} : undefined;
+}
+
+/**
+ * The same chip list with every scale step's rating stated right AFTER the
+ * scale that pays it — the ONE pass every door runs at its exit (the action
+ * and play previews, the standard projects), so a bespoke hook and a
+ * declaration print the same formula. A card that already restates the step
+ * itself (Water Hauling's «[океан] · [РТ]») is left alone: an implied TR chip
+ * that already follows the scale is not doubled. An EXPLICIT rating chip that
+ * comes after an implied one (the greenery revision's tile TR beside the
+ * oxygen, Nitrogen-Rich Asteroid's «+2 TR» beside its degree) reads the pool
+ * where the implied steps have already left it — «+1 [РТ] · [РТ] 21 → 22» —
+ * so the chain's last reading is the number the rail will show; it used to
+ * read «20 → 21» for a press that lands on 22.
+ */
+export function withImpliedRating(effects: ReadonlyArray<ActionEffect>): Array<ActionEffect> {
+  const out: Array<ActionEffect> = [];
+  let ratingAhead = 0;
+  effects.forEach((effect, i) => {
+    if (effect.icon === 'tr' && effect.implied !== true && effect.direction === 'gain' && ratingAhead > 0 &&
+        effect.current !== undefined && effect.resulting !== undefined) {
+      out.push({...effect, current: effect.current + ratingAhead, resulting: effect.resulting + ratingAhead});
+    } else {
+      out.push(effect);
+    }
+    const implied = impliedRatingOf(effect);
+    const next = effects[i + 1];
+    if (implied === undefined) {
+      return;
+    }
+    if (next !== undefined && next.icon === 'tr' && next.implied === true) {
+      ratingAhead += next.amount;
+      return;
+    }
+    out.push(implied);
+    ratingAhead += implied.amount;
+  });
+  return out;
+}
+
 /** Draw N cards (no single pool — shown as a "+N draw" chip). */
 export function drawGain(amount: number): ActionEffect {
   return {direction: 'gain', icon: 'cards', amount, note: 'draw'};

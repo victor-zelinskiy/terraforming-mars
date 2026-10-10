@@ -76,5 +76,17 @@
     "A colony is placed": "Построена колония",
     "This card reacts to the colony, but its result is not described": "Карта реагирует на постройку колонии, но её результат не описан",
     "MarsBot's corporation reacts to the colony, but its result is not described": "Корпорация MarsBot реагирует на постройку колонии, но её результат не описан",
-    "You raise the temperature": "Вы поднимаете температуру"
+    "You raise the temperature": "Вы поднимаете температуру",
+    "Oxygen track bonus": "Бонус шкалы кислорода",
+    "Temperature track bonus": "Бонус шкалы температуры",
+    "Crossing 8 % Venus draws a card": "Переход через 8 % Венеры даёт карту",
+    "Crossing 16 % Venus raises your TR a step": "Переход через 16 % Венеры повышает ваш РТ на 1",
+    "The alternate Venus track pays a bonus of your choice past 16 %": "Альтернативная шкала Венеры выше 16 % даёт бонус на выбор",
+    "Crossing 8 % oxygen raises the temperature a step": "Переход через 8 % кислорода поднимает температуру на 1 шаг",
+    "The temperature is at its maximum": "Температура на максимуме",
+    "Crossing −24 °C raises your heat production a step": "Переход через −24 °C повышает ваше производство тепла на 1",
+    "Crossing −20 °C raises your heat production a step": "Переход через −20 °C повышает ваше производство тепла на 1",
+    "Crossing 0 °C places an ocean tile": "Переход через 0 °C размещает тайл океана",
+    "Asked once the step is made": "Спросят, когда шаг будет сделан",
+    "No ocean is left to place": "Океанов для размещения не осталось"
 }

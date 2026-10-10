@@ -62,18 +62,22 @@ describe('Turmoil Redux greenery revision', () => {
   it('the standard project «Greenery» promises the tile\'s TR chip under the parliament — and nothing extra without it', () => {
     const [game, p1] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
     const redux = buildStandardProjectPreview(p1, new GreeneryStandardProject(), 23);
-    const trChip = redux.effects.find((e) => e.icon === 'tr');
+    const trChip = redux.effects.find((e) => e.icon === 'tr' && e.implied !== true);
     expect(trChip, 'the tile\'s own TR beside the oxygen chip').is.not.undefined;
-    expect(trChip).to.deep.include({direction: 'gain', amount: REDUX_GREENERY_TILE_TR, current: p1.terraformRating, resulting: p1.terraformRating + REDUX_GREENERY_TILE_TR});
+    // The oxygen step's own rating is stated first, implied (PL-147); the tile's explicit TR then reads the pool
+    // where that step has left it — the chain lands on the number the rail will show (20 → 22, never «20 → 21»).
+    expect(redux.effects.map((e) => e.icon), 'oxygen · its rating · the tile\'s rating').deep.eq(['megacredits', 'oxygen', 'tr', 'tr']);
+    expect(redux.effects[2]).deep.eq({direction: 'gain', icon: 'tr', amount: 1, implied: true});
+    expect(trChip).to.deep.include({direction: 'gain', amount: REDUX_GREENERY_TILE_TR, current: p1.terraformRating + 1, resulting: p1.terraformRating + 1 + REDUX_GREENERY_TILE_TR});
     expect(redux.effects.some((e) => e.icon === 'oxygen'), 'the oxygen chip stays').is.true;
-    // With oxygen maxed the oxygen chip clamps to «no effect» — the tile still promises its TR.
+    // With oxygen maxed the oxygen chip clamps to «no effect» — the tile still promises its TR, and reads the pool as it is (no step ahead of it).
     setOxygenLevel(game, 14);
     const maxed = buildStandardProjectPreview(p1, new GreeneryStandardProject(), 23);
-    expect(maxed.effects.find((e) => e.icon === 'tr')?.amount).eq(REDUX_GREENERY_TILE_TR);
+    expect(maxed.effects.filter((e) => e.icon === 'tr'), 'the tile\'s TR alone').deep.eq([{direction: 'gain', icon: 'tr', amount: REDUX_GREENERY_TILE_TR, current: p1.terraformRating, resulting: p1.terraformRating + REDUX_GREENERY_TILE_TR}]);
 
     const [, c1] = testGame(2);
     const classic = buildStandardProjectPreview(c1, new GreeneryStandardProject(), 23);
-    expect(classic.effects.some((e) => e.icon === 'tr'), 'classic: the oxygen chip alone').is.false;
+    expect(classic.effects.some((e) => e.icon === 'tr' && e.implied !== true), 'classic: the oxygen chip (and its own implied rating) alone — no tile TR').is.false;
   });
 
   it('the tile\'s TR event is sourced as the NAMED rule — the journal and the cause read «Greenery tile», never the institution', () => {
