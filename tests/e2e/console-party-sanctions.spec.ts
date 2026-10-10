@@ -310,14 +310,16 @@ for (const preset of PRESETS) {
 
       // ── 3b. B walks back to the composer — nothing sent ──
       const backTaken = () => page.evaluate((sel) =>
-        document.querySelector(sel) !== null || document.querySelector('.con-parl') === null ||
+        document.querySelector(sel) !== null || document.querySelector('.con-parl:not(.con-parl--warm)') === null ||
         document.querySelector('.con-parl[data-parl-leaving]') !== null, composer);
       for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
         await press(page, 'Escape', 300);
         await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
       }
       await expect(page.locator(composer), 'B restores the composer').toHaveCount(1, {timeout: 15_000});
-      await expect(page.locator('.con-parl'), 'the step left').toHaveCount(0, {timeout: 10_000});
+      // …the hosted step LEFT. The composer still declares its hosted step, so the Parliament's surface is WARMED under it
+      // again (PL-127: mounted invisible, `.con-parl--warm`) — that instance is not the step coming back.
+      await expect(page.locator('.con-parl:not(.con-parl--warm)'), 'the step left').toHaveCount(0, {timeout: 10_000});
       await settle(page);
       await expect(page.locator(composer)).toContainText('Выбрать партию');
       expect(posts).toEqual([]);

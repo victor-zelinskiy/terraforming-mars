@@ -203,8 +203,12 @@ for (const profile of PROFILES) {
       await expect(gains.nth(1).locator('.action-effect-chip__cur')).toHaveText('12');
       await expect(gains.nth(1).locator('.action-effect-chip__res')).toHaveText('17');
       const pool = stage.locator('[data-reveal-pool]');
-      await expect(pool).toHaveAttribute('data-reveal-pool', '1');
-      await expect(pool).toContainText('В этой партии карт с требованием партии: 1');
+      // The pool is the SERVER's count of the game's cards with a party requirement — every card the set ships moves
+      // it (it read 1 when only Martian Census had a plate; TR42 made it 26). The claims are «at least one» and «the
+      // line states the server's number», never a frozen literal.
+      const poolCount = Number(await pool.getAttribute('data-reveal-pool'));
+      expect(poolCount, 'the pool counts at least the card on top').toBeGreaterThanOrEqual(1);
+      await expect(pool).toContainText(`В этой партии карт с требованием партии: ${poolCount}`);
       await expect(stage.locator('.con-composer__warn'), 'no «unwinnable» warning while such a card exists').toHaveCount(0);
       await shoot(page, `${profile.tag}-01-setup`);
 
