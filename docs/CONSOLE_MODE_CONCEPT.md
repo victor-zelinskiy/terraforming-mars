@@ -1936,7 +1936,9 @@ a bespoke console re-skin of those wizards + a console-native create-game
 form (the desktop form has text inputs → needs the input-overlay decision)
 are the next iterations. Text entry on pad is out of scope (§14).
 
-**Honest gaps (P2+):** hydro internals are fallback-engine-driven (not yet
+**Status 2026-10-10 (audit п.26, TR38 iteration): every gap in this paragraph is CLOSED and the paragraph is kept as history only** — the fallback engine and the desktop modal stack were deleted (waves 1–2: `CLAUDE.md` § North star), colony BUILD prompts are the console's own stage (`ConsoleColonyFocusStage`), mandatory prompts render through the console surfaces (`ConsoleTaskHost` + the embedded steps), the journal and the notifications are console-native (`docs/claude/journal`, `notifications`), sell patents is `consolePatentSale`, the Info mode has per-card zoom; the desktop sections named below no longer exist.
+
+**Honest gaps (P2+, as written in 2026-06):** hydro internals are fallback-engine-driven (not yet
 fully console-native); colony BUILD prompts ride the fallback modal;
 Info-Mode extra-resource rows have no per-card zoom yet; sell patents = disabled
 Turn-Menu rows with «Пока доступно в режиме рабочего стола» (hold-Menu is

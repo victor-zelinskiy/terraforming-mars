@@ -2,7 +2,7 @@
 
 *(2026-08-06. Not auto-loaded; read when a workspace needs to host a full
 existing screen as one of its steps, or when a screen must become hostable.
-Module: `src/client/console/consoleWorkspaceEmbed.ts`. First client: the Game
+Module: `src/client/console/consoleWorkspaceStack.ts` (the embed contract was its own module, `consoleWorkspaceEmbed.ts`, until it was folded into the stack on 2026-08-08 — `docs/CONSOLE_WORKSPACE_STACK.md`). First client: the Game
 Start Workspace hosting «Карты в руке» for the play-from-hand preludes —
 Eccentric Sponsor / Ecology Experts, both via the same server
 `PlayProjectCard` deferral.)*
@@ -89,7 +89,7 @@ as its shallowest holder, and each of these silently cut it:
    inside the start; the composer's outcome zone works one level deeper.
    Arbitrary depth is the teleport chain, not a feature anyone implements.
    This is why the sponsor flow needed NO changes to the composer or to
-   `consoleWorkspaceStage` — the descent landed in the hand's zone, which
+   `consoleWorkspaceStack` (the stage half: `setWorkspaceFrameStage`; its own module `consoleWorkspaceStage.ts` was folded into the stack on 2026-08-08) — the descent landed in the hand's zone, which
    happened to live inside the start.
 4. **OWNERSHIP ≠ READINESS.** The host publishes its zone selector from a
    `flush: 'post'` watcher, retracts it in `beforeUnmount` (never from the flow
@@ -109,7 +109,7 @@ as its shallowest holder, and each of these silently cut it:
      unannounced. Hence publishing from `mounted()` too.
 5. **The CRUMB is the host's; browse chrome hides past the descent.** Root and
    subject come from the outermost workspace; the embedded surface hands its
-   stage name UP (`setWorkspaceStageName` / `setWorkspaceOutcomePhase`) and
+   stage name UP (`setWorkspaceFrameStage` / `setWorkspaceOutcomePhase`) and
    never draws its own header. Browse-layer chrome (filters, counters,
    toolbars) hides when a deeper stage opens — in every host: the shared
    header does it by construction (its browse layer yields to the deep crumb);
@@ -149,7 +149,7 @@ as its shallowest holder, and each of these silently cut it:
   live prompt — the normal path defers the task as «navigated away».
 - Crumb: `sponsorCrumb` — `СТАРТ ПАРТИИ › <источник> › КАРТЫ В РУКЕ`,
   deepening to `РОЗЫГРЫШ`/`РАЗЫГРАНО` from the composer's own
-  `setWorkspaceStageName`. The source is captured by the scene as it plays the
+  `setWorkspaceFrameStage`. The source is captured by the scene as it plays the
   card (`noteWorkspaceEmbedSource` in `armStartHero`) — the prompt carries no
   attribution; a missed capture degrades to a generic crumb, never a broken
   flow.

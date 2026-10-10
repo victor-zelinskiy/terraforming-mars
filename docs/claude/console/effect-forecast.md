@@ -512,6 +512,31 @@ fold, intent, the door's flare on the animation clock), `ConsoleForecastDoor`,
 `ConsoleForecastLayer`; guards `consoleForecastHost.spec`, e2e
 `console-forecast-doors` (both, fhd + 4K).
 
+## After the press — the table's answer FLIES (К-S1 / PL-124, 2026-10-10)
+
+Before the press the forecast is the whole truth («Сработает»); after the press it is a PROMISE the landing scene
+keeps. The composer hands the scene two halves of it, both read off the SAME `forecastForFixedBranch(…).facts`:
+
+- **The rail half** (`playRailReward` → `RailReward.reactions`, `reactionRailSpecs`): the exact stock / production
+  answers addressed to «you» (the Greens' M€). They ride with the play's direct TR when it has one — and WITHOUT one
+  (PL-035): a `RailReward` with an empty `cause` is legal; `flyRailReward` then flies nothing and `answerRailReward`
+  ticks the answer `TOUCHDOWN_TICK_GAP_MS` after the scene's own wave.
+- **The card half** (`receivingStageModel.playCardReactions` → `PlayReaction {spec, tag?}`): the exact facts addressed
+  to «you» whose SOURCE is a card — the holders the play woke — as `card-resource` specs on the holder, with the
+  fact's `reasonTag` (the printed tag of the played card that woke it). `asks` / `deferred` / `unknown` facts, another
+  seat's gains and a party's / rule's facts are never promised: honesty before motion.
+
+The scene (`consolePlayedHero`): the holders are PREWARMED at the arm (`playedHeroCardTargets` / `playedHeroCardGainTotals`
+include the reactions — the stage mounts the holder's strip and latches its count; the art preloader warms the THUMB tier the
+stage paints), VERIFIED at the seed (`seedReactions` — each holder on its own through `verifyRailReward` on its
+`card-resource:<kind>@<card>` row, the play's own gain on that holder a KNOWN move; a mismatch is not flown, is tallied as
+landed so the capsule reads the commit at once, and is named in `playedHeroState.reactions`), and FLOWN by the reward beat
+(`flyHeroReactions`) after the card's own groups and before the TR: `emergeTarget` (a covered previous top emerges too),
+`runResourceTransfers` with the chip's ORIGIN at the front card's `.pcard-tag[data-tag=<tag>]` (the card itself when the hook
+names no tag), `settleTarget`. Guards: `receivingStageModel.spec` (fact → spec), `playedHeroRail.spec` (the seed), the
+receiving stage's spec (the covered previous top); probe `console-biological-simulations` (A): Tardigrades wakes TR38 — the
+«+1» born on the microbe medallion, the holder emerged, the capsule 2 → 3 on the touchdown, on fhd and 4K.
+
 ## i18n
 
 UI keys in `src/locales/ru/console.json` (`Will trigger` → «Сработает»,
