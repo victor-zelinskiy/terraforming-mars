@@ -373,6 +373,7 @@ describe('card information model', function() {
       ['Neutralizer Factory', '"Venus track" = "Raise Venus …", shown'],
       ['AstroDrill', '"3 asteroid resources" = "3 asteroids on this card" — same starting card-resources, only the noun differs'],
       ['Spaceship Recycling', '"2 fighter resources" = "Add 2 fighters to this card." — the play\'s card resources, only the noun differs'],
+      ['Biological Simulations', '"2 data resources" = "Add 2 data to this card." — the play\'s card resources (TR38, the Spaceship Recycling class), only the noun differs'],
       ['PolderTECH Dutch', '"next to each other" = "an adjacent greenery tile", shown; only the wording differs'],
       ['Aqueduct Systems', 'the printed "draw 3 cards with a building tag" IS a search (the engine reveals until 3 match — `DrawCards`), and the generated text says so from the ONE search descriptor: "Reveal … until you reveal 3 cards with a building tag. Take them into your hand"; only the verb differs'],
     ]);

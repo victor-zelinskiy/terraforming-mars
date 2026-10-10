@@ -38,6 +38,7 @@ import {MarsArmyMechs} from './MarsArmyMechs';
 import {MarsArmyShips} from './MarsArmyShips';
 import {CouncilSeat} from './CouncilSeat';
 import {RedLawyers} from './RedLawyers';
+import {BiologicalSimulations} from './BiologicalSimulations';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -195,5 +196,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // eighth time; TR04's printed walk («advance 2 steps») WITHOUT the influence ceiling — one call of the ONE walk
     // (`ChairmanSeat.walkAgenda`), and the first card for which a CARD step lands in the MIDDLE of a walk.
     [CardName.RED_LAWYERS]: {Factory: RedLawyers},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The GREENS' plate — the
+    // set's FIRST (after Mars First, Unity and eight of the Reds'); a data holder of the TR05 class listening to TWO tags
+    // (microbe, animal — each counted by itself) and the set's first action that buys PRODUCTION with a stored resource:
+    // one declaration, the Greens' own passive answers the plant step.
+    [CardName.BIOLOGICAL_SIMULATIONS]: {Factory: BiologicalSimulations},
   },
 });

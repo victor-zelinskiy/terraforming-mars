@@ -1109,6 +1109,7 @@ export enum CardName {
   MARS_ARMY_SHIPS = 'Mars Army Ships',
   COUNCIL_SEAT = 'Council Seat',
   RED_LAWYERS = 'Red Lawyers',
+  BIOLOGICAL_SIMULATIONS = 'Biological Simulations',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
