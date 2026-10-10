@@ -476,18 +476,6 @@ for (const preset of PRESETS) {
       expect(dataIcons.length, 'the hero prints its data icons (the action row and the bottom block)').toBeGreaterThanOrEqual(2);
       await shoot(page, preset.id, 'b-01-composer');
       expect(seen.posts, 'nothing sent before A').toEqual([]);
-
-      // ── 2. A → ONE POST; the ACTION COMMIT.
-      await armProbe(page);
-      const stopStory = await storyboard(page, preset.id, 'action');
-      await commit(page, seen.posts);
-      expect(seen.posts.length, 'A sent exactly one input').toBe(1);
-      await expect(page.locator(MC_PROD), 'the M€ production plate reads +1').toHaveText(/\+1/, {timeout: 40_000});
-      await noChipsLeft(page);
-      await settle(page, {timeoutMs: 30_000});
-      await waitForBoardHome(page, 30);
-      await stopStory();
-      const {samples} = await readProbe(page);
       // THE PREMIUM BAR ON THE COUCH (PL-139): on the TV profile the hero card is at least a QUARTER of the stage's
       // zone (it was 11 %), the decision column stands level with it, and the rail's rows the formula does not touch
       // are quiet while the ones it moves (plants, M€) stay lit.
@@ -503,6 +491,18 @@ for (const preset of PRESETS) {
           'megacredits:lit', 'steel:quiet', 'titanium:quiet', 'plants:lit', 'energy:quiet', 'heat:quiet',
         ]);
       }
+
+      // ── 2. A → ONE POST; the ACTION COMMIT.
+      await armProbe(page);
+      const stopStory = await storyboard(page, preset.id, 'action');
+      await commit(page, seen.posts);
+      expect(seen.posts.length, 'A sent exactly one input').toBe(1);
+      await expect(page.locator(MC_PROD), 'the M€ production plate reads +1').toHaveText(/\+1/, {timeout: 40_000});
+      await noChipsLeft(page);
+      await settle(page, {timeoutMs: 30_000});
+      await waitForBoardHome(page, 30);
+      await stopStory();
+      const {samples} = await readProbe(page);
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/biological-simulations-action-${preset.id}.txt`, trail(samples));
       await shoot(page, preset.id, 'b-02-board');
