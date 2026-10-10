@@ -599,7 +599,7 @@
    "Teractor"
   ]
  },
- "createdTimeMs": 1791651288142,
+ "createdTimeMs": 1791669683356,
  "currentSeed": 489028072071,
  "deferredActions": [],
  "donePlayers": [],
@@ -626,7 +626,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791651288142
+   "timestamp": 1791669683357
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -643,7 +643,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791651288142
+   "timestamp": 1791669683357
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -660,7 +660,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791651288142
+   "timestamp": 1791669683357
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -677,7 +677,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791651288142
+   "timestamp": 1791669683357
   },
   {
    "message": "The id of this game is ${0}",
@@ -687,7 +687,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1791651288143
+   "timestamp": 1791669683357
   },
   {
    "message": "Good luck ${0}!",
@@ -697,7 +697,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791651288143,
+   "timestamp": 1791669683357,
    "playerId": "p-player1-id"
   },
   {
@@ -708,7 +708,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791651288143,
+   "timestamp": 1791669683357,
    "type": 1
   },
   {
@@ -723,7 +723,7 @@
      "value": "Mining Guild"
     }
    ],
-   "timestamp": 1791651288143,
+   "timestamp": 1791669683357,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -745,7 +745,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1791651288143,
+   "timestamp": 1791669683357,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -766,7 +766,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1791651288143,
+   "timestamp": 1791669683357,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -783,7 +783,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791651288143,
+   "timestamp": 1791669683357,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1047,7 +1047,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Erratic Gamma Loop",
+ "name": "Residual Magnet Loop",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1146,10 +1146,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1791651288143,
+    "startedAt": 1791669683357,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791651288143
+    "lastStoppedAt": 1791669683357
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

@@ -2418,6 +2418,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // board's story after the leave, the 8 % cover last); and the PLAY that closes the printed generation-1 quest.
   'plasma-fans' |
   'plasma-fans-play' |
+  // TR42 Green Allegiance: blue's action phase with the card in hand, 10 M€, the Greens ruling by the starting rule, red
+  // at Teractor (blue pays the printed 2). The walk's length is COUNTED from blue's rating: TR 33 on step 1 → two steps
+  // (② TR, ③ influence 2); `-zero` TR 23 → no set, the marker stays (a named zero); `-long` TR 45 on step 0 → five.
+  'green-allegiance' |
+  'green-allegiance-zero' |
+  'green-allegiance-long' |
   'canyon-carving' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.

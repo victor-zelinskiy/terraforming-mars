@@ -1356,6 +1356,60 @@ parliamentFixture('plasma-fans-play', {
     parliament.assertLedger(game);
   },
 });
+// ── TR42 · GREEN ALLEGIANCE — A WALK OF COUNTED LENGTH (docs/claude/turmoil-redux-cards-progress.md § TR42): blue's
+//    action phase with «Верность Зелёным» in hand, 10 M€, the Greens ruling by the STARTING RULE (the plate's requirement
+//    and the answer to every walked TR: +2 M€), quiet Greens / Scientists / Mars First cards up for the vote. The walk's
+//    length is the number of complete sets of 5 TR blue has over 20 — read from blue's rating, which the fixture sets:
+//    TR 33 on step 1 → ② TR, ③ influence 2 (two sets, two to the third); `-zero` TR 23 → no set: the play lands as an
+//    ordinary play, the zero NAMED; `-long` TR 45 on step 0 → the longest walk of the set (five steps, two TR answers).
+//    Red sits at TERACTOR (its Earth discount is red's own — blue pays the printed 2), blue at Thorgate, both without a
+//    first action. The dry run plays the card for real on a copy: the record the console will play, step by step. ──
+function greenAllegianceFixture(name: string, rating: number, from: number, steps: ReadonlyArray<{to: number, bonus?: 'tr' | 'card'}>): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    agenda: [from, 3],
+    options: {customCorporationsList: [CardName.THORGATE, CardName.TERACTOR]},
+    arrange: ({game, p1, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+      p1.setTerraformRating(rating);
+      moveToDeckTop(game, CardName.GREEN_ALLEGIANCE);
+      p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.GREEN_ALLEGIANCE);
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.GREEN_ALLEGIANCE) as IProjectCard);
+      runAllActions(copy);
+      const walked = copy.parliament!.lastAdvance;
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card),
+        cost: card === undefined ? -1 : p1.getCardCost(card),
+        rating: p1.terraformRating,
+        agenda: `${parliament.agendaOf(p1)}/${parliament.agendaOf(p2)}`,
+        ruling: parliament.rulingParty(),
+        greens: parliament.hasPartyEffect(p1, PartyName.GREENS),
+        red: p2.playedCards.corporations()[0]?.name,
+        steps: JSON.stringify(walked?.steps ?? []),
+        reason: walked?.reason ?? 'none',
+      };
+      const expected = {
+        playable: true, cost: 2, rating, agenda: `${from}/3`, ruling: PartyName.GREENS, greens: true, red: CardName.TERACTOR,
+        steps: JSON.stringify(steps), reason: steps.length > 0 ? 'card' : 'none',
+      };
+      if (JSON.stringify(facts) !== JSON.stringify(expected)) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+greenAllegianceFixture('green-allegiance', 33, 1, [{to: 2, bonus: 'tr'}, {to: 3}]);
+greenAllegianceFixture('green-allegiance-zero', 23, 1, []);
+greenAllegianceFixture('green-allegiance-long', 45, 0, [{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}]);
 // ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
 //    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
 //    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:

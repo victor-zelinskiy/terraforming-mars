@@ -594,7 +594,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791651288070,
+ "createdTimeMs": 1791669683304,
  "currentSeed": 467049282315,
  "deferredActions": [],
  "donePlayers": [],
@@ -621,7 +621,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791651288070
+   "timestamp": 1791669683304
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -638,7 +638,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791651288071
+   "timestamp": 1791669683305
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -655,7 +655,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791651288071
+   "timestamp": 1791669683305
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -672,7 +672,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791651288071
+   "timestamp": 1791669683305
   },
   {
    "message": "The id of this game is ${0}",
@@ -682,7 +682,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1791651288071
+   "timestamp": 1791669683305
   },
   {
    "message": "Good luck ${0}!",
@@ -692,7 +692,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791651288071,
+   "timestamp": 1791669683305,
    "playerId": "p-player1-id"
   },
   {
@@ -703,7 +703,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791651288071,
+   "timestamp": 1791669683305,
    "type": 1
   },
   {
@@ -718,7 +718,7 @@
      "value": "CrediCor"
     }
    ],
-   "timestamp": 1791651288071,
+   "timestamp": 1791669683305,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -736,7 +736,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791651288071,
+   "timestamp": 1791669683305,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -947,7 +947,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Massive Neutron Pulse",
+ "name": "Massive Neutron Point",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1052,11 +1052,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 1,
-    "startedAt": 1791651288072,
+    "sumElapsed": 0,
+    "startedAt": 1791669683305,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791651288072
+    "lastStoppedAt": 1791669683305
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
