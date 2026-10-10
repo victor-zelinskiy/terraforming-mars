@@ -25,7 +25,7 @@ import {PlacementIllegalReason} from '../inputs/PlacementIllegalReason';
 /** Mirrors `src/server/boards/PlacementType.ts` (kept in common so models + client share it). */
 export type BoardPlacementKind =
   'land' | 'ocean' | 'greenery' | 'city' | 'away-from-cities' | 'isolated' |
-  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier' | 'ocean-removal' | 'city-move';
+  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier' | 'ocean-removal' | 'city-move' | 'ocean-move';
 
 /**
  * WHO receives a fact's effect. The single most important field — the UI groups

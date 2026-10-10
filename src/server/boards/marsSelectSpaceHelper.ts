@@ -10,7 +10,7 @@ import {StagedPlacementModel} from '../../common/models/ActionPreviewModel';
 import {CardName} from '../../common/cards/CardName';
 import {committedPlacement} from '../inputs/placementContext';
 import {toID} from '../../common/utils/utils';
-import {CityMoveOffer, cityMovePromptModel} from './cityMove';
+import {TileMoveOffer, tileMovePromptModel} from './tileMove';
 
 /**
  * Construct a SelectSpace for a Mars-board placement with `illegalSpaces`
@@ -107,9 +107,9 @@ export function createMarsSelectSpace(
     /**
      * A MOVE prompt's offer (`SelectSpace.tileMove`, Turmoil Redux TR14): which
      * cities may travel and where. `legalSpaces` must be the union of their
-     * destinations (`cityMoveDestinations`); the caller sets `onMove`.
+     * destinations (`tileMoveDestinations`); the caller sets `onMove`.
      */
-    tileMove?: CityMoveOffer,
+    tileMove?: TileMoveOffer,
   },
 ): SelectSpace {
   const illegalSpaces = player.game.board.computeIllegalReasons(
@@ -190,9 +190,9 @@ export function stagedMarsSelectSpace(
     /** The SAME play's later placements (mirror of the live prompt's
      *  `followUpPlacements`) — the dossier's plan line during the staged pick. */
     followUpPlacements?: ReadonlyArray<{tileType?: TileType}>,
-    /** Mirror of the live prompt's `tileMove` (TR14) — the SAME offer, built
+    /** Mirror of the live prompt's `tileMove` (TR14 / TR39) — the SAME offer, built
      *  with the SAME `canAffordOptions`; `spaces` is its destinations. */
-    tileMove?: CityMoveOffer,
+    tileMove?: TileMoveOffer,
   },
 ): StagedPlacementModel | undefined {
   const board = player.game.board;
@@ -227,7 +227,7 @@ export function stagedMarsSelectSpace(
     model.followUpPlacements = options.followUpPlacements;
   }
   if (options.tileMove !== undefined) {
-    model.tileMove = cityMovePromptModel(options.tileMove);
+    model.tileMove = tileMovePromptModel(options.tileMove);
   }
   return model;
 }

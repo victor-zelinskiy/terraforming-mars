@@ -97,6 +97,8 @@ import {AddTileOptions, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, Til
 import {MarsBoard} from './boards/MarsBoard';
 import {liftTopCity} from './boards/cityStack';
 import {cityStandsOnOcean, isOwnCityOnMars} from './boards/cityMove';
+import {isPlainOcean, oceanMoveOffer} from './boards/oceanMove';
+import {findTileMove} from './boards/tileMove';
 import {cityIgnoringRestrictions} from './boards/ignoreRestrictionsCity';
 import {UnderworldData} from './underworld/UnderworldData';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
@@ -2309,8 +2311,9 @@ export class Game implements IGame, Logger {
       space.player = player;
     }
     if (moved !== undefined) {
-      // A MOVE (`moveCityTile`): the tile is the one that left `moved.from` — a relocation, never a second tile.
-      LogHelper.logTileMove(player, moved.from, space);
+      // A MOVE (`moveCityTile` / `moveOceanTile`): the tile is the one that left `moved.from` — a relocation, never a
+      // second tile. The line names the tile by its kind.
+      LogHelper.logTileMove(player, moved.from, space, tile.tileType);
       const fact: TileMoveFact = {from: moved.from.id, to: space.id, tileType: tile.tileType};
       if (tile.card !== undefined) {
         fact.card = tile.card;
@@ -2385,6 +2388,55 @@ export class Game implements IGame, Logger {
       this.stJosephCathedrals[cathedral] = to.id;
     }
     this.recordTileMove({from: from.id, to: to.id, tileType: lifted.tile.tileType, color: player.color});
+  }
+
+  /**
+   * ANY PLAIN OCEAN MOVES to an adjacent cell (Turmoil Redux TR39 Canyon
+   * Carving — «remove any 1 ocean tile from the board and place it in an
+   * adjacent space that's reserved for ocean or not reserved at all; you gain
+   * TR for this, and the placement bonus of that space») — the second writer
+   * of a move, the first of a tile NOBODY owns. The same order as
+   * `moveCityTile`, and what differs is said here:
+   *  1. VALIDATE against the ONE reading of the rule (`boards/oceanMove.ts`:
+   *     a plain ocean, the destination among ITS destinations — an empty ocean
+   *     reserve or Artificial Lake's land beside it) — before anything is
+   *     touched, so a refusal leaves the board exactly as it was.
+   *  2. LIFT the ocean off `from`: an ocean has no owner, no stack, no Ares
+   *     adjacency, no co-owner, no cathedral — the cell is simply bare, with
+   *     its printed bonus (it pays again to whoever takes it next; an ocean
+   *     reserve accepts an ocean again, paying its TR again — the removal's
+   *     own ruling, RX33). Done first because the landing must not see the
+   *     ocean still standing on `from` — the Capital beside both cells, the
+   *     ocean adjacency of a destination beside the source.
+   *  3. LAND it on `to` through the engine's own `addTile` with `moved` — the
+   *     Ares cleanup price, the cell's printed bonus, the M€ of the OTHER
+   *     oceans beside it, the Ares neighbours, the party passives (Mars
+   *     First's steel) and the enacted law, every card's `onTilePlaced`
+   *     (Arctic Algae's plants), the MarsBot corporation; the log line and the
+   *     recorder's `tile-moved` (never `tile-placed` — nothing new is placed).
+   *  4. PAY THE MOVE'S OWN TR — explicitly, by the card's bracket. NEVER
+   *     `addOcean`: the ocean parameter is read off the board and does not
+   *     change (the count is the same before and after), so none of its train
+   *     runs — the nine-ocean gate (a move at 9 oceans is legal and pays its
+   *     TR), «Mars is terraformed», `onGlobalParameterIncrease`, the global
+   *     parameter record, the Ares `onOceanPlaced` hazard. The step is a
+   *     CARD's TR in the score breakdown (no `global`), attributed to the live
+   *     scope — the card being played; the Greens' answer rides it as it rides
+   *     any TR step; the chairman quest counts it.
+   *  5. PUBLISH the move for the board's remote stage (`tileMoves`) — the
+   *     record's colour is who MOVED it (whose scene it is), never an owner.
+   */
+  public moveOceanTile(player: IPlayer, from: Space, to: Space): void {
+    if (!isPlainOcean(from)) {
+      throw new Error('Not a plain ocean tile that can be moved: ' + from.id);
+    }
+    if (findTileMove(oceanMoveOffer(player), from.id, to.id) === undefined) {
+      throw new Error(`The ocean tile on ${from.id} cannot be moved to ${to.id}`);
+    }
+    from.tile = undefined;
+    this.addTile(player, to, {tileType: TileType.OCEAN}, {moved: {from}});
+    player.increaseTerraformRating(1, {log: true});
+    this.recordTileMove({from: from.id, to: to.id, tileType: TileType.OCEAN, color: player.color});
   }
 
   /**

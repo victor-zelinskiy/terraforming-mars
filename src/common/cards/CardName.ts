@@ -1110,6 +1110,7 @@ export enum CardName {
   COUNCIL_SEAT = 'Council Seat',
   RED_LAWYERS = 'Red Lawyers',
   BIOLOGICAL_SIMULATIONS = 'Biological Simulations',
+  CANYON_CARVING = 'Canyon Carving',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

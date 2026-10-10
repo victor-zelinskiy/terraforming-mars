@@ -5,7 +5,7 @@ import {Space} from '../boards/Space';
 import {PlacementType} from '../boards/PlacementType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {stagedMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
-import type {CityMoveOffer} from '../boards/cityMove';
+import type {TileMoveOffer} from '../boards/tileMove';
 import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
@@ -1133,16 +1133,18 @@ export function placementPreview(
       /** Reserved on-grid cell (Noctis City): confirm-only, no space tail. */
       fixed?: boolean,
       /**
-       * A MOVE (Turmoil Redux TR14 Re-settlement): the play lifts one of the
-       * player's cities and lands it on an adjacent cell — the staged pick is
-       * TWO cells of one decision. The hook passes the SAME offer the live
-       * step builds (`MoveCityTile.offer` → `boards/cityMove.cityMoveOffer`)
-       * as a function of the unpaid card's affordability plan; `spaces` must
-       * be that offer's destinations. The staged model then carries the
-       * `tileMove` marker and declares `placementEffect: 'move'`, exactly as
-       * the live prompt does.
+       * A MOVE (Turmoil Redux TR14 Re-settlement — a city of the player's own;
+       * TR39 Canyon Carving — any plain ocean): the play lifts a tile and
+       * lands it on an adjacent cell — the staged pick is TWO cells of one
+       * decision. The hook passes the SAME offer the live step builds
+       * (`MoveTile.offer` → the rule's own set, `boards/cityMove.ts` /
+       * `boards/oceanMove.ts`) as a function of the unpaid card's
+       * affordability plan; `spaces` must be that offer's destinations and
+       * `placementType` the rule's own kind (`'city-move'` / `'ocean-move'`).
+       * The staged model then carries the `tileMove` marker and declares
+       * `placementEffect: 'move'`, exactly as the live prompt does.
        */
-      move?: (canAffordOptions: CanAffordOptions | undefined) => CityMoveOffer,
+      move?: (canAffordOptions: CanAffordOptions | undefined) => TileMoveOffer,
     },
   } = {},
 ): ActionPreview {
@@ -1152,8 +1154,9 @@ export function placementPreview(
   // structured placement step so one presenter owns the wording.
   const last = opts.text !== undefined ?
     noteStep(kind, opts.text) :
-    // A MOVE names itself on the step (`'city-move'`): the «ДАЛЕЕ» row then says «move your city», never «place a city tile».
-    boardPlacementStep(kind === 'colony' ? 'colony' : opts.staged?.move !== undefined ? 'city-move' : placementTypeOf(opts.tile), {
+    // A MOVE names itself on the step by its rule's kind (`'city-move'` / `'ocean-move'`): the «ДАЛЕЕ» row then says
+    // «move your city» / «move an ocean tile», never «place a … tile».
+    boardPlacementStep(kind === 'colony' ? 'colony' : opts.staged?.move !== undefined ? (opts.staged.placementType ?? 'city-move') : placementTypeOf(opts.tile), {
       tileType: opts.tile,
       count: opts.count,
       constraint: opts.constraint,

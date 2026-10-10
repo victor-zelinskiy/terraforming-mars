@@ -2,7 +2,10 @@ import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
 import {LiftedCity, adjacentCitySpaces, adjacentCityTiers, liftTopCity} from './cityStack';
-import {CityMoveOffer, cityMoveOffer, cityMoveReasoner} from './cityMove';
+import {cityMoveOffer, cityMoveReasoner} from './cityMove';
+import {oceanMoveOffer, oceanMoveReasoner} from './oceanMove';
+import {TileMoveOffer} from './tileMove';
+import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTypeToString} from '../../common/TileType';
@@ -142,13 +145,14 @@ export function boardCellPreview(
     placementEffect?: PlacementEffect,
     canAffordOptions?: CanAffordOptions,
     /**
-     * A CITY MOVE (`kind: 'city-move'`, Turmoil Redux TR14): the cell the city
-     * LEAVES. Absent → the SOURCE reading of `space` (may this city move, and
-     * where); present → the DESTINATION reading of `space` for that city.
+     * A MOVE (`kind: 'city-move'`, Turmoil Redux TR14; `'ocean-move'`, TR39):
+     * the cell the tile LEAVES. Absent → the SOURCE reading of `space` (may
+     * this tile move, and where); present → the DESTINATION reading of `space`
+     * for that tile.
      */
     movedFrom?: Space}): BoardPlacementPreview {
-  if (kind === 'city-move') {
-    return cityMovePreview(player, space, options);
+  if (kind === 'city-move' || kind === 'ocean-move') {
+    return tileMovePreview(player, space, kind, options);
   }
   const board = player.game.board;
   const cleared = options?.cleared === true;
@@ -1266,17 +1270,7 @@ function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
   out.push(rule('remove-ocean-no-tr', 'placement-effect', 'Nobody loses TR',
     'The player who placed the ocean keeps the terraform rating it paid.', 'nobody'));
   // The neighbours that SCORE PER ADJACENT OCEAN — their owner is one point poorer at the end.
-  for (const neighbour of board.getAdjacentSpaces(space)) {
-    if (neighbour.tile?.tileType !== TileType.CAPITAL || neighbour.player === undefined) {
-      continue;
-    }
-    const oceans = board.getAdjacentSpaces(neighbour).filter(Board.isOceanSpace).length;
-    out.push({
-      ...vpFact(`remove-capital-${neighbour.id}`, 'future-scoring', 'Capital loses an adjacent ocean', {kind: 'tile-owner', color: neighbour.player.color},
-        oceans, oceans - 1, 'Capital scores +1 VP per adjacent ocean at game end — one fewer once this tile is gone.'),
-      spaces: [neighbour.id],
-    });
-  }
+  out.push(...capitalOceanLossFacts(board, space, 'remove-capital'));
   return out;
 }
 
@@ -1605,33 +1599,59 @@ const UNOWNED_TILES: ReadonlySet<TileType> = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
-// A CITY MOVE (Turmoil Redux TR14 Re-settlement) — the two readings of a move
+// A TILE MOVE (Turmoil Redux TR14 Re-settlement — a city; TR39 Canyon Carving
+// — an ocean) — the two readings of a move
 // ---------------------------------------------------------------------------
+
+/** The kinds of move the preview reads — the same two the shared step raises (`MoveTile`). */
+type MoveKind = Extract<BoardPlacementKind, 'city-move' | 'ocean-move'>;
+
+/** What a move's family answers for the preview: its set, its far-cell reason, and what every other cell is by exclusion. */
+type MoveFamily = {
+  offer(player: IPlayer, canAffordOptions?: CanAffordOptions): TileMoveOffer;
+  reasoner(player: IPlayer, offer: TileMoveOffer): (space: Space) => PlacementIllegalReason | undefined;
+  /** The SOURCE-level reason of a cell that is neither a source nor a disabled source — the marker's own exclusion. */
+  notASource: PlacementIllegalReason;
+};
+
+const MOVE_FAMILIES: Readonly<Record<MoveKind, MoveFamily>> = {
+  'city-move': {offer: cityMoveOffer, reasoner: cityMoveReasoner, notASource: 'not-your-city'},
+  'ocean-move': {offer: oceanMoveOffer, reasoner: oceanMoveReasoner, notASource: 'not-an-ocean-tile'},
+};
+
+/** What `withTileLifted` took off a cell — a city's whole lift (`LiftedCity`), or a bare ocean with no owner and height 1. */
+type LiftedTile = LiftedCity;
 
 /**
  * THE PREVIEW OF A MOVE is asked about a PAIR of cells, and has two readings:
  *
- *  · no `movedFrom` — THE SOURCE (the city under the cursor on the «which city»
- *    level): may it move, where to (`spaces` = its destinations, so the field
- *    lights them), what it scores where it stands, and — for a stack — that
- *    only the top tier leaves. A city that cannot move states its ONE reason.
- *  · with `movedFrom` — THE DESTINATION: everything an ordinary city placement
- *    on this cell would say, read against the board AS IT WILL BE — the city
- *    already lifted off its old cell — plus what the OLD cell stops giving.
+ *  · no `movedFrom` — THE SOURCE (the tile under the cursor on the «which
+ *    tile» level): may it move, where to (`spaces` = its destinations, so the
+ *    field lights them), and what its leaving changes where it stands — a
+ *    city's own score, a stack's top tier; for an ocean, the Capital beside it
+ *    (whoever owns it) that loses one adjacent ocean. A tile that cannot move
+ *    states its ONE reason.
+ *  · with `movedFrom` — THE DESTINATION: everything an ordinary placement of
+ *    that tile on this cell would say, read against the board AS IT WILL BE —
+ *    the tile already lifted off its old cell — plus what the OLD cell stops
+ *    giving. An ocean's move adds its own TR (the card's bracket) and never
+ *    the ocean parameter's line: the count is the same before and after.
  *
- * Who may move and where is `boards/cityMove.ts` (the one reading the prompt
- * and the commit use); the hypothesis is `liftTopCity` itself — the commit's
- * own lift, run and exactly undone.
+ * Who may move and where is the family's set (`boards/cityMove.ts`,
+ * `boards/oceanMove.ts` — the one reading the prompt and the commit use); the
+ * hypothesis is the commit's own lift, run and exactly undone.
  */
-function cityMovePreview(
+function tileMovePreview(
   player: IPlayer,
   space: Space,
+  kind: MoveKind,
   options: {movedFrom?: Space, sourceCard?: CardName, canAffordOptions?: CanAffordOptions} | undefined): BoardPlacementPreview {
-  const offer = cityMoveOffer(player, options?.canAffordOptions);
+  const family = MOVE_FAMILIES[kind];
+  const offer = family.offer(player, options?.canAffordOptions);
   const from = options?.movedFrom;
   return from === undefined ?
-    cityMoveSourcePreview(player, space, offer) :
-    cityMoveDestinationPreview(player, from, space, offer, options);
+    moveSourcePreview(player, space, kind, offer) :
+    moveDestinationPreview(player, from, space, kind, offer, options);
 }
 
 /** The endgame VP ONE city tile scores on `space`: +1 per adjacent greenery, and the Capital's own +1 per adjacent ocean. */
@@ -1641,8 +1661,8 @@ function cityScoringCells(board: Board, space: Space, tileType: TileType): Reado
   return tileType === TileType.CAPITAL ? [...greeneries, ...adjacent.filter(Board.isOceanSpace)] : greeneries;
 }
 
-/** THE SOURCE reading — see {@link cityMovePreview}. */
-function cityMoveSourcePreview(player: IPlayer, space: Space, offer: CityMoveOffer): BoardPlacementPreview {
+/** THE SOURCE reading — see {@link tileMovePreview}. */
+function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer: TileMoveOffer): BoardPlacementPreview {
   const board = player.game.board;
   const source = offer.sources.find((candidate) => candidate.from.id === space.id);
   const disabled = offer.disabledSources.find((entry) => entry.space.id === space.id);
@@ -1656,49 +1676,56 @@ function cityMoveSourcePreview(player: IPlayer, space: Space, offer: CityMoveOff
     });
   }
   if ((source !== undefined || disabled !== undefined) && space.tile !== undefined) {
-    const tiers = Board.tiersOf(space);
-    // What the tile that would TRAVEL scores here: a stack's top tier is a plain city.
-    const travels = tiers > 1 ? TileType.CITY : space.tile.tileType;
-    facts.push({
-      id: 'move-scores-now', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
-      title: 'Scores now: ${0} VP',
-      params: [String(cityScoringCells(board, space, travels).length)],
-    });
-    if (tiers > 1) {
+    if (kind === 'city-move') {
+      const tiers = Board.tiersOf(space);
+      // What the tile that would TRAVEL scores here: a stack's top tier is a plain city.
+      const travels = tiers > 1 ? TileType.CITY : space.tile.tileType;
       facts.push({
-        id: 'move-stack', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
-        title: 'Only the top tier moves — the stack stays: ×${0} → ×${1}',
-        params: [String(tiers), String(tiers - 1)],
+        id: 'move-scores-now', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
+        title: 'Scores now: ${0} VP',
+        params: [String(cityScoringCells(board, space, travels).length)],
       });
+      if (tiers > 1) {
+        facts.push({
+          id: 'move-stack', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
+          title: 'Only the top tier moves — the stack stays: ×${0} → ×${1}',
+          params: [String(tiers), String(tiers - 1)],
+        });
+      }
+    } else if (source !== undefined) {
+      // An ocean scores nothing of its own; what its leaving changes is the
+      // Capital beside it — the removal's own reading, whoever owns the Capital.
+      facts.push(...capitalOceanLossFacts(board, space, 'move-capital'));
     }
   }
-  const preview = classifyPlacementFacts(facts, player, space.id, 'city-move', source !== undefined);
-  // Lifting a city puts nothing down yet — the «nothing else happens» line must not name a tile.
+  const preview = classifyPlacementFacts(facts, player, space.id, kind, source !== undefined);
+  // Lifting a tile puts nothing down yet — the «nothing else happens» line must not name a tile.
   preview.placesTile = false;
   if (source === undefined) {
-    preview.illegalReason = disabled?.reason ?? 'not-your-city';
+    preview.illegalReason = disabled?.reason ?? MOVE_FAMILIES[kind].notASource;
   }
   return preview;
 }
 
-/** THE DESTINATION reading — see {@link cityMovePreview}. */
-function cityMoveDestinationPreview(
+/** THE DESTINATION reading — see {@link tileMovePreview}. */
+function moveDestinationPreview(
   player: IPlayer,
   from: Space,
   to: Space,
-  offer: CityMoveOffer,
+  kind: MoveKind,
+  offer: TileMoveOffer,
   options: {sourceCard?: CardName, canAffordOptions?: CanAffordOptions} | undefined): BoardPlacementPreview {
   const board = player.game.board;
   const source = offer.sources.find((candidate) => candidate.from.id === from.id);
   if (source === undefined) {
-    // The city named cannot move (any more) — nothing may be promised about a move that does not exist.
-    const preview = classifyPlacementFacts([], player, to.id, 'city-move', false);
+    // The tile named cannot move (any more) — nothing may be promised about a move that does not exist.
+    const preview = classifyPlacementFacts([], player, to.id, kind, false);
     preview.illegalReason = 'unavailable';
     return preview;
   }
   if (to.id === from.id) {
-    // The cursor stands on the city being moved: it cannot move onto itself, and there is no «move» to describe.
-    const preview = classifyPlacementFacts([], player, to.id, 'city-move', false);
+    // The cursor stands on the tile being moved: it cannot move onto itself, and there is no «move» to describe.
+    const preview = classifyPlacementFacts([], player, to.id, kind, false);
     preview.illegalReason = 'occupied';
     return preview;
   }
@@ -1707,17 +1734,20 @@ function cityMoveDestinationPreview(
 
   // ── read against the board AS IT STANDS (before the lift) ────────────────
   const progressBefore = progressScores(player);
-  const districts = commercialDistrictsBeside(board, [from, to]);
+  const districts = kind === 'city-move' ? commercialDistrictsBeside(board, [from, to]) : [];
   const districtsBefore = districts.map((district) => adjacentCityTiers(board, district));
+  const capitals = kind === 'ocean-move' ? capitalsBeside(board, [from, to]) : [];
+  const capitalsBefore = capitals.map((capital) => adjacentOceans(board, capital));
 
-  const facts = withCityLifted(from, (lifted): Array<BoardFact> => {
-    // `to` is read exactly as an ordinary city placement reads its cell — with the old cell already vacated.
+  const facts = withTileLifted(kind, from, (lifted): Array<BoardFact> => {
+    // `to` is read exactly as an ordinary placement of the tile reads its cell — with the old cell already vacated.
     const covering = Board.hasRealTile(to);
-    const ctx = previewContext('city-move', arrives, false, covering, to.tile !== undefined, 'tile');
+    const ctx = previewContext(kind, arrives, false, covering, to.tile !== undefined, 'tile');
     const out: Array<BoardFact> = [];
     out.push(...placementCostFacts(player, to, ctx, options?.canAffordOptions));
     out.push(...printedBonusFacts(to, ctx.bonusesCovered));
     if (board.onMarsGrid(to)) {
+      // With the source lifted, only the OTHER oceans pay — a destination beside the source never counts it.
       const ocean = oceanAdjacencyFact(player, to);
       if (ocean !== undefined) {
         out.push(ocean);
@@ -1729,16 +1759,26 @@ function cityMoveDestinationPreview(
     out.push(...sourceCardFacts(player, to, options?.sourceCard, ctx));
     out.push(...tileTriggerFacts(player, to, ctx));
     out.push(...arcadianCommunityFact(player, to, covering, ctx));
+    if (kind === 'ocean-move') {
+      // THE MOVE'S OWN TR (TR39's bracket: «you gain TR for this») — stated
+      // BEFORE the parties read the facts, so the Greens' answer sees it. The
+      // ocean parameter's own line never appears: the count does not change.
+      out.push(...terraformRatingFact(player, 'move-tr', 1, 'Tile relocation'));
+    }
     out.push(...partyReactionFacts(player, to, ctx, out));
     out.push(...resolutionPassiveFacts(player, to, ctx, out));
-    out.push(...cityMoveScoringFacts(board, from, to, arrives));
-    // Milestones / awards and the neighbours that count cities: read with the tile LANDED too.
+    if (kind === 'city-move') {
+      out.push(...cityMoveScoringFacts(board, from, to, arrives));
+    }
+    // Milestones / awards and the neighbours that count by the board: read with the tile LANDED too.
     const landed = withHypotheticalTile(player, to, ctx, () => ({
       progress: progressScores(player),
       districts: districts.map((district) => adjacentCityTiers(board, district)),
+      capitals: capitals.map((capital) => adjacentOceans(board, capital)),
     }));
     out.push(...commercialDistrictFacts(player, districts, districtsBefore, landed.districts));
-    out.push(...cityDepartureFacts(from, lifted));
+    out.push(...capitalMoveFacts(player, capitals, capitalsBefore, landed.capitals));
+    out.push(...departureFacts(from, lifted));
     out.push(...progressFacts(player, progressBefore, landed.progress, {losses: true}));
     const deflection = deflectionPlacementFact(player, to);
     if (deflection !== undefined) {
@@ -1748,11 +1788,11 @@ function cityMoveDestinationPreview(
     return out;
   });
 
-  const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, to.id, 'city-move', legal);
+  const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, to.id, kind, legal);
   preview.placesTile = true;
   if (!legal) {
     preview.illegalReason = source.illegal.find((entry) => entry.spaceId === to.id)?.reason ??
-      (cityMoveReasoner(player, offer)(to) ?? board.illegalReasonFor(player, 'city-move', to, options?.canAffordOptions));
+      (MOVE_FAMILIES[kind].reasoner(player, offer)(to) ?? board.illegalReasonFor(player, kind, to, options?.canAffordOptions));
   }
   return preview;
 }
@@ -1797,15 +1837,41 @@ function withCityLifted<T>(from: Space, read: (lifted: LiftedCity) => T): T {
 }
 
 /**
- * THE HYPOTHESIS OF A MOVE, whole: the top city lifted off `from` AND standing
- * on `to` — what the board reads as once `Game.moveCityTile` has run. The
- * destination preview composes the same two halves (it reads some facts
+ * Run `read` against the board with the OCEAN LIFTED off `from` — the first
+ * half of `Game.moveOceanTile` (an ocean has no owner, no stack, no adjacency,
+ * no co-owner: the lift is the tile alone) — then put the very same tile
+ * object back. Nothing inside `read` may mutate.
+ */
+function withOceanLifted<T>(from: Space, read: (lifted: LiftedTile) => T): T {
+  const tile = from.tile;
+  if (tile === undefined) {
+    throw new Error('No tile to lift on ' + from.id);
+  }
+  from.tile = undefined;
+  try {
+    return read({tile, tiers: {before: 1, after: 0}});
+  } finally {
+    from.tile = tile;
+  }
+}
+
+/** The lift of the move's kind — the commit's own first half, run and exactly undone. */
+function withTileLifted<T>(kind: MoveKind, from: Space, read: (lifted: LiftedTile) => T): T {
+  return kind === 'ocean-move' ? withOceanLifted(from, read) : withCityLifted(from, read);
+}
+
+/**
+ * THE HYPOTHESIS OF A MOVE, whole: the tile lifted off `from` AND standing on
+ * `to` — what the board reads as once the move has run. The kind is the
+ * tile's: an ocean on `from` is the ocean's move, anything else the city's.
+ * The destination preview composes the same two halves (it reads some facts
  * between them); this is the form a caller that needs only «the board after
  * the move» takes. Restores both cells exactly.
  */
 export function withHypotheticalMove<T>(player: IPlayer, from: Space, to: Space, read: () => T): T {
-  return withCityLifted(from, (lifted) => {
-    const ctx = previewContext('city-move', lifted.tile.tileType, false, Board.hasRealTile(to), to.tile !== undefined, 'tile');
+  const kind: MoveKind = from.tile?.tileType === TileType.OCEAN ? 'ocean-move' : 'city-move';
+  return withTileLifted(kind, from, (lifted) => {
+    const ctx = previewContext(kind, lifted.tile.tileType, false, Board.hasRealTile(to), to.tile !== undefined, 'tile');
     return withHypotheticalTile(player, to, ctx, read);
   });
 }
@@ -1901,15 +1967,104 @@ function commercialDistrictFacts(
   return out;
 }
 
+/** The OWNED Capitals standing beside any of `cells` — every one whose count of adjacent oceans a move between them can change. */
+function capitalsBeside(board: Board, cells: ReadonlyArray<Space>): ReadonlyArray<Space> {
+  const seen = new Map<SpaceId, Space>();
+  for (const cell of cells) {
+    for (const adj of board.getAdjacentSpaces(cell)) {
+      if (adj.tile?.tileType === TileType.CAPITAL && adj.player !== undefined && adj.player.color !== 'neutral') {
+        seen.set(adj.id, adj);
+      }
+    }
+  }
+  return [...seen.values()];
+}
+
+/** How many oceans stand beside `space` — the Capital's own scoring predicate (`specialTileAdjacencyVpFacts` reads the same). */
+function adjacentOceans(board: Board, space: Space): number {
+  return board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
+}
+
+/**
+ * THE CAPITALS THAT SCORE PER ADJACENT OCEAN recount by an OCEAN'S move — the
+ * player's own or ANOTHER player's: one fewer beside the old cell, one more
+ * beside the new, and a Capital beside BOTH cells keeps its score — stated
+ * calmly in ONE line, because the player pointing at the cell is asking
+ * exactly that («does the Capital lose by this?»). Addressed to the Capital's
+ * OWNER — another player's lands under «Other players». A loss is told as a
+ * loss on the field (`tile-departure` for the mover's own).
+ */
+function capitalMoveFacts(
+  player: IPlayer,
+  capitals: ReadonlyArray<Space>,
+  before: ReadonlyArray<number>,
+  after: ReadonlyArray<number>): Array<BoardFact> {
+  const out: Array<BoardFact> = [];
+  capitals.forEach((capital, i) => {
+    const owner = capital.player?.color;
+    if (owner === undefined || owner === 'neutral') {
+      return;
+    }
+    const recipient = recipientFor(player, owner);
+    if (before[i] === after[i]) {
+      out.push({
+        id: `move-capital-${capital.id}`, category: 'future-scoring', timing: 'endgame', severity: 'info', recipient,
+        title: 'Capital VP',
+        description: 'Capital: unchanged, ${0} VP',
+        params: [String(before[i])],
+        spaces: [capital.id],
+      });
+      return;
+    }
+    const loss = after[i] < before[i];
+    const own = owner === player.color;
+    out.push({
+      ...vpFact(`move-capital-${capital.id}`, loss && own ? 'tile-departure' : 'future-scoring',
+        loss ? 'Capital loses an adjacent ocean' : 'Capital gains an adjacent ocean',
+        recipient, before[i], after[i],
+        loss ?
+          'Capital scores +1 VP per adjacent ocean at game end — one fewer once this tile is gone.' :
+          'Capital scores +1 VP per adjacent ocean at game end — one more once this tile lands.'),
+      severity: loss ? (own ? 'warning' : 'info') : (own ? 'positive' : 'warning'),
+      spaces: [capital.id],
+    });
+  });
+  return out;
+}
+
+/**
+ * THE CAPITALS BESIDE A LEAVING OCEAN — their owner is one point poorer at
+ * the end: the same predicate `specialTileAdjacencyVpFacts` counts on the way
+ * in, walked over the neighbours on the way out. Shared by the removal's facts
+ * (Water Export) and the SOURCE reading of an ocean's move (the destination
+ * reading refines it into one vector per Capital — {@link capitalMoveFacts}).
+ */
+function capitalOceanLossFacts(board: Board, space: Space, idPrefix: string): Array<BoardFact> {
+  const out: Array<BoardFact> = [];
+  for (const neighbour of board.getAdjacentSpaces(space)) {
+    if (neighbour.tile?.tileType !== TileType.CAPITAL || neighbour.player === undefined) {
+      continue;
+    }
+    const oceans = adjacentOceans(board, neighbour);
+    out.push({
+      ...vpFact(`${idPrefix}-${neighbour.id}`, 'future-scoring', 'Capital loses an adjacent ocean', {kind: 'tile-owner', color: neighbour.player.color},
+        oceans, oceans - 1, 'Capital scores +1 VP per adjacent ocean at game end — one fewer once this tile is gone.'),
+      spaces: [neighbour.id],
+    });
+  }
+  return out;
+}
+
 /**
  * WHAT THE FORMER CELL IS LEFT AS — the standing facts of the departure:
  *  · a STACK keeps its base and stands one tier shorter;
- *  · a single city frees the cell: it is bare land again, and its printed
- *    bonus goes to whoever places a tile there next (a property of the cell —
- *    the freed cell's own bonus icons ride the fact as chips addressed to
- *    nobody, so no gain is promised to the mover).
+ *  · a single tile frees the cell: it is bare again — land, or an ocean
+ *    reserve that will accept an ocean again — and its printed bonus goes to
+ *    whoever places a tile there next (a property of the cell — the freed
+ *    cell's own bonus icons ride the fact as chips addressed to nobody, so no
+ *    gain is promised to the mover).
  */
-function cityDepartureFacts(from: Space, lifted: LiftedCity): Array<BoardFact> {
+function departureFacts(from: Space, lifted: LiftedTile): Array<BoardFact> {
   if (lifted.tiers.after > 0) {
     return [{
       id: 'move-stack', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
@@ -2520,10 +2675,12 @@ function placedTileType(kind: BoardPlacementKind, tileType: TileType | undefined
     return tileType;
   }
   switch (kind) {
-  case 'ocean': return TileType.OCEAN;
+  case 'ocean':
+  case 'ocean-move': return TileType.OCEAN;
   case 'greenery': return TileType.GREENERY;
   case 'city':
   case 'city-tier':
+  case 'city-move':
   case 'away-from-cities': return TileType.CITY;
   default: return undefined;
   }

@@ -39,6 +39,7 @@ import {MarsArmyShips} from './MarsArmyShips';
 import {CouncilSeat} from './CouncilSeat';
 import {RedLawyers} from './RedLawyers';
 import {BiologicalSimulations} from './BiologicalSimulations';
+import {CanyonCarving} from './CanyonCarving';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -201,5 +202,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // (microbe, animal — each counted by itself) and the set's first action that buys PRODUCTION with a stored resource:
     // one declaration, the Greens' own passive answers the plant step.
     [CardName.BIOLOGICAL_SIMULATIONS]: {Factory: BiologicalSimulations},
+    // Only the module's icon at the bottom left — no ▲, no Venus icon: the module is the gate. The GREENS' plate a
+    // second time; the project's second tile MOVE (after TR14's city) and the first of a tile NOBODY owns: any plain
+    // ocean travels to an adjacent ocean reserve or land, the move pays its own TR and never touches the parameter
+    // (`Game.moveOceanTile`, `docs/TURMOIL_REDUX_RE_SETTLEMENT.md` §2.6).
+    [CardName.CANYON_CARVING]: {Factory: CanyonCarving},
   },
 });

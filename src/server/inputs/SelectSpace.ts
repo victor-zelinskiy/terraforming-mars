@@ -11,7 +11,7 @@ import {PlacementType} from '../boards/PlacementType';
 import {TileType} from '../../common/TileType';
 import {CardName} from '../../common/cards/CardName';
 import {PlayerInput} from '../PlayerInput';
-import {CityMoveOffer, cityMovePromptModel, findCityMove} from '../boards/cityMove';
+import {TileMoveOffer, findTileMove, tileMovePromptModel} from '../boards/tileMove';
 
 export class SelectSpace extends BasePlayerInput<Space> {
   /**
@@ -100,16 +100,16 @@ export class SelectSpace extends BasePlayerInput<Space> {
   public followUpPlacements?: ReadonlyArray<{tileType?: TileType}>;
 
   /**
-   * A MOVE prompt (Turmoil Redux TR14 Re-settlement — `placementEffect:
-   * 'move'`): which of the player's cities may travel and where each may go
-   * (`boards/cityMove.cityMoveOffer`). `spaces` is the union of every city's
-   * destinations; the marker rides this input's own `toModel` (nesting-safe,
-   * like every placement marker). The answer must name BOTH cells
-   * (`movedFrom` + `spaceId`) and is handed to {@link onMove} — the plain
-   * `cb(space)` is never called for a move, because one cell does not say
-   * which city came to it.
+   * A MOVE prompt (Turmoil Redux TR14 Re-settlement, TR39 Canyon Carving —
+   * `placementEffect: 'move'`): which tiles may travel and where each may go
+   * (`boards/tileMove.ts` — the city's set or the ocean's). `spaces` is the
+   * union of every source's destinations; the marker rides this input's own
+   * `toModel` (nesting-safe, like every placement marker). The answer must
+   * name BOTH cells (`movedFrom` + `spaceId`) and is handed to {@link onMove}
+   * — the plain `cb(space)` is never called for a move, because one cell does
+   * not say which tile came to it.
    */
-  public tileMove?: CityMoveOffer;
+  public tileMove?: TileMoveOffer;
 
   /** The move's own answer handler — see {@link tileMove}. */
   public onMove?: (from: Space, to: Space) => PlayerInput | undefined;
@@ -162,7 +162,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       model.placementContext = this.placementContext;
     }
     if (this.tileMove !== undefined) {
-      model.tileMove = cityMovePromptModel(this.tileMove);
+      model.tileMove = tileMovePromptModel(this.tileMove);
     }
     return model;
   }
@@ -183,13 +183,15 @@ export class SelectSpace extends BasePlayerInput<Space> {
     }
     if (this.tileMove !== undefined) {
       // A MOVE names both cells, and the pair must be one the offer holds:
-      // the city among those that may travel, the cell among ITS destinations.
+      // the tile among those that may travel, the cell among ITS destinations.
+      // The refusal names the object by the prompt's own kind (the marker, never a title).
+      const ocean = this.placementType === 'ocean-move';
       if (input.movedFrom === undefined) {
-        throw new InputError('A move must name the city that moves');
+        throw new InputError(ocean ? 'A move must name the ocean tile that moves' : 'A move must name the city that moves');
       }
-      const move = findCityMove(this.tileMove, input.movedFrom, input.spaceId);
+      const move = findTileMove(this.tileMove, input.movedFrom, input.spaceId);
       if (move === undefined || this.onMove === undefined) {
-        throw new InputError('This city cannot be moved to that space');
+        throw new InputError(ocean ? 'This ocean tile cannot be moved to that space' : 'This city cannot be moved to that space');
       }
       return this.onMove(move.source.from, move.to);
     }

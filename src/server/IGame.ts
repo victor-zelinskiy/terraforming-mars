@@ -335,6 +335,13 @@ export interface IGame extends Logger {
    */
   moveCityTile(player: IPlayer, from: Space, to: Space): void;
   /**
+   * ANY PLAIN OCEAN MOVES to an adjacent cell (Turmoil Redux TR39 Canyon
+   * Carving) — the second writer of a move: the tile is lifted, landed through
+   * `addTile` with `moved`, and the move pays its own TR; the ocean parameter,
+   * its gate and its triggers are never touched.
+   */
+  moveOceanTile(player: IPlayer, from: Space, to: Space): void;
+  /**
    * Gives all the bonuses a player may gain when placing a tile on a space.
    *
    * This includes bonuses on the map, from oceans, Ares tiles, Turmoil, Colonies, etc.

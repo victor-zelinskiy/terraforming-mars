@@ -71,6 +71,13 @@ export type PlacementIllegalReason =
   // …and the two reasons a city of the player's own cannot be the one that moves.
   | 'no-space-to-move'
   | 'city-stands-on-ocean'
+  // An OCEAN MOVING to a cell next to the one it stands on (TR39 Canyon Carving): on the source level, a cell that
+  // carries no ocean tile at all; on the cell level, a cell of either family that is not its neighbour…
+  | 'not-an-ocean-tile'
+  | 'not-adjacent-to-the-ocean'
+  // …and the two reasons an ocean on the board cannot be the one that moves.
+  | 'upgraded-ocean'
+  | 'ocean-no-space-to-move'
   | 'requires-adjacent-ocean'
   | 'requires-2-adjacent-cities'
   | 'ocean-requires-adjacent-greenery'
@@ -130,6 +137,10 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'not-adjacent-to-the-city': 'Must be adjacent to the city being moved',
   'no-space-to-move': 'No free adjacent space to move this city to',
   'city-stands-on-ocean': 'A city over an ocean can only stand on an ocean',
+  'not-an-ocean-tile': 'Not an ocean tile',
+  'not-adjacent-to-the-ocean': 'Must be adjacent to the ocean being moved',
+  'upgraded-ocean': 'An upgraded or special ocean tile does not move',
+  'ocean-no-space-to-move': 'No free adjacent space to move this ocean to',
   'requires-adjacent-ocean': 'Must be adjacent to an ocean',
   'requires-2-adjacent-cities': 'Must be adjacent to at least 2 cities',
   'ocean-requires-adjacent-greenery': 'Ocean must be adjacent to a greenery',

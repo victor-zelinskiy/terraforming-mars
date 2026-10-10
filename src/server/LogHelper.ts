@@ -51,12 +51,20 @@ export class LogHelper {
   }
 
   /**
-   * A city MOVED between two cells (Turmoil Redux TR14 Re-settlement — the one
-   * line `Game.moveCityTile` writes in place of «placed city tile»). Both cells
-   * ride as SPACE tokens («show on map»), detached from the sentence by the
-   * middot for the same reason `logBoardTileAction` detaches its one.
+   * A tile MOVED between two cells (Turmoil Redux TR14 Re-settlement — a city
+   * of the player's own; TR39 Canyon Carving — any plain ocean: the one line
+   * `Game.moveCityTile` / `moveOceanTile` write in place of «placed … tile»).
+   * The sentence names the tile by its KIND — an ocean is nobody's, so «their
+   * city» would lie for it. Both cells ride as SPACE tokens («show on map»),
+   * detached from the sentence by the middot for the same reason
+   * `logBoardTileAction` detaches its one.
    */
-  static logTileMove(player: IPlayer, from: Space, to: Space) {
+  static logTileMove(player: IPlayer, from: Space, to: Space, tileType: TileType) {
+    if (tileType === TileType.OCEAN) {
+      player.game.log('${0} moved an ocean tile · ${1} → ${2}', (b) =>
+        b.player(player).space(from).space(to));
+      return;
+    }
     player.game.log('${0} moved their city · ${1} → ${2}', (b) =>
       b.player(player).space(from).space(to));
   }

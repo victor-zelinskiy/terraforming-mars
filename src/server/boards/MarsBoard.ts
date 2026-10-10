@@ -9,7 +9,9 @@ import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
 import {oneWayDifference} from '../../common/utils/utils';
 import {countCityTiers} from './cityStack';
-import {cityMoveDestinations, cityMoveOffer} from './cityMove';
+import {cityMoveOffer} from './cityMove';
+import {oceanMoveOffer} from './oceanMove';
+import {tileMoveDestinations} from './tileMove';
 import {Tile} from '../Tile';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
 import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
@@ -122,7 +124,9 @@ export class MarsBoard extends Board {
     }
     case 'city-tier': return this.getAvailableSpacesForCityTier(player);
     // A CITY MOVE (TR14): every cell SOME city of the player's may travel to.
-    case 'city-move': return cityMoveDestinations(cityMoveOffer(player, canAffordOptions));
+    case 'city-move': return tileMoveDestinations(cityMoveOffer(player, canAffordOptions));
+    // AN OCEAN MOVE (TR39): every cell SOME plain ocean may travel to — an empty ocean reserve or land, beside it.
+    case 'ocean-move': return tileMoveDestinations(oceanMoveOffer(player, canAffordOptions));
     default: throw new Error('unknown type ' + type);
     }
   }
@@ -647,6 +651,25 @@ export class MarsBoard extends Board {
     }
     if (space.player !== undefined && space.player !== player) {
       return 'owned-by-other';
+    }
+
+    // AN OCEAN MOVE (TR39) lands on EITHER family — an empty ocean reserve, or
+    // land «not reserved at all» — so neither «ocean-only» nor «needs an ocean
+    // space» is true of it. The move's own reason (a cell of the family that is
+    // no neighbour of the ocean) is the prompt's custom reasoner
+    // (`boards/oceanMove.ts`); what is left here is the land cell's price (an
+    // ocean pays a hazard's cleanup, never a hazard-ADJACENCY penalty).
+    if (placementType === 'ocean-move') {
+      if (space.spaceType === SpaceType.OCEAN) {
+        return 'unavailable';
+      }
+      if (space.spaceType !== SpaceType.LAND) {
+        return 'wrong-terrain';
+      }
+      if (!this.canAfford(player, space, canAffordOptions, false)) {
+        return 'cannot-afford';
+      }
+      return 'unavailable';
     }
 
     // Placement-type-specific terrain checks.

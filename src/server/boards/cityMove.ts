@@ -3,10 +3,12 @@ import {Space} from './Space';
 import {Board} from './Board';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {OCEAN_UPGRADE_TILES, TileType} from '../../common/TileType';
-import {CardName} from '../../common/cards/CardName';
-import {PlacementIllegalReason, PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason';
-import {TileMovePromptModel} from '../../common/boards/TileMove';
+import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {cityIgnoringRestrictions} from './ignoreRestrictionsCity';
+import {
+  MovableTile, TileMoveBlock, TileMoveOffer, destinationsClockwise, findTileMove, markSiblingCells, tileMoveDestinations,
+  tileMovePromptModel,
+} from './tileMove';
 
 /**
  * WHICH OF A PLAYER'S CITIES MAY MOVE, AND WHERE (Turmoil Redux TR14
@@ -14,6 +16,10 @@ import {cityIgnoringRestrictions} from './ignoreRestrictionsCity';
  * ADJACENT, NON-RESERVED, unoccupied space, ignoring other placement
  * restrictions») — the ONE reading the play gate, the live prompt, its staged
  * twin, the placement dossier and the commit's own validation share.
+ *
+ * The SHAPE of the answer is the project's one move offer (`boards/tileMove.ts`
+ * — the same one the ocean's set speaks, TR39); this file decides only the
+ * city's own population and cell rule.
  *
  * WHO MAY MOVE — a city tile of the player's own ON MARS
  * (`MarsBoard.getCitiesOnMars`: an ordinary city, the Capital, a city on the
@@ -43,29 +49,13 @@ import {cityIgnoringRestrictions} from './ignoreRestrictionsCity';
  */
 
 /** Why a city of the player's own cannot be the one that moves. */
-export type CityMoveBlock = Extract<PlacementIllegalReason, 'city-stands-on-ocean' | 'no-space-to-move'>;
+export type CityMoveBlock = Extract<TileMoveBlock, 'city-stands-on-ocean' | 'no-space-to-move'>;
 
-export type MovableCity = {
-  /** The cell the city stands on. */
-  from: Space;
-  /** The tile standing on that cell (a stack's base). */
-  tileType: TileType;
-  /** The card recorded on that tile. */
-  card?: CardName;
-  /** The cell's height — 1 for an ordinary city. */
-  tiers: number;
-  /** What lands on the destination: the tile itself, or a plain CITY for a stack's top tier. */
-  arrives: TileType;
-  /** The legal destinations, clockwise from the east neighbour. Never empty. */
-  to: ReadonlyArray<Space>;
-  /** The cells offered to a SIBLING city that this one cannot reach, with the reason. */
-  illegal: ReadonlyArray<PlacementIllegalSpace>;
-};
+/** ONE city that may move, and where to — the project's one movable-tile shape. */
+export type MovableCity = MovableTile;
 
-export type CityMoveOffer = {
-  sources: ReadonlyArray<MovableCity>;
-  disabledSources: ReadonlyArray<{space: Space, reason: CityMoveBlock}>;
-};
+/** The city's offer — the project's one move offer. */
+export type CityMoveOffer = TileMoveOffer;
 
 /**
  * Rule 4-bis: the tile on this cell is the special «city and ocean» tile
@@ -87,13 +77,7 @@ export function isOwnCityOnMars(player: IPlayer, space: Space): boolean {
  */
 function destinationsOf(player: IPlayer, from: Space, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
   const legal = new Set(cityIgnoringRestrictions(player, {adjacentTo: from}, canAffordOptions).map((space) => space.id));
-  if (legal.size === 0) {
-    return [];
-  }
-  // `getAdjacentSpacesClockwise` runs top-left, top-right, RIGHT, bottom-right, bottom-left, left.
-  const ring = player.game.board.getAdjacentSpacesClockwise(from);
-  const fromEast = [...ring.slice(2), ...ring.slice(0, 2)];
-  return fromEast.filter((space): space is Space => space !== undefined && legal.has(space.id));
+  return destinationsClockwise(player.game.board, from, legal);
 }
 
 /** Every city of the player's on Mars, partitioned: those that may move (with where to) and those that may not (with why). */
@@ -122,13 +106,7 @@ export function cityMoveOffer(player: IPlayer, canAffordOptions?: CanAffordOptio
     sources.push(source);
   }
   // A cell the prompt offers to a sibling city, but not to this one.
-  const offered = cityMoveDestinations({sources, disabledSources});
-  for (const source of sources) {
-    const own = new Set(source.to.map((space) => space.id));
-    source.illegal = offered
-      .filter((space) => !own.has(space.id))
-      .map((space) => ({spaceId: space.id, reason: 'not-adjacent-to-the-city'}));
-  }
+  markSiblingCells(sources, 'not-adjacent-to-the-city');
   return {sources, disabledSources};
 }
 
@@ -138,22 +116,10 @@ export function movableCities(player: IPlayer, canAffordOptions?: CanAffordOptio
 }
 
 /** Every cell SOME city may move to, in the board's own order, each once — the prompt's `spaces`. */
-export function cityMoveDestinations(offer: CityMoveOffer): ReadonlyArray<Space> {
-  const seen = new Map<string, Space>();
-  for (const source of offer.sources) {
-    for (const space of source.to) {
-      seen.set(space.id, space);
-    }
-  }
-  return [...seen.values()].sort((a, b) => a.id.localeCompare(b.id));
-}
+export const cityMoveDestinations = tileMoveDestinations;
 
 /** The one move the answer names, or undefined when the offer does not hold it. */
-export function findCityMove(offer: CityMoveOffer, from: string, to: string): {source: MovableCity, to: Space} | undefined {
-  const source = offer.sources.find((candidate) => candidate.from.id === from);
-  const destination = source?.to.find((space) => space.id === to);
-  return source === undefined || destination === undefined ? undefined : {source, to: destination};
-}
+export const findCityMove = findTileMove;
 
 /**
  * The prompt-level «why not» the move adds: a free land cell that is no
@@ -176,20 +142,4 @@ export function cityMoveReasoner(player: IPlayer, offer: CityMoveOffer): (space:
 }
 
 /** The offer in the id vocabulary the client reads (`SelectSpaceModel.tileMove` / `StagedPlacementModel.tileMove`). */
-export function cityMovePromptModel(offer: CityMoveOffer): TileMovePromptModel {
-  const model: TileMovePromptModel = {
-    sources: offer.sources.map((source) => ({
-      from: source.from.id,
-      tileType: source.tileType,
-      ...(source.card !== undefined ? {card: source.card} : {}),
-      tiers: source.tiers,
-      arrives: source.arrives,
-      to: source.to.map((space) => space.id),
-      ...(source.illegal.length > 0 ? {illegal: source.illegal} : {}),
-    })),
-  };
-  if (offer.disabledSources.length > 0) {
-    model.disabledSources = offer.disabledSources.map((entry) => ({spaceId: entry.space.id, reason: entry.reason}));
-  }
-  return model;
-}
+export const cityMovePromptModel = tileMovePromptModel;

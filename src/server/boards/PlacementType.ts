@@ -32,4 +32,14 @@ export type PlacementType =
    * which city reaches which cell is the prompt's `tileMove` marker, and the
    * prompt says what the pick does through `placementEffect: 'move'`.
    */
-  'city-move';
+  'city-move' |
+  /**
+   * AN OCEAN MOVE (Turmoil Redux TR39 Canyon Carving): any plain ocean on the
+   * board travels to a cell adjacent to the one it stands on — an empty ocean
+   * reserve, or land «not reserved at all» (Artificial Lake's family). The
+   * legal cells are every destination SOME ocean has (`boards/oceanMove.ts`);
+   * which ocean reaches which cell is the prompt's `tileMove` marker, and the
+   * prompt says what the pick does through `placementEffect: 'move'`. The
+   * ocean parameter never moves — the move pays its own TR (`Game.moveOceanTile`).
+   */
+  'ocean-move';
