@@ -87,11 +87,13 @@ export abstract class MiningCard extends Card implements IProjectCard {
   /** The bonus resources the chosen area offers — the SAME derivation
    *  `spaceSelected` uses to build the production choice. */
   private bonusResourcesFor(space: Space): Array<Resource> {
+    // A standard resource placement bonus (Amazonis Planitia) can be steel or titanium (upstream 49716e6782).
+    const anyResource = space.bonus.includes(SpaceBonus.STANDARD_RESOURCE);
     const out: Array<Resource> = [];
-    if (space.bonus.includes(SpaceBonus.STEEL)) {
+    if (anyResource || space.bonus.includes(SpaceBonus.STEEL)) {
       out.push(Resource.STEEL);
     }
-    if (space.bonus.includes(SpaceBonus.TITANIUM)) {
+    if (anyResource || space.bonus.includes(SpaceBonus.TITANIUM)) {
       out.push(Resource.TITANIUM);
     }
     return out;
@@ -131,7 +133,8 @@ export abstract class MiningCard extends Card implements IProjectCard {
     return player.game.board.getAvailableSpacesOnLand(player, canAffordOptions)
       // Ares-only: exclude spaces already covered (which is only returned if the tile is a hazard tile.)
       .filter((space) => space.tile === undefined)
-      .filter((space) => space.bonus.includes(SpaceBonus.STEEL) || space.bonus.includes(SpaceBonus.TITANIUM));
+      .filter((space) => space.bonus.includes(SpaceBonus.STEEL) || space.bonus.includes(SpaceBonus.TITANIUM) ||
+        space.bonus.includes(SpaceBonus.STANDARD_RESOURCE));
   }
 
   private getTileType(bonus: SpaceBonus.STEEL | SpaceBonus.TITANIUM): TileType {
@@ -159,7 +162,8 @@ export abstract class MiningCard extends Card implements IProjectCard {
     return (space) => {
       if (placeable.has(space.id) &&
           !space.bonus.includes(SpaceBonus.STEEL) &&
-          !space.bonus.includes(SpaceBonus.TITANIUM)) {
+          !space.bonus.includes(SpaceBonus.TITANIUM) &&
+          !space.bonus.includes(SpaceBonus.STANDARD_RESOURCE)) {
         return 'wrong-bonus-type';
       }
       return undefined;
@@ -181,11 +185,13 @@ export abstract class MiningCard extends Card implements IProjectCard {
   }
 
   protected spaceSelected(player: IPlayer, space: Space): void {
-    const bonusResources = [];
-    if (space.bonus.includes(SpaceBonus.STEEL)) {
+    // A standard resource placement bonus can be steel or titanium.
+    const anyResource = space.bonus.includes(SpaceBonus.STANDARD_RESOURCE);
+    const bonusResources: Array<Resource> = [];
+    if (anyResource || space.bonus.includes(SpaceBonus.STEEL)) {
       bonusResources.push(Resource.STEEL);
     }
-    if (space.bonus.includes(SpaceBonus.TITANIUM)) {
+    if (anyResource || space.bonus.includes(SpaceBonus.TITANIUM)) {
       bonusResources.push(Resource.TITANIUM);
     }
 

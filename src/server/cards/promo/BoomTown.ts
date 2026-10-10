@@ -56,7 +56,8 @@ export class BoomTown extends PreludeCard {
 
   private availableSpaces(player: IPlayer): ReadonlyArray<Space> {
     return player.game.board.getAvailableSpacesForType(player, 'city')
-      .filter((space) => space.bonus.includes(SpaceBonus.STEEL) || space.bonus.includes(SpaceBonus.TITANIUM));
+      .filter((space) => space.bonus.includes(SpaceBonus.STEEL) || space.bonus.includes(SpaceBonus.TITANIUM) ||
+        space.bonus.includes(SpaceBonus.STANDARD_RESOURCE));
   }
 
   public override bespokeCanPlay(player: IPlayer): boolean {
@@ -93,7 +94,8 @@ export class BoomTown extends PreludeCard {
     return (space) => {
       if (cityPlaceable.has(space.id) &&
           !space.bonus.includes(SpaceBonus.STEEL) &&
-          !space.bonus.includes(SpaceBonus.TITANIUM)) {
+          !space.bonus.includes(SpaceBonus.TITANIUM) &&
+          !space.bonus.includes(SpaceBonus.STANDARD_RESOURCE)) {
         return 'wrong-bonus-type';
       }
       return undefined;

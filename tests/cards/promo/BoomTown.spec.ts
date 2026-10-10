@@ -179,4 +179,16 @@ describe('BoomTown', () => {
     // The prose row upstream drew instead must be gone (the premium face drops it).
     expect(JSON.stringify(root)).to.not.include('"type":"text"');
   });
+
+  // Upstream 49716e6782 — a standard resource placement bonus (Amazonis Planitia) can be steel or titanium.
+  it('play, offers spaces with a standard resource bonus', () => {
+    const space = game.board.getAvailableSpacesForType(player, 'city').find((space) => space.bonus.length === 0)!;
+    space.bonus = [SpaceBonus.STANDARD_RESOURCE];
+
+    card.play(player);
+    runAllActions(game);
+    const selectSpace = cast(player.popWaitingFor(), SelectSpace);
+
+    expect(selectSpace.spaces).includes(space);
+  });
 });
