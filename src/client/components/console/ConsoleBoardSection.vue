@@ -74,7 +74,7 @@ import {
   planetFocusState, captureGlobalParams, PlanetFocusPhase,
 } from '@/client/console/planetFocus';
 import {boardBeatParkState, boardBeatDisplayParams, boardBeatDisplayClaims} from '@/client/console/boardBeatPark';
-import {registerBoardGeometryProbe, bumpBoardSpaceEpoch} from '@/client/console/boardSpaceGeometry';
+import {registerBoardGeometryProbe, boardSpaceEpoch, bumpBoardSpaceEpoch} from '@/client/console/boardSpaceGeometry';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
 import {cssLengthPx} from '@/client/console/cssUnits';
@@ -522,6 +522,20 @@ export default defineComponent({
       return this.selectedSpaceId;
     },
     cursorPos(): {x: number, y: number} | undefined {
+      // THE MEASUREMENT IS LAYOUT, so this computed subscribes to the board's
+      // own geometry epoch (bumped on every converged fit — `boardGeometryCalm`)
+      // BEFORE it measures. A placement routinely becomes ACTIVE while the
+      // stage is still `display: none` (the hand's landing ritual plays over
+      // it — the staged cell is live from the press): measured then, the
+      // stage is 0 px wide, the answer is «no position», and a computed whose
+      // only other dependencies are the cell id and the host would keep that
+      // answer for as long as the cursor stays on that cell. TR39 Canyon
+      // Carving was the first placement whose first legal cell WAS the cell
+      // seeded at boot (the ocean on 33) — the reticle never existed on its
+      // source level, while TR14 escaped by moving the cursor to its city.
+      // With the epoch read, the fit that follows the stage's reveal
+      // re-evaluates the position.
+      void boardSpaceEpoch();
       const id = this.cursorSpaceId;
       const host = this.cursorHost;
       if (id === undefined || host === undefined) {
@@ -538,7 +552,7 @@ export default defineComponent({
       }
       const hr = host.getBoundingClientRect();
       if (hr.width < 40) {
-        return undefined; // board hidden — nothing to place the reticle on
+        return undefined; // board hidden — nothing to place the reticle on (re-asked on the next fit, see above)
       }
       const scale = hr.width / BOARD_CONT_W;
       const r = el.getBoundingClientRect();
