@@ -99,11 +99,15 @@
        this graphic on every profile (measured, final polish A.2: at 1.15 the two-row Climate formula was
        133 px tall and the panel could not shrink below 10.6rem), and the cards are the mode's object. */
     --con-parl-info-mech-zoom: calc(0.95 * var(--con-ui-scale, 1));
-    /* THE HEAD LINE's reserved crumb width: the wider mode name plus a stage
-       tail («ГОЛОСОВАНИЕ › ОПЛАТА») fits; «ОСМОТР» leaves the rest empty. The
-       delegates zone starts where this reserve ends — the same x in every
-       mode, whatever the crumb says. */
-    --con-parl-crumb-w: 15.5rem;
+    /* THE HEAD LINE's reserved crumb width: the widest crumb the Parliament
+       prints — the hosted chairmanship step's «ПРЕДСЕДАТЕЛЬСТВО › КАРЬЕРА»
+       (PL-148: at 15.5rem it ellipsized to «ПРЕДСЕДАТЕЛЬС…» on every
+       profile — measured 367 px needed at fhd, 851 px on 4K) — fits whole;
+       «ОСМОТР» leaves the rest empty. The delegates zone starts where this
+       reserve ends — the same x in every mode, whatever the crumb says; it is
+       the zone that YIELDS width (its piles' captions by an ellipsis in their
+       own box), never the crumb. */
+    --con-parl-crumb-w: 19rem;
     /* The tiers' FIXED heights — browse and every stage share them, so a
        descent moves nothing above or below.
 
@@ -175,9 +179,11 @@
            the head's own token now, and every workspace pins its identity to it from the top. */
         .con-wshead__ident { min-height: var(--con-wshead-line); align-items: center; }
         .con-wshead__aux { flex: 0 0 var(--con-parl-crumb-w); min-width: 0; }
+        /* The delegates zone takes what is LEFT of the line (`flex-basis: 0` — it never bids against the
+           crumb's reserve) and yields first when the two do not both fit (PL-148). */
         .con-wshead__trailing {
             margin-left: 0;
-            flex: 1 1 auto;
+            flex: 1 1 0;
             min-width: 0;
             justify-content: flex-start;
         }
@@ -840,11 +846,18 @@
         align-items: center;
         justify-content: flex-start;
         gap: 0 .42rem;
+        flex: 0 1 auto;
         min-width: 0;
         max-width: 100%;
         padding: .04rem 0;
         white-space: nowrap;
     }
+    /* THE STRICT ORDER OF YIELDING (PL-148, `expectRailHonest`): the piles are the zone's last members and the
+       first to give — their captions («КОЛОДА РЕЗОЛЮЦИЙ») ellipsize in their OWN block box, the pile and its count
+       stay whole; a seat's name is next (its own cap below); the cubes never. */
+    &__seat--deck { flex: 0 1 auto; min-width: 0; }
+    &__seat--deck .con-parl__seat-place { min-width: 0; max-width: 100%; }
+    &__seat--deck .con-parl__seat-key { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     &__seat {
         display: inline-flex;
         align-items: center;
@@ -1533,7 +1546,7 @@ html.con-fx-lite .con-parl__vote-cube--counted { animation: none; }
    three cards keep their height. ── */
 html.con-profile-handheld .con-parl {
     gap: .3rem;
-    --con-parl-crumb-w: 14.5rem;
+    --con-parl-crumb-w: 18.5rem;
     --con-parl-mid-h: 8.7rem;
     --con-parl-agenda-h: 3.6rem;
     --con-parl-node-row: 1.18rem;
@@ -1645,7 +1658,7 @@ html.con-profile-handheld .con-parl {
 /* ── the TV ladder (10-foot): the same composition, couch type — nothing
    readable below the .8rem floor, focus rings stronger. ── */
 html.con-profile-tv .con-parl {
-    --con-parl-crumb-w: 19rem;
+    --con-parl-crumb-w: 21.5rem;
     --con-parl-mid-h: 12.4rem;
     --con-parl-agenda-h: 4.9rem;
     /* THE TRACK IS READ FROM THE COUCH (К-T4, TR37): the nodes, their badges, the ring and the rail at the size a
