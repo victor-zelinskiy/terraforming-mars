@@ -2019,13 +2019,13 @@ function capitalMoveFacts(
     }
     const loss = after[i] < before[i];
     const own = owner === player.color;
+    // No description: the title names the event, the VP badge its size, the block heading its time — and the move's
+    // destination reading is the fullest dossier of the family (the cell's own result, the parties, the former cell);
+    // the rule's sentence sat under this row as four lines at 4K and pushed «ПРЕЖНЯЯ КЛЕТКА» off the panel (PL-132).
     out.push({
       ...vpFact(`move-capital-${capital.id}`, loss && own ? 'tile-departure' : 'future-scoring',
         loss ? 'Capital loses an adjacent ocean' : 'Capital gains an adjacent ocean',
-        recipient, before[i], after[i],
-        loss ?
-          'Capital scores +1 VP per adjacent ocean at game end — one fewer once this tile is gone.' :
-          'Capital scores +1 VP per adjacent ocean at game end — one more once this tile lands.'),
+        recipient, before[i], after[i]),
       severity: loss ? (own ? 'warning' : 'info') : (own ? 'positive' : 'warning'),
       spaces: [capital.id],
     });

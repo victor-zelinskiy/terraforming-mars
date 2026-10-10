@@ -90,7 +90,6 @@
   "The player who placed the ocean keeps the terraform rating it paid.": "Игрок, разместивший океан, сохраняет полученный за него РТ.",
   "Capital loses an adjacent ocean": "Столица теряет соседний океан",
   "Capital gains an adjacent ocean": "Столица получает соседний океан",
-  "Capital scores +1 VP per adjacent ocean at game end — one more once this tile lands.": "Столица даёт +1 ПО за каждый соседний океан в конце игры — на один больше, когда этот тайл сядет.",
   "Capital VP": "ПО Столицы",
   "Capital: unchanged, ${0} VP": "Столица: без изменений, ${0} ПО",
   "Capital scores +1 VP per adjacent ocean at game end — one fewer once this tile is gone.": "Столица даёт +1 ПО за каждый соседний океан в конце игры — на один меньше, когда этот тайл уйдёт.",
