@@ -183,6 +183,9 @@ import {PoliticalThinkTank} from '../../../src/server/cards/turmoilRedux/Politic
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCensus';
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
+import {CanyonCarving} from '../../../src/server/cards/turmoilRedux/CanyonCarving';
+import {Capital} from '../../../src/server/cards/base/Capital';
+import {oceanMoveOffer} from '../../../src/server/boards/oceanMove';
 import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
 import {RedMuseum, museumBlockers} from '../../../src/server/cards/turmoilRedux/RedMuseum';
 import {NovaCity} from '../../../src/server/cards/turmoilRedux/NovaCity';
@@ -1287,6 +1290,73 @@ parliamentFixture('biological-simulations', {
     parliament.assertLedger(game);
   },
 });
+// ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
+//    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
+//    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:
+//      · the ocean O₁ on 33 — an ocean RESERVE with two plants printed; it may move;
+//      · beside it the empty reserve B₁ (34, two plants printed) and the plant land B₂ (42), which touches ANOTHER
+//        ocean O₂ (43, never beside O₁) — a landing that pays a printed plant AND one other ocean's 2 M€, while the
+//        lifted ocean beside it pays nothing;
+//      · RED'S CAPITAL on 24 — beside O₁ and beside NEITHER B: red scores its one adjacent ocean today and loses it by
+//        the move (the rival's loss is NAMED in the dossier); the cell is also the occupied neighbour;
+//      · O₂ has free cells of its own, so the source level offers TWO oceans — the cursor lands on the first.
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client watches the move).
+//    The ids are the e2e spec's own constants (`tests/e2e/console-canyon-carving.spec.ts`); the engine's reading of the
+//    arrangement is asserted below, so a board change fails HERE, by name. ──
+const CANYON_CARVING_SITE = {ocean: '33', reserve: '34', land: '42', other: '43', capital: '24'} as const;
+parliamentFixture('canyon-carving', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+    seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    for (const id of [CANYON_CARVING_SITE.ocean, CANYON_CARVING_SITE.other]) {
+      cell(id).tile = {tileType: TileType.OCEAN};
+      cell(id).player = undefined;
+    }
+    p2.playedCards.push(new Capital());
+    cell(CANYON_CARVING_SITE.capital).tile = {tileType: TileType.CAPITAL, card: CardName.CAPITAL};
+    cell(CANYON_CARVING_SITE.capital).player = p2;
+    p1.cardsInHand.push(new CanyonCarving());
+  },
+  expect: ({game, parliament, p1, p2}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.CANYON_CARVING);
+    const offer = oceanMoveOffer(p1);
+    const source = offer.sources.find((s) => s.from.id === CANYON_CARVING_SITE.ocean);
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    const adjacent = (a: string, b: string) => game.board.getAdjacentSpaces(cell(a)).some((s) => s.id === b);
+    const facts = {
+      playable: card !== undefined && p1.canPlay(card) !== false,
+      ruling: parliament.rulingParty(),
+      sources: offer.sources.map((s) => s.from.id).join(','),
+      reach: source?.to.map((s) => s.id).join(',') ?? '',
+      disabled: offer.disabledSources.length,
+      landBonus: cell(CANYON_CARVING_SITE.land).bonus.join(','),
+      reserveBonus: cell(CANYON_CARVING_SITE.reserve).bonus.join(','),
+      otherBesideLand: adjacent(CANYON_CARVING_SITE.other, CANYON_CARVING_SITE.land),
+      otherBesideOcean: adjacent(CANYON_CARVING_SITE.other, CANYON_CARVING_SITE.ocean),
+      capitalBesideOcean: adjacent(CANYON_CARVING_SITE.capital, CANYON_CARVING_SITE.ocean),
+      capitalBesideLand: adjacent(CANYON_CARVING_SITE.capital, CANYON_CARVING_SITE.land),
+      capitalBesideReserve: adjacent(CANYON_CARVING_SITE.capital, CANYON_CARVING_SITE.reserve),
+      redCardVp: p2.getVictoryPoints().victoryPoints,
+      oceans: game.board.getOceanSpaces().length,
+      money: p1.megaCredits,
+    };
+    if (!facts.playable || facts.ruling !== PartyName.GREENS || facts.sources !== `${CANYON_CARVING_SITE.ocean},${CANYON_CARVING_SITE.other}` ||
+        source === undefined || !source.to.some((s) => s.id === CANYON_CARVING_SITE.reserve) || !source.to.some((s) => s.id === CANYON_CARVING_SITE.land) ||
+        source.to.some((s) => s.id === CANYON_CARVING_SITE.capital) || facts.disabled !== 0 ||
+        facts.landBonus !== String(SpaceBonus.PLANT) || facts.reserveBonus !== `${SpaceBonus.PLANT},${SpaceBonus.PLANT}` ||
+        !facts.otherBesideLand || facts.otherBesideOcean || !facts.capitalBesideOcean || facts.capitalBesideLand || facts.capitalBesideReserve ||
+        facts.redCardVp !== 1 || facts.oceans !== 2 || facts.money < 6) {
+      throw new Error(`the canyon-carving fixture expected a playable card under the Greens' starting rule, TWO plain oceans (${CANYON_CARVING_SITE.ocean}, ${CANYON_CARVING_SITE.other}) with ${CANYON_CARVING_SITE.ocean} reaching ${CANYON_CARVING_SITE.reserve} and ${CANYON_CARVING_SITE.land} but not the Capital's cell, red's Capital beside ${CANYON_CARVING_SITE.ocean} only (1 VP), O₂ beside ${CANYON_CARVING_SITE.land} only — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── TR31 · NATIONALIST MOVEMENT — a card's RALLY of neutral delegates as the OUTCOME of its play
 //    (docs/TURMOIL_REDUX_NATIONALIST_MOVEMENT.md): blue's action phase, the card in hand, 12 M€; the
 //    Industrialists rule QUIETLY by Central Power Grid (an enacted card, so the Reds' card may stand in the

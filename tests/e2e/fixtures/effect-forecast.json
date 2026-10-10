@@ -629,7 +629,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791592444926,
+ "createdTimeMs": 1791636349376,
  "currentSeed": 690500311501,
  "deferredActions": [],
  "donePlayers": [],
@@ -649,7 +649,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791592444925
+   "timestamp": 1791636349376
   },
   {
    "message": "Good luck ${0}!",
@@ -659,7 +659,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791592444926,
+   "timestamp": 1791636349376,
    "playerId": "p-player1-id"
   },
   {
@@ -670,7 +670,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791592444926,
+   "timestamp": 1791636349376,
    "playerId": "p-player2-id"
   },
   {
@@ -681,7 +681,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791592444926,
+   "timestamp": 1791636349376,
    "type": 1
   },
   {
@@ -696,7 +696,7 @@
      "value": "Manutech"
     }
    ],
-   "timestamp": 1791592444926,
+   "timestamp": 1791636349376,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -718,7 +718,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1791592444926,
+   "timestamp": 1791636349377,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -735,7 +735,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791592444927,
+   "timestamp": 1791636349377,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -752,7 +752,7 @@
      "value": "Pharmacy Union"
     }
    ],
-   "timestamp": 1791592444928,
+   "timestamp": 1791636349377,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -778,7 +778,7 @@
      }
     }
    ],
-   "timestamp": 1791592444928,
+   "timestamp": 1791636349378,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -797,7 +797,7 @@
      ]
     }
    ],
-   "timestamp": 1791592444928,
+   "timestamp": 1791636349378,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -814,7 +814,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791592444928,
+   "timestamp": 1791636349378,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -839,7 +839,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791592444929,
+   "timestamp": 1791636349379,
    "correlationId": 5,
    "parentId": 7,
    "role": "effect-result"
@@ -1250,7 +1250,7 @@
   "Planner",
   "Hoverlord"
  ],
- "name": "Kinetic Magnet Beam",
+ "name": "Rarefied Fusion Trace",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1384,11 +1384,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 4,
-    "startedAt": 1791592444930,
+    "sumElapsed": 3,
+    "startedAt": 1791636349379,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791592444930
+    "lastStoppedAt": 1791636349379
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1501,11 +1501,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 4,
-    "startedAt": 1791592444927,
+    "sumElapsed": 3,
+    "startedAt": 1791636349377,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791592444930
+    "lastStoppedAt": 1791636349379
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

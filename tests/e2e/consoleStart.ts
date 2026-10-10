@@ -2413,6 +2413,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR38 Biological Simulations: the Greens ruling by the starting rule, TR38 on blue's table with 2 data, Tardigrades
   // in hand — the table's answer to a PLAY flies (К-S1) and a PRODUCTION answer follows the action's step.
   'biological-simulations' |
+  'canyon-carving' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

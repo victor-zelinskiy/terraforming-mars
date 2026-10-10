@@ -595,7 +595,7 @@
    "Teractor"
   ]
  },
- "createdTimeMs": 1791592444773,
+ "createdTimeMs": 1791636349231,
  "currentSeed": 467049282315,
  "deferredActions": [],
  "donePlayers": [],
@@ -622,7 +622,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791592444774
+   "timestamp": 1791636349231
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -639,7 +639,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791592444774
+   "timestamp": 1791636349231
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -656,7 +656,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791592444774
+   "timestamp": 1791636349231
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -673,7 +673,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791592444774
+   "timestamp": 1791636349231
   },
   {
    "message": "The id of this game is ${0}",
@@ -683,7 +683,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1791592444774
+   "timestamp": 1791636349231
   },
   {
    "message": "Good luck ${0}!",
@@ -693,7 +693,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791592444774,
+   "timestamp": 1791636349231,
    "playerId": "p-player1-id"
   },
   {
@@ -704,7 +704,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791592444774,
+   "timestamp": 1791636349231,
    "type": 1
   },
   {
@@ -719,7 +719,7 @@
      "value": "Interplanetary Cinematics"
     }
    ],
-   "timestamp": 1791592444774,
+   "timestamp": 1791636349232,
    "correlationId": 5,
    "parentId": 5,
    "role": "root-action",
@@ -741,7 +741,7 @@
      "value": "steel"
     }
    ],
-   "timestamp": 1791592444774,
+   "timestamp": 1791636349232,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -758,7 +758,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791592444774,
+   "timestamp": 1791636349232,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -993,7 +993,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Static Inertia Wave",
+ "name": "Residual Inertia Point",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1099,10 +1099,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791592444775,
+    "startedAt": 1791636349232,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791592444775
+    "lastStoppedAt": 1791636349232
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
