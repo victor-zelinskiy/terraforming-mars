@@ -1670,7 +1670,8 @@ function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer:
   if (source !== undefined) {
     facts.push({
       id: 'move-reach', category: 'tile-move', timing: 'rule', severity: 'info', recipient: {kind: 'neutral'},
-      title: 'Spaces to move to: ${0}',
+      // The family's own word for the move (RU: a city «переселяется», an ocean «переносится»).
+      title: kind === 'ocean-move' ? 'Spaces to move the ocean to: ${0}' : 'Spaces to move to: ${0}',
       params: [String(source.to.length)],
       spaces: source.to.map((to) => to.id),
     });

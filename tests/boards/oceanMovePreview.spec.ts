@@ -87,6 +87,7 @@ describe('oceanMovePreview', () => {
       expect(preview.placesTile, 'lifting an ocean puts nothing down yet').is.false;
       const reach = allFacts(preview).find((f) => f.id === 'move-reach')!;
       expect(reach.category).eq('tile-move');
+      expect(reach.title, 'the ocean\'s own word for the move').eq('Spaces to move the ocean to: ${0}');
       expect(reach.params).deep.eq(['6']);
       expect(reach.spaces).to.have.members(['24', '25', '34', '42', '41', '32']);
       expect(allFacts(preview).some((f) => f.id === 'move-scores-now'), 'an ocean scores nothing of its own').is.false;

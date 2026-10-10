@@ -226,6 +226,7 @@
   "Party effect: draw a card for each city you place on Mars": "Эффект партии: 1 карта за каждый город на Марсе",
 
   "Spaces to move to: ${0}": "Клеток для переселения: ${0}",
+  "Spaces to move the ocean to: ${0}": "Клеток для переноса: ${0}",
   "Scores now: ${0} VP": "Сейчас приносит: ${0} ПО",
   "Only the top tier moves — the stack stays: ×${0} → ×${1}": "Уйдёт только верхний ярус — стопка остаётся: ×${0} → ×${1}",
   "City VP": "ПО города",
