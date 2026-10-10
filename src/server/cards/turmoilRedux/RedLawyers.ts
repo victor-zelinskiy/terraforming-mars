@@ -6,7 +6,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {Tag} from '../../../common/cards/Tag';
 import {PartyName} from '../../../common/turmoil/PartyName';
 import {CardRenderer} from '../render/CardRenderer';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionPreview, AgendaWalkModel} from '../../../common/models/ActionPreviewModel';
 import {ChairmanSeat} from '../../parliament/quests/ChairmanSeat';
 import * as actionPreviews from '../actionPreviews';
 
@@ -124,8 +124,13 @@ export class RedLawyers extends Card implements IProjectCard {
    * — and the SHOW step the console names its coming stage from. A cut at the
    * track's end is NAMED here («1 of 2 · end of the track»; «0 of 2» at 12).
    */
+  /** The walk this play would make — the ONE reading of the preview, the hand's plate and the inspector. */
+  public agendaWalkForecast(player: IPlayer): AgendaWalkModel {
+    return actionPreviews.agendaWalkModel(player, RED_LAWYERS_STEPS);
+  }
+
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const walk = actionPreviews.agendaWalkModel(player, RED_LAWYERS_STEPS);
+    const walk = this.agendaWalkForecast(player);
     return actionPreviews.playPreview(this, player,
       actionPreviews.agendaWalkEffects(player, walk),
       [actionPreviews.agendaWalkStep(walk)]);

@@ -38,6 +38,7 @@ import {repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {countedMetricParts, metricLabelKeyOf} from '@/client/console/parliament/influenceYieldModel';
+import type {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 
 // The premium payment PRESENTATION model lives in the SHARED `paymentPlan`
 // module so EVERY payment surface (card play, blue action, standalone
@@ -345,6 +346,31 @@ export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
     rows.push({key: '${0} of ${1} · end of the track', params: [String(walk.walked), String(walk.printed)]});
   }
   return rows;
+}
+
+/** The translator a host hands the pure row helpers (`translateText` / `translateTextWithParams`). */
+export type RowTranslator = {text: (key: string) => string, params: (key: string, params: Array<string>) => string};
+
+/** One «next» row, translated: the key, then its reading «a · b · c» when it has one. */
+export function nextRowText(row: NextRowKey, t: RowTranslator): string {
+  const head = row.params === undefined ? t.text(row.key) : t.params(row.key, [...row.params]);
+  return row.parts === undefined || row.parts.length === 0 ? head : `${head} ${row.parts.map((part) => nextRowText(part, t)).join(' · ')}`;
+}
+
+/**
+ * THE INSPECTOR'S «ДЛЯ ВАС» of a card that walks the Agenda (TR42 decision 5
+ * (в)): the SAME rows the composer reads before the press — why, how far, a
+ * cut, or the named zero — from the walk the server read for the viewer's own
+ * hand card (`CardModel.agendaWalk`). The composer is where the play is
+ * DECIDED, the inspector where it is READ; one function, so the two cannot
+ * say two things. Last in the rules panel (it has no graphic anchor), the
+ * resolution inspector's own «For you» block.
+ */
+export function agendaWalkForYouAnnotation(walk: AgendaWalkModel, t: RowTranslator): CardAnnotation {
+  const rows = agendaWalkNextRows(walk).map((row, i) => ({
+    id: `group:you:${i}`, text: '${0}', params: [nextRowText(row, t)], special: false, anyPlayer: false,
+  }));
+  return {id: 'group:you', kind: 'note', labelKey: 'For you', rows, special: false, anyPlayer: false, order: 99};
 }
 
 /**

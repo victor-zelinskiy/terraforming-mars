@@ -7,7 +7,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {PartyName} from '../../../common/turmoil/PartyName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionPreview, AgendaWalkModel} from '../../../common/models/ActionPreviewModel';
 import {ResolutionCountMetricModel, thresholdBreakdown} from '../../../common/parliament/resolutionCounts';
 import {ChairmanSeat} from '../../parliament/quests/ChairmanSeat';
 import * as actionPreviews from '../actionPreviews';
@@ -138,9 +138,14 @@ export class GreenAllegiance extends Card implements IProjectCard {
    * SHOW step the console names its coming stage from. Zero sets: no walk
    * chip — the breakdown alone says why the marker stays.
    */
-  public cardPlayPreview(player: IPlayer): ActionPreview {
+  /** The walk this play would make, WITH why it is this long — the ONE reading of the preview, the hand's plate and the inspector. */
+  public agendaWalkForecast(player: IPlayer): AgendaWalkModel {
     const counted = greenAllegianceSteps(player);
-    const walk = actionPreviews.agendaWalkModel(player, counted.sets, counted);
+    return actionPreviews.agendaWalkModel(player, counted.sets, counted);
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    const walk = this.agendaWalkForecast(player);
     return actionPreviews.playPreview(this, player,
       actionPreviews.agendaWalkEffects(player, walk),
       [actionPreviews.agendaWalkStep(walk)]);

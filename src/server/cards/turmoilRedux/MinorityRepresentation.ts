@@ -4,7 +4,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionPreview, AgendaWalkModel} from '../../../common/models/ActionPreviewModel';
 import {ChairmanSeat} from '../../parliament/quests/ChairmanSeat';
 import * as actionPreviews from '../actionPreviews';
 
@@ -115,8 +115,13 @@ export class MinorityRepresentation extends Card implements IProjectCard {
    * reads the Greens' «+2 M€» from), the influence the walk changes — and the
    * SHOW step the console names its coming stage from.
    */
+  /** The walk this play would make — the ONE reading of the preview, the hand's plate and the inspector. */
+  public agendaWalkForecast(player: IPlayer): AgendaWalkModel {
+    return actionPreviews.agendaWalkModel(player, MINORITY_REPRESENTATION_STEPS);
+  }
+
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const walk = actionPreviews.agendaWalkModel(player, MINORITY_REPRESENTATION_STEPS);
+    const walk = this.agendaWalkForecast(player);
     return actionPreviews.playPreview(this, player,
       actionPreviews.agendaWalkEffects(player, walk),
       [actionPreviews.agendaWalkStep(walk)]);

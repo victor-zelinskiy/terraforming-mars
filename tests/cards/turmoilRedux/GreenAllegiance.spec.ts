@@ -27,6 +27,8 @@ import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {questGateOf, quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
 import {runAllActions} from '../../TestingUtils';
 import {recomputeRootImpact} from '../../../src/client/components/notifications/notificationModel';
+import {cardsToModel} from '../../../src/server/models/ModelUtils';
+import {RedLawyers} from '../../../src/server/cards/turmoilRedux/RedLawyers';
 
 /**
  * TR42 — GREEN ALLEGIANCE: the walk of TR04 / TR37 with its length COUNTED —
@@ -310,6 +312,23 @@ describe('GreenAllegiance', () => {
       expect(branch.effects[0].noteParams, 'one note per chip — the cut wins').is.undefined;
       expect(walkOf(t)).deep.include({printed: 3, walked: 2});
       expect(walkOf(t).basis?.sets).eq(3);
+    });
+
+    it('the OWN hand card carries the same walk (`CardModel.agendaWalk` — the hand plate and the inspector read it); no opt-in, none', () => {
+      const t = table(33);
+      const [own] = cardsToModel(t.p1, [t.card], {showCalculatedCost: true, unplayableReasons: true});
+      expect(own.agendaWalk, 'the preview\'s walk, word for word').deep.eq(walkOf(t));
+      const [plain] = cardsToModel(t.p1, [t.card], {showCalculatedCost: true});
+      expect(plain.agendaWalk, 'only the own hand opts in').is.undefined;
+      const zero = table(23);
+      expect(cardsToModel(zero.p1, [zero.card], {unplayableReasons: true})[0].agendaWalk).deep.include({printed: 0, walked: 0});
+      const lawyers = table(33, 11);
+      const printed = cardsToModel(lawyers.p1, [new RedLawyers()], {unplayableReasons: true})[0].agendaWalk;
+      expect(printed, 'a printed walk: the track\'s cut is its news').deep.include({from: 11, to: 12, printed: 2, walked: 1});
+      expect(printed, '…and it carries no basis').not.to.have.property('basis');
+      const [game, p1] = testGame(2);
+      expect(game.parliament).is.undefined;
+      expect(cardsToModel(p1, [new GreenAllegiance()], {unplayableReasons: true})[0].agendaWalk, 'outside the Parliament: nothing').is.undefined;
     });
 
     it('PARITY: the preview\'s walk is the play\'s result, and the preview mutates nothing', () => {

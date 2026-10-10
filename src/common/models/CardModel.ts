@@ -11,7 +11,7 @@ import {Message} from '../logs/Message';
 // `import type`: `ActionPreviewModel` imports `PlayerInputModel`, which imports
 // THIS file — a value import would close that cycle at runtime (the same reason
 // `PlayerInputModel` type-imports `ActionEffect`).
-import type {ActionEffect} from './ActionPreviewModel';
+import type {ActionEffect, AgendaWalkModel} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
 
 /**
@@ -88,6 +88,15 @@ export interface CardModel {
     // the viewer's OWN cards in hand (in their private PlayerViewModel) and
     // only when the card is currently unplayable. See UnplayableReason.
     unplayableReasons?: ReadonlyArray<UnplayableReason>;
+    /**
+     * The Agenda walk PLAYING this card would make (Turmoil Redux — a card that
+     * «advances the Agenda marker»: TR04 / TR12 / TR37 / TR42), read by the
+     * server through the card's own `agendaWalkForecast` — the very reading its
+     * play preview hands the composer. Set only for the viewer's OWN cards in
+     * hand, inside the Mars Parliament. The hand tile's forecast plate («★ 2»)
+     * and the inspector's «ДЛЯ ВАС» row read it; the client computes no step.
+     */
+    agendaWalk?: AgendaWalkModel;
     // Structured reasons this card's activatable ACTION can't be used right now.
     // Set for (a) the viewer's OWN tableau (their PublicPlayerModel is the
     // self-model) — an action card whose action is currently unavailable AND not

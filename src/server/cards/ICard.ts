@@ -22,7 +22,7 @@ import {IStandardProjectCard} from './IStandardProjectCard';
 import {Warning} from '../../common/cards/Warning';
 import {PreludeNeed} from '../../common/cards/PreludeOutlook';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {ActionPreview} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
@@ -107,6 +107,17 @@ export interface ICard {
    * `src/server/cards/actionPreviews.ts`.
    */
   cardPlayPreview?(player: IPlayer): ActionPreview;
+  /**
+   * Optional READ-ONLY reading of the Agenda walk PLAYING this card would make
+   * (Turmoil Redux TR04 / TR12 / TR37 / TR42 — a card whose play «advances the
+   * Agenda marker»): the same `AgendaWalkModel` its `cardPlayPreview` hands the
+   * composer — the ONE reading, so the play preview, the hand tile's forecast
+   * plate and the inspector's «ДЛЯ ВАС» row cannot read apart. A counted walk
+   * carries its breakdown (`basis`). The viewer's OWN hand cards carry it on
+   * `CardModel.agendaWalk` (inside the Mars Parliament only). MUST NOT mutate
+   * game state.
+   */
+  agendaWalkForecast?(player: IPlayer): AgendaWalkModel;
   /**
    * The card GRANTS N bonus actions when played (Head Start's «immediately
    * take 2 actions»). Co-located on the card class; exported to `ClientCard`

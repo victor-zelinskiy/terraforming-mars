@@ -146,6 +146,11 @@ export function cardsToModel(
     if (unplayableReasonList !== undefined) {
       model.unplayableReasons = unplayableReasonList;
     }
+    // The walk this play would make (a card that advances the Agenda marker) — the OWN hand only (the same opt-in
+    // as the reasons), inside the Mars Parliament: the card's own reading, never a second one.
+    if (options.unplayableReasons === true && card.agendaWalkForecast !== undefined && player.game.parliament !== undefined) {
+      model.agendaWalk = card.agendaWalkForecast(player);
+    }
     if (actionReasonList !== undefined) {
       model.actionReasons = actionReasonList;
     }

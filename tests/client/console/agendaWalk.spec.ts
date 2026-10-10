@@ -27,7 +27,7 @@ import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 import {CardModel} from '@/common/models/CardModel';
 import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
-import {agendaWalkNextRows, heroRewardEffectsOf, playCommitVerb, playDoorOf} from '@/client/console/consolePlayCardComposer';
+import {agendaWalkForYouAnnotation, agendaWalkNextRows, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
 import {AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 import {thresholdBreakdown} from '@/common/parliament/resolutionCounts';
@@ -578,6 +578,26 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       ]}]);
       expect(agendaWalkNextRows(sets(14, 1))[0].parts?.[3], 'the solo start: 11 to the first set').deep.eq({key: '${0} to the first set', params: ['11']});
       expect(rows.some((r) => r.key.startsWith('Agenda — the marker walks')), 'no stage is promised').is.false;
+    });
+
+    // A transparent translator: the key with its params spliced in — the shape, not the language, is under test.
+    const t: RowTranslator = {text: (key) => key, params: (key, params) => params.reduce((s, p, i) => s.replace('${' + i + '}', p), key)};
+
+    it('a row with a READING reads «key a · b · c» — the composer\'s and the inspector\'s one translation', () => {
+      expect(nextRowText(agendaWalkNextRows(sets(33, 1))[0], t)).eq('Agenda steps by TR: TR 33 · threshold 20 · 2 complete set(s) · 2 to the next set');
+      expect(nextRowText({key: 'Agenda — the marker walks 1 step in the Parliament'}, t)).eq('Agenda — the marker walks 1 step in the Parliament');
+    });
+
+    it('THE INSPECTOR\'S «ДЛЯ ВАС» is the composer\'s rows, one per line, in a note block (last in the panel — no anchor)', () => {
+      const block = agendaWalkForYouAnnotation(sets(33, 1), t);
+      expect(block).deep.include({id: 'group:you', kind: 'note', labelKey: 'For you'});
+      expect(block.rows.map((row) => row.params?.[0])).deep.eq([
+        'Agenda steps by TR: TR 33 · threshold 20 · 2 complete set(s) · 2 to the next set',
+        'Agenda — the marker walks 2 step(s) in the Parliament',
+      ]);
+      expect(agendaWalkForYouAnnotation(sets(23, 1), t).rows.map((row) => row.params?.[0]), 'the named zero, alone')
+        .deep.eq(['The Agenda marker stays: TR 23 · threshold 20 · no complete set of 5 · 2 to the first set']);
+      expect(agendaWalkForYouAnnotation(walk(1), t).rows, 'a printed walk cut at the end: the stage and the cut').has.lengthOf(2);
     });
   });
 

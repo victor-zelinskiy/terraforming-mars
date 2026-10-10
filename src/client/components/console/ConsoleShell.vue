@@ -1075,6 +1075,7 @@
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
                                  ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
+                                 :annotationsOverride="zoomCardForYouAnnotations"
                                  :suppressIds="zoomCoveredRequirements"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
@@ -1979,11 +1980,11 @@ import {forecastLayerAvailable} from '@/client/console/effectForecastModel';
 import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, tradeDestinationResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
-import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
+import {agendaWalkForYouAnnotation, buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
-import {cardHasRules, denserRulesTier, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
+import {cardHasRules, cardRuleAnnotations, denserRulesTier, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildZoomAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -9542,6 +9543,19 @@ export default defineComponent({
     zoomSideVisible(): boolean {
       return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined || this.zoomParliamentAnnotations !== undefined ||
         this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined;
+    },
+    /**
+     * A hand card that WALKS the Agenda (TR04 / TR12 / TR37 / TR42): its rules, then «ДЛЯ ВАС» — the walk the server
+     * read for the viewer's own hand card (`CardModel.agendaWalk`), in the composer's own rows (why · how far · a cut ·
+     * the named zero). Undefined for every other card: the rules panel reads the manifest as before.
+     */
+    zoomCardForYouAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
+      const name = this.zoomRulesCardName;
+      const walk = (this.consoleCardZoom.card as CardModel | undefined)?.agendaWalk;
+      if (name === undefined || walk === undefined) {
+        return undefined;
+      }
+      return [...cardRuleAnnotations(name, this.zoomCoveredRequirements), agendaWalkForYouAnnotation(walk, {text: translateText, params: translateTextWithParams})];
     },
     /** A parliament face's rules (Turmoil Redux) — only when the viewer is on a resolution / party entry. */
     zoomParliamentAnnotations(): ReadonlyArray<CardAnnotation> | undefined {

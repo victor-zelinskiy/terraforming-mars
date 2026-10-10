@@ -5,7 +5,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionPreview, AgendaWalkModel} from '../../../common/models/ActionPreviewModel';
 import {ChairmanSeat} from '../../parliament/quests/ChairmanSeat';
 import {DiscardPopularSupport} from '../../parliament/DiscardPopularSupport';
 import * as actionPreviews from '../actionPreviews';
@@ -115,8 +115,13 @@ export class PartySanctions extends Card implements IProjectCard {
    * `effects` chip: it depends on the area, and reads per area in the
    * Parliament.
    */
+  /** The walk this play would make — the ONE reading of the preview, the hand's plate and the inspector. */
+  public agendaWalkForecast(player: IPlayer): AgendaWalkModel {
+    return actionPreviews.agendaWalkModel(player, PARTY_SANCTIONS_STEPS);
+  }
+
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const walk = actionPreviews.agendaWalkModel(player, PARTY_SANCTIONS_STEPS);
+    const walk = this.agendaWalkForecast(player);
     return actionPreviews.playPreview(this, player,
       actionPreviews.agendaWalkEffects(player, walk),
       [actionPreviews.supportDiscardStep(this, this.sanction(player)), actionPreviews.agendaWalkStep(walk)]);

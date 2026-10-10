@@ -693,7 +693,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, NextRowKey,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -823,11 +823,8 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-/** One «next» row of the composer's pure helpers, translated: the key, then its reading «a · b · c» when it has one. */
-function nextRowText(row: NextRowKey): string {
-  const head = row.params === undefined ? translateText(row.key) : translateTextWithParams(row.key, [...row.params]);
-  return row.parts === undefined || row.parts.length === 0 ? head : `${head} ${row.parts.map(nextRowText).join(' · ')}`;
-}
+/** The composer's translator for the pure row helpers (`nextRowText`). */
+const ROW_TRANSLATOR: RowTranslator = {text: translateText, params: translateTextWithParams};
 
 // Pre-collect classification lives in the PURE `playChoiceMode` (inline sub /
 // hand-section pick / «Разыграно» tableau pick / honest follow-up) — see
@@ -1752,7 +1749,7 @@ export default defineComponent({
           // end itself (TR37, walked 0) only the cut; a COUNTED walk (TR42) its WHY first — the threshold
           // breakdown in the Parliament's own words (`agendaWalkNextRows` — pure, spec'd).
           for (const row of agendaWalkNextRows(s.walk)) {
-            out.push(noteRow(nextRowText(row)));
+            out.push(noteRow(nextRowText(row, ROW_TRANSLATOR)));
           }
         } else if (s.kind === 'neutralRally') {
           // THE SHOW STEP's own rows (TR31): the coming stage, then EVERYTHING the server's plan says, one row per
