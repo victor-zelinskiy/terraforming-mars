@@ -69,7 +69,7 @@ import {
 } from '@/client/console/played/playedCardReturn';
 import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
-import {TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
 import {Tag} from '@/common/cards/Tag';
 
@@ -230,6 +230,18 @@ let heldRailKey: string | undefined;
 let pendingReactions: ReadonlyArray<PlayReaction> = [];
 /** The reactions that VERIFIED — their specs are in `heldRewards` too (released on touchdown / by every ending). */
 let heldReactions: ReadonlyArray<PlayReaction> = [];
+/**
+ * THE TABLE'S ANSWER ON THE RAIL WITH NO RATING TO RIDE (PL-035 — the ruling
+ * Greens' M€ production for a heat / plant production step, TR41 Plasma Fans):
+ * the play's rail half carries the reactions with an EMPTY cause, which the
+ * rail module refuses to hold (an answer needs a cause to be released by), so
+ * the plate TICKED WITH THE COMMIT — a second before the production token it
+ * answers had landed. Verified here against the two views (the reaction's row
+ * moved by exactly the promise plus the known moves), held on the panel, and
+ * released ONE BEAT after the scene's own wave has landed; every ending of the
+ * scene releases them at once.
+ */
+let heldAnswers: Array<ResourceTransferSpec> = [];
 
 /**
  * THE SHIPMENT BEAT (PL-107 — the rail-spend law, PL-099, at the play door):
@@ -300,6 +312,48 @@ function releaseHeroRewards(): void {
   for (const spec of left) {
     releasePanelRewardHold(spec);
   }
+  releaseHeroAnswers();
+}
+
+/** Release the table's rail answers at once (an ending) — idempotent. */
+function releaseHeroAnswers(): void {
+  const left = heldAnswers.splice(0);
+  for (const spec of left) {
+    releasePanelRewardHold(spec);
+  }
+}
+
+/**
+ * HOLD the table's rail answers of a play with no rating to ride (PL-035): each
+ * answer's row checked against the two views with the rail's known moves — a
+ * row that moved otherwise is not held, ticks with the commit and names itself.
+ */
+function holdHeroAnswers(rail: RailReward, before?: PlayerViewModel, after?: PlayerViewModel): void {
+  const verdict = verifyRailReward({cause: [], reactions: rail.reactions, known: rail.known}, before, after);
+  if (verdict.mismatches.length > 0) {
+    playedHeroState.reactions = `mismatch: ${verdict.mismatches.join('; ')}`;
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[played-hero] ${playedHeroState.card}: the table's rail answer was not shown as promised — ${verdict.mismatches.join('; ')}`);
+    }
+  }
+  if (verdict.reactions.length === 0) {
+    return;
+  }
+  heldAnswers = [...verdict.reactions];
+  beginPanelRewardHold(heldAnswers);
+}
+
+/** The table's rail answers tick ONE BEAT after the scene's wave has landed (`TOUCHDOWN_TICK_GAP_MS`), on the animation clock. */
+function answerHeroAfterWave(): void {
+  const answers = heldAnswers.splice(0);
+  if (answers.length === 0) {
+    return;
+  }
+  gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, () => {
+    for (const spec of answers) {
+      releasePanelRewardHold(spec);
+    }
+  });
 }
 
 // ── stage / target registries (layer + overlay plug in) ────────────────────
@@ -683,7 +737,10 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
   const rail = pendingRail;
   const card = playedHeroState.card;
   pendingRail = undefined;
-  if (rail !== undefined && card !== undefined && seedRailReward(playedHeroRailKey(card), rail, before, after)) {
+  if (rail !== undefined && card !== undefined && rail.cause.length === 0 && rail.reactions.length > 0) {
+    // No rating to ride: the answers are held here and tick one beat after the scene's own wave (PL-035).
+    holdHeroAnswers(rail, before, after);
+  } else if (rail !== undefined && card !== undefined && seedRailReward(playedHeroRailKey(card), rail, before, after)) {
     heldRailKey = playedHeroRailKey(card);
   }
 }
@@ -1063,6 +1120,8 @@ export async function endPlayedHero(): Promise<void> {
     // THE TABLE'S ANSWER ON THE CARDS (К-S1): the holders the play woke, each its own group after the card's own
     // gains — before the TR, which stays last.
     await flyHeroReactions(source, release, hooks);
+    // THE TABLE'S ANSWER ON THE RAIL with no rating to ride (PL-035): one beat after the wave's last touchdown.
+    answerHeroAfterWave();
     // Belt-and-braces: any hold of OURS a degraded transfer left behind snaps to
     // the committed truth now (its chip fires marginally late, never lost).
     releaseHeroRewards();

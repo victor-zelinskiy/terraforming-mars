@@ -700,11 +700,6 @@ html.console-native {
    screen — several solve fits against their padding box). */
 .con-stage-surface() {
     border-radius: 0;
-    /* OPAQUE (PL-137). The body used to be «near-opaque» (0.97–0.985) — enough to swallow the dark board, not enough
-       to swallow the ДОП. РЕСУРСЫ satellite standing UNDER it at full brightness (z 11470 — «COVERED, NEVER DIMMED»):
-       its white digits and sprites ghosted through at ≈ 3–8 % as the «stray 2» over the composer's top-left corner
-       (TR34 saw it in the corner probe, TR40 named it). The depth is the gradient's and the shadows', never the
-       alpha's — a surface that covers something covers it. */
     background:
         linear-gradient(90deg, rgba(12, 19, 29, 0.55), transparent 9rem),
         linear-gradient(180deg, rgba(9, 15, 23, 0.97), rgba(7, 12, 19, 0.975) 46%, rgba(5, 9, 15, 0.985));
@@ -4763,26 +4758,6 @@ each(@players, {
     }
 }
 
-    /* The ACTION role's good on the PRODUCTION PLATE (PL-135): the card art's own brown box, a rounded square — so
-       «[mech] 2 · [plants on the plate]» reads «mechs that buy plant production», never «mechs that are plants». The
-       same plate the transfer chips and the forecast chips wear (`console_resource_transfer.less`). */
-    &__rolebadge--production {
-        border-radius: .2rem;
-        background: linear-gradient(180deg, #8a5a30, #6b4322);
-        box-shadow: inset 0 0 0 .05rem rgba(214, 158, 96, 0.7), 0 .1rem .3rem rgba(0, 0, 0, .55);
-    }
-    /* The tender coin's CONTEXT TAG (PL-136) — two tender pools of one resource on the table: the tag each coin pays
-       for, in the chip's upper-left corner (the coin keeps the lower-right), a medal the size of the coin. */
-    &__ctxtag {
-        position: absolute;
-        left: calc(var(--valbadge-size, .92rem) * -.3);
-        top: calc(var(--valbadge-size, .92rem) * -.3);
-        width: var(--valbadge-size, .92rem);
-        height: var(--valbadge-size, .92rem);
-        pointer-events: none;
-        box-shadow: 0 0 0 .05rem rgba(255, 255, 255, .18), 0 .1rem .3rem rgba(0, 0, 0, .55);
-        border-radius: 50%;
-    }
 /* ── VALUE BADGES — the rail's passive information layer ─────────────
    ONE chassis (ConsoleValueBadge.vue), two variants that differ in SHAPE
    and MATERIAL, never colour alone:
@@ -33958,8 +33933,6 @@ html.console-mode {
 }
 
 /* ═══ THE SELF-TARGET PROXY'S RESOURCE READING (ConsoleCardResourceChip.vue) ═══
-    /* An action good that is a PRODUCTION step rides the production plate (PL-135) — the same brown box as every production chip. */
-    &__imp-icon--production { padding: .1rem; box-sizing: content-box; background-origin: content-box; background-color: rgba(122, 78, 40, 0.92); border-radius: .2rem; box-shadow: inset 0 0 0 .05rem rgba(232, 196, 150, 0.55); }
    The proxy is a navigation stop, not a card, so it cannot carry the premium
    face's own counter — it gets this compact reading instead.
 

@@ -154,15 +154,13 @@ for (const preset of PRESETS) {
         await settle(page, {timeoutMs: 30_000});
       }
 
-      // The board satellite: the lanes in PLAY order — animal (Pets) → microbe (Tardigrades' store) → the ACTION lane
-      // of NRB's microbes (PL-135: a holder whose resource BUYS its action's good is its own lane, «[microbe] 3 · [TR]»,
-      // never merged into the plain store) → science (SFL); totals live (Pets 1 · Tardigrades 0 · NRB 3 · SFL 0).
+      // The board satellite: three types in PLAY order (animal → microbe →
+      // science), totals live (Pets 1 · NRB 3 · SFL 0).
       const satellite = page.locator('.con-res-aux');
       await expect(satellite).toBeVisible();
       const cellKeys = () => page.$$eval('.con-res-aux__cell',
         (els) => els.map((e) => e.getAttribute('data-exr-type')));
-      const LANES = ['animal', 'microbe', 'microbe:action', 'science'];
-      expect(await cellKeys()).toEqual(LANES);
+      expect(await cellKeys()).toEqual(['animal', 'microbe', 'science']);
       await shoot(page, preset, '01-board-satellite');
 
       // ── THE PIXEL PROBE: sample the cells through the WHOLE flow. ─────
@@ -217,13 +215,16 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await shoot(page, preset, '04-extras-microbe');
 
-      // The ZERO holder a first-class citizen: the plain microbe lane is Tardigrades alone (NRB's microbes are the
-      // ACTION lane below — PL-135).
-      await expect(explorer.locator('.con-exr__hero-total')).toHaveText('0');
-      await expect(explorer.locator('.con-exr__slot')).toHaveCount(1);
+      // TWO holders, the ZERO one a first-class citizen; the no-VP holder
+      // is honest about its resources' role.
+      await expect(explorer.locator('.con-exr__hero-total')).toHaveText('3');
+      await expect(explorer.locator('.con-exr__slot')).toHaveCount(2);
       const tardigrades = explorer.locator('[data-exr-card="Tardigrades"]');
       await expect(tardigrades.locator('.con-exr__slot-count')).toHaveText(/×0/);
       await expect(tardigrades.locator('.con-exr__slot-vp')).toHaveText(/0 ПО/);
+      const nrb = explorer.locator('[data-exr-card="Nitrite Reducing Bacteria"]');
+      await expect(nrb.locator('.con-exr__slot-count')).toHaveText(/×3/);
+      await expect(nrb.locator('.con-exr__slot-vp'), 'no VP clause — no VP chip').toHaveCount(0);
 
       // THE GALLERY FITS ITS PAGE — the profile scale ladder is PROBED,
       // never eyeballed: every slot (face + meta plate) sits fully inside
@@ -247,6 +248,11 @@ for (const preset of PRESETS) {
       // The focused (first) card is the ZERO holder — inspection is not
       // gated on the count.
       await expect(explorer.locator('.con-exr__slot--focused')).toHaveAttribute('data-exr-card', 'Tardigrades');
+      // The no-VP holder's own strip line, one step right.
+      await key(page, 'ArrowRight', 450);
+      await expect(explorer.locator('.con-exr__detail-none')).toHaveText(/не дают ПО/i);
+      await expect(explorer.locator('.con-exr__detail-chips')).toContainText(/Действие/);
+      await key(page, 'ArrowLeft', 450);
 
       await openZoomViewer(page, 'KeyX'); // the one console zoom viewer
       await shoot(page, preset, '05-zoom-inspect');
@@ -255,31 +261,12 @@ for (const preset of PRESETS) {
       await expect(explorer.locator('.con-exr__slot--focused')).toHaveAttribute('data-exr-card', 'Tardigrades');
       await expect(page.locator('[data-exr-type="microbe"]'), 'category survived too').toHaveClass(/con-res-aux__cell--active/);
 
-      // ── The ACTION lane (PL-135): NRB's three microbes buy its TR — their own lane, their own reading. ──
-      await key(page, 'ArrowLeft', 450); // the gallery's first slot → back into the type column
-      await key(page, 'ArrowDown', 450);
-      await expect(page.locator('[data-exr-type="microbe:action"]')).toHaveClass(/con-res-aux__cell--cursor/);
-      await key(page, 'Enter', 800);
-      await expect(page.locator('[data-exr-type="microbe:action"]')).toHaveClass(/con-res-aux__cell--active/);
-      await settle(page, {timeoutMs: 20_000});
-      await expect(explorer.locator('.con-exr__hero-total')).toHaveText('3');
-      await expect(explorer.locator('.con-exr__slot')).toHaveCount(1);
-      const nrb = explorer.locator('[data-exr-card="Nitrite Reducing Bacteria"]');
-      await expect(nrb.locator('.con-exr__slot-count')).toHaveText(/×3/);
-      await expect(nrb.locator('.con-exr__slot-vp'), 'no VP clause — no VP chip').toHaveCount(0);
-      // The no-VP holder's own strip line: honest about its resources' role.
-      await key(page, 'ArrowRight', 450);
-      await expect(explorer.locator('.con-exr__slot--focused')).toHaveAttribute('data-exr-card', 'Nitrite Reducing Bacteria');
-      await expect(explorer.locator('.con-exr__detail-none')).toHaveText(/не дают ПО/i);
-      await expect(explorer.locator('.con-exr__detail-chips')).toContainText(/Действие/);
-      await shoot(page, preset, '04b-extras-microbe-action');
-
       // ── B: back to the summary with the ring ON the very chip whose
       // type the player was reading (the carried object survives B). ────
       await key(page, 'Escape', 900);
       await expect(page.locator('.con-info__layout')).toHaveCount(1);
       await expect(satellite).toHaveClass(/con-res-aux--focused/);
-      await expect(page.locator('[data-exr-type="microbe:action"]')).toHaveClass(/con-res-aux__cell--cursor/);
+      await expect(page.locator('[data-exr-type="microbe"]')).toHaveClass(/con-res-aux__cell--cursor/);
       await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: (Бактерия|Микроб)/i);
       await settle(page, {timeoutMs: 20_000});
 
@@ -301,7 +288,7 @@ for (const preset of PRESETS) {
           byKey.set(c.key, list);
         }
       }
-      for (const type of LANES) {
+      for (const type of ['animal', 'microbe', 'science']) {
         const list = byKey.get(type) ?? [];
         expect(list.length, `${type}: the cell may not vanish for a single frame ` +
           `(present in ${list.length}/${samples.length} samples)`).toBe(samples.length);
@@ -347,10 +334,10 @@ for (const preset of PRESETS) {
       await armAuxSampler(page);
       await key(page, 'KeyE', 1100); // RB → the ring wraps back to the human
       const switchSamples = await takeAuxSamples(page);
-      const canonical = LANES
+      const canonical = ['animal', 'microbe', 'science']
         .map((k) => (byKey.get(k) ?? [])[0])
         .filter((f): f is NonNullable<typeof f> => f !== undefined);
-      expect(canonical.length, 'the earlier flow captured the slot grid').toBe(LANES.length);
+      expect(canonical.length, 'the earlier flow captured the slot grid').toBe(3);
       // The column's x and the slot band's y range: a shared type may make
       // one small FLIP move WITHIN the column (bot slot → human slot), but
       // nothing may ever paint below the band (the «entered under the
@@ -369,7 +356,7 @@ for (const preset of PRESETS) {
         }
       }
       expect(seenCells, 'the sampler saw the human chips arrive').toBeGreaterThan(0);
-      expect(await cellKeys(), 'the human composition is back whole').toEqual(LANES);
+      expect(await cellKeys(), 'the human composition is back whole').toEqual(['animal', 'microbe', 'science']);
       await key(page, 'Escape', 800);
       await key(page, 'KeyY', 800);
       await expect(page.locator('.con-info')).toHaveCount(0);

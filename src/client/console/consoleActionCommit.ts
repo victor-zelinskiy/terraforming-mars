@@ -735,10 +735,11 @@ export function commitRailPlan(
   cardName: CardName,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>>,
-  reactions: ReadonlyArray<ResourceTransferSpec>,
+  promisedReactions: ReadonlyArray<ResourceTransferSpec>,
   spend: SpendContext = {},
 ): Omit<ActionCommitRail, 'origins' | 'ring'> | undefined {
   const tr = actionRailTrSpecs(branch, stepResponses);
+  const reactions = withoutScaleStepAnswers(branch, stepResponses, tr, promisedReactions);
   const timeline = capsuleTimeline(branch);
   const spends = spendLinkSpecs(cardName, branch, stepResponses, spend);
   // A GAIN ON THIS CARD with nothing spent before it (PL-063 — Security Fleet's fighter, Titan Air-scrapping's
@@ -811,13 +812,41 @@ export function playRailReward(
   effects: ReadonlyArray<ActionEffect>,
   stepResponses: Readonly<Record<number, unknown>>,
   paid: Payment | undefined,
-  reactions: ReadonlyArray<ResourceTransferSpec>,
+  promisedReactions: ReadonlyArray<ResourceTransferSpec>,
 ): RailReward | undefined {
   const cause = playRailTrSpecs(branch, effects, stepResponses);
+  const reactions = withoutScaleStepAnswers(branch, stepResponses, cause, promisedReactions, effects);
   if (cause.length === 0 && reactions.length === 0) {
     return undefined;
   }
   return {cause, reactions: [...reactions], known: actionKnownRailMoves(branch, stepResponses, paid)};
+}
+
+/**
+ * THE SCALE STEP ANSWERS ITS OWN RATING (TR41 Plasma Fans — `scaleStepReward/
+ * scaleStepRatingBeat.ts`). A branch that raises a SCALE (temperature / oxygen /
+ * Venus) pays a rating neither rail half flies (`directTrSpecs`: «the TR is
+ * the scale's»), and the ruling Greens' M€ for THAT rating is a reaction to a
+ * cause this chain does not carry: held here it ticked on the touchdown of the
+ * PRICE (PL-002 — the answer before its reason). So when the branch raises a
+ * scale and the chain carries no rating of its own, the STOCK M€ answers are
+ * handed to the scale-step beat — which flies the rating off the marker and
+ * ticks them a beat after its touchdown; a PRODUCTION answer (the Greens' M€
+ * production for a plant step beside a scale step) stays the chain's. Pure.
+ */
+export function withoutScaleStepAnswers(
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+  cause: ReadonlyArray<ResourceTransferSpec>,
+  reactions: ReadonlyArray<ResourceTransferSpec>,
+  branchEffects: ReadonlyArray<ActionEffect> = branch?.effects ?? [],
+): ReadonlyArray<ResourceTransferSpec> {
+  if (branch === undefined || cause.some((spec) => spec.resource === RATING_RAIL_KEY)) {
+    return reactions;
+  }
+  const effects = [...branchEffects, ...chosenStepEffects(branch, stepResponses)];
+  const scaleStep = effects.some((e) => e.direction === 'gain' && e.amount > 0 && SCALE_ICONS.has(e.icon) && e.icon !== 'oceans');
+  return scaleStep ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits')) : reactions;
 }
 
 /**

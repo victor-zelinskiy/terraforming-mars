@@ -172,12 +172,6 @@ export interface AdditionalResourceRoleGroup extends AdditionalResourceGroup {
   readonly key: string;
   readonly role: HolderRole;
   readonly split: boolean;
-  /**
-   * TWO tender pools of this resource stand on the table (PL-136: EVA Mechs' Space mechs beside Construction Mechs'
-   * Building mechs): the payment groups are one PER UNIT, each keyed by its unit, each wearing its own coin — the
-   * coin's rate alone would promise every mech for every card.
-   */
-  readonly unitSplit: boolean;
 }
 
 const roleGroupsMemo = new WeakMap<ReadonlyArray<CardModel>, ReadonlyArray<AdditionalResourceRoleGroup>>();
@@ -205,10 +199,8 @@ export function additionalResourceRoleGroups(tableau: ReadonlyArray<CardModel>):
       continue;
     }
     const role = holderRoleOf(card.name);
-    // A claiming role is its own lane; a VP rule and plain storage share the PLAIN lane (`holderRoleClaims`). A
-    // payment role's lane is its UNIT (PL-136): two tender pools of one resource are two lanes, merged back into one
-    // chip only when a single pool stands (the key then stays the resource's own — see `unitSplit`).
-    const lane = role.kind === 'payment' ? `payment:${role.unit}` : holderRoleClaims(role.kind) ? role.kind : 'plain';
+    // A claiming role is its own lane; a VP rule and plain storage share the PLAIN lane (`holderRoleClaims`).
+    const lane = holderRoleClaims(role.kind) ? role.kind : 'plain';
     const key = `${resource}#${lane}`;
     let draft = byKey.get(key);
     if (draft === undefined) {
@@ -227,10 +219,8 @@ export function additionalResourceRoleGroups(tableau: ReadonlyArray<CardModel>):
     lanesByResource.set(resource, lanes);
   }
   const result: Array<AdditionalResourceRoleGroup> = drafts.map((d) => {
-    const lanes = lanesByResource.get(d.resource);
-    const split = (lanes?.size ?? 1) > 1;
-    const unitSplit = Array.from(lanes ?? []).filter((lane) => lane.startsWith('payment:')).length > 1;
-    return {resource: d.resource, role: d.role, split, unitSplit, key: holderGroupKey(d.resource, d.role, split, unitSplit), total: d.total, cards: d.cards};
+    const split = (lanesByResource.get(d.resource)?.size ?? 1) > 1;
+    return {resource: d.resource, role: d.role, split, key: holderGroupKey(d.resource, d.role, split), total: d.total, cards: d.cards};
   });
   roleGroupsMemo.set(tableau, result);
   return result;

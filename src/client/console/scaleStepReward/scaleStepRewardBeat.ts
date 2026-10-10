@@ -59,6 +59,7 @@ import {
   SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, freshScaleStepRewards, scaleAccentOf, scaleParamKeyOf,
   scaleStepHoldSpec, scaleStepTokenOrigins, scaleStepTokenSpecs,
 } from '@/client/console/scaleStepReward/scaleStepRewardModel';
+import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 
 export type ScaleStepPhase = 'idle' | 'waiting' | 'paying';
 
@@ -227,6 +228,11 @@ function stageReady(entry: ScaleStepEntry): boolean {
   // Read the reactive sources this verdict depends on, so the watcher re-asks on each.
   void scaleMarkerPoses[accent];
   void boardBeatParkState.heldParams;
+  // THE STEP'S OWN RATING FIRST (TR41): the raiser's TR token leaves the marker before what the step pays the cards —
+  // the cause's reward, then its consequences (a rating still owed or in the air keeps this record waiting).
+  if (scaleStepRatingBusy()) {
+    return false;
+  }
   if (!boardBeatBoardWatchable() || boardBeatHoldsParam(key)) {
     return false;
   }

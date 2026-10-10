@@ -104,6 +104,7 @@ import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
+import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
@@ -661,6 +662,11 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // …and what a SCALE STEP paid (TR24 Venusian Census, Aphrodite — «each time the scale is terraformed»): the
   // viewer's own counter keeps its pre-payout number until each token born at the marker has landed.
   seedScaleStepRewardHolds(currentView(), newView);
+  // …and the RATING a scale step the viewer made pays (TR41 Plasma Fans — a scale step from a card action, a play's
+  // scale step, a standard project's): the rating cell keeps its pre-step number until the token born on the marker
+  // has landed, the Greens' answer ticks a beat after it. Seeded LAST — after every owner that holds the rating for a
+  // cause of its own (a direct TR, a tile's), so a rating is never held twice.
+  seedScaleStepRatingHold(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

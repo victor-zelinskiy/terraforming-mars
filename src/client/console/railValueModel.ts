@@ -154,12 +154,6 @@ function badgeOf(facts: Array<RailMcUnitFact>): RailMcBadge {
   return {text: rates.join('/'), rates, facts};
 }
 
-/** ONE unit's own coin out of a badge that merged several tender pools of a resource (PL-136) — undefined when the unit pays nothing here. */
-export function badgeForUnit(badge: RailMcBadge | undefined, unit: SpendableResource): RailMcBadge | undefined {
-  const facts = (badge?.facts ?? []).filter((fact) => fact.unit === unit);
-  return facts.length === 0 ? undefined : badgeOf(facts);
-}
-
 const mcMemo = new WeakMap<PublicPlayerModel, RailMcBadges>();
 
 /**

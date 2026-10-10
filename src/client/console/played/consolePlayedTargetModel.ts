@@ -111,8 +111,6 @@ export type PlayedTargetImpact = {
    * static «0 → 0».
    */
   value?: boolean;
-  /** The icon rides the PRODUCTION PLATE (PL-135 — an action good that is a production step). */
-  plate?: 'production';
 };
 
 /**

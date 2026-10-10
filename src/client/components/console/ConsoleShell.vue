@@ -2065,6 +2065,7 @@ import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
 import {resetScaleStepRewards} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
+import {resetScaleStepRating} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
@@ -22283,6 +22284,7 @@ export default defineComponent({
     resetBoardBeatPark();
     // …and what a scale step still owed to tell (TR24): its holds release honestly, no record replays.
     resetScaleStepRewards();
+    resetScaleStepRating();
     this.releaseRevealQueuePark?.();
     this.releaseRevealQueuePark = undefined;
     // …and the presentation ledger with it: a dead shell's closures must
