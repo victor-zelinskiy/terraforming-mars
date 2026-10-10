@@ -105,6 +105,8 @@ type Sample = {
   t: number, tick: boolean, ws: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, stranded: boolean,
   /** The holder EMERGED forward in the landing scene: its box, its capsule and the capsule's count. */
   emerge?: Rect, emergeCap?: Rect, emergeCount: string,
+  /** The landing scene's FRONT card and the zone it is composed in (PL-126: the protagonist is a third of the zone). */
+  front?: Rect, recv?: Rect,
   /** The landed card's printed MICROBE tag (the front card of the receiving stage). */
   tag?: Rect,
   /** The ДОП. РЕСУРСЫ satellite's data cell. */
@@ -168,6 +170,8 @@ async function armProbe(page: Page): Promise<void> {
         emerge: rect(emerge), emergeCap: rect(emerge?.querySelector('.pcard__res')),
         emergeCount: emerge === null ? '' : (emerge.querySelector('.pcard__res-count')?.textContent ?? '').trim(),
         tag: rect(document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"]')),
+        front: rect(document.querySelector('.con-recv [data-recv-front]')),
+        recv: rect(document.querySelector('.con-recv')),
         aux: read(auxSel).match(/^\d+/)?.[0] ?? '',
         cap: rect(document.querySelector(`${hero} .pcard__res`)),
         capCount: read(`${hero} .pcard__res-count`),
@@ -400,6 +404,14 @@ for (const preset of PRESETS) {
       const emergedBefore = samples.find((s) => s.emerge !== undefined && s.t <= birth!.s.t);
       expect(emergedBefore, `the holder EMERGED from its strip before its token was born\n${trail(samples)}`).toBeDefined();
       expect(birth!.s.tag, 'the landed card\'s printed microbe tag was measurable at the birth').toBeDefined();
+      // PL-126 (the owner's decision 2026-10-10): THE PROTAGONIST IS A THIRD OF THE ZONE — the landed card at the
+      // front of the receiving stage stands at least a third of the zone's height, on the 1080 band and on the TV
+      // zone alike (the ladder once topped out at 0.68 and a 4K zone got a 230 × 330 px pile at its foot).
+      expect(birth!.s.front !== undefined && birth!.s.recv !== undefined, 'the front card and the scene\'s zone were measurable at the birth').toBe(true);
+      const frontH = birth!.s.front!.b - birth!.s.front!.t;
+      const zoneH = birth!.s.recv!.b - birth!.s.recv!.t;
+      console.log(`[PL-126] ${preset.id}: the front card ${birth!.s.front!.r - birth!.s.front!.l} × ${frontH} in a zone ${birth!.s.recv!.r - birth!.s.recv!.l} × ${zoneH} (${(frontH / zoneH * 100).toFixed(1)} % of its height)`);
+      expect(frontH / zoneH, `the front card stands at least a third of the zone's height (${frontH} of ${zoneH} px, ${preset.id})`).toBeGreaterThanOrEqual(1 / 3 - 0.02);
       const tagSlack = Math.max(birth!.chip.w, (birth!.s.tag!.r - birth!.s.tag!.l)) * 0.75;
       expect(inside(birth!.chip, birth!.s.tag!, tagSlack), `the token is BORN on the printed MICROBE TAG — the tag that woke the holder: chip ${birth!.chip.x},${birth!.chip.y} (w=${birth!.chip.w}) vs tag ${JSON.stringify(birth!.s.tag)}`).toBe(true);
       const landing = landingOf(samples, v);

@@ -144,8 +144,14 @@ const CAPTION_LANE_H = 34;
 const TOP_AIR = 36;
 /** Shelf padding below the caption lane, logical px. */
 const SHELF_PAD_B = 10;
-/** The destination zoom ladder — largest that fits wins. */
-const ZOOM_LADDER = [0.68, 0.63, 0.58, 0.53, 0.48];
+/**
+ * The destination zoom ladder — largest that fits wins. THE PROTAGONIST IS A THIRD OF THE ZONE (PL-126, the owner's
+ * decision 2026-10-10): the ladder once topped out at 0.68, so a roomy zone (every TV stage; the 1080 band too) got
+ * the same small stack a cramped one did — on 4K a 230 × 330 px pile at the foot of a 3500 × 1900 px zone for the
+ * whole landing. The top rungs let the stack grow with the room; the fit (height, then the shelf's width) still
+ * decides, so a cramped zone steps down exactly as before.
+ */
+const ZOOM_LADDER = [1.0, 0.9, 0.8, 0.68, 0.63, 0.58, 0.53, 0.48];
 /** Visible strip cap — enough history to read the stack, never a column. */
 export const RECEIVING_MAX_STRIPS = 5;
 /**
@@ -155,7 +161,7 @@ export const RECEIVING_MAX_STRIPS = 5;
  * cannot fit at the floor overflows honestly (it cannot happen inside the
  * band geometry this stage is given).
  */
-const MINI_ZOOM_LADDER = [0.46, 0.42, 0.38, 0.34];
+const MINI_ZOOM_LADDER = [0.6, 0.53, 0.46, 0.42, 0.38, 0.34];
 /** Closed-pile depth edge step (thickness under the top card), logical px. */
 export const RECEIVING_MINI_DEPTH = 4;
 /** Shelf row gaps, logical px (between minis / around the destination). */
@@ -212,6 +218,15 @@ export function planReceivingStage(input: ReceivingPlanInput): ReceivingPlan {
   const sliverH = Math.round(RECEIVING_DEPTH_SLIVER * s);
   const slivers = input.stackCount - 1 > wantStrips ? 2 * sliverH : 0;
 
+  // THE SHELF MUST FIT BESIDE THE PROTAGONIST (PL-126): with the ladder reaching 1.0 a roomy-by-height but
+  // narrow zone (the Deck's) could let the destination's slot push the minis — even at their floor rung — past
+  // the width. A rung whose slot leaves the shelf no room steps down; the last rung stands, as it always did.
+  const minis = Math.max(0, input.miniCount ?? 0);
+  const shelfAtFloorW = minis > 0 ?
+    2 * DEST_GAP * s + minis * PLAYED_CARD_NATURAL_W * MINI_ZOOM_LADDER[MINI_ZOOM_LADDER.length - 1] * s + (minis - 1) * MINI_GAP * s :
+    0;
+  const rowCapW = input.availW - 24 * s;
+
   let zoom = ZOOM_LADDER[ZOOM_LADDER.length - 1] * s;
   let maxStrips = 0;
   for (const step of ZOOM_LADDER) {
@@ -221,33 +236,31 @@ export function planReceivingStage(input: ReceivingPlanInput): ReceivingPlan {
     // prev top occupies ONE strip slot; the front card the full height.
     const prevStrip = input.stackCount > 0 ? stripH : 0;
     const fit = Math.floor((budget - cardH - prevStrip - slivers) / stripH);
+    // The rung under test stands until a better one is found — the ladder's last rung whatever the fit.
+    zoom = z;
+    maxStrips = clamp(0, wantStrips, Math.max(0, fit));
+    if (PLAYED_CARD_NATURAL_W * z + shelfAtFloorW > rowCapW) {
+      continue;
+    }
     if (fit >= wantStrips) {
-      zoom = z;
-      maxStrips = wantStrips;
       break;
     }
     // The largest zoom that still shows at least a couple of strips wins over
     // a smaller zoom with full history — the stack is a scene, not a browser.
-    const partial = clamp(0, wantStrips, fit);
-    if (partial >= 2 || wantStrips < 2) {
-      zoom = z;
-      maxStrips = partial;
+    if (maxStrips >= 2 || wantStrips < 2) {
       break;
     }
-    zoom = z;
-    maxStrips = clamp(0, wantStrips, Math.max(0, fit));
   }
   const slotW = PLAYED_CARD_NATURAL_W * zoom;
 
   // Minis fit by WIDTH beside the solved destination — the ladder steps down
   // only when the whole shelf row would not fit; the last rung stands.
-  const minis = Math.max(0, input.miniCount ?? 0);
   let miniZoom = MINI_ZOOM_LADDER[MINI_ZOOM_LADDER.length - 1] * s;
   for (const step of MINI_ZOOM_LADDER) {
     const mz = step * s;
     const rowW = slotW + (minis > 0 ? 2 * DEST_GAP * s : 0) +
       minis * PLAYED_CARD_NATURAL_W * mz + Math.max(0, minis - 1) * MINI_GAP * s;
-    if (rowW <= input.availW - 24 * s) {
+    if (rowW <= rowCapW) {
       miniZoom = mz;
       break;
     }

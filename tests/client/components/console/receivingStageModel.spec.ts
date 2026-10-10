@@ -59,11 +59,38 @@ describe('receivingStageModel (the workspace receiving scene, pure)', () => {
 
   describe('planReceivingStage — destination-first composition', () => {
     it('a roomy stage keeps the large zoom and the full strip history', () => {
-      const p = planReceivingStage({availW: 1400, availH: 720, stackCount: 4, uiScale: 1});
-      expect(p.zoom).to.be.greaterThan(0.6);
+      // The 1080 band's zone: the top rung fits with every strip of a four-card stack (PL-126 raised the ladder).
+      const p = planReceivingStage({availW: 1400, availH: 950, stackCount: 4, uiScale: 1});
+      expect(p.zoom).to.eq(1);
       expect(p.maxStrips).to.eq(3); // stackCount-1, under the cap
       expect(p.cardH).to.be.closeTo(PLAYED_CARD_NATURAL_H * p.zoom, 0.001);
       expect(p.stripH).to.be.closeTo(PLAYED_PEEK_NATURAL * p.zoom, 0.001);
+    });
+
+    it('a stage short on height trades HISTORY for the protagonist first (two strips at the larger rung beat three at a smaller one), and the narrow Deck zone trades the rung for the SHELF', () => {
+      const short = planReceivingStage({availW: 1400, availH: 720, stackCount: 4, uiScale: 1});
+      expect(short.zoom).to.eq(0.9);
+      expect(short.maxStrips).to.eq(2);
+      // An empty destination in a 1000 px zone with five minis: the slot at 1.0 would push the floor-rung shelf
+      // past the width — the rung steps down until the row fits, instead of the minis overflowing honestly.
+      const narrow = planReceivingStage({availW: 1000, availH: 560, stackCount: 0, miniCount: 5, uiScale: 1});
+      expect(narrow.zoom).to.be.lessThan(1);
+      expect(narrow.slotW + 2 * 44 + 5 * narrow.miniW + 4 * 28).to.be.at.most(1000 - 24 + 5);
+      // …and the same zone with no minis keeps the top rung: nothing stood beside the protagonist.
+      expect(planReceivingStage({availW: 1000, availH: 560, stackCount: 0, miniCount: 0, uiScale: 1}).zoom).to.eq(1);
+    });
+
+    it('THE PROTAGONIST IS A THIRD OF THE ZONE (PL-126): the front card stands at least a third of the stage\'s height on the 1080 band and on the TV zone alike, the whole column inside the budget, the shelf inside the width', () => {
+      for (const [availW, availH, uiScale, label] of [[1750, 950, 1, 'fhd'], [3500, 1900, 2, 'tv4k'], [1000, 560, 1, 'deck']] as const) {
+        for (const stackCount of [0, 1, 4, 12]) {
+          const p = planReceivingStage({availW, availH, stackCount, miniCount: 5, uiScale});
+          expect(p.cardH, `${label} · ${stackCount} in the stack`).to.be.at.least(availH / 3);
+          const column = p.cardH + p.stripH * (p.maxStrips + (stackCount > 0 ? 1 : 0)) + 2 * p.sliverH;
+          expect(column, `${label} · the column fits`).to.be.at.most(availH);
+          const row = p.slotW + 2 * 44 * uiScale + 5 * p.miniW + 4 * 28 * uiScale;
+          expect(row, `${label} · the shelf row fits`).to.be.at.most(availW);
+        }
+      }
     });
 
     it('a LONG stack normalizes: strips are capped, never an endless column', () => {
