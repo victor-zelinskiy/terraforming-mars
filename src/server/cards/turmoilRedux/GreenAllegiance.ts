@@ -103,7 +103,10 @@ export class GreenAllegiance extends Card implements IProjectCard {
           {text: 'Advance your Agenda marker 1 step per complete set of 5 TR you have over 20 and collect the bonus of each step.', tokens: ['agenda-step']},
         ],
         renderData: CardRenderer.builder((b) => {
-          b.agendaStep(1).slash().tr(GREEN_ALLEGIANCE_STEP).br;
+          // ONE rating badge carrying the set's size — the scan's «5» on the laurel; `digit` (the DSL's count form,
+          // «5 [TR]»), never five badges: the default draws an amount up to 5 as that many icons, which reads «5 TR
+          // per step» — the opposite of the rule.
+          b.agendaStep(1).slash().tr(GREEN_ALLEGIANCE_STEP, {digit: true}).br;
           // A literal key (the locale greps it) — the spec pins it to `GREEN_ALLEGIANCE_OVER`.
           b.text('over 20', Size.SMALL, true);
         }),

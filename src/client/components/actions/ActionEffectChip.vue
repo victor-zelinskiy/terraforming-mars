@@ -59,7 +59,7 @@
          badge above is spelled out for. -->
     <!-- A note with PARAMS is a sentence about this chip's number (TR42: «2 набора по 5 РТ сверх 20» on the
          Agenda chip — why the walk is this long); a plain note is vocabulary («на эту карту»). -->
-    <span v-if="effect.note" class="action-effect-chip__note" v-i18n="effect.noteParams">{{ effect.note }}</span>
+    <span v-if="effect.note" class="action-effect-chip__note" :class="{'action-effect-chip__note--sentence': effect.noteParams !== undefined}" v-i18n="effect.noteParams">{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
 
     <!-- A FILTERED DRAW's RULE (PL-021) — «+3 взять | без меток [P̸][M̸][A̸]»: the
@@ -318,6 +318,11 @@ export default defineComponent({
   letter-spacing: 0.02em;
   text-transform: lowercase;
   color: rgba(180, 210, 230, 0.6);
+}
+/* A SENTENCE about the chip's number (TR42: «2 набора по 5 РТ сверх 20») keeps its own case — lowercasing it
+   printed «рт», and an abbreviation is not vocabulary. */
+.action-effect-chip__note--sentence {
+  text-transform: none;
 }
 
 /* Variable-amount basis ("Cities on Mars: 3") — a quiet pill inside the chip,

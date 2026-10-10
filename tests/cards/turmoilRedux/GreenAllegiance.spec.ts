@@ -128,6 +128,7 @@ describe('GreenAllegiance', () => {
       const items = rows[0].filter((node: ItemType) => isICardRenderItem(node)) as Array<ICardRenderItem>;
       expect(items.map((item) => [item.type, item.amount]), 'one Agenda step per TR badge carrying the set\'s size')
         .deep.eq([[CardRenderItemType.AGENDA_STEP, 1], [CardRenderItemType.TR, GREEN_ALLEGIANCE_STEP]]);
+      expect(items[1].showDigit, 'ONE badge with its digit, never five badges («5 TR per step» would be the opposite rule)').eq(true);
       const caption = rows[1].filter((node: ItemType) => isICardRenderItem(node)) as Array<ICardRenderItem>;
       expect(caption.map((item) => [item.type, item.text]), 'the literal key is the printed threshold')
         .deep.eq([[CardRenderItemType.TEXT, `over ${GREEN_ALLEGIANCE_OVER}`]]);
