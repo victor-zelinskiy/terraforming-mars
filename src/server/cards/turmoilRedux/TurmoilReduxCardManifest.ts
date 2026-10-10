@@ -41,6 +41,7 @@ import {RedLawyers} from './RedLawyers';
 import {BiologicalSimulations} from './BiologicalSimulations';
 import {CanyonCarving} from './CanyonCarving';
 import {ForestryMechs} from './ForestryMechs';
+import {PlasmaFans} from './PlasmaFans';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -209,5 +210,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // (`Game.moveOceanTile`, `docs/TURMOIL_REDUX_RE_SETTLEMENT.md` §2.6).
     [CardName.CANYON_CARVING]: {Factory: CanyonCarving},
     [CardName.FORESTRY_MECHS]: {Factory: ForestryMechs},
+    // The Venus Next icon at the bottom left beside the module's (the set's second Venus card after TR24): without Venus
+    // Next the card leaves the deck. The GREENS' plate a fourth time; ONE DECLARATION of two engine classes — Caretaker
+    // Contract's price (8 heat off the rail) and Thermophiles' reward (Venus +1 step); the play's +3 heat production
+    // closes the printed generation-1 chairman quest by itself.
+    [CardName.PLASMA_FANS]: {Factory: PlasmaFans, compatibility: 'venus'},
   },
 });

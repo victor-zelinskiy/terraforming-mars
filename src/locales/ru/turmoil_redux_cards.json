@@ -151,5 +151,9 @@
 
     "Forestry Mechs": "Лесозаготовительные мехи",
     "Action: Spend 1 mech from here to increase your plant production 1 step.": "Действие: потратьте 1 мех с этой карты, чтобы повысить своё производство растений на 1.",
-    "Requires the Greens to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех."
+    "Requires the Greens to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех.",
+
+    "Plasma Fans": "Плазменные вентиляторы",
+    "Action: Pay 8 heat to terraform Venus 1 step.": "Действие: заплатите 8 тепла, чтобы повысить показатель Венеры на 1 шаг.",
+    "Requires the Greens to be ruling or that you have 2 delegates there. Increase your heat production 3 steps.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Увеличьте своё производство тепла на 3."
 }

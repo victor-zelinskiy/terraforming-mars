@@ -1112,6 +1112,7 @@ export enum CardName {
   BIOLOGICAL_SIMULATIONS = 'Biological Simulations',
   CANYON_CARVING = 'Canyon Carving',
   FORESTRY_MECHS = 'Forestry Mechs',
+  PLASMA_FANS = 'Plasma Fans',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
