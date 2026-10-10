@@ -556,6 +556,9 @@ for (const preset of PRESETS) {
       await expect(page.locator(composer), 'the play stays alive').toContainText('Разыграть карту');
       expect((await page.locator(`${composer} .con-paystatus`).textContent()) ?? '', 'the payment line states the price').toContain('2');
       await shoot(page, preset.id, '12-composer-23');
+      // PL-157: a walk of ZERO steps hosts nothing — no Parliament is warmed under this composer (PL-127's mount is armed
+      // a settle after the composer declares a hosted step; by the screenshot that settle is long over).
+      await expect(page.locator('.con-parl'), 'nothing warmed for a walk of zero steps').toHaveCount(0);
 
       await armProbe(page, viewer);
       const stopStory = await storyboard(page, preset.id, 'zero-23');

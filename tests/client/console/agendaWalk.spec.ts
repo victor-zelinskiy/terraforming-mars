@@ -27,7 +27,7 @@ import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 import {CardModel} from '@/common/models/CardModel';
 import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
-import {agendaWalkForYouAnnotation, agendaWalkNextRows, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
+import {agendaWalkForYouAnnotation, agendaWalkNextRows, branchHostsParliamentStep, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
 import {AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 import {thresholdBreakdown} from '@/common/parliament/resolutionCounts';
@@ -597,6 +597,14 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
     it('a row with a READING reads «key a · b · c» — the composer\'s and the inspector\'s one translation', () => {
       expect(nextRowText(agendaWalkNextRows(sets(33, 1))[0], t)).eq('Agenda steps by TR: TR 33 · threshold 20 · 2 complete set(s) · 2 to the next set');
       expect(nextRowText({key: 'Agenda — the marker walks 1 step in the Parliament'}, t)).eq('Agenda — the marker walks 1 step in the Parliament');
+    });
+
+    it('PL-157 — a walk of ZERO steps hosts no Parliament step (the warm mount is not armed for it); a moving walk does', () => {
+      const branch = (w: AgendaWalkModel): ActionPreviewBranch => ({index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [{kind: 'agendaWalk', walk: w}]});
+      expect(branchHostsParliamentStep(branch(sets(33, 1))), 'TR 33: two steps').is.true;
+      expect(branchHostsParliamentStep(branch(sets(23, 1))), 'TR 23: the named zero').is.false;
+      expect(branchHostsParliamentStep(branch(walk(0))), 'the end of the track (TR37 at ⑫)').is.false;
+      expect(branchHostsParliamentStep(undefined)).is.false;
     });
 
     it('THE INSPECTOR\'S «ДЛЯ ВАС» is the composer\'s rows, one per line, in a note block (last in the panel — no anchor)', () => {

@@ -348,6 +348,16 @@ export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
   return rows;
 }
 
+/**
+ * THE PLAY WILL HOST A PARLIAMENT STEP (PL-127's warm mount reads it): the branch's SHOW step is a walk that MOVES
+ * the marker (TR04 / TR12 / TR37 / TR42) or a rally (TR31). A walk of ZERO steps hosts nothing — TR42 under 25 TR,
+ * TR37 at the track's end: the press promises no walk for it (`walked > 0`), so warming the Parliament for it mounted
+ * a whole surface that never rises (PL-157).
+ */
+export function branchHostsParliamentStep(branch: ActionPreviewBranch | undefined): boolean {
+  return branch !== undefined && branch.steps.some((s) => (s.kind === 'agendaWalk' && s.walk.walked > 0) || s.kind === 'neutralRally');
+}
+
 /** The translator a host hands the pure row helpers (`translateText` / `translateTextWithParams`). */
 export type RowTranslator = {text: (key: string) => string, params: (key: string, params: Array<string>) => string};
 

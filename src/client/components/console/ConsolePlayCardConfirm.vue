@@ -693,7 +693,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator, branchHostsParliamentStep,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -1180,7 +1180,7 @@ export default defineComponent({
      */
     hostedStepDeclared(): string {
       const b = this.selectedBranch;
-      return b !== undefined && b.steps.some((s) => s.kind === 'agendaWalk' || s.kind === 'neutralRally') ? this.cardName : '';
+      return branchHostsParliamentStep(b) ? this.cardName : '';
     },
     selectedBranch(): ActionPreviewBranch | undefined {
       if (this.selectedPos !== undefined) {
