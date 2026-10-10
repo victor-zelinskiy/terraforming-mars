@@ -26,6 +26,14 @@ export type EffectForecastContext = {
    */
   card?: ICard;
   /**
+   * The operation is the WORLD's — an enactment's unrewarded move of a scale
+   * (Gas Export's Venus, PL-052): nobody is the raiser, so the raiser's own
+   * `onGlobalParameterIncrease` reactors, the party effects, the implied
+   * rating and the bonus steps are nobody's either; only the reactors that
+   * answer ANY player's raise (Aphrodite) are asked, every seat's.
+   */
+  world?: true;
+  /**
    * The tiles this operation will put down (from the preview's board
    * placement steps / staged placement) — what the tile triggers react to.
    * Empty when nothing is placed.

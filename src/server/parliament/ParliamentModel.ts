@@ -24,6 +24,7 @@ import {declaredCountIds, declaredSequelProductions, declaredStockReads, declare
 import {botQuestReachable} from '../../common/parliament/botQuestPath';
 import {botQuestTableOf} from '../automa/BotQuestEvents';
 import {ownColonyBonuses} from '../colonies/allColonyBonuses';
+import {worldMoveForecast} from '../models/effectForecast';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -75,6 +76,13 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
     };
     if (leader !== undefined) {
       model.leader = colorOf(game, leader.owner);
+    }
+    // The world move's answer, read for the VIEWER (PL-052) — the enacted law reads it from its records instead.
+    if (viewer !== undefined && definition.worldMoves !== undefined && parliament.enacted !== slot.instance) {
+      const forecast = worldMoveForecast(viewer, definition.worldMoves);
+      if (forecast !== undefined) {
+        model.worldForecast = forecast;
+      }
     }
     return model;
   });

@@ -39,6 +39,7 @@ import {accessReasonRows} from './consoleParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
+import type {EffectForecast, EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {tileRemovalReadingOf, tileRemovalSentenceOf} from './tileRemovalModel';
 import {colonyTrackReadingOf, colonyTrackTileSentenceOf} from './colonyTrackModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -55,6 +56,38 @@ export type RowText = {text: string, params?: ReadonlyArray<string>};
 
 /** The rule a «colony bonuses» effect stands on — the one sentence the inspector prints under it (an English key). */
 export const COLONY_BONUS_RULE_KEY = 'A colony bonus is the bonus printed on the tile for your cube when another player trades there. Trade income and the build bonus do not count. Pluto\'s draw-then-discard is paid one pair at a time.';
+
+/** The short names of the pools a world move's answer can touch (existing i18n keys). */
+const ANSWER_LABEL_KEY: Record<string, string> = {
+  megacredits: 'M€', steel: 'Steel', titanium: 'Titanium', plants: 'Plants', energy: 'Energy', heat: 'Heat', cards: 'Cards', tr: 'TR',
+};
+
+/**
+ * The world move's ANSWER as inspector rows (PL-052): one row per fact —
+ * the reacting source (a card name key, resolved by the catalog), its owner
+ * by name when the seats are known, and the bare deltas; an unknown reactor
+ * carries its reason instead of a number.
+ */
+export function worldForecastRows(forecast: EffectForecast | undefined, nameOf?: (color: Color) => string): Array<RowText> {
+  const rows: Array<RowText> = [];
+  const label = (fact: EffectForecastFact): string => {
+    const owner = nameOf === undefined ? '' : ` (${nameOf(fact.source.owner)})`;
+    return `${translateText(fact.source.name)}${owner}`;
+  };
+  for (const fact of forecast?.facts ?? []) {
+    if (fact.certainty === 'unknown') {
+      const reason = typeof fact.reason === 'string' ? translateText(fact.reason) : '';
+      rows.push({text: '${0}: ${1}', params: [translateText('Will trigger'), `${label(fact)} — ${reason}`]});
+      continue;
+    }
+    if ((fact.certainty !== 'exact' && fact.certainty !== 'deferred') || fact.effects.length === 0) {
+      continue;
+    }
+    const deltas = fact.effects.map((e) => `${e.direction === 'cost' ? '−' : '+'}${e.amount} ${translateText(ANSWER_LABEL_KEY[e.icon] ?? e.icon)}`).join(' · ');
+    rows.push({text: '${0}: ${1}', params: [translateText('Will trigger'), `${label(fact)} ${deltas}`]});
+  }
+  return rows;
+}
 
 /**
  * A block's place in the panel: the SUBJECT's own rules first, then what
@@ -150,6 +183,8 @@ export function resolutionAnnotations(
     removal?: {oceans: number, removableOceans?: number},
     /** …and the seats' names, so the record can say who chose the cell. */
     nameOf?: (color: Color) => string,
+    /** WHAT THE TABLE ANSWERS to the world move, for the viewer (`ParliamentSlotModel.worldForecast`, PL-052). */
+    forecast?: EffectForecast,
   },
   /** The viewer's reading of the LEVY a budget takes first (the estimate from their supply, or the record). */
   levy?: LevyReading,
@@ -229,6 +264,9 @@ export function resolutionAnnotations(
       const sentence = tileRemovalSentenceOf(removal, {text: translateText, params: translateTextWithParams}, world?.nameOf);
       rows.push({text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
     }
+    // WHAT THE TABLE ANSWERS to the move (PL-052): «Сработает: Aphrodite (player2) +4 M€» — the server's own
+    // facts for the viewer; a reactor the engine cannot describe is named with its reason, never dropped.
+    rows.push(...worldForecastRows(world?.forecast, world?.nameOf));
     const heading = moves.length === 0 && tracks !== undefined ? 'What it does to the colony table' : 'What it does to the planet';
     out.push(block('group:world', 'immediate', heading, rows, 0.5));
   }

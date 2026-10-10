@@ -12,6 +12,9 @@ import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/mar
 import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalScience';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardResource} from '../../src/common/CardResource';
+import {GAS_EXPORT_ID} from '../../src/server/parliament/resolutions/reds/GasExport';
+import {Aphrodite} from '../../src/server/cards/venusNext/Aphrodite';
+import {setVenusScaleLevel} from '../TestingUtils';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -104,5 +107,48 @@ describe('ParliamentModel — the sitting', () => {
     const at = journal.indexOf(effect!);
     expect(journal[at - 1]).deep.include({kind: 'leave', instance: loser});
     expect(card.resourceCount).eq(1);
+  });
+});
+
+/**
+ * PL-052 (TR41): the vote's reading of Gas Export said nothing of what the TABLE answers to its Venus steps —
+ * nobody is credited, no party pays, no bonus step is claimed, yet Aphrodite's 2 M€ per Venus step (any player's
+ * raise) stands. The slot carries the forecast engine's own answer for the viewer.
+ */
+describe('ParliamentModel — the world move\'s answer on the slot (PL-052)', () => {
+  function venusTable(): [IGame, TestPlayer, TestPlayer, Parliament] {
+    const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
+    game.phase = Phase.ACTION;
+    return [game, p1, p2, game.parliament!];
+  }
+
+  it('Gas Export with a rival\'s Aphrodite: the viewer\'s slot names Aphrodite\'s 4 M€ (two steps) — no party, no bonus step, no own-raise reactor', () => {
+    const [game, p1, p2, parliament] = venusTable();
+    seatResolution(parliament, 0, GAS_EXPORT_ID);
+    p2.playedCards.push(new Aphrodite());
+    setVenusScaleLevel(game, 6);
+    const slot = getParliamentModel(game, p1)!.slots[0];
+    expect(slot.resolution).eq(GAS_EXPORT_ID);
+    const facts = slot.worldForecast?.facts ?? [];
+    const aphrodite = facts.find((f) => f.source.name === CardName.APHRODITE);
+    expect(aphrodite, JSON.stringify(facts.map((f) => `${f.source.kind}:${f.source.name}:${f.id}`))).is.not.undefined;
+    expect(aphrodite!.source).deep.include({kind: 'corporation', owner: p2.color});
+    expect(aphrodite!.recipient).deep.include({kind: 'player', color: p2.color});
+    expect(aphrodite!.effects[0]).deep.include({direction: 'gain', icon: 'megacredits', amount: 4});
+    expect(facts.some((f) => f.source.kind === 'party'), 'the Greens pay for no rating here').is.false;
+    expect(facts.some((f) => f.id.endsWith('venus-card-bonus')), 'the 8 % card is claimed by nobody').is.false;
+    // The same slot as Aphrodite's OWNER sees it: the gain is «yours».
+    const own = getParliamentModel(game, p2)!.slots[0].worldForecast?.facts.find((f) => f.source.name === CardName.APHRODITE);
+    expect(own?.recipient.kind).eq('you');
+  });
+
+  it('a quiet table answers nothing — the slot carries no forecast; a law that moves no scale carries none either; a spectator gets none', () => {
+    const [game, p1, , parliament] = venusTable();
+    seatResolution(parliament, 0, GAS_EXPORT_ID);
+    seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+    const model = getParliamentModel(game, p1)!;
+    expect(model.slots[0].worldForecast, 'nothing reacts').is.undefined;
+    expect(model.slots[1].worldForecast, 'no world move').is.undefined;
+    expect(getParliamentModel(game)!.slots[0].worldForecast, 'a spectator').is.undefined;
   });
 });

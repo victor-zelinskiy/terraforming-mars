@@ -6,6 +6,7 @@ import {CardResource} from '../CardResource';
 import {ColonyName} from '../colonies/ColonyName';
 import {ColonyLedgerEntryModel} from './ColonyBonusLedgerModel';
 import {Resource} from '../Resource';
+import type {EffectForecast} from './EffectForecastModel';
 import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
 import {ParameterMoveId} from '../parliament/parameterMove';
 import {ColonyTrackMove} from '../parliament/colonyTrackAdvance';
@@ -37,6 +38,14 @@ export type ParliamentSlotModel = {
   tiePriority: number;
   /** Delegates the VIEWER has on this card (the party-effect / requirement threshold). */
   viewerVotes: number;
+  /**
+   * WHAT THE TABLE ANSWERS to the resolution's WORLD MOVE, for the viewer
+   * (PL-052): a card that pays on any player's raise (Aphrodite on Gas
+   * Export's Venus) — the forecast engine's own facts, the same the
+   * composers' «Сработает» row reads; the inspector's world block prints them.
+   * Viewer-only; absent when nothing reacts or the law moves no scale.
+   */
+  worldForecast?: EffectForecast;
 };
 
 export type ParliamentEnactedModel = {

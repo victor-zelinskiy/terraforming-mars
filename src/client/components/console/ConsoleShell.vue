@@ -9694,7 +9694,7 @@ export default defineComponent({
      * records (`worldMoveModel`): «Кислород: 5 % → 4 %», «Венера: 10 % →
      * 14 %, РТ никому».
      */
-    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>, removal: {oceans: number, removableOceans: number} | undefined, nameOf: (color: Color) => string} {
+    zoomResolutionWorld(): {table: WinnerRewardTable | undefined, enacted: boolean, outcomes: ReadonlyArray<ParliamentEnactOutcomeModel> | undefined, colonies: ReadonlyArray<ColonyModel>, removal: {oceans: number, removableOceans: number} | undefined, nameOf: (color: Color) => string, forecast: EffectForecast | undefined} {
       const id = this.zoomResolutionId;
       const model = this.game.parliament;
       const enacted = id !== undefined && model?.enacted?.resolution === id;
@@ -9704,6 +9704,8 @@ export default defineComponent({
         table: winnerRewardTableOf(this.game),
         enacted,
         outcomes: enacted ? (phase?.outcomes ?? summary?.outcomes) : undefined,
+        // WHAT THE TABLE ANSWERS to the world move (PL-052) — the viewer's own slot reading, server-made.
+        forecast: id === undefined ? undefined : model?.slots.find((s) => s.resolution === id)?.worldForecast,
         // …and the COLONY TABLE, for a law that advances its tracks (Unity Budget — `colonyTrackModel`).
         colonies: this.game.colonies,
         // …and the BOARD, for a law that takes a tile off it (Water Export — `tileRemovalModel`): the ocean count and the plain ones.

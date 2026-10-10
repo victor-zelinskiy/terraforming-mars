@@ -397,3 +397,23 @@ describe('colonyTradePreview — what the TABLE answers (the forecast, PL-066)',
     expect(buildColonyTradePreview(t.player, io).buildForecast).is.undefined;
   });
 });
+
+/** PL-052 (TR41): the trade stage of the Redux Venus tile — its income is a Venus STEP, and the table's answer to it must stand before the press. */
+describe('colonyTradePreview — the Redux Venus tile\'s step is answered before the press (PL-052)', () => {
+  it('under the ruling Greens the trade preview names their 2 M€ for the Venus step, and the step\'s own rating rides the chips the forecast reads', () => {
+    const [game, player] = testGame(2, {
+      coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true,
+      customColoniesList: [ColonyName.VENUS_REDUX, ColonyName.LUNA, ColonyName.MIRANDA, ColonyName.IO, ColonyName.EUROPA],
+    });
+    game.phase = Phase.ACTION;
+    expect(game.parliament!.rulingParty(), 'a fresh Redux table: the Greens').eq(PartyName.GREENS);
+    const venus = game.colonies.find((c) => c.name === ColonyName.VENUS_REDUX)!;
+    venus.isActive = true;
+    venus.trackPosition = 3;
+    player.megaCredits = 20;
+    const preview = buildColonyTradePreview(player, venus);
+    const greens = (preview.forecast?.facts ?? []).find((f) => f.source.kind === 'party' && f.source.name === PartyName.GREENS);
+    expect(greens, JSON.stringify(preview.forecast?.facts.map((f) => f.id))).is.not.undefined;
+    expect(greens!.effects[0]).deep.include({direction: 'gain', icon: 'megacredits', amount: 2});
+  });
+});

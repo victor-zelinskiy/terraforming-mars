@@ -38,6 +38,7 @@ import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '../../common/inputs/Spendable';
 import {DEFAULT_PAYMENT_VALUES} from '../../common/inputs/Payment';
+import {WorldParameterMove} from '../../common/parliament/parameterMove';
 
 /**
  * THE EFFECT FORECAST ENGINE — what the table answers to a card play / a card
@@ -456,9 +457,12 @@ function scaleRaiseFacts(
       }
     }
   };
-  for (const reactor of reactorsOf(raiser, active, card)) {
-    if (reactor.onGlobalParameterIncrease !== undefined) {
-      ask(reactor, raiser);
+  // A WORLD move has no raiser (PL-052): the «when YOU raise» reactors are nobody's.
+  if (ctx.world !== true) {
+    for (const reactor of reactorsOf(raiser, active, card)) {
+      if (reactor.onGlobalParameterIncrease !== undefined) {
+        ask(reactor, raiser);
+      }
     }
   }
   for (const owner of raiser.game.playersInGenerationOrder) {
@@ -1200,17 +1204,46 @@ export function rewardReactionFacts(
   player: IPlayer,
   card: ICard | undefined,
   effects: ReadonlyArray<ActionEffect>,
-  opts: {coloniesBuilt?: number} = {},
+  opts: {coloniesBuilt?: number, world?: boolean} = {},
 ): Array<EffectForecastFact> {
-  const ctx: EffectForecastContext = {operation: 'action', ...(card !== undefined ? {card} : {}), tiles: []};
+  const world = opts.world === true;
+  const ctx: EffectForecastContext = {operation: 'action', ...(card !== undefined ? {card} : {}), tiles: [], ...(world ? {world: true as const} : {})};
   // The bonus steps the raise crosses (PL-147) come first: their grants are what the reactors and the parties read.
-  const bonuses = scaleBonusPass(player, grantsOf(effects));
+  // A WORLD move (PL-052) crosses them for nobody and pays no party: the reactors to anyone's raise, and nothing else.
+  const bonuses = world ? {facts: [] as Array<EffectForecastFact>, grants: grantsOf(effects)} : scaleBonusPass(player, grantsOf(effects));
   const grants = bonuses.grants;
   const facts = [...bonuses.facts, ...grantFacts(player, player, card, grants, ctx)];
   facts.push(...cascadeFacts(player, card, facts, ctx));
-  facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
+  if (!world) {
+    facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
+  }
   facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));
   return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);
+}
+
+/**
+ * WHAT THE TABLE ANSWERS TO A RESOLUTION'S WORLD MOVE (PL-052, Gas Export
+ * RX12): the enactment terraforms Venus for nobody — no rating, no party, no
+ * bonus step — yet a card that pays on ANY player's raise (Aphrodite's 2 M€
+ * per Venus step) is paid, and the vote's reading said nothing of it. The
+ * forecast engine's own pass over the declared moves, as the viewer sees it
+ * (their own card's gain is «yours», a rival's is named), for the slot's
+ * inspector. A lowering (the oxygen) moves nothing a reactor answers.
+ * `undefined` when nothing reacts, so the wire carries no empty object.
+ */
+export function worldMoveForecast(viewer: IPlayer, moves: ReadonlyArray<WorldParameterMove>): EffectForecast | undefined {
+  const effects: Array<ActionEffect> = [];
+  for (const move of moves) {
+    if (move.steps <= 0) {
+      continue;
+    }
+    if (move.parameter === 'oceans') {
+      effects.push(oceanGain(viewer, move.steps));
+    } else if (move.parameter !== 'venus' || viewer.game.gameOptions.venusNextExtension) {
+      effects.push(globalGain(viewer, move.parameter, move.steps));
+    }
+  }
+  return effects.length === 0 ? undefined : rewardReactionForecast(viewer, undefined, effects, {world: true});
 }
 
 /**
@@ -1225,7 +1258,7 @@ export function rewardReactionForecast(
   player: IPlayer,
   card: ICard | undefined,
   effects: ReadonlyArray<ActionEffect>,
-  opts: {coloniesBuilt?: number} = {},
+  opts: {coloniesBuilt?: number, world?: boolean} = {},
 ): EffectForecast | undefined {
   const facts = rewardReactionFacts(player, card, effects, opts);
   return facts.length === 0 ? undefined : {...emptyEffectForecast(), facts, coverage: coverageOf(facts)};

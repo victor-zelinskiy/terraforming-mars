@@ -9,6 +9,7 @@ import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} fro
 import {CardName} from '@/common/cards/CardName';
 import {allResolutions, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
 
 /**
  * THE INSPECTOR'S READING BLOCKS for a parliament subject (Turmoil Redux).
@@ -436,5 +437,40 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(recorded[1].rows[0].params?.[0]).to.eq('Luna ×2 · Titan');
     expect(resolutionAnnotations(id, [{...now, context: 'applied', count: 0, amount: 0, countedColonies: []}])[1].rows.map((r) => r.text))
       .to.deep.eq(['No colony was counted at the enactment']);
+  });
+});
+
+/** PL-052: the world block names what the TABLE answers to the move — the viewer's slot forecast, one row per fact. */
+describe('resolutionAnnotations — the world move\'s answer (PL-052)', () => {
+  const gasExport = allResolutions().find((r) => (r.worldMoves ?? []).some((m) => m.parameter === 'venus'));
+  const table = {oxygenLevel: 5, temperature: -20, oceans: 2, venusScaleLevel: 6};
+  const forecast: EffectForecast = {
+    facts: [{
+      id: 'red-Aphrodite-0',
+      source: {kind: 'corporation', name: CardName.APHRODITE, owner: 'red', channel: 'global-parameter'},
+      certainty: 'exact', recipient: {kind: 'player', color: 'red'}, timing: 'immediate',
+      effects: [{direction: 'gain', icon: 'megacredits', amount: 4}],
+      reason: 'Any player raises Venus',
+    }],
+    discounts: {base: 0, final: 0, items: [], other: 0},
+    paymentValues: [],
+    coverage: 'complete',
+  };
+
+  it('prints «Will trigger: Aphrodite (Rival) +4 M€» under the planet\'s rows, by name', () => {
+    expect(gasExport, 'the catalog has a Venus-moving law').is.not.undefined;
+    const block = resolutionAnnotations(gasExport!.id, undefined, undefined, {table, forecast, nameOf: () => 'Rival'}).find((b) => b.id === 'group:world');
+    expect(block).is.not.undefined;
+    const answer = block!.rows.find((row) => row.params?.[0] === 'Will trigger');
+    expect(answer, JSON.stringify(block!.rows)).is.not.undefined;
+    expect(answer!.params?.[1]).to.contain('Aphrodite');
+    expect(answer!.params?.[1]).to.contain('(Rival)');
+    expect(answer!.params?.[1]).to.contain('+4 M€');
+    expect(block!.rows.indexOf(answer!), 'after the moves\' rows').to.be.greaterThan(0);
+  });
+
+  it('without a forecast the block is the planet\'s rows alone', () => {
+    const block = resolutionAnnotations(gasExport!.id, undefined, undefined, {table}).find((b) => b.id === 'group:world');
+    expect(block!.rows.some((row) => row.params?.[0] === 'Will trigger')).is.false;
   });
 });
