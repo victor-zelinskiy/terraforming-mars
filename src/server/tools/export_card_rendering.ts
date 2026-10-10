@@ -4,6 +4,7 @@ import fs from 'fs';
 import {ALL_MODULE_MANIFESTS} from '../cards/AllManifests';
 import {CardManifest, GlobalEventManifest, ModuleManifest} from '../cards/ModuleManifest';
 import {ICard, isIActionCard} from '../cards/ICard';
+import {holderActionGoodOf} from '../cards/holderActionGood';
 import {Expansion, GameModule} from '../../common/cards/GameModule';
 import {IGlobalEvent} from '../turmoil/globalEvents/IGlobalEvent';
 import {IClientGlobalEvent} from '../../common/turmoil/IClientGlobalEvent';
@@ -150,6 +151,12 @@ class CardProcessor {
     // structure tells it): the ДОП. РЕСУРСЫ satellite splits its chips by it, the target step names it.
     if (card.resourceRole !== undefined) {
       clientCard.resourceRole = card.resourceRole;
+    }
+    // The card's ACTION ROLE (PL-135) — what its stored resource BUYS through its own declarative action, read off
+    // `action` here and never declared by the card (`cards/holderActionGood.ts`).
+    const actionGood = holderActionGoodOf(card);
+    if (actionGood !== undefined) {
+      clientCard.actionGood = actionGood;
     }
 
     if (card.requirements) {

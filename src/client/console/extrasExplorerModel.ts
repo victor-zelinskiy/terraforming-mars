@@ -28,11 +28,12 @@
  * PURE: no Vue / DOM / i18n / manifest — unit-tested under the server
  * runner. Labels are English i18n KEYS (card names ARE keys).
  */
-import {HOLDER_ROLE_CAPTION, HolderRole} from '@/client/console/holderRoles';
+import {HolderRole, holderRoleCaption} from '@/client/console/holderRoles';
 import type {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
 import type {AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 import type {MarsBotExtraGroup} from '@/client/components/console/marsBotRailModel';
 import type {RailMcBadge} from '@/client/console/railValueModel';
+import {badgeForUnit} from '@/client/console/railValueModel';
 import type {RailProtectionMark} from '@/client/console/railProtectionModel';
 import type {CardResource} from '@/common/CardResource';
 import type {ExtrasZone} from '@/client/console/consoleExtrasExplorer';
@@ -126,7 +127,7 @@ export type ExtrasModelInput = {
   /** The canonical type groups (additionalResourceGroups — passed in so
    *  the model stays pure). */
   /** …or the role-split groups (`additionalResourceRoleGroups`) — then `key` / `role` / `split` ride along and the type's address and caption follow them. */
-  groups: ReadonlyArray<AdditionalResourceGroup & {key?: string, role?: HolderRole, split?: boolean}>;
+  groups: ReadonlyArray<AdditionalResourceGroup & {key?: string, role?: HolderRole, split?: boolean, unitSplit?: boolean}>;
   /** The server's per-card VP rows (empty for a hidden opponent). */
   detailsCards: ReadonlyArray<CardVictoryPointsDetail>;
   vpVisible: boolean;
@@ -241,11 +242,17 @@ export function buildExtrasTypes(input: ExtrasModelInput): ReadonlyArray<ExtrasT
         payRate: payFact !== undefined ? String(payFact.rate) : undefined,
       };
     });
+    // A SPLIT type names its role beside the resource's name (PL-030): «Мехи · делегаты» / «Мехи · деньги» — and an
+    // ACTION role names its GOOD (PL-135): «Мехи · производство».
+    const roleCaption = group.split === true && group.role !== undefined ? holderRoleCaption(group.role) : undefined;
+    // The tender badge belongs to the PAYMENT role's group alone once the type is split — and to the ONE unit's own
+    // coin when two tender pools of the resource stand on the table (PL-136).
+    const merged = group.role === undefined || group.role.kind === 'payment' ? input.payments?.get(group.resource) : undefined;
+    const payment = group.role?.kind === 'payment' && group.unitSplit === true ? badgeForUnit(merged, group.role.unit) : merged;
     return {
       key: group.key ?? extrasTypeKey(group.resource),
       resource: group.resource,
-      // A SPLIT type names its role beside the resource's name (PL-030): «Мехи · делегаты» / «Мехи · деньги».
-      ...(group.split === true && group.role !== undefined && group.role.kind !== 'store' ? {roleCaption: HOLDER_ROLE_CAPTION[group.role.kind]} : {}),
+      ...(roleCaption === undefined ? {} : {roleCaption}),
       iconClass: input.iconFor?.(group.resource) ?? '',
       label: group.resource,
       total: group.total,
@@ -256,8 +263,7 @@ export function buildExtrasTypes(input: ExtrasModelInput): ReadonlyArray<ExtrasT
       scoringCards,
       actionCards,
       protection: input.protections?.get(group.resource),
-      // The tender badge belongs to the PAYMENT role's group alone once the type is split.
-      payment: group.role === undefined || group.role.kind === 'payment' ? input.payments?.get(group.resource) : undefined,
+      payment,
     };
   });
 }

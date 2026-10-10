@@ -853,6 +853,8 @@
     "Pays ${0} M€ per unit": "платит ${0} M€ за единицу",
     "A delegate on a resolution per unit": "делегат на резолюцию за единицу",
     "A free trade per unit": "бесплатная торговля за единицу",
+    "Spend ${0} from here: +${1}": "Потратьте ${0} отсюда: +${1}",
+    "terraforming": "терраформирование",
     "Converted into VP by played cards, current rate: ${0}": "Метка конвертируется в ПО сыгранными картами, текущий коэффициент: ${0}",
     "Sources: ${0}": "Источники: ${0}",
     "protected": "под защитой",

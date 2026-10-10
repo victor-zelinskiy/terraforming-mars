@@ -314,11 +314,17 @@
               :label="c.roleAria ?? ''"
               :scopeKey="player.color" />
             <span v-else-if="c.roleBadge !== undefined" class="con-res-aux__rolebadge con-res-aux__rolebadge--icon"
-                  :data-role-badge="c.roleBadge.kind" role="img" :aria-label="c.roleAria ?? ''">
+                  :class="{'con-res-aux__rolebadge--production': c.roleBadge.plate === 'production'}"
+                  :data-role-badge="c.roleBadge.kind" :data-role-plate="c.roleBadge.plate" role="img" :aria-label="c.roleAria ?? ''">
               <i class="con-res-aux__roleicon" :class="roleIconClass(c.roleBadge.icon)" aria-hidden="true"></i>
             </span>
           </span>
           <span class="con-res-aux__value">{{ c.value }}</span>
+            <!-- The tender coin's CONTEXT (PL-136): two tender pools of one resource on the table — the Space mechs of
+                 EVA beside the Building mechs of Construction Mechs — each wear the tag their coin pays for, so two
+                 «5»s read apart. One pool: no glyph, the coin as it always was. -->
+            <Tag v-if="c.contextTag !== undefined" class="con-res-aux__ctxtag" :tag="c.contextTag" size="big" type="secondary"
+                 :data-context-tag="c.contextTag" aria-hidden="true" />
           <AnimatedMetricValue
             v-if="epoch !== ''"
             :value="c.value"
@@ -376,9 +382,10 @@ import {marsBotExtraGroups} from '@/client/components/console/marsBotRailModel';
 import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue';
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
-import {HOLDER_ROLE_CAPTION, HOLDER_ROLE_ICON, HolderRole, holderRoleReading} from '@/client/console/holderRoles';
+import {actionGoodIcon, HOLDER_ROLE_ICON, HolderRole, holderRoleCaption, holderRolePlate, holderRoleReading} from '@/client/console/holderRoles';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {MC_CONTEXT_KEYS, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, TagVpBadge} from '@/client/console/railValueModel';
+import {badgeForUnit, MC_CONTEXT_KEYS, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
+import {Tag as TagKind} from '@/common/cards/Tag';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -417,12 +424,21 @@ type AuxCell = {
   protectionAria?: string,
   mcBadge?: RailMcBadge,
   mcAria?: string,
-  /** A ROLE badge (PL-030) — what this chip's resource is for when it is not tender: a shield with a word (VP, trade) or the delegate's own sprite. */
-  roleBadge?: {kind: 'vp' | 'delegate' | 'trade', text?: string, icon?: string},
+  /**
+   * A ROLE badge (PL-030) — what this chip's resource is for when it is not tender: a shield with a word (VP, trade),
+   * the delegate's own sprite, or the ACTION's good (PL-135: the resource the action buys, on the production plate
+   * when it is a production step).
+   */
+  roleBadge?: {kind: 'vp' | 'delegate' | 'trade' | 'action', text?: string, icon?: string, plate?: 'production'},
   roleAria?: string,
 };
 
 
+  /**
+   * The tender coin's CONTEXT glyph (PL-136) — only when two tender pools of one resource stand on the table: the
+   * tag the coin pays for (Space for EVA's mechs, Building for Construction Mechs'), so «5» beside «5» read apart.
+   */
+  contextTag?: TagKind,
 /** The role badge a chip wears — none for tender (the coin) and for plain storage. */
 function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
   switch (role.kind) {
@@ -436,11 +452,27 @@ function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
   default:
     return undefined;
   }
+  case 'action': {
+    const plate = holderRolePlate(role);
+    return plate === undefined ? {kind: 'action', icon: actionGoodIcon(role.good)} : {kind: 'action', icon: actionGoodIcon(role.good), plate};
+  }
 }
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',
   components: {Tag, AnimatedMetricValue, ConsoleVpBadge, ConsoleValueBadge, ConsoleProtectionMark, PrivateScoreMask},
+/** The ONE tag a tender context is named by on the coin (a context with no single tag wears none). */
+const CONTEXT_TAG: Readonly<Partial<Record<RailMcContext, TagKind>>> = {
+  'space': TagKind.SPACE,
+  'building': TagKind.BUILDING,
+  'building-or-city': TagKind.BUILDING,
+  'city-or-space': TagKind.CITY,
+  'plant': TagKind.PLANT,
+  'plant-or-greenery': TagKind.PLANT,
+  'venus': TagKind.VENUS,
+  'moon': TagKind.MOON,
+};
+
   emits: ['aux-press'],
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
@@ -731,12 +763,14 @@ export default defineComponent({
       return this.extraGroups.map((g): AuxCell => {
         const protection = this.protections.cardResources.get(g.resource);
         // The tender coin belongs to the PAYMENT role's chip alone; every other named role wears its own badge (PL-030).
-        const mcBadge = g.role.kind === 'payment' ? this.mcBadges.cardBound.get(g.resource) : undefined;
+        const mcBadge = this.auxMcBadgeOf(g);
         // …and a badge exists only where the type is SPLIT — an unsplit chip is the count it always was.
         const roleBadge = g.split ? roleBadgeOf(g.role) : undefined;
         return {
           key: g.key,
           iconClass: `card-resource ${cardResourceCSS[g.resource]}`,
+        // Two tender pools of one resource (PL-136): each coin names the tag it pays for.
+        const contextTag = g.unitSplit && g.role.kind === 'payment' ? CONTEXT_TAG[g.role.context] : undefined;
           value: g.total,
           metricKey: additionalResourceMetricKey(g.resource),
           protection,
@@ -748,6 +782,7 @@ export default defineComponent({
         };
       });
     },
+          ...(contextTag === undefined ? {} : {contextTag}),
     auxRootClasses(): Record<string, boolean> {
       const info = this.auxInfoActive;
       const state = extrasExplorerUi;
@@ -996,7 +1031,7 @@ export default defineComponent({
       if (role.kind === 'store') {
         return '';
       }
-      const caption = translateText(HOLDER_ROLE_CAPTION[role.kind]);
+      const caption = translateText(holderRoleCaption(role) ?? '');
       const reading = holderRoleReading(role);
       if (reading === undefined) {
         return caption;
@@ -1005,7 +1040,7 @@ export default defineComponent({
       return `${caption} · ${line}`;
     },
     auxMcAria(group: AdditionalResourceRoleGroup): string {
-      const badge = this.mcBadges.cardBound.get(group.resource);
+      const badge = this.auxMcBadgeOf(group);
       if (badge === undefined) {
         return '';
       }
@@ -1015,6 +1050,18 @@ export default defineComponent({
         label += ' · ' + translateTextWithParams('Spendable from this stock: ${0} of ${1}', [String(spendable), String(group.total)]);
       }
       return label;
+    },
+    /**
+     * The tender coin of a chip: the resource's card-bound badge — or, when two tender pools of the resource stand on
+     * the table (PL-136), the ONE unit's own coin out of it, so EVA's Space mechs and Construction Mechs' Building
+     * mechs each state their own rate and their own «where».
+     */
+    auxMcBadgeOf(group: AdditionalResourceRoleGroup): RailMcBadge | undefined {
+      if (group.role.kind !== 'payment') {
+        return undefined;
+      }
+      const merged = this.mcBadges.cardBound.get(group.resource);
+      return group.unitSplit ? badgeForUnit(merged, group.role.unit) : merged;
     },
     /** The VP badge's accessible sentence: the rate + the scoring cards. */
     tagVpAria(badge: TagVpBadge): string {
