@@ -700,6 +700,11 @@ html.console-native {
    screen — several solve fits against their padding box). */
 .con-stage-surface() {
     border-radius: 0;
+    /* OPAQUE (PL-137). The body used to be «near-opaque» (0.97–0.985) — enough to swallow the dark board, not enough
+       to swallow the ДОП. РЕСУРСЫ satellite standing UNDER it at full brightness (z 11470 — «COVERED, NEVER DIMMED»):
+       its white digits and sprites ghosted through at ≈ 3–8 % as the «stray 2» over the composer's top-left corner
+       (TR34 saw it in the corner probe, TR40 named it). The depth is the gradient's and the shadows', never the
+       alpha's — a surface that covers something covers it. */
     background:
         linear-gradient(90deg, rgba(12, 19, 29, 0.55), transparent 9rem),
         linear-gradient(180deg, rgba(9, 15, 23, 0.97), rgba(7, 12, 19, 0.975) 46%, rgba(5, 9, 15, 0.985));
