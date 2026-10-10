@@ -95,7 +95,7 @@ export function tileRemovalStep(resolution: ResolutionId, _declaration: TileRemo
       return prompt.andThen((space) => {
         const before = board.getOceanSpaces().length;
         // THE ENGINE'S REMOVAL — the same mutation the Reds' action makes.
-        game.removeTile(space.id);
+        game.removeTile(space.id, executor);
         const after = board.getOceanSpaces().length;
         LogHelper.logBoardTileAction(executor, space, 'ocean tile', 'removed');
         game.log('${0}: the ocean count falls ${1} → ${2}; nobody loses TR for it', (b) =>

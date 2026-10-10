@@ -6,6 +6,7 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {tileTypeToString} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
 import {EventImpact, SkippedEffectFact} from '@/common/events/EventImpact';
+import {AdjacencyVpChange} from '@/common/boards/TileMove';
 import {EventSource, ParliamentRule, sourceKey} from '@/common/events/EventSource';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {GREENERY_TILE_TR_SOURCE_NAME} from '@/common/parliament/winnerReward';
@@ -272,7 +273,7 @@ function bucketFor(e: GameEvent): JournalChildBucket {
   if (e.type === 'effect-skipped') {
     return 'skipped';
   }
-  if (e.type === 'tile-placed' || e.type === 'tile-moved') {
+  if (e.type === 'tile-placed' || e.type === 'tile-moved' || e.type === 'tile-removed') {
     return 'placement';
   }
   if (e.type === 'copied-action') {
@@ -410,6 +411,20 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     }
     const bucket = bucketFor(e);
     const player = recipient(e);
+    // THE CAPITALS' RECOUNT (PL-041 / PL-141): a Capital one adjacent ocean poorer or richer by this placement,
+    // removal or move is ITS OWNER's row — the fact the event carries, never a number the journal derives from
+    // the board.
+    const pushCapitalRecount = (key: string, changes: ReadonlyArray<AdjacencyVpChange> | undefined): void => {
+      for (const change of changes ?? []) {
+        const delta = change.after - change.before;
+        push(`${key}-capital|${e.id}|${change.space}`, {
+          source: {kind: 'label', label: delta < 0 ? 'Capital loses an adjacent ocean' : 'Capital gains an adjacent ocean'},
+          player: change.player, bucket,
+          chips: [],
+          space: change.space,
+        }, [{icon: 'vp', text: signed(delta)}]);
+      }
+    };
     if (e.type === 'tile-placed') {
       // Each placed tile is its OWN row (never merged) — keyed by event id.
       push(`placement|${e.id}`, {
@@ -420,6 +435,19 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
         tileLabel: e.tile !== undefined ? tileTypeToString[e.tile] : undefined,
         ...(e.impact.colonyTile !== undefined ? {colonyTile: e.impact.colonyTile} : {}),
       }, []);
+      pushCapitalRecount('placement', e.impact.adjacencyVp);
+      continue;
+    }
+    if (e.type === 'tile-removed') {
+      // A REMOVAL (the Reds' action, RX33, Kaguya Tech) is its own row: the tile that left and the cell it left.
+      push(`removal|${e.id}`, {
+        source: {kind: 'label', label: 'Tile removal'},
+        player, bucket,
+        chips: [],
+        space: e.space,
+        tileLabel: e.tile !== undefined ? tileTypeToString[e.tile] : undefined,
+      }, []);
+      pushCapitalRecount('removal', e.impact.adjacencyVp);
       continue;
     }
     if (e.type === 'tile-moved') {
@@ -433,6 +461,7 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
         space: e.space,
         tileLabel: e.tile !== undefined ? tileTypeToString[e.tile] : undefined,
       }, []);
+      pushCapitalRecount('move', e.impact.tileMove?.adjacencyVp);
       continue;
     }
     if (e.type === 'effect-skipped' && e.impact.skipped !== undefined) {

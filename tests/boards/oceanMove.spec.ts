@@ -24,7 +24,7 @@ import {
 import {aggregateByPlayer} from '../../src/common/events/aggregate';
 import {AresHazards} from '../../src/server/ares/AresHazards';
 import {cast} from '../../src/common/utils/utils';
-import {addOcean, maxOutOceans, runAllActions} from '../TestingUtils';
+import {addOcean, formatMessage, maxOutOceans, runAllActions} from '../TestingUtils';
 
 /**
  * AN OCEAN MOVES (Turmoil Redux TR39 Canyon Carving) — the engine's second
@@ -239,12 +239,81 @@ describe('oceanMove', () => {
       const from = seatOcean(game, A);
       expect(p2.getVictoryPoints().victoryPoints, 'the Capital scores its one adjacent ocean').eq(1);
 
+      const before = game.events.events.length;
       game.moveOceanTile(p1, from, cell(game, B_LAND));
       expect(p2.getVictoryPoints().victoryPoints, 'the ocean left its side').eq(0);
+      // THE FACT RIDES THE MOVE'S EVENT (PL-041): the Capital's owner, its cell, one adjacent ocean fewer — and the
+      // journal says so in the owner's name; the score itself is never mutated.
+      const moved = game.events.events.slice(before).filter((e) => e.type === 'tile-moved');
+      expect(moved).has.length(1);
+      expect(moved[0].impact.tileMove?.adjacencyVp).deep.eq([{space: CAPITAL_CELL, player: p2.color, tile: TileType.CAPITAL, before: 1, after: 0}]);
+      expect(game.events.events.slice(before).some((e) => e.type === 'resource-changed' && e.impact.vp !== undefined), 'no VP mutation').is.false;
+      const lines = game.gameLog.slice(-3).map((m) => formatMessage(m));
+      expect(lines.some((l) => /Capital loses an adjacent ocean: 1 → 0 VP/.test(l)), lines.join('\n')).is.true;
 
-      // …and back beside it: the point returns.
+      // …and back beside it: the point returns — and the fact says so, a gain this time.
+      const back = game.events.events.length;
       game.moveOceanTile(p1, cell(game, B_LAND), cell(game, A));
       expect(p2.getVictoryPoints().victoryPoints).eq(1);
+      const returned = game.events.events.slice(back).filter((e) => e.type === 'tile-moved');
+      expect(returned[0].impact.tileMove?.adjacencyVp).deep.eq([{space: CAPITAL_CELL, player: p2.color, tile: TileType.CAPITAL, before: 0, after: 1}]);
+    });
+
+    it('PL-141 — a PLACEMENT recounts the Capital too: an ocean landing beside it carries the fact on its `tile-placed` event, and says so in the owner\'s name', () => {
+      const {game, p1, p2} = table();
+      seatCapital(game, p2, CAPITAL_CELL);
+      expect(p2.getVictoryPoints().victoryPoints).eq(0);
+      const before = game.events.events.length;
+      game.addOcean(p1, cell(game, A));
+      runAllActions(game);
+      expect(p2.getVictoryPoints().victoryPoints, 'the Capital scores the ocean that came to its side').eq(1);
+      const placed = game.events.events.slice(before).filter((e) => e.type === 'tile-placed');
+      expect(placed).has.length(1);
+      expect(placed[0].impact.adjacencyVp).deep.eq([{space: CAPITAL_CELL, player: p2.color, tile: TileType.CAPITAL, before: 0, after: 1}]);
+      expect(placed[0].impact.tilesPlaced, 'a placement is still a placement').eq(1);
+      expect(game.events.events.slice(before).some((e) => e.type === 'resource-changed' && e.impact.vp !== undefined), 'no VP mutation').is.false;
+      const lines = game.gameLog.slice(-4).map((m) => formatMessage(m));
+      expect(lines.some((l) => /Capital gains an adjacent ocean: 0 → 1 VP/.test(l)), lines.join('\n')).is.true;
+      // …and an ocean placed where no Capital stands beside it carries NO fact.
+      const quiet = game.events.events.length;
+      game.addOcean(p1, cell(game, O2));
+      runAllActions(game);
+      const far = game.events.events.slice(quiet).filter((e) => e.type === 'tile-placed');
+      expect(far[0].impact.adjacencyVp).is.undefined;
+    });
+
+    it('PL-141 — a REMOVAL recounts it the other way: the Reds\' lift of the ocean beside the Capital is a `tile-removed` event with the loss on it; a bare removal (no actor) stays the mutation it was', () => {
+      const {game, p1, p2} = table();
+      seatCapital(game, p2, CAPITAL_CELL);
+      seatOcean(game, A);
+      expect(p2.getVictoryPoints().victoryPoints).eq(1);
+      const before = game.events.events.length;
+      game.removeTile(A, p1);
+      expect(cell(game, A).tile, 'the ocean is gone').is.undefined;
+      expect(p2.getVictoryPoints().victoryPoints, 'the Capital lost the ocean beside it').eq(0);
+      const removed = game.events.events.slice(before).filter((e) => e.type === 'tile-removed');
+      expect(removed).has.length(1);
+      expect(removed[0].space).eq(A);
+      expect(removed[0].tile).eq(TileType.OCEAN);
+      expect(removed[0].impact.adjacencyVp).deep.eq([{space: CAPITAL_CELL, player: p2.color, tile: TileType.CAPITAL, before: 1, after: 0}]);
+      expect(removed[0].impact.tilesPlaced, 'nothing was placed').is.undefined;
+      const lines = game.gameLog.slice(-3).map((m) => formatMessage(m));
+      expect(lines.some((l) => /Capital loses an adjacent ocean: 1 → 0 VP/.test(l)), lines.join('\n')).is.true;
+      // No actor — a test's arrangement, no event at all.
+      seatOcean(game, A);
+      const bare = game.events.events.length;
+      game.removeTile(A);
+      expect(game.events.events.slice(bare).filter((e) => e.type === 'tile-removed')).has.length(0);
+    });
+
+    it('a move that changes no Capital\'s count carries NO adjacency fact (the Capital beside both cells, or no Capital at all)', () => {
+      const {game, p1} = table();
+      const from = seatOcean(game, A);
+      const before = game.events.events.length;
+      game.moveOceanTile(p1, from, cell(game, B_OCEAN));
+      const moved = game.events.events.slice(before).filter((e) => e.type === 'tile-moved');
+      expect(moved).has.length(1);
+      expect(moved[0].impact.tileMove?.adjacencyVp).is.undefined;
     });
 
     it('survives a save and a load: the ocean stands on the new cell, the old one is free', () => {

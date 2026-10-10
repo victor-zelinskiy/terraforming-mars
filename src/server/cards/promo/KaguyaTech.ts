@@ -104,7 +104,7 @@ export class KaguyaTech extends Card implements IProjectCard {
       customReasoner: this.placementReasoner(player),
     })
       .andThen((space) => {
-        player.game.removeTile(space.id);
+        player.game.removeTile(space.id, player);
         player.game.addCity(player, space, this.name);
         return undefined;
       });

@@ -4,7 +4,7 @@ import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {ColonyRosterChange} from '../colonies/ColonyRoster';
-import {TileMoveFact} from '../boards/TileMove';
+import {AdjacencyVpChange, TileMoveFact} from '../boards/TileMove';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
 import {PartyName} from '../turmoil/PartyName';
 import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
@@ -206,6 +206,15 @@ export type EventImpact = {
    * does NOT count as a tile placed.
    */
   tileMove?: TileMoveFact;
+  /**
+   * THE CAPITALS' RECOUNT (PL-041 / PL-141): an OCEAN placed beside (or removed
+   * from beside) somebody's Capital changes that Capital's adjacency VP — a
+   * projection the engine already computes, stated on the event that moved it
+   * (`tile-placed` for a placement, `tile-removed` for a removal; a MOVE states
+   * it on `tileMove.adjacencyVp`). Never a VP mutation: the score stays
+   * endgame-computed. Read by the owner's notification and the journal.
+   */
+  adjacencyVp?: ReadonlyArray<AdjacencyVpChange>;
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
 };

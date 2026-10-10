@@ -678,6 +678,10 @@ for (const preset of PRESETS) {
       // the probe recorded it live; a toast that has already expired by now is still a toast that was shown.
       await expect.poll(async () => (await readProbe(redPage)).notifs.length,
         {timeout: 30_000, message: 'red is told of the play (a notification naming the card was shown while the probe ran)'}).toBeGreaterThan(0);
+      // …and told of THEIR OWN LOSS (PL-041): the ocean left their Capital's side — the card that named the move also
+      // names «ПО −1» (the fact rides the move's event; the journal and the dossier speak the same fact).
+      await expect.poll(async () => (await readProbe(redPage)).notifs.some((t) => /ПО/.test(t) && /−1/.test(t)),
+        {timeout: 30_000, message: `red's notification names the Capital's lost point — got ${JSON.stringify((await readProbe(redPage)).notifs)}`}).toBe(true);
       await shoot(redPage, preset.id, '07-opponent-after');
 
       // ── 8. THE SERVER agrees; the flow ends on the board ──

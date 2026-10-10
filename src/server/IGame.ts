@@ -85,7 +85,16 @@ export type ParameterMoveOptions = {unrewarded?: boolean};
  * only by `Game.moveCityTile`): the cell it left, and, when that cell was a
  * Skyscrapers stack, the height it was left at.
  */
-export type TileMoveOrigin = {from: Space, stack?: {before: number, after: number}};
+export type TileMoveOrigin = {
+  from: Space,
+  stack?: {before: number, after: number},
+  /**
+   * The Capitals' adjacency VP around BOTH cells as they stood before the move (PL-041 — `boards/capitalAdjacencyVp.ts`):
+   * the writer snapshots them before it alters the board, `addTile` reads the board after the landing and states the
+   * difference on the `tile-moved` event.
+   */
+  capitalsBefore?: ReadonlyArray<import('./boards/capitalAdjacencyVp').CapitalAdjacencyVp>,
+};
 
 /** The options of `IGame.addTile` — see the method. */
 export type AddTileOptions = {stacking?: boolean, moved?: TileMoveOrigin};
@@ -379,7 +388,8 @@ export interface IGame extends Logger {
   canAddOcean(): boolean;
   canRemoveOcean(): boolean;
   addOcean(player: IPlayer, space: Space): void;
-  removeTile(spaceId: string): void;
+  /** Lift a tile off the board; with an `actor` it is a `tile-removed` event carrying the Capitals' recount (PL-141). */
+  removeTile(spaceId: string, actor?: IPlayer): void;
 
   /**
    * Returns the Player holding this card, or throws.

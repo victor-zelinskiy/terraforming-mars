@@ -8,7 +8,7 @@ import {TileType} from '../../common/TileType';
 import {Space} from '../boards/Space';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyRosterChange} from '../../common/colonies/ColonyRoster';
-import {TileMoveFact} from '../../common/boards/TileMove';
+import {AdjacencyVpChange, TileMoveFact} from '../../common/boards/TileMove';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
@@ -497,9 +497,24 @@ export class EventRecorder {
    * Nova City; `Game.simpleAddTile` reads it off `IColony.tiles`): the cell is
    * then a hosted one and the readers name the colony tile, not the map.
    */
-  public recordTilePlaced(player: IPlayer, space: Space, tile: TileType, colonyTile?: ColonyName): void {
+  public recordTilePlaced(player: IPlayer, space: Space, tile: TileType, colonyTile?: ColonyName, adjacencyVp?: ReadonlyArray<AdjacencyVpChange>): void {
     const impact: EventImpact = colonyTile === undefined ? {tilesPlaced: 1} : {tilesPlaced: 1, colonyTile};
+    // THE CAPITALS' RECOUNT (PL-141): an ocean placed beside somebody's Capital — a fact of this placement.
+    if (adjacencyVp !== undefined && adjacencyVp.length > 0) {
+      impact.adjacencyVp = adjacencyVp;
+    }
     this.record({type: 'tile-placed', player: player.color, impact, space: space.id, tile, tags: ['terraforming']});
+  }
+
+  /**
+   * Record a tile REMOVAL (an ocean lifted off the board — the Reds' action,
+   * RX33, Kaguya Tech): the cell it left and what stood there, journal-visible;
+   * nothing was placed. `adjacencyVp` — the Capitals the removal recounted
+   * (PL-141), the same fact a placement states.
+   */
+  public recordTileRemoved(player: IPlayer, space: Space, tile: TileType, adjacencyVp?: ReadonlyArray<AdjacencyVpChange>): void {
+    const impact: EventImpact = adjacencyVp !== undefined && adjacencyVp.length > 0 ? {adjacencyVp} : {};
+    this.record({type: 'tile-removed', player: player.color, impact, space: space.id, tile, visibility: 'journal', tags: ['terraforming']});
   }
 
   /**

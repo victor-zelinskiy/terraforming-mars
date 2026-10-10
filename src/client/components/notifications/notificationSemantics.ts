@@ -335,6 +335,28 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
     return acc;
   };
   for (const e of chain) {
+    // A CAPITAL OF THE VIEWER'S RECOUNTED BY SOMEBODY ELSE'S MOVE (PL-041): the move's event is the MOVER's, and
+    // the Capital's owner has no event of their own — the fact rides `tileMove.adjacencyVp`, addressed by owner.
+    // One adjacent ocean fewer is the viewer's loss (a VP chip, the move's card its cause, the mover the attacker);
+    // one more is their gain. Read before the owner gate below, which is about the event's own player.
+    // …a placement's / a removal's fact rides the event itself (`impact.adjacencyVp`, PL-141 — the same reading).
+    for (const change of e.impact.adjacencyVp ?? e.impact.tileMove?.adjacencyVp ?? []) {
+      if (change.player !== viewer || change.after === change.before) {
+        continue;
+      }
+      const delta = change.after - change.before;
+      const chip: JournalImpactChip = {icon: 'vp', text: delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`};
+      if (delta < 0) {
+        rawLosses.push(chip);
+        vp = true;
+        attacker = attacker ?? actor;
+        lossSource = lossSource ?? e;
+        causeAccOf(e).rawLosses.push(chip);
+      } else {
+        rawGains.push(chip);
+        causeAccOf(e).rawGains.push(chip);
+      }
+    }
     if (e.player !== viewer) {
       continue;
     }

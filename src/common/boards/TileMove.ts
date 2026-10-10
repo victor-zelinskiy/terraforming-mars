@@ -63,12 +63,27 @@ export type TileMovePromptModel = {
  * stack — the height the cell was left at. A position fact, never a delta: a
  * moved tile is not a placed one (`tilesPlaced` does not grow).
  */
+/**
+ * A CAPITAL'S ADJACENCY VP RECOUNTED by a tile's move (PL-041): the Capital on `space`, its owner, and its count of
+ * adjacent oceans before and after — a projection of the endgame score (VP is never mutated mid-game), stated on the
+ * move's own event so the journal, the owner's notification and the dossier speak the same fact.
+ */
+export type AdjacencyVpChange = {
+  space: SpaceId;
+  player: Color;
+  tile: TileType;
+  before: number;
+  after: number;
+};
+
 export type TileMoveFact = {
   from: SpaceId;
   to: SpaceId;
   tileType: TileType;
   card?: CardName;
   stack?: {before: number; after: number};
+  /** The Capitals whose adjacency VP this move changed (PL-041) — absent when none did. */
+  adjacencyVp?: ReadonlyArray<AdjacencyVpChange>;
 };
 
 /**

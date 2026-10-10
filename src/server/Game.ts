@@ -14,6 +14,7 @@ import {AutomaTilePlacer} from './automa/AutomaTilePlacer';
 import {botCoveredIconMegacredits} from './automa/AutomaPlacementBonus';
 import {BeginnerCorporation} from './cards/corporation/BeginnerCorporation';
 import {Board} from './boards/Board';
+import {capitalAdjacencyVpAround, capitalAdjacencyVpChanges} from './boards/capitalAdjacencyVp';
 import {CardName} from '../common/cards/CardName';
 import {ClaimedMilestone, serializeClaimedMilestones, deserializeClaimedMilestones} from './milestones/ClaimedMilestone';
 import {ColonyDealer} from './colonies/ColonyDealer';
@@ -56,7 +57,7 @@ import {RemoveColonyFromGame} from './deferredActions/RemoveColonyFromGame';
 import {GainResourcesDeferred} from './deferredActions/GainResourcesDeferred';
 import {SerializedGame} from './SerializedGame';
 import {SpaceBonus} from '../common/boards/SpaceBonus';
-import {TileType} from '../common/TileType';
+import {OCEAN_TILES, TileType} from '../common/TileType';
 import {Turmoil} from './turmoil/Turmoil';
 import {Parliament} from './parliament/Parliament';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
@@ -67,7 +68,7 @@ import {RandomMAOptionType} from '../common/ma/RandomMAOptionType';
 import {AresHandler} from './ares/AresHandler';
 import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
-import {TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
+import {AdjacencyVpChange, TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
 import {GlobalParameterRaise} from './cards/GlobalParameterRaise';
@@ -2310,6 +2311,9 @@ export class Game implements IGame, Logger {
   }
 
   public simpleAddTile(player: IPlayer, space: Space, tile: Tile, moved?: TileMoveOrigin) {
+    // THE CAPITALS' RECOUNT of a PLACEMENT (PL-141 — PL-041's second case): an ocean landing beside somebody's
+    // Capital is read BEFORE the cell changes, against the same cells after (a move brings the mover's own snapshot).
+    const placedCapitalsBefore = moved === undefined && OCEAN_TILES.has(tile.tileType) ? capitalAdjacencyVpAround(this.board, [space]) : undefined;
     space.tile = tile;
     // A fresh tile object on the cell is one tile: whatever stack stood here is gone with the tile it stood on.
     // Removed rather than set to undefined: an absent key IS height 1 (the serializer omits it), and a key that
@@ -2333,13 +2337,43 @@ export class Game implements IGame, Logger {
       if (moved.stack !== undefined) {
         fact.stack = moved.stack;
       }
+      // THE CAPITALS' RECOUNT (PL-041): the same cells read now that the tile has landed, against the writer's
+      // snapshot — a Capital one ocean poorer or richer is a FACT of this move, stated on its event for the journal
+      // and the owner's notification (never a VP mutation: the score stays endgame-computed).
+      if (moved.capitalsBefore !== undefined) {
+        const changes = capitalAdjacencyVpChanges(
+          moved.capitalsBefore, capitalAdjacencyVpAround(this.board, [moved.from, space]), {from: moved.from.id, to: space.id});
+        if (changes.length > 0) {
+          fact.adjacencyVp = changes;
+          this.logCapitalRecount(changes);
+        }
+      }
       this.events.recordTileMoved(player, fact);
       return;
     }
     LogHelper.logTilePlacement(player, space, tile.tileType);
+    const recount = placedCapitalsBefore === undefined ? [] :
+      capitalAdjacencyVpChanges(placedCapitalsBefore, capitalAdjacencyVpAround(this.board, [space]));
+    this.logCapitalRecount(recount);
     // A tile placed ON A COLONY TILE (TR22 — the link is written BEFORE the tile lands,
     // `ColoniesHandler.placeCityOnColonyTile`): the event names the colony tile.
-    this.events.recordTilePlaced(player, space, tile.tileType, ColoniesHandler.colonyTileHosting(this, space.id)?.name);
+    this.events.recordTilePlaced(player, space, tile.tileType, ColoniesHandler.colonyTileHosting(this, space.id)?.name, recount);
+  }
+
+  /**
+   * THE CAPITALS' RECOUNT, told (PL-041 / PL-141): one line per Capital whose
+   * adjacent-ocean count a move, a placement or a removal changed — the
+   * owner's name, the count before and after. A projection the endgame
+   * scorer owns; nothing here mutates a score.
+   */
+  private logCapitalRecount(changes: ReadonlyArray<AdjacencyVpChange>): void {
+    for (const change of changes) {
+      this.log(
+        change.after < change.before ?
+          '${0}\'s Capital loses an adjacent ocean: ${1} → ${2} VP' :
+          '${0}\'s Capital gains an adjacent ocean: ${1} → ${2} VP',
+        (b) => b.playerColor(change.player).number(change.before).number(change.after));
+    }
   }
 
   /**
@@ -2382,12 +2416,14 @@ export class Game implements IGame, Logger {
     if (!cityIgnoringRestrictions(player, {adjacentTo: from}).some((space) => space.id === to.id)) {
       throw new Error(`The city on ${from.id} cannot be moved to ${to.id}`);
     }
+    // The Capitals beside either cell — and the one that may itself be moving — as they score NOW (PL-041).
+    const capitalsBefore = capitalAdjacencyVpAround(this.board, [from, to]);
     const lifted = liftTopCity(from);
     const single = lifted.tiers.after === 0;
     const cathedral = single ? this.stJosephCathedrals.indexOf(from.id) : -1;
 
     this.addTile(player, to, lifted.tile, {
-      moved: lifted.tiers.before > 1 ? {from, stack: lifted.tiers} : {from},
+      moved: lifted.tiers.before > 1 ? {from, stack: lifted.tiers, capitalsBefore} : {from, capitalsBefore},
     });
 
     if (lifted.adjacency !== undefined) {
@@ -2445,8 +2481,10 @@ export class Game implements IGame, Logger {
     if (findTileMove(oceanMoveOffer(player), from.id, to.id) === undefined) {
       throw new Error(`The ocean tile on ${from.id} cannot be moved to ${to.id}`);
     }
+    // The Capitals beside either cell, as they score NOW (PL-041) — read before the board changes.
+    const capitalsBefore = capitalAdjacencyVpAround(this.board, [from, to]);
     from.tile = undefined;
-    this.addTile(player, to, {tileType: TileType.OCEAN}, {moved: {from}});
+    this.addTile(player, to, {tileType: TileType.OCEAN}, {moved: {from, capitalsBefore}});
     // THE MOVE'S OWN RATING, and what the table answers it with — published
     // for the landing's scene (`lastTileMoveReward`, the `lastOceanBonus`
     // law): the mover's stock is read before and after the grant, so the
@@ -2706,11 +2744,25 @@ export class Game implements IGame, Logger {
     });
   }
 
-  public removeTile(spaceId: SpaceId): void {
+  /**
+   * Lift a tile off the board. With an `actor` the removal is an EVENT
+   * (`tile-removed`, journal-visible — the Reds' action, RX33, Kaguya Tech)
+   * carrying the Capitals' recount of a removed ocean (PL-141); without one
+   * (a test's arrangement) it is the bare mutation it always was.
+   */
+  public removeTile(spaceId: SpaceId, actor?: IPlayer): void {
     const space = this.board.getSpaceOrThrow(spaceId);
+    const tileType = space.tile?.tileType;
+    const capitalsBefore = tileType !== undefined && OCEAN_TILES.has(tileType) ? capitalAdjacencyVpAround(this.board, [space]) : undefined;
     space.tile = undefined;
     space.player = undefined;
     delete space.stackHeight;
+    if (actor === undefined || tileType === undefined) {
+      return;
+    }
+    const recount = capitalsBefore === undefined ? [] : capitalAdjacencyVpChanges(capitalsBefore, capitalAdjacencyVpAround(this.board, [space]));
+    this.logCapitalRecount(recount);
+    this.events.recordTileRemoved(actor, space, tileType, recount);
   }
 
   /**

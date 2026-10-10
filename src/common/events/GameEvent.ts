@@ -42,6 +42,13 @@ export type GameEventType =
    * the tile is not a new one.
    */
   | 'tile-moved'
+  /**
+   * A TILE REMOVED from the board (an ocean — the Reds' party action, RX33,
+   * Kaguya Tech): `space` is the cell it left, `tile` what stood there.
+   * Recorded by the one remover (`Game.removeTile` with its actor) so the
+   * Capitals' recount (`impact.adjacencyVp`, PL-141) has an event to ride.
+   */
+  | 'tile-removed'
   | 'delta-position-changed' // ONE committed Hydronetwork move (signed steps; both directions)
   | 'delta-blockade-changed' // a Modular Floodgates blockade placed against / expired for a player
   | 'vp-granted'

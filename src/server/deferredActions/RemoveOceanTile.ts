@@ -20,7 +20,7 @@ export class RemoveOceanTile extends DeferredAction {
     }
     return new SelectSpace(this.title, removableOceanTiles)
       .andThen((space) => {
-        this.player.game.removeTile(space.id);
+        this.player.game.removeTile(space.id, this.player);
         LogHelper.logBoardTileAction(this.player, space, 'ocean tile', 'removed');
         return undefined;
       });

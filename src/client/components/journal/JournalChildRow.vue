@@ -92,6 +92,9 @@
               :class="chipClass(chip)">
           <span class="journal-child-row__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
           <span class="journal-child-row__chip-amt">{{ chip.text }}</span>
+          <!-- VP has no sprite anywhere in the game's art (`optionIcons`): the chip speaks its unit instead — the same
+               word the notification card speaks for the same chip (PL-041: a Capital's adjacency recount). -->
+          <span v-if="chip.icon === 'vp'" class="journal-child-row__chip-unit" v-i18n>VP</span>
         </span>
         <!-- WHERE a political chip landed (Turmoil Redux): the resolution a delegate stands on,
              or the party whose Popular Support took the neutral delegates (with its area's fill). -->
