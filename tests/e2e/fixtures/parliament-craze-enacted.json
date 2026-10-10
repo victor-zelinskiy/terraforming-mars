@@ -620,7 +620,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644051689,
+ "createdTimeMs": 1791651289206,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051689
+   "timestamp": 1791651289206
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289207,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289207,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289207,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289207,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289207,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -722,7 +722,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289208,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -740,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051689,
+   "timestamp": 1791651289208,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -753,7 +753,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289213,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -772,7 +772,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289213,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -789,7 +789,7 @@
      "value": "RDX_MARS_DEVELOPMENT_CRAZE"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289213,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -806,7 +806,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289213,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -831,7 +831,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -856,7 +856,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -881,7 +881,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -906,7 +906,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -931,7 +931,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -944,7 +944,7 @@
      "value": "RDX_MARS_DEVELOPMENT_CRAZE"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -957,7 +957,7 @@
      "value": "Mars First"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -974,7 +974,7 @@
      "value": "Place 1 special tile"
     }
    ],
-   "timestamp": 1791644051691,
+   "timestamp": 1791651289214,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1011,7 +1011,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 8,
    "role": "detail"
@@ -1048,7 +1048,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 10,
    "role": "detail"
@@ -1061,7 +1061,7 @@
      "value": "RDX_UNITY_JOVIAN_TAX_RIGHTS"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1074,7 +1074,7 @@
      "value": "RDX_SCIENTISTS_OPEN_IP_TRADE"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1087,7 +1087,7 @@
      "value": "RDX_GREENS_GREENS_BUDGET"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1108,7 +1108,7 @@
      "value": "RDX_GREENS_GREENS_BUDGET"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1121,7 +1121,7 @@
      "value": "RDX_SCIENTISTS_RD_FUNDING"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1142,7 +1142,7 @@
      "value": "RDX_SCIENTISTS_RD_FUNDING"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1155,7 +1155,7 @@
      "value": "RDX_GREENS_MOHOLE_CONTEST"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1168,7 +1168,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1181,7 +1181,7 @@
      "value": "RDX_SCIENTISTS_JOINT_RESEARCH"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1194,7 +1194,7 @@
      "value": "RDX_REDS_HEAT_CAPTURE"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1215,7 +1215,7 @@
      "value": "RDX_REDS_HEAT_CAPTURE"
     }
    ],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1223,7 +1223,7 @@
   {
    "message": "Every player's free delegate returns to the lobby",
    "data": [],
-   "timestamp": 1791644051692,
+   "timestamp": 1791651289215,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1236,7 +1236,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051693,
+   "timestamp": 1791651289215,
    "type": 1
   },
   {
@@ -1247,7 +1247,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644051693
+   "timestamp": 1791651289215
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1265,7 +1265,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1791644051693
+   "timestamp": 1791651289216
   },
   {
    "message": "${0} ${1} ${2} card(s)",
@@ -1283,7 +1283,7 @@
      "value": "0"
     }
    ],
-   "timestamp": 1791644051693
+   "timestamp": 1791651289216
   }
  ],
  "gameEvents": [
@@ -1614,7 +1614,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Distant Stellar Trace",
+ "name": "Faint Gravity Surge",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1710,11 +1710,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 3,
-    "startedAt": 1791644051693,
+    "sumElapsed": 5,
+    "startedAt": 1791651289215,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051693
+    "lastStoppedAt": 1791651289216
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [
@@ -1831,11 +1831,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 3,
-    "startedAt": 1791644051693,
+    "sumElapsed": 8,
+    "startedAt": 1791651289216,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051693
+    "lastStoppedAt": 1791651289216
    },
    "actionsTakenThisGame": 2,
    "victoryPointsByGeneration": [

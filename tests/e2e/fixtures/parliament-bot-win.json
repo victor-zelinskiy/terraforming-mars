@@ -621,7 +621,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644052390,
+ "createdTimeMs": 1791651289924,
  "currentSeed": 741784154265,
  "deferredActions": [],
  "donePlayers": [],
@@ -641,7 +641,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644052390
+   "timestamp": 1791651289924
   },
   {
    "message": "Good luck ${0}!",
@@ -651,7 +651,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644052390,
+   "timestamp": 1791651289925,
    "playerId": "p-player1-id"
   },
   {
@@ -662,7 +662,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644052390,
+   "timestamp": 1791651289925,
    "type": 1
   },
   {
@@ -677,7 +677,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644052390,
+   "timestamp": 1791651289930,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -695,7 +695,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644052390,
+   "timestamp": 1791651289930,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -712,7 +712,7 @@
      "value": "CrediCor"
     }
    ],
-   "timestamp": 1791644052391,
+   "timestamp": 1791651289930,
    "correlationId": 3,
    "parentId": 3,
    "role": "root-action",
@@ -726,7 +726,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644052393,
+   "timestamp": 1791651289933,
    "correlationId": 4,
    "parentId": 4,
    "role": "root-action",
@@ -740,7 +740,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644052394,
+   "timestamp": 1791651289934,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -759,7 +759,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644052394,
+   "timestamp": 1791651289934,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -776,7 +776,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1791644052394,
+   "timestamp": 1791651289934,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -966,7 +966,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Distant Carbon Source",
+ "name": "Distant Isotope Mass",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1063,10 +1063,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644052391,
+    "startedAt": 1791651289931,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644052391
+    "lastStoppedAt": 1791651289931
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1158,7 +1158,7 @@
     "startedAt": 0,
     "running": false,
     "afterFirstAction": false,
-    "lastStoppedAt": 1791644052391
+    "lastStoppedAt": 1791651289931
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
@@ -1649,7 +1649,7 @@
         "value": "red"
        }
       ],
-      "timestamp": 1791644052393,
+      "timestamp": 1791651289933,
       "correlationId": 4,
       "parentId": 4,
       "role": "root-action",
@@ -1674,7 +1674,7 @@
          "value": "red"
         }
        ],
-       "timestamp": 1791644052393,
+       "timestamp": 1791651289933,
        "correlationId": 4,
        "parentId": 4,
        "role": "root-action",

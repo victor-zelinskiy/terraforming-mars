@@ -816,7 +816,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644052135,
+ "createdTimeMs": 1791651289687,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -836,7 +836,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644052135
+   "timestamp": 1791651289687
   },
   {
    "message": "Good luck ${0}!",
@@ -846,7 +846,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644052136,
+   "timestamp": 1791651289687,
    "playerId": "p-player1-id"
   },
   {
@@ -857,7 +857,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644052136,
+   "timestamp": 1791651289687,
    "playerId": "p-player2-id"
   },
   {
@@ -868,7 +868,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644052136,
+   "timestamp": 1791651289687,
    "type": 1
   },
   {
@@ -883,7 +883,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644052137,
+   "timestamp": 1791651289688,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -901,7 +901,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644052137,
+   "timestamp": 1791651289688,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -918,7 +918,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644052137,
+   "timestamp": 1791651289688,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -936,7 +936,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644052137,
+   "timestamp": 1791651289688,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -1125,7 +1125,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Faint Flux Charge",
+ "name": "Thermal Signal Node",
  "oxygenLevel": 5,
  "passedPlayers": [
   "p-player2-id"
@@ -1224,10 +1224,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644052137,
+    "startedAt": 1791651289688,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644052137
+    "lastStoppedAt": 1791651289688
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1343,10 +1343,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644052137,
+    "startedAt": 1791651289688,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644052137
+    "lastStoppedAt": 1791651289688
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

@@ -620,7 +620,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644051754,
+ "createdTimeMs": 1791651289287,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051754
+   "timestamp": 1791651289287
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051754,
+   "timestamp": 1791651289287,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644051754,
+   "timestamp": 1791651289287,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051754,
+   "timestamp": 1791651289287,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644051754,
+   "timestamp": 1791651289288,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051754,
+   "timestamp": 1791651289288,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -722,7 +722,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644051754,
+   "timestamp": 1791651289288,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -740,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051755,
+   "timestamp": 1791651289288,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -753,7 +753,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051756,
+   "timestamp": 1791651289289,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -772,7 +772,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051756,
+   "timestamp": 1791651289289,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -789,7 +789,7 @@
      "value": "RDX_GREENS_MOHOLE_CONTEST"
     }
    ],
-   "timestamp": 1791644051756,
+   "timestamp": 1791651289289,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -991,7 +991,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Solar Hydrogen Flow",
+ "name": "Thermal Carbon Wave",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1088,10 +1088,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1791644051756,
+    "startedAt": 1791651289289,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051756
+    "lastStoppedAt": 1791651289289
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1207,10 +1207,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644051756,
+    "startedAt": 1791651289289,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051756
+    "lastStoppedAt": 1791651289289
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

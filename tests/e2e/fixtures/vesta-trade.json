@@ -632,7 +632,7 @@
    "Poseidon"
   ]
  },
- "createdTimeMs": 1791644050610,
+ "createdTimeMs": 1791651288012,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -659,7 +659,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791644050611
+   "timestamp": 1791651288013
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -676,7 +676,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791644050611
+   "timestamp": 1791651288013
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -693,7 +693,7 @@
      "value": 2
     }
    ],
-   "timestamp": 1791644050611
+   "timestamp": 1791651288013
   },
   {
    "message": "Drew and discarded ${0} to place a ${1}",
@@ -710,7 +710,7 @@
      "value": 0
     }
    ],
-   "timestamp": 1791644050611
+   "timestamp": 1791651288013
   },
   {
    "message": "The id of this game is ${0}",
@@ -720,7 +720,7 @@
      "value": "game-id"
     }
    ],
-   "timestamp": 1791644050611
+   "timestamp": 1791651288013
   },
   {
    "message": "Good luck ${0}!",
@@ -730,7 +730,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644050611,
+   "timestamp": 1791651288014,
    "playerId": "p-player1-id"
   },
   {
@@ -741,7 +741,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644050611,
+   "timestamp": 1791651288014,
    "type": 1
   }
  ],
@@ -903,7 +903,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Distant Mineral Burst",
+ "name": "Dense Particle Surge",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "research",
@@ -1004,10 +1004,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1791644050611,
+    "startedAt": 1791651288014,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644050611
+    "lastStoppedAt": 1791651288014
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

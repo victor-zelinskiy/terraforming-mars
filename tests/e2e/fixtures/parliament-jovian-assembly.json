@@ -622,7 +622,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644051915,
+ "createdTimeMs": 1791651289447,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -642,7 +642,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051915
+   "timestamp": 1791651289447
   },
   {
    "message": "Good luck ${0}!",
@@ -652,7 +652,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289447,
    "playerId": "p-player1-id"
   },
   {
@@ -663,7 +663,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289447,
    "playerId": "p-player2-id"
   },
   {
@@ -674,7 +674,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289447,
    "type": 1
   },
   {
@@ -689,7 +689,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289447,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -707,7 +707,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289447,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -724,7 +724,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289448,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -742,7 +742,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051916,
+   "timestamp": 1791651289448,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -755,7 +755,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051918,
+   "timestamp": 1791651289449,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -774,7 +774,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051918,
+   "timestamp": 1791651289449,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -791,7 +791,7 @@
      "value": "RDX_UNITY_JOVIAN_TAX_RIGHTS"
     }
    ],
-   "timestamp": 1791644051918,
+   "timestamp": 1791651289449,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -993,7 +993,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Binary Inertia Zone",
+ "name": "Cold Mineral Unit",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1090,10 +1090,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1791644051918,
+    "startedAt": 1791651289449,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051918
+    "lastStoppedAt": 1791651289449
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1209,10 +1209,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644051918,
+    "startedAt": 1791651289449,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051918
+    "lastStoppedAt": 1791651289449
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

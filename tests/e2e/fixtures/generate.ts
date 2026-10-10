@@ -1290,6 +1290,72 @@ parliamentFixture('biological-simulations', {
     parliament.assertLedger(game);
   },
 });
+// ── TR41 · PLASMA FANS — A SCALE STEP FROM A CARD ACTION (docs/claude/turmoil-redux-cards-progress.md § TR41): the
+//    FIRST card action of the fork whose reward is a GLOBAL PARAMETER step through the «Действия карт» workspace. Blue's
+//    action phase, the Greens ruling by the STARTING RULE (nothing enacted — generation 1), «Плазменные вентиляторы» on
+//    blue's table (its action unused), 8 heat on the rail — the price, and not a unit more — Venus at 6 % (the 8 % card
+//    bonus is ONE step ahead, so the action's step crosses it: the cover lifts off the marker AFTER the workspace leaves),
+//    TR24 Venusian Census on blue's table with 1 data (the step pays it 2 off the marker's rim), 20 M€. RED sits at
+//    APHRODITE — a corporation with no first action whose effect answers the SAME step with 2 M€ on red's own screen.
+//    The whole route of the card: the price off the rail into the printed heat icon, the impulse into the printed Venus
+//    gauge, the workspace's leave, the scale's story on a board the player can see (the marker 6 → 8, the TR chip, the
+//    Greens a beat after, the census tokens, the cover last). ──
+parliamentFixture('plasma-fans', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {venusNextExtension: true, customCorporationsList: [CardName.TERACTOR, CardName.APHRODITE]},
+  arrange: ({game, p1, parliament}) => {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+    seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+    moveToDeckTop(game, CardName.PLASMA_FANS);
+    p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+    moveToDeckTop(game, CardName.VENUSIAN_CENSUS);
+    const census = game.projectDeck.drawPile.pop() as VenusianCensus;
+    census.resourceCount = 1;
+    p1.playedCards.push(census);
+    p1.heat = 8;
+    setVenusScaleLevel(game, 6);
+  },
+  expect: ({game, parliament, p1, p2}) => {
+    const fans = p1.playedCards.get(CardName.PLASMA_FANS) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+    const census = p1.playedCards.get(CardName.VENUSIAN_CENSUS);
+    if (parliament.rulingParty() !== PartyName.GREENS || !parliament.hasPartyEffect(p1, PartyName.GREENS) ||
+        fans === undefined || !fans.canAct(p1) || p1.heat !== 8 || game.getVenusScaleLevel() !== 6 ||
+        census === undefined || census.resourceCount !== 1 || p2.playedCards.corporations()[0]?.name !== CardName.APHRODITE) {
+      throw new Error(`the plasma-fans fixture expected the Greens ruling by the starting rule, TR41 on blue's table able to act, 8 heat, Venus 6 %, the census with 1 data, red at Aphrodite — got ruling=${parliament.rulingParty()} fans=${fans !== undefined && fans.canAct(p1)} heat=${p1.heat} venus=${game.getVenusScaleLevel()} census=${census?.resourceCount} red=${p2.playedCards.corporations()[0]?.name}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR41 · PLASMA FANS — THE PLAY THAT CLOSES THE PRINTED GENERATION-1 QUEST: blue's action phase with «Плазменные
+//    вентиляторы» in hand, 20 M€, the Greens ruling by the STARTING RULE (the plate's requirement AND the table's answer:
+//    +3 heat production → +3 M€ production), the starter quest «raise your heat production 3 steps» at 0 / 3 and NOBODY
+//    in the chairman's office — ONE play completes it: the gate after the landing, the office, the Agenda step. Red at
+//    Aphrodite (no first action). ──
+parliamentFixture('plasma-fans-play', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {venusNextExtension: true, customCorporationsList: [CardName.TERACTOR, CardName.APHRODITE]},
+  arrange: ({game, p1, parliament}) => {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+    seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+    moveToDeckTop(game, CardName.PLASMA_FANS);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+  },
+  expect: ({game, parliament, p1}) => {
+    const fans = p1.cardsInHand.find((c) => c.name === CardName.PLASMA_FANS);
+    const quest = parliament.quest;
+    if (parliament.rulingParty() !== PartyName.GREENS || !parliament.hasPartyEffect(p1, PartyName.GREENS) ||
+        fans === undefined || !p1.canPlay(fans) || p1.production.heat !== 0 ||
+        quest === undefined || quest.source !== 'starter' || quest.completedBy !== undefined || parliament.questProgressOf(p1) !== 0 ||
+        parliament.chairman !== undefined) {
+      throw new Error(`the plasma-fans-play fixture expected the Greens ruling by the starting rule, TR41 playable from blue's hand, no heat production, the starter quest open at 0 / 3 and no chairman — got ruling=${parliament.rulingParty()} fans=${fans !== undefined && p1.canPlay(fans)} heatProd=${p1.production.heat} quest=${quest?.source}/${parliament.questProgressOf(p1)}/${quest?.completedBy} chairman=${parliament.chairman}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
 // ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
 //    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
 //    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:

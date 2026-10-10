@@ -620,7 +620,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644050913,
+ "createdTimeMs": 1791651288286,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644050913
+   "timestamp": 1791651288286
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288288,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288288,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288288,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288289,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288289,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -722,7 +722,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288289,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -740,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644050914,
+   "timestamp": 1791651288289,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -753,7 +753,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644050917,
+   "timestamp": 1791651288293,
    "type": 2,
    "correlationId": 5,
    "parentId": 5,
@@ -772,7 +772,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644050917,
+   "timestamp": 1791651288294,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -789,7 +789,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1791644050917,
+   "timestamp": 1791651288294,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -806,7 +806,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644050918,
+   "timestamp": 1791651288296,
    "correlationId": 5,
    "parentId": 6,
    "role": "detail"
@@ -831,7 +831,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644050919,
+   "timestamp": 1791651288296,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -856,7 +856,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644050919,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -881,7 +881,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644050919,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -906,7 +906,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644050919,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -931,7 +931,7 @@
      "value": "3"
     }
    ],
-   "timestamp": 1791644050919,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -944,7 +944,7 @@
      "value": "RDX_GREENS_AQUIFER_CONTEST"
     }
    ],
-   "timestamp": 1791644050920,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -957,7 +957,7 @@
      "value": "Greens"
     }
    ],
-   "timestamp": 1791644050920,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -974,7 +974,7 @@
      "value": "Play a card with an animal tag"
     }
    ],
-   "timestamp": 1791644050920,
+   "timestamp": 1791651288297,
    "correlationId": 5,
    "parentId": 5,
    "role": "detail"
@@ -1233,7 +1233,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Active Stellar Signal",
+ "name": "Synthetic Mineral State",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "parliament",
@@ -1337,11 +1337,11 @@
    "beginner": false,
    "handicap": 0,
    "timer": {
-    "sumElapsed": 4,
-    "startedAt": 1791644050918,
+    "sumElapsed": 6,
+    "startedAt": 1791651288294,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644050918
+    "lastStoppedAt": 1791651288294
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1461,10 +1461,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 2,
-    "startedAt": 1791644050917,
+    "startedAt": 1791651288293,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644050918
+    "lastStoppedAt": 1791651288294
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],

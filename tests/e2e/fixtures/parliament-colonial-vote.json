@@ -623,7 +623,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644051660,
+ "createdTimeMs": 1791651289175,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -643,7 +643,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051660
+   "timestamp": 1791651289175
   },
   {
    "message": "Good luck ${0}!",
@@ -653,7 +653,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051660,
+   "timestamp": 1791651289175,
    "playerId": "p-player1-id"
   },
   {
@@ -664,7 +664,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644051660,
+   "timestamp": 1791651289175,
    "playerId": "p-player2-id"
   },
   {
@@ -675,7 +675,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051660,
+   "timestamp": 1791651289175,
    "type": 1
   },
   {
@@ -690,7 +690,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644051661,
+   "timestamp": 1791651289176,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -708,7 +708,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051661,
+   "timestamp": 1791651289176,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -725,7 +725,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644051661,
+   "timestamp": 1791651289176,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -743,7 +743,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051661,
+   "timestamp": 1791651289176,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -932,7 +932,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Silent Silicon Stream",
+ "name": "Cosmic Quartz Drift",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1039,10 +1039,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1791644051661,
+    "startedAt": 1791651289176,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051661
+    "lastStoppedAt": 1791651289176
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1158,10 +1158,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 0,
-    "startedAt": 1791644051661,
+    "startedAt": 1791651289176,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051661
+    "lastStoppedAt": 1791651289176
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

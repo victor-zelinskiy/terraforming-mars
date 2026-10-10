@@ -620,7 +620,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644052377,
+ "createdTimeMs": 1791651289913,
  "currentSeed": 741784154265,
  "deferredActions": [],
  "donePlayers": [],
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644052377
+   "timestamp": 1791651289913
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644052378,
+   "timestamp": 1791651289913,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644052378,
+   "timestamp": 1791651289913,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644052378,
+   "timestamp": 1791651289913,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644052378,
+   "timestamp": 1791651289913,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644052378,
+   "timestamp": 1791651289913,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -722,7 +722,7 @@
      "value": "ThorGate"
     }
    ],
-   "timestamp": 1791644052378,
+   "timestamp": 1791651289913,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -744,7 +744,7 @@
      "value": "energy"
     }
    ],
-   "timestamp": 1791644052379,
+   "timestamp": 1791651289913,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -761,7 +761,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644052379,
+   "timestamp": 1791651289913,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -778,7 +778,7 @@
      "value": "CrediCor"
     }
    ],
-   "timestamp": 1791644052379,
+   "timestamp": 1791651289914,
    "correlationId": 6,
    "parentId": 6,
    "role": "root-action",
@@ -1020,7 +1020,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Synthetic Flux Flow",
+ "name": "Radiant Gravity Source",
  "oxygenLevel": 0,
  "passedPlayers": [
   "p-player1-id"
@@ -1119,10 +1119,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 3,
-    "startedAt": 1791644052379,
+    "startedAt": 1791651289914,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644052381
+    "lastStoppedAt": 1791651289916
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1235,10 +1235,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644052381,
+    "startedAt": 1791651289916,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644052381
+    "lastStoppedAt": 1791651289916
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1330,7 +1330,7 @@
     "startedAt": 0,
     "running": false,
     "afterFirstAction": false,
-    "lastStoppedAt": 1791644052381
+    "lastStoppedAt": 1791651289916
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],

@@ -620,7 +620,7 @@
   ],
   "discardPile": []
  },
- "createdTimeMs": 1791644051504,
+ "createdTimeMs": 1791651288962,
  "currentSeed": 716142232883,
  "deferredActions": [],
  "donePlayers": [],
@@ -640,7 +640,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051504
+   "timestamp": 1791651288962
   },
   {
    "message": "Good luck ${0}!",
@@ -650,7 +650,7 @@
      "value": "blue"
     }
    ],
-   "timestamp": 1791644051504,
+   "timestamp": 1791651288962,
    "playerId": "p-player1-id"
   },
   {
@@ -661,7 +661,7 @@
      "value": "red"
     }
    ],
-   "timestamp": 1791644051504,
+   "timestamp": 1791651288962,
    "playerId": "p-player2-id"
   },
   {
@@ -672,7 +672,7 @@
      "value": "1"
     }
    ],
-   "timestamp": 1791644051504,
+   "timestamp": 1791651288962,
    "type": 1
   },
   {
@@ -687,7 +687,7 @@
      "value": "Teractor"
     }
    ],
-   "timestamp": 1791644051504,
+   "timestamp": 1791651288963,
    "correlationId": 1,
    "parentId": 1,
    "role": "root-action",
@@ -705,7 +705,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051504,
+   "timestamp": 1791651288963,
    "correlationId": 1,
    "parentId": 1,
    "role": "detail"
@@ -722,7 +722,7 @@
      "value": "Aridor"
     }
    ],
-   "timestamp": 1791644051505,
+   "timestamp": 1791651288963,
    "correlationId": 2,
    "parentId": 2,
    "role": "root-action",
@@ -740,7 +740,7 @@
      "value": "2"
     }
    ],
-   "timestamp": 1791644051505,
+   "timestamp": 1791651288963,
    "correlationId": 2,
    "parentId": 2,
    "role": "detail"
@@ -929,7 +929,7 @@
   "Builder",
   "Planner"
  ],
- "name": "Cold Pressure Cloud",
+ "name": "Polar Hydrogen Cloud",
  "oxygenLevel": 0,
  "passedPlayers": [],
  "phase": "action",
@@ -1027,10 +1027,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644051505,
+    "startedAt": 1791651288963,
     "running": true,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051505
+    "lastStoppedAt": 1791651288963
    },
    "actionsTakenThisGame": 1,
    "victoryPointsByGeneration": [],
@@ -1146,10 +1146,10 @@
    "handicap": 0,
    "timer": {
     "sumElapsed": 1,
-    "startedAt": 1791644051505,
+    "startedAt": 1791651288963,
     "running": false,
     "afterFirstAction": true,
-    "lastStoppedAt": 1791644051505
+    "lastStoppedAt": 1791651288963
    },
    "actionsTakenThisGame": 0,
    "victoryPointsByGeneration": [],
