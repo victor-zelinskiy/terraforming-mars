@@ -383,6 +383,14 @@ viewer's own delta while the band leads is dropped at BUILD time
 (`summaryLinesOf(…, dropViewer)` — one fact, one voice; the inspect keeps the
 full log).
 
+**PILLS KEEP THE EVENTS' ORDER (PL-076, the owner's decision 2026-10-10).** A card's
+chips used to be sorted by `chipRank` (gains before losses, by kind), so a spend-then-gain
+action read «+1 [mech], −1 [fighter]» — the effect before its cause, backwards against the
+printed row («[fighter] → [mech]») and the journal («−1 → +1»). `summarizeImpact` now keeps
+the CHAIN's own order (the recorder's sequence: the price leaves, the result is born, the
+table answers); `chipRank` stays for the places that rank unrelated deltas (bursts). Guard:
+`notificationModel.spec` § event order.
+
 **OWNERSHIP CLUSTERS (`NotificationModel.pillGroups`).** Context deltas are
 split by owner at the producer: `planet` (global parameters / neutral
 readouts) · `actor` (the initiator's own changes) · `others` (a third player,

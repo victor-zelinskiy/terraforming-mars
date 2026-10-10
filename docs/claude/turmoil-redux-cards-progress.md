@@ -2932,6 +2932,77 @@ M€ −6 +2 +2, растение +1, карта в tableau, `tileMoves` — о�
 `make:cards`, `make:json` — зелёные; клиентские `tileMoveScene` + `consoleTilePlacement` — 73; серверные TR39 — 58.
 
 **Раскадровка 4K (чеклист §7, восемь вопросов шва).** Рамка, лента, рельс и крошка «ПЕРЕМЕЩЕНИЕ ТАЙЛА» не двигаются от
+**Итерация полировки — ответы владельца на батч (2026-10-10, все десять строк приняты по рекомендации), сделано классами.** Коммиты
+(не пушено) — по одному на класс, `Polish (TR40 walk): PL-### — …`; пути коммитов — свои (временный индекс по ханкам: `ConsoleShell.vue`,
+`console.less`, `console.json`, `ConsoleResourcePanel.vue` делят файлы с соседом TR41 / между классами).
+
+- **PL-135 + PL-136 (спутник — роли).** Роль `action` ВЫВОДИТСЯ из декларативного `action` карты на экспорте манифеста
+  (`server/cards/holderActionGood.ts` → `ClientCard.actionGood`; каждый `or`-вариант; выбор / bespoke / переменный товар → ничего,
+  Extractor Balloons и Weather Balloons — честно в PLAIN-списке корпусного гарда `holderActionGood.spec` 22). `holderRoles.ts`:
+  `{kind: 'action', spend, good}` — чип «[мех] 2 · [товар на своей плашке]» (производство — коричневая плашка), строка ценности
+  «Потратьте 1 отсюда: +1 пр. растений» (шаг цели TR29 у TR40 — та же плашка). Платёжная полоса — ПО ЕДИНИЦЕ
+  (`holderGroupKey(…, unitSplit)` → `payment:<unit>`), монета «5» с медалью метки (Космос у ВКД, Здание у TR17 —
+  `.con-res-aux__ctxtag`, `CONTEXT_TAG`), обозреватель R3 — по единице. Кадр ПОСЛЕ `frames/after2/tv4k-holders-satellite.png`: шесть
+  честных чипов. Закон — `console-ui.md` § WORKSPACE BAND («a holder's ROLE on the satellite is READ, never declared»).
+- **PL-137 (стекло).** `.con-stage-surface()` НЕПРОЗРАЧНО (`rgb` вместо альфы 0,97–0,985) — срез ×5 угла пуст, спутник остаётся
+  измеримым на z 11470. Закон там же («COVERED means covered BY PAINT, not only by z»).
+- **PL-139 (композер на 4K — M3).** `html.con-profile-tv .con-composer--stage`: герой `zoom 1.6 × --con-ui-scale` (1,56 дало 24,8 % —
+  ниже гарда), панель РЯДОМ (`align-items: center`), формула / кнопка в масштабе сцены (`__hero zoom 1.5`, `__cta 1.22`), правило
+  тише; РЕЛЬС ОТСТУПАЕТ ЗА ФОРМУЛОЙ — композер публикует `railFocus` (`railFocusKeysOf(cost, gain, forecast)` →
+  `consoleCardActionsUi.railFocus`), `ConsoleResourcePanel` красит `con-res__row--quiet` на ДЕТЯХ ряда (opacity .42, переход 220 мс,
+  бокс ряда не двигается). ПОСЛЕ: герой ≈ 26 % зоны, формула 14,2 % (было 11,1 / 6,7). Гард e2e `console-biological-simulations` B
+  tv4k (герой ≥ 25 %, паттерн рельса), `railFocusKeys.spec`. Закон — `console-ui.md` § THE ACTION COMPOSER ON THE TV.
+- **PL-140 (поглощение цены) + цена-последний-линк (дефект соседа TR41).** Не-последний линк с адресатом на поверхности —
+  `absorb: 'quick'` (`TRANSFER_QUICK_ABSORB_MS` 180, settle 0), старт потери с капсулы с адресатом — `'side'` (дуга на высоте капсулы,
+  ниже ряда A). Трасса B 4K ПОСЛЕ: «−1 мех» t=928 (715, 1772) → вбок (849, 1761) → касание результата t=1917 → «+1 пр. растений» рождён
+  там же через 93 мс → цена впитана к ≈ 2211 (≈ 300 мс против ≈ 460). Гоча (сосед TR41, 4K под нагрузкой): гало контакта гасло
+  вместе с быстрым жетоном (≈ 120 мс) и пропадало в замершем кадре — `absorbChip` держит гало полный `TRANSFER_BEAT_MS`, касание
+  и следующий линк его не ждут. И ЦЕНА С РЕЛЬСА КАК ПОСЛЕДНИЙ ЛИНК (TR41 «8 тепла → Венера»,
+  тайл перед полем): `flyActionCommitRail` держит workspace до касания + такт, а не до попа (ws уходил за 670 мс до касания «−8») —
+  юнит `actionCommitRail.spec` § «a price with NOTHING after it». Закон — `console-ui.md` § «…and a PRICE paid off the RAIL».
+- **PL-138 (пауза после капсулы) → диагноз PL-149.** Результат на поверхность впитывается быстро (`absorb: 'quick'` в ветке посадки,
+  ожидание 180 вместо 320 → тик → уход ≈ 330 мс вместо 610); гард `console-spaceship-recycling` B (тик миниатюры → `.con-ws` = 0
+  ≤ 550 мс). Остаток ИЗМЕРЕН, не угадан: CPU-профиль через CDP — окно «тик → шейд 0» = `(program)` 840 мс из 1,2 с (не JS);
+  трейс рендерера (`tests/e2e/traceProbe.ts`, `TM_E2E_TRACE=1`) — две задачи 216 / 209 мс = `LayerTreeHost::WaitForCommitCompletion`
+  211 / 195 мс (главный поток ждёт коммита компоновщика), стиль / раскладка / краска 26 / 15 / 8 мс; на кадрах НАЖАТИЯ — три коммита
+  146 / 180 / 211 мс. Класс 4K-слоёв (полоса 3358 × 1948, шейд 2876 × 1948, герой под `zoom` 3,2×) — PL-149 «ждёт владельца».
+- **PL-126 (камера посадки).** `ZOOM_LADDER` до 1,0 (фит: высота, затем ШИРИНА полки при минимальной ступени мини-стопок — узкая
+  зона ступает ради полки; Deck не изменился). ПОСЛЕ: fhd 320 × 460 в 1652 × 908 = 50,7 % высоты, 4K 640 × 920 в 3254 × 1804 = 51,0 %
+  (было ≈ 17 %). Гарды `receivingStageModel.spec` (три зоны × четыре глубины), e2e A обоих профилей (≥ ⅓). Закон — закон 24.
+- **PL-127 (премонтаж Парламента).** Тёплый монтаж — третий член `parliamentMounted` (`parliamentWarm`), секция `warm`
+  (`.con-parl--warm`: `visibility: hidden`, inert, без входа, `data-surface-warm` для детектора), телепорт в тот же слот руки; поза и
+  ходьба — только с кадра (`walkOwedSeq` / `rallyOwedSeq` без `warm`); толчок кадра снимает класс → `con-parl-step-in` с первого
+  кадра. Измерено (4K, `longtask`-пробник): задача на подъёме 422 / 395 / 273 → 244 / 257 / 212 мс, но кадр нажатия получил 319–411 мс
+  (трейс: `keydown` 320 мс = 360 форсированных раскладок + 46 пересчётов стиля — фиты Парламента) → монтаж перенесён в ПАУЗУ ЧТЕНИЯ
+  композера (`consolePlayCardUi.hostedStepDeclared` ← `ConsolePlayCardConfirm.hostedStepDeclared` по превью; `PARLIAMENT_WARM_SETTLE_MS`
+  450 после раскрытия). Остаток на подъёме (≈ 210 мс: rAF 104 + lifecycle 106 с RO 57) — коммит посадки + поза, не монтаж. ИТОГ
+  (4K, `.e2e-tr40e`): кадр нажатия без длинных задач, монтаж в паузе чтения (306 / 215 / 239 мс), подъём 203 / 221 мс. Гард:
+  первый ВИДИМЫЙ сэмпл — начало входа (opacity < 1), `parlFirst` без `--warm`; `[PL-127]` печатает длинные задачи. Закон — закон 25.
+- **PL-041 (+ PL-141) — ПО соседства Столицы.** Переезд: `TileMoveFact.adjacencyVp` (`server/boards/capitalAdjacencyVp.ts`, снимки в
+  `moveOceanTile` / `moveCityTile`; лог «Столица ${0} теряет / получает соседний океан: ${1} → ${2} ПО»); размещение океана —
+  `EventImpact.adjacencyVp` на `tile-placed`; снятие — НОВОЕ событие `tile-removed` (`Game.removeTile(spaceId, actor)`; три вызова
+  движка — `RemoveOceanTile`, `ResolutionTileRemoval`, `KaguyaTech`); клиент: нотификация владельца — чип «ПО −1 / +1», атакующий =
+  мувер, причина — карта (`notificationSemantics`), журнал — ряды Столицы для трёх событий (`pushCapitalRecount`) + ряд «Снятие
+  тайла». Гарды `oceanMove.spec` (переезд / размещение / снятие / без актора), `notificationAdjacencyVp.spec` (8), e2e
+  `console-canyon-carving` (красный читает «ПО −1», fhd + tv4k). Закон — `server.md` § Event stream. Гоча: `import type {Board}` в
+  хелпере — импорт значения замкнул цикл Board → … → MoonBoard → Board («Cannot access 'Board' before initialization» во ВСЕХ
+  серверных спеках у соседа).
+- **PL-076 (порядок чипов).** `summarizeImpact`, `contextPillGroups` (кластер `actor` — то, что читает соперник) и карточка принятой
+  резолюции — без `chipRank`-сортировки (`mergeChips` хранит первое появление → порядок цепи: цена, результат, ответ). Первая правка
+  только `summarizeImpact` ноту НЕ изменила — кластер сортировал сам (стенд B, нота красного «+1 +1 −1»). Гард `notificationModel.spec`
+  § event order. Закон — `docs/claude/notifications.md` § PILLS KEEP THE EVENTS' ORDER.
+
+**Инструменты, оставшиеся в репо.** `tests/e2e/traceProbe.ts` (трейс рендерера по окнам часов пробника), `longtask`-пробники в
+`console-red-lawyers` / стенде TR40, CPU-профиль со source map в стенде (`TR40_CPU=1`; `(program)` ≠ JS). Чеклист §7 — абзац
+«принятое закрепляется гардом долей; пауза измеряется, а не чувствуется».
+
+**Регрессия итерации.** Юниты: сервер 68 (`oceanMove` 23, `holderActionGood` 22, гарды e2e-живости / драйвера / селекторов / TV-пола /
+глифов), клиент 198 (нотификации 59 + 8, журнал, `holderRoles`, `actionCommitRail` 18, `receivingStageModel` 23, `resourceTransferModel`);
+`build:test` (оба дерева), `lint:client`, `make:json`, `build:server` — зелёные. e2e на своих снапшотах (`.e2e-tr40c/d/e`): A/B-набор
+24 / 25 (один красный — гард доли героя 24,8 % при zoom 1,56 → 1,6), набор ПОСЛЕ — bio fhd + tv4k (A: PL-126 ✓, B: PL-139 ✓),
+canyon-carving fhd + tv4k, rail-landing ×6, spaceship-recycling fhd ×6 + tv4k ×6, red-lawyers tv4k ×3 + nationalist tv4k ×2, extras-explorer,
+martian-census — зелёные; `console-plasma-fans` соседа красный по ЕГО пробнику (подтверждено соседом), не по продукту.
+
 источника до результата; бар говорит семьёй — «ВЗЯТЬ ОКЕАН» / «ДРУГОЙ ОКЕАН» / «ПОДТВЕРДИТЬ ПЕРЕНОС» / «ПЕРЕНОС…»; досье
 назначения на 4K влезает целиком после PL-132 (бонус · соседство +2 · РТ 20 → 21 · Зелёные +2 · PLAYER2 Столица теряет
 соседний океан −1 ПО · прежняя клетка +2); сцена — ОДИН прокси в арте океана поднимается с 33, несёт, садится на 34, второго
