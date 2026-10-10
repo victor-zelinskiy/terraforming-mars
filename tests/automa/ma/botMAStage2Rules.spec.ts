@@ -189,7 +189,7 @@ describe('bot-rule registry — stage 2 rules', () => {
     expect(game.board.getCities(bot)).has.length(1);
     expect(tryAwardHelper(game, 'Suburbian')).is.true;
     const greenery = game.board.spaces.find((s) => s.player === bot && Board.isGreenerySpace(s))!;
-    expect(Suburbian.onEdge(greenery), `${greenery.id} is an edge area`).is.true;
+    expect(Suburbian.onEdge(game.board, greenery), `${greenery.id} is an edge area`).is.true;
   });
 
   it('Activist / Influencer read the bot\'s own Agenda marker; Influencer has no helper (no door moves it)', () => {

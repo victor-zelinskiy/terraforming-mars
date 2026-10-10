@@ -32,7 +32,7 @@ export function placementRegion(id: PlacementRegionId, game: IGame, bot: IPlayer
   case 'edge':
     return (space) => board.isEdge(space);
   case 'suburbianEdge':
-    return Suburbian.onEdge;
+    return (space) => Suburbian.onEdge(board, space);
   case 'specialTileAdjacent':
     return (space) => board.getAdjacentSpaces(space).some(isSpecialTileSpace);
   case 'notOceanAdjacent':
