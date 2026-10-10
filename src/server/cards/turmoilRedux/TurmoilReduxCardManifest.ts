@@ -42,6 +42,7 @@ import {BiologicalSimulations} from './BiologicalSimulations';
 import {CanyonCarving} from './CanyonCarving';
 import {ForestryMechs} from './ForestryMechs';
 import {PlasmaFans} from './PlasmaFans';
+import {GreenAllegiance} from './GreenAllegiance';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -215,5 +216,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Contract's price (8 heat off the rail) and Thermophiles' reward (Venus +1 step); the play's +3 heat production
     // closes the printed generation-1 chairman quest by itself.
     [CardName.PLASMA_FANS]: {Factory: PlasmaFans, compatibility: 'venus'},
+    // Only the module's icon at the bottom left: the GREENS' plate a fifth time; the walk of TR04 / TR37 with its N
+    // COUNTED, not printed — «1 step per complete set of 5 TR over 20», the family's one division (RX13's count over
+    // another threshold), the breakdown riding the walk's preview (`AgendaWalkModel.basis`).
+    [CardName.GREEN_ALLEGIANCE]: {Factory: GreenAllegiance},
   },
 });

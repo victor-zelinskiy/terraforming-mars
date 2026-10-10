@@ -133,6 +133,26 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
     });
   });
 
+  describe('N = 5 — the longest walk of the set (TR42 Green Allegiance at TR 45)', () => {
+    it('from 0: five records, five bonuses in order — ① seats the marker, ② and ④ pay their TR, ⑤ sets influence 3 — one record, one event', () => {
+      const {game, p1, parliament} = table(0);
+      const tr = p1.terraformRating;
+      const at = game.gameLog.length;
+      const walk = ChairmanSeat.walkAgenda(p1, parliament, 5, {reason: 'card', card: CardName.GREEN_ALLEGIANCE});
+      const steps = [{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}];
+      expect(walk).deep.eq({from: 0, to: 5, steps});
+      expect(parliament.agendaOf(p1)).eq(5);
+      expect(parliament.influence(p1)).eq(3);
+      expect(p1.terraformRating).eq(tr + 2);
+      expect(parliament.lastAdvance).deep.include({seq: 1, from: 0, to: 5, reason: 'card', card: CardName.GREEN_ALLEGIANCE});
+      expect(parliament.lastAdvance?.steps).deep.eq(steps);
+      expect(linesOf(game, at)).deep.eq([ADVANCE, ADVANCE, TR_LINE, ADVANCE, ADVANCE, TR_LINE, ADVANCE]);
+      const events = game.events.events.filter((e) => e.type === 'agenda-advanced');
+      expect(events).has.lengthOf(1);
+      expect(events[0].impact.agenda).deep.eq({from: 0, to: 5, steps, reason: 'card'});
+    });
+  });
+
   describe('the end of the track cuts the walk honestly', () => {
     it('from 11 a walk of 2 takes ONE step and logs «already at the end» once', () => {
       const {game, p1, parliament} = table(PARLIAMENT_AGENDA_STEPS - 1);
