@@ -26666,6 +26666,16 @@ html.console-mode .notifications-layer {
         display: inline-flex;
         align-items: center;
         gap: .3rem;
+    /* THE KICKER — the type label, and under it the card a card action is about (PL-150). A column, so the
+       name is the kicker's SECOND LINE and the actor chip keeps the row's right edge; the name is the card's
+       own voice (mixed case, heavier, brighter) under the tracked-caps type, never a second caps label. */
+    &__kicker {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .06rem;
+        min-width: 0;
+    }
         margin-left: auto;
         font-size: .725rem;
         font-weight: 700;
@@ -26675,6 +26685,18 @@ html.console-mode .notifications-layer {
     }
     &__cause &__actor { margin-left: 0; }
     &__dot {
+        max-width: 100%;
+    }
+    &__type-card {
+        font-size: .76rem;
+        font-weight: 800;
+        letter-spacing: .01rem;
+        line-height: 1.1;
+        color: #eef6ff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
         width: .5rem;
         height: .5rem;
         border-radius: 50%;

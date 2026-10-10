@@ -14,7 +14,13 @@
 
     <header class="con-notif__head">
       <span class="con-notif__glyph" aria-hidden="true">{{ glyph }}</span>
-      <span class="con-notif__type" v-i18n>{{ notification.typeLabelKey }}</span>
+      <!-- THE KICKER — the type label and, for a card action, the CARD's name as its second line (PL-150):
+           «ДЕЙСТВИЕ КАРТЫ · Плазменные вентиляторы». The viewer's own gain used to displace the one body
+           line that named the card, so a rival's action read as an anonymous «card action». -->
+      <span class="con-notif__kicker" :class="{'con-notif__kicker--card': notification.typeLabelCard !== undefined}">
+        <span class="con-notif__type" v-i18n>{{ notification.typeLabelKey }}</span>
+        <span v-if="notification.typeLabelCard !== undefined" class="con-notif__type-card" data-notif-type-card>{{ $t(notification.typeLabelCard) }}</span>
+      </span>
       <span v-if="notification.actor !== undefined" class="con-notif__actor">
         <span class="con-notif__dot" :class="'player_bg_color_' + notification.actor" aria-hidden="true"></span>
         <span>{{ actorName }}</span>

@@ -273,6 +273,24 @@ function variantKind(variant: NotificationVariant): NotificationKind {
   }
 }
 
+/**
+ * The CARD the kicker names under its type label (PL-150) — a card action's
+ * own card, from the root log's first CARD token («${0} used ${1} action»),
+ * else the root event's card source. Only the blue-action family: a play
+ * already names its card as the body's whole subject, a standard project has
+ * no card the player recognises by art.
+ */
+function variantTypeCard(variant: NotificationVariant, header: LogMessage, chain: ReadonlyArray<GameEvent>, correlationId: number): CardName | undefined {
+  if (variant !== 'blue-action') {
+    return undefined;
+  }
+  const token = header.data.find((tok) => tok.type === LogMessageDataType.CARD);
+  if (token !== undefined) {
+    return token.value as CardName;
+  }
+  return rootSourceCard(chain, correlationId);
+}
+
 /** The header label for a variant. */
 function variantTypeLabel(variant: NotificationVariant, category: JournalActionCategory | undefined): string {
   switch (variant) {
@@ -607,6 +625,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
       gain: impact?.transfer === true ? viewerImpact.losses.map((c) => ({...c, text: c.text.replace('−', '+')})) : undefined,
     } : undefined,
     typeLabelKey: variantTypeLabel(variant, header.category),
+    ...(variantTypeCard(variant, header, chain, input.correlationId) !== undefined ? {typeLabelCard: variantTypeCard(variant, header, chain, input.correlationId)} : {}),
     category: header.category,
     actor,
     // Structured feed-filter metadata: who the chain's typed deltas touch.

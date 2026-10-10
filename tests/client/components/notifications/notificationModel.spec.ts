@@ -193,6 +193,24 @@ describe('notificationModel (pure)', () => {
         expect(models[0]?.variant, `${category}`).to.eq(variant);
       }
     });
+
+    /** PL-150: the viewer's own gain displaced the only body line that named the card — the kicker names it ALWAYS. */
+    it('a card action\'s kicker names its CARD (the root log\'s CARD token), a play\'s does not', () => {
+      const action = rootHeader(BLUE, 21, 'card-action');
+      const {models: actionModels} = diffRootNotifications({
+        messages: [action],
+        events: [event({id: 210, type: 'action', player: BLUE, correlationId: 21, impact: {}})],
+        seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1000,
+      });
+      expect(actionModels[0]).to.include({typeLabelKey: 'Card action', typeLabelCard: CARD});
+      const play = rootHeader(BLUE, 22, 'card-play');
+      const {models: playModels} = diffRootNotifications({
+        messages: [play],
+        events: [event({id: 220, type: 'action', player: BLUE, correlationId: 22, impact: {}})],
+        seen: new Set(), viewerColor: RED, generation: 1, createdAt: 1000,
+      });
+      expect(playModels[0]?.typeLabelCard, 'a play\'s subject is its body').to.eq(undefined);
+    });
   });
 
   describe('recomputeRootImpact (colony-trade reward race)', () => {

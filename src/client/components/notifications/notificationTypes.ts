@@ -203,6 +203,15 @@ export type NotificationModel = {
 
   /** i18n key for the small type label in the header ("Card played", "Your turn"…). */
   typeLabelKey: string;
+  /**
+   * THE CARD THE TYPE LABEL IS ABOUT — the kicker's second line (PL-150): a
+   * card action's own card («Действие карты · Плазменные вентиляторы»), read
+   * off the root log's CARD token, never off its text. Set for the blue-action
+   * family only, and ALWAYS for it: when the viewer's own gain leads the card
+   * (the Greens' M€, Aphrodite's) the body is the gain, and the only place the
+   * card's name survived was a body line the band had displaced.
+   */
+  typeLabelCard?: CardName;
   /** The root-action category — drives the category glyph / accent. */
   category?: JournalActionCategory;
   /** The acting / benefiting player (colour accent + actor chip). */
