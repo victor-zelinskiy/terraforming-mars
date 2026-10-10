@@ -476,6 +476,21 @@ for (const preset of PRESETS) {
       await waitForBoardHome(page, 30);
       await stopStory();
       const {samples} = await readProbe(page);
+      // THE PREMIUM BAR ON THE COUCH (PL-139): on the TV profile the hero card is at least a QUARTER of the stage's
+      // zone (it was 11 %), the decision column stands level with it, and the rail's rows the formula does not touch
+      // are quiet while the ones it moves (plants, M€) stay lit.
+      if (preset.id === 'tv4k') {
+        const shares = await page.evaluate(({hero, stage}) => {
+          const h = document.querySelector(hero)?.getBoundingClientRect();
+          const s = document.querySelector(stage)?.getBoundingClientRect();
+          const quiet = Array.from(document.querySelectorAll<HTMLElement>('.con-res__row')).map((el) => `${el.className.match(/con-res__row--(megacredits|steel|titanium|plants|energy|heat)/)?.[1]}:${el.classList.contains('con-res__row--quiet') ? 'quiet' : 'lit'}`);
+          return {hero: h === undefined || s === undefined ? 0 : (h.width * h.height) / (s.width * s.height), quiet};
+        }, {hero: HERO, stage: '.con-cardactions__stagewrap'});
+        expect(shares.hero, `the hero card's share of the stage zone (${shares.hero.toFixed(3)}) is at least a quarter`).toBeGreaterThanOrEqual(0.25);
+        expect(shares.quiet, 'the rows the formula touches stay lit, the rest recede').toEqual([
+          'megacredits:lit', 'steel:quiet', 'titanium:quiet', 'plants:lit', 'energy:quiet', 'heat:quiet',
+        ]);
+      }
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/biological-simulations-action-${preset.id}.txt`, trail(samples));
       await shoot(page, preset.id, 'b-02-board');

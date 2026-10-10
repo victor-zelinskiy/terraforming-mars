@@ -1761,7 +1761,23 @@ html.con-profile-tv {
         /* The configuration surface breathes a little wider at couch size. */
         .con-composer__surface { padding: 0.75rem 0.95rem 0.8rem; }
         .con-composer__panel--stage { width: 100%; max-height: none; }
-        .con-composer__actmain--stage { max-width: 86rem; column-gap: 2.2rem; }
+        /* ═══ THE PREMIUM BAR ON THE COUCH (PL-139, the TR40 walk — the owner's M3) ═══
+           Measured on 4K before: the hero card 666 × 957 px = 11 % of a 3244 × 1778 zone, the formula a 1924 × 201
+           ribbon, ≈ 72 % of the zone dark; the formula's chips at HUD scale (digits 40 px against the rail's 60),
+           its captions 29 px; the loudest thing on screen the CTA. The three moves of the accepted mockup:
+           ① THE HERO IS A THIRD OF THE ZONE — the card ×1.5 (the printed rows read from the couch), the decision
+             column beside it, level with it (the column centres on the card, so the formula stands beside the
+             printed action rows it enlarges — never a ribbon floating in the upper half);
+           ② THE FORMULA IS THE LOUDEST THING — the cost → reward chips and the CTA at scene scale (`zoom`, the TV
+             profile's own instrument for a rem-authored block), the rule's prose a step quieter under it;
+           ③ the rail recedes behind it (`.con-res__row--quiet`, published by the composer).
+           The stage's zone is the room: a nested step (a target pick) still opens INSIDE the decision column. */
+        .con-composer__actmain--stage { max-width: none; column-gap: 2.6rem; align-items: center; }
+        .con-composer__actcard { zoom: calc(1.6 * var(--con-ui-scale, 1)); }
+        .con-composer__hero { zoom: 1.5; }
+        .con-composer__cta { zoom: 1.22; }
+        .con-composer__rules { opacity: .62; }
+        .con-composer__rule-text { font-size: var(--con-t-secondary); }
         .con-composer__cta-hint { font-size: var(--con-t-secondary); }
         /* The reveal phase reads at couch weight. (The VERDICT PANEL's own
            couch sizes are NOT here: it is the shared `.con-verdict`, tuned once

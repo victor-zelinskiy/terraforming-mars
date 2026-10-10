@@ -405,11 +405,49 @@ export type ActionWorkspaceDraft = {cardName: CardName, nodeIndex: number};
  * the confirm sub-overlay is open (so the bar shows Confirm/Cancel instead of
  * the grid's contract, and the global Y=Information guard yields to it).
  */
+/** The player rail's STANDARD rows, by the key the rail and the effect chips share. */
+const RAIL_ROW_KEYS: ReadonlySet<string> = new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+
+/**
+ * THE RAIL ROWS A FORMULA TOUCHES (PL-139): the rows of the composer's cost and gain chips (a production step and a
+ * stock move share the row) and of the table's own exact answers to the press (the Greens' M€ production, …). Pure —
+ * the rail quiets every other row while the stage stands.
+ */
+export function railFocusKeysOf(
+  cost: ReadonlyArray<ActionEffect>, gain: ReadonlyArray<ActionEffect>,
+  forecast: {facts: ReadonlyArray<{recipient?: {kind: string}, effects: ReadonlyArray<ActionEffect>}>} | undefined,
+): ReadonlyArray<string> {
+  const keys = new Set<string>();
+  for (const effect of [...cost, ...gain]) {
+    if (RAIL_ROW_KEYS.has(effect.icon)) {
+      keys.add(effect.icon);
+    }
+  }
+  for (const fact of forecast?.facts ?? []) {
+    if (fact.recipient !== undefined && fact.recipient.kind !== 'you') {
+      continue;
+    }
+    for (const effect of fact.effects) {
+      if (RAIL_ROW_KEYS.has(effect.icon)) {
+        keys.add(effect.icon);
+      }
+    }
+  }
+  return Array.from(keys);
+}
+
 export const consoleCardActionsUi = reactive({
   filter: defaultCardActionsFilter() as ActionFilterState,
   confirmOpen: false,
   /** The suspended-instance presentation record — see ActionWorkspaceDraft. */
   draft: undefined as ActionWorkspaceDraft | undefined,
+  /**
+   * THE RAIL ROWS A STANDING FORMULA TOUCHES (PL-139): the keys of the player-rail rows the action composer's
+   * cost / gain / forecast chips move (`railFocusKeysOf`), published while its stage stands; `undefined` = no
+   * formula on screen, every row lit. The rail reads it and lets the other rows recede — the rail is context, the
+   * formula is the hero. Never a reason to refuse anything: paint only.
+   */
+  railFocus: undefined as ReadonlyArray<string> | undefined,
   /**
    * STAGED ACTION return (B from the board — docs/TILE_PLAY_STAGED_COMMIT.md):
    * which action's composer to re-seat when the yielded workspace resumes,

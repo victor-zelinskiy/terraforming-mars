@@ -888,7 +888,7 @@ import {
   // The price every variant shares — printed once, on the price side.
   commonVariantCost,
 } from '@/client/console/consoleActionComposer';
-import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft} from '@/client/console/consoleCardActions';
+import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft, railFocusKeysOf, consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -2056,6 +2056,11 @@ export default defineComponent({
       }
       return out;
     },
+    /** The rail rows this formula touches (PL-139) — published to the rail while the stage stands. */
+    railFocusKeys(): ReadonlyArray<string> {
+      const timeline = this.heroTimeline?.parts ?? [];
+      return railFocusKeysOf([...this.heroCost, ...timeline], this.heroGain, this.forecast);
+    },
     /** The selected branch's deck check, read for the composer's «до» (undefined off a reveal). */
     revealPreview(): RevealPreviewReading | undefined {
       const reveal = this.selectedBranch?.reveal;
@@ -2940,6 +2945,14 @@ export default defineComponent({
     // preview, so it changed under the entering animation.)
   },
   mounted() {
+    // THE RAIL RECEDES BEHIND THE FORMULA (PL-139): the OWNER composer publishes the rows its formula touches for as
+    // long as it stands; a guest instance (the repeat pick's, `publishCommands: false`) publishes nothing — one
+    // writer, as for the zone and the commands.
+    if (this.publishCommands) {
+      this.$watch(() => this.railFocusKeys, (keys: ReadonlyArray<string>) => {
+        consoleCardActionsUi.railFocus = keys;
+      }, {immediate: true});
+    }
     // A RESTORED stage mounts with the colonies step ALREADY hosted (the
     // parked second-door chain coming back): `colonyStepOn` was true before
     // this component existed, so its change-watcher never fires — republish
@@ -2976,6 +2989,10 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    // The rail lights every row again the moment the owner's formula leaves the screen (PL-139).
+    if (this.publishCommands) {
+      consoleCardActionsUi.railFocus = undefined;
+    }
     this.killLedgerClocks();
     // THE LEDGER LEAVES THE SCREEN with this stage (a collapse, the flow's end): a row whose chips could only be
     // born on it is released honestly — the counter ticks now, late, never lost. The rows the SERVER still owes

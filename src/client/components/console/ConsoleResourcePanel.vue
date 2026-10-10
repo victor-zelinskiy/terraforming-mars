@@ -66,7 +66,9 @@
                conversionRole(row.key) !== '' ? 'con-res__row--conv-' + conversionRole(row.key) : '',
                convertReady(row.key) ? 'con-res__row--convertible con-res__row--convertible-' + row.key : '',
                convWatch(row.key) ? 'con-res__row--conv-watch' : '',
+               railQuiet(row.key) ? 'con-res__row--quiet' : '',
              ]"
+             :data-rail-quiet="railQuiet(row.key) ? '1' : undefined"
              :data-conversion-cell="conversionAnchor(row.key)">
           <!-- data-wheel-anchor="res-heat": the LT wheel's heat-conversion
                commit ACKNOWLEDGES here (wheelPulse) — the reservoir about to
@@ -389,6 +391,7 @@ type ResourceRow = {
   /** AnimatedMetricValue key of the stock (`<key>.stock` — one family for
    *  every seat; the scope color separates participants). */
   metricKey: string,
+import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
   /** Absent = the seat has NO production concept (the Automa) — the row
    *  keeps the production track's reserved width visually empty. */
   production?: number,
@@ -805,6 +808,15 @@ export default defineComponent({
       return this.conversionRole(key) !== '' ? key : undefined;
     },
     /**
+    /**
+     * THE RAIL RECEDES BEHIND A FORMULA (PL-139): while an action composer's stage stands, the rows its formula does
+     * not touch go quiet — the rail is context, the formula is the hero. Published by the composer
+     * (`consoleCardActionsUi.railFocus` — the rows of its cost / gain / forecast chips); `undefined` = every row lit.
+     */
+    railQuiet(key: string): boolean {
+      const focus = consoleCardActionsUi.railFocus;
+      return focus !== undefined && !this.botMode && !focus.includes(key);
+    },
      * The interpolated stock during the transition (energy counts DOWN,
      * heat counts UP in lock-step with the arrow — desktop PlayerResource
      * parity); the canonical value otherwise.

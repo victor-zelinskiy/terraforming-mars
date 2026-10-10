@@ -4072,6 +4072,16 @@ each(@players, {
        the delta-chip anchor — the stockwrap's right corner — stays put on
        the shared axis whatever the digit count). */
     &__stockwrap { justify-self: end; }
+        /* THE RAIL RECEDES BEHIND A FORMULA (PL-139): a row the standing action formula does not touch goes
+           quiet — its icon, digits and plate step back, the row's plate stays (the instrument bank keeps its
+           shape; nothing moves). An opacity TRANSITION, compositor-only; the children, never the row — a
+           see-through row would show the board through the rail. */
+        > .con-res__iconwrap, > .con-res__stockwrap, > .con-res__prod {
+            transition: opacity calc(220ms * var(--motion-scale, 1)) ease-out;
+        }
+    }
+    &__row--quiet {
+        > .con-res__iconwrap, > .con-res__stockwrap, > .con-res__prod { opacity: .42; }
     /* The badge anchor: takes the icon's grid slot (same --cr-icon square,
        so the icon-column probes and the row grid see identical geometry) and
        hosts the absolute corner coin. */
