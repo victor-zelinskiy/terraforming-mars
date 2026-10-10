@@ -1111,6 +1111,7 @@ export enum CardName {
   RED_LAWYERS = 'Red Lawyers',
   BIOLOGICAL_SIMULATIONS = 'Biological Simulations',
   CANYON_CARVING = 'Canyon Carving',
+  FORESTRY_MECHS = 'Forestry Mechs',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

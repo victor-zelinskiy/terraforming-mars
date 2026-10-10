@@ -39,6 +39,7 @@ describe('holderRoles — what a stored resource is for', () => {
     expect(holderRoleOf(CardName.VENUSIAN_CENSUS)).to.deep.eq({kind: 'delegate'});
     expect(holderRoleOf(CardName.AUTOMATED_CONVOYS)).to.deep.eq({kind: 'trade'});
     expect(holderRoleOf(CardName.POLITICAL_SCIENCE), 'data spent to draw — nothing the console names').to.deep.eq({kind: 'store'});
+    expect(holderRoleOf(CardName.FORESTRY_MECHS), 'TR40: mechs spent for a production step — the SIXTH mech holder, storage until К-R1 is decided').to.deep.eq({kind: 'store'});
     expect(holderRoleOf('No Such Card' as CardName)).to.deep.eq({kind: 'store'});
   });
 

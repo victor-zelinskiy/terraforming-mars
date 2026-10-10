@@ -40,6 +40,7 @@ import {CouncilSeat} from './CouncilSeat';
 import {RedLawyers} from './RedLawyers';
 import {BiologicalSimulations} from './BiologicalSimulations';
 import {CanyonCarving} from './CanyonCarving';
+import {ForestryMechs} from './ForestryMechs';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -207,5 +208,6 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // ocean travels to an adjacent ocean reserve or land, the move pays its own TR and never touches the parameter
     // (`Game.moveOceanTile`, `docs/TURMOIL_REDUX_RE_SETTLEMENT.md` §2.6).
     [CardName.CANYON_CARVING]: {Factory: CanyonCarving},
+    [CardName.FORESTRY_MECHS]: {Factory: ForestryMechs},
   },
 });
