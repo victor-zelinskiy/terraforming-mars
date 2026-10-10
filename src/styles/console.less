@@ -700,9 +700,14 @@ html.console-native {
    screen — several solve fits against their padding box). */
 .con-stage-surface() {
     border-radius: 0;
+    /* OPAQUE (PL-137). The body used to be «near-opaque» (0.97–0.985) — enough to swallow the dark board, not enough
+       to swallow the ДОП. РЕСУРСЫ satellite standing UNDER it at full brightness (z 11470 — «COVERED, NEVER DIMMED»):
+       its white digits and sprites ghosted through at ≈ 3–8 % as the «stray 2» over the composer's top-left corner
+       (TR34 saw it in the corner probe, TR40 named it). The depth is the gradient's and the shadows', never the
+       alpha's — a surface that covers something covers it. */
     background:
         linear-gradient(90deg, rgba(12, 19, 29, 0.55), transparent 9rem),
-        linear-gradient(180deg, rgba(9, 15, 23, 0.97), rgba(7, 12, 19, 0.975) 46%, rgba(5, 9, 15, 0.985));
+        linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
     /* The workspace OPENS UNDER the top beam: a soft interior shade falls
        from its top edge (the beam's weight landing on the scene), so the
        plate reads recessed INTO the shell rather than glued below a line.
@@ -4067,11 +4072,6 @@ each(@players, {
         border-radius: 0 .4rem .4rem 0;
         background: rgba(16, 26, 38, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-    }
-    /* The value block sits at its column's right edge (content-sized, so
-       the delta-chip anchor — the stockwrap's right corner — stays put on
-       the shared axis whatever the digit count). */
-    &__stockwrap { justify-self: end; }
         /* THE RAIL RECEDES BEHIND A FORMULA (PL-139): a row the standing action formula does not touch goes
            quiet — its icon, digits and plate step back, the row's plate stays (the instrument bank keeps its
            shape; nothing moves). An opacity TRANSITION, compositor-only; the children, never the row — a
@@ -4082,6 +4082,11 @@ each(@players, {
     }
     &__row--quiet {
         > .con-res__iconwrap, > .con-res__stockwrap, > .con-res__prod { opacity: .42; }
+    }
+    /* The value block sits at its column's right edge (content-sized, so
+       the delta-chip anchor — the stockwrap's right corner — stays put on
+       the shared axis whatever the digit count). */
+    &__stockwrap { justify-self: end; }
     /* The badge anchor: takes the icon's grid slot (same --cr-icon square,
        so the icon-column probes and the row grid see identical geometry) and
        hosts the absolute corner coin. */
@@ -4752,6 +4757,26 @@ each(@players, {
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
+    }
+    /* The ACTION role's good on the PRODUCTION PLATE (PL-135): the card art's own brown box, a rounded square — so
+       «[mech] 2 · [plants on the plate]» reads «mechs that buy plant production», never «mechs that are plants». The
+       same plate the transfer chips and the forecast chips wear (`console_resource_transfer.less`). */
+    &__rolebadge--production {
+        border-radius: .2rem;
+        background: linear-gradient(180deg, #8a5a30, #6b4322);
+        box-shadow: inset 0 0 0 .05rem rgba(214, 158, 96, 0.7), 0 .1rem .3rem rgba(0, 0, 0, .55);
+    }
+    /* The tender coin's CONTEXT TAG (PL-136) — two tender pools of one resource on the table: the tag each coin pays
+       for, in the chip's upper-left corner (the coin keeps the lower-right), a medal the size of the coin. */
+    &__ctxtag {
+        position: absolute;
+        left: calc(var(--valbadge-size, .92rem) * -.3);
+        top: calc(var(--valbadge-size, .92rem) * -.3);
+        width: var(--valbadge-size, .92rem);
+        height: var(--valbadge-size, .92rem);
+        pointer-events: none;
+        box-shadow: 0 0 0 .05rem rgba(255, 255, 255, .18), 0 .1rem .3rem rgba(0, 0, 0, .55);
+        border-radius: 50%;
     }
     &__value {
         font-size: 1.05rem;
@@ -33928,6 +33953,8 @@ html.console-mode {
         }
     }
     &__imp-icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    /* An action good that is a PRODUCTION step rides the production plate (PL-135) — the same brown box as every production chip. */
+    &__imp-icon--production { padding: .1rem; box-sizing: content-box; background-origin: content-box; background-color: rgba(122, 78, 40, 0.92); border-radius: .2rem; box-shadow: inset 0 0 0 .05rem rgba(232, 196, 150, 0.55); }
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
     /* A VALUE reading (PL-075 — what one unit is worth here) and its tail (a payment's «where»): the quiet voice —
        it is the comparison, not a movement. */

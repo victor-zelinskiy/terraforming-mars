@@ -223,7 +223,8 @@
           <span class="con-ptsel__railimpacts">
             <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp"
                   :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static, 'con-ptsel__imp--value': imp.value}]">
-              <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
+              <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="[iconClass(imp.icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
+                 :data-impact-plate="imp.plate" aria-hidden="true"></i>
               <span class="con-ptsel__imp-label">{{ impactLabel(imp) }}</span>
               <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ $t(imp.tail) }}</span>
               <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">
