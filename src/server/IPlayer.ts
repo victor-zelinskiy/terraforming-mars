@@ -148,6 +148,8 @@ export type CardDrawReveal = {
    * timing-dependent.
    */
   sealed?: boolean,
+  /** Cards of this batch the rules discarded at once (see CardDrawRevealModel.autoDiscarded). */
+  autoDiscarded?: Array<IProjectCard>,
 }
 
 /**
@@ -604,6 +606,12 @@ export interface IPlayer {
    * queue.
    */
   sealCardDrawReveal(): void;
+  /**
+   * The rules discarded these cards with no question asked (a mandatory discard met a hand holding no other card):
+   * every pending reveal batch that SHOWS one of them records it (`CardDrawReveal.autoDiscarded`), so the console
+   * presents the card leaving instead of offering to take a card that is no longer in the hand.
+   */
+  noteRevealAutoDiscard(cards: ReadonlyArray<IProjectCard>): void;
   /** Remove a reveal batch (or all) once the player has taken the cards. Idempotent. */
   acknowledgeCardDrawReveals(id: number | 'all'): void;
   discardPlayedCard(card: IProjectCard): void;

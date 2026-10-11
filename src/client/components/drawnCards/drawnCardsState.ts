@@ -40,6 +40,8 @@ export type DrawnCardEntry = {
    * each segment's covers from its own area of the colony tile.
    */
   tradeSegments?: ReadonlyArray<ColonyTradeRevealSegment>;
+  /** Cards the RULES already discarded (server truth — CardDrawRevealModel.autoDiscarded): shown leaving, never taken. */
+  autoDiscarded?: ReadonlyArray<CardName>;
   /** Indices within `cards` the player has already taken (client-only). */
   takenIndices: Set<number>;
   /** True between firing the ack POST and its response landing. */
@@ -85,6 +87,7 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
         search: r.search,
         exhausted: r.exhausted,
         tradeSegments: r.tradeSegments,
+        autoDiscarded: r.autoDiscarded,
         takenIndices: new Set<number>(),
         acking: false,
         dismissed: false,
@@ -110,6 +113,7 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
       existing.search = r.search;
       existing.exhausted = r.exhausted;
       existing.tradeSegments = r.tradeSegments;
+      existing.autoDiscarded = r.autoDiscarded;
       if (grew && existing.dismissed) {
         existing.dismissed = false;
         existing.acking = false;

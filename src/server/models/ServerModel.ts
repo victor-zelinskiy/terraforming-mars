@@ -280,6 +280,9 @@ export class Server {
         // CardDrawRevealModel.tradeSegments) — drives the console trade
         // cinematic's per-wave launches.
         tradeSegments: r.tradeSegments,
+        // The cards the RULES already discarded (a mandatory discard with no other card in hand) — shown leaving,
+        // never offered to be taken (CardDrawRevealModel.autoDiscarded).
+        autoDiscarded: r.autoDiscarded?.map((card) => card.name),
       })),
       // Self-only (this whole model IS the requesting player's view) + transient:
       // the result of the player's most recent reveal/deck-check action, for the

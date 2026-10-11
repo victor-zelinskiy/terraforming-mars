@@ -187,4 +187,11 @@ export type CardDrawRevealModel = {
    * of the colony tile.
    */
   tradeSegments?: ReadonlyArray<ColonyTradeRevealSegment>;
+  /**
+   * Cards of this batch the RULES already discarded, with no question asked — a mandatory discard that met a hand
+   * holding no other card (`DiscardCards`: hand ≤ min). Pluto's «draw 1, then discard 1» on an empty hand draws the
+   * card and throws it away at once (colony polish 1, К-5): the batch must still SHOW it (no silent loss), and must
+   * never offer to TAKE it — it is not in the hand any more. Absent when nothing was auto-discarded.
+   */
+  autoDiscarded?: ReadonlyArray<CardName>;
 };

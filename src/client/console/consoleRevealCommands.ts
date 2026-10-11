@@ -40,6 +40,12 @@ export type DrawnRevealCommandCtx = {
    * contract: one structure, content-level differences only).
    */
   multi?: boolean;
+  /**
+   * Every card still on the table was ALREADY DISCARDED by the rules (a mandatory discard that met a hand with no
+   * other card — CardDrawRevealModel.autoDiscarded, К-5): A sends it to the discard («В сброс»), never «Взять», and
+   * there is no take-all — nothing here goes into the hand.
+   */
+  autoDiscarded?: boolean;
 };
 
 /**
@@ -53,7 +59,8 @@ export function drawnRevealCommandRun(ctx: DrawnRevealCommandCtx): Array<Console
   if (ctx.multi === true && !closerReady) {
     cmds.push({control: 'dpadH', label: 'Navigate'});
   }
-  cmds.push({control: 'confirm', label: closerReady ? (ctx.closer?.label ?? 'Take card') : 'Take card'});
+  const take = ctx.autoDiscarded === true ? 'To the discard' : 'Take card';
+  cmds.push({control: 'confirm', label: closerReady ? (ctx.closer?.label ?? take) : take});
   cmds.push({control: 'secondary', label: 'Inspect'});
   if (ctx.hasCardSource) {
     // L3 = the SOURCE, in BOTH hosts. The embedded workspace does keep the
@@ -69,7 +76,7 @@ export function drawnRevealCommandRun(ctx: DrawnRevealCommandCtx): Array<Console
   if (ctx.hasDiscards) {
     cmds.push({control: 'stickR', label: 'Discarded pile'});
   }
-  if (!closerReady) {
+  if (!closerReady && ctx.autoDiscarded !== true) {
     cmds.push({control: 'back', label: 'Take all cards'});
   }
   return cmds;

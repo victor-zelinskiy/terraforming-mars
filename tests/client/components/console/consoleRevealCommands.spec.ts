@@ -80,4 +80,11 @@ describe('drawnRevealCommandRun — ONE contract for both hosts', () => {
     expect(labels(run)).to.contain('confirm:Take card');
     expect(labels(run)).to.contain('back:Take all cards');
   });
+
+  it('a card the RULES already discarded (К-5) is sent «To the discard», never taken — and offers no take-all', () => {
+    const run = drawnRevealCommandRun({hasCardSource: false, hasDiscards: false, autoDiscarded: true});
+    expect(labels(run)).to.contain('confirm:To the discard');
+    expect(labels(run)).to.not.contain('confirm:Take card');
+    expect(labels(run).some((l) => l.startsWith('back:'))).to.eq(false);
+  });
 });

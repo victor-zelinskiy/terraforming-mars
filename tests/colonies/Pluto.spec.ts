@@ -103,4 +103,37 @@ describe('Pluto', () => {
     runAllActions(game);
     expect(player.getWaitingFor()).is.undefined;
   });
+
+  // К-5 (colony polish 1): an EMPTY hand meets «draw 1, then discard 1» — the drawn card is the only one, so the rules
+  // discard it with no question. The reveal still SHOWS it (no silent loss) and names it as already gone, so the
+  // console never offers to take a card the hand no longer holds.
+  it('an empty hand: every settlement card is shown and named as discarded by the rule, nothing is asked', () => {
+    pluto.addColony(player);
+    pluto.addColony(player);
+    runAllActions(game);
+    player.cardsInHand.length = 0;
+    player.cardDrawReveals = [];
+
+    pluto.trade(player2);
+    runAllActions(game);
+
+    expect(player.getWaitingFor(), 'nothing to choose — no prompt').is.undefined;
+    expect(player.cardsInHand).is.empty;
+    const reveals = player.cardDrawReveals.filter((r) => r.source?.type === 'colony');
+    expect(reveals, 'one batch per settlement (sealed apart)').has.lengthOf(2);
+    for (const reveal of reveals) {
+      expect(reveal.cards).has.lengthOf(1);
+      expect(reveal.autoDiscarded, 'the drawn card is named as discarded by the rule').to.deep.eq([...reveal.cards]);
+    }
+  });
+
+  it('a hand with a choice: nothing is marked auto-discarded', () => {
+    pluto.addColony(player);
+    runAllActions(game);
+    player.cardDrawReveals = [];
+    pluto.trade(player2);
+    runAllActions(game);
+    const reveal = player.cardDrawReveals.find((r) => r.source?.type === 'colony');
+    expect(reveal?.autoDiscarded).is.undefined;
+  });
 });

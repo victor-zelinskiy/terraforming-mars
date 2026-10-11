@@ -52,6 +52,9 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       for (const card of discards) {
         this.player.discardCardFromHand(card);
       }
+      // No question was asked — so a card the player was just SHOWN being drawn (Pluto's «draw 1, then discard 1»
+      // on an empty hand) is named on its reveal as already gone, never offered to be taken (colony polish 1, К-5).
+      this.player.noteRevealAutoDiscard(discards);
       this.cb(discards);
       return undefined;
     }
