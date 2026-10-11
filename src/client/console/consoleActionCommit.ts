@@ -24,8 +24,10 @@ import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {Payment} from '@/common/inputs/Payment';
+import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, TransferRect, extractPlayRewards, isStandardResource, mergeTransferSpecs,
+  RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, TransferRect, cardResourceKey, extractPlayRewards, isStandardResource, mergeTransferSpecs,
   railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
@@ -900,6 +902,55 @@ export function withoutAgendaWalkAnswers(
  * for the diff check the seed makes. Undefined when the play takes nothing
  * off the rail.
  */
+/**
+ * THE CARD'S PRICE PAID WITH CARD RESOURCES (PL-163, the polish remediation iteration № 1). A floater of Dirigibles
+ * paying for a Venus card, a mech of EVA Mechs paying for a Space card: the payment panel's lane spends a resource
+ * that lives on ANOTHER card — a counter the player cannot see while the hand stands (the ДОП. РЕСУРСЫ satellite
+ * under its glass, the holder in the tableau), so the price changed «with no cause on screen». Its visible DOUBLE is
+ * the lane itself — the pay row with the resource's icon (`.con-payrow[data-pay-unit]`), standing in the composer
+ * until the card lifts. So the price is a token: born on that row's icon, absorbed into the standing card's printed
+ * COST badge, before the lift (the shipment beat — PL-107 — for card resources).
+ *
+ * One loss per unit, its holder read from the ONE shared table (`CARD_FOR_SPENDABLE_RESOURCE` — the server's own
+ * `pay()` spends from exactly that card), its kind from the holder's manifest. `known` carries what else this play
+ * moves on the same holder (a gain landing on it, a woken reaction), so the check against the two views is exact.
+ * `units` aligns with `reward.cause` (the token's pay row). Pure.
+ */
+export type PlayCardPrice = {reward: RailReward, units: ReadonlyArray<SpendableCardResource>};
+
+export function playCardPriceReward(
+  payment: Payment | undefined,
+  otherMoves: ReadonlyArray<ResourceTransferSpec> = [],
+): PlayCardPrice | undefined {
+  if (payment === undefined) {
+    return undefined;
+  }
+  const cause: Array<ResourceTransferSpec> = [];
+  const units: Array<SpendableCardResource> = [];
+  for (const unit of SPENDABLE_CARD_RESOURCES) {
+    const amount = payment[unit] ?? 0;
+    const holder = CARD_FOR_SPENDABLE_RESOURCE[unit];
+    const kind = getCard(holder)?.resourceType;
+    if (amount <= 0 || kind === undefined) {
+      continue;
+    }
+    cause.push({channel: 'card-resource', resource: cardResourceKey(kind), amount, targetCard: holder, direction: 'loss'});
+    units.push(unit);
+  }
+  if (cause.length === 0) {
+    return undefined;
+  }
+  const holders = new Set(cause.map((spec) => spec.targetCard));
+  const known: Record<string, number> = {};
+  for (const spec of otherMoves) {
+    if (spec.channel === 'card-resource' && spec.targetCard !== undefined && holders.has(spec.targetCard)) {
+      const row = `${railRowKey(spec)}@${spec.targetCard}`;
+      known[row] = (known[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
+    }
+  }
+  return {reward: {cause, reactions: [], known}, units};
+}
+
 export function playSpendReward(
   cardName: CardName,
   branch: ActionPreviewBranch | undefined,

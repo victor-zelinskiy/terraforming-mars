@@ -257,13 +257,15 @@ for (const preset of PRESETS) {
       expect(after.thisPlayer.megacredits, 'the server: 3 − 1 M€').toBe(2);
       expect(after.thisPlayer.tableau.map((c) => c.name), 'the governor was played').toContain(GOVERNOR);
       await shoot(page, preset.id, 'b2-after');
-      // PL-163 (OPEN, the polish remediation iteration № 1): a price paid with a CARD resource has no flight and no
-      // visible cause today — the satellite ticks under the hand's glass. Its honest form under the law of visible
-      // ends is a token off the PAY ROW's icon (the satellite's visible double) into the card's cost badge. Until it
-      // ships this test is a fixme past this line, never a green that proves nothing.
+      // PL-163: the price paid with a CARD resource is a token — born on the PAY ROW's icon (the satellite's visible
+      // double; the satellite itself stands under the hand's glass), absorbed into the standing card's printed cost
+      // badge, before the lift. One token per paid unit.
       const minus = w.births.filter((e) => e.value === '−1');
-      test.fixme(minus.length === 0, `PL-163 — the «−1» floater price has no flight yet (trail:\n${transferTrail(w)})`);
-      expect(minus[0].under, 'born on a visible double of the satellite — the pay row').toMatch(/^payrow:/);
+      expect(minus.length, `ONE «−1» floater price token (trail:\n${transferTrail(w)})`).toBe(1);
+      expect(minus[0].under, 'born on the floater pay row').toBe('payrow:floaters');
+      const absorbed = w.landings.find((e) => e.id === minus[0].id);
+      expect(absorbed?.under, 'absorbed into the standing card in the composer — its cost badge').toBe('play-card');
+      expect(absorbed?.touched, 'the price token touched down (its contact beat played)').toBeDefined();
     });
 
     test(`(C) Caretaker Contract: the «−8» heat leaves the rail into the hero's printed heat while the workspace stands; the «+1» rating lands on the TR cell (${preset.id})`, async ({page, request}) => {

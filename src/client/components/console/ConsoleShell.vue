@@ -2069,7 +2069,7 @@ import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
 import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitRewardSpecs, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
+import {ActionCommitPlan, abortConsoleActionCommit, actionCommitHolding, commitRewardSpecs, consumeActionCommitPlan, playCardPriceReward, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import {actionCommitRailState, flyActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
@@ -16318,6 +16318,10 @@ export default defineComponent({
         rail: payload.rail,
         // The price the play takes OFF THE RAIL (X87's shipment): flown into the standing card before the lift.
         spends: payload.spends,
+        // …and the card's price paid with CARD resources (PL-163 — a floater of Dirigibles, a mech of EVA): a token off
+        // each pay row into the standing card's cost badge, in the same beat. What else this play moves on the same
+        // holder (a gain landing on it, a woken reaction) is the check's known move.
+        price: playCardPriceReward(payload.payment, [...(payload.rewards ?? []), ...(payload.reactions ?? []).map((r) => r.spec)]),
         host: workspaceFrameDescended('hand') && !this.playedOpen ? 'workspace' : 'overlay',
         // THE PICTURE THE CARD WEARS: it lifts off the composer's stationary
         // hero (`normal` tier over the hand model) and lands on the receiving

@@ -128,6 +128,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
     /** The known places a token is born on or lands on, in priority order (the most specific first). */
     const ANCHORS: Array<[string, string]> = [
       ['hero', '.con-composer__actcardwrap'],
+      ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],
       ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
       ['played', '.con-played [data-played-key], .con-start__played [data-played-key]'],
@@ -138,6 +139,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
     const anchorName = (kind: string, el: Element): string => {
       switch (kind) {
       case 'hero': return 'hero';
+      case 'play-card': return 'play-card';
       case 'composer-card': return `composer-card:${name(el, 'data-composer-card')}`;
       case 'recv': return `recv:${el.hasAttribute('data-recv-front') ? 'front' : name(el, 'data-played-key')}`;
       case 'played': return `played:${name(el, 'data-played-key')}`;

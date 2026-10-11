@@ -71,6 +71,8 @@ import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
+import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
+import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {Tag} from '@/common/cards/Tag';
 
 /** The result beat is SHORT when the server already queued the next decision
@@ -160,6 +162,11 @@ export const playedHeroState = reactive({
    * ticked with the commit, honestly late). Read by the e2e probe through the readiness snapshot.
    */
   reactions: '' as string,
+  /**
+   * THE CARD'S PRICE PAID WITH CARD RESOURCES (PL-163), named: '' — the play paid none; `flying` → `flown`; or why
+   * it was not flown (`reduced`, `mismatch: …`, `no-row: <unit>` — the pay row was not on screen, `no-source`).
+   */
+  price: '' as string,
 });
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
@@ -265,6 +272,14 @@ let heldAnswers: Array<ResourceTransferSpec> = [];
  * it and the row returns to the truth — a failed play ships nothing.
  */
 let pendingSpends: RailReward | undefined;
+/**
+ * THE CARD'S PRICE PAID WITH CARD RESOURCES (PL-163): a floater of Dirigibles, a mech of EVA Mechs — a counter the
+ * player cannot see while the hand stands. Its visible double is the composer's own PAY ROW; the token is born on
+ * that row's icon and absorbed into the standing card's printed COST badge in the same shipment beat as the stock
+ * spends (in parallel — both go INTO the card), before the lift. Checked against the two views like the shipment
+ * (`verifyRailReward` — a holder that moved otherwise is not flown and names itself in `playedHeroState.price`).
+ */
+let pendingPrice: PlayCardPrice | undefined;
 /** The departure holds this transaction seeded (gain-shaped) — released by the commit's block, or by an abort. */
 const departureHolds: Array<ResourceTransferSpec> = [];
 /** The applied view the answer is checked against (handed in with the answer — `runPlayedHero`). */
@@ -535,6 +550,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   rail?: RailReward,
   /** The stock prices the play takes OFF THE RAIL — the shipment beat before the lift (see `pendingSpends`). */
   spends?: RailReward,
+  /** The card's price paid with CARD resources — a token off each pay row into the cost badge, before the lift (PL-163). */
+  price?: PlayCardPrice,
   host?: PlayedHeroHost,
   /** The picture the card wears where it LIFTS from (default: the composer's
    *  stationary hero — `normal` tier, no live model). */
@@ -554,6 +571,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   pendingRail = opts.rail;
   releaseDepartures();
   pendingSpends = opts.spends;
+  pendingPrice = opts.price;
+  playedHeroState.price = '';
   beforeView = undefined;
   playedHeroState.shipment = '';
   // THIS payout's touchdown tally starts empty (the colony flows arm the same
@@ -918,15 +937,92 @@ async function executeFlight(): Promise<void> {
  * with the commit, honestly late. Never rejects.
  */
 async function shipPrice(mine: () => boolean): Promise<void> {
+  const price = pendingPrice;
+  pendingPrice = undefined;
+  const stock = shipStockSpends(mine);
+  const cards = shipCardPrice(price, mine);
+  if (stock === undefined && cards === undefined) {
+    return;
+  }
+  playedHeroState.phase = 'shipping';
+  await Promise.all([stock, cards]);
+  if (!mine()) {
+    return;
+  }
+  // The absorb beat: the card takes the shipment in before it lifts — one beat of the animation clock.
+  await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+  if (mine() && playedHeroState.shipment === 'flying') {
+    playedHeroState.shipment = 'flown';
+  }
+  if (mine() && playedHeroState.price === 'flying') {
+    playedHeroState.price = 'flown';
+  }
+}
+
+/**
+ * The CARD-RESOURCE price (PL-163): one token per paid unit, born on the composer's pay row of that unit (its icon —
+ * the satellite's visible double), absorbed into the standing card's printed cost badge. Undefined — nothing to fly.
+ */
+function shipCardPrice(price: PlayCardPrice | undefined, mine: () => boolean): Promise<void> | undefined {
+  const card = playedHeroState.card;
+  if (price === undefined || card === undefined || !mine()) {
+    return undefined;
+  }
+  if (consoleReducedMotionActive()) {
+    playedHeroState.price = 'reduced';
+    return undefined;
+  }
+  const verdict = verifyRailReward(price.reward, beforeView, landingView);
+  if (verdict.cause.length === 0) {
+    playedHeroState.price = `mismatch: ${verdict.mismatches.join('; ')}`;
+    return undefined;
+  }
+  const el = standingSourceEl();
+  if (el === undefined) {
+    playedHeroState.price = 'no-source';
+    return undefined;
+  }
+  // The absorb point: the printed COST badge of the standing card (its body when the face prints none).
+  const badge = el.querySelector<HTMLElement>('.pcard__cost-badge') ?? el.querySelector<HTMLElement>('.pcard__cost') ?? el;
+  const b = badge.getBoundingClientRect();
+  const absorb: TransferPoint = {x: b.left + b.width / 2, y: b.top + b.height / 2};
+  const flights: Array<Promise<void>> = [];
+  for (const spec of verdict.cause) {
+    const unit = price.units[price.reward.cause.indexOf(spec)];
+    // The birth: the pay row's icon AS PAINTED (the law of visible ends) — a row not on screen flies nothing.
+    const icon = unit === undefined ? undefined :
+      firstVisibleEnd(`.con-composer--play .con-payrow[data-pay-unit="${unit}"] .con-payrow__icon`);
+    if (icon === undefined) {
+      playedHeroState.price = `no-row: ${unit ?? spec.resource}`;
+      continue;
+    }
+    const r = icon.getBoundingClientRect();
+    playedHeroState.price = 'flying';
+    flights.push(runResourceTransfers({
+      specs: [spec],
+      // A LOSS walks the geometry backwards: born at `destination` (the pay row), absorbed at the source point.
+      source: {point: absorb},
+      destination: {x: r.left + r.width / 2, y: r.top + r.height / 2},
+      arrival: 'auto',
+      onDegrade: (_spec, why) => {
+        playedHeroState.price = `degraded: ${why} (${spec.resource})`;
+      },
+    }));
+  }
+  return flights.length === 0 ? undefined : Promise.all(flights).then(() => undefined);
+}
+
+/** The STOCK spends of the play's effect (PL-107 — X87's plants and steel off the rail). Undefined — nothing to fly. */
+function shipStockSpends(mine: () => boolean): Promise<void> | undefined {
   const reward = pendingSpends;
   pendingSpends = undefined;
   const card = playedHeroState.card;
   if (reward === undefined || card === undefined || !mine()) {
-    return;
+    return undefined;
   }
   if (consoleReducedMotionActive()) {
     playedHeroState.shipment = 'reduced';
-    return;
+    return undefined;
   }
   // The promise against the answer: every row the shipment names must have moved by exactly the shipment plus
   // the response's other known moves (the price). A row that disagrees is not flown — it ticks with the commit.
@@ -936,7 +1032,7 @@ async function shipPrice(mine: () => boolean): Promise<void> {
     if (process.env.NODE_ENV !== 'production') {
       console.warn(`[played-hero] ${card}: the shipment was not shown as promised — ${verdict.mismatches.join('; ')}`);
     }
-    return;
+    return undefined;
   }
   // The standing card — the first MEASURABLE match of the source selector (a parked layer may hold the same
   // card identity with a zero rect). Its printed icons are where the tokens are absorbed: the k-th token of a
@@ -945,15 +1041,14 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   const el = standingSourceEl();
   if (el === undefined) {
     playedHeroState.shipment = 'no-source';
-    return;
+    return undefined;
   }
   const anchors = resolveActionCommitAnchors(el, undefined);
   const specs = verdict.cause;
   const origins = resolveSpendIconOrigins(anchors, specs);
   const body = anchors.cardEl.getBoundingClientRect();
-  playedHeroState.phase = 'shipping';
   playedHeroState.shipment = 'flying';
-  await runResourceTransfers({
+  return runResourceTransfers({
     specs,
     source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
     origins,
@@ -969,14 +1064,6 @@ async function shipPrice(mine: () => boolean): Promise<void> {
       playedHeroState.shipment = `degraded: ${why} (${spec.resource})`;
     },
   });
-  if (!mine()) {
-    return;
-  }
-  // The absorb beat: the card takes the shipment in before it lifts — one beat of the animation clock.
-  await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
-  if (mine() && playedHeroState.shipment === 'flying') {
-    playedHeroState.shipment = 'flown';
-  }
 }
 
 /** Seed ONE departure hold: from here the row reads `committed − amount` — the pre-commit value minus what just left. */
@@ -1279,6 +1366,7 @@ export function abortPlayedHero(): void {
   // A failed play ships nothing: the rows the shipment left return to the truth (one honest transition).
   releaseDepartures();
   pendingSpends = undefined;
+  pendingPrice = undefined;
   beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
@@ -1314,6 +1402,7 @@ function finish(): void {
   releaseHeroRail('finished'); // safety — the reward beat flies it; an ending that skipped the beat lets go
   releaseDepartures(); // safety — the commit's block released them; an ending that skipped the commit lets go
   pendingSpends = undefined;
+  pendingPrice = undefined;
   beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
