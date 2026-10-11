@@ -73,6 +73,11 @@ countMetricToward(id, value): ResolutionCountModel              // {count, cards
   у остальных видов `metric` отсутствует. В записи (`SerializedEnactOutcome`) и модели (`ParliamentEnactOutcomeModel`) —
   `countedMetric`; в чтении — `InfluenceYield.countedMetric` (`YieldCount.metric`, `fixedYield(..., {countedMetric})`).
 - **Сервер** (`ResolutionCounts.resolutionCount`): ветка `threshold` первой — `countMetricToward(id, metricValue(player, metric))`.
+- **ОДИН писатель разбора** (2026-10-11): `thresholdBreakdown(metric, value, over, step)` — `sets` делением семьи и
+  `toNext`; `countMetricToward` строит разбор им. Второй потребитель — КАРТА TR42 Green Allegiance («шаг Карьеры за
+  каждый полный набор из 5 РТ сверх 20»): тот же счётный член над другим порогом, разбор едет в модели ходьбы
+  (`AgendaWalkModel.basis`) и печатается тем же словарём (`countedMetricParts` — «РТ 33 · порог 20 · 2 полных набора ·
+  до следующего 2»; `docs/TURMOIL_REDUX_MINORITY_REPRESENTATION.md` §2).
 - **Карта** объявляет `scaled: [{id: 'megacredits', unit: {kind: 'stock', resource: MEGACREDITS}, perInfluence: 2,
   count: {id: 'terraformRatingSets', per: 2}, recipient: 'each'}]` — потолка нет, `cap` не объявлен, `uncapped` в
   записи отсутствует.
