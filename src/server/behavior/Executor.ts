@@ -48,6 +48,7 @@ import {cardDiscard} from '../inputs/discardPrompt';
 import {steelSpendSourceOptions} from './steelSpendSource';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
+import {skippedOrBranch} from '../cards/actionPreviews';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -63,7 +64,10 @@ export class Executor implements BehaviorExecutor {
       // Checks every sub-behavior (using map vs some)
       // so that all warnings get set on the card.
       const executable = behavior.or.behaviors.map((behavior) => this.canExecute(behavior, player, card, canAffordOptions));
-      if (!executable.some((result) => result)) {
+      // An OPTIONAL choice with nothing executable does not refuse the card:
+      // its other keys still execute and the choice is skipped by name
+      // (`execute` below) — see `OrBehavior.optional`.
+      if (!executable.some((result) => result) && behavior.or.optional !== true) {
         return false;
       }
     }
@@ -349,7 +353,18 @@ export class Executor implements BehaviorExecutor {
       card.clearWarnings();
       saved.forEach((warning) => card.addWarning(warning));
 
-      if (options.length === 1 && behavior.or.autoSelect === true) {
+      if (options.length === 0 && behavior.or.optional === true) {
+        // NO BRANCH CAN RUN and the choice is a bonus (`OrBehavior.optional`):
+        // the card plays on and the choice is SKIPPED BY NAME — one record per
+        // branch, the SAME description the preview's general branch warned
+        // with (`skippedOrBranch` — one writer for the promise and the
+        // record), so «2 animals / 4 microbes to a card — no eligible card» is
+        // in the journal, in the rival's notification, never silent.
+        for (const subBehavior of behavior.or.behaviors) {
+          const lost = skippedOrBranch(subBehavior, (c) => ctx.count(c));
+          recordSkippedEffect(player, lost.reason, lost.skipped);
+        }
+      } else if (options.length === 1 && behavior.or.autoSelect === true) {
         options[0].cb(undefined);
       } else {
         // The declarative "pick one of these effects" prompt. Normally the play

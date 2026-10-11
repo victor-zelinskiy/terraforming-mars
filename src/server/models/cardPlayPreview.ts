@@ -5,12 +5,12 @@ import {isICorporationCard} from '../cards/corporation/ICorporationCard';
 import {isPreludeCard} from '../cards/prelude/IPreludeCard';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {SelectCard} from '../inputs/SelectCard';
-import {Behavior, TitledBehavior} from '../behavior/Behavior';
+import {Behavior} from '../behavior/Behavior';
 import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep, StagedPlacementModel} from '../../common/models/ActionPreviewModel';
-import {effectsForBehavior, stepsForBehavior, subAvailability, withImpliedRatings} from './actionPreview';
+import {deriveOrBranches, effectsForBehavior, stepsForBehavior, withImpliedRatings} from './actionPreview';
 import {stagedMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {message} from '../logs/MessageBuilder';
 
@@ -183,37 +183,15 @@ function withStartingEffects(
 }
 
 function deriveCardPlayBranches(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {
-  // On-play `behavior.or` → one branch per sub-behavior (uncommon for project
-  // cards; the live path defers an OrOptions after play). The runtime OrOptions
-  // index is the position among EXECUTABLE subs (Executor.execute filters then
-  // maps); when `autoSelect` collapses a lone executable sub, that branch is
-  // resolved WITHOUT an OrOptions, so it gets index -1.
-  if (behavior.or !== undefined) {
-    const subs: ReadonlyArray<TitledBehavior> = behavior.or.behaviors;
-    const availabilities = subs.map((sub) => subAvailability(player, card, sub));
-    const availableCount = availabilities.filter((a) => a.available).length;
-    const autoResolve = behavior.or.autoSelect === true && availableCount === 1;
-    let runtimeIdx = 0;
-    return subs.map((sub, i): ActionPreviewBranch => {
-      const a = availabilities[i];
-      const index = (a.available && !autoResolve) ? runtimeIdx : -1;
-      if (a.available) {
-        runtimeIdx++;
-      }
-      return {
-        index,
-        title: sub.title,
-        available: a.available,
-        unavailableReason: a.reason?.message,
-        // Without the params a templated reason («Need ${0} more M€») reached the
-        // player with a literal, unfilled `${0}`. The action-preview twin has
-        // always sent them; this branch silently dropped them.
-        unavailableReasonParams: a.reason?.params,
-        renderKeys: [String(i)],
-        effects: effectsForBehavior(player, card, sub),
-        steps: a.available ? withStagedPlacement(player, card, sub, stepsForBehavior(player, card, sub)) : [],
-      };
-    });
+  // On-play `behavior.or` → the shared derivation (`deriveOrBranches` — one
+  // branch per sub-behavior, runtime indices among the executable ones, the
+  // keys beside the choice on every branch, the optional choice's general
+  // branch); the live path defers an OrOptions after play. Only the steps
+  // differ from the action twin: a play branch carries its staged placement.
+  const orBranches = deriveOrBranches(player, card, behavior,
+    (b) => withStagedPlacement(player, card, b, stepsForBehavior(player, card, b)));
+  if (orBranches !== undefined) {
+    return orBranches;
   }
 
   // The common case: the whole on-play behavior is ONE branch (no pick). The card

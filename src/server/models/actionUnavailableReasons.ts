@@ -72,7 +72,11 @@ export function collectActionBehaviorReasons(
 
   // `or` action (e.g. Aerial Mappers): available iff ANY sub-behavior can run.
   // Since the action is unavailable, none can — collect each sub's reasons.
-  if (behavior.or !== undefined) {
+  // An OPTIONAL choice (`OrBehavior.optional`) never blocks: with no
+  // executable branch the card still plays and the choice is skipped by name,
+  // so its branches' reasons are the BRANCHES' (the preview greys each with
+  // its own), not the card's.
+  if (behavior.or !== undefined && behavior.or.optional !== true) {
     for (const sub of behavior.or.behaviors) {
       collectActionBehaviorReasons(player, card, sub, out);
     }

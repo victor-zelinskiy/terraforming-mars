@@ -137,39 +137,94 @@ export function subAvailability(player: IPlayer, card: ICard, behavior: Behavior
   return {available: reasons.length === 0, reason: reasons[0]};
 }
 
-function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {
-  // Multi-branch `or` → one branch per sub-behavior. The RUNTIME OrOptions index
-  // is the position among EXECUTABLE subs only (Executor.execute filters then
-  // maps), so we assign `index` in that filtered order. When `autoSelect` is on
-  // and exactly one sub is executable, the server resolves it WITHOUT an
-  // OrOptions — so that lone branch gets index -1 (no branch pick submitted).
-  if (behavior.or !== undefined) {
-    const subs: ReadonlyArray<TitledBehavior> = behavior.or.behaviors;
-    const availabilities = subs.map((sub) => subAvailability(player, card, sub));
-    const availableCount = availabilities.filter((a) => a.available).length;
-    const autoResolve = behavior.or.autoSelect === true && availableCount === 1;
-    let runtimeIdx = 0;
-    return subs.map((sub, i): ActionPreviewBranch => {
-      const a = availabilities[i];
-      const index = (a.available && !autoResolve) ? runtimeIdx : -1;
-      if (a.available) {
-        runtimeIdx++;
-      }
-      return {
-        index,
-        title: sub.title,
-        available: a.available,
-        unavailableReason: a.reason?.message,
-        unavailableReasonParams: a.reason?.params,
-        renderKeys: [String(i)],
-        // Effects are computed for EVERY branch — an unavailable branch shows its
-        // costs/gains too (the chip frames an unaffordable cost as "have / need"),
-        // so the player understands WHY it can't be taken, not just that it can't.
-        effects: effectsForBehavior(player, card, sub),
-        // Interactive steps only for an executable branch.
-        steps: a.available ? stepsForBehavior(player, card, sub) : [],
-      };
+/**
+ * THE `or` BRANCHES OF A BEHAVIOR — ONE derivation for BOTH previews (the
+ * blue action's and the card play's, which only differ in how a branch's
+ * steps are built: the play wraps them with its staged placement, hence
+ * `stepsFor`). One branch per sub-behavior. The RUNTIME OrOptions index is
+ * the position among EXECUTABLE subs only (`Executor.execute` filters then
+ * maps), so `index` is assigned in that filtered order; when `autoSelect` is
+ * on and exactly one sub is executable the server resolves it WITHOUT an
+ * OrOptions — that lone branch gets index -1 (no branch pick submitted).
+ *
+ * THE KEYS BESIDE THE CHOICE run whichever branch is taken (the Executor
+ * executes them right after deferring the choice — TR43 Ichtiology Grant's
+ * «M€ production per ocean» beside «2 animals OR 4 microbes»), so every
+ * branch states them: their chips first, then the branch's own; their steps
+ * first too (the outer inputs are queued at execute time, the branch's own
+ * only once the choice is answered — the drain order of one priority).
+ *
+ * Effects are computed for EVERY branch — an unavailable branch shows its
+ * costs/gains too (the chip frames an unaffordable cost as "have / need"),
+ * so the player understands WHY it can't be taken, not just that it can't;
+ * interactive steps only for an executable branch.
+ *
+ * An OPTIONAL choice (`OrBehavior.optional`) with NOTHING executable is not a
+ * refusal: ONE general branch (index -1, available, untitled) carries the
+ * outer keys and names each skipped branch with the SAME description the
+ * Executor records (`skippedOrBranch` — the preview's promise and the live
+ * record from one writer), and the variants stay after it, greyed with their
+ * reasons — shown, never hidden. Returns `undefined` for a behavior without
+ * an `or`.
+ */
+export function deriveOrBranches(
+  player: IPlayer,
+  card: ICard,
+  behavior: Behavior,
+  stepsFor: (behavior: Behavior) => ReadonlyArray<ActionPreviewStep>,
+): ReadonlyArray<ActionPreviewBranch> | undefined {
+  const or = behavior.or;
+  if (or === undefined) {
+    return undefined;
+  }
+  const outer: Behavior = {...behavior};
+  delete outer.or;
+  const outerEffects = effectsForBehavior(player, card, outer);
+  const outerSteps = stepsFor(outer);
+  const subs: ReadonlyArray<TitledBehavior> = or.behaviors;
+  const availabilities = subs.map((sub) => subAvailability(player, card, sub));
+  const availableCount = availabilities.filter((a) => a.available).length;
+  const autoResolve = or.autoSelect === true && availableCount === 1;
+  let runtimeIdx = 0;
+  const branches = subs.map((sub, i): ActionPreviewBranch => {
+    const a = availabilities[i];
+    const index = (a.available && !autoResolve) ? runtimeIdx : -1;
+    if (a.available) {
+      runtimeIdx++;
+    }
+    return {
+      index,
+      title: sub.title,
+      available: a.available,
+      unavailableReason: a.reason?.message,
+      // Without the params a templated reason («Need ${0} more M€») reaches the
+      // player with a literal, unfilled `${0}`.
+      unavailableReasonParams: a.reason?.params,
+      renderKeys: [String(i)],
+      effects: [...outerEffects, ...effectsForBehavior(player, card, sub)],
+      steps: a.available ? [...outerSteps, ...stepsFor(sub)] : [],
+    };
+  });
+  if (availableCount === 0 && or.optional === true) {
+    const ctx = new Counter(player, card);
+    const warnings = subs.map((sub): ActionPreviewStep => {
+      const lost = actionPreviews.skippedOrBranch(sub, (c) => ctx.count(c));
+      return actionPreviews.warningNote(lost.warning, {resource: lost.resource, skipped: lost.skipped});
     });
+    return [
+      {index: -1, title: '', available: true, renderKeys: [], effects: outerEffects, steps: [...outerSteps, ...warnings]},
+      ...branches,
+    ];
+  }
+  return branches;
+}
+
+function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {
+  // Multi-branch `or` → the shared derivation (one per sub-behavior, runtime
+  // indices among the executable ones, the optional choice's general branch).
+  const orBranches = deriveOrBranches(player, card, behavior, (b) => stepsForBehavior(player, card, b));
+  if (orBranches !== undefined) {
+    return orBranches;
   }
 
   // Single-action card → one branch (no branch pick). `canAct` is the
@@ -642,7 +697,7 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
       steps.push({
         kind: 'note',
         noteKind: 'warning',
-        text: 'No eligible card — this resource is not added.',
+        text: actionPreviews.NO_HOLDER_WARNING,
         resource: a.type !== undefined ? cardResourceIcon(a.type) : undefined,
         // NAME the skipped effect: the gain chip is suppressed above, so without
         // this the player only learns that "a resource" is lost — ambiguous on a

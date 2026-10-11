@@ -35,6 +35,9 @@ import {SelectAmount} from '../inputs/SelectAmount';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectPlayer} from '../inputs/SelectPlayer';
 import {OrOptions} from '../inputs/OrOptions';
+import type {TitledBehavior} from '../behavior/Behavior';
+import type {Countable} from '../behavior/Countable';
+import {asArray} from '../../common/utils/utils';
 
 /** Icon key for a card resource (lowercase, spaces→hyphens — `iconClassFor`). */
 export function cardResourceIcon(resource: CardResource): string {
@@ -731,6 +734,36 @@ export function skippedAddToCard(resource: CardResource | ReadonlyArray<CardReso
   const kinds = resource === undefined ? [] : typeof resource === 'string' ? [resource] : resource;
   const icon = kinds.length === 1 ? cardResourceIcon(kinds[0]) : 'resources';
   return {label: SKIPPED_LABEL.addToCard, effect: {direction: 'gain', icon, amount, note: 'to a card'}};
+}
+
+/** The warning text of an «add to any card» branch with no holder — the one `stepsForBehavior` prints for the same loss. */
+export const NO_HOLDER_WARNING = 'No eligible card — this resource is not added.';
+
+/**
+ * WHAT a branch of an OPTIONAL `or` loses when it cannot run
+ * (`OrBehavior.optional` — Ichtiology Grant's «2 animals or 4 microbes to ANY
+ * card» with no holder of either kind): ONE description for the preview's
+ * warning (the general branch of a choice with nothing executable) and for
+ * the live record `Executor.execute` writes, so the promise before the
+ * commit and the record after it read alike. The branch's own TITLE names
+ * the effect («Add 2 animals to ANY card»); an «add to any card» branch
+ * carries its chip, the holder warning and the holder reason, anything else
+ * the generic target reason.
+ */
+export function skippedOrBranch(
+  sub: TitledBehavior,
+  count: (countable: Countable) => number,
+): {reason: string, warning: string, resource?: CardResource, skipped: SkippedEffect} {
+  const add = asArray(sub.addResourcesToAnyCard ?? [])[0];
+  if (add !== undefined) {
+    return {
+      reason: SKIP_REASON.noHolder,
+      warning: NO_HOLDER_WARNING,
+      resource: add.type,
+      skipped: {label: sub.title, effect: skippedAddToCard(add.type, count(add.count)).effect},
+    };
+  }
+  return {reason: SKIP_REASON.noTarget, warning: NO_TARGET_WARNING, skipped: {label: sub.title}};
 }
 
 /** The muted chip for a skipped attack on ANOTHER player's pool: it changes

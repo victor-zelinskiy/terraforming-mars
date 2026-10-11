@@ -247,4 +247,20 @@ export interface OrBehavior {
   behaviors: Array<TitledBehavior>;
   autoSelect?: boolean;
   title?: string | Message;
+  /**
+   * The choice is a BONUS beside the behavior's other keys, not the whole
+   * card. The game rule: a card may be played even when part of its effect
+   * cannot apply — so when NO branch can run, the card stays playable
+   * (`canExecute` does not refuse it), its other keys execute, and the choice
+   * is SKIPPED BY NAME: one recorded skip per branch (`recordSkippedEffect`),
+   * the same description the preview's warning carries, so the loss is never
+   * silent (Turmoil Redux TR43 Ichtiology Grant — «increase your M€
+   * production 1 step for each ocean AND add 2 animals or 4 microbes to ANY
+   * card»: with no holder of either kind the production still stands).
+   * Without it an `or` with no executable branch refuses the WHOLE card
+   * (Vermin, Lunar Exports — the choice IS the card). ONE knob, read by
+   * `Executor.canExecute` / `execute` and by the shared branch derivation of
+   * both previews (`deriveOrBranches`).
+   */
+  optional?: boolean;
 }
