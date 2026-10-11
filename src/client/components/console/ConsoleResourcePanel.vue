@@ -385,6 +385,7 @@ import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
 import {actionGoodIcon, HOLDER_ROLE_ICON, HolderRole, holderRoleCaption, holderRolePlate, holderRoleReading} from '@/client/console/holderRoles';
+import {readingLineText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {badgeForUnit, MC_CONTEXT_KEYS, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
 import {Tag as TagKind} from '@/common/cards/Tag';
@@ -1048,8 +1049,8 @@ export default defineComponent({
       if (reading === undefined) {
         return caption;
       }
-      const line = translateTextWithParams(reading.label, [...(reading.params ?? [])]) + (reading.tail === undefined ? '' : ' ' + translateText(reading.tail));
-      return `${caption} · ${line}`;
+      // ONE renderer for a reading with params (PL-160) — the tail with its own params too.
+      return `${caption} · ${readingLineText(reading)}`;
     },
     /**
      * The tender coin of a chip: the resource's card-bound badge — or, when two tender pools of the resource stand on

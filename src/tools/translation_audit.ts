@@ -53,6 +53,27 @@ function parseJson(input: string): MultiMap<string, string> {
 const pathToTranslationsDir = path.resolve('src/locales');
 
 let errors = 0;
+
+/**
+ * STRAY WHITESPACE IN A CURATED VALUE (PL-160's neighbour, 2026-10-11): «Aerial
+ * Mappers» → «Карта ветров » shipped with a trailing space, which every
+ * surface that joins the name with a separator then printed as a double gap
+ * (the crumb, the target row, the journal chip). A value may carry leading /
+ * trailing whitespace ONLY where its KEY does («game id: » → «ID игры: »).
+ * Scoped to the locales this fork CURATES — the upstream languages carry
+ * ~160 such values that are not ours to rewrite (invariant 9).
+ */
+const CURATED_LOCALES = new Set(['ru']);
+function strayWhitespace(key: string, value: string): string | undefined {
+  if (/^\s/.test(value) && !/^\s/.test(key)) {
+    return 'leading';
+  }
+  if (/\s$/.test(value) && !/\s$/.test(key)) {
+    return 'trailing';
+  }
+  return undefined;
+}
+
 const dirs = fs.readdirSync(pathToTranslationsDir);
 for (const lang of dirs) {
   const localeDir = path.join(pathToTranslationsDir, lang);
@@ -73,12 +94,21 @@ for (const lang of dirs) {
           console.log(filename, '[', uniqueCount, '] [', key, ']');
           errors++;
         }
+        if (CURATED_LOCALES.has(lang)) {
+          for (const value of results.get(key) ?? []) {
+            const stray = strayWhitespace(key, value);
+            if (stray !== undefined) {
+              console.log(filename, `[${stray} whitespace in the value] [`, key, '] →', JSON.stringify(value));
+              errors++;
+            }
+          }
+        }
       }
     }
   }
 }
 
 if (errors > 0) {
-  console.error('Multiple translation strings in the same file. Stopping.');
+  console.error('Translation audit failed (duplicate strings in one file, or stray whitespace in a curated value). Stopping.');
   process.exit(1);
 }

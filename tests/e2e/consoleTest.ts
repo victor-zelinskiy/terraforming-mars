@@ -38,7 +38,7 @@
  *     STALE out loud — a red against a stale or foreign build is not a verdict
  *     about the code in front of you (`tests.md` § «VERIFY THE BUILD»).
  */
-import {test as base} from '@playwright/test';
+import {Page, test as base} from '@playwright/test';
 import {ChildProcess, execSync, spawn} from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
@@ -166,7 +166,75 @@ async function waitForServer(url: string, child: ChildProcess, logFile: string, 
   throw new Error(`worker server never answered at ${url} in ${timeoutMs} ms — see ${logFile}`);
 }
 
-export const test = base.extend<{buildAnnotation: void}, {workerServer: WorkerServer, workerBuild: string}>({
+/**
+ * THE RAW-TEMPLATE SCAN (PL-160, the polish remediation iteration № 1).
+ *
+ * A reading whose `${n}` params were dropped prints its template — «Потратьте
+ * ${0} отсюда: +${1}» on the owner's TV (2026-10-10). No probe of any spec
+ * asks about it, because every spec reads the one thing it is about. So the
+ * harness asks, after EVERY test, on every page of the test's own context:
+ * is there a `${n}` / `${name}` in the rendered text (text nodes, `aria-label`,
+ * `data-hint`)? A hit fails the test with the element's path and the text.
+ *
+ * Rendered means rendered: a node with no client rect (a `v-show`-hidden
+ * section, a `display: none` branch) is skipped — a template there is still a
+ * defect, but not one the player sees, and the unit guard
+ * (`tests/console/readingParamsGuard.spec.ts`) owns the static half.
+ */
+async function rawTemplatesOn(page: Page): Promise<Array<string>> {
+  if (page.isClosed()) {
+    return [];
+  }
+  return page.evaluate(() => {
+    const RAW = /\$\{(?:\d+|[A-Za-z_][A-Za-z0-9_]*)\}/;
+    const out: Array<string> = [];
+    const pathOf = (el: Element): string => {
+      const parts: Array<string> = [];
+      for (let n: Element | null = el; n !== null && parts.length < 5; n = n.parentElement) {
+        const cls = Array.from(n.classList).slice(0, 2).join('.');
+        parts.unshift(n.tagName.toLowerCase() + (cls === '' ? '' : `.${cls}`));
+      }
+      return parts.join(' > ');
+    };
+    const rendered = (el: Element): boolean => el.getClientRects().length > 0;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const text = node.textContent ?? '';
+      const parent = node.parentElement;
+      if (parent === null || !RAW.test(text) || !rendered(parent) || parent.closest('script, style, noscript') !== null) {
+        continue;
+      }
+      out.push(`${pathOf(parent)} :: «${text.replace(/\s+/g, ' ').trim().slice(0, 120)}»`);
+    }
+    for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('[aria-label], [data-hint]'))) {
+      for (const attr of ['aria-label', 'data-hint']) {
+        const value = el.getAttribute(attr);
+        if (value !== null && RAW.test(value) && rendered(el)) {
+          out.push(`${pathOf(el)} [${attr}] :: «${value.slice(0, 120)}»`);
+        }
+      }
+    }
+    return out;
+  }).catch(() => []);
+}
+
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  /**
+   * After every test: no `${n}` in the rendered text of any page of the test's
+   * context (a second client opened on its own context scans itself — a spec
+   * that opens one may call `rawTemplatesOn` on it).
+   */
+  rawTemplateGuard: [async ({context}, use) => {
+    await use();
+    const hits: Array<string> = [];
+    for (const page of context.pages()) {
+      hits.push(...await rawTemplatesOn(page));
+    }
+    if (hits.length > 0) {
+      throw new Error(`RAW TEMPLATE on screen (PL-160 — a reading printed without its params):\n  ${hits.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
   // eslint-disable-next-line no-empty-pattern -- Playwright's fixture signature
   workerBuild: [async ({}, use) => {
     await use(process.env.TM_E2E_SHARED_SERVER === '1' ? `shared server ${process.env.BASE_URL ?? 'http://localhost:8080'} (build unknown)` : buildStamp());

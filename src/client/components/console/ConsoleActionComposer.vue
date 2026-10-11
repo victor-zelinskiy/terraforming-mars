@@ -513,7 +513,10 @@
                     <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
                     <span v-for="imp in targetSummaryImpacts(item.choice)" :key="imp.key" class="con-ptsel__imp">
                       <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
-                      <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
+                      <!-- ONE renderer for a reading with params (PL-160): `$t(imp.label)` printed «Потратьте ${0}
+                           отсюда: +${1}» on the TV — the key has placeholders, the params were dropped here. -->
+                      <span class="con-ptsel__imp-label">{{ impactText(imp) }}</span>
+                      <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ impactTail(imp) }}</span>
                       <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
                       <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
                       <template v-else-if="imp.per !== undefined"><b class="con-ptsel__imp-delta con-ptsel__imp-count">{{ imp.from }}</b><span class="con-ptsel__imp-per">· {{ $t(imp.per) }}</span></template>
@@ -997,6 +1000,7 @@ import {
   PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
+import {readingTailText, readingText} from '@/client/console/readingText';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
@@ -4457,6 +4461,13 @@ export default defineComponent({
         return [];
       }
       return playedTargetQuickImpacts(result.preview).slice(0, PLAYED_TARGET_SUMMARY_IMPACT_CAP);
+    },
+    /** A summary impact's text — the ONE renderer of a reading with params (PL-160). */
+    impactText(imp: PlayedTargetQuickImpact): string {
+      return readingText(imp);
+    },
+    impactTail(imp: PlayedTargetQuickImpact): string {
+      return readingTailText(imp) ?? '';
     },
     /** Hand a hand-card pick to the HAND SECTION (consoleHandPick bridge): the
      *  shell hides the Action Center (v-show — every capture survives), the

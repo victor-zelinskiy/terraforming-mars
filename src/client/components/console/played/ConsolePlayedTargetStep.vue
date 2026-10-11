@@ -226,7 +226,7 @@
               <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="[iconClass(imp.icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
                  :data-impact-plate="imp.plate" aria-hidden="true"></i>
               <span class="con-ptsel__imp-label">{{ impactLabel(imp) }}</span>
-              <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ $t(imp.tail) }}</span>
+              <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ impactTail(imp) }}</span>
               <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">
                 {{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}
               </b>
@@ -288,7 +288,8 @@ import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleC
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateTextWithParams} from '@/client/directives/i18n';
+import {readingTailText, readingText} from '@/client/console/readingText';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
 import {
@@ -565,12 +566,13 @@ export default defineComponent({
     resetPlayedTargetSelf();
   },
   methods: {
-    /** The impact's label — a resolved name as is, an i18n key translated, with its number params when it has them. */
+    /** The impact's label — a resolved name as is, an i18n key with its params: ONE renderer (`readingText`, PL-160). */
     impactLabel(imp: PlayedTargetQuickImpact): string {
-      if (imp.translate === false) {
-        return imp.label;
-      }
-      return imp.params !== undefined ? translateTextWithParams(imp.label, [...imp.params]) : translateText(imp.label);
+      return readingText(imp);
+    },
+    /** The impact's tail phrase, through the same renderer (its own params — «card with the ${0} tag»). */
+    impactTail(imp: PlayedTargetQuickImpact): string {
+      return readingTailText(imp) ?? '';
     },
     /**
      * THIS STEP'S ROOT ELEMENT — resolved, never cast.

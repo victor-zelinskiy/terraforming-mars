@@ -205,6 +205,7 @@ export function playedTargetPreviewFor(
       const plate = holderRolePlate(role);
       impacts.push({
         label: reading.label, params: reading.params, tail: reading.tail, value: true, icon: holderRoleIcon(role),
+        ...(reading.tailParams === undefined ? {} : {tailParams: reading.tailParams}),
         ...(plate === undefined ? {} : {plate}),
       });
     }

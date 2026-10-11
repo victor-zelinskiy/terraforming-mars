@@ -382,7 +382,8 @@
                       <!-- iconClassFor resolves the icon's CSS FAMILY (a card
                            resource is `card-resource-*`, never `resource_icon--*`). -->
                       <i v-if="imp.iconClass !== ''" class="con-cards__impact-icon" :class="imp.iconClass" aria-hidden="true"></i>
-                      <span v-else class="con-cards__impact-label">{{ $t(imp.label) }}</span>
+                      <!-- ONE renderer for a reading with params (PL-160) — never `$t(imp.label)`. -->
+                      <span v-else class="con-cards__impact-label">{{ impactText(imp) }}</span>
                       <span class="con-cards__impact-nums">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</span>
                     </span>
                     <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
@@ -638,6 +639,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {readingText} from '@/client/console/readingText';
 import {conversionPromptVm, conversionCommitLabel, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import {setConversionPromptWatch, clearConversionPromptWatch} from '@/client/console/conversionPromptUi';
 import {Warning} from '@/common/cards/Warning';
@@ -1722,9 +1724,8 @@ export default defineComponent({
     },
     /** The honest insufficient-funds banner text (buy phase). */
     buyShortfallText(): string {
-      return translateText('Not enough M€: need ${0}, have ${1}')
-        .replace('${0}', String(this.buyTotal))
-        .replace('${1}', String(this.megacreditsOnHand));
+      // ONE renderer for a key with params (PL-160) — never a hand-rolled replace of the template.
+      return translateTextWithParams('Not enough M€: need ${0}, have ${1}', [String(this.buyTotal), String(this.megacreditsOnHand)]);
     },
     /** RT/commit label for the MULTI (buy / multi-target) commit. */
     cardConfirmLabel(): string {
@@ -2262,6 +2263,10 @@ export default defineComponent({
     }
   },
   methods: {
+    /** A target impact's label — the ONE renderer of a reading with params (PL-160). */
+    impactText(imp: PlayedTargetImpact): string {
+      return readingText(imp);
+    },
     // Render-ready row for a server-computed target change (resource/M€ stock, or
     // a MarsBot track regression shown as the track's Tag + step count).
     toTargetRow(r: TargetImpactChange): TargetRowVM {

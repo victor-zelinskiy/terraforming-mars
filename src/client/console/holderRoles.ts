@@ -182,14 +182,27 @@ export function actionGoodTail(good: ActionGood): string | undefined {
  * action good's «of what», translated beside the label). Undefined for `vp`
  * (the VP line is the step's own, authoritative, per candidate) and for `store`.
  */
-export function holderRoleReading(role: HolderRole): {label: string, params?: ReadonlyArray<string>, tail?: string, tailParams?: ReadonlyArray<string>} | undefined {
+export type HolderRoleReading = {
+  label: string;
+  /**
+   * The label's `${n}` params — REQUIRED, never optional (PL-160): a reading
+   * whose params are a «maybe» is a reading one renderer forgets, and the TV
+   * then prints «Потратьте ${0} отсюда: +${1}». Empty for a key without
+   * placeholders. Rendered by `readingText` and nowhere else.
+   */
+  params: ReadonlyArray<string>;
+  tail?: string;
+  tailParams?: ReadonlyArray<string>;
+};
+
+export function holderRoleReading(role: HolderRole): HolderRoleReading | undefined {
   switch (role.kind) {
   case 'payment':
     return {label: 'Pays ${0} M€ per unit', params: [String(role.rate)], tail: MC_CONTEXT_KEYS[role.context]};
   case 'delegate':
-    return {label: 'A delegate on a resolution per unit'};
+    return {label: 'A delegate on a resolution per unit', params: []};
   case 'trade':
-    return {label: 'A free trade per unit'};
+    return {label: 'A free trade per unit', params: []};
   case 'action': {
     const tail = actionGoodTail(role.good);
     const tag = role.good.kind === 'cards' ? role.good.tag : undefined;

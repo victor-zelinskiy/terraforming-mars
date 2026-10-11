@@ -415,7 +415,9 @@
                       <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
                       <span v-for="imp in targetSummaryImpacts(row.choice)" :key="imp.key" class="con-ptsel__imp">
                         <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
-                        <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
+                        <!-- ONE renderer for a reading with params (PL-160) — never `$t(imp.label)`. -->
+                        <span class="con-ptsel__imp-label">{{ impactText(imp) }}</span>
+                        <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ impactTail(imp) }}</span>
                         <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
                         <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
                         <template v-else-if="imp.per !== undefined"><b class="con-ptsel__imp-delta con-ptsel__imp-count">{{ imp.from }}</b><span class="con-ptsel__imp-per">· {{ $t(imp.per) }}</span></template>
@@ -743,6 +745,7 @@ import {
   PlayedTargetResourceContext,
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
+import {readingTailText, readingText} from '@/client/console/readingText';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate} from '@/client/console/consoleCommitGate';
@@ -3582,6 +3585,13 @@ export default defineComponent({
         return [];
       }
       return playedTargetQuickImpacts(result.preview).slice(0, PLAYED_TARGET_SUMMARY_IMPACT_CAP);
+    },
+    /** A summary impact's text — the ONE renderer of a reading with params (PL-160). */
+    impactText(imp: PlayedTargetQuickImpact): string {
+      return readingText(imp);
+    },
+    impactTail(imp: PlayedTargetQuickImpact): string {
+      return readingTailText(imp) ?? '';
     },
     // (`openTableauPick` is gone. Every played-card pick this flow has — the
     // single «point at one card» ask AND the server's merged up-to-N ask —

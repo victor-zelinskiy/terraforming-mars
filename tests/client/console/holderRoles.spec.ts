@@ -58,8 +58,9 @@ describe('holderRoles — what a stored resource is for', () => {
 
   it('the value line: a payment names its rate and WHERE, a delegate and a trade their verb; VP and storage say nothing (the VP line is the step\'s own)', () => {
     expect(holderRoleReading(holderRoleOf(CardName.EVA_MECHS))).to.deep.eq({label: 'Pays ${0} M€ per unit', params: ['5'], tail: 'for cards with a space tag'});
-    expect(holderRoleReading({kind: 'delegate'})).to.deep.eq({label: 'A delegate on a resolution per unit'});
-    expect(holderRoleReading({kind: 'trade'})).to.deep.eq({label: 'A free trade per unit'});
+    // `params` is REQUIRED on a reading (PL-160): an empty list for a key without placeholders.
+    expect(holderRoleReading({kind: 'delegate'})).to.deep.eq({label: 'A delegate on a resolution per unit', params: []});
+    expect(holderRoleReading({kind: 'trade'})).to.deep.eq({label: 'A free trade per unit', params: []});
     expect(holderRoleReading({kind: 'vp', per: 1, each: 1})).to.eq(undefined);
     expect(holderRoleReading({kind: 'store'})).to.eq(undefined);
     expect(HOLDER_ROLE_CAPTION).to.deep.eq({payment: 'money', vp: 'VP', delegate: 'Delegates', trade: 'trade'});

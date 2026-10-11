@@ -83,6 +83,8 @@ export type PlayedTargetImpact = {
   params?: ReadonlyArray<string>;
   /** A second phrase after the label, its own i18n key — a payment's «where» (PL-075's value line). */
   tail?: string;
+  /** The tail's own `${n}` params («card with the ${0} tag»). Rendered with the tail by `readingText` — never by hand (PL-160). */
+  tailParams?: ReadonlyArray<string>;
   /** Resource icon key (`optionIcons.iconClassFor` vocabulary). */
   icon?: string;
   from?: number;
