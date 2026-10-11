@@ -2943,7 +2943,17 @@ Ecological Zone +1 — прогноз называет до нажатия. Ба
 Юниты: test:server 15 764 (две красные строки прошлых пинов — Venus / Habitat Science — переведены на адрес; гард массивов — на
 нулевой счёт), test:client 6 997; lint (eslint · i18n · vue-tsc) — чистый после фикса чужой ошибки в `capitalAdjacencyVp.ts`;
 build:test, build. e2e (`.e2e-tr43`): `console-sponsored-academies` fhd + 4K, `console-ichtiology-grant` A/B/C fhd + 4K — зелёные;
-семья pre-select на fhd (25 спеков, 47 тестов) — см. абзац ниже.
+семья pre-select на fhd (25 спеков, 47 тестов, 3 воркера): 41 зелёный, 5 красных, все разобраны —
+(1) `console-arboretum` и (2) `console-habitat-science` сравнивали тело POST побайтно с ответом без `for` → переведены на разбор
+JSON и проверку адреса (`73b566653c`), зелёные; (3) `console-staged-play` D2 — свидетель ложно назвал «переспросом» ВТОРУЮ клетку
+Ice Asteroid (адрес staged-клетки) → свидетель судит только ответы с `for` (`73b566653c`), зелёный; (4) `console-sponsor-play-outcome`
+— флейк под нагрузкой (один прогон на `.e2e-tr43` зелёный, на снапшоте без закона тоже); (5) `console-colony-venus-trade` — «could not
+focus Venus Redux» до всякой торговли, красный и на `.e2e-polish1`, и на `.e2e-polish1-before` (сборки без закона) — давняя поломка
+драйвера / соло-урезания, не pre-select. 4K, 1 воркер (`console-biological-simulations`, `-arboretum`, `-habitat-science`,
+`-aerial-mappers`, `-self-target`, `-political-donation`, `-martian-census`): 9 зелёных, 1 красный — `console-martian-census` «staged
+action vote · tv4k»: `clipped-x con-parl__info-own … 815 > 476` в панели голосования до всякой отправки, красный и на снапшоте без
+закона — вёрстка Парламента, не pre-select. Гарды e2e-контракта (`e2eLiveness` · `e2eFixturesLoad` · `e2eDriverGuard`) и vue-tsc
+после последних правок — зелёные.
 
 ## TR42 · Green Allegiance — ходьба Карьеры ВЫЧИСЛЯЕМОЙ длины: счётный член RX13 на треке, разбор «почему» в модели ходьбы, честный ноль; прогноз на трёх поверхностях — 2026-10-11
 
