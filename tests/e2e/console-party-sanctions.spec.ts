@@ -187,7 +187,10 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
 const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr12: Probe}).__tr12);
 
 const composer = '.con-composer--play';
-const supportMode = '.con-hand .con-parl--embedded.con-parl--support [data-parl-support-mode]';
+/** The support-area mode ON SCREEN. After B the composer still declares its hosted step and PL-127 keeps the Parliament
+ *  WARM under it — the same instance, invisible, still in its `support` pose (PL-158): it is not the mode taken, and a
+ *  driver that counted it pressed nothing on the second door. */
+const supportMode = '.con-hand .con-parl--embedded.con-parl--support:not(.con-parl--warm) [data-parl-support-mode]';
 
 /** The plaque the mode's cursor stands on (its reading's party), or undefined. */
 const cursorParty = (page: Page) => page.evaluate(() =>
