@@ -1884,7 +1884,13 @@ export default defineComponent({
       // waiting for instead of dangling a live «Разыграть карту» over a result
       // the player has not chosen.
       case 'need-variant': return 'Choose the result first';
-      case 'need-preselect': return 'Choose an option';
+      // The rail names the FIRST question still open in the words its own row uses («Выберите
+      // карту-получатель»), never the generic «Choose an option» — whose RU «Выберите вариант» on a screen
+      // with an «ИЛИ» row read as «choose the variant» over a variant already chosen (TR43).
+      case 'need-preselect': {
+        const open = this.decisionRows.find((row) => this.rowMissing(row));
+        return open !== undefined ? this.rowVerb(open) : 'Choose an option';
+      }
       case 'blocked-payment': return 'Not enough resources';
       case 'blocked-requirement': return st.reason;
       }

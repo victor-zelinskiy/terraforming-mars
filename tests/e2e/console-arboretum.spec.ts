@@ -440,7 +440,11 @@ for (const preset of PRESETS) {
         {timeout: 30_000, message: 'the greenery never reached G on the server'}).toBe(TileType.GREENERY);
       expect(posts.length, `exactly ONE POST: ${posts.map((p) => p.url).join(', ')}`).toBe(1);
       expect(posts[0].url).toMatch(/\/player\/input-batch/);
-      expect(posts[0].body, 'the target rides the batch').toContain(JSON.stringify({type: 'card', cards: [TARGET]}));
+      // The target rides the batch ADDRESSED to the card's own pick (the pre-select law — `for`, docs/claude/action-prompt-audit.md § CLASS 8).
+      const answers = (JSON.parse(posts[0].body) as {responses: Array<{type: string, cards?: Array<string>, for?: {role: string, source?: {card?: string}}}>}).responses;
+      const target = answers.find((r) => r.type === 'card');
+      expect(target?.cards, 'the target rides the batch').toEqual([TARGET]);
+      expect(target?.for, 'the target is addressed to the card\'s own pick').toMatchObject({role: 'card', source: {card: CARD}});
       expect(posts[0].body, 'the cell is the tail, addressed to the card').toContain(JSON.stringify({type: 'space', spaceId: G, stagedFor: CARD}));
 
       // ── 4. THE SCENE (own) ──

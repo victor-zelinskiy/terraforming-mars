@@ -25,21 +25,28 @@
  */
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
-import {AddressableInput, PreselectAddress, answerAddressOf, reaskedBy} from '@/common/inputs/preselectAddress';
+import {AddressableInput, PreselectAddress, reaskedBy} from '@/common/inputs/preselectAddress';
 
 let pending: ReadonlyArray<PreselectAddress> = [];
 
 /** The marker of the warn the e2e harness listens for — ONE spelling. */
 export const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
 
-/** A batch was posted: remember the addresses of its answers (the head answers the standing prompt — never a pre-select). */
+/**
+ * A batch was posted: remember the addresses of its answers (the head answers the standing prompt — never a pre-select).
+ *
+ * Only an answer ADDRESSED with `for` is a pre-select this witness judges. A STAGED tail (`stagedFor` — a cell, a
+ * resolution, a colony tile picked before the play) has its own honest re-ask BY DESIGN (the pinned cell changed
+ * while parked → «RE-ASKED», `deferredInputBatch.stagedParkStale`) and a multi-tile card's SECOND placement carries
+ * the very same address as the staged first (Ice Asteroid's two oceans) — a re-ask by address there is a false alarm.
+ */
 export function notePreselectBatch(responses: ReadonlyArray<unknown>): void {
   const addresses: Array<PreselectAddress> = [];
   for (const response of responses.slice(1)) {
     if (response === null || typeof response !== 'object') {
       continue;
     }
-    const address = answerAddressOf(response as {type: string, for?: PreselectAddress});
+    const address = (response as {for?: PreselectAddress}).for;
     if (address !== undefined) {
       addresses.push(address);
     }

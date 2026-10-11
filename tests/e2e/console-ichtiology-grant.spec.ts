@@ -99,6 +99,10 @@ async function openTargetStep(page: Page): Promise<void> {
     if (await page.locator(`${PLAY_COMPOSER} .con-composer__cta--focused`).count() > 0) {
       await press(page, 'ArrowUp', 700);
     }
+    // A CHOICE IS A PRESS: A on an option selects it and the cursor STAYS there — the target row is one step down.
+    if (await page.locator(`${PLAY_COMPOSER} .con-composer__variant--focused`).count() > 0) {
+      await press(page, 'ArrowDown', 700);
+    }
     await press(page, 'Enter', 1300);
   }
   await expect(step, 'the embedded played-target step opens').toHaveCount(1, {timeout: 10_000});
@@ -157,6 +161,8 @@ for (const preset of PRESETS) {
         await press(page, 'Enter', 700);
       }
       expect((await variants(page))[0].selected, 'the animal option is chosen').toBe(true);
+      // The rail names the question still open in its row's own words — never «Выберите вариант» over a chosen variant.
+      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__cta`), 'the rail asks for the receiving card').toContainText('Выберите карту-получатель');
       await openTargetStep(page);
       expect((await crumbText(page)).toLowerCase(), 'the crumb names the card the step belongs to').toContain(CARD_RU.toLowerCase());
       await shoot(page, preset.id, 'a-02-target');

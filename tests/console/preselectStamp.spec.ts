@@ -108,6 +108,13 @@ describe('the «re-asked» witness', () => {
     expect(checkPreselectReask(discardOfAcademies), 'the same view applied again does not warn twice').deep.eq([]);
   });
 
+  it('a STAGED tail is not judged — its own re-ask is by design, and a multi-tile card\'s second placement shares its address', () => {
+    notePreselectBatch([{type: 'or'}, {type: 'space', spaceId: '05', stagedFor: CardName.ICE_ASTEROID}]);
+    const secondOcean = {type: 'space', title: 'x', buttonLabel: 'x', spaces: [], sourceCard: CardName.ICE_ASTEROID} as unknown as PlayerInputModel;
+    expect(checkPreselectReask(secondOcean)).deep.eq([]);
+    expect(warns).is.empty;
+  });
+
   it('a question nested in an `or` is found too', () => {
     notePreselectBatch([{type: 'or'}, {type: 'card', cards: [CardName.ANTS], for: academiesDiscard}]);
     expect(checkPreselectReask({type: 'or', title: 'x', buttonLabel: 'x', options: [discardOfAcademies]} as unknown as PlayerInputModel)).has.length(1);

@@ -445,7 +445,11 @@ for (const preset of PRESETS) {
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
       expect(responses.length, 'the action and the one pre-collected target').toBe(2);
       expect(responses[0], 'the head performs the card\'s action').toMatchObject({type: 'or', response: {type: 'card', cards: [CARD]}});
-      expect(responses[1], 'the tail is Titan\'s target').toEqual({type: 'card', cards: [TARGET]});
+      // ADDRESSED to Titan's own reward pick, routed by this card (the pre-select law — Pluto's discard in front of it is
+      // another role and never meets it; docs/claude/action-prompt-audit.md § CLASS 8).
+      expect(responses[1], 'the tail is Titan\'s target').toEqual({
+        type: 'card', cards: [TARGET], for: {role: 'card', source: {kind: 'colony', name: 'Titan', via: CARD}},
+      });
 
       // ── 3. Miranda's take stands INSIDE the workspace ──
       const revealCard = page.locator(`${zone} .con-reveal [data-zoom-slot]`);
