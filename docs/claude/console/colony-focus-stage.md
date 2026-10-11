@@ -413,6 +413,27 @@ The discard itself was never a modal: `type:'card'` over the whole hand routes
 to `handSelect` (the hand carousel in select mode), and `MODAL_INPUT_TYPES`
 does not contain `'card'`, so the legacy stack cannot render it at all.
 
+### 4d-bis · THE DISCARD STEP: the stage RECEDES, it does not close (colony polish 1, 2026-10-12)
+
+The mandatory discard takes the whole room (the hand, iteration 4's decision). The stage used to CLOSE for it (a
+quick fade, then a re-open from the colony's chip on the way back) and the reveal it hosted went with it — the
+SETTLEMENT TABLE whose next card the player was discarding for (`docs/COLONY_TRADE_FLOW.md` § SEVERAL SETTLEMENTS).
+Now:
+
+- the stage stays MOUNTED under the hand with `receded` (`--receded`: opacity 0, a hair of scale, `visibility`
+  following the fade so nothing under the hand hit-tests; `--unreceding` is the return's own transition — the root's
+  opacity belongs to the descend phrase's GSAP the rest of the time). The section derives it
+  (`focusStageReceded` = the discard stage ∧ not parked ∧ the focus open) and keeps its outcome slot published;
+- the shell stops treating a receded stage as the surface the player looks at (`colonyFocusOpen` excludes it while
+  the hand frame is known) — the hand owns the bar and the pad;
+- the outcome zone keeps the working area yielded while a settlement table still has a place to take
+  (`settlementTableOwesArea` beside `workingAreaYielded`) — between two cycles there is no batch on the table, and
+  the trade track used to surface over the table for the return;
+- the crumb keeps the last payout stage until the focus closes (`lastPayoutStage`), so the tail never falls back to
+  «Осмотр» between a cycle's take and the next one's arrival;
+- the identity line reads the trade AT THE MARKER (`idDescription` → `tradeIncomeLine`: «Доберите 2 карты», never
+  the tile's «X»).
+
 ## 5 · MOTION — space, then objects, then WORDS
 
 `consoleColonyFocusMotion.ts`, in the workspace-descend grammar:

@@ -404,6 +404,48 @@ player cannot connect to the trade.
   trade-tagged too, so their batch carries only `role: 'bonus'` segments — no
   income zone renders, and the sequence proceeds identically.
 
+### SEVERAL SETTLEMENTS ARE ONE TABLE OF k PLACES (colony polish 1, 2026-10-12)
+
+The bullets above describe a strip that was rebuilt per cycle: the later colony's place held a static back «born
+from nowhere» under «Ожидает завершения предыдущего бонуса», the table vanished for the discard, and the next
+card then FLEW IN AGAIN to the place the player had just watched a card lie on (the owner's report). Inside a
+workspace the zones are now ONE physical table (`console/colonyTrade/settlementTable.ts` + the reveal's table
+branch; prompt `docs/claude/prompts/colony-polish-iteration-1-pluto-settlements.md`). The server is unchanged —
+draw 1 → discard 1 per settlement, each sealed into its own batch.
+
+- **One object, one turn.** The FIRST payout deals every later place face-down: a cover WITHOUT a face (the card is
+  not drawn — nothing to leak) flies from the colony's printed bonus card into `[data-settlement-body="N"]`
+  (`tradeCoverPlan(…, sealedPlaces)`, `runTradeCoverFlight({sealed})`). When the server's marker reaches N and draws
+  the card, that same body (a Card3DInner, keyed by its place) turns over IN PLACE, once — the fourth arrival mode
+  `sealed-reveal`, chosen by the SEQUENCE (`settlementArrival`: `turn` · `shown` for a place the table never laid,
+  e.g. a reload · `door` for the first payout). The trade layer and the deck-draw scene stand aside for a later
+  place's batch (`settlementClaimsBatch`) — a card already on the table never flies again. The project deck ticks
+  −1 as it turns (the apply-block seed is ADOPTED by the table, `adoptSettlementDeck`, released at the turn).
+- **The rule reads as objects.** A sealed place wears a steel seal (lock + number) and, under it, its condition
+  «−1 [карта] · после сброса за бонус N−1» with a dashed link to the place it waits for; the hand's discard plate
+  carries the same lock («откроет бонус N»). The seal BREAKS on the touchdown of that discard on «СБРОШЕННЫЕ»
+  (`cardDiscardState.trayCount` → `startSettlementSealBreak`), and only then does its card turn (`waitSealGone`,
+  bounded). The cursor may read a sealed place — no verb, the status line names the condition.
+- **One instance, one flow.** The discard step does not close the colony stage: it RECEDES under the hand
+  (`ConsoleColonyFocusStage.receded`), the table PARKS in its zone (`settlementTableParked`, `ConsoleRevealOverlay
+  parked`), the next cycle's batch is held until the room is back (`revealHeldForWorkspace` § the discard stage) and
+  is ACCEPTED INTO the standing table (`revealKey` = `table|<nonce>`, `data-settlement-table`). Income cards and
+  finished places keep their sockets; every place reserves one condition line in every state — nothing moves between
+  cycles. The crumb carries the ordinal and only moves forward: «БОНУС 1 ИЗ 2 → СБРОС 1 ИЗ 2 → БОНУС 2 ИЗ 2 → СБРОС
+  2 ИЗ 2». The stage keeps the working area yielded while a place is still to take (`settlementTableOwesArea`) — the
+  trade track used to surface over the table between two cycles.
+- **Every door, one grammar.** The viewer's own trade deals the sealed places with its covers; an opponent's trade
+  (the detached delivery, the deck-draw door), reduced motion and a reload into the first cycle lay them WITH the
+  table (face-down, sealed, from its first frame — `acceptTableBatch`). A card's payout (`via` — Habitat Science,
+  Productive Outpost, Yvonne, Colonial Affairs' `colonyRepeat`) is not the colony's table: its own workspace hosts it.
+- **An empty hand** (К-5): «discard 1» meets a hand holding only the card just drawn, and the rules discard it with no
+  question. The batch NAMES it (`CardDrawRevealModel.autoDiscarded`, written by `DiscardCards`' automatic path
+  through `IPlayer.noteRevealAutoDiscard`); the single-card reveal reads «Сброшена: другой карты в руке не было»,
+  A «В сброс», no flight into the dock. No table stands (no discard marker exists).
+- Guards: `tests/console/settlementTable.spec.ts`, `tests/colonies/Pluto.spec.ts` § an empty hand, e2e
+  `console-pluto-settlements.spec.ts` (fhd + tv4k × own 2 · own 3 · foreign · foreign on an empty hand),
+  `console-pluto-two-colony-sequence.spec.ts`, `console-pluto-bonus-discard.spec.ts`.
+
 ## The invariants (the done-criteria)
 
 1. Nothing reward-shaped appears before the fleet docks (the existing fleet

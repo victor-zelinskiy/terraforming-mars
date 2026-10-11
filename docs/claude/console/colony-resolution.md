@@ -644,6 +644,70 @@ path, the receipt row present, the glide never over a standing card) · e2e
 `console-pluto-two-colony-sequence.spec.ts` (each card arrives exactly once
 across the whole two-cycle resolution; the probe's own liveness is asserted).
 
+## Iteration 13 — SEVERAL SETTLEMENTS ARE ONE TABLE, and the fixme's cause (colony polish 1, 2026-10-12)
+
+### The fixme, named (it was never a fifth holder)
+
+The «second cycle never presents» state of iteration 12 §6 reproduced **10 of 10** on the colony-polish branch and
+had two halves, one in the spec and one in the product:
+
+1. **The stub contradicted its own answer** (tests.md § A STUBBED SERVER MUST STAY CONSISTENT). It removed
+   `cardsInHand[0]` whatever the player submitted, and the album's first selectable card is not the server's first
+   card — so the discard scene's DETECT (`discardedFromHand`) saw the chosen card still in the hand, read «the
+   answer did not take» and ABORTED without handing the room back.
+2. **The product's net could not release that.** `colonyDiscardStageStranded` asked «does the server still ask a
+   colony-bonus discard at all?» — and the NEXT cycle's marker rides the very response that answered this one, so
+   the net never fired exactly where it was needed: `discardStage` stood, the outcome slot stayed deliberately
+   empty, and cycle 2's batch waited for a zone nobody would publish. On a real server any abort of the discard
+   scene does the same (its own 7 s safety on a slow answer included).
+
+The stage now remembers WHICH cycle it was opened for (`setColonyDiscardStage(on, index)`), and the pure
+`discardStageStrandedFor` (spec'd in `tests/console/settlementTable.spec.ts`) treats a marker of ANOTHER cycle as
+the server saying the stage's own question was answered. The stub removes the card actually submitted, and the
+`test.fixme` is a hard assertion.
+
+### The table (the owner's report)
+
+The rules resolve one settlement at a time, in full; the console showed that as k rebuilt reveals — a static back
+under «Ожидает…», the table gone for the discard, the next card flying in AGAIN to the place that had just held it.
+Now the k places are ONE table (`colonyTrade/settlementTable.ts` — a tiny reactive record: nonce, dealt places,
+broken seals, the owed turn, the taken places; the server's marker stays the only authority on where the sequence
+stands):
+
+- **armed** by the shell from the discard marker (`total > 1`; a fresh nonce per colony, the same nonce across its
+  cycles), **cleared** on the resolution's falling edge;
+- **dealt** by the first payout (sealed covers with no face — `tradeCoverPlan(…, sealedPlaces)`), or laid WITH the
+  table by any door that has no deal (`acceptTableBatch`);
+- **parked**, never unmounted, while the hand takes the room (`settlementTableParked` → `ConsoleRevealOverlay
+  parked`; the stage RECEDES instead of closing — `ConsoleColonyFocusStage.receded`), and the next cycle's batch is
+  ACCEPTED INTO it (`tableBatchId` → `acceptTableBatch` → `oweSettlementTurn`);
+- **turned** in place (`runPlaceTurn`: the place standing → the seal gone → `addCard3DTurn` 180 → 0 on the place's
+  own Card3DInner, the deck answering −1 as it starts).
+
+Seams found and closed on the way (each verified on the 4K storyboard): the bar after the discard's press
+advertised the hand's browse verbs («Выполняется…» now); the trade track surfaced over the table on the return
+(`settlementTableOwesArea` keeps `--handing` while a place is still to take); the sealed place jumped 42 px at the
+handoff (one condition line reserved per place); the zone caption hid under the focused card.
+
+⚠️ **A 4K storyboard is not real time for the hand's gather.** The hand-close episode is paint-locked (≤ 28 ms of
+timeline per painted frame — a slow frame slides the flight later, never through space), and a headless 4K
+screencast paints ~10 frames/s: the survivors' gather plays at ~0.3× and the frames show the hand «standing over the
+returned stage» for ~1.5 s. Read the probe's body positions (`console-pluto-settlements` § `hb@…`), not the frame
+gaps, before calling it a stall.
+
+### The empty hand (К-5)
+
+«Discard 1» on a hand holding only the card just drawn is answered by the rules (`DiscardCards`: hand ≤ min), and
+the console used to offer «Взять» for a card the hand no longer held. The batch now names it
+(`CardDrawRevealModel.autoDiscarded`); the single-card reveal reads «Сброшена: другой карты в руке не было», A «В
+сброс». No discard marker exists there, so no table stands.
+
+**Guards.** `tests/console/settlementTable.spec.ts` (27) · `tests/colonies/Pluto.spec.ts` § an empty hand · e2e
+`console-pluto-settlements.spec.ts` (fhd + tv4k × own 2 · own 3 · foreign · foreign on an empty hand: one table
+nonce on one root, ≤ 1 flight per place with no face on a sealed cover, the seal gone before the turn, the crumb
+forward-only) · `console-pluto-two-colony-sequence.spec.ts` (the fixme → an assertion) ·
+`console-pluto-bonus-discard.spec.ts`.
+
 ## The invariant
 
 From the trade confirm to the last owed follow-up, the COLONY WORKSPACE is the
