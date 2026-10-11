@@ -38,15 +38,17 @@ function adjacentOceans(board: Board, space: Space): number {
  * standing ON one of them (the tile that is itself about to move).
  */
 export function capitalAdjacencyVpAround(board: Board, cells: ReadonlyArray<Space>): Array<CapitalAdjacencyVp> {
-  const seen = new Map<SpaceId, Space>();
+  // The owner is read ONCE, where it was checked — no non-null assertion on a second read.
+  const seen = new Map<SpaceId, {capital: Space, owner: NonNullable<Space['player']>}>();
   for (const cell of cells) {
     for (const candidate of [cell, ...board.getAdjacentSpaces(cell)]) {
-      if (candidate.tile?.tileType === TileType.CAPITAL && candidate.player !== undefined && candidate.player.color !== 'neutral') {
-        seen.set(candidate.id, candidate);
+      const owner = candidate.player;
+      if (candidate.tile?.tileType === TileType.CAPITAL && owner !== undefined && owner.color !== 'neutral') {
+        seen.set(candidate.id, {capital: candidate, owner});
       }
     }
   }
-  return [...seen.values()].map((capital) => ({space: capital.id, player: capital.player!.color, oceans: adjacentOceans(board, capital)}));
+  return [...seen.values()].map(({capital, owner}) => ({space: capital.id, player: owner.color, oceans: adjacentOceans(board, capital)}));
 }
 
 /**
