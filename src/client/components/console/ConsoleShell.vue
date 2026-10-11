@@ -19416,19 +19416,21 @@ export default defineComponent({
       // dropped every other hold on the rail with it — the rail half of the
       // same commit (its TR still in the air) included.
       const pending = new Set(plan.specs);
+      // A token whose destination the folding workspace still covers (PL-165) is born on its printed icon, waits in
+      // the app-level layer while the workspace folds UNDER it, and lands once the destination is painted — its row
+      // is released by its OWN touchdown, never by this run's net (the run resolves at its pop).
+      const detached = new Set<ResourceTransferSpec>();
       void runResourceTransfers({
         specs: plan.specs,
         origins: plan.origins,
         source: {point: plan.sourcePoint},
         arrival: 'auto',
+        detachCovered: true,
+        onDetach: (spec) => detached.add(spec),
         onArrive: (spec) => {
           if (pending.delete(spec)) {
             releasePanelRewardHold(spec);
           }
-      // A token whose destination the folding workspace still covers (PL-165) is born on its printed icon, waits in
-      // the app-level layer while the workspace folds UNDER it, and lands once the destination is painted — its row
-      // is released by its OWN touchdown, never by this run's net (the run resolves at its pop).
-      const detached = new Set<ResourceTransferSpec>();
         },
       }).finally(() => {
         pending.forEach((spec) => {
@@ -19438,8 +19440,6 @@ export default defineComponent({
           }
         });
       });
-        detachCovered: true,
-        onDetach: (spec) => detached.add(spec),
     },
     /**
      * SETTLE the claim once the response has actually been applied.
