@@ -39,6 +39,21 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(birth, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
   });
 
+  it('a DETACHED flight (PL-165) is born at its source the same way, leaves it on the pop, and builds its arc only once the destination is painted', () => {
+    const flight = body('runDetachedTransferFlight');
+    const deferred = flight.indexOf('guarded((done) => bornThenFlown(chip, opts.delayMs, () => {');
+    expect(deferred, 'the birth is the same painted-first beat').to.be.greaterThan(-1);
+    const pop = flight.indexOf('launchedResolve();');
+    const wait = flight.indexOf('opts.awaitTo().then(');
+    const arc = flight.indexOf('transferArcPlan(');
+    expect(pop, 'the token has LEFT its source at the pop — the caller may fold its surface then').to.be.greaterThan(deferred);
+    expect(wait, 'the destination is awaited only after the pop').to.be.greaterThan(pop);
+    expect(arc, 'the arc is planned from the destination as painted, never from a rect measured before the wait').to.be.greaterThan(wait);
+    expect(flight, 'a destination that never opened absorbs the chip where it stands').to.include('restingAt');
+    expect(flight, 'the wait is part of the guard budget — never a hang').to.include('opts.waitBudgetMs');
+    expect(flight, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
+  });
+
   it('a kill before the flight cancels the birth and the flight that has not been built yet', () => {
     const kill = body('killTransferPiece');
     expect(kill).to.include('pendingStarts.get(piece.chip)?.cancel();');

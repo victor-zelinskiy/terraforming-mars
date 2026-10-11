@@ -4908,6 +4908,9 @@ export default defineComponent({
         root,
         scope: CARD_LEDGER_SCOPE,
         rows: [{colony: row.colony, specs: row.specs}],
+        // The composer LEAVES after the walk: a resource onto a card this ledger does not show (Titan → a floater
+        // holder) is born on its row, waits for the composer to go and lands on the uncovered satellite (PL-165).
+        detachCovered: true,
         finished: () => !colonyBonusPayoutOf(card),
         onRow: (colony) => {
           if (colony !== '') {

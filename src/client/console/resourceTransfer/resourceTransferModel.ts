@@ -81,6 +81,13 @@ export const TRANSFER_BEAT_MS = 320;
 export const TRANSFER_QUICK_ABSORB_MS = 180;
 /** The quiet "read the landed card" beat BEFORE a play-reward wave starts. */
 export const TRANSFER_READ_MS = 240;
+/**
+ * THE DETACHED WAIT (PL-165): how long a token born on its visible source may wait in the app-level layer for a
+ * destination COVERED by the standing surface that produced it — the surface's own read and departure (the colony
+ * ledger's 1.4 s read + the conclusion + the band's dissolve on a loaded 4K frame). Past it the destination never
+ * opened: the token is absorbed where it stands and its counter ticks — never a flight into glass.
+ */
+export const TRANSFER_DETACH_WAIT_MS = 3200;
 /** The residual result pause AFTER a play-reward wave (the scene breathes,
  *  never snaps shut on the last delta chip). */
 export const TRANSFER_RESIDUAL_PAUSE_MS = 220;

@@ -56,7 +56,14 @@ function effectiveOpacity(el: Element): number {
 }
 
 /** Is this element, as painted right now, a place a token may be born on or land on? */
-export function transferEndVerdict(el: Element | null | undefined): TransferEndVerdict {
+/**
+ * `strict` — a foreign band surface covers at ANY opacity, a LEAVING one included. The detached wait (PL-165) asks
+ * strictly: a surface mid-dissolve still holds the layout it imposed (`con-root--ws-open` drops only when it is
+ * REMOVED), so a destination measured through its fade is measured in the pose it is about to leave.
+ */
+export type TransferEndOptions = {strict?: boolean};
+
+export function transferEndVerdict(el: Element | null | undefined, opts: TransferEndOptions = {}): TransferEndVerdict {
   if (el === null || el === undefined || !el.isConnected) {
     return {visible: false, why: 'unmounted'};
   }
@@ -91,7 +98,20 @@ export function transferEndVerdict(el: Element | null | undefined): TransferEndV
       // COVERED BY PAINT means by PAINT: a foreign surface that is LEAVING (its fade below the same half — the hand
       // dissolving over the board while a tile's payout measures its satellite) still answers the hit test and
       // covers nothing the eye can see; it is the standing, opaque glass that makes an end «пустота».
-      if (surface !== null && !surface.contains(el) && effectiveOpacity(surface) >= TRANSFER_END_MIN_OPACITY) {
+      if (surface !== null && !surface.contains(el) && (opts.strict === true || effectiveOpacity(surface) >= TRANSFER_END_MIN_OPACITY)) {
+        return {visible: false, why: 'covered', by: surfaceName(surface)};
+      }
+    }
+  }
+  if (opts.strict === true) {
+    // STRICT asks GEOMETRY too: a surface on its way out may already refuse the hit test (`pointer-events: none` on
+    // the leave) while it still stands over the point and still imposes the layout it brought.
+    for (const surface of Array.from(document.querySelectorAll('.con-ws'))) {
+      if (surface.contains(el) || el.contains(surface)) {
+        continue;
+      }
+      const s = surface.getBoundingClientRect();
+      if (s.width > 0 && s.height > 0 && cx >= s.left && cx <= s.right && cy >= s.top && cy <= s.bottom) {
         return {visible: false, why: 'covered', by: surfaceName(surface)};
       }
     }
@@ -100,12 +120,12 @@ export function transferEndVerdict(el: Element | null | undefined): TransferEndV
 }
 
 /** The first VISIBLE element matching the selector (document order), or undefined — with the verdicts of those skipped. */
-export function firstVisibleEnd(selector: string, skipped?: Array<{selector: string, verdict: TransferEndVerdict}>): Element | undefined {
+export function firstVisibleEnd(selector: string, skipped?: Array<{selector: string, verdict: TransferEndVerdict}>, opts: TransferEndOptions = {}): Element | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
   for (const el of Array.from(document.querySelectorAll(selector))) {
-    const verdict = transferEndVerdict(el);
+    const verdict = transferEndVerdict(el, opts);
     if (verdict.visible) {
       return el;
     }

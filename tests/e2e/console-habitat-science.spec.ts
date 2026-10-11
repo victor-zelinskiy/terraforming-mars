@@ -77,7 +77,8 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 }
 
 type Box = {x: number, y: number, w: number, h: number};
-type Flight = {res: string, text: string, first: Box, last: Box, n: number, firstAt: number, lastAt: number};
+/** `glassAtLast` — at the chip's last painted sample a band surface (`.con-ws`, opacity ≥ 0.5) still stood: it landed under glass. */
+type Flight = {res: string, text: string, first: Box, last: Box, n: number, firstAt: number, lastAt: number, glassAtLast: boolean};
 type Probe = {
   samples: number;
   /** Interval (task) samples only — the probe's own liveness floor, and the only samples a FRAME claim is made on. */
@@ -245,6 +246,7 @@ async function armProbe(page: Page): Promise<void> {
           p.zoneGaps.push(`${now}ms ${parked ? 'parked with no step' : `the ledger has not come back for ${now - emptySince} ms`} flow=${composer.getAttribute('data-colony-ledger-flow')}`);
         }
       }
+      const glass = Array.from(document.querySelectorAll('.con-ws')).some((ws) => seenOpacity(ws) >= 0.5);
       document.querySelectorAll<HTMLElement>('.con-transfer__chip').forEach((el) => {
         if (el.style.transform === '') {
           return;
@@ -258,9 +260,10 @@ async function armProbe(page: Page): Promise<void> {
         const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c !== 'con-transfer__icon') ?? '?');
         const id = el.dataset.transferId ?? '?';
         const at = {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-        const rec = p.flights[id] ?? (p.flights[id] = {res, text: text(el), first: at, last: at, n: 0, firstAt: now, lastAt: now});
+        const rec = p.flights[id] ?? (p.flights[id] = {res, text: text(el), first: at, last: at, n: 0, firstAt: now, lastAt: now, glassAtLast: glass});
         rec.last = at;
         rec.lastAt = now;
+        rec.glassAtLast = glass;
         rec.n++;
       });
       const ledgerEl = composer?.querySelector('[data-colony-ledger-scope="card"]') ?? null;
@@ -506,7 +509,13 @@ for (const preset of PRESETS) {
         ws: document.querySelectorAll('.con-ws').length,
         reveal: document.querySelectorAll('.con-reveal').length,
       })), {timeout: 40_000, message: 'the finished action leaves for the board'}).toEqual({cardActions: 0, ws: 0, reveal: 0});
+      // Titan's floater outlives the composer (PL-165): it lands AFTER the workspace has gone — the storyboard covers it.
+      await expect.poll(() => page.evaluate(() => document.querySelectorAll('.con-transfer__chip').length),
+        {timeout: 10_000, message: 'the detached floater has landed'}).toBe(0);
       await stopStory();
+      // The satellite's HOME — measured on the board: while the composer stood it was in its workspace pose (another
+      // place), which is exactly the point a floater must never be aimed at.
+      const auxHome = await seen(page, '.con-res-aux__cell[data-aux-resource="floater"], .con-res-aux__cell[data-aux-resource="floaters"]');
       await settle(page, {timeoutMs: 30_000});
       expect(posts.length, 'and nothing else was sent').toBe(2);
       await shoot(page, preset.id, '07-board');
@@ -580,14 +589,18 @@ for (const preset of PRESETS) {
       expect(probe.mc.map(([, v]) => v), `the M€ counter: the old number, then the new one (${dump})`).toEqual([before.thisPlayer.megacredits, before.thisPlayer.megacredits + 2]);
       expect(probe.mc[1][0], `the counter ticked no earlier than its chip was born (${dump})`).toBeGreaterThanOrEqual(coin[0].firstAt);
       expect(received[0], `Luna read «получено» no earlier than the tick (${dump})`).toBeGreaterThanOrEqual(probe.mc[1][0] - 60);
-      // THE LAW OF VISIBLE ENDS (PL-162, the polish remediation iteration № 1): the floater's home — the ДОП. РЕСУРСЫ satellite —
-      // stands UNDER the composer's glass for the whole ledger (measurable, COVERED: `coveredBy` names the workspace), so it is
-      // NOT a flight end. The token is not flown (a chip into the glass was the owner's «полёт в никуда»); Titan's row reads
-      // «получено» on the honest release, the server pays the floater, the satellite shows it once the workspace has left.
-      // PL-165 (open): the token born on the row, held through the fold, flown to the uncovered satellite.
-      expect(targets.aux?.coveredBy, 'the satellite is COVERED by the glass of the composer — not a flight end').toMatch(/con-cardactions/);
+      // THE RESULT OUTLIVES ITS SURFACE (PL-162 + PL-165, the polish remediation iteration № 1): the floater's home — the
+      // ДОП. РЕСУРСЫ satellite — stands UNDER the composer's glass for the whole ledger (measurable, COVERED), so it is not a
+      // flight end while the composer stands. The token is BORN on Titan's own bonus cell, waits in the app-level layer
+      // while the composer reads and leaves, and lands on the satellite only once it is painted — never into the glass.
+      expect(targets.aux?.coveredBy, 'the satellite is COVERED by the glass of the composer while the ledger stands').toMatch(/con-cardactions/);
       const token = moved.filter((f) => f.res !== 'megacredits');
-      expect(token.length, `no card-resource chip into a covered satellite (${dump})`).toBe(0);
+      expect(token.length, `ONE card-resource chip flew (${dump})`).toBe(1);
+      expect(near(token[0].first, sources.titan), `…born in Titan's own bonus cell (${dump})`).toBe(true);
+      expect(auxHome?.visible, 'the satellite cell stands painted on the board').toBe(true);
+      expect(near(token[0].last, auxHome), `…landing on the card resource's cell where it stands on the board (${dump} · home ${JSON.stringify(auxHome)})`).toBe(true);
+      expect(token[0].glassAtLast, `…once no band surface covered it — never into the glass (${dump})`).toBe(false);
+      expect(token[0].firstAt, `Titan's chip left after Pluto's row had settled (${dump})`).toBeGreaterThanOrEqual(received[2]);
       expect(probe.capsule.map(([, v]) => v), `the card's capsule: 4, then 2 — never a value between (${dump})`).toEqual([4, 2]);
 
       expect(probe.degraded, 'the walk never confessed a missing ledger / a stall').toBe(false);

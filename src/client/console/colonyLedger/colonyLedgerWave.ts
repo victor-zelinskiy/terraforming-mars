@@ -55,6 +55,14 @@ export type LedgerWaveRun = {
   track?: (wave: Promise<void>) => void;
   /** The row's last chip has landed (never called for a released row). */
   onRowDone?: (row: LedgerWaveRow) => void;
+  /**
+   * The ledger's surface LEAVES once the walk is over (the action composer's — TR23): a chip whose destination its
+   * own glass covers (the ДОП. РЕСУРСЫ satellite — a resource onto a card the ledger does not show) is born on its
+   * row, waits in the app-level layer and lands once the surface has gone (PL-165, `ResourceTransferRun.detachCovered`).
+   * The row counts as flown at the token's pop; its hold is released by `onArrive` at the real touchdown. Unset for a
+   * ledger whose surface STANDS (the Parliament's reward page): there a covered destination keeps degrading.
+   */
+  detachCovered?: boolean;
 };
 
 /** The bonus cell of `colony`'s ledger row under `scope` — the place the player read the printed bonus in, the chips' birthplace. */
@@ -100,6 +108,7 @@ export function flyLedgerRows(run: LedgerWaveRun, then: () => void): void {
       origins: ledgerBonusIconOrigins(cell, specs),
       source: {selectors: [selector]},
       arrival: 'auto',
+      ...(run.detachCovered === true ? {detachCovered: true} : {}),
       onArrive: (spec) => run.onArrive(spec, row),
     });
     run.track?.(wave);

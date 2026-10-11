@@ -212,6 +212,100 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
 }
 
 /**
+ * A DETACHED flight (PL-165, the owner's law «результат переживает поверхность»): the destination exists but is
+ * COVERED by the standing surface that produced the token (the ДОП. РЕСУРСЫ satellite under the action composer's
+ * glass while its ledger pays) — so the chip is BORN on its visible source and pops out of it like any token, then
+ * WAITS there in the app-level layer (`.con-transfer`, above every band surface) while the surface leaves under it;
+ * only when the destination is painted does the arc start, from where the chip stands to the measured point. A
+ * destination that never opens within the caller's budget is no destination: the chip is ABSORBED IN PLACE (the
+ * counter ticks with its chip — the honest degradation), never flown into glass.
+ *
+ * `launched` resolves at the POP — the token has left its source, which is the moment the caller's own flow may go
+ * on (its surface may now fold: the chip no longer needs it). `touched` resolves at the real touchdown, or at the
+ * in-place absorb. The birth is the same `bornThenFlown` beat as every chip (painted at its source first).
+ */
+export type DetachedFlightOpts = TransferFlightOpts & {
+  /** Resolves with the measured destination once it is painted, or undefined once the wait is over. */
+  awaitTo: () => Promise<TransferPoint | undefined>;
+  /** The wait's own ceiling (already motion-scaled) — the guard budget of the whole flight includes it. */
+  waitBudgetMs: number;
+  /** The arc starts (the destination opened) — the run's bookkeeping turns the waiting chip into a flying one. */
+  onArc?: () => void;
+};
+
+export function runDetachedTransferFlight(piece: TransferStagePiece, opts: DetachedFlightOpts): TransferFlightHandles {
+  const chip = piece.chip;
+  const w = chip.offsetWidth || 48;
+  const h = chip.offsetHeight || 48;
+  const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
+  const pace = opts.pace ?? 1;
+  const popMs = motionMs(TRANSFER_POP_MS) * pace;
+  const arcMs = motionMs(TRANSFER_ARC_MS) * pace;
+  const settleMs = motionMs(TRANSFER_SETTLE_MS) * pace;
+  const settlePx = Math.max(2, Math.round(2.5 * opts.uiScale));
+  // The waiting pose: the chip has popped OUT of its source (a quarter of the bloom) and holds there, square.
+  const holdScale = transferChipScaleAt(0.25);
+
+  gsap.set(chip, {
+    x: opts.from.x - w / 2,
+    y: opts.from.y - h / 2,
+    scale: transferChipScaleAt(0),
+    rotation: startTilt,
+    transformOrigin: 'center center',
+    autoAlpha: 0,
+  });
+
+  let launchedResolve: () => void = () => {};
+  const launchedAt = new Promise<void>((resolve) => {
+    launchedResolve = resolve;
+  });
+  // Where the chip came to rest — its destination, or its source when it never left (read by the absorb, whatever ended the flight).
+  let restingAt: TransferPoint = opts.from;
+  const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
+    // THE POP — the chip is born at its source and comes whole out of it; then it has LEFT its source.
+    const pop = gsap.timeline({onComplete: () => {
+      launchedResolve();
+      void opts.awaitTo().then((to) => {
+        if (to === undefined) {
+          // Nowhere visible to go: absorbed where it stands — the counter ticks with its chip.
+          done();
+          return;
+        }
+        opts.onArc?.();
+        const ceiling = transferCeilingFor(opts.from, to, h, opts.uiScale, topRailBottom());
+        const plan = transferArcPlan(opts.from, to, transferLiftBias(opts.index), ceiling, opts.launch);
+        const prog = {q: 0};
+        const arc = gsap.timeline({onComplete: () => {
+          restingAt = to;
+          done();
+        }});
+        arc.to(prog, {
+          q: 1,
+          duration: arcMs / 1000,
+          ease: 'power1.inOut',
+          onUpdate: () => {
+            const p = transferArcPoint(plan, prog.q);
+            gsap.set(chip, {
+              x: p.x - w / 2,
+              y: p.y - h / 2,
+              // From the waiting pose to the landing size — the same approach curve as every flight's second half.
+              scale: holdScale + (transferChipScaleAt(Math.max(0.25, prog.q)) - holdScale) * prog.q,
+            });
+          },
+        }, 0);
+        arc.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
+        arc.to(chip, {y: `-=${settlePx}`, duration: Math.max(0.02, (settleMs / 1000) - 0.08), ease: 'power2.out'});
+      });
+    }});
+    pop.to(chip, {autoAlpha: 1, scale: holdScale, rotation: 0, duration: popMs / 1000, ease: 'power1.out'}, 0);
+  }), opts.delayMs + popMs + opts.waitBudgetMs + arcMs + settleMs);
+
+  const finished: Promise<'landed' | 'done'> = touched.then(() => absorbChip(piece, restingAt, motionMs(TRANSFER_BEAT_MS) * pace)).then(() => 'done' as const);
+  const launched = Promise.race([launchedAt, touched]);
+  return {launched, touched, finished};
+}
+
+/**
  * The contact beat + absorb: a pointed one-shot halo wakes on the
  * destination zone while the chip is drawn INTO it — short, material,
  * no bloom, no bounce.

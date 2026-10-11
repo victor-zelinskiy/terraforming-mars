@@ -104,7 +104,17 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     expect(transferEndVerdict(satellite)).to.deep.eq({visible: true});
     composer.style.opacity = '0.6';
     expect(transferEndVerdict(satellite)).to.deep.eq({visible: false, why: 'covered', by: 'con-cardactions'});
+    // STRICT (the detached wait, PL-165): a LEAVING surface still covers — it still imposes its layout — at any opacity,
+    // and even when it no longer answers the hit test (the board under the point), by geometry alone.
+    composer.style.opacity = '0.3';
+    stack(composer);
+    expect(transferEndVerdict(satellite, {strict: true})).to.deep.eq({visible: false, why: 'covered', by: 'con-cardactions'});
+    stack(board);
+    expect(transferEndVerdict(satellite, {strict: true})).to.deep.eq({visible: false, why: 'covered', by: 'con-cardactions'});
     composer.style.opacity = '';
+    expect(transferEndVerdict(hero, {strict: true}), 'its own surface never covers it').to.deep.eq({visible: true});
+    composer.remove();
+    expect(transferEndVerdict(satellite, {strict: true}), 'the surface gone — the end is open').to.deep.eq({visible: true});
   });
 
   it('firstVisibleEnd takes the first VISIBLE match in document order and reports what it skipped', () => {

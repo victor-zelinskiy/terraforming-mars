@@ -42,12 +42,13 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
-  TRANSFER_BEAT_MS, clampTransferPace, RATING_RAIL_KEY, transferLaunchFor,
+  TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, transferLaunchFor,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferStagePiece, runTransferFlight, settleTransferChip, killTransferPiece,
+  TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
-import {firstVisibleEnd, TransferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {probeTick} from '@/client/console/probeTick';
+import {firstVisibleEnd, TransferEndOptions, TransferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 export type TransferFlight = {
   id: number,
@@ -441,6 +442,20 @@ export type ResourceTransferRun = {
    * ticked by such a landing; `onArrive` still fires at the touchdown.
    */
   destination?: TransferPoint;
+  /**
+   * THE RESULT OUTLIVES ITS SURFACE (PL-165 — the second half of the law of visible ends). A gain whose destination
+   * EXISTS but is COVERED by the standing surface that produced it (the ДОП. РЕСУРСЫ satellite under the action
+   * composer's glass) is not dropped: its token is born on the visible source, pops out of it, and WAITS in the
+   * app-level layer while that surface leaves; once the destination is painted it flies there and the counter ticks
+   * on the touchdown (`onArrive`). A destination that never opens within `TRANSFER_DETACH_WAIT_MS` absorbs the token
+   * in place (the honest degradation). Opt-in: only a caller whose surface LEAVES right after the wave sets it (the
+   * card's ledger, the action commit's wave) — a surface that stands (the Parliament's reward page) keeps degrading.
+   * The run resolves for its caller once a detached token has LEFT its source (`onDetach`) — the caller's flow may
+   * fold now; that token's own hold is released by its own `onArrive`, later. While it waits it holds the feed only.
+   */
+  detachCovered?: boolean;
+  /** A detached token has left its source — its `onArrive` comes later, after the surface it rose from has gone. */
+  onDetach?: (spec: ResourceTransferSpec) => void;
 };
 
 /** WHY a transfer's flight was lost: nothing to be born on, nowhere to land, no layer to fly in, or a wave that stalled past its budget. */
@@ -530,12 +545,18 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   // A LOSS walks the same geometry BACKWARDS: its panel row is where it is
   // BORN and the run's source (the origin icon, else the source's box) is
   // where it lands — so `from` / `to` are fixed per spec, not per run.
-  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint}> = [];
+  // A DETACHED flight (PL-165) has no `to` yet: its destination exists but is covered, and is measured when it opens.
+  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint, detached?: boolean}> = [];
   for (const [i, e] of specEntries.entries()) {
     const skippedHere: Array<SkippedEnd> = [];
     const row = run.destination ?? targetPointFor(e.spec, skippedHere);
     const sourcePoint = e.origin ?? run.source.point ??
       (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
+    if (row === undefined && sourcePoint !== undefined && detachable(run, e.spec, skippedHere)) {
+      trail(runId, 'flight:detach', {channel: e.spec.channel, resource: e.spec.resource, targetCard: e.spec.targetCard ?? null, covered: coveredEnds(skippedHere)});
+      flights.push({spec: e.spec, from: sourcePoint, to: sourcePoint, detached: true});
+      continue;
+    }
     if (row === undefined || sourcePoint === undefined) {
       trail(runId, 'run:no-dest', {
         channel: e.spec.channel, resource: e.spec.resource, targetCard: e.spec.targetCard ?? null,
@@ -574,11 +595,14 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     spec: f.spec,
     to: f.to,
     from: f.from,
+    detached: f.detached === true,
     delayMs: Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace),
     index: i,
   }));
+  // A DETACHED token waits for its surface to leave holding the FEED only (its wait must never be what keeps that
+  // surface's flow from concluding); it turns into an ordinary flying chip once its arc starts (`onArc`).
   resourceTransferState.flights = [...resourceTransferState.flights,
-    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true, inSurface}))];
+    ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true, inSurface: inSurface || e.detached}))];
   trail(runId, 'run:flights', {arrival: run.arrival, ids: entries.map((e) => e.id)});
   try {
     await nextTick(); // the layer mounts the chips
@@ -610,6 +634,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         trail(runId, 'flight:no-piece', e.id);
         removeFlight(e.id);
         return Promise.resolve();
+      }
+      if (e.detached) {
+        return flyDetached(runId, run, piece, e, uiScale, pace, () => safetyFired);
       }
       const handles = runTransferFlight(piece, {
         from: e.from,
@@ -672,6 +699,98 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     });
     markRun(false);
   }
+}
+
+/** «Is this gain's destination COVERED by a surface that will leave?» — only then may its token wait for it (PL-165). */
+function detachable(run: ResourceTransferRun, spec: ResourceTransferSpec, skipped: ReadonlyArray<SkippedEnd>): boolean {
+  return run.detachCovered === true && run.arrival === 'auto' && run.destination === undefined &&
+    spec.direction !== 'loss' && skipped.some((s) => !s.verdict.visible && s.verdict.why === 'covered');
+}
+
+/**
+ * The destination, measured once the surface that covered it is GONE and the layout has come to rest — or undefined
+ * once the budget is spent / the flight is gone. STRICT cover (a leaving surface still covers: it still imposes its
+ * layout — the satellite stands in its workspace pose until the band is removed, then moves home) and a point that
+ * holds for two consecutive probes: the 4K walk landed a floater in the empty pose the satellite had just left.
+ */
+function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, alive: () => boolean): Promise<TransferPoint | undefined> {
+  const deadline = performance.now() + budgetMs;
+  let previous: TransferPoint | undefined;
+  return new Promise((resolve) => {
+    const poll = (): void => {
+      if (!alive()) {
+        resolve(undefined);
+        return;
+      }
+      const point = targetPointFor(spec, undefined, {strict: true});
+      if (point !== undefined && previous !== undefined && Math.abs(point.x - previous.x) <= 1 && Math.abs(point.y - previous.y) <= 1) {
+        resolve(point);
+        return;
+      }
+      if (performance.now() >= deadline) {
+        resolve(undefined);
+        return;
+      }
+      previous = point;
+      probeTick(poll);
+    };
+    poll();
+  });
+}
+
+/**
+ * ONE DETACHED TOKEN (PL-165): born on its visible source, popped out of it, waiting in the app-level layer while the
+ * surface that produced it leaves, flown to its destination once that is painted — or absorbed in place. The caller's
+ * run counts it done at the POP (`onDetach`): its surface may fold now. Its own `onArrive` fires at the real touchdown.
+ */
+function flyDetached(
+  runId: number,
+  run: ResourceTransferRun,
+  piece: TransferStagePiece,
+  e: {id: number, spec: ResourceTransferSpec, from: TransferPoint, index: number, delayMs: number},
+  uiScale: number,
+  pace: number,
+  safetyFired: () => boolean,
+): Promise<void> {
+  const alive = () => resourceTransferState.flights.some((f) => f.id === e.id);
+  let reached = false;
+  const handles = runDetachedTransferFlight(piece, {
+    from: e.from,
+    to: e.from,
+    index: e.index,
+    delayMs: e.delayMs,
+    uiScale,
+    hold: false,
+    pace,
+    launch: transferLaunchFor(e.spec, false),
+    waitBudgetMs: motionMs(TRANSFER_DETACH_WAIT_MS),
+    awaitTo: () => awaitVisibleDestination(e.spec, motionMs(TRANSFER_DETACH_WAIT_MS), alive).then((to) => {
+      reached = to !== undefined;
+      trail(runId, reached ? 'flight:detach-opened' : 'flight:detach-expired', e.id);
+      return to;
+    }),
+    onArc: () => {
+      // From here the chip FLIES (the surface has gone): an ordinary blocking chip for its last ~0.6 s.
+      const record = resourceTransferState.flights.find((f) => f.id === e.id);
+      if (record !== undefined && run.inSurface !== true) {
+        record.inSurface = false;
+      }
+    },
+  });
+  void handles.touched.then(() => {
+    noteCardResourceLanding(e.spec);
+    if (!safetyFired()) {
+      run.onArrive?.(e.spec);
+      if (!reached) {
+        run.onDegrade?.(e.spec, 'no-destination');
+      }
+    }
+  });
+  void handles.finished.then(() => removeFlight(e.id));
+  return handles.launched.then(() => {
+    trail(runId, 'flight:detached', e.id);
+    run.onDetach?.(e.spec);
+  });
 }
 
 /**
@@ -740,8 +859,8 @@ function measureRect(selector: string, skipped?: Array<SkippedEnd>): TransferRec
  *  at a zone that is still running its own entry (an embedded step's rise, a
  *  stage panel settling) — a raw rect lands the chip where the counter was
  *  PASSING and the touchdown tick happens off-target. */
-function measureRestingRect(selector: string, skipped?: Array<SkippedEnd>): TransferRect | undefined {
-  const el = firstVisibleEnd(selector, skipped);
+function measureRestingRect(selector: string, skipped?: Array<SkippedEnd>, opts: TransferEndOptions = {}): TransferRect | undefined {
+  const el = firstVisibleEnd(selector, skipped, opts);
   if (el === undefined) {
     return undefined;
   }
@@ -818,8 +937,8 @@ function escapeName(name: string): string {
  * production plate's digits are centred IN the plate, so the plate is its ink;
  * a card's capsule and the satellite's cell are icon + count and stay whole.
  */
-function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>): TransferPoint | undefined {
-  const measure = (selector: string) => measureRestingRect(selector, skipped);
+function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>, opts: TransferEndOptions = {}): TransferPoint | undefined {
+  const measure = (selector: string) => measureRestingRect(selector, skipped, opts);
   if (spec.channel === 'stock') {
     // The TERRAFORM RATING rides the stock channel under the rail's own key
     // (`RATING_RAIL_KEY`): its home is the score header's TR cell, not a

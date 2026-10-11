@@ -19425,11 +19425,21 @@ export default defineComponent({
           if (pending.delete(spec)) {
             releasePanelRewardHold(spec);
           }
+      // A token whose destination the folding workspace still covers (PL-165) is born on its printed icon, waits in
+      // the app-level layer while the workspace folds UNDER it, and lands once the destination is painted — its row
+      // is released by its OWN touchdown, never by this run's net (the run resolves at its pop).
+      const detached = new Set<ResourceTransferSpec>();
         },
       }).finally(() => {
-        pending.forEach((spec) => releasePanelRewardHold(spec));
-        pending.clear();
+        pending.forEach((spec) => {
+          if (!detached.has(spec)) {
+            releasePanelRewardHold(spec);
+            pending.delete(spec);
+          }
+        });
       });
+        detachCovered: true,
+        onDetach: (spec) => detached.add(spec),
     },
     /**
      * SETTLE the claim once the response has actually been applied.
