@@ -20,7 +20,8 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  * `screenshots/pluto-settlements/<profile>/<fixture>/story/`.
  */
 
-const OUT = path.join('screenshots', 'pluto-settlements');
+/** `PLU_OUT` names another folder — a BEFORE run on an older snapshot must not overwrite the AFTER frames. */
+const OUT = path.join('screenshots', process.env.PLU_OUT ?? 'pluto-settlements');
 const PLUTO = 'Pluto';
 
 const PRESETS = [

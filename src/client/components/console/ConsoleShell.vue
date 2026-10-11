@@ -3334,7 +3334,11 @@ export default defineComponent({
       return meta === undefined ? '' : `${meta.colonyName}|${meta.index}|${meta.total}`;
     },
     settlementTableParked(): boolean {
-      return settlementTable.nonce !== 0 && settlementTable.presented &&
+      // …and only while a place is still OWED: once the last place's card is taken and its discard has handed the
+      // room back, the table is finished — parked any longer it stood (empty sockets, «Взята · сброс за вами») under
+      // the trade track coming back for the closing glide, two surfaces in one zone (colony polish 1, PL-187).
+      const owed = settlementTable.taken.length < settlementTable.total || colonyResolutionUi.discardStage;
+      return settlementTable.nonce !== 0 && settlementTable.presented && owed &&
         this.colonyResolutionLive &&
         workspaceOutcomeState.host === 'colonies' && workspaceOutcomeState.embedSlot !== '';
     },
