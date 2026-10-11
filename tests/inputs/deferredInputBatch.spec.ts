@@ -74,6 +74,10 @@ import {addCity} from '../TestingUtils';
 import {ExclusiveColony} from '../../src/server/cards/turmoilRedux/ExclusiveColony';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {JupiterFloatingStation} from '../../src/server/cards/colonies/JupiterFloatingStation';
+import {SponsoredAcademies} from '../../src/server/cards/venusNext/SponsoredAcademies';
+import {Ants} from '../../src/server/cards/base/Ants';
+import {Algae} from '../../src/server/cards/base/Algae';
+import {Birds} from '../../src/server/cards/base/Birds';
 
 /**
  * A PRE-SELECTED CHOICE MUST NEVER COME BACK AS A LIVE PROMPT.
@@ -1580,6 +1584,66 @@ describe('deferredInputBatch', () => {
     drainBatchTail(player);
     expect(regolith.resourceCount, 'the pre-collected repeat pick landed').eq(1);
     expect(parkedBatchTailLength(player)).eq(0);
+  });
+
+  /**
+   * A PRE-COLLECTED DISCARD — the owner's report of 2026-10-11: «Sponsored
+   * Academies: the card to discard is picked in the composer, then the SAME
+   * question arrives as a separate prompt». The composer pre-collects the
+   * hand pick (`selectCardStep` over the hand, `consoleHandPick`) and the
+   * batch carries `{type:'card', cards:[X]}` right after the play; the live
+   * `DiscardCards` raises a `SelectCard` carrying the `discardPrompt` marker.
+   * Since `186ddae340` (the Redux Venus bonus — «draw 1, then discard 1» in
+   * front of a reward target) EVERY marked discard counted as hidden
+   * information: the replay parked the tail untried and the drain refused to
+   * try it either — so the pre-collected discard could NEVER land, and the
+   * console honestly served the discard a second time. A rule of the PROMPT'S
+   * KIND fixed one card and broke the family; the answer must say WHAT it was
+   * collected for.
+   */
+  describe('a pre-collected DISCARD lands on its own prompt (Sponsored Academies)', () => {
+    function academiesGame(interloper?: 'olympus') {
+      const [game, player] = testGame(2, {venusNextExtension: true});
+      const academies = new SponsoredAcademies();
+      const ants = new Ants();
+      player.cardsInHand = [academies, ants, new Algae(), new Birds()];
+      if (interloper === 'olympus') {
+        // Academies carries a SCIENCE tag: Olympus Conference with a stored
+        // resource turns the trigger into a question AHEAD of the discard.
+        const olympus = new OlympusConference();
+        olympus.resourceCount = 1;
+        player.playedCards.push(olympus);
+      }
+      player.megaCredits = 50;
+      player.takeAction();
+      return {game, player, academies, ants};
+    }
+
+    it('[play, {card: Ants}] — the discard chosen in the composer is THE discard: Ants leaves, 3 are drawn, nothing is asked again', () => {
+      const {player, academies, ants} = academiesGame();
+      replayBatch(player, playBatch(player, academies, [{type: 'card', cards: [ants.name]}]));
+      expect(player.cardsInHand.map((c) => c.name), 'Ants was discarded, 3 drawn').to.not.include(ants.name);
+      expect(player.cardsInHand).has.length(2 + 3);
+      const wf = player.getWaitingFor();
+      expect(wf instanceof SelectCard && wf.discardPrompt !== undefined, 'the discard is not asked a second time').is.false;
+      expect(parkedBatchTailLength(player)).eq(0);
+    });
+
+    it('…and PARKS past Olympus Conference in front of it, landing on the discard once the trigger is answered', () => {
+      const {player, academies, ants} = academiesGame('olympus');
+      replayBatch(player, playBatch(player, academies, [{type: 'card', cards: [ants.name]}]));
+      const jumped = cast(player.getWaitingFor(), OrOptions);
+      expect(jumped.choiceContext?.source.card).eq(CardName.OLYMPUS_CONFERENCE);
+      expect(parkedBatchTailLength(player), 'the discard answer waits for its own prompt').eq(1);
+      expect(player.cardsInHand.map((c) => c.name), 'nothing thrown away by the wrong question').to.include(ants.name);
+      player.process({type: 'or', index: jumped.options.findIndex((o) => o.title === 'Add a science resource to this card'), response: {type: 'option'}});
+      drainBatchTail(player);
+      expect(player.cardsInHand.map((c) => c.name)).to.not.include(ants.name);
+      expect(player.cardsInHand).has.length(2 + 3);
+      const wf = player.getWaitingFor();
+      expect(wf instanceof SelectCard && wf.discardPrompt !== undefined, 'the discard is not asked a second time').is.false;
+      expect(parkedBatchTailLength(player)).eq(0);
+    });
   });
 
   describe('a card TARGET picked before its cell (TR21 Arboretum)', () => {
