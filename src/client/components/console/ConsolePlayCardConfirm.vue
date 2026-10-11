@@ -186,6 +186,11 @@
                    group's live AXIS — side by side (←→ switch, ↑↓ leave) or a
                    column (↑↓ walk, ←→ inert) — never a JS copy of the
                    container query's threshold; re-measured on resize. -->
+              <!-- THE KEYS BESIDE THE CHOICE (TR43 — the production every branch states first): ONCE, above the row, so each
+                   option tile says only what differs (`sharedLeadingEffects`). -->
+              <div v-if="hasVariants && sharedVariantEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips" data-variants-shared>
+                <ActionEffectChip v-for="(eff, k) in sharedVariantEffects" :key="k" :effect="eff" />
+              </div>
               <div v-if="hasVariants" ref="variantsEl" class="con-composer__variants" role="radiogroup" :aria-label="$t(resultHeading)" :data-variant-axis="variantAxis">
                 <template v-for="(row, k) in variantRows" :key="row.id">
                   <!-- The exclusion, said once between the options: two results
@@ -212,7 +217,7 @@
                             aria-hidden="true">✓</span>
                     </div>
                     <div class="con-composer__variant-chips">
-                      <ActionEffectChip v-for="(eff, k2) in branches[row.pos].effects" :key="k2" :effect="eff" />
+                      <ActionEffectChip v-for="(eff, k2) in variantOwnEffects(row.pos)" :key="k2" :effect="eff" />
                       <!-- «⚡ сработает» — the reactions tied to THIS branch (the
                            forecast's `byBranch`): what the TABLE adds if the player
                            picks this option, on the SAME line as the option's own
@@ -714,7 +719,7 @@ import {espionageOutcomeView} from '@/client/console/hydroFlow/espionageOutcomeV
 import {repeatComposedResponses} from '@/client/console/consoleHydroAdvance';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
-import {
+import {isGeneralBranch, sharedLeadingEffects,
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
   playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator, branchHostsParliamentStep, agendaWalkWhy, AgendaWalkWhy,
@@ -1173,6 +1178,10 @@ export default defineComponent({
     hasVariants(): boolean {
       return this.branches.length > 1;
     },
+    /** The chips every branch opens with (the keys beside the choice) — stated once above the «ИЛИ» row. */
+    sharedVariantEffects(): ReadonlyArray<ActionEffect> {
+      return sharedLeadingEffects(this.branches);
+    },
     /**
      * THE CARD ASKS A REAL «ИЛИ» QUESTION — two or more branches the rules
      * actually allow. One playable branch among several is NOT a question (the
@@ -1577,7 +1586,12 @@ export default defineComponent({
     rows(): ReadonlyArray<PlayRow> {
       const out: Array<PlayRow> = [];
       if (this.hasVariants) {
-        this.branches.forEach((_b, pos) => out.push({i: 0, id: 'variant#' + pos, kind: 'variant', pos}));
+        // The general branch of an optional choice is the play itself — never a row of the «ИЛИ» group.
+        this.branches.forEach((b, pos) => {
+          if (!isGeneralBranch(b, this.branches)) {
+            out.push({i: 0, id: 'variant#' + pos, kind: 'variant', pos});
+          }
+        });
       }
       if (this.repeatChoice !== undefined) {
         out.push({i: 0, id: 'repeat', kind: 'repeat', choice: this.repeatChoice});
@@ -2889,6 +2903,10 @@ export default defineComponent({
       default: return 0;
       }
     },
+    /** An option tile's OWN chips — what it adds beyond the shared head stated above the row. */
+    variantOwnEffects(pos: number): ReadonlyArray<ActionEffect> {
+      return (this.branches[pos]?.effects ?? []).slice(this.sharedVariantEffects.length);
+    },
     branchTitle(b: ActionPreviewBranch): string {
       const t = textOf(b.title);
       return t !== '' ? t : translateText('Play card');
@@ -3958,6 +3976,8 @@ export default defineComponent({
       }
       this.$emit('confirm', {
         branchIndex: b.index,
+        // The branch slot's pre-select address — the server's (`ActionPreviewBranch.for`).
+        branchFor: b.for,
         preResponses: this.preview !== undefined ? orderedPreResponses(this.preview, this.capturedPre) : [],
         optionResponse: this.capturedOption,
         stepResponses: orderedStepResponses(b, captured),
@@ -3976,8 +3996,6 @@ export default defineComponent({
         }),
         // HOW MANY CARDS this play PROMISES — the same structural read every
         // other workspace uses (a `cards` gain in the chosen branch). A HINT
-        // The branch slot's pre-select address — the server's (`ActionPreviewBranch.for`).
-        branchFor: b.for,
         // for the arrival's size, never a gate: the workspace claims its
         // follow-up either way, because a triggered effect (Point Luna's Earth
         // tag) draws cards no preview can advertise.
