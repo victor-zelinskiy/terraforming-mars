@@ -515,6 +515,7 @@
 </template>
 
 <script lang="ts">
+import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 /**
  * ConsoleCardActions — the console-native "Blue Card Action Center": ONE
  * workflow surface with two presentation states (consoleActionFlow):
@@ -2747,7 +2748,7 @@ export default defineComponent({
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
-    onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult, stageReward?: DeltaRewardDraft}): void {
+    onComposerConfirm(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult, stageReward?: DeltaRewardDraft}): void {
       const comp = this.composer;
       if (comp === undefined) {
         return;
@@ -2763,6 +2764,7 @@ export default defineComponent({
           nodeIndex: comp.nodeIndex,
           composed: {
             branchIndex: payload.branchIndex,
+            branchFor: payload.branchFor,
             preResponses: payload.preResponses,
             optionResponse: payload.optionResponse,
             stepResponses: payload.stepResponses,
@@ -2797,6 +2799,7 @@ export default defineComponent({
         performPath: perform.path,
         cardName: comp.cardName,
         branchIndex: payload.branchIndex,
+        branchFor: payload.branchFor,
         preResponses: payload.preResponses,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
@@ -2954,7 +2957,7 @@ export default defineComponent({
      * store, the yield and the board half. No claim, no commit beat, no
      * awaiting handoff: nothing has been committed.
      */
-    onComposerStagedPlacement(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, staged: StagedPlacementModel, composerDraft: unknown}): void {
+    onComposerStagedPlacement(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, staged: StagedPlacementModel, composerDraft: unknown}): void {
       const comp = this.composer;
       if (comp === undefined) {
         return;
@@ -2969,6 +2972,7 @@ export default defineComponent({
         performPath: perform.path,
         cardName: comp.cardName,
         branchIndex: payload.branchIndex,
+        branchFor: payload.branchFor,
         preResponses: payload.preResponses,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
@@ -2987,7 +2991,7 @@ export default defineComponent({
      * batch (the confirm path's own re-walk) and relays UP — the shell owns the staged store, the step's frame
      * and the one submit (the mode's A). No claim, no commit beat, no awaiting handoff: nothing has been sent.
      */
-    onComposerStagedVote(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, staged: StagedVoteModel, receipt: StagedReceipt | undefined}): void {
+    onComposerStagedVote(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, staged: StagedVoteModel, receipt: StagedReceipt | undefined}): void {
       const comp = this.composer;
       if (comp === undefined) {
         return;
@@ -3002,6 +3006,7 @@ export default defineComponent({
         performPath: perform.path,
         cardName: comp.cardName,
         branchIndex: payload.branchIndex,
+        branchFor: payload.branchFor,
         preResponses: payload.preResponses,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,

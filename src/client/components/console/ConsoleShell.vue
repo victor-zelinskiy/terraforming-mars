@@ -1604,6 +1604,7 @@
 </template>
 
 <script lang="ts">
+import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 /**
  * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):
@@ -16139,7 +16140,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -16162,6 +16163,7 @@ export default defineComponent({
         cardName: pending.cardName,
         payment: payload.payment,
         branchIndex: payload.branchIndex,
+        branchFor: payload.branchFor,
         preResponses: payload.preResponses,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,

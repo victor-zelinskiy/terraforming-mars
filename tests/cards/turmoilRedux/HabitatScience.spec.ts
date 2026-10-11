@@ -1,3 +1,4 @@
+import {addressed} from '../../../src/common/inputs/preselectAddress';
 import {expect} from 'chai';
 import {
   HABITAT_SCIENCE_DATA_COST,
@@ -430,9 +431,14 @@ describe('HabitatScience', () => {
       const menu = cast(t.p1.getWaitingFor(), OrOptions);
       const perform = menu.options.findIndex((o) => o.title === 'Perform an action from a played card');
       expect(perform, 'the action menu offers the card action').gte(0);
+      // The target as the composer posts it — ADDRESSED with the preview step's own `for` (the pre-select law,
+      // `common/inputs/preselectAddress.ts`): a colony payout routed by this card; Pluto's discard in front of it is
+      // another role (`discard`), so the answer parks untried and the hand is never offered a tableau answer.
+      const targetStep = actionPreview(t.p1, t.card).branches[0].steps.find((s) => s.kind === 'input');
+      expect(targetStep?.kind === 'input' ? targetStep.for : undefined, 'the preview addresses the target step').deep.include({role: 'card'});
       const batch: Array<InputResponse> = [
         {type: 'or', index: perform, response: {type: 'card', cards: [HS]}},
-        {type: 'card', cards: [t.dirigibles.name]},
+        addressed<InputResponse>({type: 'card', cards: [t.dirigibles.name]}, targetStep?.kind === 'input' ? targetStep.for : undefined),
       ];
       replayBatch(t.p1, batch);
 

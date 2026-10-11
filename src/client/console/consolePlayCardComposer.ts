@@ -30,6 +30,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
+import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 import {ActionEffect, ActionPreviewBranch, AgendaWalkModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import type {Units} from '@/common/Units';
@@ -67,6 +68,8 @@ export type PlayCardBatchArgs = {
   optionResponse: unknown | undefined;
   /** Input-step responses, compacted, in branch.steps order. */
   stepResponses: ReadonlyArray<unknown>;
+  /** The branch slot's pre-select address (`ActionPreviewBranch.for`) — stamped on the `{or, index}` pick / the bare optionInput answer. */
+  branchFor?: PreselectAddress;
   /**
    * A REPEAT-ACTION source (ProjectInspection): after the play, the chosen
    * already-used action's card pick + its composed responses. Appended as the
@@ -88,13 +91,15 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
   for (const r of args.preResponses) {
     responses.push(r);
   }
+  // ADDRESSED: the branch pick lands only on the card's own choice — never on
+  // an interloper's `or` the same play raised first (Olympus Conference).
   if (args.branchIndex >= 0) {
     const branchResponse = args.optionResponse ?? {type: 'option' as const};
-    responses.push({type: 'or' as const, index: args.branchIndex, response: branchResponse});
+    responses.push(addressed({type: 'or' as const, index: args.branchIndex, response: branchResponse}, args.branchFor));
   } else if (args.optionResponse !== undefined) {
     // The lone available branch auto-resolved WITHOUT an OrOptions wrapper —
     // the live prompt is the direct input itself (bare, top-level).
-    responses.push(args.optionResponse);
+    responses.push(addressed(args.optionResponse, args.branchFor));
   }
   for (const r of args.stepResponses) {
     responses.push(r);
@@ -105,6 +110,45 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
     responses.push(...repeatActionResponses(args.repeat.chosenCard, args.repeat.composed));
   }
   return responses;
+}
+
+// ── The «ИЛИ» row and what stands beside it ────────────────────────────────
+
+/**
+ * THE GENERAL BRANCH of an optional choice with nothing executable
+ * (`OrBehavior.optional` — TR43 Ichtiology Grant with no holder of either
+ * kind): the server sends ONE untitled, available branch at index −1 carrying
+ * the play's other keys and the named skips, BESIDE its greyed variants. It is
+ * the play itself, never an option — so it never stands in the «ИЛИ» row (a
+ * third tile titled «Разыграть карту» between two greyed options reads as a
+ * choice that is not one); it is the branch the composer selects and submits.
+ */
+export function isGeneralBranch(branch: ActionPreviewBranch, branches: ReadonlyArray<ActionPreviewBranch>): boolean {
+  return branches.length > 1 && branch.index === -1 && branch.available && branch.title === '';
+}
+
+/**
+ * THE CHIPS EVERY BRANCH SHARES AT ITS HEAD — the keys beside the choice (TR43's
+ * «M€ production per ocean», which every branch states first — the server's
+ * `deriveOrBranches`). Stated ONCE above the «ИЛИ» row, so each option tile
+ * says only what differs («+2 животных» / «+4 микроба») and the production is
+ * not read three times. Empty unless EVERY branch opens with the same chips
+ * (a plain `or` — Lunar Exports' two productions — shares nothing).
+ */
+export function sharedLeadingEffects(branches: ReadonlyArray<ActionPreviewBranch>): ReadonlyArray<ActionEffect> {
+  if (branches.length < 2) {
+    return [];
+  }
+  const head = branches[0].effects;
+  let k = head.length;
+  for (const branch of branches.slice(1)) {
+    let i = 0;
+    while (i < k && i < branch.effects.length && JSON.stringify(branch.effects[i]) === JSON.stringify(head[i])) {
+      i++;
+    }
+    k = i;
+  }
+  return head.slice(0, k);
 }
 
 // ── Choice classification (which surface hosts a pre-select choice) ──────────

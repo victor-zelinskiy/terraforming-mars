@@ -72,6 +72,7 @@ import {
 } from '@/client/components/board/cubeDropState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
+import {checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
 import {
   detectEnergyConversion,
   endEnergyConversion,
@@ -500,6 +501,8 @@ export function submitInput(out: InputResponse): void {
  * divergence) renders through the existing routing.
  */
 export function submitBatch(responses: ReadonlyArray<InputResponse>): void {
+  // The «re-asked» witness remembers what this batch answered (`preselectWitness.ts`).
+  notePreselectBatch(responses);
   fetchPlayerInput(
     apiUrl(paths.PLAYER_INPUT_BATCH) + '?id=' + currentView().id,
     {
@@ -1398,6 +1401,8 @@ function applyPlayerView(playerView: PlayerViewModel | undefined): void {
   // still changes (watcher-identical to a wholesale swap).
   if (playerView !== undefined) {
     playerView = nextViewSnapshot(r.playerView as PlayerViewModel, playerView);
+    // A question the last batch already answered must never stand again (the pre-select law's witness).
+    checkPreselectReask(playerView.waitingFor);
   }
   // The card-pick preserve guards: they gate the playerkey RESET EPOCH
   // (transient console/App state), not a remount.

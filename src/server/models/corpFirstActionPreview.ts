@@ -1,3 +1,4 @@
+import {withPreselectAddresses} from './preselectAddresses';
 import {IPlayer} from '../IPlayer';
 import {CardName} from '../../common/cards/CardName';
 import {ICorporationCard} from '../cards/corporation/ICorporationCard';
@@ -39,6 +40,11 @@ export function previewableFirstActionCorp(player: IPlayer, name: CardName): ICo
 }
 
 export function corpFirstActionPreview(player: IPlayer, corp: ICorporationCard): ActionPreview {
+  // The family's exit pass: every step addressed to its own prompt (`preselectAddresses.ts`).
+  return withPreselectAddresses(corpFirstActionPreviewOf(player, corp));
+}
+
+function corpFirstActionPreviewOf(player: IPlayer, corp: ICorporationCard): ActionPreview {
   if (corp.firstActionPreview !== undefined) {
     return corp.firstActionPreview(player);
   }

@@ -78,6 +78,9 @@ import {SponsoredAcademies} from '../../src/server/cards/venusNext/SponsoredAcad
 import {Ants} from '../../src/server/cards/base/Ants';
 import {Algae} from '../../src/server/cards/base/Algae';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {IchtiologyGrant} from '../../src/server/cards/turmoilRedux/IchtiologyGrant';
+import {Pets} from '../../src/server/cards/base/Pets';
+import {addressed} from '../../src/common/inputs/preselectAddress';
 
 /**
  * A PRE-SELECTED CHOICE MUST NEVER COME BACK AS A LIVE PROMPT.
@@ -1643,6 +1646,96 @@ describe('deferredInputBatch', () => {
       const wf = player.getWaitingFor();
       expect(wf instanceof SelectCard && wf.discardPrompt !== undefined, 'the discard is not asked a second time').is.false;
       expect(parkedBatchTailLength(player)).eq(0);
+    });
+  });
+
+  /**
+   * THE ADDRESS DECIDES — the general law (`common/inputs/preselectAddress.ts`). An interloper of the SAME
+   * input type was the residual hazard recorded since 2026-08-28 (§ CLASS 6): a card answer met a card
+   * question of ANOTHER asker, and either the wrong question ate it or its refusal read as a divergence.
+   * TR43 Ichtiology Grant's target (the shared `AddResourcesToCard`, caused by the card) behind a card
+   * question a neighbour's trigger raises first.
+   */
+  describe('the address: an answer lands only on its own prompt', () => {
+    const OTHER = CardName.OLYMPUS_CONFERENCE;
+
+    function grantGame(opts: {interloper?: boolean} = {}) {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      const grant = new IchtiologyGrant();
+      const pets = new Pets();
+      player.playedCards.push(pets);
+      const interloperAnswers: Array<CardName> = [];
+      if (opts.interloper === true) {
+        // A neighbour's trigger on the play — a CARD question over the same tableau, marked with ITS asker,
+        // queued ahead of the card's own target (the same shape Hyperspace Drive's science pick has).
+        player.playedCards.push(fakeCard({
+          name: 'A watcher that asks' as CardName,
+          onCardPlayed: (p: IPlayer) => {
+            p.defer(new SelectCard('Pick a card for the watcher', 'Pick', [pets])
+              .markChoiceContext({source: {kind: 'card', card: OTHER}})
+              .andThen(([card]) => {
+                interloperAnswers.push(card.name);
+                return undefined;
+              }), Priority.COST);
+          },
+        }));
+      }
+      player.cardsInHand = [grant];
+      player.megaCredits = 50;
+      player.takeAction();
+      return {game, player, grant, pets, interloperAnswers};
+    }
+
+    const target = (address: boolean): InputResponse => address ?
+      addressed<InputResponse>({type: 'card', cards: [CardName.PETS]}, {role: 'card', source: {kind: 'card', card: CardName.ICHTIOLOGY_GRANT}}) :
+      {type: 'card', cards: [CardName.PETS]};
+
+    it('ADDRESSED: a card question of ANOTHER asker in front is not tried — the answer parks and lands on its own prompt', () => {
+      const {player, grant, pets, interloperAnswers} = grantGame({interloper: true});
+      replayBatch(player, playBatch(player, grant, [target(true)]));
+      const front = cast(player.getWaitingFor(), SelectCard);
+      expect(front.choiceContext?.source.card, 'the watcher\'s own question stands').eq(OTHER);
+      expect(parkedBatchTailLength(player), 'the target waits, untried').eq(1);
+      expect(interloperAnswers, 'the watcher was not answered by the pre-select').deep.eq([]);
+      player.process({type: 'card', cards: [CardName.PETS]});
+      drainBatchTail(player);
+      expect(interloperAnswers).deep.eq([CardName.PETS]);
+      expect(pets.resourceCount, 'the pre-selected target landed').eq(2);
+      expect(parkedBatchTailLength(player)).eq(0);
+      expect(player.getWaitingFor()?.choiceContext?.source.card, 'no second question of the card').not.eq(CardName.ICHTIOLOGY_GRANT);
+    });
+
+    it('…UNADDRESSED, the same batch is positional: the watcher\'s question EATS the answer (the hazard the address closes)', () => {
+      const {player, grant, pets, interloperAnswers} = grantGame({interloper: true});
+      replayBatch(player, playBatch(player, grant, [target(false)]));
+      expect(interloperAnswers, 'consumed by the wrong question').deep.eq([CardName.PETS]);
+      expect(pets.resourceCount).eq(0);
+      expect(player.getWaitingFor()?.type, 'the card\'s own target is asked again').eq('card');
+    });
+
+    it('OWN prompt refusing the answer (the state moved): the tail is dropped and the question is asked for real', () => {
+      const {player, grant, pets} = grantGame();
+      replayBatch(player, playBatch(player, grant, [
+        addressed<InputResponse>({type: 'card', cards: [CardName.BIRDS]}, {role: 'card', source: {kind: 'card', card: CardName.ICHTIOLOGY_GRANT}}),
+      ]));
+      const own = cast(player.getWaitingFor(), SelectCard);
+      expect(own.choiceContext?.source.card).eq(CardName.ICHTIOLOGY_GRANT);
+      expect(parkedBatchTailLength(player), 'a refused own answer is never held').eq(0);
+      expect(pets.resourceCount).eq(0);
+    });
+
+    it('a manual answer to the parked answer\'s OWN prompt supersedes it (never lands on a later prompt of the card)', () => {
+      const {player, grant, pets} = grantGame({interloper: true});
+      replayBatch(player, playBatch(player, grant, [target(true)]));
+      expect(parkedBatchTailLength(player)).eq(1);
+      // The watcher answered elsewhere (another player's request advanced the queue) — the card's own target is live.
+      player.process({type: 'card', cards: [CardName.PETS]});
+      expect(player.getWaitingFor()?.choiceContext?.source.card).eq(CardName.ICHTIOLOGY_GRANT);
+      expireSupersededStagedTail(player);
+      expect(parkedBatchTailLength(player), 'the manual answer to its own prompt supersedes the plan').eq(0);
+      player.process({type: 'card', cards: [CardName.PETS]});
+      expect(pets.resourceCount).eq(2);
     });
   });
 

@@ -34,6 +34,8 @@ import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {PARLIAMENT_DELEGATES_PER_PLAYER, REDUX_PARTIES, ReduxParty} from '../../src/common/parliament/ParliamentTypes';
 import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
 import {colonySource} from '../../src/server/inputs/choiceContext';
+import {addressed} from '../../src/common/inputs/preselectAddress';
+import {InputResponse} from '../../src/common/inputs/InputResponse';
 import {Phase} from '../../src/common/Phase';
 import {MAX_VENUS_SCALE} from '../../src/common/constants';
 import {Server} from '../../src/server/models/ServerModel';
@@ -539,7 +541,15 @@ describe('VenusRedux', () => {
     });
   });
 
-  describe('a PRE-COLLECTED card target survives the owner bonus in front of it (the batch parks a card answer that names no live candidate)', () => {
+  /**
+   * THE ADDRESS DECIDES (deferredInputBatch.ts, docs/claude/action-prompt-audit.md § CLASS 8). The trade composer
+   * stamps its reward target with the question it was collected for — Venus's own reward pick (`role: 'card'`, the
+   * colony as the source: the cause the live `AddResourcesToCard` carries) — so the owner's discard in front of it
+   * (another role, an unnamed colony source) is somebody else's question: the target PARKS UNTRIED and the hand is
+   * never offered a tableau answer. Before the address this was a rung of the prompt's KIND («every discard is
+   * hidden information»), which made every PRE-COLLECTED discard unlandable (Sponsored Academies asked twice).
+   */
+  describe('a PRE-COLLECTED card target survives the owner bonus in front of it (the address parks it past the discard)', () => {
     it('the trade’s floater target, chosen before the confirm, lands after the mandatory discard — never asked again', () => {
       venus.colonies.push(player.id); // the seat owns a settlement: «draw 1, then discard 1» stands BEFORE the reward pick
       const dirigibles = giveFloaterHolder(player);
@@ -559,7 +569,8 @@ describe('VenusRedux', () => {
           {type: 'or', index: howToPay.options.length - 1, response: {type: 'option'}},
           {type: 'colony', colonyName: ColonyName.VENUS_REDUX},
         ]},
-        {type: 'card', cards: [dirigibles.name]},
+        // As the trade composer posts it: addressed to Venus's own reward pick.
+        addressed<InputResponse>({type: 'card', cards: [dirigibles.name]}, {role: 'card', source: colonySource(ColonyName.VENUS_REDUX)}),
       ]);
       // The discard is what stands — a `card` prompt the batch could never have answered.
       const discard = cast(player.getWaitingFor(), SelectCard);

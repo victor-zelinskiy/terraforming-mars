@@ -1,14 +1,11 @@
 import type {IPlayer} from '../IPlayer';
-import {InputResponse, isOrOptionsResponse, SelectColonyResponse, SelectPartyResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
+import {InputResponse, isOrOptionsResponse, SelectSpaceResponse} from '../../common/inputs/InputResponse';
 import type {PlayerInput} from '../PlayerInput';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
 import {tiersOf} from '../../common/boards/cityStack';
 import {OrOptions} from './OrOptions';
-import {SelectSpace} from './SelectSpace';
-import {SelectCard} from './SelectCard';
-import {SelectParty} from './SelectParty';
-import {SelectColony} from './SelectColony';
+import {AddressableInput, AddressVerdict, PreselectAddress, addressVerdict, answerAddressOf, withoutAddress} from '../../common/inputs/preselectAddress';
 
 /**
  * THE PRE-COLLECTED BATCH — replay, and the TAIL THAT HAS NOT LANDED YET.
@@ -45,6 +42,30 @@ import {SelectColony} from './SelectColony';
  * The park is deliberately WEAK and NEVER serialized: it is a plan for the
  * prompt that is about to be asked, not game state. A reloaded game gets fresh
  * `Player` objects and no park.
+ *
+ * THE ADDRESS DECIDES (2026-10-11 — docs/claude/action-prompt-audit.md
+ * § CLASS 8). Every rung that used to answer «is this my question?» guessed
+ * from the response's TYPE or the prompt's KIND, and each new rung broke a
+ * neighbour — «every discard is hidden information» (`186ddae340`, the Redux
+ * Venus bonus) made EVERY pre-collected discard unlandable, so Sponsored
+ * Academies asked its discard twice. Now an answer carries the address it was
+ * collected for (`for` — `common/inputs/preselectAddress.ts`; a staged cell /
+ * resolution / colony tile's `stagedFor` is the same address in its older
+ * spelling) and the prompt's address is read off its structural markers by the
+ * ONE reader both sides share (`promptAddressOf`):
+ *  · `own` — the prompt is the answer's: it is processed; a refusal is an
+ *    honest divergence — the rest of the batch is dropped and the player
+ *    answers for real;
+ *  · `foreign` — another asker or another kind of question: the answer is
+ *    PARKED UNTRIED (never offered to the wrong question, never read as a
+ *    divergence);
+ *  · `anonymous` — the prompt names no asker: the positional rules decide,
+ *    exactly as before the address existed;
+ *  · an UNADDRESSED answer (a client that predates the address) — the
+ *    positional rules too, byte-identical.
+ * The only prompt-KIND rule left is the deck pick (`hiddenInfoPrompt`): cards
+ * revealed only now cannot have been answered by any composer, so an answer
+ * that is not ADDRESSED to it never meets it.
  */
 
 /**
@@ -88,6 +109,31 @@ export function reconcileBatchResponse(response: InputResponse, input: PlayerInp
  */
 const parkedTails = new WeakMap<IPlayer, ReadonlyArray<InputResponse>>();
 
+/** An answer as the batch carries it — perhaps with its address (`for`). */
+type BatchAnswer = InputResponse & {for?: PreselectAddress};
+
+/**
+ * WHOSE QUESTION the waiting prompt is for this answer — `undefined` for an
+ * UNADDRESSED answer (the positional rules decide). See the module comment.
+ */
+function verdictOf(answer: InputResponse, waitingFor: PlayerInput): AddressVerdict | undefined {
+  const address = answerAddressOf(answer as BatchAnswer);
+  // A server PlayerInput carries every marker `promptAddressOf` reads under the
+  // model's own names (`choiceContext`, `discardPrompt`, `sourceCard`, …).
+  return address === undefined ? undefined : addressVerdict(address, waitingFor as unknown as AddressableInput);
+}
+
+/** The answer as `process` validates it — the address is the batch's, never the input's. */
+function bare(answer: InputResponse): InputResponse {
+  return withoutAddress(answer as BatchAnswer);
+}
+
+/** Park the rest of a batch (appended behind anything parked earlier in this action — the queue serves them in order). */
+function park(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
+  recordStagedParkBaselines(player, responses);
+  parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses]);
+}
+
 /**
  * Replay a submitted batch, response by response, against whatever the player
  * is waiting for.
@@ -107,53 +153,52 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
       // single branch with no further steps). Nothing left to answer.
       break;
     }
-    // A HIDDEN-INFORMATION prompt (a deck pick — «look at the top N») asks
-    // about cards that did not exist when the batch was assembled, so the
-    // batch can never contain its answer BY CONSTRUCTION. Never even TRY the
-    // next response against it: a same-shaped answer aimed at a LATER prompt
-    // (a Delta Surge traversal's card pick behind the stage-5 draw) would
-    // either be refused and read as a genuine divergence — wiping the tail —
-    // or, worse, name a card the draw happens to contain and be CONSUMED by
-    // the wrong question. Park the rest (i > 0; a batch that OPENS on a
-    // hidden prompt is a real divergence and falls through to process).
-    if (i > 0 && hiddenInfoPrompt(waitingFor)) {
-      recordStagedParkBaselines(player, responses.slice(i));
-      parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
-      return;
-    }
-    // An ADDRESSED staged cell meeting a prompt that is not its own placement
-    // is the exact same law with the exact same failure modes — Nuclear Zone's
-    // temperature raise defers a bonus ocean AHEAD of the card's own tile, and
-    // an ocean-placing card's bonus twin would silently CONSUME the cell while
-    // a land tile's would read as a stale divergence and wipe it. Park the rest
-    // untried; the drain lands it once its own `sourceCard` prompt surfaces.
-    // The park RECORDS what stands on the pinned cell right now — staging and
-    // this park are the same request, so this IS the state the player picked
-    // against, and the drain's staleness question is «did it change since?».
-    if (i > 0 && stagedMismatch(responses[i], waitingFor)) {
-      recordStagedParkBaselines(player, responses.slice(i));
-      parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
-      return;
+    const verdict = verdictOf(responses[i], waitingFor);
+    // (i > 0: the HEAD answers the standing prompt by definition — the prompt
+    // identity gate already vouched for it; a batch that OPENS on a mismatch
+    // is a real error and falls through to process.)
+    if (i > 0) {
+      // SOMEBODY ELSE'S QUESTION — an interloper the same play raised ahead of
+      // the answer's own prompt (Olympus Conference on a science tag, the
+      // threshold bonus ocean ahead of a staged cell, the chairman's seat ahead
+      // of a staged vote, a colony owner's discard ahead of a reward target).
+      // Never even TRY the answer: a same-shaped answer could be CONSUMED by
+      // the wrong question, or refused and read as a divergence. It waits for
+      // its own prompt. The park RECORDS what stands on a pinned cell right
+      // now — staging and this park are the same request, so this IS the state
+      // the player picked against, and the drain's staleness question is «did
+      // it change since?».
+      if (verdict === 'foreign') {
+        park(player, responses.slice(i));
+        return;
+      }
+      // A DECK PICK («look at the top N») asks about cards that did not exist
+      // when the batch was assembled — an answer not addressed to it is never
+      // its (a Delta Surge traversal's stage-7 pick behind the stage-5 draw).
+      if (verdict !== 'own' && hiddenInfoPrompt(waitingFor)) {
+        park(player, responses.slice(i));
+        return;
+      }
     }
     // Reshape a pre-collected OR-wrapper to the live input shape when the
     // card's action() collapsed to a bare input (Factorum &c.), so the
     // confirmed step lands instead of popping a redundant modal.
-    const response = reconcileBatchResponse(responses[i], waitingFor);
+    const response = reconcileBatchResponse(bare(responses[i]), waitingFor);
     try {
       player.process(response);
     } catch (e) {
       if (i === 0) {
         throw e; // the action pick itself failed — surface it.
       }
-      if (jumpedTheQueue(response, waitingFor)) {
-        // APPEND, never replace: an answer parked by an earlier submit in this
-        // same action is still owed its own prompt, and the queue serves them
-        // in the order they were given.
-        recordStagedParkBaselines(player, responses.slice(i));
-        parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses.slice(i)]);
+      // The answer's OWN prompt refused it: the state moved since the preview
+      // and the question really is being asked — the rest of THIS batch is
+      // dropped and the player answers for real. An anonymous prompt or an
+      // unaddressed answer keeps the positional reading: a refusal by another
+      // TYPE of question is a queue jump (APPEND, never replace: an answer
+      // parked by an earlier submit in this action is still owed its prompt).
+      if (verdict !== 'own' && jumpedTheQueue(response, waitingFor)) {
+        park(player, responses.slice(i));
       }
-      // A genuine divergence simply drops the rest of THIS batch — the live
-      // prompt is the question being asked, and the player answers it for real.
       return;
     }
   }
@@ -181,15 +226,15 @@ export function drainBatchTail(player: IPlayer): void {
     if (waitingFor === undefined) {
       break;
     }
-    if (hiddenInfoPrompt(waitingFor)) {
-      // The player must SEE the drawn cards to answer — a parked response is
-      // never theirs (see replayBatch). It stays parked for its own prompt.
+    const verdict = verdictOf(rest[0], waitingFor);
+    if (verdict === 'foreign') {
+      // Its own prompt has not surfaced yet — it stays parked. Trying it here
+      // is the same-type trap: the interloper would eat it or refuse it.
       break;
     }
-    if (stagedMismatch(rest[0], waitingFor)) {
-      // An addressed staged cell whose OWN placement has not surfaced yet —
-      // it stays parked. Trying it here is the same-type trap: the interloper
-      // ocean would either eat it or read its refusal as staleness.
+    if (verdict !== 'own' && hiddenInfoPrompt(waitingFor)) {
+      // The player must SEE the drawn cards to answer — a parked answer not
+      // addressed to the pick is never its (see replayBatch). It stays parked.
       break;
     }
     if (stagedParkStale(player, rest[0])) {
@@ -199,11 +244,11 @@ export function drainBatchTail(player: IPlayer): void {
       rest.length = 0;
       break;
     }
-    const response = reconcileBatchResponse(rest[0], waitingFor);
+    const response = reconcileBatchResponse(bare(rest[0]), waitingFor);
     try {
       player.process(response);
     } catch (e) {
-      if (!jumpedTheQueue(response, waitingFor)) {
+      if (verdict === 'own' || !jumpedTheQueue(response, waitingFor)) {
         // The prompt this answer was collected for IS the one being asked, and
         // it refused the answer: the state drifted since the preview. Stale —
         // drop the whole tail and let the player answer for real.
@@ -221,97 +266,29 @@ export function drainBatchTail(player: IPlayer): void {
 }
 
 /**
- * WHY a pre-collected response was refused — and therefore whether it is worth
- * keeping.
+ * The POSITIONAL reading of a refusal — what remains where no address speaks
+ * (an unaddressed answer, or a prompt that names no asker): a response the
+ * live input rejects on its VALUE (same input type — a `card` answer naming a
+ * card that is no longer a candidate) is a genuine divergence, the question
+ * really is being asked; a response the input rejects because it is a
+ * DIFFERENT KIND of question is a queue-jump — the prompt in front is somebody
+ * else's (a triggered effect), and the answer is still owed its own.
  *
- * A response the live input rejects on its VALUE (same input type, e.g. a
- * `card` answer to a `card` prompt naming a card that is no longer a candidate)
- * is a genuine divergence: the state moved since the preview was built, the
- * question really is being asked now, and the player must answer it for real.
- *
- * A response the live input rejects because it is a DIFFERENT KIND of question
- * altogether is the queue-jump this module exists for — the prompt in front is
- * somebody else's (a triggered effect), and the answer is still owed its own.
- * ⚠ The TYPE alone cannot tell two PLACEMENTS apart — the threshold bonus
- * ocean is a `space` prompt exactly like the card's own tile — so an ADDRESSED
- * staged cell adds its own term: a prompt that is not the placement it names
- * is a queue-jump whatever its type.
+ * Two questions of the SAME type from DIFFERENT askers — the threshold bonus
+ * ocean beside the card's own tile, the chairman's seat beside a delegate
+ * grant, a colony owner's discard beside a reward target — are exactly what
+ * this reading cannot tell apart, and what the ADDRESS exists for
+ * (`verdictOf`; the staged cell / resolution / colony tile of TR21 / TR03 /
+ * TR07 are the address in its older spelling, `stagedFor`, read by the same
+ * `answerAddressOf` — one law, not a second one beside it).
  */
 function jumpedTheQueue(response: InputResponse, waitingFor: PlayerInput): boolean {
-  return response.type !== waitingFor.type || stagedMismatch(response, waitingFor);
-}
-
-
-/**
- * The staged address of a response, when it carries one — a CELL picked before
- * the play (`space`), a RESOLUTION or a POPULAR SUPPORT AREA picked before it
- * (`party`, the staged vote of a card that places a delegate by being played —
- * TR03 — or the staged area of a card that strips one — TR12) or a COLONY TILE
- * picked before it (`colony`, the staged track of a card that moves a chosen
- * tile's marker by being played — TR07 Colony Sponsors).
- */
-function stagedAddress(response: InputResponse): CardName | undefined {
-  switch (response.type) {
-  case 'space': return (response as SelectSpaceResponse).stagedFor;
-  case 'party': return (response as SelectPartyResponse).stagedFor;
-  case 'colony': return (response as SelectColonyResponse).stagedFor;
-  default: return undefined;
-  }
+  return response.type !== waitingFor.type;
 }
 
 /** The address of a staged CELL — the only kind the cell baselines and the parked pin are about. */
 function stagedCellAddress(response: InputResponse): CardName | undefined {
   return response.type === 'space' ? (response as SelectSpaceResponse).stagedFor : undefined;
-}
-
-/**
- * An ADDRESSED response meeting a prompt that is NOT the one it was staged
- * for. Unaddressed responses answer `false` everywhere: the positional replay
- * is unchanged for every non-staged flow.
- *
- * A CELL's address is the server's own `SelectSpace.sourceCard` — every
- * card-owned placement carries it (the Executor threads it, bespoke paths pass
- * it to `createMarsSelectSpace`), while every threshold/bonus placement (the
- * 0°C ocean, a Hellas placement-bonus ocean) leaves it undefined — which is
- * exactly what makes the two distinguishable at all.
- *
- * A PARTY's address is that very card's own party question — one of the two
- * CARD-OWNED `SelectParty` shapes whose `choiceContext.source.card` is the
- * address: the delegate GRANT (`votePrompt.source === 'grant'`,
- * `PlaceDelegatesOnResolution` — the resolution the delegate goes to) or the
- * POPULAR SUPPORT AREA pick (`supportPrompt`, `DiscardPopularSupport` — TR12
- * Party Sanctions, the area whose neutral delegates go). The type alone is as
- * blind here as it was for cells — the chairman's seat is a `SelectParty` too
- * (`source === 'chairman-seat'`), and «Greens» answered there would choose
- * which resolution GIVES UP a delegate; a colony's grant and the vote's own
- * paid pick are party prompts of other givers.
- *
- * A COLONY TILE's address is that card's own colony pick: a `SelectColony`
- * whose `choiceContext.source.card` is the address (`MaximizeColonyTrack`).
- * Every other colony question — a build, a trade's destination, Aridor's new
- * tile — names another giver (or none), and «Luna» answered there would build
- * a colony or spend a trade. No baseline is needed: the candidates are fixed
- * by the prompt and a track that moved meanwhile is the step's own named
- * skip, while `SelectColony.process` refuses a tile no longer offered.
- */
-function stagedMismatch(response: InputResponse, waitingFor: PlayerInput): boolean {
-  const address = stagedAddress(response);
-  if (address === undefined) {
-    return false;
-  }
-  if (response.type === 'party') {
-    return !(waitingFor instanceof SelectParty) ||
-      !(waitingFor.votePrompt?.source === 'grant' || waitingFor.supportPrompt !== undefined) ||
-      waitingFor.choiceContext?.source.card !== address;
-  }
-  if (response.type === 'colony') {
-    return !(waitingFor instanceof SelectColony) ||
-      waitingFor.choiceContext?.source.card !== address;
-  }
-  if (!(waitingFor instanceof SelectSpace)) {
-    return true;
-  }
-  return waitingFor.sourceCard !== address;
 }
 
 /**
@@ -394,13 +371,15 @@ function stagedParkStale(player: IPlayer, response: InputResponse): boolean {
 }
 
 /**
- * The player is about to answer a prompt MANUALLY that a parked staged answer
- * was addressed to (an opponent's request advanced the queue past our drain
- * window, so the placement — the delegate grant, the colony pick — surfaced
- * live). Their
- * live answer supersedes the parked plan — expire it, or the drain would land
- * the stale answer on the SAME card's NEXT same-shaped prompt (a two-ocean
- * card's second ocean). Called by the single-input route BEFORE processing.
+ * The player is about to answer a prompt MANUALLY that a parked answer was
+ * addressed to (an opponent's request advanced the queue past our drain
+ * window, so the placement — the delegate grant, the colony pick, the card
+ * target — surfaced live). Their live answer supersedes the parked plan —
+ * expire it, or the drain would land the stale answer on the SAME card's NEXT
+ * same-shaped prompt (a two-ocean card's second ocean). Only an answer whose
+ * address names THIS prompt as its own (`own`) is superseded — never one the
+ * address cannot judge (an anonymous prompt), never an unaddressed one.
+ * Called by the single-input route BEFORE processing.
  */
 export function expireSupersededStagedTail(player: IPlayer): void {
   const tail = parkedTails.get(player);
@@ -408,7 +387,7 @@ export function expireSupersededStagedTail(player: IPlayer): void {
   if (tail === undefined || waitingFor === undefined) {
     return;
   }
-  const rest = tail.filter((r) => stagedAddress(r) === undefined || stagedMismatch(r, waitingFor));
+  const rest = tail.filter((r) => verdictOf(r, waitingFor) !== 'own');
   if (rest.length === tail.length) {
     return;
   }
@@ -445,22 +424,18 @@ export function parkedStagedPlacement(player: IPlayer): {card: CardName, spaceId
  * deck pick asks about cards revealed only now. The marker is the server's own
  * (`ChooseCards.execute` → `markDeckPickPrompt`, the single funnel of the
  * draw-and-select family), never a title.
+ *
+ * ONLY the deck pick. A mandatory DISCARD was a second rung here from
+ * `186ddae340` (2026-09-28) to 2026-10-11 («the card it must name may have
+ * been drawn by the very action») — and it made every PRE-COLLECTED discard
+ * unlandable: Sponsored Academies asked its discard twice. The Redux Venus case
+ * that rung was written for (a reward TARGET meeting the owner's «draw 1, then
+ * discard 1» in front of it) is the address's to decide: the target is
+ * addressed to the colony's reward pick, the discard is another role of
+ * another asker — `foreign`, parked untried, the hand untouched.
  */
 function hiddenInfoPrompt(waitingFor: PlayerInput): boolean {
-  // A deck pick («look at the top N») — and a MANDATORY DISCARD out of the
-  // hand: the card it must name may have been DRAWN by the very action the
-  // batch answers (a colony's «draw 1, then discard 1» owner bonus), so the
-  // batch can no longer contain its answer than the deck pick's. Tried
-  // anyway, a pre-collected TABLEAU target met the Redux Venus's discard
-  // ahead of the reward pick: refused on its value it read as a divergence and
-  // the tail was dropped (the target was asked again), and — worse — a hand
-  // card of the SAME NAME was accepted and thrown away by a question the
-  // player never saw. Park untried; the drain re-asks this very test. (A
-  // candidate check is deliberately NOT a second rung: a `card` answer naming
-  // no candidate of the SAME question is a stale pick and must be DROPPED —
-  // held, it would land on an unrelated card prompt later in the action.)
-  return waitingFor.deckPickPrompt !== undefined ||
-    (waitingFor instanceof SelectCard && waitingFor.discardPrompt !== undefined);
+  return waitingFor.deckPickPrompt !== undefined;
 }
 
 /**
@@ -475,8 +450,7 @@ export function parkBatchTail(player: IPlayer, responses: ReadonlyArray<InputRes
   if (responses.length === 0) {
     return;
   }
-  recordStagedParkBaselines(player, responses);
-  parkedTails.set(player, [...(parkedTails.get(player) ?? []), ...responses]);
+  park(player, responses);
 }
 
 /**

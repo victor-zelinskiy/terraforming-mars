@@ -1,3 +1,4 @@
+import type {PreselectAddress} from '../inputs/preselectAddress';
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
 import {Tag} from '../cards/Tag';
@@ -236,6 +237,11 @@ export type ActionRevealDescriptor = {
 
 export type ActionPreviewBranch = {
   /**
+   * THE ADDRESS of the branch slot's answer (the `{type:'or', index}` pick, or
+   * the bare answer of a lone branch's `optionInput`) — see the step's `for`.
+   */
+  for?: PreselectAddress;
+  /**
    * The RUNTIME index of this branch in the `OrOptions` the server builds when
    * the action runs (`Executor.execute` filters out unexecutable sub-behaviors
    * THEN maps, so this is the index into the FILTERED list — NOT the raw
@@ -420,11 +426,19 @@ export type ActionPreviewStep =
      * chosen action's own responses in one batch).
      */
     repeatAction?: boolean,
+    /**
+     * THE ADDRESS of this step's answer — who asks and what kind of question
+     * (`common/inputs/preselectAddress.ts`). Stamped by the server's ONE exit
+     * pass per preview family (`models/preselectAddresses.ts`); the composer
+     * copies it onto the response it collects, and the batch replay lands that
+     * response only on its own prompt. Absent → the positional path.
+     */
+    for?: PreselectAddress,
   }
   /** A "spend N heat" payment hosted INLINE by the premium SpendHeatContent
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source
    *  AndOptions model (carrying its `spendHeatPrompt` marker). Used as a preStep. */
-  | {kind: 'spendHeat', input: PlayerInputModel}
+  | {kind: 'spendHeat', input: PlayerInputModel, for?: PreselectAddress}
   /**
    * THIS BRANCH *IS* A COLONY TRADE — it does not do a trade of its own, it
    * enters the ONE trade the server already offers, paying with this card.
@@ -801,6 +815,8 @@ export type TabbedPlantTarget = {
  */
 export type TabbedTargetsStep = {
   kind: 'tabbedTargets';
+  /** THE ADDRESS of the tab's answer (a top-level `or` response) — see the input step's `for`. */
+  for?: PreselectAddress;
   /**
    * The "remove animals" tab. Two kinds of target coexist:
    *  - CARD targets (`input`): the animal-holding cards, a `SelectCard` nested at

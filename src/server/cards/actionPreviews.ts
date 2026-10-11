@@ -38,6 +38,7 @@ import {OrOptions} from '../inputs/OrOptions';
 import type {TitledBehavior} from '../behavior/Behavior';
 import type {Countable} from '../behavior/Countable';
 import {asArray} from '../../common/utils/utils';
+import type {PreselectAddress} from '../../common/inputs/preselectAddress';
 
 /** Icon key for a card resource (lowercase, spaces→hyphens — `iconClassFor`). */
 export function cardResourceIcon(resource: CardResource): string {
@@ -910,6 +911,14 @@ export function selectCardStep(
      *  the modal renders them as premium action cards + opens the action confirm.
      *  See `ActionPreviewStep.repeatAction`. */
     repeatAction?: boolean,
+    /**
+     * THE ADDRESS of the live prompt this step answers, when the step model
+     * alone cannot say it — a hand pick that the play asks as a DISCARD
+     * (Sponsored Academies: the live `DiscardCards` carries the
+     * `discardPrompt` marker, the preview's plain pick does not). Absent →
+     * the exit pass stamps the step's own role with the card as its source.
+     */
+    for?: PreselectAddress,
   },
 ): ActionPreviewStep {
   // `amount` (the resource count added to the chosen card) drives the picker's
@@ -946,6 +955,7 @@ export function selectCardStep(
     vpBox: targetVictoryPoints(player, cards, opts?.amount),
     multiSelect: opts?.multiSelect,
     repeatAction: opts?.repeatAction,
+    ...(opts?.for !== undefined ? {for: opts.for} : {}),
   };
 }
 

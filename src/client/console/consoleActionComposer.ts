@@ -30,6 +30,7 @@
  */
 
 import {CardName} from '@/common/cards/CardName';
+import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 import {Message} from '@/common/logs/Message';
 import {
   ActionPreview,
@@ -421,6 +422,8 @@ export type ActionBatchArgs = {
   optionResponse: unknown | undefined;
   /** Input-step responses, compacted, in branch.steps order. */
   stepResponses: ReadonlyArray<unknown>;
+  /** The branch slot's pre-select address (`ActionPreviewBranch.for`) — stamped on the `{or, index}` pick / the bare optionInput answer. */
+  branchFor?: PreselectAddress;
 };
 
 export function buildActionBatch(args: ActionBatchArgs): Array<unknown> {
@@ -439,13 +442,15 @@ export function buildActionBatch(args: ActionBatchArgs): Array<unknown> {
   for (const r of args.preResponses) {
     responses.push(r);
   }
+  // ADDRESSED (`common/inputs/preselectAddress.ts`): the branch pick lands only
+  // on the card's own choice, never on an interloper's `or` raised first.
   if (args.branchIndex >= 0) {
     const branchResponse = args.optionResponse ?? {type: 'option' as const};
-    responses.push({type: 'or' as const, index: args.branchIndex, response: branchResponse});
+    responses.push(addressed({type: 'or' as const, index: args.branchIndex, response: branchResponse}, args.branchFor));
   } else if (args.optionResponse !== undefined) {
     // The lone available branch auto-resolved WITHOUT an OrOptions wrapper —
     // the live prompt is the direct input itself (bare, top-level).
-    responses.push(args.optionResponse);
+    responses.push(addressed(args.optionResponse, args.branchFor));
   }
   for (const r of args.stepResponses) {
     responses.push(r);
@@ -460,6 +465,8 @@ export function buildActionBatch(args: ActionBatchArgs): Array<unknown> {
  */
 export type RepeatComposed = {
   branchIndex: number;
+  /** The branch slot's pre-select address (`ActionPreviewBranch.for`). */
+  branchFor?: PreselectAddress;
   preResponses: ReadonlyArray<unknown>;
   optionResponse: unknown;
   stepResponses: ReadonlyArray<unknown>;
@@ -486,6 +493,7 @@ export function repeatActionResponses(chosenCard: CardName, composed: RepeatComp
     cardName: chosenCard,
     prefix: [pick ?? {type: 'card' as const, cards: [chosenCard]}],
     branchIndex: composed.branchIndex,
+    branchFor: composed.branchFor,
     preResponses: composed.preResponses,
     optionResponse: composed.optionResponse,
     stepResponses: composed.stepResponses,
@@ -501,7 +509,9 @@ export function orderedStepResponses(
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
     if ((step.kind === 'input' || step.kind === 'tabbedTargets') && steps[i] !== undefined) {
-      out.push(steps[i]);
+      // ADDRESSED — the step's own address (the server's), so the replay lands
+      // this answer only on its own prompt (`common/inputs/preselectAddress.ts`).
+      out.push(addressed(steps[i], step.for));
     }
   });
   return out;
@@ -620,9 +630,9 @@ export function orderedPreResponses(
   pre: Readonly<Record<number, unknown>>,
 ): Array<unknown> {
   const out: Array<unknown> = [];
-  (preview.preSteps ?? []).forEach((_s, i) => {
+  (preview.preSteps ?? []).forEach((s, i) => {
     if (pre[i] !== undefined) {
-      out.push(pre[i]);
+      out.push(addressed(pre[i], s.kind === 'input' || s.kind === 'spendHeat' ? s.for : undefined));
     }
   });
   return out;

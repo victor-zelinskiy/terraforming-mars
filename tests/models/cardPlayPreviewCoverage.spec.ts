@@ -6,6 +6,7 @@ import {GameModule} from '../../src/common/cards/GameModule';
 import {CardName} from '../../src/common/cards/CardName';
 import {Behavior} from '../../src/server/behavior/Behavior';
 import {stepsForBehavior} from '../../src/server/models/actionPreview';
+import {Counter} from '../../src/server/behavior/Counter';
 import {testGame} from '../TestGame';
 import {CardResource} from '../../src/common/CardResource';
 import {Tag} from '../../src/common/cards/Tag';
@@ -315,7 +316,11 @@ describe('card-play-preview coverage', () => {
       if (behavior === undefined || raw === undefined) {
         return;
       }
-      const additions = Array.isArray(raw) ? raw : [raw];
+      // An addition that COUNTS ZERO here (Hydrogen to Venus with no Jovian tag) is not
+      // deferred at all — `Executor.execute` queues `AddResourcesToCard` only for
+      // `count > 0` — so there is nothing to pick and nothing lost: it is not owed a step.
+      const counter = new Counter(player, card);
+      const additions = (Array.isArray(raw) ? raw : [raw]).filter((a) => counter.count(a.count) > 0);
       // Each addition surfaces as a card-target picker (the player can hold it) OR a
       // warning (no eligible card). Fewer steps than additions = a silent drop.
       const surfaced = stepsForBehavior(player, card, behavior).filter((s) =>

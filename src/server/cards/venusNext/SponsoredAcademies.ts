@@ -95,6 +95,11 @@ export class SponsoredAcademies extends Card implements IProjectCard {
         // Self rides the disabled channel with the concrete reason, so a
         // picker showing the WHOLE hand never leaves it a mute grey card.
         disabled: [{card: this, reason: 'This card is being played'}],
+        // The live prompt is `DiscardCards` — a DISCARD of this card's (its
+        // `discardPrompt` marker): the answer is addressed to exactly that, so
+        // no other question of the play (Olympus Conference on the science
+        // tag) ever meets it, and the discard itself never asks twice.
+        for: {role: 'discard', source: cardSource(this)},
       }) :
       undefined;
     return actionPreviews.playPreview(this, player, [

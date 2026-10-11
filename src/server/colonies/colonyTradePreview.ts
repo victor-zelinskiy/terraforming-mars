@@ -1,3 +1,4 @@
+import {roleOf} from '../../common/inputs/preselectAddress';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
 import {buildBenefitAt, tradeBenefitAt, tradeFixedIncome, colonyCardResources, ColonyMetadata} from '../../common/colonies/ColonyMetadata';
@@ -444,5 +445,7 @@ export function cardTargetFollowUpOf(
   if (pick === undefined) {
     return {kind: 'cardTarget', role, resource, ...several, amount, auto: cards[0].name, ...vpSteps, lost: false};
   }
-  return {kind: 'cardTarget', role, resource, ...several, amount, pick, ...vpSteps, lost: false};
+  // The address the live prompt will carry: the SAME action's cause (`markChoiceContext({source: cause})`) and role.
+  const address = action.options.cause === undefined ? {} : {for: {role: roleOf(pick), source: action.options.cause}};
+  return {kind: 'cardTarget', role, resource, ...several, amount, pick, ...vpSteps, lost: false, ...address};
 }

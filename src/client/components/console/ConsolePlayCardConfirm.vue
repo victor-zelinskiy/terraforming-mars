@@ -3976,6 +3976,8 @@ export default defineComponent({
         }),
         // HOW MANY CARDS this play PROMISES — the same structural read every
         // other workspace uses (a `cards` gain in the chosen branch). A HINT
+        // The branch slot's pre-select address — the server's (`ActionPreviewBranch.for`).
+        branchFor: b.for,
         // for the arrival's size, never a gate: the workspace claims its
         // follow-up either way, because a triggered effect (Point Luna's Earth
         // tag) draws cards no preview can advertise.

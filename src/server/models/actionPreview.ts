@@ -21,6 +21,7 @@ import {cardSource} from '../inputs/choiceContext';
 import * as actionPreviews from '../cards/actionPreviews';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {drawSearchOf} from '../deferredActions/drawSearch';
+import {withPreselectAddresses} from './preselectAddresses';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -42,7 +43,8 @@ import {drawSearchOf} from '../deferredActions/drawSearch';
  * (which add `card.warnings`) — only read-only checks + pure model construction.
  */
 export function actionPreview(player: IPlayer, card: ICard & IActionCard): ActionPreview {
-  return withImpliedRatings(actionPreviewOf(player, card));
+  // …and every step addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
+  return withPreselectAddresses(withImpliedRatings(actionPreviewOf(player, card)));
 }
 
 /**
@@ -670,6 +672,15 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // (the SAME order `Executor.execute` defers them) so the batched picks line up.
   for (const a of addToAnyCardList(behavior)) {
     const count = ctx.count(a.count);
+    // A COUNTED addition that counts ZERO (Hydrogen to Venus with no Jovian
+    // tag) is not deferred at all — `Executor.execute` queues
+    // `AddResourcesToCard` only for `count > 0` — so there is no pick to
+    // collect and nothing lost to warn about. A picker here was a promise the
+    // live play never kept: its answer parked behind a prompt that never came
+    // (the replay guard, `cardPlayReplayCoverage`, 2026-10-11).
+    if (count <= 0) {
+      continue;
+    }
     // ONE instance, asked twice: the candidate set the VP reading is computed
     // over is then the set the picker presents BY CONSTRUCTION, rather than by
     // two separate constructions that happen to agree today.

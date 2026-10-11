@@ -5098,6 +5098,7 @@ export default defineComponent({
           this.stageRewardDraft === undefined && workspaceStackRootKind() === 'card-actions') {
         this.$emit('staged-vote', {
           branchIndex: branch.index,
+          branchFor: branch.for,
           preResponses: orderedPreResponses(this.preview, this.capturedPre),
           optionResponse: this.capturedOption,
           stepResponses: orderedStepResponses(branch, this.captured),
@@ -5128,6 +5129,7 @@ export default defineComponent({
         if (stagedStep !== undefined && stagedStep.kind === 'boardPlacement' && stagedStep.staged !== undefined) {
           this.$emit('staged-placement', {
             branchIndex: branch.index,
+            branchFor: branch.for,
             preResponses: orderedPreResponses(this.preview, this.capturedPre),
             optionResponse: this.capturedOption,
             stepResponses: this.navigationDeferred ?
@@ -5159,6 +5161,8 @@ export default defineComponent({
       }
       this.$emit('confirm', {
         branchIndex: branch.index,
+        // The branch slot's pre-select address — the server's (`ActionPreviewBranch.for`).
+        branchFor: branch.for,
         preResponses: orderedPreResponses(this.preview, this.capturedPre),
         optionResponse: this.capturedOption,
         // The repeat step (Viron) is NEVER a plain captured step — it rides the

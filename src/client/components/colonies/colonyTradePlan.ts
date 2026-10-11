@@ -35,6 +35,7 @@ import {
   ColonyTradeFollowUpModel, ColonyTradeFollowUpRole, ColonyTradePreviewModel, TradePaymentPreviewModel,
 } from '@/common/models/ColonyTradePreviewModel';
 import {SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
+import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 
 // ── Interactive pre-collect steps ────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ export type TradeStep =
       resources?: ReadonlyArray<string>,
       amount: number,
       pick: SelectCardModel,
+      /** The pick answer's address (the server's — `ColonyTradeFollowUpModel.for`). */
+      for?: PreselectAddress,
     };
 
 /** The interactive steps ONE follow-up list contributes, in its own order. */
@@ -70,6 +73,7 @@ function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Arra
         ...(followUp.resources !== undefined ? {resources: followUp.resources} : {}),
         amount: followUp.amount,
         pick: followUp.pick,
+        ...(followUp.for !== undefined ? {for: followUp.for} : {}),
       });
     }
   }
@@ -198,7 +202,8 @@ export function stepResponse(step: TradeStep, capture: unknown): InputResponse |
   case 'trackChoice':
     return capture === undefined ? undefined : trackChoiceResponse(step.steps, capture as number);
   case 'cardTarget':
-    return capture === undefined ? undefined : {type: 'card', cards: [capture as CardName]};
+    // ADDRESSED: the reward's own pick — never offered to a question of another asker in front of it.
+    return capture === undefined ? undefined : addressed<InputResponse>({type: 'card', cards: [capture as CardName]}, step.for);
   default:
     return undefined;
   }

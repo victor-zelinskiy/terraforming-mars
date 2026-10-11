@@ -152,6 +152,7 @@ export function repeatComposedResponses(composed: RepeatComposed): Array<unknown
     cardName: CardName.DELTA_PROJECT, // unused: the empty prefix wins
     prefix: [],
     branchIndex: composed.branchIndex,
+    branchFor: composed.branchFor,
     preResponses: composed.preResponses,
     optionResponse: composed.optionResponse,
     stepResponses: composed.stepResponses,

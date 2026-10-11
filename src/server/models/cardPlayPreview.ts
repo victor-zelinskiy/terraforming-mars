@@ -11,6 +11,7 @@ import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep, StagedPlacementModel} from '../../common/models/ActionPreviewModel';
 import {deriveOrBranches, effectsForBehavior, stepsForBehavior, withImpliedRatings} from './actionPreview';
+import {withPreselectAddresses} from './preselectAddresses';
 import {stagedMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {message} from '../logs/MessageBuilder';
 
@@ -107,8 +108,9 @@ function offeredCorporation(player: IPlayer, name: CardName): ICard | undefined 
 }
 
 export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
-  // The door's ONE exit pass (PL-147): a scale step's own rating stated after the scale, hook or declaration alike.
-  return withImpliedRatings(cardPlayPreviewOf(player, card));
+  // The door's ONE exit pass (PL-147): a scale step's own rating stated after the scale, hook or declaration alike —
+  // and every step addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
+  return withPreselectAddresses(withImpliedRatings(cardPlayPreviewOf(player, card)));
 }
 
 function cardPlayPreviewOf(player: IPlayer, card: ICard): ActionPreview {

@@ -1,3 +1,4 @@
+import type {PreselectAddress} from '../inputs/preselectAddress';
 import {ColonyName} from '../colonies/ColonyName';
 import {CardName} from '../cards/CardName';
 import {CardResource} from '../CardResource';
@@ -86,6 +87,13 @@ export type ColonyTradeFollowUpModel =
       vpSteps?: Partial<Record<CardName, ReadonlyArray<VictoryPointsDelta>>>,
       /** No eligible card — the resource is NOT added (honest warning). */
       lost: boolean,
+      /**
+       * THE ADDRESS of the pick's answer — the live `AddResourcesToCard`'s own
+       * cause and role (`common/inputs/preselectAddress.ts`): the trade composer
+       * stamps it on the target it collects, so a question of another asker in
+       * front of it (a colony owner's «draw 1, then discard 1») never meets it.
+       */
+      for?: PreselectAddress,
     }
   | {kind: 'note', role: ColonyTradeFollowUpRole, note: ColonyTradeNoteKind};
 
