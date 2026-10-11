@@ -92,6 +92,20 @@ export function seedDeckDisplay(value: number): boolean {
   return true;
 }
 
+/**
+ * TAKE THE SEED OVER as an owner's hold (same value) — for an owner whose cards do not FLY off the deck but whose
+ * counter must still answer at its own beat: a settlement table's sealed card, drawn by the server now, turns over
+ * in place and the counter ticks with the turn (colony polish 1). Returns false when there is no seed to adopt
+ * (the counter already shows the server's number — nothing to hold).
+ */
+export function adoptDeckSeed(): boolean {
+  if (!deckHoldState.seeded) {
+    return false;
+  }
+  deckHoldState.seeded = false;
+  return true;
+}
+
 /** Drop the SEED only — a hold some flight has taken over is never touched. */
 export function releaseDeckSeed(): void {
   if (deckHoldState.seeded) {

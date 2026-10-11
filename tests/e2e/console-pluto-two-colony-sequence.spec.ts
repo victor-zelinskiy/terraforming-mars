@@ -145,8 +145,16 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   // script to cycle 2 — a NEW batch id, exactly as a sealed batch produces.
   let cycle = 1;
   let base: Record<string, unknown> | undefined;
+  // ⚠️ THE STUB REMOVES THE CARD THE PLAYER ACTUALLY DISCARDED. It used to drop `cardsInHand[0]` whatever was
+  // submitted — and the album's first selectable card is not the server's first card, so the discard scene's
+  // DETECT (`discardedFromHand`) saw the chosen card still in the hand, read «the answer did not take» and
+  // ABORTED without handing the room back: `discardStage` stranded true under the NEXT cycle's marker. That was
+  // this spec's «second cycle never presents» (10 of 10 runs on 2026-10-11) — a stub contradicting its own answer
+  // (tests.md § A STUBBED SERVER MUST STAY CONSISTENT), and behind it a real product hole (the stranded release
+  // did not know a newer cycle's marker): see `colonyDiscardStageStranded`.
+  let discarded: string | undefined;
   const script = (body: Record<string, unknown>): Record<string, unknown> => {
-    const hand = ((body.cardsInHand ?? []) as Array<{name: string}>).slice(cycle === 1 ? 0 : 1);
+    const hand = ((body.cardsInHand ?? []) as Array<{name: string}>).filter((c) => cycle === 1 || c.name !== discarded);
     return {
       ...body,
       cardsInHand: hand,
@@ -181,6 +189,8 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   // would simply stay up. The answer advances the script and hands back the
   // NEXT cycle, exactly as the server's own sealed batch does.
   await page.route('**/player/input*', async (route) => {
+    const answer = route.request().postDataJSON() as {cards?: Array<string>} | null;
+    discarded = answer?.cards?.[0];
     cycle = 2;
     await route.fulfill({
       status: 200,
@@ -198,10 +208,11 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await page.waitForTimeout(3200);
   await shoot(page, 'cycle-1');
 
-  // 1 · CYCLE 1 STANDS ALONE — one active zone, one future zone, one card.
+  // 1 · CYCLE 1 — one active zone, one SEALED place (its card lies face-down under the seal), one open card.
   expect(await page.locator('.con-reveal__bonus-zone').count(), 'one zone per cube').toBe(2);
   expect(await page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
-  expect(await page.locator('.con-reveal__bonus-zone--future').count()).toBe(1);
+  expect(await page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(1);
+  await expect(page.locator('.con-reveal__bonus-zone--sealed [data-settlement-seal]'), 'the sealed place wears its seal').toHaveCount(1);
 
   // 2 · take it, then open the discard step.
   await page.keyboard.press('Escape'); // B = take all
@@ -210,7 +221,8 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1400);
   await shoot(page, 'discard-1');
-  expect(await page.locator('.con-reveal').count(), 'the step releases the modal').toBe(0);
+  // THE TABLE PARKS, it does not unmount (colony polish 1): it waits under the receded stage, unseen.
+  expect(await page.locator('.con-reveal:visible').count(), 'the step hides the table').toBe(0);
 
   // 3 · answer the discard — the response carries cycle 2. A is the discard
   //     itself here (the hand's single-select verb); the press is repeated
@@ -224,7 +236,7 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   // frame: indistinguishable from the product fault this spec exists for, and
   // ~20 % of runs (`--repeat-each`). Both exits are checked BEFORE every press.
   const handGone = async () => await page.locator('.con-hand').count() === 0;
-  const nextCycleUp = async () => await page.locator('.con-reveal').count() > 0;
+  const nextCycleUp = async () => await page.locator('.con-reveal:visible').count() > 0;
   for (let i = 0; i < 6; i++) {
     if (await handGone() || await nextCycleUp()) {
       break;
@@ -255,59 +267,17 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   //     seal makes impossible — `ColonyTradeManifest.spec.ts` guards that half).
   const zoneUp = await page.locator('.con-reveal__bonus-zone--active')
     .waitFor({state: 'visible', timeout: 30_000}).then(() => true).catch(() => false);
-  if (zoneUp) {
-    expect(await page.locator('.con-reveal__bonus-zone--done').count(), 'colony 1 is finished').toBe(1);
-    expect(await page.locator('.con-reveal__strip .con-cards__slot :is(.pcard, .card-container)').count(),
-      'exactly one card is on the table').toBe(1);
-  } else {
-    // ⚠️ KNOWN OPEN DEFECT, deliberately not asserted here — see the
-    // `test.fixme` below, which owns the claim and carries the evidence. This
-    // spec's subject is the ARRIVAL COUNT (step 4), and that holds in every
-    // run; failing it on a different fault would only hide the one it guards.
-    console.log('[known] cycle 2 did not present — surfaces:',
-      JSON.stringify(await surfaces(page)), 'console:', JSON.stringify(log.slice(-14)));
+  if (!zoneUp) {
+    console.log('cycle 2 did not present — surfaces:', JSON.stringify(await surfaces(page)), 'console:', JSON.stringify(log.slice(-14)),
+      'decision:', JSON.stringify(await page.evaluate(() =>
+        (window as unknown as {__conColonyDiag?: () => {revealDecision?: unknown}}).__conColonyDiag?.() ?? null)));
   }
-});
-
-/**
- * KNOWN OPEN DEFECT — the SECOND cycle's payout sometimes never presents.
- *
- * Reproduced by the flow above at ~25–30 % of runs (`--repeat-each=10`, four
- * separate measurements), always in exactly one state:
- *
- *   roots           ["con-colonies"]          — only the section is painted
- *   browseYielded   true                      — the grid has stepped aside
- *   embedZone       true                      — the claim is live and OURS
- *   slots           ["colonies-reveal"]       — its zone IS published
- *   crumb           «КОЛОНИИ › ПЛУТОН › БОНУС ВЛАДЕЛЬЦА»
- *   bar             «ТОРГОВЛЯ · A ВЫБРАТЬ · B НА ПОЛЕ»   (the browse bar)
- *
- * i.e. the workspace stands, the room is prepared and published, and the reveal
- * overlay is simply NOT MOUNTED — with a mandatory discard owed for the second
- * settlement and no surface anywhere to answer it. The console's own
- * diagnostics say nothing (`[console-leak-detector]` is disarmed by the live
- * claim, so the leak detector believes the batch is served).
- *
- * Four candidate holders were bounded in the course of this iteration and NONE
- * of them is the cause (the rate is unchanged by each):
- *   · `colonyResolutionUi.discardStage` stranded up — now released from a
- *     DERIVED fact (`ConsoleShell.colonyDiscardStageStranded`);
- *   · the resolution's falling edge firing in the gap BETWEEN two cycles — now
- *     bridged by the server's own ordinal (`colonyBonusSequence`);
- *   · the scene-exit barrier (`revealHeldForWorkspace`) holding forever on a
- *     missed completion — now bounded (`REVEAL_EXIT_BARRIER_NET_MS`);
- *   · the deck-draw scene stalling before it deals (its rAF probes starve on a
- *     quiet compositor) — probes now tick through `probeTick`, and the
- *     withholding window has its own `DEAL_START_SAFETY_MS`.
- *
- * Each of those was a real unbounded hold and each is worth keeping; the
- * remaining one is still unidentified. Next step for whoever picks this up:
- * instrument the shell's `consoleRevealMode` decision directly (which of
- * `revealHeldForWorkspace` / `rawDrawnRevealPending` / `currentRevealEvent()`
- * answers wrongly) rather than inferring it from the DOM — every DOM-visible
- * term has now been eliminated.
- */
-test.fixme('the second cycle always presents inside the workspace', async () => {
-  // Intentionally empty: the claim is stated above and reproduced by the flow
-  // in the test before it. Enable this once the holder is identified.
+  // THE SECOND CYCLE ALWAYS PRESENTS INSIDE THE WORKSPACE (colony polish 1 — this was the `test.fixme`, «K-1»).
+  // Its cause had two halves: this spec's stub removed a card the player had not discarded (fixed above), and the
+  // product's stranded-stage net could not see a NEWER cycle's marker (`discardStageStrandedFor`, spec'd in
+  // `tests/console/settlementTable.spec.ts`) — so any discard scene that aborted left the stage up forever.
+  expect(zoneUp, 'cycle 2 presents its place inside the colony workspace').toBe(true);
+  expect(await page.locator('.con-reveal__bonus-zone--done').count(), 'colony 1 is finished').toBe(1);
+  expect(await page.locator('.con-reveal__strip .con-cards__slot :is(.pcard, .card-container)').count(),
+    'exactly one card is on the table').toBe(1);
 });

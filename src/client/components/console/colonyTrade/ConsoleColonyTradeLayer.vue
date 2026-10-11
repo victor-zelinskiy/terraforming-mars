@@ -21,10 +21,14 @@
   <div class="con-coltrade-layer" aria-hidden="true">
     <div v-for="(cover, i) in covers" :key="coverNonce + '|' + cover.name + '#' + i"
          class="con-coltrade-proxy"
+         :class="{'con-coltrade-proxy--sealed': cover.sealedPlace !== undefined}"
+         :data-sealed-place="cover.sealedPlace"
          :ref="(el) => setProxyRef(el, i)">
       <div class="con-deal-proxy__flip" :ref="(el) => setFlipRef(el, i)">
+        <!-- A SEALED place's cover carries no face: the server has not drawn that card yet (hidden information —
+             no name, no art, nothing the DOM could leak). -->
         <div class="con-deal-proxy__face">
-          <ConsoleCardFaceLite :name="cover.name" />
+          <ConsoleCardFaceLite v-if="cover.name !== ''" :name="cover.name" />
         </div>
         <div class="con-deal-proxy__back">
           <div class="con-card-back con-card-back--flyer"></div>
@@ -61,6 +65,7 @@ import {
   tradeCoverPlan, TradeCoverPlanEntry,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 import {colonyResolutionUi, clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
+import {noteSettlementDealt, settlementClaimsBatch, settlementPlacesToDeal} from '@/client/console/colonyTrade/settlementTable';
 import {
   RectLike, runColonyTrackGlide, runTradeCoverFlight, runTradeCoversHandoff, TradeDirectorHandle,
 } from '@/client/console/colonyTrade/colonyTradeDirector';
@@ -71,7 +76,8 @@ const CARD_NATURAL_H = 460;
 /** How long we wait for the chip waves to clear the stage before the covers fly. */
 const CHIP_WAIT_MAX_MS = 8_000;
 
-type CoverCard = {name: CardName, role: 'income' | 'bonus'};
+/** One flying cover: a real card ('' name + `sealedPlace` for a settlement table's later place — no face). */
+type CoverCard = {name: CardName | '', role: 'income' | 'bonus', sealedPlace?: number};
 
 /** Read a fresh, stable rect (bounded rAF double-probe — layout settled). */
 function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
@@ -357,6 +363,12 @@ export default defineComponent({
       if (e === undefined || isColonyTradeRevealStaged(e.id) || !colonyTradeClaimsReveal(e.source)) {
         return undefined;
       }
+      // A LATER SETTLEMENT'S CARD IS NOT DEALT AGAIN (colony polish 1): it has been lying face-down on the table
+      // under its seal since the first payout — the table turns it over IN PLACE (`settlementClaimsBatch`). Flying
+      // a fresh cover from the colony to that place was the owner's reported second deal.
+      if (settlementClaimsBatch(e.source)) {
+        return undefined;
+      }
       return e;
     },
   },
@@ -480,8 +492,13 @@ export default defineComponent({
       // zone opened — i.e. before a single card of it had moved, which is the
       // «dissolve at the claim» the whole cue exists to replace.
       clearColonyPayoutLiftOff();
-      const plan = tradeCoverPlan(e.cards.length, e.tradeSegments);
-      this.covers = plan.map((p) => ({name: e.cards[p.index].name, role: p.role}));
+      // THE SETTLEMENT TABLE's later places are dealt WITH the first payout — one cover per settlement off the
+      // printed «БОНУС ВЛАДЕЛЬЦА» card, the later ones face-down (`tradeCoverPlan` § sealedPlaces).
+      const sealedPlaces = settlementPlacesToDeal(colonyTradeState.colonyName);
+      const plan = tradeCoverPlan(e.cards.length, e.tradeSegments, sealedPlaces);
+      this.covers = plan.map((p) => p.sealedPlace !== undefined ?
+        {name: '' as const, role: 'bonus' as const, sealedPlace: p.sealedPlace} :
+        {name: e.cards[p.index].name, role: p.role});
       this.coverNonce++;
       this.proxyRefs = [];
       this.flipRefs = [];
@@ -562,9 +579,15 @@ export default defineComponent({
       // Multi-card: the reveal is mounting VEILED — measure its real slots, as
       // ONE row and only once it stands still (see `waitForStandingSlots`).
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+      // …and every SEALED place the deal lays a face-down card in (its body — the very element that will turn over
+      // in place when its turn comes). Measured with the row as ONE object, like the slots.
       const targets = await waitForStandingSlots(
-        () => keys.map((key) => document.querySelector<HTMLElement>(
-          `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`)),
+        () => [
+          ...keys.map((key) => document.querySelector<HTMLElement>(
+            `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`)),
+          ...sealedPlaces.map((place) => document.querySelector<HTMLElement>(
+            `.con-reveal [data-settlement-body="${place}"]`)),
+        ],
         colonyTradeState.reducedMotion ? 0 : motionMs(SLOTS_STANDING_WAIT_MS),
       );
       if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {
@@ -593,7 +616,9 @@ export default defineComponent({
       plan.forEach((p, i) => {
         const proxy = this.proxyRefs[i];
         const flip = this.flipRefs[i];
-        const target = targets[p.index];
+        const target = p.sealedPlace !== undefined ?
+          targets[keys.length + sealedPlaces.indexOf(p.sealedPlace)] :
+          targets[p.index];
         const from = (p.role === 'bonus' ? bonusRect : incomeRect) ?? incomeRect ?? bonusRect;
         if (proxy === null || proxy === undefined || flip === null || flip === undefined ||
             target === undefined || from === undefined) {
@@ -615,10 +640,12 @@ export default defineComponent({
           fanIndex: p.fanIndex,
           fanCount: p.fanCount,
           reduced: colonyTradeState.reducedMotion,
+          // A sealed place's card is NOT known — it lies down as it flew, face-down, under its seal.
+          sealed: p.sealedPlace !== undefined,
           onLanded: () => {
             landed++;
             if (landed >= plan.length) {
-              this.frameAndHandoff();
+              this.frameAndHandoff(sealedPlaces);
             }
           },
         }));
@@ -672,7 +699,7 @@ export default defineComponent({
         markColonyPayoutLiftOff(); // reduced motion: the cue is immediate
       }
       if (plan.length === 0) {
-        this.frameAndHandoff();
+        this.frameAndHandoff(sealedPlaces);
       }
     },
 
@@ -720,7 +747,7 @@ export default defineComponent({
 
     /** The frame materializes around the landed covers, then the real cards
      *  are released UNDER them and the proxies dissolve above. */
-    frameAndHandoff(): void {
+    frameAndHandoff(sealedPlaces: ReadonlyArray<number> = []): void {
       if (!colonyTradeState.active) {
         return;
       }
@@ -729,6 +756,9 @@ export default defineComponent({
         if (!colonyTradeState.active) {
           return;
         }
+        // The sealed places' cards now LIE on the table: their bodies are released under the landed covers in the
+        // same beat as every real card (the hold drops with the handoff).
+        noteSettlementDealt(sealedPlaces);
         setColonyTradeCardScene('handoff');
         ctx.handles.push(runTradeCoversHandoff({
           proxies: this.proxyEls(),
@@ -747,6 +777,8 @@ export default defineComponent({
 
     /** Honest degrade: unveil + release instantly, no flight, no teleport. */
     degradeToInstant(): void {
+      // The sealed places LIE on the table all the same — nothing flew, but the table must not stand without them.
+      noteSettlementDealt(settlementPlacesToDeal(colonyTradeState.colonyName));
       this.covers = [];
       setColonyTradeCardScene('idle');
       // Nothing flew — the stage's cue belongs to the flight, so it must not
@@ -836,6 +868,8 @@ export default defineComponent({
 
     teardown(): void {
       clearScene();
+      // An aborted deal still leaves the table whole (its sealed places stand, never invisible forever).
+      noteSettlementDealt(settlementPlacesToDeal(colonyTradeState.colonyName));
       const els = this.proxyEls();
       if (els.length > 0) {
         gsap.set(els, {autoAlpha: 0});

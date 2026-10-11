@@ -105,10 +105,15 @@
         background: linear-gradient(180deg, fade(@con-mint, 9%), fade(@con-mint, 2%) 72%);
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%), 0 0 1.1rem fade(@con-mint, 12%);
     }
-    /* Not started: its card is not even drawn yet — quiet and inert. */
-    &--future {
+    /* Not started: its card is not even drawn yet — quiet and inert. (A SETTLEMENT TABLE's sealed place is a real
+       card lying there under its seal: it stays nearly fully lit — the seal, not a dim, says «not yet».) */
+    &--sealed {
         filter: saturate(0.5);
         opacity: 0.62;
+    }
+    &--sealed&--table {
+        filter: none;
+        opacity: 1;
     }
     /* Paid out and discarded for — it settles into the background. */
     &--done {
@@ -132,6 +137,9 @@
     background: rgba(10, 18, 26, 0.94);
     box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%);
     pointer-events: none;
+    /* Over its own card's focus lift: the focused slot is a transformed box later in the zone, and without a z it
+       painted over the caption that names it («БОНУС КОЛОНИИ 2/2» half-covered at 4K — colony polish 1). */
+    z-index: 2;
     /* Arrives with the frame it captions (held by `--bonus-held`). */
     transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
 }
@@ -352,12 +360,228 @@
     color: fade(@con-mint, 72%);
     text-shadow: 0 0 1.2rem fade(@con-mint, 30%);
 }
-.con-reveal__bonus-wait {
-    max-width: 20rem;
-    text-align: center;
-    font-size: .6rem;
-    line-height: 1.3;
-    color: @con-text-dim;
+/* ── THE SETTLEMENT TABLE (colony polish 1 — `colonyTrade/settlementTable.ts`) ─────────────────────────────────
+   Every place of a multi-settlement payout is ONE physical card body for the whole resolution (Card3DInner: the
+   outer projects — `.con-card3d-outer` — the body only rotates). Face-down under its SEAL from the first deal,
+   it turns over IN PLACE, once, when the rule opens it. keep-px: the premium face is a 320×460 px design box and
+   the slot's own `zoom` scales it (the socket's own reasoning). */
+.con-reveal__placeslot,
+.con-reveal__incslot {
+    position: relative;
+}
+.con-reveal__place {
+    position: relative;
+    display: block;
+    width: 320px; /* keep-px */
+    height: 460px; /* keep-px */
+    /* The outer is FLAT by construction — the only element of the body that may fade (the deal's hold, the
+       release under a landed cover). Never the body. */
+    transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+}
+/* A taken / discarded-for / not-yet-arrived place shows its SOCKET: the body keeps the box, unseen. */
+.con-reveal__place--gone {
+    visibility: hidden;
+}
+/* The face-down REST pose (CSS); the in-place turn's GSAP takes over from it and hands back face-up. */
+.con-reveal__placebody--down {
+    transform: rotateY(180deg);
+}
+.con-reveal__placeface > :is(.card-container, .pcard) {
+    margin: 0;
+}
+.con-reveal__placeback .con-card-back {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: .55rem;
+    box-shadow: 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
+}
+/* The socket of a place / an income card stands EXACTLY on the card's box (absolute over the body it replaces),
+   so nothing in the row resizes or moves when a card leaves. */
+.con-reveal__placeslot > .con-reveal__bonus-socket {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+.con-reveal__incslot--taken {
+    pointer-events: none;
+}
+/* The one-shot light sweep as the face comes round (the shared primitive — one language with every turn). */
+.con-reveal__place--revealing .con-reveal__placeface::after {
+    .con-card-reveal-glint();
+}
+
+/* THE SEAL — the rule as an OBJECT: a heavy, cold steel lock on the card's back (never cyan — not a pre-commit
+   choice; never amber — not past a commit; it is the table's own rule). A disc with a real rim and a lock, the
+   place's number struck under it. Sized against the card box (keep-px, inside the slot's zoom). */
+.con-reveal__seal {
+    position: absolute;
+    left: 50%;
+    top: 47%;
+    width: 150px; /* keep-px */
+    height: 150px; /* keep-px */
+    margin: -75px 0 0 -75px; /* keep-px */
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 38%),
+        radial-gradient(circle at 50% 55%, #a9b4bf 0%, #7d8995 46%, #4f5a65 78%, #333b44 100%);
+    box-shadow:
+        inset 0 0 0 7px rgba(255, 255, 255, 0.16),
+        inset 0 0 0 9px rgba(20, 26, 32, 0.55),
+        inset 0 -14px 22px rgba(0, 0, 0, 0.38),
+        0 12px 28px rgba(0, 0, 0, 0.6);
+}
+.con-reveal__seal-lock {
+    width: 74px; /* keep-px */
+    height: 74px; /* keep-px */
+    margin-top: -14px; /* keep-px */
+    fill: none;
+    stroke: #1b2229;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.con-reveal__seal-body {
+    fill: #2a323a;
+    stroke: #121820;
+}
+.con-reveal__seal-hole {
+    fill: #9aa5b0;
+    stroke: none;
+}
+.con-reveal__seal-num {
+    position: absolute;
+    bottom: 18px; /* keep-px */
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 30px; /* keep-px */
+    font-weight: 800;
+    line-height: 1;
+    color: #eef3f7;
+    letter-spacing: 0;
+}
+/* THE SEAL BREAKS — the discard it waited for touched down on «СБРОШЕННЫЕ»: the shackle springs open, the disc
+   lets go (one short physical beat — a lock opening, never a flash), and the card under it is free to turn. */
+.con-reveal__seal--breaking {
+    animation: con-seal-break calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.7, 0.3, 1) 1 both;
+
+    .con-reveal__seal-shackle {
+        transform-box: fill-box;
+        transform-origin: 100% 100%;
+        animation: con-seal-shackle calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.4) 1 both;
+    }
+}
+@keyframes con-seal-break {
+    0% { transform: scale(1); opacity: 1; }
+    34% { transform: scale(1.07); opacity: 1; }
+    100% { transform: scale(0.84) translateY(-12px); opacity: 0; } /* keep-px: inside the card box's zoom */
+}
+@keyframes con-seal-shackle {
+    0% { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-3px) rotate(32deg); } /* keep-px: an SVG user-space offset */
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-reveal__seal--breaking,
+    .con-reveal__seal--breaking .con-reveal__seal-shackle { animation: none; }
+}
+/* THE SEAL'S CONDITION — under the place, couch-readable: what opens it (−1 card, the discard) and for which
+   bonus. A short steel link reaches LEFT to the place whose discard it waits for. */
+.con-reveal__sealcond {
+    position: static;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    max-width: 22rem;
+    padding: .22rem .7rem .24rem;
+    border-radius: .5rem;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: .04rem;
+    color: #d5dde5;
+    background: linear-gradient(180deg, rgba(150, 165, 180, 0.16), rgba(60, 70, 82, 0.22));
+    box-shadow: inset 0 0 0 .05rem rgba(190, 205, 220, 0.34);
+    /* Arrives with the table it belongs to (held by `--bonus-held` while the deal flies). */
+    transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+}
+.con-reveal__sealcond-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: .15rem;
+    padding: .02rem .35rem;
+    border-radius: .35rem;
+    font-size: .78rem;
+    font-weight: 800;
+    color: #ffd9c2;
+    background: rgba(40, 16, 10, 0.45);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 170, 130, 0.35);
+
+    .resource_icon {
+        width: 1rem;
+        height: 1.25rem;
+        background-size: contain;
+    }
+}
+.con-reveal__sealcond-text {
+    white-space: nowrap;
+}
+.con-reveal__sealcond-link {
+    position: absolute;
+    right: 100%;
+    top: 46%;
+    width: 2.6rem;
+    height: .16rem;
+    margin-top: -.08rem;
+    border-radius: .1rem;
+    background: repeating-linear-gradient(90deg, rgba(190, 205, 220, 0.75) 0 .45rem, transparent .45rem .65rem);
+    box-shadow: 0 0 .4rem rgba(150, 175, 200, 0.25);
+    pointer-events: none;
+}
+/* A TABLE place's line has ONE height in every state (see the template: a centred zone column whose line came and
+   went moved the place above it), and a place with nothing to say keeps the box, unseen. */
+.con-reveal__sealcond--table {
+    box-sizing: border-box;
+    height: 1.85rem;
+}
+.con-reveal__sealcond--blank {
+    visibility: hidden;
+}
+/* The current place, TAKEN, its discard owed — a quiet note, the ✓ is in the socket above. */
+.con-reveal__sealcond--owed {
+    color: fade(@con-mint, 92%);
+    background: linear-gradient(180deg, fade(@con-mint, 10%), rgba(8, 14, 20, 0.4));
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 32%);
+}
+/* The status line's reading of a sealed place under the cursor. */
+.con-reveal__sealreading {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    color: #d5dde5;
+}
+.con-reveal__sealreading-lock {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: #c8d2dc;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+/* The deal's hold: a place whose cover is still in the air holds nothing of its own (one object per card), and
+   its condition arrives with the table. */
+.con-reveal--bonus-held {
+    .con-reveal__place,
+    .con-reveal__sealcond {
+        opacity: 0 !important;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-reveal__place,
+    .con-reveal__sealcond { transition: none; }
+    .con-reveal__place--revealing .con-reveal__placeface::after { animation: none; opacity: 0; }
 }
 
 /* ── THE FLIP CHASSIS ──────────────────────────────────────────────────

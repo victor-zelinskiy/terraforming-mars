@@ -29,16 +29,31 @@
  *   'conditional-reveal' the OPENING IS THE GAME EVENT (Search For Life and
  *                        friends: draw a card, then check it). Face-down
  *                        arrival, a deliberate beat, then one accented turn.
- *                        This is the ONLY mode allowed to flip after landing,
- *                        and it is chosen because the action is a deck CHECK —
- *                        never because a response happened to be late.
+ *                        Chosen because the action is a deck CHECK — never
+ *                        because a response happened to be late.
+ *   'sealed-reveal'      THE CARD IS SEALED BY A RULE (colony polish 1 — several
+ *                        settlements on Pluto: each pays «draw 1, then discard
+ *                        1», and the next card is drawn only once the previous
+ *                        discard is answered). The card arrived LONG AGO: it was
+ *                        dealt face-down with the first payout and has been
+ *                        lying on the table under its seal. When the RULE opens
+ *                        it (the server's marker reaches its place and the
+ *                        batch carrying its face lands) it does not fly again —
+ *                        it turns over IN PLACE, once: a short beat face-down
+ *                        (the eye finds the card it already knows), then the
+ *                        turn. Chosen by the SEQUENCE (the place was sealed —
+ *                        `settlementTable.settlementArrival`), never by a late
+ *                        response.
+ *
+ * Only the last two may turn a card after it has landed, and both say WHY in
+ * the game's own terms — a check, a seal. Every other arrival turns in the air.
  *
  * Everything here is BASE milliseconds — the director resolves through
  * motionMs() so the whole choreography follows the fork-wide speed presets.
  */
 
 /** How this batch is allowed to open. See the header for the semantics. */
-export type CardArrivalMode = 'in-flight-reveal' | 'awaiting-data' | 'conditional-reveal';
+export type CardArrivalMode = 'in-flight-reveal' | 'awaiting-data' | 'conditional-reveal' | 'sealed-reveal';
 
 export type CardArrivalContext = {
   /**
@@ -49,18 +64,42 @@ export type CardArrivalContext = {
   kinds: ReadonlyArray<string>;
   /** Are the actual card faces renderable at launch time? */
   dataReady: boolean;
+  /**
+   * The card already LIES on the table face-down under a rule's seal (a later
+   * settlement's place, dealt with the first payout) — the sequence says so,
+   * never the clock. See 'sealed-reveal'.
+   */
+  sealedPlace?: boolean;
 };
 
 /**
  * THE mode resolver. Deliberately total and pure so the choice is auditable:
- * a deck check is always the deliberate reveal, and nothing else may ever
- * become one just because the server was slow.
+ * a sealed place and a deck check are the two deliberate in-place turns, and
+ * nothing else may ever become one just because the server was slow.
  */
 export function resolveCardArrivalMode(ctx: CardArrivalContext): CardArrivalMode {
+  if (ctx.sealedPlace === true) {
+    return 'sealed-reveal';
+  }
   if (ctx.kinds.includes('deck-check')) {
     return 'conditional-reveal';
   }
   return ctx.dataReady ? 'in-flight-reveal' : 'awaiting-data';
+}
+
+/**
+ * THE SEALED PLACE'S TURN — no flight, no peel: a beat face-down (the eye finds
+ * the card it has been looking at all along), then the ONE turn in place. Base
+ * ms (the caller resolves through motionMs). Reduced motion keeps the beat
+ * short and the turn a turn (a face swap would be the artefact this replaces).
+ */
+export type SealedRevealPlan = {dwellMs: number, turnMs: number, totalMs: number};
+
+export function sealedRevealPlan(t: CardArrivalTimings): SealedRevealPlan {
+  // The turn of a card the player has WAITED for reads a touch slower than a
+  // deal's in-flight turn — it is the event, not part of a journey.
+  const turnMs = Math.round(t.turnMs * 1.25);
+  return {dwellMs: t.dwellMs, turnMs, totalMs: t.dwellMs + turnMs + t.settleMs};
 }
 
 export type CardArrivalTimings = {

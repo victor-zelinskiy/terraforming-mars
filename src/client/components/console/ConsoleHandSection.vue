@@ -103,6 +103,17 @@
         <span class="con-hand__discard-sep" aria-hidden="true">·</span>
         <span class="con-hand__discard-src">{{ discardSource }}</span>
         <span v-if="discard.sequence !== undefined" class="con-hand__discard-seq">{{ discardSequence }}</span>
+        <!-- THE SEALED BONUS THIS DISCARD OPENS (colony polish 1): the next settlement's card lies on the table
+             under its seal; the plate carries that same lock, so the choice reads as what it buys. -->
+        <span v-if="discardSealNext > 0" class="con-hand__discard-seal" data-hand-seal :data-hand-seal-place="discardSealNext">
+          <span class="con-hand__discard-sealcard" aria-hidden="true">
+            <span class="con-card-back"></span>
+            <svg class="con-hand__discard-seallock" viewBox="0 0 24 24">
+              <path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" /><rect x="5" y="10.5" width="14" height="10" rx="2.2" />
+            </svg>
+          </span>
+          <span class="con-hand__discard-sealtext">{{ discardSealText }}</span>
+        </span>
         <span v-if="discard.exchange !== undefined && selectPayout === undefined" class="con-hand__discard-swap">
           <b class="con-hand__discard-out">−{{ Math.max(1, discard.picked) }}</b>
           <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
@@ -230,6 +241,7 @@
                     :class="discard !== undefined ? 'con-cards__pickband--discard' : 'con-cards__pickband--select'"
                     aria-hidden="true">{{ discard !== undefined ? '⌫ ' + $t('Discarded') : '✓ ' + $t('Card selected') }}</span>
               <span v-else-if="selectActive && !isSelectable(cell.e.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
+              <span v-else-if="selectActive && isBonusFresh(cell.e.card.name)" class="con-hand__fresh" data-hand-fresh aria-hidden="true">{{ freshBonusText }}</span>
               <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(cell.e) || '') }}</span>
               <!-- THE WALK'S FORECAST (К-H1, the owner's decision 2026-10-10): a card that advances the Agenda marker
                    says HOW FAR before the composer opens — «[★] 2», the server's own reading of THIS player's walk
@@ -465,6 +477,8 @@ import {
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {readingText} from '@/client/console/readingText';
+import {colonyBonusFreshFor, colonyResolutionUi} from '@/client/console/colonyTrade/colonyResolution';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView, CardAvailabilityReasonView} from '@/client/console/cardAvailability';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {consoleState} from '@/client/console/consoleRouter';
@@ -865,6 +879,29 @@ export default defineComponent({
       }
       return translateTextWithParams('Colony bonus ${0} of ${1}', [String(seq.index), String(seq.total)]);
     },
+    /**
+     * THE NEXT SETTLEMENT this discard opens (0 = none): a colony bonus paid per settlement, not the last one —
+     * its card lies sealed until this discard is answered (`colonyTrade/settlementTable.ts`).
+     */
+    discardSealNext(): number {
+      const seq = this.discard?.sequence;
+      return seq !== undefined && seq.total > 1 && seq.index < seq.total ? seq.index + 1 : 0;
+    },
+    discardSealText(): string {
+      return readingText({label: 'opens bonus ${0}', params: [String(this.discardSealNext)]});
+    },
+    /**
+     * THE CARD THIS BONUS JUST BROUGHT IN wears «НОВАЯ · БОНУС N» while its discard is asked (К-4) — the player
+     * watched it go into the hand a moment ago and must be able to find it among the rest (or keep it). «НОВАЯ»
+     * alone for a single settlement: «бонус 1» would number a sequence that does not exist.
+     */
+    freshBonusText(): string {
+      const seq = this.discard?.sequence;
+      if (seq === undefined) {
+        return '';
+      }
+      return seq.total > 1 ? readingText({label: 'New · bonus ${0}', params: [String(seq.index)]}) : translateText('New card');
+    },
     discardExchangeIconClass(): string {
       return iconClassFor(this.discard?.exchange?.icon ?? 'cards');
     },
@@ -1252,6 +1289,14 @@ export default defineComponent({
     /** Select mode: is this card currently picked? */
     isSelectPicked(name: string): boolean {
       return this.select?.selected.includes(name) ?? false;
+    },
+    /** A colony-bonus discard: is this the card that cycle's bonus just brought in (К-4)? */
+    isBonusFresh(name: string): boolean {
+      const d = this.discard;
+      if (d === undefined || d.sequence === undefined || d.colonyName === undefined) {
+        return false;
+      }
+      return colonyBonusFreshFor(colonyResolutionUi.bonusFresh, {colonyName: d.colonyName, index: d.sequence.index}, name);
     },
     /** Select mode: the pre-translated «why not» reason for a non-candidate. */
     selectReason(name: string): string {

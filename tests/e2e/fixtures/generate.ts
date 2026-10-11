@@ -340,6 +340,65 @@ function write(name: string, game: IGame): void {
   write('vesta-trade', game);
 }
 
+// ── pluto-settlements-*: the COLONY POLISH iteration 1 table (docs/claude/prompts/
+//    colony-polish-iteration-1-pluto-settlements.md) — a player with SEVERAL settlements on Pluto, whose owner
+//    bonus pays «draw 1, then discard 1» PER SETTLEMENT, each in full before the next card is drawn. A calm
+//    corporation (CrediCor), Pluto first among four open tiles, the trader's fleet free, 30 M€ (the 9 M€ fee),
+//    a hand of THREE (the discard is a real question every cycle). The track stands one cell ABOVE the cubes,
+//    so the trade pays income cards AND the closing reset glides one cell (PL-007's beat is on the route).
+//      -2      the viewer trades, two settlements (track 3: 2 income cards → reset to 2);
+//      -3      the viewer trades, three settlements (track 4: 3 income cards → reset to 3);
+//      -foreign RED is on the move with a free fleet and 30 M€; BLUE (seat 0, the viewer) owns two settlements
+//               and a hand of three — red's trade owes blue a DETACHED delivery (two cycles behind the reset);
+//      -empty-hand the foreign table with blue's hand EMPTY: each cycle draws one card into a hand of one, so
+//               the server discards it without asking (DiscardCards' «≤ 1 card» edge) — twice. ──
+function plutoSettlementsTable(name: string, spec: {cubes: number, track: number, foreign?: boolean, hand?: number}): void {
+  const [game, blue, red] = testGame(spec.foreign === true ? 2 : 1, {
+    skipInitialCardSelection: false, coloniesExtension: true,
+    customCorporationsList: spec.foreign === true ? [CardName.CREDICOR, CardName.CREDICOR] : [CardName.CREDICOR],
+    startingCorporations: 1,
+  });
+  answerStartFlow(game, spec.foreign === true ? [blue, red] : [blue]);
+  // (A SOLO opening still owes its colony REMOVAL pick — the venus-trade precedent: it stays pending, the loader
+  // re-primes it over the table laid below and the spec answers it with `keepColony: 'Pluto'`.)
+  const pluto = new Pluto();
+  const others = [new Luna(), new Europa(), new Callisto()];
+  for (const colony of [pluto, ...others]) {
+    colony.isActive = true;
+  }
+  game.colonies = [pluto, ...others];
+  for (let i = 0; i < spec.cubes; i++) {
+    pluto.colonies.push(blue.id);
+  }
+  pluto.trackPosition = spec.track;
+  const hand = spec.hand ?? 3;
+  while (blue.cardsInHand.length < hand) {
+    blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+  blue.cardsInHand.length = hand;
+  blue.megaCredits = 30;
+  if (spec.foreign === true) {
+    red.megaCredits = 30;
+    // Blue's turn is handed over before blue acted (no pass): red is on the move with the action menu.
+    blue.clearWaitingFor();
+    game.playerIsFinishedTakingActions();
+  }
+  runAllActions(game);
+  const trader = spec.foreign === true ? red : blue;
+  const opening = trader.getWaitingFor();
+  if (pluto.colonies.length !== spec.cubes || pluto.trackPosition !== spec.track || blue.cardsInHand.length !== hand ||
+      game.activePlayer.id !== trader.id ||
+      !(spec.foreign === true ? opening instanceof OrOptions : opening instanceof SelectColony) ||
+      trader.colonies.getFleetSize() - trader.colonies.usedTradeFleets < 1) {
+    throw new Error(`the ${name} fixture expected ${spec.cubes} of blue's cubes on Pluto at track ${spec.track}, blue's hand of ${hand} and ${trader.color} on the move with a free fleet — got cubes=${pluto.colonies.length} track=${pluto.trackPosition} hand=${blue.cardsInHand.length} active=${game.activePlayer.color} wf=${trader.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+plutoSettlementsTable('pluto-settlements-2', {cubes: 2, track: 3});
+plutoSettlementsTable('pluto-settlements-3', {cubes: 3, track: 4});
+plutoSettlementsTable('pluto-settlements-foreign', {cubes: 2, track: 3, foreign: true});
+plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, foreign: true, hand: 0});
+
 // ── play-scale-card: a solo action phase with a card in hand that RAISES A
 //    GLOBAL PARAMETER on play and has no target/placement follow-up
 //    (MiningExpedition: oxygen +1, +2 steel; its removeAnyPlants finds no

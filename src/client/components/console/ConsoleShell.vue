@@ -917,10 +917,14 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleRevealOverlay v-if="revealOverlayMode !== undefined"
+        <!-- THE SETTLEMENT TABLE (colony polish 1) keeps this instance mounted between two cycles of a
+             multi-settlement payout — PARKED (no batch, no input, no commands) in the receded stage's zone while
+             the hand owns the room — so the place that held the sealed card is the element that turns over. -->
+        <ConsoleRevealOverlay v-if="revealOverlayMode !== undefined || settlementTableParked"
                               ref="revealOverlay"
                               :playerView="playerView"
-                              :mode="revealOverlayMode"
+                              :mode="revealOverlayMode ?? 'drawn'"
+                              :parked="revealOverlayMode === undefined"
                               :embedded="revealEmbedTarget !== undefined"
                               :sourceSeat="revealSourceSeatStands"
                               @dismiss-result="onDismissRevealResult"
@@ -1193,7 +1197,8 @@
                card from the draw source at a glance. -->
           <span v-if="zoomStatusLabel !== undefined"
                 class="con-zoom__status"
-                :class="zoomReceiveLabel !== undefined ? 'con-zoom__status--received' : 'con-zoom__status--source'">
+                :class="zoomReceiveLabel === 'To the discard' ? 'con-zoom__status--discarded' :
+                  zoomReceiveLabel !== undefined ? 'con-zoom__status--received' : 'con-zoom__status--source'">
             {{ $t(zoomStatusLabel) }}
           </span>
           <!-- WHY THIS CARD WAS THROWN AWAY (TR32 — a conditional search's discard pile): the tag it carries
@@ -1889,13 +1894,14 @@ import {
   COLONY_BONUS_CYCLE_WAIT_MS,
   colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony,
   colonyResolutionEvidenceFor, colonyResolutionFocusIntent, colonyResolutionLiveFor,
-  colonyResolutionUi, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver,
+  colonyResolutionUi, discardStageStrandedFor, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver,
   noticeColonyBonusSequence,
   noticeColonyResolutionDiscard, remoteColonyBonusParksReveal, remoteColonyBonusPendingFor,
   resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
 import {colonyStepCrumbParts, colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {armSettlementTable, clearSettlementTable, settlementStageText, settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf, discardPickedTags,
@@ -1964,7 +1970,6 @@ import {
 import {colonyCursorStep, FleetDockView, fleetDockViews} from '@/client/console/colonyTrade/fleetDockModel';
 import {releaseFleetDockHoldWhenGone, endFleetDockScene, fleetDockSceneState} from '@/client/console/colonyTrade/fleetDockScene';
 import type {FleetDockConfirmPayload} from '@/client/components/console/ConsoleFleetDockStage.vue';
-import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
 import {consolePlayCardUi, releaseConsolePlayCardCommands, restoreConsolePlayCardCommands, setPlayComposerStagedDraft} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
@@ -3313,6 +3318,25 @@ export default defineComponent({
      */
     revealOverlayMode(): ConsoleRevealMode | undefined {
       return this.playedHeroHolds ? undefined : this.consoleRevealMode;
+    },
+    /**
+     * THE SETTLEMENT TABLE IS PARKED — a multi-settlement payout's table has been presented and the resolution
+     * still owes another cycle, but no batch presents right now (the discard step owns the room, or the next card
+     * is between the server and the screen). The reveal instance stays mounted in its own zone — no batch, no
+     * input, no command contract (`consoleRevealMode` stays undefined, so nothing routes to it) — so the table is
+     * ONE instance from the first deal to the marker's return (colony polish 1, rule 3). Requires the zone: a
+     * table with nowhere to stand (a collapse retracted it) simply unmounts and re-renders the same picture from
+     * the module's memory when it comes back.
+     */
+    /** The pending colony-bonus discard's ordinal as a VALUE key (the table arms on it — `settlementMarkerKey` watcher). */
+    settlementMarkerKey(): string {
+      const meta = colonyBonusDiscardOf(this.playerView.waitingFor);
+      return meta === undefined ? '' : `${meta.colonyName}|${meta.index}|${meta.total}`;
+    },
+    settlementTableParked(): boolean {
+      return settlementTable.nonce !== 0 && settlementTable.presented &&
+        this.colonyResolutionLive &&
+        workspaceOutcomeState.host === 'colonies' && workspaceOutcomeState.embedSlot !== '';
     },
     /** A console blocking foreground surface is actively presenting (drives
      *  the lease): task host / start scene / gov-support panel / the dedicated
@@ -4741,6 +4765,11 @@ export default defineComponent({
      * exists before Vue resolves the target.
      */
     revealEmbedTarget(): string | undefined {
+      // A PARKED SETTLEMENT TABLE stays in its own zone (the receded stage's) — never the standalone band, never
+      // nowhere: `settlementTableParked` already requires the zone to be published.
+      if (this.revealOverlayMode === undefined && this.settlementTableParked) {
+        return workspaceOutcomeState.embedSlot;
+      }
       // THE VERDICT re-homes on exactly the same terms as a batch. Keyed on
       // `revealOverlayMode`, not on `consoleRevealMode`: a card PLAY's verdict
       // waits behind its own played-hero scene («сначала карта сыграна, потом
@@ -5035,6 +5064,12 @@ export default defineComponent({
         return true;
       }
       if (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending()) {
+        return true;
+      }
+      // THE DISCARD STEP OWNS THE ROOM — a next cycle's batch that rode the discard's own answer waits for the
+      // stage to come back. This used to be the EMPTY SLOT's job (the stage closed for the discard); the stage now
+      // RECEDES with its zone still published (the settlement table parks in it), so the hold is stated here.
+      if (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(ev.source)) {
         return true;
       }
       // THE SCENE-EXIT BARRIER: exactly one card stage owns the working scene
@@ -7251,7 +7286,11 @@ export default defineComponent({
     /** The colony workspace's FOCUS STAGE is open (browse grid parked) —
      *  standalone section AND embedded step alike. */
     colonyFocusOpen(): boolean {
-      return workspaceFrameMounted('colonies') && this.colonyFocus.open;
+      // …and STANDING: a stage that RECEDED under the resolution's discard step (colony polish 1 — it stays
+      // mounted, the settlement table parked in its zone) is not the surface the player drives. The hand owns the
+      // pad, the bar and B until the room is handed back; the stage takes them again the instant it returns.
+      return workspaceFrameMounted('colonies') && this.colonyFocus.open &&
+        !(colonyResolutionUi.discardStage && workspaceFrameKnown('hand'));
     },
     /**
      * THE ACT BEHIND THE DOSSIER'S A (X = «Осмотреть»): the same derivation
@@ -7332,14 +7371,16 @@ export default defineComponent({
      * client-written except the flag it ends.
      */
     colonyDiscardStageStranded(): boolean {
-      if (!colonyResolutionUi.discardStage || this.colonyFocusRestorePending) {
-        return false;
-      }
-      if (this.consoleState.section === 'hand' || workspaceFrameKnown('hand')) {
-        return false;
-      }
-      return colonyBonusDiscardOf(this.playerView.waitingFor) === undefined &&
-        cardDiscardColonyBonus() === undefined;
+      // …and «the server is not asking» means not asking THIS STAGE'S discard: the next cycle's marker rides the
+      // response that answered this one (the pure rule and its history: `discardStageStrandedFor`).
+      return discardStageStrandedFor({
+        discardStage: colonyResolutionUi.discardStage,
+        stageIndex: colonyResolutionUi.discardStageIndex,
+        restorePending: this.colonyFocusRestorePending,
+        handStands: this.consoleState.section === 'hand' || workspaceFrameKnown('hand'),
+        marker: colonyBonusDiscardOf(this.playerView.waitingFor),
+        flight: cardDiscardColonyBonus() !== undefined,
+      });
     },
     colonyResolutionSignals(): ColonyResolutionSignals {
       return {
@@ -8751,7 +8792,12 @@ export default defineComponent({
         // Single-card drawn is fullscreen (the dialog covers the bar), so this
         // is the multi-card modal / result / viewer contract.
         const cmds: Array<ConsoleCommand> = [];
-        if (this.consoleRevealMode === 'drawn') {
+        if (this.consoleRevealMode === 'drawn' && settlementTable.focusSealed > 0) {
+          // THE CURSOR READS A SEALED PLACE (the owner's decision: focusable, read-only). There is no card to take
+          // or inspect yet — the server has not drawn it — so the bar promises no verb; the status line under the
+          // table reads the seal's condition. Moving on is the only thing to do here.
+          cmds.push({control: 'dpadH', label: 'Navigate'});
+        } else if (this.consoleRevealMode === 'drawn') {
           const ev = currentRevealEvent();
           // ONE pure builder, shared with the EMBEDDED host (the action
           // workspace's outcome stage) — the same component and the same input
@@ -8764,6 +8810,8 @@ export default defineComponent({
             hasCardSource: ev?.source?.type === 'card',
             hasDiscards: ev?.sequence?.some((step) => !step.matched) === true,
             multi: ev !== undefined && ev.cards.length - ev.takenIndices.size > 1,
+            autoDiscarded: ev !== undefined && ev.cards.some((_c, i) => !ev.takenIndices.has(i)) &&
+              ev.cards.every((c, i) => ev.takenIndices.has(i) || ev.autoDiscarded?.includes(c.name) === true),
           }));
         } else if (this.consoleRevealMode === 'viewer') {
           cmds.push({control: 'secondary', label: 'Inspect'});
@@ -9351,6 +9399,14 @@ export default defineComponent({
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0, priority: 1},
           {control: 'back', label: 'Cancel'},
         ];
+      }
+      // PAST THE DISCARD'S PRESS THE BAR IS A STATUS (colony polish 1): the answer moves the prompt on while the
+      // hand still stands for its own cinematic (the card seized, turned, carried to «СБРОШЕННЫЕ»), and for that
+      // whole second the hand branch advertised the hand's BROWSE verbs — «A Разыграть · LT Фильтр · B На поле»
+      // over a discard the player had just made (and the NEXT cycle's discard, raised by the same answer, must
+      // not read as asked over the hand that is still leaving).
+      if (this.consoleState.section === 'hand' && cardDiscardTransaction.active && cardDiscardTransaction.phase !== 'failed') {
+        return [{control: 'confirm', label: 'Performing…', enabled: false}];
       }
       // MANDATORY hand SELECT — the pick verbs (no tag filter; the "suitable
       // only" toggle takes LT), submit on A (single) / RT (multi), B minimizes.
@@ -10339,6 +10395,22 @@ export default defineComponent({
      * close gate the task demanded: nothing folds earlier — and the entry's
      * bounded wait above is what guarantees this edge can be REACHED at all.
      */
+    /**
+     * THE SETTLEMENT TABLE ARMS ON THE SERVER'S ORDINAL — a colony-bonus discard of a payout with several
+     * settlements (`total > 1`) stands the table (or advances it) BEFORE anything renders: pre-flush, so the trade's
+     * cover scene (a later scheduler job) already knows how many places to deal sealed, and the reveal mounts as
+     * the table from its first frame.
+     */
+    settlementMarkerKey: {
+      immediate: true,
+      flush: 'pre',
+      handler(): void {
+        const meta = colonyBonusDiscardOf(this.playerView.waitingFor);
+        if (meta !== undefined && meta.total > 1) {
+          armSettlementTable(meta.colonyName, meta.total, meta.index);
+        }
+      },
+    },
     /** The stranded flag's own release — see `colonyDiscardStageStranded`. */
     colonyDiscardStageStranded(stranded: boolean): void {
       if (stranded) {
@@ -10358,6 +10430,7 @@ export default defineComponent({
       if (!live && was) {
         clearColonyBonusEntry();
         clearColonyBonusSequence();
+        clearSettlementTable(); // the table ends with its resolution (one instance per resolution)
         setColonyDiscardStage(false);
         this.colonyFocusRestorePending = false;
         this.colonyBonusCollected = ''; // a new payout may repeat a cube key
@@ -13004,21 +13077,24 @@ export default defineComponent({
         return;
       }
       // THE FULL-STAGE DISCARD. Comparing every card is this phase's one job,
-      // so the hand owns the whole central area: the focus stage yields (the
-      // colony survives as the section's SOURCE CHIP, the shared element the
-      // restore later re-expands from), the claimed reveal slot goes empty
-      // (a next-cycle batch parks until the restore), and the REAL hand opens
-      // with its own premium dock→grid reveal — never a ready-made grid.
-      setColonyDiscardStage(true);
-      if (this.colonyFocus.open) {
-        // A DIRECT transition: the stage exits with the quick quiet fade —
-        // the full fold-to-tile re-materialized the colony composition for a
-        // second between the reveal and the hand.
-        armColonyFocusQuickExit();
-        closeColonyFocus();
-      }
+      // so the hand owns the whole central area and the REAL hand opens with its
+      // own premium dock→grid reveal — never a ready-made grid.
+      //
+      // ⚠️ THE STAGE RECEDES, IT DOES NOT CLOSE (colony polish 1). It used to
+      // close (a quick fade, then a re-open from the colony's chip on the way
+      // back), and with it went the reveal it hosted — the SETTLEMENT TABLE whose
+      // next card the player is discarding for: the table vanished from the
+      // player's world, was rebuilt from scratch afterwards, and the next card
+      // flew in AGAIN to a place that had just held it face-down. The stage now
+      // waits under the hand MOUNTED (`ConsoleColonyFocusStage.receded`), the
+      // table parked in its zone (`settlementTableParked`), and both come back
+      // as the same instance. The next cycle's batch is held explicitly
+      // (`revealHeldForWorkspace` § the discard stage) until the room is back.
+      // (No stage to recede — a reload straight into the discard — changes
+      // nothing: the section-level slot hosts the hand as before.)
+      setColonyDiscardStage(true, meta.index);
       void this.openHandWithReveal({keepTask: true});
-      setWorkspaceFrameStage('hand', 'Discarding a card');
+      setWorkspaceFrameStage('hand', settlementStageText('discard', meta) ?? 'Discarding a card');
       this.focusFirstSelectableHandCard();
     },
     /**
@@ -22224,6 +22300,34 @@ export default defineComponent({
       resolutionEvidence: this.colonyResolutionEvidence,
       entry: {colony: this.bonusEntry.colonyName, awaiting: this.bonusEntry.awaiting},
       revealPending: this.rawDrawnRevealPending,
+      // THE MOUNT DECISION OF THE REVEAL, term by term (`consoleRevealMode` → `revealOverlayMode`): «the payout
+      // never presented» has a dozen possible holders and every one of them is a read of these, never a pixel.
+      revealDecision: ((): Record<string, unknown> => {
+        const ev = currentRevealEvent();
+        return {
+          event: ev === undefined ? null : {id: ev.id, cards: ev.cards.length, taken: ev.takenIndices.size, dismissed: ev.dismissed,
+            source: ev.source?.type === 'colony' ? `colony:${ev.source.colonyName}:${ev.source.trade?.role ?? '-'}` : ev.source?.type ?? null},
+          mode: this.consoleRevealMode ?? null,
+          overlayMode: this.revealOverlayMode ?? null,
+          embedTarget: this.revealEmbedTarget ?? null,
+          rawPending: this.rawDrawnRevealPending,
+          heldForWorkspace: this.revealHeldForWorkspace,
+          heroHolds: this.playedHeroHolds,
+          tileHolds: this.tilePlacementHolds,
+          deckHolds: deckDrawHolds(),
+          remotePark: ev !== undefined && remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source),
+          payoutPark: ev !== undefined && colonyBonusPayoutParksReveal(ev.source),
+          embedSlot: workspaceOutcomeState.embedSlot,
+          beatPending: workspaceOutcomeBeatPending(),
+          presented: ev !== undefined && revealPresented(ev.id),
+          exitBarrier: ev !== undefined && this.exitBarrierHolds(ev.id),
+          exitBusy: this.cardStageExitBusy,
+          adoption: this.outcomeAdoptionDecision.kind,
+          discardStage: colonyResolutionUi.discardStage,
+          restorePending: this.colonyFocusRestorePending,
+          focusOpen: this.colonyFocus.open,
+        };
+      })(),
       // The COVER-LIFT scene (a colony BUILD's card bonus rides it, exactly as
       // a board cell's does). Its phase ladder is the only way to tell «the
       // flight played» from «the cards just appeared»: an `idle` scene next to

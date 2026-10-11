@@ -57,6 +57,7 @@ import {
 import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {TradeReceiptBase} from '@/client/console/colonyTrade/colonyTradeReceipt';
+import {settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
@@ -434,7 +435,10 @@ export function colonyTradeWillDressReveal(
     !colonyTradeState.reducedMotion &&
     colonyTradeState.cardScene === 'idle' &&
     !isColonyTradeRevealStaged(eventId) &&
-    colonyTradeClaimsReveal(source);
+    colonyTradeClaimsReveal(source) &&
+    // …and never a SETTLEMENT TABLE's later place (colony polish 1): the cover scene does not dress that batch —
+    // its card already lies on the table and turns over in place — so «about to claim» would veil it forever.
+    !settlementClaimsBatch(source);
 }
 
 /**

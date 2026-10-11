@@ -415,6 +415,7 @@
                                    :statsView="statsView"
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
+                                   :receded="focusStageReceded"
                                    :trackMove="focusTrackMove"
                                    :buildSite="focusBuildSite"
                                    :buildProjected="buildDoorStands"
@@ -504,6 +505,7 @@ import {
   workspaceFrameParked, workspaceFrameStage, workspaceStackCrumb, workspaceStackRootKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {settlementStageText, settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -727,6 +729,8 @@ export default defineComponent({
     return {
       /** The grant's colony, LATCHED for the hosted vote's whole life: the prompt moves on at the submit while the cubes still fly. */
       grantSubject: '',
+      /** The resolution's LAST payout stage — the crumb's tail keeps it between stages (forward-only). */
+      lastPayoutStage: '',
       /** The trade-launch controller — drives the launching-ship hide. */
       tradeFleetState,
       /** The reward transaction + build hero — the auto-fold watchers'
@@ -976,6 +980,31 @@ export default defineComponent({
       }
       return '';
     },
+    /**
+     * THE SETTLEMENT TABLE'S STAGE — «Бонус N из K» while place N's card is on the table, «Сброс N из K» once it was
+     * taken (its discard owed or in flight); '' when no table stands here.
+     */
+    settlementStage(): string {
+      const t = settlementTable;
+      if (t.nonce === 0 || !this.revealEmbedActive || t.index === 0) {
+        return '';
+      }
+      const kind = t.taken.includes(t.index) ? 'discard' : 'bonus';
+      return settlementStageText(kind, {index: t.index, total: t.total}) ?? '';
+    },
+    /** The payout's own stage right now ('' between stages) — remembered as `lastPayoutStage` (forward-only). */
+    payoutStage(): string {
+      if (this.handStepHosted) {
+        const stage = workspaceFrameStage('hand');
+        return stage !== '' ? stage : 'Discarding a card';
+      }
+      if (this.revealEmbedPresenting) {
+        return this.settlementStage !== '' ? this.settlementStage :
+          (this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey :
+            (revealIsOwnerBonus(currentRevealEvent()?.source) ? 'Owner bonus' : 'Card draw'));
+      }
+      return this.settlementStage;
+    },
     crumbStage(): string {
       // THE NESTED HAND STEP is the deepest frame — its stage IS the crumb's
       // tail: «КОЛОНИИ › ПЛУТОН › СБРОС КАРТЫ». Stable context before the
@@ -995,10 +1024,24 @@ export default defineComponent({
       // ДОБОР КАРТ» for the trade income, «… › БОНУС ВЛАДЕЛЬЦА» for a colony
       // bonus wave (the batch's own role tag decides — never a title).
       if (this.revealEmbedPresenting) {
+        // A SETTLEMENT TABLE names the place resolving now, with its ordinal (colony polish 1): «БОНУС 1 ИЗ 2 →
+        // СБРОС 1 ИЗ 2 → БОНУС 2 ИЗ 2 → СБРОС 2 ИЗ 2» — the tail only ever moves forward.
+        const table = this.settlementStage;
+        if (table !== '') {
+          return table;
+        }
         if (this.outcomeState.phaseKey !== '') {
           return this.outcomeState.phaseKey;
         }
         return revealIsOwnerBonus(currentRevealEvent()?.source) ? 'Owner bonus' : 'Card draw';
+      }
+      // …AND IT NEVER WALKS BACK. Between the payout's stages (the table parked under the returning stage, the
+      // closing track reset) the focus stage would name its own act again («ТОРГОВЛЯ», and — the act spent —
+      // «ОСМОТР»): the tail keeps the LAST payout stage for as long as the resolution's claim stands.
+      // (Kept to the stage's own close, not the claim's release: the resolution's claim lets go a beat BEFORE the
+      // workspace leaves, and the tail would read «ТОРГОВЛЯ» / «ОСМОТР» over the departing payout.)
+      if (this.focusState.open && this.lastPayoutStage !== '') {
+        return this.lastPayoutStage;
       }
       if (this.focusState.open) {
         // A CHOSEN TRACK's stage names itself from the descent on (the stage publishes «Трек» a flush later — the
@@ -1163,6 +1206,10 @@ export default defineComponent({
     focusOutcomeZone(): boolean {
       return this.revealEmbedActive && this.focusState.open;
     },
+    /** The resolution's discard step owns the room and the stage waits under it (see the stage's `receded`). */
+    focusStageReceded(): boolean {
+      return this.resolutionUi.discardStage && !this.resolutionParked && this.focusState.open;
+    },
     /**
      * THE ONE SLOT SELECTOR. Two elements can host the follow-up — the focus
      * stage's own zone (while the player is inside a colony) and the
@@ -1178,7 +1225,15 @@ export default defineComponent({
      * republishes and the batch opens on the big stage.
      */
     outcomeSlotSelector(): string {
-      if (!this.revealEmbedActive || this.resolutionUi.discardStage) {
+      if (!this.revealEmbedActive) {
+        return '';
+      }
+      // …EXCEPT WHILE THE STAGE STANDS UNDER THE HAND (colony polish 1): the stage RECEDES instead of closing, and
+      // its zone is where the settlement table waits, parked — the same instance the player will find again. The
+      // next cycle's batch is then held by the shell explicitly (`revealHeldForWorkspace` § the discard stage),
+      // never by an empty slot. A discard stage with NO stage (a reload straight into the discard) keeps the old
+      // empty selector.
+      if (this.resolutionUi.discardStage && !this.focusState.open) {
         return '';
       }
       // THE DOSSIER PUBLISHES NO ZONE. Named here while the inspect
@@ -1538,6 +1593,15 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The crumb's tail only moves forward through a payout — remember its last stage (see `crumbStage`). */
+    payoutStage: {
+      immediate: true,
+      handler(stage: string): void {
+        if (stage !== '') {
+          this.lastPayoutStage = stage;
+        }
+      },
+    },
     /** The bar reads the ONE receipt reading (it states the result while the grid takes no verb). */
     receiptOn: {
       immediate: true,
@@ -1638,6 +1702,10 @@ export default defineComponent({
       }
       if (!open && !this.cityAnswered) {
         this.cityStageLatch = undefined;
+      }
+      // The crumb's remembered payout stage dies with the stage it was read on (see `lastPayoutStage`).
+      if (!open) {
+        this.lastPayoutStage = '';
       }
     },
     /**

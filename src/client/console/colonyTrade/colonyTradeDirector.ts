@@ -79,6 +79,13 @@ export function runTradeCoverFlight(args: {
    * play a second, differently-shaped turn once it landed. EVERY card of a
    * payout turns in the air, on the object that carries it.)
    */
+  /**
+   * …EXCEPT A CARD NOBODY KNOWS YET (colony polish 1). A settlement table's later place is dealt with the first
+   * payout, but its card is drawn only when its turn comes — there is no face to turn to. Such a cover flies and
+   * lies down FACE-DOWN; the place it lands in holds nothing of its own while it flies (`--bonus-held`), so there
+   * is still one object per card, and its ONE turn is the in-place turn of the rule that opens it, later.
+   */
+  sealed?: boolean,
   onLanded: () => void,
 }): TradeDirectorHandle {
   const {proxy, flip, from, naturalH, reduced} = args;
@@ -128,7 +135,9 @@ export function runTradeCoverFlight(args: {
 
   if (reduced) {
     tl.to(proxy, {x: landX, y: landY, scale: landScale, rotation: 0, duration: s(140), ease: 'power2.out'}, s(args.delayMs));
-    tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, s(args.delayMs));
+    if (args.sealed !== true) {
+      tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, s(args.delayMs));
+    }
     return {kill: () => tl.kill()};
   }
 
@@ -195,12 +204,16 @@ export function runTradeCoverFlight(args: {
   // travel's first half — never a flip after a teleport, and never one left
   // for the destination to play.
   const turnDur = s(liftMs) + travel * 0.5;
-  tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, departAt);
+  if (args.sealed !== true) {
+    tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, departAt);
+  }
   tl.to(flip, {rotateX: -9, duration: s(liftMs), ease: 'sine.out'}, departAt);
   tl.to(flip, {rotateX: 0, duration: travel * 0.6, ease: 'sine.inOut'}, travelAt);
   tl.to(flip, {z: 46, duration: s(liftMs), ease: 'power2.out'}, departAt);
   tl.to(flip, {z: 0, duration: travel, ease: 'power2.inOut'}, travelAt);
-  tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, departAt + s(liftMs) + travel * 0.18);
+  if (args.sealed !== true) {
+    tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, departAt + s(liftMs) + travel * 0.18);
+  }
 
   // ── 2 · TRAVEL ──────────────────────────────────────────────────────────
   tl.to(proxy, {x: landX, duration: travel, ease: 'power1.inOut'}, travelAt);

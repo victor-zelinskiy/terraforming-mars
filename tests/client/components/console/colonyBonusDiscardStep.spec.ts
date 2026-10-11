@@ -41,7 +41,7 @@ describe('the colony bonus sequence', () => {
       expect(bonusZones(meta(2, 3))).to.deep.eq([
         {index: 1, total: 3, state: 'done'},
         {index: 2, total: 3, state: 'active'},
-        {index: 3, total: 3, state: 'future'},
+        {index: 3, total: 3, state: 'sealed'},
       ]);
     });
 

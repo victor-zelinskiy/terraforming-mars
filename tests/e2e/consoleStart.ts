@@ -2327,6 +2327,10 @@ export type BootOptions = {
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'hydro-terminal' | 'hydro-terminal-surge' | 'staged-interposer' | 'staged-hazard' |
   // The Redux Vesta trade: TWO holders of different kinds (asteroids, fighters) → a real pick whose card decides the kind.
   'vesta-trade' |
+  // Colony polish 1 — several settlements on Pluto («draw 1, then discard 1» per settlement): blue trades with 2 / 3
+  // of its own cubes there (a hand of three); `-foreign` red trades (blue owns 2, a hand of three); `-empty-hand` the
+  // same foreign table with blue's hand empty (each cycle's discard decides itself).
+  'pluto-settlements-2' | 'pluto-settlements-3' | 'pluto-settlements-foreign' | 'pluto-settlements-empty-hand' |
   'play-scale-card' | 'effect-forecast' |
   // X87 Shipment to Earth: a solo action phase with the card in hand, 5 plants / 4 steel / 30 M€, two plain Earth tags
   // in the tableau — the price the play takes OFF THE RAIL leaves into the standing card before it lifts (PL-107).

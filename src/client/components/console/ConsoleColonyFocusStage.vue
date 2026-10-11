@@ -87,6 +87,10 @@
          /* THE CITY ACT (a city laid on this colony tile — TR22): the pick's composition, the working half
             standing as it is, plus the city's own reading in the result rail. */
          'con-colfocus--city': city !== undefined,
+         /* THE DISCARD STEP owns the room — the stage recedes in place (mounted, inert, invisible) and comes
+            back the same instance with the same table (see the `receded` prop). */
+         'con-colfocus--receded': receded,
+         'con-colfocus--unreceding': unreceding,
        }]"
        :data-colony-intent="city !== undefined ? 'city' : intent"
        :data-colony-roster="roster !== undefined ? roster.kind : undefined"
@@ -159,7 +163,7 @@
              is not theirs — the colony's OWN bonus is what they are being
              paid, and how many of their settlements are paying it. -->
         <div class="con-colfocus__idmeta" data-unfold-late>
-          <div class="con-colfocus__desc" v-i18n>{{ bonusMode ? metadata.colony.description : metadata.trade.description }}</div>
+          <div class="con-colfocus__desc">{{ idDescription }}</div>
           <!-- …and how many of the viewer's OWN settlements are paying it
                (`bonusMath` falls back to the largest holder when the viewer
                owns none — that number is not «yours» and must not be labelled
@@ -838,10 +842,12 @@ import {TradeReceiptBase, tradeReceiptBaseOf} from '@/client/console/colonyTrade
 import {
   ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations, openTradeTargetFocus,
 } from '@/client/console/colonyTrade/colonyTradeTargetStep';
-import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
+import {ColonyTradeTargets, tradeIncomeLine} from '@/client/console/colonyTrade/colonyTradeModel';
 import {PlayedTargetModel} from '@/client/console/played/consolePlayedTargetModel';
 import {cardResourceLandings, resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {readingText} from '@/client/console/readingText';
+import {settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
@@ -1031,6 +1037,14 @@ export default defineComponent({
      * only thing the stage needs to know.
      */
     outcomeZone: {type: Boolean, default: false},
+    /**
+     * THE DISCARD STEP STANDS OVER THE STAGE — the stage RECEDES, it does not close (colony polish 1). The
+     * resolution's mandatory discard takes the whole room (the hand, iteration 4's decision), and the stage — with
+     * the settlement table parked in its zone — waits underneath, mounted and invisible, for the hand to give the
+     * room back. Closing it here (the old way) unmounted the very table whose next card the player was waiting on:
+     * the colony re-materialized from its chip, and the next card flew in AGAIN to a place that had just held it.
+     */
+    receded: {type: Boolean, default: false},
     /** The inner "Pay trade fee" OrOptions options (server-affordable). */
     options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
     disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
@@ -1127,6 +1141,8 @@ export default defineComponent({
        *  played for the current claim — drives the `--handing` pose too, so
        *  the CSS dissolve can never run ahead of the phrase. */
       outcomeHandoffPlayed: false,
+      /** The stage is coming BACK from the discard step — the return's own transition runs (see `receded`). */
+      unreceding: false,
       /** The «working area is back» dwell (see the `workingAreaYielded` watcher). */
       stageBackTimer: undefined as number | undefined,
       /**
@@ -1578,8 +1594,18 @@ export default defineComponent({
      * reveal batch is on the table (or on its way), and not a frame longer.
      */
     workingAreaYielded(): boolean {
-      return this.outcomeZone && this.outcomeHandoffPlayed &&
-        currentRevealEvent() !== undefined;
+      return this.outcomeZone && (this.outcomeHandoffPlayed && currentRevealEvent() !== undefined || this.settlementTableOwesArea);
+    },
+    /**
+     * …AND A SETTLEMENT TABLE WITH A PLACE STILL TO TAKE IS THE PAYOUT TOO (colony polish 1). Between two cycles there
+     * is no batch on the table — cycle N's was acknowledged at its discard, cycle N+1's is held until the room is
+     * back — so the pose dropped exactly while the stage came back from under the hand: the TRADE TRACK surfaced
+     * over the table for the return and faded out again a beat later. The table owes the area until its LAST place
+     * is taken; from then on the track is the closing glide's stage, as before.
+     */
+    settlementTableOwesArea(): boolean {
+      const t = settlementTable;
+      return t.nonce !== 0 && t.presented && t.colony === this.colony.name && t.taken.length < t.total;
     },
     /**
      * THE COMMIT BOUNDARY, as this stage sees it: the move is being made or
@@ -1643,6 +1669,18 @@ export default defineComponent({
     },
     focusedBonusQty(): number {
       return this.metadata.colony.quantity ?? 1;
+    },
+    /**
+     * The identity line under the planet: on a bonus the colony's OWN bonus (what is being paid), otherwise its
+     * trade income — read AT THE MARKER on a trade (К-2: «Доберите 2 карты», never the tile's variable «X»).
+     */
+    idDescription(): string {
+      if (this.bonusMode) {
+        return readingText({label: this.metadata.colony.description, params: []});
+      }
+      return readingText(this.intent === 'trade' ?
+        tradeIncomeLine(this.metadata, this.rewardPosition) :
+        {label: this.metadata.trade.description, params: []});
     },
     /**
      * The berth a build here lands in — the ONE reading
@@ -2323,6 +2361,32 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE RETURN FROM THE DISCARD STEP is the recede played backwards, in place: the stage rises back into view
+     * under the gathering hand with the same table in its zone. The return's own (shorter) transition is a class
+     * of its own — the root's opacity belongs to the descend phrase's GSAP the rest of the time, and a standing CSS
+     * transition there would fight every tween. Cleared on the transition's own end; the bounded net only frees a
+     * class (nothing waits on it).
+     */
+    receded(now: boolean, was: boolean): void {
+      if (now || !was) {
+        this.unreceding = false;
+        return;
+      }
+      this.unreceding = true;
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const done = () => {
+        this.unreceding = false;
+        root?.removeEventListener('transitionend', onEnd);
+      };
+      const onEnd = (ev: TransitionEvent) => {
+        if (ev.target === root && ev.propertyName === 'opacity') {
+          done();
+        }
+      };
+      root?.addEventListener('transitionend', onEnd);
+      window.setTimeout(done, motionMs(700));
+    },
     /** The «Эффекты» layer lives ONLY on the setup level — a sub-step, the commit boundary and the resolution fold it instantly. */
     forecastCanOpen(can: boolean): void {
       this.syncUiMirror();

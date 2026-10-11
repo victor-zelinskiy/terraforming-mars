@@ -25,6 +25,8 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
+import {ColonyMetadata, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import type {Reading} from '@/client/console/readingText';
 import {ColonyTradeRevealRole, ColonyTradeRevealSegment} from '@/common/models/CardDrawRevealModel';
 import {ColonyTradeGrantModel, ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {ResourceTransferSpec, cardResourceKey, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -144,9 +146,15 @@ export function colonyTradeHeldSpecs(manifest: ColonyTradeManifestModel, viewer:
 
 /** One card cover to launch: which tile area it lifts from + its reveal slot. */
 export type TradeCoverPlanEntry = {
-  /** Index into the batch's `cards` (== the reveal slot `name#index`). */
+  /** Index into the batch's `cards` (== the reveal slot `name#index`); −1 for a SEALED place's cover. */
   index: number;
   role: ColonyTradeRevealRole;
+  /**
+   * A SETTLEMENT TABLE's later place (colony polish 1): this cover carries no card yet — the server draws it only
+   * once the place's turn comes — so it flies FACE-DOWN to that place and lies there under its seal. Absent for
+   * every real card (which turns in the air, as ever).
+   */
+  sealedPlace?: number;
   /** DEPARTURE delay (ms @ motion scale 1) — when the grow-flip-travel leg
    *  starts. Includes the wave's fan lead, so budgets stay one formula. */
   delayMs: number;
@@ -222,13 +230,26 @@ export const TRADE_FRAME_MS = 240;
  * departure fire — so `delayMs` already carries the fan lead and the budget
  * formula below stays untouched.
  */
-export function tradeCoverPlan(cardCount: number, segments: ReadonlyArray<ColonyTradeRevealSegment> | undefined): Array<TradeCoverPlanEntry> {
+export function tradeCoverPlan(
+  cardCount: number,
+  segments: ReadonlyArray<ColonyTradeRevealSegment> | undefined,
+  /**
+   * THE SETTLEMENT TABLE's later places (colony polish 1): the colony pays PER SETTLEMENT, so its printed «БОНУС
+   * ВЛАДЕЛЬЦА» card deals one cover per settlement — the first carries this payout's real card (it turns in the
+   * air), the rest are the later places' cards, still unknown, delivered face-down under their seals. They are the
+   * BONUS wave's own last covers (one fan, one cadence: the printed «×2» peels into two), never a third act.
+   */
+  sealedPlaces: ReadonlyArray<number> = [],
+): Array<TradeCoverPlanEntry> {
   const segs = segments !== undefined && segments.length > 0 ? segments : [{role: 'income' as const, count: cardCount}];
   const out: Array<TradeCoverPlanEntry> = [];
   let index = 0;
   let waveStartMs = 0;
+  let sealedDealt = false;
   for (const seg of segs) {
-    const waveCount = Math.min(seg.count, Math.max(0, cardCount - index));
+    const real = Math.min(seg.count, Math.max(0, cardCount - index));
+    const sealed = seg.role === 'bonus' && !sealedDealt ? sealedPlaces : [];
+    const waveCount = real + sealed.length;
     let flown = 0;
     for (let i = 0; i < seg.count && index < cardCount; i++, index++, flown++) {
       out.push({
@@ -239,6 +260,22 @@ export function tradeCoverPlan(cardCount: number, segments: ReadonlyArray<Colony
         fanIndex: i,
         fanCount: waveCount,
       });
+    }
+    sealed.forEach((place, j) => {
+      const i = real + j;
+      out.push({
+        index: -1,
+        role: 'bonus',
+        sealedPlace: place,
+        delayMs: waveStartMs + TRADE_FAN_LEAD_MS + i * TRADE_COVER_STAGGER_MS,
+        fanDelayMs: waveStartMs + i * TRADE_FAN_STAGGER_MS,
+        fanIndex: i,
+        fanCount: waveCount,
+      });
+      flown++;
+    });
+    if (sealed.length > 0) {
+      sealedDealt = true;
     }
     if (flown > 0) {
       // ONE deal cadence across the waves: the next wave's first DEPARTURE
@@ -475,4 +512,19 @@ export function trackWavePlan(
   });
   const last = legs.reduce((max, leg) => Math.max(max, leg.startAtMs + legLengthMs(leg)), breath);
   return {legs, totalMs: last + readMs, readMs};
+}
+
+/**
+ * THE TRADE LINE AT THE MARKER (colony polish 1, К-2). A tile prints its income with a variable («Draw n cards» —
+ * the RU line reads «Доберите X карт»), because on the tile the amount depends on where the marker stands. On the
+ * stage the marker stands on ONE cell and the number is known, so a variable on screen is a question the screen
+ * could have answered. A CARD DRAW reads its number («Доберите 2 карты» — the Redux Pluto's last two cells too);
+ * every other income keeps the printed line, its concrete amount standing in «ВЫ ПОЛУЧИТЕ» beside it.
+ */
+export function tradeIncomeLine(metadata: ColonyMetadata, position: number): Reading {
+  const income = tradeBenefitAt(metadata, position);
+  if (income.type === ColonyBenefit.DRAW_CARDS && /\bn\b/.test(metadata.trade.description)) {
+    return {label: 'Draw ${0} card(s)', params: [String(income.quantity)]};
+  }
+  return {label: metadata.trade.description, params: []};
 }

@@ -262,6 +262,19 @@
     "Pick cards to discard": "Выбрать карты для сброса",
     "Take every card first": "Сначала заберите все карты",
     "Waits for the previous bonus": "Ожидает завершения предыдущего бонуса",
-    "Payment and confirmation happen on the chosen colony.": "Оплата и подтверждение — на выбранной колонии."
+    "Payment and confirmation happen on the chosen colony.": "Оплата и подтверждение — на выбранной колонии.",
+    "Bonus ${0} of ${1}": "Бонус ${0} из ${1}",
+    "Discard ${0} of ${1}": "Сброс ${0} из ${1}",
+    "after the discard for bonus ${0}": "после сброса за бонус ${0}",
+    "Colony bonus ${0} of ${1} · opens after the discard for bonus ${2}": "Бонус колонии ${0} из ${1} · откроется после сброса за бонус ${2}",
+    "Taken · the discard is yours": "Взята · сброс за вами",
+    "opens bonus ${0}": "откроет бонус ${0}",
+    "Draw ${0} card(s)": "Доберите ${0} {карту|карты|карт}",
+    "Owner bonus · one card per settlement": "Бонус владельца · карта за каждое поселение",
+    "Settlements": "Поселений",
+    "New · bonus ${0}": "Новая · бонус ${0}",
+    "New card": "Новая карта",
+    "Trade income · a bonus card per settlement": "Доход торговли · карта бонуса за каждое поселение",
+    "Discarded: no other card in hand": "Сброшена: другой карты в руке не было"
 
 }

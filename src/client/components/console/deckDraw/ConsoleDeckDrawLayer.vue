@@ -106,6 +106,7 @@ import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewar
 import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
+import {adoptSettlementDeck, settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {probeTick} from '@/client/console/probeTick';
 import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
@@ -278,7 +279,10 @@ export default defineComponent({
       // …and the Parliament's Agenda CARD reward, while its track is on screen,
       // is the cover scene's (it lifts off the step the marker reached — same
       // predicate the scene itself reads); off screen the deck honestly deals it.
+      // …and a SETTLEMENT TABLE's later place: its card has been lying face-down on the table since the first
+      // payout and turns over WHERE IT LIES (colony polish 1) — dealing it off the deck would be the second arrival.
       const foreign = !isDeckDrawSource(e.source) ||
+        settlementClaimsBatch(e.source) ||
         workspaceClaimOwnsArrival(e.source) ||
         boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
         (isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
@@ -343,6 +347,12 @@ export default defineComponent({
         }
         if (r.v.kind === 'foreign') {
           noteDeckDrawForeign(r.v.eventId);
+          // A SETTLEMENT TABLE's sealed card is not flown by anybody: it turns over in place, and the counter answers
+          // with the turn — the table ADOPTS the seed instead of letting it go (colony polish 1).
+          if (settlementClaimsBatch(r.e.source)) {
+            adoptSettlementDeck();
+            return;
+          }
           // Somebody else flies it — the apply-block seed that kept its cards on the counter lets go (PL-088).
           releaseDeckDrawSeed();
           return;

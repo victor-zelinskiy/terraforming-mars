@@ -18872,6 +18872,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex-direction: column;
         gap: .4rem;
         pointer-events: auto;
+        /* Above the focus stage, which RECEDES under it (mounted, with the settlement table parked in its zone)
+           instead of closing — the Parliament step's own layering. */
+        z-index: 5;
         animation: con-colfocus-outcome-in calc(300ms * var(--motion-scale, 1)) ease-out both;
     }
     &__handhost {
@@ -20258,6 +20261,35 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        gone by construction (pastCommit), the description steps back so the
        SOURCE chip below is the column's one live voice. */
     &--handing &__idmeta { opacity: .55; }
+
+    /* ── THE DISCARD STEP — the stage RECEDES, it does not close (colony
+       polish 1). The hand takes the room (iteration 4), the stage waits
+       underneath MOUNTED, with the settlement table parked in its zone, and
+       comes back the same instance: a short settle away from the eye and back
+       (opacity + a hair of scale — never a fold into a tile, never a re-open
+       from a chip). `visibility` follows the fade out so nothing under the
+       hand can be hit-tested or read as a second surface; it returns at once.
+       The return's transition lives on its own class: the root's opacity is
+       the descend phrase's GSAP the rest of the time. ── */
+    &--receded {
+        pointer-events: none;
+        opacity: 0;
+        transform: scale(0.985);
+        visibility: hidden;
+        transition:
+            opacity calc(240ms * var(--motion-scale, 1)) ease-out,
+            transform calc(300ms * var(--motion-scale, 1)) ease-out,
+            visibility 0s linear calc(300ms * var(--motion-scale, 1));
+    }
+    &--unreceding {
+        transition:
+            opacity calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1),
+            transform calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &--receded,
+        &--unreceding { transition: none; }
+    }
 
     /* ── THE RESOLUTION CONTEXT — the hero column names the role the colony
        is playing right now. Type on the identity column, never a panel. ── */

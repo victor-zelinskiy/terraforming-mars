@@ -233,6 +233,12 @@ export const colonyResolutionUi = reactive({
    */
   discardStage: false,
   /**
+   * …and WHICH cycle of the sequence the discard stage was opened for (the marker's `index`; 0 = none). A stage
+   * belongs to ONE cycle: the server asking the NEXT cycle's discard is proof this one was answered, never proof
+   * it is still serving (see `discardStageStrandedFor`).
+   */
+  discardStageIndex: 0,
+  /**
    * THE PAYOUT HAS LIFTED OFF — the first card of this payout has separated
    * from its source and is rising while it turns.
    *
@@ -258,7 +264,31 @@ export const colonyResolutionUi = reactive({
    * reward (the counter would tick over an unmounted scene).
    */
   cardSceneLive: false,
+  /**
+   * THE CARD(S) THE BONUS JUST PUT INTO THE HAND — this cycle's (colony polish 1, К-4). The discard that follows
+   * a Pluto bonus is asked over the whole hand, and the card the player watched go in a moment ago looked like
+   * every other one there: the hand marks it «НОВАЯ · БОНУС N» while THAT cycle's discard is asked. Recorded at the
+   * closing step's press (the batch is acknowledged right after), keyed by the cycle, ended with the resolution.
+   */
+  bonusFresh: {colony: '', index: 0, names: [] as Array<string>},
 });
+
+/** The closing step was pressed: these cards came from cycle `index`'s bonus (see `bonusFresh`). */
+export function noteColonyBonusFresh(colony: string, index: number, names: ReadonlyArray<string>): void {
+  colonyResolutionUi.bonusFresh = {colony, index, names: [...names]};
+}
+
+/**
+ * PURE: is `name` the card cycle `meta`'s bonus put into the hand? Keyed by the CYCLE, so a card a previous
+ * cycle (or resolution) brought in is never re-marked as new.
+ */
+export function colonyBonusFreshFor(
+  fresh: {colony: string, index: number, names: ReadonlyArray<string>},
+  meta: {colonyName: string, index: number} | undefined,
+  name: string,
+): boolean {
+  return meta !== undefined && fresh.colony === meta.colonyName && fresh.index === meta.index && fresh.names.includes(name);
+}
 
 /**
  * THE PRESENTED CARD SCENE HOLDS THE FOREGROUND. A reward still arriving on a
@@ -276,8 +306,47 @@ export function noticeColonyResolutionDiscard(): void {
   colonyResolutionUi.discarded++;
 }
 
-export function setColonyDiscardStage(on: boolean): void {
+export function setColonyDiscardStage(on: boolean, index = 0): void {
   colonyResolutionUi.discardStage = on;
+  colonyResolutionUi.discardStageIndex = on ? index : 0;
+}
+
+/**
+ * IS THE DISCARD STAGE STRANDED — up, with nothing left that it serves? PURE (the shell's
+ * `colonyDiscardStageStranded` feeds it).
+ *
+ * The stage has exactly one ordinary end (the discard scene hands the hand back → the restore). Every other way
+ * out is this net, and it must be a DERIVED fact: the hand step is gone, no card is physically leaving, no return
+ * is already in flight, and the server is not asking THIS STAGE'S discard any more.
+ *
+ * ⚠️ «THIS STAGE'S». The first cut read «the server asks no colony-bonus discard at all», and the next cycle's
+ * marker rides the very response that answered this one — so the net never fired exactly where it was needed.
+ * Reproduced 10 of 10 (colony polish 1, `console-pluto-two-colony-sequence`): the discard scene ABORTED (its
+ * DETECT saw no card leave the hand — the spec's stub removed a different card than the one submitted; on a real
+ * server any abort path, e.g. the scene's own 7 s safety on a slow answer, does the same), so its hand-off never
+ * ran, the hand frame was gone, the stage stayed up, the outcome slot stayed EMPTY by design — and cycle 2's batch
+ * waited for a zone that could never be published: «КОЛОНИИ › ПЛУТОН › БОНУС ВЛАДЕЛЬЦА» over an empty frame with a
+ * mandatory discard owed. A marker of ANOTHER cycle is the server saying the stage's own question was answered.
+ */
+export function discardStageStrandedFor(s: {
+  discardStage: boolean,
+  /** The cycle the stage was opened for (0 = unknown — an older caller). */
+  stageIndex: number,
+  restorePending: boolean,
+  /** The hand step still stands (a live or parked frame, or the hand section projected). */
+  handStands: boolean,
+  /** The pending colony-bonus discard marker (server truth), if any. */
+  marker: ColonyBonusDiscardMeta | undefined,
+  /** The shared discard scene is still disposing of a colony-bonus card. */
+  flight: boolean,
+}): boolean {
+  if (!s.discardStage || s.restorePending || s.handStands || s.flight) {
+    return false;
+  }
+  if (s.marker === undefined) {
+    return true;
+  }
+  return s.stageIndex > 0 && s.marker.index !== s.stageIndex;
 }
 
 /** A cover scene reports its first card separating (see `payoutLiftOff`). */
@@ -295,7 +364,9 @@ export function clearColonyPayoutLiftOff(): void {
 export function resetColonyResolutionUi(): void {
   colonyResolutionUi.discarded = 0;
   colonyResolutionUi.discardStage = false;
+  colonyResolutionUi.discardStageIndex = 0;
   colonyResolutionUi.payoutLiftOff = false;
+  colonyResolutionUi.bonusFresh = {colony: '', index: 0, names: []};
 }
 
 /**

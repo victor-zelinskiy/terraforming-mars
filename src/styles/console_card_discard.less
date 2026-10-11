@@ -288,6 +288,79 @@
     text-transform: uppercase;
     color: fade(@con-text-dim, 92%);
 }
+/* THE SEALED BONUS this discard opens (colony polish 1): the next settlement's card lies on the table under a
+   steel seal, and the plate carries that SAME lock — a mini card back with the seal — so the player chooses what to
+   throw away knowing what it buys. Cold steel, the table's own rule tone (never the discard's amber). */
+.con-hand__discard-seal {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .08rem .55rem .08rem .2rem;
+    margin-left: .1rem;
+    border-radius: 49.95rem;
+    background: linear-gradient(180deg, rgba(150, 165, 180, 0.2), rgba(60, 70, 82, 0.28));
+    box-shadow: inset 0 0 0 .05rem rgba(190, 205, 220, 0.4);
+    color: #d5dde5;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .04rem;
+}
+.con-hand__discard-sealcard {
+    position: relative;
+    flex-shrink: 0;
+    width: .95rem;
+    height: 1.3rem;
+
+    .con-card-back {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: .14rem;
+        box-shadow: 0 .08rem .2rem rgba(0, 0, 0, 0.5);
+    }
+}
+.con-hand__discard-seallock {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: .78rem;
+    height: .78rem;
+    margin: -.39rem 0 0 -.39rem;
+    padding: .08rem;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 55%, #a9b4bf 0%, #6b7783 70%, #3b434c 100%);
+    box-shadow: 0 0 0 .04rem rgba(20, 26, 32, 0.6);
+    fill: none;
+    stroke: #1b2229;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+/* THE CARD THE BONUS JUST BROUGHT IN (colony polish 1, К-4): «НОВАЯ · БОНУС N» on that card while its discard is
+   asked — the mint of «taken» (the table's socket says the same thing: «Взята · сброс за вами»). The blocker chip's
+   place and counter-zoom (over the art, never over the mechanics plate), at the art's upper third so a pick's
+   «⌫ СБРОШЕНО» band — which replaces it — lands in a different place and never reads as the same object. */
+.con-hand__fresh {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    transform: translate(-50%, -50%);
+    max-width: 88%;
+    padding: .22rem .6rem;
+    border-radius: .55rem;
+    background: rgba(8, 18, 16, 0.9);
+    box-shadow: inset 0 0 0 .06rem fade(@con-mint, 70%), 0 .3rem .9rem rgba(0, 0, 0, 0.5);
+    color: #c9f5e2;
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .05rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1.18;
+    zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
+    pointer-events: none;
+}
+html.con-profile-tv .con-hand__fresh { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0.66))"; }
 /* The exchange: what the discard BUYS, live for the current pick. */
 .con-hand__discard-swap {
     display: inline-flex;
@@ -329,4 +402,12 @@
 .con-hand__verdictbar--discard .con-cards__verdict--picked {
     color: fade(@con-amber, 96%);
     box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+}
+
+/* A card the RULES already discarded (colony polish 1, К-5 — Pluto's «discard 1» on an empty hand): the single-card
+   viewer's role pill says so in the discard's own tone (the «−1» chip's warm red), never the mint of «received». */
+.con-zoom__status--discarded {
+    background: rgba(40, 16, 10, 0.55);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 170, 130, 0.6), 0 0 .8rem rgba(255, 140, 100, 0.12);
+    color: #ffd9c2;
 }

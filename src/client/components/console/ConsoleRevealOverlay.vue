@@ -17,7 +17,8 @@
        }"
        :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'reveal'"
-       :data-motion-variant="embedded ? undefined : (headless ? 'headless' : mode)">
+       :data-motion-variant="embedded ? undefined : (headless ? 'headless' : mode)"
+       :data-settlement-table="tableNonce">
     <!--
       SINGLE-CARD drawn reveal is HEADLESS: the received card IS the reveal,
       shown DIRECTLY in the fullscreen viewer (auto-opened). Nothing renders
@@ -54,7 +55,16 @@
           <ConsoleWsStageHead v-if="embedded && mode !== 'result'"
                               class="con-reveal__head con-reveal__head--embedded"
                               :title="titleText">
-            <template v-if="mode === 'drawn' && drawnEvent !== undefined && (drawnEvent.cards.length > 1 || drawnEvent.search !== undefined)" #badges>
+            <!-- A SETTLEMENT TABLE's badge is the table's size — the places, one per settlement — constant from the first
+                 deal to the last turn (a «ПОЛУЧЕНО N» that read 3, then 1, would count batches the player never sees). -->
+            <template v-if="tableOn" #badges>
+              <span class="con-ws-stage-badge" data-settlement-badge>
+                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+                <span class="con-ws-stage-badge__label">{{ $t('Settlements') }}</span>
+                <b class="con-ws-stage-badge__num">{{ tableMeta?.total ?? 0 }}</b>
+              </span>
+            </template>
+            <template v-else-if="mode === 'drawn' && drawnEvent !== undefined && (drawnEvent.cards.length > 1 || drawnEvent.search !== undefined)" #badges>
               <!-- A FILTERED SEARCH states its whole outcome and its rule in the ONE badge (TR32 — K-4):
                    «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 — без меток …». A plain draw keeps its count. -->
               <span v-if="drawnEvent.search !== undefined" class="con-ws-stage-badge con-reveal__searchbadge">
@@ -121,7 +131,7 @@
           </header>
 
           <!-- ── DRAWN: take the received cards (source is the header chip) ── -->
-          <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__body con-reveal__body--drawn con-info__scroll">
+          <div v-if="mode === 'drawn' && (drawnEvent !== undefined || tableOn)" class="con-reveal__body con-reveal__body--drawn con-info__scroll">
             <div class="con-reveal__main">
               <!--
                 A TransitionGroup, so taking a card never SNAPS the row: the
@@ -130,19 +140,38 @@
                 once — its hand-intake proxy is already carrying it away, so a
                 leave animation here would be a second copy of the same card.
                 Applies to every reveal, not just the colony bonus.
+                (A SETTLEMENT TABLE is the exception by design: its places
+                never move — a taken card leaves its socket, see `tableIncome`.)
               -->
               <transition-group tag="div" name="con-reveal-shift"
                    class="con-cards__strip con-reveal__strip"
                    :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1,
-                            'con-ws-stage-row': embedded}]"
+                            'con-ws-stage-row': embedded, 'con-reveal__strip--table': tableOn}]"
                    :style="stripZoomStyle">
+                <!-- THE SETTLEMENT TABLE's income places — keyed by POSITION: a taken card leaves its empty socket
+                     (✓), and a later cycle draws the same sockets from the table's memory, so the places beside them
+                     stand still from the first deal to the last turn. -->
+                <template v-if="tableOn">
+                  <div v-for="row in tableIncome" :key="row.key"
+                       class="con-cards__slot con-start__deal con-reveal__incslot"
+                       :data-zoom-slot="row.entry !== undefined ? row.entry.card.name + '#' + row.entry.index : undefined"
+                       :class="{'con-cards__slot--focused': row.entry !== undefined && focusIdx === row.entry.pos && !arrivalPending,
+                                'con-reveal__incslot--taken': row.entry === undefined}"
+                       :ref="row.entry !== undefined && focusIdx === row.entry.pos ? 'focusedCardSlot' : undefined">
+                    <Card v-if="row.entry !== undefined" :card="row.entry.card" :key="row.entry.card.name" lightweight />
+                    <template v-else>
+                      <span class="con-reveal__bonus-socket"></span>
+                      <span class="con-reveal__bonus-done">✓</span>
+                    </template>
+                  </div>
+                </template>
                 <!-- The trade-income cards (or the whole batch when it isn't
                      a merged colony trade). Focus/take order is UNCHANGED —
                      `pos` is the card's logical strip position. EMBEDDED MULTI
                      renders the WHOLE batch (taken cards stay in their slots
                      as face-down backs — see stripEntries), so the row never
                      re-flows while the player works through it. -->
-                <div v-for="entry in stripEntries" :key="entry.card.name + '#' + entry.index"
+                <div v-for="entry in (tableOn ? [] : stripEntries)" :key="entry.card.name + '#' + entry.index"
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(entry.pos)"
                      :data-zoom-slot="entry.card.name + '#' + entry.index"
@@ -189,11 +218,78 @@
                 -->
                 <div v-for="zone in bonusZones" :key="'zone' + zone.index"
                      class="con-reveal__bonus-zone"
-                     :class="'con-reveal__bonus-zone--' + zone.state">
+                     :class="['con-reveal__bonus-zone--' + zone.state, {'con-reveal__bonus-zone--table': tableOn}]"
+                     :data-settlement-place="tableOn ? zone.index : undefined"
+                     :data-settlement-paint="tableOn ? placePaint(zone) : undefined">
                   <span class="con-reveal__bonus-zone-label">
                     {{ $t('Colony bonus') }}
                     <b v-if="zone.total > 1">{{ zone.index }}/{{ zone.total }}</b>
                   </span>
+
+                  <!-- ═══ THE SETTLEMENT TABLE (colony polish 1) — every place is ONE physical card body, keyed by its
+                       index for the whole resolution: the face-down card that lies under its seal from the first deal
+                       IS the element that turns over in place when its turn comes (Card3DInner: the outer projects,
+                       the body only rotates — never an opacity on it). A taken / discarded-for place keeps its box and
+                       shows the socket. ═══ -->
+                  <template v-if="tableOn">
+                    <div class="con-cards__slot con-reveal__bonus-slot con-reveal__placeslot"
+                         :data-zoom-slot="placeSlotKey(zone)"
+                         :class="{'con-cards__slot--focused': placeFocused(zone) && !arrivalPending}"
+                         :ref="placeFocused(zone) ? 'focusedCardSlot' : undefined">
+                      <div class="con-reveal__place con-card3d-outer"
+                           :class="{'con-reveal__place--gone': placeSocket(zone)}"
+                           :data-settlement-body="zone.index">
+                        <div class="con-card3d con-reveal__placebody"
+                             :class="{'con-reveal__placebody--down': placeDown(zone)}"
+                             :ref="(el) => setPlaceBodyRef(zone.index, el)">
+                          <div class="con-card3d__face con-reveal__placeface">
+                            <Card v-for="entry in placeEntries(zone)" :card="entry.card" :key="entry.card.name" lightweight />
+                          </div>
+                          <div class="con-card3d__back con-reveal__placeback">
+                            <span class="con-card-back"></span>
+                            <!-- THE SEAL — the rule as an object: a cold steel lock on the card that cannot be
+                                 opened yet. No verb on it (the bar promises none); it breaks when the discard for
+                                 the place before it touches down, and the card under it then turns over. -->
+                            <span v-if="placeSealVisible(zone)" class="con-reveal__seal" :data-settlement-seal="zone.index"
+                                  :class="{'con-reveal__seal--breaking': sealBreaking(zone)}"
+                                  aria-hidden="true"
+                                  @animationend="onSealBreakEnd(zone.index, $event)">
+                              <svg class="con-reveal__seal-lock" viewBox="0 0 24 24" aria-hidden="true">
+                                <path class="con-reveal__seal-shackle" d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" />
+                                <rect class="con-reveal__seal-body" x="5" y="10.5" width="14" height="10" rx="2.2" />
+                                <circle class="con-reveal__seal-hole" cx="12" cy="15.2" r="1.5" />
+                              </svg>
+                              <b class="con-reveal__seal-num">{{ zone.index }}</b>
+                            </span>
+                          </div>
+                          <div class="con-card3d__edge" aria-hidden="true"></div>
+                        </div>
+                      </div>
+                      <template v-if="placeSocket(zone)">
+                        <span class="con-reveal__bonus-socket"></span>
+                        <span v-if="placePaint(zone) === 'done' || placePaint(zone) === 'taken'" class="con-reveal__bonus-done">✓</span>
+                      </template>
+                    </div>
+                    <!-- THE SEAL'S CONDITION, readable from the couch: what opens this place (−1 card — the discard)
+                         and for which bonus. A link reaches back to that place on its left.
+                         ⚠️ THE LINE IS ALWAYS THERE (blank when it has nothing to say): a zone is a centred column, so
+                         a line that appeared with the handoff — or left with the turn — moved the place above it by
+                         half its height, and the card the player was watching jumped at the very moment it must stay
+                         one object (measured 42 px at 4K). -->
+                    <span class="con-reveal__sealcond con-reveal__sealcond--table"
+                          :class="{
+                            'con-reveal__sealcond--owed': placePaint(zone) === 'taken',
+                            'con-reveal__sealcond--blank': placePaint(zone) !== 'sealed' && placePaint(zone) !== 'taken',
+                          }"
+                          :data-settlement-cond="zone.index">
+                      <span v-if="placePaint(zone) === 'taken'" class="con-reveal__sealcond-text">{{ $t('Taken · the discard is yours') }}</span>
+                      <template v-else>
+                        <span v-if="placePaint(zone) === 'sealed'" class="con-reveal__sealcond-link" aria-hidden="true"></span>
+                        <span class="con-reveal__sealcond-cost">−1<i class="resource_icon resource_icon--cards" aria-hidden="true"></i></span>
+                        <span class="con-reveal__sealcond-text">{{ sealCondText(zone) }}</span>
+                      </template>
+                    </span>
+                  </template>
 
                   <!-- ACTIVE: the real card, exactly as the strip renders one.
                        IT ARRIVES ALREADY OPEN — the cover that carried it here
@@ -206,7 +302,7 @@
                        the landed card then played a SECOND, different turn
                        in place while its neighbours had turned on the way. One
                        object, one turn, one grammar. -->
-                  <div v-if="zone.state === 'active' && activeBonusEntry !== undefined"
+                  <div v-else-if="zone.state === 'active' && activeBonusEntry !== undefined"
                        class="con-cards__slot con-reveal__bonus-slot"
                        :data-zoom-slot="activeBonusEntry.card.name + '#' + activeBonusEntry.index"
                        :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos}"
@@ -216,9 +312,9 @@
                          the status rail below names the card + its status.) -->
                   </div>
 
-                  <!-- FUTURE: a face-down placeholder — an honest "one more
-                       bonus is coming", never a card the player could read. -->
-                  <div v-else-if="zone.state === 'future'" class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--waiting" aria-hidden="true">
+                  <!-- SEALED (no table — a standalone reveal): the later colony's card face-down under its seal —
+                       never a card the player could read. (Inside a workspace this place is the table's, above.) -->
+                  <div v-else-if="zone.state === 'sealed'" class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--waiting" aria-hidden="true">
                     <span class="con-reveal__bonus-cover con-card-back"></span>
                   </div>
 
@@ -254,8 +350,9 @@
                     </span>
                     <span v-if="!discardStepReady" class="con-reveal__closer-lock">{{ $t(discardStep.lockedReason) }}</span>
                   </div>
-                  <span v-else-if="zone.state === 'future'" class="con-reveal__bonus-wait">
-                    {{ $t('Waits for the previous bonus') }}
+                  <span v-else-if="zone.state === 'sealed' && !tableOn" class="con-reveal__sealcond">
+                    <span class="con-reveal__sealcond-cost">−1<i class="resource_icon resource_icon--cards" aria-hidden="true"></i></span>
+                    <span class="con-reveal__sealcond-text">{{ sealCondText(zone) }}</span>
                   </span>
                 </div>
               </transition-group>
@@ -275,9 +372,18 @@
                    its CONTENT hides (opacity — never publish a verdict for a
                    card that has not arrived). -->
               <div class="con-reveal__namebar con-ws-stage-status"
-                   :class="{'con-reveal__namebar--held': arrivalPending || revealSceneStaged ||
-                            (drawnUntaken[focusIdx] === undefined && discardStep === undefined)}">
-                <template v-if="drawnUntaken[focusIdx] !== undefined">
+                   :class="{'con-reveal__namebar--held': arrivalPending || revealSceneStaged || placeTurnBusy || parked ||
+                            (drawnUntaken[focusIdx] === undefined && discardStep === undefined && focusedSealedPlace === 0)}">
+                <!-- A SEALED PLACE under the cursor reads its seal — no name (its card is not drawn yet), no verb. -->
+                <template v-if="focusedSealedPlace > 0 && !discardStepReady">
+                  <span class="con-cards__verdict-name con-reveal__sealreading" :key="'sealed' + focusedSealedPlace">
+                    <svg class="con-reveal__sealreading-lock" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" /><rect x="5" y="10.5" width="14" height="10" rx="2.2" />
+                    </svg>
+                    {{ focusedSealedReading }}
+                  </span>
+                </template>
+                <template v-else-if="drawnUntaken[focusIdx] !== undefined">
                   <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
                   <ConsoleCardAvailabilityPanel v-if="drawnAvailability !== undefined"
                                                 variant="line"
@@ -505,6 +611,7 @@ import {
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {CardName} from '@/common/cards/CardName';
 import {handDockReachable, runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
+import {applyDiscardExit} from '@/client/console/cardDeal/cardExitDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {
@@ -528,6 +635,64 @@ import {
 } from '@/client/console/consoleRevealPresentation';
 import {rewardPayoutSettling} from '@/client/console/rewardPayoutQuiet';
 import {runRevealHandoff} from '@/client/console/revealHandoff';
+import {gsap} from 'gsap';
+import {ColonyName} from '@/common/colonies/ColonyName';
+import {readingText} from '@/client/console/readingText';
+import {probeTick} from '@/client/console/probeTick';
+import {addCard3DTurn} from '@/client/console/cardFlight/card3dInner';
+import {colonyResolutionUi, noteColonyBonusFresh} from '@/client/console/colonyTrade/colonyResolution';
+import {cardArrivalTimings, reducedCardArrivalTimings, sealedRevealPlan} from '@/client/console/consoleCardArrival';
+import {
+  breakSettlementSeal, noteSettlementDealt, noteSettlementFocusSealed, noteSettlementIncome, noteSettlementPresented,
+  noteSettlementTaken, oweSettlementTurn, releaseSettlementDeck, sealedPlaceReading, sealOpensAfter,
+  setSettlementTurnPhase, settlementArrival, settlementPlacePaint, SettlementPlaceCard, SettlementPlacePaint,
+  settlementPlacesToDeal, settlementSealStands, settlementTable, startSettlementSealBreak,
+} from '@/client/console/colonyTrade/settlementTable';
+import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
+import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
+
+/**
+ * THE SETTLEMENT TABLE's place bodies + their running turns — DOM/GSAP handles, never reactive state (one instance
+ * per resolution; the overlay is the table's only renderer).
+ */
+const placeBodies = new Map<number, HTMLElement>();
+const placeTurns = new Map<number, {kill: () => unknown}>();
+
+/** How long a sealed place may take to STAND (the stage coming back from the hand) before it turns anyway. */
+const PLACE_STANDING_WAIT_MS = 1_600;
+/** How long a seal waits for its discard's touchdown before it breaks on its own (the rule is already met). */
+const SEAL_TOUCHDOWN_WAIT_MS = 2_400;
+/** …and how long its break may take to report its own end. */
+const SEAL_BREAK_NET_MS = 900;
+
+/**
+ * THE PLACE IS STANDING — painted (`checkVisibility` with opacity: a place inside the receded / returning stage is
+ * not), and still across two consecutive probes. Ticks on `probeTick` (a quiet compositor starves rAF — exactly the
+ * screen this waits on). Bounded: a place that never stands turns anyway (the turn is the card's only door).
+ */
+function waitPlaceStanding(el: HTMLElement): Promise<void> {
+  return new Promise((done) => {
+    const start = performance.now();
+    let last = '';
+    const poll = () => {
+      const r = el.getBoundingClientRect();
+      const painted = typeof el.checkVisibility !== 'function' ||
+        el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true});
+      let opaque = true;
+      for (let n: HTMLElement | null = el; n !== null && opaque; n = n.parentElement) {
+        opaque = Number(getComputedStyle(n).opacity) > 0.92;
+      }
+      const sig = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`;
+      if ((painted && opaque && r.width > 2 && sig === last) || performance.now() - start > motionMs(PLACE_STANDING_WAIT_MS)) {
+        done();
+        return;
+      }
+      last = painted && opaque ? sig : '';
+      probeTick(poll);
+    };
+    poll();
+  });
+}
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -580,6 +745,13 @@ export default defineComponent({
      * neither the root's nor the row's box: no observer can see it.
      */
     sourceSeat: {type: Boolean, default: false},
+    /**
+     * PARKED — the SETTLEMENT TABLE between two cycles (colony polish 1): no batch presents (the hand owns the
+     * room for the discard, or the next card is between the server and the screen), yet the table stays this one
+     * instance, in its own zone, painting its places from the table's memory. Owns no input and no commands (the
+     * shell routes nothing here: its reveal mode is undefined).
+     */
+    parked: {type: Boolean, default: false},
   },
   emits: ['dismiss-result', 'discard-pick', 'drawn-complete', 'result-detached'],
   data() {
@@ -697,7 +869,127 @@ export default defineComponent({
   computed: {
     // ── drawn ────────────────────────────────────────────────────────
     drawnEvent(): DrawnCardEntry | undefined {
-      return this.mode === 'drawn' ? currentRevealEvent() : undefined;
+      // A PARKED table presents no batch — even one that already exists (the next cycle's, held by the shell
+      // until the stage is back): painting it here would open the card under the hand.
+      return this.mode === 'drawn' && !this.parked ? currentRevealEvent() : undefined;
+    },
+    // ── THE SETTLEMENT TABLE (colony polish 1 — `colonyTrade/settlementTable.ts`) ──────────────────────────────
+    /**
+     * THIS INSTANCE IS A SETTLEMENT TABLE: several settlements on one colony are being paid, one after another,
+     * and the batch on screen (or none — parked) is that colony's. From the first deal to the marker's return
+     * every place is ONE physical card body, keyed by its index, and the row keeps its geometry across cycles.
+     */
+    tableOn(): boolean {
+      const t = settlementTable;
+      if (t.nonce === 0 || !this.embedded || this.mode !== 'drawn') {
+        return false;
+      }
+      if (this.parked) {
+        return true;
+      }
+      const src = this.drawnEvent?.source;
+      return src?.type === 'colony' && src.via === undefined && src.colonyName === t.colony;
+    },
+    /** Where the sequence stands: the server's marker when it is this batch's, else what the table remembers. */
+    tableMeta(): ColonyBonusDiscardMeta | undefined {
+      if (!this.tableOn) {
+        return undefined;
+      }
+      const t = settlementTable;
+      return this.bonusDiscard ?? {colonyName: t.colony as ColonyName, index: t.index, total: t.total};
+    },
+    /** The table's instance nonce, stamped on the root — the e2e guard demands ONE value per resolution. */
+    tableNonce(): number | undefined {
+      return this.tableOn ? settlementTable.nonce : undefined;
+    },
+    /**
+     * THE INCOME SOCKETS of a settlement table: the first payout's income cards keep their places for the whole
+     * resolution — taken, a card leaves its EMPTY socket (never its back, never a re-centred row); in a later
+     * cycle (no income in the batch) the sockets are drawn from the table's memory. Keyed by POSITION, so the
+     * slot elements survive from one cycle to the next and the places beside them never move.
+     */
+    tableIncome(): Array<{key: string, entry?: StripEntry, taken: boolean}> {
+      if (!this.tableOn) {
+        return [];
+      }
+      const e = this.drawnEvent;
+      const out: Array<{key: string, entry?: StripEntry, taken: boolean}> = [];
+      if (e !== undefined) {
+        const segments = e.tradeSegments;
+        const zoneBatch = segmentlessZoneBatch(e.source, segments, this.bonusDiscard, e.cards.length);
+        // The live entries carry the UNTAKEN ordinal `drawnGrouped` gave them (focus + take order unchanged).
+        const live = new Map(this.drawnGrouped.income.map((entry) => [entry.index, entry]));
+        e.cards.forEach((_card, index) => {
+          if (zoneBatch || revealWaveForIndex(segments, index, true) === 'bonus') {
+            return;
+          }
+          const entry = live.get(index);
+          out.push({key: 'inc' + out.length, entry, taken: entry === undefined});
+        });
+      }
+      for (let i = out.length; i < settlementTable.incomeSlots; i++) {
+        out.push({key: 'inc' + i, taken: true});
+      }
+      return out;
+    },
+    /** The card the batch holds for the place resolving now (undefined while it is not on the table yet). */
+    tablePlaceEntry(): StripEntry | undefined {
+      return this.tableOn ? this.drawnGrouped.bonus[0] : undefined;
+    },
+    /** Where the current place's card stands: on the table, taken into the hand, or not here. */
+    tablePlaceCard(): SettlementPlaceCard {
+      const meta = this.tableMeta;
+      if (meta === undefined) {
+        return 'absent';
+      }
+      if (this.tablePlaceEntry !== undefined) {
+        return 'present';
+      }
+      // Taken in THIS batch (its bonus index is in the taken set), or remembered taken across the park.
+      const e = this.drawnEvent;
+      const takenHere = e !== undefined && e.cards.some((_c, i) =>
+        e.takenIndices.has(i) && (revealWaveForIndex(e.tradeSegments, i, true) === 'bonus' ||
+          segmentlessZoneBatch(e.source, e.tradeSegments, this.bonusDiscard, e.cards.length)));
+      return takenHere || settlementTable.taken.includes(meta.index) ? 'taken' : 'absent';
+    },
+    /**
+     * The sealed places the cursor may READ (the owner's decision: focusable, read-only — the status line names
+     * the seal's condition, the bar promises no verb). Only while there is still something to take: once the
+     * table is cleared the closing step («Сбросить карту») is the one thing A does, and a ring standing on a card
+     * nobody can act on would argue with it.
+     */
+    sealedFocusPlaces(): Array<number> {
+      if (!this.tableOn || this.drawnUntaken.length === 0) {
+        return [];
+      }
+      return this.bonusZones.filter((z) => this.placePaint(z) === 'sealed').map((z) => z.index);
+    },
+    /** The sealed place under the cursor (0 = the cursor is on a card). */
+    focusedSealedPlace(): number {
+      const at = this.focusIdx - this.drawnUntaken.length;
+      return at >= 0 ? (this.sealedFocusPlaces[at] ?? 0) : 0;
+    },
+    /** The sealed place's status line («Бонус колонии 2 из 2 · откроется после сброса за бонус 1»). */
+    focusedSealedReading(): string {
+      const place = this.focusedSealedPlace;
+      return place === 0 ? '' : readingText(sealedPlaceReading(place, this.tableMeta?.total ?? settlementTable.total));
+    },
+    /** A sealed place's card is turning over (or owes its turn): nothing on it may be acted upon yet. */
+    placeTurnBusy(): boolean {
+      return this.tableOn && (settlementTable.turnPhase === 'owed' || settlementTable.turnPhase === 'turning');
+    },
+    /** The discard cinematic's landings on its pile (each one a touchdown of a disposed card). */
+    discardLandings(): number {
+      return cardDiscardState.trayCount;
+    },
+    /** The batch the table holds right now (0 = parked / not a table) — a change is a cycle accepted INTO the table. */
+    tableBatchId(): number {
+      return this.tableOn ? (this.drawnEvent?.id ?? 0) : 0;
+    },
+    /** The place whose owed turn may play NOW: the table presents (not parked) and the stage is back from the hand. */
+    turnReadyPlace(): number {
+      return this.tableOn && !this.parked && !colonyResolutionUi.discardStage && settlementTable.turnPhase === 'owed' ?
+        settlementTable.turnPlace : 0;
     },
     /** The measured embedded fit applies — the watcher owns install/teardown. */
     embedFitEligible(): boolean {
@@ -944,7 +1236,9 @@ export default defineComponent({
     },
     /** One zone per colony of the recipient's sequence (see bonusZones). */
     bonusZones(): ReadonlyArray<BonusZone> {
-      return bonusZones(this.bonusDiscard);
+      // A SETTLEMENT TABLE lays its places out from the sequence it remembers even with no batch on screen (parked):
+      // the places are the table, not decorations of one batch.
+      return bonusZones(this.tableOn ? this.tableMeta : this.bonusDiscard);
     },
     /**
      * The card of the colony resolving right now. The batch carries exactly one
@@ -957,6 +1251,11 @@ export default defineComponent({
     /** The single received card (single-card mode). */
     singleCard(): CardModel | undefined {
       return this.singleCardMode ? this.drawnEvent?.cards[0] : undefined;
+    },
+    /** The lone card was discarded by the rules already (К-5) — see CardDrawRevealModel.autoDiscarded. */
+    singleAutoDiscarded(): boolean {
+      const card = this.singleCard;
+      return card !== undefined && this.drawnEvent?.autoDiscarded?.includes(card.name) === true;
     },
     /**
      * NOTHING RENDERS HERE. Two different reasons, one root state:
@@ -1070,6 +1369,11 @@ export default defineComponent({
     stripCount(): number {
       if (this.mode === 'viewer') {
         return this.viewerReveal?.cards.length ?? 0;
+      }
+      // A SETTLEMENT TABLE holds its income sockets and ALL its places for the whole resolution — the same count in
+      // every cycle, so the fit solves one row once and no place ever moves under the card waiting on it.
+      if (this.tableOn) {
+        return this.tableIncome.length + this.bonusZones.length;
       }
       const cards = this.drawnEvent?.cards.length ?? 0;
       const zones = this.bonusZones.length;
@@ -1229,6 +1533,14 @@ export default defineComponent({
     titleText(): string {
       switch (this.mode) {
       case 'drawn':
+        // A SETTLEMENT TABLE names WHOSE payout this is and its rule (К-9) — «Получена карта» over a table of
+        // sealed places said neither; the ordinal stays the crumb's («БОНУС 2 ИЗ 2») and is never repeated here.
+        if (this.tableOn) {
+          // The table that also holds the trade's own income says so — those cards are not anybody's bonus.
+          return translateText(this.tableIncome.length > 0 ?
+            'Trade income · a bonus card per settlement' :
+            'Owner bonus · one card per settlement');
+        }
         // Singular when the deck turned over exactly one card — «Получены
         // карты» over a single card reads as a template that was not filled
         // in. Counted off the batch's TOTAL (never the untaken remainder), so
@@ -1243,7 +1555,9 @@ export default defineComponent({
     },
     revealKey(): string {
       switch (this.mode) {
-      case 'drawn': return `drawn|${this.drawnEvent?.id ?? ''}`;
+      // A SETTLEMENT TABLE is ONE stage for the whole resolution: its key is the table's, never a batch's — a new
+      // cycle's batch is accepted INTO the standing table, never swapped in as a new panel (`con-task-swap`).
+      case 'drawn': return this.tableOn ? `table|${settlementTable.nonce}` : `drawn|${this.drawnEvent?.id ?? ''}`;
       case 'result': return `result|${this.lastReveal?.action ?? ''}|${this.lastReveal?.revealed.name ?? ''}`;
       default: return `viewer|${(this.viewerReveal?.cards ?? []).join(',')}`;
       }
@@ -1251,8 +1565,9 @@ export default defineComponent({
     focusCount(): number {
       switch (this.mode) {
       // The discard tray is NOT in the focus ring — it is opened by R3 only,
-      // so the received cards own the selection frame alone.
-      case 'drawn': return this.drawnUntaken.length;
+      // so the received cards own the selection frame alone. A settlement
+      // table's SEALED places join the ring after the cards (read-only stops).
+      case 'drawn': return this.drawnUntaken.length + this.sealedFocusPlaces.length;
       case 'viewer': return this.viewerReveal?.cards.length ?? 0;
       default: return 0;
       }
@@ -1284,6 +1599,41 @@ export default defineComponent({
         if (stamp !== '') {
           this.ownedBatchKey = stamp;
         }
+      },
+    },
+    /** A cycle's batch was accepted INTO the standing table (see `acceptTableBatch`). */
+    tableBatchId: {
+      immediate: true,
+      handler(id: number): void {
+        if (id !== 0) {
+          this.acceptTableBatch();
+        }
+      },
+    },
+    /**
+     * THE DISCARD TOUCHED DOWN on «СБРОШЕННЫЕ» — the seal of the place it was waiting for breaks, on the table,
+     * in the same beat (the cause — your discard — lands; its consequence — the lock lets go — follows at once).
+     */
+    discardLandings(now: number, was: number): void {
+      if (now <= was || !this.tableOn) {
+        return;
+      }
+      const meta = cardDiscardColonyBonus();
+      if (meta !== undefined && meta.colonyName === settlementTable.colony && meta.index < meta.total) {
+        startSettlementSealBreak(meta.index + 1);
+      }
+    },
+    /** The sealed card's ONE turn plays once the room is back (`runPlaceTurn`). */
+    turnReadyPlace(place: number): void {
+      if (place !== 0) {
+        void this.runPlaceTurn(place);
+      }
+    },
+    /** The cursor on a sealed place is a SHELL fact too — the bar promises no verb there. */
+    focusedSealedPlace: {
+      immediate: true,
+      handler(place: number): void {
+        noteSettlementFocusSealed(place);
       },
     },
     revealKey() {
@@ -1419,6 +1769,16 @@ export default defineComponent({
   },
   beforeUnmount() {
     setRevealVeilSuppressed(false);
+    // The table's own handles die with the instance (a turn mid-flight finishes as an open card, never a frozen
+    // half-turn on the next mount — the module's memory paints the same picture again).
+    noteSettlementFocusSealed(0);
+    placeTurns.forEach((tl) => tl.kill());
+    placeTurns.clear();
+    placeBodies.clear();
+    if (settlementTable.turnPhase === 'turning') {
+      setSettlementTurnPhase(settlementTable.turnPlace, 'done');
+      releaseSettlementDeck();
+    }
     // The stage name dies with the stage (the watcher does not fire on unmount).
     if (this.resultEmbedPhase && workspaceOutcomeState.phaseKey === focusKicker('reveal')) {
       setWorkspaceOutcomePhase('');
@@ -1428,6 +1788,191 @@ export default defineComponent({
     this.stopRowObs?.();
   },
   methods: {
+    // ── THE SETTLEMENT TABLE's places (colony polish 1) ──────────────────────────────────────────────────────────
+    /** What place `zone` paints right now (the pure rule: `settlementPlacePaint`). */
+    placePaint(zone: BonusZone): SettlementPlacePaint {
+      const current = this.tableMeta?.index ?? zone.index;
+      return settlementPlacePaint(zone.index, current, zone.index === current ? this.tablePlaceCard : 'absent', settlementTable);
+    },
+    /** The card that lies in this place (0 or 1 — a list so the template binds the narrowed value). */
+    placeEntries(zone: BonusZone): Array<StripEntry> {
+      const paint = this.placePaint(zone);
+      const entry = this.tablePlaceEntry;
+      return entry !== undefined && (paint === 'open' || paint === 'turning') && zone.index === this.tableMeta?.index ? [entry] : [];
+    },
+    placeSlotKey(zone: BonusZone): string | undefined {
+      const entry = this.placeEntries(zone)[0];
+      return entry === undefined ? undefined : `${entry.card.name}#${entry.index}`;
+    },
+    placeFocused(zone: BonusZone): boolean {
+      const entry = this.placeEntries(zone)[0];
+      if (entry !== undefined) {
+        return this.focusIdx === entry.pos && !this.placeTurnBusy;
+      }
+      return this.focusedSealedPlace === zone.index;
+    },
+    /** Taken / discarded-for / not yet arrived — the place shows its socket (the body keeps the box, unseen). */
+    placeSocket(zone: BonusZone): boolean {
+      const paint = this.placePaint(zone);
+      return paint === 'done' || paint === 'taken' || paint === 'empty';
+    },
+    /** The body lies FACE-DOWN (a CSS rest pose; the turn's GSAP takes over from it and hands back face-up). */
+    placeDown(zone: BonusZone): boolean {
+      const paint = this.placePaint(zone);
+      return paint === 'sealed' || paint === 'pending' || (paint === 'turning' && settlementTable.turnPhase === 'owed');
+    },
+    /**
+     * The seal stands until its discard touches down — even once its card has arrived (the place then owes its
+     * turn, and the turn waits for the seal: a seal that vanished the frame the batch landed never got to break).
+     */
+    placeSealVisible(zone: BonusZone): boolean {
+      const paint = this.placePaint(zone);
+      return (paint === 'sealed' || paint === 'turning') && !settlementTable.broken.includes(zone.index) &&
+        settlementTable.sealLifted !== zone.index;
+    },
+    sealBreaking(zone: BonusZone): boolean {
+      return settlementTable.breakingSeal === zone.index;
+    },
+    /** The break played to its end — the seal is gone (only the break's own keyframes count). */
+    onSealBreakEnd(index: number, ev: AnimationEvent): void {
+      if (String(ev.animationName || '').includes('con-seal-break')) {
+        breakSettlementSeal(index);
+      }
+    },
+    /**
+     * THE SEAL MUST BE GONE BEFORE ITS CARD TURNS. Its break is played by the discard's touchdown on the pile
+     * (`discardLandings`); a touchdown the table never saw (a scene that degraded, reduced motion with no landing)
+     * breaks it here — honestly: the server has drawn the card, so the rule IS satisfied. Bounded.
+     */
+    waitSealGone(place: number): Promise<void> {
+      if (!settlementSealStands(place)) {
+        return Promise.resolve();
+      }
+      return new Promise((done) => {
+        const start = performance.now();
+        const poll = () => {
+          if (!settlementSealStands(place)) {
+            done();
+            return;
+          }
+          const waited = performance.now() - start;
+          if (settlementTable.breakingSeal !== place && waited > motionMs(SEAL_TOUCHDOWN_WAIT_MS)) {
+            startSettlementSealBreak(place);
+          }
+          if (consoleReducedMotionActive() || waited > motionMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS)) {
+            breakSettlementSeal(place);
+            done();
+            return;
+          }
+          probeTick(poll);
+        };
+        poll();
+      });
+    },
+    sealCondText(zone: BonusZone): string {
+      return readingText({label: 'after the discard for bonus ${0}', params: [String(sealOpensAfter(zone.index))]});
+    },
+    setPlaceBodyRef(index: number, el: unknown): void {
+      if (el === null || el === undefined) {
+        placeBodies.delete(index);
+      } else {
+        placeBodies.set(index, el as HTMLElement);
+      }
+    },
+    /**
+     * A NEW BATCH WAS ACCEPTED INTO THE TABLE — decide how its place's card arrives (the fourth arrival mode,
+     * `sealed-reveal`, chosen by the SEQUENCE): a place the table dealt sealed owes ONE turn in place; a place it
+     * never laid (a reload into cycle N) is simply open; the first payout's place is the deal itself.
+     */
+    acceptTableBatch(): void {
+      const meta = this.tableMeta;
+      const e = this.drawnEvent;
+      if (!this.tableOn || meta === undefined || e === undefined) {
+        return;
+      }
+      noteSettlementPresented();
+      if (meta.index === 1) {
+        noteSettlementIncome(this.tableIncome.length);
+        // ONE GRAMMAR FOR EVERY DOOR: only the viewer's own trade has a cover scene to DEAL the later places from
+        // the colony's printed bonus. Every other door (an opponent's trade, reduced motion, a reload into the
+        // first cycle) lays them with the table itself — face-down under their seals from the table's first
+        // frame, so cycle N still turns its card in place instead of opening a place nobody saw.
+        if (!colonyTradeWillDressReveal(e.id, e.source) && !isColonyTradeRevealStaged(e.id)) {
+          noteSettlementDealt(settlementPlacesToDeal(meta.colonyName));
+        }
+        return;
+      }
+      const arrival = settlementArrival(meta, e.source, settlementTable);
+      if (arrival === 'turn') {
+        oweSettlementTurn(meta.index);
+      } else if (arrival === 'shown') {
+        // Nothing replays and nothing is invented: the place is simply open (its card lies face-up).
+        noteSettlementDealt([meta.index]);
+        settlementTable.turnPlace = meta.index;
+        settlementTable.turnPhase = 'done';
+        releaseSettlementDeck();
+      }
+      // The cursor lands on the card of THIS cycle (the batch's first untaken card).
+      this.focusIdx = 0;
+      this.refreshDockReachable();
+    },
+    /**
+     * THE ONE TURN. The sealed card has been lying face-down in this place since the first payout; the server has
+     * now drawn it. A beat face-down (the eye finds the card it already knows — the stage has just come back), then
+     * the Card3DInner turn in place (`addCard3DTurn`: rotationY 180 → 0 with the pitch and the push, the outer's
+     * perspective making it a turn and not a swap). The project deck answers in the SAME beat: its counter, held
+     * since the draw, ticks −1 as the card starts to turn — the server took it from there just now.
+     */
+    async runPlaceTurn(place: number): Promise<void> {
+      if (settlementTable.turnPlace !== place || settlementTable.turnPhase !== 'owed') {
+        return;
+      }
+      const body = placeBodies.get(place);
+      const outer = body?.parentElement ?? null;
+      if (body === undefined || outer === null) {
+        // Nothing to turn (the place never rendered) — open it honestly, release the counter.
+        setSettlementTurnPhase(place, 'done');
+        releaseSettlementDeck();
+        return;
+      }
+      // THE PLACE MUST BE STANDING — painted, opaque, still: the stage may still be coming back from the hand.
+      await waitPlaceStanding(outer);
+      // …and its SEAL GONE: the discard's touchdown breaks it, and only then does the card it held turn over.
+      await this.waitSealGone(place);
+      if (settlementTable.turnPlace !== place || settlementTable.turnPhase !== 'owed' || !this.tableOn) {
+        return;
+      }
+      setSettlementTurnPhase(place, 'turning');
+      const reduced = consoleReducedMotionActive();
+      const plan = sealedRevealPlan(reduced ? reducedCardArrivalTimings() : cardArrivalTimings());
+      const at = motionMs(plan.dwellMs) / 1000;
+      const dur = motionMs(plan.turnMs) / 1000;
+      const edge = body.querySelector<HTMLElement>('.con-card3d__edge') ?? undefined;
+      const face = body.querySelector<HTMLElement>('.con-card3d__face');
+      const back = body.querySelector<HTMLElement>('.con-card3d__back');
+      if (face === null || back === null) {
+        setSettlementTurnPhase(place, 'done');
+        releaseSettlementDeck();
+        return;
+      }
+      gsap.set(body, {rotationY: 180, rotationX: 0, z: 0});
+      const tl = gsap.timeline({
+        onComplete: () => {
+          setSettlementTurnPhase(place, 'done');
+          // The rest pose is CSS again (face-up = no transform) — hand back on the next frame, never a blank one.
+          void this.$nextTick(() => gsap.set(body, {clearProps: 'transform'}));
+        },
+      });
+      // The deck answers as the card starts to turn: the server drew it from there just now.
+      tl.call(() => releaseSettlementDeck(), undefined, at);
+      addCard3DTurn(tl, {
+        card: {outer, inner: body, face, back, edge},
+        at, dur, from: 180, to: 0,
+        reduced,
+        glintClass: 'con-reveal__place--revealing',
+      });
+      placeTurns.set(place, tl);
+    },
     dealDelay(i: number): Record<string, string> {
       if (consoleReducedMotionActive()) {
         return {};
@@ -1882,7 +2427,7 @@ export default defineComponent({
       // flight proxies have handed over, the slots under this surface are
       // still empty, and a press there would act on a card that is not there.
       if (this.mode === 'drawn' &&
-          (this.arrivalPending || this.takingIdx !== undefined || this.collecting)) {
+          (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.placeTurnBusy || this.parked)) {
         return;
       }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
@@ -1915,7 +2460,7 @@ export default defineComponent({
       // Navigation is between AVAILABLE cards only; while the batch is still
       // arriving, a take turn plays or the final collection runs, the frame
       // stays where it is (there is nothing under it to move between yet).
-      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting) {
+      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.placeTurnBusy) {
         return;
       }
       const count = this.focusCount;
@@ -1947,20 +2492,25 @@ export default defineComponent({
         // through the beat). Same swallow for the take-in-place turn and the
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
-        if (this.arrivalPending || this.takingIdx !== undefined || this.collecting) {
+        if (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.placeTurnBusy || this.parked) {
           return;
         }
         if (action === 'primary') {
           // Once everything is taken, A IS the payout's closing step; while
           // cards remain it keeps its ordinary "take the focused card" job.
+          // A SEALED place under the cursor has no verb (read-only — there is
+          // no card yet): A promises nothing there and does nothing.
           if (this.discardStepReady) {
             this.openDiscardPick();
-          } else {
+          } else if (this.focusedSealedPlace === 0) {
             this.takeFocused();
           }
         } else if (action === 'inspect') {
-          // P13 global rule: X reads the focused card fullscreen.
-          this.zoomFocused();
+          // P13 global rule: X reads the focused card fullscreen — nothing to
+          // read on a sealed place (its card is not drawn yet).
+          if (this.focusedSealedPlace === 0) {
+            this.zoomFocused();
+          }
         } else if (action === 'nextTab' || action === 'back') {
           // Take-all is the shortcut, never an exit: with nothing left to take
           // and a discard owed, the modal has no dismiss action at all.
@@ -2173,8 +2723,10 @@ export default defineComponent({
         // the multi-card modal's R3 (the headless single-card presentation had
         // no way in). Only wired when the search actually discarded something.
         discards: this.discardedCards.length > 0 ? () => this.openDiscards() : undefined,
-        receivedCount: this.drawnEvent?.cards.length ?? 1,
-        statusLabel: 'Received card',
+        // «ПОЛУЧЕНО N» would contradict a card the rules already discarded — that pill says the truth instead.
+        receivedCount: this.singleAutoDiscarded ? 0 : this.drawnEvent?.cards.length ?? 1,
+        // A card the RULES already discarded (К-5 — Pluto's «discard 1» on an empty hand) is shown leaving, never received.
+        statusLabel: this.singleAutoDiscarded ? 'Discarded: no other card in hand' : 'Received card',
         mandatory: true,
         origin: physicalOrigin !== undefined ? {kind: 'physical', resolve: physicalOrigin} : {kind: 'textual'},
       });
@@ -2199,10 +2751,12 @@ export default defineComponent({
     },
     /** The single-card receive bridge — A departs the card from fullscreen. */
     singleReceiveBridge(): ConsoleZoomReceive {
+      // A card the rules already discarded is not in the hand: its verb is «В сброс» and it never flies into the dock.
+      const auto = this.singleAutoDiscarded;
       return {
-        takeLabel: 'Take card',
+        takeLabel: auto ? 'To the discard' : 'Take card',
         takeAt: () => this.singleCardTake(),
-        departFromFullscreen: true,
+        departFromFullscreen: !auto,
       };
     },
     /**
@@ -2325,6 +2879,12 @@ export default defineComponent({
         });
       };
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
+      // A card the RULES already discarded (К-5) never flies into the hand: it leaves its slot the discard's way
+      // (the shared subdued exit), and the batch commits exactly as a take would.
+      if (e.autoDiscarded?.includes(entry.card.name) === true) {
+        void applyDiscardExit(slot === null ? [] : [slot]).then(commit);
+        return;
+      }
       void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {
         commit,
         // SEAMLESS: the take's commit REMOVES this card (and, embedded, closes
@@ -2457,6 +3017,19 @@ export default defineComponent({
       const e = this.drawnEvent;
       if (e === undefined || !this.discardStepReady) {
         return;
+      }
+      // THE TABLE REMEMBERS the place's card went into the hand — the batch is acknowledged right below, and the
+      // parked table keeps that place's socket with its ✓ («взята · сброс за вами») through the hand's step.
+      if (this.tableOn && this.tableMeta !== undefined) {
+        noteSettlementTaken(this.tableMeta.index);
+      }
+      // …and the HAND will know which of its cards this bonus just brought in (К-4 — «НОВАЯ · БОНУС N»).
+      const meta = this.bonusDiscard;
+      if (meta !== undefined) {
+        const zoneBatch = segmentlessZoneBatch(e.source, e.tradeSegments, meta, e.cards.length);
+        noteColonyBonusFresh(meta.colonyName, meta.index, e.cards
+          .filter((_card, i) => zoneBatch || revealWaveForIndex(e.tradeSegments, i, true) === 'bonus')
+          .map((card) => card.name));
       }
       releaseRevealFollowUp();
       closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);

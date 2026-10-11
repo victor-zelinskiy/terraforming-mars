@@ -185,11 +185,12 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   const zones = page.locator('.con-reveal__bonus-zone');
   expect(await zones.count(), 'one zone per colony').toBe(3);
   expect(await page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
-  expect(await page.locator('.con-reveal__bonus-zone--future').count()).toBe(2);
+  expect(await page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(2);
   await expect(page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-zone-label')).toContainText('1/3');
-  // A waiting colony offers nothing and says why.
-  expect(await page.locator('.con-reveal__bonus-zone--future .con-reveal__closer').count()).toBe(0);
-  await expect(page.locator('.con-reveal__bonus-wait').first()).toContainText(/Ожидает/i);
+  // A SEALED place offers nothing and says why — by its condition, never a bare «wait» (colony polish 1: the
+  // place opens after the discard for the bonus before it).
+  expect(await page.locator('.con-reveal__bonus-zone--sealed .con-reveal__closer').count()).toBe(0);
+  await expect(page.locator('.con-reveal__bonus-zone--sealed .con-reveal__sealcond').first()).toContainText(/после сброса за бонус 1/i);
 
   // 2 · the live colony's card is OPEN with no input given.
   //     The zone no longer owns a face-down flip chassis of its own: the card
@@ -236,7 +237,9 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
 
   // …and the taken bonus card left an EMPTY SOCKET at the same size — never its
   // back, which would read as a card still lying on the table.
-  expect(await page.locator('.con-reveal__bonus-socket').count(), 'the taken card leaves its socket').toBe(1);
+  // (Scoped to THIS colony's place: a settlement table keeps the taken INCOME cards' sockets too — colony polish 1 —
+  // so the row never re-centres under the places that are still waiting.)
+  expect(await page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-socket').count(), 'the taken card leaves its socket').toBe(1);
   expect(await page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover').count(),
     'the resolved colony must NOT show a card back').toBe(0);
   const after = await zoneSlotBox();
@@ -255,5 +258,6 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1200);
   await shoot(page, 'handed-over');
-  expect(await page.locator('.con-reveal').count(), 'the step must release the modal').toBe(0);
+  // The table PARKS under the receded stage (colony polish 1) — out of sight, never unmounted.
+  expect(await page.locator('.con-reveal:visible').count(), 'the step must release the modal').toBe(0);
 });

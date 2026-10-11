@@ -24,11 +24,17 @@ import {CardDrawRevealSource, ColonyTradeRevealSegment} from '@/common/models/Ca
  *          the sequence). A calm completion mark, no actions, out of nav.
  * active — the colony resolving right now: its card is on the table (flipping
  *          open, then takeable) and its own discard button lives under it.
- * future — a colony whose bonus has not started. Its card is NOT known yet
- *          (the server draws it only after this one finishes), so the zone
- *          shows a face-down placeholder: "there is another bonus coming".
+ * sealed — a colony whose bonus has not started. Its card is NOT known yet
+ *          (the server draws it only after this one finishes), so the place
+ *          holds a face-down card UNDER A SEAL: the rule «discard for the bonus
+ *          before it, then this one opens» is drawn as an object, never as a
+ *          caption. It was `future` with a static back «born from nowhere» and
+ *          «Ожидает завершения предыдущего бонуса» under it (colony polish 1):
+ *          the back now ARRIVES (the trade's deal), carries its seal, and is
+ *          the very object that turns over in place when its turn comes
+ *          (`settlementTable.ts`).
  */
-export type BonusZoneState = 'done' | 'active' | 'future';
+export type BonusZoneState = 'done' | 'active' | 'sealed';
 
 export type BonusZone = {
   /** 1-based position in the recipient's sequence of colonies on this tile. */
@@ -52,7 +58,7 @@ export function bonusZones(meta: ColonyBonusDiscardMeta | undefined): ReadonlyAr
     zones.push({
       index,
       total,
-      state: index < current ? 'done' : index === current ? 'active' : 'future',
+      state: index < current ? 'done' : index === current ? 'active' : 'sealed',
     });
   }
   return zones;
