@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
+import {effectiveVisibility} from './transferWitness';
 
 /**
  * TR23 «НАУКА ОБИТАЕМОСТИ» — «THE LEDGER PAYS»: a card's action pays ALL the
@@ -284,24 +285,10 @@ async function armProbe(page: Page): Promise<void> {
 
 const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr23: Probe}).__tr23);
 
-/** An element's centre box and whether the player can actually SEE it (a rect, an effective opacity, not hidden, in view). */
-async function seen(page: Page, selector: string): Promise<(Box & {visible: boolean}) | undefined> {
-  return page.evaluate((sel) => {
-    const el = document.querySelector<HTMLElement>(sel);
-    if (el === null) {
-      return undefined;
-    }
-    const r = el.getBoundingClientRect();
-    let opacity = 1;
-    let hidden = false;
-    for (let n: HTMLElement | null = el; n !== null; n = n.parentElement) {
-      const cs = getComputedStyle(n);
-      opacity *= Number(cs.opacity);
-      hidden = hidden || cs.visibility === 'hidden' || cs.display === 'none';
-    }
-    const inView = r.right > 0 && r.bottom > 0 && r.left < window.innerWidth && r.top < window.innerHeight;
-    return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, visible: r.width > 1 && r.height > 1 && opacity > 0.6 && !hidden && inView};
-  }, selector);
+/** The ONE «can the player see it» reader (`transferWitness.effectiveVisibility`), in this spec's own Box shape. */
+async function seen(page: Page, selector: string): Promise<(Box & {visible: boolean, coveredBy: string}) | undefined> {
+  const v = await effectiveVisibility(page, selector);
+  return v.found ? {x: v.x, y: v.y, w: v.w, h: v.h, visible: v.visible, coveredBy: v.coveredBy} : undefined;
 }
 
 const dist = (a: {x: number, y: number}, b: {x: number, y: number}) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -589,13 +576,14 @@ for (const preset of PRESETS) {
       expect(probe.mc.map(([, v]) => v), `the M€ counter: the old number, then the new one (${dump})`).toEqual([before.thisPlayer.megacredits, before.thisPlayer.megacredits + 2]);
       expect(probe.mc[1][0], `the counter ticked no earlier than its chip was born (${dump})`).toBeGreaterThanOrEqual(coin[0].firstAt);
       expect(received[0], `Luna read «получено» no earlier than the tick (${dump})`).toBeGreaterThanOrEqual(probe.mc[1][0] - 60);
+      // THE LAW OF VISIBLE ENDS (PL-162, the polish remediation iteration № 1): the floater's home — the ДОП. РЕСУРСЫ satellite —
+      // stands UNDER the composer's glass for the whole ledger (measurable, COVERED: `coveredBy` names the workspace), so it is
+      // NOT a flight end. The token is not flown (a chip into the glass was the owner's «полёт в никуда»); Titan's row reads
+      // «получено» on the honest release, the server pays the floater, the satellite shows it once the workspace has left.
+      // PL-165 (open): the token born on the row, held through the fold, flown to the uncovered satellite.
+      expect(targets.aux?.coveredBy, 'the satellite is COVERED by the glass of the composer — not a flight end').toMatch(/con-cardactions/);
       const token = moved.filter((f) => f.res !== 'megacredits');
-      expect(token.length, `ONE card-resource chip flew (${dump})`).toBe(1);
-      expect(near(token[0].first, sources.titan), `…born in Titan's own bonus cell (${dump})`).toBe(true);
-      if (targets.aux !== undefined) {
-        expect(near(token[0].last, targets.aux), `…landing on the card resource's cell (${dump})`).toBe(true);
-      }
-      expect(token[0].firstAt, `Titan's chip left after Pluto's row had settled (${dump})`).toBeGreaterThanOrEqual(received[2]);
+      expect(token.length, `no card-resource chip into a covered satellite (${dump})`).toBe(0);
       expect(probe.capsule.map(([, v]) => v), `the card's capsule: 4, then 2 — never a value between (${dump})`).toEqual([4, 2]);
 
       expect(probe.degraded, 'the walk never confessed a missing ledger / a stall').toBe(false);

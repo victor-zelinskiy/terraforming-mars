@@ -742,15 +742,20 @@ export function commitRailPlan(
   const reactions = withoutScaleStepAnswers(branch, stepResponses, tr, promisedReactions);
   const timeline = capsuleTimeline(branch);
   const spends = spendLinkSpecs(cardName, branch, stepResponses, spend);
-  // A GAIN ON THIS CARD with nothing spent before it (PL-063 — Security Fleet's fighter, Titan Air-scrapping's
-  // floaters, Earth Army Contract at 0): the hero standing in the composer IS the card it lands on, so the token
-  // lands in ITS capsule — never in the board's ДОП. РЕСУРСЫ satellite over a folding workspace — and the capsule
-  // ticks on that touchdown, the workspace standing to it (a timeline and a spend's result already did; this is
-  // the same last link with nothing before it). Not when another scene owns the flow (`departsElsewhere` — TR15's
-  // vote moves its own capsule).
+  // A GAIN ON A CARD STANDING IN THE COMPOSER with nothing spent before it (PL-063 — Security Fleet's fighter, Titan
+  // Air-scrapping's floaters, Earth Army Contract at 0; PL-162 — Aerial Mappers' floater onto the card the TARGET
+  // step chose): the hero standing in the composer IS the card it lands on, and a card the player PICKED in one of
+  // the composer's own steps stands in its row as a miniature (`data-composer-card`) — every `targetCard` of a
+  // commit's gain is one of those two by construction (`extractPlayRewards` names the hero or a picked card, never
+  // a card the composer does not show). So the token lands in THAT capsule — never in the board's ДОП. РЕСУРСЫ
+  // satellite under the composer's opaque glass (PL-137): until PL-162 a gain to a picked card with no spend before
+  // it rode the shell's wave, whose ladder knows no composer row, and flew from the hero's printed icon INTO the
+  // satellite under the workspace — the owner's «летит в никуда» (2026-10-10). The capsule ticks on the touchdown,
+  // the workspace standing to it (a timeline and a spend's result already did; this is the same last link with
+  // nothing before it). Not when another scene owns the flow (`departsElsewhere` — TR15's vote moves its own capsule).
   const onCard = spends.length === 0 && timeline === undefined && spend.departsElsewhere !== true ?
     commitRewardSpecs(cardName, branch, stepResponses).filter((spec) =>
-      spec.channel === 'card-resource' && spec.targetCard === cardName && spec.direction !== 'loss') :
+      spec.channel === 'card-resource' && spec.targetCard !== undefined && spec.direction !== 'loss') :
     [];
   if (tr.length === 0 && timeline === undefined && spends.length === 0 && onCard.length === 0) {
     return undefined;
@@ -781,9 +786,11 @@ export function commitRailPlan(
   // the rail-spend law — the prices that LEAVE a row (a loss link's row would otherwise be counted twice).
   const known = withoutChainRows(actionKnownRailMoves(branch, stepResponses), [...result, ...spends]);
   const vp = cause.map((spec) => causeVictoryPoints(spec, branch, stepResponses, spend));
+  // Every card a link lands on or leaves holds its capsule while the token is in the air — the hero's, a composer
+  // row's miniature (a spend's source, a gain's picked target — PL-162).
   const capsules = [...new Set(cause
     .filter((spec) => spec.channel === 'card-resource' && spec.targetCard !== undefined &&
-      (spec.targetCard === cardName || spec.direction === 'loss' || spends.length > 0))
+      (spec.targetCard === cardName || spec.direction === 'loss' || spends.length > 0 || onCard.includes(spec)))
     .map((spec) => spec.targetCard as CardName))];
   return {
     key: actionCommitRailKey(cardName),

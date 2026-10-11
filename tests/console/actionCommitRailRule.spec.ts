@@ -21,6 +21,8 @@ import {SpaceMirrors} from '../../src/server/cards/base/SpaceMirrors';
 import {Ants} from '../../src/server/cards/base/Ants';
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
+import {AerialMappers} from '../../src/server/cards/venusNext/AerialMappers';
+import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
@@ -224,6 +226,37 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
       expect(eac?.reward.cause[0]).deep.eq({channel: 'card-resource', resource: 'fighter', amount: 1, targetCard: cards.eac.name});
       expect(eac?.holdsSurface).is.true;
       expect(commitRailPlan(cards.titan.name, titan, {}, [], {departsElsewhere: true}), 'another scene owns that flow').is.undefined;
+    });
+
+    /**
+     * PL-162 (the polish remediation iteration № 1): a gain onto the card the TARGET STEP chose — a composer-row
+     * miniature — is the same last link as a gain onto the hero. Until then it rode the shell's wave, whose ladder
+     * knows no composer row, and flew from the hero's printed floater INTO the ДОП. РЕСУРСЫ satellite under the
+     * composer's opaque glass («летит в никуда», the owner's TV 2026-10-10). The link lands on the miniature, the
+     * surface stands to the touchdown, the miniature's capsule is held, the wave carries no second chip.
+     */
+    it('a gain on ANOTHER card the composer\'s own step chose (Aerial Mappers → Dirigibles): one link onto the miniature, the surface held, its capsule held', () => {
+      const {p} = table();
+      const mappers = new AerialMappers();
+      mappers.resourceCount = 1;
+      const dirigibles = new Dirigibles();
+      dirigibles.resourceCount = 2;
+      p.playedCards.push(mappers, dirigibles);
+      const branch = branchesOf(p, mappers).find((b) => /ANY card/i.test(typeof b.title === 'string' ? b.title : b.title.message));
+      expect(branch, 'the «add 1 floater to ANY card» variant').is.not.undefined;
+      const stepIndex = branch!.steps.findIndex((s) => s.kind === 'input');
+      expect(stepIndex, 'the target step').is.greaterThan(-1);
+      const picked = {[stepIndex]: {type: 'card', cards: [CardName.DIRIGIBLES]}};
+      const plan = commitRailPlan(mappers.name, branch, picked, []);
+      expect(plan?.reward.cause).deep.eq([{channel: 'card-resource', resource: 'floater', amount: 1, targetCard: CardName.DIRIGIBLES}]);
+      expect(plan?.links).deep.eq([[0]]);
+      expect(plan?.holdsSurface, 'the workspace stands to the touchdown on the miniature').is.true;
+      expect(plan?.capsules, 'the miniature\'s capsule is held while the token flies').deep.eq([CardName.DIRIGIBLES]);
+      expect(commitWaveSpecs(mappers.name, branch, picked, plan), 'never a second floater chip in the wave').deep.eq([]);
+      // The hero as the target reads exactly as before.
+      const self = commitRailPlan(mappers.name, branch, {[stepIndex]: {type: 'card', cards: [CardName.AERIAL_MAPPERS]}}, []);
+      expect(self?.reward.cause).deep.eq([{channel: 'card-resource', resource: 'floater', amount: 1, targetCard: CardName.AERIAL_MAPPERS}]);
+      expect(self?.capsules).deep.eq([CardName.AERIAL_MAPPERS]);
     });
   });
 

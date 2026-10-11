@@ -2361,6 +2361,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR29 Spaceship Recycling: blue's action phase with the card (2 fighters), Formula Zero (1 fighter), EVA Mechs (1 mech) and
   // Mech Sports (0), no titanium, a quiet government — the source and the target are both choices (§ ACTION COMMIT).
   'spaceship-recycling' |
+  // The polish remediation iteration № 1: Aerial Mappers ×1 + Dirigibles ×2 + Caretaker Contract in blue's tableau,
+  // Venus Governor in hand on 3 M€ (one floater pays) — the owner's two P0 classes on one Venus table.
+  'aerial-mappers' |
   // TR27 Aurora Station: a Venus Next table, blue's action phase with the station played (its city on the Venus
   // flank) and Floating Habs (1 floater) beside it — the reward's target is a CHOICE; one free fleet, 3 energy
   // (docs/TURMOIL_REDUX_WATER_HAULING.md §10).

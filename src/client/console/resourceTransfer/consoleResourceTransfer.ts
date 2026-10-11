@@ -47,6 +47,7 @@ import {
 import {
   TransferStagePiece, runTransferFlight, settleTransferChip, killTransferPiece,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
+import {firstVisibleEnd, TransferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 export type TransferFlight = {
   id: number,
@@ -513,11 +514,15 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     trail(runId, 'run:earlyreturn', 'reduced-or-nodom');
     return;
   }
-  const sourceRect = resolveSourceRect(run.source);
+  // What the ladders SKIPPED for this run (a covered satellite, a fading surface) — named in the trail and, in a
+  // dev build, said out loud: a token that would have come from or gone to nothing is the class this law removes.
+  const skipped: Array<SkippedEnd> = [];
+  const sourceRect = resolveSourceRect(run.source, skipped);
   if (sourceRect === undefined && !specEntries.some((e) => e.origin !== undefined)) {
     releaseAll(specEntries);
     specEntries.forEach((e) => run.onDegrade?.(e.spec, 'no-source'));
-    trail(runId, 'run:earlyreturn', 'no-source-geometry');
+    trail(runId, 'run:earlyreturn', {why: 'no-source-geometry', skipped: coveredEnds(skipped)});
+    warnCoveredEnds(skipped, 'source');
     return;
   }
   // Resolve each spec's destination NOW (the wave flies into real, settled
@@ -527,14 +532,17 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   // where it lands — so `from` / `to` are fixed per spec, not per run.
   const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint}> = [];
   for (const [i, e] of specEntries.entries()) {
-    const row = run.destination ?? targetPointFor(e.spec);
+    const skippedHere: Array<SkippedEnd> = [];
+    const row = run.destination ?? targetPointFor(e.spec, skippedHere);
     const sourcePoint = e.origin ?? run.source.point ??
       (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
     if (row === undefined || sourcePoint === undefined) {
       trail(runId, 'run:no-dest', {
         channel: e.spec.channel, resource: e.spec.resource, targetCard: e.spec.targetCard ?? null,
         row: row !== undefined, source: sourcePoint !== undefined, probe: describeCardDestination(e.spec),
+        skipped: coveredEnds([...skipped, ...skippedHere]),
       });
+      warnCoveredEnds(skippedHere, 'destination');
       noteCardResourceLanding(e.spec); // degraded, but the amount HAS arrived
       run.onArrive?.(e.spec);
       run.onDegrade?.(e.spec, sourcePoint === undefined ? 'no-source' : 'no-destination');
@@ -710,9 +718,18 @@ function removeFlight(id: number): void {
 
 // ── anchors (measured from the REAL interface, per profile) ─────────────────
 
-function measureRect(selector: string): TransferRect | undefined {
-  const el = document.querySelector<HTMLElement>(selector);
-  if (el === null) {
+/**
+ * THE ENDS OF A FLIGHT ARE VISIBLE (the polish remediation iteration № 1, 2026-10-11 — `transferEndVisible.ts`).
+ * Every ladder below measures the first VISIBLE match of a selector, never the first measurable one: a box under a
+ * band surface's opaque glass (the ДОП. РЕСУРСЫ satellite under the composer — PL-137), a fading surface, a hidden
+ * section are not places a token may be born on or land on. What a ladder skipped is collected for the trail, so a
+ * degraded transfer names WHY («covered by con-cardactions»), and a dev build says it out loud once per run.
+ */
+type SkippedEnd = {selector: string, verdict: TransferEndVerdict};
+
+function measureRect(selector: string, skipped?: Array<SkippedEnd>): TransferRect | undefined {
+  const el = firstVisibleEnd(selector, skipped);
+  if (el === undefined) {
     return undefined;
   }
   const r = el.getBoundingClientRect();
@@ -723,25 +740,33 @@ function measureRect(selector: string): TransferRect | undefined {
  *  at a zone that is still running its own entry (an embedded step's rise, a
  *  stage panel settling) — a raw rect lands the chip where the counter was
  *  PASSING and the touchdown tick happens off-target. */
-function measureRestingRect(selector: string): TransferRect | undefined {
-  const el = document.querySelector<HTMLElement>(selector);
-  if (el === null) {
+function measureRestingRect(selector: string, skipped?: Array<SkippedEnd>): TransferRect | undefined {
+  const el = firstVisibleEnd(selector, skipped);
+  if (el === undefined) {
     return undefined;
   }
-  const r = restingRectOf(el);
+  const r = restingRectOf(el as HTMLElement);
   return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+}
+
+/** The ladder's skipped ends that were COVERED or FADED — the ones a player would have seen a token come from nowhere for. */
+function coveredEnds(skipped: ReadonlyArray<SkippedEnd>): Array<string> {
+  return skipped
+    .filter((s) => !s.verdict.visible && (s.verdict.why === 'covered' || s.verdict.why === 'faded'))
+    .map((s) => `${s.selector} (${s.verdict.visible ? '' : s.verdict.why}${!s.verdict.visible && s.verdict.by !== undefined ? ` by ${s.verdict.by}` : ''})`);
 }
 
 function centerOf(rect: TransferRect): TransferPoint {
   return {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2};
 }
 
-function resolveSourceRect(source: ResourceTransferRun['source']): TransferRect | undefined {
+function resolveSourceRect(source: ResourceTransferRun['source'], skipped?: Array<SkippedEnd>): TransferRect | undefined {
   if (source.point !== undefined) {
     return {x: source.point.x, y: source.point.y, w: 0, h: 0};
   }
   for (const sel of source.selectors ?? []) {
-    const r = measureRect(sel);
+    // The first VISIBLE match (the law of visible ends) — a parked layer may hold the same card identity under glass.
+    const r = measureRect(sel, skipped);
     if (r !== undefined) {
       return r;
     }
@@ -793,7 +818,8 @@ function escapeName(name: string): string {
  * production plate's digits are centred IN the plate, so the plate is its ink;
  * a card's capsule and the satellite's cell are icon + count and stay whole.
  */
-function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
+function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>): TransferPoint | undefined {
+  const measure = (selector: string) => measureRestingRect(selector, skipped);
   if (spec.channel === 'stock') {
     // The TERRAFORM RATING rides the stock channel under the rail's own key
     // (`RATING_RAIL_KEY`): its home is the score header's TR cell, not a
@@ -801,19 +827,19 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
     // The VALUE is the ink; the valwrap is its reserved slot (3+ characters step
     // the type down INSIDE it), the cell the fallback of the fallback.
     if (spec.resource === RATING_RAIL_KEY) {
-      const cell = measureRestingRect('.con-res .con-score__cell--tr .con-score__value') ??
-        measureRestingRect('.con-res .con-score__cell--tr .con-score__valwrap') ??
-        measureRestingRect('.con-res .con-score__cell--tr');
+      const cell = measure('.con-res .con-score__cell--tr .con-score__value') ??
+        measure('.con-res .con-score__cell--tr .con-score__valwrap') ??
+        measure('.con-res .con-score__cell--tr');
       return cell !== undefined ? centerOf(cell) : undefined;
     }
-    const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__digits`) ??
-      measureRestingRect(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
-      measureRestingRect(`.con-res__row--${spec.resource}`);
+    const r = measure(`.con-res__row--${spec.resource} .con-res__digits`) ??
+      measure(`.con-res__row--${spec.resource} .con-res__stockwrap`) ??
+      measure(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;
   }
   if (spec.channel === 'production') {
-    const r = measureRestingRect(`.con-res__row--${spec.resource} .con-res__prod`) ??
-      measureRestingRect(`.con-res__row--${spec.resource}`);
+    const r = measure(`.con-res__row--${spec.resource} .con-res__prod`) ??
+      measure(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;
   }
   // card-resource: the PRE-SELECTED host card when it's on screen — the
@@ -826,27 +852,37 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
     // …the RECEIVING CARD standing by the field (TR21's «cities pay» scene): its capsule is the counter that ticks.
-    const r = measureRestingRect(`.con-citypay [data-played-key="${esc}"] .pcard__res`) ??
-      measureRestingRect(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
-      measureRestingRect(`.con-recv [data-played-key="${esc}"]`) ??
-      measureRestingRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
-      measureRestingRect(`.con-colfocus [data-played-key="${esc}"]`) ??
+    const r = measure(`.con-citypay [data-played-key="${esc}"] .pcard__res`) ??
+      measure(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
+      measure(`.con-recv [data-played-key="${esc}"]`) ??
+      measure(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
+      measure(`.con-colfocus [data-played-key="${esc}"]`) ??
       // …the FLEET-DOCK STAGE's receiving card (TR27: the dock pays a card it presents — or itself, its hero face):
-      measureRestingRect(`.con-fleetdock [data-played-key="${esc}"] .pcard__res`) ??
-      measureRestingRect(`.con-fleetdock [data-played-key="${esc}"]`) ??
-      measureRestingRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
-      measureRestingRect(`.con-hydro [data-played-key="${esc}"]`) ??
+      measure(`.con-fleetdock [data-played-key="${esc}"] .pcard__res`) ??
+      measure(`.con-fleetdock [data-played-key="${esc}"]`) ??
+      measure(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
+      measure(`.con-hydro [data-played-key="${esc}"]`) ??
       // …the SHARED recipient picker's candidate (an enacted resolution's
       // payout lands on the card the player just chose, while the pick is
       // still the standing view — the capsule is the counter that ticks):
-      measureRestingRect(`.con-cards__slot[data-zoom-slot="${esc}"] .pcard__res`) ??
-      measureRestingRect(`.con-cards__slot[data-zoom-slot="${esc}"]`) ??
-      measureRestingRect(`.con-start__played [data-played-key="${esc}"]`) ??
-      measureRestingRect(`.con-played [data-played-key="${esc}"]`);
+      measure(`.con-cards__slot[data-zoom-slot="${esc}"] .pcard__res`) ??
+      measure(`.con-cards__slot[data-zoom-slot="${esc}"]`) ??
+      measure(`.con-start__played [data-played-key="${esc}"]`) ??
+      measure(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {
       return centerOf(r);
     }
   }
-  const aux = measureRestingRect(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(spec.resource)}"]`);
+  // …else the ДОП. РЕСУРСЫ satellite — ONLY while it is painted (the law of visible ends): under a band surface's
+  // opaque glass it is a box, not a place, and the transfer degrades to its tick instead of flying into the glass.
+  const aux = measure(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(spec.resource)}"]`);
   return aux !== undefined ? centerOf(aux) : undefined;
+}
+
+/** Say it once per run in a dev build: an end the player would have seen a token come from / go to nothing for. */
+function warnCoveredEnds(skipped: ReadonlyArray<SkippedEnd>, end: 'source' | 'destination'): void {
+  const covered = coveredEnds(skipped);
+  if (covered.length > 0 && process.env.NODE_ENV !== 'production') {
+    console.warn(`[transfer] no visible ${end} — ${covered.join('; ')} — the token is not flown (the law of visible ends); its counter ticks with its chip`);
+  }
 }

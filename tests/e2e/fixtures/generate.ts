@@ -137,6 +137,8 @@ import {AsteroidHollowing} from '../../../src/server/cards/promo/AsteroidHollowi
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
+import {AerialMappers} from '../../../src/server/cards/venusNext/AerialMappers';
+import {CaretakerContract} from '../../../src/server/cards/base/CaretakerContract';
 import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScience';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
@@ -1925,6 +1927,44 @@ parliamentFixture('spaceship-recycling', {
     if (count(CardName.SPACESHIP_RECYCLING) !== 2 || count(CardName.FORMULA_ZERO) !== 1 || count(CardName.EVA_MECHS) !== 1 ||
         count(CardName.MECH_SPORTS) !== 0 || p1.titanium !== 0 || card === undefined || !card.canAct(p1)) {
       throw new Error(`the spaceship-recycling fixture expected TR29 ×2 · Formula Zero ×1 · EVA Mechs ×1 · Mech Sports ×0, no titanium and the action open — got ${[CardName.SPACESHIP_RECYCLING, CardName.FORMULA_ZERO, CardName.EVA_MECHS, CardName.MECH_SPORTS].map(count).join('/')} ti=${p1.titanium}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── AERIAL MAPPERS — the polish remediation iteration № 1 (docs/claude/prompts/polish-remediation-iteration-1.md):
+//    ONE Venus table for the owner's two P0 classes. Blue's action phase with «Карта ветров» (Aerial Mappers, ONE
+//    floater — both printed rows open: spend one to draw, add one to ANY card) and Dirigibles (TWO floaters — a second
+//    holder, so the «add to ANY card» target is a real pick; and the floaters pay 3 M€ each for a Venus card) in the
+//    tableau, Caretaker Contract (8 heat → 1 TR: a price off the rail with no rail result — the loss-only chain of
+//    PL-142) beside them, 8 heat; Venus Governor (cost 4, requires 2 Venus tags — exactly the two holders) in hand
+//    with 3 M€ — SHORT by one: the opening mix is one floater (3) + 1 M€, the price taken OFF THE SATELLITE. A quiet
+//    government (the Industrialists by Central Power Grid). The Venus tables' corporations. Red is the second seat. ──
+parliamentFixture('aerial-mappers', {
+  stopAt: 'vote',
+  megacredits: [3, 30],
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const mappers = new AerialMappers();
+    mappers.resourceCount = 1;
+    const dirigibles = new Dirigibles();
+    dirigibles.resourceCount = 2;
+    p1.playedCards.push(mappers, dirigibles, new CaretakerContract());
+    moveToDeckTop(game, CardName.VENUS_GOVERNOR);
+    p1.cardsInHand.push(game.projectDeck.drawPile.pop()!);
+    p1.heat = 8;
+    p1.titanium = 0;
+    p1.steel = 0;
+  },
+  expect: ({game, p1, parliament}) => {
+    const count = (name: CardName) => p1.playedCards.get(name)?.resourceCount;
+    const mappers = p1.playedCards.get(CardName.AERIAL_MAPPERS) as AerialMappers | undefined;
+    const caretaker = p1.playedCards.get(CardName.CARETAKER_CONTRACT) as CaretakerContract | undefined;
+    const governor = p1.cardsInHand.find((c) => c.name === CardName.VENUS_GOVERNOR);
+    if (count(CardName.AERIAL_MAPPERS) !== 1 || count(CardName.DIRIGIBLES) !== 2 || p1.megaCredits !== 3 || p1.heat !== 8 ||
+        mappers === undefined || !mappers.canAct(p1) || caretaker === undefined || !caretaker.canAct(p1) ||
+        governor === undefined || !p1.canPlay(governor) || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the aerial-mappers fixture expected Aerial Mappers ×1 and Dirigibles ×2 with both actions open, Caretaker Contract open on 8 heat, Venus Governor playable on 3 M€ + a floater, the Industrialists ruling — got mappers=${count(CardName.AERIAL_MAPPERS)} dirigibles=${count(CardName.DIRIGIBLES)} mc=${p1.megaCredits} heat=${p1.heat} governor=${governor !== undefined && p1.canPlay(governor)} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },
