@@ -132,7 +132,8 @@
            LEFT rail's geometric twin (same width token). Always the board
            home's right edge; task overlays and workspaces stand OVER it. -->
       <ConsoleStrategyRail ref="conStratEl"
-                           v-show="consoleState.section === 'board'"
+                           :shown="consoleState.section === 'board'"
+                           :replaced="strategyRailReplaced"
                            :milestones="hudMilestoneZone"
                            :awards="hudAwardZone"
                            :viewerColor="thisPlayer.color"
@@ -7984,11 +7985,17 @@ export default defineComponent({
         !this.placementActive &&
         !isPlanetFocusEngaged() && !this.planetFocusState.arcsReturning;
     },
+    /** The right rail's zone is TAKEN (`.con-root--rail-replaced`) — read by
+     *  the policy class and by the rail itself, which freezes its paint for
+     *  as long as it is not drawn (PL-155). */
+    strategyRailReplaced(): boolean {
+      return this.workspaceScreenUp ||
+        this.journalPanelVisible ||
+        this.contextOverlayMode !== undefined;
+    },
     conRootClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {
-        'con-root--rail-replaced': this.workspaceScreenUp ||
-          this.journalPanelVisible ||
-          this.contextOverlayMode !== undefined,
+        'con-root--rail-replaced': this.strategyRailReplaced,
         // Post-game: the gameplay HUD leaves — status strip and player rail
         // fade out (visibility, never display: the boxes must survive), so
         // nothing on the frame can pre-reveal a total mid-ceremony.

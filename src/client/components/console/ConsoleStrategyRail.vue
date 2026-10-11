@@ -1,5 +1,10 @@
 <template>
-  <aside class="con-strat" :aria-label="$t('Milestones') + ' · ' + $t('Awards')">
+  <aside v-show="shown" class="con-strat" :aria-label="$t('Milestones') + ' · ' + $t('Awards')">
+    <!-- `v-show` lives HERE, on the root, fed by the `shown` prop — never on
+         the component's vnode in the shell: a directive on a component vnode
+         makes Vue re-render the child on EVERY parent render
+         (`shouldUpdateComponent` → `dirs`), and the shell renders all the
+         time (PL-155). -->
     <!-- THE DISPLAY CASE + THE SPINE — the rail's own finished body. The
          chassis still runs full-bleed to the physical edge (the hull member),
          but the VISIBLE composition ends inside the viewport: one glass
@@ -13,8 +18,17 @@
     <!-- ADAPTIVE POSES: the medal scale follows the item count. The dense
          step starts at SIX items (not seven) — the enlarged base medal is
          sized so the standard five fill the zone's height; a sixth would
-         overflow it on the TV profile. -->
+         overflow it on the TV profile.
+         `v-memo` on the zone's VIEW: the two TransitionGroups below sit in
+         a `v-for` scope, so Vue marks their slots DYNAMIC and patches them on
+         EVERY render of the rail — and each patch measures (a clone appended
+         and removed for the move class, a rect per row: forced layouts). The
+         view is a cached computed (and a latch while the rail is undrawn), so
+         an unchanged zone skips its whole subtree; what a row reads besides
+         the view (the one-shot accent lists, the viewer's colour) is tracked
+         by the group's OWN render and still updates it (PL-155). -->
     <section v-for="z in zoneViews" :key="z.kind"
+             v-memo="[z, motion]"
              class="con-strat__zone"
              :class="['con-strat__zone--' + z.kind, {
                'con-strat__zone--done': z.composed,
@@ -236,7 +250,7 @@
  * minutes later. Leadership changes FLIP the two units of a row's duel and
  * tick the numbers — only on a REAL diff, never on a poll re-render.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {Color} from '@/common/Color';
 import {MaHudItem, MaHudZone} from '@/client/console/consoleMaHudModel';
@@ -331,6 +345,12 @@ export default defineComponent({
      * on the uncover — the ceremony's continuation, never its rival.
      */
     covered: {type: Boolean, default: false},
+    /** The board home is the screen (the shell's `section === 'board'`) —
+     *  the root's `v-show`. */
+    shown: {type: Boolean, default: true},
+    /** A workspace screen or a right-edge drawer TAKES the rail's zone
+     *  (`.con-root--rail-replaced` — the rail stays laid out, undrawn). */
+    replaced: {type: Boolean, default: false},
   },
   emits: ['open'],
   data() {
@@ -357,13 +377,31 @@ export default defineComponent({
       /** Live timers — cleared on unmount (no orphan state flips). */
       timers: [] as Array<ReturnType<typeof setTimeout>>,
       flushing: false,
+      /** THE FREEZE (PL-155): while the rail is not drawn the render reads
+       *  the view as it was last drawn — raw, so nothing it holds is
+       *  tracked. The seed-then-diff machine keeps reading the live props
+       *  (seals and activations still queue for the uncover); only the
+       *  PAINT stands still, and the uncover renders the truth once. */
+      frozenViews: undefined as ReadonlyArray<ZoneView> | undefined,
     };
   },
   computed: {
     motion(): boolean {
       return !consoleReducedMotionActive();
     },
-    zoneViews(): Array<ZoneView> {
+    /** The rail is not drawn: off the board home, or its zone taken. */
+    frozen(): boolean {
+      return !this.shown || this.replaced;
+    },
+    /** What the rail paints — while frozen, the view it last drew: an
+     *  undrawn rail that re-renders on every view apply runs its two
+     *  TransitionGroups' measurements (a clone appended + removed and a
+     *  rect per row — forced layouts) under whatever the player is
+     *  actually watching. */
+    zoneViews(): ReadonlyArray<ZoneView> {
+      return this.frozenViews ?? this.liveZoneViews;
+    },
+    liveZoneViews(): ReadonlyArray<ZoneView> {
       return [
         this.buildZoneView('milestones', 'bumperL', 'Milestones', this.milestones),
         this.buildZoneView('awards', 'bumperR', 'Awards', this.awards),
@@ -389,6 +427,9 @@ export default defineComponent({
     },
     epoch() {
       this.reseed();
+    },
+    frozen() {
+      this.latchViews();
     },
   },
   created() {
@@ -570,6 +611,12 @@ export default defineComponent({
       this.seedZone('awards', this.awards);
       this.composed = {milestones: this.milestones.completed, awards: this.awards.completed};
       this.seeded = true;
+      // A new game under a frozen rail latches the NEW game's face.
+      this.latchViews();
+    },
+    /** Latch (frozen) or release (drawn) the painted view. */
+    latchViews(): void {
+      this.frozenViews = this.frozen ? markRaw([...this.liveZoneViews]) : undefined;
     },
     seedZone(kind: ZoneKind, zone: MaHudZone): void {
       const {nowPrev, everNow} = this.ledgers();

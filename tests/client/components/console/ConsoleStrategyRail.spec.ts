@@ -69,7 +69,7 @@ function captureTimers(wrapper: VueWrapper<InstanceType<typeof ConsoleStrategyRa
   return queue;
 }
 
-function mountRail(props: Partial<{milestones: MaHudZone, awards: MaHudZone, covered: boolean}> = {}) {
+function mountRail(props: Partial<{milestones: MaHudZone, awards: MaHudZone, covered: boolean, shown: boolean, replaced: boolean}> = {}) {
   return shallowMount(ConsoleStrategyRail, {
     ...globalConfig,
     props: {
@@ -78,6 +78,8 @@ function mountRail(props: Partial<{milestones: MaHudZone, awards: MaHudZone, cov
       viewerColor: me,
       epoch: 'run-1',
       covered: props.covered ?? false,
+      shown: props.shown ?? true,
+      replaced: props.replaced ?? false,
     },
   });
 }
@@ -629,6 +631,63 @@ describe('ConsoleStrategyRail', () => {
     expect(vm.pending).to.have.lengthOf(0);
     // The reseeded view renders the truth directly (no held pre-state).
     expect(wrapper.find('.con-strat__ownseal').exists()).to.be.true;
+  });
+
+  describe('THE FREEZE — an undrawn rail does not repaint (PL-155)', () => {
+    const banker = (score: number) => zone('awards', [
+      source({name: 'Banker', scores: [{color: me, score}, {color: rival, score: 2}]}),
+      OPEN_AWARDS[1],
+    ]);
+    const bankerNum = (wrapper: ReturnType<typeof mountRail>) =>
+      wrapper.find('.con-strat__zone--awards .con-strat__num').text();
+
+    it('`shown` drives the ROOT v-show (never a directive on the component vnode)', async () => {
+      const wrapper = mountRail({shown: false});
+      expect((wrapper.element as HTMLElement).style.display).to.eq('none');
+      await wrapper.setProps({shown: true});
+      expect((wrapper.element as HTMLElement).style.display).to.eq('');
+    });
+
+    for (const [label, hidden] of [['off the board home', {shown: false}], ['its zone taken', {replaced: true}]] as const) {
+      it(`${label}: a view apply re-renders NOTHING, the uncover paints the truth once`, async () => {
+        const wrapper = mountRail({...hidden, covered: true});
+        expect(bankerNum(wrapper)).to.eq('4');
+        const observer = new MutationObserver(() => {});
+        observer.observe(wrapper.element, {subtree: true, childList: true, attributes: true, characterData: true});
+        await wrapper.setProps({awards: banker(6)});
+        await wrapper.setProps({awards: banker(7)});
+        const mutations = observer.takeRecords();
+        observer.disconnect();
+        expect(mutations, 'an undrawn rail repainted on a view apply').to.have.lengthOf(0);
+        expect(bankerNum(wrapper)).to.eq('4');
+        await wrapper.setProps({shown: true, replaced: false, covered: false});
+        expect(bankerNum(wrapper)).to.eq('7');
+      });
+    }
+
+    it('the diff machine keeps reading the LIVE props: a claim under the freeze still seals on the uncover', async () => {
+      const wrapper = mountRail({covered: true, shown: false});
+      const queue = captureTimers(wrapper);
+      await wrapper.setProps({
+        milestones: zone('milestones', [
+          source({name: 'Mayor', playerName: 'Vika', color: rival, scores: [{color: me, score: 2}]}),
+          ...OPEN_MILESTONES.slice(1),
+        ]),
+      });
+      const vm = wrapper.vm as unknown as RailVm;
+      expect(vm.pending).to.have.lengthOf(1);
+      await wrapper.setProps({covered: false, shown: true});
+      queue.shift()?.fn(); // the seal start
+      await wrapper.vm.$nextTick();
+      const row = wrapper.find('.con-strat__zone--milestones .con-strat__item');
+      expect(row.classes()).to.include('con-strat__item--sealing');
+    });
+
+    it('a new game under the freeze latches the NEW game face', async () => {
+      const wrapper = mountRail({covered: true, shown: false});
+      await wrapper.setProps({awards: banker(9), epoch: 'run-2'});
+      expect(bankerNum(wrapper)).to.eq('9');
+    });
   });
 
   it('the medal art rides the optical-fit map (normalised size, never bare contain)', () => {
