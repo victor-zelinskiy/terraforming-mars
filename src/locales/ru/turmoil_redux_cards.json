@@ -160,5 +160,11 @@
     "Requires the Greens to be ruling or that you have 2 delegates there. Advance your Agenda marker 1 step for every set of 5 TR that you have over 20. (And collect bonuses from each step.)": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Продвиньте маркер Карьеры на 1 шаг за каждый полный набор из 5 РТ сверх 20 (и получите бонус каждого шага).",
     "over 20": "сверх 20",
     "${0} has no complete set of 5 TR over 20 (TR ${1}) — the Agenda marker stays": "${0}: нет ни одного полного набора из 5 РТ сверх 20 (РТ ${1}) — маркер Карьеры остаётся на месте",
-    "${0} has ${1} complete set(s) of 5 TR over 20 (TR ${2}) — ${3} Agenda step(s)": "${0}: ${1} {полный набор|полных набора|полных наборов} из 5 РТ сверх 20 (РТ ${2}) — ${3} {шаг|шага|шагов} по Карьере"
+    "${0} has ${1} complete set(s) of 5 TR over 20 (TR ${2}) — ${3} Agenda step(s)": "${0}: ${1} {полный набор|полных набора|полных наборов} из 5 РТ сверх 20 (РТ ${2}) — ${3} {шаг|шага|шагов} по Карьере",
+    "Ichtiology Grant": "Ихтиологический грант",
+    "Requires the Greens to be ruling or that you have 2 delegates there. Increase your M€ production 1 step for each ocean in play. Add 2 animals or 4 microbes to ANY card.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Увеличьте своё производство M€ на 1 за каждый океан в игре. Добавьте 2 животных или 4 микроба на ЛЮБУЮ карту.",
+    "Increase your M€ production 1 step for each ocean in play.": "Увеличьте своё производство M€ на 1 за каждый океан в игре.",
+    "Add 2 animals or 4 microbes to ANY card.": "Добавьте 2 животных или 4 микроба на ЛЮБУЮ карту.",
+    "Add 2 animals to ANY card": "Добавить 2 животных на любую карту",
+    "Add 4 microbes to ANY card": "Добавить 4 микроба на любую карту"
 }

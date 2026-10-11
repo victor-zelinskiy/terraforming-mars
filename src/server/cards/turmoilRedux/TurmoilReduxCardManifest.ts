@@ -43,6 +43,7 @@ import {CanyonCarving} from './CanyonCarving';
 import {ForestryMechs} from './ForestryMechs';
 import {PlasmaFans} from './PlasmaFans';
 import {GreenAllegiance} from './GreenAllegiance';
+import {IchtiologyGrant} from './IchtiologyGrant';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -220,5 +221,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // COUNTED, not printed — «1 step per complete set of 5 TR over 20», the family's one division (RX13's count over
     // another threshold), the breakdown riding the walk's preview (`AgendaWalkModel.basis`).
     [CardName.GREEN_ALLEGIANCE]: {Factory: GreenAllegiance},
+    // Only the module's icon at the bottom left: the GREENS' plate a sixth time; ONE DECLARATION of a COUNTED production
+    // (M€ per ocean on the board — Hydrogen Processing Plant's form) beside an OPTIONAL `or` of two «add to ANY card»
+    // branches (`OrBehavior.optional`, the knob this card brings: no holder of either kind, the production still stands and
+    // the choice is skipped by name) — the set's first play with a card target INSIDE an `or` branch.
+    [CardName.ICHTIOLOGY_GRANT]: {Factory: IchtiologyGrant},
   },
 });

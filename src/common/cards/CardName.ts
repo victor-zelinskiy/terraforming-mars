@@ -1114,6 +1114,7 @@ export enum CardName {
   FORESTRY_MECHS = 'Forestry Mechs',
   PLASMA_FANS = 'Plasma Fans',
   GREEN_ALLEGIANCE = 'Green Allegiance',
+  ICHTIOLOGY_GRANT = 'Ichtiology Grant',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
