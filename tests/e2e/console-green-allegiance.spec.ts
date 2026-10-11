@@ -12,8 +12,9 @@ import {openParliament} from './parliamentDrive';
  *
  *   1. THE FORECAST BEFORE THE PRESS, with WHY: the hand tile's quiet plate
  *      «[★] 2» (К-H1), the composer's track chip «1 → 3 · 2 набора по 5 РТ
- *      сверх 20», the why row «Шаги Карьеры по РТ: РТ 33 · порог 20 · 2
- *      полных набора · до следующего 2» before the stage row, the TR and
+ *      сверх 20», the WHY as a reading of the result (PL-156, M1) «ПОЧЕМУ
+ *      2 ШАГА · [РТ] 33 сверх 20 → 2 полных набора по 5 → [★] 2 · до
+ *      следующего ещё 2 РТ» above the stage row («ДАЛЕЕ» — the stage only), the TR and
  *      influence chips, the ruling Greens' answer in «Сработает»; the
  *      inspector's «ДЛЯ ВАС» says the same (decision 5 (в)).
  *   2. THE HONEST ZERO (TR 23): the plate «[★] 0» muted, the composer with NO
@@ -462,9 +463,17 @@ for (const preset of PRESETS) {
       await expect(trackChip.locator('.action-effect-chip__note'), 'the chip says why it is this long').toHaveText('2 набора по 5 РТ сверх 20');
       await expect(page.locator(`${composer} .action-effect-chip`).filter({has: page.locator('.resource_icon--rating')}), 'the TR chip of step ②').toHaveCount(1);
       await expect(page.locator(`${composer} .action-effect-chip`).filter({has: page.locator('.resource_icon--influence')}), 'the influence the walk sets').toContainText('2');
-      const why = page.locator(composer).getByText('Шаги Карьеры по РТ: РТ 33 · порог 20 · 2 полных набора · до следующего 2');
+      // PL-156 (M1): the WHY is a reading of the RESULT, under its chips — never a «ДАЛЕЕ» row.
+      const why = page.locator(`${composer} [data-walk-why]`);
       const stage = page.locator(composer).getByText('Карьера — маркер пройдёт 2 шага в Парламенте');
-      await expect(why, 'the WHY row, in the Parliament\'s own words').toHaveCount(1);
+      await expect(why, 'the WHY reading stands in the result').toHaveCount(1);
+      await expect(why).toHaveAttribute('data-walk-why-sets', '2');
+      await expect(why).toContainText('Почему 2 шага');
+      await expect(why).toContainText('33');
+      await expect(why).toContainText('сверх 20');
+      await expect(why).toContainText('2 полных набора по 5');
+      await expect(why).toContainText('до следующего ещё 2 РТ');
+      await expect(page.locator(`${composer} .con-composer__next`).filter({hasText: 'Шаги Карьеры'}), '«ДАЛЕЕ» carries the stage only').toHaveCount(0);
       await expect(stage, 'the coming stage, once').toHaveCount(1);
       const whyBox = await why.boundingBox();
       const stageBox = await stage.boundingBox();
@@ -551,7 +560,13 @@ for (const preset of PRESETS) {
 
       await openComposer(page);
       await expect(page.locator(`${composer} .action-effect-chip .resource_icon--agenda-step`), 'NO track chip — «★ 1 → 1» would promise a stage nobody enters (PL-118)').toHaveCount(0);
-      await expect(page.locator(composer).getByText('Маркер Карьеры не двинется: РТ 23 · порог 20 · ни одного полного набора по 5 · до первого 2'), 'the zero is NAMED, with the distance to the first set').toHaveCount(1);
+      const zeroWhy = page.locator(`${composer} [data-walk-why]`);
+      await expect(zeroWhy, 'the zero is NAMED in the result, with the distance to the first set (PL-156)').toHaveAttribute('data-walk-why-sets', '0');
+      await expect(zeroWhy).toContainText('маркер стоит');
+      await expect(zeroWhy).toContainText('Почему 0 шагов');
+      await expect(zeroWhy).toContainText('ни одного полного набора по 5');
+      await expect(zeroWhy).toContainText('до первого ещё 2 РТ');
+      await expect(page.locator(`${composer} .con-composer__next`), 'nothing «next» for a zero — no stage, no cut').toHaveCount(0);
       await expect(page.locator(composer).getByText(/маркер пройдёт/), 'no stage is promised').toHaveCount(0);
       await expect(page.locator(composer), 'the play stays alive').toContainText('Разыграть карту');
       expect((await page.locator(`${composer} .con-paystatus`).textContent()) ?? '', 'the payment line states the price').toContain('2');
@@ -607,7 +622,10 @@ for (const preset of PRESETS) {
         await expect(trackChip.locator('.action-effect-chip__cur')).toHaveText('0');
         await expect(trackChip.locator('.action-effect-chip__res')).toHaveText('5');
         await expect(trackChip.locator('.action-effect-chip__note')).toHaveText('5 наборов по 5 РТ сверх 20');
-        await expect(page.locator(composer).getByText('Шаги Карьеры по РТ: РТ 45 · порог 20 · 5 полных наборов · до следующего 5')).toHaveCount(1);
+        const why45 = page.locator(`${composer} [data-walk-why]`);
+        await expect(why45).toContainText('Почему 5 шагов');
+        await expect(why45).toContainText('5 полных наборов по 5');
+        await expect(why45).toContainText('до следующего ещё 5 РТ');
         await expect(page.locator(composer).getByText('Карьера — маркер пройдёт 5 шагов в Парламенте'), 'the plural is right for five').toHaveCount(1);
         if (!hurry) {
           await shoot(page, preset.id, '20-composer-45');

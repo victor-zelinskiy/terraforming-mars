@@ -34278,6 +34278,34 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         width: var(--con-chip-c-icon, 1.05rem);
         height: var(--con-chip-c-icon, 1.05rem);
     }
+    /* «ПОЧЕМУ» (PL-156, M1): the counted walk's reading — a strip of the RESULT, one notch LOUDER than the compact
+       chips above it (the why is the card's subject), the cyan kant of a reading, numbers by weight. A zero leads
+       with a muted «[★] маркер стоит» — the result a chip would have stated, quiet by weight and colour. */
+    &__why {
+        display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .5rem;
+        padding: .4rem .75rem; border-radius: .55rem;
+        background: rgba(20, 40, 60, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        font-size: ~"calc(var(--con-chip-c-fs, .82rem) + .16rem)";
+        font-weight: 600;
+        color: #e8f6ff;
+    }
+    &__why-kicker { font-size: .78em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 92%); }
+    &__why-ico { display: inline-block; width: 1.2em; height: 1.2em; flex: none; }
+    &__why-num { font-size: 1.2em; font-weight: 800; }
+    &__why-text--sets { font-weight: 800; }
+    &__why-arrow { color: @con-text-dim; }
+    /* The distance to the next set is an ANNOTATION of the reading, pinned to the strip's right edge (the payment
+       status's «ТОЧНАЯ ОПЛАТА» idiom) — no «·» separator: on a 4K zero the strip wraps, and a separator then opened
+       the second line as a dangling «· до первого ещё 2 РТ». Wrapped, the annotation keeps the right edge. */
+    &__why-next { color: @con-text-dim; margin-left: auto; }
+    &__why-stays {
+        display: inline-flex; align-items: center; gap: .3em;
+        padding: .15em .5em; border-radius: .45em;
+        background: rgba(30, 40, 50, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 40%);
+        color: @con-text-dim; font-weight: 700;
+    }
     /* RESULT HERO — the play-confirm's decision-carrying block. The game data
        (what you get / what changes) is the dominant, glance-readable surface,
        framed and prominent, so the CTA is never the most legible thing on the

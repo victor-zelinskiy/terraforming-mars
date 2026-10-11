@@ -27,7 +27,7 @@ import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 import {CardModel} from '@/common/models/CardModel';
 import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
-import {agendaWalkForYouAnnotation, agendaWalkNextRows, branchHostsParliamentStep, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
+import {agendaWalkForYouAnnotation, agendaWalkNextRows, agendaWalkWhy, agendaWalkWhyRow, branchHostsParliamentStep, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
 import {AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 import {thresholdBreakdown} from '@/common/parliament/resolutionCounts';
@@ -559,43 +559,42 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       {key: '${0} to the next set', params: [String(toNext)]},
     ]});
 
-    it('a COUNTED walk says WHY first, in the Parliament\'s own words — then the stage, then a cut', () => {
-      expect(agendaWalkNextRows(sets(33, 1)), 'TR 33: two sets, two short of a third').deep.eq([
-        why(33, 2, 2),
-        {key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['2']},
-      ]);
-      expect(agendaWalkNextRows(sets(25, 1)), 'TR 25: exactly one set — a whole set to the next').deep.eq([
-        why(25, 1, 5),
-        {key: 'Agenda — the marker walks 1 step in the Parliament'},
-      ]);
-      expect(agendaWalkNextRows(sets(45, 0)), 'TR 45 from 0: the longest walk of the set').deep.eq([
-        why(45, 5, 5),
-        {key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['5']},
-      ]);
-      expect(agendaWalkNextRows(sets(35, 10, 2)), 'TR 35 from 10: three sets, the track takes two — the cut named after the why').deep.eq([
-        why(35, 3, 5),
+    it('PL-156 — a COUNTED walk: the «next» rows are the stage and the cut only; the WHY is its own row (the inspector) and its own reading (the composer)', () => {
+      expect(agendaWalkNextRows(sets(33, 1)), 'TR 33: two sets').deep.eq([{key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['2']}]);
+      expect(agendaWalkNextRows(sets(25, 1)), 'TR 25: one set').deep.eq([{key: 'Agenda — the marker walks 1 step in the Parliament'}]);
+      expect(agendaWalkNextRows(sets(35, 10, 2)), 'TR 35 from 10: three sets, the track takes two — the cut named').deep.eq([
         {key: 'Agenda — the marker walks ${0} step(s) in the Parliament', params: ['2']},
         {key: '${0} of ${1} · end of the track', params: ['2', '3']},
       ]);
+      expect(agendaWalkNextRows(sets(23, 1)), 'the zero: no stage, no cut — nothing «next» at all (PL-118)').deep.eq([]);
+      expect(agendaWalkWhyRow(sets(33, 1))).deep.eq(why(33, 2, 2));
+      expect(agendaWalkWhyRow(sets(25, 1))).deep.eq(why(25, 1, 5));
+      expect(agendaWalkWhyRow(sets(45, 0))).deep.eq(why(45, 5, 5));
+      expect(agendaWalkWhyRow(walk(2)), 'a printed walk has no why').is.undefined;
     });
 
-    it('ZERO counted steps is not a cut and not a stage — ONE row naming the zero and how far the first set is (PL-118)', () => {
-      const rows = agendaWalkNextRows(sets(23, 1));
-      expect(rows).deep.eq([{key: 'The Agenda marker stays:', parts: [
+    it('ZERO counted steps: ONE why row naming the zero and how far the first set is', () => {
+      expect(agendaWalkWhyRow(sets(23, 1))).deep.eq({key: 'The Agenda marker stays:', parts: [
         {key: 'TR ${0}', params: ['23']},
         {key: 'threshold ${0}', params: ['20']},
         {key: 'no complete set of ${0}', params: ['5']},
         {key: '${0} to the first set', params: ['2']},
-      ]}]);
-      expect(agendaWalkNextRows(sets(14, 1))[0].parts?.[3], 'the solo start: 11 to the first set').deep.eq({key: '${0} to the first set', params: ['11']});
-      expect(rows.some((r) => r.key.startsWith('Agenda — the marker walks')), 'no stage is promised').is.false;
+      ]});
+      expect(agendaWalkWhyRow(sets(14, 1))?.parts?.[3], 'the solo start: 11 to the first set').deep.eq({key: '${0} to the first set', params: ['11']});
+    });
+
+    it('THE COMPOSER «ПОЧЕМУ» (PL-156, M1) reads the server breakdown — the count, the threshold, the set, the distance; a zero is named', () => {
+      expect(agendaWalkWhy(sets(33, 1))).deep.eq({zero: false, value: 33, over: 20, step: 5, sets: 2, toNext: 2});
+      expect(agendaWalkWhy(sets(23, 1))).deep.eq({zero: true, value: 23, over: 20, step: 5, sets: 0, toNext: 2});
+      expect(agendaWalkWhy(walk(2)), 'a printed walk reads nothing').is.undefined;
+      expect(agendaWalkWhy(undefined)).is.undefined;
     });
 
     // A transparent translator: the key with its params spliced in — the shape, not the language, is under test.
     const t: RowTranslator = {text: (key) => key, params: (key, params) => params.reduce((s, p, i) => s.replace('${' + i + '}', p), key)};
 
     it('a row with a READING reads «key a · b · c» — the composer\'s and the inspector\'s one translation', () => {
-      expect(nextRowText(agendaWalkNextRows(sets(33, 1))[0], t)).eq('Agenda steps by TR: TR 33 · threshold 20 · 2 complete set(s) · 2 to the next set');
+      expect(nextRowText(agendaWalkWhyRow(sets(33, 1))!, t)).eq('Agenda steps by TR: TR 33 · threshold 20 · 2 complete set(s) · 2 to the next set');
       expect(nextRowText({key: 'Agenda — the marker walks 1 step in the Parliament'}, t)).eq('Agenda — the marker walks 1 step in the Parliament');
     });
 

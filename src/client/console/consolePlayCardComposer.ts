@@ -316,27 +316,14 @@ export type NextRowKey = {key: string, params?: ReadonlyArray<string>, parts?: R
  * (К-R2) — the composer's chip already shows «0», and the flow lands as an
  * ordinary play.
  *
- * A COUNTED walk (TR42 — `walk.basis`, the server's threshold breakdown)
- * says WHY first: «Шаги Карьеры по РТ: РТ 33 · порог 20 · 2 полных набора ·
- * до следующего 2», then the stage, then a cut. Zero counted steps is not a
- * cut and not a stage — it is ONE row naming the zero and how far the first
- * set is («Маркер Карьеры не двинется: РТ 23 · порог 20 · ни одного полного
- * набора по 5 · до первого 2»); no stage is promised (PL-118).
+ * A COUNTED walk (TR42 — `walk.basis`) says WHY in the RESULT, never here
+ * (PL-156, the owner's M1 2026-10-11: the why is a reading of the result, and
+ * «ДАЛЕЕ: Маркер Карьеры не двинется» read a result as a next step) — these
+ * rows are the stage and the cut only; a zero has neither (no stage is
+ * promised — PL-118).
  */
 export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
   const rows: Array<NextRowKey> = [];
-  const basis = walk.basis;
-  if (basis !== undefined) {
-    if (basis.sets <= 0) {
-      return [{key: 'The Agenda marker stays:', parts: [
-        {key: metricLabelKeyOf(basis.metric), params: [String(basis.value)]},
-        {key: 'threshold ${0}', params: [String(basis.over)]},
-        {key: 'no complete set of ${0}', params: [String(basis.step)]},
-        {key: '${0} to the first set', params: [String(basis.toNext)]},
-      ]}];
-    }
-    rows.push({key: 'Agenda steps by TR:', parts: countedMetricParts(basis)});
-  }
   if (walk.walked === 1) {
     rows.push({key: 'Agenda — the marker walks 1 step in the Parliament'});
   } else if (walk.walked > 1) {
@@ -346,6 +333,48 @@ export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
     rows.push({key: '${0} of ${1} · end of the track', params: [String(walk.walked), String(walk.printed)]});
   }
   return rows;
+}
+
+/**
+ * THE WHY OF A COUNTED WALK, as one row (TR42 — `walk.basis`): «Шаги Карьеры по
+ * РТ: РТ 33 · порог 20 · 2 полных набора · до следующего 2», or the named zero
+ * «Маркер Карьеры не двинется: РТ 23 · порог 20 · ни одного полного набора по
+ * 5 · до первого 2» — the Parliament's own vocabulary (`countedMetricParts`).
+ * The inspector's «ДЛЯ ВАС» leads with it; the composer reads the same basis
+ * as a block of its own (`agendaWalkWhy`). `undefined` for a printed walk.
+ */
+export function agendaWalkWhyRow(walk: AgendaWalkModel): NextRowKey | undefined {
+  const basis = walk.basis;
+  if (basis === undefined) {
+    return undefined;
+  }
+  if (basis.sets <= 0) {
+    return {key: 'The Agenda marker stays:', parts: [
+      {key: metricLabelKeyOf(basis.metric), params: [String(basis.value)]},
+      {key: 'threshold ${0}', params: [String(basis.over)]},
+      {key: 'no complete set of ${0}', params: [String(basis.step)]},
+      {key: '${0} to the first set', params: [String(basis.toNext)]},
+    ]};
+  }
+  return {key: 'Agenda steps by TR:', parts: countedMetricParts(basis)};
+}
+
+/**
+ * THE COMPOSER'S «ПОЧЕМУ» (PL-156, M1): the counted walk's reading in the
+ * RESULT cluster, at the chips' scale, under them — «ПОЧЕМУ 2 ШАГА · [РТ] 33
+ * сверх 20 → 2 полных набора по 5 → [★] 2 · до следующего ещё 2 РТ»; a zero
+ * leads with a muted «[★] маркер стоит» and reads «ПОЧЕМУ 0 ШАГОВ · [РТ] 23
+ * сверх 20 → ни одного полного набора по 5 · до первого ещё 2 РТ». Every
+ * number is the server's breakdown, read — nothing is divided here.
+ */
+export type AgendaWalkWhy = {zero: boolean, value: number, over: number, step: number, sets: number, toNext: number};
+
+export function agendaWalkWhy(walk: AgendaWalkModel | undefined): AgendaWalkWhy | undefined {
+  const basis = walk?.basis;
+  if (basis === undefined) {
+    return undefined;
+  }
+  return {zero: basis.sets <= 0, value: basis.value, over: basis.over, step: basis.step, sets: basis.sets, toNext: basis.toNext};
 }
 
 /**
@@ -377,7 +406,8 @@ export function nextRowText(row: NextRowKey, t: RowTranslator): string {
  * resolution inspector's own «For you» block.
  */
 export function agendaWalkForYouAnnotation(walk: AgendaWalkModel, t: RowTranslator): CardAnnotation {
-  const rows = agendaWalkNextRows(walk).map((row, i) => ({
+  const why = agendaWalkWhyRow(walk);
+  const rows = [...(why === undefined ? [] : [why]), ...agendaWalkNextRows(walk)].map((row, i) => ({
     id: `group:you:${i}`, text: '${0}', params: [nextRowText(row, t)], special: false, anyPlayer: false,
   }));
   return {id: 'group:you', kind: 'note', labelKey: 'For you', rows, special: false, anyPlayer: false, order: 99};

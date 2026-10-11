@@ -229,6 +229,28 @@
               <div v-else-if="immediateEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips">
                 <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" />
               </div>
+              <!-- «ПОЧЕМУ» (PL-156, the owner's M1 2026-10-11): a walk whose length the card COUNTS (TR42) explains its
+                   number as a READING of the result, at the chips' scale, right under them — never as a «ДАЛЕЕ» row (the
+                   zero read «ДАЛЕЕ: маркер не двинется», a result told as a next step). Every number is the server's
+                   breakdown (`AgendaWalkModel.basis`), read, never divided here. -->
+              <div v-if="walkWhy !== undefined" class="con-composer__why" :class="{'con-composer__why--zero': walkWhy.zero}"
+                   data-walk-why :data-walk-why-sets="walkWhy.sets">
+                <span v-if="walkWhy.zero" class="con-composer__why-stays">
+                  <span class="resource_icon resource_icon--agenda-step con-composer__why-ico" aria-hidden="true"></span>{{ $t('The marker stays') }}
+                </span>
+                <span class="con-composer__why-kicker">{{ whyKicker }}</span>
+                <span class="resource_icon resource_icon--rating con-composer__why-ico" aria-hidden="true"></span>
+                <b class="con-composer__why-num">{{ walkWhy.value }}</b>
+                <span class="con-composer__why-text">{{ whyOver }}</span>
+                <span class="con-composer__why-arrow" aria-hidden="true">→</span>
+                <span class="con-composer__why-text con-composer__why-text--sets">{{ whySets }}</span>
+                <template v-if="!walkWhy.zero">
+                  <span class="con-composer__why-arrow" aria-hidden="true">→</span>
+                  <span class="resource_icon resource_icon--agenda-step con-composer__why-ico" aria-hidden="true"></span>
+                  <b class="con-composer__why-num">{{ walkWhy.sets }}</b>
+                </template>
+                <span class="con-composer__why-next">{{ whyNext }}</span>
+              </div>
 
               <!-- ── THE SECOND LEVEL — what the card IS once it is on the
                    table (a new action, an ongoing effect, endgame points, the
@@ -693,7 +715,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator, branchHostsParliamentStep,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator, branchHostsParliamentStep, agendaWalkWhy, AgendaWalkWhy,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -1169,6 +1191,31 @@ export default defineComponent({
      * predicate is the card's shape, not the player's progress), so answering
      * cannot re-flow the block under the cursor.
      */
+    /** PL-156 — the counted walk's «why», read off the server's breakdown (`agendaWalkWhy` — pure, spec'd). */
+    walkWhy(): AgendaWalkWhy | undefined {
+      return agendaWalkWhy(this.agendaWalkOf(this.selectedBranch));
+    },
+    whyKicker(): string {
+      return this.walkWhy === undefined ? '' : translateTextWithParams('Why ${0} step(s)', [String(this.walkWhy.sets)]);
+    },
+    whyOver(): string {
+      return this.walkWhy === undefined ? '' : translateTextWithParams('over ${0}', [String(this.walkWhy.over)]);
+    },
+    whySets(): string {
+      const why = this.walkWhy;
+      if (why === undefined) {
+        return '';
+      }
+      return why.zero ? translateTextWithParams('no complete set of ${0}', [String(why.step)]) :
+        translateTextWithParams('${0} complete set(s) of ${1}', [String(why.sets), String(why.step)]);
+    },
+    whyNext(): string {
+      const why = this.walkWhy;
+      if (why === undefined) {
+        return '';
+      }
+      return translateTextWithParams(why.zero ? '${0} more TR to the first set' : '${0} more TR to the next set', [String(why.toNext)]);
+    },
     resultHeading(): string {
       return this.hasVariantChoice ? 'Choose the result' : 'Result';
     },
