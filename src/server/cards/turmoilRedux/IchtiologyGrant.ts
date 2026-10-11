@@ -44,7 +44,7 @@ export const MICROBES_BRANCH = 'Add 4 microbes to ANY card';
  * [microbe]*», the asterisk the printed «to ANY card». No VP badge. Only the
  * module's icon at the bottom left (no ▲, no Venus icon): no
  * `compatibility`. Printed lore: «♪ Ocean Man, take me by the hand, take me
- * to the land that you understand ♪» (`lore_texts.json` «TR43» — the notes
+ * to the land that you understand... ♪» (`lore_texts.json` «TR43» — the notes
  * are the scan's; the spelling «Ichtiology» is the card's). «Getty Images»
  * is the scan's caption, not the face's.
  *

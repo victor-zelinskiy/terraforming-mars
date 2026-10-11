@@ -32,6 +32,7 @@ import {NO_HOLDER_WARNING, SKIP_REASON} from '../../../src/server/cards/actionPr
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
+import {ICard} from '../../../src/server/cards/ICard';
 import {cast} from '../../../src/common/utils/utils';
 import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
 import {addOcean, formatMessage, runAllActions} from '../../TestingUtils';
@@ -141,7 +142,7 @@ describe('IchtiologyGrant', () => {
         [ANIMALS_BRANCH, {type: CardResource.ANIMAL, count: 2, mustHaveCard: true}],
         [MICROBES_BRANCH, {type: CardResource.MICROBE, count: 4, mustHaveCard: true}],
       ]);
-      expect(card.cardPlayPreview, 'no hook — the declaration is the preview').is.undefined;
+      expect((card as ICard).cardPlayPreview, 'no hook — the declaration is the preview').is.undefined;
       expect(card.bespokePlay === IchtiologyGrant.prototype.bespokePlay || (card as unknown as {bespokePlay?: unknown}).bespokePlay === undefined, 'no bespoke play').is.true;
     });
 
@@ -252,7 +253,7 @@ describe('IchtiologyGrant', () => {
       const target = cast(t.player.getWaitingFor(), SelectCard);
       expect(target.cards.map((c) => c.name)).deep.eq([CardName.TARDIGRADES]);
       expect(tardigrades.resourceCount, 'nothing lands before the pick').eq(0);
-      target.process({type: 'card', cards: [CardName.TARDIGRADES]}, t.player);
+      target.process({type: 'card', cards: [CardName.TARDIGRADES]});
       expect(tardigrades.resourceCount).eq(4);
       expect(pets.resourceCount).eq(0);
     });
@@ -264,7 +265,7 @@ describe('IchtiologyGrant', () => {
       const target = cast(t.player.getWaitingFor(), SelectCard);
       expect(target.cards.map((c) => c.name)).deep.eq([CardName.PETS]);
       expect(pets.resourceCount).eq(0);
-      target.process({type: 'card', cards: [CardName.PETS]}, t.player);
+      target.process({type: 'card', cards: [CardName.PETS]});
       expect(pets.resourceCount).eq(2);
     });
 
@@ -439,7 +440,7 @@ describe('IchtiologyGrant', () => {
       t.player.playedCards.push(pets);
       oceans(t, 3);
       play(t);
-      cast(t.player.getWaitingFor(), SelectCard).process({type: 'card', cards: [CardName.PETS]}, t.player);
+      cast(t.player.getWaitingFor(), SelectCard).process({type: 'card', cards: [CardName.PETS]});
       const reloaded = Game.deserialize(structuredClone(t.game.serialize()));
       const again = reloaded.getPlayerById(t.player.id);
       expect(again.production.megacredits).eq(3);
