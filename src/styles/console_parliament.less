@@ -179,11 +179,15 @@
            the head's own token now, and every workspace pins its identity to it from the top. */
         .con-wshead__ident { min-height: var(--con-wshead-line); align-items: center; }
         .con-wshead__aux { flex: 0 0 var(--con-parl-crumb-w); min-width: 0; }
-        /* The delegates zone takes what is LEFT of the line (`flex-basis: 0` — it never bids against the
-           crumb's reserve) and yields first when the two do not both fit (PL-148). */
+        /* The delegates zone takes what is LEFT of the line (PL-148): its basis is its MIN-CONTENT (the strip
+           whole — nothing on it is ever cut), so it stands beside the crumb when it fits and folds UNDER the
+           crumb whole when it does not (five seats on a 1080 line), as it always did. `flex-basis: 0` never
+           folds — the crowded table's seats ran off the head's right edge; `auto` folds too early — a two-seat
+           4K table folded beside the widest crumb and the tiers below lost a line. What keeps a two-seat line
+           beside «ПРЕДСЕДАТЕЛЬСТВО › КАРЬЕРА» on 4K is the piles' one-word captions (ConsoleParliamentSeats). */
         .con-wshead__trailing {
             margin-left: 0;
-            flex: 1 1 0;
+            flex: 1 1 min-content;
             min-width: 0;
             justify-content: flex-start;
         }
@@ -852,12 +856,7 @@
         padding: .04rem 0;
         white-space: nowrap;
     }
-    /* THE STRICT ORDER OF YIELDING (PL-148, `expectRailHonest`): the piles are the zone's last members and the
-       first to give — their captions («КОЛОДА РЕЗОЛЮЦИЙ») ellipsize in their OWN block box, the pile and its count
-       stay whole; a seat's name is next (its own cap below); the cubes never. */
-    &__seat--deck { flex: 0 1 auto; min-width: 0; }
-    &__seat--deck .con-parl__seat-place { min-width: 0; max-width: 100%; }
-    &__seat--deck .con-parl__seat-key { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
     &__seat {
         display: inline-flex;
         align-items: center;

@@ -71,9 +71,12 @@
          the discard over INTO the deck when the deck is empty — so both piles
          and both counts keep their pre-response reading and move card by
          card as each of those lands (`parliamentHolds.pile`). -->
+    <!-- The piles' captions are ONE WORD each (PL-148): everything on this line is resolutions, and «КОЛОДА РЕЗОЛЮЦИЙ ·
+         СБРОС РЕЗОЛЮЦИЙ» was the 280 px (4K) that kept a two-seat table from standing beside the widest crumb
+         («ПРЕДСЕДАТЕЛЬСТВО › КАРЬЕРА») — the zone folded under it and the tiers below lost a line. -->
     <div class="con-parl__seat con-parl__seat--deck" data-parl-deck>
       <span class="con-parl__seat-place">
-        <span class="con-parl__seat-key">{{ $t('Resolution deck') }}</span>
+        <span class="con-parl__seat-key">{{ $t('Deck') }}</span>
         <span class="con-parl__seat-obj">
           <span class="con-parl__deck" :class="{'con-parl__deck--empty': deckShown === 0}" :data-count="deckShown" data-parl-deck-pile aria-hidden="true">
             <span v-if="deckLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
@@ -84,7 +87,7 @@
         </span>
       </span>
       <span class="con-parl__seat-place con-parl__seat-place--discard" data-parl-discard>
-        <span class="con-parl__seat-key">{{ $t('Resolution discard') }}</span>
+        <span class="con-parl__seat-key">{{ $t('Discard pile') }}</span>
         <span class="con-parl__seat-obj">
           <span class="con-parl__deck con-parl__deck--discard" :class="{'con-parl__deck--empty': discardShown === 0}" :data-count="discardShown" data-parl-discard-pile aria-hidden="true">
             <span v-if="discardLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
