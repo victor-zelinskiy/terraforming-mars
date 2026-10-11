@@ -51,11 +51,19 @@
     inset: 0;
     backface-visibility: hidden;
     /* REAL THICKNESS: the two sides sit half a thickness apart in Z, so the
-       body between them is a box and not a zero-volume sheet. */
-    transform: translateZ(@con-card3d-thickness / 2);
+       body between them is a box and not a zero-volume sheet.
+       ⚠️ The division sits in its OWN parentheses: Less's parens-division math
+       left `translateZ(@t / 2)` unevaluated, the browser received
+       `translateZ(0.16rem / 2)` — invalid — and dropped BOTH declarations, so
+       the back was never turned away and the faces had no thickness. Hidden
+       until colony polish 1: every flight also wore `.con-deal-proxy__back`,
+       whose own `rotateY(180deg)` did the turning; the settlement table's
+       place is the first body that is ONLY a Card3DInner, and it painted its
+       back over its face (and nothing at all once turned). */
+    transform: translateZ((@con-card3d-thickness / 2));
 }
 .con-card3d__back {
-    transform: rotateY(180deg) translateZ(@con-card3d-thickness / 2);
+    transform: rotateY(180deg) translateZ((@con-card3d-thickness / 2));
 }
 
 /* THE EDGE — the lit paper side, seen as the card passes through its own
