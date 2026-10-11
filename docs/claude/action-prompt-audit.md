@@ -322,6 +322,88 @@ The full sweep found exactly **three**, one per follow-up kind:
 | `promo/AsteroidRights` | «Add 1 asteroid to this card» | the 1 M€ `SelectPaymentDeferred` after the target `optionInput` | PRE-COLLECTED: `paymentStep` from the shared `asteroidPaymentOptions()`; the flat M€ chip drops when the step is present (CLASS 3 doctrine) |
 | `promo/EnergyMarket` | «Spend 2X M€ to gain X energy» | the 2X payment after the amount dial | DECLARED: the bill's amount exists only once the dial is set, so it CANNOT be pre-collected — a `noteStep('generic', 'After confirming, choose how to pay.')`, emitted only when the payment would actually prompt (`paymentStep(player, 2) !== undefined`) |
 
+### CLASS 8 — the answer did not say what it was collected FOR (added 2026-10-11, closed)
+
+**Triggered by:** the owner's report — «Sponsored Academies: the card to discard is picked in the
+composer, and then the discard comes as a SEPARATE prompt, although it was pre-selected; such
+examples are frequent on other cards too». Reproduced as a unit (a4e6177ace): the batch
+`[play, {card: Ants}]` left the `DiscardCards` prompt standing, Ants in hand, the answer parked.
+
+**Root.** `186ddae340` (2026-09-28, the Redux Venus colony bonus «draw 1, then discard 1» in front
+of a trade's reward target) widened `hiddenInfoPrompt` from the deck pick to EVERY `SelectCard`
+carrying `discardPrompt`: `replayBatch` parked the tail untried and `drainBatchTail` broke on the
+same test — a PRE-COLLECTED discard could never land. Not an upstream merge (the syncs touched
+only `clearWarnings` in this file): a fork polish of one case, written as a rule of the prompt's
+KIND, that broke the whole family. It joined a ladder of such rungs — `stagedFor` for three response
+types, hidden-info for the deck pick and then for discards, `jumpedTheQueue` by type — each a guess
+at «is this my question?» from the response's type or the prompt's kind. CLASS 6's «residual
+hazard» was the same defect seen from the other side.
+
+**Why nothing caught it.** `deferredInputBatch.spec.ts` had no discard case; `cardPlayPreviewCoverage`
+/ `consolePlayPreviewCoverage` check the steps' SHAPE; `actionPromptCoverage` check 5 replays
+ACTIONS only; e2e had no Sponsored Academies spec; and the stranded-prompt witness (`armLeakWitness`)
+sees only a prompt nobody serves — a re-asked discard IS served (the hand screen in discard mode).
+
+**The law (`src/common/inputs/preselectAddress.ts`).** A pre-collected answer carries `for: {source,
+role}`; a prompt's address is read by ONE function (`promptAddressOf`) over the markers the console
+already routes by — `choiceContext` → `placementContext` → `discardPrompt` → `deckPickPrompt`; a
+placement by its `sourceCard`; a party question only as a grant / support pick. Roles are the input
+type, `discard` for a marked discard, `deckPick` for a deck pick. `addressVerdict`:
+
+| verdict | when | the replay |
+| --- | --- | --- |
+| `own` | the prompt names the answer's asker, same kind | process; a refusal = honest divergence → the tail drops, the question is asked for real |
+| `foreign` | another asker, or another kind | parked UNTRIED — never offered to the wrong question |
+| `anonymous` | same kind, the prompt names no asker | the positional rules (try; another TYPE parks, the same type drops) |
+| unaddressed | an answer with no `for` (a client before the law) | the positional rules, byte-identical |
+
+The two wire reshapes of `reconcileBatchResponse` (an OR-wrapped branch pick vs its card's collapsed
+bare input; a bare answer vs a one-option OrOptions) are kinds that match; a placement-shaped role
+(space / party / colony / deck pick) needs a NAMED asker — its anonymous prompts are by construction
+somebody else's. The staged cell / resolution / colony (`stagedFor`) is the SAME address in its older
+spelling (`answerAddressOf`): `stagedMismatch` / `stagedAddress` are deleted — one law. `hiddenInfoPrompt`
+is the deck pick only again. `expireSupersededStagedTail` expires any answer whose address names the
+standing prompt as its own. The address belongs to the batch and is stripped before `process`.
+
+**Stamped once per family.** Server: `models/preselectAddresses.ts` — the exit pass of `cardPlayPreview`,
+`actionPreview`, `corpFirstActionPreview` stamps every input step, pre-step, tabbed step and branch slot
+(the step model's role; its own source, else the card's); a step the model cannot describe says so
+(`selectCardStep({for})` — Sponsored Academies' `discard`); the trade preview's card target carries the
+live action's own cause. Client: ONE function `addressed(response, address)` in `orderedStepResponses` /
+`orderedPreResponses`, the branch slot of `buildPlayCardBatch` / `buildActionBatch` (`branchFor`, threaded
+through both composers' payloads and `RepeatComposed`), and the trade's `stepResponse`.
+
+**The residual hazard, stated.** An UNMARKED interloper of the same kind (a bespoke prompt with no
+`choiceContext`) still meets an answer positionally (`anonymous`). The guard below names the in-scope
+plays where it matters; a new one is fixed by marking the interloper, never by a rung.
+
+**Guards.**
+- `tests/models/cardPlayReplayCoverage.spec.ts` — the PLAY twin of check 5: every in-scope project card
+  whose preview pre-collects anything, three states (clean · Olympus Conference with a resource + Pharmacy
+  Union · the Reds' tax under Helion), the batch built by the composer's own pure builders (addresses and
+  all), `replayBatch` on a fresh game, interlopers answered as the player would → nothing parked, the
+  standing prompt never the card's own answered question (`reaskedBy`). 102 plays replayed;
+  `LEFTOVER_PRESELECT_WORKLIST` empty and failing both ways. A second check: every input step and branch
+  pick of an in-scope play preview is addressed.
+- `deferredInputBatch.spec.ts` § Sponsored Academies (lands; parks past Olympus and lands after) and § the
+  address (a card question of another asker of the same type in front of TR43's target is not tried —
+  unaddressed, it eats the answer; an own refusal drops; a manual answer supersedes); `VenusRedux.spec` /
+  `HabitatScience.spec` post the target addressed, as the composers do.
+- The client witness `console/preselectWitness.ts` warns `RE-ASKED PRE-SELECT` when a view's prompt (any
+  node) is a question the last batch answered; the e2e harness's `preselectGuard` (`consoleTest.ts`) turns
+  it red on EVERY spec. e2e `console-sponsored-academies` (fhd + 4K).
+
+**Who re-asked — the sweep.**
+
+| | before (the old replay module, unaddressed batches) | after |
+| --- | --- | --- |
+| Sponsored Academies | clean · interlopers · reds — the discard never landed | lands in the play's POST; parks past Olympus and lands |
+| every other in-scope play with a pre-select (102 replays) | — | — |
+
+The sweep also caught one preview lie: a COUNTED «add to any card» that counts zero (Hydrogen to Venus
+with no Jovian tag) promised a target pick the live play never asks — `stepsForBehavior` now skips a
+zero count, as the Executor does.
+
 ## 5. The guard
 
 `tests/models/actionPromptCoverage.spec.ts` — walks every in-scope action card across three
@@ -348,6 +430,8 @@ Checks 3–5 carry `LEFTOVER_PAYMENT_WORKLIST` / `LEFTOVER_FOLLOWUP_WORKLIST` /
 `LEFTOVER_CHAIN_WORKLIST`, all currently **empty**, and fail BOTH ways: a new leak is a
 regression, and an entry that no longer leaks must be removed — so no list can quietly become
 a permanent exemption.
+
+**And for PLAYS**: `tests/models/cardPlayReplayCoverage.spec.ts` replays every in-scope play's pre-collected batch (addressed, as the composer builds it) against the live play — see CLASS 8.
 
 Check 4's scope is stated honestly in the spec: `SelectOption` branches only (the family the
 composer answers with a bare `{type:'option'}`, and therefore the family that can silently end
