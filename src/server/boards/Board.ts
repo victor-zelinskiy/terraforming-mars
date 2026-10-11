@@ -42,7 +42,9 @@ export abstract class Board {
   private maxX: number = 0;
   private maxY: number = 0;
   private map: Map<SpaceId, Space> = new Map();
-  public volcanicSpaceIds: ReadonlyArray<SpaceId>;
+  public readonly volcanicSpaceIds: ReadonlyArray<SpaceId>;
+  public readonly bottomRow: number;
+  public readonly equatorRow: number;
 
   // stores adjacent spaces in clockwise order starting from the top left
   private readonly adjacentSpaces = new Map<SpaceId, ReadonlyArray<Space>>();
@@ -60,6 +62,8 @@ export abstract class Board {
     });
 
     this.volcanicSpaceIds = this.spaces.filter((space) => space.volcanic).map((space) => space.id);
+    this.bottomRow = this.maxY;
+    this.equatorRow = this.bottomRow / 2;
   }
 
   /* Returns the space given a Space ID. */
@@ -438,6 +442,27 @@ export abstract class Board {
    */
   public static isEquatorialRegion(space: Space): boolean {
     return space.y >= 3 && space.y <= 5;
+  }
+
+  /*
+   * THE BOARD'S OWN REGIONS (upstream b79b41c674) — the three statics above read the NINE-row maps' rows; these read
+   * this board's geometry (`bottomRow` / `equatorRow`), so they hold on the eleven-row Amazonis Planitia too. The
+   * milestones / awards score through these; MarsBot's map profiles keep the statics (every MarsBot map has nine rows
+   * — tests/boards/boardRegions.spec.ts pins that both readings agree there).
+   */
+  /** South of the equator — the rows below the middle row (Desert Settler). */
+  public isSouthern(space: Space): boolean {
+    return space.y > this.equatorRow;
+  }
+
+  /** The bottom two rows (Polar Explorer). */
+  public isPolar(space: Space): boolean {
+    return space.y >= this.bottomRow - 1;
+  }
+
+  /** The middle three rows (Tropicalist). */
+  public isEquatorial(space: Space): boolean {
+    return space.y >= this.equatorRow - 1 && space.y <= this.equatorRow + 1;
   }
 
   /**
