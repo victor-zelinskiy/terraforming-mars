@@ -137,6 +137,12 @@ import {AsteroidHollowing} from '../../../src/server/cards/promo/AsteroidHollowi
 import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
+import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
+import {BiologicalSimulations} from '../../../src/server/cards/turmoilRedux/BiologicalSimulations';
+import {SponsoredAcademies} from '../../../src/server/cards/venusNext/SponsoredAcademies';
+import {Algae} from '../../../src/server/cards/base/Algae';
+import {Lichen} from '../../../src/server/cards/base/Lichen';
+import {KelpFarming} from '../../../src/server/cards/base/KelpFarming';
 import {AerialMappers} from '../../../src/server/cards/venusNext/AerialMappers';
 import {CaretakerContract} from '../../../src/server/cards/base/CaretakerContract';
 import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScience';
@@ -1965,6 +1971,80 @@ parliamentFixture('aerial-mappers', {
         mappers === undefined || !mappers.canAct(p1) || caretaker === undefined || !caretaker.canAct(p1) ||
         governor === undefined || !p1.canPlay(governor) || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the aerial-mappers fixture expected Aerial Mappers ×1 and Dirigibles ×2 with both actions open, Caretaker Contract open on 8 heat, Venus Governor playable on 3 M€ + a floater, the Industrialists ruling — got mappers=${count(CardName.AERIAL_MAPPERS)} dirigibles=${count(CardName.DIRIGIBLES)} mc=${p1.megaCredits} heat=${p1.heat} governor=${governor !== undefined && p1.canPlay(governor)} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+// ── TR43 · ICHTIOLOGY GRANT — the set's first PLAY whose `or` branch holds a CARD TARGET (two pre-selects in one batch:
+//    the variant, then the holder) and the first card the pre-select law (docs/claude/action-prompt-audit.md § CLASS 8)
+//    carries end to end. Blue's action phase, the Greens ruling by the STARTING RULE (nothing enacted — generation 1),
+//    THREE oceans on the board (red's — «each ocean in play», whoever placed it), the card in hand with 20 M€. The
+//    holder sets the three fixtures differ by:
+//      · `ichtiology-grant`      — Pets (animals) AND Tardigrades (microbes): the «ИЛИ» row of two, the target step in
+//                                   the chosen variant's zone; TR38 Biological Simulations with 2 data answers the play's
+//                                   microbe AND animal tags with ONE «+2 data»;
+//      · `ichtiology-grant-one`  — Pets only: the microbe variant greyed with its reason, the animal target at once;
+//      · `ichtiology-grant-none` — no holder of either kind: the card STILL plays (`OrBehavior.optional`) — the production
+//                                   stands, both variants greyed, the skip named.
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open). ──
+function ichtiologyFixture(name: string, holders: {pets: boolean, tardigrades: boolean, simulations: boolean}): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+      for (let i = 0; i < 3; i++) {
+        addOcean(p2);
+      }
+      p1.megaCredits = 20;
+      if (holders.pets) {
+        p1.playedCards.push(new Pets());
+      }
+      if (holders.tardigrades) {
+        p1.playedCards.push(new Tardigrades());
+      }
+      if (holders.simulations) {
+        const simulations = new BiologicalSimulations();
+        simulations.resourceCount = 2;
+        p1.playedCards.push(simulations);
+      }
+      p1.cardsInHand.push(new IchtiologyGrant());
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.ICHTIOLOGY_GRANT);
+      const oceans = game.board.getOceanSpaces({upgradedOceans: true, wetlands: true}).length;
+      if (card === undefined || !p1.canPlay(card) || parliament.rulingParty() !== PartyName.GREENS || oceans !== 3 ||
+          (p1.playedCards.get(CardName.PETS) !== undefined) !== holders.pets ||
+          (p1.playedCards.get(CardName.TARDIGRADES) !== undefined) !== holders.tardigrades) {
+        throw new Error(`the ${name} fixture expected TR43 playable, the Greens ruling by the starting rule, 3 oceans and the holders ${JSON.stringify(holders)} — got playable=${card !== undefined && p1.canPlay(card)} ruling=${parliament.rulingParty()} oceans=${oceans}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+ichtiologyFixture('ichtiology-grant', {pets: true, tardigrades: true, simulations: true});
+ichtiologyFixture('ichtiology-grant-one', {pets: true, tardigrades: false, simulations: false});
+ichtiologyFixture('ichtiology-grant-none', {pets: false, tardigrades: false, simulations: false});
+// ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
+//    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
+//    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's
+//    candidate set), a quiet government (the Industrialists by Central Power Grid), the Venus tables' corporations. Red is
+//    the second seat — its external draw of 1 is the play's last beat. ──
+parliamentFixture('sponsored-academies', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
+  arrange: ({p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    p1.cardsInHand.push(new SponsoredAcademies(), new Algae(), new Lichen(), new KelpFarming());
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.SPONSORED_ACADEMIES);
+    if (card === undefined || !p1.canPlay(card) || p1.cardsInHand.length < 4 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the sponsored-academies fixture expected the card playable with three more cards in hand and the Industrialists ruling — got playable=${card !== undefined && p1.canPlay(card)} hand=${p1.cardsInHand.length} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

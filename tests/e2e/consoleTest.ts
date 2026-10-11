@@ -218,7 +218,38 @@ async function rawTemplatesOn(page: Page): Promise<Array<string>> {
   }).catch(() => []);
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void}, {workerServer: WorkerServer, workerBuild: string}>({
+/**
+ * The «re-asked» witness's marker (`src/client/console/preselectWitness.ts` — `REASKED_PRESELECT`, one spelling): the
+ * console warns it when a question the last batch already answered stands again (the pre-select law,
+ * `common/inputs/preselectAddress.ts`). Never a legal state on any route.
+ */
+const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
+
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: no question the player already answered in a composer is asked again. The
+   * stranded-prompt witness could never see this class — a re-asked prompt IS served (the hand screen serves a
+   * discard) — so the console reports it itself and the harness turns the report red (Sponsored Academies' discard,
+   * the owner's report of 2026-10-11).
+   */
+  preselectGuard: [async ({context}, use) => {
+    const reasked: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(REASKED_PRESELECT)) {
+          reasked.push(text.slice(0, 300));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (reasked.length > 0) {
+      throw new Error(`RE-ASKED PRE-SELECT — a question the batch already answered was asked again (the pre-select law):\n  ${reasked.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
   /**
    * After every test: no `${n}` in the rendered text of any page of the test's
    * context (a second client opened on its own context scans itself — a spec

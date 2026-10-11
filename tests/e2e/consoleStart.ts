@@ -2416,6 +2416,15 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR38 Biological Simulations: the Greens ruling by the starting rule, TR38 on blue's table with 2 data, Tardigrades
   // in hand — the table's answer to a PLAY flies (К-S1) and a PRODUCTION answer follows the action's step.
   'biological-simulations' |
+  // TR43 Ichtiology Grant: the Greens ruling by the starting rule, 3 oceans, the card in hand with 20 M€ — the holder set
+  // decides the composer: Pets + Tardigrades (+ TR38 with 2 data) → the «ИЛИ» row of two; `-one` Pets only → the animal
+  // target at once beside a greyed microbe variant; `-none` → no holder, the card still plays and names the skip.
+  'ichtiology-grant' |
+  'ichtiology-grant-one' |
+  'ichtiology-grant-none' |
+  // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
+  // must land in the play's ONE POST and never be asked again.
+  'sponsored-academies' |
   // TR41 Plasma Fans: the Greens ruling by the starting rule, TR41 on blue's table with 8 heat, Venus 6 %, the census
   // with 1 data, red at Aphrodite — a SCALE STEP from a card action through the workspace (the price off the rail, the
   // board's story after the leave, the 8 % cover last); and the PLAY that closes the printed generation-1 quest.
