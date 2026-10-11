@@ -223,8 +223,40 @@ describe('boardBeatPark', function() {
       expect(boardBeatParkState.scaleStory, 'the blocking story window stretches with it').to.equal(true);
       expect(boardBeatParksReveal(venus as never)).to.equal(true);
       settle();
-      await delay(20);
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 40);
       expect(boardBeatParkState.batchHeldByDrain).to.equal(false);
+      expect(boardBeatParkState.draining).to.equal(false);
+      expect(boardBeatParkState.scaleStory).to.equal(false);
+    } finally {
+      off();
+    }
+  });
+
+  /** PL-146 (TR41): the scale window used to be ADDED on top of the members' story — 1.7 s of dead time before the cover on 4K. */
+  it('a busy member\'s OWN signal is the whole window: the batch un-parks the moment it is quiet, before the scale beat would have', async () => {
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({venusScaleLevel: 6}), gameWith({venusScaleLevel: 8}));
+    drawnCardsState.events.push(venusEntry());
+    let busy = true;
+    let settle: () => void = () => {};
+    const quiet = new Promise<void>((resolve) => {
+      settle = () => {
+        busy = false;
+        resolve();
+      };
+    });
+    const off = registerBoardBeatStoryMember('spec-quick-member', {busy: () => busy, quiet: () => quiet});
+    try {
+      watchable = true;
+      drainBoardBeatsIfDue();
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 40);
+      expect(boardBeatParkState.heldParams, 'the values went at the settle').to.equal(undefined);
+      expect(boardBeatParkState.batchHeldByDrain, 'the cover waits for the member').to.equal(true);
+      settle();
+      await delay(30);
+      expect(boardBeatParkState.batchHeldByDrain, 'one BREATH after the touchdown — the counter\'s tick is read before the cover').to.equal(true);
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 40);
+      expect(boardBeatParkState.batchHeldByDrain, 'quiet member + a settle beat → the cover arms, no scale window on top').to.equal(false);
       expect(boardBeatParkState.draining).to.equal(false);
       expect(boardBeatParkState.scaleStory).to.equal(false);
     } finally {

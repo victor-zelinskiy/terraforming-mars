@@ -467,26 +467,38 @@ export function drainBoardBeatsIfDue(): void {
         // A drain released / reset meanwhile (or a NEW drain running) is not this one's to end.
         if (!done && boardBeatParkState.nonce === nonce && boardBeatParkState.draining) {
           done = true;
-          run();
+          // ONE BREATH after the last touchdown (PL-146): the member's quiet lands on the counter's own tick, and
+          // a cover rising 23 ms later (measured) buries the number it just paid — a settle beat, never the window.
+          schedule(() => {
+            if (boardBeatParkState.nonce === nonce && boardBeatParkState.draining) {
+              run();
+            }
+          }, consoleMotionMs(BOARD_BEAT_SETTLE_MS));
         }
       };
       void Promise.all(owed.map((m) => m.quiet())).then(finish, finish);
       schedule(finish, consoleMotionMs(BOARD_BEAT_MEMBER_WAIT_MAX_MS));
     };
+    // THE WINDOW IS THE MEMBERS' WHEN THERE ARE MEMBERS (PL-146): a story member waits for the marker's
+    // arrival itself and then tells what the step paid, so the fixed scale window on top of it was
+    // dead time — 1.7 s of silence between the last touchdown and the cover on a 4K frame. The window
+    // stays for the EMPTY drain (a scale that moves and nobody answers): the glide's own cover.
+    const membersOwed = [...storyMembers.values()].some((m) => m.busy());
+    const windowMs = hadScaleStory && !membersOwed ? consoleMotionMs(BOARD_BEAT_SCALE_MS) : 0;
     if (parkedBatchPending()) {
       // The cover lifts only off a marker that has ARRIVED. No scale story →
       // no wait (a reload mid-park holds no values — the batch releases on
       // the settle alone).
       boardBeatParkState.batchHeldByDrain = true;
-      schedule(hadScaleStory ? afterMembers(releaseBatch) : releaseBatch, hadScaleStory ? consoleMotionMs(BOARD_BEAT_SCALE_MS) : 0);
+      schedule(hadScaleStory ? afterMembers(releaseBatch) : releaseBatch, windowMs);
     } else if (hadScaleStory) {
       // Values released with no batch behind them — the hold covers the
-      // glide window (and the members' story) so nothing lands on top of the moving scales.
+      // glide window (or the members' story) so nothing lands on top of the moving scales.
       schedule(afterMembers(() => {
         boardBeatParkState.draining = false;
         endScaleStory();
         clearSafety();
-      }), consoleMotionMs(BOARD_BEAT_SCALE_MS));
+      }), windowMs);
     } else {
       boardBeatParkState.draining = false;
       endScaleStory();
