@@ -228,6 +228,13 @@ describe('InfluentialDiscovery', () => {
     it('the science branch: the pick lists EVERY own science holder — Physics Complex takes 1 and is worth 2 VP; Search for Life 0 → 1 is worth 3', () => {
       const physics = holder(t.player, new PhysicsComplex(), 0);
       const search = holder(t.player, new SearchForLife(), 0);
+      // К-T2: the pick reads what the ONE science does to each candidate's points BEFORE the press — Search for Life's
+      // bespoke threshold too (its own `victoryPointsAtResources`), never «storage».
+      const step = cardPlayPreview(t.player, t.card).branches.find((b) => b.available)!.steps[0];
+      expect(step.kind === 'input' && step.vpBox).deep.eq({
+        [CardName.PHYSICS_COMPLEX]: {from: 0, to: 2},
+        [CardName.SEARCH_FOR_LIFE]: {from: 0, to: 3},
+      });
       play(t);
       const target = cast(t.player.getWaitingFor(), SelectCard);
       expect(target.cards.map((c) => c.name)).deep.eq([CardName.PHYSICS_COMPLEX, CardName.SEARCH_FOR_LIFE]);

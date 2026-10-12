@@ -668,6 +668,11 @@ export function resourceVictoryPoints(
   delta: number,
 ): {from: number, to: number} | undefined {
   const vp = card.victoryPoints;
+  if (vp === 'special' && card.victoryPointsAtResources !== undefined) {
+    // A bespoke score that is a function of the resources here alone (Search for Life's «0 → 1: +3») — the card's
+    // own rule, asked for both counts.
+    return {from: card.victoryPointsAtResources(card.resourceCount), to: card.victoryPointsAtResources(Math.max(0, card.resourceCount + delta))};
+  }
   if (vp === undefined || typeof vp === 'number' || vp === 'special') {
     return undefined;
   }

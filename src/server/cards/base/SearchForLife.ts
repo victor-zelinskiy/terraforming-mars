@@ -48,10 +48,11 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
   }
 
   public override getVictoryPoints() {
-    if (this.resourceCount > 0) {
-      return 3;
-    }
-    return 0;
+    return this.victoryPointsAtResources(this.resourceCount);
+  }
+  /** 3 VP with at least one science resource here — the ONE rule `getVictoryPoints` and a target pick's VP reading share. */
+  public victoryPointsAtResources(count: number): number {
+    return count > 0 ? 3 : 0;
   }
   public canAct(player: IPlayer): boolean {
     return player.canAfford(1) && player.game.projectDeck.canDraw(1);

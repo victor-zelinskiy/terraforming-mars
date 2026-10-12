@@ -232,6 +232,13 @@ export interface ICard {
   /** What a bespoke ('special') VP icon can ever score (see `common/cards/victoryPointsIcon.ts`). */
   victoryPointsSign?: VictoryPointsSign,
   getVictoryPoints(player: IPlayer, context?: GetVictoryPointsContext): number;
+  /**
+   * A `'special'` VP card whose score is a function of the resources stored HERE alone (Search for Life: 3 VP with at
+   * least one science resource) states that function, so a «put N on ANY card» pick can read what the N do to its
+   * points before the press (`resourceVictoryPoints` → the target step's `vpBox`, TR51 К-T2). The card's own
+   * `getVictoryPoints` reads the same function — one rule, never a copy.
+   */
+  victoryPointsAtResources?(count: number): number;
   /** Returns any dynamic influence value */
   getInfluenceBonus?: (player: IPlayer) => number;
   /**
