@@ -228,9 +228,12 @@
                           :turnWindowClosed="handTurnWindowClosed"
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
-                          :stagedCard="stagedHandCard"
+                          :stagedCard="handPickSourceCard !== undefined ? undefined : stagedHandCard"
                           :stage="handStage"
                           :stagePaused="pickBridgeActive"
+                          :handPickOpen="handPickOverlays"
+                          :pickSource="handPickSourceCard"
+                          :pickSourceSeated="pickSourceLanded"
                           :transitHold="handRevealState.holdSlots"
                           :filterBusy="handRevealState.filterActive"
                           :underScene="sceneOverHand || consoleRevealMode !== undefined" />
@@ -1588,7 +1591,7 @@
              captured choices/payment must survive the hand round-trip (the
              director recognizes the pick bridge and never animates it). -->
         <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
-                                v-show="!pickBridgeActive || repeatPickHandoff"
+                                v-show="!pickBridgeActive || repeatPickHandoff || handPickSourceCard !== undefined"
                                 :class="{'con-bridgefade': repeatPickHandoff}"
                                 ref="playConfirm"
                                 :playerView="playerView"
@@ -2718,6 +2721,13 @@ export default defineComponent({
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
       returningPlayCard: undefined as CardName | undefined,
+      /** The card being played that a hand pick SEATED in its slot (`handPickSourceCard`) — its way back up. */
+      pickSeatedCard: undefined as CardName | undefined,
+      /** …and it has touched down there (its band pops on the landing, not under the proxy). */
+      pickSourceLanded: false,
+      /** The pick's last select look (kept while it stands) → frozen on the shelf while it leaves (`handSelectProps`). */
+      lastPickSelect: undefined as ConsoleHandSelectMode | undefined,
+      pickResumeFreeze: undefined as ConsoleHandSelectMode | undefined,
       /** Stale-release token of the start excursion's quiet re-check (the
        *  release is confirmed one tick + one frame later, so a one-flush
        *  hand-off between two chain signals can never slip through). */
@@ -3452,6 +3462,19 @@ export default defineComponent({
      */
     handPickOverlays(): boolean {
       return this.handPickActive && consoleHandPickState.request?.hosted === undefined;
+    },
+    /**
+     * THE CARD BEING PLAYED, SEATED IN ITS OWN SLOT while the hand answers its composer's question (the owner's hard
+     * rule 2026-10-13 — a card from the hand is chosen IN the hand, and the transition is the workspace's phrase, never
+     * a cut). Only for a PRE-SELECT of the play composer standing in this very hand (`leaving: 'none'`, the composer
+     * embedded in the hand's stage): the card flies home into its slot on the pause and back up to the composer on the
+     * resume (`handPickActive` watcher), shown «Разыгрывается» between — never pickable, never dimmed as refused.
+     */
+    handPickSourceCard(): CardName | undefined {
+      if (!this.handPickActive || consoleHandPickState.request?.leaving !== 'none' || this.playEmbedTarget === undefined) {
+        return undefined;
+      }
+      return this.pendingPlayCard?.cardName;
     },
     /**
      * The stage-reward pick is OUT (reactive read of the bridge state). While
@@ -6756,11 +6779,14 @@ export default defineComponent({
       // CLIENT composer pick: same narrowing as the server select, over the
       // pick's shown-hand universe (no staged card, no SRR-hosted cards).
       if (this.handPickActive) {
+        // …plus the card being played, SEATED in its own slot (`handPickSourceCard`) — whatever the filter says:
+        // it is the question's source, not a candidate the filter could hide.
+        const source = this.handPickSourceCard;
         const shown = new Set(this.handPickHandNames);
-        const base = this.handEntriesAll.filter((e) => shown.has(e.card.name));
+        const base = this.handEntriesAll.filter((e) => shown.has(e.card.name) || e.card.name === source);
         if (this.handSelectSuitableOnly && this.handSelectFiltered) {
           const sel = new Set(this.handSelectSelectableNames);
-          return base.filter((e) => sel.has(e.card.name));
+          return base.filter((e) => sel.has(e.card.name) || e.card.name === source);
         }
         return base;
       }
@@ -6788,8 +6814,9 @@ export default defineComponent({
      */
     handAlbumUniverse(): ReadonlyArray<ConsoleHandEntry> {
       if (this.handPickActive) {
+        const source = this.handPickSourceCard;
         const shown = new Set(this.handPickHandNames);
-        return this.handEntriesAll.filter((e) => shown.has(e.card.name));
+        return this.handEntriesAll.filter((e) => shown.has(e.card.name) || e.card.name === source);
       }
       return this.handEntriesAll;
     },
@@ -6930,6 +6957,11 @@ export default defineComponent({
             reasons[name] = translateText('This card cannot be chosen here');
           }
         }
+        // The card being played, seated in its slot: A on it names WHY it is no answer.
+        const source = this.handPickSourceCard;
+        if (source !== undefined) {
+          reasons[source] = translateText('This card is being played');
+        }
         return {
           selectable: pick.selectable,
           single: pick.min === 1 && pick.max === 1,
@@ -7043,7 +7075,10 @@ export default defineComponent({
         // and the bridge is gone, but the card is still being lifted out of
         // this very grid. Reverting to browse mode here would flash tag filters
         // and an unrelated «Нельзя разыграть» verdict under the flying card.
-        return this.cardDiscardHolds ? this.discardFreeze : undefined;
+        // …and the same for a PICK the composer's question just answered (or B'd out of): the shelf is LEAVING around
+        // the card flying back up to the play, and a leaving surface keeps its last look — never browse decorations
+        // (play rings, requirement chips, «Можно разыграть») flashing in under the departure.
+        return this.cardDiscardHolds ? this.discardFreeze : this.pickResumeFreeze;
       }
       const pick = this.handPickActive ? consoleHandPickState.request : undefined;
       const gain = pick?.gainPerCard;
@@ -11971,6 +12006,12 @@ export default defineComponent({
         setPickSuppressed(now);
       },
     },
+    /** A seated pick's latest select look — what the shelf freezes on while it leaves (`pickResumeFreeze`). */
+    handSelectProps(v: ConsoleHandSelectMode | undefined): void {
+      if (v !== undefined && this.handPickSourceCard !== undefined) {
+        this.lastPickSelect = v;
+      }
+    },
     /**
      * CLIENT HAND PICK (composer → hand bridge): a composer asks the REAL hand
      * for a card, so the hand stands OVER it as an overlay frame — the composer
@@ -11981,6 +12022,11 @@ export default defineComponent({
      * overlay IS the origin, and it was never anywhere else.
      */
     handPickActive(now: boolean): void {
+      // THE CARD BEING PLAYED TRAVELS WITH THE PICK (`handPickSourceCard`): home into its own slot on the way in, back
+      // up into the composer's well on the way out — the cancel's and the descent's own transfers, so the pick reads
+      // as one level of the same workspace and the card never leaves the screen. Both start HERE, before the patch:
+      // the transfer measures its source synchronously (the composer's well / the seated slot as the player sees it).
+      this.flyPickSource(now);
       if (now) {
         const selectable = new Set(this.handSelectSelectableNames);
         const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
@@ -16252,6 +16298,63 @@ export default defineComponent({
         },
         onTouchdown: () => {
           this.returningPlayCard = undefined;
+        },
+      }));
+    },
+    /**
+     * THE PICK'S CARD FLIGHT (see the `handPickActive` watcher). In: the composer's well → the card's own album slot
+     * (both held — the well hides under the proxy, the slot stays empty until the touchdown). Out: the seated slot →
+     * the well. A pick that seated nothing (hosted, overlaying another workspace, a live prompt) flies nothing; a
+     * composer gone under the pick (the play left) has no well to return to.
+     */
+    flyPickSource(now: boolean): void {
+      const well = () => document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
+      if (now) {
+        const name = this.handPickSourceCard;
+        const from = name !== undefined ? well() : null;
+        if (name === undefined || from === null) {
+          this.pickSourceLanded = name !== undefined;
+          return;
+        }
+        this.pickSeatedCard = name;
+        this.pickSourceLanded = false;
+        void guardHandHeroFlight(runCardTransfer({
+          name,
+          from,
+          resolveTo: () => this.handExitSlot(name),
+          holdFrom: true,
+          holdTarget: true,
+          onTouchdown: () => {
+            if (this.pickSeatedCard === name) {
+              this.pickSourceLanded = true;
+            }
+          },
+        }));
+        return;
+      }
+      const name = this.pickSeatedCard;
+      this.pickSeatedCard = undefined;
+      this.pickSourceLanded = false;
+      const freeze = this.lastPickSelect;
+      this.lastPickSelect = undefined;
+      const from = name !== undefined ? this.handExitSlot(name) : null;
+      if (name === undefined || from === null || this.pendingPlayCard?.cardName !== name) {
+        return;
+      }
+      // The shelf keeps the pick's look until the card is back in the play (it has faded by then).
+      this.pickResumeFreeze = freeze;
+      void guardHandHeroFlight(runCardTransfer({
+        name,
+        from,
+        resolveTo: well,
+        holdFrom: true,
+        holdTarget: true,
+        // The descent's own answer to the press: the card lifts off its slot before it travels back into the play.
+        onSpawn: heroCommitLift,
+        onTouchdown: () => {
+          if (this.pickResumeFreeze === freeze) {
+            this.pickResumeFreeze = undefined;
+          }
         },
       }));
     },

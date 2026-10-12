@@ -309,7 +309,10 @@ describe('ConsoleActionComposer — an `or` option that picks FROM THE HAND', ()
     vm.pickListItem(0);
     await w.vm.$nextTick();
 
-    expect(vm.sub, 'no list of the composer\'s own stands for the hand').to.eq(undefined);
+    // The hand is NEVER a list of the composer's own: the composer keeps the OPTION list it stood on (the level the
+    // album answers, and the one B returns to) — never a nested list of the hand's names.
+    expect(vm.sub?.kind, 'the option list waits under the album').to.eq('list');
+    expect(vm.listItems.map((it: any) => it.card), 'its rows are the two answers, not the hand').to.deep.eq([undefined, undefined]);
     expect(consoleHandPickState.active, 'the hand album took the pick').to.eq(true);
     const req = consoleHandPickState.request!;
     expect([...req.selectable]).to.deep.eq(['Algae', 'Lichen']);
@@ -331,6 +334,7 @@ describe('ConsoleActionComposer — an `or` option that picks FROM THE HAND', ()
     await w.vm.$nextTick();
 
     expect(vm.captured[0]).to.deep.eq({type: 'or', index: 0, response: {type: 'card', cards: ['Lichen']}});
+    expect(vm.sub, 'the answer closes the option list').to.eq(undefined);
     expect(vm.chosenLabel(vm.allChoices[0]), 'the answer, not the question — and a discard SAYS it is one').to.eq('Discard: Lichen');
     w.unmount();
   });

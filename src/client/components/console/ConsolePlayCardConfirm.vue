@@ -3899,6 +3899,7 @@ export default defineComponent({
           this.picks[cur.id] = String(orItem.optionIndex);
           this.picks[nestedPickKey(cur.id)] = cards.join(NESTED_PICK_SEP);
           this.captureFor(cur, orItemResponse(orItem, {type: 'card', cards: [...cards]}));
+          this.sub = undefined;
         } else if (multi) {
           this.multiPicks[cur.id] = [...cards];
           this.picks[cur.id] = String(cards.length);
@@ -3926,7 +3927,9 @@ export default defineComponent({
      */
     descendOrOption(c: ComposerChoice, item: ConsoleOrItem): void {
       if (orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet, this.cardName) === 'hand') {
-        this.sub = undefined;
+        // The option list STAYS the composer's level while the album answers (the stage lets go of exactly what the
+        // player was looking at — closing it here re-rendered the review for the length of the release); the answer
+        // closes it, B in the album returns to it.
         this.openHandPick(c, item);
         return;
       }

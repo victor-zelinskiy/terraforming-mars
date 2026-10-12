@@ -791,6 +791,14 @@ dialog.con-zoom {
     transition: none;
 }
 
+/* …and the same for the EXIT / TRANSFER proxy: it is born over a card the player is looking at (the composer's well,
+   the album slot, a revealed card) — the hand pick's transfer (2026-10-13 storyboard, 4K GPU) showed the played card's
+   proxy as an EMPTY art window for its first ~170 ms while the fresh <img> re-ran the mount fade. */
+.con-exit-layer .pcard__art img {
+    opacity: 1;
+    transition: none;
+}
+
 /* ── Card EXIT / TRANSFER cinematics (cardExitDirector.ts) ────────────
    The outbound twin of the deal: take-one, collect-all, draft hero-pick,
    hand→play-modal transfers fly FaceLite proxies on the ONE app-level

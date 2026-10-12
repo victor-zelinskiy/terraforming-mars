@@ -33,7 +33,7 @@ const SCIENCE_TAG = 'Adaptation Technology';
 const FILLER = ['Acquired Company', 'Rover Construction', 'Investment Loan', 'Lichen', 'Algae'];
 const DISCARD = 'Investment Loan';
 const PLAY_COMPOSER = '.con-composer--play';
-const OUT = path.resolve('screenshots', 'hand-pick-preselect');
+const OUT = path.resolve('screenshots', 'hand-pick-preselect', process.env.TM_E2E_SHOTS_TAG ?? '');
 
 const PRESETS = [
   {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
@@ -55,6 +55,26 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${preset}-${name}.png`)});
+}
+
+/** A STORYBOARD of one scene (`TM_E2E_STORYBOARD=1` only): every frame the compositor produced, named by its time. */
+async function storyboard(page: Page, preset: string, name: string): Promise<() => Promise<void>> {
+  if (process.env.TM_E2E_STORYBOARD !== '1') {
+    return async () => {};
+  }
+  const dir = path.join(OUT, preset, `story-${name}`);
+  fs.rmSync(dir, {recursive: true, force: true});
+  fs.mkdirSync(dir, {recursive: true});
+  const client = await page.context().newCDPSession(page);
+  const t0 = Date.now();
+  client.on('Page.screencastFrame', (frame) => {
+    fs.writeFileSync(path.join(dir, `t${String(Date.now() - t0).padStart(5, '0')}.jpg`), Buffer.from(frame.data, 'base64'));
+    void client.send('Page.screencastFrameAck', {sessionId: frame.sessionId}).catch(() => undefined);
+  });
+  await client.send('Page.startScreencast', {format: 'jpeg', quality: 82, everyNthFrame: 1});
+  return async () => {
+    await client.send('Page.stopScreencast').catch(() => undefined);
+  };
 }
 
 function watchPosts(page: Page): Array<string> {
@@ -127,6 +147,11 @@ async function enterDiscardAlbum(page: Page, preset: string, shotName: string): 
   expect(await page.locator(`${PLAY_COMPOSER}:visible`).count(), 'the composer waits underneath, hidden').toBe(0);
   const crumb = await crumbText(page);
   expect(crumb.toLowerCase(), `the crumb's tail names the discard — «${crumb}»`).toContain('сброс карты');
+  // The card being played flew HOME into its own slot and sits there as the question's source («Разыгрывается»,
+  // popped on its touchdown) — the cursor starts on a candidate, never on it.
+  await expect(page.locator('.con-hand__slot--source'), 'the played card is seated in its slot').toHaveCount(1);
+  await expect(page.locator('.con-hand__slot--source .con-cards__pickband--source'), 'its band says it is being played').toBeVisible({timeout: 5_000});
+  expect(await page.locator('.con-hand__slot--source.con-hand__slot--selected').count(), 'the cursor starts on a candidate').toBe(0);
   // Every candidate stands in the album as the real card.
   for (const name of FILLER) {
     await expect(page.locator(`.con-hand [data-zoom-slot="${name}"]`), `«${name}» stands in the album`).toHaveCount(1);
@@ -180,20 +205,27 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'A2-options');
 
       // ── 2. A on the discard → the HAND album; B → back to the options (one level), the cursor on the discard.
+      let stopStory = await storyboard(page, preset.id, 'enter');
       await enterDiscardAlbum(page, preset.id, 'A3-album');
+      await stopStory();
+      stopStory = await storyboard(page, preset.id, 'back');
       await press(page, 'Escape', 1200);
       await expect(page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`), 'B returns to the two answers').toHaveCount(2, {timeout: 10_000});
       await expect(handPicking(page), 'the album let go').toHaveCount(0);
+      await settle(page);
+      await stopStory();
       await enterDiscardAlbum(page, preset.id, 'A4-album-again');
 
       // ── 3. A card → back in the composer, the row answered with THAT card; nothing sent.
       const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
       expect(await focusCard(page, DISCARD, slots * 2 + 6), `never focused «${DISCARD}» in the album`).toBe(true);
+      stopStory = await storyboard(page, preset.id, 'answer');
       for (let i = 0; i < 3 && await page.locator(`${PLAY_COMPOSER}:visible`).count() === 0; i++) {
         await press(page, 'Enter', 1400);
       }
       await expect(page.locator(`${PLAY_COMPOSER}:visible`), 'A on the card answers and returns to the composer').toHaveCount(1, {timeout: 15_000});
       await settle(page);
+      await stopStory();
       const row = page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`);
       await expect(row, 'the row is answered').not.toHaveClass(/con-composer__row--missing/);
       expect(posts.length - postsAtStart, 'nothing sent before the play\'s own A').toBe(0);

@@ -354,6 +354,162 @@ export function handStageLeaveHook(el: Element, done: () => void): void {
   }
 }
 
+// ── THE PICK BRIDGE (the stage pauses for a hand pick, then resumes) ─────────
+//
+// A play composer's question that is answered FROM THE HAND (Mars University's discard, Sponsored Academies'
+// discard — the owner's hard rule 2026-10-13: a card from the hand is chosen IN the hand) sends the player back to
+// this very shelf while the stage stays CLAIMED. The class flip that does it (`--stagepaused`) is a resting TRUTH,
+// and alone it was a CUT: the composer vanished in one frame, the album appeared in the next, and the card being
+// played was simply gone (storyboard 2026-10-13, 4K GPU). The bridge now plays the workspace's own phrase — the
+// SAME two this module already owns, run with the stage MOUNTED:
+//
+//   PAUSE  — the composer's groups let go IN PLACE while the played card flies HOME into its own slot (the shell's
+//            transfer, `holdTarget`), and the hand blooms back in AROUND it — the return phrase of a cancel;
+//   RESUME — the hand lets go in place while the played card lifts off its slot back to the composer's well, and the
+//            composer's groups materialize behind it — the descent phrase.
+//
+// The card's own slot (`source`) takes no part in either fade: the transfer holds it and reveals it under the
+// proxy on touchdown. Inline values beat the class flip for the length of the phrase; the end clears them and the
+// stylesheet's truth takes over, so a killed phrase can never strand a half-faded layer.
+
+/** How long the bloom may wait for the album's art to decode (a pop-in mid-bloom reads as a second event). */
+const ART_WAIT_MS = 220;
+
+/** Every slot but the played card's own (held by its transfer), plus the browse chrome. */
+function pickSiblingsOf(browse: HTMLElement, source: string | undefined): Array<HTMLElement> {
+  return Array.from(browse.querySelectorAll<HTMLElement>('.con-hand__slot, .con-hand__pgedge, .con-hand__verdictbar, .con-hand__empty'))
+    .filter((el) => source === undefined || el.getAttribute('data-zoom-slot') !== source);
+}
+
+/** Resolves once every album card's art has settled (loaded, fallback or void) — or after `ART_WAIT_MS`. */
+function artSettled(browse: HTMLElement): Promise<void> {
+  const pending = () => Array.from(browse.querySelectorAll<HTMLElement>('.pcard__art'))
+    .some((el) => !el.matches('.pcard__art--loaded, .pcard__art--fallback, .pcard__art--void'));
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const check = () => {
+      if (!pending() || performance.now() - t0 >= motionMs(ART_WAIT_MS)) {
+        resolve();
+        return;
+      }
+      window.setTimeout(check, 16);
+    };
+    check();
+  });
+}
+
+function pickLayersOf(root: HTMLElement): {browse: HTMLElement, stage: HTMLElement} | undefined {
+  const browse = root.querySelector<HTMLElement>('.con-hand__browse');
+  const stage = root.querySelector<HTMLElement>('.con-hand__stage');
+  return browse !== null && stage !== null ? {browse, stage} : undefined;
+}
+
+/**
+ * The live pick phrase per hand root — its FINISH, so a successor (a B pressed mid-bloom) ends it at once: inline
+ * values cleared to the stylesheet's truth and the input gate released NOW, never on the dead phrase's safety.
+ */
+const livePickPhrases = new WeakMap<Element, () => void>();
+
+/**
+ * ONE pick phrase: the inline «before» poses applied in this flush, the gate held, a finish that clears every inline
+ * value it wrote. `run` builds the motion and calls `finish` when it is done.
+ */
+function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTMLElement}, targets: ReadonlyArray<HTMLElement>,
+  budgetMs: number, run: (finish: () => void, alive: () => boolean) => void): void {
+  livePickPhrases.get(root)?.();
+  killEpisode(root);
+  const all = [layers.stage, layers.browse, ...targets];
+  const release = acquireGate();
+  let finished = false;
+  const finish = () => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    window.clearTimeout(safety);
+    if (livePickPhrases.get(root) === finish) {
+      livePickPhrases.delete(root);
+    }
+    gsap.killTweensOf(all);
+    gsap.set(all, {clearProps: 'opacity,visibility,transform'});
+    release();
+  };
+  const safety = window.setTimeout(finish, motionMs(budgetMs) + 1200);
+  livePickPhrases.set(root, finish);
+  run(finish, () => !finished);
+}
+
+/** PAUSE — the stage gives the shelf back (see the section above). `source`: the played card's slot, if seated. */
+export function handStagePickPause(root: HTMLElement, source: string | undefined): void {
+  const layers = pickLayersOf(root);
+  if (typeof window === 'undefined' || layers === undefined || noGeometry(root) || consoleReducedMotionActive()) {
+    livePickPhrases.get(root)?.();
+    return; // the class flip IS the reduced-motion answer: the shelf at once
+  }
+  const {browse, stage} = layers;
+  const items = cascadeItemsOf(stage);
+  const siblings = pickSiblingsOf(browse, source);
+  pickPhrase(root, layers, [...items, ...siblings], GROUPS_OUT_MS + SIBLINGS_IN_MS + ART_WAIT_MS, (finish, alive) => {
+    // FIRST, before this flush can paint: the composer stays where it stood, the shelf stays dark.
+    gsap.set(stage, {autoAlpha: 1});
+    gsap.set(browse, {autoAlpha: 0});
+    if (siblings.length > 0) {
+      gsap.set(siblings, {autoAlpha: 0});
+    }
+    // 1 · RELEASE — the composer's groups let go where they stand; the played card is already lifting off its well.
+    if (items.length > 0) {
+      gsap.to(items, {autoAlpha: 0, duration: s(GROUPS_OUT_MS), ease: 'power1.in'});
+    }
+    gsap.to(stage, {autoAlpha: 0, duration: s(100), delay: s(30), ease: 'power1.in'});
+    // 2 · BLOOM — the hand comes back in around the card flying home, once its art is there to be seen and once the
+    //     composer has LET GO of the place (released, never cross-faded: two surfaces in one place read as neither).
+    const lead = new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(130)));
+    void Promise.all([artSettled(browse), lead]).then(() => {
+      if (!alive()) {
+        return;
+      }
+      gsap.set(browse, {autoAlpha: 1});
+      if (siblings.length === 0) {
+        finish();
+        return;
+      }
+      gsap.to(siblings, {autoAlpha: 1, duration: s(SIBLINGS_IN_MS), ease: 'power1.out', onComplete: finish});
+    });
+  });
+}
+
+/** RESUME — the shelf gives the stage back: the hand lets go in place, the composer assembles behind the card. */
+export function handStagePickResume(root: HTMLElement, source: string | undefined): void {
+  const layers = pickLayersOf(root);
+  if (typeof window === 'undefined' || layers === undefined || noGeometry(root) || consoleReducedMotionActive()) {
+    livePickPhrases.get(root)?.();
+    return;
+  }
+  const {browse, stage} = layers;
+  const items = cascadeItemsOf(stage);
+  const siblings = pickSiblingsOf(browse, source);
+  pickPhrase(root, layers, [...items, ...siblings], ISOLATE_MS + CASCADE_MS, (finish) => {
+    // FIRST: the shelf stays on screen (the class just parked it), the stage stays dark (the class just lit it).
+    gsap.set(browse, {autoAlpha: 1});
+    gsap.set(stage, {autoAlpha: 0});
+    if (items.length > 0) {
+      gsap.set(items, {autoAlpha: 0, y: 9 * conUiScale()});
+    }
+    const tl = gsap.timeline({onComplete: finish});
+    // 1 · ISOLATION — the hand lets go in place around the card lifting off its slot (the grid never moves).
+    if (siblings.length > 0) {
+      tl.to(siblings, {autoAlpha: 0, duration: s(ISOLATE_MS), ease: 'power1.out'}, 0);
+    }
+    tl.set(browse, {autoAlpha: 0}, s(ISOLATE_MS));
+    // 2 · CARD-LED REVEAL — once the hand has let go of the place, the stage returns and its groups materialize in
+    //     reading order while the card is still travelling (released, never cross-faded).
+    tl.to(stage, {autoAlpha: 1, duration: s(100), ease: 'power1.out'}, s(ISOLATE_MS));
+    if (items.length > 0) {
+      tl.to(items, {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', stagger: CASCADE_STAGGER_S}, s(ISOLATE_MS + 20));
+    }
+  });
+}
+
 // ── cancelled pairs ─────────────────────────────────────────────────────────
 
 export function handStageEnterCancelledHook(el: Element): void {

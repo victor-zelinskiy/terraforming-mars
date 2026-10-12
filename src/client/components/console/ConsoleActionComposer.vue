@@ -4763,7 +4763,8 @@ export default defineComponent({
     descendOrBranch(c: ComposerChoice, item: ConsoleOrItem): void {
       const door = orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet);
       if (door === 'hand') {
-        this.sub = undefined;
+        // The option list stays this composer's level while the album answers; the answer (`answerNestedOr`) closes
+        // it, B in the album returns to it.
         this.openHandPick(c, item);
         return;
       }
