@@ -181,5 +181,10 @@
     "Requires the Scientists to be ruling or that you have 2 delegates there. Decrease your energy production 1 step.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Уменьшите своё производство энергии на 1.",
     "Expedition Mechs": "Экспедиционные мехи",
     "Action: Spend 1 mech from here to draw a card.": "Действие: потратьте 1 мех с этой карты, чтобы взять карту.",
-    "Requires the Scientists to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех."
+    "Requires the Scientists to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех.",
+    "Influential Discovery": "Судьбоносное открытие",
+    "Requires the Scientists to be ruling or that you have 2 delegates there. Add 1 science resource to ANY card, OR 6 data resources to ANY card.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Положите 1 ресурс науки на ЛЮБУЮ карту ИЛИ 6 единиц данных на ЛЮБУЮ карту.",
+    "Add 1 science resource or 6 data to ANY card.": "Положите 1 ресурс науки или 6 единиц данных на ЛЮБУЮ карту.",
+    "Add 1 science resource to ANY card": "Положить 1 ресурс науки на любую карту",
+    "Add 6 data to ANY card": "Положить 6 единиц данных на любую карту"
 }
