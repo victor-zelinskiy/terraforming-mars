@@ -2439,6 +2439,11 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'composting-initiative' |
   'composting-initiative-zero' |
   'composting-initiative-action' |
+  // TR46 Research Startups: the Scientists ruling (an enacted quiet law), Martian Fiber on blue's table — the card in
+  // hand (20 M€ + 2 steel), on the table with 2 data and a hand of six (the patent sale answered), with 5 data (the action).
+  'research-startups' |
+  'research-startups-sale' |
+  'research-startups-action' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |

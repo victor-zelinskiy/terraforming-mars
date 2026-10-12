@@ -139,6 +139,10 @@ import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
+import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
+import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
+import {AdaptationTechnology} from '../../../src/server/cards/base/AdaptationTechnology';
+import {MartianRails} from '../../../src/server/cards/base/MartianRails';
 import {TopsoilContract} from '../../../src/server/cards/promo/TopsoilContract';
 import {Counter} from '../../../src/server/behavior/Counter';
 import {BiologicalSimulations} from '../../../src/server/cards/turmoilRedux/BiologicalSimulations';
@@ -2154,6 +2158,56 @@ function compostingFixture(name: string, board: 'fourteen' | 'empty', at: 'hand'
 compostingFixture('composting-initiative', 'fourteen', 'hand');
 compostingFixture('composting-initiative-zero', 'empty', 'hand');
 compostingFixture('composting-initiative-action', 'fourteen', 'table');
+// ── TR46 · RESEARCH STARTUPS — the table ANSWERS the patent sale («+1 data here per card sold», `onPatentsSold`) and an
+//    action of variable size («all data → as many cards off the deck → keep 1»). Blue's action phase, the SCIENTISTS
+//    enacted (the card's requirement is their plate), Martian Fiber on blue's table (the answer to the answer: +1 M€ per
+//    data). The fixtures differ by where the card is:
+//      · `research-startups`        — the card in hand, 20 M€ + 2 steel (the Building tag lets steel pay) — the play;
+//      · `research-startups-sale`   — the card on blue's table with 2 data and a hand of six — the sale's summary at
+//                                      0 / 1 / 4 picks and the terminal paying the data into the card;
+//      · `research-startups-action` — the card on blue's table with 5 data, its action unused — «5 → 0», five cards
+//                                      off the deck, keep 1.
+//    The hand is SET, never assumed from the deal (Martian Rails · Adaptation Technology beside the card; six cards off the
+//    deck for the sale).
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open). ──
+function researchStartupsFixture(name: string, at: 'hand' | 'sale' | 'action'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      p1.megaCredits = 20;
+      p1.steel = 2;
+      p1.playedCards.push(new MartianFiber());
+      const card = new ResearchStartups();
+      if (at === 'hand') {
+        p1.cardsInHand = [new MartianRails(), new AdaptationTechnology(), card];
+        return;
+      }
+      card.resourceCount = at === 'sale' ? 2 : 5;
+      p1.playedCards.push(card);
+      if (at === 'sale') {
+        p1.cardsInHand = game.projectDeck.drawN(game, 6);
+      } else {
+        p1.cardsInHand = [new MartianRails(), new AdaptationTechnology()];
+      }
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = at === 'hand' ? p1.cardsInHand.find((c) => c.name === CardName.RESEARCH_STARTUPS) : p1.playedCards.get(CardName.RESEARCH_STARTUPS);
+      const live = card !== undefined && (at === 'hand' ? p1.canPlay(card as IProjectCard) : at === 'sale' ? true : (card as IProjectCard & {canAct(p: IPlayer): boolean}).canAct(p1));
+      const hand = at === 'sale' ? 6 : at === 'hand' ? 3 : 2;
+      if (!live || parliament.rulingParty() !== PartyName.SCIENTISTS || p1.cardsInHand.length !== hand ||
+          p1.cardsInHand.some((c) => c.name === CardName.RESEARCH_STARTUPS) !== (at === 'hand')) {
+        throw new Error(`the ${name} fixture expected TR46 live (${at}), the Scientists ruling and a hand of ${hand} — got live=${live} ruling=${parliament.rulingParty()} hand=${p1.cardsInHand.map((c) => c.name).join(', ')}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+researchStartupsFixture('research-startups', 'hand');
+researchStartupsFixture('research-startups-sale', 'sale');
+researchStartupsFixture('research-startups-action', 'action');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's

@@ -130,7 +130,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],
-      ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
+      ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-sale-hero [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
       ['played', '.con-played [data-played-key], .con-start__played [data-played-key]'],
       ['payrow', '.con-payrow'],
       ['rail', '.con-res__row, .con-score__cell'],
