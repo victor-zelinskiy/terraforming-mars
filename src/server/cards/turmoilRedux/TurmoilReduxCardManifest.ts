@@ -47,6 +47,7 @@ import {IchtiologyGrant} from './IchtiologyGrant';
 import {CompostingInitiative} from './CompostingInitiative';
 import {ResearchStartups} from './ResearchStartups';
 import {Supercomputer} from './Supercomputer';
+import {ExpeditionMechs} from './ExpeditionMechs';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -241,5 +242,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // (`supercomputerData` — the data here pay 2 M€ for a Science card, the second data unit after Aurorai's) beside
     // an action that puts 2 data on ANY card — the whole card a declaration.
     [CardName.SUPERCOMPUTER]: {Factory: Supercomputer},
+    // Only the module's icon at the bottom left: the SCIENTISTS' plate again; the set's SEVENTH mech holder — TR40
+    // Forestry Mechs with another B (1 mech off here → a card off the deck): ONE DECLARATION of the Local Shading class.
+    [CardName.EXPEDITION_MECHS]: {Factory: ExpeditionMechs},
   },
 });

@@ -178,5 +178,8 @@
     "Supercomputer": "Суперкомпьютер",
     "Action: Add 2 data resources to ANY card.": "Действие: добавьте 2 единицы данных на ЛЮБУЮ карту.",
     "Effect: When playing Science cards, data resources here may be used as payment, and are worth 2 M€ each.": "Эффект: разыгрывая карту с меткой Науки, вы можете платить данными с этой карты по 2 M€ за каждую единицу.",
-    "Requires the Scientists to be ruling or that you have 2 delegates there. Decrease your energy production 1 step.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Уменьшите своё производство энергии на 1."
+    "Requires the Scientists to be ruling or that you have 2 delegates there. Decrease your energy production 1 step.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Уменьшите своё производство энергии на 1.",
+    "Expedition Mechs": "Экспедиционные мехи",
+    "Action: Spend 1 mech from here to draw a card.": "Действие: потратьте 1 мех с этой карты, чтобы взять карту.",
+    "Requires the Scientists to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех."
 }

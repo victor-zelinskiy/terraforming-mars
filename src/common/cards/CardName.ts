@@ -1118,6 +1118,7 @@ export enum CardName {
   COMPOSTING_INITIATIVE = 'Composting Initiative',
   RESEARCH_STARTUPS = 'Research Startups',
   SUPERCOMPUTER = 'Supercomputer',
+  EXPEDITION_MECHS = 'Expedition Mechs',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

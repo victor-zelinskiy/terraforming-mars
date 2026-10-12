@@ -33,6 +33,8 @@ function cardOf(name: CardName): ICard {
 describe('holderActionGoodOf — the good a stored resource buys through the card\'s own action', () => {
   const NAMED: ReadonlyArray<[CardName, HolderActionGood]> = [
     [CardName.FORESTRY_MECHS, {spend: 1, good: {kind: 'production', resource: 'plants' as never, amount: 1}}],
+    // TR50 — TR40 with another B: the same `or`, the energy variant ignored, «1 mech → 1 card».
+    [CardName.EXPEDITION_MECHS, {spend: 1, good: {kind: 'cards', amount: 1}}],
     [CardName.BIOLOGICAL_SIMULATIONS, {spend: 2, good: {kind: 'production', resource: 'plants' as never, amount: 1}}],
     [CardName.LOCAL_SHADING, {spend: 1, good: {kind: 'production', resource: 'megacredits' as never, amount: 1}}],
     [CardName.DEUTERIUM_EXPORT, {spend: 1, good: {kind: 'production', resource: 'energy' as never, amount: 1}}],
