@@ -189,8 +189,11 @@
               <!-- THE KEYS BESIDE THE CHOICE (TR43 — the production every branch states first): ONCE, above the row, so each
                    option tile says only what differs (`sharedLeadingEffects`). -->
               <div v-if="hasVariants && sharedVariantEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips" data-variants-shared>
-                <ActionEffectChip v-for="(eff, k) in sharedVariantEffects" :key="k" :effect="eff" />
+                <ActionEffectChip v-for="(eff, k) in sharedVariantEffects" :key="k" :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
               </div>
+              <!-- PL-196: the shared keys' «why» stands right under them — read off the SHARED chips, so it is there before
+                   the choice and never re-flows the «ИЛИ» row when an option is chosen. -->
+              <ConsoleCountedWhy v-if="hasVariants && countWhy !== undefined" class="con-composer__countwhy" :why="countWhy" />
               <div v-if="hasVariants" ref="variantsEl" class="con-composer__variants" role="radiogroup" :aria-label="$t(resultHeading)" :data-variant-axis="variantAxis">
                 <template v-for="(row, k) in variantRows" :key="row.id">
                   <!-- The exclusion, said once between the options: two results
@@ -262,7 +265,7 @@
               </div>
               <!-- «ПОЧЕМУ» OF A COUNTED PLAY — the block's SECOND reader (TR45): the census's composition behind the number,
                    the ONE strip the board peek's HUD shows too (`ConsoleCountedWhy`). -->
-              <ConsoleCountedWhy v-else-if="countWhy !== undefined" class="con-composer__countwhy" :why="countWhy" />
+              <ConsoleCountedWhy v-else-if="countWhy !== undefined && !hasVariants" class="con-composer__countwhy" :why="countWhy" />
 
               <!-- ── THE SECOND LEVEL — what the card IS once it is on the
                    table (a new action, an ongoing effect, endgame points, the
@@ -1218,9 +1221,16 @@ export default defineComponent({
     walkWhy(): AgendaWalkWhy | undefined {
       return agendaWalkWhy(this.agendaWalkOf(this.selectedBranch));
     },
-    /** TR45 — the counted play's «why» (the census's composition), read off the chosen branch's own chips. */
+    /**
+     * TR45 — the counted play's «why» (the census's composition; PL-196 — a single counted term too), read off the
+     * play's own chips: a card with an «ИЛИ» reads the keys every option shares (TR43's production — stated once above
+     * the row, so the reading is there before the choice and the choice re-flows nothing), any other the branch.
+     */
     countWhy(): CountedWhy | undefined {
-      return this.walkWhy === undefined ? countedWhyOf(this.selectedBranch?.effects) : undefined;
+      if (this.walkWhy !== undefined) {
+        return undefined;
+      }
+      return countedWhyOf(this.hasVariants ? this.sharedVariantEffects : this.selectedBranch?.effects);
     },
     whyKicker(): string {
       return this.walkWhy === undefined ? '' : translateTextWithParams('Why ${0} step(s)', [String(this.walkWhy.sets)]);

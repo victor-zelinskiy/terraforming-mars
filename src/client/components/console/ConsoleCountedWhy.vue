@@ -4,7 +4,8 @@
        board peek's HUD (L3 «Показать на поле» — the same reading standing over the counted tiles). It begins with the
        card's own printed «per X» glyph (the SAME face item, `PremiumMechNode`), the count, «=», the census's shares by
        kind with their board pictograms and numbers, «→» the result; what stands on the board uncounted is NAMED at
-       the strip's right edge; a zero is named. Every number is the server's basis (`countedPlay.countedWhyOf`). A
+       the strip's right edge; a zero is named. A single-term count (PL-196 — TR23's colonies, TR43's oceans) is the
+       glyph and its number alone, no «=». Every number is the server's basis (`countedPlay.countedWhyOf`). A
        share the peek is reading right now is `lit` (its cells pulse on the board in the same beat). -->
   <div class="con-cwhy" :class="{'con-cwhy--zero': why.zero}"
        data-count-why :data-count-why-total="why.term.count">
@@ -12,7 +13,7 @@
     <span v-if="why.glyph !== undefined" class="con-cwhy__glyph" data-count-glyph><PremiumMechNode :node="why.glyph" /></span>
     <span v-else class="con-cwhy__label">{{ $t(why.term.label) }}</span>
     <b class="con-cwhy__num">{{ why.term.count }}</b>
-    <template v-if="!why.zero">
+    <template v-if="why.composed && !why.zero">
       <span class="con-cwhy__op" aria-hidden="true">=</span>
       <template v-for="(part, pi) in why.parts" :key="part.kind">
         <span v-if="pi > 0" class="con-cwhy__op" aria-hidden="true">+</span>
@@ -23,7 +24,7 @@
         </span>
       </template>
     </template>
-    <span v-else class="con-cwhy__zero">{{ $t('No tiles on Mars yet') }}</span>
+    <span v-else-if="why.composed" class="con-cwhy__zero">{{ $t('No tiles on Mars yet') }}</span>
     <span class="con-cwhy__arrow" aria-hidden="true">→</span>
     <span class="con-cwhy__result" data-count-result>
       <b class="con-cwhy__num">{{ result }}</b>

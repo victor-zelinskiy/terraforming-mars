@@ -111,14 +111,39 @@ export const PART_LABEL: Readonly<Record<ActionEffectBasisPartKind, string>> = {
  * The glyph of the counted entity ITSELF — the card's printed «per X». The
  * census prints «a tile on Mars of ANY player»: the empty hex in the
  * «any player» frame with the «on Mars» corner (TR45's face, TR14's corner);
- * the player's own tiles drop the frame.
+ * the player's own tiles drop the frame. A single-term count (PL-196) wears
+ * the face's own item for its entity — the colony (TR23 «per colony in
+ * play», framed: every player's), the ocean (TR43), the city, the greenery,
+ * the tag the rule counts. The label is the server's `countableBasis` key — a
+ * plain string, never a translated `Message`. A term with no printed item
+ * (floaters, «resources on this card», an OR of tags) reads as words.
  */
 export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined {
-  if (term.label === 'Tiles on Mars') {
+  switch (term.label) {
+  case 'Tiles on Mars':
     return glyph(CardRenderItemType.EMPTY_TILE, {anyPlayer: true, secondaryTag: AltSecondaryTag.MARS_TILE});
-  }
-  if (term.label === 'Your tiles on Mars') {
+  case 'Your tiles on Mars':
     return glyph(CardRenderItemType.EMPTY_TILE, {secondaryTag: AltSecondaryTag.MARS_TILE});
+  case 'Colonies in play':
+    return glyph(CardRenderItemType.COLONIES, {anyPlayer: true});
+  case 'Your colonies':
+    return glyph(CardRenderItemType.COLONIES);
+  case 'Oceans':
+    return glyph(CardRenderItemType.OCEANS);
+  case 'Cities':
+  case 'Cities on Mars':
+    return glyph(CardRenderItemType.CITY, {anyPlayer: true});
+  case 'Your cities':
+  case 'Your cities on Mars':
+    return glyph(CardRenderItemType.CITY);
+  case 'Greeneries':
+    return glyph(CardRenderItemType.GREENERY, {anyPlayer: true});
+  case 'Your greeneries':
+    return glyph(CardRenderItemType.GREENERY);
+  case 'Your tags':
+  case 'Tags in play':
+  case 'Opponent tags':
+    return term.tag === undefined ? undefined : glyph(CardRenderItemType.TAG, {tag: term.tag, anyPlayer: term.label !== 'Your tags'});
   }
   return undefined;
 }
@@ -132,19 +157,38 @@ export type CountedWhy = {
   glyph: CountedGlyph | undefined,
   parts: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>, glyph: CountedGlyph | undefined}>,
   excluded: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>}>,
+  /**
+   * The term carries a COMPOSITION (the census — TR45): the reading prints
+   * «= shares» and names its zero in words. A single-term count (PL-196 —
+   * TR23's colonies, TR43's oceans) is its glyph and its number alone.
+   */
+  composed: boolean,
   /** Nothing counted — the reading names the zero instead of a sum. */
   zero: boolean,
 };
 
 /**
+ * The term a chip's «why» reads: the one carrying a COMPOSITION (the census),
+ * else the basis's ONLY term (PL-196 — «Colonies in play: 5»). A basis of two
+ * or more plain terms has no one reason to name — its chip keeps its pill.
+ */
+function whyTermOf(chip: ActionEffect): ActionEffectBasis | undefined {
+  const basis = chip.basis;
+  if (basis === undefined || basis.length === 0) {
+    return undefined;
+  }
+  return basis.find((b) => b.parts !== undefined) ?? (basis.length === 1 ? basis[0] : undefined);
+}
+
+/**
  * The «why» of a counted play, read off the play's own chips: the first gain
- * whose basis carries a COMPOSITION (the census — TR45). `undefined` for a
- * play with no composed count (a single-term basis keeps its chip's pill).
+ * whose basis names ONE reason — a COMPOSITION (the census — TR45) or a
+ * single counted term (PL-196). `undefined` for a play with no counted gain.
  */
 export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): CountedWhy | undefined {
   for (const chip of effects ?? []) {
-    const term = chip.basis?.find((b) => b.parts !== undefined);
-    if (term === undefined || chip.direction !== 'gain') {
+    const term = chip.direction === 'gain' ? whyTermOf(chip) : undefined;
+    if (term === undefined) {
       continue;
     }
     return {
@@ -153,6 +197,7 @@ export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): 
       glyph: countGlyphOf(term),
       parts: (term.parts ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces, glyph: PART_GLYPH[p.kind]})),
       excluded: (term.excluded ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces})),
+      composed: term.parts !== undefined,
       zero: term.count === 0,
     };
   }
@@ -180,6 +225,10 @@ export function excludedTail(why: CountedWhy, t: CountedTranslator): string | un
 export function countedWhyRow(why: CountedWhy, t: CountedTranslator): string {
   // The result as the chip states it: the signed number and where it lands («на эту карту», «производство»).
   const result = why.chip.note === undefined ? signedAmount(why.chip.amount) : `${signedAmount(why.chip.amount)} ${t.text(why.chip.note)}`;
+  if (!why.composed) {
+    // A single term (PL-196): «Колонии в игре 5 → +5 на эту карту» — a zero reads as its own «0 → 0».
+    return `${t.text(why.term.label)} ${why.term.count} → ${result}`;
+  }
   if (why.zero) {
     return `${t.text('No tiles on Mars yet')} → ${result}`;
   }

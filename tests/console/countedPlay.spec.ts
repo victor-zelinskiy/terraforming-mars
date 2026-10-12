@@ -4,6 +4,7 @@ import {CardModel} from '../../src/common/models/CardModel';
 import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
 import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemType';
 import {AltSecondaryTag} from '../../src/common/cards/render/AltSecondaryTag';
+import {Tag} from '../../src/common/cards/Tag';
 import {countedWhyOf, countedWhyRow, excludedTail, handForecastPlate, signedAmount, CountedTranslator} from '../../src/client/console/countedPlay';
 import {countedPlayForYouAnnotation} from '../../src/client/console/consolePlayCardComposer';
 import {peekable, peekGroupsOf, rollCallOf} from '../../src/client/console/boardPeek';
@@ -80,10 +81,27 @@ describe('countedPlay', () => {
       expect(excludedTail(why, t)).eq('not counted: 1 off Mars');
     });
 
-    it('names the zero; a basis with no composition is not this block\'s (the chip keeps its pill)', () => {
-      expect(countedWhyOf([zero])).deep.include({zero: true});
-      expect(countedWhyOf([oceansProduction])).is.undefined;
+    it('names the zero; nothing counted → no block', () => {
+      expect(countedWhyOf([zero])).deep.include({zero: true, composed: true});
       expect(countedWhyOf(undefined)).is.undefined;
+      expect(countedWhyOf([{direction: 'gain', icon: 'plants', amount: 2}])).is.undefined;
+    });
+
+    it('PL-196 — a SINGLE-TERM count is a reading too: its glyph, its number, no composition (TR43 oceans, TR23 colonies in play, a tag)', () => {
+      const oceans = countedWhyOf([oceansProduction])!;
+      expect(oceans).deep.include({composed: false, zero: false});
+      expect(oceans.parts).deep.eq([]);
+      expect(oceans.glyph).deep.include({type: CardRenderItemType.OCEANS});
+      const colonies = countedWhyOf([{direction: 'gain', icon: 'data', amount: 5, note: 'on this card', basis: [{count: 5, label: 'Colonies in play'}]}])!;
+      expect(colonies.glyph).deep.include({type: CardRenderItemType.COLONIES, anyPlayer: true});
+      const tags = countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Your tags', tag: Tag.SPACE}]}])!;
+      expect(tags.glyph).deep.include({type: CardRenderItemType.TAG, tag: Tag.SPACE, anyPlayer: false});
+      expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 2, basis: [{count: 2, label: 'Your floaters'}]}])!.glyph, 'no printed item → words').is.undefined;
+    });
+
+    it('PL-196 — a basis of TWO plain terms names no one reason (the chip keeps its pill); a cost is never a «why»', () => {
+      expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 4, basis: [{count: 2, label: 'Oceans'}, {count: 2, label: 'Your cities'}]}])).is.undefined;
+      expect(countedWhyOf([{direction: 'cost', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Oceans'}]}])).is.undefined;
     });
   });
 
@@ -98,6 +116,12 @@ describe('countedPlay', () => {
 
     it('the zero: «No tiles on Mars yet → 0 on this card»', () => {
       expect(countedWhyRow(countedWhyOf([zero])!, t)).eq('No tiles on Mars yet → 0 on this card');
+    });
+
+    it('PL-196 — a single term: «Oceans 3 → +3 production»; its zero is «0 → 0», never the census\'s sentence', () => {
+      expect(countedWhyRow(countedWhyOf([oceansProduction])!, t)).eq('Oceans 3 → +3 production');
+      const none: ActionEffect = {direction: 'gain', icon: 'data', amount: 0, note: 'on this card', basis: [{count: 0, label: 'Colonies in play'}]};
+      expect(countedWhyRow(countedWhyOf([none])!, t)).eq('Colonies in play 0 → 0 on this card');
     });
   });
 });
@@ -116,5 +140,9 @@ describe('boardPeek — the cells a counted reading lights', () => {
   it('the zero has no cell to show — the strip names it, L3 is not offered', () => {
     expect(peekable(countedWhyOf([zero]))).is.false;
     expect(peekable(undefined)).is.false;
+  });
+
+  it('PL-196 — a single-term count has no cells either: the strip reads, L3 is not offered', () => {
+    expect(peekable(countedWhyOf([oceansProduction]))).is.false;
   });
 });
