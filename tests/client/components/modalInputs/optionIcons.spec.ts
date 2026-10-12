@@ -29,6 +29,10 @@ describe('iconClassFor', () => {
     expect(iconClassFor('neutral-delegate')).to.eq('resource_icon resource_icon--neutral-delegate');
   });
 
+  it('a free TRADE (TR66\'s role, its target-step tag — PL-219) is the printed trade fleet, never a card-resource class that does not exist', () => {
+    expect(iconClassFor('trade')).to.eq('resource_icon resource_icon--trade');
+  });
+
   it('is idempotent on an already-normalised card-resource key', () => {
     expect(iconClassFor('microbe')).to.eq('card-resource card-resource-microbe');
     expect(iconClassFor('')).to.eq('');

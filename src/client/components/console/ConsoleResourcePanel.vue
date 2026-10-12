@@ -387,7 +387,7 @@ import {railProtections, RailProtectionMark, RailProtections} from '@/client/con
 import {actionGoodIcon, HOLDER_ROLE_ICON, HolderRole, holderRoleCaption, holderRolePlate, holderRoleReading} from '@/client/console/holderRoles';
 import {readingLineText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {badgeForUnit, MC_CONTEXT_KEYS, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, RailMcContext, TagVpBadge} from '@/client/console/railValueModel';
+import {badgeForUnit, MC_CONTEXT_KEYS, RAIL_CONTEXT_TAG, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, TagVpBadge} from '@/client/console/railValueModel';
 import {Tag as TagKind} from '@/common/cards/Tag';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
@@ -462,18 +462,8 @@ function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
   }
 }
 
-/** The ONE tag a tender context is named by on the coin (a context with no single tag wears none). */
-const CONTEXT_TAG: Readonly<Partial<Record<RailMcContext, TagKind>>> = {
-  'space': TagKind.SPACE,
-  'building': TagKind.BUILDING,
-  'building-or-city': TagKind.BUILDING,
-  'science': TagKind.SCIENCE,
-  'city-or-space': TagKind.CITY,
-  'plant': TagKind.PLANT,
-  'plant-or-greenery': TagKind.PLANT,
-  'venus': TagKind.VENUS,
-  'moon': TagKind.MOON,
-};
+/** The ONE tag a tender context is named by on the coin — `railValueModel.RAIL_CONTEXT_TAG` (the target step's outcome tag reads it too). */
+const CONTEXT_TAG = RAIL_CONTEXT_TAG;
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',

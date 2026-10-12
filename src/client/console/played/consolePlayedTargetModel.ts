@@ -35,6 +35,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardType} from '@/common/cards/CardType';
+import {Tag} from '@/common/cards/Tag';
 import {NavRect, pickDirectional, pickStrictGrid} from '@/client/gamepad/spatialNav';
 
 /** The tableau sections a candidate can belong to — the same vocabulary the
@@ -124,6 +125,30 @@ export type PlayedTargetImpact = {
 };
 
 /**
+ * THE OUTCOME TAG under a candidate (PL-219, the owner's decision 2026-10-12 — the TR50 walk). The rail reads the
+ * candidate UNDER THE CURSOR in full; this is the same answer, one line under EVERY candidate, so «where do the N go»
+ * is answered by looking, not by walking the cursor over seven cards. Built by the preview from the same
+ * `HolderGainOutcome` the rail's reading is (one source, two densities) and made of glyphs and digits only — a
+ * word is an i18n key (`word`), never a sentence: «[M€] +5 [Космос]», «[делегат] 2/3», «[карта] 1/1 ✓», «ПО 3 → 4».
+ */
+export type PlayedTargetTag = {
+  /** Icon key (`optionIcons.iconClassFor` vocabulary). */
+  icon?: string;
+  /** The icon rides the production plate (an action good that is a production step). */
+  plate?: 'production';
+  /** A short word before the numbers — an i18n key («VP»). */
+  word?: string;
+  /** The numbers — a signed delta, a fraction, `a → b`; empty for a bare ✓. */
+  text: string;
+  /** The tag a tender pays for — its glyph closes the tag («+5 [Космос]»). */
+  payTag?: Tag;
+  /** ✓ — the good is within reach after the gain (`opens`) or already was (`already`). */
+  reached?: boolean;
+  /** `opens` — the loud one; `gain` — plain; `short` / `already` / `static` — the quiet voice. */
+  tone: 'opens' | 'gain' | 'short' | 'already' | 'static';
+};
+
+/**
  * A titled group of impacts, scoped to WHAT it changes. The entity matters:
  * the player must be able to tell «this happens to the card I am pointing at»
  * from «this happens to the card I am playing».
@@ -136,6 +161,8 @@ export type PlayedTargetPreviewSection = {
   impacts: ReadonlyArray<PlayedTargetImpact>;
   /** A quiet clarifying line (i18n key), e.g. «источник не изменится». */
   note?: string;
+  /** The candidate's one-line outcome (PL-219) — set by the TARGET section of a gain; drawn under the card. */
+  tag?: PlayedTargetTag;
 };
 
 /**
@@ -162,6 +189,11 @@ export const PLAYED_TARGET_SUMMARY_IMPACT_CAP = 2;
  * the host's own fold) the Result all descend from the same injected preview, so
  * the three can never state the same effect in three slightly different ways.
  */
+/** A candidate's outcome tag (PL-219) — the first section that carries one. */
+export function playedTargetTagOfPreview(sections: ReadonlyArray<PlayedTargetPreviewSection>): PlayedTargetTag | undefined {
+  return sections.find((s) => s.tag !== undefined)?.tag;
+}
+
 export function playedTargetQuickImpacts(
   sections: ReadonlyArray<PlayedTargetPreviewSection>,
 ): ReadonlyArray<PlayedTargetQuickImpact> {
@@ -799,6 +831,13 @@ const CARDS_PAD_Y = 12;
  * the stylesheet: this is the seam where an innocent `padding` edit silently
  * re-introduces a scrollbar.
  */
+/**
+ * THE OUTCOME TAG'S ROW under every candidate (PL-219), rem-equivalent px at ui 1: `.con-ptsel__tag` is
+ * `height: 1.2rem; margin-top: .3rem` (24 + 6). RESERVED per row by the solver before a card is sized — a tag
+ * that took its height from the cards would shrink the row it explains.
+ */
+export const PLAYED_TARGET_TAG_ROW_H = 30;
+
 export const PLAYED_TARGET_VIEWPORT_CHROME_H =
   OWNER_BAR_H + ZONE_PAD_Y + OWNER_PAD_Y + OWNER_GAP + CARDS_PAD_Y;
 // (A per-category column cap and a descending zoom scan used to live here.
@@ -847,6 +886,8 @@ export type PlayedTargetSizingInput = {
   availH: number;
   ui: number;
   handheld: boolean;
+  /** A candidate wears an outcome tag (PL-219) — every row reserves `PLAYED_TARGET_TAG_ROW_H` under its cards. */
+  tags?: boolean;
 };
 
 /** The card's aspect as width-per-height — the solver turns a height budget
@@ -908,6 +949,7 @@ function solveGrid(
   gap: number,
   sectionGap: number,
   railH: number,
+  tagRow = 0,
 ): ReadonlyArray<GridShape> {
   const maxCards = Math.max(1, ...groups.map((secs) => secs.reduce((n, sec) => n + sec.candidates.length, 0)));
   const shapes: Array<GridShape> = [];
@@ -919,7 +961,7 @@ function solveGrid(
       const c = cols.reduce((a, b) => a + b, 0);
       const gaps = (c - 1) * gap + (sections.length - 1) * sectionGap;
       const byWidth = (ownerW - gaps) / c;
-      const byHeight = ((ownerH - railH - (rows - 1) * gap) / rows) * ASPECT_W_OVER_H;
+      const byHeight = ((ownerH - railH - (rows - 1) * gap - rows * tagRow) / rows) * ASPECT_W_OVER_H;
       cardW = Math.min(cardW, byWidth, byHeight);
       columns = Math.max(columns, c);
     }
@@ -976,7 +1018,7 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   const ownerH = o.availH - PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui - (headroom - CARDS_PAD_TOP * o.ui);
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
 
-  const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH);
+  const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH, o.tags === true ? PLAYED_TARGET_TAG_ROW_H * o.ui : 0);
   const sections = Math.max(...groups.map((g) => g.length));
   const perRowOf = (rows: number): number =>
     Math.max(...groups.map((g) => Math.max(...sectionColumnsAt(g, rows))));

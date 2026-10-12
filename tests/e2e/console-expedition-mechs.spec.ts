@@ -301,6 +301,12 @@ for (const preset of PRESETS) {
       const labels = await page.evaluate((root) => Array.from(document.querySelectorAll(`${root} .con-payrow[data-pay-unit] .con-payrow__name`))
         .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()), PLAY_COMPOSER);
       console.log(`[${preset.id} a lanes] ${JSON.stringify(units)} ${JSON.stringify(labels)}`);
+      // К-P1 (the owner's decision 2026-10-12): a card-bound lane names the card its units leave; the steel lane does not.
+      const sources = await page.evaluate((root) => Array.from(document.querySelectorAll(`${root} .con-payrow[data-pay-unit]`))
+        .map((el) => [el.getAttribute('data-pay-unit') ?? '', (el.querySelector('[data-pay-source]')?.textContent ?? '').replace(/s+/g, ' ').trim()]), PLAY_COMPOSER);
+      expect(sources, 'whose units each lane spends').toEqual([
+        ['supercomputerData', '· Суперкомпьютер'], ['steel', ''], ['constructionMechs', '· Строительные мехи'], ['megacredits', ''],
+      ]);
       await shoot(page, preset.id, 'a-01-payment');
       await armTransferWitness(page);
       const stop = await storyboard(page, preset.id, 'play');
@@ -475,6 +481,19 @@ for (const preset of PRESETS) {
         return out;
       }));
       expect(clipped, 'every candidate stands whole inside the boxes that clip it').toEqual([]);
+      // PL-219: EVERY candidate wears its outcome tag — read without moving the cursor.
+      const tags = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).map((cell) => {
+        const name = cell.querySelector('[data-ptsel-self]') !== null ? 'self' : (cell.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '?');
+        const tag = cell.querySelector('[data-ptsel-tag]');
+        return [name, tag?.getAttribute('data-ptsel-tag') ?? 'missing', (tag?.textContent ?? '').replace(/s+/g, ' ').trim()];
+      }));
+      console.log(`[${preset.id} c tags] ${JSON.stringify(tags)}`);
+      expect(tags.filter((t) => t[1] === 'missing' || t[1] === 'none'), 'every candidate wears a tag').toEqual([]);
+      const tagText = (card: string) => tags.find((t) => t[0] === card)?.[2] ?? '';
+      expect([tagText('EVA Mechs'), tagText('Construction Mechs')], 'tender: +5 each').toEqual(['+5', '+5']);
+      expect(tagText('Mech Sports'), 'Mech Sports: its VP').toMatch(/ПО\s*3\s*→\s*4/);
+      expect(tags.filter((t) => t[2] === '✓').map((t) => t[0]).sort(), 'already within reach: a quiet ✓')
+        .toEqual(['Automated Convoys', 'Expedition Mechs', 'Forestry Mechs', 'Mars Army Mechs'].sort());
       const resting = await cellTexts(page);
       console.log(`[${preset.id} c cells at rest] ${JSON.stringify(resting, null, 1)}`);
       await shoot(page, preset.id, 'c-02-target');

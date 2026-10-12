@@ -34,10 +34,11 @@ import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {AdjacencyAmountBasis} from '@/common/models/CardAdjacencyPayoutModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
-import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
+import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext, PlayedTargetTag} from './consolePlayedTargetModel';
 import {
-  holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading,
+  HolderGainOutcome, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading,
 } from '@/client/console/holderRoles';
+import {RAIL_CONTEXT_TAG} from '@/client/console/railValueModel';
 
 /**
  * The server's marker for «this amount lands ON THE CHOSEN CARD», set by
@@ -234,7 +235,8 @@ export function playedTargetPreviewFor(
         ...(plate === undefined ? {} : {plate}),
       });
     }
-    out.push({key: 'res', title: 'Target card', entity: 'target', impacts});
+    const tag = playedTargetTagOf({reached, vp, icon: impacts[0].icon, from, to: Math.max(0, from + amount)});
+    out.push({key: 'res', title: 'Target card', entity: 'target', impacts, ...(tag === undefined ? {} : {tag})});
   } else if (amount === undefined && input.resourceGainPrompt?.amountBasis !== undefined && model !== undefined) {
     // NO NUMBER YET — the cell chosen after this pick decides it (Arboretum).
     // The candidate reads its live count and the RATE, never a guessed «→».
@@ -246,6 +248,49 @@ export function playedTargetPreviewFor(
     }]});
   }
   return out;
+}
+
+/**
+ * THE OUTCOME TAG of one candidate (PL-219) — the rail's answer in glyphs and digits, from the SAME outcome
+ * object the rail's reading is built from (`holderGainOutcome`, before the «already» filter: under the card a good
+ * that was already within reach is a quiet ✓, while the rail keeps the value line for it). In the order of meaning:
+ * money («[M€] +5 [Космос]»), a priced good («[делегат] 2/3» · «… 3/3 ✓» · «… ✓»), a look («[карты] 2 → 4»), the
+ * points a VP holder scores («ПО 3 → 4»), and plain storage its own count («[мех] 1 → 2»). A gain only — a loss
+ * (Predators) keeps the rail, nothing under the card.
+ */
+export function playedTargetTagOf(o: {
+  reached: HolderGainOutcome | undefined,
+  vp: {from: number, to: number} | undefined,
+  icon: string | undefined,
+  from: number,
+  to: number,
+}): PlayedTargetTag | undefined {
+  if (o.to <= o.from) {
+    return undefined;
+  }
+  const r = o.reached;
+  if (r?.kind === 'money') {
+    const payTag = RAIL_CONTEXT_TAG[r.context];
+    return {icon: 'megacredits', text: `+${r.amount}`, tone: 'gain', ...(payTag === undefined ? {} : {payTag})};
+  }
+  if (r?.kind === 'reach') {
+    const plate = holderRolePlate(r.role);
+    const icon = holderGainOutcomeIcon(r);
+    return {
+      ...(icon === undefined ? {} : {icon}),
+      ...(plate === undefined ? {} : {plate}),
+      text: r.state === 'already' ? '' : `${r.have}/${r.need}`,
+      ...(r.state === 'short' ? {} : {reached: true}),
+      tone: r.state,
+    };
+  }
+  if (r?.kind === 'look') {
+    return {icon: 'cards', text: `${r.from} → ${r.to}`, tone: 'gain'};
+  }
+  if (o.vp !== undefined) {
+    return {word: 'VP', text: `${o.vp.from} → ${o.vp.to}`, tone: o.vp.from === o.vp.to ? 'static' : 'gain'};
+  }
+  return {...(o.icon === undefined ? {} : {icon: o.icon}), text: `${o.from} → ${o.to}`, tone: 'static'};
 }
 
 /**

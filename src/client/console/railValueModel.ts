@@ -129,6 +129,19 @@ export const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
   'aquifer-asteroid': 'for the aquifer and asteroid standard projects',
 };
 
+/** The ONE tag a tender context is named by (a coin's glyph, a target step's outcome tag) — a context with no single tag wears none. */
+export const RAIL_CONTEXT_TAG: Readonly<Partial<Record<RailMcContext, Tag>>> = {
+  'space': Tag.SPACE,
+  'building': Tag.BUILDING,
+  'building-or-city': Tag.BUILDING,
+  'science': Tag.SCIENCE,
+  'city-or-space': Tag.CITY,
+  'plant': Tag.PLANT,
+  'plant-or-greenery': Tag.PLANT,
+  'venus': Tag.VENUS,
+  'moon': Tag.MOON,
+};
+
 export const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext> = {
   microbes: 'plant',
   floaters: 'venus',

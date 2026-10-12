@@ -33,6 +33,9 @@ const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {
   'agenda': 'agenda-step', 'influence': 'influence',
   // `colony-tile` (Turmoil Redux TR07): the printed COLONY TILE pill — the journal's «a track moved» chip.
   'colony-tile': 'colony-tile',
+  // A free TRADE (TR66 Automated Convoys' role, its target-step tag — PL-219): the printed trade fleet, the card faces' own art.
+  // Without it 'trade' fell through to a card-resource sprite that does not exist and the chip drew an empty box.
+  'trade': 'trade',
 };
 // The `GlobalParameter` enum uses the PLURAL 'oceans', but the icon class is the
 // singular `wgt-icon--ocean` (the ocean TILE art). Normalise here — the single

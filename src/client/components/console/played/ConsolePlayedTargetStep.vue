@@ -186,6 +186,23 @@
                   <ConsoleCardFaceLite :name="cand.cardName" :card="cand.model" />
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
+                <!-- THE OUTCOME TAG (PL-219): what the N do on THIS candidate, under every card at once — «where do the
+                     N go» answered by looking. Glyphs and digits only (the rail under the cursor keeps the sentence);
+                     its row is RESERVED by the solver for every cell, so a candidate without a tag keeps the row
+                     empty and the cards stand on one line. -->
+                <div v-if="tagsOn" class="con-ptsel__tag"
+                     :class="tagOf(cand) === undefined ? 'con-ptsel__tag--none' : 'con-ptsel__tag--' + tagOf(cand)?.tone"
+                     :data-ptsel-tag="tagOf(cand)?.tone ?? 'none'">
+                  <template v-if="tagOf(cand) !== undefined">
+                    <i v-if="tagOf(cand)?.icon !== undefined" class="con-ptsel__tag-icon"
+                       :class="[iconClass(tagOf(cand)?.icon ?? ''), {'con-ptsel__tag-icon--production': tagOf(cand)?.plate === 'production'}]"
+                       aria-hidden="true"></i>
+                    <span v-if="tagOf(cand)?.word !== undefined" class="con-ptsel__tag-word">{{ $t(tagOf(cand)?.word ?? '') }}</span>
+                    <b v-if="tagOf(cand)?.text !== ''" class="con-ptsel__tag-num">{{ tagOf(cand)?.text }}</b>
+                    <TagGlyph v-for="pt in tagPayGlyphs(cand)" :key="pt" class="con-ptsel__tag-pay" :tag="pt" size="big" type="secondary" />
+                    <span v-if="tagOf(cand)?.reached === true" class="con-ptsel__tag-check" aria-hidden="true">✓</span>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -293,6 +310,8 @@ import {useResizeObserver} from '@vueuse/core';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import TagGlyph from '@/client/components/Tag.vue';
+import {Tag as CardTag} from '@/common/cards/Tag';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -302,7 +321,7 @@ import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTarget
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
-  PlayedTargetSizing, PlayedTargetCell, PlayedTargetQuickImpact,
+  PlayedTargetSizing, PlayedTargetCell, PlayedTargetQuickImpact, PlayedTargetTag, playedTargetTagOfPreview,
   PLAYED_TARGET_RAIL_IMPACT_CAP, PLAYED_TARGET_FOCUS_SCALE, playedTargetSelfBox,
   playedTargetSections, playedTargetShowsCategoryRails, playedTargetAt,
   playedTargetShowsOwnerTargetCount, playedTargetShowsResource,
@@ -321,7 +340,7 @@ const UNMEASURED: PlayedTargetSizing =
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
-  components: {ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea},
+  components: {ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, TagGlyph},
   props: {
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
@@ -418,6 +437,10 @@ export default defineComponent({
         translateTextWithParams('${0} available targets', [String(targetCount)]);
     },
     /** The focused candidate's contextual effect — the rail's whole payload. */
+    /** Some candidate wears an outcome tag (PL-219) — then EVERY cell reserves the tag's row. */
+    tagsOn(): boolean {
+      return this.model.owners.some((o) => o.candidates.some((c) => playedTargetTagOfPreview(c.preview) !== undefined));
+    },
     railQuick(): ReadonlyArray<PlayedTargetQuickImpact> {
       return this.focused === undefined ? [] : playedTargetQuickImpacts(this.focused.preview);
     },
@@ -576,6 +599,15 @@ export default defineComponent({
   },
   methods: {
     /** The impact's label — a resolved name as is, an i18n key with its params: ONE renderer (`readingText`, PL-160). */
+    /** The candidate's outcome tag (PL-219), or none. */
+    tagOf(cand: PlayedTargetCandidate): PlayedTargetTag | undefined {
+      return playedTargetTagOfPreview(cand.preview);
+    },
+    /** The tag a tender pays for, as a list of none or one — a glyph the template can bind without a cast. */
+    tagPayGlyphs(cand: PlayedTargetCandidate): ReadonlyArray<CardTag> {
+      const pay = playedTargetTagOfPreview(cand.preview)?.payTag;
+      return pay === undefined ? [] : [pay];
+    },
     impactLabel(imp: PlayedTargetQuickImpact): string {
       return readingText(imp);
     },
@@ -765,6 +797,7 @@ export default defineComponent({
         availH,
         ui: conUiScale(),
         handheld: consoleLayoutState.profile === 'handheld',
+        tags: this.tagsOn,
       });
     },
     /** Chosen = the confirmed single target, or a member of the multi pick. */

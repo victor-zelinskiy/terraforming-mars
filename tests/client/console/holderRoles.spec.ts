@@ -8,7 +8,7 @@ import {additionalResourceRoleGroups} from '@/client/components/additionalResour
 import {buildExtrasTypes} from '@/client/console/extrasExplorerModel';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
 import {playedTargetPreviewFor} from '@/client/console/played/consolePlayedTargetPreview';
-import {playedTargetQuickImpacts} from '@/client/console/played/consolePlayedTargetModel';
+import {playedTargetQuickImpacts, playedTargetTagOfPreview} from '@/client/console/played/consolePlayedTargetModel';
 
 /**
  * THE ROLE OF A HOLDER (PL-030 / PL-075 — the TR34 walk): what a card's stored
@@ -264,6 +264,24 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'A delegate on a resolution per unit']);
     expect(impacts[0]).to.include({from: 2, to: 1, icon: 'fighter'});
     expect(impacts[1]).to.include({value: true, icon: 'delegate'});
+  });
+
+  it('PL-219 — THE OUTCOME TAG under every candidate: the family of seven reads by meaning in glyphs and digits, from the same outcome as the rail', () => {
+    const tagOf = (name: CardName, resources: number, vpBox?: Record<string, {from: number, to: number}>) =>
+      playedTargetTagOfPreview(playedTargetPreviewFor(undefined, input([{name, resources}]), name, [onCardGain('mech', 1)], vpBox as never));
+    expect(tagOf(CardName.EVA_MECHS, 2), 'tender: the money and the tag it pays for').to.deep.eq({icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'space'});
+    expect(tagOf(CardName.CONSTRUCTION_MECHS, 1)).to.deep.eq({icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'building'});
+    expect(tagOf(CardName.MECH_SPORTS, 3, {[CardName.MECH_SPORTS]: {from: 3, to: 4}}), 'a VP holder: its points').to.deep.eq({word: 'VP', text: '3 → 4', tone: 'gain'});
+    expect(tagOf(CardName.MARS_ARMY_MECHS, 1), 'a delegate already within reach: a quiet ✓ (the rail keeps the value line)').to.deep.eq({icon: 'delegate', text: '', reached: true, tone: 'already'});
+    expect(tagOf(CardName.MARS_ARMY_MECHS, 0), 'the gain brings it within reach: the fraction and the ✓').to.deep.eq({icon: 'delegate', text: '1/1', reached: true, tone: 'opens'});
+    expect(tagOf(CardName.FORESTRY_MECHS, 2), 'the action\'s good on its production plate').to.deep.include({icon: 'plants', plate: 'production', reached: true, tone: 'already'});
+    expect(tagOf(CardName.EXPEDITION_MECHS, 0), 'TR50: the card its action draws').to.deep.eq({icon: 'cards', text: '1/1', reached: true, tone: 'opens'});
+    // A priced good still SHORT after the gain: the fraction, no ✓ (data onto the census, 3 a delegate).
+    const census = playedTargetTagOfPreview(playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources: 0}]), CardName.MARTIAN_CENSUS, [onCardGain('data', 2)]));
+    expect(census).to.deep.eq({icon: 'delegate', text: '2/3', tone: 'short'});
+    // A LOSS wears no tag — the rail keeps the reading (TR29's source step).
+    const spent = playedTargetPreviewFor({kind: 'input', amount: -1, cardResource: 'mech'} as never, input([{name: CardName.EVA_MECHS, resources: 2}]), CardName.EVA_MECHS);
+    expect(playedTargetTagOfPreview(spent)).to.eq(undefined);
   });
 
   it('a mech onto Mech Sports: no value line of its own — the VP line is the step\'s, and storage says nothing', () => {
