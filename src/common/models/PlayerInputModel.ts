@@ -915,6 +915,12 @@ export type ResourceGainPromptMeta = {
   /** Per-candidate VP reading; a card whose points the resource never moves is
    *  simply ABSENT (never a fabricated zero) — see {@link VictoryPointsDelta}. */
   vpBox?: Partial<Record<CardName, VictoryPointsDelta>>;
+  /**
+   * The prompt's title is the step's own GENERIC ask («Select a card — data: +2», «Add resources to this card») —
+   * no caller named a constraint. A host that already states the rule and the gain (the composers) drops it: a third
+   * statement of one effect is the noise the played-target step's ask line exists to avoid (TR48 walk).
+   */
+  genericTitle?: boolean;
 }
 
 /**

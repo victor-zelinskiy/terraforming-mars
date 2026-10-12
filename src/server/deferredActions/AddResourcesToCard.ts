@@ -222,7 +222,9 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     const buttonLabel = qty === 1 ? 'Add resource' : 'Add resources';
     const title: string | Message = this.options.title ?? (single ?
       (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :
-      message('Select card to add ${0} ${1}', (b) => b.number(qty).string(this.resourceType || 'resources')));
+      // The resource NAMES itself after a dash, never inside the sentence: a noun substituted into «добавить 2 …»
+      // cannot decline (RU printed «добавить 2 Данные» — the TR48 walk), a label after a dash needs no case.
+      message('Select a card — ${1}: +${0}', (b) => b.number(qty).string(this.resourceType || 'resources')));
     const kinds = this.resourceTypes;
     const select = new SelectCard(title, buttonLabel, cards)
       // The premium target reading a LIVE pick otherwise has no channel for:
@@ -240,6 +242,9 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
         ...(kinds !== undefined && kinds.length > 1 ? {cardResources: kinds.map(cardResourceIcon)} : {}),
         ...(this.resourceType === undefined ? {cardResourceByCard: holderResourceIcons(cards)} : {}),
         vpBox: targetVictoryPoints(this.player, cards, qty),
+        // The title is the step's OWN generic one (no caller's constraint) — a composer that already printed the rule
+        // and the «+N on a card» chip must not print it a third time (`ConsolePlayedTargetStep`'s ask line).
+        ...(this.options.title === undefined ? {genericTitle: true} : {}),
       });
     return this.options.cause === undefined ?
       select :

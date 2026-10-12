@@ -1482,7 +1482,8 @@ export default defineComponent({
         candidates: taken.size === 0 ? model.cards : model.cards.filter((c) => !taken.has(c.name)),
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
-        ask: textOf(model.title),
+        // The composer printed the rule and the gain chip: the step's own generic ask would be the third telling.
+        ask: model.resourceGainPrompt?.genericTitle === true ? '' : textOf(model.title),
         // The card being PLAYED, which CAN be a candidate for its own on-play
         // effect: Titan Floating Launch-pad adds two floaters to any Jovian card
         // and is itself Jovian, so with no other Jovian card in play it is the

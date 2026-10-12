@@ -4266,7 +4266,7 @@ export default defineComponent({
         // server title under it just restates the effect the rule and the gain
         // chip have already stated. A title that names a real CONSTRAINT is not
         // boilerplate and keeps its line.
-        ask: isBoilerplateTitle(model.title) ? '' : textOf(model.title),
+        ask: isBoilerplateTitle(model.title) || model.resourceGainPrompt?.genericTitle === true ? '' : textOf(model.title),
         // The card whose action this is — «Обстрел кометами» adds its asteroid
         // to ANY card, and it is one. That candidate becomes a HANDLE pointing
         // at the hero slot instead of a second full-size copy of the same card.
