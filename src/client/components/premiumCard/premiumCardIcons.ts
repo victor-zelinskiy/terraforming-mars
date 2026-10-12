@@ -228,6 +228,25 @@ export function standardResourceIconUrl(resource: Resource): string {
  * type that has a clean shipped asset — an entry missing here degrades to
  * the labelled fallback chip, never a broken image.
  */
+/**
+ * THE HEX TILES — the printed items whose art is a Mars TILE (a pointy-top hex
+ * with its own outline): the city, the greenery, the ocean, the empty / golden
+ * / special tile, the hazard, the adjacency bonus. They wear `pcard-ic--hex`,
+ * so a frame drawn AROUND the tile follows the hex (the «any player» ring —
+ * TR45 / every `{all}` tile) instead of the square icon box the rest of the
+ * vocabulary sits in. Inert without a frame.
+ */
+export const HEX_TILE_ITEMS: ReadonlySet<CardRenderItemType> = new Set([
+  CardRenderItemType.CITY,
+  CardRenderItemType.GREENERY,
+  CardRenderItemType.OCEANS,
+  CardRenderItemType.EMPTY_TILE,
+  CardRenderItemType.EMPTY_TILE_GOLDEN,
+  CardRenderItemType.EMPTY_TILE_SPECIAL,
+  CardRenderItemType.HAZARD_TILE,
+  CardRenderItemType.ADJACENCY_BONUS,
+]);
+
 const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.MEGACREDITS]: `${RES}/megacredit.png`,
   [CardRenderItemType.STEEL]: `${RES}/steel.png`,
@@ -536,9 +555,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     // O₂-raising greenery → the O₂-baked asset; plain greenery → no_O2
     // (mirrors the legacy greenery-tile / greenery-tile-oxygen split).
     if (item.secondaryTag === AltSecondaryTag.OXYGEN) {
-      return {kind: 'img', url: `${TILES}/greenery.png`};
+      return {kind: 'img', url: `${TILES}/greenery.png`, mod: 'hex'};
     }
-    return {kind: 'img', url: `${TILES}/greenery_no_O2.png`};
+    return {kind: 'img', url: `${TILES}/greenery_no_O2.png`, mod: 'hex'};
   case CardRenderItemType.MULTIPLIER_WHITE:
     return {kind: 'glyph', glyph: 'X'};
   case CardRenderItemType.VP:
@@ -611,7 +630,7 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
   default: {
     const url = ITEM_ICON_URL[item.type];
     if (url !== undefined) {
-      return {kind: 'img', url};
+      return HEX_TILE_ITEMS.has(item.type) ? {kind: 'img', url, mod: 'hex'} : {kind: 'img', url};
     }
   }
   }

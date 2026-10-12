@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {mechItemIcon, secondaryBubbleOf, tagIconStyle, tagIconUrl, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {HEX_TILE_ITEMS, mechItemIcon, secondaryBubbleOf, tagIconStyle, tagIconUrl, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Tag} from '@/common/cards/Tag';
 import {
@@ -122,7 +122,7 @@ describe('premiumCardIcons.mechItemIcon', () => {
     // Deactivated Reds (Zan's immunity): dim + strike via the 'off' mod —
     // legacy grayscale was a `filter`, which console-native strips.
     expect(mechItemIcon(itemNode(CardRenderItemType.REDS_DEACTIVATED))).to.deep.equal({kind: 'img', url: 'assets/parties/reds.png', mod: 'off'});
-    expect(mechItemIcon(itemNode(CardRenderItemType.ADJACENCY_BONUS))).to.deep.equal({kind: 'img', url: 'assets/tiles/adjacency_bonus.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.ADJACENCY_BONUS))).to.deep.equal({kind: 'img', url: 'assets/tiles/adjacency_bonus.png', mod: 'hex'});
     expect(mechItemIcon(itemNode(CardRenderItemType.MOON_HABITAT))).to.deep.equal({kind: 'img', url: 'assets/moon/habitattile.png'});
     expect(mechItemIcon(itemNode(CardRenderItemType.MOON_MINE))).to.deep.equal({kind: 'img', url: 'assets/moon/minetile.png'});
     expect(mechItemIcon(itemNode(CardRenderItemType.MOON_ROAD))).to.deep.equal({kind: 'img', url: 'assets/moon/roadtile.png'});
@@ -256,6 +256,24 @@ describe('premiumCardIcons.tagIconStyle', () => {
       const style = tagIconStyle(tag);
       expect(style.backgroundImage, tag).to.eq(`url(assets/tags/${tag}.png)`);
       expect(style, tag).to.not.have.property('backgroundSize');
+    }
+  });
+});
+
+/**
+ * THE HEX FRAME (TR45 — the «any player» ring follows the tile, never a square
+ * box around a hexagon): every Mars-tile item wears `pcard-ic--hex`, so the
+ * `{all}` frame of `premium_card.less` draws the hex ring; nothing else does.
+ */
+describe('premiumCardIcons — the hex tiles', () => {
+  it('every hex TILE item carries the hex mod (both greeneries included); a resource, a tag or a colony never does', () => {
+    for (const type of HEX_TILE_ITEMS) {
+      const icon = mechItemIcon(itemNode(type));
+      expect(icon, type).to.deep.include({kind: 'img', mod: 'hex'});
+    }
+    expect(mechItemIcon({...itemNode(CardRenderItemType.GREENERY), secondaryTag: AltSecondaryTag.OXYGEN} as ICardRenderItem)).to.deep.include({mod: 'hex'});
+    for (const type of [CardRenderItemType.PLANTS, CardRenderItemType.HEAT, CardRenderItemType.COLONIES, CardRenderItemType.TR]) {
+      expect(mechItemIcon(itemNode(type)), type).to.not.have.property('mod');
     }
   });
 });

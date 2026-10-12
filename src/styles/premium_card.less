@@ -1289,6 +1289,30 @@
     0 0 0 1.7px rgba(var(--pcard-any-rgb), 0.72),
     0 0 5px rgba(var(--pcard-any-rgb), 0.28);
 }
+/* «any player» on a HEX TILE (`pcard-ic--hex` — the city, greenery, ocean, empty / special / golden tile, hazard;
+   TR45's «a tile on Mars of ANY player») — the frame FOLLOWS THE HEX, as on the printed card: an orange-to-crimson
+   ring hugging the tile's own outline, never a square box around a hexagon (the box-shadow above is square by
+   construction). The ring is the icon's `::before`, cut by ONE even-odd polygon (outer hex, then the inner hex walked
+   back — the zero-width bridge cancels), on a box 9 % larger each side. The inner hex is the ALPHA CONTOUR of the
+   Mars tile assets (measured off the PNGs, `.tr45/contour.mjs`: a pointy-top hex at aspect ≈ 0.866 inside the square
+   `contain` box — sides at x 8–92 %, shoulders at y ≈ 26 % / 73 %), tucked ~1 % inside so no hairline of the board
+   shows between the ring and the tile's own rim. Colour from the token (`--pcard-any-rgb`) — the scan's orange at the
+   top right, the crimson at the bottom left; no filter (the console strips it), compositor-free paint. */
+.pcard-mi--any .pcard-ic--hex {
+  position: relative;
+  border-radius: 0;
+  box-shadow: none;
+}
+.pcard-mi--any .pcard-ic--hex::before {
+  content: '';
+  position: absolute;
+  inset: -9%;
+  background: linear-gradient(225deg, rgb(244, 156, 70) 0%, rgb(var(--pcard-any-rgb)) 52%, rgb(186, 42, 34) 100%);
+  clip-path: polygon(evenodd,
+    50% 4.28%, 89.32% 27.12%, 89.32% 71.69%, 50% 95.72%, 10.68% 71.69%, 10.68% 27.12%, 50% 4.28%,
+    50% 9.66%, 15.34% 29.83%, 15.34% 68.98%, 50% 90.34%, 84.66% 68.98%, 84.66% 29.83%, 50% 9.66%);
+  pointer-events: none;
+}
 /* cancelled — red diagonal strike */
 .pcard-mi--cancelled::after,
 .pcard-sym--cancelled::after {
