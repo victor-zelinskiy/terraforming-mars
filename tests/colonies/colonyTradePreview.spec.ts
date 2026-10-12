@@ -26,6 +26,8 @@ import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
 import {Birds} from '../../src/server/cards/base/Birds';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
+import {addressVerdict} from '../../src/common/inputs/preselectAddress';
+import {colonySource} from '../../src/server/inputs/choiceContext';
 
 describe('colonyTradePreview', () => {
   let game: IGame;
@@ -287,6 +289,43 @@ describe('colonyTradePreview', () => {
     expect(bacteria.resourceCount).to.eq(3);
     expect(player.energy).to.eq(0);
     expect(enceladus.visitor).to.eq(player.id);
+  });
+
+  /**
+   * ADDRESSED (the pre-select law, PL-172): every pick the preview lets the trade composer pre-collect carries
+   * the address its LIVE prompt will name — read by the one shared reader, `addressVerdict`, on the prompt the
+   * server really raises. The trade's card targets were built without the live action's cause, so the composer
+   * posted the reward's answer UNADDRESSED; in front of it stood the colony owner's «draw 1, then discard 1», the
+   * answer met that discard first, named no candidate of it, was dropped as a stale pick — and the reward was
+   * asked a second time (the Redux Venus trade, e2e `console-colony-venus-trade`). `VenusRedux.spec` missed it
+   * because it stamped the address by hand instead of reading the preview's.
+   */
+  it('ADDRESSED: every pre-collectable pick carries the address its live prompt names', () => {
+    player.playedCards.push(new Tardigrades(), new GHGProducingBacteria());
+    enceladus.colonies.push(player.id);
+    enceladus.trackPosition = 3;
+    player.energy = 3;
+
+    const picks = buildColonyTradePreview(player, enceladus).followUps.flatMap((f) => f.kind === 'cardTarget' && f.pick !== undefined ? [f] : []);
+    expect(picks.map((f) => f.role), 'two pre-collectable picks').to.deep.eq(['colonyBonus', 'tradeReward']);
+    for (const pick of picks) {
+      expect(pick.for, `the ${pick.role} pick is addressed`).to.deep.eq({role: 'card', source: colonySource(ColonyName.ENCELADUS)});
+    }
+
+    player.takeAction();
+    const actions = cast(player.getWaitingFor(), OrOptions);
+    const tradeIndex = actions.options.findIndex((o) => o instanceof AndOptions && o.options.some((sub) => sub instanceof SelectColony));
+    const payOr = cast(cast(actions.options[tradeIndex], AndOptions).options[0], OrOptions);
+    const energyIndex = payOr.options.findIndex((o) => JSON.stringify(o.title).includes('energy'));
+    player.process({type: 'or', index: tradeIndex, response: {type: 'and', responses: [
+      {type: 'or', index: energyIndex, response: {type: 'option'}},
+      {type: 'colony', colonyName: ColonyName.ENCELADUS},
+    ]}});
+    for (const [i, pick] of picks.entries()) {
+      const live = cast(player.getWaitingFor(), SelectCard);
+      expect(addressVerdict(pick.for!, live), `the live ${pick.role} prompt is the pick's OWN question`).to.eq('own');
+      player.process({type: 'card', cards: [i === 0 ? CardName.TARDIGRADES : CardName.GHG_PRODUCING_BACTERIA]});
+    }
   });
 
   it('CONSISTENCY: the live prompts really are SelectCard in the preview order', () => {

@@ -1196,6 +1196,8 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
   // never tried to drive.
   const task = page.locator('.con-task');
   const taskVisible = async () => await task.count() > 0 && await task.first().isVisible();
+  /** A colony grid / stage the player can SEE — it owns the input over a start scene that hosts it. */
+  const coloniesOnTop = async () => await colonies.count() > 0 && await colonies.first().isVisible();
   /** Consecutive rounds the task host has been up with nothing above it. */
   let taskRounds = 0;
   for (let i = 0; i < maxRounds; i++) {
@@ -1283,7 +1285,12 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       } else {
         await page.waitForTimeout(700);
       }
-    } else if (!await startSceneGone(page)) {
+    } else if (!await startSceneGone(page) && !await coloniesOnTop()) {
+      // (A colony pick the start workspace HOSTS — the solo opening's «remove a colony tile» — stands ON TOP of a
+      // still-painted start scene, so it is driven by the colonies branch below. Driven from here, `playQueueCard`'s
+      // focus walk sent its arrows to the COLONY grid, read the queue's unmoved cursor as a wall, ping-ponged the
+      // colony cursor right / left and pressed A wherever it stopped — `console-colony-venus-trade` removed the
+      // very tile its `keepColony` named, on every build: «could not focus Venus Redux».)
       // The start workspace is still PAINTED: finish it with the SAME
       // primitives the boot uses (never a blind Enter — a swallowed press
       // would just burn the budget and the failure would name the wrong

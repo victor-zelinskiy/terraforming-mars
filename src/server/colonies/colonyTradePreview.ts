@@ -26,6 +26,7 @@ import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {IPlayer} from '../IPlayer';
 import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
+import {colonySource} from '../inputs/choiceContext';
 import {rewardReactionForecast} from '../models/effectForecast';
 
 /**
@@ -321,10 +322,10 @@ function benefitFollowUp(
   const game = player.game;
   switch (type) {
   case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-    return cardTargetFollowUp(player, role, colonyCardResources(colony.metadata), quantity);
+    return cardTargetFollowUp(player, colony, role, colonyCardResources(colony.metadata), quantity);
 
   case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
-    return cardTargetFollowUp(player, role, undefined, quantity, Tag.VENUS);
+    return cardTargetFollowUp(player, colony, role, undefined, quantity, Tag.VENUS);
 
   case ColonyBenefit.STEAL_RESOURCES: {
     const resource = colony.metadata.trade.resource;
@@ -390,6 +391,7 @@ function note(role: ColonyTradeFollowUpRole, kind: ColonyTradeNoteKind): ColonyT
  */
 function cardTargetFollowUp(
   player: IPlayer,
+  colony: IColony,
   role: ColonyTradeFollowUpRole,
   /** The kinds the benefit adds — the tile's list (`colonyCardResources`), or undefined for «any resource». */
   kinds: ReadonlyArray<CardResource> | undefined,
@@ -402,6 +404,11 @@ function cardTargetFollowUp(
   const arg = kinds === undefined || kinds.length === 0 ? undefined : (kinds.length === 1 ? kinds[0] : kinds);
   const action = new AddResourcesToCard(player, arg, {
     count: amount,
+    // THE SAME CAUSE the live bonus gives its step (`Colony.giveBonusImpl` → `bonusCause` = `colonySource(name)`): the
+    // live prompt names the colony as its asker, so the pick's pre-collected answer must carry that address — built
+    // without it, the answer went UNADDRESSED, met the colony owner's «draw 1, then discard 1» in front of it, was
+    // dropped there as a stale pick and the reward was asked a second time (the Redux Venus trade, PL-172).
+    cause: colonySource(colony.name),
     ...(restrictedTag !== undefined ? {
       restrictedTag,
       title: message('Select Venus card to add ${0} resource(s)', (b) => b.number(amount)),
