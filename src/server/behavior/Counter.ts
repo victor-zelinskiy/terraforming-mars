@@ -8,6 +8,7 @@ import {MoonExpansion} from '../moon/MoonExpansion';
 import {CardResource} from '../../common/CardResource';
 import {Space} from '../boards/Space';
 import {countCityTiers} from '../boards/cityStack';
+import {MarsTileCensus, marsTileCensus} from '../../common/boards/marsTileCensus';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 import {ColoniesHandler} from '../colonies/ColoniesHandler';
 import {once} from './Lazy';
@@ -104,6 +105,30 @@ export class Counter implements ICounter {
     return countable.nextToThis === undefined ? cells : utils.intersection(cells, this.getAdjacentSpaces(countable));
   }
 
+  /**
+   * THE TILES ON MARS a «tiles» countable counts — the census itself (its
+   * number, its composition by kind, what it names and does not count, the
+   * cells of each), over the same owner filter and `nextToThis` as `count`.
+   * Read by `count` (the total), the preview's basis (the composition the
+   * composer explains the number with) and the board peek (the cells): one
+   * reading. `undefined` for a countable that counts no tiles.
+   */
+  public marsTileCensus(countable: Exclude<Countable, number>): MarsTileCensus | undefined {
+    if (countable.tiles === undefined) {
+      return undefined;
+    }
+    let cells = this.player.game.board.spaces;
+    if (countable.all === false) {
+      // The owner test of `Board.ownedBy`, inline: this module sits under Board's own import chain.
+      const id = this.player.id;
+      cells = cells.filter((space) => space.player?.id === id || space.coOwner?.id === id);
+    }
+    if (countable.nextToThis !== undefined) {
+      cells = utils.intersection(cells, this.getAdjacentSpaces(countable));
+    }
+    return marsTileCensus(cells);
+  }
+
   public count(countable: Countable, context: 'default' | 'vps' = 'default'): number {
     if (typeof(countable) === 'number') {
       return countable;
@@ -141,6 +166,10 @@ export class Counter implements ICounter {
 
     if (countable.oceans !== undefined) {
       sum += maybeAdjacentSpaces(game.board.getOceanSpaces({upgradedOceans: true, wetlands: true})).length;
+    }
+
+    if (countable.tiles !== undefined) {
+      sum += this.marsTileCensus(countable)?.total ?? 0;
     }
 
     if (countable.floaters !== undefined) {

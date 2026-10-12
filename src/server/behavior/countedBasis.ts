@@ -21,8 +21,11 @@ import {Countable, _Countable} from './Countable';
 /** The unit of «colonies in play, of any player» — its plural group agrees with the count. */
 export const COLONIES_IN_PLAY_UNIT = '{colony|colonies} in play';
 
+/** The unit of «tiles on Mars, of any player» (TR45 — the census `common/boards/marsTileCensus.ts`). */
+export const TILES_ON_MARS_UNIT = '{tile|tiles} on Mars';
+
 const ENTITY_KEYS: ReadonlyArray<keyof _Countable> = [
-  'tag', 'cities', 'greeneries', 'oceans', 'resourcesHere', 'floaters', 'colonies', 'moon', 'underworld',
+  'tag', 'cities', 'greeneries', 'oceans', 'tiles', 'resourcesHere', 'floaters', 'colonies', 'moon', 'underworld',
 ];
 
 export function countedResourceBasis(countable: Countable, count: number): CardResourceBasis | undefined {
@@ -38,6 +41,10 @@ export function countedResourceBasis(countable: Countable, count: number): CardR
   }
   if (counted[0] === 'colonies' && countable.all === true) {
     return {count, unitKey: COLONIES_IN_PLAY_UNIT};
+  }
+  // Tiles count every owner's unless narrowed (`all: false` — the player's own, which has no unit here).
+  if (counted[0] === 'tiles' && countable.all !== false) {
+    return {count, unitKey: TILES_ON_MARS_UNIT};
   }
   return undefined;
 }

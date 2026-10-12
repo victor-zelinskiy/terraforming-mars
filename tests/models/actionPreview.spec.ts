@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {Resource} from '../../src/common/Resource';
-import {actionPreview} from '../../src/server/models/actionPreview';
+import {actionPreview, effectsForBehavior} from '../../src/server/models/actionPreview';
 import {RegolithEaters} from '../../src/server/cards/base/RegolithEaters';
 import {Ants} from '../../src/server/cards/base/Ants';
 import {Predators} from '../../src/server/cards/base/Predators';
@@ -19,7 +19,9 @@ import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {CardName} from '../../src/common/cards/CardName';
 import {cast} from '../../src/common/utils/utils';
-import {addCity, churn, runAllActions} from '../TestingUtils';
+import {addCity, addGreenery, addOcean, churn, fakeCard, runAllActions} from '../TestingUtils';
+import {CardResource} from '../../src/common/CardResource';
+import {SpaceName} from '../../src/common/boards/SpaceName';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
 import {AcquiredSpaceAgency} from '../../src/server/cards/prelude/AcquiredSpaceAgency';
@@ -379,6 +381,43 @@ describe('actionPreview', () => {
       expect(mc?.amount).eq(0);
       expect(mc?.current).eq(mc?.resulting); // → the chip renders it as "no effect"
       expect(mc?.basis).deep.eq([{count: 0, label: 'Cities on Mars'}]);
+    });
+
+    /**
+     * THE CENSUS AS A BASIS (TR45): «1 per tile on Mars» states ONE term whose
+     * COMPOSITION is the census's own — the shares by kind with their cells, and
+     * what stands on the board uncounted, named — so the composer can explain the
+     * number and the board peek can light exactly those cells.
+     */
+    it('a «tiles on Mars» count carries ONE term with its composition by kind and its named exclusions', () => {
+      const [/* game */, player, player2] = testGame(2);
+      const card = fakeCard({resourceType: CardResource.MICROBE});
+      const c1 = addCity(player);
+      const c2 = addCity(player2);
+      const o = addOcean(player);
+      const g = addGreenery(player);
+      addCity(player, SpaceName.GANYMEDE_COLONY);
+
+      const chip = effectsForBehavior(player, card, {addResources: {tiles: {where: 'onmars'}, all: true}}).find((e) => e.note === 'on this card');
+      expect(chip).deep.include({direction: 'gain', amount: 4, current: 0, resulting: 4});
+      expect(chip?.basis).deep.eq([{
+        count: 4,
+        label: 'Tiles on Mars',
+        parts: [
+          {kind: 'city', count: 2, spaces: player.game.board.spaces.filter((s) => s === c1 || s === c2).map((s) => s.id)},
+          {kind: 'greenery', count: 1, spaces: [g.id]},
+          {kind: 'ocean', count: 1, spaces: [o.id]},
+        ],
+        excluded: [{kind: 'off-mars', count: 1, spaces: [SpaceName.GANYMEDE_COLONY]}],
+      }]);
+    });
+
+    it('a ZERO census still states itself, with no composition and nothing excluded', () => {
+      const [/* game */, player] = testGame(2);
+      const card = fakeCard({resourceType: CardResource.MICROBE});
+      const chip = effectsForBehavior(player, card, {addResources: {tiles: {where: 'onmars'}, all: true}}).find((e) => e.note === 'on this card');
+      expect(chip).deep.include({amount: 0, current: 0, resulting: 0});
+      expect(chip?.basis).deep.eq([{count: 0, label: 'Tiles on Mars', parts: []}]);
     });
   });
 

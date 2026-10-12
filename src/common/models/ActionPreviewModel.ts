@@ -15,6 +15,8 @@ import type {RevealCheckIcon} from './RevealResultModel';
 import type {DrawSearchModel} from './CardDrawRevealModel';
 import type {ReduxParty, ResolutionId, ResolutionInstanceId} from '../parliament/ParliamentTypes';
 import type {ResolutionCountMetricModel} from '../parliament/resolutionCounts';
+import type {MarsTileExclusion, MarsTileKind} from '../boards/marsTileCensus';
+import type {SpaceId} from '../Types';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -185,7 +187,31 @@ export type ActionEffect = {
  * amount is the result). `tag` names the counted TAG, rendered as its icon so
  * the label stays one key per SCOPE instead of one per tag.
  */
-export type ActionEffectBasis = {count: number, label: string, tag?: Tag};
+export type ActionEffectBasis = {
+  count: number,
+  label: string,
+  tag?: Tag,
+  /**
+   * THE COMPOSITION of the count, when the counted entity has kinds the player
+   * checks against the board (TR45 — «Tiles on Mars: 14» = 4 cities + 5
+   * greeneries + 4 oceans + 1 special tile): every share with its cells, in the
+   * census's own order, `Σ parts[].count === count`. The SERVER's partition
+   * (`common/boards/marsTileCensus.ts`) — the client sums nothing.
+   */
+  parts?: ReadonlyArray<ActionEffectBasisPart>,
+  /**
+   * What stands on the board and is NOT in the count, NAMED (a city off Mars,
+   * a hazard, a neutral cube) — so a number that does not match the board the
+   * player sees says why. Absent when nothing is excluded.
+   */
+  excluded?: ReadonlyArray<ActionEffectBasisPart>,
+};
+
+/** The kinds a counted share can be — its pictogram and its word are the client's, by this key. */
+export type ActionEffectBasisPartKind = MarsTileKind | MarsTileExclusion;
+
+/** One share of a counted number: what, how many, on which cells (for the board peek). */
+export type ActionEffectBasisPart = {kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>};
 
 /**
  * Describes a REVEAL / DECK-CHECK action: it reveals the top card of a deck and

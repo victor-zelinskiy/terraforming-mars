@@ -379,6 +379,21 @@ function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectB
   if (r.greeneries !== undefined) {
     terms.push({count: count({greeneries: r.greeneries}), label: r.all === false ? 'Your greeneries' : 'Greeneries'});
   }
+  if (r.tiles !== undefined) {
+    // THE CENSUS (TR45): one term with its COMPOSITION — the shares by kind with
+    // their cells, and what stands on the board uncounted, named. The very
+    // reading `count` sums, so the term, the chip's number and the board peek
+    // can never disagree.
+    const census = ctx.marsTileCensus({tiles: r.tiles, all: r.all, nextToThis: r.nextToThis});
+    if (census !== undefined) {
+      terms.push({
+        count: census.total,
+        label: r.all === false ? 'Your tiles on Mars' : 'Tiles on Mars',
+        parts: census.parts.map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces})),
+        ...(census.excluded.length > 0 ? {excluded: census.excluded.map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces}))} : {}),
+      });
+    }
+  }
   if (r.colonies !== undefined) {
     // Colonies invert the tile convention: WITHOUT `all` only the player's own
     // colonies count (Counter's `colonies` branch), with it everyone's.
