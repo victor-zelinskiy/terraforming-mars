@@ -40,6 +40,14 @@ describe('standard-project classification (rework Iteration 16 §13)', () => {
     expect(gp!.metrics.oxygen).to.eq(1);
   });
 
+  it('a patent sale (rooted under the same category since TR46) is no infrastructure: not counted', () => {
+    const s = stream();
+    s.root({gen: 7, player: 'red', source: {kind: 'standardProject', card: CardName.SELL_PATENTS_STANDARD_PROJECT}, category: 'standard-project'});
+    s.root({gen: 8, player: 'red', source: {kind: 'standardProject', card: CardName.SELL_PATENTS_STANDARD_PROJECT}, category: 'standard-project'});
+    const sp = buildEndgameFacts(s.events, {finalGeneration: 10}).find((f) => f.type === 'standardProject' && f.player === 'red');
+    expect(sp!.metrics.projects, 'still only the asteroid').to.eq(1);
+  });
+
   it('a card effect raising temperature is not a standard project', () => {
     const s = new FactStream();
     const r = s.root({gen: 4, player: 'blue', source: {kind: 'card', card: CardName.GIANT_ICE_ASTEROID, owner: 'blue'}, category: 'card-play'});

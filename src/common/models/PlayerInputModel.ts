@@ -1,4 +1,5 @@
 import {CardModel} from './CardModel';
+import type {PatentSaleModel} from './PatentSaleModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
@@ -987,6 +988,13 @@ export type SelectCardModel = BaseInputModel & {
   // a translatable `Message` that i18n rewrites in place on render, so a
   // `title.includes('buy')` check silently broke in every non-English locale.
   buyMode?: boolean;
+  /**
+   * STRUCTURAL «this pick is THE PATENT SALE» (the standard project «Sell
+   * patents»): the rate one card sold pays and what the seller's table answers
+   * to it (`PatentSaleModel`). The console finds the sale by this marker — never
+   * by the prompt's title — and multiplies the rate by the cards picked.
+   */
+  patentSale?: PatentSaleModel;
 }
 
 export type SelectColonyModel = BaseInputModel & {

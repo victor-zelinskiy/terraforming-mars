@@ -208,6 +208,15 @@ export function withImpliedRating(effects: ReadonlyArray<ActionEffect>): Array<A
 export function drawGain(amount: number): ActionEffect {
   return {direction: 'gain', icon: 'cards', amount, note: 'draw'};
 }
+/**
+ * A draw that turns `revealed` cards over and keeps `keep` of them («X cards from
+ * the deck, take 1, discard the rest» — TR46): the chip's amount is the card(s)
+ * kept; the `look` names how many left the deck. `revealed <= keep` is a plain draw.
+ */
+export function deckLookGain(revealed: number, keep: number): ActionEffect {
+  const chip = drawGain(Math.min(revealed, keep));
+  return revealed > keep ? {...chip, look: {revealed, keep}} : chip;
+}
 /** Add a card resource to ANOTHER / ANY card (target chosen in a step) — no current. */
 export function cardResourceGain(resource: CardResource, amount: number): ActionEffect {
   return {direction: 'gain', icon: cardResourceIcon(resource), amount, note: 'to a card'};

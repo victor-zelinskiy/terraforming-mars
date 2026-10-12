@@ -178,6 +178,14 @@ export type ActionEffect = {
    * The chip's form and numbers do not change — it only knows the rule.
    */
   search?: DrawSearchModel;
+  /**
+   * A draw that TURNS OVER more cards than it keeps («look at X, take 1, discard
+   * the rest» — TR46 Research Startups' action): the chip's `amount` is what
+   * lands in the hand (`keep`), `revealed` how many leave the deck, so the chip
+   * reads «+1 · of 5 turned over» and the rest's way to the discard is named
+   * before the press. Only on a `cards` chip; absent for a draw that keeps all.
+   */
+  look?: {revealed: number, keep: number};
 };
 
 /**

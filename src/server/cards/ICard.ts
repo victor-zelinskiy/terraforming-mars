@@ -290,6 +290,21 @@ export interface ICard {
    */
   onMarsBotMicrobeAdvancement?(cardOwner: IPlayer): void;
   onStandardProject?(player: IPlayer, project: IStandardProjectCard): void;
+  /**
+   * THE PATENT SALE (fork hook — Turmoil Redux TR46 Research Startups: «When you
+   * Sell Patents, add 1 data here per card sold»): called on the SELLER's own
+   * tableau with the cards the standard project «Sell patents» just discarded.
+   * Its ONE writer is `SellPatentsStandardProject`, inside a `standard-project`
+   * effect scope per card. `onStandardProject` carries no count, and the count
+   * is never to be read off the hand before / after.
+   */
+  onPatentsSold?(player: IPlayer, sold: ReadonlyArray<ICard>): void;
+  /**
+   * The forecast twin of {@link onPatentsSold} — what selling `count` cards pays
+   * THIS card's owner, by the live hook's own rate. Read-only; asked by
+   * `effectForecast.patentSaleForecast` (the sale prompt's `patentSale` model).
+   */
+  patentsSoldForecast?(owner: IPlayer, count: number): ReadonlyArray<EffectForecastFact>;
   onTilePlaced?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, boardType: BoardType): void;
   onDiscard?(player: IPlayer): void;
   /**

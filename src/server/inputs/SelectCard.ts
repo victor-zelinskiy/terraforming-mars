@@ -10,6 +10,7 @@ import {cardsToModel} from '../models/ModelUtils';
 import {IPreludeCard, isPreludeCard} from '../cards/prelude/IPreludeCard';
 import {computePreludeOutlooks} from '../preludes/preludeOutlook';
 import {InputError} from './InputError';
+import {PatentSaleModel} from '../../common/models/PatentSaleModel';
 
 export type Options = {
   max: number,
@@ -47,6 +48,13 @@ export type Options = {
 }
 export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T>> {
   public config: Options;
+  /**
+   * THE PATENT SALE's model (`SelectCardModel.patentSale`) — a READER, not a value:
+   * the rate and the table's answers are derived on every serialization, so the
+   * summary is exactly as fresh as the prompt that carries it (a holder played,
+   * data spent, a reactor gone). Set only by `SellPatentsStandardProject`.
+   */
+  private patentSaleOf: ((player: IPlayer) => PatentSaleModel) | undefined;
 
   constructor(
     title: string | Message,
@@ -69,6 +77,12 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       showUnplayableReasons: config?.showUnplayableReasons ?? false,
     };
     this.buttonLabel = buttonLabel;
+  }
+
+  /** Mark this pick as THE PATENT SALE (see {@link patentSaleOf}). */
+  public markPatentSale(reader: (player: IPlayer) => PatentSaleModel): this {
+    this.patentSaleOf = reader;
+    return this;
   }
 
   public toModel(player: IPlayer): SelectCardModel {
@@ -156,6 +170,10 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     // …and the ENACTED RESOLUTION'S action (Open IP Trade's discard pick), the party action's twin.
     if (this.resolutionActionPrompt !== undefined) {
       model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
+    // THE PATENT SALE: nested in the action menu, so it rides the input's own toModel too.
+    if (this.patentSaleOf !== undefined) {
+      model.patentSale = this.patentSaleOf(player);
     }
     // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
     // recomputed on EVERY serialization on purpose.

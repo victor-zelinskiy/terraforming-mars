@@ -429,8 +429,10 @@ function maFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
 // standard ACTIONS (resource conversions), NOT standard projects — they must not inflate the
 // standard-project strategy count (Iteration 16 §13). Their parameter steps still count in the
 // player's overall globalParameter fact (temperature / oxygen), so the conversion is credited
-// to the planet, not to infrastructure.
-const CONVERSION_STANDARD_ACTIONS: ReadonlySet<CardName> = new Set([CardName.CONVERT_HEAT, CardName.CONVERT_PLANTS]);
+// to the planet, not to infrastructure. Selling patents roots under the same category since
+// TR46 (its +M€ and its reactors' answers need a cause) and is no infrastructure either — the
+// engine's own `standardProjectsThisGeneration` leaves it out for the same reason.
+const CONVERSION_STANDARD_ACTIONS: ReadonlySet<CardName> = new Set([CardName.CONVERT_HEAT, CardName.CONVERT_PLANTS, CardName.SELL_PATENTS_STANDARD_PROJECT]);
 function isConversionAction(s: EventSource | undefined): boolean {
   const card = sourceCardOf(s);
   return card !== undefined && CONVERSION_STANDARD_ACTIONS.has(card);

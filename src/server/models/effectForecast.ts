@@ -1264,6 +1264,34 @@ export function rewardReactionForecast(
   return facts.length === 0 ? undefined : {...emptyEffectForecast(), facts, coverage: coverageOf(facts)};
 }
 
+/**
+ * WHAT THE TABLE ANSWERS TO THE PATENT SALE of `count` cards (the standard
+ * project «Sell patents» — `common/models/PatentSaleModel.ts`): the project's
+ * own M€ through the reward pass above (a reactor to the gain, the parties,
+ * the enacted law); then the SELLER's `onPatentsSold` reactors in the live
+ * walk's order (`SellPatentsStandardProject` walks the seller's tableau) each
+ * through its co-located `patentsSoldForecast` — a reactor with the live hook
+ * and no twin is an honest `unknown`; then what answers THEM (the cascade:
+ * TR18 Martian Fiber's M€ for TR46 Research Startups' data, PL-189). `project`
+ * is the sale's card — the source no reactor is. Read-only.
+ */
+export function patentSaleFacts(player: IPlayer, project: ICard, count: number): Array<EffectForecastFact> {
+  if (count <= 0) {
+    return [];
+  }
+  const ctx: EffectForecastContext = {operation: 'action', card: project, tiles: []};
+  const sold: Array<EffectForecastFact> = [];
+  for (const reactor of player.tableau) {
+    if (reactor.onPatentsSold === undefined) {
+      continue;
+    }
+    const own = reactor.patentsSoldForecast?.(player, count);
+    sold.push(...(own ?? [unknownFor(reactor, player, player, 'standard-project', 'This card reacts to the sale, but its result is not described')]));
+  }
+  const answers = [...sold, ...cascadeFacts(player, project, sold, ctx)].map((fact) => stampHosts(fact, project));
+  return [...rewardReactionFacts(player, project, [stockGain(player, Resource.MEGACREDITS, count)]), ...answers];
+}
+
 /** The forecast of PLAYING `card` (a hand card, a prelude, the picked corporation). */
 export function effectForecastForPlay(player: IPlayer, card: ICard, preview: ActionPreview): EffectForecast {
   return buildForecast(player, card, preview, 'play');
@@ -1301,4 +1329,6 @@ export const FORECAST_HOOK_PAIRS: ReadonlyArray<{live: keyof ICard, forecast: ke
   {live: 'onGlobalParameterRaised', forecast: 'grantForecast'},
   // A colony built is a `colony` grant: every seat's «when any colony is placed».
   {live: 'onColonyAddedByAnyPlayer', forecast: 'grantForecast'},
+  // The patent sale (TR46): the seller's «when you sell patents» — the sale prompt's `patentSale` model.
+  {live: 'onPatentsSold', forecast: 'patentsSoldForecast'},
 ];

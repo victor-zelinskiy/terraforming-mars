@@ -384,6 +384,12 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     if (e.id === rootId || e.parentId === undefined || MARKER_TYPES.has(e.type)) {
       continue;
     }
+    // …and a COUNTED card-resource gain never folds either: its reason («for 3 patents sold» — TR46 answering the
+    // sale from inside its effect scope) is a row of its own, under the same source. Folded into the marker, the
+    // number reached the journal and the rival without the reason it was counted by.
+    if (e.type === 'card-resource-changed' && e.impact.cardResources?.some((cr) => cr.basis !== undefined) === true) {
+      continue;
+    }
     const parent = byId.get(e.parentId);
     if (parent !== undefined && MARKER_TYPES.has(parent.type)) {
       const arr = foldedChips.get(e.parentId) ?? [];
