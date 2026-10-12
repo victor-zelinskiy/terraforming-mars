@@ -1857,6 +1857,11 @@ export default defineComponent({
      * plural follows the count, which is known from the claim.
      */
     beatTitleKey(): string {
+      // A LOOK («X cards off the deck, keep 1» — the branch's draw chip carries `look`) does not RECEIVE the cards it
+      // turns over: four of five go to the discard, and «Получены карты» over them promised the hand five (PL-205).
+      if ((this.selectedBranch?.effects ?? []).some((e) => e.look !== undefined)) {
+        return this.beatCount > 1 ? 'Cards turned over' : 'Card turned over';
+      }
       return this.beatCount > 1 ? 'Cards received' : 'Card received';
     },
     /** The outcome stage owns the column (any flavour) — drives the phrase. */
