@@ -236,7 +236,7 @@
                 </template>
               </div>
               <div v-else-if="immediateEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips">
-                <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" />
+                <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
               </div>
               <!-- «ПОЧЕМУ» (PL-156, the owner's M1 2026-10-11): a walk whose length the card COUNTS (TR42) explains its
                    number as a READING of the result, at the chips' scale, right under them — never as a «ДАЛЕЕ» row (the
@@ -260,6 +260,9 @@
                 </template>
                 <span class="con-composer__why-next">{{ whyNext }}</span>
               </div>
+              <!-- «ПОЧЕМУ» OF A COUNTED PLAY — the block's SECOND reader (TR45): the census's composition behind the number,
+                   the ONE strip the board peek's HUD shows too (`ConsoleCountedWhy`). -->
+              <ConsoleCountedWhy v-else-if="countWhy !== undefined" class="con-composer__countwhy" :why="countWhy" />
 
               <!-- ── THE SECOND LEVEL — what the card IS once it is on the
                    table (a new action, an ongoing effect, endgame points, the
@@ -776,6 +779,9 @@ import ConsolePlayedReceivingStage from '@/client/components/console/played/Cons
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
+import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
+import {CountedWhy, countedWhyOf} from '@/client/console/countedPlay';
+import {boardPeekState, closeBoardPeek, openBoardPeek, peekable} from '@/client/console/boardPeek';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import {NextStepRow, noteRow, placementRow, searchRows} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
@@ -900,7 +906,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -919,6 +925,7 @@ export default defineComponent({
   emits: ['confirm', 'cancel'],
   data() {
     return {
+      boardPeekUi: boardPeekState,
       preview: undefined as ActionPreview | undefined,
       loading: true,
       /** This mount is the RETURN from a staged step (its draft is waiting to be applied): the card was on
@@ -1210,6 +1217,10 @@ export default defineComponent({
     /** PL-156 — the counted walk's «why», read off the server's breakdown (`agendaWalkWhy` — pure, spec'd). */
     walkWhy(): AgendaWalkWhy | undefined {
       return agendaWalkWhy(this.agendaWalkOf(this.selectedBranch));
+    },
+    /** TR45 — the counted play's «why» (the census's composition), read off the chosen branch's own chips. */
+    countWhy(): CountedWhy | undefined {
+      return this.walkWhy === undefined ? countedWhyOf(this.selectedBranch?.effects) : undefined;
     },
     whyKicker(): string {
       return this.walkWhy === undefined ? '' : translateTextWithParams('Why ${0} step(s)', [String(this.walkWhy.sets)]);
@@ -2034,6 +2045,8 @@ export default defineComponent({
         primaryEnabled: this.primaryFooter.enabled,
         quickAdjust,
         forecast: this.forecastCanOpen,
+        boardPeek: this.sub === undefined && peekable(this.countWhy),
+        boardPeekOpen: this.boardPeekUi.peek !== undefined,
         // The radiogroup's live axis — «◄► Вариант» while the cursor stands in
         // a side-by-side group.
         variantAxis: this.focusedKind === 'variant' ? this.variantAxis : undefined,
@@ -2165,6 +2178,7 @@ export default defineComponent({
           armForecastInstantFold();
           closeEffectForecastLayer('play');
         }
+        closeBoardPeek(true);
         this.resetCaptures();
         this.payCounts = initialCounts(this.cost, this.payLanes, this.megacreditsOnHand);
         this.focusIdx = 0;
@@ -2299,10 +2313,16 @@ export default defineComponent({
   beforeUnmount() {
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
+    closeBoardPeek(true);
     this.stopVariantObs?.();
     this.stopVariantObs = undefined;
   },
   methods: {
+    /** The chip whose basis the «ПОЧЕМУ» strip reads (TR45): the same pool — the strip, not the chip, says why. */
+    basisReadByStrip(eff: ActionEffect): boolean {
+      const chip = this.countWhy?.chip;
+      return chip !== undefined && eff.basis !== undefined && eff.icon === chip.icon && eff.note === chip.note && eff.direction === chip.direction;
+    },
     // The composer ⇄ «Эффекты» layer transition hooks (the descend phrase) —
     // exposed as methods so the template's <transition> can bind them.
     forecastFocusEnterHook,
@@ -2939,6 +2959,19 @@ export default defineComponent({
       // resolved BEFORE the semantic map, which has no default verb for R3.
       if (this.fxOpen) {
         this.onForecastIntent(intent);
+        return;
+      }
+      // THE BOARD PEEK (TR45) owns the pad while it is open: L3 and B bring the composer back, everything else is
+      // absorbed — the peek is a reading, the board under it takes no input. L3 at the review level opens it.
+      if (this.boardPeekUi.peek !== undefined) {
+        if (intent.kind === 'press' && (intent.button === 'stickL' || consoleActionOf(intent) === 'back')) {
+          closeBoardPeek();
+        }
+        return;
+      }
+      const why = this.countWhy;
+      if (intent.kind === 'press' && intent.button === 'stickL' && this.sub === undefined && why !== undefined && peekable(why)) {
+        openBoardPeek(why);
         return;
       }
       if (intent.kind === 'press' && intent.button === 'stickR') {

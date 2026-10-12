@@ -97,6 +97,17 @@ export interface CardModel {
      * and the inspector's «ДЛЯ ВАС» row read it; the client computes no step.
      */
     agendaWalk?: AgendaWalkModel;
+    /**
+     * A COUNTED PLAY — what playing this card would give where the amount is
+     * COUNTED off the table (TR45 «1 microbe per tile on Mars», TR23 «1 data per
+     * colony in play», TR43 «1 M€ production per ocean», the upstream «per tag /
+     * per city» plays): the play preview's own chips with their basis (and its
+     * composition — `ActionEffectBasis.parts`), read by the server through
+     * `countedPlayEffects` — the SAME builder the composer reads. Set only for
+     * the viewer's OWN cards in hand; the hand tile's forecast plate («+14
+     * [microbe]») and the inspector's «ДЛЯ ВАС» read it; the client counts nothing.
+     */
+    countedPlay?: ReadonlyArray<ActionEffect>;
     // Structured reasons this card's activatable ACTION can't be used right now.
     // Set for (a) the viewer's OWN tableau (their PublicPlayerModel is the
     // self-model) — an action card whose action is currently unavailable AND not

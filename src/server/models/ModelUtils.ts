@@ -19,6 +19,7 @@ import {standardProjectUnavailableReasons} from './standardProjectReasons';
 import {buildStandardProjectPreview} from './standardProjectPreview';
 import {Message} from '../../common/logs/Message';
 import {isFleetDocked} from '../colonies/FleetDock';
+import {countedPlayEffects} from './actionPreview';
 
 export function cardsToModel(
   player: IPlayer,
@@ -150,6 +151,14 @@ export function cardsToModel(
     // as the reasons), inside the Mars Parliament: the card's own reading, never a second one.
     if (options.unplayableReasons === true && card.agendaWalkForecast !== undefined && player.game.parliament !== undefined) {
       model.agendaWalk = card.agendaWalkForecast(player);
+    }
+    // A play COUNTED off the table (TR45's tiles on Mars, TR23's colonies, …) — the OWN hand only (the same opt-in),
+    // the counted members of the declaration through the play preview's own chip builder: one reading, three surfaces.
+    if (options.unplayableReasons === true && card.behavior !== undefined) {
+      const counted = countedPlayEffects(player, card);
+      if (counted.length > 0) {
+        model.countedPlay = counted;
+      }
     }
     if (actionReasonList !== undefined) {
       model.actionReasons = actionReasonList;

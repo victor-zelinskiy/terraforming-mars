@@ -28,6 +28,7 @@
  * (tests/client/components/console/consolePlayCardComposer.spec.ts).
  */
 
+import {CountedWhy, countedWhyRow} from './countedPlay';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
@@ -458,6 +459,21 @@ export function agendaWalkForYouAnnotation(walk: AgendaWalkModel, t: RowTranslat
 }
 
 /**
+ * THE INSPECTOR'S «ДЛЯ ВАС» of a COUNTED play (TR45 — «1 microbe per tile on
+ * Mars»): the SAME reading the composer's «ПОЧЕМУ» block draws, as one line —
+ * «Тайлы на Марсе 14 = 4 города + 5 озеленений + 4 океана + 1 спецтайл → +14
+ * на эту карту · не считаются: 1 вне Марса» — off the server's own chips for the
+ * viewer's hand card (`CardModel.countedPlay`). One function, so the composer
+ * and the inspector cannot say two things.
+ */
+export function countedPlayForYouAnnotation(why: CountedWhy, t: RowTranslator): CardAnnotation {
+  return {
+    id: 'group:you', kind: 'note', labelKey: 'For you', special: false, anyPlayer: false, order: 99,
+    rows: [{id: 'group:you:0', text: '${0}', params: [countedWhyRow(why, t)], special: false, anyPlayer: false}],
+  };
+}
+
+/**
  * The «what happens next» row of a door whose decision is NOT a tile (the
  * board's own row is the placement presenter's): the name of the step, never
  * a guess about its result.
@@ -832,6 +848,10 @@ export type PlayFootContext = {
    * offered).
    */
   forecast?: boolean;
+  /** L3 — «Показать на поле»: the counted play's cells can be shown on the board (TR45's census — the board peek). */
+  boardPeek?: boolean;
+  /** The board peek is OPEN: the bar is its way back, nothing else. */
+  boardPeekOpen?: boolean;
   /**
    * The «ИЛИ» radiogroup's live axis while the cursor stands IN it
    * (`focusedKind === 'variant'`): `row` publishes «◄► Вариант» — the options
@@ -851,6 +871,11 @@ export type PlayFootContext = {
  * unit-tested, not eyeballed.
  */
 export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
+  if (ctx.boardPeekOpen === true) {
+    // THE BOARD PEEK is a level INSIDE the composer: its only verbs are the way back — on the stick that opened it and
+    // on B — so the peek is a toggle the player can never get stuck in (the payment editor's own grammar).
+    return [{control: 'stickL', control2: 'back', label: 'Back to the play'}];
+  }
   if (ctx.sub === 'payment') {
     // The EXPANDED payment editor — the same block, opened. The way back is
     // offered on BOTH the trigger that opened it and B, so the density switch
@@ -929,6 +954,11 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   // is offered: inside a pick / the payment editor R3 stays silent.
   if (ctx.forecast === true) {
     hints.push({control: 'stickR', label: 'Effects'});
+  }
+  // L3 — the SOURCE of the counted number on the board (TR45: the tiles the census counted), the grammar «L3 —
+  // the source of what came out». Offered only when there is a cell to show.
+  if (ctx.boardPeek === true) {
+    hints.push({control: 'stickL', label: 'Show on the board'});
   }
   hints.push({control: 'back', label: 'Cancel'});
   return hints;

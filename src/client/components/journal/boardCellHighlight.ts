@@ -30,8 +30,15 @@ const activeTimers = new Map<SpaceId, number>();
 
 // The board is split across a few independent regions depending on the
 // expansions in play. Searching all of them keeps Mars + Moon working
-// through the same entry point.
-const BOARD_REGION_IDS = ['main_board', 'moon_board', 'moon_board_outer_spaces'];
+// through the same entry point — and the OFF-MARS flank (`colony_spaces`:
+// Ganymede, Phobos, the Venus cities, Aurora Station), whose cells carry the
+// same overlay: without it «Показать» on a city off Mars lit nothing.
+const BOARD_REGION_IDS = ['main_board', 'colony_spaces', 'moon_board', 'moon_board_outer_spaces'];
+
+/** The hex overlay a board cell renders (`.board-log-highlight`) — the ONE lookup of «light this cell». */
+export function findBoardOverlay(spaceId: SpaceId): HTMLElement | undefined {
+  return findOverlay(spaceId);
+}
 
 function findOverlay(spaceId: SpaceId): HTMLElement | undefined {
   for (const region of BOARD_REGION_IDS) {

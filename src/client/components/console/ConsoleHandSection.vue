@@ -243,18 +243,22 @@
               <span v-else-if="selectActive && !isSelectable(cell.e.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
               <span v-else-if="selectActive && isBonusFresh(cell.e.card.name)" class="con-hand__fresh" data-hand-fresh aria-hidden="true">{{ freshBonusText }}</span>
               <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(cell.e) || '') }}</span>
-              <!-- THE WALK'S FORECAST (К-H1, the owner's decision 2026-10-10): a card that advances the Agenda marker
-                   says HOW FAR before the composer opens — «[★] 2», the server's own reading of THIS player's walk
-                   (`CardModel.agendaWalk`: TR42 counts it from the rating, TR04 / TR37 / TR12 print it and the track
-                   may cut it). Quiet, never a blocker: no red, the art's lower edge, a zero muted («[★] 0» — the
-                   composer and the inspector say why). Rules-playable only — a refusal speaks first. -->
-              <span v-else-if="!saleActive && !selectActive && cell.e.potential && cell.e.card.agendaWalk !== undefined"
-                    class="con-hand__walk"
-                    :class="{'con-hand__walk--zero': cell.e.card.agendaWalk.walked === 0}"
-                    :data-hand-walk="cell.e.card.agendaWalk.walked"
+              <!-- THE FORECAST PLATE — one grammar, two readers (`countedPlay.handForecastPlate`): a card that
+                   advances the Agenda marker says HOW FAR (К-H1, TR42 — «[★] 2», `CardModel.agendaWalk`), a play
+                   COUNTED off the table says HOW MANY (the owner's decision 2026-10-12, TR45 — «[microbe] +14», the
+                   play preview's own chips `CardModel.countedPlay`). The server's number before the composer opens.
+                   Quiet, never a blocker: no red, the art's lower edge, a zero muted and never hidden. Rules-playable
+                   only — a refusal speaks first. -->
+              <span v-else-if="!saleActive && !selectActive && cell.e.potential && forecastPlates.has(cell.e.card.name)"
+                    class="con-hand__plate"
+                    :class="['con-hand__plate--' + forecastPlates.get(cell.e.card.name)?.kind, {'con-hand__plate--zero': forecastPlates.get(cell.e.card.name)?.zero}]"
+                    :data-hand-walk="forecastPlates.get(cell.e.card.name)?.kind === 'walk' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
+                    :data-hand-count="forecastPlates.get(cell.e.card.name)?.kind === 'count' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
                     aria-hidden="true">
-                <span class="con-hand__walk-icon resource_icon resource_icon--agenda-step"></span>
-                <span class="con-hand__walk-n">{{ cell.e.card.agendaWalk.walked }}</span>
+                <span v-for="(item, k) in forecastPlates.get(cell.e.card.name)?.items ?? []" :key="k" class="con-hand__plate-item">
+                  <span class="con-hand__plate-icon" :class="[item.iconClass, {'con-hand__plate-icon--prod': item.production}]"></span>
+                  <span class="con-hand__plate-n">{{ item.signed ? signedAmount(item.amount) : item.amount }}</span>
+                </span>
               </span>
             </div>
           </div>
@@ -494,6 +498,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
 import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {HandForecastPlate, handForecastPlate, signedAmount} from '@/client/console/countedPlay';
 
 export type ConsoleHandEntry = {
   card: CardModel,
@@ -737,6 +742,17 @@ export default defineComponent({
     };
   },
   computed: {
+    /** Every hand card's forecast plate (a walk or a counted play), keyed by name — the server's reading, never a client count. */
+    forecastPlates(): ReadonlyMap<CardName, HandForecastPlate> {
+      const out = new Map<CardName, HandForecastPlate>();
+      for (const e of this.entries) {
+        const plate = handForecastPlate(e.card);
+        if (plate !== undefined) {
+          out.set(e.card.name, plate);
+        }
+      }
+      return out;
+    },
     /** The workspace has been descended into — the browse layer is parked. */
     stageOpen(): boolean {
       return this.stage !== undefined;
@@ -1303,6 +1319,9 @@ export default defineComponent({
       return this.select?.reasons[name] ?? '';
     },
     /** Compact blocker chip label for an unavailable card (english i18n key). */
+    signedAmount(n: number): string {
+      return signedAmount(n);
+    },
     chipLabel(entry: ConsoleHandEntry): string | undefined {
       return shortBlockerLabel(entry.card.unplayableReasons ?? []);
     },

@@ -75,7 +75,7 @@
          count never lands in the middle of the reading («0 → 0 производство ·
          без эффекта | Метки соперников: 0»). It is also what makes a ZERO
          legible rather than baffling — the answer to the question a bare 0 asks. -->
-    <span v-if="basisTerms.length > 0" class="action-effect-chip__basis">
+    <span v-if="basisTerms.length > 0 && !basisInStrip" class="action-effect-chip__basis">
       <span v-for="(b, i) in basisTerms" :key="i" class="action-effect-chip__basis-term">
         <span class="action-effect-chip__basis-label" v-i18n>{{ b.label }}</span>
         <!-- The counted TAG as its own icon: one label per SCOPE instead of one
@@ -121,6 +121,12 @@ export default defineComponent({
     moves: {
       type: Array as PropType<ReadonlyArray<number>>,
       default: undefined,
+    },
+    // The chip's basis is READ by a «ПОЧЕМУ» strip beside it (TR45 — a counted play's composition): the chip states the
+    // change and the strip says why, so the pill would say the same count twice. The data is untouched.
+    basisInStrip: {
+      type: Boolean,
+      default: false,
     },
   },
   computed: {

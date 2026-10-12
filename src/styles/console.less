@@ -9414,18 +9414,20 @@ html.console-mode {
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
     }
-    /* THE WALK'S FORECAST plate (К-H1, TR42): «[★] 2» on a card that advances the Agenda marker — how far THIS
-       player's play would walk, read off the server's `CardModel.agendaWalk`. Information, never a blocker: the
-       blocker chip's place and counter-zoom, quieter — the cyan kant of a positive reading at the art's lower edge
-       (the mechanics plate stays clear), a zero muted by weight and colour. */
-    &__walk {
+    /* THE FORECAST PLATE — one grammar, two readers (`countedPlay.handForecastPlate`): «[★] 2» on a card that
+       advances the Agenda marker (К-H1, TR42 — how far), «[microbe] +14» on a play counted off the table (TR45 — how
+       many; the owner's decision 2026-10-12: every counted play in scope). Information, never a blocker: the blocker
+       chip's place and counter-zoom, quieter — the cyan kant of a positive reading at the art's lower edge (the
+       mechanics plate stays clear), a zero muted by weight and colour. A production step wears the production plate
+       on its icon (the forecast row's own idiom), so «+2 M€» and «+2 M€ production» never read alike. */
+    &__plate {
         position: absolute;
         left: 50%;
         top: 56%;
         transform: translate(-50%, -50%);
         display: inline-flex;
         align-items: center;
-        gap: .3rem;
+        gap: .55rem;
         padding: .2rem .55rem .2rem .4rem;
         border-radius: .55rem;
         background: rgba(8, 13, 20, 0.88);
@@ -9434,6 +9436,7 @@ html.console-mode {
         font-size: 1.05rem;
         font-weight: 800;
         line-height: 1;
+        white-space: nowrap;
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
         &--zero {
@@ -9442,10 +9445,27 @@ html.console-mode {
             font-weight: 600;
         }
     }
-    &__walk-icon {
+    &__plate-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+    }
+    &__plate-icon {
         display: inline-block;
         width: 1.25rem;
         height: 1.25rem;
+        flex: none;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        &--prod {
+            padding: .1rem;
+            box-sizing: content-box;
+            background-origin: content-box;
+            background-color: rgba(122, 78, 40, 0.92);
+            border-radius: .2rem;
+            box-shadow: inset 0 0 0 .05rem rgba(232, 196, 150, 0.55);
+        }
     }
     /* The «Роботы» badge (a card hosted on Self-Replicating Robots).
        ⚠️ ROOT CAUSE OF THE OVERSIZED PLATE, and the reason this comment
@@ -34279,6 +34299,154 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 }
 
 /* ── Play-card composer: a two-column card · pre-select layout ───────────── */
+/* THE «ПОЧЕМУ» STRIP — one look for every reading of a counted result: the walk's (PL-156, `.con-composer__why`)
+   and the counted play's (TR45, `.con-cwhy`). A strip of the RESULT, one notch LOUDER than the compact chips above
+   it (the why is the card's subject), the cyan kant of a reading, numbers by weight. */
+.con-why-strip() {
+    display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .5rem;
+    padding: .4rem .75rem; border-radius: .55rem;
+    background: rgba(20, 40, 60, 0.55);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+    font-size: ~"calc(var(--con-chip-c-fs, .82rem) + .16rem)";
+    font-weight: 600;
+    color: #e8f6ff;
+}
+/* «ПОЧЕМУ» OF A COUNTED PLAY (TR45 — `ConsoleCountedWhy`, two hosts: the play composer's RESULT and the board peek's
+   HUD). The card's printed «per X» glyph — a FACE item (`PremiumMechNode`) at the strip's scale, so the reading starts
+   with the icon the player read on the card — the count, «=», the shares by kind (their board pictograms, numbers by
+   weight), «→» the result in the gain's mint; what the census names and does not count at the right edge. The face's
+   tokens a glyph reads outside a card (`--pcard-mech-icon`, the «any player» hue) are restated: a strip is not a
+   card. A share the peek reads right now is LIT (weight + the strip's cyan), the others recede by opacity only. */
+.con-cwhy {
+    .con-why-strip();
+    &__kicker { font-size: .78em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 92%); }
+    &__label { font-weight: 700; }
+    &__num { font-size: 1.2em; font-weight: 800; }
+    &__glyph {
+        display: inline-flex; align-items: center; justify-content: center; flex: none;
+        --pcard-mech-icon: 1.8em;
+        --pcard-mech-font: 1em;
+        --pcard-any-rgb: 207, 122, 99;
+        line-height: 1;
+    }
+    &__glyph--part { --pcard-mech-icon: 1.45em; }
+    &__op { color: @con-text-dim; font-weight: 700; }
+    &__arrow { color: @con-text-dim; }
+    &__part {
+        display: inline-flex; align-items: center; gap: .2em;
+        padding: .1em .3em; border-radius: .4em;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease, box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+        &--lit { box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 80%); background: fade(@con-cyan, 14%); }
+        &--dim { opacity: .5; }
+    }
+    &__result { display: inline-flex; align-items: center; gap: .25em; color: fade(@con-mint, 96%); }
+    &__ico { display: inline-block; width: 1.4em; height: 1.4em; flex: none; background-size: contain; background-position: center; background-repeat: no-repeat; }
+    &__zero {
+        display: inline-flex; align-items: center;
+        padding: .15em .5em; border-radius: .45em;
+        background: rgba(30, 40, 50, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 40%);
+        color: @con-text-dim; font-weight: 700;
+    }
+    /* What the census names and does not count — an ANNOTATION of the reading, pinned to the strip's right edge (the
+       walk's «до следующего» idiom), amber by tone: «не считаются», never an error. */
+    &__excluded {
+        margin-left: auto; color: fade(@con-amber, 90%); font-weight: 600;
+        &--lit { box-shadow: inset 0 0 0 .06rem fade(@con-amber, 70%); border-radius: .4em; padding: .1em .3em; }
+    }
+}
+
+/* THE BOARD PEEK (TR45 — L3 «Показать на поле» in the play composer, `boardPeek.ts`): a level INSIDE the composer.
+   The board is shown UNDER the standing workspace, then the workspace and the shared dim RECEDE by opacity (the same
+   instance, its picks and payment alive — «свернуть ≠ закрыть») and come back on L3 / B: one fade, both ways, carried
+   by `--peeking` for the whole round trip. The counted cells are the server's; the roll call lights one share at a
+   time (its chip lit in the HUD strip in the same beat), the uncounted stand amber. Opacity only — compositor work. */
+.con-root--peeking {
+    .con-hand,
+    .con-shade {
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+    }
+}
+.con-root--board-peek {
+    .con-hand,
+    .con-shade {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+/* THE SPOTLIGHT: while the board IS the screen, every cell the reading does not name recedes (empty hexes, their
+   printed bonuses, an uncounted cell no rule names) — the counted tiles and the named uncounted ones stand in full
+   light, so «14» is a set of hexes the eye finds at once from the couch. Opacity on the space — one change, faded. */
+.con-root--peeking .board-space[data_space_id] {
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+}
+.con-root--board-peek {
+    #main_board .board-space[data_space_id]:not(.con-peek-space),
+    .board-outer-spaces .board-space[data_space_id]:not(.con-peek-space) {
+        opacity: .32;
+    }
+}
+.con-boardpeek {
+    position: absolute;
+    left: 50%;
+    top: 1rem;
+    transform: translateX(-50%);
+    z-index: 30;
+    max-width: min(94%, 80rem);
+    pointer-events: none;
+    .con-cwhy {
+        background: rgba(8, 14, 22, 0.92);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 50%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.55);
+        font-size: 1.1rem;
+        padding: .5rem 1rem;
+    }
+}
+.con-boardpeek-enter-active,
+.con-boardpeek-leave-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease, transform calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-boardpeek-enter-from,
+.con-boardpeek-leave-to {
+    opacity: 0;
+    transform: translate(-50%, -.4rem);
+}
+/* The cells: the board's own hex overlay (`.board-log-highlight` — the journal's «Показать» uses it too) becomes a
+   HEX RING around the cell — a fill would wash the tile art the player is reading (a 22 % tint vanished on the bright
+   tiles, the stand's first frame). The ring is the overlay's own background cut by an even-odd polygon (outer hex,
+   inner hex walked back): thin cyan on every counted cell, THICK and pulsing on the share the roll call reads (weight
+   and form, never colour alone), amber on what the census names and does not count. The pulse is the ring's opacity
+   — compositor work, re-armed by the roll call each beat. */
+.board-log-highlight.con-peek-cell {
+    z-index: 3;
+    background-color: fade(@con-cyan, 92%);
+    opacity: .6;
+    clip-path: polygon(evenodd,
+        50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 50% 0%,
+        50% 7%, 6% 28.5%, 6% 71.5%, 50% 93%, 94% 71.5%, 94% 28.5%, 50% 7%);
+}
+.board-log-highlight.con-peek-cell--excluded {
+    background-color: fade(@con-amber, 95%);
+    opacity: .9;
+}
+.board-log-highlight.con-peek-cell--lit {
+    opacity: 1;
+    clip-path: polygon(evenodd,
+        50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 50% 0%,
+        50% 12%, 10.5% 31%, 10.5% 69%, 50% 88%, 89.5% 69%, 89.5% 31%, 50% 12%);
+    animation: con-peek-lit calc(1400ms * var(--motion-scale, 1)) ease-out both;
+}
+@keyframes con-peek-lit {
+    0% { opacity: .55; }
+    20% { opacity: 1; }
+    60% { opacity: .7; }
+    100% { opacity: .95; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .board-log-highlight.con-peek-cell--lit { animation: none; }
+    .con-root--peeking .con-hand,
+    .con-root--peeking .con-shade { transition: none; }
+}
+
 .con-composer {
     &__panel--play { width: min(59rem, 100%); }
 
@@ -34330,15 +34498,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     /* «ПОЧЕМУ» (PL-156, M1): the counted walk's reading — a strip of the RESULT, one notch LOUDER than the compact
        chips above it (the why is the card's subject), the cyan kant of a reading, numbers by weight. A zero leads
        with a muted «[★] маркер стоит» — the result a chip would have stated, quiet by weight and colour. */
-    &__why {
-        display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .5rem;
-        padding: .4rem .75rem; border-radius: .55rem;
-        background: rgba(20, 40, 60, 0.55);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
-        font-size: ~"calc(var(--con-chip-c-fs, .82rem) + .16rem)";
-        font-weight: 600;
-        color: #e8f6ff;
-    }
+    &__why { .con-why-strip(); }
     &__why-kicker { font-size: .78em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-cyan, 92%); }
     &__why-ico { display: inline-block; width: 1.2em; height: 1.2em; flex: none; }
     &__why-num { font-size: 1.2em; font-weight: 800; }

@@ -440,7 +440,7 @@ for (const preset of PRESETS) {
       const plate = page.locator(`${slot} [data-hand-walk]`);
       await expect(plate, 'the walk card wears its forecast plate').toHaveCount(1);
       await expect(plate).toHaveAttribute('data-hand-walk', '2');
-      await expect(plate, 'a walk that moves is not muted').not.toHaveClass(/con-hand__walk--zero/);
+      await expect(plate, 'a walk that moves is not muted').not.toHaveClass(/con-hand__plate--zero/);
       await expect(plate.locator('.resource_icon--agenda-step'), 'the plate wears the track\'s own unit').toHaveCount(1);
       await shoot(page, preset.id, '00-hand-33');
 
@@ -548,7 +548,7 @@ for (const preset of PRESETS) {
       await focusInHand(page);
       const plate = page.locator(`${slot} [data-hand-walk]`);
       await expect(plate, 'the zero is a plate too — «0», muted').toHaveAttribute('data-hand-walk', '0');
-      await expect(plate).toHaveClass(/con-hand__walk--zero/);
+      await expect(plate).toHaveClass(/con-hand__plate--zero/);
       await shoot(page, preset.id, '10-hand-23');
 
       await openZoomViewer(page);

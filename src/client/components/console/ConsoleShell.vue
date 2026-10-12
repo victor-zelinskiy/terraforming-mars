@@ -118,7 +118,9 @@
                             @aux-press="onAuxCellPressed" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
-      <ConsoleBoardSection v-show="consoleState.section === 'board'"
+      <!-- …and UNDER a standing workspace while its board PEEK is open (TR45 — L3 «Показать на поле» in the play
+           composer): the workspace recedes by opacity over it, keeping its state (`boardPeek.ts`). -->
+      <ConsoleBoardSection v-show="consoleState.section === 'board' || boardPeekUi.peek !== undefined"
                            ref="boardSection"
                            :playerView="playerView"
                            :placementActive="placementActive"
@@ -128,6 +130,13 @@
                            :movePick="placementMoveLevelNow === 'source'"
                            :moveFrom="placementMoveFrom"
                            :inspecting="consoleState.inspecting" />
+      <!-- THE BOARD PEEK's HUD (TR45): the SAME «why» strip the composer shows (`ConsoleCountedWhy`), standing over
+           the board while the roll call lights its shares — «4 города» is four pulsing hexes and a lit chip at once. -->
+      <transition name="con-boardpeek">
+        <div v-if="boardPeekUi.shown && boardPeekUi.peek !== undefined" class="con-boardpeek" data-board-peek>
+          <ConsoleCountedWhy :why="boardPeekUi.peek.why" :lit="boardPeekUi.lit" />
+        </div>
+      </transition>
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board
            home's right edge; task overlays and workspaces stand OVER it. -->
@@ -1987,7 +1996,10 @@ import {forecastLayerAvailable} from '@/client/console/effectForecastModel';
 import {buildTradeBatch, colonyBuildAsksCardTarget, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeAsksCardTargets, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, tradeDestinationResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
-import {agendaWalkForYouAnnotation, buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
+import {agendaWalkForYouAnnotation, buildPlayCardBatch, countedPlayForYouAnnotation} from '@/client/console/consolePlayCardComposer';
+import {countedWhyOf} from '@/client/console/countedPlay';
+import {boardPeekState} from '@/client/console/boardPeek';
+import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
@@ -2379,6 +2391,7 @@ function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
+    ConsoleCountedWhy,
     ActionEffectChip,
     ConsoleForecastRow,
     ConsoleDrawSearchRule,
@@ -2500,6 +2513,7 @@ export default defineComponent({
   },
   data() {
     return {
+      boardPeekUi: boardPeekState,
       consoleState,
       consoleCardZoom,
       playedHeroState,
@@ -8068,6 +8082,10 @@ export default defineComponent({
         // cards paint over the very rail the plate just tucked behind
         // (the reported «на workspace карты поднимаются выше дока»).
         'con-root--footer-behind': this.dockBehindWorkspace,
+        // THE BOARD PEEK (TR45): `--peeking` from the press to the workspace's full return (it carries the fade both
+        // ways), `--board-peek` while the board IS the screen (the workspace and the shared dim recede).
+        'con-root--peeking': this.boardPeekUi.peek !== undefined,
+        'con-root--board-peek': this.boardPeekUi.shown,
       };
       // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
       // by the rail ring, the workspace seam AND the hand dock's inspection
@@ -9619,11 +9637,16 @@ export default defineComponent({
      */
     zoomCardForYouAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
       const name = this.zoomRulesCardName;
-      const walk = (this.consoleCardZoom.card as CardModel | undefined)?.agendaWalk;
-      if (name === undefined || walk === undefined) {
+      const card = this.consoleCardZoom.card as CardModel | undefined;
+      const walk = card?.agendaWalk;
+      // A play COUNTED off the table (TR45) reads its composition here too — the composer's own «why», as one row.
+      const counted = walk === undefined ? countedWhyOf(card?.countedPlay) : undefined;
+      if (name === undefined) {
         return undefined;
       }
-      return [...cardRuleAnnotations(name, this.zoomCoveredRequirements), agendaWalkForYouAnnotation(walk, {text: translateText, params: translateTextWithParams})];
+      const t = {text: translateText, params: translateTextWithParams};
+      const forYou = walk !== undefined ? agendaWalkForYouAnnotation(walk, t) : counted !== undefined ? countedPlayForYouAnnotation(counted, t) : undefined;
+      return forYou === undefined ? undefined : [...cardRuleAnnotations(name, this.zoomCoveredRequirements), forYou];
     },
     /** A parliament face's rules (Turmoil Redux) — only when the viewer is on a resolution / party entry. */
     zoomParliamentAnnotations(): ReadonlyArray<CardAnnotation> | undefined {

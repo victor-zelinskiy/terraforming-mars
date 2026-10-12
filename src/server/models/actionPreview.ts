@@ -442,6 +442,51 @@ const UNDERWORLD_LABEL: Record<typeof UNDERWORLD_KEYS[number], string> = {
 };
 
 /**
+ * A COUNTED PLAY — the chips of the card's on-play gains whose amount is
+ * COUNTED off the table («1 microbe per tile on Mars» TR45, «1 data per colony
+ * in play» TR23, «1 M€ production per ocean» TR43, Insects, Satellites, …):
+ * the hand tile's forecast plate and the inspector's «ДЛЯ ВАС» read them
+ * before the composer opens (the owner's decision 2026-10-12 — a CLASS, every
+ * counted play in scope stands up by itself, never a card hook).
+ *
+ * LIGHT on purpose — it rides every hand card on every view: only the
+ * declaration's VARIABLE members are read (no branches, no steps, no
+ * forecast), through the SAME chip builder and the SAME basis as the play
+ * preview (`effectsForBehavior` over the counted members alone), so the plate,
+ * the composer and the play can never say three numbers. Read-only.
+ */
+export function countedPlayEffects(player: IPlayer, card: ICard): ReadonlyArray<ActionEffect> {
+  const b = card.behavior;
+  if (b === undefined) {
+    return [];
+  }
+  const counted: Behavior = {};
+  if (isVariableAmount(b.addResources)) {
+    counted.addResources = b.addResources;
+  }
+  for (const key of ['stock', 'production'] as const) {
+    const units = b[key];
+    if (units === undefined) {
+      continue;
+    }
+    const variable = Object.entries(units).filter(([, raw]) => isVariableAmount(raw));
+    if (variable.length > 0) {
+      counted[key] = Object.fromEntries(variable);
+    }
+  }
+  if (isVariableAmount(b.tr)) {
+    counted.tr = b.tr;
+  }
+  if (typeof b.drawCard === 'object' && isVariableAmount(b.drawCard.count)) {
+    counted.drawCard = b.drawCard;
+  }
+  if (Object.keys(counted).length === 0) {
+    return [];
+  }
+  return effectsForBehavior(player, card, counted).filter((e) => e.basis !== undefined);
+}
+
+/**
  * The branch's costs + gains as display chips. NEVER mutates — reads current
  * pools and computes the resulting value with the same step sizes / caps the
  * live game uses (oxygen +1, temperature/venus +2 per step).
