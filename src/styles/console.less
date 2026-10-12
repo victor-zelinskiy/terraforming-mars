@@ -33713,6 +33713,14 @@ html.console-mode {
     }
     &[data-mode='split'] &__owner { flex: 1 1 0; min-width: 0; }
     &[data-mode='tabs'] &__owner { flex: 1 1 auto; min-width: 0; }
+    /* A LONE GROUP STANDS IN THE MIDDLE OF ITS ROOM (PL-170). Inside a composer the
+       step is the decision column beside the hero card, and one owner's few
+       candidates hugged its left edge with ⅔ of the zone dark beside them (the 4K
+       solo target). The zone keeps its full width — it is the box the solver
+       MEASURES, so only its children move — and the lone owner is content-sized
+       (its sections carry their solved spans). Several owners fill the row as before. */
+    .con-composer &[data-mode='split'] &__zone { justify-content: center; }
+    .con-composer &[data-mode='split'] &__owner:only-child { flex: 0 1 auto; }
 
     &__owner {
         display: flex;
@@ -33734,14 +33742,6 @@ html.console-mode {
     &__ownername {
         font-size: .95rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    /* A LONE GROUP STANDS IN THE MIDDLE OF ITS ROOM (PL-170). Inside a composer the
-       step is the decision column beside the hero card, and one owner's few
-       candidates hugged its left edge with ⅔ of the zone dark beside them (the 4K
-       solo target). The zone keeps its full width — it is the box the solver
-       MEASURES, so only its children move — and the lone owner is content-sized
-       (its sections carry their solved spans). Several owners fill the row as before. */
-    .con-composer &[data-mode='split'] &__zone { justify-content: center; }
-    .con-composer &[data-mode='split'] &__owner:only-child { flex: 0 1 auto; }
     }
     /* SELF-HARM, on the group header. The printed rules allow taking from your
        own table, so the option stays — this exists so it is never taken by
@@ -33816,6 +33816,11 @@ html.console-mode {
         align-items: flex-start;
         gap: var(--con-ptsel-gap, .55rem);
         padding: .3rem 0;
+        /* THE FOCUS-SAFE TOP — the gap's twin upward, solved for the largest card the
+           step can draw (`headroomPx`). A constant `.3rem` here let a big card's focus
+           climb into the owner's name (PL-170); the shorthand above stays the
+           solver's pinned `CARDS_PAD_Y`, the excess is subtracted there. */
+        padding-top: var(--con-ptsel-headroom, .3rem);
         min-width: 0;
     }
     /* THE MEASURED CELL — the box directional navigation reads. It never
@@ -33839,11 +33844,6 @@ html.console-mode {
                already carries the ui scale) rides a zoom that carries it AGAIN — the
                4K solo card lifted and ringed at 4× its 1080 size (PL-170). */
             transform: translateY(calc(-.22rem / var(--con-ptsel-zoom, .58))) scale(var(--con-ptsel-focus-scale, 1.02));
-        /* THE FOCUS-SAFE TOP — the gap's twin upward, solved for the largest card the
-           step can draw (`headroomPx`). A constant `.3rem` here let a big card's focus
-           climb into the owner's name (PL-170); the shorthand above stays the
-           solver's pinned `CARDS_PAD_Y`, the excess is subtracted there. */
-        padding-top: var(--con-ptsel-headroom, .3rem);
             z-index: 2;
         }
         &--focused > :is(.card-container, .pcard) {
