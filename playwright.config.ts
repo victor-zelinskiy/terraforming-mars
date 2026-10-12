@@ -91,7 +91,20 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: {...devices['Desktop Chrome']},
+      use: {
+        ...devices['Desktop Chrome'],
+        /*
+         * PL-211 (the owner's decision 2026-10-12): `TM_E2E_GPU=1` runs the NEW headless (`channel: 'chromium'`) on
+         * the machine's GPU through ANGLE/D3D11 with GPU raster — the road the TV build takes (the RTX laptop,
+         * Electron's GPU raster). The default headless shell renders with SwiftShader: every 4K commit waits on a
+         * CPU compositor (150–380 ms, PL-149), and under two workers holds hit their ceilings — red that is not the
+         * product's. Opt-in, never on CI (Linux runners have no GPU): a 4K storyboard / timing claim is taken with it.
+         */
+        ...(process.env.TM_E2E_GPU === '1' && !isCI ? {
+          channel: 'chromium',
+          launchOptions: {args: ['--use-angle=d3d11', '--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--enable-zero-copy']},
+        } : {}),
+      },
     },
   ],
 
