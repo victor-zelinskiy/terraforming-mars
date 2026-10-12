@@ -139,9 +139,11 @@
       </transition>
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board
-           home's right edge; task overlays and workspaces stand OVER it. -->
+           home's right edge; task overlays and workspaces stand OVER it. The
+           board PEEK shows it too: the peeked board is the board home's
+           layout, never a wider re-fit (PL-199, `boardPeek.ts`). -->
       <ConsoleStrategyRail ref="conStratEl"
-                           :shown="consoleState.section === 'board'"
+                           :shown="consoleState.section === 'board' || boardPeekUi.peek !== undefined"
                            :replaced="strategyRailReplaced"
                            :milestones="hudMilestoneZone"
                            :awards="hudAwardZone"

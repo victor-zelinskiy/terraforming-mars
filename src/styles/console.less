@@ -34374,6 +34374,41 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         pointer-events: none;
     }
 }
+/* THE PEEK NEVER RE-LAYS THE WORKSPACE OUT (PL-199): for the whole round trip the hand leaves `.con-main`'s flex row
+   onto the box it held (`--con-peek-hand-l` — its in-flow left, measured by `boardPeek.pinHandBox` before this class
+   lands), so the board and the strategy rail lay out EXACTLY as on the board home (the same fit frame — no re-fit, no
+   jump) and the composer keeps every line it had. Both stand UNDER the receding workspace: earlier in the DOM than
+   the hand, and ISOLATED — their own z-indexed layers (the stage's inner shade, the rings, the rail's case) can never
+   paint over the composer while it fades. The rail's zone is still «replaced» by the workspace — it surfaces with the
+   board (opacity, the same beat as the workspace's recede) and hides again only after its fade. */
+.con-root--peeking {
+    .con-main > .con-hand {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: var(--con-peek-hand-l, var(--con-stage-l, 0px));
+        right: 0;
+    }
+    .con-main > .con-board,
+    .con-main > .con-strat {
+        isolation: isolate;
+    }
+    .con-main > .con-strat {
+        opacity: 0;
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease, visibility 0s linear calc(220ms * var(--motion-scale, 1));
+    }
+}
+.con-root--board-peek .con-main > .con-strat {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease, visibility 0s;
+
+    /* The peek owns the pad (L3 / B only): the rail's bumper keys open nothing here, so they are not drawn — their
+       box stays, the titles do not move. */
+    .con-strat__key {
+        visibility: hidden;
+    }
+}
 /* THE SPOTLIGHT: while the board IS the screen, every cell the reading does not name recedes (empty hexes, their
    printed bonuses, an uncounted cell no rule names) — the counted tiles and the named uncounted ones stand in full
    light, so «14» is a set of hexes the eye finds at once from the couch. Opacity on the space — one change, faded. */
@@ -34444,7 +34479,9 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
     .board-log-highlight.con-peek-cell--lit { animation: none; }
     .con-root--peeking .con-hand,
-    .con-root--peeking .con-shade { transition: none; }
+    .con-root--peeking .con-shade,
+    .con-root--peeking .con-main > .con-strat,
+    .con-root--board-peek .con-main > .con-strat { transition: none; }
 }
 
 .con-composer {

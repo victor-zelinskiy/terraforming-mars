@@ -150,10 +150,32 @@ function clearCells(peek: BoardPeek): void {
  * reads `peek`), laid out, and only then does the workspace recede and the
  * roll call start — the board never flashes in mid-fit. Idempotent.
  */
+/**
+ * THE PEEK NEVER RE-LAYS THE WORKSPACE OUT (PL-199). `.con-main` is a flex ROW
+ * and the hand section is a `flex: 1` member of it — a board shown beside it
+ * split the row: the composer crushed into the right 45 % for the whole fade
+ * (the «ПОЧЕМУ» strip wrapped to five lines, the pay rows truncated), the board
+ * in the left half beside an empty third. For the round trip the hand leaves
+ * the FLOW onto the very box it held (`con-root--peeking`, console.less), so
+ * the board and the strategy rail lay out exactly as on the board home — the
+ * same fit frame, no re-fit. Its left edge is MEASURED here, before the class
+ * lands: the exact in-flow offset (sub-pixel), never a rounded token — half a
+ * pixel of width is a re-fit of the hand's own gallery.
+ */
+function pinHandBox(): void {
+  const hand = document.querySelector<HTMLElement>('.con-main > .con-hand');
+  const main = hand?.parentElement;
+  if (hand === null || hand === undefined || main === null || main === undefined) {
+    return;
+  }
+  main.style.setProperty('--con-peek-hand-l', `${hand.getBoundingClientRect().left - main.getBoundingClientRect().left}px`);
+}
+
 export function openBoardPeek(why: CountedWhy): void {
   if (boardPeekState.peek !== undefined || !peekable(why)) {
     return;
   }
+  pinHandBox();
   const peek: BoardPeek = {why, groups: peekGroupsOf(why)};
   boardPeekState.peek = peek;
   const seq = ++boardPeekState.seq;
