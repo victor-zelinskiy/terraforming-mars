@@ -142,6 +142,11 @@ import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/Compo
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
 import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
+import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/ExpeditionMechs';
+import {ConstructionMechs} from '../../../src/server/cards/turmoilRedux/ConstructionMechs';
+import {MarsArmyMechs} from '../../../src/server/cards/turmoilRedux/MarsArmyMechs';
+import {AutomatedConvoys} from '../../../src/server/cards/turmoilRedux/AutomatedConvoys';
+import {ForestryMechs} from '../../../src/server/cards/turmoilRedux/ForestryMechs';
 import {VectorComputations} from '../../../src/server/cards/turmoilRedux/VectorComputations';
 import {Mine} from '../../../src/server/cards/base/Mine';
 import {AdaptationTechnology} from '../../../src/server/cards/base/AdaptationTechnology';
@@ -2271,6 +2276,83 @@ function supercomputerFixture(name: string, at: 'hand' | 'pay' | 'action'): void
 supercomputerFixture('supercomputer', 'hand');
 supercomputerFixture('supercomputer-pay', 'pay');
 supercomputerFixture('supercomputer-action', 'action');
+// ── TR50 · EXPEDITION MECHS — the set's SEVENTH mech holder (TR40 with another B: «1 mech off here → a card off the
+//    deck»). Blue's action phase, the SCIENTISTS enacted (the card's requirement is their plate). The fixtures differ by
+//    what is asked:
+//      · `expedition-mechs`        — the card in hand; 2 M€ + 1 steel; Construction Mechs (1 mech, 5 M€ on a Building
+//                                     card) and Supercomputer (1 data, 2 M€ on a Science card) on blue's table — the
+//                                     play's FOUR payment lanes on one panel (Science + Building);
+//      · `expedition-mechs-action` — the card on blue's table with 1 mech and blue at 1 energy: both variants live —
+//                                     the two tiles of one card, B «the mech → a card into the hand»;
+//      · `expedition-mechs-family` — every mech holder of the set on blue's table with its own count (EVA 2 · TR17 1 ·
+//                                     Mech Sports 3 · Mars Army Mechs 1 · Automated Convoys 1 · Forestry Mechs 2 ·
+//                                     TR50 1) and Spaceship Recycling with 1 fighter — the satellite's roles and
+//                                     TR29's «a mech on ANY card» over SEVEN candidates.
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open). ──
+const EXPEDITION_FAMILY: ReadonlyArray<[CardName, number]> = [
+  [CardName.EVA_MECHS, 2], [CardName.CONSTRUCTION_MECHS, 1], [CardName.MECH_SPORTS, 3], [CardName.MARS_ARMY_MECHS, 1],
+  [CardName.AUTOMATED_CONVOYS, 1], [CardName.FORESTRY_MECHS, 2], [CardName.EXPEDITION_MECHS, 1],
+];
+function expeditionMechsFixture(name: string, at: 'hand' | 'action' | 'family'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [15, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      const card = new ExpeditionMechs();
+      if (at === 'hand') {
+        p1.megaCredits = 2;
+        p1.steel = 1;
+        const construction = new ConstructionMechs();
+        construction.resourceCount = 1;
+        const supercomputer = new Supercomputer();
+        supercomputer.resourceCount = 1;
+        p1.playedCards.push(construction, supercomputer);
+        p1.cardsInHand = [new MartianRails(), card];
+        return;
+      }
+      if (at === 'action') {
+        card.resourceCount = 1;
+        p1.energy = 1;
+        p1.playedCards.push(card);
+        p1.cardsInHand = [new MartianRails()];
+        return;
+      }
+      const holders: Record<string, IProjectCard> = {
+        [CardName.EVA_MECHS]: new EvaMechs(), [CardName.CONSTRUCTION_MECHS]: new ConstructionMechs(),
+        [CardName.MECH_SPORTS]: new MechSports(), [CardName.MARS_ARMY_MECHS]: new MarsArmyMechs(),
+        [CardName.AUTOMATED_CONVOYS]: new AutomatedConvoys(), [CardName.FORESTRY_MECHS]: new ForestryMechs(),
+        [CardName.EXPEDITION_MECHS]: card,
+      };
+      for (const [holder, count] of EXPEDITION_FAMILY) {
+        holders[holder].resourceCount = count;
+        p1.playedCards.push(holders[holder]);
+      }
+      const recycling = new SpaceshipRecycling();
+      recycling.resourceCount = 1;
+      p1.playedCards.push(recycling);
+      p1.energy = 0;
+      p1.titanium = 0;
+      p1.cardsInHand = [new MartianRails()];
+    },
+    expect: ({game, p1, parliament}) => {
+      const onTable = p1.playedCards.get(CardName.EXPEDITION_MECHS) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+      const recycling = p1.playedCards.get(CardName.SPACESHIP_RECYCLING) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+      const inHand = p1.cardsInHand.find((c) => c.name === CardName.EXPEDITION_MECHS);
+      const live = at === 'hand' ? inHand !== undefined && p1.canPlay(inHand) && p1.megaCredits < 5 :
+        at === 'action' ? onTable !== undefined && onTable.canAct(p1) && onTable.resourceCount === 1 && p1.energy === 1 :
+          recycling !== undefined && recycling.canAct(p1) && EXPEDITION_FAMILY.every(([holder, count]) => p1.playedCards.get(holder)?.resourceCount === count);
+      if (!live || parliament.rulingParty() !== PartyName.SCIENTISTS) {
+        throw new Error(`the ${name} fixture expected TR50 live (${at}) and the Scientists ruling — got live=${live} ruling=${parliament.rulingParty()} hand=${p1.cardsInHand.map((c) => c.name).join(', ')}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+expeditionMechsFixture('expedition-mechs', 'hand');
+expeditionMechsFixture('expedition-mechs-action', 'action');
+expeditionMechsFixture('expedition-mechs-family', 'family');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's

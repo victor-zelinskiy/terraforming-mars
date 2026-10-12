@@ -2450,6 +2450,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'supercomputer' |
   'supercomputer-pay' |
   'supercomputer-action' |
+  // TR50 Expedition Mechs — the play's four payment lanes, the two-variant action (B: a mech → a card), the mech family.
+  'expedition-mechs' |
+  'expedition-mechs-action' |
+  'expedition-mechs-family' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |
