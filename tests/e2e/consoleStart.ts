@@ -2433,6 +2433,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'ichtiology-grant' |
   'ichtiology-grant-one' |
   'ichtiology-grant-none' |
+  // TR45 Composting Initiative: the Greens ruling by the starting rule — the card in hand on a board of 14 tiles on Mars
+  // (a stack of 2, a Nuclear Zone, Ganymede off Mars, Topsoil + Decomposers on blue's table), on an EMPTY board (the
+  // zero), and on blue's table with 3 microbes (the action: 2 microbes → 6 heat).
+  'composting-initiative' |
+  'composting-initiative-zero' |
+  'composting-initiative-action' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |

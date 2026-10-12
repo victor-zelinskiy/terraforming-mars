@@ -27,7 +27,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {testGame, TestGameOptions} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
-import {addCity, addOcean, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
+import {addCity, addGreenery, addOcean, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
@@ -138,6 +138,9 @@ import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
+import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
+import {TopsoilContract} from '../../../src/server/cards/promo/TopsoilContract';
+import {Counter} from '../../../src/server/behavior/Counter';
 import {BiologicalSimulations} from '../../../src/server/cards/turmoilRedux/BiologicalSimulations';
 import {SponsoredAcademies} from '../../../src/server/cards/venusNext/SponsoredAcademies';
 import {Algae} from '../../../src/server/cards/base/Algae';
@@ -2087,6 +2090,70 @@ function ichtiologyFixture(name: string, holders: {pets: boolean, tardigrades: b
 ichtiologyFixture('ichtiology-grant', {pets: true, tardigrades: true, simulations: true});
 ichtiologyFixture('ichtiology-grant-one', {pets: true, tardigrades: false, simulations: false});
 ichtiologyFixture('ichtiology-grant-none', {pets: false, tardigrades: false, simulations: false});
+// ── TR45 · COMPOSTING INITIATIVE — «1 microbe for each tile on Mars», of ANY player: the play COUNTED off the board
+//    (the census — `common/boards/marsTileCensus.ts`) and the owner's accent «how many, and why, before the play».
+//    Blue's action phase, the Greens ruling by the STARTING RULE (nothing enacted — generation 1). The fixtures differ
+//    by what stands on the board and where the card is:
+//      · `composting-initiative`        — the card in hand, 20 M€ + 2 steel (the Building tag lets steel pay), Topsoil
+//                                          Contract and Decomposers on blue's table; the board: blue — a city, a STACK
+//                                          of 2, three greeneries; red — a city, two greeneries, a Nuclear Zone; four
+//                                          oceans; a city on Ganymede (OFF Mars). → 14 = cities 4 · greeneries 5 ·
+//                                          oceans 4 · special 1, Ganymede named and not counted;
+//      · `composting-initiative-zero`   — the card in hand on an EMPTY board: «+0», playable, the zero named;
+//      · `composting-initiative-action` — the card on blue's table with 3 microbes, its action unused.
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open). ──
+function compostingFixture(name: string, board: 'fourteen' | 'empty', at: 'hand' | 'table'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+      if (board === 'fourteen') {
+        const stack = addCity(p1);
+        stack.stackHeight = 2;
+        addCity(p1, game.board.getAvailableSpacesForCity(p1).find((space) => space !== stack)!.id);
+        for (let i = 0; i < 3; i++) {
+          addGreenery(p1);
+        }
+        addCity(p2);
+        addGreenery(p2);
+        addGreenery(p2);
+        game.simpleAddTile(p2, game.board.getAvailableSpacesOnLand(p2)[0], {tileType: TileType.NUCLEAR_ZONE});
+        for (let i = 0; i < 4; i++) {
+          addOcean(p2);
+        }
+        addCity(p2, SpaceName.GANYMEDE_COLONY);
+      }
+      p1.megaCredits = 20;
+      p1.steel = 2;
+      const card = new CompostingInitiative();
+      if (at === 'table') {
+        card.resourceCount = 3;
+        p1.playedCards.push(card);
+      } else {
+        p1.playedCards.push(new TopsoilContract(), new Decomposers());
+        p1.cardsInHand.push(card);
+      }
+    },
+    expect: ({game, p1, parliament}) => {
+      const counter = new Counter(p1, new CompostingInitiative());
+      const tiles = counter.count({tiles: {where: 'onmars'}, all: true});
+      const card = at === 'hand' ? p1.cardsInHand.find((c) => c.name === CardName.COMPOSTING_INITIATIVE) : p1.playedCards.get(CardName.COMPOSTING_INITIATIVE);
+      const live = card !== undefined && (at === 'hand' ? p1.canPlay(card as IProjectCard) : (card as IProjectCard & {canAct(p: IPlayer): boolean}).canAct(p1));
+      const expected = board === 'fourteen' ? 14 : 0;
+      if (!live || parliament.rulingParty() !== PartyName.GREENS || tiles !== expected) {
+        throw new Error(`the ${name} fixture expected TR45 live (${at}), the Greens ruling by the starting rule and ${expected} tiles on Mars — got live=${live} ruling=${parliament.rulingParty()} tiles=${tiles}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+compostingFixture('composting-initiative', 'fourteen', 'hand');
+compostingFixture('composting-initiative-zero', 'empty', 'hand');
+compostingFixture('composting-initiative-action', 'fourteen', 'table');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's
