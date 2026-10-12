@@ -206,20 +206,15 @@
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[ri] !== undefined ? '✓' : String(ri + 1) }}</span>
                 <span class="con-pact__row-kicker">{{ $t(row.label) }}</span>
               </span>
-              <div class="con-pact__opts">
-                <button v-for="(item, i) in row.items" :key="item.key" type="button" class="con-pact__opt"
-                        :class="{
-                          'con-pact__opt--cursor': cursorRow === ri && cursor[ri] === i,
-                          'con-pact__opt--picked': picks[ri] === i,
-                          'con-pact__opt--off': item.disabled,
-                        }"
-                        :data-pact-opt="i"
-                        @click="pickAt(ri, i)">
-                  <ActionEffectChip v-for="(chip, k) in item.chips" :key="k" :effect="chip" />
-                  <span v-if="item.chips.length === 0" class="con-pact__opt-label">{{ textOf(item.label) }}</span>
-                </button>
-                <span v-if="row.items.length === 0" class="con-pact__none">{{ $t(row.emptyKey) }}</span>
-              </div>
+              <!-- The options — the variant grammar (`ConsoleVariantChoice`, TR51): a pick among productions, no «ИЛИ». -->
+              <ConsoleVariantChoice v-if="row.items.length > 0" class="con-pact__opts" :exclusive="false"
+                                    :options="industrialistsOptions(ri)" :label="$t(row.label)"
+                                    @pick="pickAt(ri, $event)">
+                <template #body="{index}">
+                  <ActionEffectChip v-for="(chip, k) in row.items[index].chips" :key="k" :effect="chip" />
+                </template>
+              </ConsoleVariantChoice>
+              <span v-else class="con-pact__none">{{ $t(row.emptyKey) }}</span>
             </div>
             <!-- THE TOTAL — the whole operation on each pool it touches. A
                  decrease and an increase of the SAME production are ONE
@@ -238,15 +233,14 @@
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[0] !== undefined ? '✓' : '1' }}</span>
                 <span class="con-pact__row-kicker">{{ $t('Resource') }}</span>
               </span>
-              <div class="con-pact__opts">
-                <button v-for="(branch, i) in scientistsBranches" :key="i" type="button" class="con-pact__opt con-pact__opt--res"
-                        :class="{'con-pact__opt--cursor': cursorRow === 0 && cursor[0] === i, 'con-pact__opt--picked': picks[0] === i}"
-                        :data-pact-opt="i"
-                        @click="pickAt(0, i)">
-                  <i class="con-pact__res-icon" :class="iconClass(branch.icon)" aria-hidden="true"></i>
-                  <b class="con-pact__opt-amount">+{{ branch.amount }}</b>
-                </button>
-              </div>
+              <!-- The resource — the variant grammar (`ConsoleVariantChoice`, TR51): two exclusive results, «ИЛИ» between. -->
+              <ConsoleVariantChoice class="con-pact__opts con-pact__opts--res" :options="scientistsOptions" :label="$t('Resource')"
+                                    @pick="pickAt(0, $event)">
+                <template #body="{index}">
+                  <i class="con-pact__res-icon" :class="iconClass(scientistsBranches[index].icon)" aria-hidden="true"></i>
+                  <b class="con-pact__opt-amount">+{{ scientistsBranches[index].amount }}</b>
+                </template>
+              </ConsoleVariantChoice>
             </div>
             <div class="con-pact__row" data-unfold-item data-pact-row="1"
                  :class="{'con-pact__row--focus': cursorRow === 1, 'con-pact__row--answered': picks[1] !== undefined, 'con-pact__row--open': picks[1] === undefined}">
@@ -415,6 +409,8 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -511,6 +507,7 @@ function asElements(ref: unknown): Array<HTMLElement> {
 export default defineComponent({
   name: 'ConsolePartyActionComposer',
   components: {
+    ConsoleVariantChoice,
     ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead, ColonyFleetIcon,
     CardRenderEffectBoxComponent, CardRenderData,
   },
@@ -782,6 +779,15 @@ export default defineComponent({
         return [{direction: net >= 0 ? 'gain' : 'cost', icon: inc.icon, amount: Math.abs(net), current: dec.current, resulting, note: 'production'}];
       }
       return [dec, inc];
+    },
+    /** The Scientists' resource in the variant grammar — the cursor, the pick (the seal), never refused (a holder exists). */
+    scientistsOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.scientistsBranches.map((_branch, i): VariantChoiceOption => ({
+        key: 'res#' + i,
+        state: {focused: this.cursorRow === 0 && this.cursor[0] === i, selected: this.picks[0] === i, off: false},
+        title: '',
+        attrs: {'data-pact-opt': String(i)},
+      }));
     },
     scientistsBranches(): ReadonlyArray<ScientistsBranch> {
       const entry = this.entry;
@@ -1153,6 +1159,16 @@ export default defineComponent({
     }
   },
   methods: {
+    /** One Industrialists row in the variant grammar — the cursor, the pick (the seal), the label when no chip speaks. */
+    industrialistsOptions(ri: number): ReadonlyArray<VariantChoiceOption> {
+      const row = this.industrialistsRows[ri];
+      return (row?.items ?? []).map((item, i): VariantChoiceOption => ({
+        key: item.key,
+        state: {focused: this.cursorRow === ri && this.cursor[ri] === i, selected: this.picks[ri] === i, off: item.disabled},
+        title: item.chips.length === 0 ? this.textOf(item.label) : '',
+        attrs: {'data-pact-opt': String(i)},
+      }));
+    },
     textOf(value: string | Message): string {
       return typeof value === 'string' ? translateText(value) : translateMessage(value);
     },

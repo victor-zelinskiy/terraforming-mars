@@ -121,101 +121,70 @@
 
             <!-- ── CHOICE ─────────────────────────────────────────── -->
             <template v-if="activeTask.kind === 'choice'">
-              <div v-for="(entry, i) in choiceEntries" :key="'o' + entry.index"
-                   class="con-task__option"
-                   :class="{
-                     'con-task__option--focused': focusIdx === i,
-                     'con-task__option--armed': focusIdx === i && armed,
-                     'con-task__option--skip': entry.isSkip,
-                   }">
-                <div class="con-task__option-main">
-                  <i v-if="entry.iconClass !== ''" class="con-task__opt-icon" :class="entry.iconClass" aria-hidden="true"></i>
-                  <span v-if="entry.playerColor !== undefined" class="con-task__opt-player">
-                    <span :class="'con-status__dot player_bg_color_' + entry.playerColor"></span>
-                    <span>{{ entry.playerName }}</span>
-                  </span>
-                  <span class="con-task__opt-title">{{ entry.title }}</span>
-                  <span v-if="entry.preview !== ''" class="con-task__opt-preview">{{ entry.preview }}</span>
-                  <span v-if="entry.isSpace" class="con-task__opt-board">{{ $t('Choose a location on the board') }} →</span>
-                  <span v-else-if="entry.isNested" class="con-task__opt-board" aria-hidden="true">›</span>
-                  <!-- A CONTEXTUAL choice commits on A in one press, so the badge
-                       ALWAYS advertises A — never the old "A selects, now press X"
-                       two-step (a risky option arms and the second A confirms,
-                       which is still this same glyph). A GENERIC OrOptions keeps
-                       its desktop-parity select → confirm, and says so. -->
-                  <GamepadGlyph v-if="focusIdx === i"
-                                :control="!choiceOnePress && armed ? 'secondary' : 'confirm'"
-                                class="con-task__opt-a" />
-                </div>
-                <div v-if="entry.effects.length > 0" class="con-task__opt-effects">
-                  <ActionEffectChip v-for="(eff, k) in entry.effects" :key="k" :effect="eff" />
-                </div>
-                <div v-if="entry.description !== ''" class="con-task__opt-desc">{{ entry.description }}</div>
-                <div v-if="entry.tradeoff !== ''" class="con-task__opt-tradeoff">⚠ {{ entry.tradeoff }}</div>
-                <!-- The engine's own caution, in words. Rendered on the ROW, not
-                     only in the arm bar, so it is readable BEFORE the first press
-                     — a warning that appears only after you have committed to
-                     pressing is a receipt, not a warning. -->
-                <div v-for="(w, k) in entry.warnings" :key="'w' + k" class="con-task__opt-tradeoff">⚠ {{ w }}</div>
-                <div v-if="focusIdx === i && armed && entry.risky" class="con-task__opt-confirmbar">
-                  {{ entry.warnings.length > 0 ? entry.warnings[0] : entry.tradeoff }}
-                  <span class="con-task__opt-confirmbar-cta">{{ $t('Press again to confirm') }}</span>
-                </div>
-              </div>
+              <!-- THE OPTIONS — the variant grammar (`ConsoleVariantChoice`, TR51): the cursor a cold lift, an ARMED option
+                   (the generic select → confirm) the seal, «ИЛИ» between a few exclusive results. A CONTEXTUAL choice
+                   commits on A in one press, so the badge ALWAYS advertises A — a risky option arms and the second A
+                   confirms; a GENERIC OrOptions keeps its select → confirm and says so (X). -->
+              <ConsoleVariantChoice class="con-task__choices" layout="column" :exclusive="choiceEntries.length <= 3"
+                                    :options="choiceOptions" :label="choiceGroupLabel">
+                <template #body="{index}">
+                  <template v-for="entry in [choiceEntries[index]]" :key="entry.index">
+                    <div class="con-task__option-main">
+                      <i v-if="entry.iconClass !== ''" class="con-task__opt-icon" :class="entry.iconClass" aria-hidden="true"></i>
+                      <span v-if="entry.preview !== ''" class="con-task__opt-preview">{{ entry.preview }}</span>
+                      <span v-if="entry.isSpace" class="con-task__opt-board">{{ $t('Choose a location on the board') }} →</span>
+                      <GamepadGlyph v-if="focusIdx === index"
+                                    :control="!choiceOnePress && armed ? 'secondary' : 'confirm'"
+                                    class="con-task__opt-a" />
+                    </div>
+                    <div v-if="entry.effects.length > 0" class="con-task__opt-effects">
+                      <ActionEffectChip v-for="(eff, k) in entry.effects" :key="k" :effect="eff" />
+                    </div>
+                    <div v-if="entry.description !== ''" class="con-task__opt-desc">{{ entry.description }}</div>
+                    <div v-if="entry.tradeoff !== ''" class="con-task__opt-tradeoff">⚠ {{ entry.tradeoff }}</div>
+                    <!-- The engine's own caution, in words — on the option itself, readable BEFORE the first press. -->
+                    <div v-for="(w, k) in entry.warnings" :key="'w' + k" class="con-task__opt-tradeoff">⚠ {{ w }}</div>
+                    <div v-if="focusIdx === index && armed && entry.risky" class="con-task__opt-confirmbar">
+                      {{ entry.warnings.length > 0 ? entry.warnings[0] : entry.tradeoff }}
+                      <span class="con-task__opt-confirmbar-cta">{{ $t('Press again to confirm') }}</span>
+                    </div>
+                  </template>
+                </template>
+              </ConsoleVariantChoice>
+              <!-- Relevant targets the rules exclude: shown with the reason, never pressable — the same grammar, refused. -->
               <div v-if="disabledChoiceEntries.length > 0" class="con-task__disabled">
                 <div class="con-task__disabled-title">{{ $t('Unavailable targets') }}</div>
-                <div v-for="(d, i) in disabledChoiceEntries" :key="'d' + i" class="con-task__option con-task__option--disabled">
-                  <div class="con-task__option-main">
-                    <span v-if="d.playerColor !== undefined" class="con-task__opt-player">
-                      <span :class="'con-status__dot player_bg_color_' + d.playerColor"></span>
-                    </span>
-                    <span class="con-task__opt-title">{{ d.title }}</span>
-                    <span class="con-task__opt-reason">{{ d.reason }}</span>
-                  </div>
-                </div>
+                <ConsoleVariantChoice layout="list" :exclusive="false" :options="disabledChoiceOptions" :label="$t('Unavailable targets')" />
               </div>
             </template>
 
             <!-- ── PLAYER ─────────────────────────────────────────── -->
             <template v-else-if="activeTask.kind === 'player'">
-              <div v-for="(p, i) in playerEntries" :key="p.color"
-                   class="con-task__option"
-                   :class="{'con-task__option--focused': focusIdx === i, 'con-task__option--armed': focusIdx === i && armed}">
-                <div class="con-task__option-main">
-                  <span class="con-task__opt-player">
-                    <span :class="'con-status__dot player_bg_color_' + p.color"></span>
-                    <span>{{ p.name }}</span>
-                  </span>
-                  <span v-if="p.corp !== ''" class="con-task__opt-corp">{{ $t(p.corp) }}</span>
-                  <!-- «Это вы»: the rules permit hitting your own production, so
-                       the option stays and the job is to make it unpickable by
-                       accident. Only when it costs you AND another target was
-                       available. -->
-                  <span v-if="p.selfHarm" class="con-task__opt-selfwarn">⚠ {{ $t('This is you') }}</span>
-                  <!-- Server-computed before→after rows — the SAME layout for a
-                       human resource/production row and a MarsBot track row. -->
-                  <span v-if="p.changes.length > 0" class="con-task__opt-previews">
-                    <span v-for="(row, ri) in p.changes" :key="ri" class="con-task__opt-preview" :class="{'con-task__opt-preview--prod': row.prod}">
-                      <Tag v-if="row.isTrack" :tag="row.tag!" size="small" type="secondary" class="con-task__opt-tag" />
-                      <i v-else :class="row.iconClass" class="con-task__opt-icon" aria-hidden="true"></i>
-                      {{ row.from }} → {{ row.to }}
-                      <span v-if="row.steps !== undefined && row.steps > 0" class="con-task__opt-steps">−{{ row.steps }}</span>
+              <!-- THE TARGETS — the variant grammar's LIST (`ConsoleVariantChoice`, TR51): a player is a row with its dot;
+                   the armed target wears the ONE seal; the server's before → after rows read on the row itself. -->
+              <ConsoleVariantChoice class="con-task__choices" layout="list" :exclusive="false"
+                                    :options="playerOptions" :label="titleText">
+                <template #body="{index}">
+                  <template v-for="p in [playerEntries[index]]" :key="p.color">
+                    <span v-if="p.corp !== ''" class="con-task__opt-corp">{{ $t(p.corp) }}</span>
+                    <!-- «Это вы»: only when it costs you AND another target was available. -->
+                    <span v-if="p.selfHarm" class="con-task__opt-selfwarn">⚠ {{ $t('This is you') }}</span>
+                    <!-- Server-computed before→after rows — the SAME layout for a human row and a MarsBot track row. -->
+                    <span v-if="p.changes.length > 0" class="con-task__opt-previews">
+                      <span v-for="(row, ri) in p.changes" :key="ri" class="con-task__opt-preview" :class="{'con-task__opt-preview--prod': row.prod}">
+                        <Tag v-if="row.isTrack" :tag="row.tag!" size="small" type="secondary" class="con-task__opt-tag" />
+                        <i v-else :class="row.iconClass" class="con-task__opt-icon" aria-hidden="true"></i>
+                        {{ row.from }} → {{ row.to }}
+                        <span v-if="row.steps !== undefined && row.steps > 0" class="con-task__opt-steps">−{{ row.steps }}</span>
+                      </span>
                     </span>
-                  </span>
-                  <GamepadGlyph v-if="focusIdx === i" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
-                </div>
-              </div>
+                    <GamepadGlyph v-if="focusIdx === index" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
+                  </template>
+                </template>
+              </ConsoleVariantChoice>
               <div v-if="disabledPlayerEntries.length > 0" class="con-task__disabled">
                 <div class="con-task__disabled-title">{{ $t('Unavailable targets') }}</div>
-                <div v-for="(d, i) in disabledPlayerEntries" :key="'dp' + i" class="con-task__option con-task__option--disabled">
-                  <div class="con-task__option-main">
-                    <span class="con-task__opt-player">
-                      <span :class="'con-status__dot player_bg_color_' + d.color"></span>
-                      <span>{{ d.name }}</span>
-                    </span>
-                    <span class="con-task__opt-reason">{{ d.reason }}</span>
-                  </div>
-                </div>
+                <ConsoleVariantChoice layout="list" :exclusive="false" :options="disabledPlayerOptions" :label="$t('Unavailable targets')" />
               </div>
             </template>
 
@@ -622,6 +591,8 @@ import {useEventListener, useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, OrOptionsModel, AndOptionsModel, CardResourceDistributionMeta, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {
@@ -775,7 +746,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield},
+  components: {ConsoleVariantChoice, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -1207,6 +1178,35 @@ export default defineComponent({
       });
     },
     /** Primary rows first, skip options last (desktop parity). */
+    /** The choice in the variant grammar — the cursor, the ARMED answer (the seal), the words, the owner dot, the door. */
+    choiceOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.choiceEntries.map((entry, i): VariantChoiceOption => ({
+        key: 'o' + entry.index,
+        state: {focused: this.focusIdx === i, selected: this.focusIdx === i && this.armed, off: false},
+        title: entry.playerColor !== undefined && entry.playerName !== '' ? `${entry.playerName} · ${entry.title}` : entry.title,
+        door: entry.isNested,
+        color: entry.playerColor,
+        attrs: {'data-choice-skip': entry.isSkip ? '1' : undefined},
+      }));
+    },
+    disabledChoiceOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.disabledChoiceEntries.map((d, i): VariantChoiceOption => ({
+        key: 'd' + i, state: {focused: false, selected: false, off: true}, title: d.title, reason: d.reason, color: d.playerColor,
+      }));
+    },
+    playerOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.playerEntries.map((p, i): VariantChoiceOption => ({
+        key: 'p' + p.color, state: {focused: this.focusIdx === i, selected: this.focusIdx === i && this.armed, off: false}, title: p.name, color: p.color,
+      }));
+    },
+    disabledPlayerOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.disabledPlayerEntries.map((d): VariantChoiceOption => ({
+        key: 'dp' + d.color, state: {focused: false, selected: false, off: true}, title: d.name, reason: d.reason, color: d.color,
+      }));
+    },
+    choiceGroupLabel(): string {
+      return this.titleText;
+    },
     choiceEntries(): Array<ChoiceEntry> {
       const all = this.allChoiceEntries;
       return [...all.filter((e) => !e.isSkip), ...all.filter((e) => e.isSkip)];

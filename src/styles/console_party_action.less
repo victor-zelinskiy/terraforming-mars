@@ -56,29 +56,18 @@
     }
     &__row-kicker { font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; opacity: .78; }
     &__opts { display: flex; flex-wrap: wrap; gap: .35rem; }
-    /* AN OPTION: cyan ring = the cursor, mint plate = the answer (it survives
-       the cursor leaving), both = mint plate inside a cyan ring. */
-    &__opt {
-        position: relative;
-        display: inline-flex;
+    /* THE OPTIONS — the variant grammar (`console_variant_choice.less`, TR51): cursor · the seal · the rules. Here the
+       tiles are TOKENS (a production, «+2 [data]»), so they hug their content instead of taking a reading measure. */
+    &__opts .con-vchoice__opt {
+        flex: 0 1 auto;
+        min-width: 0;
+        flex-direction: row;
         align-items: center;
         gap: .4rem;
-        padding: .3rem .55rem;
-        border-radius: .45rem;
-        border: 0;
-        background: rgba(255,255,255,.05);
-        color: inherit;
-        font: inherit;
+        padding: .4rem .75rem;
         font-size: .8rem;
-        box-shadow: inset 0 0 0 .05rem rgba(255,255,255,.1);
-        cursor: pointer;
-        transition: box-shadow calc(140ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(140ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--cursor { box-shadow: inset 0 0 0 .1rem @con-cyan; }
-        &--picked { background: rgba(95, 227, 180, 0.16); box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
-        &--picked&--cursor { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
-        &--off { color: fade(@con-text, 55%); }
     }
-    &__opt-label { white-space: nowrap; }
+    &__opts .con-vchoice__or { align-self: center; }
     &__opt-amount { font-size: .9rem; font-weight: 800; }
     &__res-icon { width: 1.2rem; height: 1.2rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; &--sm { width: .95rem; height: .95rem; } }
     /* THE TOTAL — the whole operation per pool, one line. */

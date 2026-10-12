@@ -290,13 +290,13 @@ test.describe('parliament · party actions', () => {
     expect(crumb).toContain('ИНДУСТРИАЛИСТЫ');
     await shoot(page, '02-industrialists-stage');
     await press(page, 'Enter', 500); // pick the decrease under the cursor → the cursor moves to the increase row
-    await expect(page.locator('.con-pact__opt--picked')).toHaveCount(1);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(1);
     // X inspects the SOURCE (the party's banner) over the stage — the pick survives it.
     await openZoomViewer(page);
     await closeZoomViewer(page);
-    await expect(page.locator('.con-pact__opt--picked'), 'inspecting the party keeps the pick made').toHaveCount(1);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected'), 'inspecting the party keeps the pick made').toHaveCount(1);
     await press(page, 'Enter', 500); // pick the increase → the cursor lands on the commit row
-    await expect(page.locator('.con-pact__opt--picked')).toHaveCount(2);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(2);
     await shoot(page, '03-industrialists-picked');
     await press(page, 'Enter', 900); // commit
     await expect.poll(async () => await usesLeft(request, playerId, 'industrialists-shift'), {timeout: 20_000, message: 'the Industrialists action is spent'}).toBe(0);
@@ -323,7 +323,7 @@ test.describe('parliament · party actions', () => {
     await shoot(page, '05-scientists-stage');
     await press(page, 'Enter', 500); // the resource under the cursor → the target row
     await press(page, 'Enter', 500); // the target card → the commit row
-    await expect(page.locator('.con-pact__opt--picked, .con-pact__card--picked')).toHaveCount(2);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
     await press(page, 'Enter', 900); // commit
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1,
       {timeout: 20_000, message: 'Tardigrades received 2 microbes'}).toBe(2);

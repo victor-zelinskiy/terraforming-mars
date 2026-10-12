@@ -22430,16 +22430,6 @@ html.console-mode {
                 box-shadow: 0 0 .5rem fade(@con-cyan, 70%);
             }
         }
-        /* Armed = a RISKY option waiting for its second press (con-task__opt-confirmbar
-           spells it out) — the rail turns mint with the ring. */
-        &--armed {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 85%), 0 0 1rem fade(@con-mint, 22%);
-
-            &::before {
-                background: @con-mint;
-                box-shadow: 0 0 .5rem fade(@con-mint, 70%);
-            }
-        }
         /* "Do nothing" reads QUIETER than the acting rows — never dimmed into
            looking unavailable, just visibly the calm way out. */
         &--skip {
@@ -22450,10 +22440,6 @@ html.console-mode {
 
             .con-task__opt-title { font-weight: 600; color: @con-text-dim; }
             &.con-task__option--focused .con-task__opt-title { color: @con-text; }
-        }
-        &--disabled {
-            opacity: 0.55;
-            filter: saturate(0.6);
         }
     }
     &__option-main {
@@ -22560,11 +22546,6 @@ html.console-mode {
             text-transform: uppercase;
             color: fade(#ffe3b0, 70%);
         }
-    }
-    &__opt-reason {
-        margin-left: auto;
-        font-size: .85rem;
-        color: @con-amber;
     }
     /* «Это вы» on a player row. Amber like every other «this costs YOU» voice
        in the console; a ring rather than a fill so it annotates the row instead
@@ -36299,7 +36280,6 @@ html.con-profile-handheld {
         &__opt-player { font-size: .75rem; }
         &__opt-preview { font-size: .7rem; }
         &__opt-desc, &__opt-tradeoff { font-size: .7rem; }
-        &__opt-reason { font-size: .65rem; }
         &__opt-icon, &__opt-res { width: 1.2rem; height: 1.2rem; }
         &__stepper-value { font-size: 1.7rem; }
         &__lane { gap: .5rem; padding: .35rem .6rem; }

@@ -1003,9 +1003,9 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit row is not ready before the decisions').toHaveCount(0);
     await shoot(page, preset, '40-industrialists-open');
     await press(page, 'Enter', 500);
-    await expect(page.locator('.con-pact__opt--picked')).toHaveCount(1);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(1);
     await press(page, 'Enter', 500);
-    await expect(page.locator('.con-pact__opt--picked')).toHaveCount(2);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(2);
     const total = (await page.locator('[data-pact-total]').textContent() ?? '').replace(/\s+/g, ' ');
     expect(total, `the total reads the net result of one pool (${total})`).toMatch(/→/);
     await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit row is ready now').toHaveCount(1);
@@ -1026,7 +1026,7 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
     await press(page, 'Enter', 500);
     await press(page, 'Enter', 500);
-    await expect(page.locator('.con-pact__opt--picked, .con-pact__card--picked')).toHaveCount(2);
+    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
     await shoot(page, preset, '42-scientists-from-parliament');
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1, {timeout: 20_000}).toBe(2);
