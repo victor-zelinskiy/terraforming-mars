@@ -404,6 +404,40 @@ The sweep also caught one preview lie: a COUNTED «add to any card» that counts
 with no Jovian tag) promised a target pick the live play never asks — `stepsForBehavior` now skips a
 zero count, as the Executor does.
 
+### CLASS 9 — a question of the player's OWN TABLE asked after the commit (added 2026-10-12, TR51, closed)
+
+**Symptom.** The play composer collected every question of the CARD (law 27), yet a play that woke a reacting card on the player's
+own table — Olympus Conference with a stored science, Mars University, Pharmacy Union with no disease, Viral Enhancers, Splice (asks
+the card's player), Recyclon with two microbes — raised that card's question as a separate prompt AFTER the press. The forecast had
+already NAMED it before the press (`asks`, the «?» chip): an answer known in advance, asked once the move was made — the owner's
+«strictly pre-select» (2026-10-12) forbids exactly that.
+
+**Fix.** (1) Each reacting card builds its question in ONE method of its own file (`question` / `scienceQuestion` / `orderQuestion`),
+read by the live `defer` AND by its `cardPlayedForecast`, which hands the `asks` fact the prompt as a preview step
+(`forecast.tableQuestion` → `EffectForecastFact.preselect`, addressed `{role: 'or', source: cardSource(reacting card)}`). (2)
+`models/tableQuestions.ts` — `withTableQuestions` / `playPreviewWithTableQuestions` (the route and the replay guard call the same
+function) — appends those steps to `preview.preSteps` (branch-independent: they answer the PLAY). (3) The replay lands them by address:
+the live queue asks the table at its own priorities, so `replayBatch` / `drainBatchTail` let the first LATER answer addressed to the
+standing prompt (`own`) step forward when the head is foreign. (4) The composer renders them as rows «⚡ Сработает · <карта> · ваш выбор»
+and posts them in the play's ONE POST.
+
+**Honest follow-ups, named (not pre-selected):**
+
+| Question | Why it stays after the press | Where it says so |
+| --- | --- | --- |
+| a discard FROM THE HAND behind a draw of the same play (Mars University after the card's own draw, after Olympus «remove to draw», after a first Mars University) | the card that might be discarded does not exist yet (hidden) | `HIDDEN_DRAW_NOTE` on the fact; a draw that is an OPTION above it gates the row (`reaction.afterDraw` — the composer hands it on as «ДАЛЕЕ» only when the answer above draws) |
+| a second Olympus / Pharmacy Union question of the same play | whether it is asked depends on the first answer | `DEPENDS_ON_ANSWER_NOTE` |
+| Neptunian Power Consultants | asked after the ocean is placed on the BOARD (the board is the commit) | the forecast's `asks` without a step |
+| a deck pick, another player's decision | hidden information / not the player's choice | by construction |
+
+**Guards.** `tests/models/cardPlayReplayCoverage.spec.ts` replays the composer's preview (table steps included) and fails on «ASKED
+AFTER THE PRESS» — a question of a table card answered «as the player» after the batch that the forecast did not name an honest
+follow-up; profiles `interlopers` (Olympus + Pharmacy Union) and `reactors` (Mars University, Viral Enhancers, Recyclon, Splice on
+the opponent). Without the table steps it names six plays. `tests/models/tableQuestions.spec.ts` (the steps, a batch landing in any
+order, the gated discard, the two hidden-draw cases, Splice). The client's witness `POST-COMMIT CHOICE`
+(`preselectWitness.armPostCommitWitness` / `checkPostCommitChoice`, armed by both composers) turns any spec red through the harness's
+`postCommitGuard`.
+
 ## 5. The guard
 
 `tests/models/actionPromptCoverage.spec.ts` — walks every in-scope action card across three
