@@ -678,7 +678,21 @@ export default defineComponent({
       if (zone === undefined || root === undefined) {
         return;
       }
-      const availW = zone.clientWidth;
+      // THE ROOM THE CARDS ACTUALLY GET (PL-224, the TR50 walk). The cards' row does not sit on the zone: the owner
+      // group draws its accent rule and its inset, the sections their own padding — ≈ 38 px at 4K. Solved against
+      // `zone.clientWidth`, seven mech holders came out as ONE row 39 px wider than the box that holds it, and the
+      // composer's scroller cut the last card (TR50 itself) together with its focus ring. Same rule as the height
+      // below: PADDINGS AND BORDERS ONLY — fixed by the layout, never a function of the size being solved.
+      let insetX = 0;
+      const zoneStyle = getComputedStyle(zone);
+      insetX += (parseFloat(zoneStyle.paddingLeft) || 0) + (parseFloat(zoneStyle.paddingRight) || 0);
+      const rowBox = zone.querySelector<HTMLElement>('.con-ptsel__sections');
+      for (let el = rowBox; el !== null && el !== zone; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        insetX += (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) +
+          (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+      }
+      const availW = zone.clientWidth - insetX;
       // No band, no honest budget: a bare unit mount keeps the default rather
       // than sizing itself from a box it produced.
       if (availW <= 0 || this.bandHeight <= 0) {
