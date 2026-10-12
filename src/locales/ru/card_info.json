@@ -541,5 +541,9 @@
     "Lose 3 plants and 3 steel.": "Потеряйте 3 растения и 3 стали.",
     "Raise your TR 3 steps.": "Повысьте свой РТ на 3.",
     "Gain 2 M€ for each Earth tag you have.": "Получите 2 M€ за каждую свою метку Земли.",
-    "Spend 2 microbes for 6 heat": "2 микроба: +6 тепла"
+    "Spend 2 microbes for 6 heat": "2 микроба: +6 тепла",
+    "Add 3 data to this card.": "Положите на эту карту 3 единицы данных.",
+    "Requires Scientists to be ruling or that you have 2 delegates on its resolution.": "Требуется: «Учёные» правят или 2 ваших делегата на их резолюции.",
+    "Sell patents: +1 data here per card sold": "Продажа патентов: +1 данных сюда за карту",
+    "Spend all data: draw that many, keep 1": "Все данные: столько же карт, 1 в руку"
 }

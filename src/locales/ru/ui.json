@@ -1305,5 +1305,6 @@
 ,
     "The ocean placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «океан» пропущен — ${0} не может заплатить ${1} M€",
     "The temperature placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «температура» пропущен — ${0} не может заплатить ${1} M€",
-    "The colony placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «колония» пропущен — ${0} не может заплатить ${1} M€"
+    "The colony placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «колония» пропущен — ${0} не может заплатить ${1} M€",
+    "${0} of 1 data on this card": "На карте ${0} из 1"
 }

@@ -45,6 +45,7 @@ import {PlasmaFans} from './PlasmaFans';
 import {GreenAllegiance} from './GreenAllegiance';
 import {IchtiologyGrant} from './IchtiologyGrant';
 import {CompostingInitiative} from './CompostingInitiative';
+import {ResearchStartups} from './ResearchStartups';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -231,5 +232,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // the board — 1 microbe per tile on Mars of ANY player, the census (`common/boards/marsTileCensus.ts`, the `tiles`
     // countable this card brought: its number, composition and cells one reading) — and the TR38 action class.
     [CardName.COMPOSTING_INITIATIVE]: {Factory: CompostingInitiative},
+    // Only the module's icon at the bottom left: the SCIENTISTS' plate (TR05's party); the set's first answer to THE
+    // PATENT SALE — the fork hook `onPatentsSold` with the cards sold (its one writer: the standard project), its rate
+    // on the sale prompt's `patentSale` model — and Hi-Tech Lab's «X → X cards, keep 1» with X the data here.
+    [CardName.RESEARCH_STARTUPS]: {Factory: ResearchStartups},
   },
 });
