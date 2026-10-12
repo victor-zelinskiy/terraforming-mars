@@ -51,7 +51,9 @@
                }">
       <div class="con-hand__head-left">
         <span v-if="countText !== ''" class="con-hand__count">{{ countText }}</span>
-        <span v-if="!selectActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
+        <!-- Not in the SALE (PL-208): the screen is asking which cards to sell, and «Можно разыграть: 4» beside the sale's
+             own summary read as a second, unrelated count — every other playability mark already stands aside there. -->
+        <span v-if="!selectActive && !saleActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
       </div>
       <!-- Tag filter (LB/RB cycle, R3 reset — advertised in the footer). The
            active chip is the always-visible source of truth for the filter. -->
