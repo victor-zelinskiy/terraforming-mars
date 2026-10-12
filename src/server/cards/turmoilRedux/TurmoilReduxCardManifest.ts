@@ -44,6 +44,7 @@ import {ForestryMechs} from './ForestryMechs';
 import {PlasmaFans} from './PlasmaFans';
 import {GreenAllegiance} from './GreenAllegiance';
 import {IchtiologyGrant} from './IchtiologyGrant';
+import {CompostingInitiative} from './CompostingInitiative';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -226,5 +227,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // branches (`OrBehavior.optional`, the knob this card brings: no holder of either kind, the production still stands and
     // the choice is skipped by name) — the set's first play with a card target INSIDE an `or` branch.
     [CardName.ICHTIOLOGY_GRANT]: {Factory: IchtiologyGrant},
+    // Only the module's icon at the bottom left: the GREENS' plate a seventh time; ONE DECLARATION of a play COUNTED off
+    // the board — 1 microbe per tile on Mars of ANY player, the census (`common/boards/marsTileCensus.ts`, the `tiles`
+    // countable this card brought: its number, composition and cells one reading) — and the TR38 action class.
+    [CardName.COMPOSTING_INITIATIVE]: {Factory: CompostingInitiative},
   },
 });

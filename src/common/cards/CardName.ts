@@ -1115,6 +1115,7 @@ export enum CardName {
   PLASMA_FANS = 'Plasma Fans',
   GREEN_ALLEGIANCE = 'Green Allegiance',
   ICHTIOLOGY_GRANT = 'Ichtiology Grant',
+  COMPOSTING_INITIATIVE = 'Composting Initiative',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
