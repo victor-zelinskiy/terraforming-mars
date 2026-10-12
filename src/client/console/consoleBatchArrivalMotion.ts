@@ -46,6 +46,7 @@ import {runDeckSettleTick} from '@/client/console/deckDraw/deckDrawDirector';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {deckPeelDy} from '@/client/console/deckDraw/deckPeel';
+import {probeTick} from '@/client/console/probeTick';
 import {
   CardArrivalMode, CardArrivalPlan, CardArrivalTimings, arrivalSourceFan,
   cardArrivalTimings, planCardArrival, reducedCardArrivalTimings,
@@ -470,8 +471,26 @@ export function settleBatchProxiesOnto(args: {
       window.clearTimeout(aimSafety);
       aimSafety = undefined;
     }
-    held.forEach((el) => el.classList.remove('con-deal-hold'));
-    onDone();
+    if (held.length === 0 || typeof window === 'undefined') {
+      onDone();
+      return;
+    }
+    // SHOW, THEN REMOVE (console-ui § A FLYING CARD — «reveal the destination, then remove the proxy on the NEXT
+    // frame»). The real card is released SNAPPED: the embedded reveal it lands in carries a release FADE
+    // (`.con-reveal--bonus-mode … > .pcard { transition: opacity 160ms }` — written for the board-bonus scene,
+    // whose covers stay over the card and fade on top), while `onDone` takes these proxies away in the very next
+    // flush — so the slot stood EMPTY for the fade's first frames (PL-222, TR50: 130 ms at 4K, a blink on every
+    // card a «Действия карт» draw dealt). The snap is committed in THIS frame's style; the proxies go on the next
+    // tick, over a card that is already fully painted.
+    held.forEach((el) => {
+      el.style.transition = 'none';
+      el.classList.remove('con-deal-hold');
+    });
+    void held[0].offsetWidth;
+    probeTick(() => {
+      held.forEach((el) => el.style.removeProperty('transition'));
+      onDone();
+    });
   };
   const live: Array<{proxy: HTMLElement, target: HTMLElement}> = [];
   pairs.forEach((p) => {
