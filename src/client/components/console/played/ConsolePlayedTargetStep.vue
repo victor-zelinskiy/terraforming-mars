@@ -154,14 +154,19 @@
                          console's word for the card that PRODUCED what you are
                          looking at (`L3 Источник`), and this proxy is not that
                          — it is one of the targets. Two roles under one word on
-                         one screen is how a vocabulary stops meaning anything. -->
+                         one screen is how a vocabulary stops meaning anything.
+                         The resource reading is the column's THIRD line (PL-218): beside
+                         the name it took half the box («Суперкомпьютер» read «Супер ком…»
+                         on the TV), beside the kicker it cut «ЭТА КА…» — nothing shares a
+                         width with anything now. -->
                     <span class="con-ptsel__self-kicker">{{ $t('This card') }}</span>
                     <span class="con-ptsel__self-name">{{ $t(cand.cardName) }}</span>
+                    <ConsoleCardResourceChip v-if="showsResource(cand)"
+                                             class="con-ptsel__self-res"
+                                             variant="proxy"
+                                             :icon="cand.resourceContext?.icon ?? ''"
+                                             :count="cand.resourceContext?.count ?? 0" />
                   </span>
-                  <ConsoleCardResourceChip v-if="showsResource(cand)"
-                                           variant="proxy"
-                                           :icon="cand.resourceContext?.icon ?? ''"
-                                           :count="cand.resourceContext?.count ?? 0" />
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__self-check" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
                 <div v-else

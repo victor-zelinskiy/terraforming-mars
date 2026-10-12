@@ -34010,8 +34010,13 @@ html.console-mode {
        small solved cell (many candidates, or the Deck profile) «ИСТОЧНИК · ЭТА
        КАРТА» does not fit, and a flex kicker cut it mid-word with nothing to
        say it had been cut. */
+    /* The resource reading is the column's third line (PL-218): the name above it takes the whole width. */
+    &__self-res { align-self: flex-start; margin-top: .2rem; }
     &__self-kicker {
         display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
         font-size: .62rem; letter-spacing: .1rem; text-transform: uppercase;
         color: fade(@con-cyan, 88%);
         white-space: nowrap;
@@ -34028,6 +34033,8 @@ html.console-mode {
         -webkit-box-orient: vertical;
         overflow: hidden;
         overflow-wrap: anywhere;
+        /* A one-word name longer than the box breaks at a syllable with its hyphen («Суперкомпью-тер»), never mid-letter. */
+        hyphens: auto;
     }
     /* OUT OF FLOW, exactly like `__lock` on a card cell — a state marker may
        never be a term in the width of the thing it marks. */
