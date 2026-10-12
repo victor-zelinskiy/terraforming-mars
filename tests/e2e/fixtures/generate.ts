@@ -143,6 +143,9 @@ import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchS
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
 import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
 import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/ExpeditionMechs';
+import {InfluentialDiscovery} from '../../../src/server/cards/turmoilRedux/InfluentialDiscovery';
+import {SearchForLife} from '../../../src/server/cards/base/SearchForLife';
+import {MarsUniversity} from '../../../src/server/cards/base/MarsUniversity';
 import {ConstructionMechs} from '../../../src/server/cards/turmoilRedux/ConstructionMechs';
 import {MarsArmyMechs} from '../../../src/server/cards/turmoilRedux/MarsArmyMechs';
 import {AutomatedConvoys} from '../../../src/server/cards/turmoilRedux/AutomatedConvoys';
@@ -2353,6 +2356,55 @@ function expeditionMechsFixture(name: string, at: 'hand' | 'action' | 'family'):
 expeditionMechsFixture('expedition-mechs', 'hand');
 expeditionMechsFixture('expedition-mechs-action', 'action');
 expeditionMechsFixture('expedition-mechs-family', 'family');
+// ── TR51 · INFLUENTIAL DISCOVERY — «1 science OR 6 data to ANY card» (TR43's optional `or` as the whole card) and the
+//    stand of the choice-grammar iteration (docs/claude/prompts/project-tr51-influential-discovery.md): the comparison
+//    «1 science against 6 data» whose both ends depend on the table. Blue's action phase, the SCIENTISTS enacted (the
+//    card's plate), the card in hand with 20 M€. The fixtures differ by the table:
+//      · `influential-discovery`        — Physics Complex (0 science, 2 VP each) and Search for Life (0 — «0 → 1» is
+//                                          its 3 VP) as the science holders; TR15 Martian Census (1 data — 6 more reach
+//                                          its 3-data delegate twice) and TR48 Supercomputer (0 — 2 M€ each on a Science
+//                                          card) as the data holders, and Martian Fiber (a data holder itself — +1 M€
+//                                          per data added to ANY card);
+//      · `influential-discovery-askers` — the table's QUESTIONS the Science tag wakes: Olympus Conference with 1
+//                                          science (it asks «remove one to draw, or add one»), Mars University (it asks
+//                                          «discard a card to draw one») and a second card in hand to discard; one data
+//                                          holder (Supercomputer) so the card's own choice stands too;
+//      · `influential-discovery-none`   — no holder of either kind: the card STILL plays (`OrBehavior.optional`), both
+//                                          variants greyed, the loss named once.
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open). ──
+function influentialDiscoveryFixture(name: string, table: 'both' | 'askers' | 'none'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      p1.megaCredits = 20;
+      if (table === 'both') {
+        const census = new MartianCensus();
+        census.resourceCount = 1;
+        p1.playedCards.push(new PhysicsComplex(), new SearchForLife(), census, new Supercomputer(), new MartianFiber());
+      } else if (table === 'askers') {
+        const olympus = new OlympusConference();
+        olympus.resourceCount = 1;
+        p1.playedCards.push(olympus, new MarsUniversity(), new Supercomputer());
+      }
+      p1.cardsInHand = table === 'askers' ? [new MartianRails(), new InfluentialDiscovery()] : [new InfluentialDiscovery()];
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.INFLUENTIAL_DISCOVERY);
+      const holders = p1.playedCards.asArray().filter((c) => c.resourceType === CardResource.SCIENCE || c.resourceType === CardResource.DATA).length;
+      const expected = table === 'both' ? 5 : table === 'askers' ? 2 : 0;
+      if (card === undefined || !p1.canPlay(card) || parliament.rulingParty() !== PartyName.SCIENTISTS || holders !== expected) {
+        throw new Error(`the ${name} fixture expected TR51 playable, the Scientists ruling and ${expected} holders — got playable=${card !== undefined && p1.canPlay(card)} ruling=${parliament.rulingParty()} holders=${holders}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+influentialDiscoveryFixture('influential-discovery', 'both');
+influentialDiscoveryFixture('influential-discovery-askers', 'askers');
+influentialDiscoveryFixture('influential-discovery-none', 'none');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's

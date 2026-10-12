@@ -246,7 +246,7 @@
                 <ConsoleForecastRow v-if="forecastRowShown"
                                     class="con-composer__rescat con-composer__rescat--forecast"
                                     :class="{'con-forecast--descend': forecastPulse}"
-                                    :forecast="forecast"
+                                    :forecast="forecastAnswered"
                                     @open="openForecastLayer()" />
 
                 <!-- Derived result categories — the block is NEVER empty. A tag
@@ -979,6 +979,35 @@ export default defineComponent({
     // ── THE EFFECT FORECAST (rides inside the preview) ──────────────────
     forecast(): EffectForecast | undefined {
       return this.preview?.forecast;
+    },
+    /**
+     * THE ROW AFTER THE ANSWER (TR51): a table question answered in this composer is no longer a question — its chip
+     * stops asking («?») and states the outcome the player chose (the fact's own outcomes: option 0 = `effects`, option
+     * i = `alternatives[i − 1]`, the live prompt's order). The R3 layer keeps the whole fact — every outcome, why.
+     */
+    forecastAnswered(): EffectForecast | undefined {
+      const forecast = this.forecast;
+      if (forecast === undefined) {
+        return undefined;
+      }
+      const answers = new Map<string, number>();
+      for (const c of this.allChoices) {
+        const answer = c.scope === 'pre' && c.reaction !== undefined ? this.capturedPre[c.index] as {type?: string, index?: number} | undefined : undefined;
+        if (c.reaction !== undefined && answer?.type === 'or' && answer.index !== undefined) {
+          answers.set(c.reaction.fact, answer.index);
+        }
+      }
+      if (answers.size === 0) {
+        return forecast;
+      }
+      return {...forecast, facts: forecast.facts.map((fact) => {
+        const index = answers.get(fact.id);
+        if (fact.certainty !== 'asks' || index === undefined) {
+          return fact;
+        }
+        const effects = index === 0 ? fact.effects : fact.alternatives?.[index - 1]?.effects;
+        return effects === undefined ? fact : {...fact, certainty: 'exact', effects, alternatives: undefined};
+      })};
     },
     /** The server's own change counter — the ONE key a preview is fresh by. */
     stateVersion(): string {
@@ -1822,7 +1851,10 @@ export default defineComponent({
     followUpNotes(): Array<NextStepRow> {
       const b = this.selectedBranch;
       if (b === undefined) {
-        return [];
+        // A table question handed on by a draw above it is the PLAY's, not a variant's (TR51 — card-level pre-steps):
+        // it is named before any variant is chosen too.
+        return this.followUpChoices.flatMap((c) => c.reaction !== undefined ?
+          [noteRow(`${translateCardName(c.reaction.card)}: ${translateText(HIDDEN_DRAW_NOTE)}`)] : []);
       }
       const out: Array<NextStepRow> = [];
       if (b.reveal !== undefined) {
@@ -4013,11 +4045,12 @@ export default defineComponent({
         return;
       }
       this.selectedPos = pos;
-      // Branch-specific captures reset (desktop selectBranch parity).
+      // Branch-specific captures reset (desktop selectBranch parity). The card-level answers (`pre#…` — the table's
+      // questions, TR51) are the PLAY's, not the variant's: their captures (`capturedPre`) and their labels survive.
       this.captured = {};
       this.capturedOption = undefined;
-      this.picks = {};
-      this.multiPicks = {};
+      this.picks = Object.fromEntries(Object.entries(this.picks).filter(([id]) => id.startsWith('pre#')));
+      this.multiPicks = Object.fromEntries(Object.entries(this.multiPicks).filter(([id]) => id.startsWith('pre#')));
       this.amounts = {};
       this.floaters = {};
       this.repeatResult = undefined;
