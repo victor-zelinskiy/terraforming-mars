@@ -138,8 +138,12 @@ describe('ResearchStartups', () => {
       expect(onPlay.map((n) => [n.type, n.amount])).deep.eq([[CardRenderItemType.RESOURCE, DATA_ON_PLAY]]);
     });
 
-    it('K-R1 — the holder\'s ACTION role is not derived: the action is bespoke (no declaration to read)', () => {
-      expect(holderActionGoodOf(t.card)).is.undefined;
+    it('K-R1 — the holder\'s ACTION role: ALL the data → as many cards, keep 1 — declared once, and it IS what the preview says', () => {
+      expect(holderActionGoodOf(t.card)).deep.eq({spend: 'all', good: {kind: 'look', keep: CARDS_KEPT}});
+      onTable(t, 4);
+      const effects = actionPreview(t.player, t.card).branches[0].effects;
+      expect(effects.find((e) => e.direction === 'cost'), 'spend ALL').deep.include({amount: 4, current: 4, resulting: 0});
+      expect(effects.find((e) => e.icon === 'cards')?.look, 'one card per unit, keep the declared count').deep.eq({revealed: 4, keep: CARDS_KEPT});
     });
   });
 

@@ -33,7 +33,7 @@ export type HolderRole =
   /** The card's declaration: the resource buys a free trade. */
   | {kind: 'trade'}
   /** The card's own action: `spend` units off this card buy `good` (PL-135). */
-  | {kind: 'action', spend: number, good: ActionGood}
+  | {kind: 'action', spend: number | 'all', good: ActionGood}
   /** Storage with no role the console can name. */
   | {kind: 'store'};
 
@@ -108,6 +108,7 @@ export const ACTION_GOOD_CAPTION: Readonly<Record<ActionGood['kind'], string>> =
   cards: 'cards',
   tr: 'TR',
   global: 'terraforming',
+  look: 'cards',
 };
 
 /** The caption of a role — `undefined` for plain storage. */
@@ -136,6 +137,7 @@ export function actionGoodIcon(good: ActionGood): string {
   case 'stock':
     return good.resource;
   case 'cards':
+  case 'look':
     return 'cards';
   case 'tr':
     return 'tr';
@@ -156,7 +158,7 @@ export function holderRolePlate(role: HolderRole): 'production' | undefined {
 
 /** The amount an action's good moves — the label's second number. */
 export function actionGoodAmount(good: ActionGood): number {
-  return good.kind === 'global' ? good.steps : good.amount;
+  return good.kind === 'global' ? good.steps : good.kind === 'look' ? good.keep : good.amount;
 }
 
 /** The tail phrase after an action good's amount (an i18n key) — what the «+N» is of. */
@@ -172,6 +174,8 @@ export function actionGoodTail(good: ActionGood): string | undefined {
     return 'TR';
   case 'global':
     return good.parameter;
+  case 'look':
+    return undefined;
   }
 }
 
@@ -204,6 +208,10 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
   case 'trade':
     return {label: 'A free trade per unit', params: []};
   case 'action': {
+    if (role.good.kind === 'look') {
+      // TR46: every unit here is one more card turned over; the action keeps `keep` of them.
+      return {label: 'All from here: as many cards off the deck, ${0} to the hand', params: [String(role.good.keep)]};
+    }
     const tail = actionGoodTail(role.good);
     const tag = role.good.kind === 'cards' ? role.good.tag : undefined;
     return {

@@ -9790,11 +9790,31 @@ html.console-mode {
             box-shadow: inset 0 0 0 .05rem fade(@con-amber, 80%), 0 0 .7rem fade(@con-amber, 18%);
             color: #ffe9c4;
         }
+        /* THE TABLE'S ANSWER to the sale (TR46): the same weight as the
+           project's own «+N M€» — a quieter glass, the ⚡ of the forecast
+           family and the answering card's NAME (the number has a cause). */
+        &--answer {
+            background: linear-gradient(180deg, fade(@con-amber, 15%), fade(@con-amber, 5%)), rgba(14, 22, 33, 0.6);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 62%);
+            color: #ffe9c4;
+        }
         &--zero {
             background: rgba(14, 22, 33, 0.5);
             box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.24);
             color: @con-text-dim;
         }
+    }
+    &__salebar-spark {
+        color: @con-amber;
+        font-size: .75rem;
+    }
+    &__salebar-source {
+        font-weight: 700;
+        letter-spacing: .02rem;
+    }
+    &__salebar-rate {
+        font-size: .7rem;
+        color: @con-text-dim;
     }
     &__salebar-label {
         font-size: .75rem;

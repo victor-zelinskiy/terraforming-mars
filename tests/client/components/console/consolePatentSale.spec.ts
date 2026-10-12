@@ -11,7 +11,9 @@ import {
   patentSaleHolding,
   patentSaleState,
 } from '@/client/console/patentSale/consolePatentSale';
-import {SELL_PATENTS_RATE} from '@/client/components/handCards/sellPatentsState';
+
+/** The server's rate the sale prompt carries (`PatentSaleModel.megacreditsPerCard`) — the caller passes it. */
+const SELL_PATENTS_RATE = 1;
 
 function viewWithHand(names: Array<CardName>): PlayerViewModel {
   return {
@@ -31,7 +33,7 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('arm closes the input gate at once and starts the client leg', async () => {
-    armPatentSale({cards: [CardName.TREES, CardName.FISH]});
+    armPatentSale({cards: [CardName.TREES, CardName.FISH], payoutPerCard: SELL_PATENTS_RATE});
     expect(isPatentSaleActive()).to.be.true;
     // No live hand slots in this DOM → the client leg degrades and may have
     // already advanced past 'gathering' synchronously; the ladder order holds.
@@ -46,7 +48,7 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('detect consumes the arm ONCE and requires the server-proven removal', async () => {
-    armPatentSale({cards: [CardName.TREES]});
+    armPatentSale({cards: [CardName.TREES], payoutPerCard: SELL_PATENTS_RATE});
     await settle(15);
     const hit = detectPatentSale(viewWithHand([CardName.FISH])); // Trees is gone
     expect(hit).to.deep.eq({payout: SELL_PATENTS_RATE});
@@ -55,7 +57,7 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('a sale the server did NOT process aborts with zero visual state', async () => {
-    armPatentSale({cards: [CardName.TREES]});
+    armPatentSale({cards: [CardName.TREES], payoutPerCard: SELL_PATENTS_RATE});
     await settle(15);
     const hit = detectPatentSale(viewWithHand([CardName.TREES])); // still in hand
     expect(hit).to.be.undefined;
@@ -67,7 +69,7 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('the full happy path walks the phase ladder and the commit gate resolves', async () => {
-    armPatentSale({cards: [CardName.TREES, CardName.FISH, CardName.BIRDS]});
+    armPatentSale({cards: [CardName.TREES, CardName.FISH, CardName.BIRDS], payoutPerCard: SELL_PATENTS_RATE});
     await settle(15);
     expect(detectPatentSale(viewWithHand([]))).to.deep.eq({payout: 3 * SELL_PATENTS_RATE});
 
@@ -86,7 +88,7 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('abort mid-run frees the commit gate and leaves no lock behind', async () => {
-    armPatentSale({cards: [CardName.TREES]});
+    armPatentSale({cards: [CardName.TREES], payoutPerCard: SELL_PATENTS_RATE});
     await settle(15);
     expect(detectPatentSale(viewWithHand([]))).to.not.be.undefined;
     const gate = runPatentSale();
@@ -98,7 +100,7 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('endPatentSale after an abort is a clean no-op', async () => {
-    armPatentSale({cards: [CardName.TREES]});
+    armPatentSale({cards: [CardName.TREES], payoutPerCard: SELL_PATENTS_RATE});
     abortPatentSale();
     await endPatentSale();
     await settle(5);
@@ -106,13 +108,13 @@ describe('consolePatentSale (the animation transaction)', () => {
   });
 
   it('a second arm re-keys the transaction (nonce bumps, claim resets)', async () => {
-    armPatentSale({cards: [CardName.TREES]});
+    armPatentSale({cards: [CardName.TREES], payoutPerCard: SELL_PATENTS_RATE});
     const firstNonce = patentSaleState.nonce;
     await settle(15);
     expect(detectPatentSale(viewWithHand([]))).to.not.be.undefined;
     await runPatentSale();
     await endPatentSale();
-    armPatentSale({cards: [CardName.FISH]});
+    armPatentSale({cards: [CardName.FISH], payoutPerCard: SELL_PATENTS_RATE});
     expect(patentSaleState.nonce).to.eq(firstNonce + 1);
     await settle(15);
     // The fresh arm is detectable again (the one-shot claim was reset).
@@ -127,7 +129,7 @@ describe('consolePatentSale — the enacted resolution\'s action runs the SAME t
   });
 
   it('the standard project keeps its flat rate and kicker by default', () => {
-    armPatentSale({cards: [CardName.TREES, CardName.FISH]});
+    armPatentSale({cards: [CardName.TREES, CardName.FISH], payoutPerCard: SELL_PATENTS_RATE});
     expect(patentSaleState.payout).to.eq(2 * SELL_PATENTS_RATE);
     expect(patentSaleState.source).to.eq('standard-project');
     expect(patentSaleState.kicker).to.eq('Patent sale');

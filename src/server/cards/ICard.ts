@@ -35,7 +35,7 @@ import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {EffectForecastFact} from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from './EffectForecastContext';
 import type {FleetDock} from '../colonies/FleetDock';
-import type {DeclaredHolderRole} from '../../common/cards/holderRole';
+import type {DeclaredHolderRole, HolderActionGood} from '../../common/cards/holderRole';
 import type {GlobalParameterRaise} from './GlobalParameterRaise';
 
 /*
@@ -277,6 +277,13 @@ export interface ICard {
    * and VP per resource are read structurally and declare nothing.
    */
   resourceRole?: DeclaredHolderRole;
+  /**
+   * THE ACTION ROLE OF A BESPOKE HOLDER (К-R1, TR46): what one press of a
+   * BESPOKE action buys with the resource stored here — a declarative action's
+   * role is DERIVED (`cards/holderActionGood.ts`) and must never declare one.
+   * Built in the card file from the constants its action and preview read.
+   */
+  holderActionGood?: HolderActionGood;
   /** Called when cards are played. Corps have a different callback */
   onCardPlayed?(player: IPlayer, card: ICard): PlayerInput | undefined | void;
   onCardPlayedByAnyPlayer?(thisCardOwner: IPlayer, card: ICard, activePlayer: IPlayer): PlayerInput | undefined | void;

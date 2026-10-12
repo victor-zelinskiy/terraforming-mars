@@ -66,9 +66,13 @@
         </div>
       </div>
       <!-- SALE mode: the live financial summary of the current pick — how
-           many cards are chosen, the M€ they pay out, and the before → after
-           wallet. Amber (the sale accent); the gain/total read dim at zero
-           picks so the mechanics are visible before the first selection. -->
+           many cards are chosen, the M€ they pay out, what the TABLE answers
+           (TR46: «+4 [data] Исследовательские стартапы», then Martian Fiber's
+           «+4 M€» — the server's rate × the pick, never a client number), and
+           the before → after wallet (the answers' M€ included). Amber (the
+           sale accent); at zero picks the gains read dim and each answer
+           states its rate «per card», so the mechanics read before the first
+           selection. -->
       <div v-if="saleActive" class="con-hand__salebar" role="status" :aria-label="$t('Patent sale')">
         <span class="con-hand__salebar-item">
           <span class="con-hand__salebar-label">{{ $t('Selected') }}:</span>
@@ -77,6 +81,19 @@
         <span class="con-hand__salebar-item con-hand__salebar-item--gain" :class="{'con-hand__salebar-item--zero': sale.count === 0}">
           <b class="con-hand__salebar-num">+{{ sale.payout }}</b>
           <i class="resource_icon resource_icon--megacredits con-hand__salebar-mc" aria-hidden="true"></i>
+        </span>
+        <span v-for="a in saleAnswers"
+              :key="a.key"
+              class="con-hand__salebar-item con-hand__salebar-item--answer"
+              :class="{'con-hand__salebar-item--zero': sale.count === 0}"
+              :data-sale-answer="a.source">
+          <span class="con-hand__salebar-spark" aria-hidden="true">⚡</span>
+          <template v-if="a.icon !== ''">
+            <b class="con-hand__salebar-num">+{{ a.shown }}</b>
+            <i :class="answerIconClass(a.icon)" class="con-hand__salebar-mc" aria-hidden="true"></i>
+          </template>
+          <span class="con-hand__salebar-source">{{ $t(a.source) }}</span>
+          <span v-if="sale.count === 0 && a.icon !== ''" class="con-hand__salebar-rate">{{ $t('per card') }}</span>
         </span>
         <span class="con-hand__salebar-item con-hand__salebar-item--total" :class="{'con-hand__salebar-item--zero': sale.count === 0}">
           <i class="resource_icon resource_icon--megacredits con-hand__salebar-mc" aria-hidden="true"></i>
@@ -495,7 +512,8 @@ import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
+import {PatentSaleAnswer, PatentSaleSummary, patentSaleAnswers, patentSaleSummary} from '@/client/console/patentSale/patentSaleAnswers';
+import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {HandForecastPlate, handForecastPlate, signedAmount} from '@/client/console/countedPlay';
@@ -615,6 +633,8 @@ export default defineComponent({
     saleSelected: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
     /** The player's current M€ — drives the sale summary's before → after. */
     saleMegacredits: {type: Number, default: 0},
+    /** The sale prompt's RATE (`SelectCardModel.patentSale`) — the project's M€ and the table's answers per card. */
+    salePatent: {type: Object as PropType<PatentSaleModel | undefined>, default: undefined},
     /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
      *  the section is the normal play/browse hand. */
     select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
@@ -921,9 +941,18 @@ export default defineComponent({
     discardExchangeIconClass(): string {
       return iconClassFor(this.discard?.exchange?.icon ?? 'cards');
     },
-    /** SALE mode: the live pick summary (count / payout / before → after). */
-    sale(): {count: number, payout: number, before: number, after: number} {
-      return saleSummary(this.saleSelected.length, this.saleMegacredits);
+    /** SALE mode: the live pick summary (count / payout / answers / before → after) — the server's rate × the pick. */
+    sale(): PatentSaleSummary {
+      return patentSaleSummary(this.salePatent, this.saleSelected.length, this.saleMegacredits);
+    },
+    /**
+     * The table's answers as the bar reads them: the amount for the pick, or —
+     * at zero picks — the RATE of one card (dim, «за карту»), so the answer is
+     * named before the first selection.
+     */
+    saleAnswers(): Array<PatentSaleAnswer & {shown: number}> {
+      const rows = this.sale.count > 0 ? this.sale.answers : patentSaleAnswers(this.salePatent, 1);
+      return rows.map((a) => ({...a, shown: a.amount}));
     },
     /** The focused card's per-card «why not» reason (non-selectable only). */
     focusedSelectReason(): string {
@@ -1230,6 +1259,9 @@ export default defineComponent({
     },
   },
   methods: {
+    answerIconClass(icon: string): string {
+      return iconClassFor(icon);
+    },
     // The WORKSPACE DESCEND phrase, one level deeper than «Действия карт»'s
     // (consoleHandStageMotion): the stage unfolds from the pressed card's rect
     // and folds back into it. Bound as methods so the template stays readable.

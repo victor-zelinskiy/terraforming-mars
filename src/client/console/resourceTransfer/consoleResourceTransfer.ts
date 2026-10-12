@@ -970,8 +970,11 @@ function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>,
   // additional-resources satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
-    // …the RECEIVING CARD standing by the field (TR21's «cities pay» scene): its capsule is the counter that ticks.
-    const r = measure(`.con-citypay [data-played-key="${esc}"] .pcard__res`) ??
+    // …the TERMINAL's receiving card (the patent sale — TR46: the data the slit pays land in its capsule), then
+    // the RECEIVING CARD standing by the field (TR21's «cities pay» scene): its capsule is the counter that ticks.
+    const r = measure(`.con-sale-hero [data-played-key="${esc}"] .pcard__res`) ??
+      measure(`.con-sale-hero [data-played-key="${esc}"]`) ??
+      measure(`.con-citypay [data-played-key="${esc}"] .pcard__res`) ??
       measure(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
       measure(`.con-recv [data-played-key="${esc}"]`) ??
       measure(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??

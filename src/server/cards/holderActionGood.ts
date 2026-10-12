@@ -34,7 +34,9 @@ export function holderActionGoodOf(card: ICard): HolderActionGood | undefined {
   }
   const action = card.actionBehavior;
   if (action === undefined) {
-    return undefined;
+    // A BESPOKE action has no declaration to read: its good is the card's own, declared ONCE beside the reading
+    // its action and its preview share (`ICard.holderActionGood` — TR46), or there is none.
+    return card.holderActionGood;
   }
   const variants: ReadonlyArray<Behavior> = action.or !== undefined ? action.or.behaviors : [action];
   const found: Array<HolderActionGood> = [];

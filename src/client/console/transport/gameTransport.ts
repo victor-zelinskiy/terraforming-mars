@@ -132,6 +132,7 @@ import {
   detectPatentSale,
   endPatentSale,
   runPatentSale,
+  seedPatentSaleRewardHold,
 } from '@/client/console/patentSale/consolePatentSale';
 import {
   detectResolutionPayout,
@@ -590,6 +591,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   seedNomadMoveRewardHold();
   seedColonyBuildRewardHold();
   seedColonyTradeRewardHold();
+  // A PATENT SALE's answers to its answers (TR46 → Martian Fiber's M€): held on the rail from this commit until their
+  // own chip, born on the answering card beside the terminal, touches down (`consolePatentSale.ts`).
+  seedPatentSaleRewardHold();
   // A trade whose fleet landed on a DOCK CARD (TR06 Water Hauling, TR26 UNMI
   // Liner): the card's own scene holds whatever the response raised until the
   // workspace has left, and a reward that lands ON THE RAIL (the Liner's TR)

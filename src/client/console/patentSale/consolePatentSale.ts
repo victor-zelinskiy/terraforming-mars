@@ -40,12 +40,11 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {sellPatentsPayout} from '@/client/components/handCards/sellPatentsState';
 import {
   PatentSalePhase,
   SALE_LIFT_MS, SALE_GATHER_MS, SALE_GATHER_STAGGER_MS, SALE_INSERT_MS,
   SALE_PROCESS_MIN_MS, SALE_REDUCED_MS, SALE_ARM_SAFETY_MS,
-  SALE_FLIGHT_CAP,
+  SALE_FLIGHT_CAP, SALE_RECEIVERS_RISE_MS,
 } from '@/client/console/patentSale/patentSaleModel';
 import {
   SaleStageEls, SaleSource, placeSaleProxies, playSaleGather, playSaleInsert,
@@ -53,8 +52,11 @@ import {
 } from '@/client/console/patentSale/patentSaleDirector';
 import {
   runResourceTransfers, settleResourceTransfers, abortResourceTransfers,
+  beginPanelRewardHold, releasePanelRewardHold, resetCardResourceLandings,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {transferFlightBudgetMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TransferPoint, transferFlightBudgetMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {PatentSaleAnswer, answerTransferSpec, patentSaleReceivers} from '@/client/console/patentSale/patentSaleAnswers';
+import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
 
 export type SaleFlight = {
   id: number,
@@ -62,6 +64,16 @@ export type SaleFlight = {
 };
 
 export type PatentSaleSource = 'standard-project' | 'resolution';
+
+/**
+ * A card the terminal stands up beside itself while it pays (TR46 — the
+ * owner's decision 2026-10-12: «the receiving card at the terminal»): the card
+ * a data token lands ON (its capsule is the counter that ticks — `before` +
+ * the landings of this sale) and the card a stock answer comes FROM (Martian
+ * Fiber — its face is its chip's birth point). Both ends of every answer's
+ * flight are thereby on screen (the law of visible ends).
+ */
+export type SaleReceiver = {card: CardName, before: number};
 
 export const patentSaleState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
@@ -85,7 +97,37 @@ export const patentSaleState = reactive({
   /** The card proxies that physically fly (capped — a big sale is a pile). */
   flights: [] as Array<SaleFlight>,
   reducedMotion: false,
+  /** The table's answers to THIS sale (`patentSaleAnswers` — the server's rate × the cards sold), frozen at arm. */
+  answers: [] as Array<PatentSaleAnswer>,
+  /** The cards the terminal stands up for those answers, in their order. */
+  receivers: [] as Array<SaleReceiver>,
+  /** The receivers stand (they rise once the cards are inside the terminal, and sink with it). */
+  receiversUp: false,
 });
+
+/**
+ * The answers' STOCK chips (Martian Fiber's M€ for the data) are HELD on the
+ * rail from the COMMIT until their own chip lands: the view commits at the
+ * project's touchdown and must not show money whose chip has not flown yet.
+ * Owed from the payout (`pendingAnswerSpecs`), seeded in the transport's
+ * apply block — the SAME block as the commit (`seedPatentSaleRewardHold`):
+ * a hold seeded before it would show the rail BELOW its pre-sale value — and
+ * released at each touchdown, and by every way out (finish / abort).
+ */
+let pendingAnswerSpecs: Array<ResourceTransferSpec> = [];
+/** The receivers' art, warmed at arm: a card stands up only with its face painted (never an empty frame). */
+let receiversArt: Promise<void> = Promise.resolve();
+let heldAnswerSpecs: Array<ResourceTransferSpec> = [];
+
+/** The transport's apply block, beside the commit: the answers' rail half is held from this very commit on. */
+export function seedPatentSaleRewardHold(): void {
+  if (!patentSaleState.active || pendingAnswerSpecs.length === 0) {
+    return;
+  }
+  heldAnswerSpecs = [...pendingAnswerSpecs];
+  pendingAnswerSpecs = [];
+  beginPanelRewardHold(heldAnswerSpecs);
+}
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
 let claimed = false;
@@ -143,11 +185,15 @@ registerAnimationHoldSupplier('patent-sale', patentSaleHolding);
  */
 export function armPatentSale(opts: {
   cards: ReadonlyArray<CardName>,
-  /** The M€ each card pays (the standard project's flat rate by default). */
-  payoutPerCard?: number,
+  /** The M€ each card pays — the server's rate (`PatentSaleModel.megacreditsPerCard` / the law's). */
+  payoutPerCard: number,
   source?: PatentSaleSource,
   /** The terminal's kicker (an i18n key — «Patent sale» by default). */
   kicker?: string,
+  /** The table's answers to this sale (the standard project's model × the cards); none for a law's sale. */
+  answers?: ReadonlyArray<PatentSaleAnswer>,
+  /** A receiver card's capsule at arm (its stored resources on the viewer's table). */
+  capsuleOf?: (card: CardName) => number,
 }): void {
   clearTimers();
   claimed = false;
@@ -156,11 +202,18 @@ export function armPatentSale(opts: {
   patentSaleState.phase = 'gathering';
   patentSaleState.nonce++;
   patentSaleState.cards = [...opts.cards];
-  patentSaleState.payout = opts.payoutPerCard === undefined ? sellPatentsPayout(opts.cards.length) : opts.payoutPerCard * opts.cards.length;
+  patentSaleState.payout = opts.payoutPerCard * opts.cards.length;
   patentSaleState.source = opts.source ?? 'standard-project';
   patentSaleState.kicker = opts.kicker ?? 'Patent sale';
   patentSaleState.flights = capturedSources.map((s) => ({id: s.id, name: s.name}));
   patentSaleState.reducedMotion = consoleReducedMotionActive();
+  patentSaleState.answers = [...(opts.answers ?? [])];
+  patentSaleState.receivers = patentSaleReceivers(patentSaleState.answers).map((card) => ({card, before: opts.capsuleOf?.(card) ?? 0}));
+  patentSaleState.receiversUp = false;
+  heldAnswerSpecs = [];
+  pendingAnswerSpecs = [];
+  receiversArt = warmReceiverArt(patentSaleState.receivers.map((r) => r.card));
+  resetCardResourceLandings();
   // A submit the server never answers (dropped / errored before the
   // WaitingFor detect) can never strand the terminal mid-work — the arm
   // self-aborts and the UI unwinds with zero trace.
@@ -223,9 +276,34 @@ export async function endPatentSale(): Promise<void> {
   }
   patentSaleState.phase = 'settling';
   const els = stage?.els();
-  if (!patentSaleState.reducedMotion) {
-    // The framework absorbs the landed M€ chip into the (just updated) row
-    // under its one-shot halo while the terminal retracts into the table.
+  if (!patentSaleState.reducedMotion && heldAnswerSpecs.length > 0) {
+    // The landed chips absorb (the money into the row, the data into the
+    // capsule) while the answer to the answer — Martian Fiber's M€ for the
+    // data it just saw land — leaves ITS card for the rail (PL-189: an effect
+    // answering another effect holds its own chips, after the one it answers).
+    const settled = settleResourceTransfers();
+    const specs = [...heldAnswerSpecs];
+    await runResourceTransfers({
+      specs,
+      // Each chip from the face of the card that pays it; the receivers' strip is the fallback birth band.
+      source: {selectors: ['.con-sale-hero__recvs']},
+      origins: specs.map((spec) => receiverPoint(payerOf(spec))),
+      arrival: 'auto',
+      onArrive: (spec) => {
+        releasePanelRewardHold(spec);
+        heldAnswerSpecs = heldAnswerSpecs.filter((h) => h !== spec);
+      },
+    });
+    await settled;
+    patentSaleState.receiversUp = false;
+    if (els !== undefined) {
+      await playSaleSettle(els, conUiScale());
+    }
+  } else if (!patentSaleState.reducedMotion) {
+    // The framework absorbs the landed chips (the M€ into the just-updated row,
+    // a data token into its capsule) under their one-shot halo while the
+    // terminal retracts into the table — the receivers with it.
+    patentSaleState.receiversUp = false;
     await Promise.all([
       settleResourceTransfers(),
       els !== undefined ? playSaleSettle(els, conUiScale()) : Promise.resolve(),
@@ -252,6 +330,7 @@ export function abortPatentSale(): void {
     killSaleTweens(els);
   }
   abortResourceTransfers(); // a mid-flight payout chip unmounts with zero trace
+  releaseAnswerHolds(); // an answer held on the rail is never stranded
   restoreSources();
   patentSaleState.active = false;
   patentSaleState.phase = 'failed';
@@ -263,6 +342,9 @@ export function abortPatentSale(): void {
       patentSaleState.phase = 'idle';
       patentSaleState.cards = [];
       patentSaleState.payout = 0;
+      patentSaleState.answers = [];
+      patentSaleState.receivers = [];
+      patentSaleState.receiversUp = false;
     }
   });
 }
@@ -317,8 +399,11 @@ async function executeClientLeg(): Promise<void> {
     return; // aborted mid-scene — abort already cleaned up
   }
   // The hand has physically given the cards away — the shell watcher closes
-  // the sale UI + returns to the board UNDER the (independent) scene.
+  // the sale UI + returns to the board UNDER the (independent) scene. The cards
+  // that will answer the sale stand up beside the terminal as the stack sinks —
+  // the table listens before it answers, and stands painted at the payout.
   patentSaleState.phase = 'inserting';
+  raiseReceivers();
   await playSaleInsert(els, {uiScale, durationMs: motionMs(SALE_INSERT_MS)});
   if (!patentSaleState.active) {
     return;
@@ -354,7 +439,7 @@ async function executePayout(): Promise<void> {
   const els = stage?.els();
   const slit = saleSlitCenter();
   if (patentSaleState.reducedMotion || els === undefined || slit === undefined || capturedSources.length === 0) {
-    // Degraded: no scene to pace — a minimal controlled beat, then commit.
+    // Degraded: no scene to pace — a minimal controlled beat, then commit (every answer with it: nothing held).
     patentSaleState.phase = 'paying';
     await wait(patentSaleState.reducedMotion ? 0 : 60);
     return;
@@ -374,11 +459,114 @@ async function executePayout(): Promise<void> {
   // the (gated) commit fires the delta chip and endPatentSale absorbs it.
   // Resolves at the chip's touchdown — the caller commits right after.
   playSaleDispense(els);
+  // THE TERMINAL PAYS TWICE (TR46): the project's money onto the rail and the
+  // data its answer stores into the receiving card's capsule — one wave out of
+  // the slit; both REST on their destination until the commit, which lands at
+  // their touchdowns. The answers to THOSE answers (Martian Fiber's M€) fly
+  // after the commit, from their own card, so they are held on the rail now.
+  const {fromSlit, fromCards} = answerSpecs();
+  pendingAnswerSpecs = [...fromCards];
+  // A token lands only on an end that is PAINTED (the law of visible ends): the receivers' rise has to be up.
+  if (patentSaleState.receivers.length > 0) {
+    await receiversStanding();
+  }
+  if (!patentSaleState.active) {
+    return;
+  }
   await runResourceTransfers({
-    specs: [{channel: 'stock', resource: 'megacredits', amount: patentSaleState.payout}],
+    specs: [{channel: 'stock', resource: 'megacredits', amount: patentSaleState.payout}, ...fromSlit],
     source: {point: slit},
     arrival: 'hold',
   });
+}
+
+/** The answers' flights: card-resource chips leave the slit, stock chips leave their own card. */
+function answerSpecs(): {fromSlit: Array<ResourceTransferSpec>, fromCards: Array<ResourceTransferSpec>} {
+  const fromSlit: Array<ResourceTransferSpec> = [];
+  const fromCards: Array<ResourceTransferSpec> = [];
+  for (const answer of patentSaleState.answers) {
+    const spec = answerTransferSpec(answer);
+    if (spec === undefined) {
+      continue;
+    }
+    (spec.channel === 'card-resource' ? fromSlit : fromCards).push(spec);
+  }
+  return {fromSlit, fromCards};
+}
+
+/** Release whatever of the answers' rail hold has not landed (finish / abort — never a stranded M€). */
+function releaseAnswerHolds(): void {
+  for (const spec of heldAnswerSpecs) {
+    releasePanelRewardHold(spec);
+  }
+  heldAnswerSpecs = [];
+  pendingAnswerSpecs = [];
+}
+
+/**
+ * The THUMB tier of every receiver's art, fetched AND decoded — the tier the
+ * receivers paint (`art-tier="thumb"`): `img.src` only guarantees the bytes,
+ * and a face standing up before its decode is an empty frame (the first 4K
+ * storyboard: two blank cards for ~0.3 s). Never rejects.
+ */
+function warmReceiverArt(cards: ReadonlyArray<CardName>): Promise<void> {
+  if (typeof Image === 'undefined' || cards.length === 0) {
+    return Promise.resolve();
+  }
+  return Promise.all(cards.map((name) => {
+    const img = new Image();
+    img.src = cardArtUrlAtTier(premiumCardArt(name).url, 'thumb');
+    return img.decode?.().catch(() => undefined) ?? Promise.resolve();
+  })).then(() => undefined);
+}
+
+/** The receivers stand up once their faces are painted — bounded: a slow decode never holds the payout. */
+function raiseReceivers(): void {
+  if (patentSaleState.receivers.length === 0) {
+    return;
+  }
+  const nonce = patentSaleState.nonce;
+  const raise = () => {
+    if (patentSaleState.active && patentSaleState.nonce === nonce) {
+      patentSaleState.receiversUp = true;
+    }
+  };
+  void Promise.race([receiversArt, wait(motionMs(SALE_INSERT_MS))]).then(raise);
+}
+
+/** The receivers' rise has landed: every receiver card painted at full opacity (bounded — a lost frame never wedges the payout). */
+async function receiversStanding(): Promise<void> {
+  const deadline = Date.now() + motionMs(SALE_RECEIVERS_RISE_MS) + 400;
+  while (patentSaleState.active && Date.now() < deadline) {
+    const strip = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-sale-hero__recvs--up');
+    if (strip !== null && Number(getComputedStyle(strip).opacity) >= 0.98) {
+      return;
+    }
+    await frame();
+  }
+}
+
+/** The card whose answer a held stock spec is — its face is the chip's birth point. */
+function payerOf(spec: ResourceTransferSpec): CardName | undefined {
+  return patentSaleState.answers.find((a) => {
+    const own = answerTransferSpec(a);
+    return own !== undefined && own.channel === spec.channel && own.resource === spec.resource && own.amount === spec.amount;
+  })?.card;
+}
+
+/** The birth point of a stock answer: the face of the card that pays it (standing beside the terminal). */
+function receiverPoint(card: CardName | undefined): TransferPoint | undefined {
+  if (card === undefined || typeof document === 'undefined') {
+    return undefined;
+  }
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-sale-hero__recv-card'))) {
+    if (el.dataset.saleReceiver !== card) {
+      continue;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 4 && r.height > 4 ? {x: r.left + r.width / 2, y: r.top + r.height * 0.42} : undefined;
+  }
+  return undefined;
 }
 
 function captureSources(cards: ReadonlyArray<CardName>): Array<SaleSource & {holdEl: HTMLElement}> {
@@ -417,12 +605,16 @@ function restoreSources(): void {
 
 function finish(): void {
   clearTimers();
+  releaseAnswerHolds();
   restoreSources();
   patentSaleState.active = false;
   patentSaleState.phase = 'idle';
   patentSaleState.cards = [];
   patentSaleState.payout = 0;
   patentSaleState.flights = [];
+  patentSaleState.answers = [];
+  patentSaleState.receivers = [];
+  patentSaleState.receiversUp = false;
 }
 
 function freeRunGate(): void {

@@ -41,7 +41,7 @@ function actionMenu(): any {
     or('Fund an award (14 M€)', [option('Landlord')]),
     option('Convert 8 heat into temperature'),
     {type: 'space', title: 'Convert 8 plants into greenery'},
-    {type: 'card', title: 'Sell patents', cards: []},
+    {type: 'card', title: 'Sell patents', cards: [], patentSale: {megacreditsPerCard: 1}},
     option('Pass for this generation'),
     option('End Turn'),
   ]);
@@ -96,8 +96,16 @@ describe('turnIntents', () => {
     expect(findConvertHeatOption(wf)?.path).to.deep.eq([4]);
     expect(findConvertPlantsOption(wf, true)?.path).to.deep.eq([5]);
     expect(findSellPatentsAction(wf)?.path).to.deep.eq([6]);
+    expect(findSellPatentsAction(wf)?.model, 'the server rate rides the path').to.deep.eq({megacreditsPerCard: 1});
     expect(findPassPath(wf)).to.deep.eq([7]);
     expect(findEndTurnPath(wf)).to.deep.eq([8]);
+  });
+
+  it('finds the sale by its STRUCTURAL marker, never by its (translatable) title', () => {
+    const unmarked = or('menu', [{type: 'card', title: 'Sell patents', cards: []}]) as PlayerInputModel;
+    expect(findSellPatentsAction(unmarked), 'a title alone is no sale').to.eq(undefined);
+    const translated = or('menu', [{type: 'card', title: 'Продать карты', cards: [], patentSale: {megacreditsPerCard: 1}}]) as PlayerInputModel;
+    expect(findSellPatentsAction(translated)?.path).to.deep.eq([0]);
   });
 
   it('descends through WRAPPED menus (initial-action nesting)', () => {

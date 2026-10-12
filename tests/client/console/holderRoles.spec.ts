@@ -84,6 +84,15 @@ describe('holderRoles — what a stored resource is for', () => {
     expect(holderRoleCaption(holderRoleOf(CardName.EVA_MECHS))).to.eq('money');
   });
 
+  it('К-R1 (TR46): a BESPOKE action\'s declared good — «All from here: as many cards off the deck, 1 to the hand», the card icon', () => {
+    const startups = holderRoleOf(CardName.RESEARCH_STARTUPS);
+    expect(startups).to.deep.eq({kind: 'action', spend: 'all', good: {kind: 'look', keep: 1}});
+    expect(holderRoleReading(startups)).to.deep.eq({label: 'All from here: as many cards off the deck, ${0} to the hand', params: ['1']});
+    expect(holderRoleIcon(startups)).to.eq('cards');
+    expect(holderRoleCaption(startups)).to.eq('cards');
+    expect(holderRolePlate(startups)).to.eq(undefined);
+  });
+
   it('a role CLAIMS (tender, a delegate, a trade, an action\'s good) or it does not (a VP rule, storage) — only a claiming role of a split type gets a key of its own; a payment keyed by its UNIT when two tender pools stand', () => {
     expect(['payment', 'delegate', 'trade', 'action'].map((k) => holderRoleClaims(k as never))).to.deep.eq([true, true, true, true]);
     expect(['vp', 'store'].map((k) => holderRoleClaims(k as never))).to.deep.eq([false, false]);

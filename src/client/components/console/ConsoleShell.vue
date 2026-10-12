@@ -219,6 +219,7 @@
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected"
                           :saleMegacredits="thisPlayer.megacredits"
+                          :salePatent="salePatentModel"
                           :select="handSelectProps"
                           :packetExtras="handPacketExtras"
                           :discarding="discardInOverlay"
@@ -2081,6 +2082,8 @@ import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDe
 import {abortDeckDraw, deckDrawDealing, deckDrawHolds, isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
 import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
+import {patentSaleAnswers} from '@/client/console/patentSale/patentSaleAnswers';
+import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PlayReaction} from '@/client/console/played/receivingStageModel';
@@ -8161,6 +8164,10 @@ export default defineComponent({
      *  FROZEN for the span of a submit: the live rows derive from `waitingFor`,
      *  which moves on with the response — without the freeze the browse grid
      *  re-renders EMPTY under the flow's own beat (the deck-pick precedent). */
+    /** THE PATENT SALE's rate on its prompt (`SelectCardModel.patentSale`) — the sale is found by this marker. */
+    salePatentModel(): PatentSaleModel | undefined {
+      return findSellPatentsAction(this.playerView.waitingFor)?.model;
+    },
     stdProjectItems(): Array<StdProjectItem> {
       const frozen = stdProjectsFlow.frozenItems;
       if (frozen !== undefined && stdProjectsFlowLive()) {
@@ -8172,7 +8179,8 @@ export default defineComponent({
         myTurn: this.myTurn,
         awaitingInput: this.awaitingInput,
         myMegacredits: this.thisPlayer.megacredits,
-        sellAvailable: findSellPatentsAction(this.playerView.waitingFor) !== undefined,
+        sellAvailable: this.salePatentModel !== undefined,
+        sellModel: this.salePatentModel,
         cardsInHand: this.cardsTotalCount,
       });
     },
@@ -18308,7 +18316,14 @@ export default defineComponent({
       // WaitingFor `holdingForPatentSale` gate blocks the commit (new M€ /
       // delta chip) until the payout chip lands on the resource rail.
       // Desktop is unaffected (never arms).
-      armPatentSale({cards});
+      // The server's RATE: the project's M€ per card and the table's answers (TR46's data into its capsule,
+      // Martian Fiber's M€ after it) — the terminal stands the answering cards up and flies each answer.
+      armPatentSale({
+        cards,
+        payoutPerCard: action.model.megacreditsPerCard,
+        answers: patentSaleAnswers(action.model, cards.length),
+        capsuleOf: (name) => this.thisPlayer.tableau.find((c) => c.name === name)?.resources ?? 0,
+      });
       // Hosted as a step of the STD-PROJECTS flow: the commit is on the wire —
       // the frame crosses into its transient beat (crumb amber, B absorbed by
       // phase). The sale scene's own phases drive the rest; 'failed' rolls

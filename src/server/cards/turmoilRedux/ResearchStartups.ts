@@ -13,6 +13,7 @@ import {PlayerInput} from '../../PlayerInput';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {HolderActionGood} from '../../../common/cards/holderRole';
 import {PATENTS_SOLD_UNIT} from '../base/standardProjects/patentSale';
 import {cardSource} from '../../inputs/choiceContext';
 import * as actionReason from '../actionReasons';
@@ -145,6 +146,14 @@ export class ResearchStartups extends Card implements IProjectCard, IActionCard 
       },
     });
   }
+
+  /**
+   * К-R1 — the holder's ACTION ROLE (the owner's decision 2026-10-12): ALL the
+   * data here → as many cards off the deck, one kept (CARDS_KEPT). Declared once from the
+   * constants the action and its preview read (the spec holds the three together):
+   * in another card's target step the capsule says what its data are for.
+   */
+  public readonly holderActionGood: HolderActionGood = {spend: 'all', good: {kind: 'look', keep: CARDS_KEPT}};
 
   /** THE ONE READING of an activation (rules 5, 6) — the preview, the reason and the action ask it alike. */
   public static activationAt(player: IPlayer, dataHere: number): ResearchStartupsActivation {

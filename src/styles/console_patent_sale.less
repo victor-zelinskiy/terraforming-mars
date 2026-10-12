@@ -136,6 +136,62 @@
     /* The payout M€ chip + its absorption halo live on the SHARED
        resource-transfer stage (console_resource_transfer.less) — one visual
        language of receiving resources across the whole console UI. */
+
+    /* ── THE TABLE ANSWERS (TR46) — the cards the sale wakes, beside the
+       terminal: the receiving card (its capsule ticks at the data token's
+       contact) and the card whose answer pays the rail (Martian Fiber — its
+       chip is born on its face). They RISE once the cards are inside the
+       terminal (the table listens before it answers) and sink with it; the
+       face is the real premium card at the scene's scale, never a HUD icon. */
+    &__recvs {
+        position: fixed;
+        left: calc(50% + min(27rem, 60vw) / 2 + 1.4rem);
+        bottom: 3.4rem;
+        z-index: 1;
+        display: flex;
+        align-items: flex-end;
+        gap: 1.1rem;
+        opacity: 0;
+        transform: translateY(1.6rem);
+        transition:
+            opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
+            transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    &__recvs--up {
+        opacity: 1;
+        transform: none;
+        transition:
+            opacity calc(320ms * var(--motion-scale, 1)) @con-ease-enter,
+            transform calc(320ms * var(--motion-scale, 1)) @con-ease-enter;
+    }
+    &__recv-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .45rem;
+    }
+    &__recv-face {
+        border-radius: .55rem;
+        box-shadow:
+            0 0 0 .08rem fade(@con-amber, 45%),
+            0 .8rem 1.8rem -.8rem rgba(0, 0, 0, 0.8);
+        > .pcard { margin: 0; zoom: calc(0.5 * var(--con-ui-scale, 1)); }
+    }
+    /* What the card brings or pays in this sale — the chip's own amount and
+       icon, at the scene's scale (the same weight as the payout chip). */
+    &__recv-gain {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .15rem .6rem;
+        border-radius: 49.95rem;
+        background: rgba(10, 15, 22, 0.9);
+        box-shadow: inset 0 0 0 .06rem fade(@con-amber, 55%);
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: @con-amber;
+        > i { width: 1.35rem; height: 1.35rem; background-size: contain; }
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -143,4 +199,5 @@
        decorative movers so a mid-transition preference flip can't animate. */
     .con-sale-hero__scan,
     .con-sale-hero__glow { display: none; }
+    .con-sale-hero__recvs { transition: none; }
 }

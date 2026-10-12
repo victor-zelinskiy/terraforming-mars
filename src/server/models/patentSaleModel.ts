@@ -6,6 +6,9 @@ import {PatentSaleModel} from '../../common/models/PatentSaleModel';
 import {SELL_PATENTS_MEGACREDITS_PER_CARD} from '../cards/base/standardProjects/patentSale';
 import {patentSaleFacts} from './effectForecast';
 
+/** The note every answer carries — its chips are per card sold. */
+export const PER_CARD_SOLD_NOTE = 'For each card sold';
+
 /**
  * READ-ONLY: THE PATENT SALE'S RATE for the sale prompt (`SelectCardModel.
  * patentSale`) — the M€ one card sold pays, and the table's answers to ONE card
@@ -32,6 +35,8 @@ function perCard(fact: EffectForecastFact): EffectForecastFact {
   };
   return {
     ...fact,
+    // The count is not chosen yet: every reading of this list (the row's forecast layer) says the chip is per card.
+    note: fact.note ?? PER_CARD_SOLD_NOTE,
     effects: fact.effects.map(strip),
     alternatives: fact.alternatives?.map((a) => ({...a, effects: a.effects.map(strip)})),
   };

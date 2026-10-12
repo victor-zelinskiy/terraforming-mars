@@ -1,26 +1,10 @@
 import {expect} from 'chai';
 import {
-  saleSummary, saleStackSlot,
+  saleStackSlot,
   SALE_FLIGHT_CAP,
 } from '@/client/console/patentSale/patentSaleModel';
-import {SELL_PATENTS_RATE} from '@/client/components/handCards/sellPatentsState';
 
 describe('patentSaleModel (pure math of the trade-terminal scene)', () => {
-  it('saleSummary mirrors the server rate: count → payout → before/after wallet', () => {
-    const s = saleSummary(8, 23);
-    expect(s.count).to.eq(8);
-    expect(s.payout).to.eq(8 * SELL_PATENTS_RATE);
-    expect(s.before).to.eq(23);
-    expect(s.after).to.eq(23 + 8 * SELL_PATENTS_RATE);
-  });
-
-  it('saleSummary at zero picks is an honest no-op (before === after)', () => {
-    const s = saleSummary(0, 15);
-    expect(s.payout).to.eq(0);
-    expect(s.before).to.eq(15);
-    expect(s.after).to.eq(15);
-  });
-
   it('saleStackSlot is deterministic and NEAT — hair-width offsets, bounded roll', () => {
     for (let i = 0; i < SALE_FLIGHT_CAP; i++) {
       const a = saleStackSlot(i);

@@ -14,6 +14,8 @@
  * truth for "can act right now"); this module only shapes them for the UI.
  */
 import {CardName} from '@/common/cards/CardName';
+import {PatentSaleModel} from '@/common/models/PatentSaleModel';
+import {patentSaleRowForecast} from '@/client/console/patentSale/patentSaleAnswers';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {offTurnReason} from '@/client/console/offTurnReason';
@@ -318,6 +320,12 @@ export type StdProjectScreenContext = {
   myMegacredits: number,
   /** Patent sale is offered right now (the server's Sell patents SelectCard). */
   sellAvailable: boolean,
+  /**
+   * The sale prompt's RATE (`SelectCardModel.patentSale`) when the sale is in
+   * the menu — the row's «+N» and its forecast door (what the table answers
+   * per card — TR46) read it; absent when the sale is not offered.
+   */
+  sellModel?: PatentSaleModel,
   cardsInHand: number,
 };
 
@@ -390,13 +398,16 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
   const sellVisual = standardProjectVisual(CardName.SELL_PATENTS_STANDARD_PROJECT);
   const blocked = ctx.blockedReason !== undefined && ctx.blockedReason !== '';
   const sellAvailable = !blocked && ctx.sellAvailable && ctx.cardsInHand > 0;
+  // What the table answers to ONE card sold (TR46 Research Startups, Martian Fiber after it) — the row's door.
+  const sellForecast = patentSaleRowForecast(ctx.sellModel);
   const sellRow: StdProjectItem = {
     key: 'sell-patents',
     cardName: CardName.SELL_PATENTS_STANDARD_PROJECT,
     title: 'Patent sale',
     iconClass: sellVisual.iconClass,
     description: sellVisual.description,
-    gain: '+1',
+    gain: `+${ctx.sellModel?.megacreditsPerCard ?? 1}`,
+    ...(sellForecast !== undefined ? {preview: {effects: [], forecast: sellForecast}} : {}),
     available: sellAvailable,
     reason: sellAvailable ? '' :
       blocked ? (ctx.blockedReason as string) :

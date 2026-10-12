@@ -43,6 +43,8 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     [CardName.GHG_PRODUCING_BACTERIA, {spend: 2, good: {kind: 'global', parameter: 'temperature', steps: 1}}],
     [CardName.REGOLITH_EATERS, {spend: 2, good: {kind: 'global', parameter: 'oxygen', steps: 1}}],
     [CardName.THERMOPHILES, {spend: 2, good: {kind: 'global', parameter: 'venus', steps: 1}}],
+    // К-R1 (TR46): a BESPOKE action's good, declared once in the card file — ALL the data → as many cards, keep 1.
+    [CardName.RESEARCH_STARTUPS, {spend: 'all', good: {kind: 'look', keep: 1}}],
   ];
 
   for (const [name, expected] of NAMED) {
@@ -76,6 +78,17 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     expect(holderActionGoodOf(card)?.spend).eq(1);
   });
 
+  it('a DECLARED good is a bespoke action\'s only: a card with a declarative action never declares one (it is derived)', () => {
+    for (const manifest of ALL_MODULE_MANIFESTS) {
+      for (const [name, entry] of Object.entries(manifest.projectCards as Record<string, {Factory: new () => ICard}>)) {
+        const card = new entry.Factory();
+        if (card.holderActionGood !== undefined) {
+          expect((card as ICard & {actionBehavior?: unknown}).actionBehavior, name).is.undefined;
+        }
+      }
+    }
+  });
+
   it('the whole manifest: every holder with a reading spends a POSITIVE number of its own resource for a positive good', () => {
     let named = 0;
     for (const manifest of ALL_MODULE_MANIFESTS) {
@@ -85,8 +98,11 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
           continue;
         }
         named++;
-        expect(good.spend, name).is.greaterThan(0);
-        expect(good.good.kind === 'global' ? good.good.steps : good.good.amount, name).is.greaterThan(0);
+        if (good.spend !== 'all') {
+          expect(good.spend, name).is.greaterThan(0);
+        }
+        const amount = good.good.kind === 'global' ? good.good.steps : good.good.kind === 'look' ? good.good.keep : good.good.amount;
+        expect(amount, name).is.greaterThan(0);
       }
     }
     expect(named, 'the reading names at least the table above').is.gte(NAMED.length);

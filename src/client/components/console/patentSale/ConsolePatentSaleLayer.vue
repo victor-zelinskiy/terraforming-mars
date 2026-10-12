@@ -44,18 +44,49 @@
       </div>
       <div ref="glow" class="con-sale-hero__glow"></div>
     </div>
+    <!-- THE TABLE ANSWERS (TR46 — the owner's decision 2026-10-12): the cards
+         the sale wakes stand up beside the terminal once it has the cards —
+         the card a data token lands ON (its capsule is the counter that ticks
+         at the contact: `before` + this sale's landings) and the card a stock
+         answer comes FROM (Martian Fiber — its chip is born on its face). Both
+         ends of every flight are on screen. Absent when nothing answers: the
+         scene is the one it always was. -->
+    <div v-if="patentSaleState.receivers.length > 0"
+         class="con-sale-hero__recvs"
+         :class="{'con-sale-hero__recvs--up': patentSaleState.receiversUp}"
+         data-sale-receivers>
+      <div v-for="r in patentSaleState.receivers"
+           :key="r.card"
+           class="con-sale-hero__recv-card"
+           :data-sale-receiver="r.card"
+           :data-played-key="r.card">
+        <div class="con-sale-hero__recv-face">
+          <ConsolePlayedCardLite :name="r.card" :card="capsuleOf(r)" art-tier="thumb" />
+        </div>
+        <span v-for="a in gainsOf(r.card)" :key="a.key" class="con-sale-hero__recv-gain" :data-sale-gain="a.icon">
+          <b>+{{ a.amount }}</b>
+          <i :class="iconClass(a.icon)" aria-hidden="true"></i>
+        </span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {patentSaleState, registerPatentSaleStage} from '@/client/console/patentSale/consolePatentSale';
+import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
+import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
+import {patentSaleState, registerPatentSaleStage, SaleReceiver} from '@/client/console/patentSale/consolePatentSale';
+import {PatentSaleAnswer} from '@/client/console/patentSale/patentSaleAnswers';
+import {cardResourceLanded} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {SaleStageEls, SaleProxyEls} from '@/client/console/patentSale/patentSaleDirector';
 
 export default defineComponent({
   name: 'ConsolePatentSaleLayer',
-  components: {ConsoleCardFaceLite},
+  components: {ConsoleCardFaceLite, ConsolePlayedCardLite},
   data() {
     return {
       patentSaleState,
@@ -66,6 +97,17 @@ export default defineComponent({
     };
   },
   methods: {
+    /** The receiver's capsule: its count at arm + what has LANDED of this sale (ticks at the contact, never before). */
+    capsuleOf(r: SaleReceiver): CardModel {
+      return {name: r.card, resources: r.before + cardResourceLanded(r.card)} as CardModel;
+    },
+    /** What this card brings or pays in the sale — the label under it (the chip's own amount and icon). */
+    gainsOf(card: CardName): Array<PatentSaleAnswer> {
+      return patentSaleState.answers.filter((a) => a.amount > 0 && (a.channel === 'card-resource' ? a.host === card : a.card === card));
+    },
+    iconClass(icon: string): string {
+      return iconClassFor(icon);
+    },
     setProxyRef(id: number, el: HTMLElement | null): void {
       if (el === null) {
         this.proxyEls.delete(id);

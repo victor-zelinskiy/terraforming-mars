@@ -23,6 +23,12 @@
  * of `resourcesHere` beside exactly ONE plain good is the role; anything the
  * console cannot name as one good (a bespoke action, a choice of goods, a
  * target to pick) leaves the holder plain storage — generically or not at all.
+ *
+ * …with ONE door for a BESPOKE action (К-R1, the owner's decision 2026-10-12,
+ * TR46): the card file DECLARES its good once (`ICard.holderActionGood`),
+ * built from the very constants and reading its action and its preview use —
+ * «ALL the data here → as many cards off the deck, keep 1» is the `look` good
+ * with `spend: 'all'`. Its spec holds the declaration to the preview.
  */
 import {Resource} from '../Resource';
 import {Tag} from './Tag';
@@ -35,7 +41,12 @@ export type ActionGood =
   | {kind: 'stock', resource: Resource, amount: number}
   | {kind: 'cards', amount: number, tag?: Tag}
   | {kind: 'tr', amount: number}
-  | {kind: 'global', parameter: 'temperature' | 'oxygen' | 'venus', steps: number};
+  | {kind: 'global', parameter: 'temperature' | 'oxygen' | 'venus', steps: number}
+  /** Every unit spent turns ONE card of the deck over; `keep` of them go to the hand, the rest to the discard (TR46). */
+  | {kind: 'look', keep: number};
 
-/** `spend` units off this card → `good` — the holder's action role, as exported to the client card. */
-export type HolderActionGood = {spend: number, good: ActionGood};
+/**
+ * `spend` units off this card → `good` — the holder's action role, as exported to the client card. `'all'`:
+ * the action spends EVERY unit here at once (TR46 — the good then grows with the count).
+ */
+export type HolderActionGood = {spend: number | 'all', good: ActionGood};

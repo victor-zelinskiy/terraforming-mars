@@ -14,11 +14,10 @@ import {CardName} from '@/common/cards/CardName';
  * through the existing `Sell patents` action (`WaitingFor.onsave`). Cancel /
  * close / Escape just clear this state with no round-trip.
  *
- * Server payout is a flat 1 M€ per card sold, with no modifiers anywhere in
- * the codebase — `SELL_PATENTS_RATE` centralises it so the summary mirrors the
- * server, and a future per-card modifier would only need changing here.
+ * The RATE is the server's: the sale prompt carries it (`SelectCardModel.patentSale`
+ * — what one card sold pays and what the table answers to it); the summary
+ * multiplies it (`console/patentSale/patentSaleAnswers.ts`). No client constant.
  */
-export const SELL_PATENTS_RATE = 1;
 
 type SellPatentsState = {
   active: boolean;
@@ -58,11 +57,6 @@ export function toggleSellSelection(name: CardName): void {
 
 export function isSelectedForSale(name: CardName): boolean {
   return sellPatentsState.selected.includes(name);
-}
-
-/** M€ the player would gain for selling `count` cards. */
-export function sellPatentsPayout(count: number): number {
-  return count * SELL_PATENTS_RATE;
 }
 
 /**

@@ -16,6 +16,7 @@
 import {Message} from '@/common/logs/Message';
 import {FleetDockOfferModel, PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
 import {translateText} from '@/client/directives/i18n';
@@ -322,10 +323,16 @@ export function findPerformActionCard(
   return undefined;
 }
 
+/**
+ * THE PATENT SALE in the action menu — found by its STRUCTURAL marker
+ * (`SelectCardModel.patentSale`, set by the standard project), never by its
+ * translatable title (invariant 1). Returns the server's RATE beside the path:
+ * what one card sold pays and what the table answers to it (TR46).
+ */
 export function findSellPatentsAction(
   wf: PlayerInputModel | undefined,
   pathSoFar: ReadonlyArray<number> = [],
-): {path: ReadonlyArray<number>} | undefined {
+): {path: ReadonlyArray<number>, model: PatentSaleModel} | undefined {
   if (!wf) {
     return undefined;
   }
@@ -333,8 +340,8 @@ export function findSellPatentsAction(
   if (options !== undefined) {
     for (let i = 0; i < options.length; i++) {
       const opt = options[i];
-      if (opt.type === 'card' && inputTitleText(opt.title) === 'Sell patents') {
-        return {path: [...pathSoFar, i]};
+      if (opt.type === 'card' && opt.patentSale !== undefined) {
+        return {path: [...pathSoFar, i], model: opt.patentSale};
       }
       const deeper = findSellPatentsAction(opt, [...pathSoFar, i]);
       if (deeper) {

@@ -18,8 +18,6 @@
  * patentSaleDirector; the transaction lifecycle in consolePatentSale.
  */
 
-import {sellPatentsPayout} from '@/client/components/handCards/sellPatentsState';
-
 /**
  * The explicit, observable lifecycle of ONE sale transaction. The commit
  * ordering rules ride these phases:
@@ -53,6 +51,8 @@ export const SALE_INSERT_MS = 320;
 /** The mechanism is SEEN working even when the server answers instantly. */
 export const SALE_PROCESS_MIN_MS = 280;
 export const SALE_SETTLE_MS = 340;
+/** The table's answering cards rise beside the terminal (TR46) — the CSS transition's base (console_patent_sale.less). */
+export const SALE_RECEIVERS_RISE_MS = 320;
 /** Reduced motion: one short controlled beat (the console 160 ms cap
  *  convention), same commit semantics. Raw ms — reduced motion is its own
  *  axis, never speed-preset-scaled. */
@@ -84,16 +84,6 @@ export function saleStackSlot(i: number): {dx: number, dy: number, rot: number} 
     dy: -i * 2.2,
     rot: side * (0.9 + ((i * 7) % 4) * 0.45),
   };
-}
-
-/**
- * The live sale summary the hand header shows: how many cards are picked,
- * the M€ they pay out, and the before → after wallet. Mirrors the server's
- * flat rate through the ONE shared constant (sellPatentsPayout).
- */
-export function saleSummary(count: number, megacredits: number): {count: number, payout: number, before: number, after: number} {
-  const payout = sellPatentsPayout(count);
-  return {count, payout, before: megacredits, after: megacredits + payout};
 }
 
 // The payout chip's arc / scale maths moved to the shared resource-transfer

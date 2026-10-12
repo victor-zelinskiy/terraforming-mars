@@ -69,6 +69,13 @@
       <ConsoleDrawSearchRule :search="effect.search" />
     </span>
 
+    <!-- A DRAW THAT KEEPS FEWER THAN IT TURNS OVER (TR46 — «X cards from the
+         deck, take 1, discard the rest»): the chip's amount is what lands in the
+         hand; this segment names how many leave the deck and how many go to the
+         discard pile — the rest's fate is said before the press. -->
+    <span v-if="effect.look !== undefined" class="action-effect-chip__note action-effect-chip__note--sentence action-effect-chip__look" data-chip-look
+          v-i18n="[String(effect.look.revealed), String(effect.look.revealed - effect.look.keep)]">of ${0} turned over · ${1} to the discard</span>
+
     <!-- Variable-amount BASIS — "why is it this much": the live count of each
          counted entity (e.g. Cities on Mars: 3). It comes LAST, behind its own
          hairline: the chip states the change first and the reason after, so the
@@ -383,6 +390,17 @@ export default defineComponent({
   border-left: 1px solid var(--chip-rim);
   font-size: 10.5px;
   color: rgba(200, 224, 240, 0.66);
+}
+/* The look — a NOTE sentence (so every host's note scale reaches it — a px size of its own read as a speck on the TV
+   hero), behind the same hairline as the basis: the draw first, then how many it turned over. */
+.action-effect-chip__look {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 7px;
+  margin-left: 1px;
+  border-left: 1px solid var(--chip-rim);
+  font-variant-numeric: tabular-nums;
+  color: rgba(200, 224, 240, 0.78);
 }
 .action-effect-chip__basis-count {
   font-weight: 700;
