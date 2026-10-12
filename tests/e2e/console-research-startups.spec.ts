@@ -145,7 +145,7 @@ async function armSaleProbe(page: Page): Promise<void> {
  */
 async function armActionProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
-    type S = {t: number, head: string, rejects: number, carried: number};
+    type S = {t: number, head: string, rejects: number, carried: number, ws: number};
     const samples: Array<S> = [];
     (window as unknown as {__act: Array<S>}).__act = samples;
     const t0 = performance.now();
@@ -155,6 +155,7 @@ async function armActionProbe(page: Page): Promise<void> {
         head: (document.querySelector('.con-composer__beathead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
         rejects: document.querySelectorAll('.con-deckpick .con-exit-reject').length,
         carried: document.querySelectorAll('.con-handdelivery-layer > *').length,
+        ws: document.querySelectorAll('.con-ws').length,
       });
     }, 25);
   });
@@ -360,13 +361,17 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 40_000});
       await waitForBoardHome(page, 30);
       await stop();
-      const act = await page.evaluate(() => (window as unknown as {__act: Array<{t: number, head: string, rejects: number, carried: number}>}).__act);
+      const act = await page.evaluate(() => (window as unknown as {__act: Array<{t: number, head: string, rejects: number, carried: number, ws: number}>}).__act);
       expect(act.length, 'the action probe sampled').toBeGreaterThan(10);
       // PL-205: the prepared stage says the cards are TURNED OVER — four of five go to the discard, none is «received».
       const heads = [...new Set(act.map((s) => s.head).filter((h) => h !== ''))];
       expect(heads.some((h) => /Вскрыты карты/.test(h)), `the stage reads «Вскрыты карты» (${JSON.stringify(heads)})`).toBe(true);
       expect(heads.filter((h) => /Получен[аы] карт/.test(h)), 'never «Получены карты» over a look').toEqual([]);
       // PL-207: the rest start leaving while the kept card is still in the air — never after it has landed.
+      // PL-212: the RESULT OUTLIVES ITS SURFACE — the workspace folds UNDER the kept card's flight into the dock (it used
+      // to wait for the whole intake: ≈ 1.3 s of one card in the air over an empty zone at 4K).
+      const underFlight = act.find((s) => s.carried >= 1 && s.ws === 0);
+      expect(underFlight, `the workspace left while the kept card was still in the air (${JSON.stringify(act.filter((s) => s.carried > 0).slice(-4))})`).toBeTruthy();
       const overlap = act.find((s) => s.rejects >= 4 && s.carried >= 1);
       expect(overlap, `the four left behind leave while the pick is carried (${JSON.stringify(act.filter((s) => s.rejects > 0 || s.carried > 0).slice(0, 6))})`).toBeTruthy();
       const witness = await transferWitness(page);

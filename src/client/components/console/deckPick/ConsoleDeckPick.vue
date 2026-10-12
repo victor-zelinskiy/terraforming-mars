@@ -983,7 +983,24 @@ export default defineComponent({
           }
           return clearing;
         };
-        await this.sendToHand(kept, () => void startClearing(REST_AFTER_LIFT_MS));
+        // THE RESULT OUTLIVES ITS SURFACE (PL-212 — the owner's decision 2026-10-12). The surface used to wait for the
+        // WHOLE intake — the hover for the answer, the arc, the dock's touchdown and settle — and only then let the
+        // workspace go: ≈ 1.3 s at 4K of one card in the air over an empty zone (TR46's tail probe). The picks fly in the
+        // APP-LEVEL delivery layer (`runHandIntake` — the dock's held multiset owns them from the lift), so the surface
+        // owes them nothing once they have LIFTED off their slots: it releases when the pick is up and the rest have
+        // left, and the workspace folds UNDER the flight into the dock. A run with nothing to lift (no dock on screen,
+        // no slot) releases on its own end, as before.
+        let markLifted: () => void = () => {};
+        const lifted = new Promise<void>((resolve) => {
+          markLifted = resolve;
+        });
+        const intake = this.sendToHand(kept, () => {
+          markLifted();
+          void startClearing(REST_AFTER_LIFT_MS);
+        });
+        // The intake runs on after the release; its own end belongs to the dock (never an unhandled rejection here).
+        intake.catch(() => undefined);
+        await Promise.race([lifted, intake]);
         await startClearing(0);
       } finally {
         // A REFUSED submit must not leave the player inside a beat that will

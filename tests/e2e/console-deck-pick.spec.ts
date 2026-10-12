@@ -534,6 +534,21 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(300);
 
       // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────
+      // The source card's flight home is watched FROM THE PRESS (PL-212): the
+      // workspace now folds UNDER the picks' flight into the dock, so the seat's
+      // departure can be over before the last pick has landed — a check that
+      // starts sampling at the landing would see only its end state.
+      await page.evaluate(() => {
+        const st = {seen: false, samples: 0};
+        (window as unknown as {__srcFlight?: typeof st}).__srcFlight = st;
+        const scan = () => {
+          st.samples++;
+          st.seen = st.seen || document.querySelector('.con-start__embedsource--departing') !== null;
+        };
+        const mo = new MutationObserver(scan);
+        mo.observe(document.body, {childList: true, subtree: true, attributes: true});
+        setInterval(scan, 16);
+      });
       await press(page, 'Period', 400); // RT = «Подтвердить»
       expect(await waitUntil(page, (s) => s.flow !== 'choosing', 5000),
         `RT committed the pick — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
@@ -565,6 +580,10 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(800); // let the shelf's own settle finish
       await page.screenshot({path: `test-results/deckpick-${profile.tag}-04-returned.png`});
       const back = await surfaces(page);
+      const srcFlight = await page.evaluate(() =>
+        (window as unknown as {__srcFlight: {seen: boolean, samples: number}}).__srcFlight);
+      sawSourceFlight = sawSourceFlight || srcFlight.seen;
+      expect(srcFlight.samples, 'the source-flight probe sampled').toBeGreaterThan(10);
       expect(returned, `the flow came back around its source card — ${JSON.stringify(back)}`)
         .toBeTruthy();
       expect(sawSourceFlight,

@@ -222,13 +222,35 @@ test.describe('console start — a project played through «Эпатажный �
     await press(page, 'Enter', 700);
     await press(page, 'ArrowRight', 500);
     await press(page, 'Enter', 700);
+    // AN ORDER CLAIM IS SAMPLED FROM BEFORE THE PRESS (tests rule): since PL-212 the pick lets go once its cards have
+    // LIFTED (they fly on into the dock over the returning deployment), so «the deployment came back» is a WINDOW between
+    // the pick's leave and the first action's stage — a fixed settle after the press read it after it had closed.
+    await page.evaluate(() => {
+      const w = window as unknown as {__sp: Array<{pick: number, queue: boolean, firstact: number}>};
+      w.__sp = [];
+      window.setInterval(() => {
+        const q = document.querySelector<HTMLElement>('.con-start__queue');
+        let op = q === null ? 0 : 1;
+        for (let el: HTMLElement | null = q; el !== null; el = el.parentElement) {
+          op *= Number(getComputedStyle(el).opacity);
+        }
+        const r = q?.getBoundingClientRect();
+        w.__sp.push({
+          pick: document.querySelectorAll('.con-deckpick').length,
+          queue: q !== null && (r?.width ?? 0) > 0 && getComputedStyle(q).visibility !== 'hidden' && op > 0.5,
+          firstact: document.querySelectorAll('.con-start__firstact').length,
+        });
+      }, 25);
+    });
     await press(page, 'Period', 2500); // RT — confirm the keep
     await expect(page.locator('.con-deckpick'), 'the pick resolved').toHaveCount(0, {timeout: 30_000});
-    await expect(page.locator('.con-start__queue'), 'the deployment came back around it')
-      .toBeVisible({timeout: 30_000});
 
     await expect(page.locator('.con-start__firstact'), 'the first action is the LAST stage, on its own')
       .toHaveCount(1, {timeout: 40_000});
+    const order = await page.evaluate(() => (window as unknown as {__sp: Array<{pick: number, queue: boolean, firstact: number}>}).__sp);
+    expect(order.length, 'the order probe sampled').toBeGreaterThan(10);
+    expect(order.some((s) => s.pick === 0 && s.queue && s.firstact === 0),
+      'the deployment came back around it — visible after the pick left and before the first action stood').toBe(true);
     await page.waitForTimeout(1500);
     const end = await surfaces(page);
     await page.screenshot({path: 'screenshots/sponsor-outcome-first-action.png'});
