@@ -1749,6 +1749,19 @@ html.con-profile-tv {
         &__rescat-tag { width: 1.5rem; height: 1.5rem; }
         &__variant-title { font-size: var(--con-t-body); }
         &--play &__playcard { zoom: calc(0.86 * var(--con-ui-scale, 1)); }
+        /* ═══ THE PLAY COMPOSER ON THE COUCH (PL-198 — the owner's decision 2026-10-12: PL-139's class carried over) ═══
+           Measured on 4K before (TR46 «Исследовательские стартапы», `tv4k-a-01-composer`): the hero card 780 × 1123 px
+           = 13 % of the hand's 3500 × 1880 composer zone, the zone's upper quarter dark — the action composer's hero
+           had been made a quarter of ITS zone (PL-139) and the play composer, the screen every card play passes
+           through, was left at the dialog's size. The card 1.24 → 1.6 (≥ ¼ of the zone — `console-research-startups` (A)
+           guards it), the work column beside it with a wider seam; nothing inside the column changes size, so the
+           payment's own couch tokens and every fit that reads the column keep their numbers.
+           ⚠ The element is named by its CLASS, never `&__playcard`: inside this block `&` is the whole
+           `html.con-profile-tv .con-composer` path, so `&--play &__playcard` compiles to a selector with TWO `html`
+           roots that can never match — the first version of this rule (and the 0.86 one above) never applied
+           (`tests/console/lessDeadSelectorGuard.spec.ts`). */
+        &--play.con-composer--embed .con-composer__playcard { zoom: calc(1.6 * var(--con-ui-scale, 1)); }
+        &--play.con-composer--embed .con-composer__playmain { column-gap: 2.8rem; }
         /* (Payment type sizes live with the shared panel — console_payment.less
            retunes its own tokens under `html.con-profile-tv`. The play
            composer no longer carries a price line of its own.) */
