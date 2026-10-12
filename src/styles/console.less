@@ -35257,14 +35257,29 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         flex: 1;
         min-height: 0;
     }
-    /* One landing slot per promised card — PURE GEOMETRY, drawn as nothing.
-       A visible waiting frame here is a promise of a card that has not arrived
-       (and, while the fit settles, a promise that visibly resizes). The cards
-       travelling in ARE the state; the stage under them stays empty. */
+    /* One landing slot per promised card — and, once the row is SOLVED, its SOCKET (PL-206, the owner's decision
+       2026-10-12). It was drawn as nothing on the reasoning that a frame promises a card that has not arrived — and the
+       zone stood EMPTY for ~0.6 s at 4K between the press and the first card off the deck. The two objections hold
+       and are met, not ignored: the socket is a PLACE, recessed, never a card's outline (the head says what is
+       happening — «Берём карту из колоды»), and it appears only once `fitBeatStage` has solved the row
+       (`--fit`), so it never visibly resizes. The card lands INTO it; the arriving surface replaces the stage. Drawn
+       on `::before`: the slot's own transitions are the stage row's (transform / box-shadow). */
     .con-composer__beatslot {
         width: 320px;  /* keep-px: the px-authored premium face */
         height: 460px; /* keep-px */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px; /* keep-px — the face's own corner, inside the row's zoom */
+            background: linear-gradient(180deg, rgba(8, 18, 30, 0.6), rgba(8, 18, 30, 0.25));
+            box-shadow: inset 0 0 0 3px fade(@con-cyan, 20%), inset 0 14px 40px rgba(0, 0, 0, 0.5); /* keep-px */
+            opacity: 0;
+            transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+            pointer-events: none;
+        }
     }
+    .con-composer__beatrow--fit .con-composer__beatslot::before { opacity: 1; }
     .con-composer__beatstatus {
         /* THE SAME SEAM the arriving surface spends between its row and its
            status line (`.con-reveal__main`'s row-gap). Without it the prepared

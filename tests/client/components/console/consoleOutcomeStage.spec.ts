@@ -109,9 +109,10 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
       expect(w.findAll('.con-ws-stage-badge').length).to.eq(n > 1 ? 1 : 0);
       // The heading follows the batch, and it is the DRAW's sentence — the
       // arriving surface may turn out to be a buy pick, and promising that
-      // before the server has said so would be a lie.
+      // before the server has said so would be a lie. Before the cards are HERE it names the PROCESS (PL-206):
+      // «Берём карту из колоды», the result line only once the last card has touched down.
       expect(w.find('.con-ws-stage-title').text())
-        .to.contain(n > 1 ? 'Cards received' : 'Card received');
+        .to.contain(n > 1 ? 'Drawing cards from the deck' : 'Drawing a card from the deck');
       // The status line keeps its reserved row throughout.
       expect(w.find('.con-composer__beatstatus').exists()).to.eq(true);
       w.unmount();

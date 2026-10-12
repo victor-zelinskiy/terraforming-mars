@@ -151,12 +151,13 @@
             <template v-if="beatCount > 1" #badges>
               <span class="con-ws-stage-badge">
                 <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards"></span>
-                <span class="con-ws-stage-badge__label">{{ $t('Received') }}</span>
+                <span class="con-ws-stage-badge__label">{{ $t(beatLanded ? 'Received' : 'Cards') }}</span>
                 <b class="con-ws-stage-badge__num">{{ beatCount }}</b>
               </span>
             </template>
           </ConsoleWsStageHead>
           <div class="con-cards__strip con-ws-stage-row con-composer__beatrow"
+               :class="{'con-composer__beatrow--fit': Object.keys(beatRowStyle).length > 0}"
                ref="beatRow" :style="beatRowStyle">
             <div v-for="i in beatCount" :key="i" ref="beatSlots"
                  class="con-cards__slot con-composer__beatslot"></div>
@@ -1860,7 +1861,18 @@ export default defineComponent({
     beatTitleKey(): string {
       // A LOOK («X cards off the deck, keep 1» — the branch's draw chip carries `look`) does not RECEIVE the cards it
       // turns over: four of five go to the discard, and «Получены карты» over them promised the hand five (PL-205).
-      if ((this.selectedBranch?.effects ?? []).some((e) => e.look !== undefined)) {
+      const look = (this.selectedBranch?.effects ?? []).some((e) => e.look !== undefined);
+      // THE PROCESS UNTIL THE CARDS ARE HERE (PL-206, the owner's decision 2026-10-12): «Получена карта» over an empty
+      // socket announced a result ~0.6 s before the card left the deck. Until the last card touches down the head says
+      // what is happening — «Берём карту из колоды» / «Вскрываем карты» — and turns into the result in place, on the
+      // landing; the arriving surface then wears the very same result line, so the handoff changes nothing.
+      if (!this.beatLanded) {
+        if (look) {
+          return this.beatCount > 1 ? 'Revealing the cards' : 'Revealing the card';
+        }
+        return this.beatCount > 1 ? 'Drawing cards from the deck' : 'Drawing a card from the deck';
+      }
+      if (look) {
         return this.beatCount > 1 ? 'Cards turned over' : 'Card turned over';
       }
       return this.beatCount > 1 ? 'Cards received' : 'Card received';
