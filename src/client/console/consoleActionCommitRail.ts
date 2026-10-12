@@ -272,7 +272,10 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           // icon, so the surface it stands on must stay to the touchdown and the contact beat — folded on the pop, the
           // «−8» landed where the icon had been, over the bare board (the TR41 walk, 2026-10-10). Symmetric to the
           // landing above: the touchdown, one beat of the animation clock, then the fold; the table's answer after.
-          await flyRailRewardLink(rail.key, specs, originOf);
+          // A CARD's own resource leaving (a draw's spend — PL-201) departs from its card's face as the player sees it,
+          // drawn into the printed result QUICKLY, exactly as a spend before a result does; a rail price keeps its row.
+          const departure = points.find((p) => p !== undefined);
+          await flyRailRewardLink(rail.key, specs, originOf, departure !== undefined ? {destination: departure, absorb: 'quick'} : {});
           await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
           markFoldable();
           await flyRailReward(rail.key, originOf);

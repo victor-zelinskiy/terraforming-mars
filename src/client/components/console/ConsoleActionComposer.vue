@@ -4970,13 +4970,16 @@ export default defineComponent({
       // A SPEND taken off a card before the result (PL-064 in general — TR29's fighter from a CHOSEN card) rides the
       // half as its own link: the context it needs is the card-level source step with its answer, and which cards
       // are the viewer's own (only those counters stand on this surface and in the views the half is checked against).
-      const railPlan = ledgerBranch || kind === 'draw' ? undefined :
+      // …and a DRAW's own SPEND off the card (PL-201 — TR46's «all the data», TR02's 3 data, Aerial Mappers' floater) rides
+      // it too, with no result link: the capsule's token leaves on its own beat, the deck answers the result.
+      const railPlan = ledgerBranch ? undefined :
         commitRailPlan(this.entry.cardName, branch, this.captured,
-          reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts), {
+          kind === 'draw' ? [] : reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts), {
             preSteps: this.preview?.preSteps,
             preResponses: this.capturedPre,
             ownCard: (name) => this.thisPlayer.tableau.some((c) => c.name === name),
             departsElsewhere: opts.spendDepartsElsewhere === true,
+            resultElsewhere: kind === 'draw',
           });
       const specs = ledgerBranch ? [] : [
         ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured, railPlan) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),

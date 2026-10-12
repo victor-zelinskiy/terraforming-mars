@@ -12348,6 +12348,12 @@ export default defineComponent({
               colonyBonusPayoutArmed();
             if (claimedInFrame) {
               clearAwaitingHandoff();
+              // A SPEND off the card before a hosted result (PL-201 — TR46's
+              // «all the data → the deck», TR02's 3 data): its token leaves the
+              // capsule on its own beat (the half was seeded against the views in
+              // the apply block; nothing seeded → nothing flies). The release
+              // below leaves a half in the air flying — its chain releases it.
+              void flyActionCommitRail(consumeActionCommitPlan());
               // The workspace's own stages carry the outcome from here — the
               // commit beat's job is done, its plan unused (a draw's reward
               // is the cards themselves).

@@ -550,6 +550,11 @@ export type SpendContext = {
    * never reaches the shell's rail handoff, so a link seeded there would hold the capsule until its owed-fly net.
    */
   departsElsewhere?: boolean;
+  /**
+   * The branch's RESULT is hosted elsewhere — a DRAW (the deck answers, the workspace hosts the cards): the rail half
+   * carries the spends that leave the card BEFORE it and no result link (PL-201, TR46).
+   */
+  resultElsewhere?: boolean;
 };
 
 /** The card a captured `{type: 'card', cards: [X]}` answer picked. */
@@ -755,7 +760,10 @@ export function commitRailPlan(
   // satellite under the workspace — the owner's «летит в никуда» (2026-10-10). The capsule ticks on the touchdown,
   // the workspace standing to it (a timeline and a spend's result already did; this is the same last link with
   // nothing before it). Not when another scene owns the flow (`departsElsewhere` — TR15's vote moves its own capsule).
-  const onCard = spends.length === 0 && timeline === undefined && spend.departsElsewhere !== true ?
+  // A DRAW's result is the DECK's (the workspace hosts the cards — PL-201, TR46 «all the data → the deck»): the chain
+  // carries only what leaves the card before it, never a result link of its own.
+  const resultHere = spend.resultElsewhere !== true;
+  const onCard = resultHere && spends.length === 0 && timeline === undefined && spend.departsElsewhere !== true ?
     commitRewardSpecs(cardName, branch, stepResponses).filter((spec) =>
       spec.channel === 'card-resource' && spec.targetCard !== undefined && spec.direction !== 'loss') :
     [];
@@ -773,7 +781,7 @@ export function commitRailPlan(
   }
   // A SPEND first, each its own link; the result — the branch's own gains the wave would have flown — is the LAST
   // link, beside the TR: it is born where the spend was absorbed.
-  const result = spends.length > 0 ? commitRewardSpecs(cardName, branch, stepResponses) : onCard;
+  const result = !resultHere ? [] : spends.length > 0 ? commitRewardSpecs(cardName, branch, stepResponses) : onCard;
   for (const spec of spends) {
     spendLinks.push(cause.length);
     links.push([cause.length]);

@@ -15,6 +15,7 @@ import {SpaceshipRecycling} from '../../src/server/cards/turmoilRedux/SpaceshipR
 import {FormulaZero} from '../../src/server/cards/turmoilRedux/FormulaZero';
 import {EvaMechs} from '../../src/server/cards/turmoilRedux/EvaMechs';
 import {MechSports} from '../../src/server/cards/turmoilRedux/MechSports';
+import {ResearchStartups} from '../../src/server/cards/turmoilRedux/ResearchStartups';
 import {SecurityFleet} from '../../src/server/cards/base/SecurityFleet';
 import {ElectroCatapult} from '../../src/server/cards/base/ElectroCatapult';
 import {SpaceMirrors} from '../../src/server/cards/base/SpaceMirrors';
@@ -414,6 +415,22 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
       expect(plan?.reward.cause, 'the TR still rides the rail — only the spend is somebody else\'s').deep.eq([...TR]);
       expect(plan?.spendLinks).is.undefined;
       expect(plan?.capsules, 'no capsule held: the scene that owns the departure holds it').deep.eq([]);
+    });
+
+    it('PL-201 — a DRAW\'s spend off its own card (TR46 «all the data → the deck»): ONE link, the loss alone — the deck answers the result', () => {
+      const [game, p] = testGame(2, {coloniesExtension: true, turmoilReduxExpansion: true});
+      game.phase = Phase.ACTION;
+      const startups = new ResearchStartups();
+      startups.resourceCount = 5;
+      p.playedCards.push(startups);
+      const branch = branchesOf(p, startups)[0];
+      expect(commitKindForBranch(branch, {}), 'the commit is a draw').eq('draw');
+      const own = (name: CardName) => p.playedCards.has(name);
+      const plan = commitRailPlan(startups.name, branch, {}, [], {ownCard: own, resultElsewhere: true});
+      expect(plan?.reward.cause).deep.eq([{channel: 'card-resource', resource: 'data', amount: 5, targetCard: CardName.RESEARCH_STARTUPS, direction: 'loss'}]);
+      expect(plan?.links).deep.eq([[0]]);
+      expect(plan?.spendLinks).deep.eq([0]);
+      expect(plan?.capsules, 'the hero\'s capsule held until the token leaves').deep.eq([CardName.RESEARCH_STARTUPS]);
     });
 
     it('a spend with no answered source yet holds nothing (the pick is still open)', () => {
