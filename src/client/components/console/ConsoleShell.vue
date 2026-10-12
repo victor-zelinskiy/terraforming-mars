@@ -219,6 +219,7 @@
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected"
                           :saleMegacredits="thisPlayer.megacredits"
+                          :payer="thisPlayer"
                           :salePatent="salePatentModel"
                           :select="handSelectProps"
                           :packetExtras="handPacketExtras"

@@ -268,15 +268,28 @@
                    play preview's own chips `CardModel.countedPlay`). The server's number before the composer opens.
                    Quiet, never a blocker: no red, the art's lower edge, a zero muted and never hidden. Rules-playable
                    only — a refusal speaks first. -->
-              <span v-else-if="!saleActive && !selectActive && cell.e.potential && forecastPlates.has(cell.e.card.name)"
+              <span v-else-if="!saleActive && !selectActive && cell.e.potential && (forecastPlates.has(cell.e.card.name) || tenderPlates.has(cell.e.card.name))"
                     class="con-hand__plate"
-                    :class="['con-hand__plate--' + forecastPlates.get(cell.e.card.name)?.kind, {'con-hand__plate--zero': forecastPlates.get(cell.e.card.name)?.zero}]"
+                    :class="[forecastPlates.has(cell.e.card.name) ? 'con-hand__plate--' + forecastPlates.get(cell.e.card.name)?.kind : 'con-hand__plate--pay', {'con-hand__plate--zero': forecastPlates.get(cell.e.card.name)?.zero && !tenderPlates.has(cell.e.card.name)}]"
+                    :data-hand-pay="tenderHook(cell.e.card.name)"
                     :data-hand-walk="forecastPlates.get(cell.e.card.name)?.kind === 'walk' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
                     :data-hand-count="forecastPlates.get(cell.e.card.name)?.kind === 'count' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
                     aria-hidden="true">
                 <span v-for="(item, k) in forecastPlates.get(cell.e.card.name)?.items ?? []" :key="k" class="con-hand__plate-item">
                   <span class="con-hand__plate-icon" :class="[item.iconClass, {'con-hand__plate-icon--prod': item.production}]"></span>
                   <span class="con-hand__plate-n">{{ item.signed ? signedAmount(item.amount) : item.amount }}</span>
+                </span>
+                <!-- THE TENDER (К-H1, TR48): what pays for a card M€ alone cannot — after the forecast, behind a hairline. -->
+                <span v-if="forecastPlates.has(cell.e.card.name) && tenderPlates.has(cell.e.card.name)" class="con-hand__plate-sep" aria-hidden="true"></span>
+                <span v-for="t in tenderPlates.get(cell.e.card.name) ?? []" :key="'pay-' + t.unit" class="con-hand__plate-item con-hand__plate-item--pay">
+                  <span class="con-hand__plate-icon" :class="tenderIconClass(t.unit)"></span>
+                  <span class="con-hand__plate-n">{{ t.count }}</span>
+                </span>
+                <!-- …and what it is WORTH here — the card's own «[data] = [2]» read as money (TR48: «data is money»). -->
+                <span v-if="tenderPlates.has(cell.e.card.name)" class="con-hand__plate-item con-hand__plate-item--pay con-hand__plate-item--worth">
+                  <span class="con-hand__plate-eq" aria-hidden="true">=</span>
+                  <span class="con-hand__plate-icon" :class="tenderIconClass('megacredits')"></span>
+                  <span class="con-hand__plate-n">{{ tenderWorth(cell.e.card.name) }}</span>
                 </span>
               </span>
             </div>
@@ -519,6 +532,9 @@ import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {HandForecastPlate, handForecastPlate, signedAmount} from '@/client/console/countedPlay';
+import {HandTenderItem, handTenderItems} from '@/client/console/handTenderPlate';
+import {paymentUnitIcon} from '@/client/console/paymentPlan';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
 export type ConsoleHandEntry = {
   card: CardModel,
@@ -637,6 +653,11 @@ export default defineComponent({
     saleMegacredits: {type: Number, default: 0},
     /** The sale prompt's RATE (`SelectCardModel.patentSale`) — the project's M€ and the table's answers per card. */
     salePatent: {type: Object as PropType<PatentSaleModel | undefined>, default: undefined},
+    /**
+     * The hand's OWNER (К-H1, TR48): what pays for a card M€ alone cannot — the tender plate reads the opening
+     * payment mix off this model (`handTenderPlate.handTenderItems`). Absent → no tender plate.
+     */
+    payer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
      *  the section is the normal play/browse hand. */
     select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
@@ -771,6 +792,24 @@ export default defineComponent({
         const plate = handForecastPlate(e.card);
         if (plate !== undefined) {
           out.set(e.card.name, plate);
+        }
+      }
+      return out;
+    },
+    /**
+     * THE PLATE'S THIRD READER (К-H1, TR48 — the owner's decision 2026-10-12): the CARD-BOUND tender the opening
+     * payment mix spends on a card M€ alone cannot pay — «[data] 4» on a Science card that Supercomputer's data
+     * make playable. Keyed by name; the panel's own mix (`handTenderItems`), never a second rule.
+     */
+    tenderPlates(): ReadonlyMap<CardName, ReadonlyArray<HandTenderItem>> {
+      const out = new Map<CardName, ReadonlyArray<HandTenderItem>>();
+      if (this.payer === undefined) {
+        return out;
+      }
+      for (const e of this.entries) {
+        const items = handTenderItems(e.card, this.payer);
+        if (items.length > 0) {
+          out.set(e.card.name, items);
         }
       }
       return out;
@@ -1355,6 +1394,19 @@ export default defineComponent({
     /** Compact blocker chip label for an unavailable card (english i18n key). */
     signedAmount(n: number): string {
       return signedAmount(n);
+    },
+    /** A tender unit's sprite (the payment panel's own table — `seeds` → seed, `supercomputerData` → data). */
+    tenderIconClass(unit: string): string {
+      return iconClassFor(paymentUnitIcon(unit));
+    },
+    /** The M€ the card-bound tender pays on this card — Σ count × rate, the panel's own contributions. */
+    tenderWorth(name: CardName): number {
+      return (this.tenderPlates.get(name) ?? []).reduce((sum, t) => sum + t.megacredits, 0);
+    },
+    /** The e2e hook of the tender plate: «unit:count» per unit, in the mix's order (undefined without one). */
+    tenderHook(name: CardName): string | undefined {
+      const items = this.tenderPlates.get(name);
+      return items === undefined ? undefined : items.map((t) => t.unit + ':' + t.count).join(' ');
     },
     chipLabel(entry: ConsoleHandEntry): string | undefined {
       return shortBlockerLabel(entry.card.unplayableReasons ?? []);
