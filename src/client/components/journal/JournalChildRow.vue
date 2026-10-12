@@ -96,6 +96,8 @@
                word the notification card speaks for the same chip (PL-041: a Capital's adjacency recount). -->
           <span v-if="chip.icon === 'vp'" class="journal-child-row__chip-unit" v-i18n>VP</span>
         </span>
+        <!-- WHERE a card resource landed when it is not the source card (TR48: «Суперкомпьютер → [data] +2 · [Перепись]»). -->
+        <JournalCardChip v-if="vm.onCard !== undefined" :name="vm.onCard" data-journal-oncard />
         <!-- WHERE a political chip landed (Turmoil Redux): the resolution a delegate stands on,
              or the party whose Popular Support took the neutral delegates (with its area's fill). -->
         <!-- A payout a RULE counted (TR21): the card it landed on and its reason — «→ Векторные вычисления · за 3 соседних города». -->

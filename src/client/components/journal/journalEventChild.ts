@@ -132,6 +132,13 @@ export type JournalChildVM = {
    * merged: the reason belongs to that one payout.
    */
   basis?: {count: number; unitKey: string; onCard?: CardName};
+  /**
+   * The CARD a card-resource change landed on, when it is not the card whose effect moved it (TR48's «+2 data on
+   * ANY card», Predators eating another card's animal, a colony's floater …): «Суперкомпьютер → [data] +2 ·
+   * [Марсианская перепись]». Without it the row read as the SOURCE card gaining the units — a rival's journal
+   * said «Суперкомпьютер +2» about data that lay on the census (the TR48 walk). Its own row per target, never merged.
+   */
+  onCard?: CardName;
 };
 
 /** The colony TILE's own glyph as a chip icon (`iconClassFor` → the printed pill). */
@@ -202,6 +209,19 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
     chips.push({icon: impact.globalParameter.parameter, text: signed(impact.globalParameter.steps)});
   }
   return chips;
+}
+
+/**
+ * The card a card-resource change LANDED on, when it is not the event's source card — undefined when it landed on
+ * the source itself (Supercomputer's data onto Supercomputer: the row's lead already names it) or names no card.
+ */
+function landedElsewhere(e: GameEvent): CardName | undefined {
+  const moved = e.impact.cardResources?.find((cr) => cr.amount !== 0 && cr.target !== undefined);
+  if (moved?.target === undefined) {
+    return undefined;
+  }
+  const source = e.source?.kind === 'card' ? e.source.card : undefined;
+  return moved.target === source ? undefined : moved.target as CardName;
 }
 
 /**
@@ -548,6 +568,13 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       continue;
     }
     const chips = [...impactChips(e.impact), ...(foldedChips.get(e.id) ?? [])];
+    // A card resource that landed on ANOTHER card than its source: the row names where it went (see `onCard`).
+    const landed = e.type === 'card-resource-changed' ? landedElsewhere(e) : undefined;
+    if (landed !== undefined && chips.length > 0) {
+      push(`onCard|${bucket}|${sourceDiscriminator(e.source)}|${e.player ?? ''}|${landed}`,
+        {source: sourceToChild(e.source), player, bucket, chips: [], onCard: landed}, chips);
+      continue;
+    }
     if (e.type === 'copied-action') {
       // Distinct copied cards stay separate (the copied card is in the key).
       push(`copied|${sourceDiscriminator(e.source)}|${e.player ?? ''}|${e.target?.card ?? ''}`,

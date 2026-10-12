@@ -43,6 +43,7 @@ import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 import {cast} from '../../../src/common/utils/utils';
 import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
 import {fakeCard, formatMessage, runAllActions} from '../../TestingUtils';
+import {buildEventChildren} from '../../../src/client/components/journal/journalEventChild';
 
 /**
  * TR48 — SUPERCOMPUTER: the Scientists' plate, −1 energy production, an action
@@ -404,6 +405,33 @@ describe('Supercomputer', () => {
       const lines = t.game.gameLog.map((m) => formatMessage(m));
       expect(lines.some((l) => /added 2 data to Supercomputer/i.test(l)), lines.slice(-8).join('\n')).is.true;
       expect(lines.some((l) => /added 2 data to Martian Census/i.test(l)), lines.slice(-8).join('\n')).is.true;
+    });
+  });
+
+  describe('rule 7 — the journal and the rival read WHERE the data went', () => {
+    it('the action\'s row names the TARGET: «Суперкомпьютер → [data] +2 · [Марсианская перепись]» — never the source gaining them', () => {
+      onTable(t, 0);
+      const census = holder(t.player, new MartianCensus(), 1);
+      holder(t.player, new MartianFiber(), 0);
+      activate(t);
+      t.player.process({type: 'card', cards: [census.name]});
+      runAllActions(t.game);
+      const root = t.game.events.events.filter((e) => e.type === 'action').slice(-1)[0].id;
+      const chain = t.game.events.events.filter((e) => e.correlationId === root);
+      const rows = buildEventChildren(chain, root, t.player.color);
+      const data = rows.find((row) => row.chips.some((c) => c.icon === CardResource.DATA));
+      expect(data?.source).deep.include({kind: 'card', card: SC});
+      expect(data?.chips).deep.eq([{icon: CardResource.DATA, text: '+2'}]);
+      expect(data?.onCard, 'the row names the card the data landed on').eq(CardName.MARTIAN_CENSUS);
+      // …and the same action onto THIS card names nothing more (the lead already is the card).
+      t.player.actionsThisGeneration.delete(SC);
+      activate(t);
+      t.player.process({type: 'card', cards: [SC]});
+      runAllActions(t.game);
+      const root2 = t.game.events.events.filter((e) => e.type === 'action').slice(-1)[0].id;
+      const self = buildEventChildren(t.game.events.events.filter((e) => e.correlationId === root2), root2, t.player.color)
+        .find((row) => row.chips.some((c) => c.icon === CardResource.DATA));
+      expect(self?.onCard).is.undefined;
     });
   });
 
