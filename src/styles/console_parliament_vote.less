@@ -370,6 +370,13 @@
        never touches it. The card right above the panel prints the very same graphic. */
     @container con-parl-reading (max-width: 24rem) {
         .con-parl__info-mech { display: none; }
+        /* …and the win's SUFFIX may break at its own seams. Since the TV composer grew its hero to 1.6× (PL-139)
+           the hosted Parliament's reading block is 476 px at 4K, and the one-link suffix alone is one nowrap
+           line of 648 px («+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ①» — `console-martian-census` tv4k: «clipped-x
+           con-parl__info-own 815 > 476»). The hero cannot give the width back (the carried card never changes
+           size between phases), so the chip wraps between its items: «+1 если победите» / «· шаг ①». A full-band
+           Parliament never reaches this width, so nothing there changes. */
+        .con-iyield__suffix { flex-wrap: wrap; white-space: normal; max-width: 100%; row-gap: .12rem; }
     }
     /* THE VOTE — the source line over the facts. */
     &__info-block {
@@ -510,7 +517,16 @@ html.con-profile-tv .con-parl {
     &__cta-cost { font-size: .8rem; }
     &__cta-cost-num { font-size: 1.1rem; }
     &__cta-cost-mc { width: 1.15rem; height: 1.15rem; }
-    &__info { grid-template-columns: minmax(0, 1fr) 24.5rem; }
+    /* The vote column YIELDS before the reading does (PL-173). Hosted beside the TV composer's 1.6× hero
+       (TR15's action vote door) the panel is ≈ 52rem, and a fixed 24.5rem vote column left the reading row
+       27rem — the reading block 11.9rem (476 px at 4K), against the 17.35rem the same block has at 1080:
+       «ДЛЯ ВАС ПРИ ПРИНЯТИИ» alone is 452 px, and the one-link reading stood as a clipped column
+       (`console-martian-census` tv4k: «clipped-x con-parl__info-own 480 > 476», «clipped-y 328 > 302»). The
+       reading row keeps the 1080 room (29rem = the 17.4rem block + the narrow row's 11rem party box), the vote
+       column takes what is left down to 17rem (≈ 22rem there — its «ВАШИ ДЕЛЕГАТЫ · из резерва · по карте» line
+       is 19.6rem and wrapped into a clipped column at 20rem); a full-band Parliament's row is ≥ 49rem, so both
+       columns stand exactly as before there. */
+    &__info { grid-template-columns: minmax(29rem, 1fr) minmax(17rem, 24.5rem); }
     &__info-name { font-size: 1.15rem; }
     &__info-emblem { width: 1.7rem; height: 1.7rem; }
     &__info-kicker { font-size: .8rem; }
@@ -524,7 +540,9 @@ html.con-profile-tv .con-parl {
        one-link suffix alone («+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ①») is 648 px at the couch sizes. In a narrow row the
        box gives back to the 1080 width; its line of moment simply takes a third line. */
     @container con-parl-reading-row (max-width: 45rem) {
-        .con-parl__info-party { flex-basis: 13rem; width: 13rem; }
+        /* 11rem, not the 1080 13rem: the box's formula is ≈ 8rem at the couch zoom and its line of moment simply
+           takes a third line; the 2rem go to the reading, which is what this row cannot spare (PL-173). */
+        .con-parl__info-party { flex-basis: 11rem; width: 11rem; }
     }
     &__info-party-when { font-size: .8rem; white-space: normal; text-align: center; line-height: 1.15; }
     &__info-src-text { font-size: .95rem; }
