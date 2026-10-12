@@ -195,6 +195,25 @@ describe('railValueModel — MC badges', () => {
     ]);
   });
 
+  it('Supercomputer ×2 (science) — its own fact on the data chip; Research Startups\' data beside it are storage', () => {
+    const solo = railMcBadges(fakePlayer({tableau: [fakeCardModel(CardName.SUPERCOMPUTER, 3)]})).cardBound.get(CardResource.DATA);
+    expect(solo?.text).to.eq('2');
+    expect(solo?.facts.map((f) => [f.unit, f.context, f.spendableAmount])).to.deep.eq([['supercomputerData', 'science', 3]]);
+    // A flat 2: the steel value is not the datum's rate.
+    expect(railMcBadges(fakePlayer({steelValue: 4, tableau: [fakeCardModel(CardName.SUPERCOMPUTER, 1)]})).cardBound.get(CardResource.DATA)?.text).to.eq('2');
+    const beside = railMcBadges(fakePlayer({tableau: [
+      fakeCardModel(CardName.SUPERCOMPUTER, 2),
+      fakeCardModel(CardName.RESEARCH_STARTUPS, 5),
+    ]})).cardBound.get(CardResource.DATA);
+    expect(beside?.facts.map((f) => [f.unit, f.spendableAmount])).to.deep.eq([['supercomputerData', 2]]);
+    // Aurorai's data and these are two tender pools of one resource at two rates: one chip, both figures.
+    const two = railMcBadges(fakePlayer({tableau: [
+      fakeCardModel(CardName.AURORAI, 1),
+      fakeCardModel(CardName.SUPERCOMPUTER, 2),
+    ]})).cardBound.get(CardResource.DATA);
+    expect(two?.facts.map((f) => [f.unit, f.rate, f.context])).to.deep.eq([['auroraiData', 3, 'standard-project'], ['supercomputerData', 2, 'science']]);
+  });
+
   it('a shared-icon chip with two tender rates carries both (Luna Archives + Spire)', () => {
     const badges = railMcBadges(fakePlayer({tableau: [
       fakeCardModel(CardName.LUNA_ARCHIVES, 3),

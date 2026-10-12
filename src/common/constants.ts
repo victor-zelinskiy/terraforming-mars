@@ -10,6 +10,9 @@ export const FLOATERS_VALUE = 3;
 // EVA Mechs (TR09): a mech ON that card pays 5 M€ toward a Space-tag card — a
 // FLAT rate (no titanium modifier, no Metal Research bonus touches it).
 export const MECHS_VALUE = 5;
+// Supercomputer (TR48): a data ON that card pays 2 M€ toward a Science-tag card
+// — FLAT, like the mechs (Aurorai's data are `DATA_VALUE`, a different unit).
+export const SUPERCOMPUTER_DATA_VALUE = 2;
 export const MICROBES_VALUE = 2;
 export const OCEAN_BONUS = 2;
 export const CORPORATION_CARDS_DEALT_PER_PLAYER = 2;

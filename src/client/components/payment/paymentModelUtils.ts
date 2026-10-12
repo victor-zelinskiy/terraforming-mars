@@ -30,6 +30,12 @@ export type SpendablePaymentAmounts = Record<SpendableResource, number>;
  * alternates in this sequence), so it mirrors the upstream project-card order.
  */
 export const GENERIC_PAYMENT_ORDER: ReadonlyArray<SpendableResource> = [
+  // Supercomputer (TR48) data — an ordinary greedy alternate, and FIRST of all
+  // on purpose (the owner's decision 2026-10-12): it has ONE use (a Science
+  // card at 2 M€), while the steel beside it on a Science+Building card buys
+  // any Building card, so the default mix cashes the narrow tender first and
+  // the panel lists it first (paymentPlan.spec § supercomputerData pins it).
+  'supercomputerData',
   'steel',
   'titanium',
   'heat',
@@ -180,6 +186,7 @@ export function buildStandardProjectPaymentModel(
     floodgateSteel: available.floodgateSteel,
     mechs: available.mechs,
     constructionMechs: available.constructionMechs,
+    supercomputerData: available.supercomputerData,
   };
 }
 

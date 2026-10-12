@@ -157,6 +157,10 @@ export function projectCardPaymentOptions(
     // Construction Mechs pay for a Building OR a City tag — the exact mirror
     // of Player.paymentOptionsForCard (no Last Resort exception either).
     constructionMechs: tags.includes(Tag.BUILDING) || tags.includes(Tag.CITY),
+    // Supercomputer's data pay for a PRINTED Science tag and nothing else — the
+    // exact mirror of Player.paymentOptionsForCard (paymentTagGateParity.spec
+    // holds the two copies of every tag gate together).
+    supercomputerData: tags.includes(Tag.SCIENCE),
   };
 }
 
@@ -380,6 +384,10 @@ const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
   // player-board lane beside it. A mech has no such twin.
   mechs: 'Mechs',
   constructionMechs: 'Mechs',
+  // Supercomputer's data read as data, like Aurorai's: the two never share a
+  // panel (a Science card play vs a standard project), and if they ever did the
+  // source labels below would tell them apart.
+  supercomputerData: 'Data',
 };
 
 /**
@@ -393,6 +401,8 @@ const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
 const PAY_UNIT_SOURCE_LABELS: Readonly<Record<string, string>> = {
   mechs: 'Mechs · EVA Mechs',
   constructionMechs: 'Mechs · Construction Mechs',
+  auroraiData: 'Data · Aurorai',
+  supercomputerData: 'Data · Supercomputer',
 };
 
 export function paymentUnitLabel(unit: string): string {
@@ -436,6 +446,7 @@ const PAY_UNIT_ICONS: Readonly<Record<string, string>> = {
   // table exists to prevent.
   mechs: 'mech',
   constructionMechs: 'mech',
+  supercomputerData: 'data',
 };
 
 export function paymentUnitIcon(unit: string): string {

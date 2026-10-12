@@ -76,6 +76,7 @@ export abstract class SelectCardToPlay<T extends IProjectCard | IStandardProject
       floodgateSteel: player.getSpendable('floodgateSteel'),
       mechs: player.getSpendable('mechs'),
       constructionMechs: player.getSpendable('constructionMechs'),
+      supercomputerData: player.getSpendable('supercomputerData'),
     };
   }
 

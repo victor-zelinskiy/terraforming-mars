@@ -1117,6 +1117,7 @@ export enum CardName {
   ICHTIOLOGY_GRANT = 'Ichtiology Grant',
   COMPOSTING_INITIATIVE = 'Composting Initiative',
   RESEARCH_STARTUPS = 'Research Startups',
+  SUPERCOMPUTER = 'Supercomputer',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

@@ -140,6 +140,8 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         mechs: false,
         // Construction Mechs: the same reading — a Building/City-tag CARD PLAY only.
         constructionMechs: false,
+        // Supercomputer's data: «when playing Science cards» — a bill is never that.
+        supercomputerData: false,
       }, this.options.reserveUnits);
     if (this.options.votePayment !== undefined) {
       select.markVotePayment(this.options.votePayment);

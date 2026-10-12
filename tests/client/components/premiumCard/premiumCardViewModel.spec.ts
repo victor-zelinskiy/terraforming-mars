@@ -731,11 +731,12 @@ describe('card lore coverage — project + prelude + corporation', () => {
   }
 
   it('every lore text ends with terminal punctuation', () => {
-    // ONE narrow form beyond plain punctuation: a sung line closes with its
-    // music note (TR20 «♪ … home... ♪») — the note is taken off exactly ONCE
-    // and what it closes must still end in terminal punctuation.
+    // TWO narrow forms beyond plain punctuation: a sung line closes with its
+    // music note (TR20 «♪ … home... ♪») and a printed QUOTATION closes with its
+    // quotation mark (TR48 «"The answer is... 42!"») — each is taken off
+    // exactly ONCE and what it closes must still end in terminal punctuation.
     const missingPunctuation = Object.entries(LORE_BY_CARD_NUMBER)
-      .filter(([, text]) => !/[.!?…]$/.test(text.trim().replace(/\s*♪$/, '')))
+      .filter(([, text]) => !/[.!?…]$/.test(text.trim().replace(/\s*♪$/, '').replace(/["»]$/, '')))
       .map(([cardNumber]) => cardNumber);
     expect(missingPunctuation, `lore texts without terminal punctuation:\n${missingPunctuation.join('\n')}`).to.deep.eq([]);
   });

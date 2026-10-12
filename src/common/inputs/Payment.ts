@@ -1,4 +1,4 @@
-import {DATA_VALUE, FLOATERS_VALUE, MECHS_VALUE, MICROBES_VALUE, GRAPHENE_VALUE, SEED_VALUE} from '../constants';
+import {DATA_VALUE, FLOATERS_VALUE, MECHS_VALUE, MICROBES_VALUE, GRAPHENE_VALUE, SEED_VALUE, SUPERCOMPUTER_DATA_VALUE} from '../constants';
 import {SpendableResource, SPENDABLE_RESOURCES} from './Spendable';
 
 /**
@@ -49,6 +49,9 @@ export const DEFAULT_PAYMENT_VALUES = {
   // Construction Mechs (TR17): the same flat 5 — ONE constant for both mech
   // pools; the live steel value and Metal Research never touch it.
   constructionMechs: MECHS_VALUE,
+  // Supercomputer (TR48): a FLAT 2 for a Science card — no steel value, no
+  // Metal Research; Aurorai's data (`auroraiData`) keep their own 3.
+  supercomputerData: SUPERCOMPUTER_DATA_VALUE,
 } satisfies Record<SpendableResource, number>;
 
 export namespace Payment {
@@ -69,6 +72,7 @@ export namespace Payment {
     floodgateSteel: 0,
     mechs: 0,
     constructionMechs: 0,
+    supercomputerData: 0,
   } as const;
 
   export function of(payment: Partial<Payment>) : Payment {
@@ -88,6 +92,7 @@ export namespace Payment {
       floodgateSteel: payment.floodgateSteel ?? 0,
       mechs: payment.mechs ?? 0,
       constructionMechs: payment.constructionMechs ?? 0,
+      supercomputerData: payment.supercomputerData ?? 0,
       plants: payment.plants ?? 0,
     };
   }

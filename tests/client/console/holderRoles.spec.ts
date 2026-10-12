@@ -26,6 +26,8 @@ describe('holderRoles — what a stored resource is for', () => {
   it('a PAYMENT unit is its enabling card: EVA Mechs pay 5 for a Space card, Construction Mechs 5 for a Building or City card', () => {
     expect(holderRoleOf(CardName.EVA_MECHS)).to.deep.eq({kind: 'payment', unit: 'mechs', rate: 5, context: 'space'});
     expect(holderRoleOf(CardName.CONSTRUCTION_MECHS)).to.deep.eq({kind: 'payment', unit: 'constructionMechs', rate: 5, context: 'building-or-city'});
+    // TR48: the THIRD unit stands by itself — no declaration in the card file (its action's good is a target to pick).
+    expect(holderRoleOf(CardName.SUPERCOMPUTER)).to.deep.eq({kind: 'payment', unit: 'supercomputerData', rate: 2, context: 'science'});
   });
 
   it('a VP rule is the card\'s own printed «per resources here»: Mech Sports 1 per 1, Red Museum 1 per 2', () => {

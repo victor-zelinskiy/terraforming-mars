@@ -1171,6 +1171,11 @@ export class Player implements IPlayer {
       // printed condition and nothing else (the same exclusions as EVA Mechs).
       // A Space+Building card opens BOTH mech units, each paid off its own card.
       constructionMechs: card.tags.includes(Tag.BUILDING) || card.tags.includes(Tag.CITY),
+      // Supercomputer (TR48): «when playing Science cards» — a PRINTED Science
+      // tag and nothing else: a wild tag does not make a card a Science card,
+      // and a standard project, a deferred bill, a colony fee or a card's
+      // action is no «playing a Science card».
+      supercomputerData: card.tags.includes(Tag.SCIENCE),
     };
   }
 
@@ -1285,6 +1290,8 @@ export class Player implements IPlayer {
     removeResourcesOnCard(CardName.EVA_MECHS, payment.mechs, DEFAULT_PAYMENT_VALUES.mechs);
     // Construction Mechs (TR17): the second mech pool leaves ITS OWN card.
     removeResourcesOnCard(CardName.CONSTRUCTION_MECHS, payment.constructionMechs, DEFAULT_PAYMENT_VALUES.constructionMechs);
+    // Supercomputer (TR48): the data leave THIS card (never Aurorai's, never any other holder's).
+    removeResourcesOnCard(CardName.SUPERCOMPUTER, payment.supercomputerData, DEFAULT_PAYMENT_VALUES.supercomputerData);
 
     this.recordPaymentValueBonus(payment);
 
@@ -2197,6 +2204,7 @@ export class Player implements IPlayer {
       floodgateSteel: this.getSpendable('floodgateSteel'),
       mechs: this.getSpendable('mechs'),
       constructionMechs: this.getSpendable('constructionMechs'),
+      supercomputerData: this.getSpendable('supercomputerData'),
     };
   }
 
@@ -2243,6 +2251,7 @@ export class Player implements IPlayer {
       floodgateSteel: options?.floodgateSteel ?? false,
       mechs: options?.mechs ?? false,
       constructionMechs: options?.constructionMechs ?? false,
+      supercomputerData: options?.supercomputerData ?? false,
     };
 
     // HOOK: Luna Trade Federation

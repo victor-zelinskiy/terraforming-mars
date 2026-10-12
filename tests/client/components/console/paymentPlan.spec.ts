@@ -252,6 +252,94 @@ describe('paymentPlan (T3 native payment math)', () => {
   });
 
   /**
+   * TR48 SUPERCOMPUTER — the data stored on it pay 2 M€ each for a card with a
+   * PRINTED Science tag. The owner's decision 2026-10-12: an ordinary greedy
+   * source, and the FIRST one — a datum buys nothing but a Science card, while
+   * the steel beside it on a Science+Building card (TR46 Research Startups)
+   * buys any Building card, so the opening mix cashes the narrow tender first
+   * and the panel lists it first (order of the rows = order of the spend).
+   */
+  describe('supercomputerData — the Supercomputer pool (flat 2, Science tag), cashed BEFORE steel', () => {
+    const owner = (data: number, extra: Partial<Record<string, unknown>> = {}) => player({
+      titanium: 0, steel: 0,
+      tableau: [{name: CardName.SUPERCOMPUTER, resources: data}],
+      ...extra,
+    });
+
+    it('is a lane exactly on a printed Science tag, at a flat 2, drawn and named as data', () => {
+      expect(projectCardPaymentOptions([Tag.SCIENCE], {}, undefined).supercomputerData).to.eq(true);
+      expect(projectCardPaymentOptions([Tag.SCIENCE, Tag.BUILDING], {}, undefined).supercomputerData).to.eq(true);
+      expect(projectCardPaymentOptions([Tag.WILD], {}, undefined).supercomputerData, 'a wild tag is no Science card').to.eq(false);
+      expect(projectCardPaymentOptions([], {}, CardName.LAST_RESORT_INGENUITY).supercomputerData).to.eq(false);
+      const lanes = paymentLanes(projectCardPaymentPrompt(10, [Tag.SCIENCE], {}, undefined, undefined), owner(3));
+      expect(lanes.find((l) => l.unit === 'supercomputerData')).to.deep.include({rate: 2, available: 3});
+      // FLAT: the live steel value (Advanced Alloys, Metal Research) never reaches it.
+      expect(rateFor('supercomputerData', player({steelValue: 4}), {supercomputerData: true})).to.eq(2);
+      expect(paymentUnitIcon('supercomputerData')).to.eq('data');
+      expect(paymentUnitLabel('supercomputerData')).to.eq('Data');
+    });
+
+    it('never a standard project\'s lane (that is Aurorai\'s data)', () => {
+      const sp = buildStandardProjectPaymentOptions({}, {name: CardName.AQUIFER_STANDARD_PROJECT} as CardModel);
+      expect(sp.supercomputerData).to.eq(undefined);
+      expect(sp.auroraiData).to.eq(true);
+    });
+
+    it('Science + Building (TR46): two independent lanes, the data row FIRST', () => {
+      const p = projectCardPaymentPrompt(8, [Tag.SCIENCE, Tag.BUILDING], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(2, {steel: 2}));
+      expect(lanes.map((l) => l.unit)).to.deep.eq(['supercomputerData', 'steel']);
+      expect(GENERIC_PAYMENT_ORDER.indexOf('supercomputerData')).to.be.lessThan(GENERIC_PAYMENT_ORDER.indexOf('steel'));
+    });
+
+    it('the opening mix, 8 M€ · 2 steel · 2 data: both go — data 2 + steel 2, no M€, no overpay', () => {
+      const p = projectCardPaymentPrompt(8, [Tag.SCIENCE, Tag.BUILDING], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(2, {steel: 2}));
+      const counts = initialCounts(8, lanes, 20);
+      expect([counts.supercomputerData, counts.steel]).to.deep.eq([2, 2]);
+      expect(autoMegacredits(8, lanes, counts, 20)).to.eq(0);
+      expect(paymentOverpay(8, lanes, counts, 20)).to.eq(0);
+    });
+
+    it('the opening mix when either alone covers: the DATA are cashed and the steel is kept', () => {
+      // 8 M€ card, 4 steel (8) + 4 data (8): data first pays it all.
+      const p = projectCardPaymentPrompt(8, [Tag.SCIENCE, Tag.BUILDING], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(4, {steel: 4}));
+      const counts = initialCounts(8, lanes, 20);
+      expect([counts.supercomputerData, counts.steel]).to.deep.eq([4, 0]);
+    });
+
+    it('a Science card with no Building tag: the data are the ONLY alternative — dialed in place', () => {
+      const p = projectCardPaymentPrompt(9, [Tag.SCIENCE], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(3, {steel: 5}));
+      expect(lanes.map((l) => l.unit)).to.deep.eq(['supercomputerData']);
+      const view = buildPaymentView({cost: 9, lanes, counts: initialCounts(9, lanes, 20), mcAvailable: 20});
+      expect(view.rows[0]).to.deep.include({unit: 'supercomputerData', labelKey: 'Data', quickAdjust: true});
+    });
+
+    it('a card with no Science tag offers no data lane, whatever data stand on the card', () => {
+      const lanes = paymentLanes(projectCardPaymentPrompt(9, [Tag.BUILDING], {}, undefined, undefined), owner(6, {steel: 1}));
+      expect(lanes.map((l) => l.unit)).to.deep.eq(['steel']);
+    });
+
+    it('rule 5 — overpay: 9 M€ at 0 M€ and 5 data — 5 data (10), «overpay +1», the lane may be lowered', () => {
+      const p = projectCardPaymentPrompt(9, [Tag.SCIENCE], {}, undefined, undefined);
+      const lanes = paymentLanes(p, owner(5));
+      const counts = initialCounts(9, lanes, 0);
+      expect(counts.supercomputerData).to.eq(5);
+      expect(paymentOverpay(9, lanes, counts, 0)).to.eq(1);
+      expect(laneCap(9, lanes[0], lanes, counts)).to.eq(5);
+    });
+
+    it('two data units, should they ever share a panel, name their cards (K-L1)', () => {
+      const lanes = [{unit: 'auroraiData'}, {unit: 'supercomputerData'}];
+      expect(paymentLaneLabel('supercomputerData', lanes)).to.eq('Data · Supercomputer');
+      expect(paymentLaneLabel('auroraiData', lanes)).to.eq('Data · Aurorai');
+      expect(paymentLaneLabel('supercomputerData', [{unit: 'steel'}, {unit: 'supercomputerData'}])).to.eq('Data');
+    });
+  });
+
+  /**
    * TWO POOLS OF ONE RESOURCE ON ONE PANEL — a Space+Building card with both
    * EVA Mechs and Construction Mechs in the tableau opens two mech lanes. Two
    * rows reading «Мехи» are two rows the player cannot tell apart, so each

@@ -50,6 +50,11 @@ export const SPENDABLE_CARD_RESOURCES = [
   // is a SECOND unit: every unit names exactly one card, so `pay()` always
   // knows which card a mech leaves (docs/TURMOIL_REDUX_EVA_MECHS.md §6).
   'constructionMechs',
+  // Data stored on Supercomputer (TR48) pay for cards with a Science tag at a
+  // flat 2 M€ each — the THIRD card-bound unit of the Redux set and the SECOND
+  // data unit: Aurorai's data pay for standard projects, these for a Science
+  // card play, so the two never meet on one bill (a unit names one card).
+  'supercomputerData',
 ] as const;
 
 export const SPENDABLE_RESOURCES = [...SPENDABLE_STANDARD_RESOURCES, ...SPENDABLE_CARD_RESOURCES] as const;
@@ -73,4 +78,5 @@ export const CARD_FOR_SPENDABLE_RESOURCE = {
   floodgateSteel: CardName.MODULAR_FLOODGATES,
   mechs: CardName.EVA_MECHS,
   constructionMechs: CardName.CONSTRUCTION_MECHS,
+  supercomputerData: CardName.SUPERCOMPUTER,
 } satisfies Record<SpendableCardResource, CardName>;

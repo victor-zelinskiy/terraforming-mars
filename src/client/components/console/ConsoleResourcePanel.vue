@@ -467,6 +467,7 @@ const CONTEXT_TAG: Readonly<Partial<Record<RailMcContext, TagKind>>> = {
   'space': TagKind.SPACE,
   'building': TagKind.BUILDING,
   'building-or-city': TagKind.BUILDING,
+  'science': TagKind.SCIENCE,
   'city-or-space': TagKind.CITY,
   'plant': TagKind.PLANT,
   'plant-or-greenery': TagKind.PLANT,

@@ -77,6 +77,7 @@ export type RailMcContext =
   | 'moon'              // cards with a Moon tag (Luna Archives science)
   | 'city-or-space'     // city or space tag (Carbon Nanosystems graphene)
   | 'building-or-city'  // building or city tag (Construction Mechs mechs)
+  | 'science'           // cards with a science tag (Supercomputer data)
   | 'standard-project'  // standard projects (Spire science, Aurorai data)
   | 'aquifer-asteroid'; // the aquifer / asteroid standard projects (Kuiper)
 
@@ -123,6 +124,7 @@ export const MC_CONTEXT_KEYS: Record<RailMcContext, string> = {
   'moon': 'for cards with a Moon tag',
   'city-or-space': 'for cards with a city or space tag',
   'building-or-city': 'for cards with a building or city tag',
+  'science': 'for cards with a science tag',
   'standard-project': 'for standard projects',
   'aquifer-asteroid': 'for the aquifer and asteroid standard projects',
 };
@@ -142,6 +144,8 @@ export const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext>
   mechs: 'space',
   // Construction Mechs (TR17): «5 M€ · Строительство или Город».
   constructionMechs: 'building-or-city',
+  // Supercomputer (TR48): «2 M€ · Наука».
+  supercomputerData: 'science',
 };
 
 function badgeOf(facts: Array<RailMcUnitFact>): RailMcBadge {
