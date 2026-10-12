@@ -20,7 +20,7 @@ import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
-import {AmountConversionModel, AmountCostModel, AmountResultModel, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
+import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
@@ -884,16 +884,22 @@ export function cardInput(
     max?: number,
     /** Offer a "Select all / Deselect all" toggle (multi-select prompts). */
     showSelectAll?: boolean,
+    /** The live prompt's DISCARD marker — see `selectCardStep`'s `discard`. */
+    discard?: DiscardPromptMeta,
   },
 ): PlayerInputModel {
-  return new SelectCard(title, label, cards, {
+  const select = new SelectCard(title, label, cards, {
     showOwner: opts?.showOwner,
     played: opts?.played,
     disabled: opts?.disabled,
     min: opts?.min,
     max: opts?.max,
     showSelectAll: opts?.showSelectAll,
-  }).toModel(player);
+  });
+  if (opts?.discard !== undefined) {
+    select.markDiscardPrompt(opts.discard);
+  }
+  return select.toModel(player);
 }
 
 /** A `SelectCard` target picker as a STEP (the modal hosts it + captures the
@@ -928,6 +934,13 @@ export function selectCardStep(
      * the exit pass stamps the step's own role with the card as its source.
      */
     for?: PreselectAddress,
+    /**
+     * The live prompt's own DISCARD marker, when the step pre-collects a discard (the SAME meta the card's
+     * `DiscardCards` builds): the console's hand album wears the discard's skin off it — copy, verb, what the discard
+     * buys — exactly as on the live prompt. The owner's rule (2026-10-13): a card from the hand is chosen IN the hand,
+     * and the pick reads the same before the press as after it.
+     */
+    discard?: DiscardPromptMeta,
   },
 ): ActionPreviewStep {
   // `amount` (the resource count added to the chosen card) drives the picker's
@@ -954,6 +967,7 @@ export function selectCardStep(
       min: opts?.min,
       max: opts?.max,
       showSelectAll: opts?.showSelectAll,
+      discard: opts?.discard,
     }),
     amount: opts?.amount,
     dedupeFromSteps: opts?.dedupeFromSteps,

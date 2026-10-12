@@ -758,6 +758,16 @@ describe('consolePlayCardComposer.playChoiceMode', () => {
     expect(playChoiceMode(cardChoice([CardName.PETS], {}, {repeatAction: true}), HAND, TABLE)).to.equal('repeat');
   });
 
+  /**
+   * THE OWNER'S HARD RULE (2026-10-13): a card from the hand is chosen IN the hand. The DISCARD marker says «hand» by
+   * itself — the same one test the `or` door asks (`handPickRouting.isHandPick`), so a discard step and a discard
+   * option of an `or` can no longer land on two different surfaces.
+   */
+  it('a DISCARD-marked pick is a hand pick, whatever the client holds', () => {
+    const c = cardChoice([CardName.LICHEN], {discardPrompt: {min: 1, max: 1}});
+    expect(playChoiceMode(c, HAND, TABLE)).to.equal('handPick');
+  });
+
   it('player / amount / or / spendHeat stay inline; an unknown shape is a follow-up', () => {
     const mk = (kind: string, type: string) => ({id: 'step#0', scope: 'step', index: 0, kind, input: {type, title: ''}} as never);
     expect(playChoiceMode(mk('player', 'player'), HAND, TABLE)).to.equal('inline');

@@ -4,7 +4,7 @@ import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
-import {DiscardCards} from '../../deferredActions/DiscardCards';
+import {DiscardCards, DiscardCardsOptions} from '../../deferredActions/DiscardCards';
 import {CardRenderer} from '../render/CardRenderer';
 import {DrawCards} from '../../deferredActions/DrawCards';
 import {ExternalDrawIntake} from '../../deferredActions/ExternalDrawIntake';
@@ -56,10 +56,7 @@ export class SponsoredAcademies extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new DiscardCards(player, 1, 1, undefined, {
-      source: cardSource(this),
-      exchange: discardForCards(3),
-    }), Priority.SPONSORED_ACADEMIES).andThen(() => {});
+    player.game.defer(new DiscardCards(player, 1, 1, undefined, this.discardOptions()), Priority.SPONSORED_ACADEMIES).andThen(() => {});
     player.game.defer(DrawCards.keepAll(player, 3), Priority.SPONSORED_ACADEMIES);
     for (const p of player.opponents) {
       // Automa FAQ (rulebook p.11): "MarsBot gains 1 M€ instead of the free card draw."
@@ -83,6 +80,11 @@ export class SponsoredAcademies extends Card implements IProjectCard {
     return undefined;
   }
 
+  /** THE discard this card asks — ONE source + exchange for the live `DiscardCards` and the preview's marker. */
+  private discardOptions(): {source: NonNullable<DiscardCardsOptions['source']>, exchange: DiscardCardsOptions['exchange']} {
+    return {source: cardSource(this), exchange: discardForCards(3)};
+  }
+
   // PRE-COLLECT the "discard 1 card" choice IN the play modal: a −1 card (discard)
   // + +3 cards (draw) RESULT, and the hand-card pick. The live DiscardCards reads
   // the hand AFTER this card has left it → exclude self; with only one card left it
@@ -100,6 +102,9 @@ export class SponsoredAcademies extends Card implements IProjectCard {
         // no other question of the play (Olympus Conference on the science
         // tag) ever meets it, and the discard itself never asks twice.
         for: {role: 'discard', source: cardSource(this)},
+        // …and the live discard's own marker, from the ONE builder below: the hand album the console opens for this
+        // pick wears the discard's skin (what it buys: three cards) before the press exactly as the live prompt would.
+        discard: {min: 1, max: 1, ...this.discardOptions()},
       }) :
       undefined;
     return actionPreviews.playPreview(this, player, [

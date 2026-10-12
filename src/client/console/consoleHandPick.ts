@@ -25,6 +25,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {DiscardPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {isHandPick} from '@/client/console/handPickRouting';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -56,8 +57,15 @@ export type ConsoleHandPickRequest = {
    * the discard tray (default — a discard's own leaving) or the SALE's trade
    * terminal (Open IP Trade: the cards feed the terminal, the terminal pays).
    * A sale arms its own scene; the shell must not arm the discard's over it.
+   *
+   * `'none'` — a PRE-SELECT: the pick answers a question a composer asks BEFORE
+   * its play / action is committed (Mars University's «discard a card to draw
+   * one», a table question — TR51). Nothing has happened yet, so nothing
+   * leaves: the card stays in the hand and goes only when the commit's own
+   * response takes it. The skin (a discard's copy, verb and accent off the raw
+   * marker) is the same; the tray is never armed.
    */
-  leaving?: 'discard' | 'sale';
+  leaving?: 'discard' | 'sale' | 'none';
   /** The OPERATION this pick belongs to (the source card being played /
    *  activated + a kicker i18n key, e.g. 'Action setup') — the pick surface
    *  shows it so the player never loses WHY they are choosing a target.
@@ -91,6 +99,14 @@ let cancelCb: (() => void) | undefined;
 
 export function isConsoleHandPickActive(): boolean {
   return consoleHandPickState.active;
+}
+
+/**
+ * Does answering this pick take the cards out of the hand THROUGH THE DISCARD TRAY? Not a sale (its terminal takes
+ * them) and not a pre-select (nothing leaves before the commit) — the ONE answer both confirm paths ask.
+ */
+export function handPickArmsDiscardTray(request: ConsoleHandPickRequest | undefined): boolean {
+  return request?.leaving !== 'sale' && request?.leaving !== 'none';
 }
 
 /** Open the hand section as a client-side card picker. The shell reacts to
@@ -142,18 +158,12 @@ export function resetConsoleHandPick(): void {
 }
 
 /**
- * PURE: a card selection whose EVERY candidate (selectable + disabled) lives
- * within the given name set — the shared ownership test behind the console's
- * pick-surface routing (hand section / «Разыграно» tableau view; the desktop
- * `cardPickSurface` idea, without the ≤3-inline threshold: console has no
- * premium inline tile picker, so owned picks ALWAYS get the full surface).
+ * The ownership tests now live in ONE place (`handPickRouting.ts` — the owner's rule 2026-10-13: a card picked from the
+ * hand is picked IN THE HAND at every depth). Re-exported here for the callers that grew up with this module.
  */
-export function isCardSelectionWithin(model: SelectCardModel, names: ReadonlySet<string>): boolean {
-  const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-  return model.cards.length > 0 && candidates.every((c) => names.has(c.name));
-}
+export {isCardSelectionWithin} from '@/client/console/handPickRouting';
 
-/** Every candidate is a card in the player's HAND → the hand-section pick. */
+/** Every candidate is a card in the player's HAND (or the server marked the pick a discard) → the hand-section pick. */
 export function isHandCardSelection(model: SelectCardModel, handNames: ReadonlySet<string>): boolean {
-  return isCardSelectionWithin(model, handNames);
+  return isHandPick(model, handNames);
 }

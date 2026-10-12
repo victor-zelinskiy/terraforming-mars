@@ -28,7 +28,7 @@
 import {expect, test, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {bootIntoGame, press, soloGameConfig} from './consoleStart';
+import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer} from './consoleStart';
 
 const OUT_DIR = path.join(__dirname, '..', '..', 'screenshots', 'effect-decision-embed');
 
@@ -83,11 +83,12 @@ async function bootWithHand(page: Page, request: APIRequestContext, cards: Reado
 }
 
 /**
- * Open the hand workspace, walk the cursor onto `card`, descend into it and
- * CONFIRM the play — the ordinary console road, verified at every step (a press
- * landing on a busy frame is deliberately consumed).
+ * Open the hand workspace, walk the cursor onto `card`, descend into it, answer
+ * the table's questions in its composer and CONFIRM the play — the ordinary
+ * console road, verified at every step (a press landing on a busy frame is
+ * deliberately consumed).
  */
-async function playFromHand(page: Page, card: string): Promise<void> {
+async function playFromHand(page: Page, card: string, answers: Readonly<Record<string, TableQuestionAnswer>> = {}): Promise<void> {
   for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
     await press(page, 'Period', 800);
     await press(page, 'Enter', 1100);
@@ -107,6 +108,8 @@ async function playFromHand(page: Page, card: string): Promise<void> {
   expect(await onTarget(), `the hand cursor never reached ${card}`).toBeGreaterThan(0);
   await press(page, 'Enter', 900);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 20_000});
+  await settle(page);
+  await answerTableQuestions(page, answers);
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
   await page.waitForTimeout(1000);
   await page.keyboard.press('Enter');
@@ -276,11 +279,19 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
   return log;
 }
 
-/** The shared verdict — the same contract for every shape of the chain. */
-function assertOneFlow(log: ChainLog, stages: ReadonlyArray<'play' | 'effect' | 'discard' | 'draw'>): void {
+/**
+ * The shared verdict — the same contract for every shape of the chain. `asked: false` — a question answered BEFORE the
+ * press (TR51): no live decision may stand at all, the chain is the play and what it drew.
+ */
+function assertOneFlow(log: ChainLog, stages: ReadonlyArray<'play' | 'effect' | 'discard' | 'draw'>, opts: {asked?: boolean} = {}): void {
   const seen = `[${log.stages.join(' › ')}]`;
-  expect(log.decisionEmbedded,
-    'the triggered effect asked INSIDE the workspace the play was made in').toBeTruthy();
+  if (opts.asked === false) {
+    expect(log.decisionEmbedded,
+      'no live decision — the question was answered in the composer, before the press').toBeFalsy();
+  } else {
+    expect(log.decisionEmbedded,
+      'the triggered effect asked INSIDE the workspace the play was made in').toBeTruthy();
+  }
   expect(log.decisionStandaloneFrames,
     'the decision never stood as a band of its own').toBe(0);
   expect(log.decisionOrphanFrames,
@@ -315,16 +326,22 @@ function assertOneFlow(log: ChainLog, stages: ReadonlyArray<'play' | 'effect' | 
 test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was played in', () => {
   test.setTimeout(300_000);
 
-  test('«Марсианский университет»: decision → discard → draw, all embedded, one crumb', async ({page, request}) => {
+  /**
+   * «МАРСИАНСКИЙ УНИВЕРСИТЕТ» — its own science tag's question is a ROW of the play's composer since TR51, and its
+   * discard is chosen in the HAND ALBUM before the press (the owner's rule 2026-10-13; the door's own probe is
+   * `console-hand-pick-preselect`). What this contract still owns is the rest of the chain: the answer rides the ONE
+   * POST, no decision rises after it, and the card it draws arrives in the SAME workspace.
+   */
+  test('«Марсианский университет»: answered before the press — the draw arrives in the same zone, one crumb', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, ...FILLER]);
-    await playFromHand(page, MARS_UNIVERSITY);
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'discard'});
     const log = await watchEffectChain(page, 'mu');
     console.log(`[mars university trace]\n${log.trace.join('\n')}`);
     console.log(`[crumb stages] ${log.stages.join(' › ')}`);
 
     expect(log.pickedInPlace,
-      'the discard ran on THIS workspace\'s shelf, not a freshly opened hand').toBeTruthy();
-    assertOneFlow(log, ['play', 'effect', 'discard', 'draw']);
+      'nothing is picked after the press — the discard was chosen before it').toBeFalsy();
+    assertOneFlow(log, ['play', 'draw'], {asked: false});
     // …and the flow ENDS by leaving: a finished operation is not a place to
     // come back to.
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
@@ -335,13 +352,13 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
    * structural rather than a card's own arrangement.
    *
    * Its own play seeds the first resource with no question at all; the NEXT
-   * science tag then asks «снять жетон и взять карту / положить жетон», and
-   * BOTH branches resolve ON THE PRESS. So there is no discard stage between
-   * the answer and the card — which is exactly the case that proves the crumb's
-   * tail is HANDED ON at a submit instead of being retracted into the play's
-   * own «РАЗЫГРАНО», two steps behind the flow.
+   * science tag then asks «снять жетон и взять карту / положить жетон» — a row
+   * of that card's composer since TR51, answered before the press with the
+   * draw. So the chain after the press is the play and the card its answer
+   * drew — which proves the crumb's tail is HANDED ON at a submit instead of
+   * being retracted into the play's own «РАЗЫГРАНО».
    */
-  test('«Конференция на Олимпе»: the branch resolves on the press and its draw stays home', async ({page, request}) => {
+  test('«Конференция на Олимпе»: the answer rides the press and its draw stays home', async ({page, request}) => {
     await bootWithHand(page, request, [OLYMPUS, SCIENCE_TAG, ...FILLER]);
 
     // The FIRST play only seeds the resource (`resourceCount === 0` → the card
@@ -350,15 +367,15 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await page.waitForTimeout(1500);
 
-    // The SECOND science tag is the one the conference answers.
-    await playFromHand(page, SCIENCE_TAG);
+    // The SECOND science tag is the one the conference answers — «remove to draw», in the composer.
+    await playFromHand(page, SCIENCE_TAG, {[OLYMPUS]: 'first'});
     const log = await watchEffectChain(page, 'olympus');
     console.log(`[olympus trace]\n${log.trace.join('\n')}`);
     console.log(`[crumb stages] ${log.stages.join(' › ')}`);
 
     expect(log.pickedInPlace,
       'nothing is picked from hand here — both branches resolve on the press').toBeFalsy();
-    assertOneFlow(log, ['play', 'effect', 'draw']);
+    assertOneFlow(log, ['play', 'draw'], {asked: false});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
   });
 
@@ -383,10 +400,23 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
    * the strand guard never rises while the player reads it.
    */
   test('«свернуть» → back: the embedded decision returns INSIDE the workspace', async ({page, request}) => {
-    await bootWithHand(page, request, [MARS_UNIVERSITY, ...FILLER]);
-    await playFromHand(page, MARS_UNIVERSITY);
+    await bootWithHand(page, request, [MARS_UNIVERSITY, DRAW_AND_TAG, ...FILLER]);
+    // A LIVE decision needs a question the composer could not ask: the university on the table (its own question
+    // declined in its composer), then a science tag whose play DRAWS — the card the player might discard does not exist
+    // before the press, so the university's question is an honest follow-up (TR51, `HIDDEN_DRAW_NOTE`).
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'last'});
+    await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
+    await cinematicBeat(page, 1500, 'the first play\'s workspace finishes its leave before the next one opens');
+    await playFromHand(page, DRAW_AND_TAG);
 
+    // The batch presents first (surfaces go in turn) — take it (RT «Забрать все»); the decision follows in the zone.
     const embedded = page.locator('.con-hand__outcome .con-decision');
+    for (let i = 0; i < 12 && await embedded.count() === 0; i++) {
+      await page.locator('.con-hand__outcome .con-reveal, .con-hand__outcome .con-decision').first().waitFor({timeout: 60_000});
+      if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
+        await press(page, 'Period', 800);
+      }
+    }
     await expect(embedded).toBeVisible({timeout: 60_000});
     await page.waitForTimeout(900); // let the arrival settle before minimizing
     await shoot(page, 'collapse-before');
@@ -450,11 +480,10 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
   test('a draw AND an effect from one press: the take does not end the chain', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, DRAW_AND_TAG, ...FILLER]);
 
-    // The FIRST play puts the university on the table; its own science tag
-    // asks at once — decline, and the workspace finishes.
-    await playFromHand(page, MARS_UNIVERSITY);
-    const setup = await watchEffectChain(page, 'setup-mu', {decline: true});
-    console.log(`[setup trace]\n${setup.trace.join('\n')}`);
+    // The FIRST play puts the university on the table; its own science tag's
+    // question is a row of its composer (TR51) — declined there, and the
+    // workspace finishes.
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'last'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await page.waitForTimeout(1500);
 

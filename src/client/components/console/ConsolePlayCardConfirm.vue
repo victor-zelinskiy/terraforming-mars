@@ -666,6 +666,7 @@ import {skippedEffectViews} from '@/client/components/actions/skippedEffectView'
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
+import {orOptionDoor} from '@/client/console/handPickRouting';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
@@ -775,6 +776,14 @@ type PlayRow =
   // plays ONLY when the player is on it (never from a pick row). It draws the Ⓐ
   // glyph, so what A does is always unambiguous.
   | {i: number, id: string, kind: 'cta'};
+
+/**
+ * Where the answer of an `or` option's OWN question is kept for the row's label (`picks[nestedPickKey(id)]`, beside
+ * `picks[id]` = the option's index) — a key of `picks`, so the staged-play draft carries it for free, like `tabbed#N`.
+ * Several cards are joined by `NESTED_PICK_SEP`.
+ */
+const nestedPickKey = (choiceId: string): string => choiceId + '#nested';
+const NESTED_PICK_SEP = '|';
 
 type SubState =
   /** THE EMBEDDED PLAYED-TARGET STEP — a level of this workspace, not a modal
@@ -932,6 +941,12 @@ export default defineComponent({
       playedTargetHeight: 0,
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
+      /**
+       * The hand album this composer has open for one of its choices (the bridge — the composer waits underneath,
+       * hidden): which choice it answers and whether it is a DISCARD, so the crumb's tail names that stage
+       * («СБРОС КАРТЫ» / «ВЫБОР КАРТ») for as long as the album stands.
+       */
+      handPickOpen: undefined as {choiceId: string, discard: boolean} | undefined,
       payCounts: {} as Partial<Record<SpendableResource, number>>,
       /** The composed repeat-action pick (ProjectInspection): the chosen
        *  already-used action + its own composed responses. Filled by
@@ -1111,6 +1126,10 @@ export default defineComponent({
       // being laid into «Разыграно» — the tail says so, in one word.
       if (this.landingUp) {
         return 'Played';
+      }
+      // The HAND ALBUM answers one of this composer's choices — the stage the player stands on is that pick.
+      if (this.handPickOpen !== undefined) {
+        return this.handPickOpen.discard ? 'Discarding a card' : 'Card selection';
       }
       if (this.sub?.kind === 'payment') {
         return 'Payment';
@@ -2558,6 +2577,7 @@ export default defineComponent({
       this.multiPicks = {};
       this.repeatResult = undefined;
       this.sub = undefined;
+      this.handPickOpen = undefined;
       this.submitting = false;
     },
     applyPreview(): void {
@@ -2912,6 +2932,17 @@ export default defineComponent({
       }
       if (c.input.type === 'or') {
         const opt = (c.input as OrOptionsModel).options[Number(pick)];
+        // A branch answered through its OWN question (the card Mars University discards, the player Comet for Venus
+        // hits) reads as its ANSWER — the option's title IS the question, and a row restating it looks unanswered.
+        const nested = this.picks[nestedPickKey(c.id)];
+        if (opt !== undefined && nested !== undefined) {
+          if (opt.type === 'player') {
+            return this.playerName(nested);
+          }
+          const names = nested.split(NESTED_PICK_SEP).map((n) => translateCardName(n as CardName)).join(', ');
+          // A DISCARD says so — a bare card name under «Сработает · <карта> · ваш выбор» reads as a card GAINED.
+          return (opt as SelectCardModel).discardPrompt !== undefined ? `${translateText(opt.buttonLabel || 'Discard')}: ${names}` : names;
+        }
         return opt !== undefined ? textOf(opt.title) : '';
       }
       return pick;
@@ -3782,18 +3813,32 @@ export default defineComponent({
      * this composer (v-show — every capture survives), the player picks on the
      * real cards, and the result lands back here as the step's capture. A
      * re-open (A = «Изменить») pre-seeds the previous selection.
+     *
+     * …at EVERY depth: `orItem` is an option of an `or` choice whose own
+     * question is that pick (Mars University's «discard a card to draw one»
+     * beside «do nothing» — a table question, TR51). The album answers it and
+     * the answer is wrapped back into THAT option (`orItemResponse`); B in the
+     * album returns to the option list it was opened from (one level). The
+     * owner's hard rule (2026-10-13): a card from the hand is chosen IN the
+     * hand, never from a list of names.
      */
-    openHandPick(c: ComposerChoice): void {
-      const model = c.input as SelectCardModel;
+    openHandPick(c: ComposerChoice, orItem?: ConsoleOrItem): void {
+      const model = (orItem?.nested ?? c.input) as SelectCardModel;
       const reasons: Record<string, string> = {};
       for (const d of model.disabledCards ?? []) {
         reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
       }
       const multi = model.max > 1;
-      const prior = multi ?
-        [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
-        (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
+      const answered = orItem !== undefined && this.picks[c.id] === String(orItem.optionIndex) ?
+        (this.picks[nestedPickKey(c.id)]?.split(NESTED_PICK_SEP) ?? []) : [];
+      const prior = orItem !== undefined ?
+        answered as Array<CardName> :
+        (multi ?
+          [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
+          (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []));
       const gain = c.multiSelect?.revealGain;
+      const discard = model.discardPrompt;
+      this.handPickOpen = {choiceId: c.id, discard: discard !== undefined};
       enterConsoleHandPick({
         title: model.title,
         buttonLabel: model.buttonLabel || 'Select',
@@ -3803,11 +3848,26 @@ export default defineComponent({
         max: model.max ?? 1,
         selected: prior,
         gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
+        // The pick names WHY it is asked: the card whose question it answers — the reacting card for a table
+        // question (L3 «Источник» lifts it), else the card being played.
+        source: {kicker: 'Play card', card: c.reaction?.card ?? this.cardName},
+        // The server's own DISCARD marker, raw — the album wears the discard's skin (copy, verb, what it buys)…
+        discard,
+        // …and nothing leaves: this is a PRE-SELECT, the card goes only when the play's ONE POST is answered.
+        leaving: 'none',
       }, (cards) => {
+        this.handPickOpen = undefined;
         // Re-locate the choice by id — the preview may have refreshed under
         // the pick (a poll landed) and the captured index must stay honest.
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
-        if (multi) {
+        if (orItem !== undefined) {
+          if (cards.length === 0 && (model.min ?? 1) > 0) {
+            return;
+          }
+          this.picks[cur.id] = String(orItem.optionIndex);
+          this.picks[nestedPickKey(cur.id)] = cards.join(NESTED_PICK_SEP);
+          this.captureFor(cur, orItemResponse(orItem, {type: 'card', cards: [...cards]}));
+        } else if (multi) {
           this.multiPicks[cur.id] = [...cards];
           this.picks[cur.id] = String(cards.length);
           this.captureFor(cur, {type: 'card', cards: [...cards]});
@@ -3817,7 +3877,28 @@ export default defineComponent({
         }
         this.focusIdx = this.firstActionableIndex();
         this.scrollFocused();
+      }, () => {
+        this.handPickOpen = undefined;
+        // B in the album is ONE level: an option's pick goes back to the option list it was opened from, the
+        // cursor on that option; a step's own pick goes back to the step.
+        if (orItem !== undefined) {
+          const at = buildOrItems(c.input as OrOptionsModel).findIndex((it) => it.optionIndex === orItem.optionIndex);
+          this.sub = {kind: 'list', choiceId: c.id, index: Math.max(0, at)};
+        }
       });
+    },
+    /**
+     * DESCEND into an `or` option whose own answer is a question. WHERE it is answered is ONE verdict
+     * (`handPickRouting.orOptionDoor`): a pick FROM THE HAND opens the hand album — the list of names it used to open is
+     * what the owner's photo of Mars University showed; anything else stays the composer's own list.
+     */
+    descendOrOption(c: ComposerChoice, item: ConsoleOrItem): void {
+      if (orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet, this.cardName) === 'hand') {
+        this.sub = undefined;
+        this.openHandPick(c, item);
+        return;
+      }
+      this.sub = {kind: 'orNested', choiceId: c.id, item, index: 0};
     },
     // SUB state (pick list / payment lanes): A(primary) pick/close, X(inspect)
     // zoom the list card, B back, LB/RB(prev/nextSection) adjust lane, RT max.
@@ -3977,6 +4058,7 @@ export default defineComponent({
           return;
         }
         this.picks[c.id] = String(sub.item.optionIndex);
+        this.picks[nestedPickKey(c.id)] = nested?.type === 'player' ? String(item.color) : String(item.card?.name);
         this.captureFor(c, orItemResponse(sub.item, nestedResp));
         this.sub = undefined;
         this.focusIdx = this.firstActionableIndex();
@@ -3994,12 +4076,13 @@ export default defineComponent({
         if (it === undefined) {
           return;
         }
-        // A NESTED-input option opens its own target sub-pick (don't submit yet).
+        // A NESTED-input option is not an answer — it is the next question, asked where it belongs (don't submit yet).
         if (it.nested !== undefined) {
-          this.sub = {kind: 'orNested', choiceId: c.id, item: it, index: 0};
+          this.descendOrOption(c, it);
           return;
         }
         this.picks[c.id] = String(it.optionIndex);
+        delete this.picks[nestedPickKey(c.id)];
         this.captureFor(c, orItemResponse(it));
       } else {
         return;

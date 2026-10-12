@@ -2168,7 +2168,7 @@ import {probeTick} from '@/client/console/probeTick';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -21957,11 +21957,17 @@ export default defineComponent({
       if (isCardDiscardActive()) {
         return; // the answer is already in flight (fullscreen A / double press)
       }
-      this.armDiscardScene([name as CardName]);
       if (this.handPickActive) {
+        // A client pick leaves through the tray only when it LEAVES at all — a
+        // sale's terminal takes its cards, a composer's PRE-SELECT keeps them
+        // in the hand until its commit (`handPickArmsDiscardTray`).
+        if (handPickArmsDiscardTray(consoleHandPickState.request)) {
+          this.armDiscardScene([name as CardName]);
+        }
         resolveConsoleHandPick([name as CardName]);
         return;
       }
+      this.armDiscardScene([name as CardName]);
       this.submitHandSelect([name]);
     },
     /**
@@ -22095,8 +22101,8 @@ export default defineComponent({
         }
         // A pick that leaves through the trade terminal (the resolution action's
         // sale) arms the sale's own scene in its resolve — the discard tray's
-        // scene would fight it over the same cards.
-        if (req.leaving !== 'sale') {
+        // scene would fight it over the same cards; a PRE-SELECT leaves nothing.
+        if (handPickArmsDiscardTray(req)) {
           this.armDiscardScene([...picked]);
         }
         resolveConsoleHandPick([...picked]);

@@ -1,0 +1,280 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
+import {bootIntoGame, crumbText, fetchPlayerModel, focusCard, press, settle, soloGameConfig, waitForBoardHome} from './consoleStart';
+
+/**
+ * A CARD FROM THE HAND IS CHOSEN IN THE HAND — at every depth (the owner's hard rule, 2026-10-13).
+ *
+ * The owner's TV photo: «КАРТЫ В РУКЕ › МАРСИАНСКИЙ УНИВЕРСИТЕТ › ВЫБОР» over a column of thirteen card NAMES under
+ * «ВЫБЕРИТЕ КАРТУ, ЧТОБЫ СБРОСИТЬ». TR51 (`e8315a4524`) moved the table's questions into the composer, and Mars
+ * University's — «discard a card to draw one» beside «do nothing» — is an `or` whose option is itself a pick FROM THE
+ * HAND; both composers descended into every such option through their own flat list. Now the option's door is ONE
+ * verdict (`handPickRouting.orOptionDoor`): a hand pick opens the HAND ALBUM in pick mode, wearing the discard's own
+ * skin off the server's raw marker and leaving nothing (a PRE-SELECT — the card goes with the play's ONE POST), and
+ * the answer returns into the option it was asked for.
+ *
+ * Against a real server:
+ *   A. (fhd + tv4k) Mars University played from the hand — its own question: the reaction row → its two options (no
+ *      card name among them) → A on the discard → the HAND in pick mode (no list anywhere, the crumb's tail
+ *      «Сброс карты») → B returns to the options → A again → a card → back in the composer, the row naming it → A →
+ *      ONE POST carrying the addressed answer → the server: the card discarded, one drawn, nothing asked again (the
+ *      harness's `preselectGuard` / `postCommitGuard` stay silent).
+ *   B. (fhd) The table's question — Mars University already on the table answers a science tag played after it: the
+ *      same door from a play of ANOTHER card, its leaf «do nothing» answered on the first play.
+ *
+ * Heavy 4K: run with `--workers=1`.
+ */
+
+const MU = 'Mars University';
+/** A plain science tag (the table question's trigger in B). */
+const SCIENCE_TAG = 'Adaptation Technology';
+/** The hand the discard is chosen from — enough cards that a list would be a COLUMN, as on the photo. */
+const FILLER = ['Acquired Company', 'Rover Construction', 'Investment Loan', 'Lichen', 'Algae'];
+const DISCARD = 'Investment Loan';
+const PLAY_COMPOSER = '.con-composer--play';
+const OUT = path.resolve('screenshots', 'hand-pick-preselect');
+
+const PRESETS = [
+  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
+  {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
+] as const;
+
+type Wire = {
+  cardsInHand?: Array<{name: string}>;
+  waitingFor?: {type: string, discardPrompt?: unknown, options?: Array<{discardPrompt?: unknown}>};
+  thisPlayer: {cardsInHandNbr: number, tableau: Array<{name: string}>};
+};
+
+type OrAnswer = {type: string, index?: number, response?: {type: string, cards?: Array<string>}, for?: {role?: string, source?: {card?: string}}};
+
+async function wireOf(request: APIRequestContext, playerId: string): Promise<Wire> {
+  return await fetchPlayerModel(request, playerId) as unknown as Wire;
+}
+
+async function shoot(page: Page, preset: string, name: string): Promise<void> {
+  fs.mkdirSync(OUT, {recursive: true});
+  await page.screenshot({path: path.join(OUT, `${preset}-${name}.png`)});
+}
+
+function watchPosts(page: Page): Array<string> {
+  const posts: Array<string> = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+      posts.push(r.postData() ?? '');
+    }
+  });
+  return posts;
+}
+
+/** RT → «КАРТЫ» → the card → A: the play composer, nothing sent. */
+async function openPlayComposerOf(page: Page, card: string): Promise<void> {
+  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${card}"]`).count() === 0; i++) {
+    await press(page, 'Period', 600);
+    await press(page, 'Enter', 1600);
+  }
+  await page.locator(`.con-hand [data-zoom-slot="${card}"]`).waitFor({timeout: 15_000});
+  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+  await settle(page);
+  const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
+  expect(await focusCard(page, card, slots * 2 + 6), `never focused «${card}» in the hand`).toBe(true);
+  for (let i = 0; i < 3 && await page.locator(PLAY_COMPOSER).count() === 0; i++) {
+    await press(page, 'Enter', 900);
+  }
+  await expect(page.locator(PLAY_COMPOSER), 'the play composer stands').toHaveCount(1);
+  await expect(page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`),
+    'the table question stands as a row of the composer').toHaveCount(1, {timeout: 20_000});
+  await settle(page);
+}
+
+/** Walk the composer's cursor onto Mars University's reaction row (↑ to the top, then ↓ — the rows are few). */
+async function focusReactionRow(page: Page): Promise<void> {
+  const onRow = () => page.locator(`${PLAY_COMPOSER} .con-composer__row--focused[data-reaction-card="${MU}"]`).count();
+  for (let i = 0; i < 6 && await onRow() === 0; i++) {
+    await press(page, 'ArrowUp', 250);
+  }
+  for (let i = 0; i < 10 && await onRow() === 0; i++) {
+    await press(page, 'ArrowDown', 250);
+  }
+  expect(await onRow(), 'the cursor reached the reaction row').toBe(1);
+}
+
+/** The reaction row → A → its OPTIONS (the composer's own list — the two answers, never the hand). */
+async function openReactionOptions(page: Page): Promise<void> {
+  await focusReactionRow(page);
+  for (let i = 0; i < 3 && await page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`).count() === 0; i++) {
+    await press(page, 'Enter', 900);
+  }
+  const options = page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`);
+  await expect(options, 'the question offers its two answers').toHaveCount(2, {timeout: 10_000});
+}
+
+/** The hand in PICK mode — the album's own select classes (the card being played rides it DISABLED). */
+const handPicking = (page: Page) => page.locator('.con-hand[data-flow="picking"], .con-hand .con-hand__slot--select-disabled, .con-hand .con-hand__slot--select-picked');
+
+/**
+ * THE DOOR: on the option list, A on the DISCARD (the first option, the cursor's home) must open the hand album —
+ * and nothing else: no list of names stands anywhere while the hand picks, the crumb's tail names the discard.
+ */
+async function enterDiscardAlbum(page: Page, preset: string, shotName: string): Promise<void> {
+  for (let i = 0; i < 3 && await handPicking(page).count() === 0; i++) {
+    await press(page, 'Enter', 1200);
+  }
+  await expect(handPicking(page).first(), 'A on the discard opens the HAND in pick mode').toBeVisible({timeout: 15_000});
+  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+  await settle(page);
+  expect(await page.locator('.con-composer__sublist:visible').count(), 'no pick list stands while the hand picks').toBe(0);
+  expect(await page.locator(`${PLAY_COMPOSER}:visible`).count(), 'the composer waits underneath, hidden').toBe(0);
+  const crumb = await crumbText(page);
+  expect(crumb.toLowerCase(), `the crumb's tail names the discard — «${crumb}»`).toContain('сброс карты');
+  // Every candidate stands in the album as the real card.
+  for (const name of FILLER) {
+    await expect(page.locator(`.con-hand [data-zoom-slot="${name}"]`), `«${name}» stands in the album`).toHaveCount(1);
+  }
+  await shoot(page, preset, shotName);
+}
+
+/** The commit: walk onto the CTA, A until exactly one POST leaves. */
+async function commitPlay(page: Page, posts: Array<string>): Promise<void> {
+  for (let i = 0; i < 10 && await page.locator(`${PLAY_COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
+    await press(page, 'ArrowDown', 250);
+  }
+  const before = posts.length;
+  for (let attempt = 0; attempt < 4 && posts.length === before; attempt++) {
+    await press(page, 'Enter', 400);
+    await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(before).catch(() => undefined);
+  }
+  expect(posts.length - before, 'A sent exactly one request').toBe(1);
+}
+
+/** The Mars University answer inside a posted batch (the `or` carrying the card pick, or the leaf). */
+function muAnswerOf(post: string): OrAnswer | undefined {
+  const body = JSON.parse(post) as {responses?: Array<OrAnswer>};
+  return (body.responses ?? []).find((r) => r.type === 'or' && r.for?.source?.card === MU);
+}
+
+for (const preset of PRESETS) {
+  test.describe(`a hand pick inside an \`or\` is the hand album · ${preset.id}`, () => {
+    test.use({viewport: preset.viewport});
+
+    test(`A · Mars University's own question: the discard is chosen in the HAND, rides the ONE POST (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(300_000);
+      const posts = watchPosts(page);
+      const hand = [MU, ...FILLER];
+      const playerId = await bootIntoGame(page, request, {
+        config: soloGameConfig({customProjectCards: [...hand]}),
+        cards: [...hand],
+        query: preset.query,
+      });
+      await settle(page);
+      const before = await wireOf(request, playerId);
+      expect(before.cardsInHand?.map((c) => c.name), 'the fixture: the card and its discard candidates in hand').toEqual(expect.arrayContaining(hand));
+      const handBefore = before.thisPlayer.cardsInHandNbr;
+      const postsAtStart = posts.length;
+
+      // ── 1. The composer; the reaction row opens its two ANSWERS — no card name among them.
+      await openPlayComposerOf(page, MU);
+      await shoot(page, preset.id, 'A1-composer');
+      // The list holds the question's two ANSWERS — the photo's list held the whole hand (thirteen names).
+      await openReactionOptions(page);
+      await shoot(page, preset.id, 'A2-options');
+
+      // ── 2. A on the discard → the HAND album; B → back to the options (one level), the cursor on the discard.
+      await enterDiscardAlbum(page, preset.id, 'A3-album');
+      await press(page, 'Escape', 1200);
+      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`), 'B returns to the two answers').toHaveCount(2, {timeout: 10_000});
+      await expect(handPicking(page), 'the album let go').toHaveCount(0);
+      await enterDiscardAlbum(page, preset.id, 'A4-album-again');
+
+      // ── 3. A card → back in the composer, the row answered with THAT card; nothing sent.
+      const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
+      expect(await focusCard(page, DISCARD, slots * 2 + 6), `never focused «${DISCARD}» in the album`).toBe(true);
+      for (let i = 0; i < 3 && await page.locator(`${PLAY_COMPOSER}:visible`).count() === 0; i++) {
+        await press(page, 'Enter', 1400);
+      }
+      await expect(page.locator(`${PLAY_COMPOSER}:visible`), 'A on the card answers and returns to the composer').toHaveCount(1, {timeout: 15_000});
+      await settle(page);
+      const row = page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`);
+      await expect(row, 'the row is answered').not.toHaveClass(/con-composer__row--missing/);
+      expect(posts.length - postsAtStart, 'nothing sent before the play\'s own A').toBe(0);
+      await shoot(page, preset.id, 'A5-answered');
+
+      // ── 4. ONE POST, the answer ADDRESSED to Mars University's question, nesting the card.
+      await commitPlay(page, posts);
+      const answer = muAnswerOf(posts[posts.length - 1]);
+      expect(answer, 'the batch carries Mars University\'s answer, addressed to it').toBeDefined();
+      expect(answer?.index, 'the discard option').toBe(0);
+      expect(answer?.response?.cards, 'nesting the card chosen in the album').toEqual([DISCARD]);
+
+      // ── 5. The server: the card on the table, the discard gone, one drawn — and nothing asked again.
+      await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === MU),
+        {timeout: 30_000, message: 'the card is on the table'}).toBe(true);
+      const after = await wireOf(request, playerId);
+      expect(after.cardsInHand?.map((c) => c.name), 'the pre-selected card was discarded').not.toContain(DISCARD);
+      expect(after.thisPlayer.cardsInHandNbr, 'the hand: −the card −the discard +1 drawn').toBe(handBefore - 2 + 1);
+      const wf = after.waitingFor;
+      expect(wf?.discardPrompt !== undefined || (wf?.options ?? []).some((o) => o.discardPrompt !== undefined),
+        'no discard stands after the batch').toBe(false);
+      await settle(page, {timeoutMs: 30_000});
+      await waitForBoardHome(page, 30);
+      await expect(handPicking(page), 'the hand never comes back in pick mode').toHaveCount(0);
+      expect(await page.locator('.con-decision').count(), 'no live decision was raised — the question was answered').toBe(0);
+      await shoot(page, preset.id, 'A6-board');
+    });
+
+    if (preset.id === 'fhd') {
+      test('B · the table\'s question: Mars University on the table answers a science tag — the same door', async ({page, request}) => {
+        test.setTimeout(300_000);
+        const posts = watchPosts(page);
+        const hand = [MU, SCIENCE_TAG, ...FILLER];
+        const playerId = await bootIntoGame(page, request, {
+          config: soloGameConfig({customProjectCards: [...hand]}),
+          cards: [...hand],
+          query: preset.query,
+        });
+        await settle(page);
+
+        // ── 1. Mars University itself, answered «do nothing» — the LEAF beside the door: no album, the row names it.
+        await openPlayComposerOf(page, MU);
+        await openReactionOptions(page);
+        await press(page, 'ArrowDown', 300);
+        await press(page, 'Enter', 900);
+        await expect(handPicking(page), 'the leaf opens no album').toHaveCount(0);
+        await expect(page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`)).not.toHaveClass(/con-composer__row--missing/);
+        await commitPlay(page, posts);
+        expect(muAnswerOf(posts[posts.length - 1])?.index, 'the leaf «do nothing»').toBe(1);
+        await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === MU),
+          {timeout: 30_000, message: 'Mars University is on the table'}).toBe(true);
+        await settle(page, {timeoutMs: 30_000});
+        await waitForBoardHome(page, 30);
+        const handBefore = (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr;
+
+        // ── 2. A science tag: the table's question is a row of THIS card's composer, and its discard is the album.
+        await openPlayComposerOf(page, SCIENCE_TAG);
+        await openReactionOptions(page);
+        await enterDiscardAlbum(page, preset.id, 'B1-album');
+        const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
+        expect(await focusCard(page, DISCARD, slots * 2 + 6), `never focused «${DISCARD}» in the album`).toBe(true);
+        for (let i = 0; i < 3 && await page.locator(`${PLAY_COMPOSER}:visible`).count() === 0; i++) {
+          await press(page, 'Enter', 1400);
+        }
+        await expect(page.locator(`${PLAY_COMPOSER}:visible`)).toHaveCount(1, {timeout: 15_000});
+        await settle(page);
+        await commitPlay(page, posts);
+        const answer = muAnswerOf(posts[posts.length - 1]);
+        expect(answer?.index).toBe(0);
+        expect(answer?.response?.cards).toEqual([DISCARD]);
+
+        await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === SCIENCE_TAG),
+          {timeout: 30_000, message: 'the science card is on the table'}).toBe(true);
+        const after = await wireOf(request, playerId);
+        expect(after.cardsInHand?.map((c) => c.name)).not.toContain(DISCARD);
+        expect(after.thisPlayer.cardsInHandNbr, 'the hand: −the card −the discard +1 drawn').toBe(handBefore - 2 + 1);
+        await settle(page, {timeoutMs: 30_000});
+        await waitForBoardHome(page, 30);
+        expect(await page.locator('.con-decision').count(), 'no live decision — the table\'s question was answered before the press').toBe(0);
+        await shoot(page, preset.id, 'B2-board');
+      });
+    }
+  });
+}

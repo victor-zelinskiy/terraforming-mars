@@ -37,6 +37,7 @@ import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import type {Units} from '@/common/Units';
 import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActionComposer';
 import {repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {isHandPick} from '@/client/console/handPickRouting';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {countedMetricParts, metricLabelKeyOf} from '@/client/console/parliament/influenceYieldModel';
@@ -219,16 +220,18 @@ export function playChoiceMode(
       return 'followup';
     }
     const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-    // SELECTABLE is the discriminator, not mere presence. Sponsored Academies
+    // THE ONE hand test (`handPickRouting.isHandPick` — the owner's rule
+    // 2026-10-13: a card from the hand is chosen IN the hand, at every depth).
+    // SELECTABLE is the discriminator, not mere presence: Sponsored Academies
     // also lists the card being played — as a DISABLED row reading «эта карта
     // разыгрывается» — and that prompt really is about the hand. Only a card
     // being played that is genuinely CHOOSABLE is choosable as a table object.
+    if (isHandPick(model, handNames, playedCardName)) {
+      return 'handPick';
+    }
     const selfTarget = playedCardName !== undefined &&
       model.cards.some((cd) => cd.name === playedCardName);
     const isSelf = (name: string) => selfTarget && name === playedCardName;
-    if (candidates.every((cd) => handNames.has(cd.name) && !isSelf(cd.name))) {
-      return 'handPick';
-    }
     // Cards already ON THE TABLE, whoever owns them → the embedded step. Not
     // limited to single selection: the step hosts the server's merged up-to-N
     // ask too. The card being played joins them: it is one press away from

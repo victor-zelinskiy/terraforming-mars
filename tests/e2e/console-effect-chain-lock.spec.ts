@@ -14,17 +14,24 @@
  *
  * Both shapes are pinned: the draw branch (a reveal stands between the two
  * decisions — the component remounts and was always fine) and the no-draw
- * branch (the direct choice → choice hand-off, the broken one). The spec
+ * branch (the direct choice → choice hand-off, the broken one). Since TR51 the
+ * table's questions are asked in the play's COMPOSER, so a LIVE decision is
+ * one the composer could not ask — a hand pick the play's own draw (or an
+ * answer above it that draws) makes an honest follow-up; both variants are
+ * built on exactly that road (`answerTableQuestions` answers the rest). The spec
  * MEASURES the second decision's reaction to its first press, while an
  * in-page sampler (setInterval — never rAF, headless Chromium parks rAF on a
  * quiet screen) records the workspace-outcome / stack state every 250 ms so
  * a reproduced lock names its holder.
  */
 import {expect, test, APIRequestContext, Page} from './consoleTest';
-import {bootIntoGame, press, soloGameConfig} from './consoleStart';
+import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer} from './consoleStart';
 
 const OLYMPUS = 'Olympus Conference';
 const MARS_UNIVERSITY = 'Mars University';
+/** TWO science tags AND a draw of two: with the university on the table its question is asked TWICE, and both are
+ *  honest follow-ups (the play draws before them — TR51, `HIDDEN_DRAW_NOTE`), so they arrive LIVE, one after another. */
+const RESEARCH = 'Research';
 const FILLER = ['Acquired Company', 'Rover Construction', 'Investment Loan'];
 
 async function bootWithHand(page: Page, request: APIRequestContext, cards: ReadonlyArray<string>): Promise<void> {
@@ -34,8 +41,8 @@ async function bootWithHand(page: Page, request: APIRequestContext, cards: Reado
   });
 }
 
-/** Same walk as console-effect-decision-embed.spec.ts — the ordinary road. */
-async function playFromHand(page: Page, card: string): Promise<void> {
+/** Same walk as console-effect-decision-embed.spec.ts — the ordinary road, the table's questions answered in the composer. */
+async function playFromHand(page: Page, card: string, answers: Readonly<Record<string, TableQuestionAnswer>> = {}): Promise<void> {
   for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
     await press(page, 'Period', 800);
     await press(page, 'Enter', 1100);
@@ -55,6 +62,8 @@ async function playFromHand(page: Page, card: string): Promise<void> {
   expect(await onTarget(), `the hand cursor never reached ${card}`).toBeGreaterThan(0);
   await press(page, 'Enter', 900);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 20_000});
+  await settle(page);
+  await answerTableQuestions(page, answers);
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
   await page.waitForTimeout(1000);
   await page.keyboard.press('Enter');
@@ -74,17 +83,23 @@ test.describe('two triggered effects in a row', () => {
   test.setTimeout(300_000);
 
   /**
-   * VARIANT B — the reported shape: prompt 1 is answered with «добавить
-   * жетон» (option 1 — NO draw), so the SECOND decision arrives in the very
-   * next response with no reveal in between. The decision component then has
-   * no reason to unmount between the two prompts — the case where any local
-   * per-prompt state (submitting, armed) that is not reset survives into the
-   * second decision.
+   * VARIANT B — the reported shape: prompt 1 is answered with NO draw, so the
+   * SECOND decision arrives in the very next response with no reveal in
+   * between. The decision component then has no reason to unmount between the
+   * two prompts — the case where any local per-prompt state (submitting, armed)
+   * that is not reset survives into the second decision.
+   *
+   * Since TR51 the table's questions are asked in the COMPOSER, so two LIVE
+   * decisions in a row need two questions the composer could not ask:
+   * «Исследования» (two science tags, draws two) under the university — the
+   * play draws before either question, so both are honest follow-ups. Prompt 1
+   * is DECLINED (nothing drawn, nothing discarded) and prompt 2 stands in the
+   * same instance.
    */
   test('choice → choice with NO draw between: the second decision answers its FIRST press', async ({page, request}) => {
-    await bootWithHand(page, request, [OLYMPUS, MARS_UNIVERSITY, ...FILLER]);
+    await bootWithHand(page, request, [MARS_UNIVERSITY, RESEARCH, ...FILLER]);
 
-    await playFromHand(page, OLYMPUS);
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'last'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await page.waitForTimeout(1500);
 
@@ -107,18 +122,28 @@ test.describe('two triggered effects in a row', () => {
       }, 250);
     });
 
-    await playFromHand(page, MARS_UNIVERSITY);
+    await playFromHand(page, RESEARCH);
 
-    // Prompt 1 — Olympus (no decline row).
-    await expect(page.locator('.con-decision')).toBeVisible({timeout: 60_000});
+    // The play's own batch presents first (surfaces go in turn) — take it; prompt 1 follows.
+    for (let i = 0; i < 120 && await page.locator('.con-decision__action--focused').count() === 0; i++) {
+      if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
+        await press(page, 'Period', 800);
+      } else {
+        await page.waitForTimeout(300);
+      }
+    }
     await expect(page.locator('.con-decision__action--focused')).toBeVisible({timeout: 20_000});
-    await page.waitForTimeout(1200);
+    await cinematicBeat(page, 1200, 'the first decision settles before its answer');
 
-    // Walk DOWN to option 1 («добавить жетон» — no draw) and answer.
-    await press(page, 'ArrowDown', 400);
+    // Walk DOWN to the decline (nothing drawn, nothing discarded) and answer — its response carries prompt 2.
+    const answered = page.waitForResponse((r) => r.request().method() === 'POST' && /\/player\/input/.test(r.url()));
+    for (let i = 0; i < 6 && await page.locator('.con-decision__action--decline.con-decision__action--focused').count() === 0; i++) {
+      await press(page, 'ArrowDown', 400);
+    }
     await page.keyboard.press('Enter');
+    await answered;
 
-    // Prompt 2 — the Mars University decision (it has a decline row). No
+    // Prompt 2 — the university's SECOND question, in the same instance. No
     // reveal stands between the two here.
     let secondUp = false;
     for (let i = 0; i < 120 && !secondUp; i++) {
@@ -132,7 +157,7 @@ test.describe('two triggered effects in a row', () => {
       }
       await page.waitForTimeout(300);
     }
-    expect(secondUp, 'the second decision (Mars University) reached the screen').toBeTruthy();
+    expect(secondUp, 'the second decision (the university\'s second question) reached the screen').toBeTruthy();
 
     const t0 = Date.now();
     let reactedAt = -1;
@@ -202,18 +227,13 @@ test.describe('two triggered effects in a row', () => {
       }, 250);
     });
 
-    // Play 2: Mars University — Olympus asks first, then the university.
-    await playFromHand(page, MARS_UNIVERSITY);
-
-    // Prompt 1 — the Olympus decision (no decline row: two real branches).
-    const decision = page.locator('.con-decision');
-    await expect(decision).toBeVisible({timeout: 60_000});
-    await expect(page.locator('.con-decision__action--focused')).toBeVisible({timeout: 20_000});
-    await page.waitForTimeout(1200);
-
-    // Answer with the FOCUSED row (index 0 — «снять жетон и взять карту», the
-    // default the reporter would have pressed).
-    await page.keyboard.press('Enter');
+    // Play 2: Mars University — Olympus asks first, then the university. Since
+    // TR51 Olympus's question is a row of the composer, answered there with
+    // «снять жетон и взять карту» (the first option, the default the reporter
+    // would have pressed) — and because that answer DRAWS before the
+    // university asks, the university's question is handed on: a LIVE decision
+    // after the drawn card (`reaction.afterDraw`).
+    await playFromHand(page, MARS_UNIVERSITY, {[OLYMPUS]: 'first'});
 
     // Drive the middle of the chain: take any embedded drawn card; stop the
     // moment the SECOND decision (it has a decline row) is up with a focused

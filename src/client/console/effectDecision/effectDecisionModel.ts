@@ -34,6 +34,7 @@
  */
 
 import {CardName} from '@/common/cards/CardName';
+import {isHandPickInput} from '@/client/console/handPickRouting';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
@@ -192,14 +193,9 @@ export function isDeclineOption(option: PlayerInputModel): boolean {
   return metadataOf(option)?.kind === 'skip';
 }
 
-/** Every candidate of a card pick lives in the given name set (the own hand). */
+/** A card pick FROM THE HAND — the ONE test every surface asks (`handPickRouting.ts`, the owner's rule 2026-10-13). */
 function isHandPick(option: PlayerInputModel, handNames: ReadonlySet<string>): boolean {
-  if (option.type !== 'card') {
-    return false;
-  }
-  const model = option as SelectCardModel;
-  const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-  return model.cards.length > 0 && candidates.every((c) => handNames.has(c.name));
+  return isHandPickInput(option, handNames);
 }
 
 function navigationOf(option: PlayerInputModel, handNames: ReadonlySet<string>): EffectDecisionNavigation | undefined {

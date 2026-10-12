@@ -1,7 +1,7 @@
 {
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
-    "waitForTimeout": 837,
+    "waitForTimeout": 836,
     "requestAnimationFrame": 42
   },
   "files": {
@@ -188,7 +188,7 @@
       "waitForTimeout": 1
     },
     "console-effect-chain-lock.spec.ts": {
-      "waitForTimeout": 10
+      "waitForTimeout": 9
     },
     "console-effect-decision-embed.spec.ts": {
       "waitForTimeout": 8

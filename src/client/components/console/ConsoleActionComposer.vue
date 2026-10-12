@@ -966,6 +966,7 @@ import {REVEAL_POOL_EMPTY_WARNING, RevealPreviewReading, revealPreviewReading} f
 import {runRevealHandoff} from '@/client/console/revealHandoff';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
+import {orOptionDoor} from '@/client/console/handPickRouting';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {
   DeltaRewardDraft, deltaRewardCommitSpecs, deltaRewardDraftOf, deltaRewardPreviewView,
@@ -1017,6 +1018,8 @@ function asElements(ref: unknown): Array<HTMLElement> {
 
 type GroupNode = ActionGroup['nodes'][number];
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
+/** Several cards answered in the hand album for one `or` option, kept as ONE `orDescents` pick. */
+const NESTED_PICK_SEP = '|';
 type SubState =
   | {kind: 'list', choiceId: string, index: number}
   /**
@@ -3707,7 +3710,13 @@ export default defineComponent({
         // Животное»), and a row that restates the question looks unanswered.
         const nestedPick = this.nestedAnswerOf(c);
         if (nestedPick !== undefined) {
-          return nestedPick.input?.type === 'player' ? this.playerName(nestedPick.pick) : translateText(nestedPick.pick);
+          if (nestedPick.input?.type === 'player') {
+            return this.playerName(nestedPick.pick);
+          }
+          const names = nestedPick.pick.split(NESTED_PICK_SEP).map((n) => translateCardName(n as CardName)).join(', ');
+          // A DISCARD says so — a bare card name reads as a card GAINED (or a target), never as one thrown away.
+          const discardOf = nestedPick.input as SelectCardModel | undefined;
+          return discardOf?.discardPrompt !== undefined ? `${translateText(discardOf.buttonLabel || 'Discard')}: ${names}` : names;
         }
         const opt = (c.input as OrOptionsModel).options[Number(pick)];
         return opt !== undefined ? textOf(opt.title) : '';
@@ -4512,17 +4521,26 @@ export default defineComponent({
     /** Hand a hand-card pick to the HAND SECTION (consoleHandPick bridge): the
      *  shell hides the Action Center (v-show — every capture survives), the
      *  player picks on the real cards, the result captures back here. A re-open
-     *  (A = «Изменить») pre-seeds the previous selection. */
-    openHandPick(c: ComposerChoice): void {
-      const model = c.input as SelectCardModel;
+     *  (A = «Изменить») pre-seeds the previous selection.
+     *
+     *  …at EVERY depth: `orItem` is an option of an `or` choice whose own
+     *  question is that pick — the album answers it, the answer is wrapped back
+     *  into that option (`answerNestedOr`), and B in the album returns to the
+     *  option list (one level). Nothing leaves the hand here: it is a
+     *  PRE-SELECT, the card goes when the action's ONE POST is answered. */
+    openHandPick(c: ComposerChoice, orItem?: ConsoleOrItem): void {
+      const model = (orItem?.nested ?? c.input) as SelectCardModel;
       const reasons: Record<string, string> = {};
       for (const d of model.disabledCards ?? []) {
         reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
       }
       const multi = (model.max ?? 1) > 1;
-      const prior = multi ?
-        [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
-        (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
+      const answered = orItem !== undefined ? this.nestedAnswerOf(c) : undefined;
+      const prior = orItem !== undefined ?
+        (answered !== undefined && this.orDescents[c.id]?.item.optionIndex === orItem.optionIndex ? answered.pick.split(NESTED_PICK_SEP) : []) as Array<CardName> :
+        (multi ?
+          [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
+          (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []));
       const gain = c.multiSelect?.revealGain;
       enterConsoleHandPick({
         title: model.title,
@@ -4536,9 +4554,18 @@ export default defineComponent({
         // The pick surface names the operation it serves — the player keeps
         // the WHY while the focus stage waits hidden underneath.
         source: {kicker: 'Action setup', card: this.entry.cardName},
+        // The server's own DISCARD marker, raw (the album's discard skin), and a pre-select leaves nothing.
+        discard: model.discardPrompt,
+        leaving: 'none',
       }, (cards) => {
         // Re-locate by id — the preview may have refreshed under the pick.
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        if (orItem !== undefined) {
+          if (cards.length > 0 || (model.min ?? 1) === 0) {
+            this.answerNestedOr(cur, orItem, cards.join(NESTED_PICK_SEP), {type: 'card', cards: [...cards]});
+          }
+          return;
+        }
         if (multi) {
           this.multiPicks[cur.id] = [...cards];
           this.picks[cur.id] = String(cards.length);
@@ -4548,6 +4575,11 @@ export default defineComponent({
           this.captureFor(cur, {type: 'card', cards: [cards[0]]});
         }
         this.scrollFocused();
+      }, () => {
+        // B in the album: an option's pick returns to the option list it was opened from, cursor on that option.
+        if (orItem !== undefined) {
+          this.sub = this.orListSub(c.id, orItem);
+        }
       });
     },
     /**
@@ -4715,19 +4747,27 @@ export default defineComponent({
       this.sub = undefined;
     },
     /**
-     * DESCEND into an or-branch that is itself an input.
+     * DESCEND into an or-branch that is itself an input — WHERE it is answered
+     * is ONE verdict (`handPickRouting.orOptionDoor`), shared with the play
+     * composer.
      *
+     * A pick FROM THE HAND opens the hand album (the owner's hard rule
+     * 2026-10-13 — a card from the hand is chosen IN the hand at every depth;
+     * this branch used to give it «the flat premium list», a column of names).
      * A nested card pick that lands ENTIRELY on played tableaux opens the SAME
      * embedded target step a bare card pick opens: it is the same decision
      * («у какой карты забрать животное»), and a bot option sitting above it in
      * the list is no reason for pointing at a card to feel different. Anything
-     * else (a player pick, a hand pick) gets the flat premium list.
+     * else (a player pick, cards the console has no shelf for) gets the list.
      */
     descendOrBranch(c: ComposerChoice, item: ConsoleOrItem): void {
-      const nested = item.nested;
-      if (nested?.type === 'card' &&
-          !isHandCardSelection(nested as SelectCardModel, this.handNamesSet) &&
-          isCardSelectionWithin(nested as SelectCardModel, this.playedNamesSet)) {
+      const door = orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet);
+      if (door === 'hand') {
+        this.sub = undefined;
+        this.openHandPick(c, item);
+        return;
+      }
+      if (door === 'table') {
         this.openPlayedTargetStep(c, item);
         // …and a descent ALWAYS lands somewhere. The step closes itself when it
         // finds nothing to point at, and dropping the player out of the pick

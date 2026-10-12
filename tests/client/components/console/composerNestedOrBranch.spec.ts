@@ -2,6 +2,9 @@ import {mount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
+import {
+  cancelConsoleHandPick, consoleHandPickState, handPickArmsDiscardTray, resetConsoleHandPick, resolveConsoleHandPick,
+} from '@/client/console/consoleHandPick';
 
 /*
  * A NESTED-INPUT OR-BRANCH IS A DOOR, NOT A DEAD END.
@@ -259,6 +262,93 @@ describe('ConsoleActionComposer — a nested-input or-branch', () => {
     expect(vm.captured[0]).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
     expect(vm.chosenLabel(vm.allChoices[0]), 'the row names the bot option, not the old card')
       .to.eq('Remove 1 animal from Bot');
+    w.unmount();
+  });
+});
+
+/*
+ * A CARD FROM THE HAND IS CHOSEN IN THE HAND — at every depth (the owner's hard rule 2026-10-13, after a TV photo of
+ * Mars University's discard listed as a column of card NAMES). An `or` option whose own question is a pick FROM THE
+ * HAND (Mars University's «discard a card to draw one» beside «do nothing») opens the hand album through the bridge —
+ * never the composer's flat list — and its answer nests into THAT option.
+ */
+describe('ConsoleActionComposer — an `or` option that picks FROM THE HAND', () => {
+  afterEach(() => resetConsoleHandPick());
+
+  const HAND_VIEW = {...PLAYER_VIEW, cardsInHand: [{name: 'Algae'}, {name: 'Lichen'}]};
+
+  function discardOrPreview() {
+    return {
+      card: 'Mars University', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{
+          kind: 'input',
+          input: {
+            type: 'or', title: 'You played a science tag.', buttonLabel: 'Confirm',
+            options: [
+              {
+                type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard',
+                cards: [{name: 'Algae'}, {name: 'Lichen'}], min: 1, max: 1,
+                discardPrompt: {source: {kind: 'card', card: 'Mars University'}, min: 1, max: 1},
+              },
+              {type: 'option', title: 'Do nothing', buttonLabel: 'Confirm'},
+            ],
+          },
+        }],
+      }],
+    };
+  }
+
+  it('A on the discard option opens the HAND ALBUM — never a list of names — with the raw marker and nothing leaving', async () => {
+    const w = factory(discardOrPreview(), 'Mars University', HAND_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    vm.pickListItem(0);
+    await w.vm.$nextTick();
+
+    expect(vm.sub, 'no list of the composer\'s own stands for the hand').to.eq(undefined);
+    expect(consoleHandPickState.active, 'the hand album took the pick').to.eq(true);
+    const req = consoleHandPickState.request!;
+    expect([...req.selectable]).to.deep.eq(['Algae', 'Lichen']);
+    expect(req.discard, 'the server\'s discard marker rides raw — the album wears the discard\'s skin').to.not.eq(undefined);
+    expect(req.leaving, 'a pre-select: nothing leaves the hand before the commit').to.eq('none');
+    expect(handPickArmsDiscardTray(req), 'so the discard tray is never armed by this pick').to.eq(false);
+    w.unmount();
+  });
+
+  it('the album\'s answer nests into the option, and the row names the CARD', async () => {
+    const w = factory(discardOrPreview(), 'Mars University', HAND_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    vm.pickListItem(0);
+    await w.vm.$nextTick();
+    resolveConsoleHandPick(['Lichen' as never]);
+    await w.vm.$nextTick();
+
+    expect(vm.captured[0]).to.deep.eq({type: 'or', index: 0, response: {type: 'card', cards: ['Lichen']}});
+    expect(vm.chosenLabel(vm.allChoices[0]), 'the answer, not the question — and a discard SAYS it is one').to.eq('Discard: Lichen');
+    w.unmount();
+  });
+
+  it('B in the album returns to the OPTION LIST, cursor on the discard — one logical level', async () => {
+    const w = factory(discardOrPreview(), 'Mars University', HAND_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    vm.pickListItem(0);
+    await w.vm.$nextTick();
+    cancelConsoleHandPick();
+    await w.vm.$nextTick();
+
+    expect(vm.sub.kind).to.eq('list');
+    expect(vm.sub.index).to.eq(0);
+    expect(vm.captured[0], 'nothing captured on the way back').to.eq(undefined);
     w.unmount();
   });
 });

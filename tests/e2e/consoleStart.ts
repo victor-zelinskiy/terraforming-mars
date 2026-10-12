@@ -2454,6 +2454,11 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'expedition-mechs' |
   'expedition-mechs-action' |
   'expedition-mechs-family' |
+  // TR51 Influential Discovery — «1 science OR 6 data to ANY card»: both holder kinds on the table · the table's
+  // QUESTIONS the Science tag wakes (Olympus Conference, Mars University's discard — chosen in the hand album) · neither.
+  'influential-discovery' |
+  'influential-discovery-askers' |
+  'influential-discovery-none' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |
@@ -2735,6 +2740,55 @@ export async function handCount(page: Page): Promise<number> {
     .getAttribute('data-hand-total').catch(() => null);
   const n = Number.parseInt(raw ?? '', 10);
   return Number.isNaN(n) ? -1 : n;
+}
+
+/** How a table question is answered in the play composer: its first option, its last (the decline), or the discard
+ *  chosen in the HAND ALBUM (the first option's door — the album's cursor stands on the first candidate). */
+export type TableQuestionAnswer = 'first' | 'last' | 'discard';
+
+/**
+ * THE TABLE'S QUESTIONS ARE ROWS OF THE PLAY COMPOSER (TR51 — a reaction that asks the player is answered BEFORE the
+ * press and rides the play's ONE POST). Answer every unanswered one by the card that asks it — a row the spec did not
+ * plan for fails loudly (it would keep the commit rail out of reach). `discard` walks the door the owner's rule of
+ * 2026-10-13 put there: the discard option opens the HAND ALBUM, A on the focused candidate answers it.
+ */
+export async function answerTableQuestions(page: Page, answers: Readonly<Record<string, TableQuestionAnswer>>): Promise<void> {
+  const missing = page.locator('.con-composer--play .con-composer__row--reaction.con-composer__row--missing');
+  for (let round = 0; round < 4 && await missing.count() > 0; round++) {
+    const card = await missing.first().getAttribute('data-reaction-card') ?? '';
+    const answer = answers[card];
+    expect(answer, `an unplanned table question from «${card}»`).toBeDefined();
+    const onRow = () => page.locator(
+      `.con-composer--play .con-composer__row--focused.con-composer__row--missing[data-reaction-card="${card}"]`).count();
+    for (let i = 0; i < 6 && await onRow() === 0; i++) {
+      await press(page, 'ArrowUp', 250);
+    }
+    for (let i = 0; i < 10 && await onRow() === 0; i++) {
+      await press(page, 'ArrowDown', 250);
+    }
+    expect(await onRow(), `the cursor reached «${card}»'s question`).toBe(1);
+    const options = page.locator('.con-composer--play .con-composer__sublist .con-vchoice__opt');
+    for (let i = 0; i < 3 && await options.count() === 0; i++) {
+      await press(page, 'Enter', 900);
+    }
+    const n = await options.count();
+    expect(n, `«${card}»'s question offers its answers`).toBeGreaterThan(1);
+    if (answer === 'last') {
+      for (let i = 0; i < n - 1; i++) {
+        await press(page, 'ArrowDown', 250);
+      }
+    }
+    await press(page, 'Enter', 900);
+    if (answer === 'discard') {
+      await expect(page.locator('.con-hand[data-flow="picking"]'), 'the discard opens the hand album').toBeVisible({timeout: 15_000});
+      await settle(page);
+      for (let i = 0; i < 3 && await page.locator('.con-composer--play:visible').count() === 0; i++) {
+        await press(page, 'Enter', 1200);
+      }
+      await expect(page.locator('.con-composer--play:visible'), 'the album hands the answer back').toHaveCount(1, {timeout: 15_000});
+    }
+  }
+  expect(await missing.count(), 'every table question is answered').toBe(0);
 }
 
 /**

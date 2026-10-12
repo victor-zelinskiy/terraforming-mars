@@ -102,4 +102,21 @@ describe('SponsoredAcademies', () => {
     expect(player.cardsInHand).does.not.contain(housePrinting);
     expect(player.cardsInHand).has.length(4);
   });
+
+  /**
+   * THE PRE-SELECTED DISCARD WEARS THE LIVE PROMPT'S OWN MARKER (the owner's rule 2026-10-13 — a card from the hand is
+   * chosen IN the hand, and the album reads the same before the press as after it): the preview's step carries the
+   * discardPrompt the live DiscardCards builds — the same source, the same «buys three cards».
+   */
+  it('the preview\'s discard step carries the live discard\'s own marker', () => {
+    player.cardsInHand.push(housePrinting, tardigrades);
+    const step = card.cardPlayPreview(player).branches[0].steps?.find((s) => s.kind === 'input');
+    const preview = (step as {input?: {discardPrompt?: unknown}} | undefined)?.input?.discardPrompt;
+    expect(preview, 'the step carries the marker').is.not.undefined;
+
+    player.playCard(card);
+    const live = cast(game.deferredActions.pop()!.execute(), SelectCard<IProjectCard>);
+    // Compared as the WIRE carries them (an absent optional and an `undefined` one are the same marker there).
+    expect(JSON.parse(JSON.stringify(preview))).deep.eq(JSON.parse(JSON.stringify(live.discardPrompt)));
+  });
 });
