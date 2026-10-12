@@ -307,9 +307,10 @@
 .con-botattack .con-ptsel[data-direction='remove'] {
     .con-ptsel__slot--locked > :is(.card-container, .pcard),
     .con-ptsel__slot--focused.con-ptsel__slot--locked > :is(.card-container, .pcard) {
+        /* De-zoomed like the shared rings (PL-170): a HUD length, never a card one. */
         box-shadow:
-            0 0 0 .16rem fade(@con-red, 90%),
-            0 0 1.1rem fade(@con-red, 30%);
+            0 0 0 calc(.16rem / var(--con-ptsel-zoom, .58)) fade(@con-red, 90%),
+            0 0 calc(1.1rem / var(--con-ptsel-zoom, .58)) fade(@con-red, 30%);
     }
     .con-ptsel__lock {
         background: fade(@con-red, 88%);

@@ -665,6 +665,33 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       }
     });
 
+    /**
+     * …and UPWARD (PL-170). The sides were safe and the top was a constant `.3rem`:
+     * a solo 4K card's focus growth plus its lift and ring climbed into the owner's
+     * name above it. The headroom clears the drawn card's rise (half its height's
+     * growth + the de-zoomed lift 4.4 + ring 3.2 rem-px) at every size and scale, and
+     * the room it takes is room the cards do not get — a solved card plus its
+     * headroom never exceeds the box the solver was handed.
+     */
+    it('always clears the focused card\'s RISE above the first row, and pays for it out of the cards', () => {
+      for (const ui of [1, 2]) {
+        for (const n of [1, 2, 4, 9]) {
+          const availH = 800 * ui;
+          const s = planPlayedTargetSizing({
+            owners: [owner(n)], mode: 'tabs', availW: 1600 * ui, availH, ui, handheld: false,
+          });
+          const cardH = 460 * s.cardZoom;
+          const rise = cardH * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2 + 7.6 * ui;
+          expect(s.headroomPx, `n=${n} ui=${ui}`).to.be.at.least(rise);
+          expect(s.headroomPx, `n=${n} ui=${ui} — never below the stylesheet's .3rem`).to.be.at.least(6 * ui);
+          if (!s.overflows) {
+            const used = s.rows * cardH + (s.rows - 1) * s.gapPx + s.headroomPx;
+            expect(used, `n=${n} ui=${ui}: the cards and their headroom fit the box`).to.be.at.most(availH);
+          }
+        }
+      }
+    });
+
     /** Honest failure: it says the zone must scroll rather than shrinking the
      *  cards past legibility. */
     it('reports overflow instead of shrinking past the floor', () => {

@@ -310,7 +310,7 @@ const SLOT_W_PX = 320;
 const PTSEL_COLUMN_GAP_PX = 11;
 
 const UNMEASURED: PlayedTargetSizing =
-  {cardZoom: 0.58, gapPx: 11, sectionFlow: 'rows', sectionColumns: 1, rows: 1, perRow: 3, overflows: false};
+  {cardZoom: 0.58, gapPx: 11, headroomPx: 6, sectionFlow: 'rows', sectionColumns: 1, rows: 1, perRow: 3, overflows: false};
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
@@ -459,6 +459,8 @@ export default defineComponent({
       return {
         '--con-ptsel-zoom': this.sizing.cardZoom.toFixed(3),
         '--con-ptsel-gap': `${this.sizing.gapPx.toFixed(2)}px`,
+        // The focus-safe room above the first row — the gap's twin upward (PL-170).
+        '--con-ptsel-headroom': `${this.sizing.headroomPx.toFixed(2)}px`,
         '--con-ptsel-focus-scale': String(PLAYED_TARGET_FOCUS_SCALE),
         // THE SOLVED CELL WIDTH, in the layout's own px. Every cell of the
         // candidate row is exactly this wide — the section's inline span is

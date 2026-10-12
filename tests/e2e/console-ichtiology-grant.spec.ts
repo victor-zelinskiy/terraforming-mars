@@ -109,6 +109,36 @@ async function openTargetStep(page: Page): Promise<void> {
   await settle(page);
 }
 
+/**
+ * PL-170 — the target step's composition, read off the live DOM: the focused card's RING (its outer edge,
+ * the spread of the face's box-shadow above the transformed rect) against the owner name's line box, and
+ * the lone owner group's centre against its zone's.
+ */
+async function targetStepGeometry(page: Page): Promise<{ringTop: number, nameBottom: number, ownerCentre: number, zoneCentre: number, zoneW: number, owners: number}> {
+  return page.locator('.con-ptsel').evaluate((root) => {
+    const face = root.querySelector('.con-ptsel__slot--focused > .pcard, .con-ptsel__slot--focused > .card-container');
+    const name = root.querySelector('.con-ptsel__ownername');
+    const zone = root.querySelector('.con-ptsel__zone');
+    const owners = root.querySelectorAll('.con-ptsel__owner');
+    if (face === null || name === null || zone === null || owners.length === 0) {
+      return {ringTop: NaN, nameBottom: NaN, ownerCentre: NaN, zoneCentre: NaN, zoneW: NaN, owners: owners.length};
+    }
+    const spread = /0px 0px 0px ([\d.]+)px/.exec(getComputedStyle(face).boxShadow);
+    const range = document.createRange();
+    range.selectNodeContents(name);
+    const z = zone.getBoundingClientRect();
+    const o = owners[0].getBoundingClientRect();
+    return {
+      ringTop: face.getBoundingClientRect().top - (spread !== null ? Number(spread[1]) : 0),
+      nameBottom: range.getBoundingClientRect().bottom,
+      ownerCentre: o.left + o.width / 2,
+      zoneCentre: z.left + z.width / 2,
+      zoneW: z.width,
+      owners: owners.length,
+    };
+  });
+}
+
 async function confirmTarget(page: Page): Promise<void> {
   const step = page.locator('.con-ptsel');
   for (let i = 0; i < 4 && await step.count() > 0; i++) {
@@ -165,6 +195,11 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${PLAY_COMPOSER} .con-composer__cta`), 'the rail asks for the receiving card').toContainText('Выберите карту-получатель');
       await openTargetStep(page);
       expect((await crumbText(page)).toLowerCase(), 'the crumb names the card the step belongs to').toContain(CARD_RU.toLowerCase());
+      // PL-170: the focused card's ring never stands on its owner's name, and a lone group stands in the middle of its room.
+      const geo = await targetStepGeometry(page);
+      expect(geo.ringTop, `the ring clears the owner's name ${JSON.stringify(geo)}`).toBeGreaterThanOrEqual(geo.nameBottom);
+      expect(geo.owners, 'one owner group (the fixture: the viewer\'s two holders)').toBe(1);
+      expect(Math.abs(geo.ownerCentre - geo.zoneCentre), `the lone group is centred in its zone ${JSON.stringify(geo)}`).toBeLessThan(geo.zoneW * 0.03);
       await shoot(page, preset.id, 'a-02-target');
       await confirmTarget(page);
       expect(seen.posts, 'nothing sent before the play\'s own A').toEqual([]);
@@ -236,6 +271,9 @@ for (const preset of PRESETS) {
       expect(options.map((o) => o.off), 'both options greyed — and no third «play the card» tile among them').toEqual([true, true]);
       await expect(page.locator(`${PLAY_COMPOSER} [data-variants-shared]`), 'the production still stands above the row').toContainText('3');
       await expect(page.locator(`${PLAY_COMPOSER} .con-composer__warn`), 'the two skips are NAMED').toHaveCount(2);
+      // PL-171: ONE loss, ONE voice — the strip names each option's loss with its magnitude, so the greyed
+      // tiles carry no second reason in another vocabulary (B keeps its tile reason: no strip speaks there).
+      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__variant-reason`), 'the loss is told once, in the strip').toHaveCount(0);
       await shoot(page, preset.id, 'c-01-composer');
 
       await commit(page, seen.posts);

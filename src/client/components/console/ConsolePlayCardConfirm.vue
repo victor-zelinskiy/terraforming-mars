@@ -225,7 +225,11 @@
                            language. Never repeated in the row below. -->
                       <ConsoleForecastReactions :reaction="variantReactions(row.pos)" />
                     </div>
-                    <div v-if="!branches[row.pos].available" class="con-composer__variant-reason">
+                    <!-- ONE LOSS, ONE VOICE (PL-171): when the play is the optional choice's GENERAL branch, the
+                         strip below names every option's loss with its magnitude in the server's words — a second
+                         reason here, in the reason engine's vocabulary, read the same loss twice. The tile stays
+                         greyed; where no strip speaks (one option live) its reason is the only one and stays. -->
+                    <div v-if="!branches[row.pos].available && !variantLossesInStrip" class="con-composer__variant-reason">
                       ✕ {{ branchReasonText(branches[row.pos]) }}
                     </div>
                   </div>
@@ -1730,6 +1734,11 @@ export default defineComponent({
     // Skipped-effect warnings: WHICH effect is lost (title + muted chip) and why.
     // Derived by the SAME shared helper the desktop modal uses, then translated —
     // the two surfaces can never say different things about the same warning.
+    /** The optional choice's general branch is the play and its skips are named in the strip (PL-171). */
+    variantLossesInStrip(): boolean {
+      const sel = this.selectedBranch;
+      return sel !== undefined && isGeneralBranch(sel, this.branches) && this.warningSteps.length > 0;
+    },
     warningSteps(): Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> {
       const out: Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> = [];
       for (const b of this.branches) {

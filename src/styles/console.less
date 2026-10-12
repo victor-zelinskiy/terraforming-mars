@@ -9414,18 +9414,20 @@ html.console-mode {
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
     }
-    /* THE WALK'S FORECAST plate (К-H1, TR42): «[★] 2» on a card that advances the Agenda marker — how far THIS
-       player's play would walk, read off the server's `CardModel.agendaWalk`. Information, never a blocker: the
-       blocker chip's place and counter-zoom, quieter — the cyan kant of a positive reading at the art's lower edge
-       (the mechanics plate stays clear), a zero muted by weight and colour. */
-    &__walk {
+    /* THE FORECAST PLATE — one grammar, two readers (`countedPlay.handForecastPlate`): «[★] 2» on a card that
+       advances the Agenda marker (К-H1, TR42 — how far), «[microbe] +14» on a play counted off the table (TR45 — how
+       many; the owner's decision 2026-10-12: every counted play in scope). Information, never a blocker: the blocker
+       chip's place and counter-zoom, quieter — the cyan kant of a positive reading at the art's lower edge (the
+       mechanics plate stays clear), a zero muted by weight and colour. A production step wears the production plate
+       on its icon (the forecast row's own idiom), so «+2 M€» and «+2 M€ production» never read alike. */
+    &__plate {
         position: absolute;
         left: 50%;
         top: 56%;
         transform: translate(-50%, -50%);
         display: inline-flex;
         align-items: center;
-        gap: .3rem;
+        gap: .55rem;
         padding: .2rem .55rem .2rem .4rem;
         border-radius: .55rem;
         background: rgba(8, 13, 20, 0.88);
@@ -9434,6 +9436,7 @@ html.console-mode {
         font-size: 1.05rem;
         font-weight: 800;
         line-height: 1;
+        white-space: nowrap;
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
         &--zero {
@@ -9442,10 +9445,27 @@ html.console-mode {
             font-weight: 600;
         }
     }
-    &__walk-icon {
+    &__plate-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+    }
+    &__plate-icon {
         display: inline-block;
         width: 1.25rem;
         height: 1.25rem;
+        flex: none;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        &--prod {
+            padding: .1rem;
+            box-sizing: content-box;
+            background-origin: content-box;
+            background-color: rgba(122, 78, 40, 0.92);
+            border-radius: .2rem;
+            box-shadow: inset 0 0 0 .05rem rgba(232, 196, 150, 0.55);
+        }
     }
     /* The «Роботы» badge (a card hosted on Self-Replicating Robots).
        ⚠️ ROOT CAUSE OF THE OVERSIZED PLATE, and the reason this comment
@@ -33713,6 +33733,14 @@ html.console-mode {
     }
     &[data-mode='split'] &__owner { flex: 1 1 0; min-width: 0; }
     &[data-mode='tabs'] &__owner { flex: 1 1 auto; min-width: 0; }
+    /* A LONE GROUP STANDS IN THE MIDDLE OF ITS ROOM (PL-170). Inside a composer the
+       step is the decision column beside the hero card, and one owner's few
+       candidates hugged its left edge with ⅔ of the zone dark beside them (the 4K
+       solo target). The zone keeps its full width — it is the box the solver
+       MEASURES, so only its children move — and the lone owner is content-sized
+       (its sections carry their solved spans). Several owners fill the row as before. */
+    .con-composer &[data-mode='split'] &__zone { justify-content: center; }
+    .con-composer &[data-mode='split'] &__owner:only-child { flex: 0 1 auto; }
 
     &__owner {
         display: flex;
@@ -33728,7 +33756,8 @@ html.console-mode {
         &--focused { border-left-color: fade(@con-cyan, 55%); }
     }
     /* A FIXED height, mirrored by `OWNER_BAR_H` in the sizing module. */
-    &__ownerbar { display: flex; align-items: baseline; gap: .45rem; min-width: 0; height: 1.4rem; }
+    /* Above the focused card's glow (the slot lifts on z 2): the name is never painted over (PL-170). */
+    &__ownerbar { display: flex; align-items: baseline; gap: .45rem; min-width: 0; height: 1.4rem; position: relative; z-index: 3; }
     &__ownerdot { align-self: center; width: .6rem; height: .6rem; border-radius: 50%; box-shadow: 0 0 .4rem currentColor; }
     &__ownername {
         font-size: .95rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase;
@@ -33807,6 +33836,11 @@ html.console-mode {
         align-items: flex-start;
         gap: var(--con-ptsel-gap, .55rem);
         padding: .3rem 0;
+        /* THE FOCUS-SAFE TOP — the gap's twin upward, solved for the largest card the
+           step can draw (`headroomPx`). A constant `.3rem` here let a big card's focus
+           climb into the owner's name (PL-170); the shorthand above stays the
+           solver's pinned `CARDS_PAD_Y`, the excess is subtracted there. */
+        padding-top: var(--con-ptsel-headroom, .3rem);
         min-width: 0;
     }
     /* THE MEASURED CELL — the box directional navigation reads. It never
@@ -33826,18 +33860,21 @@ html.console-mode {
            this step now reaches a 4 % scale is 30 px of travel and reads as the
            card jumping. The gap reserves exactly this much and no more. */
         &--focused {
-            transform: translateY(-.22rem) scale(var(--con-ptsel-focus-scale, 1.02));
+            /* The lift and the ring are HUD lengths: DE-ZOOMED, or the rem (which
+               already carries the ui scale) rides a zoom that carries it AGAIN — the
+               4K solo card lifted and ringed at 4× its 1080 size (PL-170). */
+            transform: translateY(calc(-.22rem / var(--con-ptsel-zoom, .58))) scale(var(--con-ptsel-focus-scale, 1.02));
             z-index: 2;
         }
         &--focused > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .16rem fade(@con-cyan, 88%), 0 0 1.1rem fade(@con-cyan, 36%), 0 .7rem 1.4rem -.6rem rgba(0, 0, 0, 0.75);
+            box-shadow: 0 0 0 calc(.16rem / var(--con-ptsel-zoom, .58)) fade(@con-cyan, 88%), 0 0 calc(1.1rem / var(--con-ptsel-zoom, .58)) fade(@con-cyan, 36%), 0 .7rem 1.4rem -.6rem rgba(0, 0, 0, 0.75);
         }
         /* LOCKED — the confirmed target, still lying in its owner's group. */
         &--locked > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .16rem fade(@con-mint, 90%), 0 0 1rem fade(@con-mint, 34%);
+            box-shadow: 0 0 0 calc(.16rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 90%), 0 0 calc(1rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 34%);
         }
         &--focused&--locked > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .18rem fade(@con-mint, 96%), 0 0 1.3rem fade(@con-mint, 44%);
+            box-shadow: 0 0 0 calc(.18rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 96%), 0 0 calc(1.3rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 44%);
         }
     }
     &__lock {

@@ -750,6 +750,18 @@ const MIN_CARD_ZOOM_HANDHELD = 0.24;
 export const PLAYED_TARGET_FOCUS_SCALE = 1.02;
 /** Ring + glow headroom around a focused card, rem-equivalent px at ui 1. */
 const FOCUS_GLOW_PX = 7;
+/**
+ * How far the focused card's cue climbs above its cell, rem-equivalent px at
+ * ui 1, BESIDES its scale: the lift (`translateY(-.22rem)`, 4.4) + the ring
+ * (`.16rem`, 3.2). Both are DE-ZOOMED in the stylesheet — HUD lengths, never
+ * card lengths. Riding the slot's zoom they were a card length scaled AGAIN by
+ * the rem: at 4K the zoom already carries `--con-ui-scale`, so the solo card's
+ * lift and ring came out 4× the 1080 ones and the ring stood on the owner's
+ * name above it (PL-170, `screenshots/ichtiology-grant/tv4k-a-02-target`).
+ */
+const FOCUS_RISE_PX = 8;
+/** `.con-ptsel__cards` padding-top in the stylesheet's own shorthand. */
+const CARDS_PAD_TOP = 6;
 
 /** Chrome the sizing has to live around, in rem-equivalent px at ui 1.
  *  These MIRROR the LESS block — a card gap of `.55rem` is 11 px at the 20 px
@@ -795,6 +807,14 @@ export type PlayedTargetSizing = {
   cardZoom: number;
   /** The focus-safe gap between candidate cards, px (`--con-ptsel-gap`). */
   gapPx: number;
+  /**
+   * The focus-safe room ABOVE the first row, px (`--con-ptsel-headroom`, the
+   * cards row's padding-top). The gap made the sides safe and nothing made the
+   * top safe: a constant `.3rem` stood between the owner bar and a card whose
+   * focus growth is a fraction of its OWN height — so the bigger the card (a
+   * solo candidate, a 4K band), the further its ring climbed into the name.
+   */
+  headroomPx: number;
   /** Category blocks side by side, or stacked. */
   sectionFlow: PlayedTargetSectionFlow;
   /** Category columns actually laid out side by side (1 = stacked). */
@@ -927,17 +947,27 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   // Solved for the LARGEST card any shape could produce, so a shape can never
   // be accepted on a gap smaller than the one it will be drawn with.
   const gap = Math.max(CARD_GAP * o.ui, maxCardW * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2 + FOCUS_GLOW_PX * o.ui);
+  // The same bound UPWARD: half the card height's growth plus the de-zoomed lift
+  // and ring. The owner gap above it stays the breath between the ring and the
+  // name's ink. Solved for the largest card ANY set can draw (the solo ceiling),
+  // never for this set's: a headroom that grew with the solo ceiling took height
+  // from exactly the one card the ceiling exists to enlarge — one candidate drew
+  // SMALLER than two (`never draws FEWER candidates SMALLER`).
+  const riseCardH = (o.handheld ? SOLO_CARD_ZOOM_HANDHELD : SOLO_CARD_ZOOM) * o.ui * SLOT_H;
+  const headroom = Math.max(CARDS_PAD_TOP * o.ui, riseCardH * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2 + FOCUS_RISE_PX * o.ui);
 
   const groups = o.owners.map((owner) => playedTargetSections(owner));
   if (groups.length === 0) {
     return {
-      cardZoom: minCardW / SLOT_W, gapPx: gap, sectionFlow: 'rows',
+      cardZoom: minCardW / SLOT_W, gapPx: gap, headroomPx: headroom, sectionFlow: 'rows',
       sectionColumns: 1, rows: 1, perRow: 1, overflows: false,
     };
   }
   const ownerCols = o.mode === 'split' ? Math.max(1, o.owners.length) : 1;
   const ownerW = (o.availW - (ownerCols - 1) * ownerGap) / ownerCols;
-  const ownerH = o.availH - PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui;
+  // The chrome counts the stylesheet's `.3rem` top; the headroom beyond it is
+  // room the cards do not get.
+  const ownerH = o.availH - PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui - (headroom - CARDS_PAD_TOP * o.ui);
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
 
   const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH);
@@ -959,6 +989,7 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
     return {
       cardZoom: Math.min(best.cardW, maxCardW) / SLOT_W,
       gapPx: gap,
+      headroomPx: headroom,
       sectionFlow: sections > 1 ? 'columns' : 'rows',
       sectionColumns: sections,
       rows: best.rows,
@@ -975,6 +1006,7 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   return {
     cardZoom: minCardW / SLOT_W,
     gapPx: gap,
+    headroomPx: headroom,
     sectionFlow: sections > 1 ? 'columns' : 'rows',
     sectionColumns: sections,
     rows: fallback.rows,
