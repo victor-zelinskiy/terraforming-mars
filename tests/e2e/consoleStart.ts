@@ -2444,6 +2444,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'research-startups' |
   'research-startups-sale' |
   'research-startups-action' |
+  // TR48 Supercomputer: the Scientists ruling (an enacted quiet law) — the card in hand (1 energy production, TR05 on
+  // the table), on the table with 4 data (TR46 + Mine in hand: the data lane and its absence), with 0 data beside four
+  // other data holders (the action's «where do the 2 go»).
+  'supercomputer' |
+  'supercomputer-pay' |
+  'supercomputer-action' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |

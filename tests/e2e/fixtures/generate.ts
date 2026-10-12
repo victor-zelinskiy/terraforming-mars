@@ -141,6 +141,9 @@ import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/Ichtiology
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
+import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
+import {VectorComputations} from '../../../src/server/cards/turmoilRedux/VectorComputations';
+import {Mine} from '../../../src/server/cards/base/Mine';
 import {AdaptationTechnology} from '../../../src/server/cards/base/AdaptationTechnology';
 import {MartianRails} from '../../../src/server/cards/base/MartianRails';
 import {TopsoilContract} from '../../../src/server/cards/promo/TopsoilContract';
@@ -167,7 +170,6 @@ import {SoilFactory} from '../../../src/server/cards/base/SoilFactory';
 import {TropicalResort} from '../../../src/server/cards/base/TropicalResort';
 import {NoctisFarming} from '../../../src/server/cards/base/NoctisFarming';
 import {PhysicsComplex} from '../../../src/server/cards/base/PhysicsComplex';
-import {Mine} from '../../../src/server/cards/base/Mine';
 import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustors';
 import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {FusionPower} from '../../../src/server/cards/base/FusionPower';
@@ -2208,6 +2210,67 @@ function researchStartupsFixture(name: string, at: 'hand' | 'sale' | 'action'): 
 researchStartupsFixture('research-startups', 'hand');
 researchStartupsFixture('research-startups-sale', 'sale');
 researchStartupsFixture('research-startups-action', 'action');
+// ── TR48 · SUPERCOMPUTER — the third card-bound payment unit (`supercomputerData`: the data here pay 2 M€ for a
+//    Science card) and «+2 data on ANY card». Blue's action phase, the SCIENTISTS enacted (the card's requirement is
+//    their plate). The fixtures differ by what is asked:
+//      · `supercomputer`        — the card in hand, 1 energy production, 15 M€, TR05 Vector Computations on blue's
+//                                  table (the Science tag's answer: +2 data on it, no prompt) — the play;
+//      · `supercomputer-pay`    — the card on blue's table with 4 data, 4 M€ + 2 steel; a hand of TR46 Research
+//                                  Startups (8, Science + Building — the data and the steel on one panel) and Mine
+//                                  (4, Building — no data lane) — the unit;
+//      · `supercomputer-action` — the card on blue's table with 0 data beside four OTHER data holders of four meanings
+//                                  (TR15 Martian Census 1 — a delegate per 3; TR46 2 — a look; TR38 0 — an action at
+//                                  2; Martian Fiber 0 — VP per 2, and +1 M€ per data on ANY card) — «where do the 2 go».
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel must open). ──
+function supercomputerFixture(name: string, at: 'hand' | 'pay' | 'action'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [15, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      const card = new Supercomputer();
+      if (at === 'hand') {
+        p1.megaCredits = 15;
+        p1.production.override({energy: 1});
+        p1.playedCards.push(new VectorComputations());
+        p1.cardsInHand = [new MartianRails(), card];
+        return;
+      }
+      p1.playedCards.push(card);
+      if (at === 'pay') {
+        card.resourceCount = 4;
+        p1.megaCredits = 4;
+        p1.steel = 2;
+        p1.cardsInHand = [new ResearchStartups(), new Mine()];
+        return;
+      }
+      card.resourceCount = 0;
+      p1.megaCredits = 15;
+      const census = new MartianCensus();
+      census.resourceCount = 1;
+      const startups = new ResearchStartups();
+      startups.resourceCount = 2;
+      p1.playedCards.push(census, startups, new BiologicalSimulations(), new MartianFiber());
+      p1.cardsInHand = [new MartianRails()];
+    },
+    expect: ({game, p1, parliament}) => {
+      const inHand = p1.cardsInHand.find((c) => c.name === CardName.SUPERCOMPUTER);
+      const onTable = p1.playedCards.get(CardName.SUPERCOMPUTER) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+      const startups = p1.cardsInHand.find((c) => c.name === CardName.RESEARCH_STARTUPS);
+      const live = at === 'hand' ? inHand !== undefined && p1.canPlay(inHand) :
+        at === 'pay' ? onTable !== undefined && startups !== undefined && p1.canPlay(startups) && p1.megaCredits < 8 :
+          onTable !== undefined && onTable.canAct(p1);
+      if (!live || parliament.rulingParty() !== PartyName.SCIENTISTS) {
+        throw new Error(`the ${name} fixture expected TR48 live (${at}) and the Scientists ruling — got live=${live} ruling=${parliament.rulingParty()} hand=${p1.cardsInHand.map((c) => c.name).join(', ')}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+supercomputerFixture('supercomputer', 'hand');
+supercomputerFixture('supercomputer-pay', 'pay');
+supercomputerFixture('supercomputer-action', 'action');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's
