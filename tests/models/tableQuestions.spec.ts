@@ -46,8 +46,9 @@ function table(card: IProjectCard, party: Parameters<typeof quietResolutionOf>[0
   return {game, player, card};
 }
 
-const tableSteps = (preview: ActionPreview, pos = 0): Array<ActionPreviewStep & {kind: 'input'}> =>
-  preview.branches[pos].steps.filter((s): s is ActionPreviewStep & {kind: 'input'} => s.kind === 'input' && s.reaction !== undefined);
+/** The table's questions — card-level pre-steps (branch-independent); `_pos` kept for the call sites' reading. */
+const tableSteps = (preview: ActionPreview, _pos = 0): Array<ActionPreviewStep & {kind: 'input'}> =>
+  (preview.preSteps ?? []).filter((s): s is ActionPreviewStep & {kind: 'input'} => s.kind === 'input' && s.reaction !== undefined);
 
 function playHead(t: Table): InputResponse {
   t.player.takeAction();
@@ -80,10 +81,8 @@ describe('tableQuestions — the table\'s questions are pre-collected', () => {
       expect(step.for?.source).deep.include({card: step.reaction?.card});
       expect(step.input.type).eq('or');
     }
-    // The card's own steps come first; the table's after them, on every branch.
-    const own = preview.branches[0].steps.findIndex((s) => s.kind === 'input' && s.reaction === undefined);
-    const first = preview.branches[0].steps.findIndex((s) => s.kind === 'input' && s.reaction !== undefined);
-    expect(own).is.lessThan(first);
+    // Branch-independent: the table answers the PLAY — card-level pre-steps, never a branch's own steps.
+    expect(preview.branches.every((b) => b.steps.every((s) => s.kind !== 'input' || s.reaction === undefined))).is.true;
     // The forecast keeps naming them — each fact carries its step.
     const facts = preview.forecast!.facts.filter((f) => f.certainty === 'asks');
     expect(facts.every((f) => f.preselect !== undefined)).is.true;
@@ -142,18 +141,44 @@ describe('tableQuestions — the table\'s questions are pre-collected', () => {
     expect(t.player.cardsInHand.length, 'TR51 played, Martian Rails discarded, one card drawn').eq(hand - 1);
   });
 
-  it('HIDDEN — Mars University behind Olympus\' «remove to draw»: the discard is NOT pre-collected and the note says why', () => {
+  it('GATED — Mars University behind Olympus\' «remove to draw»: the discard stays a step, gated by Olympus\' answer', () => {
     const t = table(new InfluentialDiscovery());
     const olympus = new OlympusConference();
     olympus.resourceCount = 1;
     t.player.cardsInHand.push(new MartianRails());
     t.player.playedCards.push(olympus, new MarsUniversity(), new Supercomputer());
     const preview = playPreviewWithTableQuestions(t.player, t.card);
-    expect(tableSteps(preview).map((s) => s.reaction?.card)).deep.eq([CardName.OLYMPUS_CONFERENCE]);
-    const university = preview.forecast!.facts.find((f) => f.source.name === CardName.MARS_UNIVERSITY)!;
-    expect(university.certainty).eq('asks');
-    expect(university.preselect).is.undefined;
-    expect(university.note).eq(HIDDEN_DRAW_NOTE);
+    const live = preview.branches.findIndex((b) => b.available);
+    const steps = tableSteps(preview, live);
+    expect(steps.map((s) => s.reaction?.card)).deep.eq([CardName.OLYMPUS_CONFERENCE, CardName.MARS_UNIVERSITY]);
+    const olympusFact = preview.forecast!.facts.find((f) => f.source.name === CardName.OLYMPUS_CONFERENCE)!;
+    expect(steps[1].reaction?.afterDraw, 'the discard waits on Olympus\' answer').deep.eq([olympusFact.id]);
+    expect(steps[0].reaction?.afterDraw).is.undefined;
+  });
+
+  it('GATED — Olympus answered «add» (no draw): both pre-selects land, Mars University discards the card chosen before the press', () => {
+    const t = table(new InfluentialDiscovery());
+    const olympus = new OlympusConference();
+    olympus.resourceCount = 1;
+    t.player.cardsInHand.push(new MartianRails());
+    t.player.playedCards.push(olympus, new MarsUniversity(), new Supercomputer());
+    const preview = playPreviewWithTableQuestions(t.player, t.card);
+    // Olympus holds science, Supercomputer data: both variants live — the data one, its target Supercomputer.
+    const data = preview.branches.findIndex((b) => b.title === DATA_BRANCH);
+    const branch = preview.branches[data];
+    const [olympusStep, universityStep] = tableSteps(preview, data);
+    const target = branch.steps.find((s): s is ActionPreviewStep & {kind: 'input'} => s.kind === 'input' && s.reaction === undefined)!;
+    replayBatch(t.player, [
+      playHead(t),
+      {type: 'or', index: branch.index, response: {type: 'option'}, for: branch.for} as InputResponse,
+      addressed(target, {type: 'card', cards: [CardName.SUPERCOMPUTER]}),
+      addressed(olympusStep, {type: 'or', index: 1, response: {type: 'option'}}),
+      addressed(universityStep, {type: 'or', index: 0, response: {type: 'card', cards: [CardName.MARTIAN_RAILS]}}),
+    ]);
+    expectActionMenu(t);
+    expect(parkedBatchTailLength(t.player)).eq(0);
+    expect(olympus.resourceCount).eq(2);
+    expect(t.player.cardsInHand.some((c) => c.name === CardName.MARTIAN_RAILS)).is.false;
   });
 
   it('HIDDEN — a play that DRAWS (Research, 2 cards) keeps Mars University a follow-up; the second Olympus question depends on the first', () => {

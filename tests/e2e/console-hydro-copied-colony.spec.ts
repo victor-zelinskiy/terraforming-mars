@@ -286,7 +286,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
             ready: el?.classList.contains('con-composer__cta--ready') ?? false,
             held: el?.classList.contains('con-composer__cta--held') ?? false,
             disabled: el?.getAttribute('aria-disabled') ?? '',
-            nav: Array.from(document.querySelectorAll('.con-composer__branch'))
+            nav: Array.from(document.querySelectorAll('.con-composer__branches .con-vchoice__opt'))
               .map((b) => b.getAttribute('data-branch-nav') ?? '-'),
             body: (document.querySelector('.con-composer')?.textContent ?? '')
               .replace(/\s+/g, ' ').trim().slice(0, 260),

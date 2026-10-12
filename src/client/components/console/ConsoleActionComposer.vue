@@ -321,36 +321,24 @@
              («выберите карту» inside a removal that also offers the bot). -->
         <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested')">
           <div class="con-composer__sub-title">{{ subTitle }}</div>
-          <div v-for="(item, i) in listItems" :key="item.key"
-               class="con-composer__opt"
-               :class="{
-                 'con-composer__opt--focused': sub.index === i,
-                 'con-composer__opt--disabled': item.disabled,
-                 'con-composer__opt--chosen': item.chosen,
-               }"
-               :ref="sub.index === i ? 'focusedEl' : undefined">
-            <span v-if="item.color !== undefined" class="con-composer__opt-dot" :class="'player_bg_color_' + item.color" aria-hidden="true"></span>
-            <span class="con-composer__opt-name">{{ item.label }}</span>
-            <span v-if="item.resIcon !== ''" class="con-composer__opt-res">
-              <i class="con-composer__opt-res-icon" :class="iconClass(item.resIcon)" aria-hidden="true"></i>
-              <b>{{ item.resCount }}</b>
-            </span>
-            <span v-if="item.impact !== ''" class="con-composer__opt-impact">{{ item.impact }}</span>
-            <!-- An or-option's own premium chips — the SAME `ActionEffectChip`
-                 the branch formula and the play screen use, so «получить титан»
-                 reads as `[титан] +1 · 10 → 11` and never as a bare word. -->
-            <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
-            <span v-for="(w, k) in (item.warnings ?? [])" :key="'w' + k" class="con-composer__opt-warn">⚠ {{ $t(w) }}</span>
-            <!-- «Это вы» on a PLAYER row: the rules allow hitting your own
-                 production and we may not remove the option, so the job is to
-                 make it impossible to pick by accident. Only when it COSTS you
-                 and another target was selectable. -->
-            <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
-            <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
-            <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
-            <!-- A DOOR, not an answer: the branch opens a pick of its own. -->
-            <span v-else-if="item.nested" class="con-composer__opt-chevron con-composer__opt-chevron--end" aria-hidden="true">›</span>
-          </div>
+          <!-- THE PICK LIST — the variant grammar's LIST layout (`ConsoleVariantChoice`, TR51). -->
+          <ConsoleVariantChoice class="con-composer__sublist" layout="list" :exclusive="false"
+                                :options="listOptions" :label="subTitle">
+            <template #body="{index}">
+              <template v-for="item in [listItems[index]]" :key="item.key">
+                <span v-if="item.resIcon !== ''" class="con-composer__opt-res">
+                  <i class="con-composer__opt-res-icon" :class="iconClass(item.resIcon)" aria-hidden="true"></i>
+                  <b>{{ item.resCount }}</b>
+                </span>
+                <span v-if="item.impact !== ''" class="con-composer__opt-impact">{{ item.impact }}</span>
+                <!-- An or-option's own premium chips — the SAME `ActionEffectChip` the formula and the play screen use. -->
+                <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
+                <span v-for="(w, k) in (item.warnings ?? [])" :key="'w' + k" class="con-composer__opt-warn">⚠ {{ $t(w) }}</span>
+                <!-- «Это вы» on a PLAYER row: only when it COSTS you and another target was selectable. -->
+                <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
+              </template>
+            </template>
+          </ConsoleVariantChoice>
         </template>
 
         <!-- MAIN (and the EXPANDED payment editor, which is this SAME screen
@@ -358,57 +346,51 @@
              mount below; the rows, the CTA and the source card never move). -->
         <template v-else>
           <template v-for="item in items" :key="item.id">
-            <!-- A branch OPTION CARD (premium chips, like the desktop radiogroup). -->
-            <div v-if="item.kind === 'branch'"
-                 class="con-composer__branch"
-                 :class="{
-                   'con-composer__branch--focused': isFocused(item),
-                   'con-composer__branch--selected': selectedPos === item.pos,
-                   'con-composer__branch--disabled': !branchAt(item.pos).available,
-                 }"
-                 :data-branch-pos="item.pos"
-                 :data-branch-nav="branchNavKind(item.pos)"
-                 :ref="isFocused(item) ? 'focusedEl' : undefined">
-              <span v-if="selectedPos === item.pos" class="con-composer__branch-check" aria-hidden="true">◉</span>
-              <span v-else class="con-composer__branch-check con-composer__branch-check--off" aria-hidden="true">○</span>
-              <div class="con-composer__branch-body">
-                <div class="con-composer__branch-formula">
-                  <!-- A price every variant shares is the action's, not this card's: printed once, in the formula above. -->
-                  <template v-for="(eff, k) in branchCostShown(item.pos)" :key="'c' + k">
-                    <ActionEffectChip :effect="eff" />
-                  </template>
-                  <span v-for="(vc, k) in branchView(item.pos).variableCost" :key="'vc' + k" class="con-composer__varchip con-composer__varchip--spend">
-                    <i v-if="vc.icon" class="con-composer__varchip-icon" :class="iconClass(vc.icon)" aria-hidden="true"></i>
-                    <b>{{ rangeText(vc) }}</b>
-                  </span>
-                  <span v-if="branchHasBothSides(item.pos)" class="con-composer__branch-arrow" aria-hidden="true">→</span>
-                  <template v-for="(eff, k) in branchView(item.pos).gain" :key="'g' + k">
-                    <ActionEffectChip :effect="eff" />
-                  </template>
-                  <span v-for="(vc, k) in branchView(item.pos).variableGain" :key="'vg' + k" class="con-composer__varchip con-composer__varchip--result">
-                    <i v-if="vc.icon" class="con-composer__varchip-icon" :class="iconClass(vc.icon)" aria-hidden="true"></i>
-                    <b>{{ rangeText(vc) }}</b>
-                  </span>
-                  <span v-for="(vc, k) in branchView(item.pos).variableChoice" :key="'vx' + k" class="con-composer__varchip">
-                    <i v-if="vc.icon" class="con-composer__varchip-icon" :class="iconClass(vc.icon)" aria-hidden="true"></i>
-                    <b>{{ rangeText(vc) }}</b><em>{{ $t('your choice') }}</em>
-                  </span>
-                  <span v-if="branchView(item.pos).empty" class="con-composer__branch-title">{{ branchTitle(branchAt(item.pos)) }}</span>
-                  <!-- «⚡ сработает» — the reactions tied to THIS branch (the
-                       forecast's `byBranch`), on the formula's own line past a
-                       thin seam, in the «Сработает» zone's language; never
-                       repeated in the row. -->
-                  <ConsoleForecastReactions :reaction="variantReactions(item.pos)" />
-                </div>
-                <div v-if="branchView(item.pos).needs !== ''" class="con-composer__branch-needs">◈ {{ branchView(item.pos).needs }}</div>
-                <div v-if="!branchAt(item.pos).available" class="con-composer__branch-reason">✕ {{ branchReason(branchAt(item.pos)) }}</div>
-              </div>
-            </div>
+            <!-- THE VARIANTS — the variant grammar (`ConsoleVariantChoice`, TR51), one group at the first branch row: each
+                 option leads with the card's printed row of that variant, then its formula «цена → выигрыш», the
+                 table's answer to it and what it still needs; the seal marks the answer. A COLUMN — the cursor walks the
+                 composer's rows with ↑↓, the variants are rows of it. -->
+            <ConsoleVariantChoice v-if="item.kind === 'branch' && item.pos === branchItemPositions[0]"
+                                  class="con-composer__branches"
+                                  layout="column"
+                                  :options="branchOptions"
+                                  :label="$t('Choose an option')"
+                                  @pick="pickBranchAt($event)">
+              <template #body="{index}">
+                <template v-for="pos in [branchItemPositions[index]]" :key="pos">
+                  <div class="con-composer__branch-formula">
+                    <!-- A price every variant shares is the action's, not this card's: printed once, in the formula above. -->
+                    <template v-for="(eff, k) in branchCostShown(pos)" :key="'c' + k">
+                      <ActionEffectChip :effect="eff" />
+                    </template>
+                    <span v-for="(vc, k) in branchView(pos).variableCost" :key="'vc' + k" class="con-composer__varchip con-composer__varchip--spend">
+                      <i v-if="vc.icon" class="con-composer__varchip-icon" :class="iconClass(vc.icon)" aria-hidden="true"></i>
+                      <b>{{ rangeText(vc) }}</b>
+                    </span>
+                    <span v-if="branchHasBothSides(pos)" class="con-composer__branch-arrow" aria-hidden="true">→</span>
+                    <template v-for="(eff, k) in branchView(pos).gain" :key="'g' + k">
+                      <ActionEffectChip :effect="eff" />
+                    </template>
+                    <span v-for="(vc, k) in branchView(pos).variableGain" :key="'vg' + k" class="con-composer__varchip con-composer__varchip--result">
+                      <i v-if="vc.icon" class="con-composer__varchip-icon" :class="iconClass(vc.icon)" aria-hidden="true"></i>
+                      <b>{{ rangeText(vc) }}</b>
+                    </span>
+                    <span v-for="(vc, k) in branchView(pos).variableChoice" :key="'vx' + k" class="con-composer__varchip">
+                      <i v-if="vc.icon" class="con-composer__varchip-icon" :class="iconClass(vc.icon)" aria-hidden="true"></i>
+                      <b>{{ rangeText(vc) }}</b><em>{{ $t('your choice') }}</em>
+                    </span>
+                    <!-- «⚡ сработает» — the reactions tied to THIS variant (the forecast's `byBranch`). -->
+                    <ConsoleForecastReactions :reaction="variantReactions(pos)" />
+                  </div>
+                  <div v-if="branchView(pos).needs !== ''" class="con-composer__branch-needs">◈ {{ branchView(pos).needs }}</div>
+                </template>
+              </template>
+            </ConsoleVariantChoice>
 
             <!-- A choice input row (amount inline / picker / spend-heat).
                  PAYMENT is NOT here — it's a persistent panel below, edited by
                  the dedicated LT + inline LB/RB, never a focus row. -->
-            <div v-else-if="item.choice !== undefined"
+            <div v-else-if="item.kind === 'choice'"
                  class="con-composer__row"
                  :class="{
                    'con-composer__row--focused': isFocused(item),
@@ -865,7 +847,7 @@ import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTie
 import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
-import {branchPositionsForNode, branchSetAvailability, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {branchPositionsForNode, branchSetAvailability, branchTitleText, buildBranchViews, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, ACTION_RULE_LABEL, actionRuleText, actionRules} from '@/client/components/actions/actionDescription';
 import {
   ComposerChoice,
@@ -886,6 +868,7 @@ import {
   initialVariantSelection,
   // A branch that LEADS somewhere instead of asking for something.
   runtimeNavigationSteps,
+  afterConfirmSteps,
   // The step a choice answers (a card-level one too) and the ask of a card pick by its direction.
   stepOfChoice,
   cardPickAskKey,
@@ -900,6 +883,9 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
@@ -1168,7 +1154,7 @@ function stagedVoteReceiptOf(branch: ActionPreviewBranch): StagedReceipt | undef
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
+  components: {ConsoleVariantChoice, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -2170,6 +2156,42 @@ export default defineComponent({
     // ── sub-state ────────────────────────────────────────────────────────
     subChoice(): ComposerChoice | undefined {
       return this.sub === undefined ? undefined : this.allChoices.find((c) => c.id === this.sub?.choiceId);
+    },
+    /** The branch rows' positions in render order (the variant group renders them as ONE block at the first). */
+    branchItemPositions(): ReadonlyArray<number> {
+      return this.items.filter((it): it is Item & {kind: 'branch'} => it.kind === 'branch').map((it) => it.pos);
+    },
+    /** The card's printed action graphic of each branch — the face's own node (`buildBranchViews`), by branch position. */
+    branchPrinted(): ReadonlyArray<ICardRenderEffect | undefined> {
+      return buildBranchViews(this.entry.cardName, this.entry.group, this.branches).map((v) => v.node?.actionNode);
+    },
+    /** The variant grammar's options for the branch rows — cursor · answer · rules, the printed row, the reason. */
+    branchOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.branchItemPositions.map((pos): VariantChoiceOption => {
+        const branch = this.branchAt(pos);
+        const printed = this.branchPrinted[pos];
+        return {
+          key: 'branch#' + pos,
+          state: {focused: this.isFocused({id: 'branch#' + pos, kind: 'branch', pos}), selected: this.selectedPos === pos, off: !branch.available},
+          // The words speak only where nothing else does — no printed row and an empty formula.
+          title: printed === undefined && this.branchView(pos).empty ? this.branchTitle(branch) : '',
+          reason: branch.available ? undefined : this.branchReason(branch),
+          printed: printed !== undefined ? [printed] : undefined,
+          attrs: {'data-branch-pos': String(pos), 'data-branch-nav': this.branchNavKind(pos)},
+        };
+      });
+    },
+    /** The pick list in the variant grammar — one option per row of `listItems`. */
+    listOptions(): ReadonlyArray<VariantChoiceOption> {
+      const at = this.sub?.kind === 'list' || this.sub?.kind === 'orNested' ? this.sub.index : undefined;
+      return this.listItems.map((item, i): VariantChoiceOption => ({
+        key: item.key,
+        state: {focused: at === i, selected: item.chosen, off: item.disabled},
+        title: item.label,
+        reason: item.disabled && item.reason !== '' ? item.reason : undefined,
+        door: item.nested === true && !item.chosen && !item.disabled,
+        color: item.color,
+      }));
     },
     subTitle(): string {
       const c = this.subChoice;
@@ -4528,6 +4550,28 @@ export default defineComponent({
         this.scrollFocused();
       });
     },
+    /**
+     * The commit's witness (`preselectWitness.armPostCommitWitness`): the forecast's askers, and what this composer
+     * hands on with its reason — a forecast question with no pre-select, a follow-up the server declared («ДАЛЕЕ»).
+     */
+    armCommitWitness(branch: ActionPreviewBranch): void {
+      const forecast = this.preview?.forecast;
+      const pos = this.selectedPos;
+      const facts = [...(forecast?.facts ?? []), ...(pos !== undefined ? forecast?.byBranch?.[pos] ?? [] : [])];
+      const asks = facts.filter((f) => f.certainty === 'asks');
+      const honest: Array<HonestFollowUp> = asks.filter((f) => f.preselect === undefined).map((f) => ({card: f.source.name, role: '*'}));
+      if (afterConfirmSteps(branch).length > 0) {
+        honest.push({card: this.entry.cardName, role: '*'});
+      }
+      armPostCommitWitness(this.entry.cardName, asks.map((f) => f.source.name), honest);
+    },
+    /** A click on a variant tile — the same SELECT as A on it (never a commit). */
+    pickBranchAt(index: number): void {
+      const pos = this.branchItemPositions[index];
+      if (pos !== undefined && this.sub === undefined) {
+        this.selectBranch(pos);
+      }
+    },
     selectBranch(pos: number): void {
       if (this.selectedPos === pos || !this.branches[pos]?.available) {
         return;
@@ -5182,6 +5226,11 @@ export default defineComponent({
       if (this.publishCommands) {
         this.playCommitBeat(branch);
         this.commitSent = true;
+        // «STRICTLY PRE-SELECT» (TR51): no choice of this card after the press that this composer did not collect or
+        // hand on. A DOOR (a trade, the Hydronetwork, a vote) and a repeat run other prompts by design — not watched.
+        if (this.repeatResult === undefined && runtimeNavigationSteps(branch).length === 0) {
+          this.armCommitWitness(branch);
+        }
       }
       this.$emit('confirm', {
         branchIndex: branch.index,

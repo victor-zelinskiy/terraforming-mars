@@ -31301,12 +31301,14 @@ html.console-mode {
 
     &__res-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
 
+    /* The pair's «ИЛИ» — the ONE exclusion medallion of the variant grammar (`.con-or-medal()`, TR51): the two
+       tiles of one card are its two variants, and the seam between them speaks the composer's word in its look. */
     &__or {
         align-self: center;
-        font-size: .6rem; letter-spacing: .12rem; text-transform: uppercase; color: fade(@con-cyan, 78%);
-        padding: .05rem .5rem; border-radius: 49.95rem;
-        background: rgba(12, 22, 34, 0.96);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .2rem .5rem rgba(0, 0, 0, 0.4);
+        .con-or-medal();
+        min-width: 2.1rem;
+        height: 2.1rem;
+        font-size: .6rem;
 
         /* The BADGE on the seam: it sits in the grid's column gap on the
            tile's LEFT edge, anchored to the ACTION CANVAS' centre (pad +
@@ -32984,7 +32986,6 @@ html.console-mode {
     }
     &__kicker-mark { color: @con-cyan; }
     &__name { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
-    &__branch-title { font-size: .85rem; color: @con-text-dim; }
 
     /* ── The LIVE hero formula ── */
     &__hero {
@@ -33052,29 +33053,10 @@ html.console-mode {
     }
     &__sub-title { font-size: .75rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 90%); }
 
-    /* ── Branch OPTION CARDS (the premium radiogroup — per-branch chips,
-       exactly like the desktop confirm modal; NEVER a bare text list). ── */
-    &__branch {
-        display: flex; align-items: flex-start; gap: .6rem;
-        padding: .65rem .8rem; border-radius: .6rem;
-        background: rgba(14, 22, 34, 0.62);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.72); }
-        &--selected { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); }
-        &--selected&--focused { box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 .9rem fade(@con-mint, 28%); }
-        &--disabled { opacity: 0.6; filter: saturate(0.6); }
-        &--disabled&--focused { opacity: 1; filter: none; box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.6); }
-    }
-    &__branch-check {
-        flex-shrink: 0; font-size: 1rem; line-height: 1.4; color: @con-mint;
-        &--off { color: fade(@con-cyan, 45%); }
-    }
-    &__branch-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
+    /* A variant's formula «цена → выигрыш» — the body of its tile in the variant grammar (`console_variant_choice.less`). */
     &__branch-formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__branch-arrow { font-size: 1rem; font-weight: 800; color: fade(@con-cyan, 90%); }
-    &__branch-title { font-size: .9rem; font-weight: 700; }
     &__branch-needs { font-size: .7rem; color: fade(@con-cyan, 88%); }
-    &__branch-reason { font-size: .7rem; color: #ffb0a6; }
     /* Branch cards ride the system chip size (tokens). */
 
     &__row {
@@ -33098,6 +33080,13 @@ html.console-mode {
         &--off { opacity: 0.32; filter: saturate(0.4); }
     }
     &__row-label { font-size: .7rem; letter-spacing: .04rem; text-transform: uppercase; color: @con-text-dim; }
+    /* A QUESTION OF THE TABLE (TR51 — «Сработает · <карта> · ваш выбор»): the row speaks in the «Сработает» zone's
+       language — the bolt and its amber — so it reads as the table answering this play, never as one more step of the
+       card; answered before the press like every other row. */
+    &__row--reaction &__row-label {
+        color: fade(@con-amber, 92%);
+        &::before { content: '⚡ '; }
+    }
     &__row-value { font-size: .95rem; font-weight: 700; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
     &__row-empty { color: fade(@con-amber, 92%); font-weight: 600; }
     &__row-impact { font-size: .8rem; font-weight: 600; color: #8ff0c4; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .25rem; }
@@ -33116,10 +33105,13 @@ html.console-mode {
         gap: 6px; /* keep-px: inside the ×ui-scale zoom */
         zoom: var(--con-ui-scale, 1);
     }
+    /* The rival's reward alternatives — the variant grammar's «ИЛИ» medallion, at the chip line's scale. */
     &__esp-or {
-        font-size: 12px; /* keep-px: lives inside the ×ui-scale chips zoom */
-        text-transform: uppercase;
-        color: @con-text-dim;
+        .con-or-medal();
+        min-width: 26px; /* keep-px: lives inside the ×ui-scale chips zoom */
+        height: 26px;
+        padding: 0 6px;
+        font-size: 10px;
     }
     &__esp-note { font-size: .68rem; color: @con-text-dim; font-style: italic; }
     &__esp-own {
@@ -33167,27 +33159,6 @@ html.console-mode {
     }
     &__stepper-range { font-size: .75rem; color: @con-text-dim; }
 
-    /* Sub-state option rows (branch / card / player / or / repeat). */
-    &__opt {
-        display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
-        padding: .6rem .8rem; border-radius: .55rem;
-        background: rgba(14, 22, 34, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
-        &--disabled { opacity: 0.55; filter: saturate(0.6); }
-        &--disabled&--focused { opacity: 1; filter: none; box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.6); }
-        &--chosen { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); }
-        &--chosen&--focused { box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 .9rem fade(@con-mint, 28%); }
-    }
-    /* The target-player colour dot — the colour comes from the applied
-       `player_bg_color_*` class, so it must NOT set its own `background`
-       (a `background: currentColor` shorthand overrode the player colour and
-       painted every dot the row's text colour). Neutral ring + soft glow. */
-    &__opt-dot {
-        flex: 0 0 auto; width: .7rem; height: .7rem; border-radius: 50%;
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 .4rem rgba(0, 0, 0, 0.5);
-    }
-    &__opt-name { font-size: .9rem; font-weight: 700; flex: 1; min-width: 0; }
     /* WHOSE card a card-shaped target row is. A quiet apposition on the name,
        never a column: the hue already rides the row's owner dot, so this only
        has to be readable and clearly secondary to the card it qualifies. */
@@ -33211,12 +33182,6 @@ html.console-mode {
         width: ~"calc(var(--con-chip-icon, 1.3rem) - .15rem)";
         height: ~"calc(var(--con-chip-icon, 1.3rem) - .15rem)";
     }
-    /* Nested-input indicator (an option that opens a target sub-pick). */
-    &__opt-chevron { flex: 0 0 auto; font-size: 1rem; font-weight: 800; color: fade(@con-cyan, 70%); }
-    /* …worn at the row's END, where the answer marks live, when the chevron is
-       the row's LAST element (the action composer's or-list: a branch that opens
-       its own pick sits in the same slot the ✓ would occupy). */
-    &__opt-chevron--end { margin-left: auto; }
     &__opt-res {
         display: inline-flex; align-items: center; gap: .25rem;
         font-size: .75rem; font-weight: 700; color: #bfe6ff;
@@ -33226,7 +33191,6 @@ html.console-mode {
     &__opt-res-icon { width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__opt-impact { font-size: .8rem; font-weight: 700; color: #8ff0c4; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .25rem; }
     &__opt-impact-icon { width: .95rem; height: .95rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
-    &__opt-reason { font-size: .7rem; color: #ffb0a6; }
     /* THE ENGINE'S OWN CAUTION on an option row («это ваши растения»). Amber,
        not the reason's red: a reason says the option CANNOT be taken, this says
        it can and will cost you. `margin-left: auto` pushes it to the row's end,
@@ -33238,7 +33202,6 @@ html.console-mode {
         font-weight: 600;
         color: @con-amber;
     }
-    &__opt-check { margin-left: auto; font-size: .9rem; font-weight: 800; color: @con-mint; }
 
     /* (The per-composer payment LANE rows + the floating «Всего» pill are gone:
        every payment surface now renders the shared `.con-pay` panel
@@ -33581,13 +33544,6 @@ html.console-mode {
        `inline-flex`, i.e. `nowrap` by construction. What it must NOT be is a
        band of its own — hence no `--tags` rule here any more.) */
     .con-composer__result-chips { gap: .4rem; padding-bottom: 0; }
-    /* Branch variants stay full-width rows: they are a CHOICE, not a summary,
-       and a choice must not compact into a chip. */
-    /* Branch variants are a CHOICE, not a summary: they keep their own chassis
-       and their own intrinsic side-by-side/column behaviour (see `__variants`).
-       Only the metrics are tuned for the workspace's wider band. */
-    .con-composer__variants { gap: .4rem .55rem; }
-    .con-composer__variant { padding: .5rem .75rem; }
 
     /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
     .con-pay {
@@ -34659,99 +34615,8 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     }
     &__sub-title--result { color: fade(@con-mint, 92%); }
 
-    /* ── THE ИЛИ CHOICE — a comparison, not a list ────────────────────────
-       Two mutually-exclusive results are read AGAINST each other, so they
-       stand side by side while the width allows it. The layout is intrinsic:
-       `flex-basis: auto` is each card's own content, so two SHORT options
-       share a line and two LONG ones (or a long localization) can no longer
-       both fit and fall into a column — no breakpoint, no card-specific rule,
-       and it holds for three options as well as for two. */
-    &__variants {
-        /* The CLUSTER is what decides the shape, not the viewport — the band
-           narrows with the profile, the hand dock and the nesting depth, so the
-           query below asks the box the options actually live in. */
-        container-type: inline-size;
-        display: flex;
-        flex-wrap: wrap;
-        /* Equal heights per line — the point is comparability. */
-        align-items: stretch;
-        gap: .4rem .5rem;
-    }
-    &__variant {
-        /* A READING MEASURE, not the content's own width. `flex-basis: auto`
-           (max-content) shipped a card whose long sentence claimed the whole
-           line, which pushed its twin onto the next one and left «ИЛИ» stranded
-           beside the first — two options that are meant to be compared, laid out
-           as a list. A basis says «this is how wide an option wants to be»; long
-           text then wraps INSIDE the card, which is what makes the pair
-           comparable at a glance. */
-        flex: 1 1 22rem;
-        min-width: min(19rem, 100%);
-        max-width: 100%;
-        display: flex; flex-direction: column; gap: .4rem;
-        padding: .6rem .8rem; border-radius: .55rem;
-        background: rgba(14, 22, 34, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        cursor: pointer;
-        /* ── THREE STATES, THREE READINGS (never one green ring for two facts)
-           · FOCUS      — the CURSOR: a cold cyan ring and a lifted surface.
-                          It says «you are here», never «this is your answer»,
-                          so it carries no ✓.
-           · SELECTED   — the CHOICE: a warm mint plate + ✓, and it STAYS while
-                          the cursor walks to another option.
-           · BOTH       — the mint plate keeps the answer and the cursor speaks
-                          in a separate OUTER cyan ring: two rings, two facts.
-           Everything is `box-shadow` + colour, so the paint baseline (which
-           strips filters) keeps every cue. */
-        &--focused {
-            box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%);
-            background: rgba(20, 34, 50, 0.7);
-        }
-        &--selected {
-            background: linear-gradient(160deg, fade(@con-mint, 13%) 0%, rgba(14, 24, 30, 0.62) 100%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 92%), 0 0 .7rem fade(@con-mint, 20%);
-        }
-        &--selected&--focused {
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 92%),
-                        0 0 0 .12rem @con-cyan,
-                        0 0 .9rem fade(@con-cyan, 26%);
-        }
-        &--off { opacity: 0.55; filter: saturate(0.6); cursor: default; }
-        &--off&--focused { opacity: 1; filter: none; box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.6); }
-    }
-    /* The exclusion itself — a quiet word, never a third option. */
-    &__variants-or {
-        flex: 0 0 auto;
-        align-self: center;
-        padding: 0 .1rem;
-        font-size: .62rem;
-        font-weight: 800;
-        letter-spacing: .12rem;
-        text-transform: uppercase;
-        color: rgba(150, 180, 210, 0.55);
-    }
-    /* …and once the cluster is too narrow for two readable options, the pair
-       becomes a COLUMN and «ИЛИ» takes its own full-width line BETWEEN them.
-       Without this the leftover strip beside a stretched card was still wide
-       enough for the word, so the separator rode up next to option 1 and the
-       exclusion stopped reading as one. (A CONTAINER query, not a media one:
-       what matters is the width of this cluster, which no viewport knows.) */
-    @container (max-width: 47rem) {
-        &__variant { flex-basis: 100%; }
-        &__variants-or { flex-basis: 100%; text-align: center; }
-    }
-    &__variant-head { display: flex; align-items: center; gap: .5rem; }
-    &__variant-title { font-size: .9rem; font-weight: 700; flex: 1; }
-    /* The ✓ means ONE thing: «this is the answer I gave». It is never a cursor —
-       and its slot is reserved in every state, so answering cannot re-wrap the
-       title beside it. */
-    &__variant-check {
-        font-size: .9rem; font-weight: 800; color: @con-mint;
-        visibility: hidden;
-        &--on { visibility: visible; }
-    }
+    /* THE ИЛИ CHOICE — the variant grammar (`console_variant_choice.less`); a variant's own chips line. */
     &__variant-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
-    &__variant-reason { font-size: .7rem; color: #ffb0a6; }
 
     /* THE SECOND RESULT LEVEL — «what the card is once it is on the table».
        ONE container, ONE behaviour everywhere: an intrinsic cluster of
@@ -35598,8 +35463,6 @@ html.con-profile-handheld .con-composer {
     .con-composer__panel--act { width: min(44rem, 100%); }
     .con-composer__name { font-size: 1.05rem; }
     .con-composer__stepper-value { font-size: 1.2rem; min-width: 2.6rem; }
-    .con-composer__opt-name { font-size: .75rem; }
-    .con-composer__variant-title { font-size: .8rem; }
     .con-composer__cta-label { font-size: .85rem; }
     .con-composer__dial-pill { font-size: .65rem; }
     .con-composer__foot-item { font-size: .65rem; }
@@ -35682,7 +35545,6 @@ html.con-profile-large .con-composer {
        selector unless it is exempt here). */
     &:not(.con-composer--embed):not(.con-composer--colonystep):not(.con-composer--stage) .con-composer__panel { width: min(52rem, 100%); }
     .con-composer__name { font-size: 1.65rem; }
-    .con-composer__opt-name { font-size: 1.05rem; }
     .con-composer__foot-item { font-size: 1rem; }
 }
 html.con-profile-large .con-composer--stage .con-composer__panel--stage { width: 100%; }

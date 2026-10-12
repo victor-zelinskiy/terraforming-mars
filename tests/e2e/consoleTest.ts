@@ -224,8 +224,14 @@ async function rawTemplatesOn(page: Page): Promise<Array<string>> {
  * `common/inputs/preselectAddress.ts`). Never a legal state on any route.
  */
 const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
+/**
+ * The «post-commit choice» witness's marker (`preselectWitness.ts` — `POST_COMMIT_CHOICE`, TR51 «strictly pre-select»):
+ * after a composer's commit, a choice of the committed card or of a table card that asks is raised although the
+ * composer neither collected it nor handed it on with its reason.
+ */
+const POST_COMMIT_CHOICE = 'POST-COMMIT CHOICE';
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * EVERY TEST, EVERY PAGE OF ITS CONTEXT: no question the player already answered in a composer is asked again. The
    * stranded-prompt witness could never see this class — a re-asked prompt IS served (the hand screen serves a
@@ -247,6 +253,30 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (reasked.length > 0) {
       throw new Error(`RE-ASKED PRE-SELECT — a question the batch already answered was asked again (the pre-select law):\n  ${reasked.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: no choice whose answer was known before the press is asked after it (TR51 —
+   * «strictly pre-select», the owner's decision 2026-10-12). The composer collects its card's questions AND its own
+   * table's (Olympus Conference, Mars University, Pharmacy Union…); what it hands on, it names (a pick over hidden
+   * cards, a question that depends on an answer above it). The console reports the rest itself.
+   */
+  postCommitGuard: [async ({context}, use) => {
+    const late: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(POST_COMMIT_CHOICE)) {
+          late.push(text.slice(0, 300));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (late.length > 0) {
+      throw new Error(`POST-COMMIT CHOICE — a choice whose answer was known before the press was asked after it (strictly pre-select):\n  ${late.join('\n  ')}`);
     }
   }, {auto: true}],
 

@@ -318,7 +318,7 @@ async function pickCard(page: Page, rowLabel: RegExp, want: string): Promise<voi
 
 /** The variant radiogroup: A on option `pos`. */
 async function pickVariant(page: Page, pos: number): Promise<void> {
-  const at = () => page.evaluate(() => Number(document.querySelector('.con-composer__branch--focused')?.getAttribute('data-branch-pos') ?? -1));
+  const at = () => page.evaluate(() => Number(document.querySelector('.con-composer__branches .con-vchoice__opt--focused')?.getAttribute('data-branch-pos') ?? -1));
   await walkComposer(page, async () => (await at()) === pos, `variant ${pos}`);
   await press(page, 'Enter', 400);
 }
@@ -400,12 +400,12 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 500);
       await expect(page.locator('.con-ptsel'), 'answered').toHaveCount(0);
       expect(await text(page, `${composer} .con-composer__row`), 'the source row: the role and this card\'s 2 → 1').toMatch(/Карта-источник[\s\S]*2\s*→\s*1/);
-      expect(await page.locator(`${composer} .con-composer__branch`).count(), 'two variants').toBe(2);
+      expect(await page.locator(`${composer} .con-composer__branches .con-vchoice__opt`).count(), 'two variants').toBe(2);
       // PL-074 — the price both variants share is printed ONCE, on the price side, before a variant is chosen; the
       // variant cards read only what each gives.
       expect(await text(page, `${composer} .con-composer__hero`), 'the formula states the common price').toMatch(/Будет списано/);
-      expect(await page.locator(`${composer} .con-composer__branch .action-effect-chip--cost`).count(), 'no variant card repeats it').toBe(0);
-      expect(await page.locator(`${composer} .con-composer__branch .action-effect-chip--gain`).count(), 'each card keeps its result').toBeGreaterThanOrEqual(2);
+      expect(await page.locator(`${composer} .con-composer__branches .con-vchoice__opt .action-effect-chip--cost`).count(), 'no variant card repeats it').toBe(0);
+      expect(await page.locator(`${composer} .con-composer__branches .con-vchoice__opt .action-effect-chip--gain`).count(), 'each card keeps its result').toBeGreaterThanOrEqual(2);
       await pickVariant(page, 0);
       await toCommitRow(page);
       expect(seen.posts, 'nothing sent before A').toEqual([]);
@@ -614,7 +614,7 @@ for (const preset of PRESETS) {
       });
       await settle(page);
       await openComposer(page, CARD);
-      const refused = page.locator(`${composer} .con-composer__branch-reason`);
+      const refused = page.locator(`${composer} .con-composer__branches .con-vchoice__reason`);
       await expect(refused, 'one variant refused').toHaveCount(1);
       expect(await refused.textContent(), 'with its reason').toContain('Нет вашей карты, которая примет мех');
       await pickCard(page, /Выберите карту-источник/, 'self');

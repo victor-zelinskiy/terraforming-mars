@@ -1,0 +1,384 @@
+/* ══ THE VARIANT CHOICE — the ONE grammar of «choose one of these» (TR51, `ConsoleVariantChoice.vue`) ══════════════
+   Every console surface that asks the player to pick one result renders this block — the play composer's «ИЛИ», an
+   action's variants, a nested option list, the Scientists' effect, the honest follow-up. Three facts, three paints,
+   and every one of them `box-shadow` / colour / opacity / transform (the paint baseline strips `filter`):
+     · the CURSOR  — a cold lift: the tile rises a hair and wears a cyan ring. It says «you are here», never «answer»;
+     · the CHOICE  — the SEAL in the corner (absolute, zero layout — choosing re-flows nothing) and a warm mint kant;
+                     the decided group's other options RECEDE (opacity + a hair of scale), never hide;
+     · the RULES   — a faded print, muted words and the reason INSIDE the tile, on a plate of its own.
+   The printed row is the card's own face graphic of that branch (`PremiumMechNode`), on the face's mechanics plate
+   with a steel bezel — the object the player read on the card, now the option itself. «ИЛИ» is a medallion on the
+   seam (the card's printed OR-connector), never a whisper between two tiles. */
+/* «ИЛИ» — ONE medallion for every exclusion on a console surface: the variant grammar's seam, the «Действия карт»
+   pair's joint (one card's two variants), the espionage reward's alternatives. The card face's printed OR-connector in
+   the console's scale — engraved gold kant on a dark disc, the word tracked caps. A host sizes it; the look is this. */
+.con-or-medal() {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.4rem;
+    height: 2.4rem;
+    padding: 0 .5rem;
+    border-radius: 1.2rem;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #efdfbb;
+    background: radial-gradient(circle at 50% 28%, rgba(46, 52, 62, 0.99), rgba(10, 14, 20, 0.99));
+    box-shadow:
+        inset 0 0 0 .06rem rgba(242, 215, 149, 0.52),
+        0 0 0 .14rem rgba(6, 10, 14, 0.92),
+        0 .2rem .55rem rgba(0, 0, 0, 0.5);
+}
+
+.con-vchoice {
+    /* What decides «side by side or a column» is the CLUSTER's own width (the band narrows with the profile, the dock
+       and the nesting depth) — a container query, never a viewport breakpoint. */
+    container-type: inline-size;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: .55rem .35rem;
+    /* The printed row's zoom over the face's own px scale (a 24 px icon on the card → ≈ 41 px here at 1080). */
+    --vchoice-print-zoom: 1.7;
+    --vchoice-ease: @con-ease-standard;
+    --vchoice-ms: 160ms;
+
+    &__opt {
+        position: relative;
+        /* A READING MEASURE, not the content's own width — two options meant to be compared share a line and long
+           words wrap INSIDE the tile (`flex-basis: auto` let one sentence claim the line and stranded «ИЛИ»). */
+        flex: 1 1 17rem;
+        min-width: min(14rem, 100%);
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        padding: .75rem .9rem .8rem;
+        border-radius: .75rem;
+        background: linear-gradient(168deg, rgba(26, 38, 54, 0.96) 0%, rgba(13, 19, 29, 0.97) 100%);
+        box-shadow:
+            inset 0 0 0 .05rem rgba(160, 185, 212, 0.18),
+            inset 0 .06rem 0 rgba(255, 255, 255, 0.05),
+            0 .35rem 1rem rgba(0, 0, 0, 0.36);
+        cursor: pointer;
+        transition:
+            transform calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease),
+            box-shadow calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease),
+            opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease),
+            background calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
+
+        /* THE CURSOR — a cold lift. */
+        &--focused {
+            transform: translateY(-.14rem);
+            background: linear-gradient(168deg, rgba(30, 48, 70, 0.98) 0%, rgba(15, 24, 37, 0.98) 100%);
+            box-shadow:
+                inset 0 0 0 .1rem @con-cyan,
+                0 0 1.1rem fade(@con-cyan, 30%),
+                0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
+        }
+        /* THE CHOICE — a warm kant and the seal; it stays while the cursor walks away. */
+        &--selected {
+            background: linear-gradient(168deg, rgba(24, 58, 50, 0.97) 0%, rgba(12, 24, 28, 0.98) 100%);
+            box-shadow:
+                inset 0 0 0 .1rem fade(@con-mint, 94%),
+                0 0 1rem fade(@con-mint, 24%),
+                0 .35rem 1rem rgba(0, 0, 0, 0.36);
+        }
+        /* BOTH — the answer keeps its kant, the cursor speaks in a separate OUTER ring: two rings, two facts. */
+        &--selected&--focused {
+            box-shadow:
+                inset 0 0 0 .1rem fade(@con-mint, 94%),
+                0 0 0 .14rem @con-cyan,
+                0 0 1.1rem fade(@con-cyan, 28%),
+                0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
+        }
+        /* A decided group's other options step back — legible, reachable, plainly NOT the answer. */
+        &--recede {
+            opacity: .58;
+            transform: scale(.985);
+        }
+        /* THE RULES — a faded print. Opacity on the CHILDREN (the tile stays opaque over the board), never a filter. */
+        &--off {
+            cursor: default;
+            background: linear-gradient(168deg, rgba(18, 22, 30, 0.96) 0%, rgba(11, 14, 20, 0.97) 100%);
+            box-shadow: inset 0 0 0 .05rem rgba(150, 165, 185, 0.14);
+        }
+        &--off&--focused {
+            transform: none;
+            box-shadow: inset 0 0 0 .1rem rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
+        }
+    }
+    &__opt--off &__print { opacity: .34; }
+    &__opt--off &__title { color: fade(@con-text-dim, 70%); }
+    &__opt--off &__body { opacity: .42; }
+
+    /* THE PRINTED ROW — the face's mechanics plate in a steel bezel, the branch's own nodes on it, LARGER than the
+       chips under it (the headline of the option). The face's tokens are restated: a tile is not a card. */
+    &__print {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: .12rem .3rem;
+        min-height: 3.1rem;
+        padding: .45rem .9rem;
+        border-radius: .55rem;
+        background:
+            radial-gradient(120% 90% at 50% -30%, rgba(255, 255, 255, 0.05), transparent 55%),
+            linear-gradient(180deg, rgba(4, 7, 11, 0.62), rgba(2, 4, 7, 0.78));
+        box-shadow:
+            inset 0 0 .7rem rgba(0, 0, 0, 0.55),
+            inset 0 0 0 .05rem rgba(236, 214, 158, 0.16),
+            0 0 0 .07rem rgba(196, 208, 222, 0.32),
+            0 0 0 .14rem rgba(8, 12, 18, 0.9);
+        transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
+        line-height: 1;
+    }
+    /* The face's tokens, restated: a tile is not a card (the asterisk's gold spark reads `--pcard-gold-*`). */
+    &__ink {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 2px 4px;
+        zoom: calc(var(--vchoice-print-zoom) * var(--con-ui-scale, 1));
+        --pcard-mech-icon: 24px;
+        --pcard-mech-font: 15px;
+        --pcard-gold: #d9b878;
+        --pcard-gold-hi: #f2d795;
+        --pcard-gold-deep: #8a6a35;
+        --pcard-ink: #2c1e08;
+        --pcard-text: #e9eef4;
+        --pcard-onplay: #58d6a6;
+        --pcard-onplay-hi: #7ff0c4;
+        --pcard-onplay-deep: #2f7d5c;
+        --pcard-any-rgb: 207, 122, 99;
+    }
+
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+    }
+    &__title {
+        flex: 1;
+        min-width: 0;
+        font-size: .86rem;
+        font-weight: 700;
+        line-height: 1.25;
+        color: @con-text;
+    }
+    /* Under a printed row the words are the caption, not the headline. */
+    &__print + &__head &__title {
+        font-size: .76rem;
+        font-weight: 600;
+        color: fade(@con-text, 78%);
+    }
+    &__dot {
+        flex: 0 0 auto;
+        width: .7rem;
+        height: .7rem;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 .4rem rgba(0, 0, 0, 0.5);
+    }
+    /* A DOOR, not an answer: the option opens a pick of its own. */
+    &__door {
+        flex: 0 0 auto;
+        margin-left: auto;
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: fade(@con-cyan, 75%);
+    }
+    &__body {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .4rem;
+        transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
+    }
+    &__reason {
+        display: inline-flex;
+        align-self: flex-start;
+        align-items: center;
+        gap: .35rem;
+        max-width: 100%;
+        padding: .2rem .6rem .22rem .45rem;
+        border-radius: .45rem;
+        font-size: .74rem;
+        font-weight: 600;
+        line-height: 1.25;
+        color: #ffcabd;
+        background: rgba(64, 24, 22, 0.62);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 140, 120, 0.34);
+    }
+    &__reason-mark { font-weight: 800; color: #ff9f8c; }
+
+    /* THE SEAL — the ONE mark of «this is my answer», on every surface. Absolute, so its slot costs no layout; a
+       one-shot latch (scale + opacity) when the answer is given, reduced motion → at once. */
+    &__seal {
+        position: absolute;
+        top: -.5rem;
+        right: -.5rem;
+        z-index: 2;
+        width: 1.55rem;
+        height: 1.55rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        background: radial-gradient(circle at 34% 30%, #b6f9de 0%, @con-mint 46%, #2a8f69 100%);
+        box-shadow:
+            0 0 0 .12rem rgba(8, 16, 22, 0.96),
+            0 .16rem .5rem rgba(0, 0, 0, 0.55),
+            0 0 .8rem fade(@con-mint, 46%);
+        opacity: 0;
+        transform: scale(.55);
+        transition:
+            opacity calc(170ms * var(--motion-scale, 1)) @con-ease-settle,
+            transform calc(190ms * var(--motion-scale, 1)) @con-ease-settle;
+        &--on {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+    &__seal::after {
+        content: '✓';
+        font-size: .92rem;
+        font-weight: 900;
+        line-height: 1;
+        color: #04281b;
+    }
+
+    /* «ИЛИ» — the exclusion, a medallion on the seam with the printed OR's gold hairline through it. */
+    &__or {
+        position: relative;
+        flex: 0 0 auto;
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 .05rem;
+        &::before {
+            content: '';
+            position: absolute;
+            top: 12%;
+            bottom: 12%;
+            left: 50%;
+            width: .06rem;
+            background: linear-gradient(180deg, transparent, rgba(242, 215, 149, 0.42), transparent);
+        }
+    }
+    &__or-medal {
+        position: relative;
+        z-index: 1;
+        .con-or-medal();
+    }
+
+    /* …and once the cluster is too narrow for two readable options, the pair becomes a COLUMN and «ИЛИ» takes its own
+       line BETWEEN them, its hairline turned across. */
+    @container (max-width: 40rem) {
+        &--compare &__opt { flex-basis: 100%; }
+        &--compare &__or {
+            flex-basis: 100%;
+            &::before {
+                top: 50%;
+                bottom: auto;
+                left: 12%;
+                right: 12%;
+                width: auto;
+                height: .06rem;
+                background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.42), transparent);
+            }
+        }
+    }
+
+    /* THE COLUMN — the compare tiles, always stacked (a host whose cursor walks rows with ↑↓): «ИЛИ» on its own line. */
+    &--column {
+        flex-direction: column;
+        flex-wrap: nowrap;
+    }
+    &--column &__opt { flex: 0 0 auto; min-width: 0; }
+    &--column &__or::before {
+        top: 50%;
+        bottom: auto;
+        left: 12%;
+        right: 12%;
+        width: auto;
+        height: .06rem;
+        background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.42), transparent);
+    }
+
+    /* THE LIST — one row per option (a nested pick: cards, players, an option list). Same chassis, the seal at the
+       row's end. */
+    &--list {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: .4rem;
+    }
+    &--list &__opt {
+        flex: 0 0 auto;
+        min-width: 0;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .45rem .6rem;
+        padding: .6rem 2.6rem .6rem .85rem;
+    }
+    &--list &__seal {
+        top: 50%;
+        right: .6rem;
+        margin-top: -.775rem;
+    }
+    &--list &__head { flex: 1 1 auto; }
+    &--list &__print { min-height: 0; padding: .25rem .6rem; }
+    &--list &__ink { --vchoice-print-zoom: 1.15; }
+
+    @media (prefers-reduced-motion: reduce) {
+        &__opt, &__seal, &__print, &__body { transition: none; }
+    }
+}
+
+/* THE COUCH — the printed row ≥ 1.4 × a chip, the words on the reading ladder. */
+html.con-profile-tv .con-vchoice {
+    --vchoice-print-zoom: 1.45;
+    gap: .7rem .45rem;
+}
+html.con-profile-tv .con-vchoice__title { font-size: var(--con-t-secondary); }
+/* The couch's focus ring is the console-wide token (`--con-focus-ring` / `--con-glow-r` — the shared TV ring list), the
+   lift and the answer's kant keep their own. */
+html.con-profile-tv .con-vchoice__opt--focused {
+    box-shadow:
+        inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%),
+        0 0 var(--con-glow-r) fade(@con-cyan, 32%),
+        0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
+}
+html.con-profile-tv .con-vchoice__opt--selected.con-vchoice__opt--focused {
+    box-shadow:
+        inset 0 0 0 .1rem fade(@con-mint, 94%),
+        0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%),
+        0 0 var(--con-glow-r) fade(@con-cyan, 32%),
+        0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
+}
+html.con-profile-tv .con-vchoice__opt--off.con-vchoice__opt--focused {
+    box-shadow: inset 0 0 0 var(--con-focus-ring) rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
+}
+html.con-profile-tv .con-vchoice__print + .con-vchoice__head .con-vchoice__title { font-size: var(--con-t-caption); }
+html.con-profile-tv .con-vchoice__reason { font-size: var(--con-t-caption); }
+html.con-profile-tv .con-vchoice__or-medal { font-size: var(--con-t-floor); min-width: 2.7rem; height: 2.7rem; border-radius: 1.35rem; }
+html.con-profile-tv .con-vchoice__seal { width: 1.8rem; height: 1.8rem; top: -.6rem; right: -.6rem; }
+html.con-profile-tv .con-vchoice__seal::after { font-size: 1.05rem; }
+
+/* THE HANDHELD — the Deck's 800-tall band holds the same composition: a smaller print, tighter tiles, and the caption
+   under a printed row yields (the print and the option's own chips still say everything). Regression only (PL-105). */
+html.con-profile-handheld .con-vchoice {
+    --vchoice-print-zoom: 1.1;
+    gap: .35rem .3rem;
+}
+html.con-profile-handheld .con-vchoice__opt { padding: .45rem .6rem .5rem; gap: .3rem; }
+html.con-profile-handheld .con-vchoice__print { min-height: 2.1rem; padding: .2rem .6rem; }
+html.con-profile-handheld .con-vchoice__print + .con-vchoice__head { display: none; }
+html.con-profile-handheld .con-vchoice__or-medal { min-width: 1.9rem; height: 1.9rem; border-radius: .95rem; }

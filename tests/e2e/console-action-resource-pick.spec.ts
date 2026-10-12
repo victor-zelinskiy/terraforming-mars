@@ -49,7 +49,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 
 /** The six-option sub-list of the resource step, once it is open. */
 function optionRows(page: Page) {
-  return page.locator('.con-composer__opt');
+  return page.locator('.con-composer__sublist .con-vchoice__opt');
 }
 
 /**
@@ -76,7 +76,7 @@ async function descendToResourceBranch(page: Page): Promise<boolean> {
       continue;
     }
     // Inside the composer: select each branch in turn and look for the step.
-    const branches = page.locator('.con-composer__branch');
+    const branches = page.locator('.con-composer__branches .con-vchoice__opt');
     const branchCount = await branches.count();
     for (let b = 0; b < Math.max(1, branchCount); b++) {
       if (branchCount > 1) {
@@ -150,12 +150,12 @@ for (const profile of PROFILES) {
       //       (icon + current → resulting), never a bare word. ─────────────
       const rows = optionRows(page);
       expect(await rows.count(), 'six standard resources').toBe(6);
-      const withChips = await page.locator('.con-composer__opt .action-effect-chip').count();
+      const withChips = await page.locator('.con-composer__sublist .con-vchoice__opt .action-effect-chip').count();
       expect(withChips, 'every option renders its own ActionEffectChip').toBeGreaterThanOrEqual(6);
-      const chipText = await page.locator('.con-composer__opt').first().innerText();
+      const chipText = await page.locator('.con-composer__sublist .con-vchoice__opt').first().innerText();
       expect(chipText, `the first option must state a before→after: «${chipText}»`).toMatch(/\d+\s*→\s*\d+/);
       // The icon is a real sprite, not a text fallback.
-      expect(await page.locator('.con-composer__opt .action-effect-chip__icon').count())
+      expect(await page.locator('.con-composer__sublist .con-vchoice__opt .action-effect-chip__icon').count())
         .toBeGreaterThanOrEqual(6);
 
       // ── The breadcrumb never left the workspace while the step is open. ──

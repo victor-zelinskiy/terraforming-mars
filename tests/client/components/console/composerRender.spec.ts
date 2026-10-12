@@ -61,18 +61,18 @@ describe('ConsoleActionComposer — premium render', () => {
       ],
     });
     // Two premium branch option cards (the radiogroup) — not a "choose option" row.
-    expect(w.findAll('.con-composer__branch')).to.have.length(2);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt')).to.have.length(2);
     // Each branch renders its RESULT chip; the 4 M€ every variant shares is the action's price, printed ONCE in
     // the formula's «Будет списано» (PL-074) — never on each card.
-    expect(w.findAll('.con-composer__branch .action-effect-chip')).to.have.length(2);
-    expect(w.findAll('.con-composer__branch .action-effect-chip--cost')).to.have.length(0);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt .action-effect-chip')).to.have.length(2);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt .action-effect-chip--cost')).to.have.length(0);
     expect(w.findAll('.con-composer__hero .action-effect-chip--cost')).to.have.length(1);
     // NONE fall back to a bare title (all have chips).
-    expect(w.findAll('.con-composer__branch-title')).to.have.length(0);
+    expect(w.findAll('.con-composer__branches .con-vchoice__title')).to.have.length(0);
     // The old "ACTION OPTION → выберите вариант" review row is gone.
     expect(w.findAll('.con-composer__row')).to.have.length(0);
     // Resource icons render on the chips (premium, not text).
-    expect(w.findAll('.con-composer__branch .action-effect-chip__icon').length).to.be.greaterThan(0);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt .action-effect-chip__icon').length).to.be.greaterThan(0);
     w.unmount();
   });
 
@@ -84,10 +84,10 @@ describe('ConsoleActionComposer — premium render', () => {
         {index: -1, title: 'steel', available: false, unavailableReason: 'Not enough steel', renderKeys: [], effects: [{direction: 'cost', icon: 'steel', amount: 1, current: 0, resulting: 0}, {direction: 'gain', icon: 'megacredits', amount: 7, current: 0, resulting: 7}], steps: []},
       ],
     }, 'Electro Catapult');
-    expect(w.findAll('.con-composer__branch')).to.have.length(2);
-    const disabled = w.find('.con-composer__branch--disabled');
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt')).to.have.length(2);
+    const disabled = w.find('.con-composer__branches .con-vchoice__opt--off');
     expect(disabled.exists()).to.eq(true);
-    expect(disabled.find('.con-composer__branch-reason').text()).to.contain('steel');
+    expect(disabled.find('.con-vchoice__reason').text()).to.contain('steel');
     w.unmount();
   });
 
@@ -101,7 +101,7 @@ describe('ConsoleActionComposer — premium render', () => {
       }],
     }, 'Hi-Tech Lab');
     // No branch radiogroup for a single-branch card.
-    expect(w.findAll('.con-composer__branch')).to.have.length(0);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt')).to.have.length(0);
     // The hero formula is shown.
     expect(w.find('.con-composer__hero').exists()).to.eq(true);
     // An inline amount stepper, seeded at min (1).
@@ -152,7 +152,7 @@ describe('ConsoleActionComposer — premium render', () => {
       card: 'X', isCorporation: false, kind: 'dynamic',
       branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
     }, 'X');
-    expect(w.findAll('.con-composer__branch')).to.have.length(0);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt')).to.have.length(0);
     expect(w.find('.con-composer__hero--plain').exists()).to.eq(true);
     w.unmount();
   });
@@ -421,8 +421,8 @@ describe('ConsoleActionComposer — premium render', () => {
     await w.vm.$nextTick();
     const vm = w.vm as any;
     // Both of this row's options are shown with their reason (never hidden)…
-    expect(w.findAll('.con-composer__branch')).to.have.length(2);
-    expect(w.findAll('.con-composer__branch--disabled')).to.have.length(2);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt')).to.have.length(2);
+    expect(w.findAll('.con-composer__branches .con-vchoice__opt--off')).to.have.length(2);
     // …and the gate says the action itself cannot be performed — so the hint is
     // the REASON, not an instruction the player cannot follow.
     expect(vm.commitGate.kind).to.eq('blocked');

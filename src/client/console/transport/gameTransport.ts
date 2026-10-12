@@ -72,7 +72,7 @@ import {
 } from '@/client/components/board/cubeDropState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
-import {checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
+import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
 import {
   detectEnergyConversion,
   endEnergyConversion,
@@ -1405,8 +1405,10 @@ function applyPlayerView(playerView: PlayerViewModel | undefined): void {
   // still changes (watcher-identical to a wholesale swap).
   if (playerView !== undefined) {
     playerView = nextViewSnapshot(r.playerView as PlayerViewModel, playerView);
-    // A question the last batch already answered must never stand again (the pre-select law's witness).
+    // A question the last batch already answered must never stand again (the pre-select law's witness) — and a
+    // choice the commit should have collected must never be asked after it («strictly pre-select», TR51).
     checkPreselectReask(playerView.waitingFor);
+    checkPostCommitChoice(playerView.waitingFor);
   }
   // The card-pick preserve guards: they gate the playerkey RESET EPOCH
   // (transient console/App state), not a remount.

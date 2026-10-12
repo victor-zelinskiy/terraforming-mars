@@ -1,5 +1,5 @@
-import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
-import {EffectForecast, EffectForecastFact} from '../../common/models/EffectForecastModel';
+import {ActionEffect, ActionPreview, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
+import {EffectForecast, EffectForecastFact, HIDDEN_DRAW_NOTE} from '../../common/models/EffectForecastModel';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {CardName} from '../../common/cards/CardName';
 import {IPlayer} from '../IPlayer';
@@ -19,18 +19,22 @@ import {effectForecastForPlay} from './effectForecast';
  *
  * Now a reacting card hands its `asks` fact the SAME prompt its live hook defers (`EffectForecastFact.preselect`,
  * built by one builder in the card file through `forecast.tableQuestion`), and this pass gives the play's preview
- * those questions as ordinary STEPS — after the card's own, on every branch — so the composer collects them with the
- * card's own choices and the batch posts them in the play's ONE POST. Their order in the batch is not the live
+ * those questions as ordinary card-level PRE-STEPS — branch-independent: the table answers the PLAY whichever variant
+ * the player picks, so its answers are collected once and survive a change of variant — and the batch posts them in
+ * the play's ONE POST. Their order in the batch is not the live
  * queue's (Olympus asks ahead of the card's own choice, Mars University between the choice and its target) and need
  * not be: the replay lands an answer on the prompt ADDRESSED to it (`deferredInputBatch` — the addressee steps
  * forward).
  *
  * ONE honesty rule lives here, because it needs the whole play: a question that picks a card FROM THE HAND is not
- * pre-selectable when something in the same play may DRAW a card before it — the card's own draw, or an earlier
- * reaction's draw option (Olympus's «remove to draw», a first Mars University): the card the player might discard
- * does not exist yet. Such a fact keeps no step and says so in its note — an honest follow-up, named.
+ * pre-selectable when something in the same play DRAWS a card before it — the card the player might discard does not
+ * exist yet. A draw nobody chooses (the card's own, an exact reaction, a question that is itself a follow-up) makes it
+ * an honest follow-up at once: no step, and its note says why. A draw that is an OPTION of an earlier question the
+ * composer collects (Olympus's «remove to draw», a first Mars University's own discard-and-draw) depends on the
+ * player's answer above it: the step stays, gated by those questions (`reaction.afterDraw`) — the composer hands it on
+ * as a follow-up exactly when an answer above it draws.
  */
-export const HIDDEN_DRAW_NOTE = 'Asked after this play: a card it draws may be the one to discard';
+export {HIDDEN_DRAW_NOTE};
 
 const drawsCards = (effects: ReadonlyArray<ActionEffect> | undefined): boolean =>
   (effects ?? []).some((e) => e.direction === 'gain' && e.icon === 'cards');
@@ -81,29 +85,39 @@ export function withTableQuestions(preview: ActionPreview, forecast: EffectForec
     return {preview, forecast};
   }
   const draws = playDraws(preview);
-  const verdicts: Array<EffectForecastFact> = facts.map((fact) => {
+  // Verdicts in order: a question's verdict may read an earlier one's (is that drawer a step, or a follow-up itself?).
+  const verdicts: Array<EffectForecastFact> = [];
+  const gates = new Map<string, Array<string>>();
+  facts.forEach((fact, at) => {
     const step = fact.preselect;
     if (step === undefined || step.kind !== 'input' || !inputPicksFromHand(step.input)) {
-      return fact;
+      verdicts.push(fact);
+      return;
     }
-    const hidden = draws || facts.some((other) => other !== fact && factDraws(other) && before(other, fact) &&
+    const drawers = verdicts.filter((other, k) => factDraws(other) && before(other, fact) &&
       // a reaction listed AFTER this one with the same priority is behind it in the queue
-      !(other.sequence !== undefined && other.sequence === fact.sequence && facts.indexOf(other) > facts.indexOf(fact)));
-    if (!hidden) {
-      return fact;
+      !(other.sequence !== undefined && other.sequence === fact.sequence && k > at));
+    if (draws || drawers.some((other) => other.preselect === undefined)) {
+      const honest: EffectForecastFact = {...fact, note: HIDDEN_DRAW_NOTE};
+      delete honest.preselect;
+      verdicts.push(honest);
+      return;
     }
-    const honest: EffectForecastFact = {...fact, note: HIDDEN_DRAW_NOTE};
-    delete honest.preselect;
-    return honest;
+    if (drawers.length > 0) {
+      gates.set(fact.id, drawers.map((d) => d.id));
+    }
+    verdicts.push(fact);
   });
   const steps: Array<ActionPreviewStep> = [];
   for (const fact of verdicts) {
     if (fact.preselect !== undefined) {
-      steps.push(fact.preselect.kind === 'input' ? {...fact.preselect, reaction: {card: fact.source.name as CardName, fact: fact.id}} : fact.preselect);
+      const afterDraw = gates.get(fact.id);
+      steps.push(fact.preselect.kind === 'input' ?
+        {...fact.preselect, reaction: {card: fact.source.name as CardName, fact: fact.id, ...(afterDraw !== undefined ? {afterDraw} : {})}} :
+        fact.preselect);
     }
   }
-  const branches: Array<ActionPreviewBranch> = preview.branches.map((b) => ({...b, steps: [...b.steps, ...steps]}));
-  return {preview: {...preview, branches}, forecast: {...forecast, facts: verdicts}};
+  return {preview: {...preview, preSteps: [...(preview.preSteps ?? []), ...steps]}, forecast: {...forecast, facts: verdicts}};
 }
 
 /**

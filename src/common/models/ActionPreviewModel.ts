@@ -472,8 +472,11 @@ export type ActionPreviewStep =
      * A QUESTION OF THE TABLE, not of the card (TR51 — `models/tableQuestions.ts`): a reaction the play wakes asks it
      * (Olympus Conference, Mars University, Pharmacy Union, …) and the composer collects its answer before the press.
      * `card` is the reacting card (the row's «Сработает · <карта>»), `fact` the forecast fact that names it.
+     * `afterDraw` — the facts of EARLIER table questions whose answer may DRAW a card before this one (a discard from
+     * the hand behind Olympus' «remove to draw»): when the answer collected for one of them draws, this question's
+     * candidates are hidden at the press and the composer hands it on as a named follow-up.
      */
-    reaction?: {card: CardName, fact: string},
+    reaction?: {card: CardName, fact: string, afterDraw?: ReadonlyArray<string>},
   }
   /** A "spend N heat" payment hosted INLINE by the premium SpendHeatContent
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source

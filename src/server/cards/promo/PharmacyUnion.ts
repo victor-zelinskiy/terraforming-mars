@@ -15,7 +15,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {Resource} from '../../../common/Resource';
 import {all, digit} from '../Options';
 import {SerializedCard} from '../../SerializedCard';
-import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {DEPENDS_ON_ANSWER_NOTE, EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
 
@@ -201,7 +201,7 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
             forecast.tagReason(Tag.SCIENCE),
             {
               id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER,
-              ...(preselected ? {note: 'Asked after this play: it depends on the answer above'} : {preselect: forecast.tableQuestion(this, cardOwner, this.scienceQuestion(cardOwner))}),
+              ...(preselected ? {note: DEPENDS_ON_ANSWER_NOTE} : {preselect: forecast.tableQuestion(this, cardOwner, this.scienceQuestion(cardOwner))}),
             }));
           preselected = true;
         }

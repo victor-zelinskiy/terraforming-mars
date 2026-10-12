@@ -166,8 +166,8 @@ async function megaCreditsOf(request: APIRequestContext, playerId: string): Prom
 
 /** The index of the FOCUSED option card in the «ИЛИ» group (−1 = none). */
 async function focusedVariant(page: Page): Promise<number> {
-  return page.locator('.con-composer--play .con-composer__variant').evaluateAll((els) =>
-    els.findIndex((e) => e.classList.contains('con-composer__variant--focused')));
+  return page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').evaluateAll((els) =>
+    els.findIndex((e) => e.classList.contains('con-vchoice__opt--focused')));
 }
 
 /** The FREE payment composition: the head, «БЕСПЛАТНО», and nothing below. */
@@ -238,8 +238,11 @@ for (const preset of PRESETS) {
       await expect(head.locator('.con-pay__price-value')).toHaveText('6');
       await expect(head.locator('[data-pay-saved]')).toHaveText('−2');
       const headBox = await head.boundingBox();
-      // The row is NOT a focus stop — the cursor stands on the commit rail.
-      await expect(page.locator('.con-composer__cta--focused')).toHaveCount(1);
+      // The row is NOT a focus stop — and since TR51 («strictly pre-select») Olympus' QUESTION is a row of the composer,
+      // answered before the press: the cursor opens on it («⚡ Сработает · Конференция на Олимпе · ваш выбор»), never on
+      // the commit rail while a question stands unanswered.
+      await expect(page.locator('.con-composer__row--reaction.con-composer__row--focused[data-reaction-card="Olympus Conference"]')).toHaveCount(1);
+      await expect(page.locator('.con-composer__cta--focused')).toHaveCount(0);
       await expectFits(page, '.con-composer--play .con-scroll-area__viewport', 'the work column (science play)');
       await shoot(page, preset, '1-row-and-discount');
 
@@ -279,11 +282,11 @@ for (const preset of PRESETS) {
             }
           }
           if (card === OR_CARD) {
-            await expect(page.locator('.con-composer__variant [data-forecast-vfx]'), 'both options carry their «сработает» note').toHaveCount(2);
+            await expect(page.locator('.con-composer__variants .con-vchoice__opt [data-forecast-vfx]'), 'both options carry their «сработает» note').toHaveCount(2);
             if (preset.id === 'tv-4k') {
               // The note stands on the option's OWN chip line — the card grew no taller for it.
               for (const i of [0, 1]) {
-                const variant = page.locator('.con-composer--play .con-composer__variant').nth(i);
+                const variant = page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(i);
                 const lines = await variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) => {
                   const tops = els.map((e) => Math.round(e.getBoundingClientRect().top));
                   return new Set(tops).size;
@@ -329,14 +332,23 @@ for (const preset of PRESETS) {
       await press(page, 'KeyV', 900);
       await expect(layer(page)).toHaveCount(0, {timeout: 10_000});
       await expect(crumbStage(page)).not.toContainText(/эффекты/i);
-      // Untouched underneath: the discount tail and the commit cursor.
+      // Untouched underneath: the discount tail and the cursor (on Olympus' unanswered question — TR51).
       await expect(head.locator('[data-pay-base]')).toHaveText('8');
-      await expect(page.locator('.con-composer__cta--focused')).toHaveCount(1);
+      await expect(page.locator('.con-composer__row--reaction.con-composer__row--focused')).toHaveCount(1);
       const headBoxAfter = await head.boundingBox();
       expect(headBoxAfter?.height, 'the payment head kept its height through the layer').toBe(headBox?.height);
 
       // ── 4. A → THE PLAY, then the SERVER's own truth: the graphene landed. ──
       expect(await grapheneOnCarbonNanosystems(request, playerId)).toBe(0);
+      // Olympus' question first — answered IN the composer (TR51): A opens its options, A takes the focused one, the
+      // cursor then reaches the commit rail and A plays. Nothing of the table is asked after the press.
+      await press(page, 'Enter', 900);
+      await expect(page.locator('.con-composer__sublist .con-vchoice__opt'), 'Olympus\' two options').toHaveCount(2);
+      await press(page, 'Enter', 900);
+      for (let i = 0; i < 6 && await page.locator('.con-composer__cta--focused').count() === 0; i++) {
+        await press(page, 'ArrowDown', 400);
+      }
+      await expect(page.locator('.con-composer__cta--focused')).toHaveCount(1);
       await press(page, 'Enter', 1500);
       await finishPlay(page);
       expect(await grapheneOnCarbonNanosystems(request, playerId), 'Carbon Nanosystems gained its graphene').toBe(1);
@@ -377,14 +389,14 @@ for (const preset of PRESETS) {
       // ── 6. THE «ИЛИ» PLAY: Manutech's reactions ride INSIDE the option
       // cards («↳»), never the row; the layer's «Зависит от вашего выбора». ──
       await openPlayComposer(page, OR_CARD);
-      await expect(page.locator('.con-composer__variant [data-forecast-vchip]'), 'each branch carries its reaction').toHaveCount(2);
+      await expect(page.locator('.con-composer__variants .con-vchoice__opt [data-forecast-vchip]'), 'each branch carries its reaction').toHaveCount(2);
       // …in the zone's own language: the bolt + «сработает», on the option's
       // own chip line (the card grew no taller for it).
-      const notes = page.locator('.con-composer__variant [data-forecast-vfx]');
+      const notes = page.locator('.con-composer__variants .con-vchoice__opt [data-forecast-vfx]');
       await expect(notes).toHaveCount(2);
       await expect(notes.first().locator('.con-forecast__vfx-label')).toHaveText(/сработает/i);
       for (const i of [0, 1]) {
-        const variant = page.locator('.con-composer--play .con-composer__variant').nth(i);
+        const variant = page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(i);
         const lines = await variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) =>
           new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
         expect(lines, `option ${i + 1}: its chips and its «сработает» note share one line`).toBe(1);
@@ -404,9 +416,9 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-cmdbar')).toContainText(/вариант/i);
       await press(page, 'ArrowRight', 500);
       expect(await focusedVariant(page), '→ switches to the second option').toBe(1);
-      await expect(page.locator('.con-composer__variant--selected'), 'moving the cursor selects nothing').toHaveCount(0);
+      await expect(page.locator('.con-vchoice__opt--selected'), 'moving the cursor selects nothing').toHaveCount(0);
       await press(page, 'Enter', 700);
-      await expect(page.locator('.con-composer--play .con-composer__variant').nth(1)).toHaveClass(/con-composer__variant--selected/);
+      await expect(page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(1)).toHaveClass(/con-vchoice__opt--selected/);
       expect(await focusedVariant(page), 'A selects and does not move the cursor').toBe(1);
       await press(page, 'ArrowDown', 500);
       await expect(page.locator('.con-composer__cta--focused'), '↓ leaves the group for the commit rail').toHaveCount(1);
@@ -527,6 +539,7 @@ test.describe('effect forecast · reduced motion', () => {
     await press(page, 'Escape', 700);
     await expect(layer(page), 'B at the browse level closes the layer').toHaveCount(0, {timeout: 10_000});
     await expect(composer(page), 'the composer is back and live').toHaveCount(1);
-    await expect(page.locator('.con-composer__cta--focused')).toHaveCount(1);
+    // …with the cursor where it was: on Olympus' question, still unanswered (TR51 — the table's questions are rows).
+    await expect(page.locator('.con-composer__row--reaction.con-composer__row--focused')).toHaveCount(1);
   });
 });

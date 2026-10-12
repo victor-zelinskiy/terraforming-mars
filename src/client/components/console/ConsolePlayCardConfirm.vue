@@ -119,46 +119,28 @@
                  chips / nested-input target / tabbed target). ─────────── -->
             <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed')">
               <div class="con-composer__sub-title" data-unfold-item>{{ subTitle }}</div>
-              <div v-for="(item, i) in listItems" :key="item.key"
-                   class="con-composer__opt"
-                   :class="{
-                     'con-composer__opt--focused': sub.index === i,
-                     'con-composer__opt--disabled': item.disabled,
-                     'con-composer__opt--chosen': item.chosen,
-                   }"
-                   :ref="sub.index === i ? 'focusedEl' : undefined">
-                <span v-if="item.tab !== undefined" class="con-composer__opt-tab" :class="'con-composer__opt-tab--' + item.tab">{{ $t(item.tab === 'animal' ? 'Animals' : 'Plants') }}</span>
-                <span v-if="item.color !== undefined" class="con-composer__opt-dot" :class="'player_bg_color_' + item.color" aria-hidden="true"></span>
-                <span class="con-composer__opt-name">{{ item.label
-                  }}<!-- WHOSE card this is. A player row IS its owner; a CARD row
-                       names a card, so without this the animal targets of an
-                       attack said nothing about the victim while every plant row
-                       beside them did. Attached to the name (not a column of its
-                       own), because it is an attribute of that name. -->
-                  <span v-if="item.owner !== undefined" class="con-composer__opt-owner">{{ item.owner }}</span>
-                </span>
-                <span v-if="item.orItem !== undefined && item.orItem.nested !== undefined" class="con-composer__opt-chevron" aria-hidden="true">›</span>
-                <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
-                <span v-if="item.impact" class="con-composer__opt-impact">
-                  <i v-if="item.impactIcon" class="con-composer__opt-impact-icon" :class="iconClass(item.impactIcon)" aria-hidden="true"></i>{{ item.impact }}
-                </span>
-                <span v-if="item.meta !== ''" class="con-composer__opt-meta">{{ item.meta }}</span>
-                <!-- The engine's own caution, in words: «это ваши растения». It
-                     reads on the row itself, before any press — a warning that
-                     only appears after committing is a receipt, not a warning. -->
-                <span v-for="(w, k) in (item.warnings ?? [])" :key="'wn' + k" class="con-composer__opt-warn">⚠ {{ $t(w) }}</span>
-                <!-- «Это вы» on a PLAYER row. Same voice as the card version and
-                     the same rule: only when it costs you and somebody else was
-                     selectable — a forced self-hit is not a mistake to prevent. -->
-                <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
-                <!-- …and the same caution on a CARD row the viewer owns. Virus
-                     removes «from any player», so the target list mixes an
-                     opponent's card with one of your own — the row that reads
-                     most like a clean attack is the one that costs you. -->
-                <span v-if="item.selfCard" class="con-composer__opt-warn">⚠ {{ $t('This is your card') }}</span>
-                <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
-                <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
-              </div>
+              <!-- THE PICK LIST — the variant grammar's LIST layout (`ConsoleVariantChoice`, TR51): the cursor a cold lift,
+                   the answer the ONE seal, a refused row its reason on its own plate; a door (a nested pick) its ›. -->
+              <ConsoleVariantChoice class="con-composer__sublist" layout="list" :exclusive="false"
+                                    :options="listOptions" :label="subTitle">
+                <template #body="{index}">
+                  <template v-for="item in [listItems[index]]" :key="item.key">
+                    <span v-if="item.tab !== undefined" class="con-composer__opt-tab" :class="'con-composer__opt-tab--' + item.tab">{{ $t(item.tab === 'animal' ? 'Animals' : 'Plants') }}</span>
+                    <!-- WHOSE card this is — an attribute of the name, a quiet apposition. -->
+                    <span v-if="item.owner !== undefined" class="con-composer__opt-owner">{{ item.owner }}</span>
+                    <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
+                    <span v-if="item.impact" class="con-composer__opt-impact">
+                      <i v-if="item.impactIcon" class="con-composer__opt-impact-icon" :class="iconClass(item.impactIcon)" aria-hidden="true"></i>{{ item.impact }}
+                    </span>
+                    <span v-if="item.meta !== ''" class="con-composer__opt-meta">{{ item.meta }}</span>
+                    <!-- The engine's own caution, in words — on the row itself, before any press. -->
+                    <span v-for="(w, k) in (item.warnings ?? [])" :key="'wn' + k" class="con-composer__opt-warn">⚠ {{ $t(w) }}</span>
+                    <!-- «Это вы» on a PLAYER row; the same caution on a CARD row the viewer owns (Virus). -->
+                    <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
+                    <span v-if="item.selfCard" class="con-composer__opt-warn">⚠ {{ $t('This is your card') }}</span>
+                  </template>
+                </template>
+              </ConsoleVariantChoice>
             </template>
 
             <!-- ── REVIEW (and the EXPANDED payment editor, which is the SAME
@@ -194,50 +176,25 @@
               <!-- PL-196: the shared keys' «why» stands right under them — read off the SHARED chips, so it is there before
                    the choice and never re-flows the «ИЛИ» row when an option is chosen. -->
               <ConsoleCountedWhy v-if="hasVariants && countWhy !== undefined" class="con-composer__countwhy" :why="countWhy" />
-              <div v-if="hasVariants" ref="variantsEl" class="con-composer__variants" role="radiogroup" :aria-label="$t(resultHeading)" :data-variant-axis="variantAxis">
-                <template v-for="(row, k) in variantRows" :key="row.id">
-                  <!-- The exclusion, said once between the options: two results
-                       that both look possible are otherwise indistinguishable
-                       from two results that both happen. -->
-                  <div v-if="k > 0" class="con-composer__variants-or" aria-hidden="true">{{ $t('or') }}</div>
-                  <div class="con-composer__variant"
-                       :class="{
-                         'con-composer__variant--focused': focusIdx === row.i,
-                         'con-composer__variant--selected': selectedPos === row.pos,
-                         'con-composer__variant--off': !branches[row.pos].available,
-                       }"
-                       role="radio"
-                       :aria-checked="selectedPos === row.pos"
-                       :aria-disabled="!branches[row.pos].available"
-                       :ref="focusIdx === row.i ? 'focusedEl' : undefined"
-                       @click="clickVariant(row)">
-                    <div class="con-composer__variant-head">
-                      <span class="con-composer__variant-title">{{ branchTitle(branches[row.pos]) }}</span>
-                      <!-- The ✓ slot is RESERVED (visibility, not v-if): choosing
-                           must not re-wrap the title it sits beside. -->
-                      <span class="con-composer__variant-check"
-                            :class="{'con-composer__variant-check--on': selectedPos === row.pos}"
-                            aria-hidden="true">✓</span>
-                    </div>
-                    <div class="con-composer__variant-chips">
-                      <ActionEffectChip v-for="(eff, k2) in variantOwnEffects(row.pos)" :key="k2" :effect="eff" />
-                      <!-- «⚡ сработает» — the reactions tied to THIS branch (the
-                           forecast's `byBranch`): what the TABLE adds if the player
-                           picks this option, on the SAME line as the option's own
-                           chips past a thin seam, in the «Сработает» zone's own
-                           language. Never repeated in the row below. -->
-                      <ConsoleForecastReactions :reaction="variantReactions(row.pos)" />
-                    </div>
-                    <!-- ONE LOSS, ONE VOICE (PL-171): when the play is the optional choice's GENERAL branch, the
-                         strip below names every option's loss with its magnitude in the server's words — a second
-                         reason here, in the reason engine's vocabulary, read the same loss twice. The tile stays
-                         greyed; where no strip speaks (one option live) its reason is the only one and stays. -->
-                    <div v-if="!branches[row.pos].available && !variantLossesInStrip" class="con-composer__variant-reason">
-                      ✕ {{ branchReasonText(branches[row.pos]) }}
-                    </div>
+              <!-- THE ИЛИ CHOICE — the ONE variant grammar (`ConsoleVariantChoice`, TR51): each option leads with the card's
+                   OWN printed row of that branch, then its own chips and the table's answer to it; the seal marks the
+                   answer, the cursor is a cold lift, a refused option is a faded print with its reason. -->
+              <ConsoleVariantChoice v-if="hasVariants"
+                                    ref="variantsEl"
+                                    class="con-composer__variants"
+                                    :data-variant-axis="variantAxis"
+                                    :options="variantOptions"
+                                    :label="$t(resultHeading)"
+                                    @pick="clickVariantAt($event)">
+                <template #body="{index}">
+                  <div class="con-composer__variant-chips">
+                    <ActionEffectChip v-for="(eff, k2) in variantOwnEffects(variantRows[index].pos)" :key="k2" :effect="eff" />
+                    <!-- «⚡ сработает» — the reactions tied to THIS branch (the forecast's `byBranch`): what the TABLE adds if
+                         the player picks this option, on the option's own chip line past a thin seam. -->
+                    <ConsoleForecastReactions :reaction="variantReactions(variantRows[index].pos)" />
                   </div>
                 </template>
-              </div>
+              </ConsoleVariantChoice>
               <div v-else-if="immediateEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips">
                 <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
               </div>
@@ -353,7 +310,9 @@
               <div v-if="decisionRows.length > 0" class="con-composer__sub-title con-composer__sub-title--spaced" data-unfold-item>{{ $t('Choose before playing') }}</div>
               <div v-for="row in decisionRows" :key="row.id"
                    class="con-composer__row" data-unfold-item
-                   :class="{'con-composer__row--focused': focusIdx === row.i, 'con-composer__row--missing': rowMissing(row)}"
+                   :class="{'con-composer__row--focused': focusIdx === row.i, 'con-composer__row--missing': rowMissing(row),
+                            'con-composer__row--reaction': row.kind === 'step' && row.choice.reaction !== undefined}"
+                   :data-reaction-card="row.kind === 'step' ? row.choice.reaction?.card : undefined"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
                 <!-- A tabbedTargets row (Virus) — the chosen target or a prompt. -->
                 <template v-if="row.kind === 'tabbed'">
@@ -657,12 +616,17 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import {optionDraws, printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
+import {AddressableInput, roleOf} from '@/common/inputs/preselectAddress';
+import type {ItemType} from '@/common/cards/render/Types';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
-import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
+import {EffectForecast, forecastSourceIsCardless, HIDDEN_DRAW_NOTE} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {
   DiscountTail, ForecastBranchInfo, VariantReaction,
@@ -910,7 +874,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
+  components: {Card, ConsoleScrollArea, ConsoleVariantChoice, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1623,7 +1587,12 @@ export default defineComponent({
       if (this.repeatChoice !== undefined) {
         out.push({i: 0, id: 'repeat', kind: 'repeat', choice: this.repeatChoice});
       }
-      for (const c of this.stepChoices) {
+      // The card's own questions first, then the TABLE's (TR51 — «Сработает · <карта> · ваш выбор»): the table answers
+      // the play the card makes, so it reads after it.
+      for (const c of this.stepChoices.filter((x) => x.reaction === undefined)) {
+        out.push({i: 0, id: 'step#' + c.id, kind: 'step', choice: c});
+      }
+      for (const c of this.stepChoices.filter((x) => x.reaction !== undefined)) {
         out.push({i: 0, id: 'step#' + c.id, kind: 'step', choice: c});
       }
       for (const t of this.tabbedSteps) {
@@ -1690,6 +1659,38 @@ export default defineComponent({
     },
     variantRows(): ReadonlyArray<PlayRow & {kind: 'variant'}> {
       return this.rows.filter((r): r is PlayRow & {kind: 'variant'} => r.kind === 'variant');
+    },
+    /** The card's PRINTED row of each variant, in the printed order — the face's own nodes (`printedVariantRows`). */
+    variantPrinted(): ReadonlyArray<ReadonlyArray<ItemType>> | undefined {
+      return printedVariantRows(getCard(this.cardName)?.metadata.renderData, this.variantRows.length);
+    },
+    /** The pick list in the variant grammar — one option per row of `listItems`. */
+    listOptions(): ReadonlyArray<VariantChoiceOption> {
+      const sub = this.sub;
+      const at = sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed') ? sub.index : undefined;
+      return this.listItems.map((item, i): VariantChoiceOption => ({
+        key: item.key,
+        state: {focused: at === i, selected: item.chosen === true, off: item.disabled === true},
+        title: item.label,
+        reason: item.disabled && item.reason !== '' ? item.reason : undefined,
+        door: item.orItem?.nested !== undefined,
+        color: item.color,
+      }));
+    },
+    /** The variant grammar's options — the three facts per option (cursor · answer · rules), the words, the print. */
+    variantOptions(): ReadonlyArray<VariantChoiceOption> {
+      const printed = this.variantPrinted;
+      return this.variantRows.map((row, k): VariantChoiceOption => {
+        const branch = this.branches[row.pos];
+        return {
+          key: row.id,
+          state: {focused: this.focusIdx === row.i, selected: this.selectedPos === row.pos, off: !branch.available},
+          title: this.branchTitle(branch),
+          // ONE LOSS, ONE VOICE (PL-171): with the strip naming every option's loss, the tile carries no second reason.
+          reason: !branch.available && !this.variantLossesInStrip ? this.branchReasonText(branch) : undefined,
+          printed: printed?.[k],
+        };
+      });
     },
     /** The pre-collectable decision rows (repeat slot + step picks + tabbed-target picks). */
     decisionRows(): ReadonlyArray<PlayRow & {kind: 'step' | 'tabbed' | 'repeat'}> {
@@ -1860,6 +1861,11 @@ export default defineComponent({
         // A collapsed merge slot is HOSTED by the first slot's multi pick —
         // never a bogus "after confirming" note.
         if (this.isCollapsedMergeStep(c)) {
+          continue;
+        }
+        // A table question handed on by a draw above it says WHY, in its asker's name.
+        if (c.reaction !== undefined) {
+          out.push(noteRow(`${translateCardName(c.reaction.card)}: ${translateText(HIDDEN_DRAW_NOTE)}`));
           continue;
         }
         const t = textOf(c.input.title);
@@ -2352,14 +2358,20 @@ export default defineComponent({
      * breakpoint — the cluster's width depends on the profile, the hand dock
      * and the nesting depth, which no JS constant knows.
      */
+    /** The radiogroup's root element (the ref is a component). */
+    variantsRoot(): HTMLElement | undefined {
+      const ref = this.$refs.variantsEl as {$el?: unknown} | HTMLElement | undefined | null;
+      const el = ref instanceof HTMLElement ? ref : (ref as {$el?: unknown} | undefined | null)?.$el;
+      return el instanceof HTMLElement ? el : undefined;
+    },
     measureVariantAxis(): void {
-      const el = this.$refs.variantsEl as HTMLElement | undefined | null;
+      const el = this.variantsRoot();
       if (el === undefined || el === null) {
         this.variantAxis = 'row';
         return;
       }
       const tops = new Set<number>();
-      for (const card of Array.from(el.querySelectorAll<HTMLElement>('.con-composer__variant'))) {
+      for (const card of Array.from(el.querySelectorAll<HTMLElement>('.con-vchoice__opt'))) {
         tops.add(Math.round(card.offsetTop));
       }
       this.variantAxis = tops.size <= 1 ? 'row' : 'column';
@@ -2370,7 +2382,7 @@ export default defineComponent({
     armVariantObserver(): void {
       this.stopVariantObs?.();
       this.stopVariantObs = undefined;
-      const el = this.$refs.variantsEl as HTMLElement | undefined | null;
+      const el = this.variantsRoot();
       if (el === undefined || el === null) {
         this.variantAxis = 'row';
         return;
@@ -2837,6 +2849,11 @@ export default defineComponent({
     },
     // ── pick rows ───────────────────────────────────────────────────────
     choiceTitle(c: ComposerChoice): string {
+      // A QUESTION OF THE TABLE (TR51): the row names its asker — «Сработает · <карта> · ваш выбор» — never the
+      // prompt's own title («Select an option for Olympus Conference»), which reads as one more step of THIS card.
+      if (c.reaction !== undefined) {
+        return `${translateText('Will trigger')} · ${translateCardName(c.reaction.card)} · ${translateText('your choice')}`;
+      }
       // A MERGED pick (Astra) is ONE multi-select here — its per-slot titles
       // («Выберите ПЕРВОЕ событие…») would promise a sequence the console
       // never shows. The branch's own merged prompt is the honest ask.
@@ -3209,6 +3226,31 @@ export default defineComponent({
      * never plays, so a double click cannot commit), and the cursor follows the
      * pointer so the pad picks up where the mouse left off.
      */
+    /**
+     * «STRICTLY PRE-SELECT» — the commit's witness (TR51, `preselectWitness.armPostCommitWitness`): after the press no
+     * choice of this card or of a table card that asks (the forecast's `asks`) may be raised unless this composer
+     * HANDED IT ON with its reason — a forecast question with no pre-select (its note says why), a choice the play
+     * composer routes on as a follow-up, a follow-up the server declared (a «ДАЛЕЕ» note).
+     */
+    armCommitWitness(): void {
+      const pos = this.selectedPos;
+      const facts = [...(this.forecast?.facts ?? []), ...(pos !== undefined ? this.forecast?.byBranch?.[pos] ?? [] : [])];
+      const asks = facts.filter((f) => f.certainty === 'asks');
+      const honest: Array<HonestFollowUp> = asks.filter((f) => f.preselect === undefined).map((f) => ({card: f.source.name, role: '*'}));
+      for (const c of this.followUpChoices) {
+        honest.push(c.reaction !== undefined ? {card: c.reaction.card, role: '*'} : {card: this.cardName, role: roleOf(c.input as unknown as AddressableInput)});
+      }
+      if ((this.selectedBranch?.steps ?? []).some((st) => st.kind === 'note' && st.noteKind !== 'warning')) {
+        honest.push({card: this.cardName, role: '*'});
+      }
+      armPostCommitWitness(this.cardName, asks.map((f) => f.source.name), honest);
+    },
+    clickVariantAt(index: number): void {
+      const row = this.variantRows[index];
+      if (row !== undefined) {
+        this.clickVariant(row);
+      }
+    },
     clickVariant(row: PlayRow & {kind: 'variant'}): void {
       if (this.loading || this.sub !== undefined) {
         return;
@@ -3235,7 +3277,31 @@ export default defineComponent({
     /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */
     choiceMode(c: ComposerChoice): PlayChoiceMode {
+      // A table question whose candidates a draw ABOVE it hides (TR51 — Mars University behind Olympus' «remove to
+      // draw», `reaction.afterDraw`) is handed on: an honest follow-up, named, never a pick over a hand that will change.
+      if (this.reactionHiddenByDraw(c)) {
+        return 'followup';
+      }
       return playChoiceMode(c, this.handNamesSet, this.playedNamesSet, this.cardName);
+    },
+    /**
+     * Does an answer collected ABOVE this table question draw a card before it asks? The answers are the composer's own
+     * captures; «draws» is the chosen option's own server chips (`metadata.effects` — a cards gain) or a discard that
+     * buys cards (`discardPrompt.exchange`). The server named which questions gate it (`reaction.afterDraw`).
+     */
+    reactionHiddenByDraw(c: ComposerChoice): boolean {
+      const gates = c.reaction?.afterDraw;
+      if (gates === undefined || gates.length === 0) {
+        return false;
+      }
+      return this.allChoices.some((d) => {
+        if (d.scope !== 'pre' || d.reaction === undefined || !gates.includes(d.reaction.fact) || d.input.type !== 'or') {
+          return false;
+        }
+        const answer = this.capturedPre[d.index] as {type?: string, index?: number} | undefined;
+        const chosen = answer?.type === 'or' && answer.index !== undefined ? (d.input as OrOptionsModel).options[answer.index] : undefined;
+        return chosen !== undefined && optionDraws(chosen);
+      });
     },
     /**
      * THE CONTEXTUAL PREVIEW for one candidate — the ONE place this flow's
@@ -4029,16 +4095,20 @@ export default defineComponent({
       // plus the owner's landing answer folded from the synthetic rows — the
       // one wire entry; the synthetic rows themselves never reach the batch.
       let captured = this.captured;
+      // A table question handed on as a follow-up (a draw above it) posts no answer — it is asked for real.
+      const capturedPre: Record<number, unknown> = Object.fromEntries(Object.entries(this.capturedPre).filter(([i]) =>
+        !this.followUpChoices.some((c) => c.scope === 'pre' && c.reaction !== undefined && c.index === Number(i))));
       const esp = this.espionageChoice;
       if (esp !== undefined) {
         const projection = (esp.input as DeltaEspionageInputModel).projection;
         captured = {...captured, [esp.index]: deltaEspionageStepResponse(projection, this.espionageCapture?.target, this.espionageOwnerAnswer)};
       }
+      this.armCommitWitness();
       this.$emit('confirm', {
         branchIndex: b.index,
         // The branch slot's pre-select address — the server's (`ActionPreviewBranch.for`).
         branchFor: b.for,
-        preResponses: this.preview !== undefined ? orderedPreResponses(this.preview, this.capturedPre) : [],
+        preResponses: this.preview !== undefined ? orderedPreResponses(this.preview, capturedPre) : [],
         optionResponse: this.capturedOption,
         stepResponses: orderedStepResponses(b, captured),
         payment,
@@ -4237,7 +4307,9 @@ export default defineComponent({
           return;
         }
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
-        const node = Array.isArray(el) ? el[0] : el;
+        // The variant grammar's focused option has no template ref here (it is the component's own DOM).
+        const node = (Array.isArray(el) ? el[0] : el) ??
+          (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('.con-vchoice__opt--focused') ?? undefined;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });

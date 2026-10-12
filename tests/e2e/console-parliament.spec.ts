@@ -333,7 +333,7 @@ for (const preset of PRESETS) {
       //    Greens' «⚡ сработает» note (+1 M€ production), the R3 layer lists
       //    the party fact like any table reactor's.
       await openPlayComposer(page, OR_CARD);
-      const notes = page.locator('.con-composer__variant [data-forecast-vfx]');
+      const notes = page.locator('.con-composer__variants .con-vchoice__opt [data-forecast-vfx]');
       await expect(notes, 'the plant branch carries the Greens note').not.toHaveCount(0);
       await expect(notes.first(), 'the note reads «⚡ сработает +1» (the M€ is an icon, never text)').toContainText(/\+1/);
       await shoot(page, preset, '07-forecast-or');

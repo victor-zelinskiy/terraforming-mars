@@ -12,7 +12,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ICard} from '../ICard';
 import {addResourceToCard, removeResourceFromCard, chip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
-import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
+import {DEPENDS_ON_ANSWER_NOTE, EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
 
@@ -87,7 +87,7 @@ export class OlympusConference extends Card implements IProjectCard {
         forecast.tagReason(Tag.SCIENCE),
         {
           id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE,
-          ...(own ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner))} : {note: 'Asked after this play: it depends on the answer above'}),
+          ...(own ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner))} : {note: DEPENDS_ON_ANSWER_NOTE}),
         }));
       preselected = preselected || own;
     }

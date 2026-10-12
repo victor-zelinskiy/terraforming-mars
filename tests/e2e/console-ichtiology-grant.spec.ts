@@ -85,10 +85,10 @@ async function openPlayComposerOf(page: Page, card: string): Promise<void> {
 
 /** The «ИЛИ» group: the option tiles, which are greyed, which is chosen. */
 async function variants(page: Page): Promise<Array<{text: string, off: boolean, selected: boolean}>> {
-  return page.locator(`${PLAY_COMPOSER} .con-composer__variant`).evaluateAll((els) => els.map((el) => ({
+  return page.locator(`${PLAY_COMPOSER} .con-composer__variants .con-vchoice__opt`).evaluateAll((els) => els.map((el) => ({
     text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
-    off: el.classList.contains('con-composer__variant--off'),
-    selected: el.classList.contains('con-composer__variant--selected'),
+    off: el.classList.contains('con-vchoice__opt--off'),
+    selected: el.classList.contains('con-vchoice__opt--selected'),
   })));
 }
 
@@ -100,7 +100,7 @@ async function openTargetStep(page: Page): Promise<void> {
       await press(page, 'ArrowUp', 700);
     }
     // A CHOICE IS A PRESS: A on an option selects it and the cursor STAYS there — the target row is one step down.
-    if (await page.locator(`${PLAY_COMPOSER} .con-composer__variant--focused`).count() > 0) {
+    if (await page.locator(`${PLAY_COMPOSER} .con-vchoice__opt--focused`).count() > 0) {
       await press(page, 'ArrowDown', 700);
     }
     await press(page, 'Enter', 1300);
@@ -241,7 +241,7 @@ for (const preset of PRESETS) {
       expect(options.length, 'both options stand — the unavailable one is shown, never hidden').toBe(2);
       expect(options.map((o) => o.off), 'the microbe option is greyed').toEqual([false, true]);
       expect(options[0].selected, 'the lone open option is chosen for the player').toBe(true);
-      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__variant--off .con-composer__variant-reason`), 'the greyed option says why').toHaveCount(1);
+      await expect(page.locator(`${PLAY_COMPOSER} .con-vchoice__opt--off .con-vchoice__reason`), 'the greyed option says why').toHaveCount(1);
       await shoot(page, preset.id, 'b-01-composer');
 
       await openTargetStep(page);
@@ -273,7 +273,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${PLAY_COMPOSER} .con-composer__warn`), 'the two skips are NAMED').toHaveCount(2);
       // PL-171: ONE loss, ONE voice — the strip names each option's loss with its magnitude, so the greyed
       // tiles carry no second reason in another vocabulary (B keeps its tile reason: no strip speaks there).
-      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__variant-reason`), 'the loss is told once, in the strip').toHaveCount(0);
+      await expect(page.locator(`${PLAY_COMPOSER} .con-vchoice__reason`), 'the loss is told once, in the strip').toHaveCount(0);
       await shoot(page, preset.id, 'c-01-composer');
 
       await commit(page, seen.posts);

@@ -168,7 +168,7 @@ const HERO = '.con-composer__actcardwrap';
 
 /** Select the focused variant when a choice is open, walk the cursor to the commit row. */
 async function readyToCommit(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`${COMPOSER} [data-branch-pos].con-composer__branch--selected, ${COMPOSER} .con-composer__cta--ready`).count() === 0; i++) {
+  for (let i = 0; i < 4 && await page.locator(`${COMPOSER} .con-composer__branches .con-vchoice__opt--selected[data-branch-pos], ${COMPOSER} .con-composer__cta--ready`).count() === 0; i++) {
     await press(page, 'Enter', 300);
   }
   for (let i = 0; i < 8 && await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {

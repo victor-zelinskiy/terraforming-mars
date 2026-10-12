@@ -154,7 +154,7 @@ async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, 
       fwdGhost: document.querySelector('.con-hydro__stop-ghost--fwd') !== null,
       arc: document.querySelector('.con-hydro__ghostlink-path') !== null,
       choiceOpen: document.querySelector('.con-hydro__layer--choice') !== null,
-      subOpen: document.querySelector('.con-composer__opt') !== null,
+      subOpen: document.querySelector('.con-composer__sublist .con-vchoice__opt') !== null,
     }));
     if (log !== undefined) {
       if (state.rewardPick && log.sawRewardPick !== true) {

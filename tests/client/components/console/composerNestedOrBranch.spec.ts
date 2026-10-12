@@ -102,7 +102,8 @@ describe('ConsoleActionComposer — a nested-input or-branch', () => {
     expect(rows[0].nested, 'it is a door — it opens a pick of its own').to.eq(true);
     // …and the bot row is an ordinary leaf beside it.
     expect(rows[1].nested ?? false).to.eq(false);
-    expect(w.findAll('.con-composer__opt-chevron')).to.have.length(1);
+    // The variant grammar's door (TR51 — `ConsoleVariantChoice`): one ›, on the branch that opens a pick of its own.
+    expect(w.findAll('.con-composer__sublist .con-vchoice__door')).to.have.length(1);
     w.unmount();
   });
 
@@ -196,9 +197,9 @@ describe('ConsoleActionComposer — a nested-input or-branch', () => {
     vm.openChoice(vm.allChoices[0]);
     await w.vm.$nextTick();
 
-    const row = w.findAll('.con-composer__opt')[0];
-    expect(row.find('.con-composer__opt-check').exists(), 'the answered branch reads as answered').to.eq(true);
-    expect(row.find('.con-composer__opt-chevron').exists(), 'and no longer as an unopened door').to.eq(false);
+    const row = w.findAll('.con-composer__sublist .con-vchoice__opt')[0];
+    expect(row.find('.con-vchoice__seal--on').exists(), 'the answered branch reads as answered — the ONE seal').to.eq(true);
+    expect(row.find('.con-vchoice__door').exists(), 'and no longer as an unopened door').to.eq(false);
     w.unmount();
   });
 

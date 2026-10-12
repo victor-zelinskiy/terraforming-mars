@@ -8,7 +8,7 @@ import {PlayerInputModel, SelectCardModel} from '../../src/common/models/PlayerI
 import {buildPlayCardBatch} from '../../src/client/console/consolePlayCardComposer';
 import {buildActionBatch, orderedPreResponses, orderedStepResponses, repeatActionResponses} from '../../src/client/console/consoleActionComposer';
 import {stepResponse} from '../../src/client/components/colonies/colonyTradePlan';
-import {checkPreselectReask, notePreselectBatch, resetPreselectWitness} from '../../src/client/console/preselectWitness';
+import {armPostCommitWitness, checkPostCommitChoice, checkPreselectReask, notePreselectBatch, POST_COMMIT_CHOICE, resetPostCommitWitness, resetPreselectWitness} from '../../src/client/console/preselectWitness';
 import {ACTION_MENU_NEXT_TITLE} from '../../src/common/inputs/actionMenuTitles';
 
 /**
@@ -128,5 +128,41 @@ describe('the «re-asked» witness', () => {
     expect(checkPreselectReask({type: 'or', title: ACTION_MENU_NEXT_TITLE, buttonLabel: 'x', options: []} as unknown as PlayerInputModel)).deep.eq([]);
     expect(checkPreselectReask(discardOfAcademies), 'the action is over — a later discard is a new question').deep.eq([]);
     expect(warns).is.empty;
+  });
+});
+
+describe('the «post-commit choice» witness (TR51 — strictly pre-select)', () => {
+  const orOf = (card: string, kind: 'card' | 'corporation' = 'card'): PlayerInputModel => ({
+    type: 'or', title: 'x', buttonLabel: 'x', options: [{type: 'option', title: 'a', buttonLabel: 'a'}],
+    choiceContext: {source: {kind, card}, mode: 'effect-choice'},
+  } as unknown as PlayerInputModel);
+  afterEach(() => resetPostCommitWitness());
+
+  it('a choice of a table card the forecast named as asking, raised after the commit, is reported — once', () => {
+    armPostCommitWitness(CardName.INFLUENTIAL_DISCOVERY, [CardName.OLYMPUS_CONFERENCE], []);
+    const reports = checkPostCommitChoice(orOf(CardName.OLYMPUS_CONFERENCE));
+    expect(reports).has.length(1);
+    expect(reports[0]).to.contain(POST_COMMIT_CHOICE);
+    expect(checkPostCommitChoice(orOf(CardName.OLYMPUS_CONFERENCE)), 'one report per commit').deep.eq([]);
+  });
+
+  it('a question the composer HANDED ON with its reason is not reported; nor a card nobody named; nor a deck pick', () => {
+    armPostCommitWitness(CardName.INFLUENTIAL_DISCOVERY, [CardName.MARS_UNIVERSITY], [{card: CardName.MARS_UNIVERSITY, role: '*'}]);
+    expect(checkPostCommitChoice(orOf(CardName.MARS_UNIVERSITY))).deep.eq([]);
+    expect(checkPostCommitChoice(orOf(CardName.POINT_LUNA, 'corporation')), 'not an asker of this commit').deep.eq([]);
+    const deckPick = {type: 'card', title: 'x', buttonLabel: 'x', cards: [], min: 1, max: 1,
+      deckPickPrompt: {source: {kind: 'card', card: CardName.INFLUENTIAL_DISCOVERY}}} as unknown as PlayerInputModel;
+    expect(checkPostCommitChoice(deckPick), 'cards revealed only now are never a pre-select').deep.eq([]);
+  });
+
+  it('the committed card\'s OWN choice after the press is reported unless it was handed on by its role', () => {
+    armPostCommitWitness(CardName.INFLUENTIAL_DISCOVERY, [], [{card: CardName.INFLUENTIAL_DISCOVERY, role: 'card'}]);
+    expect(checkPostCommitChoice(orOf(CardName.INFLUENTIAL_DISCOVERY))).has.length(1);
+  });
+
+  it('the watch ends with the action — the next action menu', () => {
+    armPostCommitWitness(CardName.INFLUENTIAL_DISCOVERY, [CardName.OLYMPUS_CONFERENCE], []);
+    expect(checkPostCommitChoice({type: 'or', title: ACTION_MENU_NEXT_TITLE, buttonLabel: 'x', options: []} as unknown as PlayerInputModel)).deep.eq([]);
+    expect(checkPostCommitChoice(orOf(CardName.OLYMPUS_CONFERENCE))).deep.eq([]);
   });
 });

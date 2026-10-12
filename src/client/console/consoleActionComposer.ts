@@ -78,6 +78,11 @@ export type ComposerChoice = {
   /** MULTI-select metadata (Public Plans "reveal any number") — the hand-pick
    *  surface shows the count label + the live per-card payout. */
   multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}};
+  /**
+   * A QUESTION OF THE TABLE (TR51 — `ActionPreviewStep.reaction`): a reaction the play wakes asks it, the composer
+   * collects the answer before the press. The row names the asker («Сработает · <карта> · ваш выбор»).
+   */
+  reaction?: {card: CardName, fact: string, afterDraw?: ReadonlyArray<string>};
 };
 
 function choiceKind(input: PlayerInputModel): ComposerChoice['kind'] {
@@ -131,7 +136,7 @@ export function preChoices(preview: ActionPreview | undefined): Array<ComposerCh
     } else if (step.kind === 'input') {
       out.push({
         id: `pre#${i}`, scope: 'pre', index: i, kind: choiceKind(step.input), input: step.input,
-        amount: step.amount, cardResource: step.cardResource,
+        amount: step.amount, cardResource: step.cardResource, reaction: step.reaction,
       });
     }
   });
@@ -233,6 +238,7 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
         cardResource: step.cardResource,
         repeatAction: step.repeatAction,
         multiSelect: step.multiSelect,
+        reaction: step.reaction,
       });
     } else if (step.kind === 'spendHeat') {
       out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'spendHeat', input: step.input});

@@ -457,7 +457,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-ptsel'), 'the source step').toBeVisible();
       await press(page, 'Enter', 500);
       await expect(page.locator('.con-ptsel'), 'the source answered').toHaveCount(0);
-      const branchAt = () => page.evaluate(() => Number(document.querySelector('.con-composer__branch--focused')?.getAttribute('data-branch-pos') ?? -1));
+      const branchAt = () => page.evaluate(() => Number(document.querySelector('.con-composer__branches .con-vchoice__opt--focused')?.getAttribute('data-branch-pos') ?? -1));
       await walkComposer(page, async () => (await branchAt()) === 1, 'variant B');
       await press(page, 'Enter', 400);
       await walkComposer(page, async () => /Выберите карту-получатель/.test(await focusedRow(page)), 'the target row');
