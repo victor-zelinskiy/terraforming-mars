@@ -20,6 +20,7 @@ import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {censusAction, censusActionPreview, censusActionRows, censusCanAct, censusUnavailableReason, DATA_CENSUS} from './censusAction';
+import {DeclaredHolderRole} from '../../../common/cards/holderRole';
 
 /** The printed rate — data on THIS card per Venus step made. */
 export const VENUSIAN_CENSUS_DATA_PER_STEP = 2;
@@ -108,7 +109,7 @@ export class VenusianCensus extends Card implements IProjectCard, IActionCard {
   }
 
   /** The data here buy DELEGATES (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
-  public readonly resourceRole = {kind: 'delegate'} as const;
+  public readonly resourceRole: DeclaredHolderRole = {kind: 'delegate', price: DATA_CENSUS.votePrice};
 
   /** Rules 2–4 — every Venus step anyone made: +2 data here per step. */
   public onGlobalParameterRaised(cardOwner: IPlayer, raise: GlobalParameterRaise): void {

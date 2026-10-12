@@ -19,10 +19,13 @@ import {effectChoice} from '../../inputs/choiceContext';
 import {message} from '../../logs/MessageBuilder';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {DeclaredHolderRole} from '../../../common/cards/holderRole';
 
 /** Variant A's printed price and yield. */
 const ENERGY_COST = 2;
 const MECHS_ADDED = 2;
+/** Variant B's printed price — one mech off this card per free trade (the role's price reads it too). */
+const MECHS_PER_TRADE = 1;
 
 /**
  * TR66 — AUTOMATED CONVOYS («Беспилотные конвои»).
@@ -81,7 +84,7 @@ export class AutomatedConvoys extends Card implements IProjectCard {
   }
 
   /** The mechs here buy a free TRADE (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
-  public readonly resourceRole = {kind: 'trade'} as const;
+  public readonly resourceRole: DeclaredHolderRole = {kind: 'trade', price: MECHS_PER_TRADE};
 
   private canBuyMechs(player: IPlayer): boolean {
     return player.energy >= ENERGY_COST;
@@ -90,7 +93,7 @@ export class AutomatedConvoys extends Card implements IProjectCard {
   /** ONE blocker for variant B, in check order: the mech on this card (the
    *  only condition the card adds), then the engine's own trade gate. */
   private tradeVariantReason(player: IPlayer): string | undefined {
-    if (this.resourceCount < 1) {
+    if (this.resourceCount < MECHS_PER_TRADE) {
       return 'No mechs on this card';
     }
     return player.colonies.tradeBlockedReason();
@@ -214,7 +217,7 @@ export class TradeWithAutomatedConvoys implements IColonyTrader {
 
   public trade(destination: ITradeDestination) {
     if (this.automatedConvoys !== undefined) {
-      this.player.removeResourceFrom(this.automatedConvoys, 1, {log: false});
+      this.player.removeResourceFrom(this.automatedConvoys, MECHS_PER_TRADE, {log: false});
     }
     this.player.actionsThisGeneration.add(CardName.AUTOMATED_CONVOYS);
     this.player.game.log('${0} spent 1 mech to trade with ${1}', (b) => b.player(this.player).tradeDestination(destination));

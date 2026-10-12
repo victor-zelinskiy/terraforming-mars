@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {holderRoleReading, HolderRole} from '@/client/console/holderRoles';
+import {holderGainOutcome, holderGainOutcomeReading, holderRoleReading, HolderRole} from '@/client/console/holderRoles';
 import {stripComments, walk} from './e2eContract';
 
 /**
@@ -77,8 +77,10 @@ describe('readingParamsGuard — a key with ${n} is never printed without its pa
   it('3. every role reading carries exactly the params its label (and its tail) needs', () => {
     const roles: Array<HolderRole> = [
       {kind: 'payment', unit: 'mechs', rate: 5, context: 'space'},
-      {kind: 'delegate'},
-      {kind: 'trade'},
+      {kind: 'delegate', price: 1},
+      {kind: 'delegate', price: 3},
+      {kind: 'trade', price: 1},
+      {kind: 'trade', price: 2},
       {kind: 'action', spend: 1, good: {kind: 'production', resource: 'plants' as never, amount: 1}},
       {kind: 'action', spend: 1, good: {kind: 'stock', resource: 'titanium' as never, amount: 2}},
       {kind: 'action', spend: 1, good: {kind: 'cards', amount: 1}},
@@ -86,6 +88,7 @@ describe('readingParamsGuard — a key with ${n} is never printed without its pa
       {kind: 'action', spend: 2, good: {kind: 'cards', amount: 1, tag: 'science' as never}},
       {kind: 'action', spend: 3, good: {kind: 'tr', amount: 1}},
       {kind: 'action', spend: 2, good: {kind: 'global', parameter: 'venus' as never, steps: 1}},
+      {kind: 'action', spend: 'all', good: {kind: 'look', keep: 1}},
       {kind: 'vp', per: 1, each: 1},
       {kind: 'store'},
     ];
@@ -100,5 +103,33 @@ describe('readingParamsGuard — a key with ${n} is never printed without its pa
         expect((reading.tailParams ?? []).length, `${JSON.stringify(role)}: the tail «${reading.tail}» needs ${placeholderCount(reading.tail)} params`).to.eq(placeholderCount(reading.tail));
       }
     }
+  });
+
+  it('4. every GAIN OUTCOME reading (К-T1) carries exactly the params its label needs — in every state', () => {
+    const roles: Array<HolderRole> = [
+      {kind: 'payment', unit: 'supercomputerData', rate: 2, context: 'science'},
+      {kind: 'delegate', price: 3},
+      {kind: 'trade', price: 1},
+      {kind: 'action', spend: 2, good: {kind: 'production', resource: 'plants' as never, amount: 1}},
+      {kind: 'action', spend: 'all', good: {kind: 'look', keep: 1}},
+    ];
+    // short (0 → 2 of 3), opens (1 → 3), already (3 → 5).
+    const moves: ReadonlyArray<[number, number]> = [[0, 2], [1, 3], [3, 5]];
+    let read = 0;
+    for (const role of roles) {
+      for (const [from, to] of moves) {
+        const outcome = holderGainOutcome(role, from, to);
+        if (outcome === undefined) {
+          continue;
+        }
+        const reading = holderGainOutcomeReading(outcome);
+        read++;
+        expect(reading.params.length, `${JSON.stringify(role)} ${from} → ${to}: «${reading.label}» needs ${placeholderCount(reading.label)} params`).to.eq(placeholderCount(reading.label));
+        if (reading.tail !== undefined) {
+          expect((reading.tailParams ?? []).length).to.eq(placeholderCount(reading.tail));
+        }
+      }
+    }
+    expect(read, 'anti-vacuous').gte(13);
   });
 });

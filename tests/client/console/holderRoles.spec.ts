@@ -3,7 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {holderGroupKey, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
+import {holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderGroupKey, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
 import {additionalResourceRoleGroups} from '@/client/components/additionalResources/additionalResources';
 import {buildExtrasTypes} from '@/client/console/extrasExplorerModel';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -36,10 +36,11 @@ describe('holderRoles — what a stored resource is for', () => {
   });
 
   it('DELEGATE and TRADE are the card\'s declaration (TR34 / the censuses, TR66); a holder with no role is storage', () => {
-    expect(holderRoleOf(CardName.MARS_ARMY_MECHS)).to.deep.eq({kind: 'delegate'});
-    expect(holderRoleOf(CardName.MARTIAN_CENSUS)).to.deep.eq({kind: 'delegate'});
-    expect(holderRoleOf(CardName.VENUSIAN_CENSUS)).to.deep.eq({kind: 'delegate'});
-    expect(holderRoleOf(CardName.AUTOMATED_CONVOYS)).to.deep.eq({kind: 'trade'});
+    // The declaration carries its PRICE — the very constant the card's action reads (TR48 walk: «per unit» lied for 3 data).
+    expect(holderRoleOf(CardName.MARS_ARMY_MECHS)).to.deep.eq({kind: 'delegate', price: 1});
+    expect(holderRoleOf(CardName.MARTIAN_CENSUS)).to.deep.eq({kind: 'delegate', price: 3});
+    expect(holderRoleOf(CardName.VENUSIAN_CENSUS)).to.deep.eq({kind: 'delegate', price: 3});
+    expect(holderRoleOf(CardName.AUTOMATED_CONVOYS)).to.deep.eq({kind: 'trade', price: 1});
     expect(holderRoleOf(CardName.EARTH_ARMY_CONTRACT), 'fighters that score nothing, pay nothing and buy nothing by themselves — storage').to.deep.eq({kind: 'store'});
     expect(holderRoleOf('No Such Card' as CardName)).to.deep.eq({kind: 'store'});
   });
@@ -61,8 +62,11 @@ describe('holderRoles — what a stored resource is for', () => {
   it('the value line: a payment names its rate and WHERE, a delegate and a trade their verb; VP and storage say nothing (the VP line is the step\'s own)', () => {
     expect(holderRoleReading(holderRoleOf(CardName.EVA_MECHS))).to.deep.eq({label: 'Pays ${0} M€ per unit', params: ['5'], tail: 'for cards with a space tag'});
     // `params` is REQUIRED on a reading (PL-160): an empty list for a key without placeholders.
-    expect(holderRoleReading({kind: 'delegate'})).to.deep.eq({label: 'A delegate on a resolution per unit', params: []});
-    expect(holderRoleReading({kind: 'trade'})).to.deep.eq({label: 'A free trade per unit', params: []});
+    expect(holderRoleReading({kind: 'delegate', price: 1})).to.deep.eq({label: 'A delegate on a resolution per unit', params: []});
+    expect(holderRoleReading({kind: 'trade', price: 1})).to.deep.eq({label: 'A free trade per unit', params: []});
+    // A price above one is NAMED: the census's «a delegate per 3 data».
+    expect(holderRoleReading(holderRoleOf(CardName.MARTIAN_CENSUS))).to.deep.eq({label: 'A delegate on a resolution per ${0} units', params: ['3']});
+    expect(holderRoleReading({kind: 'trade', price: 2})).to.deep.eq({label: 'A free trade per ${0} units', params: ['2']});
     expect(holderRoleReading({kind: 'vp', per: 1, each: 1})).to.eq(undefined);
     expect(holderRoleReading({kind: 'store'})).to.eq(undefined);
     expect(HOLDER_ROLE_CAPTION).to.deep.eq({payment: 'money', vp: 'VP', delegate: 'Delegates', trade: 'trade'});
@@ -98,8 +102,8 @@ describe('holderRoles — what a stored resource is for', () => {
   it('a role CLAIMS (tender, a delegate, a trade, an action\'s good) or it does not (a VP rule, storage) — only a claiming role of a split type gets a key of its own; a payment keyed by its UNIT when two tender pools stand', () => {
     expect(['payment', 'delegate', 'trade', 'action'].map((k) => holderRoleClaims(k as never))).to.deep.eq([true, true, true, true]);
     expect(['vp', 'store'].map((k) => holderRoleClaims(k as never))).to.deep.eq([false, false]);
-    expect(holderGroupKey('Mech' as never, {kind: 'delegate'}, false)).to.eq('mech');
-    expect(holderGroupKey('Mech' as never, {kind: 'delegate'}, true)).to.eq('mech:delegate');
+    expect(holderGroupKey('Mech' as never, {kind: 'delegate', price: 1}, false)).to.eq('mech');
+    expect(holderGroupKey('Mech' as never, {kind: 'delegate', price: 1}, true)).to.eq('mech:delegate');
     expect(holderGroupKey('Mech' as never, {kind: 'vp', per: 1, each: 1}, true), 'the plain group keeps the resource\'s own address').to.eq('mech');
     expect(holderGroupKey('Mech' as never, {kind: 'store'}, true)).to.eq('mech');
     expect(holderGroupKey('Mech' as never, holderRoleOf(CardName.FORESTRY_MECHS), true)).to.eq('mech:action');
@@ -199,10 +203,25 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     expect(impacts[1]).to.include({value: true, icon: 'delegate'});
   });
 
-  it('a mech onto EVA Mechs: «pays 5 M€ per unit · for cards with a space tag»', () => {
+  it('a mech onto EVA Mechs: the GAIN\'s money takes the value line\'s slot (К-T1) — «payment: +5 M€ · for cards with a space tag»', () => {
     const impacts = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, input([{name: CardName.EVA_MECHS, resources: 1}]), CardName.EVA_MECHS, [onCardGain('mech', 1)]));
-    expect(impacts[1]).to.include({label: 'Pays ${0} M€ per unit', tail: 'for cards with a space tag', value: true, icon: 'megacredits'});
+    expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'Payment: +${0} M€']);
+    expect(impacts[1]).to.include({tail: 'for cards with a space tag', outcome: 'gain', icon: 'megacredits'});
     expect(impacts[1].params).to.deep.eq(['5']);
+    // A LOSS keeps the per-unit value line (TR29's source step spends the tender — nothing is gained).
+    const step = {kind: 'input', amount: -1, cardResource: 'mech'} as never;
+    const spent = playedTargetQuickImpacts(playedTargetPreviewFor(step, input([{name: CardName.EVA_MECHS, resources: 2}]), CardName.EVA_MECHS));
+    expect(spent[1]).to.include({label: 'Pays ${0} M€ per unit', value: true});
+  });
+
+  it('К-T1 beside the value line: a priced holder ALREADY within reach keeps the value line (the gain opens nothing); one the gain reaches reads the outcome', () => {
+    // Mars Army Mechs at 2 (1 a delegate) +1: already within reach → the value line, unchanged.
+    const full = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, input([{name: CardName.MARS_ARMY_MECHS, resources: 2}]), CardName.MARS_ARMY_MECHS, [onCardGain('mech', 1)]));
+    expect(full.map((i) => i.outcome ?? (i.value === true ? 'value' : ''))).to.deep.eq(['', 'value']);
+    // …at 0 +1: the gain brings the delegate within reach → the outcome in the value line's slot.
+    const empty = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, input([{name: CardName.MARS_ARMY_MECHS, resources: 0}]), CardName.MARS_ARMY_MECHS, [onCardGain('mech', 1)]));
+    expect(empty.map((i) => i.label)).to.deep.eq(['Resources on this card', 'A delegate within reach: ${0} / ${1}']);
+    expect(empty[1].params).to.deep.eq(['1', '1']);
   });
 
   it('a mech onto Forestry Mechs (PL-135): «spend 1 from here: +1 · production» with the plants icon ON THE PLATE; data onto Biological Simulations: «spend 2 from here: +1 · production»', () => {
@@ -231,5 +250,53 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
   it('a mech onto Mech Sports: no value line of its own — the VP line is the step\'s, and storage says nothing', () => {
     const impacts = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, input([{name: CardName.MECH_SPORTS, resources: 0}]), CardName.MECH_SPORTS, [onCardGain('mech', 1)]));
     expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card']);
+  });
+
+  /**
+   * К-T1 (TR48 — the owner's decision 2026-10-12): WHAT +N DO on a holder, by its role — the reading a «put N on
+   * ANY card» target step prints for each candidate. The table is roles × the candidate's current → resulting.
+   */
+  describe('the gain outcome — what +N do here', () => {
+    it('tender: the money it becomes, with its «where» (Supercomputer 0 → 2 = +4 M€ for a Science card)', () => {
+      const outcome = holderGainOutcome(holderRoleOf(CardName.SUPERCOMPUTER), 0, 2);
+      expect(outcome).to.deep.eq({kind: 'money', amount: 4, context: 'science'});
+      expect(holderGainOutcomeReading(outcome!)).to.deep.eq({label: 'Payment: +${0} M€', params: ['4'], tail: 'for cards with a science tag'});
+      expect(holderGainOutcomeIcon(outcome!)).to.eq('megacredits');
+    });
+
+    it('a priced DELEGATE (the census, 3 data): short · within reach · already within reach', () => {
+      const census = holderRoleOf(CardName.MARTIAN_CENSUS);
+      const read = (from: number, to: number) => holderGainOutcomeReading(holderGainOutcome(census, from, to)!);
+      expect(read(0, 2)).to.deep.eq({label: '${2} more to a delegate: ${0} / ${1}', params: ['2', '3', '1']});
+      expect(read(1, 3)).to.deep.eq({label: 'A delegate within reach: ${0} / ${1}', params: ['3', '3']});
+      expect(read(3, 5)).to.deep.eq({label: 'A delegate already within reach: ${0} / ${1}', params: ['5', '3']});
+      expect(holderGainOutcome(census, 1, 3)).to.deep.include({state: 'opens', have: 3, need: 3});
+      expect(holderGainOutcomeIcon(holderGainOutcome(census, 1, 3)!)).to.eq('delegate');
+    });
+
+    it('a TRADE (TR66, 1 mech): one is within reach at once', () => {
+      expect(holderGainOutcome(holderRoleOf(CardName.AUTOMATED_CONVOYS), 0, 1)).to.deep.include({kind: 'reach', good: 'trade', state: 'opens'});
+    });
+
+    it('the card\'s own ACTION at a numeric spend (TR38 2 data → +1 plant production): the threshold, the good\'s icon on its plate', () => {
+      const sims = holderRoleOf(CardName.BIOLOGICAL_SIMULATIONS);
+      expect(holderGainOutcome(sims, 0, 2)).to.deep.include({kind: 'reach', good: 'action', state: 'opens', have: 2, need: 2});
+      expect(holderGainOutcome(sims, 0, 1)).to.deep.include({state: 'short'});
+      expect(holderGainOutcomeIcon(holderGainOutcome(sims, 0, 2)!)).to.eq('plants');
+      // TR02 at 3: 0 → 2 is still one short.
+      expect(holderGainOutcomeReading(holderGainOutcome(holderRoleOf(CardName.POLITICAL_SCIENCE), 0, 2)!).params).to.deep.eq(['2', '3', '1']);
+    });
+
+    it('a LOOK (TR46 — every unit one more card turned over): the count it grows to', () => {
+      const look = holderGainOutcome(holderRoleOf(CardName.RESEARCH_STARTUPS), 2, 4);
+      expect(look).to.deep.eq({kind: 'look', from: 2, to: 4});
+      expect(holderGainOutcomeReading(look!)).to.deep.eq({label: 'Cards turned over: ${0} → ${1}', params: ['2', '4']});
+    });
+
+    it('VP (the step\'s own line) and storage answer nothing; a loss answers nothing', () => {
+      expect(holderGainOutcome(holderRoleOf(CardName.MARTIAN_FIBER), 1, 3)).to.eq(undefined);
+      expect(holderGainOutcome({kind: 'store'}, 0, 2)).to.eq(undefined);
+      expect(holderGainOutcome(holderRoleOf(CardName.MARTIAN_CENSUS), 3, 1)).to.eq(undefined);
+    });
   });
 });

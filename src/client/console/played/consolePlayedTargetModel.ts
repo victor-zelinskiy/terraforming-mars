@@ -115,6 +115,12 @@ export type PlayedTargetImpact = {
   value?: boolean;
   /** The icon rides the PRODUCTION PLATE (PL-135 — an action good that is a production step). */
   plate?: 'production';
+  /**
+   * WHAT THIS GAIN DOES on the candidate (К-T1, TR48 — `holderRoles.holderGainOutcome`): `gain` — tender or a look
+   * that simply grows; `opens` — the gain brings a priced good within reach (the loud one: it is the answer to «where
+   * do the N go»); `short` — still short of it after the gain; `already` — it was within reach before (quiet).
+   */
+  outcome?: 'gain' | 'opens' | 'short' | 'already';
 };
 
 /**

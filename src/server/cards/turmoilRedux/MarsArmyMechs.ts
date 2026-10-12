@@ -12,6 +12,7 @@ import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {CardRenderer} from '../render/CardRenderer';
 import {PlayerInput} from '../../PlayerInput';
+import {DeclaredHolderRole} from '../../../common/cards/holderRole';
 import {
   CensusSpec, censusAction, censusActionPreview, censusActionRows, censusCanAct, censusUnavailableReason,
 } from './censusAction';
@@ -126,7 +127,7 @@ export class MarsArmyMechs extends Card implements IProjectCard, IActionCard {
   }
 
   /** The mechs here buy DELEGATES (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
-  public readonly resourceRole = {kind: 'delegate'} as const;
+  public readonly resourceRole: DeclaredHolderRole = {kind: 'delegate', price: MARS_ARMY_MECHS_CENSUS.votePrice};
 
   /** Rule 4 — at least one variant is live. */
   public canAct(player: IPlayer): boolean {

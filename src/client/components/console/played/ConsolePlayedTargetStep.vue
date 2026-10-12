@@ -222,7 +222,9 @@
           <span v-if="showsRailCard" class="con-ptsel__railarrow" aria-hidden="true">→</span>
           <span class="con-ptsel__railimpacts">
             <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp"
-                  :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static, 'con-ptsel__imp--value': imp.value}]">
+                  :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static, 'con-ptsel__imp--value': imp.value},
+                           imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : '']"
+                  :data-impact-outcome="imp.outcome">
               <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="[iconClass(imp.icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
                  :data-impact-plate="imp.plate" aria-hidden="true"></i>
               <span class="con-ptsel__imp-label">{{ impactLabel(imp) }}</span>

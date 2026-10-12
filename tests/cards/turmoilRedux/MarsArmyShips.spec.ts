@@ -111,7 +111,7 @@ describe('MarsArmyShips', () => {
     expect(requiredPartyOf(card), 'the MIN plate holds the Reds\' emblem — a requirement, not a tag').eq(R);
     expect(card.requirements).has.length(1);
     expect(card.victoryPoints, 'no VP badge').is.undefined;
-    expect(card.resourceRole, 'the fighters here buy delegates — the satellite\'s split, the target step\'s value line').deep.eq({kind: 'delegate'});
+    expect(card.resourceRole, 'the fighters here buy delegates — the satellite\'s split, the target step\'s value line').deep.eq({kind: 'delegate', price: 1});
     expect(card.metadata.description).eq('Requires the Reds to be ruling or that you have 2 delegates there. Add 1 fighter resource to this card.');
     // The graphic, in the scan's reading order: A («[titanium] → [fighter]») · OR · B («[fighter] → [delegate]»), then
     // the play's own fighter under the art — each printed row describing itself.

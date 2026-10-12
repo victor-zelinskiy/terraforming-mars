@@ -511,7 +511,8 @@
                     <span class="con-composer__target-name">{{ $t(tgt.cardName) }}</span>
                     <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
                     <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
-                    <span v-for="imp in targetSummaryImpacts(item.choice)" :key="imp.key" class="con-ptsel__imp">
+                    <span v-for="imp in targetSummaryImpacts(item.choice)" :key="imp.key" class="con-ptsel__imp"
+                          :class="imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : undefined">
                       <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
                       <!-- ONE renderer for a reading with params (PL-160): `$t(imp.label)` printed «Потратьте ${0}
                            отсюда: +${1}» on the TV — the key has placeholders, the params were dropped here. -->

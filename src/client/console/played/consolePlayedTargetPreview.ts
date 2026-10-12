@@ -35,7 +35,9 @@ import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {AdjacencyAmountBasis} from '@/common/models/CardAdjacencyPayoutModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
-import {holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading} from '@/client/console/holderRoles';
+import {
+  holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading,
+} from '@/client/console/holderRoles';
 
 /**
  * The server's marker for «this amount lands ON THE CHOSEN CARD», set by
@@ -200,12 +202,35 @@ export function playedTargetPreviewFor(
      * still rides the rail: it IS the comparison.
      */
     const role = holderRoleOf(name);
-    const reading = holderRoleReading(role);
+    /**
+     * …and WHAT THIS GAIN DOES THERE (К-T1, TR48 — the owner's decision 2026-10-12). On a «put N on ANY card» pick
+     * the per-unit value answers «what is one worth», and the decision is «where do these N go»: the census's
+     * 1 → 3 brings a delegate within reach, Supercomputer's 0 → 2 are +4 M€ for a Science card, Biological
+     * Simulations' 0 → 2 open its action. For TENDER and a priced DELEGATE / TRADE the outcome SUPERSEDES the value
+     * line and takes its slot (it states the rate's consequence, the price inside its fraction — one reading, not
+     * two); for the card's own ACTION and a LOOK it COMPLEMENTS the value line (the line names the good, the outcome
+     * the threshold / the count) and stands after it. A loss (Predators) has no outcome: the value line as before.
+     */
+    // A good that was within reach BEFORE the gain changes nothing the decision weighs — the value line stays.
+    const reached = amount > 0 ? holderGainOutcome(role, from, from + amount) : undefined;
+    const outcome = reached?.kind === 'reach' && reached.state === 'already' ? undefined : reached;
+    const supersedes = outcome !== undefined && (outcome.kind === 'money' || (outcome.kind === 'reach' && outcome.good !== 'action'));
+    const reading = supersedes ? undefined : holderRoleReading(role);
     if (reading !== undefined) {
       const plate = holderRolePlate(role);
       impacts.push({
         label: reading.label, params: reading.params, tail: reading.tail, value: true, icon: holderRoleIcon(role),
         ...(reading.tailParams === undefined ? {} : {tailParams: reading.tailParams}),
+        ...(plate === undefined ? {} : {plate}),
+      });
+    }
+    if (outcome !== undefined) {
+      const said = holderGainOutcomeReading(outcome);
+      const plate = outcome.kind === 'reach' ? holderRolePlate(outcome.role) : undefined;
+      impacts.push({
+        label: said.label, params: said.params, icon: holderGainOutcomeIcon(outcome),
+        outcome: outcome.kind === 'reach' ? outcome.state : 'gain',
+        ...(said.tail === undefined ? {} : {tail: said.tail}),
         ...(plate === undefined ? {} : {plate}),
       });
     }

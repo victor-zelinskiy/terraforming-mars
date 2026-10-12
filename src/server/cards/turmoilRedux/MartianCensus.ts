@@ -28,6 +28,7 @@ import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {censusAction, censusActionPreview, censusActionRows, censusCanAct, censusUnavailableReason, DATA_CENSUS} from './censusAction';
+import {DeclaredHolderRole} from '../../../common/cards/holderRole';
 
 /**
  * TR15 — MARTIAN CENSUS («Марсианская перепись»), the thirteenth Turmoil Redux
@@ -111,7 +112,7 @@ export class MartianCensus extends Card implements IProjectCard, IActionCard {
   }
 
   /** The data here buy DELEGATES (`common/cards/holderRole.ts` — the satellite's split, the target step's value line). */
-  public readonly resourceRole = {kind: 'delegate'} as const;
+  public readonly resourceRole: DeclaredHolderRole = {kind: 'delegate', price: DATA_CENSUS.votePrice};
 
   /** Rule 2 — ANY player's city ON MARS (never off Mars, never the Moon): +1 data here. */
   private countsCity(space: Space, boardType: BoardType): boolean {

@@ -33,7 +33,15 @@
 import {Resource} from '../Resource';
 import {Tag} from './Tag';
 
-export type DeclaredHolderRole = {kind: 'delegate'} | {kind: 'trade'};
+/**
+ * A DECLARED role carries its PRICE — how many units of this card's resource one
+ * delegate / one trade costs (the census spec's `votePrice`, TR66's mech). It is
+ * what the console's readings stand on: «a delegate per 3 data» (never «per unit»
+ * for a card that asks three), and the target step's «what +N does here» (К-T1,
+ * TR48: «a delegate within reach: 3 / 3»). The card file states it from the very
+ * constant its action reads.
+ */
+export type DeclaredHolderRole = {kind: 'delegate', price: number} | {kind: 'trade', price: number};
 
 /** WHAT ONE PRESS of the card's declarative action buys with the resource stored here. */
 export type ActionGood =

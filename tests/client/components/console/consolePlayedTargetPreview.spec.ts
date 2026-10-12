@@ -269,4 +269,72 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
         'and it is actually rendered').to.eq(true);
     });
   });
+
+  /**
+   * К-T1 (TR48 — the owner's decision 2026-10-12): a «put N on ANY card» pick reads, per candidate, WHAT THESE N DO
+   * there by its role — the decision of the step. Supercomputer's «+2 data on ANY card» over five holders with five
+   * different meanings is the table.
+   */
+  describe('what +N do on each candidate (К-T1)', () => {
+    const SC = CardName.SUPERCOMPUTER;
+    const pick = input([
+      {name: SC, resources: 0},
+      {name: CardName.MARTIAN_CENSUS, resources: 1},
+      {name: CardName.BIOLOGICAL_SIMULATIONS, resources: 0},
+      {name: CardName.RESEARCH_STARTUPS, resources: 2},
+      {name: CardName.MARTIAN_FIBER, resources: 1},
+    ], 2);
+    const read = (name: CardName, vp?: {from: number, to: number}) => {
+      const model = vp === undefined ? pick : {...pick, resourceGainPrompt: {amount: 2, cardResource: 'data', vpBox: {[name]: vp}}} as SelectCardModel;
+      return playedTargetPreviewFor(undefined, model, name)[0].impacts.map((imp) =>
+        [imp.label, (imp.params ?? []).join(','), imp.tail ?? '', imp.outcome ?? (imp.value === true ? 'value' : '')]);
+    };
+
+    it('TENDER — the money the data become, in the value line\'s slot: «+4 M€ · for Science cards»', () => {
+      expect(read(SC)).to.deep.eq([
+        ['Resources on this card', '', '', ''],
+        ['Payment: +${0} M€', '4', 'for cards with a science tag', 'gain'],
+      ]);
+    });
+
+    it('a priced DELEGATE — the census 1 → 3: within reach, the price inside the fraction (the value line superseded)', () => {
+      expect(read(CardName.MARTIAN_CENSUS)).to.deep.eq([
+        ['Resources on this card', '', '', ''],
+        ['A delegate within reach: ${0} / ${1}', '3,3', '', 'opens'],
+      ]);
+    });
+
+    it('the card\'s own ACTION — TR38 0 → 2: the value line names the good, the outcome the threshold after it', () => {
+      expect(read(CardName.BIOLOGICAL_SIMULATIONS)).to.deep.eq([
+        ['Resources on this card', '', '', ''],
+        ['Spend ${0} from here: +${1}', '2,1', 'production', 'value'],
+        ['The action opens: ${0} / ${1}', '2,2', '', 'opens'],
+      ]);
+    });
+
+    it('a LOOK — TR46 2 → 4: the rule, then the count it grows to', () => {
+      expect(read(CardName.RESEARCH_STARTUPS)).to.deep.eq([
+        ['Resources on this card', '', '', ''],
+        ['All from here: as many cards off the deck, ${0} to the hand', '1', '', 'value'],
+        ['Cards turned over: ${0} → ${1}', '2,4', '', 'gain'],
+      ]);
+    });
+
+    it('VP — Martian Fiber 1 → 3: the step\'s own VP line is the outcome; nothing is added', () => {
+      expect(read(CardName.MARTIAN_FIBER, {from: 0, to: 1})).to.deep.eq([
+        ['Resources on this card', '', '', ''],
+        ['VP', '', '', ''],
+      ]);
+    });
+
+    it('the rail and the answered row carry the outcome (quick impacts, it moves)', () => {
+      const quick = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, pick, CardName.MARTIAN_CENSUS));
+      expect(quick.map((q) => q.outcome)).to.deep.eq([undefined, 'opens']);
+    });
+
+    it('a LOSS has no outcome — the value line stands as before (Predators-like)', () => {
+      const loss = playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources: 3}], -1), CardName.MARTIAN_CENSUS);
+      expect(loss[0].impacts.map((imp) => imp.outcome ?? (imp.value === true ? 'value' : ''))).to.deep.eq(['', 'value']);
+    });
+  });
 });

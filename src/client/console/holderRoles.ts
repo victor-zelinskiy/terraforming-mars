@@ -28,10 +28,10 @@ export type HolderRole =
   | {kind: 'payment', unit: SpendableCardResource, rate: number, context: RailMcContext}
   /** The card's printed «VP per resources here» rule. */
   | {kind: 'vp', per: number, each: number}
-  /** The card's declaration: the resource buys a delegate on a resolution. */
-  | {kind: 'delegate'}
-  /** The card's declaration: the resource buys a free trade. */
-  | {kind: 'trade'}
+  /** The card's declaration: `price` units of the resource buy a delegate on a resolution. */
+  | {kind: 'delegate', price: number}
+  /** The card's declaration: `price` units of the resource buy a free trade. */
+  | {kind: 'trade', price: number}
   /** The card's own action: `spend` units off this card buy `good` (PL-135). */
   | {kind: 'action', spend: number | 'all', good: ActionGood}
   /** Storage with no role the console can name. */
@@ -204,9 +204,14 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
   case 'payment':
     return {label: 'Pays ${0} M€ per unit', params: [String(role.rate)], tail: MC_CONTEXT_KEYS[role.context]};
   case 'delegate':
-    return {label: 'A delegate on a resolution per unit', params: []};
+    // The census asks THREE data a delegate — «per unit» was a lie on its value line (TR48 walk).
+    return role.price === 1 ?
+      {label: 'A delegate on a resolution per unit', params: []} :
+      {label: 'A delegate on a resolution per ${0} units', params: [String(role.price)]};
   case 'trade':
-    return {label: 'A free trade per unit', params: []};
+    return role.price === 1 ?
+      {label: 'A free trade per unit', params: []} :
+      {label: 'A free trade per ${0} units', params: [String(role.price)]};
   case 'action': {
     if (role.good.kind === 'look') {
       // TR46: every unit here is one more card turned over; the action keeps `keep` of them.
@@ -223,5 +228,104 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
   }
   default:
     return undefined;
+  }
+}
+
+// ── WHAT A GAIN DOES HERE (К-T1, TR48 — the owner's decision 2026-10-12) ─────────────
+
+/**
+ * WHAT +N UNITS DO ON THIS HOLDER — the reading a «put N on ANY card» target step
+ * prints for the candidate (Supercomputer's «+2 data on ANY card», the
+ * Scientists' «2 data or 2 microbes», Supreme Expertise's 4 data, Ichtiology
+ * Grant's animals / microbes …). The ROLE says what one unit is worth; this says
+ * what THIS gain changes, which is the decision «where do the N go»:
+ *
+ *  · tender (`payment`) — the money it becomes: «+4 M€ · for Science cards»;
+ *  · a PRICED good (a delegate, a free trade, the card's own action at a numeric
+ *    spend) — the threshold, read against the price the card itself declares:
+ *    within reach now / still m short / already within reach before the gain;
+ *  · a LOOK (TR46 — every unit is one more card turned over) — the count it grows to.
+ *
+ * VP is the step's own authoritative line (`vpBox`, the server's arithmetic) and
+ * plain storage has nothing to add — both answer `undefined`. Every number comes
+ * from the role (manifest) and the candidate's `current → resulting`; the client
+ * compares with the role's price and restates no rule.
+ */
+export type HolderGainOutcome =
+  | {kind: 'money', amount: number, context: RailMcContext}
+  | {kind: 'reach', good: 'delegate' | 'trade' | 'action', role: HolderRole, have: number, need: number, state: 'opens' | 'short' | 'already'}
+  | {kind: 'look', from: number, to: number};
+
+export function holderGainOutcome(role: HolderRole, from: number, to: number): HolderGainOutcome | undefined {
+  if (to <= from) {
+    return undefined;
+  }
+  const reach = (good: 'delegate' | 'trade' | 'action', need: number): HolderGainOutcome => ({
+    kind: 'reach', good, role, have: to, need,
+    state: from >= need ? 'already' : to >= need ? 'opens' : 'short',
+  });
+  switch (role.kind) {
+  case 'payment':
+    return {kind: 'money', amount: (to - from) * role.rate, context: role.context};
+  case 'delegate':
+  case 'trade':
+    return reach(role.kind, role.price);
+  case 'action':
+    return role.spend === 'all' ? {kind: 'look', from, to} : reach('action', role.spend);
+  default:
+    return undefined;
+  }
+}
+
+/** The reading keys of a priced good, per state — the good's own word in each (the RU noun declines). */
+const REACH_READING: Readonly<Record<'delegate' | 'trade' | 'action', Readonly<Record<'opens' | 'short' | 'already', string>>>> = {
+  delegate: {
+    opens: 'A delegate within reach: ${0} / ${1}',
+    short: '${2} more to a delegate: ${0} / ${1}',
+    already: 'A delegate already within reach: ${0} / ${1}',
+  },
+  trade: {
+    opens: 'A free trade within reach: ${0} / ${1}',
+    short: '${2} more to a free trade: ${0} / ${1}',
+    already: 'A free trade already within reach: ${0} / ${1}',
+  },
+  action: {
+    opens: 'The action opens: ${0} / ${1}',
+    short: '${2} more to the action: ${0} / ${1}',
+    already: 'The action is already open: ${0} / ${1}',
+  },
+};
+
+/**
+ * The outcome as a READING (an i18n key + its params + a tail, rendered by
+ * `readingText` alone — PL-160): the money with its «where», a threshold with its
+ * fraction, a look with the count it grows to.
+ */
+export function holderGainOutcomeReading(outcome: HolderGainOutcome): HolderRoleReading {
+  switch (outcome.kind) {
+  case 'money':
+    return {label: 'Payment: +${0} M€', params: [String(outcome.amount)], tail: MC_CONTEXT_KEYS[outcome.context]};
+  case 'reach': {
+    const fraction = [String(outcome.have), String(outcome.need)];
+    // Only «still short» names what is missing — exactly the params each key prints.
+    return {
+      label: REACH_READING[outcome.good][outcome.state],
+      params: outcome.state === 'short' ? [...fraction, String(outcome.need - outcome.have)] : fraction,
+    };
+  }
+  case 'look':
+    return {label: 'Cards turned over: ${0} → ${1}', params: [String(outcome.from), String(outcome.to)]};
+  }
+}
+
+/** The icon an outcome reading wears: the coin, the good's own icon (a delegate, a trade, the action's good), the cards. */
+export function holderGainOutcomeIcon(outcome: HolderGainOutcome): string | undefined {
+  switch (outcome.kind) {
+  case 'money':
+    return 'megacredits';
+  case 'reach':
+    return holderRoleIcon(outcome.role);
+  case 'look':
+    return 'cards';
   }
 }
