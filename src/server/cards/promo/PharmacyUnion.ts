@@ -89,8 +89,6 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
       return;
     }
 
-    const game = player.game;
-
     const hasScienceTag = player.tags.cardHasTag(card, Tag.SCIENCE);
     const hasMicrobesTag = card.tags.includes(Tag.MICROBE);
 
@@ -99,38 +97,7 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
       if (hasMicrobesTag && this.resourceCount === 0) {
         // TODO (Lynesth): Modify this when https://github.com/bafolts/terraforming-mars/issues/1670 is fixed
         if (player.canAfford({cost: 0, tr: {tr: 3}})) {
-          player.defer(() => {
-            const chipCost = Math.min(player.megaCredits, 4);
-            return new OrOptions(
-              new SelectOption('Turn it face down to gain 3 TR and lose up to 4 M€')
-                .withMetadata(optionResult({
-                  effects: [trChip(3), chip('cost', 'megacredits', chipCost)],
-                  tradeoff: 'Card is turned face down — its effect stops working',
-                }))
-                .andThen(() => {
-                  this.disable(player);
-                  const megaCreditsLost = Math.min(player.megaCredits, 4);
-                  player.stock.deduct(Resource.MEGACREDITS, megaCreditsLost);
-                  game.log('${0} turned ${1} face down to gain 3 TR and lost ${2} M€', (b) => b.player(player).card(this).number(megaCreditsLost));
-                  return undefined;
-                }),
-              new SelectOption('Add a disease to it and lose up to 4 M€, then remove a disease to gain 1 TR')
-                .withMetadata(optionResult({
-                  effects: [trChip(1), chip('cost', 'megacredits', chipCost)],
-                  description: 'A disease is added then removed (net 0 here)',
-                }))
-                .andThen(() => {
-                  const megaCreditsLost = Math.min(player.megaCredits, 4);
-                  player.increaseTerraformRating();
-                  player.stock.deduct(Resource.MEGACREDITS, megaCreditsLost);
-                  this.logAddingDisease(player, 1, megaCreditsLost);
-                  game.log('${0} removed a disease from ${1} to gain 1 TR', (b) => b.player(player).card(this));
-                  return undefined;
-                }),
-            )
-              .setTitle('Choose the order of tag resolution for Pharmacy Union')
-              .markChoiceContext(cardEffect(this, 'A microbe + science card was played with no diseases stored.', 'effect-choice'));
-          }, Priority.PHARMACY_UNION);
+          player.defer(() => this.orderQuestion(player), Priority.PHARMACY_UNION);
           return undefined;
         }
       } else {
@@ -200,11 +167,13 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
               effects: [actionPreviews.trGain(cardOwner, 1), actionPreviews.stockCost(cardOwner, Resource.MEGACREDITS, mcLoss())],
             }],
             'You play a card with both a microbe and a science tag',
-            {id: 'order', sequence: Priority.PHARMACY_UNION, reasonTag: Tag.SCIENCE}));
+            // TR51 — the order is chosen in the composer, before the press (the same question, addressed to this card).
+            {id: 'order', sequence: Priority.PHARMACY_UNION, reasonTag: Tag.SCIENCE, preselect: forecast.tableQuestion(this, cardOwner, this.orderQuestion(cardOwner))}));
         }
       } else {
         const scienceTags = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
         let stored = this.resourceCount;
+        let preselected = false;
         for (let i = 0; i < scienceTags; i++) {
           if (stored > 0) {
             if (cardOwner.canAfford({cost: 0, tr: {tr: 1}})) {
@@ -224,11 +193,17 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
               'The Reds ruling party makes the TR step unaffordable', {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
             continue;
           }
+          // TR51 — answered in the composer. Only the FIRST: a second tag asks only if the first answer kept the card
+          // face up, so that one stays an honest follow-up and says so.
           facts.push(forecast.asks(scienceSource,
             [actionPreviews.trGain(cardOwner, 3)],
             [{label: 'Do nothing', effects: []}],
             forecast.tagReason(Tag.SCIENCE),
-            {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER}));
+            {
+              id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.SUPERPOWER,
+              ...(preselected ? {note: 'Asked after this play: it depends on the answer above'} : {preselect: forecast.tableQuestion(this, cardOwner, this.scienceQuestion(cardOwner))}),
+            }));
+          preselected = true;
         }
       }
     }
@@ -289,21 +264,68 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
           return;
         }
 
-        return new OrOptions(
-          new SelectOption('Turn this card face down and gain 3 TR', 'Gain TR')
-            .withMetadata(optionResult({
-              effects: [trChip(3)],
-              tradeoff: 'Card is turned face down — its effect stops working',
-            }))
-            .andThen(() => {
-              this.disable(player);
-              game.log('${0} turned ${1} face down to gain 3 TR', (b) => b.player(player).card(this));
-              return undefined;
-            }),
-          new SelectOption('Do nothing', 'Do nothing').withMetadata(skip()),
-        ).markChoiceContext(cardEffect(this, 'You played a science tag and there are no diseases left here.', 'optional-effect'));
+        return this.scienceQuestion(player);
       }, Priority.SUPERPOWER); // Make it a priority
     }
+  }
+
+  /**
+   * THE ORDER QUESTION (a microbe + science card with no disease stored) — ONE builder, read by the live defer and by
+   * the forecast's PRE-COLLECTED step (TR51, `forecast.tableQuestion`).
+   */
+  private orderQuestion(player: IPlayer): OrOptions {
+    const game = player.game;
+    const chipCost = Math.min(player.megaCredits, 4);
+    return new OrOptions(
+      new SelectOption('Turn it face down to gain 3 TR and lose up to 4 M€')
+        .withMetadata(optionResult({
+          effects: [trChip(3), chip('cost', 'megacredits', chipCost)],
+          tradeoff: 'Card is turned face down — its effect stops working',
+        }))
+        .andThen(() => {
+          this.disable(player);
+          const megaCreditsLost = Math.min(player.megaCredits, 4);
+          player.stock.deduct(Resource.MEGACREDITS, megaCreditsLost);
+          game.log('${0} turned ${1} face down to gain 3 TR and lost ${2} M€', (b) => b.player(player).card(this).number(megaCreditsLost));
+          return undefined;
+        }),
+      new SelectOption('Add a disease to it and lose up to 4 M€, then remove a disease to gain 1 TR')
+        .withMetadata(optionResult({
+          effects: [trChip(1), chip('cost', 'megacredits', chipCost)],
+          description: 'A disease is added then removed (net 0 here)',
+        }))
+        .andThen(() => {
+          const megaCreditsLost = Math.min(player.megaCredits, 4);
+          player.increaseTerraformRating();
+          player.stock.deduct(Resource.MEGACREDITS, megaCreditsLost);
+          this.logAddingDisease(player, 1, megaCreditsLost);
+          game.log('${0} removed a disease from ${1} to gain 1 TR', (b) => b.player(player).card(this));
+          return undefined;
+        }),
+    )
+      .setTitle('Choose the order of tag resolution for Pharmacy Union')
+      .markChoiceContext(cardEffect(this, 'A microbe + science card was played with no diseases stored.', 'effect-choice'));
+  }
+
+  /**
+   * THE SCIENCE QUESTION (the owner's science tag, no disease stored) — ONE builder, read by the live defer and by the
+   * forecast's PRE-COLLECTED step (TR51, `forecast.tableQuestion`).
+   */
+  private scienceQuestion(player: IPlayer): OrOptions {
+    const game = player.game;
+    return new OrOptions(
+      new SelectOption('Turn this card face down and gain 3 TR', 'Gain TR')
+        .withMetadata(optionResult({
+          effects: [trChip(3)],
+          tradeoff: 'Card is turned face down — its effect stops working',
+        }))
+        .andThen(() => {
+          this.disable(player);
+          game.log('${0} turned ${1} face down to gain 3 TR', (b) => b.player(player).card(this));
+          return undefined;
+        }),
+      new SelectOption('Do nothing', 'Do nothing').withMetadata(skip()),
+    ).markChoiceContext(cardEffect(this, 'You played a science tag and there are no diseases left here.', 'optional-effect'));
   }
 
   private disable(player: IPlayer) {

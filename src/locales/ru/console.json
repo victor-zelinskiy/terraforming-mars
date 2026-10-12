@@ -1049,6 +1049,8 @@
     "When the cards are drawn": "При доборе",
     "Timing unknown": "Момент неизвестен",
     "Answer inside this play": "Ответ прямо в этом розыгрыше",
+    "Asked after this play: it depends on the answer above": "Спросят после розыгрыша: зависит от ответа выше",
+    "Asked after this play: a card it draws may be the one to discard": "Спросят после розыгрыша: сбросить можно и карту, которую он вытянет",
     "Not calculated": "Не рассчитано",
     "Other discounts": "Прочие скидки",
     "Nothing will trigger": "Ничего не сработает",

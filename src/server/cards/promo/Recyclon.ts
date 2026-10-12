@@ -54,7 +54,14 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
       player.addResourceTo(this);
       return undefined;
     }
+    return this.question(player);
+  }
 
+  /**
+   * THE QUESTION a building tag asks once two microbes are stored — ONE builder, read by the live hook above and by the
+   * forecast's PRE-COLLECTED step (TR51, `forecast.tableQuestion`).
+   */
+  private question(player: IPlayer): OrOptions {
     const addResource = new SelectOption('Add a microbe resource to this card', 'Add microbe')
       .withMetadata(addResourceToCard(CardResource.MICROBE))
       .andThen(() => {
@@ -79,7 +86,7 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
    * or add one — the returned prompt is deferred at `Priority.DEFAULT` after
    * the card's own action.
    */
-  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
     if (!card.tags.includes(Tag.BUILDING)) {
       return [];
     }
@@ -91,6 +98,10 @@ export class Recyclon extends CorporationCard implements ICorporationCard {
     return [forecast.asks(source,
       [actionPreviews.cardCost(this, 2), actionPreviews.productionChange(cardOwner, Resource.PLANTS, 1)],
       [{label: 'Add a microbe resource to this card', effects: [actionPreviews.cardGain(this, 1)]}],
-      reason, {reasonTag: Tag.BUILDING, ...forecast.AFTER_CARD})];
+      // TR51 — answered in the composer, before the press (the same question, addressed to this card).
+      reason, {
+        reasonTag: Tag.BUILDING, ...forecast.AFTER_CARD,
+        ...(cardOwner === activePlayer ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner))} : {}),
+      })];
   }
 }

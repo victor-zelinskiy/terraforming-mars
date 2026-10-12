@@ -75,21 +75,7 @@ export class Splice extends CorporationCard implements ICorporationCard {
     // Splice owner gets 2M€ per microbe tag
     game.defer(new GainResourcesDeferred(player, Resource.MEGACREDITS, {count: gain, log: true, from: {card: this}}));
 
-    const gainResource = new SelectOption('Add a microbe resource to this card', 'Add microbe')
-      .withMetadata(addResourceToCard(CardResource.MICROBE))
-      .andThen(() => {
-        cardPlayer.addResourceTo(card, {log: true});
-        return undefined;
-      });
-
-    const gainMC = new SelectOption(
-      message('Gain ${0} M€', (b) => b.number(gain)),
-      'Gain M€')
-      .withMetadata({kind: 'resourceGain', effects: [chip('gain', 'megacredits', gain)]})
-      .andThen(() => {
-        game.defer(new GainResourcesDeferred(cardPlayer, Resource.MEGACREDITS, {count: gain, log: true, from: {card: this}}));
-        return undefined;
-      });
+    const gainMC = this.gainMcOption(cardPlayer, gain);
 
     if (cardPlayer.isMarsBot) {
       // RB-B: the bot's card flip resolves this effect too, and the bot never
@@ -99,11 +85,37 @@ export class Splice extends CorporationCard implements ICorporationCard {
       gainMC.cb(undefined);
     } else if (card.resourceType === CardResource.MICROBE) {
       // Card player chooses between 2 M€ and a microbe on card, if possible
-      cardPlayer.defer(new OrOptions(gainResource, gainMC)
-        .markChoiceContext(cardEffect(this, 'A microbe tag was played.', 'effect-choice')));
+      cardPlayer.defer(this.question(cardPlayer, card, gain));
     } else {
       gainMC.cb(undefined);
     }
+  }
+
+  /** The «Gain N M€» half — the M€ the card player takes instead of the microbe. */
+  private gainMcOption(cardPlayer: IPlayer, gain: number): SelectOption {
+    return new SelectOption(
+      message('Gain ${0} M€', (b) => b.number(gain)),
+      'Gain M€')
+      .withMetadata({kind: 'resourceGain', effects: [chip('gain', 'megacredits', gain)]})
+      .andThen(() => {
+        cardPlayer.game.defer(new GainResourcesDeferred(cardPlayer, Resource.MEGACREDITS, {count: gain, log: true, from: {card: this}}));
+        return undefined;
+      });
+  }
+
+  /**
+   * THE CARD PLAYER'S QUESTION (a microbe on the played card, or the M€) — ONE builder, read by the live defer and by
+   * the forecast's PRE-COLLECTED step (TR51, `forecast.tableQuestion`): the question is the PLAYER's, whoever owns Splice.
+   */
+  private question(cardPlayer: IPlayer, card: ICard, gain: number): OrOptions {
+    const gainResource = new SelectOption('Add a microbe resource to this card', 'Add microbe')
+      .withMetadata(addResourceToCard(CardResource.MICROBE))
+      .andThen(() => {
+        cardPlayer.addResourceTo(card, {log: true});
+        return undefined;
+      });
+    return new OrOptions(gainResource, this.gainMcOption(cardPlayer, gain))
+      .markChoiceContext(cardEffect(this, 'A microbe tag was played.', 'effect-choice'));
   }
 
   /**
@@ -136,7 +148,11 @@ export class Splice extends CorporationCard implements ICorporationCard {
       facts.push(forecast.asks(source,
         [{...actionPreviews.cardResourceGain(CardResource.MICROBE, 1), note: 'on the played card'}],
         [{label: message('Gain ${0} M€', (b) => b.number(gain)), effects: [mc]}],
-        reason, {id: 'player', reasonTag: Tag.MICROBE, ...forecast.AFTER_CARD}));
+        // TR51 — the card player answers it in the composer, before the press (the question is theirs, not the owner's).
+        reason, {
+          id: 'player', reasonTag: Tag.MICROBE, ...forecast.AFTER_CARD,
+          ...(activePlayer.isMarsBot ? {} : {preselect: forecast.tableQuestion(this, activePlayer, this.question(activePlayer, card, gain))}),
+        }));
     } else {
       facts.push(forecast.exact(source, [mc], reason, {id: 'player', reasonTag: Tag.MICROBE, ...forecast.AFTER_CARD_GAIN}));
     }

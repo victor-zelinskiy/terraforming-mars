@@ -59,7 +59,7 @@ export class OlympusConference extends Card implements IProjectCard {
    * own choices. Two tags are walked in order: the first may add silently and
    * the second then asks, exactly as the two lazy callbacks resolve.
    */
-  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
     const scienceTags = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
     if (scienceTags === 0) {
       return [];
@@ -67,6 +67,7 @@ export class OlympusConference extends Card implements IProjectCard {
     const source = forecast.sourceOf(this, cardOwner, 'card-played');
     const facts: Array<EffectForecastFact> = [];
     let stored = this.resourceCount;
+    let preselected = false;
     for (let i = 0; i < scienceTags; i++) {
       if (stored === 0) {
         facts.push(forecast.exact(source,
@@ -76,11 +77,19 @@ export class OlympusConference extends Card implements IProjectCard {
         stored++;
         continue;
       }
+      // TR51 — the question is answered in the composer, before the press. Only the FIRST: whether a second science
+      // tag asks at all depends on the answer to the first (a removed resource leaves 0 — the next one adds silently),
+      // so that one stays an honest follow-up and says so.
+      const own: boolean = cardOwner === activePlayer && !preselected;
       facts.push(forecast.asks(source,
         [{...actionPreviews.cardCost(this, 1), current: stored, resulting: stored - 1}, actionPreviews.drawGain(1)],
         [{label: 'Add a science resource to this card', effects: [{...actionPreviews.cardGain(this, 1), current: stored, resulting: stored + 1}]}],
         forecast.tagReason(Tag.SCIENCE),
-        {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE}));
+        {
+          id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.OLYMPUS_CONFERENCE,
+          ...(own ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner))} : {note: 'Asked after this play: it depends on the answer above'}),
+        }));
+      preselected = preselected || own;
     }
     return facts;
   }
@@ -97,26 +106,34 @@ export class OlympusConference extends Card implements IProjectCard {
           player.addResourceTo(this, {log: true});
           return undefined;
         }
-        return new OrOptions(
-          new SelectOption('Remove a science resource from this card to draw a card', 'Remove resource')
-            .withMetadata({...removeResourceFromCard(CardResource.SCIENCE), effects: [chip('gain', 'cards', 1)]})
-            .andThen(() => {
-              player.removeResourceFrom(this, 1, {log: false});
-              player.game.log('${0} removed a resource from ${1} to draw a card', (b) => b.player(player).card(this));
-              player.drawCard();
-              return undefined;
-            }),
-          new SelectOption('Add a science resource to this card', 'Add resource')
-            .withMetadata(addResourceToCard(CardResource.SCIENCE))
-            .andThen(() => {
-              player.addResourceTo(this, {log: true});
-              return undefined;
-            }),
-        ).setTitle('Select an option for Olympus Conference')
-          .markChoiceContext(cardEffect(this, 'A science tag was played.', 'effect-choice'));
+        return this.question(player);
       },
       Priority.OLYMPUS_CONFERENCE); // Unshift that deferred action
     }
     return undefined;
+  }
+  /**
+   * THE QUESTION a science tag asks once a science resource is stored here — ONE builder, read by the live defer
+   * above and by the forecast's PRE-COLLECTED step (`cardPlayedForecast` → `forecast.tableQuestion`, TR51): the
+   * composer asks it before the press with the same options, the same metadata, the same marker.
+   */
+  private question(player: IPlayer): OrOptions {
+    return new OrOptions(
+      new SelectOption('Remove a science resource from this card to draw a card', 'Remove resource')
+        .withMetadata({...removeResourceFromCard(CardResource.SCIENCE), effects: [chip('gain', 'cards', 1)]})
+        .andThen(() => {
+          player.removeResourceFrom(this, 1, {log: false});
+          player.game.log('${0} removed a resource from ${1} to draw a card', (b) => b.player(player).card(this));
+          player.drawCard();
+          return undefined;
+        }),
+      new SelectOption('Add a science resource to this card', 'Add resource')
+        .withMetadata(addResourceToCard(CardResource.SCIENCE))
+        .andThen(() => {
+          player.addResourceTo(this, {log: true});
+          return undefined;
+        }),
+    ).setTitle('Select an option for Olympus Conference')
+      .markChoiceContext(cardEffect(this, 'A science tag was played.', 'effect-choice'));
   }
 }

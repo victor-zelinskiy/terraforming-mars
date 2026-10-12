@@ -15,7 +15,7 @@ import {OrOptionsModel, PlayerInputModel, SelectAmountModel, SelectCardModel, Se
 import {PlayerInput} from '../../src/server/PlayerInput';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {IGame} from '../../src/server/IGame';
-import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {playPreviewWithTableQuestions} from '../../src/server/models/tableQuestions';
 import {drainBatchTail, expireSupersededStagedTail, parkedBatchTailLength, replayBatch} from '../../src/server/inputs/deferredInputBatch';
 import {buildPlayCardBatch} from '../../src/client/console/consolePlayCardComposer';
 import {orderedPreResponses, orderedStepResponses} from '../../src/client/console/consoleActionComposer';
@@ -33,6 +33,10 @@ import {KelpFarming} from '../../src/server/cards/base/KelpFarming';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {OlympusConference} from '../../src/server/cards/base/OlympusConference';
 import {PharmacyUnion} from '../../src/server/cards/promo/PharmacyUnion';
+import {MarsUniversity} from '../../src/server/cards/base/MarsUniversity';
+import {ViralEnhancers} from '../../src/server/cards/base/ViralEnhancers';
+import {Recyclon} from '../../src/server/cards/promo/Recyclon';
+import {Splice} from '../../src/server/cards/promo/Splice';
 
 /*
  * THE PLAY'S PRE-SELECTS LAND — EVERY ONE, BY CONSTRUCTION.
@@ -54,16 +58,25 @@ import {PharmacyUnion} from '../../src/server/cards/promo/PharmacyUnion';
  * states, has its preview built READ-ONLY, its batch assembled exactly as the
  * composer would (the first available branch, the cheapest valid answer of
  * each step — the first candidate, the minimum, M€), and REPLAYED on a fresh
- * game through the real `replayBatch`. Interlopers the play raises in front
+ * game through the real `replayBatch`. The play's preview is the one the
+ * composer receives (`playPreviewWithTableQuestions`): the TABLE's questions
  * (the profile `interlopers`: Olympus Conference with a stored resource,
- * Pharmacy Union; `reds`: the Reds' tax under Helion's heat) are answered the
- * way the player would — the route's own `expireSupersededStagedTail` →
- * `process` → `drainBatchTail`. Then:
+ * Pharmacy Union with no disease — both ask on a science tag) are STEPS of it
+ * since TR51 («strictly pre-select», the owner's decision 2026-10-12), so the
+ * batch answers them too and the replay lands each on its own prompt wherever
+ * the queue raises it. A question that is not a pre-select (the Reds' tax under
+ * Helion's heat — a rule's, not a card's) is answered the way the player would
+ * — the route's own `expireSupersededStagedTail` → `process` → `drainBatchTail`.
+ * Then:
  *  · NOTHING may stay parked — an answer that never found its prompt is a
  *    promise the preview could not keep;
  *  · the prompt left standing may not be the card's OWN question again
  *    (`addressVerdict === 'own'` for an answer the batch carried) — that is
- *    exactly «the player was asked twice».
+ *    exactly «the player was asked twice»;
+ *  · no prompt answered «as the player» after the press may be a question of
+ *    the player's own TABLE that the forecast did not name an honest follow-up
+ *    (`asks` without `preselect`) — that is «a choice after the commit whose
+ *    answer was known before it».
  *
  * `LEFTOVER_PRESELECT_WORKLIST` is EMPTY ON PURPOSE and fails BOTH ways: a new
  * leak is a regression, a fixed entry must be removed.
@@ -92,6 +105,20 @@ const PROFILES: ReadonlyArray<Profile> = [
       const olympus = new OlympusConference();
       olympus.resourceCount = 1;
       player.playedCards.push(olympus, new PharmacyUnion());
+    },
+  },
+  {
+    // TR51 — the rest of the table's askers: Mars University (science → discard to draw, AFTER the card's choice),
+    // Viral Enhancers (plant / microbe / animal → a resource on the played card or a plant), Recyclon with two microbes
+    // (building → two microbes for a plant production, or one more), and Splice on the OPPONENT (a microbe card that
+    // holds microbes → its PLAYER chooses a microbe or the M€).
+    label: 'reactors',
+    options: REDUX,
+    apply: (game, player) => {
+      const recyclon = new Recyclon();
+      recyclon.resourceCount = 2;
+      player.playedCards.push(new MarsUniversity(), new ViralEnhancers(), recyclon);
+      game.players.find((p) => p !== player)?.playedCards.push(new Splice());
     },
   },
   {
@@ -273,7 +300,12 @@ function shapeOf(input: PlayerInput | undefined): string {
 
 /** Answer a prompt the way the player would through the single-input route — the interloper in front. */
 function answerAsThePlayer(player: TestPlayer, input: PlayerInput): boolean {
-  const response = answerOf(input.toModel(player)) as InputResponse | undefined;
+  const model = input.toModel(player);
+  // A placement the play declares (its tile on the board) is answered on the board — the first legal cell; a table
+  // answer parked behind it lands once it is (the route's drain).
+  const spaces = (model as {spaces?: ReadonlyArray<string>}).spaces;
+  const response = (model.type === 'space' && spaces !== undefined && spaces.length > 0 ?
+    {type: 'space', spaceId: spaces[0]} : answerOf(model)) as InputResponse | undefined;
   if (response === undefined) {
     return false;
   }
@@ -296,7 +328,7 @@ function replayOne(Factory: new () => ICard, name: string, module: GameModule, p
   }
   let preview: ActionPreview;
   try {
-    preview = cardPlayPreview(a.player, a.card);
+    preview = playPreviewWithTableQuestions(a.player, a.card);
   } catch (e) {
     return {info: `${module}/${name} [${profile.label}] :: the preview threw ${(e as Error).message}`};
   }
@@ -343,15 +375,32 @@ function replayOne(Factory: new () => ICard, name: string, module: GameModule, p
   } catch (e) {
     return {info: `${where} :: the play itself was refused (${(e as Error).message})`};
   }
-  // The interlopers in front: answered as the player would, the parked answers draining behind them.
+  // The interlopers in front: answered as the player would, the parked answers draining behind them. A TABLE question
+  // among them is a pre-select the composer should have collected — unless the forecast named it an honest follow-up.
+  const honest = new Set((preview.forecast?.facts ?? []).filter((f) => f.certainty === 'asks' && f.preselect === undefined).map((f) => f.source.name));
+  const askedAfter: Array<string> = [];
   for (let guard = 0; guard < 8 && parkedBatchTailLength(b.player) > 0; guard++) {
     const live = b.player.getWaitingFor();
-    if (live === undefined || isActionMenu(live) || !answerAsThePlayer(b.player, live)) {
+    if (live === undefined || isActionMenu(live)) {
+      break;
+    }
+    const asker = live.choiceContext?.source.card;
+    if (asker !== undefined && asker !== b.card.name && !honest.has(asker)) {
+      askedAfter.push(shapeOf(live));
+    }
+    if (!answerAsThePlayer(b.player, live)) {
       break;
     }
   }
   const live = b.player.getWaitingFor();
   const parked = parkedBatchTailLength(b.player);
+  const liveAsker = live?.choiceContext?.source.card;
+  if (live !== undefined && !isActionMenu(live) && liveAsker !== undefined && liveAsker !== b.card.name && !honest.has(liveAsker)) {
+    askedAfter.push(shapeOf(live));
+  }
+  if (askedAfter.length > 0) {
+    return {failure: `${where} :: ASKED AFTER THE PRESS — ${askedAfter.join(', ')} (a table question the composer did not collect)`};
+  }
   if (parked > 0) {
     return {failure: `${where} :: ${parked} pre-selected answer(s) never landed (waiting: ${shapeOf(live)})`};
   }
@@ -425,7 +474,7 @@ describe('card-play replay coverage (the pre-select contract for PLAYS)', () => 
       }
       let preview: ActionPreview;
       try {
-        preview = cardPlayPreview(a.player, a.card);
+        preview = playPreviewWithTableQuestions(a.player, a.card);
       } catch {
         return;
       }

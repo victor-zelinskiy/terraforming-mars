@@ -66,6 +66,20 @@ import {AddressableInput, AddressVerdict, PreselectAddress, addressVerdict, answ
  * The only prompt-KIND rule left is the deck pick (`hiddenInfoPrompt`): cards
  * revealed only now cannot have been answered by any composer, so an answer
  * that is not ADDRESSED to it never meets it.
+ *
+ * THE ADDRESSEE STEPS FORWARD (TR51, 2026-10-12 — the owner's «strictly
+ * pre-select», questions of the player's OWN table included). An answer the
+ * composer collected for a REACTION of the table (Olympus Conference's «remove
+ * a science to draw, or add one», Mars University's discard, Pharmacy Union's
+ * flip — `ActionPreview`'s table steps, `models/tableQuestions.ts`) rides the
+ * same batch, and the live queue asks those questions at THEIR priorities —
+ * Olympus ahead of the card's own choice, Mars University between the card's
+ * choice and its target. No order the client could write is THE order (the
+ * card's own steps carry no priority), and it need not be: when the standing
+ * prompt is `foreign` to the head answer, the FIRST later answer ADDRESSED to
+ * it (`own`) steps forward and lands — the address, not the position, says
+ * whose question it is. Only an `own` verdict moves an answer; an anonymous
+ * prompt or an unaddressed answer keeps the positional rules.
  */
 
 /**
@@ -128,6 +142,22 @@ function bare(answer: InputResponse): InputResponse {
   return withoutAddress(answer as BatchAnswer);
 }
 
+/**
+ * THE ADDRESSEE STEPS FORWARD: the first answer AFTER `at` whose address names
+ * the standing prompt as its own moves to `at` (in place). `true` when one did.
+ * Only an `own` verdict moves an answer — never an anonymous or unaddressed one.
+ */
+function stepForward(answers: Array<InputResponse>, at: number, waitingFor: PlayerInput): boolean {
+  for (let k = at + 1; k < answers.length; k++) {
+    if (verdictOf(answers[k], waitingFor) === 'own') {
+      const [addressee] = answers.splice(k, 1);
+      answers.splice(at, 0, addressee);
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Park the rest of a batch (appended behind anything parked earlier in this action — the queue serves them in order). */
 function park(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
   recordStagedParkBaselines(player, responses);
@@ -145,7 +175,9 @@ function park(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
  * that jumped the queue — either way the rest is PARKED for `drainBatchTail`
  * and the leftover prompt renders through the normal client routing.
  */
-export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputResponse>): void {
+export function replayBatch(player: IPlayer, batch: ReadonlyArray<InputResponse>): void {
+  // A working copy: an addressee may step forward (`stepForward`).
+  const responses = [...batch];
   for (let i = 0; i < responses.length; i++) {
     const waitingFor = player.getWaitingFor();
     if (waitingFor === undefined) {
@@ -168,14 +200,16 @@ export function replayBatch(player: IPlayer, responses: ReadonlyArray<InputRespo
       // now — staging and this park are the same request, so this IS the state
       // the player picked against, and the drain's staleness question is «did
       // it change since?».
-      if (verdict === 'foreign') {
-        park(player, responses.slice(i));
-        return;
-      }
-      // A DECK PICK («look at the top N») asks about cards that did not exist
-      // when the batch was assembled — an answer not addressed to it is never
-      // its (a Delta Surge traversal's stage-7 pick behind the stage-5 draw).
-      if (verdict !== 'own' && hiddenInfoPrompt(waitingFor)) {
+      if (verdict === 'foreign' || (verdict !== 'own' && hiddenInfoPrompt(waitingFor))) {
+        // …unless a LATER answer of this batch is addressed to the standing
+        // prompt: then it steps forward and lands now (see the module comment).
+        if (stepForward(responses, i, waitingFor)) {
+          i--;
+          continue;
+        }
+        // A DECK PICK («look at the top N») asks about cards that did not exist
+        // when the batch was assembled — an answer not addressed to it is never
+        // its (a Delta Surge traversal's stage-7 pick behind the stage-5 draw).
         park(player, responses.slice(i));
         return;
       }
@@ -227,14 +261,16 @@ export function drainBatchTail(player: IPlayer): void {
       break;
     }
     const verdict = verdictOf(rest[0], waitingFor);
-    if (verdict === 'foreign') {
+    if (verdict === 'foreign' || (verdict !== 'own' && hiddenInfoPrompt(waitingFor))) {
+      // An answer further down the tail is addressed to the standing prompt —
+      // it steps forward (the module comment's «addressee» law).
+      if (stepForward(rest, 0, waitingFor)) {
+        continue;
+      }
       // Its own prompt has not surfaced yet — it stays parked. Trying it here
-      // is the same-type trap: the interloper would eat it or refuse it.
-      break;
-    }
-    if (verdict !== 'own' && hiddenInfoPrompt(waitingFor)) {
-      // The player must SEE the drawn cards to answer — a parked answer not
-      // addressed to the pick is never its (see replayBatch). It stays parked.
+      // is the same-type trap: the interloper would eat it or refuse it. (A
+      // deck pick: the player must SEE the drawn cards — a parked answer not
+      // addressed to it is never its.)
       break;
     }
     if (stagedParkStale(player, rest[0])) {

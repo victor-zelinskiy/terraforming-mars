@@ -468,6 +468,12 @@ export type ActionPreviewStep =
      * response only on its own prompt. Absent → the positional path.
      */
     for?: PreselectAddress,
+    /**
+     * A QUESTION OF THE TABLE, not of the card (TR51 — `models/tableQuestions.ts`): a reaction the play wakes asks it
+     * (Olympus Conference, Mars University, Pharmacy Union, …) and the composer collects its answer before the press.
+     * `card` is the reacting card (the row's «Сработает · <карта>»), `fact` the forecast fact that names it.
+     */
+    reaction?: {card: CardName, fact: string},
   }
   /** A "spend N heat" payment hosted INLINE by the premium SpendHeatContent
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source

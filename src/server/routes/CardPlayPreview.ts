@@ -5,8 +5,9 @@ import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
-import {cardPlayPreview, previewableCard} from '../models/cardPlayPreview';
-import {effectForecastForPlay, tilesOfPlay} from '../models/effectForecast';
+import {previewableCard} from '../models/cardPlayPreview';
+import {playPreviewWithTableQuestions} from '../models/tableQuestions';
+import {tilesOfPlay} from '../models/effectForecast';
 import {cardVictoryPointsAtPlay} from '../game/calculateVictoryPoints';
 
 /**
@@ -79,10 +80,11 @@ export class CardPlayPreview extends Handler {
       // The card's own VP projection rides the same way (a «per tags» card, or
       // «per own city of a named place» counted over the tiles THIS play puts
       // down — the forecast's own list; see `cardVictoryPointsAtPlay`).
-      const preview = cardPlayPreview(player, card);
+      // The table's QUESTIONS ride it too (TR51 — `models/tableQuestions.ts`): a reaction that asks the player is one
+      // more step of the composer, answered before the press and posted in the play's one batch.
+      const preview = playPreviewWithTableQuestions(player, card);
       responses.writeJson(res, ctx, {
         ...preview,
-        forecast: effectForecastForPlay(player, card, preview),
         cardVictoryPoints: cardVictoryPointsAtPlay(player, card, tilesOfPlay(player, card, preview)),
       });
     } catch (err) {

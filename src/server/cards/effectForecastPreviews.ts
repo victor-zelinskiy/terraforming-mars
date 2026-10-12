@@ -5,7 +5,9 @@ import {Tag} from '../../common/cards/Tag';
 import {Message} from '../../common/logs/Message';
 import {Priority} from '../deferredActions/Priority';
 import {EventTrigger} from '../../common/events/GameEvent';
-import {ActionEffect} from '../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
+import {PlayerInput} from '../PlayerInput';
+import {cardSource} from '../inputs/choiceContext';
 import {
   EffectForecastAlternative,
   EffectForecastCertainty,
@@ -83,6 +85,8 @@ export type FactOptions = {
   reasonTag?: Tag;
   condition?: EffectForecastCondition;
   note?: string | Message;
+  /** An `asks` fact's question, PRE-COLLECTED — built by `tableQuestion` (see `EffectForecastFact.preselect`). */
+  preselect?: ActionPreviewStep;
 };
 
 let autoId = 0;
@@ -116,7 +120,21 @@ function baseFact(
   if (options?.note !== undefined) {
     fact.note = options.note;
   }
+  if (options?.preselect !== undefined) {
+    fact.preselect = options.preselect;
+  }
   return fact;
+}
+
+/**
+ * THE TABLE'S QUESTION AS A PREVIEW STEP (TR51 — «strictly pre-select», the player's own table included). A
+ * reacting card hands its `asks` fact the SAME prompt its live hook defers (one builder in the card file, read by the
+ * live `defer` and by the forecast — never a second description), addressed to the reacting card: the role is the
+ * prompt's own (`or`), the source the one its `cardEffect` marker names. The composer collects the answer with the
+ * card's own choices; the batch lands it when the queue reaches the question (`deferredInputBatch`).
+ */
+export function tableQuestion(card: ICard, player: IPlayer, question: PlayerInput): ActionPreviewStep {
+  return {kind: 'input', input: question.toModel(player), for: {role: question.type, source: cardSource(card)}};
 }
 
 /**

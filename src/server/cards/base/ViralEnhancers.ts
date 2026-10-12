@@ -61,24 +61,30 @@ export class ViralEnhancers extends Card implements IProjectCard {
     }
 
     for (let i = 0; i < resourceCount; i++) {
-      player.defer(
-        () => new OrOptions(
-          new SelectOption(message('Add resource to card ${0}', (b) => b.card(card)), 'Add resource')
-            .withMetadata(addResourceToCard(card.resourceType ?? CardResource.MICROBE))
-            .andThen(() => {
-              player.addResourceTo(card, {log: true});
-              return undefined;
-            }),
-          new SelectOption('Gain plant')
-            .withMetadata({kind: 'resourceGain', effects: [chip('gain', 'plants', 1)]})
-            .andThen(() => {
-              this.addPlant(player, 1);
-              return undefined;
-            }),
-        ).markChoiceContext(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice')),
-      );
+      player.defer(() => this.question(player, card));
     }
     return undefined;
+  }
+
+  /**
+   * THE QUESTION one tag asks — ONE builder, read by the live defer above and by the forecast's PRE-COLLECTED step
+   * (TR51, `forecast.tableQuestion`): a resource on THE PLAYED card, or a plant.
+   */
+  private question(player: IPlayer, card: ICard): OrOptions {
+    return new OrOptions(
+      new SelectOption(message('Add resource to card ${0}', (b) => b.card(card)), 'Add resource')
+        .withMetadata(addResourceToCard(card.resourceType ?? CardResource.MICROBE))
+        .andThen(() => {
+          player.addResourceTo(card, {log: true});
+          return undefined;
+        }),
+      new SelectOption('Gain plant')
+        .withMetadata({kind: 'resourceGain', effects: [chip('gain', 'plants', 1)]})
+        .andThen(() => {
+          this.addPlant(player, 1);
+          return undefined;
+        }),
+    ).markChoiceContext(cardEffect(this, 'You played a plant, microbe, or animal tag.', 'effect-choice'));
   }
 
   public onNonCardTagAdded(player: IPlayer, tag: Tag) {
@@ -93,7 +99,7 @@ export class ViralEnhancers extends Card implements IProjectCard {
    * ASKS per tag — a resource on THAT card, or a plant — deferred at
    * `Priority.DEFAULT` after the card's own action.
    */
-  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
     const resourceCount = cardOwner.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]);
     if (resourceCount === 0) {
       return [];
@@ -108,7 +114,11 @@ export class ViralEnhancers extends Card implements IProjectCard {
       facts.push(forecast.asks(source,
         [{...actionPreviews.cardResourceGain(card.resourceType, 1), note: 'on the played card'}],
         [{label: 'Gain plant', effects: [actionPreviews.stockGain(cardOwner, Resource.PLANTS, 1)]}],
-        reason, {id: `tag-${i}`, ...forecast.AFTER_CARD}));
+        // TR51 — every tag's question is independent of the others: each is answered in the composer.
+        reason, {
+          id: `tag-${i}`, ...forecast.AFTER_CARD,
+          ...(cardOwner === activePlayer ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner, card))} : {}),
+        }));
     }
     return facts;
   }

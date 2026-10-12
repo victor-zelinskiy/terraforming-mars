@@ -5,7 +5,7 @@ import {Color} from '../Color';
 import {Message} from '../logs/Message';
 import {EventSource} from '../events/EventSource';
 import {EventTrigger} from '../events/GameEvent';
-import {ActionEffect} from './ActionPreviewModel';
+import type {ActionEffect, ActionPreviewStep} from './ActionPreviewModel';
 
 /**
  * THE EFFECT FORECAST — what the TABLE answers to a card play / a card action,
@@ -162,6 +162,14 @@ export type EffectForecastFact = {
   condition?: EffectForecastCondition;
   /** A quiet note («Ответ прямо в этом розыгрыше», «подробности покажет досье клетки»). */
   note?: string | Message;
+  /**
+   * THE QUESTION, PRE-COLLECTED (TR51 — «strictly pre-select», the player's OWN table included). An `asks` fact whose
+   * question the ACTIVE player can answer before the press carries the SAME prompt its live hook defers, as a preview
+   * step ADDRESSED to the reacting card (`for` — role `or`). The play's preview hands it to the composer as one more
+   * step (`models/tableQuestions.ts`); its answer rides the play's ONE POST and lands when the live queue reaches the
+   * question (the addressee steps forward — `deferredInputBatch`). Absent → an honest follow-up, and `note` says why.
+   */
+  preselect?: ActionPreviewStep;
 };
 
 export type EffectForecastDiscountItem = {

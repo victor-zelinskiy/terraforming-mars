@@ -50,7 +50,7 @@ export class MarsUniversity extends Card implements IProjectCard {
    * prompt is skipped with an empty hand; at forecast time the played card is
    * still in that hand, so the hand AFTER the play is what decides.
    */
-  public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact> {
+  public cardPlayedForecast(cardOwner: IPlayer, activePlayer: IPlayer, card: ICard, ctx: EffectForecastContext): ReadonlyArray<EffectForecastFact> {
     const scienceTags = cardOwner.tags.cardTagCount(card, Tag.SCIENCE);
     if (scienceTags === 0) {
       return [];
@@ -67,11 +67,18 @@ export class MarsUniversity extends Card implements IProjectCard {
           {id: `science-${i}`, reasonTag: Tag.SCIENCE}));
         continue;
       }
+      // TR51 — the question is answered in the composer over the hand the play leaves (`models/tableQuestions.ts`
+      // turns it back into an honest follow-up when the same play draws a card before it: that card is hidden).
+      const own = cardOwner === activePlayer;
+      const hand = cardOwner.cardsInHand.filter((c) => !fromHand || c.name !== card.name);
       facts.push(forecast.asks(source,
         [{direction: 'cost', icon: 'cards', amount: 1}, actionPreviews.drawGain(1)],
         [{label: 'Do nothing', effects: []}],
         forecast.tagReason(Tag.SCIENCE),
-        {id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.DISCARD_AND_DRAW, timing: 'after-card'}));
+        {
+          id: `science-${i}`, reasonTag: Tag.SCIENCE, sequence: Priority.DISCARD_AND_DRAW, timing: 'after-card',
+          ...(own ? {preselect: forecast.tableQuestion(this, cardOwner, this.question(cardOwner, hand))} : {}),
+        }));
     }
     return facts;
   }
@@ -87,23 +94,30 @@ export class MarsUniversity extends Card implements IProjectCard {
         if (player.cardsInHand.length === 0) {
           return undefined;
         }
-        return new OrOptions(
-          new SelectCard('Select a card to discard', 'Discard', player.cardsInHand)
-            // The pick is a DISCARD, not a generic card choice: the marker sends
-            // it to the console's hand overlay in discard mode (with the card
-            // it buys back shown as the exchange) instead of a flat grid.
-            .markDiscardPrompt(cardDiscard(this, {min: 1, max: 1}, {exchange: discardForCards(1)}))
-            .andThen(([card]) => {
-              player.game.log('${0} is using their ${1} effect to draw a card by discarding a card.', (b) => b.player(player).card(this));
-              player.discardCardFromHand(card, {log: true});
-              player.drawCard();
-              return undefined;
-            }),
-          new SelectOption('Do nothing').withMetadata(skip()),
-        ).markChoiceContext(cardEffect(this, 'You played a science tag.', 'optional-effect'));
+        return this.question(player, player.cardsInHand);
       },
       Priority.DISCARD_AND_DRAW);
     }
     return undefined;
+  }
+  /**
+   * THE QUESTION a science tag asks — ONE builder, read by the live defer above (the hand AT the question) and by the
+   * forecast's PRE-COLLECTED step (the hand once the played card has left it — TR51, `forecast.tableQuestion`).
+   */
+  private question(player: IPlayer, hand: ReadonlyArray<IProjectCard>): OrOptions {
+    return new OrOptions(
+      new SelectCard('Select a card to discard', 'Discard', hand)
+        // The pick is a DISCARD, not a generic card choice: the marker sends
+        // it to the console's hand overlay in discard mode (with the card
+        // it buys back shown as the exchange) instead of a flat grid.
+        .markDiscardPrompt(cardDiscard(this, {min: 1, max: 1}, {exchange: discardForCards(1)}))
+        .andThen(([card]) => {
+          player.game.log('${0} is using their ${1} effect to draw a card by discarding a card.', (b) => b.player(player).card(this));
+          player.discardCardFromHand(card, {log: true});
+          player.drawCard();
+          return undefined;
+        }),
+      new SelectOption('Do nothing').withMetadata(skip()),
+    ).markChoiceContext(cardEffect(this, 'You played a science tag.', 'optional-effect'));
   }
 }
