@@ -168,3 +168,41 @@ TR17 «Строительные мехи» — близнец этой карт�
 (`cardResourceCSS[getCard(enabler).resourceType]`), у рельса есть контекст; единицы с одинаковой подписью различаются на
 одной панели (`paymentLaneLabel`). Третья карта-пул уже существующего ресурса не пропустит ни одной молчащей точки —
 гард упадёт с именем единицы.
+
+## 7. Третья единица: Supercomputer (TR48, 2026-10-12) — data платят 2 M€ за карту Науки
+
+TR48 «Суперкомпьютер» — синяя, 10, метка Науки, плашка Учёных, −1 пр. энергии, действие «+2 data на ЛЮБУЮ карту», эффект «data С
+ЭТОЙ карты — оплата карт Науки по 2 M€». Файл `src/server/cards/turmoilRedux/Supercomputer.ts` (вся карта — декларация), спек
+`tests/cards/turmoilRedux/Supercomputer.spec.ts`. Третья карточная единица набора и ВТОРАЯ data-единица игры: `auroraiData`
+(Aurorai, стандартные проекты, `DATA_VALUE` = 3) не обобщается — `pay()` должен знать, с какой карты снять (§6).
+
+**Точки единицы `supercomputerData`** (громкие — компилятор; молчащие — по §3, ни одна не пропущена):
+
+| Точка | Значение |
+| --- | --- |
+| `Spendable.ts` | `'supercomputerData'` + `CARD_FOR_SPENDABLE_RESOURCE.supercomputerData = SUPERCOMPUTER` |
+| `constants.ts` · `Payment.ts` | `SUPERCOMPUTER_DATA_VALUE = 2` (плоско: ни сталь, ни Metal Research); `EMPTY`; `of` |
+| `Player.ts` | `paymentOptionsForCard`: ПЕЧАТНАЯ метка Науки (дикая — нет; СП, счёт, колония, действие карты — не «розыгрыш карты Науки»); `pay()` → `removeResourcesOnCard(SUPERCOMPUTER, …)`; `maxSpendable`; `payingAmount.usable` |
+| `PlayerInputModel.ts` ×2 · оба `toModel` | `supercomputerData: getSpendable(…)` |
+| `SelectPaymentDeferred` | `supercomputerData: false` |
+| `paymentModelUtils` | `GENERIC_PAYMENT_ORDER`: **ПЕРВОЙ, перед сталью** (решение владельца 2026-10-12: у data одно применение, сталь — любое Здание; порядок строк панели = порядок траты); модель СП |
+| `paymentPlan.ts` | `projectCardPaymentOptions`; `PAY_UNIT_LABELS` = `'Data'`; `PAY_UNIT_ICONS` = `'data'`; **`PAY_UNIT_SOURCE_LABELS`** — обе data-единицы («Данные · Aurorai» / «Данные · Суперкомпьютер»), гард полноты проходит структурно, без исключения |
+| `railValueModel.ts` · `ConsoleResourcePanel` | новый контекст `'science'` («за карты с меткой «Наука»»), значок метки на монете — `TagKind.SCIENCE` (при двух пулах — PL-136) |
+| десктоп-остатки · `ConsolePartyActionComposerBill.spec` | по строке |
+| `effectForecast.paymentValuesOf` | сам |
+
+**Новое по сравнению с §6.**
+- **Гард паритета гейта меток (К-P2)** — `tests/console/paymentTagGateParity.spec.ts`: правило «какая метка открывает какую единицу»
+  записано дважды (сервер и его чистое клиентское зеркало, которым живут панель, стартовая смесь и плашка руки); гард гоняет каждую
+  карточную единицу (и сталь / титан) по каждой метке, каждой паре и «без меток» — две копии не разойдутся.
+- **Порядок сева** — data ПЕРЕД сталью: на TR46 (Наука + Здание) при избытке обоих смесь тратит data и бережёт сталь
+  (`paymentPlan.spec` § supercomputerData: 8 M€ · 2 стали · 2 data → обе по 2; 4 + 4 → data 4, сталь 0).
+- **Роль держателя** `payment` встала сама из таблиц единицы: спутник ДОП. РЕСУРСЫ — монета «2» с aria «за карты с меткой «Наука»»
+  отдельно от data других ролей; шаг цели — исход прибавки «Оплата: +4 M€ · за карты с меткой «Наука»» (К-T1).
+- **Плашка руки «чем оплатится»** (К-H1) — третий читатель плашки: карта, которую M€ одни не оплатят, носит «[data] 4 = [M€] 8» —
+  та же стартовая смесь, с которой откроется панель (`handTenderPlate.handTenderItems`), класс для ЛЮБОЙ карточной единицы.
+- **Цена карточным ресурсом летит** (PL-163) — новая единица встала в `CARD_FOR_SPENDABLE_RESOURCE` и полетела сама: жетон рождён
+  на строке оплаты data, поглощён бейджем цены (e2e `console-supercomputer` B, трасса `payrow:supercomputerData → play-card`).
+
+**Четвёртая карта-пул** (уже существующего ресурса или нового) проходит этот же список строка в строку; гарды полноты единиц и паритета
+гейта назовут пропущенную точку по имени.
