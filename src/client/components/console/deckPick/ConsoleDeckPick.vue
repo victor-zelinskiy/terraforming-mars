@@ -179,6 +179,10 @@ const FIT_RETRIES = 20;
  *  short enough that a genuine refusal gives the screen back promptly. */
 const REFUSAL_GRACE_MS = 1500;
 
+/** The read beat between the pick LIFTING off its slot and the rest starting to tumble (PL-207) — one thing at a
+ *  time for the eye, never the whole intake tail. Motion-scaled by `applyDiscardExit`. */
+const REST_AFTER_LIFT_MS = 220;
+
 function asElements(ref: unknown): Array<HTMLElement> {
   return Array.isArray(ref) ? (ref as Array<HTMLElement>).filter((el) => el instanceof HTMLElement) : [];
 }
@@ -966,9 +970,21 @@ export default defineComponent({
     async runOutgoing(kept: ReadonlyArray<CardName>): Promise<void> {
       const key = this.promptKey;
       try {
-        await this.sendToHand(kept);
-        beginDeckPickClearing();
-        await this.clearRest(kept);
+        // THE REST LEAVE WHILE THE PICK IS IN THE AIR (PL-207). Sequenced on the pick's LANDING, the cards nobody took
+        // stood still for the whole intake tail — the hover for the server's answer, the dock's touchdown and settle:
+        // ≈ 0.7 s at 4K of a finished choice read as a pause («В руку взято: 1» over four cards going nowhere). The
+        // order the eye reads is kept — the pick LIFTS off its slot first (the intake's staging seam), one read beat
+        // later the rest start tumbling — and the surface still waits for BOTH beats to end.
+        let clearing: Promise<void> | undefined;
+        const startClearing = (delayMs: number): Promise<void> => {
+          if (clearing === undefined) {
+            beginDeckPickClearing();
+            clearing = this.clearRest(kept, delayMs);
+          }
+          return clearing;
+        };
+        await this.sendToHand(kept, () => void startClearing(REST_AFTER_LIFT_MS));
+        await startClearing(0);
       } finally {
         // A REFUSED submit must not leave the player inside a beat that will
         // never finish. The honest signal is the prompt itself: if the server
@@ -1022,7 +1038,7 @@ export default defineComponent({
      * and it takes a dock-accent lease that brings the dock out of its compact
      * pose to receive them.
      */
-    async sendToHand(kept: ReadonlyArray<CardName>): Promise<void> {
+    async sendToHand(kept: ReadonlyArray<CardName>, onLifted?: () => void): Promise<void> {
       if (!handDockReachable()) {
         return; // no dock on screen (a cinematic covers it) — never a ghost flight
       }
@@ -1035,7 +1051,8 @@ export default defineComponent({
       if (entries.length === 0) {
         return;
       }
-      await runHandIntake(entries, {mode: entries.length > 1 ? 'stack' : 'cascade'});
+      // `onStaged` — every proxy stands over its slot, the originals hidden: the pick has LEFT the row (PL-207).
+      await runHandIntake(entries, {mode: entries.length > 1 ? 'stack' : 'cascade', onStaged: onLifted});
     },
     /**
      * The CLEAN-UP beat: the cards nobody took drift away and fade — the
@@ -1049,7 +1066,7 @@ export default defineComponent({
      * played is exactly how the NEXT batch got the scene over cards that
      * were still saying goodbye (the 20260830201630 frame).
      */
-    async clearRest(kept: ReadonlyArray<CardName>): Promise<void> {
+    async clearRest(kept: ReadonlyArray<CardName>, delayMs = 0): Promise<void> {
       const rest = this.entries
         .filter((e) => !kept.includes(e.name))
         .map((e) => this.slotEl(e.name))
@@ -1057,7 +1074,7 @@ export default defineComponent({
       if (rest.length === 0) {
         return;
       }
-      await applyDiscardExit(rest, {stepMs: 28});
+      await applyDiscardExit(rest, {stepMs: 28, delayMs});
     },
     slotEl(name: CardName): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;
