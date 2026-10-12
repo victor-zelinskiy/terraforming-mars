@@ -359,6 +359,18 @@ for (const preset of PRESETS) {
       const railTrail = (await page.evaluate(() => (window as unknown as {__rail?: Array<string>}).__rail ?? [])).join('\n');
       writeTrail(preset.id, 'c-rail', railTrail);
       expect(witness.landings.some((l) => l.under === `composer-card:${CENSUS}`), `the data landed on TR15's miniature in the composer\n${transferTrail(witness)}\n${railTrail}`).toBe(true);
+      // PL-220 — THE TABLE'S ANSWER FLIES FROM ITS PROMISE: the Fiber's +2 M€ is born on the composer's «Сработает» chip
+      // (the workspace stands until it has left it) and lands on its rail row — never a bare tick under a dissolving
+      // workspace.
+      const lastAnswer = await page.evaluate(() => {
+        const ready = (window as unknown as {__conReady?: () => {railReward?: {lastAnswer?: {flown: Array<string>, ticked: Array<string>}}}}).__conReady?.();
+        return ready?.railReward?.lastAnswer;
+      });
+      expect(lastAnswer?.flown, `the Fiber's answer flew (not ticked)\n${railTrail}`).toEqual(['stock:megacredits']);
+      expect(witness.births.some((b) => b.under === 'forecast:stock:megacredits'),
+        `the answer was born on the «Сработает» chip\n${transferTrail(witness)}`).toBe(true);
+      expect(witness.landings.some((l) => l.under === 'rail:megacredits'),
+        `the answer landed on the M€ row\n${transferTrail(witness)}`).toBe(true);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
       await shoot(page, preset.id, 'c-04-board');

@@ -22,6 +22,7 @@
     <span v-for="rc in reaction.chips" :key="rc.key + '|' + rc.effect.amount"
           class="con-forecast__chip con-forecast__vfx-chip"
           :class="chipClasses(rc)"
+          :data-forecast-rail="rc.color === undefined && !rc.asks ? forecastChipRailRow(rc.effect, rc.production) : undefined"
           data-forecast-vchip>
       <span v-if="rc.color !== undefined" class="con-forecast__owner-bar" :class="'player_bg_color_' + rc.color" aria-hidden="true"></span>
       <span v-if="rc.color !== undefined" class="con-forecast__owner-dot" :class="'player_bg_color_' + rc.color" aria-hidden="true"></span>
@@ -34,7 +35,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {VariantReaction, VariantReactionChip} from '@/client/console/effectForecastModel';
+import {VariantReaction, VariantReactionChip, forecastChipRailRow} from '@/client/console/effectForecastModel';
 import {translateText} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 
@@ -51,6 +52,7 @@ export default defineComponent({
     },
   },
   methods: {
+    forecastChipRailRow,
     /** The row's chip vocabulary: whose (own / other seat), the degree («?»),
      *  the pool (production plate), the tone (a loss wears the spend tone). */
     chipClasses(rc: VariantReactionChip): Record<string, boolean> {

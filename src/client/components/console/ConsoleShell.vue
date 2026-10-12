@@ -12393,7 +12393,9 @@ export default defineComponent({
                 // born on its printed icon and the workspace folds under it; a
                 // capsule TIMELINE (TR28) keeps the workspace while the card is
                 // still a target or a source of a token, and folds under the
-                // last one (`consoleActionCommitRail.ts`).
+                // last one; a TABLE'S ANSWER flying from the composer's
+                // «Сработает» chip keeps it until the token has left the chip
+                // (PL-220) — the flight says which (`consoleActionCommitRail.ts`).
                 const rail = flyActionCommitRail(commitPlan);
                 const fold = () => {
                   this.commitFoldOwed = false;
@@ -12408,7 +12410,7 @@ export default defineComponent({
                   closeConsoleLayers();
                   releaseActionCommit();
                 };
-                if (commitPlan?.rail?.holdsSurface === true && actionCommitRailState.phase === 'flying') {
+                if (rail.holdsSurface && actionCommitRailState.phase === 'flying') {
                   // The awaiting handoff stays up (the pad stays inert — the
                   // phrase cannot be cut by a press) and a view arriving
                   // mid-phrase must not resolve it a second time.

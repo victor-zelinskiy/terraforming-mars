@@ -79,7 +79,8 @@ export type TransferEnd = {
   y: number;
   /**
    * The anchor under the chip's centre: `hero` · `composer-card:<name>` · `recv:<card|front>` · `played:<card>` ·
-   * `rail:<row>` · `aux:<key>` · `payrow:<unit>` — or, with no anchor there, `glass:<surface>` · `board` · `other:<tag>`;
+   * `rail:<row>` · `aux:<key>` · `payrow:<unit>` · `forecast:<row|bolt>` (a «Сработает» chip — the table's answer is
+   * born there, PL-220) — or, with no anchor there, `glass:<surface>` · `board` · `other:<tag>`;
    * an anchor COVERED by a foreign band surface reads `glass:<surface>→<anchor>`.
    */
   under: string;
@@ -127,6 +128,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
     };
     /** The known places a token is born on or lands on, in priority order (the most specific first). */
     const ANCHORS: Array<[string, string]> = [
+      ['forecast', '[data-forecast-rail], [data-forecast-row] .con-forecast__bolt'],
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],
@@ -144,6 +146,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'recv': return `recv:${el.hasAttribute('data-recv-front') ? 'front' : name(el, 'data-played-key')}`;
       case 'played': return `played:${name(el, 'data-played-key')}`;
       case 'payrow': return `payrow:${name(el, 'data-pay-unit')}`;
+      case 'forecast': return `forecast:${name(el, 'data-forecast-rail') || 'bolt'}`;
       case 'rail': {
         const cls = Array.from(el.classList).find((c) => /^con-res__row--|^con-score__cell--/.test(c)) ?? 'rail';
         return `rail:${cls.replace(/^con-res__row--|^con-score__cell--/, '')}`;

@@ -21,7 +21,11 @@
  *              and its delta chip is born there (THE DELTA-CHIP ANCHOR LAW);
  *   ANSWER   — what the table paid BECAUSE of that gain (the ruling Greens'
  *              M€ on a rating step) is released only after the cause has
- *              landed: a reaction never ticks before its reason.
+ *              landed: a reaction never ticks before its reason. An owner
+ *              whose surface still SHOWS the promise (the composer's
+ *              «Сработает» chip — PL-220) has the answer FLY from it to its
+ *              row instead (`RailAnswerFlight`); a reaction with no chip on
+ *              screen ticks as before.
  *
  * It is split from its owners the way every reward beat in this console is
  * (`startBonusGain.ts`, `parliamentRewardBeat.ts`): the owner decides WHEN
@@ -52,7 +56,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, mergeTransferSpecs, railRowKey,
+  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TRANSFER_POP_MS, TransferPoint, mergeTransferSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
@@ -85,6 +89,20 @@ export type RailReward = {
   vp?: ReadonlyArray<number>;
 };
 
+/**
+ * THE ANSWER FLIES (PL-220 — the owner's decision 2026-10-12). The table's answer to a card action used to tick one
+ * beat after the cause's touchdown — by then the workspace was dissolving and its cause, the composer's «Сработает»
+ * chip, had left the screen: «+2 M€» changed with nothing on screen saying why. An owner whose surface still shows
+ * the promise hands the answer's ORIGIN in: each held reaction is born on the chip that promised it (measured at the
+ * launch, as painted then) and flies to its row, which ticks on the touchdown; a reaction with no chip ticks as before.
+ */
+export type RailAnswerFlight = {
+  /** Asked at the answer's launch, per held reaction — undefined: that reaction ticks instead of flying. */
+  originOf: (spec: ResourceTransferSpec) => TransferPoint | undefined;
+  /** The answer has LEFT its chips (one pop after its birth) — or ticked, or was released: the surface may let go. */
+  onLeft: () => void;
+};
+
 /** WHY a rail reward was not shown as promised. */
 export type RailRewardDegrade = TransferDegradeReason | 'mismatch' | 'no-origin';
 
@@ -105,6 +123,8 @@ export const railRewardState = reactive({
   entries: [] as Array<Entry>,
   /** The last reward that was NOT shown as promised: whose, and why (read by its owner's surface and by the e2e probe). */
   degraded: undefined as {key: string, why: RailRewardDegrade, detail?: string} | undefined,
+  /** The last ANSWER and how it arrived: the rows that flew from their chips, the rows that ticked (PL-220 — the e2e probe). */
+  lastAnswer: undefined as {key: string, flown: Array<string>, ticked: Array<string>} | undefined,
 });
 
 /** The pending reaction beats (the GSAP clock), per owner key — a release kills its own and settles its promise. */
@@ -341,6 +361,11 @@ export function railRewardPending(key: string): boolean {
   return entryOf(key) !== undefined;
 }
 
+/** A reward of `key` still holds a TABLE'S ANSWER — what an owner offering `RailAnswerFlight` asks before it waits for one. */
+export function railRewardHoldsAnswer(key: string): boolean {
+  return (entryOf(key)?.reactions.length ?? 0) > 0;
+}
+
 /**
  * FLY — the owner's scene calls it when its object has ANSWERED (the impulse
  * sat on the printed icon). `originOf` is asked per cause spec for the point
@@ -349,9 +374,14 @@ export function railRewardPending(key: string): boolean {
  * row of the reward has ticked: the cause on its touchdowns, the reactions one
  * beat of the animation clock after the last of them.
  */
-export function flyRailReward(key: string, originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined): Promise<RailRewardOutcome> {
+export function flyRailReward(
+  key: string,
+  originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined,
+  answer?: RailAnswerFlight,
+): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   if (entry === undefined || entry.phase !== 'held') {
+    answer?.onLeft();
     return Promise.resolve('none');
   }
   entry.phase = 'flying';
@@ -382,7 +412,7 @@ export function flyRailReward(key: string, originOf: (spec: ResourceTransferSpec
       }
       degraded = true;
     },
-  }).then(() => answerRailReward(key)).then(() => (degraded ? 'degraded' : 'landed'));
+  }).then(() => answerRailReward(key, answer)).then(() => (degraded ? 'degraded' : 'landed'));
 }
 
 /**
@@ -449,33 +479,75 @@ export function flyRailRewardLink(
 /**
  * THE ANSWER AFTER THE CAUSE: one beat of the animation clock after the last
  * touchdown the reactions' rows tick — a separate tick from the cause's own,
- * never before it. A killed beat (an interrupt released the entry) resolves
- * all the same: nothing here can hang.
+ * never before it. With an `answer` flight (PL-220) the reactions whose chip
+ * is on screen are BORN there at that beat and tick on their own touchdowns;
+ * the rest tick at the beat as before. A killed beat (an interrupt released the
+ * entry) resolves all the same — and lets the surface go: nothing here can hang.
  */
-function answerRailReward(key: string): Promise<void> {
+function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void> {
   const entry = entryOf(key);
   if (entry === undefined) {
+    answer?.onLeft();
     return Promise.resolve();
   }
   // Whatever the wave left held (it never does — the framework's safety releases every spec) goes first.
   [...entry.cause].forEach((spec) => releaseSpec(entry.cause, spec, entry.vp));
   if (entry.reactions.length === 0) {
     dropEntry(key);
+    answer?.onLeft();
     return Promise.resolve();
   }
   entry.phase = 'answering';
   return new Promise<void>((resolve) => {
+    const settle = () => {
+      answer?.onLeft();
+      resolve();
+    };
     const call = gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, () => {
       reactionCalls.delete(key);
       const live = entryOf(key);
-      if (live !== undefined) {
-        [...live.reactions].forEach((spec) => releaseSpec(live.reactions, spec));
-        dropEntry(key);
+      if (live === undefined) {
+        settle();
+        return;
       }
-      resolve();
+      const launch = answer === undefined ? [] : live.reactions
+        .map((spec) => ({spec, origin: answer.originOf(spec)}))
+        .filter((f): f is {spec: ResourceTransferSpec, origin: TransferPoint} => f.origin !== undefined);
+      const flown = launch.map((f) => f.spec);
+      const ticked = live.reactions.filter((spec) => !flown.includes(spec));
+      railRewardState.lastAnswer = {key, flown: flown.map(railRowKey), ticked: ticked.map(railRowKey)};
+      ticked.forEach((spec) => releaseSpec(live.reactions, spec));
+      if (launch.length === 0) {
+        dropEntry(key);
+        settle();
+        return;
+      }
+      // The tokens POP out of their chips first: the surface the chips stand on is let go one pop later — the
+      // token has left it — and the rows tick on the touchdowns, the answer's own rhythm.
+      gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, () => answer?.onLeft());
+      void runResourceTransfers({
+        specs: flown,
+        source: {},
+        origins: launch.map((f) => f.origin),
+        arrival: 'auto',
+        onArrive: (spec) => {
+          const now = entryOf(key);
+          if (now !== undefined) {
+            releaseSpec(now.reactions, spec);
+          }
+        },
+        onDegrade: (spec, why) => noteDegrade(key, why, describe(spec)),
+      }).then(() => {
+        const now = entryOf(key);
+        if (now !== undefined) {
+          [...now.reactions].forEach((spec) => releaseSpec(now.reactions, spec));
+          dropEntry(key);
+        }
+        resolve();
+      });
     });
     // A release from outside kills the beat — it settles the promise itself (a killed call fires nothing).
-    reactionCalls.set(key, {call, settle: resolve});
+    reactionCalls.set(key, {call, settle});
   });
 }
 
@@ -501,11 +573,19 @@ export function releaseRailReward(key: string, why: string): void {
   }
 }
 
-/** The rewards still held and the last one that was not shown as promised — one snapshot for a diagnostic (`window.__conReady().railReward`). */
-export function railRewardDiag(): {pending: Array<{key: string, phase: string, cause: Array<string>, reactions: Array<string>}>, degraded: {key: string, why: string, detail?: string} | undefined} {
+export type RailRewardDiag = {
+  pending: Array<{key: string, phase: string, cause: Array<string>, reactions: Array<string>}>,
+  degraded: {key: string, why: string, detail?: string} | undefined,
+  lastAnswer: {key: string, flown: Array<string>, ticked: Array<string>} | undefined,
+};
+
+/** The rewards still held, the last one that was not shown as promised and how the last answer arrived — one snapshot for a diagnostic (`window.__conReady().railReward`). */
+export function railRewardDiag(): RailRewardDiag {
+  const answer = railRewardState.lastAnswer;
   return {
     pending: railRewardState.entries.map((entry) => ({key: entry.key, phase: entry.phase, cause: entry.cause.map(describe), reactions: entry.reactions.map(describe)})),
     degraded: railRewardState.degraded === undefined ? undefined : {...railRewardState.degraded},
+    lastAnswer: answer === undefined ? undefined : {key: answer.key, flown: [...answer.flown], ticked: [...answer.ticked]},
   };
 }
 
@@ -519,4 +599,5 @@ export function resetRailRewards(): void {
   reactionCalls.clear();
   railRewardState.entries = [];
   railRewardState.degraded = undefined;
+  railRewardState.lastAnswer = undefined;
 }

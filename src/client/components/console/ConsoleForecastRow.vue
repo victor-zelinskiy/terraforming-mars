@@ -36,9 +36,12 @@
       <!-- Keyed on the chip's VALUE too: a refreshed forecast that moved a
            number re-mounts that one chip, and its entrance is the 100 ms
            flick the cell dossier plays on a changed value. -->
+      <!-- `data-forecast-rail` — the rail row an OWN chip answers on: where the
+           table's answer is born when it flies to the rail (PL-220). -->
       <span v-for="chip in row.chips" :key="chipKey(chip)"
             class="con-forecast__chip" :class="chipClasses(chip)"
-            :data-forecast-chip="chip.kind">
+            :data-forecast-chip="chip.kind"
+            :data-forecast-rail="chip.kind === 'own' ? forecastChipRailRow(chip.effect, chip.production) : undefined">
         <template v-if="chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other' || chip.kind === 'skipped'">
           <!-- WHOSE gain this is: the seat's colour as a leading BAR plus a dot
                before the number — the `player_bg_color_*` palette the option
@@ -70,7 +73,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
-import {ForecastChip, ForecastRow, compactForecastChips} from '@/client/console/effectForecastModel';
+import {ForecastChip, ForecastRow, compactForecastChips, forecastChipRailRow} from '@/client/console/effectForecastModel';
 import {translateText} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -97,6 +100,7 @@ export default defineComponent({
     },
   },
   methods: {
+    forecastChipRailRow,
     /** Identity + value: a changed number re-mounts the chip (the flick). The
      *  chip is a BARE delta, so the amount is its whole value. */
     chipKey(chip: ForecastChip): string {

@@ -28,6 +28,7 @@ import {EventSource} from '@/common/events/EventSource';
 import {EventTrigger} from '@/common/events/GameEvent';
 import {EffectSignature} from '@/client/components/effects/effectSummary';
 import {expectedChannelsFor} from '@/client/components/effects/effectChannels';
+import {railRewardSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 // ── The compact «Сработает» row ─────────────────────────────────────────────
 
@@ -132,6 +133,17 @@ type ChipSlot = {effect: ActionEffect, production: boolean, facts: Set<string>};
  * production / stock distinction survives as the chip's `production` flag,
  * not as a word.
  */
+/**
+ * THE RAIL ROW a bare own chip answers on (`stock:megacredits`, `production:plants`, `stock:rating`), or undefined
+ * for a chip no rail row carries — the anchor the table's answer is born on when it FLIES (PL-220). Read through the
+ * ONE mapping the rail's own specs are built by (`railRewardSpecs`), so a chip and the reaction it shows can never
+ * name two different rows.
+ */
+export function forecastChipRailRow(effect: ActionEffect, production: boolean): string | undefined {
+  const [spec] = railRewardSpecs([production ? {...effect, note: 'production'} : effect]);
+  return spec === undefined ? undefined : railRowKey(spec);
+}
+
 export function rowChip(effect: ActionEffect): ActionEffect {
   const bare: ActionEffect = {direction: effect.direction, icon: effect.icon, amount: effect.amount};
   if (effect.unit !== undefined) {

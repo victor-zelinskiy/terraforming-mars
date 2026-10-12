@@ -22,6 +22,7 @@ import {
   factBeyondOwnEffect,
   factInRow,
   forecastGroups,
+  forecastChipRailRow,
   forecastItemCard,
   forecastItemOwner,
   forecastItemPoliticalSource,
@@ -601,6 +602,20 @@ describe('effectForecastModel', () => {
       const item = {kind: 'discount', key: 'd', source: law, amount: 3, group: 'discounts'} as const;
       expect(forecastItemCard(item)).to.be.undefined;
       expect(forecastItemOwner(item, 'blue')).to.eq('blue');
+    });
+  });
+
+  /* PL-220: the table's answer is born on the chip that promised it — the chip names its rail row through the SAME
+     mapping the rail's own specs are built by, so the anchor and the reaction can never name two rows. */
+  describe('forecastChipRailRow — the rail row an own chip answers on', () => {
+    it('a stock gain, a production step, a rating — the rail\'s own row keys', () => {
+      expect(forecastChipRailRow({direction: 'gain', icon: 'megacredits', amount: 2}, false)).eq('stock:megacredits');
+      expect(forecastChipRailRow({direction: 'gain', icon: 'megacredits', amount: 1}, true)).eq('production:megacredits');
+      expect(forecastChipRailRow({direction: 'gain', icon: 'tr', amount: 1}, false)).eq('stock:rating');
+    });
+    it('a card resource, a cost or a unit has no rail row — no anchor', () => {
+      expect(forecastChipRailRow({direction: 'gain', icon: 'data', amount: 2}, false)).is.undefined;
+      expect(forecastChipRailRow({direction: 'cost', icon: 'megacredits', amount: 2}, false)).is.undefined;
     });
   });
 });

@@ -31,7 +31,14 @@
  *            is born over the standing icon and the surface folds under it),
  *            at the birth of the last link for a timeline — and, when the last
  *            link lands ON the surface (a mech onto the card the player chose in
- *            the composer's target row — TR29), at its touchdown.
+ *            the composer's target row — TR29), at its touchdown;
+ *   ANSWER — the table's answer FLIES from the composer's «Сработает» chip that
+ *            promised it (PL-220 — the owner's decision 2026-10-12): born there
+ *            one beat after the last touchdown, its row ticking on its own
+ *            touchdown, and the workspace stands until the token has LEFT the
+ *            chip — the chip is the answer's cause on screen. With no such chip
+ *            standing at the flight's start the answer ticks a beat after the
+ *            cause, as before, and the fold keeps its old moment.
  *
  * A SPEND (`ActionCommitRail.spendLinks` — PL-064 in general, TR29) is a link
  * of its own, flown FROM its real source: the capsule of the card it leaves
@@ -58,7 +65,9 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRelease} from '@/client/console/consoleActionCommit';
 import {pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
 import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_POP_MS, TRANSFER_QUICK_ABSORB_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {flyRailReward, flyRailRewardLink, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {RailAnswerFlight, flyRailReward, flyRailRewardLink, railRewardHoldsAnswer, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
+import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
 
@@ -186,7 +195,41 @@ function composerCardPoint(card: CardName): TransferPoint | undefined {
   return undefined;
 }
 
+/** The centre of an element as painted, or undefined for a box with nothing in it. */
+function centreOf(el: Element | undefined): TransferPoint | undefined {
+  const r = el?.getBoundingClientRect();
+  return r !== undefined && r.width > 2 && r.height > 2 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+}
+
+/**
+ * WHERE THE TABLE'S ANSWER WAS PROMISED (PL-220): the composer's own «Сработает» chip for that rail row — the row's
+ * (`data-forecast-rail` on `ConsoleForecastRow`) or a variant card's note (`ConsoleForecastReactions`) — as
+ * PAINTED (`firstVisibleEnd`: a covered, faded or unmounted chip is no birth place); else the row's own bolt, the
+ * answer folded into «+N»; else nothing — the answer ticks.
+ */
+function answerChipPoint(spec: ResourceTransferSpec): TransferPoint | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const row = railRowKey(spec);
+  const scope = '.con-cardactions .con-composer';
+  return centreOf(firstVisibleEnd(`${scope} [data-forecast-rail="${row}"]`)) ??
+    centreOf(firstVisibleEnd(`${scope} [data-forecast-row] .con-forecast__bolt`));
+}
+
+/** Some chip of the composer can carry an answer right now — the flight then lets the surface go only after it. */
+function answerChipStands(): boolean {
+  return typeof document !== 'undefined' &&
+    firstVisibleEnd('.con-cardactions .con-composer [data-forecast-rail], .con-cardactions .con-composer [data-forecast-row] .con-forecast__bolt') !== undefined;
+}
+
 export type ActionCommitRailFlight = {
+  /**
+   * The flight keeps the workspace standing until `foldable` — the plan's own `holdsSurface` (a timeline, a spend,
+   * a landing on the surface) or an answer that will fly from the composer's chip (PL-220). The shell waits for
+   * `foldable` exactly then; otherwise it folds at once and the tokens fly over the board.
+   */
+  holdsSurface: boolean;
   /** The workspace may fold now — the card is no longer a target or a source of a token. */
   foldable: Promise<void>;
   /** Every row of the half has ticked (the table's answer included). */
@@ -201,7 +244,7 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
   const plan = armed === undefined ? undefined : toRaw(armed);
   const rail = plan === undefined ? undefined : toRaw(plan.rail);
   if (plan === undefined || rail === undefined || seededRail !== rail || actionCommitRailState.phase !== 'seeded') {
-    return {foldable: Promise.resolve(), done: Promise.resolve()};
+    return {holdsSurface: false, foldable: Promise.resolve(), done: Promise.resolve()};
   }
   clearOwedFly();
   actionCommitRailState.phase = 'flying';
@@ -217,6 +260,16 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
   });
   const last = rail.links.length - 1;
   const spends = new Set(rail.spendLinks ?? []);
+  // THE ANSWER FLIES when the composer still shows where it was promised (PL-220): the surface then stands until the
+  // answer has left its chip, and every «fold now» below defers to that moment. Decided ONCE, at the flight's start —
+  // with no chip standing nothing changes (the answer ticks, the fold keeps its old moment).
+  const answerFlies = railRewardHoldsAnswer(rail.key) && answerChipStands();
+  const answer: RailAnswerFlight | undefined = answerFlies ? {originOf: answerChipPoint, onLeft: () => markFoldable()} : undefined;
+  const foldUnlessAnswering = (): void => {
+    if (!answerFlies) {
+      markFoldable();
+    }
+  };
   /**
    * WHERE A LINK'S TOKEN MEETS THE CARD it moves on: the card's own face as the player sees it — the hero's
    * capsule, a composer row's miniature — or the transfer ladder (a rail row; the satellite for a card nobody
@@ -264,8 +317,8 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           // lands on must still be there for that (folded on the touchdown, the chip hung over the board where its
           // card had been). One beat of the animation clock, never a timer.
           await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_QUICK_ABSORB_MS) / 1000, resolve));
-          markFoldable();
-          await flyRailReward(rail.key, originOf);
+          foldUnlessAnswering();
+          await flyRailReward(rail.key, originOf, answer);
         } else if (specs.every((spec) => spec.direction === 'loss')) {
           // THE PRICE IS THE LAST LINK (PL-099 — TR41's 8 heat into the printed heat before a scale step, a tile's price
           // before the board, a spend off the capsule with no rail result): a loss is ABSORBED at the hero's own printed
@@ -277,11 +330,11 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           const departure = points.find((p) => p !== undefined);
           await flyRailRewardLink(rail.key, specs, originOf, departure !== undefined ? {destination: departure, absorb: 'quick'} : {});
           await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
-          markFoldable();
-          await flyRailReward(rail.key, originOf);
+          foldUnlessAnswering();
+          await flyRailReward(rail.key, originOf, answer);
         } else {
-          const flight = flyRailReward(rail.key, originOf);
-          gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, markFoldable);
+          const flight = flyRailReward(rail.key, originOf, answer);
+          gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, foldUnlessAnswering);
           await flight;
         }
       } else {
@@ -299,10 +352,10 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
       resetHalf('');
     }
   });
-  if (!rail.holdsSurface) {
+  if (!rail.holdsSurface && !answerFlies) {
     markFoldable();
   }
-  return {foldable, done};
+  return {holdsSurface: rail.holdsSurface || answerFlies, foldable, done};
 }
 
 // A commit released WITHOUT its handoff (the workspace hosts the result, a rejected submit, a reset) owes no

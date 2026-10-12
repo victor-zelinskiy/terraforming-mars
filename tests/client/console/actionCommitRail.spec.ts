@@ -195,6 +195,83 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       expect(actionCommitRailState.phase).eq('idle');
     });
 
+    /* PL-220 (the owner's decision 2026-10-12): the table's answer used to tick one beat after the cause — under a
+       workspace already dissolving, its cause (the composer's «Сработает» chip) gone. With the chip standing, the
+       answer is BORN on it and flies to its row; the surface stands until the token has LEFT the chip. */
+    describe('PL-220 — the table\'s answer flies from the composer\'s «Сработает» chip', () => {
+      let host: HTMLElement | undefined;
+      const originalFromPoint = document.elementsFromPoint;
+      const standChip = (row: string) => {
+        host = document.createElement('div');
+        host.className = 'con-cardactions';
+        host.innerHTML = `<div class="con-composer"><div data-forecast-row><span class="con-forecast__bolt">⚡</span>` +
+          `<span class="con-forecast__chip" data-forecast-rail="${row}">+2</span></div></div>`;
+        document.body.appendChild(host);
+        const chip = host.querySelector<HTMLElement>('[data-forecast-rail]')!;
+        chip.getBoundingClientRect = () => ({left: 900, top: 300, width: 60, height: 30, right: 960, bottom: 330, x: 900, y: 300, toJSON: () => ({})}) as DOMRect;
+        document.elementsFromPoint = () => [chip];
+        Object.defineProperty(window, 'innerWidth', {value: 1920, configurable: true});
+        Object.defineProperty(window, 'innerHeight', {value: 1080, configurable: true});
+      };
+      afterEach(() => {
+        host?.remove();
+        host = undefined;
+        document.elementsFromPoint = originalFromPoint;
+      });
+
+      it('a chip standing: the flight holds the surface, the answer is born on the chip, the fold comes only after', async () => {
+        standChip('stock:megacredits');
+        const plan = arm(UNMI, plainTrBranch(), [{channel: 'stock', resource: 'megacredits', amount: 2}]);
+        seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 22}));
+        expect(heldStock('megacredits'), 'the answer is held from the apply block').eq(2);
+        const flight = flyActionCommitRail(plan);
+        expect(flight.holdsSurface, 'a plain TR now holds the surface — its answer will fly from the composer').is.true;
+        let answerAtFold: unknown = 'not folded';
+        void flight.foldable.then(() => {
+          answerAtFold = railRewardState.lastAnswer === undefined ? undefined : {...railRewardState.lastAnswer};
+        });
+        await Promise.resolve();
+        expect(answerAtFold, 'nothing folds before the answer has left its chip').eq('not folded');
+        await flight.done;
+        expect(answerAtFold, 'folded once the answer was BORN on its chip, never before').deep.eq({
+          key: plan.rail!.key, flown: ['stock:megacredits'], ticked: [],
+        });
+        expect(heldStock('megacredits'), 'the row ticked on the touchdown').eq(0);
+        expect(heldStock(RATING_RAIL_KEY)).eq(0);
+        expect(actionCommitRailState.phase).eq('idle');
+      });
+
+      it('no chip on screen: the answer ticks a beat after the cause and the fold keeps its old moment', async () => {
+        const plan = arm(UNMI, plainTrBranch(), [{channel: 'stock', resource: 'megacredits', amount: 2}]);
+        seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 22}));
+        const flight = flyActionCommitRail(plan);
+        expect(flight.holdsSurface).is.false;
+        let folded = false;
+        void flight.foldable.then(() => {
+          folded = true;
+        });
+        await Promise.resolve();
+        expect(folded, 'a plain TR folds at once, as before').is.true;
+        await flight.done;
+        expect(railRewardState.lastAnswer?.ticked).deep.eq(['stock:megacredits']);
+        expect(railRewardState.lastAnswer?.flown).deep.eq([]);
+        expect(heldStock('megacredits')).eq(0);
+      });
+
+      it('a chip of ANOTHER row is no birth place — the answer falls back to the row\'s bolt', async () => {
+        standChip('production:plants');
+        const bolt = host!.querySelector<HTMLElement>('.con-forecast__bolt')!;
+        bolt.getBoundingClientRect = () => ({left: 860, top: 300, width: 30, height: 30, right: 890, bottom: 330, x: 860, y: 300, toJSON: () => ({})}) as DOMRect;
+        document.elementsFromPoint = (x: number) => [x < 895 ? bolt : host!.querySelector('[data-forecast-rail]')!];
+        const plan = arm(UNMI, plainTrBranch(), [{channel: 'stock', resource: 'megacredits', amount: 2}]);
+        seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 22}));
+        const flight = flyActionCommitRail(plan);
+        expect(flight.holdsSurface).is.true;
+        await flight.done;
+        expect(railRewardState.lastAnswer?.flown, 'born on the «⚡» of the row that promised it').deep.eq(['stock:megacredits']);
+      });
+    });
+
     it('an unseeded plan flies nothing and folds at once', async () => {
       const plan = arm(UNMI, unmiBranch());
       const flight = flyActionCommitRail(plan);

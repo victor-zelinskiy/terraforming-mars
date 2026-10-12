@@ -25,10 +25,12 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *       printed data icon (the capsule ticks 2 → 0 on the departure, never
  *       before); the «+1» plant-production token is born INSIDE the printed
  *       production box and lands on the plants row's plate — the plate ticks
- *       on the touchdown; the Greens' «+1 M€ production» ticks IN PLACE a
- *       beat AFTER that touchdown (`TOUCHDOWN_TICK_GAP_MS`), never with the
- *       price, never before, never as a flown token of its own. The server
- *       agrees: 0 data, plant production 1, M€ production 1. Red is told.
+ *       on the touchdown; the Greens' «+1 M€ production» is BORN on the
+ *       composer's «Сработает» chip a beat AFTER that touchdown
+ *       (`TOUCHDOWN_TICK_GAP_MS`) while the workspace stands, flies to the M€
+ *       production plate and ticks it on ITS touchdown (PL-220) — never with
+ *       the price, never before the step. The server agrees: 0 data, plant
+ *       production 1, M€ production 1. Red is told.
  *
  * Fixture `biological-simulations` (tests/e2e/fixtures/generate.ts): blue's
  * action phase, the Greens ruling by the STARTING RULE, TR38 on blue's table
@@ -42,7 +44,7 @@ const TRIGGER = 'Tardigrades';
 const TRIGGER_RU = 'Тихоходки';
 const OUT = path.resolve('screenshots', 'biological-simulations');
 
-/** The table's answer ticks one beat after the cause's last touchdown (`resourceTransferModel.TOUCHDOWN_TICK_GAP_MS`). */
+/** The table's answer is born one beat after the cause's last touchdown (`resourceTransferModel.TOUCHDOWN_TICK_GAP_MS`). */
 const TOUCHDOWN_TICK_GAP_MS = 90;
 
 const PRESETS = [
@@ -115,6 +117,8 @@ type Sample = {
   cap?: Rect, capCount: string, prodBox?: Rect,
   /** The rail's production plates. */
   plantProd: string, mcProd: string, plantProdBox?: Rect, mcProdBox?: Rect,
+  /** The composer's «Сработает» chip of the M€ production step (PL-220 — the table's answer is born there). */
+  fxChip?: Rect, fxChipWs: number,
 };
 type Probe = {samples: Array<Sample>};
 
@@ -180,6 +184,8 @@ async function armProbe(page: Page): Promise<void> {
         mcProd: read(mcSel).match(/^[-+]?\d+/)?.[0] ?? '',
         plantProdBox: rect(document.querySelector(plantSel)),
         mcProdBox: rect(document.querySelector(mcSel)),
+        fxChip: rect(document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"]')),
+        fxChipWs: document.querySelectorAll('.con-cardactions').length,
       };
       const last = p.samples[p.samples.length - 1];
       if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
@@ -448,7 +454,7 @@ for (const preset of PRESETS) {
       await red.close();
     });
 
-    test(`(B) a PRODUCTION answer after the action: −2 off the capsule, +1 plant production born in the printed box, the Greens' +1 M€ production a beat AFTER its touchdown (${preset.id})`, async ({page, request, context}) => {
+    test(`(B) a PRODUCTION answer after the action: −2 off the capsule, +1 plant production born in the printed box, the Greens' +1 M€ production flies from its «Сработает» chip a beat AFTER its touchdown (${preset.id})`, async ({page, request, context}) => {
       test.setTimeout(420_000);
       const seen = watchPage(page);
       const {playerId, seats} = await bootFixtureSeats(page, request, 'biological-simulations', {query: preset.query});
@@ -544,15 +550,26 @@ for (const preset of PRESETS) {
       const plantEarly = samples.filter((s) => s.t < stepLanding!.s.t - 60 && s.plantProd !== '' && s.plantProd !== '+0' && s.plantProd !== '0').map((s) => `${s.t}:${s.plantProd}`);
       expect(plantEarly, 'the plants plate read 0 until the touchdown').toEqual([]);
 
-      // ── 5. THE ANSWER: the Greens' «+1 M€ production» ticks IN PLACE a beat AFTER the step's touchdown — never with
-      //       the price, never before the step, never as a flown token.
+      // ── 5. THE ANSWER (PL-220 — the owner's decision 2026-10-12): the Greens' «+1 M€ production» is BORN on the
+      //       composer's «Сработает» chip that promised it, a beat AFTER the step's touchdown, while the workspace still
+      //       stands; it flies to the M€ production plate, which ticks on ITS touchdown — never with the price, never
+      //       before the step. (Until PL-220 it ticked in place under a workspace already dissolving.)
+      const answer = birthOf(samples, 'prod:megacredits+1');
+      expect(answer, `the Greens' answer flew as its own token\n${trail(samples)}`).toBeDefined();
+      expect(answer!.s.t, `the answer (${answer!.s.t}) is born AFTER the step's touchdown (${stepLanding!.s.t}) plus the beat (${TOUCHDOWN_TICK_GAP_MS})`).toBeGreaterThanOrEqual(stepLanding!.s.t + TOUCHDOWN_TICK_GAP_MS - 60);
+      expect(answer!.s.fxChipWs, 'the workspace still stood at the answer\'s birth').toBeGreaterThan(0);
+      expect(answer!.s.fxChip, 'the «Сработает» chip was measurable at the birth').toBeDefined();
+      expect(inside(answer!.chip, answer!.s.fxChip!, answer!.chip.w * 0.75), `the answer is BORN on the «Сработает» chip — ${answer!.chip.x},${answer!.chip.y} vs ${JSON.stringify(answer!.s.fxChip)}`).toBe(true);
+      const answerLanding = landingOf(samples, 'prod:megacredits+1');
+      expect(answerLanding, 'the answer rested with its contact beat').toBeDefined();
+      expect(answerLanding!.s.mcProdBox, 'the M€ plate was measurable at the landing').toBeDefined();
+      expect(inside(answerLanding!.chip, answerLanding!.s.mcProdBox!, answerLanding!.chip.w * 0.5), `the answer rests ON the M€ production plate — ${answerLanding!.chip.x},${answerLanding!.chip.y} vs ${JSON.stringify(answerLanding!.s.mcProdBox)}`).toBe(true);
       const mcOne = firstReading(samples, 'mcProd', '+1');
       expect(mcOne, 'the M€ production plate ticked to +1').toBeDefined();
-      expect(mcOne!.t, `the Greens' answer (${mcOne!.t}) ticks AFTER the step's touchdown (${stepLanding!.s.t}) plus the beat (${TOUCHDOWN_TICK_GAP_MS})`).toBeGreaterThanOrEqual(stepLanding!.s.t + TOUCHDOWN_TICK_GAP_MS - 60);
+      expect(mcOne!.t, `the plate ticked (${mcOne!.t}) no earlier than the answer's touchdown (${answerLanding!.s.t})`).toBeGreaterThanOrEqual(answerLanding!.s.t - 60);
       expect(mcOne!.t, 'the answer ticks after the plate it answers').toBeGreaterThanOrEqual(plantOne!.t);
-      const mcEarly = samples.filter((s) => s.t < stepLanding!.s.t - 60 && s.mcProd !== '' && s.mcProd !== '+0' && s.mcProd !== '0').map((s) => `${s.t}:${s.mcProd}`);
-      expect(mcEarly, 'the M€ production plate read 0 until the step had landed').toEqual([]);
-      expect(samples.some((s) => s.chips.some((c) => c.v.startsWith('prod:megacredits'))), 'the answer is never a flown token of its own').toBe(false);
+      const mcEarly = samples.filter((s) => s.t < answerLanding!.s.t - 60 && s.mcProd !== '' && s.mcProd !== '+0' && s.mcProd !== '0').map((s) => `${s.t}:${s.mcProd}`);
+      expect(mcEarly, 'the M€ production plate read 0 until the answer had landed').toEqual([]);
       expect(samples.some((s) => s.stranded), 'nothing stranded').toBe(false);
       expect(await strandedReports(page), 'no stranded report').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
