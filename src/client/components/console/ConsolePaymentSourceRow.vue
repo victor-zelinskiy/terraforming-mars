@@ -27,6 +27,8 @@
       <!-- The payment VALUE of one unit — why 2 steel can pay 4 M€. Only ever
            shown when it is not 1 (M€ never carries a rate badge). -->
       <span v-if="row.rate > 1" class="con-payrow__rate">×{{ row.rate }}</span>
+      <!-- WHOSE units (К-P1): a card-bound lane names the card they leave — the quiet second word, the first to yield. -->
+      <span v-if="row.sourceCard !== undefined" class="con-payrow__source" :data-pay-source="row.sourceCard">· {{ $t(row.sourceCard) }}</span>
       <span v-if="row.reserved" class="con-payrow__reserved">{{ $t('reserved') }}</span>
     </span>
 
@@ -130,7 +132,7 @@ export default defineComponent({
       const r = this.row;
       const unit = this.costUnit === 'megacredits' ? 'M€' : translateText(paymentUnitLabel(this.costUnit));
       const parts = [
-        translateText(r.labelKey),
+        r.sourceCard === undefined ? translateText(r.labelKey) : `${translateText(r.labelKey)} · ${translateText(r.sourceCard)}`,
         `${translateText(this.usedCapKey)}: ${r.used}`,
         `${translateText('Remaining')}: ${r.remaining} ${translateText('of')} ${r.available}`,
         `${translateText('Contribution')}: ${r.contribution} ${unit}`,

@@ -4,7 +4,7 @@ import {
   dialLaneCount, initialCounts, laneCap,
   paymentCovers, paymentFromCounts, PaymentLane,
   paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
-  projectCardPaymentPrompt, paymentUnitIcon, paymentUnitLabel, paymentLaneLabel, buildPaymentView,
+  projectCardPaymentPrompt, paymentUnitIcon, paymentUnitLabel, paymentLaneLabel, paymentLaneSource, buildPaymentView,
   rateFor,
 } from '@/client/console/paymentPlan';
 import {buildStandardProjectPaymentOptions, GENERIC_PAYMENT_ORDER} from '@/client/components/payment/paymentModelUtils';
@@ -247,7 +247,7 @@ describe('paymentPlan (T3 native payment math)', () => {
       const lanes = paymentLanes(p, owner(2, {steel: 5}));
       expect(lanes.map((l) => l.unit)).to.deep.eq(['constructionMechs']);
       const view = buildPaymentView({cost: 12, lanes, counts: initialCounts(12, lanes, 20), mcAvailable: 20});
-      expect(view.rows[0]).to.deep.include({unit: 'constructionMechs', labelKey: 'Mechs', quickAdjust: true});
+      expect(view.rows[0]).to.deep.include({unit: 'constructionMechs', labelKey: 'Mechs', sourceCard: CardName.CONSTRUCTION_MECHS, quickAdjust: true});
     });
   });
 
@@ -314,7 +314,7 @@ describe('paymentPlan (T3 native payment math)', () => {
       const lanes = paymentLanes(p, owner(3, {steel: 5}));
       expect(lanes.map((l) => l.unit)).to.deep.eq(['supercomputerData']);
       const view = buildPaymentView({cost: 9, lanes, counts: initialCounts(9, lanes, 20), mcAvailable: 20});
-      expect(view.rows[0]).to.deep.include({unit: 'supercomputerData', labelKey: 'Data', quickAdjust: true});
+      expect(view.rows[0]).to.deep.include({unit: 'supercomputerData', labelKey: 'Data', sourceCard: CardName.SUPERCOMPUTER, quickAdjust: true});
     });
 
     it('a card with no Science tag offers no data lane, whatever data stand on the card', () => {
@@ -357,10 +357,12 @@ describe('paymentPlan (T3 native payment math)', () => {
       expect(lanes.map((l) => [l.unit, l.available])).to.deep.eq([['mechs', 2], ['constructionMechs', 3]]);
     });
 
-    it('the labels differ — «Mechs · EVA Mechs» / «Mechs · Construction Mechs»', () => {
+    it('the rows differ — «Мехи · Мехи ВКД» / «Мехи · Строительные мехи» (the resource word + the card each spends)', () => {
       const lanes = paymentLanes(p, both);
       const view = buildPaymentView({cost: 25, lanes, counts: initialCounts(25, lanes, 0), mcAvailable: 0});
-      expect(view.rows.map((r) => r.labelKey)).to.deep.eq(['Mechs · EVA Mechs', 'Mechs · Construction Mechs', 'Megacredits']);
+      expect(view.rows.map((r) => [r.labelKey, r.sourceCard])).to.deep.eq([
+        ['Mechs', CardName.EVA_MECHS], ['Mechs', CardName.CONSTRUCTION_MECHS], ['Megacredits', undefined],
+      ]);
       // 2 + 3 mechs × 5 = 25: the sum covers the price, each lane spends its own.
       expect(view.rows.slice(0, 2).map((r) => r.used)).to.deep.eq([2, 3]);
     });
@@ -395,6 +397,20 @@ describe('paymentPlan (T3 native payment math)', () => {
         expect(fact?.context, `${unit} has no rail context`).to.not.eq(undefined);
       });
     }
+
+    it('К-P1 (the owner\'s decision 2026-10-12): EVERY card-bound lane names the card its units leave — a stock lane and a lane whose label IS its card never do', () => {
+      for (const unit of SPENDABLE_CARD_RESOURCES) {
+        const expected = unit === 'floodgateSteel' ? undefined : CARD_FOR_SPENDABLE_RESOURCE[unit];
+        expect(paymentLaneSource(unit), unit).to.eq(expected);
+      }
+      for (const unit of ['steel', 'titanium', 'heat', 'plants', 'megacredits']) {
+        expect(paymentLaneSource(unit), unit).to.eq(undefined);
+      }
+      // Two rows of one panel never read the same: the word + the card is unique for every pair of units.
+      const read = (u: string) => `${paymentUnitLabel(u)}|${paymentLaneSource(u) ?? ''}`;
+      const all = [...SPENDABLE_CARD_RESOURCES];
+      expect(new Set(all.map(read)).size, 'one reading per unit').to.eq(all.length);
+    });
 
     it('units sharing a label are told apart on one panel', () => {
       for (const a of SPENDABLE_CARD_RESOURCES) {

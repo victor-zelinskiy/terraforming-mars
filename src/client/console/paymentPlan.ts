@@ -20,7 +20,7 @@
  */
 
 import {DEFAULT_PAYMENT_VALUES, Payment, PaymentOptions} from '@/common/inputs/Payment';
-import {SpendableResource} from '@/common/inputs/Spendable';
+import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource, SpendableResource} from '@/common/inputs/Spendable';
 import {Units} from '@/common/Units';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -415,6 +415,22 @@ export function paymentUnitLabel(unit: string): string {
  * (`PAY_UNIT_SOURCE_LABELS`). Two identical labels on one panel are two rows
  * the player cannot tell apart.
  */
+/**
+ * THE CARD A CARD-BOUND LANE'S UNITS LEAVE (К-P1, the owner's decision 2026-10-12 — the TR50 walk). A mech, a data, a
+ * floater is not the player's stock: it lives on ONE card, and a table may hold seven mech holders of which one pays.
+ * So a card-bound row always says whose units it spends — «Мехи · Строительные мехи», «Данные · Суперкомпьютер» — read
+ * off the one table the server's `pay()` spends from (`CARD_FOR_SPENDABLE_RESOURCE`), never a second list. A lane
+ * whose own label already IS its card (Modular Floodgates' stored steel) and every stock lane (steel, titanium, heat,
+ * plants) answer `undefined`.
+ */
+export function paymentLaneSource(unit: string): CardName | undefined {
+  if (!(SPENDABLE_CARD_RESOURCES as ReadonlyArray<string>).includes(unit)) {
+    return undefined;
+  }
+  const card = CARD_FOR_SPENDABLE_RESOURCE[unit as SpendableCardResource];
+  return PAY_UNIT_LABELS[unit] === card ? undefined : card;
+}
+
 export function paymentLaneLabel(unit: string, lanes: ReadonlyArray<{unit: string}>): string {
   const plain = paymentUnitLabel(unit);
   const twin = lanes.some((other) => other.unit !== unit && paymentUnitLabel(other.unit) === plain);
@@ -463,6 +479,8 @@ export type PaymentSourceRow = {
   unit: PaymentPanelUnit;
   /** i18n key for the resource name (English text IS the key here). */
   labelKey: string;
+  /** The card a card-bound lane's units leave — drawn beside the name (`paymentLaneSource`). */
+  sourceCard?: CardName;
   /** M€ bought by ONE unit (1 for M€, `steelValue` for steel, …). */
   rate: number;
   /** Owned before this payment (already net of a subtracted card reserve). */
@@ -603,9 +621,13 @@ export function buildPaymentView(args: {
     // pay, so «+» dies on every alternative at once the moment the combination
     // meets the price — never once per row.
     const cap = laneCap(cost, lane, lanes, counts);
+    // A card-bound row names its card on its own (the plain resource word + the source); the twin label is for the
+    // readers that have one string only (the rail coin's aria).
+    const sourceCard = paymentLaneSource(lane.unit);
     return {
       unit: lane.unit,
-      labelKey: paymentLaneLabel(lane.unit, lanes),
+      labelKey: sourceCard !== undefined ? paymentUnitLabel(lane.unit) : paymentLaneLabel(lane.unit, lanes),
+      ...(sourceCard !== undefined ? {sourceCard} : {}),
       rate: lane.rate,
       available: lane.available,
       used,

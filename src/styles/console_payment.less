@@ -311,6 +311,19 @@
         background: rgba(18, 34, 50, 0.75);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
     }
+    /* «· Строительные мехи» — whose units a card-bound lane spends (К-P1). The FIRST member of the ident to yield
+       (basis 0, capped at its own text), so the resource word and its rate never lose a glyph to it. */
+    &__source {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: max-content;
+        font-size: calc(var(--con-pay-name-fs) * 0.78);
+        font-weight: 600;
+        color: fade(@con-text, 62%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     &__reserved {
         flex: 0 0 auto;
         font-size: .58rem;
