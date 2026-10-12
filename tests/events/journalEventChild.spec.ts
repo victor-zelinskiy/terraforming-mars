@@ -48,6 +48,28 @@ describe('journal event-driven children', () => {
     expect(rows[0].chips[0]).to.deep.include({icon: CardResource.ANIMAL, text: '+1'});
   });
 
+  it('an effect answering ANOTHER effect keeps its own chips — a marker never folds into a marker (TR45: Topsoil pays for Decomposers\' microbe)', () => {
+    const events: Array<GameEvent> = [
+      ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.COMPOSTING_INITIATIVE}, player: 'blue', correlationId: 1}),
+      // Decomposers takes a microbe for the played microbe tag, and Topsoil Contract answers THAT microbe with 1 M€.
+      ev({id: 2, type: 'effect-triggered', source: {kind: 'card', card: CardName.DECOMPOSERS}, player: 'blue', correlationId: 1, parentId: 1}),
+      ev({id: 3, type: 'card-resource-changed', source: {kind: 'card', card: CardName.DECOMPOSERS}, player: 'blue', correlationId: 1, parentId: 2,
+        impact: {cardResources: [{cardResource: CardResource.MICROBE, target: CardName.DECOMPOSERS, amount: 1}]}}),
+      ev({id: 4, type: 'effect-triggered', source: {kind: 'card', card: CardName.TOPSOIL_CONTRACT}, player: 'blue', correlationId: 1, parentId: 2}),
+      ev({id: 5, type: 'resource-changed', source: {kind: 'card', card: CardName.TOPSOIL_CONTRACT}, player: 'blue', correlationId: 1, parentId: 4, impact: {stock: {megacredits: 1}}}),
+      // …and the card's own 14 microbes, which Topsoil answers with 14 M€.
+      ev({id: 6, type: 'card-resource-changed', source: {kind: 'card', card: CardName.COMPOSTING_INITIATIVE}, player: 'blue', correlationId: 1, parentId: 1,
+        impact: {cardResources: [{cardResource: CardResource.MICROBE, target: CardName.COMPOSTING_INITIATIVE, amount: 14, basis: {count: 14, unitKey: '{tile|tiles} on Mars'}}]}}),
+      ev({id: 7, type: 'effect-triggered', source: {kind: 'card', card: CardName.TOPSOIL_CONTRACT}, player: 'blue', correlationId: 1, parentId: 1}),
+      ev({id: 8, type: 'resource-changed', source: {kind: 'card', card: CardName.TOPSOIL_CONTRACT}, player: 'blue', correlationId: 1, parentId: 7, impact: {stock: {megacredits: 14}}}),
+    ];
+    const rows = buildEventChildren(events, 1, 'blue');
+    const topsoil = rows.find((r) => r.source.kind === 'card' && r.source.card === CardName.TOPSOIL_CONTRACT);
+    expect(topsoil?.chips.map((c) => c.text), 'Topsoil\'s row carries BOTH answers — the nested one included').deep.eq(['+1', '+14']);
+    const decomposers = rows.find((r) => r.source.kind === 'card' && r.source.card === CardName.DECOMPOSERS);
+    expect(decomposers?.chips.map((c) => [c.icon, c.text]), 'Decomposers keeps only its own microbe').deep.eq([[CardResource.MICROBE, '+1']]);
+  });
+
   it('a payout a RULE counted (TR21: «for 3 adjacent cities») keeps its reason and its card on a row of its own', () => {
     const events: Array<GameEvent> = [
       ev({id: 1, type: 'action', source: {kind: 'card', card: CardName.ARBORETUM}, player: 'red', correlationId: 1}),

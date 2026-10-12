@@ -377,7 +377,11 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
   const foldedChips = new Map<number, Array<JournalImpactChip>>();
   const consumed = new Set<number>();
   for (const e of events) {
-    if (e.id === rootId || e.parentId === undefined) {
+    // A MARKER never folds into a marker: an effect that answers ANOTHER effect (Topsoil Contract paying for the
+    // microbe Decomposers just took — a chain of triggers inside one play) is its OWN contribution. Folded, it took
+    // its children with it: the marker carried no chips of its own, the children it had collected were never read,
+    // and the rival's card summed «+14 M€» for a play that paid 15 (TR45, 2026-10-12).
+    if (e.id === rootId || e.parentId === undefined || MARKER_TYPES.has(e.type)) {
       continue;
     }
     const parent = byId.get(e.parentId);
