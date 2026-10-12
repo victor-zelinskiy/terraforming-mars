@@ -66,6 +66,12 @@ describe('notificationModel (pure)', () => {
       expect(merged).to.have.length(3);
       expect(merged.find((c) => c.saved === true)?.text).to.eq('−2');
     });
+
+    it('PL-195: a COUNTED gain keeps its own pill and its reason — never merged into a plain gain of the same resource', () => {
+      const basis = {count: 14, unitKey: '{tile|tiles} on Mars'};
+      const merged = mergeChips([chip('microbe', '+14', {basis}), chip('microbe', '+1')]);
+      expect(merged).to.deep.eq([{icon: 'microbe', text: '+14', basis}, {icon: 'microbe', text: '+1'}]);
+    });
   });
 
   describe('summarizeImpact', () => {

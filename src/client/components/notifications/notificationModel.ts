@@ -329,7 +329,8 @@ export function mergeChips(chips: ReadonlyArray<JournalImpactChip>): Array<Journ
   const order: Array<string> = [];
   const byKey = new Map<string, JournalImpactChip & {sum: number}>();
   for (const c of chips) {
-    const key = `${c.icon}|${c.production === true ? 1 : 0}|${c.saved === true ? 1 : 0}`;
+    // A COUNTED gain keeps its own pill (PL-195): its reason is part of its identity.
+    const key = `${c.icon}|${c.production === true ? 1 : 0}|${c.saved === true ? 1 : 0}|${c.basis === undefined ? '' : `${c.basis.unitKey}:${c.basis.count}`}`;
     const existing = byKey.get(key);
     if (existing === undefined) {
       byKey.set(key, {...c, sum: chipValue(c.text)});
@@ -351,6 +352,7 @@ export function mergeChips(chips: ReadonlyArray<JournalImpactChip>): Array<Journ
       // as an absent key (deep-equality, JSON round-trips).
       ...(m.production === true ? {production: true} : {}),
       ...(m.saved === true ? {saved: true} : {}),
+      ...(m.basis !== undefined ? {basis: m.basis} : {}),
     });
   }
   return out;

@@ -373,6 +373,9 @@ describe('CompostingInitiative', () => {
       const impact = recomputeRootImpact(t.game.events.events, root, t.player.color, t.opponent.color);
       const chips = impact.pillGroups.flatMap((g) => g.chips);
       expect(chips.map((c) => c.icon)).to.include(CardResource.MICROBE);
+      // PL-195: the 14 COUNTED microbes are a pill carrying their reason.
+      const microbes = chips.filter((c) => c.icon === CardResource.MICROBE);
+      expect(microbes.map((c) => [c.text, c.basis?.count ?? null])).deep.eq([['+14', 14]]);
       const gain = impact.childVMs.find((vm) => vm.basis !== undefined);
       expect(gain?.basis, 'the reason rides to the rival').deep.include({count: 14, unitKey: TILES_ON_MARS_UNIT});
     });

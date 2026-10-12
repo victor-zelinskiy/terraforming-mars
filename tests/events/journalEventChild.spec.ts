@@ -82,7 +82,8 @@ describe('journal event-driven children', () => {
     const rows = buildEventChildren(events, 1, 'red');
     const counted = rows.find((r) => r.basis !== undefined);
     expect(counted?.basis).to.deep.eq({count: 3, unitKey: 'adjacent {city|cities}', onCard: CardName.VECTOR_COMPUTATIONS});
-    expect(counted?.chips).to.deep.eq([{icon: CardResource.DATA, text: '+3'}]);
+    // PL-195: the row's chip carries its reason too — a card that sums pills keeps it as a pill of its own.
+    expect(counted?.chips).to.deep.eq([{icon: CardResource.DATA, text: '+3', basis: {count: 3, unitKey: 'adjacent {city|cities}'}}]);
     expect(rows.filter((r) => r.basis === undefined && r.chips.some((c) => c.text === '+1'))).to.have.length(1);
   });
 

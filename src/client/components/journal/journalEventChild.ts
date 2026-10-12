@@ -60,6 +60,12 @@ export type JournalImpactChip = {
    * "−28°→−26°") — never tinted positive/negative from its leading sign.
    */
   neutral?: boolean;
+  /**
+   * A COUNTED gain's reason (PL-195 — «+14 [микроб] · за 14 тайлов на Марсе», «+4 [data] · за 4 проданных патента»):
+   * the event's own `basis`, carried by its chip so a card that sums pills keeps it as a pill of its own — never
+   * merged into a plain gain of the same resource, never a bare number nobody can account for.
+   */
+  basis?: {count: number; unitKey: string};
 };
 
 export type JournalChildSource =
@@ -536,8 +542,9 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     // A card-resource payout a RULE counted (TR21: «for 3 adjacent cities») keeps its reason and its card on a row of its own.
     const counted = e.type === 'card-resource-changed' ? e.impact.cardResources?.find((cr) => cr.basis !== undefined) : undefined;
     if (counted?.basis !== undefined) {
+      const reason = {count: counted.basis.count, unitKey: counted.basis.unitKey};
       push(`basis|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
-        basis: {count: counted.basis.count, unitKey: counted.basis.unitKey, onCard: counted.target}}, impactChips(e.impact));
+        basis: {...reason, onCard: counted.target}}, impactChips(e.impact).map((chip) => ({...chip, basis: reason})));
       continue;
     }
     const chips = [...impactChips(e.impact), ...(foldedChips.get(e.id) ?? [])];

@@ -214,6 +214,8 @@
           <span v-if="iconClass(chip.icon) !== ''" class="con-notif__chip-icon" :class="iconClass(chip.icon)" aria-hidden="true"></span>
           <span v-if="chipUnit(chip) !== undefined" class="con-notif__chip-unit" v-i18n>{{ chipUnit(chip) }}</span>
           <span>{{ chip.text }}</span>
+          <!-- PL-195: a COUNTED gain names what it was counted by, on its own pill. -->
+          <span v-if="chip.basis !== undefined" class="con-notif__chip-basis" data-notif-basis>{{ basisLabel(chip.basis) }}</span>
         </span>
       </span>
     </div>
@@ -305,7 +307,7 @@
  * accent vocabulary for both shells).
  */
 import {defineComponent, PropType} from 'vue';
-import {translateMessage, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
@@ -631,6 +633,10 @@ export default defineComponent({
     }
   },
   methods: {
+    /** «за 14 тайлов на Марсе» — the journal's own reading of a counted gain's basis (JournalChildRow.basisLabel). */
+    basisLabel(basis: {count: number, unitKey: string}): string {
+      return translateTextWithParams('for ${0} ${1}', [String(basis.count), translateText(basis.unitKey)]);
+    },
     ownerName(color: Color): string {
       return displayNameForColor(this.players, color);
     },

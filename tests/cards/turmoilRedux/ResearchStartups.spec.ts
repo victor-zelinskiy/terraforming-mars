@@ -296,6 +296,8 @@ describe('ResearchStartups', () => {
       const impact = recomputeRootImpact(t.game.events.events, root, t.player.color, t.opponent.color);
       const chips = impact.pillGroups.flatMap((g) => g.chips);
       expect(chips.map((c) => c.icon)).to.include.members([Resource.MEGACREDITS, CardResource.DATA]);
+      // PL-195: the counted data are a pill of their own and carry their reason.
+      expect(chips.find((c) => c.icon === CardResource.DATA)?.basis).deep.eq({count: 3, unitKey: PATENTS_SOLD_UNIT});
       const gain = impact.childVMs.find((vm) => vm.basis !== undefined);
       expect(gain?.basis, 'the reason rides to the rival').deep.include({count: 3, unitKey: PATENTS_SOLD_UNIT});
     });
