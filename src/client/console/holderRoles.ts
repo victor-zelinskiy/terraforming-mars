@@ -85,12 +85,38 @@ export function holderRoleClaims(kind: HolderRoleKind): boolean {
  * pools of one resource stand on the table (PL-136: EVA's Space mechs beside
  * Construction Mechs' Building mechs are two coins, not one).
  */
-export function holderGroupKey(resource: CardResource, role: HolderRole | undefined, split: boolean, unitSplit = false): string {
+export function holderGroupKey(resource: CardResource, role: HolderRole | undefined, split: boolean, unitSplit = false, goodSplit = false): string {
   const base = cardResourceKey(resource);
   if (!split || role === undefined || !holderRoleClaims(role.kind)) {
     return base;
   }
-  return role.kind === 'payment' && unitSplit ? `${base}:${role.kind}:${role.unit}` : `${base}:${role.kind}`;
+  if (role.kind === 'payment' && unitSplit) {
+    return `${base}:${role.kind}:${role.unit}`;
+  }
+  if (role.kind === 'action' && goodSplit) {
+    return `${base}:${role.kind}:${actionGoodKey(role.good)}`;
+  }
+  return `${base}:${role.kind}`;
+}
+
+/**
+ * The identity of an action's GOOD — what tells two action holders of one resource apart (PL-223, the TR50 walk:
+ * Forestry Mechs' «1 mech → plant production» and Expedition Mechs' «1 mech → a card» were ONE chip «[mech] 3» under
+ * the FIRST holder's plant plate, so the satellite promised plant production for a mech that buys a card). One good,
+ * one key: the same production of the same resource, the same draw (its tag filter included), the same parameter.
+ */
+export function actionGoodKey(good: ActionGood): string {
+  switch (good.kind) {
+  case 'production':
+  case 'stock':
+    return `${good.kind}-${good.resource}`;
+  case 'cards':
+    return good.tag === undefined ? 'cards' : `cards-${good.tag}`;
+  case 'global':
+    return `global-${good.parameter}`;
+  default:
+    return good.kind;
+  }
 }
 
 /** The chip's one-word caption of a role (an i18n key) — only the roles the console names; `store` has none. */

@@ -3,7 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderGroupKey, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
+import {actionGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderGroupKey, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
 import {additionalResourceRoleGroups} from '@/client/components/additionalResources/additionalResources';
 import {buildExtrasTypes} from '@/client/console/extrasExplorerModel';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -150,6 +150,25 @@ describe('additionalResourceRoleGroups — a chip per MEANING, never one number 
     // One tender pool beside the action's: the coin keeps its old address, the action keeps its own.
     const two = additionalResourceRoleGroups([card(CardName.FORESTRY_MECHS, 2), card(CardName.EVA_MECHS, 1)]);
     expect(two.map((g) => [g.key, g.unitSplit])).to.deep.eq([['mech:action', false], ['mech:payment', false]]);
+  });
+
+  it('SEVEN mech holders, SIX meanings (TR50, PL-223): two action GOODS are two chips — Forestry\'s plant production never speaks for Expedition Mechs\' card', () => {
+    const groups = additionalResourceRoleGroups([
+      card(CardName.EVA_MECHS, 2), card(CardName.CONSTRUCTION_MECHS, 1), card(CardName.MECH_SPORTS, 3), card(CardName.MARS_ARMY_MECHS, 1),
+      card(CardName.AUTOMATED_CONVOYS, 1), card(CardName.FORESTRY_MECHS, 2), card(CardName.EXPEDITION_MECHS, 1),
+    ]);
+    expect(groups.map((g) => [g.key, g.total, g.role.kind])).to.deep.eq([
+      ['mech:payment:mechs', 2, 'payment'], ['mech:payment:constructionMechs', 1, 'payment'], ['mech', 3, 'vp'], ['mech:delegate', 1, 'delegate'],
+      ['mech:trade', 1, 'trade'], ['mech:action:production-plants', 2, 'action'], ['mech:action:cards', 1, 'action'],
+    ]);
+    expect(groups[5].role).to.deep.eq({kind: 'action', spend: 1, good: {kind: 'production', resource: 'plants', amount: 1}});
+    expect(groups[6].role, 'TR50\'s mech buys a card').to.deep.eq({kind: 'action', spend: 1, good: {kind: 'cards', amount: 1}});
+    expect(groups.map((g) => g.goodSplit), 'every group of the type knows the action goods are two').to.deep.eq([true, true, true, true, true, true, true]);
+    // One action good (TR40 alone, or TR40 beside a second plant-production holder): the address it always had.
+    const one = additionalResourceRoleGroups([card(CardName.FORESTRY_MECHS, 2), card(CardName.EVA_MECHS, 1)]);
+    expect(one.map((g) => [g.key, g.goodSplit])).to.deep.eq([['mech:action', false], ['mech:payment', false]]);
+    expect(holderGroupKey('Mech' as never, holderRoleOf(CardName.EXPEDITION_MECHS), true, false, true)).to.eq('mech:action:cards');
+    expect(actionGoodKey({kind: 'cards', amount: 1, tag: 'space' as never})).to.eq('cards-space');
   });
 
   it('data holders split the same way: the census (delegates) apart, the museum (VP) alone on the plain chip, TR02\'s draw (an action good) apart — and an unrelated type stays whole', () => {

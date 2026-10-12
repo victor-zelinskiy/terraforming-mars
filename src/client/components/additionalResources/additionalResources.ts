@@ -3,7 +3,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {holderGroupKey, HolderRole, holderRoleClaims, holderRoleOf} from '@/client/console/holderRoles';
+import {actionGoodKey, holderGroupKey, HolderRole, holderRoleClaims, holderRoleOf} from '@/client/console/holderRoles';
 
 /**
  * Additional (card) resources — the aggregation layer behind the
@@ -178,6 +178,12 @@ export interface AdditionalResourceRoleGroup extends AdditionalResourceGroup {
    * coin's rate alone would promise every mech for every card.
    */
   readonly unitSplit: boolean;
+  /**
+   * TWO action goods of this resource stand on the table (PL-223: Forestry Mechs' plant production beside Expedition
+   * Mechs' card): the action groups are one PER GOOD, each keyed by its good — under one plate the first holder's
+   * good was promised for every mech of the lane.
+   */
+  readonly goodSplit: boolean;
 }
 
 const roleGroupsMemo = new WeakMap<ReadonlyArray<CardModel>, ReadonlyArray<AdditionalResourceRoleGroup>>();
@@ -208,7 +214,9 @@ export function additionalResourceRoleGroups(tableau: ReadonlyArray<CardModel>):
     // A claiming role is its own lane; a VP rule and plain storage share the PLAIN lane (`holderRoleClaims`). A
     // payment role's lane is its UNIT (PL-136): two tender pools of one resource are two lanes, merged back into one
     // chip only when a single pool stands (the key then stays the resource's own — see `unitSplit`).
-    const lane = role.kind === 'payment' ? `payment:${role.unit}` : holderRoleClaims(role.kind) ? role.kind : 'plain';
+    const lane = role.kind === 'payment' ? `payment:${role.unit}` :
+      role.kind === 'action' ? `action:${actionGoodKey(role.good)}` :
+        holderRoleClaims(role.kind) ? role.kind : 'plain';
     const key = `${resource}#${lane}`;
     let draft = byKey.get(key);
     if (draft === undefined) {
@@ -230,7 +238,8 @@ export function additionalResourceRoleGroups(tableau: ReadonlyArray<CardModel>):
     const lanes = lanesByResource.get(d.resource);
     const split = (lanes?.size ?? 1) > 1;
     const unitSplit = Array.from(lanes ?? []).filter((lane) => lane.startsWith('payment:')).length > 1;
-    return {resource: d.resource, role: d.role, split, unitSplit, key: holderGroupKey(d.resource, d.role, split, unitSplit), total: d.total, cards: d.cards};
+    const goodSplit = Array.from(lanes ?? []).filter((lane) => lane.startsWith('action:')).length > 1;
+    return {resource: d.resource, role: d.role, split, unitSplit, goodSplit, key: holderGroupKey(d.resource, d.role, split, unitSplit, goodSplit), total: d.total, cards: d.cards};
   });
   roleGroupsMemo.set(tableau, result);
   return result;
