@@ -426,7 +426,11 @@ for (const preset of PRESETS) {
       expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
       expect(posts.length, 'A sent EXACTLY ONE request').toBe(1);
       expect(posts[0], 'the destination is the station').toContain(`"fleetDock":"${AURORA}"`);
-      expect(posts[0], 'and the target rides it as the tail').toContain(`{"type":"card","cards":["${HABS}"]}`);
+      // The target rides it as the tail, ADDRESSED to the dock's own reward pick (the pre-select law — a byte
+      // compare against an unaddressed answer stopped matching the day the answers carried their `for`).
+      const tail = (JSON.parse(posts[0]) as {responses: Array<{type: string, cards?: Array<string>, for?: {role: string, source?: {card?: string}}}>}).responses.find((r) => r.type === 'card');
+      expect(tail?.cards, 'and the target rides it as the tail').toEqual([HABS]);
+      expect(tail?.for, '…addressed to the station\'s own reward pick').toMatchObject({role: 'card', source: {card: AURORA}});
 
       expect(samples.every((s) => s.degraded === ''), 'no degradation was ever named').toBe(true);
       expect(samples.some((s) => s.asked), 'no question rose after the landing').toBe(false);

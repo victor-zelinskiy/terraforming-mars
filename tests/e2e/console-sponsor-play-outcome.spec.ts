@@ -175,8 +175,27 @@ test.describe('console start — a project played through «Эпатажный �
       }
     }
     expect(landed, 'focused «Деловые контакты» in the embedded hand').toBeTruthy();
-    await press(page, 'Enter', 1600); // the composer descends
-    await press(page, 'Enter', 2500); // commit
+    // ACT → VERIFY → RETRY (tests.md). Two blind Enters were a flake under load (4 of 6 red at 3 workers,
+    // 2026-10-12): the second landed before the composer took input and the play never left — the frame
+    // showed the composer standing with «Разыграть карту». The descent is verified by the composer
+    // standing; the commit by the POST it sends — and it is retried ONLY while nothing was sent, so a
+    // retry can never land on the pick the play opens.
+    const composer = page.locator('.con-composer--play');
+    for (let i = 0; i < 4 && await composer.count() === 0; i++) {
+      await press(page, 'Enter', 1600); // the composer descends
+    }
+    await expect(composer, 'the play composer stands').toHaveCount(1);
+    const posts: Array<string> = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+        posts.push(r.postData() ?? '');
+      }
+    });
+    for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
+      await press(page, 'Enter', 400); // commit
+      await expect.poll(() => posts.length, {timeout: 5_000}).toBeGreaterThan(0).catch(() => undefined);
+    }
+    expect(posts.length, 'the play was sent exactly once').toBe(1);
 
     // ── THE CLAIM SURVIVES THE STEP THAT PLACED IT ──
     await expect(page.locator('.con-deckpick'), 'the pick came up')

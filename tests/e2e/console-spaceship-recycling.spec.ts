@@ -66,6 +66,10 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 
 const countOf = (w: Wire, card: string) => w.thisPlayer.tableau.find((c) => c.name === card)?.resources ?? 0;
 
+type Answer = {type: string, index?: number, cards?: Array<string>, for?: {role: string, source?: {card?: string}}};
+/** The batch's answers, parsed — the activation first, then what the composer pre-collected. */
+const answersOf = (post: string): Array<Answer> => (JSON.parse(post) as {responses?: Array<Answer>}).responses ?? [];
+
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${preset}-${name}.png`)});
@@ -425,7 +429,10 @@ for (const preset of PRESETS) {
       console.log(`[${preset.id}] A capsule=${JSON.stringify(capsule)} ti=${JSON.stringify(titaniumIcons)}\n${trail(samples)}`);
       expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
       expect(seen.posts.length, 'A sent EXACTLY ONE request').toBe(1);
-      expect(seen.posts[0], 'the source is this card, the variant A').toMatch(new RegExp(`"cards":\\["${CARD}"\\]\\},\\{"type":"or","index":0`));
+      // Parsed, never a byte compare: every pre-collected answer now carries its address (the pre-select law).
+      const batchA = answersOf(seen.posts[0]).slice(1);
+      expect(batchA.map((r) => r.cards?.[0] ?? `or:${r.index}`), 'the source is this card, the variant A').toEqual([CARD, 'or:0']);
+      expect(batchA.every((r) => r.for?.source?.card === CARD), 'every pre-collected answer is addressed to the card').toBe(true);
 
       const born = births(samples);
       const spend = born.find((b) => b.chip.v === '−1');
@@ -545,7 +552,9 @@ for (const preset of PRESETS) {
       const samples = (await readProbe(page)).samples;
       console.log(`[${preset.id}] B source=${JSON.stringify(source)} target=${JSON.stringify(target)} mech=${JSON.stringify(mechIcon)}\n${trail(samples)}`);
       expect(seen.posts.length, 'one POST').toBe(1);
-      expect(seen.posts[0], 'source Formula Zero, variant B, target Mech Sports').toMatch(new RegExp(`"cards":\\["${FZ}"\\]\\},\\{"type":"or","index":1[^\\]]*\\},\\{"type":"card","cards":\\["${MS}"\\]`));
+      const batchB = answersOf(seen.posts[0]).slice(1);
+      expect(batchB.map((r) => r.cards?.[0] ?? `or:${r.index}`), 'source Formula Zero, variant B, target Mech Sports').toEqual([FZ, 'or:1', MS]);
+      expect(batchB.every((r) => r.for?.source?.card === CARD), 'every pre-collected answer is addressed to the card').toBe(true);
 
       const born = births(samples);
       const spend = born.find((b) => b.chip.v === '−1');
