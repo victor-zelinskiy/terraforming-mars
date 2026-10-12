@@ -60,6 +60,7 @@ import {
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
   resetCardResourceLandings, noteCardResourceLanding,
+  cardResourceLanded,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS, transferFlightBudgetMs, transferWaveDelayMs,
@@ -1093,7 +1094,13 @@ function landingFace(): HeroFace {
   const card = playedHeroState.card;
   const model = spec.model === 'tableau' && card !== undefined ?
     landingView?.thisPlayer?.tableau?.find((c) => c.name === card) : undefined;
-  return {lightweight: spec.lightweight, card: model};
+  // THE CAPSULE THE STAGE WILL SHOW (PL-191): the committed count MINUS what is still to fly onto it — the receiving
+  // stage's own reading (`capsuleModelFor`: committed − in flight). The committed model alone put the RESULT on the
+  // landing proxy («14» on TR45's capsule while «+14» had not left yet), the real card under it then read «0», and the
+  // capsule ticked to 14 again on the touchdown: a result before its cause, and a 14 → 0 → 14 flicker.
+  const owed = card === undefined ? 0 : Math.max(0, (playedHeroCardGainTotals()[card] ?? 0) - cardResourceLanded(card));
+  const face = model !== undefined && owed > 0 ? {...model, resources: Math.max(0, (model.resources ?? 0) - owed)} : model;
+  return {lightweight: spec.lightweight, card: face};
 }
 
 /**
@@ -1190,7 +1197,10 @@ export async function endPlayedHero(): Promise<void> {
         if (!group.self) {
           await hooks.emergeTarget(group.target);
         }
-        await runResourceTransfers({specs: group.specs, source, arrival: 'auto', onArrive: release});
+        // The card's OWN «+N on this card» (TR45's «+14 microbes») is born on the PRINTED icon of its on-play row —
+        // the icon the player read the rule on (PL-190); a card that prints none keeps the shared spawn point.
+        const origins = group.self ? group.specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec)) : undefined;
+        await runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release});
         if (!playedHeroState.active) {
           return;
         }
@@ -1644,6 +1654,36 @@ function heroTagOrigin(card: string, tag: Tag): TransferPoint | undefined {
         return {x: mr.left + mr.width / 2, y: mr.top + mr.height / 2};
       }
       return undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * WHERE THE PLAY'S OWN CARD-RESOURCE GAIN IS BORN (PL-190 — the play's twin of PL-063): on the landed card, the
+ * PRINTED icon of that resource in its ON-PLAY row — never one inside an action or effect frame (TR45 prints two
+ * microbes in its action, «spend 2 microbes»; the play's «+14» is the third, «[microbe] / [tile on Mars]»). The
+ * first such icon of the first measurable place of the reward ladder; undefined when the face prints none outside
+ * a frame (the shared spawn point stands) or for any other channel.
+ */
+function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint | undefined {
+  if (typeof document === 'undefined' || card === '' || spec.channel !== 'card-resource' || spec.targetCard !== card) {
+    return undefined;
+  }
+  const needles = iconNeedlesFor(spec.resource) ?? [];
+  if (needles.length === 0) {
+    return undefined;
+  }
+  for (const selector of heroRewardSourceSelectors(card)) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 4 || r.height <= 4) {
+        continue;
+      }
+      const printed = Array.from(el.querySelectorAll<HTMLElement>('.pcard-ic'))
+        .find((icon) => icon.closest('.pcard-effect') === null && needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
+      const ir = printed?.getBoundingClientRect();
+      return ir !== undefined && ir.width > 4 ? {x: ir.left + ir.width / 2, y: ir.top + ir.height / 2} : undefined;
     }
   }
   return undefined;
