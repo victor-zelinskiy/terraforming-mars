@@ -381,7 +381,9 @@
                          still standing in the hero slot to the left, and a second
                          copy of it here would be the duplication the selector
                          itself just stopped making. -->
-                    <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" aria-hidden="true">
+                    <!-- `data-composer-card`: the miniature IS the card on this surface — the play's price taken off it
+                         (PL-268, TR52's 2 data) is born on it; the same hook the action composer's rows carry. -->
+                    <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" :data-composer-card="tgt.cardName" aria-hidden="true">
                       <ConsoleCardFaceLite :name="tgt.cardName" />
                     </div>
                     <span v-else class="con-composer__target-selflink" aria-hidden="true">↰</span>
@@ -622,6 +624,7 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
 import {optionDraws, printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
@@ -659,7 +662,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {actionKnownRailMoves, playRailReward, playSpendReward} from '@/client/console/consoleActionCommit';
+import {actionKnownRailMoves, playRailReward, playSpendReward, playTargetSpendSpecs} from '@/client/console/consoleActionCommit';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {playCardReactions} from '@/client/console/played/receivingStageModel';
 import {Tag} from '@/common/cards/Tag';
@@ -893,7 +896,9 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
+  // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
+  // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -4378,6 +4383,9 @@ export default defineComponent({
         // stock cost chips (X87's plants and steel), flown by the landing scene INTO the standing card before it
         // lifts, each row ticking on its token's departure. Never the card's own price (the payment panel's).
         spends: playSpendReward(this.cardName, b, this.captured, payment),
+        // …and the price taken off a card THIS composer's own step chose (PL-268 — TR52's 2 data off a rival's census):
+        // born on the answered target row, absorbed into the standing card's printed icons before the lift.
+        targetSpends: playTargetSpendSpecs(this.cardName, b, this.captured),
         draws: heroRewardEffectsOf(b).reduce((n, e) =>
           (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0),
         // ProjectInspection: the chosen already-used action + its composed

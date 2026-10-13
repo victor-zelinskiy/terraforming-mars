@@ -34409,7 +34409,8 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 }
 .con-composer__target-thumb {
     flex-shrink: 0;
-    zoom: .3;
+    /* A px-authored face inside the rem layout: the zoom rides the TV scale (a bare .3 was a 96 px stamp at 4K). */
+    zoom: ~"calc(.24 * var(--con-ui-scale, 1))";
     > :is(.card-container, .pcard) { margin: 0; border-radius: .5rem; }
 }
 .con-composer__target-body {

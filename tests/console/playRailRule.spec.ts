@@ -14,13 +14,15 @@ import {UNMIContractor} from '../../src/server/cards/prelude/UNMIContractor';
 import {MagneticFieldGeneratorsPromo} from '../../src/server/cards/promo/MagneticFieldGeneratorsPromo';
 import {MinorityRepresentation} from '../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {ShipmentToEarth} from '../../src/server/cards/promo/ShipmentToEarth';
+import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {ScientificBreakthrough} from '../../src/server/cards/turmoilRedux/ScientificBreakthrough';
 import {Moss} from '../../src/server/cards/base/Moss';
 import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
 import {Payment} from '../../src/common/inputs/Payment';
 import {RATING_RAIL_KEY} from '../../src/client/console/resourceTransfer/resourceTransferModel';
-import {actionRailTrSpecs, playRailReward, playRailTrSpecs, playSpendReward} from '../../src/client/console/consoleActionCommit';
+import {actionRailTrSpecs, playRailReward, playRailTrSpecs, playSpendReward, playTargetSpendSpecs} from '../../src/client/console/consoleActionCommit';
 import {heroRewardEffectsOf} from '../../src/client/console/consolePlayCardComposer';
 import {reactionRailSpecs} from '../../src/client/console/colonyTrade/fleetDockModel';
 
@@ -131,5 +133,36 @@ describe('the card play\'s rail rule — the price a play takes OFF THE RAIL is 
     const {p} = table();
     const branch = cardPlayPreview(p, new BribedCommittee()).branches[0];
     expect(playSpendReward(CardName.BRIBED_COMMITTEE, branch, {}, {megacredits: 7} as Payment)).is.undefined;
+  });
+});
+
+describe('PL-268 — the play\'s price off a card the composer CHOSE (TR52 Scientific Breakthrough)', () => {
+  function attack(): {p: TestPlayer, census: MartianCensus, branch: ReturnType<typeof cardPlayPreview>['branches'][number]} {
+    const [game, p, rival] = testGame(2, {coloniesExtension: true, turmoilReduxExpansion: true});
+    game.phase = Phase.ACTION;
+    const census = new MartianCensus();
+    census.resourceCount = 3;
+    rival.playedCards.push(census);
+    const branch = cardPlayPreview(p, new ScientificBreakthrough()).branches[0];
+    return {p, census, branch};
+  }
+
+  it('the 2 data leave the card the target step chose — ANY seat\'s (a rival\'s census here)', () => {
+    const {census, branch} = attack();
+    expect(playTargetSpendSpecs(CardName.SCIENTIFIC_BREAKTHROUGH, branch, {0: {type: 'card', cards: [census.name]}})).deep.eq([
+      {channel: 'card-resource', resource: 'data', amount: 2, targetCard: census.name, direction: 'loss'},
+    ]);
+  });
+
+  it('nothing chosen yet → nothing to fly; the card\'s own capsule is never a target spend', () => {
+    const {branch} = attack();
+    expect(playTargetSpendSpecs(CardName.SCIENTIFIC_BREAKTHROUGH, branch, {})).deep.eq([]);
+    expect(playTargetSpendSpecs(CardName.SCIENTIFIC_BREAKTHROUGH, branch, {0: {type: 'card', cards: [CardName.SCIENTIFIC_BREAKTHROUGH]}})).deep.eq([]);
+  });
+
+  it('a play that takes nothing off a chosen card flies nothing (Moss: a stock price only)', () => {
+    const {p} = table();
+    p.plants = 2;
+    expect(playTargetSpendSpecs(CardName.MOSS, cardPlayPreview(p, new Moss()).branches[0], {})).deep.eq([]);
   });
 });

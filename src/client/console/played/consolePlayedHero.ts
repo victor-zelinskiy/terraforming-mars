@@ -168,6 +168,11 @@ export const playedHeroState = reactive({
    * it was not flown (`reduced`, `mismatch: …`, `no-row: <unit>` — the pay row was not on screen, `no-source`).
    */
   price: '' as string,
+  /**
+   * THE PRICE OFF A CARD THE COMPOSER CHOSE (PL-268, TR52), named: '' — none; `flying` → `flown`; or why it was not
+   * flown (`reduced`, `mismatch: …` — the holder moved otherwise, `no-row` — the target row was not on screen).
+   */
+  targetSpend: '' as string,
 });
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
@@ -281,6 +286,11 @@ let pendingSpends: RailReward | undefined;
  * (`verifyRailReward` — a holder that moved otherwise is not flown and names itself in `playedHeroState.price`).
  */
 let pendingPrice: PlayCardPrice | undefined;
+/**
+ * THE PRICE OFF A CARD THE COMPOSER CHOSE (PL-268, TR52): what the play takes off a holder picked in the composer's
+ * own step — any seat's card. Flown in the shipment beat beside the rail's and the pay rows' tokens.
+ */
+let pendingTargetSpends: ReadonlyArray<ResourceTransferSpec> = [];
 /** The departure holds this transaction seeded (gain-shaped) — released by the commit's block, or by an abort. */
 const departureHolds: Array<ResourceTransferSpec> = [];
 /** The applied view the answer is checked against (handed in with the answer — `runPlayedHero`). */
@@ -553,6 +563,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   spends?: RailReward,
   /** The card's price paid with CARD resources — a token off each pay row into the cost badge, before the lift (PL-163). */
   price?: PlayCardPrice,
+  /** The price taken off a card the composer's own step chose — off the answered target row (PL-268). */
+  targetSpends?: ReadonlyArray<ResourceTransferSpec>,
   host?: PlayedHeroHost,
   /** The picture the card wears where it LIFTS from (default: the composer's
    *  stationary hero — `normal` tier, no live model). */
@@ -573,7 +585,9 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   releaseDepartures();
   pendingSpends = opts.spends;
   pendingPrice = opts.price;
+  pendingTargetSpends = opts.targetSpends ?? [];
   playedHeroState.price = '';
+  playedHeroState.targetSpend = '';
   beforeView = undefined;
   playedHeroState.shipment = '';
   // THIS payout's touchdown tally starts empty (the colony flows arm the same
@@ -942,15 +956,18 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   pendingPrice = undefined;
   const stock = shipStockSpends(mine);
   const cards = shipCardPrice(price, mine);
-  if (stock === undefined && cards === undefined) {
+  const target = shipTargetSpends(mine);
+  if (stock === undefined && cards === undefined && target === undefined) {
     return;
   }
   playedHeroState.phase = 'shipping';
-  await Promise.all([stock, cards]);
+  await Promise.all([stock, cards, target]);
   if (!mine()) {
     return;
   }
-  // The absorb beat: the card takes the shipment in before it lifts — one beat of the animation clock.
+  // The absorb beat: the card takes the shipment in before it lifts — one beat of the animation clock (the runs
+  // resolve at the TOUCHDOWN, so this beat is what keeps the card standing until the last token has been absorbed —
+  // a shorter one lifted the card out from under a token still being absorbed: the TR52 transfer witness).
   await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
   if (mine() && playedHeroState.shipment === 'flying') {
     playedHeroState.shipment = 'flown';
@@ -958,6 +975,86 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   if (mine() && playedHeroState.price === 'flying') {
     playedHeroState.price = 'flown';
   }
+  if (mine() && playedHeroState.targetSpend === 'flying') {
+    playedHeroState.targetSpend = 'flown';
+  }
+}
+
+/** A card's stored count in a view — on WHICHEVER seat's tableau holds it (an attack's target is a rival's). */
+function cardCountIn(view: PlayerViewModel | undefined, card: string): number | undefined {
+  for (const p of view?.players ?? []) {
+    const model = p.tableau.find((c) => c.name === card);
+    if (model !== undefined) {
+      return model.resources ?? 0;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * THE PRICE OFF A CARD THE COMPOSER CHOSE (PL-268, TR52 — «remove 2 data from ANY player's card»): one token per unit,
+ * born on the answered target row's resource icon AS PAINTED (the row stands in the composer until the lift — the
+ * visible double of a counter that lives on another seat's card), absorbed into the standing card's PRINTED icons of
+ * that resource (the k-th token on the k-th icon — the action commit's icon grammar). Checked against the two views
+ * first: the holder must have moved by exactly the promise (a card the same play also fed — TR05 answering this
+ * card's own Science tag — moved otherwise, and flies nothing; `playedHeroState.targetSpend` names why). Undefined —
+ * nothing to fly. Never rejects.
+ */
+function shipTargetSpends(mine: () => boolean): Promise<void> | undefined {
+  const specs = pendingTargetSpends;
+  pendingTargetSpends = [];
+  const card = playedHeroState.card;
+  if (specs.length === 0 || card === undefined || !mine()) {
+    return undefined;
+  }
+  if (consoleReducedMotionActive()) {
+    playedHeroState.targetSpend = 'reduced';
+    return undefined;
+  }
+  const verified = specs.filter((spec) => {
+    const a = cardCountIn(beforeView, spec.targetCard ?? '');
+    const b = cardCountIn(landingView, spec.targetCard ?? '');
+    const ok = a !== undefined && b !== undefined && a - b === spec.amount;
+    if (!ok) {
+      playedHeroState.targetSpend = `mismatch: ${spec.targetCard} ${a ?? '?'} → ${b ?? '?'} (promised −${spec.amount})`;
+    }
+    return ok;
+  });
+  if (verified.length === 0) {
+    return undefined;
+  }
+  const el = standingSourceEl();
+  if (el === undefined) {
+    playedHeroState.targetSpend = 'no-source';
+    return undefined;
+  }
+  // The birth: the card the units leave — the answered target row's MINIATURE of THAT card, as painted; the row's
+  // resource icon when no miniature stands (a source-card target); a row not on screen flies nothing.
+  const holder = String(verified[0].targetCard ?? '').replace(/["\\]/g, '');
+  const icon = firstVisibleEnd(`.con-composer--play .con-composer__target [data-composer-card="${holder}"]`) ??
+    firstVisibleEnd('.con-composer--play .con-composer__target .con-ptsel__imp-icon');
+  if (icon === undefined) {
+    playedHeroState.targetSpend = 'no-row';
+    return undefined;
+  }
+  const r = icon.getBoundingClientRect();
+  const anchors = resolveActionCommitAnchors(el, undefined);
+  const origins = resolveSpendIconOrigins(anchors, verified);
+  const body = anchors.cardEl.getBoundingClientRect();
+  playedHeroState.targetSpend = 'flying';
+  return runResourceTransfers({
+    specs: verified,
+    // A LOSS walks the geometry backwards: born at `destination` (the target row), absorbed at the printed icon.
+    source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
+    origins,
+    destination: {x: r.left + r.width / 2, y: r.top + r.height / 2},
+    arrival: 'auto',
+    // Drawn INTO the printed icons of the card they pay for: no settle, the short absorb (PL-140's spend grammar).
+    absorb: 'quick',
+    onDegrade: (spec, why) => {
+      playedHeroState.targetSpend = `degraded: ${why} (${spec.resource})`;
+    },
+  });
 }
 
 /**

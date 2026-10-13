@@ -959,6 +959,24 @@ export function playCardPriceReward(
   return {reward: {cause, reactions: [], known}, units};
 }
 
+/**
+ * THE PLAY'S PRICE OFF A CARD THE COMPOSER CHOSE (PL-268, TR52 — «remove 2 data from ANY player's card»): a resource
+ * the play takes off a card picked in one of the composer's OWN steps — the answered target row stands in the composer
+ * (`.con-composer__target`, the card's counter `current → resulting` beside its resource icon) until the card lifts,
+ * so it is the price's visible source, exactly as the pay row is for a card-resource payment (PL-163). One spec per
+ * picked holder, from the same pure reading the action commit makes (`spendLinkSpecs`) — never the card's own
+ * capsule (that is the timeline's). The landing scene verifies each against the two views (the holder may be any
+ * seat's) and flies it into the standing card's printed icons before the lift. Pure.
+ */
+export function playTargetSpendSpecs(
+  cardName: CardName,
+  branch: ActionPreviewBranch | undefined,
+  stepResponses: Readonly<Record<number, unknown>>,
+): Array<ResourceTransferSpec> {
+  return spendLinkSpecs(cardName, branch, stepResponses)
+    .filter((spec) => spec.channel === 'card-resource' && spec.targetCard !== undefined && spec.targetCard !== cardName);
+}
+
 export function playSpendReward(
   cardName: CardName,
   branch: ActionPreviewBranch | undefined,
