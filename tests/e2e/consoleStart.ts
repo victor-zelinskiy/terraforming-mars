@@ -2459,6 +2459,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'influential-discovery' |
   'influential-discovery-askers' |
   'influential-discovery-none' |
+  // TR52 Scientific Breakthrough — «remove 2 data from ANY player's card → search 2 Science cards» and the DISCARD
+  // iteration's stand: the journey (three thrown away) · two Science cards on top (nothing thrown away) · TR05's action
+  // searching one Space card in «Действия карт» (two thrown away).
+  'scientific-breakthrough' |
+  'scientific-breakthrough-clean' |
+  'scientific-breakthrough-actions' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |

@@ -144,6 +144,7 @@ import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber'
 import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
 import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/ExpeditionMechs';
 import {InfluentialDiscovery} from '../../../src/server/cards/turmoilRedux/InfluentialDiscovery';
+import {ScientificBreakthrough} from '../../../src/server/cards/turmoilRedux/ScientificBreakthrough';
 import {SearchForLife} from '../../../src/server/cards/base/SearchForLife';
 import {MarsUniversity} from '../../../src/server/cards/base/MarsUniversity';
 import {ConstructionMechs} from '../../../src/server/cards/turmoilRedux/ConstructionMechs';
@@ -2405,6 +2406,106 @@ function influentialDiscoveryFixture(name: string, table: 'both' | 'askers' | 'n
 influentialDiscoveryFixture('influential-discovery', 'both');
 influentialDiscoveryFixture('influential-discovery-askers', 'askers');
 influentialDiscoveryFixture('influential-discovery-none', 'none');
+// ── TR52 · SCIENTIFIC BREAKTHROUGH — «remove 2 data from ANY player's card (mandatory) → search 2 Science cards» and the
+//    stand of the DISCARD iteration (docs/claude/prompts/project-tr52-scientific-breakthrough.md). Blue's action phase,
+//    the SCIENTISTS enacted (the card's plate), 20 M€. The data holders: blue's TR46 Research Startups (2 data — a
+//    candidate of its own), red's TR15 Martian Census (3 data — the journey's target) and TR48 Supercomputer (1 data —
+//    DISABLED: «2 data from a card»). The project deck's TOP is stacked BY NAME after the deal:
+//      · `scientific-breakthrough`         — Algae ✗ → Comet ✗ → Fish ✗ → Research ✓ → Physics Complex ✓ (three thrown away);
+//      · `scientific-breakthrough-clean`   — Research ✓ → Physics Complex ✓ (nothing thrown away: no discard pile at all);
+//      · `scientific-breakthrough-actions` — TR05 Vector Computations with 4 data on blue's table (no TR52 in hand): its
+//                                            action searches ONE Space card — Algae ✗ → Fish ✗ → Comet ✓ (the «Действия
+//                                            карт» host of the same scene).
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client's wheel opens). A DRY
+//    RUN on a copy plays the card / the action, so a rule change fails HERE. ──
+const SCIENTIFIC_JOURNEY = [CardName.ALGAE, CardName.COMET, CardName.FISH, CardName.RESEARCH, CardName.PHYSICS_COMPLEX] as const;
+const SCIENTIFIC_CLEAN_TOP = [CardName.RESEARCH, CardName.PHYSICS_COMPLEX] as const;
+const SCIENTIFIC_ACTIONS_TOP = [CardName.ALGAE, CardName.FISH, CardName.COMET] as const;
+function scientificBreakthroughFixture(name: string, variant: 'journey' | 'clean' | 'actions'): void {
+  const top = variant === 'journey' ? SCIENTIFIC_JOURNEY : variant === 'clean' ? SCIENTIFIC_CLEAN_TOP : SCIENTIFIC_ACTIONS_TOP;
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      p1.megaCredits = 20;
+      if (variant === 'actions') {
+        moveToDeckTop(game, CardName.VECTOR_COMPUTATIONS);
+        const vector = game.projectDeck.drawPile.pop() as IProjectCard;
+        vector.resourceCount = 4;
+        p1.playedCards.push(vector);
+        p1.cardsInHand = [];
+      } else {
+        const startups = new ResearchStartups();
+        startups.resourceCount = 2;
+        p1.playedCards.push(startups);
+        const census = new MartianCensus();
+        census.resourceCount = 3;
+        const supercomputer = new Supercomputer();
+        supercomputer.resourceCount = 1;
+        p2.playedCards.push(census, supercomputer);
+        p1.cardsInHand = [new ScientificBreakthrough()];
+      }
+      stackDeckTop(game, top);
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const deckTop = game.projectDeck.drawPile.slice(-top.length).map((c) => c.name).reverse().join(',');
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const discardBefore = copy.projectDeck.discardPile.length;
+      if (variant === 'actions') {
+        const vector = p1.playedCards.get(CardName.VECTOR_COMPUTATIONS) as (IProjectCard & {canAct(p: IPlayer): boolean}) | undefined;
+        const live = vector !== undefined && vector.canAct(p1) && vector.resourceCount === 4;
+        const dry = blue.playedCards.get(CardName.VECTOR_COMPUTATIONS) as IProjectCard & {action(p: IPlayer): unknown};
+        dry.action(blue);
+        runAllActions(copy);
+        const facts = {
+          live,
+          top: deckTop,
+          drawn: blue.cardsInHand.map((c) => c.name).join(','),
+          discarded: copy.projectDeck.discardPile.slice(discardBefore).map((c) => c.name).join(','),
+          ruling: parliament.rulingParty(),
+        };
+        if (!facts.live || facts.top !== top.join(',') || facts.drawn !== CardName.COMET || facts.discarded !== [CardName.ALGAE, CardName.FISH].join(',') || facts.ruling !== PartyName.SCIENTISTS) {
+          throw new Error(`the ${name} fixture expected TR05 able to act with 4 data and its search to keep Comet / throw away Algae, Fish — got ${JSON.stringify(facts)}`);
+        }
+        parliament.assertLedger(game);
+        return;
+      }
+      const card = p1.cardsInHand.find((c) => c.name === CardName.SCIENTIFIC_BREAKTHROUGH);
+      blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.SCIENTIFIC_BREAKTHROUGH)!, Payment.of({megacredits: 6}));
+      runAllActions(copy);
+      const pick = blue.getWaitingFor() as SelectCard<IProjectCard> | undefined;
+      const candidates = pick?.cards.map((c) => c.name).join(',') ?? '';
+      const disabled = pick?.config.disabled?.map((d) => `${d.card.name}:${d.reason}`).join(',') ?? '';
+      blue.process({type: 'card', cards: [CardName.MARTIAN_CENSUS]});
+      runAllActions(copy);
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card) !== false,
+        ruling: parliament.rulingParty(),
+        top: deckTop,
+        candidates,
+        disabled,
+        census: (copy.getPlayerById(p2.id).playedCards.get(CardName.MARTIAN_CENSUS) as IProjectCard | undefined)?.resourceCount,
+        drawn: blue.cardsInHand.map((c) => c.name).join(','),
+        discarded: copy.projectDeck.discardPile.slice(discardBefore).map((c) => c.name).join(','),
+        mc: blue.megaCredits,
+      };
+      const thrown = variant === 'journey' ? [CardName.ALGAE, CardName.COMET, CardName.FISH].join(',') : '';
+      if (!facts.playable || facts.ruling !== PartyName.SCIENTISTS || facts.top !== top.join(',') ||
+          facts.candidates !== [CardName.RESEARCH_STARTUPS, CardName.MARTIAN_CENSUS].join(',') ||
+          facts.disabled !== `${CardName.SUPERCOMPUTER}:Not enough resources on this card` || facts.census !== 1 ||
+          facts.drawn !== [CardName.RESEARCH, CardName.PHYSICS_COMPLEX].join(',') || facts.discarded !== thrown || facts.mc !== 14) {
+        throw new Error(`the ${name} fixture expected TR52 playable under the Scientists, two candidates (Research Startups, Martian Census) and Supercomputer disabled, the search keeping Research + Physics Complex — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+scientificBreakthroughFixture('scientific-breakthrough', 'journey');
+scientificBreakthroughFixture('scientific-breakthrough-clean', 'clean');
+scientificBreakthroughFixture('scientific-breakthrough-actions', 'actions');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's
