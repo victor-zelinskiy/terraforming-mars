@@ -333,10 +333,12 @@ async function runDiscardFlow(
   // HAND-OFF + PILE + LANDING. Asserted back-to-back with NO screenshot in
   // between: the pile withdraws once the count has settled, and a full-page
   // capture costs more than that beat lasts.
-  await page.waitForSelector('.con-discard__tray', {timeout: 15_000});
-  await expect(page.locator('.con-discard__count'), 'the count ticks on contact')
-    .toHaveText(String(count), {timeout: 15_000});
-  expect(await page.locator('.con-discard__back').count(), 'the pile physically thickened').toBe(count);
+  // The pile is the table's ONE «СБРОШЕННЫЕ» beside the HUD deck (TR52, PL-264) — held out by the hand's lease.
+  const pile = page.locator('[data-discard-pile]');
+  await expect(pile).toHaveAttribute('data-discard-pile-holders', /hand-discard/, {timeout: 15_000});
+  await expect(pile, 'the count ticks on contact')
+    .toHaveAttribute('data-discard-pile-count', String(count), {timeout: 15_000});
+  expect(await pile.locator('.con-dpile__back').count(), 'the pile physically thickened').toBe(Math.min(count, 3));
   await shoot(page, opts.tag + '-4-landed');
 
   // 4 · the scene ends clean and the card really left the hand.

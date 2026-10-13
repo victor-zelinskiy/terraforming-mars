@@ -29,7 +29,9 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {discardPileStackEl, landOnDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
 import {
+  HAND_DISCARD_PILE_LEASE,
   cardDiscardState,
   discardFlightEl,
   discardTrayEl,
@@ -360,51 +362,42 @@ export function runDiscardCarry(
   }, motionMs(t.liftMs + t.carryMs + t.landMs + t.carryStepMs * spawned.length + 200));
 }
 
-/** Landing hook that thickens the pile and ticks its count. */
+/** Landing hook that thickens the pile and ticks its count — the scene's own tally and the table's pile. */
 export function landOnPile(): void {
   noticeDiscardLanding();
+  landOnDiscardPile();
 }
 
 /**
- * The pile takes the weight: one short impulse of the WHOLE tray as the packet
- * comes to rest on it. Small — the cards did the travelling, the pile only
- * acknowledges. Runs after the last landing, alongside the count's own pulse.
+ * The pile takes the weight: the packet comes to rest on it and the TABLE's pile answers with its own one pulse (TR52
+ * — the pile is `ConsoleDiscardPile`); this beat only keeps its length before the read. No pile standing — nothing to
+ * wait for.
  */
 export function runDiscardPileSettle(t: DiscardTimings): Promise<void> {
-  const pile = discardTrayEl()?.closest<HTMLElement>('.con-discard__pile');
-  if (pile === null || pile === undefined) {
+  if (discardPileStackEl() === null) {
     return Promise.resolve();
   }
+  // The pile answers the landing itself (ONE stack pulse — `landOnDiscardPile`); a second bob of the same element
+  // here would be two answers to one touch (and a CSS animation and a tween fighting over one transform). The scene
+  // keeps only the beat's length, on the motion clock.
   return guarded((done) => {
-    gsap.timeline({onComplete: done})
-      .to(pile, {y: `+=${2.5 * conUiScale()}`, duration: s(t.landMs) * 0.35, ease: 'power2.out'})
-      .to(pile, {y: 0, duration: s(t.landMs) * 0.65, ease: 'back.out(1.6)'});
+    gsap.delayedCall(s(t.landMs), done);
   }, motionMs(t.landMs));
 }
 
 /**
- * The closing beat. The pile does NOT vanish the moment the cards touch it: it
- * holds the acknowledgement the player just watched arrive (long enough to read
- * the new count), and only then withdraws — settling down and fading rather
- * than being cut. A real tween, so the caller's release is the animation's own
- * completion signal and never a timer.
+ * The closing beat. The pile does NOT vanish the moment the cards touch it: it holds the acknowledgement the player
+ * just watched arrive (long enough to read the new count), and only then does THIS scene let go of it. The pile is
+ * the table's (TR52, PL-264): it slides back under the strip with its own phrase when nobody else holds it (a
+ * colony resolution keeps it as its receipt), so the scene only owns the READ — a real delay on the motion clock, so
+ * the caller's release is that beat's own completion, never a timer.
  */
 export function runDiscardTrayWithdraw(t: DiscardTimings): Promise<void> {
-  const tray = discardTrayEl()?.closest<HTMLElement>('.con-discard__tray');
-  if (tray === null || tray === undefined) {
-    return Promise.resolve();
-  }
   const hold = s(t.settleMs) * 0.58; // the READ: the count has landed, look at it
-  const out = s(t.settleMs) * 0.42;
   return guarded((done) => {
-    gsap.timeline({onComplete: done})
-      .to(tray, {duration: hold})
-      .to(tray, {
-        autoAlpha: 0,
-        y: `+=${7 * conUiScale()}`,
-        scale: 0.965,
-        duration: out,
-        ease: 'power2.inOut',
-      });
+    gsap.delayedCall(hold, () => {
+      releaseDiscardPile(HAND_DISCARD_PILE_LEASE);
+      done();
+    });
   }, motionMs(t.settleMs));
 }

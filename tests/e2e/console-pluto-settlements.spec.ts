@@ -152,7 +152,8 @@ async function armProbe(page: Page): Promise<void> {
         document.querySelector('.con-colfocus--unreceding') !== null ? 'unreceding' : '',
         document.querySelector('.con-hand') !== null && document.querySelector('.con-colonies .con-hand') === null ? 'hand@elsewhere' : '',
         `dp${document.querySelectorAll('.con-discard-proxy').length}`,
-        document.querySelector('.con-discard__tray--armed') !== null ? 'tray!' : document.querySelector('.con-discard__tray') !== null ? 'tray' : '',
+        // The table's ONE discard pile beside the HUD deck (TR52): armed = it waits for the hand's card.
+        document.querySelector('[data-discard-pile] .con-dpile__plate--armed') !== null ? 'pile!' : document.querySelector('[data-discard-pile]') !== null ? 'pile' : '',
         `hb${document.querySelectorAll('.con-handbody').length}`,
         (() => {
           // Where the hand's bodies stand: the topmost-left visible one's box (album pose = big and high up).

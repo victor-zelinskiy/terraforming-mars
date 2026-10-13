@@ -341,7 +341,8 @@ async function snapshot(page: Page) {
         .some((el) => el.closest('.con-colfocus__outcome') === null && el.closest('.con-colonies') === null),
       source: (document.querySelector('.con-colfocus__srcctx') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       lead: document.querySelector('.con-colfocus__srcctx--lead') !== null,
-      discarded: (document.querySelector('[data-colony-discard-seat]') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+      // The table's ONE discard pile (TR52): its count, '' while it is not out.
+      discarded: document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '',
       overflow,
       restoreCard: document.querySelector('.con-mandatory') !== null,
       stranded: document.querySelector('.con-stranded') !== null,

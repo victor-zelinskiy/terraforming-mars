@@ -528,14 +528,18 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   // The crumb still names the workspace root; the seat is standing.
   expect(await page.locator('.con-colonies').count(), 'the colony workspace was unmounted mid-resolution').toBeGreaterThan(0);
   // THE FULL-STAGE DISCARD: the colony context leads the hand's own ask
-  // plate (the planet mini — iteration 4 replaced the separate chip row),
-  // and the «СБРОШЕННЫЕ» seat belongs to the workspace — asserted NOW,
-  // while the phase is live (both fold with it).
+  // plate (the planet mini — iteration 4 replaced the separate chip row) —
+  // asserted NOW, while the phase is live (it folds with it).
   expect(await page.locator('.con-colonies .con-hand__discard-planet').count(),
     'the ask plate did not lead with the colony planet during the discard').toBeGreaterThan(0);
-  expect(await page.locator('.con-colonies [data-colony-discard-seat]').count(),
-    'the discard seat did not stand inside the workspace').toBeGreaterThan(0);
   await shoot(page, '12-embedded-discard');
+  // «СБРОШЕННЫЕ» is the TABLE's one pile beside the HUD deck (TR52, PL-264 — the workspace's own corner seat is
+  // gone): the thrown card must land on it, its count ticking on the contact. Armed before the press — the pile
+  // stands only around the throw.
+  const pileTook = page.waitForFunction(() => {
+    const pile = document.querySelector('[data-discard-pile]');
+    return pile !== null && Number(pile.getAttribute('data-discard-pile-count')) >= 1;
+  }, undefined, {timeout: 16_000, polling: 50}).then(() => true, () => false);
 
   // ── 4 · Discard (single-select: A submits the focused card) — with the
   //    RETURN LEG under its own watch: the card flies to «СБРОШЕННЫЕ», the
@@ -547,6 +551,7 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   await cinematicBeat(page, 3200,
     'the discard flight paces the MANDATORY chain — card-discard[blocking] stands until the answer');
   await shoot(page, '13-after-discard');
+  expect(await pileTook, 'the discarded card never landed on the table\'s discard pile').toBe(true);
   const tail = await returnWatch;
   console.log('── return leg ──', JSON.stringify(tail));
   expect(tail.emptyStage, 'a BLANK stage appeared on the return leg').toBeFalsy();

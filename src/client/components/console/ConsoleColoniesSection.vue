@@ -346,20 +346,9 @@
           </div>
         </transition>
 
-        <!-- ── «СБРОШЕННЫЕ» — the resolution's discard seat, at SECTION level
-             so it holds ONE spot through the focus ⇄ discard recompositions.
-             The shared discard cinematic's tray teleports into the anchor;
-             between cycles the receipt (count) stays. -->
-        <div v-if="discardSeatLive"
-             class="con-colonies__discardseat"
-             :class="{'con-colonies__discardseat--live': trayStanding}"
-             data-colony-discard-seat>
-          <span class="con-colonies__discardseat-anchor" data-colony-discard-tray></span>
-          <span v-if="!trayStanding" class="con-colonies__discardseat-done">
-            <span class="con-colonies__discardseat-label">{{ $t('DISCARDED') }}</span>
-            <b v-if="resolutionUi.discarded > 0" class="con-colonies__discardseat-count">{{ resolutionUi.discarded }}</b>
-          </span>
-        </div>
+        <!-- (The resolution's «СБРОШЕННЫЕ» seat that stood here is gone: a bonus's discard lands on the table's ONE
+             pile beside the HUD deck, and this section holds that pile out as the resolution's receipt between the
+             cycles — `colonyDiscardPileLease`, TR52 PL-264.) -->
 
         <!-- ── THE COLONY FOCUS STAGE — the same frame, one level deeper.
              The descend hooks unfold it from the pressed tile's rect; the
@@ -507,7 +496,7 @@ import {
 import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {settlementStageText, settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
-import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
+import {openDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
@@ -1163,14 +1152,18 @@ export default defineComponent({
       }
       return this.handSlotSelector;
     },
-    /** The discard cinematic's tray is standing in our seat right now. */
-    trayStanding(): boolean {
-      return cardDiscardState.trayVisible && cardDiscardColonyBonus() !== undefined;
-    },
     /** The seat stands through the pick, the flight and as the receipt. */
     discardSeatLive(): boolean {
       return this.handStepHosted || cardDiscardColonyBonus() !== undefined ||
         (this.revealEmbedActive && this.resolutionUi.discarded > 0);
+    },
+    /**
+     * THE RESOLUTION'S RECEIPT ON THE TABLE'S PILE (TR52, PL-264): once a bonus's discard has landed, the pile beside
+     * the HUD deck stays out (with its count) for the rest of the resolution — between the cycles it is what the
+     * old corner seat said, in the one place every discard goes.
+     */
+    colonyDiscardPileLease(): boolean {
+      return this.discardSeatLive && this.resolutionUi.discarded > 0;
     },
     /**
      * THE RESOLUTION IS SET ASIDE — its whole chain (colonies ⊃ hand) lives in
@@ -1593,6 +1586,16 @@ export default defineComponent({
     },
   },
   watch: {
+    colonyDiscardPileLease: {
+      immediate: true,
+      handler(on: boolean): void {
+        if (on) {
+          openDiscardPile('colony');
+        } else {
+          releaseDiscardPile('colony');
+        }
+      },
+    },
     /** The crumb's tail only moves forward through a payout — remember its last stage (see `crumbStage`). */
     payoutStage: {
       immediate: true,
@@ -2560,6 +2563,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    releaseDiscardPile('colony');
     // A watcher's landing has no seat left to land on.
     endWatchedColonyCity();
     consoleColoniesUi.receipt = false;

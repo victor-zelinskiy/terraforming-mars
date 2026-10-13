@@ -18,6 +18,9 @@ export type DiscardFlight = {
   z: number,
 };
 
+/** The hand discard's lease name on the table's discard pile (`console/discardPile/discardPile.ts`). */
+export const HAND_DISCARD_PILE_LEASE = 'hand-discard';
+
 export const cardDiscardState = reactive({
   /** The stage is mounted only while a discard is on screen. */
   live: false,
