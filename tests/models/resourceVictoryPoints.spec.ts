@@ -6,6 +6,7 @@ import {Ants} from '../../src/server/cards/base/Ants';
 import {PhysicsComplex} from '../../src/server/cards/base/PhysicsComplex';
 import {SearchForLife} from '../../src/server/cards/base/SearchForLife';
 import {Mine} from '../../src/server/cards/base/Mine';
+import {Vermin} from '../../src/server/cards/promo/Vermin';
 import * as actionPreviews from '../../src/server/cards/actionPreviews';
 
 /**
@@ -68,16 +69,35 @@ describe('resourceVictoryPoints — the authoritative before → after', () => {
    *
    * A fixed-VP card cannot be moved by a resource at all; a `'special'` card
    * overrides `getVictoryPoints` with bespoke logic this evaluator does not
-   * see, and guessing there would be worse than silence. Same contract
-   * `copiedProductionUnits` keeps for a bespoke `produce()`.
+   * see (Vermin: once it holds 10 animals EVERY city of its owner loses a
+   * point — the table scores, not the card), and guessing there would be worse
+   * than silence. Same contract `copiedProductionUnits` keeps for a bespoke
+   * `produce()`.
    */
   it('declines a fixed-VP card and a bespoke «special» one alike', () => {
     const [/* game */, player] = testGame(2);
     const mine = new Mine();
-    const search = new SearchForLife();
-    player.playedCards.push(mine, search);
+    const vermin = new Vermin();
+    player.playedCards.push(mine, vermin);
     expect(resourceVictoryPoints(player, mine, 1), 'fixed VP').to.eq(undefined);
-    expect(resourceVictoryPoints(player, search, 1), 'bespoke getVictoryPoints').to.eq(undefined);
+    expect(resourceVictoryPoints(player, vermin, 1), 'bespoke getVictoryPoints').to.eq(undefined);
+  });
+
+  /**
+   * …UNLESS the bespoke score is a function of the resources stored HERE
+   * alone and the card states it (`ICard.victoryPointsAtResources`, PL-234 —
+   * TR51): Search for Life's «a science resource here: 3 VP» is its own rule,
+   * read by its `getVictoryPoints` too, so the target pick can say the one
+   * thing that makes it worth choosing — never a copy of the rule.
+   */
+  it('reads a bespoke score the card states over its own resources (Search for Life 0 → 3)', () => {
+    const [/* game */, player] = testGame(2);
+    const search = new SearchForLife();
+    player.playedCards.push(search);
+    expect(resourceVictoryPoints(player, search, 1), 'the first science resource').to.deep.eq({from: 0, to: 3});
+    search.resourceCount = 1;
+    expect(resourceVictoryPoints(player, search, 1), 'a second one moves nothing').to.deep.eq({from: 3, to: 3});
+    expect(resourceVictoryPoints(player, search, -1), 'removing the last one').to.deep.eq({from: 3, to: 0});
   });
 
   /** PURITY: a read-only builder may not move the game. The naive way to get
