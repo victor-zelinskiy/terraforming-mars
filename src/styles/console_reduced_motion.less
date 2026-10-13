@@ -33,7 +33,7 @@ html.con-reduced-motion *::after {
 /* «Working» indicators keep looping — they are information, not motion
    decoration: menu/composer/hydro spinners ([class*="spin"]), the boot
    loader's whole scene, the virtual keyboard caret, the remote player's
-   typing dots, the MA-focus wait throb, the armed discard slot's receive
+   typing dots, the MA-focus wait throb, the armed discard pile's receive
    pulse. Substring families are deliberate: over-matching merely re-allows
    a loop that does not exist. */
 html.con-reduced-motion :is(
@@ -45,7 +45,7 @@ html.con-reduced-motion :is(
     .con-loading *,
     [class*="--wait"],
     .con-draftws__await-node,
-    .con-discard__pile--armed .con-discard__slot),
+    .con-dpile__plate--armed .con-dpile__slot),
 html.con-reduced-motion :is(
     [class*="spin"],
     [class*="caret"],
@@ -54,7 +54,7 @@ html.con-reduced-motion :is(
     .con-loading *,
     [class*="--wait"],
     .con-draftws__await-node,
-    .con-discard__pile--armed .con-discard__slot)::before,
+    .con-dpile__plate--armed .con-dpile__slot)::before,
 html.con-reduced-motion :is(
     [class*="spin"],
     [class*="caret"],
@@ -63,6 +63,6 @@ html.con-reduced-motion :is(
     .con-loading *,
     [class*="--wait"],
     .con-draftws__await-node,
-    .con-discard__pile--armed .con-discard__slot)::after {
+    .con-dpile__plate--armed .con-dpile__slot)::after {
     animation-iteration-count: infinite !important;
 }

@@ -1432,6 +1432,10 @@
          their backs across the throw onto the discard pile, whose count ticks
          on contact (consoleCardDiscard.ts / discardDirector.ts). -->
     <ConsoleCardDiscardLayer />
+    <!-- «СБРОШЕННЫЕ» — the ONE discard pile of the table (TR52): the deck's twin hanging from the status strip,
+         out while a discard is being told (a search's thrown-away cards, a card leaving the hand), in every host
+         the same place (discardPile.ts). -->
+    <ConsoleDiscardPile />
 
     <!-- The TILE-PLACEMENT HERO stage — the chosen tile physically flies
          from the table edge into the picked hex (thickness + tightening
@@ -1898,6 +1902,8 @@ import {armHandPlayPrewarm, cancelHandPlayPrewarm, resetHandPlayPrewarm} from '@
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
+import ConsoleDiscardPile from '@/client/components/console/discardPile/ConsoleDiscardPile.vue';
+import {resetDiscardPile} from '@/client/console/discardPile/discardPile';
 import {
   armCardDiscard, cardDiscardColonyBonus, cardDiscardTransaction, isCardDiscardActive,
   registerDiscardOverlayHandoff, resetCardDiscard,
@@ -2455,6 +2461,7 @@ export default defineComponent({
     ConsoleCorpFirstActionConfirm,
     ConsoleCardExitLayer,
     ConsoleCardDiscardLayer,
+    ConsoleDiscardPile,
     ConsoleHandRevealLayer,
     ConsoleHandDeliveryLayer,
     ConsoleParliamentFlightLayer,
@@ -22820,6 +22827,8 @@ export default defineComponent({
     // The discard cinematic is module state too — never carry a live scene (or
     // its animation hold) across a game switch.
     resetCardDiscard();
+    // …and the ONE discard pile (its leases, its count): a game switch starts with the pile under the strip.
+    resetDiscardPile();
     registerDiscardOverlayHandoff(undefined);
     setAlbumLayoutRecomposer(undefined);
     // The colony-bonus entry is module state as well: a live wait (and its net)
