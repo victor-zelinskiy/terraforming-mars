@@ -13,7 +13,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
-import {CardResourceBasis, EventImpact, SkippedEffectFact} from '../../common/events/EventImpact';
+import {CardResourceBasis, DeckSearchFact, EventImpact, SkippedEffectFact} from '../../common/events/EventImpact';
 import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
@@ -492,6 +492,23 @@ export class EventRecorder {
   }
 
   /**
+   * A CONDITIONAL DRAW SEARCH of `player`'s ran (PL-033): the rule, the
+   * counts, the thrown-away cards by name, the exhaustion. Recorded under the
+   * live scope, so it joins the play's / action's own chain — the journal
+   * draws it as ONE row under the root, for the owner and the rivals alike
+   * (the discards are public by the rules). Written only by
+   * `DrawCards.keepAll` for a SEARCH — never for a plain private draw. No
+   * scope → no root to stand under → nothing recorded (like a scope-less
+   * draw). Journal-visible; nothing moved, so no delta.
+   */
+  public recordDeckSearched(player: IPlayer, deckSearch: DeckSearchFact): void {
+    if (!this.hasContext() || (deckSearch.revealed === 0 && deckSearch.exhausted !== true)) {
+      return;
+    }
+    this.record({type: 'deck-searched', player: player.color, impact: {deckSearch}, visibility: 'journal'});
+  }
+
+  /**
    * Record a tile placement (carries the space for "show on map" + the tile type).
    * `colonyTile` — the colony tile the tile was placed ON (Turmoil Redux TR22
    * Nova City; `Game.simpleAddTile` reads it off `IColony.tiles`): the cell is
@@ -670,7 +687,9 @@ export class EventRecorder {
    * / AsteroidDeflectionSystem reveal the deck top) — counts + semantics ONLY, never
    * card names (so nothing private leaks; the public names ride the log's CARD tokens).
    * Attributed to the source card under the active scope. Tagged `reveal` (analytics-
-   * only — excluded from the journal, which already shows the reveal via its log).
+   * only — excluded from the journal route: it carries counts, no names, so it could
+   * not name what was revealed). A CONDITIONAL DRAW SEARCH is NOT this event: it has
+   * its own journal-visible fact, {@link recordDeckSearched} (PL-033).
    * NEVER called for a private draw, so a private draw can't become a public fact.
    */
   public recordCardReveal(player: IPlayer, source: ICard, reveal: {origin: 'deck' | 'hand'; result: 'discarded' | 'shown' | 'kept' | 'revealed'; count: number; found?: boolean}): void {

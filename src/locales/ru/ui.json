@@ -267,6 +267,8 @@
     "Game rule": "Правило игры",
     "Placement": "Размещение",
     "copied": "скопировано",
+    "Turned over ${0} · received ${1} · thrown away ${2}": "Вскрыто ${0} · получено ${1} · сброшено ${2}",
+    "Turned over ${0} · received ${1}": "Вскрыто ${0} · получено ${1}",
     "No events this generation": "Нет событий в этом поколении",
     "No entries for the selected filter": "Нет записей для выбранного фильтра",
     "Opponents only": "Только соперники",

@@ -58,6 +58,45 @@
       </span>
     </template>
 
+    <!-- A CONDITIONAL DRAW SEARCH (PL-033): "<source> Вскрыто 6 · получено 3 ·
+         сброшено 3 [card] [card] [card] — <the rule> · колода вскрыта до
+         конца". The counts are one reading, the thrown-away cards the
+         journal's own card chips, the rule the ONE renderer of the server's
+         descriptor (the reveal and the composer's chip draw it too). No arrow:
+         the row tells what the deck did; the kept cards are the «+N» row. -->
+    <template v-else-if="vm.search !== undefined">
+      <span class="journal-child-row__lead">
+        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
+        <span v-if="vm.player !== undefined"
+              class="journal-player journal-child-row__player"
+              :class="'player_translucent_bg_color_' + vm.player">
+          <span class="journal-player__dot" :class="'player_bg_color_' + vm.player" aria-hidden="true"></span>
+          <span class="journal-player__name">{{ playerName(vm.player) }}</span>
+        </span>
+      </span>
+      <span class="journal-child-row__impacts"
+            data-journal-search
+            :data-search-revealed="vm.search.revealed"
+            :data-search-kept="vm.search.kept"
+            :data-search-discarded="vm.search.discarded.length"
+            :data-search-exhausted="vm.search.exhausted ? 'yes' : 'no'">
+        <span class="journal-child-row__tile journal-em" data-journal-search-tally>{{ searchTally }}</span>
+        <!-- Each chip in its own hook span: the chip is MULTI-ROOT (the token + its teleported preview), so it
+             cannot carry an attribute of ours. -->
+        <span v-for="(name, i) in vm.search.discarded" :key="i" class="journal-child-row__search-discard" data-journal-search-discard>
+          <JournalCardChip :name="name" />
+        </span>
+        <span v-if="vm.search.rule !== undefined" class="journal-child-row__tile" data-journal-search-rule>
+          <span aria-hidden="true">— </span>
+          <ConsoleDrawSearchRule :search="vm.search.rule" />
+        </span>
+        <span v-if="vm.search.exhausted" class="journal-child-row__tile" data-journal-search-end>
+          <span aria-hidden="true">· </span>{{ $t('the whole deck was turned over') }}
+        </span>
+      </span>
+    </template>
+
     <!-- Source → impact. -->
     <template v-else>
       <span class="journal-child-row__lead">
@@ -126,10 +165,12 @@ import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {SpaceId} from '@/common/Types';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {JournalChildVM, JournalImpactChip, searchTallyReading} from '@/client/components/journal/journalEventChild';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
+import {readingText} from '@/client/console/readingText';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -148,7 +189,7 @@ import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentType
  */
 export default defineComponent({
   name: 'JournalChildRow',
-  components: {JournalCardChip},
+  components: {JournalCardChip, ConsoleDrawSearchRule},
   props: {
     vm: {
       type: Object as PropType<JournalChildVM>,
@@ -163,6 +204,10 @@ export default defineComponent({
     // Whether the row has a result to point an arrow at (impacts OR a copied card).
     hasResult(): boolean {
       return this.vm.source.kind !== 'none' && (this.vm.chips.length > 0 || this.vm.copiedCard !== undefined);
+    },
+    /** «Вскрыто 6 · получено 3 · сброшено 3» — the search's counts through the one reading renderer (PL-160). */
+    searchTally(): string {
+      return this.vm.search === undefined ? '' : readingText(searchTallyReading(this.vm.search));
     },
   },
   methods: {

@@ -32,6 +32,19 @@ export type GameEventType =
   | 'global-parameter-changed'
   | 'cards-drawn'
   | 'card-revealed' // a PUBLIC reveal / show / search (counts only, never names)
+  /**
+   * A CONDITIONAL DRAW SEARCH ran («reveal cards from the deck until you find
+   * N with tag X; discard the rest» — `DrawCards` over
+   * `Deck.drawByConditionOrThrow`, PL-033): `impact.deckSearch` names the
+   * rule, how many cards were turned over, kept and thrown away, the
+   * thrown-away cards BY NAME (public by the rules — the log names them too)
+   * and whether the deck ran out. Written ONLY for a search (a filter or an
+   * `include` predicate — the same verdict that makes the log print the drawn
+   * cards publicly): a plain private draw never becomes this event. The kept
+   * cards ride the ordinary `cards-drawn` beside it. Journal-visible, never a
+   * delta.
+   */
+  | 'deck-searched'
   | 'tile-placed'
   /**
    * A TILE MOVED from one cell to another (Turmoil Redux TR14 Re-settlement):

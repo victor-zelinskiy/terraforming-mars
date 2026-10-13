@@ -6,6 +6,7 @@ import {ColonyName} from '../colonies/ColonyName';
 import {ColonyRosterChange} from '../colonies/ColonyRoster';
 import {AdjacencyVpChange, TileMoveFact} from '../boards/TileMove';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
+import {DrawSearchModel} from '../models/CardDrawRevealModel';
 import {PartyName} from '../turmoil/PartyName';
 import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
 
@@ -217,6 +218,32 @@ export type EventImpact = {
   adjacencyVp?: ReadonlyArray<AdjacencyVpChange>;
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
+  /** A conditional draw search (`deck-searched`) — see {@link DeckSearchFact}. A fact, never a delta. */
+  deckSearch?: DeckSearchFact;
+};
+
+/**
+ * WHAT a conditional draw search did (`deck-searched`, PL-033) — the journal's
+ * «Вскрыто 6 · получено 3 · сброшено 3 [Водоросли] [Муравьи] [Рыбы] — без меток
+ * [P][M][A]». Counts are lengths of the search's own lists
+ * (`DrawCards.revealSequence`), never re-derived: `revealed = kept +
+ * discarded.length`.
+ */
+export type DeckSearchFact = {
+  /**
+   * The rule searched by — the ONE descriptor (`DrawSearchModel`,
+   * `deferredActions/drawSearch.ts`) the reveal and the composer's chip read.
+   * Absent for an opaque `include` predicate: no descriptor can name it.
+   */
+  rule?: DrawSearchModel;
+  /** Cards turned over (kept + thrown away), in the deck's real order. */
+  revealed: number;
+  /** Cards the search kept. */
+  kept: number;
+  /** The thrown-away cards, by name, in reveal order — PUBLIC by the rules (the log line names them too). */
+  discarded: ReadonlyArray<CardName>;
+  /** The deck (and its reshuffled discard pile) ran out before the search found what it wanted. */
+  exhausted?: true;
 };
 
 /**

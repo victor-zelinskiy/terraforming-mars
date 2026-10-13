@@ -15,7 +15,9 @@ import {GameEvent} from '../../common/events/GameEvent';
  * The in-scope event types are public economy facts (resource/production/
  * card-resource/TR/draw/discount/payment/tile/effect-triggered/copied-action),
  * so no per-player redaction is needed — unlike text logs, no GameEvent is
- * reserved-for a single player.
+ * reserved-for a single player. The one event that names CARDS, `deck-searched`
+ * (PL-033), names only a SEARCH's thrown-away cards — public by the rules, the
+ * public log line names them too; a plain private draw never records one.
  */
 export class ApiGameJournalEvents extends Handler {
   public static readonly INSTANCE = new ApiGameJournalEvents();

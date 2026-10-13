@@ -8,7 +8,7 @@ import {CardType} from '../../common/cards/CardType';
 import {ChooseCards, ChooseOptions, LogType, keep} from './ChooseCards';
 import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 import {RevealedCard} from '../IPlayer';
-import {drawSearchOf, forbiddenTagsOn} from './drawSearch';
+import {deckSearchFactOf, drawSearchOf, forbiddenTagsOn} from './drawSearch';
 import {DrawSearchModel} from '../../common/models/CardDrawRevealModel';
 
 /**
@@ -138,11 +138,22 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
   public static keepAll(player: IPlayer, count: number = 1, options?: DrawOptions): DrawCards {
     const action = new DrawCards(player, count, options);
     const search = DrawCards.searchOf(count, options);
+    // A filtered search (a descriptor, or an opaque `include`) is PUBLIC: the
+    // deck turns its cards over in front of the table.
+    const isSearch = search !== undefined || options?.include !== undefined;
     return action.andThen((cards) => {
       // A filtered search reveals its cards — the kept ones are named in the
       // log like the discarded ones (`DREW_VERBOSE`).
-      const verbosity: LogType = search !== undefined || options?.include !== undefined ? LogType.DREW_VERBOSE : LogType.DREW;
+      const verbosity: LogType = isSearch ? LogType.DREW_VERBOSE : LogType.DREW;
       keep(player, cards, [], verbosity);
+      // PL-033 — THE SEARCH ITSELF as a journal fact, under the live scope:
+      // the rule, how many cards were turned over / kept / thrown away, the
+      // thrown-away cards by name, the exhaustion. Recorded BEFORE the draw
+      // (the search is what produced it), and ONLY for a search — a plain
+      // draw's cards are private and never become an event.
+      if (isSearch) {
+        player.game?.events?.recordDeckSearched(player, deckSearchFactOf(search, action.revealSequence, cards.length, action.exhausted));
+      }
       // Analytics: attribute the draw to the active effect/action (the source
       // is resolved from the correlation context, e.g. Mars University).
       player.game?.events?.recordCardsDrawn(player, cards.length);

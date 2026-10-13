@@ -5,7 +5,8 @@ import {Units} from '@/common/Units';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {tileTypeToString} from '@/common/TileType';
 import {GameEvent} from '@/common/events/GameEvent';
-import {EventImpact, SkippedEffectFact} from '@/common/events/EventImpact';
+import {DeckSearchFact, EventImpact, SkippedEffectFact} from '@/common/events/EventImpact';
+import {DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {AdjacencyVpChange} from '@/common/boards/TileMove';
 import {EventSource, ParliamentRule, sourceKey} from '@/common/events/EventSource';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
@@ -82,7 +83,23 @@ export type JournalChildBucket =
   | 'copied' | 'effect' | 'colony' | 'globalParameter' | 'production'
   | 'card' | 'system'
   /** An effect that could NOT apply (`effect-skipped`) — named, never summed. */
-  | 'skipped';
+  | 'skipped'
+  /** A conditional draw search (`deck-searched`, PL-033) — what the deck turned over, never summed. */
+  | 'search';
+
+/**
+ * A CONDITIONAL DRAW SEARCH, read for its row (`deck-searched`, PL-033): the
+ * rule (the server's ONE descriptor — the row draws it with the same
+ * renderer as the reveal and the composer's chip), the counts, the
+ * thrown-away cards by name in reveal order, and whether the deck ran out.
+ */
+export type JournalSearchRow = {
+  rule?: DrawSearchModel;
+  revealed: number;
+  kept: number;
+  discarded: ReadonlyArray<CardName>;
+  exhausted: boolean;
+};
 
 export type JournalChildVM = {
   source: JournalChildSource;
@@ -125,6 +142,14 @@ export type JournalChildVM = {
    * «+4» as a gain. `chips` stays empty on such a row.
    */
   skipped?: {label: string; reason: string; chip?: JournalImpactChip};
+  /**
+   * A conditional draw search (`deck-searched`, PL-033): «Вскрыто 6 · получено
+   * 3 · сброшено 3 [Водоросли] [Муравьи] [Рыбы] — без меток [P][M][A]».
+   * Deliberately OUTSIDE `chips` (like `skipped`): the kept cards are the
+   * ordinary «+3 [cards]» row beside it, so a pill summing `chips` must never
+   * count the search a second time. `chips` stays empty on such a row.
+   */
+  search?: JournalSearchRow;
   /**
    * WHY a card-resource amount is what it is, when a rule counted it
    * (`EventImpact.cardResources[].basis` — Arboretum's «+3 data · for 3
@@ -240,6 +265,30 @@ export function skippedRowOf(fact: SkippedEffectFact): {label: string; reason: s
   return {label: fact.label, reason: fact.reason, ...(chip === undefined ? {} : {chip})};
 }
 
+/** The display shape of a conditional draw search (`deck-searched`) — the server's fact as is, the exhaustion a plain boolean. */
+export function searchRowOf(fact: DeckSearchFact): JournalSearchRow {
+  return {
+    ...(fact.rule === undefined ? {} : {rule: fact.rule}),
+    revealed: fact.revealed,
+    kept: fact.kept,
+    discarded: [...fact.discarded],
+    exhausted: fact.exhausted === true,
+  };
+}
+
+/**
+ * The search row's COUNTS as a reading (an English i18n key + its params —
+ * printed through the one renderer, `console/readingText`, never by hand):
+ * «Вскрыто 6 · получено 3 · сброшено 3» — the thrown-away names follow it;
+ * a search that threw nothing away still says how many it turned over
+ * («Вскрыто 2 · получено 2»).
+ */
+export function searchTallyReading(row: JournalSearchRow): {label: string; params: ReadonlyArray<string>} {
+  return row.discarded.length > 0 ?
+    {label: 'Turned over ${0} · received ${1} · thrown away ${2}', params: [String(row.revealed), String(row.kept), String(row.discarded.length)]} :
+    {label: 'Turned over ${0} · received ${1}', params: [String(row.revealed), String(row.kept)]};
+}
+
 // Every event maps to an EXPLICIT source — the action's own results show the
 // action card itself, payments read "Payment", bonuses get a semantic label —
 // so a child row is never source-less.
@@ -298,6 +347,9 @@ const MARKER_TYPES = new Set(['effect-triggered', 'copied-action']);
 function bucketFor(e: GameEvent): JournalChildBucket {
   if (e.type === 'effect-skipped') {
     return 'skipped';
+  }
+  if (e.type === 'deck-searched') {
+    return 'search';
   }
   if (e.type === 'tile-placed' || e.type === 'tile-moved' || e.type === 'tile-removed') {
     return 'placement';
@@ -416,6 +468,11 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     if (e.type === 'card-resource-changed' && e.impact.cardResources?.some((cr) => cr.basis !== undefined) === true) {
       continue;
     }
+    // …and a SEARCH never folds (PL-033): it carries no chip, so folded into an effect's marker (Faraday's «draw a
+    // card with that tag») it would vanish without a trace — it is a row of its own under the effect's source.
+    if (e.type === 'deck-searched') {
+      continue;
+    }
     const parent = byId.get(e.parentId);
     if (parent !== undefined && MARKER_TYPES.has(parent.type)) {
       const arr = foldedChips.get(e.parentId) ?? [];
@@ -504,6 +561,13 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       // Each skipped effect is its OWN row (never merged — two lost effects are
       // two statements), keyed by event id; its magnitude rides `skipped.chip`.
       push(`skipped|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], skipped: skippedRowOf(e.impact.skipped)}, []);
+      continue;
+    }
+    if (e.type === 'deck-searched' && e.impact.deckSearch !== undefined) {
+      // A SEARCH is its OWN row (PL-033), keyed by event id — two searches of one play (Planetary Alliance: a Jovian,
+      // then a Venus card) are two statements. Its counts and names ride `search`, never `chips`: the kept cards
+      // are the ordinary «+N [cards]» row beside it.
+      push(`search|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], search: searchRowOf(e.impact.deckSearch)}, []);
       continue;
     }
     if ((e.type === 'delegates-placed' || e.type === 'neutral-delegates-placed') && e.impact.delegates !== undefined) {
