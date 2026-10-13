@@ -80,14 +80,19 @@ async function descendToResourceBranch(page: Page): Promise<boolean> {
     const branchCount = await branches.count();
     for (let b = 0; b < Math.max(1, branchCount); b++) {
       if (branchCount > 1) {
-        // Focus is flat: branch cards first. Re-walk from the top each time so
-        // a swallowed press cannot leave the cursor somewhere unknown.
-        await press(page, 'ArrowUp', 200);
-        await press(page, 'ArrowUp', 200);
-        await press(page, 'ArrowUp', 200);
-        for (let i = 0; i < b; i++) {
-          await press(page, 'ArrowDown', 300);
+        // Focus is flat: branch tiles first. ↑ re-enters the group (on the tile the cursor left), then the walk aims
+        // at THIS branch's own tile by its hook: → across a side-by-side group (`data-variant-axis="row"`, wrapping),
+        // ↓ down a stacked one — never a counted press from a guessed corner.
+        const target = await branches.nth(b).getAttribute('data-branch-pos');
+        const focusedPos = () => page.evaluate(() => document.querySelector('.con-composer__branches .con-vchoice__opt--focused')?.getAttribute('data-branch-pos') ?? '');
+        for (let i = 0; i < 3 && (await focusedPos()) === ''; i++) {
+          await press(page, 'ArrowUp', 200);
         }
+        const row = await page.evaluate(() => document.querySelector('.con-composer__branches')?.getAttribute('data-variant-axis') === 'row');
+        for (let i = 0; i < branchCount + 1 && (await focusedPos()) !== target; i++) {
+          await press(page, row ? 'ArrowRight' : 'ArrowDown', 300);
+        }
+        expect(await focusedPos(), `the cursor stands on branch ${target}`).toBe(target);
         await press(page, 'Enter', 700); // A SELECTS the branch
       }
       // A required, unanswered row is the step's own signature.
@@ -95,13 +100,18 @@ async function descendToResourceBranch(page: Page): Promise<boolean> {
       if (await missing.count() === 0) {
         continue;
       }
-      // Walk down onto it and open the sub-list.
-      for (let i = 0; i < 6 && await optionRows(page).count() === 0; i++) {
+      // Walk down onto it and open it. Another branch's own step (the card target of «add an asteroid» — the
+      // embedded played-target step) is not this one: stop at it, never walk past it into a commit, back out.
+      const step = page.locator('.con-ptsel');
+      for (let i = 0; i < 6 && await optionRows(page).count() === 0 && await step.count() === 0; i++) {
         await press(page, 'ArrowDown', 300);
         await press(page, 'Enter', 700);
       }
       if (await optionRows(page).count() >= 6) {
         return true;
+      }
+      for (let i = 0; i < 3 && await step.count() > 0; i++) {
+        await press(page, 'Escape', 600);
       }
     }
     // Not this tile — walk back out to browse and try the next one.

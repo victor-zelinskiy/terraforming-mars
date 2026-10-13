@@ -167,6 +167,7 @@ import {CaretakerContract} from '../../../src/server/cards/base/CaretakerContrac
 import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScience';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
+import {AsteroidRights} from '../../../src/server/cards/promo/AsteroidRights';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
 import {REDUX_PARTIES} from '../../../src/common/parliament/ParliamentTypes';
@@ -690,6 +691,34 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   p2.megaCredits = 30;
   runAllActions(game);
   write('eva-mechs', game);
+}
+
+// ── variant-tiles: the VARIANT CHOICE of a card action whose ONE printed row
+//    the server splits into SEVERAL branches (the owner's 4K photo of
+//    2026-10-13: «Сбор атмосферы» drew the whole «аэростат → 2 титан / 3
+//    энергия / 4 тепло» row on every one of its three option tiles). Blue
+//    holds Atmo Collectors with TWO floaters (the spend variants are live —
+//    the first press of the action does not empty the card) and Asteroid
+//    Rights with ONE asteroid (its second printed row carries an INTERIOR OR:
+//    «астероид → производство M€ ИЛИ 2 титан» — two branches off one row);
+//    0 titanium, 2 energy, 6 heat and 20 M€ so every reading is a plain
+//    «0 → 2» / «2 → 5» / «6 → 10». A base+corpera table; the cards are pushed
+//    into the tableau, so no expansion gate is exercised. ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false});
+  answerStartFlow(game, [p1, p2]);
+  const atmo = new AtmoCollectors();
+  atmo.resourceCount = 2;
+  const rights = new AsteroidRights();
+  rights.resourceCount = 1;
+  p1.playedCards.push(atmo, rights);
+  p1.megaCredits = 20;
+  p1.titanium = 0;
+  p1.energy = 2;
+  p1.heat = 6;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('variant-tiles', game);
 }
 
 // ═══════════════════════ THE MARS PARLIAMENT (Turmoil Redux) ═══════════════════════

@@ -1,14 +1,23 @@
 /* ══ THE VARIANT CHOICE — the ONE grammar of «choose one of these» (TR51, `ConsoleVariantChoice.vue`) ══════════════
    Every console surface that asks the player to pick one result renders this block — the play composer's «ИЛИ», an
-   action's variants, a nested option list, the Scientists' effect, the honest follow-up. Three facts, three paints,
-   and every one of them `box-shadow` / colour / opacity / transform (the paint baseline strips `filter`):
+   action's variants, a nested option list, the Scientists' effect, the honest follow-up.
+
+   THE OUTCOME TILE (the rework of 2026-10-14 — the owner's 4K photo: three «аэростат → 2 титан / 3 энергия / 4 тепло»
+   rows on bezel plates, a column taller than the band). A tile is ONE object that answers ONE question — «what do I
+   get if I choose this»:
+     · its HERO is the card's own printed graphic of THAT outcome (`PremiumMechNode`, face references), bare on the
+       tile's glass — never a plate inside a tile inside a group: the tile's glass is the only frame — and LOUDER
+       than the reading under it by a clear step (×1.4 the face at 1080, ×1.7 on the couch);
+     · under it the live reading (the host's chips: «0 → 2», «⚡ сработает») a step quieter;
+     · words only where the print cannot speak (a caption under a print, a title without one).
+   Comparable tiles stand in ONE ROW (a reading measure each, a cap so two never stretch across a 4K column), «ИЛИ»
+   a medallion on the seam; the cluster's own width stacks them (a container query, never a viewport breakpoint).
+   Three facts, three paints, every one of them `box-shadow` / colour / opacity / transform (the paint baseline strips
+   `filter`):
      · the CURSOR  — a cold lift: the tile rises a hair and wears a cyan ring. It says «you are here», never «answer»;
      · the CHOICE  — the SEAL in the corner (absolute, zero layout — choosing re-flows nothing) and a warm mint kant;
                      the decided group's other options RECEDE (opacity + a hair of scale), never hide;
-     · the RULES   — a faded print, muted words and the reason INSIDE the tile, on a plate of its own.
-   The printed row is the card's own face graphic of that branch (`PremiumMechNode`), on the face's mechanics plate
-   with a steel bezel — the object the player read on the card, now the option itself. «ИЛИ» is a medallion on the
-   seam (the card's printed OR-connector), never a whisper between two tiles. */
+     · the RULES   — a faded print, muted words and the reason INSIDE the tile, on a plate of its own. */
 /* «ИЛИ» — ONE medallion for every exclusion on a console surface: the variant grammar's seam, the «Действия карт»
    pair's joint (one card's two variants), the espionage reward's alternatives. The card face's printed OR-connector in
    the console's scale — engraved gold kant on a dark disc, the word tracked caps. A host sizes it; the look is this. */
@@ -16,11 +25,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 2.4rem;
-    height: 2.4rem;
-    padding: 0 .5rem;
-    border-radius: 1.2rem;
-    font-size: .68rem;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 .45rem;
+    border-radius: 1rem;
+    font-size: .62rem;
     font-weight: 800;
     letter-spacing: .12em;
     text-transform: uppercase;
@@ -32,6 +41,13 @@
         0 .2rem .55rem rgba(0, 0, 0, 0.5);
 }
 
+/* The seam's hairline — along the seam, in the printed OR's gold. */
+.con-vchoice-seam-line(@dir) {
+    content: '';
+    position: absolute;
+    background: linear-gradient(@dir, transparent, rgba(242, 215, 149, 0.42), transparent);
+}
+
 .con-vchoice {
     /* What decides «side by side or a column» is the CLUSTER's own width (the band narrows with the profile, the dock
        and the nesting depth) — a container query, never a viewport breakpoint. */
@@ -39,25 +55,34 @@
     display: flex;
     flex-wrap: wrap;
     align-items: stretch;
-    gap: .55rem .35rem;
-    /* The printed row's zoom over the face's own px scale (a 24 px icon on the card → ≈ 41 px here at 1080). */
-    --vchoice-print-zoom: 1.7;
+    gap: .55rem .4rem;
+    /* The printed graphic's zoom over the face's own px scale: a 24 px icon on the card → 30 px here at 1080 — the
+       scene's scale (the hero formula's chips), never the HUD's. */
+    --vchoice-print-zoom: 1.4;
     --vchoice-ease: @con-ease-standard;
     --vchoice-ms: 160ms;
 
+    /* ── THE TILE ───────────────────────────────────────────────────────── */
     &__opt {
         position: relative;
-        /* A READING MEASURE, not the content's own width — two options meant to be compared share a line and long
-           words wrap INSIDE the tile (`flex-basis: auto` let one sentence claim the line and stranded «ИЛИ»). */
-        flex: 1 1 17rem;
-        min-width: min(14rem, 100%);
-        max-width: 100%;
+        /* A READING MEASURE, not the content's own width — comparable tiles share a line, grow alike and wrap their
+           words INSIDE (`flex-basis: auto` let one sentence claim the line and strand «ИЛИ»); the cap keeps a lone
+           tile, or two in a very wide cluster, from stretching across the column with one icon lost in the middle —
+           and stays above a reading line of chips + the «сработает» note, which must never wrap (effect-forecast). */
+        flex: 1 1 11rem;
+        min-width: min(10rem, 100%);
+        max-width: 26rem;
         display: flex;
         flex-direction: column;
-        gap: .5rem;
-        padding: .75rem .9rem .8rem;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: .45rem;
+        padding: .7rem .8rem .65rem;
         border-radius: .75rem;
-        background: linear-gradient(168deg, rgba(26, 38, 54, 0.96) 0%, rgba(13, 19, 29, 0.97) 100%);
+        background:
+            radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.045), transparent 60%),
+            linear-gradient(168deg, rgba(24, 36, 52, 0.96) 0%, rgba(12, 18, 28, 0.97) 100%);
         box-shadow:
             inset 0 0 0 .05rem rgba(160, 185, 212, 0.18),
             inset 0 .06rem 0 rgba(255, 255, 255, 0.05),
@@ -72,7 +97,9 @@
         /* THE CURSOR — a cold lift. */
         &--focused {
             transform: translateY(-.14rem);
-            background: linear-gradient(168deg, rgba(30, 48, 70, 0.98) 0%, rgba(15, 24, 37, 0.98) 100%);
+            background:
+                radial-gradient(120% 70% at 50% 0%, rgba(140, 200, 255, 0.07), transparent 60%),
+                linear-gradient(168deg, rgba(30, 48, 70, 0.98) 0%, rgba(15, 24, 37, 0.98) 100%);
             box-shadow:
                 inset 0 0 0 .1rem @con-cyan,
                 0 0 1.1rem fade(@con-cyan, 30%),
@@ -80,7 +107,9 @@
         }
         /* THE CHOICE — a warm kant and the seal; it stays while the cursor walks away. */
         &--selected {
-            background: linear-gradient(168deg, rgba(24, 58, 50, 0.97) 0%, rgba(12, 24, 28, 0.98) 100%);
+            background:
+                radial-gradient(120% 70% at 50% 0%, fade(@con-mint, 10%), transparent 60%),
+                linear-gradient(168deg, rgba(22, 56, 48, 0.97) 0%, rgba(11, 24, 27, 0.98) 100%);
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-mint, 94%),
                 0 0 1rem fade(@con-mint, 24%),
@@ -96,7 +125,7 @@
         }
         /* A decided group's other options step back — legible, reachable, plainly NOT the answer. */
         &--recede {
-            opacity: .58;
+            opacity: .6;
             transform: scale(.985);
         }
         /* THE RULES — a faded print. Opacity on the CHILDREN (the tile stays opaque over the board), never a filter. */
@@ -114,27 +143,16 @@
     &__opt--off &__title { color: fade(@con-text-dim, 70%); }
     &__opt--off &__body { opacity: .42; }
 
-    /* THE PRINTED ROW — the face's mechanics plate in a steel bezel, the branch's own nodes on it, LARGER than the
-       chips under it (the headline of the option). The face's tokens are restated: a tile is not a card. */
+    /* ── THE HERO — the printed graphic, bare on the glass ──────────────── */
     &__print {
         display: flex;
         align-items: center;
         justify-content: center;
         flex-wrap: wrap;
-        gap: .12rem .3rem;
-        min-height: 3.1rem;
-        padding: .45rem .9rem;
-        border-radius: .55rem;
-        background:
-            radial-gradient(120% 90% at 50% -30%, rgba(255, 255, 255, 0.05), transparent 55%),
-            linear-gradient(180deg, rgba(4, 7, 11, 0.62), rgba(2, 4, 7, 0.78));
-        box-shadow:
-            inset 0 0 .7rem rgba(0, 0, 0, 0.55),
-            inset 0 0 0 .05rem rgba(236, 214, 158, 0.16),
-            0 0 0 .07rem rgba(196, 208, 222, 0.32),
-            0 0 0 .14rem rgba(8, 12, 18, 0.9);
-        transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
+        min-height: 2.4rem;
+        max-width: 100%;
         line-height: 1;
+        transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
     }
     /* The face's tokens, restated: a tile is not a card (the asterisk's gold spark reads `--pcard-gold-*`). */
     &__ink {
@@ -142,7 +160,7 @@
         align-items: center;
         justify-content: center;
         flex-wrap: wrap;
-        gap: 2px 4px;
+        gap: 2px 5px;
         zoom: calc(var(--vchoice-print-zoom) * var(--con-ui-scale, 1));
         --pcard-mech-icon: 24px;
         --pcard-mech-font: 15px;
@@ -155,26 +173,40 @@
         --pcard-onplay-hi: #7ff0c4;
         --pcard-onplay-deep: #2f7d5c;
         --pcard-any-rgb: 207, 122, 99;
+        --pcard-action-rim: rgba(242, 215, 149, 0.55);
+        --pcard-effect-rim: rgba(90, 169, 230, 0.5);
     }
 
+    /* ── THE WORDS AND THE READING ──────────────────────────────────────── */
+    &__text {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+        max-width: 100%;
+    }
     &__head {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: .45rem;
         min-width: 0;
+        max-width: 100%;
     }
     &__title {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
-        font-size: .86rem;
+        font-size: .82rem;
         font-weight: 700;
         line-height: 1.25;
         color: @con-text;
     }
-    /* Under a printed row the words are the caption, not the headline. */
-    &__print + &__head &__title {
-        font-size: .76rem;
+    /* Under a printed graphic the words are the caption, not the headline. */
+    &__print + &__text &__title {
+        font-size: .7rem;
         font-weight: 600;
+        line-height: 1.3;
         color: fade(@con-text, 78%);
     }
     &__dot {
@@ -187,7 +219,6 @@
     /* A DOOR, not an answer: the option opens a pick of its own. */
     &__door {
         flex: 0 0 auto;
-        margin-left: auto;
         font-size: 1.1rem;
         font-weight: 800;
         color: fade(@con-cyan, 75%);
@@ -195,29 +226,30 @@
     &__body {
         display: flex;
         align-items: center;
+        justify-content: center;
         flex-wrap: wrap;
-        gap: .4rem;
+        gap: .35rem;
         transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
     }
     &__reason {
         display: inline-flex;
-        align-self: flex-start;
         align-items: center;
         gap: .35rem;
         max-width: 100%;
         padding: .2rem .6rem .22rem .45rem;
         border-radius: .45rem;
-        font-size: .74rem;
+        font-size: .72rem;
         font-weight: 600;
         line-height: 1.25;
+        text-align: left;
         color: #ffcabd;
         background: rgba(64, 24, 22, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(255, 140, 120, 0.34);
     }
     &__reason-mark { font-weight: 800; color: #ff9f8c; }
 
-    /* THE SEAL — the ONE mark of «this is my answer», on every surface. Absolute, so its slot costs no layout; a
-       one-shot latch (scale + opacity) when the answer is given, reduced motion → at once. */
+    /* ── THE SEAL — the ONE mark of «this is my answer», on every surface. Absolute, so its slot costs no layout; a
+       one-shot latch (scale + opacity) when the answer is given, reduced motion → at once. ── */
     &__seal {
         position: absolute;
         top: -.5rem;
@@ -253,7 +285,8 @@
         color: #04281b;
     }
 
-    /* «ИЛИ» — the exclusion, a medallion on the seam with the printed OR's gold hairline through it. */
+    /* ── «ИЛИ» — the exclusion, a medallion on the seam with the printed OR's gold hairline through it. In a row the
+       seam stands between two tiles (a narrow column, the hairline down it); in a column it is one slim line. ── */
     &__or {
         position: relative;
         flex: 0 0 auto;
@@ -261,15 +294,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 0 .05rem;
+        width: 2.2rem;
         &::before {
-            content: '';
-            position: absolute;
-            top: 12%;
-            bottom: 12%;
+            .con-vchoice-seam-line(180deg);
+            top: 10%;
+            bottom: 10%;
             left: 50%;
             width: .06rem;
-            background: linear-gradient(180deg, transparent, rgba(242, 215, 149, 0.42), transparent);
         }
     }
     &__or-medal {
@@ -277,77 +308,103 @@
         z-index: 1;
         .con-or-medal();
     }
-
-    /* …and once the cluster is too narrow for two readable options, the pair becomes a COLUMN and «ИЛИ» takes its own
-       line BETWEEN them, its hairline turned across. */
-    @container (max-width: 40rem) {
-        &--compare &__opt { flex-basis: 100%; }
-        &--compare &__or {
-            flex-basis: 100%;
-            &::before {
-                top: 50%;
-                bottom: auto;
-                left: 12%;
-                right: 12%;
-                width: auto;
-                height: .06rem;
-                background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.42), transparent);
-            }
+    /* The seam as a LINE (a stacked group): the hairline across, the medallion on it. */
+    .con-vchoice-seam-across() {
+        width: auto;
+        flex-basis: 100%;
+        height: 1.6rem;
+        align-self: auto;
+        &::before {
+            top: 50%;
+            bottom: auto;
+            left: 10%;
+            right: 10%;
+            width: auto;
+            height: .06rem;
+            background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.42), transparent);
         }
     }
 
-    /* THE COLUMN — the compare tiles, always stacked (a host whose cursor walks rows with ↑↓): «ИЛИ» on its own line. */
-    &--column {
-        flex-direction: column;
-        flex-wrap: nowrap;
-    }
-    &--column &__opt { flex: 0 0 auto; min-width: 0; }
-    &--column &__or::before {
-        top: 50%;
-        bottom: auto;
-        left: 12%;
-        right: 12%;
-        width: auto;
-        height: .06rem;
-        background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.42), transparent);
+    /* …and once the cluster is too narrow for two readable tiles, the pair becomes a COLUMN and «ИЛИ» takes its own
+       line BETWEEN them, its hairline turned across. */
+    @container (max-width: 40rem) {
+        &--compare &__opt { flex-basis: 100%; max-width: none; }
+        &--compare &__or { .con-vchoice-seam-across(); }
     }
 
-    /* THE LIST — one row per option (a nested pick: cards, players, an option list). Same chassis, the seal at the
-       row's end. */
+    /* ── THE ROW TILE — `column` (always stacked; the host walks rows with ↑↓) and `list` (a pick list): the print
+       LEADS the row, the words and the reading stand beside it, left-aligned. ── */
+    &--column,
     &--list {
         flex-direction: column;
         flex-wrap: nowrap;
-        gap: .4rem;
     }
+    &--column &__opt,
     &--list &__opt {
         flex: 0 0 auto;
         min-width: 0;
+        max-width: none;
         flex-direction: row;
-        flex-wrap: wrap;
         align-items: center;
-        gap: .45rem .6rem;
-        padding: .6rem 2.6rem .6rem .85rem;
+        justify-content: flex-start;
+        text-align: left;
+        gap: .7rem;
+        padding: .55rem .85rem;
     }
+    &--column &__text,
+    &--list &__text {
+        flex: 1 1 auto;
+        align-items: flex-start;
+        gap: .3rem;
+    }
+    &--column &__head,
+    &--list &__head { justify-content: flex-start; width: 100%; }
+    &--column &__title,
+    &--list &__title { flex: 1 1 auto; }
+    &--column &__door,
+    &--list &__door { margin-left: auto; }
+    &--column &__body,
+    &--list &__body { justify-content: flex-start; }
+    &--column &__print,
+    &--list &__print { flex: 0 0 auto; min-height: 0; }
+    &--column &__or { .con-vchoice-seam-across(); }
+    /* Under a print, a row's caption keeps the headline weight — the print is a lead, not a hero, on a row. */
+    &--column &__print + &__text &__title,
+    &--list &__print + &__text &__title { font-size: .8rem; font-weight: 600; color: @con-text; }
+
+    /* THE LIST — tighter rows, the print at the face's own scale, the seal at the row's end. */
+    &--list { gap: .4rem; }
+    &--list &__opt { padding: .55rem 2.6rem .55rem .85rem; gap: .55rem; }
     &--list &__seal {
         top: 50%;
         right: .6rem;
         margin-top: -.775rem;
     }
-    &--list &__head { flex: 1 1 auto; }
-    &--list &__print { min-height: 0; padding: .25rem .6rem; }
-    &--list &__ink { --vchoice-print-zoom: 1.15; }
+    &--list &__ink { --vchoice-print-zoom: 1; }
 
     @media (prefers-reduced-motion: reduce) {
         &__opt, &__seal, &__print, &__body { transition: none; }
     }
 }
 
-/* THE COUCH — the printed row ≥ 1.4 × a chip, the words on the reading ladder. */
+/* ══ THE COUCH — the print at the scene's scale (the hero formula's chips), the words on the reading ladder. ══ */
 html.con-profile-tv .con-vchoice {
-    --vchoice-print-zoom: 1.65;
-    gap: .7rem .45rem;
+    --vchoice-print-zoom: 1.7;
+    gap: .7rem .5rem;
 }
+html.con-profile-tv .con-vchoice__opt {
+    flex-basis: 12rem;
+    max-width: 28rem;
+    gap: .55rem;
+    padding: .85rem 1rem .8rem;
+}
+html.con-profile-tv .con-vchoice--column .con-vchoice__opt,
+html.con-profile-tv .con-vchoice--list .con-vchoice__opt { padding: .7rem 1rem; }
+html.con-profile-tv .con-vchoice--list .con-vchoice__opt { padding-right: 2.9rem; }
+html.con-profile-tv .con-vchoice__print { min-height: 2.8rem; }
 html.con-profile-tv .con-vchoice__title { font-size: var(--con-t-secondary); }
+html.con-profile-tv .con-vchoice__print + .con-vchoice__text .con-vchoice__title { font-size: var(--con-t-caption); }
+html.con-profile-tv .con-vchoice__reason { font-size: var(--con-t-caption); }
 /* The couch's focus ring is the console-wide token (`--con-focus-ring` / `--con-glow-r` — the shared TV ring list), the
    lift and the answer's kant keep their own. */
 html.con-profile-tv .con-vchoice__opt--focused {
@@ -366,19 +423,21 @@ html.con-profile-tv .con-vchoice__opt--selected.con-vchoice__opt--focused {
 html.con-profile-tv .con-vchoice__opt--off.con-vchoice__opt--focused {
     box-shadow: inset 0 0 0 var(--con-focus-ring) rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
 }
-html.con-profile-tv .con-vchoice__print + .con-vchoice__head .con-vchoice__title { font-size: var(--con-t-caption); }
-html.con-profile-tv .con-vchoice__reason { font-size: var(--con-t-caption); }
-html.con-profile-tv .con-vchoice__or-medal { font-size: var(--con-t-floor); min-width: 2.7rem; height: 2.7rem; border-radius: 1.35rem; }
+html.con-profile-tv .con-vchoice__or { width: 2.6rem; }
+html.con-profile-tv .con-vchoice__or-medal { font-size: var(--con-t-floor); min-width: 2.4rem; height: 2.4rem; border-radius: 1.2rem; }
+html.con-profile-tv .con-vchoice--column .con-vchoice__or { height: 2rem; }
 html.con-profile-tv .con-vchoice__seal { width: 1.8rem; height: 1.8rem; top: -.6rem; right: -.6rem; }
+html.con-profile-tv .con-vchoice--list .con-vchoice__seal { top: 50%; right: .7rem; margin-top: -.9rem; }
 html.con-profile-tv .con-vchoice__seal::after { font-size: 1.05rem; }
 
 /* THE HANDHELD — the Deck's 800-tall band holds the same composition: a smaller print, tighter tiles, and the caption
-   under a printed row yields (the print and the option's own chips still say everything). Regression only (PL-105). */
+   under a printed graphic yields (the print and the option's own chips still say everything). Regression only (PL-105). */
 html.con-profile-handheld .con-vchoice {
-    --vchoice-print-zoom: 1.1;
+    --vchoice-print-zoom: 1;
     gap: .35rem .3rem;
 }
-html.con-profile-handheld .con-vchoice__opt { padding: .45rem .6rem .5rem; gap: .3rem; }
-html.con-profile-handheld .con-vchoice__print { min-height: 2.1rem; padding: .2rem .6rem; }
-html.con-profile-handheld .con-vchoice__print + .con-vchoice__head { display: none; }
-html.con-profile-handheld .con-vchoice__or-medal { min-width: 1.9rem; height: 1.9rem; border-radius: .95rem; }
+html.con-profile-handheld .con-vchoice__opt { padding: .45rem .6rem .45rem; gap: .3rem; }
+html.con-profile-handheld .con-vchoice__print { min-height: 1.9rem; }
+html.con-profile-handheld .con-vchoice--compare .con-vchoice__print + .con-vchoice__text .con-vchoice__head { display: none; }
+html.con-profile-handheld .con-vchoice__or { width: 1.8rem; }
+html.con-profile-handheld .con-vchoice__or-medal { min-width: 1.7rem; height: 1.7rem; border-radius: .85rem; font-size: .55rem; }

@@ -17,6 +17,9 @@ function tokenize(s: string): Set<string> {
     s
       .toLowerCase()
       .replace(/\(.*?\)/g, ' ') // drop parenthetical prefixes, e.g. "(Action: …)"
+      // «M€» is the money's name in every behavior title; the sign is not a letter, so without this it tokenized
+      // to a one-letter nothing and a printed M€ segment could never claim its branch.
+      .replace(/m€/g, ' megacredits ')
       .replace(/[^a-zа-яё0-9\s]/gi, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 2),

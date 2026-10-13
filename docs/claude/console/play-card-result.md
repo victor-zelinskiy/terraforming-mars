@@ -155,8 +155,10 @@ the d-pad (both are `nav` intents); the mouse is unchanged. While the cursor
 stands in a side-by-side group the bar reads **`◄► Вариант`** (`dpadH` +
 the existing `Option` key). Rule 3 above is untouched: A on an option
 SELECTS and does not move the cursor, and ↓ from the group reaches the rail
-only once the gate lets it. The action composer keeps its list walk — its
-branches stand in a column by design.
+only once the gate lets it. Since 2026-10-14 the action composer follows the
+SAME rule over its variant tiles (`branchAxis` → `data-variant-axis` on
+`.con-composer__branches`, the same `variantGroupNav`): the outcome tiles
+stand side by side and switch with ←→ — `docs/claude/console/variant-choice.md`.
 
 ### What must NOT join the options
 

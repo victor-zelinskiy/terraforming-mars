@@ -354,12 +354,18 @@
         <template v-else>
           <template v-for="item in items" :key="item.id">
             <!-- THE VARIANTS — the variant grammar (`ConsoleVariantChoice`, TR51), one group at the first branch row: each
-                 option leads with the card's printed row of that variant, then its formula «цена → выигрыш», the
-                 table's answer to it and what it still needs; the seal marks the answer. A COLUMN — the cursor walks the
-                 composer's rows with ↑↓, the variants are rows of it. -->
+                 OUTCOME TILE leads with the card's printed graphic of THAT variant (a row the server splits into
+                 several branches is sliced at its printed «/» / «ИЛИ» — `BranchView.printed`), then its formula
+                 «цена → выигрыш», the table's answer to it and what it still needs; the seal marks the answer.
+                 The tiles stand SIDE BY SIDE (`compare`), and the d-pad follows the geometry the way the play
+                 composer's «ИЛИ» does: ←→ switch the tiles while the cursor stands in a row, ↑↓ leave the group;
+                 stacked (the cluster too narrow), ↑↓ walk them as rows (`variantGroupNav`, the measured
+                 `data-variant-axis`). -->
             <ConsoleVariantChoice v-if="item.kind === 'branch' && item.pos === branchItemPositions[0]"
+                                  ref="branchesEl"
                                   class="con-composer__branches"
-                                  layout="column"
+                                  layout="compare"
+                                  :data-variant-axis="branchAxis"
                                   :options="branchOptions"
                                   :label="$t('Choose an option')"
                                   @pick="pickBranchAt($event)">
@@ -847,7 +853,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
-import {playCommitVerb, playDoorNextStepKey, playDoorOf} from '@/client/console/consolePlayCardComposer';
+import {playCommitVerb, playDoorNextStepKey, playDoorOf, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
+import {useResizeObserver} from '@vueuse/core';
 import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
@@ -935,7 +942,7 @@ import {
 import {heldCardCapsule, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {choiceSourceView} from '@/client/console/promptSource';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
-import type {ICardRenderEffect} from '@/common/cards/render/Types';
+import type {ICardRenderEffect, ItemType} from '@/common/cards/render/Types';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
@@ -1220,6 +1227,14 @@ export default defineComponent({
   emits: ['confirm', 'committing', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
   data() {
     return {
+      /**
+       * The variant group's live AXIS, measured off the rendered tiles (all at one `offsetTop` ⇒ a row, ←→ switch
+       * them; stacked ⇒ a column, the ordinary ↑↓ walk) — never a duplicated breakpoint.
+       */
+      branchAxis: 'row' as VariantAxis,
+      /** The variant tile the cursor last stood on — ↑ from the row below re-enters the group there. */
+      branchReturnIdx: -1,
+      stopBranchObs: undefined as (() => void) | undefined,
       /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
       forecastPulse: false,
       /** The forecast explorer's own cursors (never the Information workspace's). */
@@ -1998,7 +2013,11 @@ export default defineComponent({
       const resolved = kind === 'pick' && item?.kind === 'choice' && !this.choiceMissing(item.choice);
       const pay = this.primaryPaymentChoice;
       const payView = pay !== undefined ? this.paymentPanelView(pay) : undefined;
-      return focusCommandRun({
+      // The side-by-side variant group: ←→ are the option switch — said in the bar while the cursor stands in it
+      // (the play composer's «◄► Вариант»).
+      const groupHint: Array<ConsoleCommand> = kind === 'branch' && this.branchAxis === 'row' && this.branchNavIndices.length > 1 ?
+        [{control: 'dpadH', label: 'Option'}] : [];
+      return [...groupHint, ...focusCommandRun({
         state: 'main', focused: kind, resolved,
         // ONE answer drives the bar and the row alike — the bar can never
         // advertise a confirm the gate has already refused.
@@ -2014,7 +2033,7 @@ export default defineComponent({
         dial: this.activeDialHint,
         paymentEditor: payView?.editorEligible === true,
         forecast: this.forecastCanOpen,
-      });
+      })];
     },
     /**
      * WHICH dial LB/RB drive right now — the SINGLE resolution shared by the
@@ -2177,9 +2196,12 @@ export default defineComponent({
     branchItemPositions(): ReadonlyArray<number> {
       return this.items.filter((it): it is Item & {kind: 'branch'} => it.kind === 'branch').map((it) => it.pos);
     },
-    /** The card's printed action graphic of each branch — the face's own node (`buildBranchViews`), by branch position. */
-    branchPrinted(): ReadonlyArray<ICardRenderEffect | undefined> {
-      return buildBranchViews(this.entry.cardName, this.entry.group, this.branches).map((v) => v.node?.actionNode);
+    /**
+     * The card's printed graphic of each branch — the face's own nodes (`BranchView.printed`), by branch position: a
+     * row of its own whole, a row shared with sibling branches sliced to THIS branch's outcome.
+     */
+    branchPrinted(): ReadonlyArray<ReadonlyArray<ItemType> | undefined> {
+      return buildBranchViews(this.entry.cardName, this.entry.group, this.branches).map((v) => v.printed);
     },
     /** The variant grammar's options for the branch rows — cursor · answer · rules, the printed row, the reason. */
     branchOptions(): ReadonlyArray<VariantChoiceOption> {
@@ -2192,10 +2214,14 @@ export default defineComponent({
           // The words speak only where nothing else does — no printed row and an empty formula.
           title: printed === undefined && this.branchView(pos).empty ? this.branchTitle(branch) : '',
           reason: branch.available ? undefined : this.branchReason(branch),
-          printed: printed !== undefined ? [printed] : undefined,
+          printed,
           attrs: {'data-branch-pos': String(pos), 'data-branch-nav': this.branchNavKind(pos)},
         };
       });
+    },
+    /** The nav-row indices of the variant tiles, in order — what `variantGroupNav` walks. */
+    branchNavIndices(): ReadonlyArray<number> {
+      return this.navItems.map((it, i) => (it.kind === 'branch' ? i : -1)).filter((i) => i >= 0);
     },
     /** The pick list in the variant grammar — one option per row of `listItems`. */
     listOptions(): ReadonlyArray<VariantChoiceOption> {
@@ -2686,6 +2712,23 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * The group's memory: the tile the cursor last stood on (↑ from the row below re-enters there). Written on every
+     * ARRIVAL here (a ←→ switch, a walk back in) and at the moment of LEAVING in `onNav` — the seeded first focus
+     * never passes this watcher, and A on a tile leaves for the commit row without a nav press.
+     */
+    focusIdx(now: number) {
+      if (this.navItems[now]?.kind === 'branch') {
+        this.branchReturnIdx = now;
+      }
+    },
+    /** The group (re)mounts with the preview — re-arm the axis measurement on its new root. */
+    branchItemPositions: {
+      handler() {
+        void this.$nextTick(() => this.armBranchObserver());
+      },
+      flush: 'post',
+    },
     /** The sent action stops being in flight the moment the lock falls — whichever road dropped it. */
     submitting(now: boolean) {
       if (!now) {
@@ -3031,6 +3074,8 @@ export default defineComponent({
         consoleCardActionsUi.railFocus = keys;
       }, {immediate: true});
     }
+    // The variant group's axis is read off its rendered geometry from the first frame on.
+    void this.$nextTick(() => this.armBranchObserver());
     // A RESTORED stage mounts with the colonies step ALREADY hosted (the
     // parked second-door chain coming back): `colonyStepOn` was true before
     // this component existed, so its change-watcher never fires — republish
@@ -3071,6 +3116,8 @@ export default defineComponent({
     if (this.publishCommands) {
       consoleCardActionsUi.railFocus = undefined;
     }
+    this.stopBranchObs?.();
+    this.stopBranchObs = undefined;
     this.killLedgerClocks();
     // THE LEDGER LEAVES THE SCREEN with this stage (a collapse, the flow's end): a row whose chips could only be
     // born on it is released honestly — the counter ticks now, late, never lost. The rows the SERVER still owes
@@ -3889,6 +3936,22 @@ export default defineComponent({
             this.adjustPayment(c, this.sub.index, dir === 'left' ? -1 : 1);
           }
         }
+        return;
+      }
+      // THE VARIANT GROUP MOVES THE WAY IT LOOKS (the play composer's rule, `variantGroupNav`): tiles side by side
+      // switch with ←→, ↑↓ leave the group; stacked tiles are rows of the ordinary walk. Selection is never touched.
+      // The group's memory is written at the moment of LEAVING (the seeded first focus never passes a watcher): ↑
+      // from the row below re-enters on the tile the cursor stood on.
+      if (this.focusedItem?.kind === 'branch') {
+        this.branchReturnIdx = this.focusIdx;
+      }
+      const inGroup = variantGroupNav({
+        dir, axis: this.branchAxis, focusIdx: this.focusIdx, variantIdx: this.branchNavIndices,
+        returnIdx: this.branchReturnIdx, navMaxIndex: this.navMaxIndex,
+      });
+      if (inGroup !== undefined) {
+        this.focusIdx = inGroup;
+        this.scrollFocused();
         return;
       }
       if (dir === 'up' || dir === 'down') {
@@ -5850,6 +5913,12 @@ export default defineComponent({
           (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(row);
           return;
         }
+        // A variant tile carries no template ref (the group renders them) — it is located by its rendered focus class.
+        if (this.focusedItem?.kind === 'branch') {
+          const tile = this.branchesRoot()?.querySelector('.con-vchoice__opt--focused');
+          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(tile);
+          return;
+        }
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
         // Foundation: keep the focused row visible via the ConsoleScrollArea's
@@ -5857,6 +5926,42 @@ export default defineComponent({
         // ancestors).
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
+    },
+    /** The variant group's root element (the ref is a component). */
+    branchesRoot(): HTMLElement | undefined {
+      const ref = this.$refs.branchesEl as {$el?: unknown} | HTMLElement | undefined | null;
+      const el = ref instanceof HTMLElement ? ref : (ref as {$el?: unknown} | undefined | null)?.$el;
+      return el instanceof HTMLElement ? el : undefined;
+    },
+    /**
+     * The group's AXIS, read off the rendered geometry: every tile at the same `offsetTop` ⇒ one row (←→ switch),
+     * else the container query has stacked them ⇒ a column (↑↓ walk). Measured, never a duplicated breakpoint — the
+     * cluster's width depends on the profile, the dock and the nesting depth, which no JS constant knows.
+     */
+    measureBranchAxis(): void {
+      const el = this.branchesRoot();
+      if (el === undefined) {
+        this.branchAxis = 'row';
+        return;
+      }
+      const tops = new Set<number>();
+      for (const tile of Array.from(el.querySelectorAll<HTMLElement>('.con-vchoice__opt'))) {
+        tops.add(Math.round(tile.offsetTop));
+      }
+      this.branchAxis = tops.size <= 1 ? 'row' : 'column';
+    },
+    /** Re-measure on every resize of the group's box (a profile switch, the rail lifting, a font settling) — the
+     *  responsive path, never a window listener. Re-armed whenever the group (re)mounts. */
+    armBranchObserver(): void {
+      this.stopBranchObs?.();
+      this.stopBranchObs = undefined;
+      const el = this.branchesRoot();
+      if (el === undefined) {
+        this.branchAxis = 'row';
+        return;
+      }
+      this.stopBranchObs = useResizeObserver(el, () => this.measureBranchAxis()).stop;
+      this.measureBranchAxis();
     },
   },
 });

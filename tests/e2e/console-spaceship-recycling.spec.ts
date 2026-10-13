@@ -279,12 +279,24 @@ async function openComposer(page: Page, card: string, row?: RegExp): Promise<voi
 
 const focusedRow = (page: Page) => text(page, `${composer} .con-composer__row--focused`);
 
-/** Walk the composer's cursor (↑ / ↓) until `ok` holds. */
+/**
+ * Walk the composer's cursor until `ok` holds: ↑ / ↓ over the rows, and → inside a SIDE-BY-SIDE variant group
+ * (`data-variant-axis="row"` — the tiles switch with ←→ there, the group moves the way it looks).
+ */
 async function walkComposer(page: Page, ok: () => Promise<boolean>, label: string): Promise<void> {
+  const inRowGroup = () => page.evaluate(() => document.querySelector('.con-composer__branches[data-variant-axis="row"] .con-vchoice__opt--focused') !== null);
   for (const key of ['ArrowUp', 'ArrowDown']) {
     for (let i = 0; i < 8; i++) {
       if (await ok()) {
         return;
+      }
+      if (await inRowGroup()) {
+        for (let j = 0; j < 4 && !(await ok()); j++) {
+          await press(page, 'ArrowRight', 220);
+        }
+        if (await ok()) {
+          return;
+        }
       }
       await press(page, key, 220);
     }
