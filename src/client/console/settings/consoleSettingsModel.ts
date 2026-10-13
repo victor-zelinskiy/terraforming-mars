@@ -65,6 +65,7 @@ import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
 import {handDockPresentation, setHandDockFaceUp} from '@/client/console/handDock/handDockPresentation';
 import {cardNumberDisplayState, setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
+import {setStatusEventCounter, statusEventCounterState} from '@/client/components/notifications/statusEventCounter';
 import {
   FEED_MODE_CHOICES,
   FEED_MODE_LABELS,
@@ -84,7 +85,7 @@ export type ConsoleSettingsCategoryId =
   'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'eventCounter' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
   'placeConfirm' |
   'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
@@ -289,6 +290,13 @@ function interfaceCategory(): ConsoleSettingsCategory {
     'cardNumbers', 'Card numbers', 'Show the catalog number on card faces',
     cardNumberDisplayState.enabled, ['Off', 'On'],
     (v) => setCardNumberDisplay(v),
+  ));
+  // The status strip's pending-events counter («◈ N» after «ПКЛ.») — a window into the notification FIFO for
+  // development, so an opt-in, OFF by default (statusEventCounter.ts): a player never needs a permanent «0» up there.
+  rows.push(toggleRow(
+    'eventCounter', 'Event counter', 'Show the queued-events counter in the top bar (for development)',
+    statusEventCounterState.enabled, ['Off', 'On'],
+    (v) => setStatusEventCounter(v),
   ));
   // Which top-right quick toasts present: everything (the default — identical
   // to the pre-setting behaviour) or only events that directly involve the

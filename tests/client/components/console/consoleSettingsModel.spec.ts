@@ -7,6 +7,7 @@ import {readingScaleState, setConsoleReadingScale} from '@/client/console/consol
 import {DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {placementFlowState, setPlacementTwoStep} from '@/client/console/tilePlacement/placementFlow';
 import {cardNumberDisplayState, setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
+import {statusEventCounterState} from '@/client/components/notifications/statusEventCounter';
 
 /**
  * The settings MODEL — the grouping + the option rings the settings console
@@ -116,6 +117,17 @@ describe('consoleSettingsModel', () => {
     expect(row()?.index).to.eq(1);
     row()?.step(-1);
     expect(cardNumberDisplayState.enabled).to.eq(false);
+  });
+
+  it('the top bar\'s event counter is an interface OPT-IN for development: off by default (2026-10-13)', () => {
+    const row = () => buildConsoleSettings({context: 'game'}).find((c) => c.id === 'interface')?.rows.find((r) => r.id === 'eventCounter');
+    expect(row(), 'offered').to.not.eq(undefined);
+    expect(statusEventCounterState.enabled, 'hidden by default').to.eq(false);
+    expect(row()?.index).to.eq(0);
+    row()?.step(1);
+    expect(statusEventCounterState.enabled).to.eq(true);
+    row()?.step(-1);
+    expect(statusEventCounterState.enabled).to.eq(false);
   });
 
   it('a toggle is a two-option ring — stepping either way flips it', () => {

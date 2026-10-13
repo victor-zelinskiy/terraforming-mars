@@ -167,6 +167,7 @@ import {notificationState, resetNotifications, pushTransient} from '@/client/com
 import {NOTIFICATION_PRIORITY} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
+import {setStatusEventCounter} from '@/client/components/notifications/statusEventCounter';
 
 function queuedModel(id: string) {
   return {
@@ -183,10 +184,20 @@ describe('ConsoleStatusStrip pending-events signal (.con-status__evq)', () => {
     resetPresentationLeases();
     closeRevealViewer();
     notificationState.seeded = true;
+    // The instrument is an OPT-IN since 2026-10-13 (statusEventCounter.ts) — these cases are about the instrument.
+    setStatusEventCounter(true);
   });
   afterEach(() => {
     closeRevealViewer();
     resetNotifications();
+    setStatusEventCounter(false);
+  });
+
+  it('is OFF by default — the top bar spends no slot on it unless the setting asks', () => {
+    setStatusEventCounter(false);
+    const w = mountEvq();
+    expect(w.find('.con-status__evq').exists(), 'no slot at all').to.be.false;
+    w.unmount();
   });
 
   function mountEvq(dwellMs = 20, coalesceMs = 20) {

@@ -157,7 +157,9 @@
            digit crossfade. Purely presentational — real delivery/FIFO never
            waits on any of this. The contextual «ДАЛЬШЕ +N» owns the backlog
            under an active card; this slot then rests at «0» by construction. -->
-      <span class="con-status__evq"
+      <!-- …and an OPT-IN since 2026-10-13 («Настройки» → ИНТЕРФЕЙС → «Счётчик событий», OFF by default —
+           statusEventCounter.ts): a developer's window into the FIFO, not a player's instrument. -->
+      <span v-if="eventCounterOn" class="con-status__evq"
             :class="{'con-status__evq--on': pendingSignalShown}"
             role="status"
             :aria-label="pendingSignalShown ? $t('Pending events') : undefined"
@@ -198,6 +200,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {presentPlayerStatus, statusCounterText, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
 import {notificationState} from '@/client/components/notifications/notificationState';
+import {statusEventCounterState} from '@/client/components/notifications/statusEventCounter';
 import {isNotificationDeliveryBlocked} from '@/client/components/presentation/presentationFlow';
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -395,6 +398,10 @@ export default defineComponent({
      *  - with delivery open the next card presents in the same flush — that
      *    transitional shape must never light the slot.
      */
+    /** The pending-events instrument is shown at all (the opt-in — statusEventCounter.ts). */
+    eventCounterOn(): boolean {
+      return statusEventCounterState.enabled;
+    },
     pendingSignalRaw(): boolean {
       return notificationState.transient.length === 0 &&
         notificationState.queue.length > 0 &&

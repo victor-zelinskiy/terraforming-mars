@@ -225,6 +225,9 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
       const cdp = await page.context().newCDPSession(page);
       await cdp.send('Emulation.setCPUThrottlingRate', {rate: throttle});
     }
+    // The pending-events instrument this spec samples is an OPT-IN (statusEventCounter.ts, OFF by default since
+    // 2026-10-13) — switched on before the console boots.
+    await page.addInitScript(() => window.localStorage.setItem('tm_console_status_event_counter', '1'));
     await bootWithCards(page, request, {cards: [CHEAP_CARD], config: CONFIG, corporation: 'Ecoline'});
     await waitForTurn(page);
 
