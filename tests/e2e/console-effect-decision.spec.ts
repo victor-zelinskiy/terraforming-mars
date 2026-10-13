@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, reloadConsole} from './consoleStart';
+import {bootSeededGame, pressUntilVisible, reloadConsole, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -7,14 +7,14 @@ import * as path from 'node:path';
  * THE OPTIONAL-DECISION SCREEN, over the real DOM.
  *
  * Two shapes must read as one pattern:
- *  A. Mars University — «Использовать эффект?» → the offer OPENS the real hand
- *     overlay (it must not host a card grid of its own), and B from there comes
- *     back to the decision with the same action focused.
+ *  A. Mars University — its one answer is a card from the hand, so the decision IS
+ *     the real hand album (opened directly, never a card grid of its own and no
+ *     screen before it); the decline is RT, and B is the minimize.
  *  B. St. Joseph of Cupertino Mission — «Купить карту?» → the offer RESOLVES on
  *     the press, with the wallet and the card previewed before it is spent.
  *
- * In both, the decline must be a real, readable card — never «Ничего не делать»
- * styled like a disabled row.
+ * A YES / NO (St. Joseph) keeps its decline as a real, readable card — never «Ничего не делать» styled like a
+ * disabled row; every other optional decision declines with a BUTTON (RT + the plate in its question line).
  *
  * Route-interception harness (the one the discard/Pluto probes use): walking a
  * real game to these triggers depends on the shuffle, and the subject under
@@ -120,12 +120,15 @@ async function openGame(page: Page, request: APIRequestContext): Promise<void> {
   await bootSeededGame(page, request, await createGame(request), {buy: 2});
 }
 
-test('an effect that opens the hand: a real question, then the REAL overlay', async ({page, request}) => {
-  test.setTimeout(180_000);
-  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  await openGame(page, request);
+/** Capture the next answer the console POSTs (the injected prompt is not the server's — its refusal is irrelevant). */
+function nextAnswer(page: Page): Promise<unknown> {
+  return page.waitForRequest((r) => r.method() === 'POST' && /\/player\/input/.test(r.url()), {timeout: 20_000})
+    .then((r) => r.postDataJSON() as unknown);
+}
 
-  await injectPrompt(page, (hand) => ({
+/** The injected Mars University question: the hand discard, and «Do nothing» carrying the server's SKIP marker. */
+function marsUniversityPrompt(hand: Array<{name: string}>): unknown {
+  return {
     type: 'or',
     title: 'Select one option',
     buttonLabel: 'Confirm',
@@ -147,45 +150,111 @@ test('an effect that opens the hand: a real question, then the REAL overlay', as
       },
       {type: 'option', title: 'Do nothing', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
     ],
+  };
+}
+
+/*
+ * THE DECISION IS ITS PICK (the owner, 2026-10-13): Mars University's question has ONE answer — a card from the hand —
+ * so there is nothing to decide on a screen before the album. The album opens DIRECTLY, its refusal a BUTTON (RT) that
+ * the plate in the album's question line repeats («Не сбрасывать · без [+1 карта]»), and B there is the decision's own
+ * minimize — never a decline.
+ */
+test('an effect whose one answer is the hand: the ALBUM opens directly, the decline is RT', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await openGame(page, request);
+
+  await injectPrompt(page, (hand) => marsUniversityPrompt(hand));
+  await reloadConsole(page);
+  // The album in its pick mode, the decline named in its question line (`data-flow="picking"` is a DESCENT's — a
+  // standalone album has no stage to pause).
+  const album = page.locator('.con-hand__question [data-decline-plate]');
+  await expect(album, 'the album IS the decision').toBeVisible({timeout: 40_000});
+  await settle(page);
+  await shoot(page, '1-album-direct');
+
+  // 1 · no decision screen stood before it — there was nothing to decide on one.
+  await expect(page.locator('.con-decision')).toHaveCount(0);
+  await expect(page.locator('.con-hand--discard')).toHaveCount(1);
+  await expect(page.locator('.con-hand__discard')).toContainText(/Марсианский университет/i);
+
+  // 2 · the refusal is NAMED in the question line, with what it forgoes — and the bar names the same button.
+  const plate = page.locator('.con-hand__question [data-decline-plate]');
+  await expect(plate).toBeVisible();
+  await expect(plate).toContainText(/Не сбрасывать/i);
+  await expect(plate.locator('[data-decline-forgone]'), 'what the refusal forgoes rides beside it').toHaveCount(1);
+  await expect(page.locator('.con-cmdbar')).toContainText(/Не сбрасывать/i);
+
+  // 3 · B is the decision's own minimize — the album leaves, nothing is answered, no decision screen rises instead.
+  let posted = false;
+  const onPost = (r: {method(): string, url(): string}) => {
+    if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+      posted = true;
+    }
+  };
+  page.on('request', onPost);
+  await key(page, 'Escape', 2200);
+  await shoot(page, '2-minimized');
+  await expect(album).toHaveCount(0);
+  await expect(page.locator('.con-hand__frame'), 'the hand the pick stood up gathered back into the dock').toHaveCount(0, {timeout: 10_000});
+  await expect(page.locator('.con-decision')).toHaveCount(0);
+  expect(posted, 'B never answers').toBe(false);
+  page.off('request', onPost);
+
+  // 4 · back from the board home — the SAME album, decline and all.
+  const reopened = await pressUntilVisible(page, 'Enter', '.con-hand__question [data-decline-plate]', {tries: 4, settleMs: 1500});
+  expect(reopened, 'the board-home card restores the album').toBe(true);
+  await expect(plate).toBeVisible();
+
+  // 5 · RT declines: the answer is the skip option itself, byte-identical to the old decline row.
+  const answer = nextAnswer(page);
+  await key(page, 'Period', 400);
+  expect(await answer).toMatchObject({type: 'or', index: 1, response: {type: 'option'}});
+});
+
+/*
+ * A LIST OF TARGETS keeps every target a card — the refusal is no card among them: «RT Не атаковать» in the question
+ * line, and RT answers it.
+ */
+test('an attack: the targets stay cards, the decline is the button in the question line', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await openGame(page, request);
+
+  await injectPrompt(page, () => ({
+    type: 'or',
+    title: 'Select one option',
+    buttonLabel: 'Confirm',
+    choiceContext: {
+      source: {kind: 'card', card: 'Flooding'},
+      trigger: 'Your ocean was placed next to an opponent.',
+      mode: 'attack',
+    },
+    options: [
+      {
+        type: 'option', title: 'Remove 4 M€ from Blue', buttonLabel: 'Confirm',
+        metadata: {kind: 'resourceRemoval', icon: 'megacredits', amount: 4, player: {color: 'blue', current: 12, resulting: 8}},
+      },
+      {type: 'option', title: 'Don\'t remove M€ from adjacent player', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
+    ],
   }));
   await reloadConsole(page);
   await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
-  await shoot(page, '1-decision-hand');
+  await settle(page);
+  await shoot(page, '3-attack');
 
-  // 1 · a REAL question, the source, and the reason — never «Выберите вариант».
-  await expect(page.locator('.con-decision__title')).toHaveText(/Использовать эффект\?/i);
-  await expect(page.locator('.con-decision__trigger')).toContainText(/научную метку/i);
-  await expect(page.locator('.con-decision__kicker')).toContainText(/ЭФФЕКТ КАРТЫ/i);
-  expect(await page.locator('.con-decision__source .pcard, .con-decision__source .card-container').count(),
-    'the source renders with the real card face').toBeGreaterThan(0);
-
-  // 2 · the offer says where it LEADS and what it trades; the decline is a real
-  //     card with the decision's own words.
+  await expect(page.locator('.con-decision__title')).toHaveText(/Атаковать соперника\?/i);
   const actions = page.locator('.con-decision__action');
-  expect(await actions.count()).toBe(2);
-  await expect(actions.nth(0).locator('.con-decision__action-lead')).toHaveText(/Открыть карты в руке/i);
-  expect(await actions.nth(0).locator('.con-decision__action-chips .action-effect-chip, .con-decision__action-chips > *').count(),
-    'the exchange is previewed').toBeGreaterThan(0);
-  await expect(actions.nth(1)).toHaveClass(/con-decision__action--decline/);
-  await expect(actions.nth(1).locator('.con-decision__action-title')).toHaveText(/Не использовать эффект/i);
-  // The decline must be READABLE — not a dimmed row.
-  const declineOpacity = await actions.nth(1).evaluate((el) => getComputedStyle(el).opacity);
-  expect(Number(declineOpacity), 'declining is a decision, not a disabled control').toBeGreaterThan(0.9);
+  await expect(actions, 'the target is a card — the refusal is not').toHaveCount(1);
+  await expect(page.locator('.con-decision__action--decline')).toHaveCount(0);
+  const plate = page.locator('.con-decision__ask [data-decline-plate]');
+  await expect(plate).toBeVisible();
+  await expect(plate).toContainText(/Не атаковать/i);
+  await expect(page.locator('.con-cmdbar')).toContainText(/Не атаковать/i);
 
-  // 3 · A on the offer hands off to the REAL hand overlay (no grid in here).
-  await key(page, 'Enter', 2600);
-  await shoot(page, '2-hand-overlay');
-  expect(await page.locator('.con-decision').count(), 'the decision hands over').toBe(0);
-  await expect(page.locator('.con-hand--discard')).toHaveCount(1);
-  // …carrying the context with it.
-  await expect(page.locator('.con-hand__discard')).toContainText(/Марсианский университет/i);
-
-  // 4 · B comes BACK to the decision — it is not a decline.
-  await key(page, 'Escape', 2200);
-  await shoot(page, '3-back');
-  await expect(page.locator('.con-decision')).toHaveCount(1);
-  await expect(page.locator('.con-decision__action').nth(0)).toHaveClass(/--focused/);
+  const answer = nextAnswer(page);
+  await key(page, 'Period', 400);
+  expect(await answer).toMatchObject({type: 'or', index: 1, response: {type: 'option'}});
 });
 
 test('a paid effect: the price and the result are shown BEFORE it is spent', async ({page, request}) => {

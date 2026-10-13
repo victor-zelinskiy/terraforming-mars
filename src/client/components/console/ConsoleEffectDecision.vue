@@ -38,7 +38,13 @@
             <span class="con-decision__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(vm.eyebrowKey) }}</span>
           </div>
-          <h2 class="con-decision__title" :class="{'con-ws-stage-title': embedded}">{{ $t(vm.headlineKey) }}</h2>
+          <!-- THE QUESTION LINE: the headline, and a decline that is a BUTTON (RT) repeated as a plate where the eye
+               already is — never one more card among the answers (a YES / NO keeps its two cards). -->
+          <div class="con-decision__ask">
+            <h2 class="con-decision__title" :class="{'con-ws-stage-title': embedded}">{{ $t(vm.headlineKey) }}</h2>
+            <ConsoleDeclinePlate v-if="vm.decline !== undefined" class="con-decision__decline"
+                                 :label="vm.decline.title" :forgone="vm.decline.forgone" />
+          </div>
           <!-- WHY this appeared stays in BOTH dresses: an embedded stage may
                never say less than the standalone surface it replaces, and
                «Вы разыграли научную метку» is the whole reason the question
@@ -108,6 +114,7 @@
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -121,7 +128,7 @@ import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {
-  decisionCommandKeys, decisionFocusStep, decisionPressIntent, nextStageKeyOf,
+  decisionCommands, decisionFocusStep, decisionPressIntent, declineModelOf, nextStageKeyOf,
   EffectDecisionAction, EffectDecisionViewModel,
 } from '@/client/console/effectDecision/effectDecisionModel';
 import {effectDecisionState, rememberDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
@@ -137,7 +144,7 @@ function textOf(value: string | Message | undefined): string {
 export default defineComponent({
   name: 'ConsoleEffectDecision',
   // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {GamepadGlyph, ActionEffectChip},
+  components: {GamepadGlyph, ActionEffectChip, ConsoleDeclinePlate},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
@@ -179,11 +186,7 @@ export default defineComponent({
     /** The pad contract this screen publishes to the shared command bar. The
      *  KEYS are derived in the pure model — this only picks the glyphs. */
     footCommands(): Array<ConsoleCommand> {
-      const controls = ['dpad', 'confirm', 'secondary', 'back'] as const;
-      return decisionCommandKeys(this.vm, this.focusIdx).map((label, i) => ({
-        control: label === 'Minimize' ? 'back' : controls[Math.min(i, controls.length - 1)],
-        label,
-      }));
+      return decisionCommands(this.vm, this.focusIdx);
     },
   },
   watch: {
@@ -293,12 +296,23 @@ export default defineComponent({
       case 'inspectSource':
         this.inspectSource(press.card);
         return;
+      case 'decline':
+        // RT — the deliberate refusal. Nothing follows it, so an embedded stage hands on an EMPTY tail.
+        rememberDecisionFocus(this.focusIdx);
+        this.submitting = true;
+        if (this.embedded) {
+          setWorkspaceOutcomePhase('');
+        }
+        this.$emit('submit', orOptionResponse(press.optionIndex));
+        return;
       case 'handPick':
         rememberDecisionFocus(this.focusIdx);
         this.$emit('hand-pick', {
           index: press.action.optionIndex,
           cardPrompt: press.action.nested as SelectCardModel,
           source: this.vm.source,
+          // The decision's refusal rides into the album (RT + the plate there too).
+          decline: declineModelOf(this.vm.decline),
           // WHERE THE FLOW GOES once the pick is answered — derived ONCE, in
           // the pure model, so the immediate branch above and this one can
           // never disagree about what follows a card-for-a-card exchange.

@@ -18,6 +18,7 @@ import {SelectCardModel} from '../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../actionPreviews';
 import {attackEffect, cardSource} from '../../inputs/choiceContext';
 import {recordSkippedEffect} from '../../deferredActions/skippedEffect';
+import {skip} from '../../inputs/optionMetadata';
 
 export class Virus extends Card implements IProjectCard {
   constructor() {
@@ -95,7 +96,9 @@ export class Virus extends Card implements IProjectCard {
     if (botAnimals !== undefined) {
       orOptions.options.push(botAnimals);
     }
-    orOptions.options.push(new SelectOption('Skip removal'));
+    // The refusal carries the STRUCTURAL decline marker every console surface reads (`optionalChoice.ts`) — never
+    // the title.
+    orOptions.options.push(new SelectOption('Skip removal').withMetadata(skip()));
 
     // The COMPOSED prompt is the top-level one, and the client reads the marker
     // there — the contexts on the extracted branches are invisible to it.
@@ -141,6 +144,11 @@ export class Virus extends Card implements IProjectCard {
     const animalTargets: Array<TabbedPlantTarget> = [];
     let animalCard: {branchIndex: number, input: SelectCardModel} | undefined;
     orOptions.options.forEach((opt, i) => {
+      if (opt instanceof SelectOption && opt.metadata?.kind === 'skip') {
+        // The removal is OPTIONAL: its refusal is the step's decline (RT in the composer), never a target.
+        step.decline = {optionIndex: i, label: opt.title};
+        return;
+      }
       if (opt instanceof SelectCard) {
         // The animal removal from a CARD: a card pick (remove up to 2 from it).
         animalCard = {branchIndex: i, input: opt.toModel(player)};

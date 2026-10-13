@@ -875,4 +875,10 @@ export type TabbedTargetsStep = {
   animal?: {label: string | Message, icon: string, amount: number, branchIndex?: number, input?: SelectCardModel, targets?: ReadonlyArray<TabbedPlantTarget>};
   /** Remove from a PLAYER (plants) — player targets, each its own OrOptions option. */
   plant?: {label: string | Message, icon: string, amount: number, targets: ReadonlyArray<TabbedPlantTarget>};
+  /**
+   * The removal is OPTIONAL — the live `OrOptions` carries a skip-marked refusal at `optionIndex` (`{type:'or',
+   * index, response:{type:'option'}}`). The console answers it with a BUTTON (RT + the plate in the question line),
+   * never a target row.
+   */
+  decline?: {optionIndex: number, label: string | Message};
 };

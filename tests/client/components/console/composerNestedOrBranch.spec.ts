@@ -3,7 +3,7 @@ import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import {
-  cancelConsoleHandPick, consoleHandPickState, handPickArmsDiscardTray, resetConsoleHandPick, resolveConsoleHandPick,
+  cancelConsoleHandPick, consoleHandPickState, declineConsoleHandPick, handPickArmsDiscardTray, resetConsoleHandPick, resolveConsoleHandPick,
 } from '@/client/console/consoleHandPick';
 
 /*
@@ -353,6 +353,134 @@ describe('ConsoleActionComposer — an `or` option that picks FROM THE HAND', ()
     expect(vm.sub.kind).to.eq('list');
     expect(vm.sub.index).to.eq(0);
     expect(vm.captured[0], 'nothing captured on the way back').to.eq(undefined);
+    w.unmount();
+  });
+});
+
+/*
+ * AN OPTIONAL CHOICE DECLINES WITH A BUTTON (the owner's decisions, 2026-10-13): the server's skip-marked refusal is
+ * no row among the answers — it is RT, repeated by a plate in the surface's question line — and a choice whose ONE
+ * answer is a pick (Mars University's discard) has no list at all: A on its row opens that pick directly, the decline
+ * inside it.
+ */
+describe('ConsoleActionComposer — an OPTIONAL choice declines with a button', () => {
+  afterEach(() => resetConsoleHandPick());
+
+  const HAND_VIEW = {...PLAYER_VIEW, cardsInHand: [{name: 'Algae'}, {name: 'Lichen'}]};
+
+  function previewOf(input: any) {
+    return {
+      card: 'Mars University', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [{kind: 'input', input}]}],
+    };
+  }
+
+  /** Mars University's live shape: the hand discard, and «do nothing» carrying the SKIP marker. */
+  const markedDiscard = () => ({
+    type: 'or', title: 'You played a science tag.', buttonLabel: 'Confirm',
+    options: [
+      {
+        type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard',
+        cards: [{name: 'Algae'}, {name: 'Lichen'}], min: 1, max: 1,
+        discardPrompt: {source: {kind: 'card', card: 'Mars University'}, min: 1, max: 1, exchange: {icon: 'cards', amount: 1}},
+      },
+      {type: 'option', title: 'Do nothing', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
+    ],
+  });
+
+  it('A on the row opens the HAND ALBUM directly — no option list — with the decline inside it', async () => {
+    const w = factory(previewOf(markedDiscard()), 'Mars University', HAND_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+
+    expect(vm.sub, 'no list stands under the album: there was nothing to choose on it').to.eq(undefined);
+    expect(consoleHandPickState.active).to.eq(true);
+    expect(consoleHandPickState.request?.decline, 'the refusal of a discard, forgoing the card it would draw')
+      .to.deep.eq({index: 1, label: 'Do not discard', forgone: [{direction: 'gain', icon: 'cards', amount: 1}]});
+    w.unmount();
+  });
+
+  it('RT in the album answers the choice with its DECLINE — and the row reads the refusal', async () => {
+    const w = factory(previewOf(markedDiscard()), 'Mars University', HAND_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    declineConsoleHandPick();
+    await w.vm.$nextTick();
+
+    expect(consoleHandPickState.active).to.eq(false);
+    expect(vm.captured[0], 'byte-identical to the old decline row').to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
+    expect(vm.chosenLabel(vm.allChoices[0]), 'the refusal in its own words, never «Do nothing»').to.eq('Do not discard');
+    w.unmount();
+  });
+
+  it('B in an album opened straight from its row goes back to the ROW — there is no list above it', async () => {
+    const w = factory(previewOf(markedDiscard()), 'Mars University', HAND_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    cancelConsoleHandPick();
+    await w.vm.$nextTick();
+
+    expect(vm.sub).to.eq(undefined);
+    expect(vm.captured[0], 'B is never a decline').to.eq(undefined);
+    w.unmount();
+  });
+
+  it('a list of answers drops the decline ROW — RT declines, the bar names it, B is never the refusal', async () => {
+    const steal = {
+      type: 'or', title: 'Remove up to 3 plants', buttonLabel: 'Confirm',
+      options: [
+        {type: 'option', title: 'Remove 3 plants from red', buttonLabel: 'Confirm', metadata: {kind: 'resourceRemoval', icon: 'plants', amount: 3, player: {color: 'red', current: 5, resulting: 2}}},
+        {type: 'option', title: 'Do not remove', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
+        {type: 'option', title: 'Remove 3 plants from green', buttonLabel: 'Confirm', metadata: {kind: 'resourceRemoval', icon: 'plants', amount: 3, player: {color: 'green', current: 4, resulting: 1}}},
+      ],
+    };
+    const w = factory(previewOf(steal), 'Mars University', PLAYER_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+
+    expect(vm.sub?.kind).to.eq('list');
+    expect(vm.listItems.map((it: any) => it.label), 'the two targets — the refusal is no row')
+      .to.deep.eq(['Remove 3 plants from red', 'Remove 3 plants from green']);
+    expect(vm.subDecline?.index).to.eq(1);
+    expect(vm.footCommands.find((c: any) => c.control === 'triggerR')?.label).to.eq('Do not remove');
+    expect(w.find('[data-decline-plate]').exists(), 'the plate stands in the question line').to.eq(true);
+
+    vm.onSubPress('back');
+    await w.vm.$nextTick();
+    expect(vm.captured[0], 'B steps back — never the decline').to.eq(undefined);
+
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    vm.onSubPress('nextTab');
+    await w.vm.$nextTick();
+    expect(vm.captured[0]).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
+    expect(vm.sub).to.eq(undefined);
+    w.unmount();
+  });
+
+  it('a YES / NO keeps its two answers — the refusal stays a row there', async () => {
+    const yesNo = {
+      type: 'or', title: 'Use the effect?', buttonLabel: 'Confirm',
+      options: [
+        {type: 'option', title: 'Gain 3 TR', buttonLabel: 'Confirm', metadata: {effects: [{direction: 'gain', icon: 'tr', amount: 3}]}},
+        {type: 'option', title: 'Do nothing', buttonLabel: 'Confirm', metadata: {kind: 'skip'}},
+      ],
+    };
+    const w = factory(previewOf(yesNo), 'Mars University', PLAYER_VIEW);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.openChoice(vm.allChoices[0]);
+    await w.vm.$nextTick();
+    expect(vm.listItems).to.have.length(2);
+    expect(vm.subDecline).to.eq(undefined);
     w.unmount();
   });
 });

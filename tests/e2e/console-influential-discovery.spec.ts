@@ -120,6 +120,33 @@ async function answerReaction(page: Page, card: string, index: number): Promise<
   await expect(page.locator(`${PLAY} .con-composer__sublist`), 'the answer closes the list').toHaveCount(0);
 }
 
+/**
+ * DECLINE `card`'s table question whose one answer is a card from the hand (Mars University): A on its row opens the
+ * HAND ALBUM directly — no option list (2026-10-13) — and RT there is the refusal, named by the plate in the album's
+ * question line; the composer takes the row back, answered.
+ */
+async function declineHandReaction(page: Page, card: string): Promise<void> {
+  const row = page.locator(`${PLAY} .con-composer__row--reaction[data-reaction-card="${card}"]`);
+  await expect(row, `the «Сработает · ${card}» row stands`).toHaveCount(1);
+  for (let i = 0; i < 10 && await row.evaluate((el) => !el.classList.contains('con-composer__row--focused')); i++) {
+    await press(page, 'ArrowDown', 300);
+  }
+  const album = page.locator('.con-hand[data-flow="picking"]');
+  for (let i = 0; i < 3 && await album.count() === 0; i++) {
+    await press(page, 'Enter', 1200);
+  }
+  await expect(album, `${card}'s question opens the hand album directly`).toBeVisible({timeout: 15_000});
+  expect(await page.locator(`${PLAY} .con-composer__sublist`).count(), 'no option list before the album').toBe(0);
+  await expect(page.locator('.con-hand__question [data-decline-plate]'), 'the decline is named in the album\'s question line').toBeVisible();
+  await settle(page);
+  for (let i = 0; i < 3 && await page.locator(`${PLAY}:visible`).count() === 0; i++) {
+    await press(page, 'Period', 1400);
+  }
+  await expect(page.locator(`${PLAY}:visible`), 'RT declines and hands the row back').toHaveCount(1, {timeout: 15_000});
+  await expect(row).not.toHaveClass(/con-composer__row--missing/);
+  await settle(page);
+}
+
 async function openTargetStep(page: Page): Promise<void> {
   const step = page.locator('.con-ptsel');
   for (let i = 0; i < 6 && await step.count() === 0; i++) {
@@ -248,7 +275,7 @@ for (const preset of PRESETS) {
       // …and «add a science» brings it back.
       await answerReaction(page, 'Olympus Conference', 1);
       await expect(page.locator(`${PLAY} .con-composer__row--reaction[data-reaction-card="Mars University"]`), 'the discard is a question again').toHaveCount(1);
-      await answerReaction(page, 'Mars University', 1);
+      await declineHandReaction(page, 'Mars University');
 
       // The card's own choice: the data option → Supercomputer.
       await focusTile(page, 1);

@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, reloadConsole} from './consoleStart';
+import {bootSeededGame, reloadConsole, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -253,24 +253,18 @@ async function runDiscardFlow(
 
   await injectMarsUniversityDiscard(page, count);
   await reloadConsole(page);
-  // The optional decision is served by the EFFECT DECISION screen (this shape
-  // is a marked `choiceContext` prompt) — the discard is one branch of it.
-  await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(2000);
-  await shoot(page, opts.tag + '-1-choice');
-
-  // The choice itself stays a CHOICE (the discard is optional — no auto-select).
-  await expect(page.locator('.con-decision__source')).toBeVisible();
-  await expect(page.locator('.con-decision__title')).toHaveText(/Использовать эффект\?/i);
-
-  // 1 · taking the discard branch does NOT open a grid in the modal: the REAL
-  //     hand overlay opens in discard mode.
-  await key(page, 'Enter', 2600);
-  await shoot(page, opts.tag + '-2-hand-discard-mode');
-  expect(await page.locator('.con-decision').count(), 'the decision must hand over, not host a grid').toBe(0);
-  expect(await page.locator('.con-task-host').count(), 'and never fall back to the generic host').toBe(0);
+  // The optional decision's ONE answer is a card from the hand, so the decision IS the album (2026-10-13): no screen
+  // stands before it — the REAL hand opens in discard mode straight away, never a grid in a modal, never the generic
+  // host — and the refusal is RT, named by the plate in the album's question line.
   const hand = page.locator('.con-hand--discard');
-  await expect(hand).toHaveCount(1);
+  await expect(hand, 'the album IS the decision').toHaveCount(1, {timeout: 40_000});
+  await settle(page);
+  await shoot(page, opts.tag + '-1-choice');
+  expect(await page.locator('.con-decision').count(), 'no decision screen before the album').toBe(0);
+  expect(await page.locator('.con-task-host').count(), 'and never the generic host').toBe(0);
+  // The choice stays a CHOICE (the discard is optional — no auto-select): the decline is offered, nothing is sent.
+  await expect(page.locator('.con-hand__question [data-decline-plate]')).toContainText(/Не сбрасывать/i);
+  await shoot(page, opts.tag + '-2-hand-discard-mode');
 
   // 2 · the mode states the ask, names the source and shows the exchange.
   const header = page.locator('.con-hand__discard');

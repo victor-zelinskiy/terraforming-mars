@@ -5,7 +5,7 @@ import {Server} from '../../src/server/models/ServerModel';
 import {IGame} from '../../src/server/IGame';
 import {TestPlayer} from '../TestPlayer';
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
-import {buildEffectDecision} from '../../src/client/console/effectDecision/effectDecisionModel';
+import {buildEffectDecision, EffectDecisionViewModel} from '../../src/client/console/effectDecision/effectDecisionModel';
 import {ICard} from '../../src/server/cards/ICard';
 import {PlayerInput} from '../../src/server/PlayerInput';
 
@@ -94,13 +94,17 @@ describe('embedded effect decisions — every play-triggered ask in scope', () =
   }
 
   /** …and the verdict: the workspace can host it, with the source named. */
-  function expectEmbeddable(source: string): void {
+  function expectEmbeddable(source: string): EffectDecisionViewModel | undefined {
     const handNames = new Set(player.cardsInHand.map((c) => c.name as string));
     const vm = buildEffectDecision(promptModel(), {handNames});
     expect(vm, 'the console must be able to present this decision INSIDE the play').is.not.undefined;
     expect(vm?.source?.card, 'the stage must name the card that asked').to.eq(source);
     expect(vm?.stageKey, 'and carry a crumb tail for the hosting workspace').is.not.eq('');
-    expect(vm?.actions.length, 'every branch must be pressable').is.greaterThan(1);
+    // Every branch is answerable: a card per answer, and a decline that is a BUTTON (RT — `optionalChoice.ts`)
+    // counts as the answer it is.
+    const answers = (vm?.actions.length ?? 0) + (vm?.decline !== undefined ? 1 : 0);
+    expect(answers, 'every branch must be pressable').is.greaterThan(1);
+    return vm;
   }
 
   /** Put an effect card on the table (its own play is not the subject here). */
@@ -113,7 +117,10 @@ describe('embedded effect decisions — every play-triggered ask in scope', () =
     const card = onTable(new MarsUniversity());
     player.cardsInHand.push(new EarthOffice());
     trigger(card.onCardPlayed(player, new Research()));
-    expectEmbeddable(card.name);
+    const vm = expectEmbeddable(card.name);
+    // …and the decision IS its pick: the album opens directly, the refusal («Не сбрасывать») on RT inside it.
+    expect(vm?.directPick?.navigation, 'the one answer is the hand pick').eq('handCards');
+    expect(vm?.decline, 'the refusal is a button').is.not.undefined;
   });
 
   it('Olympus Conference — «снять жетон / положить жетон» (both resolve on the press)', () => {
@@ -170,7 +177,9 @@ describe('embedded effect decisions — every play-triggered ask in scope', () =
       player = attacker;
       victim.stock.add(Resource.PLANTS, 5);
       trigger(new Virus().bespokePlay(attacker));
-      expectEmbeddable(CardName.VIRUS);
+      const vm = expectEmbeddable(CardName.VIRUS);
+      // «Не удалять» carries the server's skip marker: the attack declines on RT, every target stays a card.
+      expect(vm?.decline, 'the refusal is a button, never a target').is.not.undefined;
     });
   });
 });

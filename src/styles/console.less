@@ -8943,6 +8943,48 @@ html.console-mode {
             pointer-events: none;
         }
     }
+    /* THE QUESTION LINE of a pick (2026-10-13): the ask, its source and what it buys on the left, an optional pick's
+       DECLINE plate on the right. ONE line of a fixed height (a wrap would re-solve the cards under it), in-flow at the
+       top of the browse column — the album solves its cards from the room it leaves. The ask yields first (ellipsis in
+       its own box); the plate keeps its words. */
+    &__question {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-width: 0;
+        height: 2.6rem;
+        padding: 0 .3rem;
+    }
+    &__question-ask {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        color: #ffe6c4;
+        font-size: .82rem;
+        font-weight: 700;
+    }
+    &__question-text {
+        font-weight: 800;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+    }
+    &__question-src {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: fade(@con-text, 82%);
+        font-weight: 600;
+    }
+    &__question-decline {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
     /* A pick BRIDGE is out: the shelf is the picker again. The stage keeps its
        claim (and its zone, and the composer's captures inside it) — it just
        steps out of the way. Written as an override rather than by dropping
@@ -20070,6 +20112,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: fade(@con-cyan, 85%);
         padding-bottom: .2rem;
     }
+    /* The list's question line — the title and an optional advance's DECLINE plate (RT) at its far end. */
+    &__sub-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: .35rem .8rem;
+        min-width: 0;
+        padding-bottom: .2rem;
+
+        .con-colfocus__sub-title { padding-bottom: 0; }
+    }
+    &__sub-decline { flex: 0 0 auto; }
     &__sec-title {
         font-size: .68rem;
         font-weight: 700;
@@ -22360,6 +22415,17 @@ html.console-mode {
         color: fade(@con-cyan, 90%);
     }
     &__kicker-mark { color: @con-cyan; }
+    /* THE QUESTION LINE — the ask and, for an optional choice, its DECLINE plate at the line's far end (wraps under the
+       ask before either is cut). The plate is centred on the title's own line box (its margin-top included). */
+    &__ask {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: .4rem 1rem;
+        min-width: 0;
+    }
+    &__decline { flex: 0 0 auto; margin-top: .2rem; }
     &__title {
         font-size: 1.3rem;
         font-weight: 700;
@@ -33061,6 +33127,27 @@ html.console-mode {
         display: flex; flex-direction: column; gap: .5rem; padding-right: .3rem;
     }
     &__sub-title { font-size: .75rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 90%); }
+    /* THE QUESTION LINE of a sub-state: the ask, and an optional choice's DECLINE plate on the right (2026-10-13) —
+       one line; the ask yields first. */
+    &__sub-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-width: 0;
+        min-height: 2.2rem;
+
+        .con-composer__sub-title {
+            flex: 0 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+    &__sub-decline {
+        flex: 0 0 auto;
+    }
 
     /* A variant's formula «цена → выигрыш» — the body of its tile in the variant grammar (`console_variant_choice.less`). */
     &__branch-formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
@@ -33677,6 +33764,8 @@ html.console-mode {
     &__contract-ask { font-size: 1rem; font-weight: 600; color: @con-text; line-height: 1.25; }
     &__scope-count { color: fade(@con-mint, 90%); font-weight: 700; }
     &__scope-note { color: @con-text-dim; }
+    /* An optional choice's DECLINE plate — the line's far end, centred on the line (the head is baseline-aligned). */
+    &__decline { margin-left: auto; align-self: center; }
     /* MULTI — the live accumulation. It turns amber AT THE CAP, next to the
        «снимите выбор с другой» note: a press that cannot land says so instead
        of being silently swallowed. */

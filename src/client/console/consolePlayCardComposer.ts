@@ -800,7 +800,7 @@ export function samePreviewShape(
 
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────
 
-export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean, badge?: number, highlight?: boolean};
+export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean, badge?: number, highlight?: boolean, priority?: number};
 
 /** The focused review row's KIND — drives which local verb the footer offers. */
 export type PlayFocusKind = 'variant' | 'amount' | 'spendHeat' | 'pick' | 'none';
@@ -862,6 +862,11 @@ export type PlayFootContext = {
    * nothing extra (the ordinary d-pad walk).
    */
   variantAxis?: VariantAxis;
+  /**
+   * The open sub-surface is an OPTIONAL CHOICE (`optionalChoice.ts`): RT is its DECLINE — the console's «finish this choice
+   * with nothing», published with the refusal's own words (already translated). Never B: B stays one level back.
+   */
+  decline?: string;
 };
 
 /**
@@ -909,6 +914,9 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
       hints.push({control: 'triggerR', label: ctx.targetMulti.verb, enabled: ctx.targetMulti.valid, badge: ctx.targetMulti.count, highlight: ctx.targetMulti.count > 0});
     } else {
       hints.push({control: 'confirm', label: 'Select'});
+      if (ctx.decline !== undefined) {
+        hints.push({control: 'triggerR', label: ctx.decline, priority: 1});
+      }
     }
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push({control: 'back', label: 'Back'});
@@ -916,6 +924,9 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   }
   if (ctx.sub === 'list') {
     const hints: Array<FootHint> = [{control: 'dpad', label: 'Navigate'}, {control: 'confirm', label: 'Select'}];
+    if (ctx.decline !== undefined) {
+      hints.push({control: 'triggerR', label: ctx.decline, priority: 1});
+    }
     if (ctx.subIsCardList) {
       hints.push({control: 'secondary', label: 'Inspect'});
     }

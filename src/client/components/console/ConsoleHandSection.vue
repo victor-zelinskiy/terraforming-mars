@@ -207,6 +207,29 @@
          remounts on the way back. ── -->
     <div class="con-hand__stagewrap">
     <div class="con-hand__browse" ref="browseEl" :class="{'con-hand__browse--parked': stageOpen}">
+    <!-- THE QUESTION LINE — what this pick is asked for, ABOVE the cards it is answered with (2026-10-13). Past the
+         descent the header's own discard block is under the deep crumb, so the ask moves here: the discard mark, the
+         ask, its source and what it buys; and an OPTIONAL pick carries its DECLINE plate — the button (RT) repeated
+         where the eye already is, never a row among the cards, never B. In-flow: the album below solves its cards from
+         the room it leaves. -->
+    <div v-if="questionShown" class="con-hand__question" data-pick-question>
+      <div v-if="questionAskShown && discard !== undefined" class="con-hand__question-ask">
+        <span v-if="discardPlanetClass !== ''" class="con-hand__discard-planet" :class="discardPlanetClass" aria-hidden="true"></span>
+        <span v-else class="con-hand__discard-mark" aria-hidden="true">⌫</span>
+        <span class="con-hand__question-text">{{ discardAsk }}</span>
+        <span class="con-hand__discard-sep" aria-hidden="true">·</span>
+        <span class="con-hand__question-src">{{ discardSource }}</span>
+        <span v-if="discard.exchange !== undefined" class="con-hand__discard-swap">
+          <b class="con-hand__discard-out">−{{ Math.max(1, discard.picked) }}</b>
+          <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
+          <span class="con-hand__discard-arrow" aria-hidden="true">→</span>
+          <b class="con-hand__discard-in" :class="{'con-hand__discard-in--zero': discard.exchange.amount === 0}">+{{ discard.exchange.amount }}</b>
+          <i :class="discardExchangeIconClass" class="con-hand__discard-icon" aria-hidden="true"></i>
+        </span>
+      </div>
+      <ConsoleDeclinePlate v-if="pickDecline !== undefined" class="con-hand__question-decline"
+                           :label="pickDecline.label" :forgone="pickDecline.forgone" />
+    </div>
     <!-- Premium hand ALBUM: a strict page of profile-fixed shape (5×2 on the
          couch, 4×1 on the Deck) — never a scrolling canvas. The strip carries
          one page per stride; the viewport clips everything else; the pages
@@ -505,6 +528,7 @@ import Card from '@/client/components/card/CardFace.vue';
 import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
+import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {colonyFleetBerth, setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {
@@ -539,6 +563,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {PatentSaleAnswer, PatentSaleSummary, patentSaleAnswers, patentSaleSummary} from '@/client/console/patentSale/patentSaleAnswers';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
+import type {DeclineModel} from '@/client/console/optionalChoice';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {HandForecastPlate, handForecastPlate, signedAmount} from '@/client/console/countedPlay';
 import {HandTenderItem, handTenderItems} from '@/client/console/handTenderPlate';
@@ -603,6 +628,11 @@ export type ConsoleHandSelectMode = {
    * are all pre-derived (cardDiscard/discardIntent.ts).
    */
   discard?: DiscardIntent,
+  /**
+   * THE DECLINE of an OPTIONAL pick (`optionalChoice.ts`): the album's question line carries its plate — the button
+   * (RT) repeated where the eye is, and what refusing forgoes. Absent for a pick that must be answered.
+   */
+  decline?: DeclineModel,
 };
 
 /** Fallback box before the first measure / under JSDOM (rects are 0). */
@@ -651,7 +681,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
@@ -930,6 +960,19 @@ export default defineComponent({
     /** The pre-derived discard presentation, or undefined for a normal pick. */
     discard(): DiscardIntent | undefined {
       return this.selectActive ? this.select?.discard : undefined;
+    },
+    /** The DECLINE of an optional pick (RT answers it; its plate stands in the question line). */
+    pickDecline(): DeclineModel | undefined {
+      return this.selectActive ? this.select?.decline : undefined;
+    },
+    /** The question line stands: past the descent for a discard (the header's own block is under the deep crumb), and
+     *  for any pick that can be declined (its plate has nowhere else to stand). */
+    questionShown(): boolean {
+      return this.selectActive && (this.questionAskShown || this.pickDecline !== undefined);
+    },
+    /** …and it carries the ASK only where the header cannot (past the descent) — never the same block twice. */
+    questionAskShown(): boolean {
+      return this.stageOpen && this.discard !== undefined;
     },
     /** «Сбросьте 1 карту» / «Сбросьте 3 карты» / «Сбросьте до 3 карт». */
     discardAsk(): string {

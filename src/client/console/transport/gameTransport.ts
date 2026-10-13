@@ -184,6 +184,7 @@ import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardC
 import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
 import {resetColonyBonusPayout, seedColonyBonusPayoutHolds} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {abortBotAttackCommit} from '@/client/console/botAttack/botAttackState';
+import {clearDecisionPickAnswered} from '@/client/console/effectDecision/effectDecisionState';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 // The GAME START WORKSPACE holds the deployment across prompt gaps. While it
 // does, a submit's response must COMMIT INLINE: the staged-bot pipeline
@@ -1395,6 +1396,7 @@ function abortAllConsoleTransactions(): void {
   // …and the ledger payout that press armed (TR23): the activation never happened — nothing is owed, nothing is held.
   resetColonyBonusPayout();
   abortBotAttackCommit(); // …and the MarsBot attack — the commit row re-opens
+  clearDecisionPickAnswered(); // …and an album that IS a decision: the answer was refused, the album re-opens
 }
 
 /** Apply a fresh view: structural sharing + the transient-UI reset epoch. */

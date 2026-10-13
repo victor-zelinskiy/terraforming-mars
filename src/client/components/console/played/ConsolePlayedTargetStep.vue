@@ -35,6 +35,9 @@
         </template>
         <span v-else-if="model.contract.selfAllowed && model.contract.opponentsInvolved"
               class="con-ptsel__scope-note">{{ $t('Your own card or another player\'s') }}</span>
+        <!-- An OPTIONAL choice's DECLINE — the button (RT) repeated in the question line, never a candidate. -->
+        <ConsoleDeclinePlate v-if="decline !== undefined" class="con-ptsel__decline"
+                             :label="decline.label" :forgone="decline.forgone" />
       </div>
       <!-- The server's ask, and only when it says something the head above it
            does not. Empty = boilerplate («добавить ресурс на эту карту» under
@@ -310,6 +313,8 @@ import {useResizeObserver} from '@vueuse/core';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
+import type {DeclineModel} from '@/client/console/optionalChoice';
 import TagGlyph from '@/client/components/Tag.vue';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -340,7 +345,7 @@ const UNMEASURED: PlayedTargetSizing =
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
-  components: {ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, TagGlyph},
+  components: {ConsoleDeclinePlate, ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, TagGlyph},
   props: {
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
@@ -367,6 +372,8 @@ export default defineComponent({
     /** The already-confirmed target of a SINGLE step (a re-entry from «Изменить
      *  выбор»); in multi the picks live in `selection.picked`. */
     lockedCard: {type: String, default: ''},
+    /** An optional choice's refusal (`optionalChoice.ts`) — its plate rides the contract line. */
+    decline: {type: Object as PropType<DeclineModel | undefined>, default: undefined},
     /**
      * The HOST's own header already states the ask, so this step must not
      * restate it (see the contract header in the template). Additive and

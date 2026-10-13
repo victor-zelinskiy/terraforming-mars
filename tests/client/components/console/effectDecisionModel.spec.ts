@@ -24,10 +24,13 @@ import {
   buildEffectDecision,
   chipsFromDiscard,
   decisionCommandKeys,
+  decisionCommands,
   decisionFocusStep,
   decisionPressIntent,
+  declineModelOf,
   isDeclineOption,
 } from '@/client/console/effectDecision/effectDecisionModel';
+import {DISCARD_DECLINE_KEY} from '@/client/console/optionalChoice';
 
 /*
  * THE ADAPTER IS THE SAFETY GATE. Everything it accepts is served by the new
@@ -153,7 +156,10 @@ describe('effectDecisionModel', () => {
     const optional = buildEffectDecision(
       or([victim, leaf('Do nothing', {kind: 'skip'})], cardContext('attack', CardName.FLOODING)), {handNames: HAND});
     expect(optional?.headlineKey).eq(HEADLINE_ATTACK);
-    expect(optional?.actions[1].title, 'the decline pairs with the question').eq(DECLINE_ATTACK);
+    // An attack's refusal is a BUTTON (RT + the plate), never a card beside the target — even with one target.
+    expect(optional?.actions.map((a) => a.role)).deep.eq(['primary']);
+    expect(optional?.declineIndex).is.undefined;
+    expect(optional?.decline, 'the decline pairs with the question').deep.eq({optionIndex: 1, title: DECLINE_ATTACK, forgone: []});
 
     // A MANDATORY attack (no decline — Air Raid's steal) is a target pick.
     const mandatory = buildEffectDecision(
@@ -172,6 +178,7 @@ describe('effectDecisionModel', () => {
       or([pick, leaf('Do nothing', {kind: 'skip'})], cardContext()), {handNames: HAND});
 
     const offer = vm?.actions[0];
+    expect(vm?.actions, 'the decline is no card').lengthOf(1);
     expect(offer?.navigation).eq('handCards');
     expect(offer?.leadKey, 'the row must say it opens the hand').eq(LEAD_HAND_CARDS);
     // The row states the DECISION; the server's «выберите карту…» is an
@@ -185,10 +192,50 @@ describe('effectDecisionModel', () => {
       {direction: 'gain', icon: 'cards', amount: 1},
     ]);
     expect(vm?.headlineKey).eq(HEADLINE_USE);
+    // The refusal of a discard is a discard's («Не сбрасывать»), and it names what it forgoes — the card it would draw.
+    expect(vm?.decline).deep.eq({optionIndex: 1, title: DISCARD_DECLINE_KEY, forgone: [{direction: 'gain', icon: 'cards', amount: 1}]});
+  });
 
-    // An immediate action says nothing about navigation.
-    expect(vm?.actions[1].navigation).eq('immediate');
-    expect(vm?.actions[1].leadKey).is.undefined;
+  /**
+   * THE DECISION IS ITS PICK (the owner, 2026-10-13): Mars University's «use the effect?» screen stood BEFORE the album
+   * with nothing to decide on it — one card «discard and draw» and its refusal. The shell opens the album directly, the
+   * decline inside it; any decision that offers a second answer keeps its screen.
+   */
+  it('a decision whose ONE answer is a hand pick IS that pick — the album opens directly', () => {
+    const pick = handPick({discardPrompt: {min: 1, max: 1, exchange: {icon: 'cards', amount: 1, perCard: false}}});
+    const vm = buildEffectDecision(or([pick, leaf('Do nothing', {kind: 'skip'})], cardContext()), {handNames: HAND});
+    expect(vm?.directPick).eq(vm?.actions[0]);
+    expect(vm?.directPick?.optionIndex).eq(0);
+
+    // A second answer beside the pick: the screen stands (the decline is still a button).
+    const two = buildEffectDecision(
+      or([pick, leaf('Gain 1 M€'), leaf('Do nothing', {kind: 'skip'})], cardContext()), {handNames: HAND});
+    expect(two?.directPick).is.undefined;
+    expect(two?.decline?.optionIndex).eq(2);
+    // No decline at all: a mandatory pick is not this shape.
+    expect(buildEffectDecision(or([pick, leaf('Gain 1 M€')], cardContext()), {handNames: HAND})?.directPick).is.undefined;
+  });
+
+  it('a YES / NO keeps its two cards — the refusal stays a card there, never a button', () => {
+    const yes = leaf('Pay 2 M€ to draw a card', {
+      effects: [{direction: 'cost', icon: 'megacredits', amount: 2}, {direction: 'gain', icon: 'cards', amount: 1}],
+    });
+    const vm = buildEffectDecision(or([yes, leaf('Do nothing', {kind: 'skip'})], cardContext()), {handNames: HAND});
+    expect(vm?.actions.map((a) => a.role)).deep.eq(['primary', 'decline']);
+    expect(vm?.decline).is.undefined;
+    expect(vm?.directPick).is.undefined;
+  });
+
+  it('a list of targets declines with the button — every target stays a card, the refusal is none of them', () => {
+    const steal = (color: string) => leaf(`Steal from ${color}`, {
+      kind: 'resourceRemoval', icon: 'plants', amount: 3, player: {color, current: 5, resulting: 2},
+    });
+    // The server's order with the decline MID-list (RemoveAnyPlants).
+    const vm = buildEffectDecision(
+      or([steal('red'), leaf('Do not remove', {kind: 'skip'}), steal('blue')], cardContext('attack')), {handNames: HAND});
+    expect(vm?.actions.map((a) => a.optionIndex)).deep.eq([0, 2]);
+    expect(vm?.decline?.optionIndex, 'the SERVER index').eq(1);
+    expect(vm?.decline?.title).eq(DECLINE_ATTACK);
   });
 
   it('scales a per-card exchange, and stays quiet when there is nothing back', () => {
@@ -272,7 +319,7 @@ describe('effectDecisionModel', () => {
       leaf('Do nothing', {kind: 'skip'}),
     ], cardContext()), {handNames: HAND});
     expect(nextStageKeyOf(university?.actions[0])).eq(STAGE_CARD_DRAW);
-    expect(nextStageKeyOf(university?.actions[1]), 'the decline leads nowhere').eq('');
+    expect(university?.actions, 'the decline is a button, not an action').lengthOf(1);
     expect(nextStageKeyOf(undefined)).eq('');
   });
 
@@ -282,7 +329,8 @@ describe('effectDecisionModel', () => {
       {title: 'Steal from Blue', reason: 'Resources are protected'},
     ];
     const vm = buildEffectDecision(model, {handNames: HAND});
-    expect(vm?.actions).lengthOf(2);
+    expect(vm?.actions, 'the target — the decline is the button').lengthOf(1);
+    expect(vm?.decline?.optionIndex).eq(1);
     expect(vm?.unavailable).deep.eq([{title: 'Steal from Blue', reason: 'Resources are protected', playerColor: undefined}]);
   });
 
@@ -322,6 +370,22 @@ describe('effectDecisionModel', () => {
       expect(decisionPressIntent(vm, 0, 'primary', true)).is.undefined;
     });
 
+    it('RT is the DECLINE of a button decline — and nothing on a YES / NO, or once an answer is on its way', () => {
+      const attack = buildEffectDecision(
+        or([leaf('Steal 4 M€', {player: {color: 'red'}}), leaf('Do nothing', {kind: 'skip'})], cardContext('attack')), {handNames: HAND})!;
+      expect(decisionPressIntent(attack, 0, 'nextTab')).deep.eq({kind: 'decline', optionIndex: 1});
+      expect(decisionPressIntent(attack, 0, 'nextTab', true), 'a second press cannot answer twice').is.undefined;
+      expect(decisionPressIntent(vmOf(offerThenDecline()), 0, 'nextTab'), 'a YES / NO declines on its own card').is.undefined;
+      // …and B is still never the decline.
+      expect(decisionPressIntent(attack, 0, 'back')).deep.eq({kind: 'defer'});
+    });
+
+    it('the decline rides the shared pick shape (`declineModelOf`) into the album', () => {
+      expect(declineModelOf(undefined)).is.undefined;
+      expect(declineModelOf({optionIndex: 3, title: DISCARD_DECLINE_KEY, forgone: []}))
+        .deep.eq({index: 3, label: DISCARD_DECLINE_KEY, forgone: []});
+    });
+
     it('a navigating action HANDS OFF instead of answering', () => {
       const pick = handPick({discardPrompt: {min: 1, max: 1}});
       const vm = vmOf([pick, leaf('Do nothing', {kind: 'skip'})]);
@@ -348,9 +412,13 @@ describe('effectDecisionModel', () => {
 
     it('says SELECT for a hand-off and CONFIRM for a decision made here', () => {
       const pick = handPick({discardPrompt: {min: 1, max: 1}});
-      const nav = vmOf([pick, leaf('Do nothing', {kind: 'skip'})]);
-      expect(decisionCommandKeys(nav, 0)).deep.eq(['Navigate', 'Select', 'Inspect the source', 'Minimize']);
-      expect(decisionCommandKeys(nav, 1)).deep.eq(['Navigate', 'Confirm', 'Inspect the source', 'Minimize']);
+      const nav = vmOf([pick, leaf('Gain 1 M€'), leaf('Do nothing', {kind: 'skip'})]);
+      // The button decline names itself on RT, just before the way back.
+      expect(decisionCommandKeys(nav, 0)).deep.eq(['Navigate', 'Select', 'Inspect the source', DECLINE_DEFAULT, 'Minimize']);
+      expect(decisionCommandKeys(nav, 1)).deep.eq(['Navigate', 'Confirm', 'Inspect the source', DECLINE_DEFAULT, 'Minimize']);
+      expect(decisionCommands(nav, 0).map((c) => c.control)).deep.eq(['dpad', 'confirm', 'secondary', 'triggerR', 'back']);
+      // A YES / NO has no RT: its refusal is the second card.
+      expect(decisionCommands(vmOf(offerThenDecline()), 1).map((c) => c.control)).deep.eq(['dpad', 'confirm', 'secondary', 'back']);
 
       const colony = buildEffectDecision(
         or(offerThenDecline(), {source: {kind: 'colony'}, mode: 'optional-effect'}), {handNames: HAND})!;

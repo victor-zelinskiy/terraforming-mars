@@ -26,6 +26,7 @@ import {Message} from '@/common/logs/Message';
 import {DiscardPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {isHandPick} from '@/client/console/handPickRouting';
+import type {DeclineModel} from '@/client/console/optionalChoice';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -83,6 +84,17 @@ export type ConsoleHandPickRequest = {
    * physically the same code. See `cardDiscard/discardIntent.ts`.
    */
   discard?: DiscardPromptMeta;
+  /**
+   * The pick is an OPTIONAL CHOICE's one answer (`optionalChoice.ts` — Mars University's «discard a card to draw one»,
+   * declinable): the album opens straight onto it, its question line carries the decline plate, and RT answers the
+   * decline (`declineConsoleHandPick`) — never a row, never B (B is one level back).
+   */
+  decline?: DeclineModel;
+  /**
+   * What B does here, as the bar names it (an i18n key; default «Назад»). An album that IS the decision (the live
+   * effect decision's `directPick`) has no screen behind it — its B is the decision's own «Свернуть».
+   */
+  backLabel?: string;
 };
 
 export const consoleHandPickState = reactive({
@@ -96,6 +108,7 @@ export const consoleHandPickState = reactive({
 
 let resolveCb: ((cards: ReadonlyArray<CardName>) => void) | undefined;
 let cancelCb: (() => void) | undefined;
+let declineCb: (() => void) | undefined;
 
 export function isConsoleHandPickActive(): boolean {
   return consoleHandPickState.active;
@@ -115,6 +128,7 @@ export function enterConsoleHandPick(
   request: ConsoleHandPickRequest,
   onResolve: (cards: ReadonlyArray<CardName>) => void,
   onCancel?: () => void,
+  onDecline?: () => void,
 ): void {
   const selectableSet = new Set(request.selectable);
   consoleHandPickState.request = request;
@@ -123,7 +137,18 @@ export function enterConsoleHandPick(
   consoleHandPickState.suitableOnly = true;
   resolveCb = onResolve;
   cancelCb = onCancel;
+  declineCb = request.decline !== undefined ? onDecline : undefined;
   consoleHandPickState.active = true;
+}
+
+/** RT on an optional pick: deliver the DECLINE to the waiting composer (a no-op when the pick has none). */
+export function declineConsoleHandPick(): void {
+  if (!consoleHandPickState.active || declineCb === undefined) {
+    return;
+  }
+  const cb = declineCb;
+  resetConsoleHandPick();
+  cb();
 }
 
 /** Deliver the pick to the waiting composer (single: `[name]`; multi: the
@@ -155,6 +180,7 @@ export function resetConsoleHandPick(): void {
   consoleHandPickState.suitableOnly = true;
   resolveCb = undefined;
   cancelCb = undefined;
+  declineCb = undefined;
 }
 
 /**

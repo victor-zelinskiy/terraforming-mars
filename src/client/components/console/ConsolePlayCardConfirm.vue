@@ -118,7 +118,13 @@
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
                  chips / nested-input target / tabbed target). ─────────── -->
             <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed')">
-              <div class="con-composer__sub-title" data-unfold-item>{{ subTitle }}</div>
+              <!-- THE QUESTION LINE: the ask, and an optional choice's DECLINE plate — the refusal is a button (RT),
+                   never one more row among the answers (2026-10-13). -->
+              <div class="con-composer__sub-head" data-unfold-item>
+                <div class="con-composer__sub-title">{{ subTitle }}</div>
+                <ConsoleDeclinePlate v-if="subDecline !== undefined" class="con-composer__sub-decline"
+                                     :label="subDecline.label" :forgone="subDecline.forgone" />
+              </div>
               <!-- THE PICK LIST — the variant grammar's LIST layout (`ConsoleVariantChoice`, TR51): the cursor a cold lift,
                    the answer the ONE seal, a refused row its reason on its own plate; a door (a nested pick) its ›. -->
               <ConsoleVariantChoice class="con-composer__sublist" layout="list" :exclusive="false"
@@ -667,6 +673,8 @@ import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {orOptionDoor} from '@/client/console/handPickRouting';
+import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf} from '@/client/console/optionalChoice';
+import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
@@ -683,7 +691,7 @@ import {
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey,
 } from '@/client/console/consoleActionComposer';
-import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
+import {buildOrItems, orItemResponse, buildTabbedTargets, nestedPickHostable, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
 import {
   enterDeltaEspionagePick, deltaEspionageStepResponse, deltaEspionageResponseOf,
 } from '@/client/console/hydroFlow/deltaEspionageEntry';
@@ -784,6 +792,8 @@ type PlayRow =
  */
 const nestedPickKey = (choiceId: string): string => choiceId + '#nested';
 const NESTED_PICK_SEP = '|';
+/** A tabbed removal's `picks` value when it was DECLINED (RT) — never a target key (those are `a…` / `p…`). */
+const TABBED_DECLINE_KEY = 'decline';
 
 type SubState =
   /** THE EMBEDDED PLAYED-TARGET STEP — a level of this workspace, not a modal
@@ -883,7 +893,7 @@ function espOwnerOptionTitle(o: {resource: string, amount: number, production?: 
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, ConsoleVariantChoice, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
+  components: {Card, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -2105,6 +2115,8 @@ export default defineComponent({
           verb: (this.playedTargetChoice?.input as SelectCardModel | undefined)?.buttonLabel || 'Select',
         } : undefined,
         subIsCardList: this.subChoice?.input.type === 'card' || this.sub?.kind === 'orNested' || this.sub?.kind === 'tabbed',
+        // The open choice's DECLINE — RT, with the refusal's own words.
+        decline: this.subDecline !== undefined ? textOf(this.subDecline.label) : undefined,
         // More than the lone CTA row → there's something to navigate between.
         hasRows: this.rows.length > 1,
         focusedKind: this.focusedKind,
@@ -2199,16 +2211,35 @@ export default defineComponent({
       if (c.input.type === 'player') {
         return this.playerItems(c.input as SelectPlayerModel, this.picks[c.id]);
       }
-      // PREMIUM or list — each option's metadata chips + player + nested indicator.
+      // PREMIUM or list — each option's metadata chips + player + nested indicator. An OPTIONAL choice's decline is
+      // not one of them: it is the button (RT) and the plate in the question line (`subDecline`).
       if (c.input.type === 'or') {
         const chosen = this.picks[c.id];
-        return buildOrItems(c.input as OrOptionsModel).map((it): ListItem => ({
+        const declineAt = this.choiceDecline(c)?.index;
+        return buildOrItems(c.input as OrOptionsModel).filter((it) => it.optionIndex !== declineAt).map((it): ListItem => ({
           key: it.key, label: textOf(it.label), meta: '', disabled: it.disabled, reason: textOf(it.reason),
           chosen: chosen === String(it.optionIndex), color: it.playerColor, chips: it.chips,
           warnings: it.warnings, orItem: it,
         }));
       }
       return [];
+    },
+    /**
+     * THE DECLINE of the open sub-surface's optional choice (`optionalChoice.ts`): the plate in its question line and
+     * RT. A nested list carries it only when that list IS the choice's one answer (the pick opened directly).
+     */
+    subDecline(): DeclineModel | undefined {
+      const sub = this.sub;
+      if (sub?.kind === 'tabbed') {
+        // A tabbed removal (Virus) declares its own refusal on the step.
+        const decline = this.tabbedSteps.find((t) => t.index === sub.stepIndex)?.step.decline;
+        return decline !== undefined ? {index: decline.optionIndex, label: decline.label, forgone: []} : undefined;
+      }
+      const c = this.subChoice;
+      if (sub === undefined || c === undefined || (sub.kind !== 'list' && sub.kind !== 'orNested')) {
+        return undefined;
+      }
+      return this.choiceDecline(c);
     },
   },
   watch: {
@@ -2729,6 +2760,9 @@ export default defineComponent({
       if (ts === undefined || key === undefined) {
         return '';
       }
+      if (key === TABBED_DECLINE_KEY) {
+        return textOf(ts.step.decline?.label);
+      }
       const target = this.tabbedTargets(ts.step).find((t) => t.key === key);
       if (target === undefined) {
         return '';
@@ -2964,6 +2998,11 @@ export default defineComponent({
       }
       if (c.input.type === 'or') {
         const opt = (c.input as OrOptionsModel).options[Number(pick)];
+        // The DECLINE reads as the refusal's own words («Не сбрасывать»), never the server's generic «Ничего не делать».
+        const decline = this.choiceDecline(c);
+        if (decline !== undefined && Number(pick) === decline.index) {
+          return textOf(decline.label);
+        }
         // A branch answered through its OWN question (the card Mars University discards, the player Comet for Venus
         // hits) reads as its ANSWER — the option's title IS the question, and a row restating it looks unanswered.
         const nested = this.picks[nestedPickKey(c.id)];
@@ -3447,6 +3486,8 @@ export default defineComponent({
         this.openHandPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'playedTarget') {
         this.openPlayedTargetStep(row.choice);
+      } else if (row.kind === 'step' && row.choice.kind === 'or' && this.openOptionalPick(row.choice)) {
+        // An optional choice whose one answer is a pick: no list — the pick itself, the decline inside it.
       } else if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
         this.sub = {kind: 'list', choiceId: row.choice.id, index: 0};
       } else if (row.kind === 'tabbed') {
@@ -3853,6 +3894,11 @@ export default defineComponent({
      * album returns to the option list it was opened from (one level). The
      * owner's hard rule (2026-10-13): a card from the hand is chosen IN the
      * hand, never from a list of names.
+     *
+     * An OPTIONAL choice (`optionalChoice.ts`) carries its DECLINE into the
+     * album (the plate in its question line, RT answers it); an album opened
+     * straight from the choice's row (its one answer is this pick —
+     * `optionalPickItem`, no list stood before it) returns B to the row.
      */
     openHandPick(c: ComposerChoice, orItem?: ConsoleOrItem): void {
       const model = (orItem?.nested ?? c.input) as SelectCardModel;
@@ -3887,6 +3933,8 @@ export default defineComponent({
         discard,
         // …and nothing leaves: this is a PRE-SELECT, the card goes only when the play's ONE POST is answered.
         leaving: 'none',
+        // An optional choice's refusal — a button inside the album, never a row before it.
+        decline: orItem !== undefined ? this.choiceDecline(c) : undefined,
       }, (cards) => {
         this.handPickOpen = undefined;
         // Re-locate the choice by id — the preview may have refreshed under
@@ -3913,11 +3961,18 @@ export default defineComponent({
       }, () => {
         this.handPickOpen = undefined;
         // B in the album is ONE level: an option's pick goes back to the option list it was opened from, the
-        // cursor on that option; a step's own pick goes back to the step.
-        if (orItem !== undefined) {
-          const at = buildOrItems(c.input as OrOptionsModel).findIndex((it) => it.optionIndex === orItem.optionIndex);
+        // cursor on that option; a pick opened straight from its row (or a step's own pick) goes back to the row.
+        if (orItem !== undefined && this.optionalPickItem(c)?.optionIndex !== orItem.optionIndex) {
+          // …in the list as it is drawn — without the decline, which is no row (`listItems`).
+          const declineAt = this.choiceDecline(c)?.index;
+          const at = buildOrItems(c.input as OrOptionsModel).filter((it) => it.optionIndex !== declineAt)
+            .findIndex((it) => it.optionIndex === orItem.optionIndex);
           this.sub = {kind: 'list', choiceId: c.id, index: Math.max(0, at)};
         }
+      }, () => {
+        // RT in the album — the DECLINE: the choice is answered with its refusal, the composer takes the row back.
+        this.handPickOpen = undefined;
+        this.answerDecline(this.allChoices.find((x) => x.id === c.id) ?? c);
       });
     },
     /**
@@ -4010,11 +4065,66 @@ export default defineComponent({
         }
         if (sub.kind === 'payment') {
           this.adjustPayRow(sub.index, 0, true);
+          return;
+        }
+        // …and on an OPTIONAL choice RT is its DECLINE (the refusal is a button, never a row, never B).
+        if (sub.kind === 'tabbed' && this.subDecline !== undefined) {
+          this.answerTabbedDecline(sub.stepIndex, this.subDecline);
+        } else if (this.subDecline !== undefined && this.subChoice !== undefined) {
+          this.answerDecline(this.subChoice);
         }
         return;
       default:
         return;
       }
+    },
+    /** The DECLINE of a choice that is an optional choice whose refusal is a button (a yes / no keeps its two cards). */
+    choiceDecline(c: ComposerChoice): DeclineModel | undefined {
+      const oc = optionalChoiceOf(c.input);
+      return declineIsButton(oc) ? oc.decline : undefined;
+    },
+    /** A tabbed removal answered with its DECLINE — the step's top-level skip, captured like any target. */
+    answerTabbedDecline(stepIndex: number, decline: DeclineModel): void {
+      this.picks['tabbed#' + stepIndex] = TABBED_DECLINE_KEY;
+      this.captured[stepIndex] = {type: 'or', index: decline.index, response: {type: 'option'}};
+      this.sub = undefined;
+      this.focusIdx = this.firstActionableIndex();
+      this.scrollFocused();
+    },
+    /** The choice is answered with its DECLINE — the same capture a picked decline row once made. */
+    answerDecline(c: ComposerChoice): void {
+      const oc = optionalChoiceOf(c.input);
+      if (!declineIsButton(oc)) {
+        return;
+      }
+      this.picks[c.id] = String(oc.decline.index);
+      delete this.picks[nestedPickKey(c.id)];
+      this.captureFor(c, declineResponse(oc));
+      this.sub = undefined;
+      this.focusIdx = this.firstActionableIndex();
+      this.scrollFocused();
+    },
+    /**
+     * An optional choice whose ONE answer is a pick (Mars University's discard) has no list: A on its row opens that
+     * pick directly — the hand album, or the pick's own list — with the decline inside it. `false` = not this shape.
+     */
+    openOptionalPick(c: ComposerChoice): boolean {
+      const item = this.optionalPickItem(c);
+      if (item === undefined) {
+        return false;
+      }
+      // Through the ONE door a descent takes (`descendOrOption` — the hand album or the pick's own list).
+      this.descendOrOption(c, item);
+      return true;
+    },
+    /** The ONE pick an optional choice offers beside its decline (`undefined` = not that shape, or not drawable here). */
+    optionalPickItem(c: ComposerChoice): ConsoleOrItem | undefined {
+      const oc = optionalChoiceOf(c.input);
+      if (!declineIsButton(oc) || oc.pick === undefined) {
+        return undefined;
+      }
+      const item = buildOrItems(c.input as OrOptionsModel).find((it) => it.optionIndex === oc.pick);
+      return item !== undefined && nestedPickHostable(item) ? item : undefined;
     },
     /**
      * LT — EXPAND the payment block in place: the same rows in the same place,

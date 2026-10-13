@@ -760,7 +760,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleEffectDecision v-if="effectDecisionActive && effectDecisionVm !== undefined"
+        <ConsoleEffectDecision v-if="effectDecisionActive && effectDecisionVm !== undefined && effectDecisionVm.directPick === undefined"
                                ref="effectDecision"
                                :playerView="playerView"
                                :vm="effectDecisionVm"
@@ -1798,8 +1798,9 @@ import {consoleSystemAlertState, dismissConsoleAlert, isConsoleAlertActive} from
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
 import ConsoleEffectDecision from '@/client/components/console/ConsoleEffectDecision.vue';
-import {buildEffectDecision, EffectDecisionSource, EffectDecisionViewModel} from '@/client/console/effectDecision/effectDecisionModel';
-import {resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
+import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
+import type {DeclineModel} from '@/client/console/optionalChoice';
+import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
 import ConsoleFinalGreenery from '@/client/components/console/ConsoleFinalGreenery.vue';
 import {buildFinalGreenery, EYEBROW as FINAL_GREENERY_EYEBROW, FinalGreeneryViewModel} from '@/client/console/finalGreenery/finalGreeneryModel';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
@@ -2171,7 +2172,7 @@ import {probeTick} from '@/client/console/probeTick';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -3613,6 +3614,20 @@ export default defineComponent({
         !this.govSupportActive && !this.productionLossActive &&
         !this.consoleState.task.deferred && this.taskSpacePending === undefined &&
         !this.handPickActive && !this.effectDecisionHeldForWorkspace;
+    },
+    /**
+     * THE DECISION IS ITS PICK — an optional decision whose one answer is a card from the hand (Mars University's
+     * discard) stands as the ALBUM, its decline inside it: the screen that asked «use the effect?» before the album was
+     * a whole step with nothing to decide (the owner, 2026-10-13). Read where the decision would have stood.
+     */
+    effectDecisionDirectPick(): EffectDecisionAction | undefined {
+      // An answer given in that album is on the wire: the prompt it answered stands until the server moves past it,
+      // and re-opening on it would ask the question twice.
+      const answered = effectDecisionState.pickAnsweredAt;
+      if (answered !== '' && answered === decisionPromptStamp(this.playerView)) {
+        return undefined;
+      }
+      return this.effectDecisionActive ? this.effectDecisionVm?.directPick : undefined;
     },
     /**
      * THE DECISION BELONGS TO AN OPEN WORKSPACE — the player pressed «Разыграть»
@@ -6919,6 +6934,15 @@ export default defineComponent({
     handSelectPicked(): ReadonlyArray<string> {
       return this.handPickActive ? consoleHandPickState.selected : this.consoleState.select.selected;
     },
+    /**
+     * RT IS THE DECLINE of the open pick right now: an optional pick (`request.decline`) that is a single pick, or a
+     * multi pick with nothing picked yet — from the first pick on RT confirms the set (`confirmHandSelect`), and the
+     * question line's plate steps aside with it. Never while a discard cinematic is playing.
+     */
+    handPickDeclineLive(): boolean {
+      return this.handPickActive && consoleHandPickState.request?.decline !== undefined && !isCardDiscardActive() &&
+        (this.handSelectSingle || consoleHandPickState.selected.length === 0);
+    },
     /** The A-verb of whichever select source is active (server buttonLabel /
      *  the pick request's verb — 'Discard' / 'Reveal' / 'Link card' / …). */
     handSelectVerb(): string {
@@ -7108,6 +7132,9 @@ export default defineComponent({
         // source is serving the pick — so Mars University, a Pluto colony
         // bonus and a global event all read the same.
         discard: this.discardIntent,
+        // THE DECLINE of an optional pick — its plate in the question line (RT answers it). A MULTI pick declines
+        // only while nothing is picked: from the first pick on RT confirms the set, and the plate steps aside.
+        decline: this.handPickDeclineLive ? pick?.decline : undefined,
       };
     },
     /** A hand-served shell task (play-from-hand OR mandatory hand-select) — the
@@ -9021,10 +9048,19 @@ export default defineComponent({
         const cmds: Array<ConsoleCommand> = [];
         if (this.handSelectSingle) {
           cmds.push({control: 'confirm', label: verb, enabled: canPick});
+          // THE DECLINE of an optional pick — a button, repeated by the plate in the album's question line.
+          const decline = this.handPickDeclineLive ? consoleHandPickState.request?.decline : undefined;
+          if (decline !== undefined) {
+            cmds.push({control: 'triggerR', label: typeof decline.label === 'string' ? decline.label : translateMessage(decline.label), priority: 1});
+          }
         } else {
           cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
           cmds.push({control: 'stickL', label: this.pickAllSelected ? 'Unselect all' : 'Select all'});
-          cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
+          // With nothing picked an optional pick's RT is its DECLINE; from the first pick on it confirms the set.
+          const decline = this.handPickDeclineLive ? consoleHandPickState.request?.decline : undefined;
+          cmds.push(decline !== undefined ?
+            {control: 'triggerR', label: typeof decline.label === 'string' ? decline.label : translateMessage(decline.label), priority: 1} :
+            {control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
         }
         cmds.push({control: 'secondary', label: 'Inspect'});
         // X inspects the card under the cursor, so the EFFECT that sent the
@@ -9035,7 +9071,7 @@ export default defineComponent({
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.handSelectSuitableOnly ? 'All cards' : 'Only suitable'});
         }
-        cmds.push({control: 'back', label: 'Back'});
+        cmds.push({control: 'back', label: consoleHandPickState.request?.backLabel ?? 'Back'});
         return cmds;
       }
       // …unless the composer has LET GO of the bar (PL-084): a hosted step is rising out of its rect while it
@@ -9124,6 +9160,8 @@ export default defineComponent({
         if (consoleColoniesUi.composerSub === 'list') {
           return [
             {control: 'confirm', label: 'Select'},
+            // An optional list's refusal is RT (the plate in its question line repeats it), never a row.
+            ...(consoleColoniesUi.composerDecline !== '' ? [{control: 'triggerR' as const, label: consoleColoniesUi.composerDecline, priority: 1}] : []),
             {control: 'back', label: 'Back'},
           ];
         }
@@ -11998,6 +12036,11 @@ export default defineComponent({
       if (now !== '' && now !== was) {
         resetDecisionFocus();
       }
+    },
+    /** The decision that IS its pick opens the album where the decision would have stood — before it ever renders
+     *  (a `pre` watcher: the same flush that would mount the surface finds the pick already open). */
+    effectDecisionDirectPick(action: EffectDecisionAction | undefined): void {
+      this.openEffectDecisionPick(action);
     },
     /** The shade yields to a live pick bridge (surface motion). */
     pickBridgeActive: {
@@ -14971,8 +15014,12 @@ export default defineComponent({
             this.confirmSale();
           } else if (this.handSelectUiActive) {
             // Multi-select: RT confirms the picked set (a single-card pick
-            // submits directly on A, so RT is inert there).
-            if (!this.handSelectSingle) {
+            // submits directly on A). On an OPTIONAL pick RT is the DECLINE —
+            // the console's «finish this choice» with nothing chosen (the
+            // owner's decision 2026-10-13; never B, never a row).
+            if (this.handPickDeclineLive) {
+              declineConsoleHandPick();
+            } else if (!this.handSelectSingle) {
               this.confirmHandSelect();
             }
           } else {
@@ -20000,7 +20047,28 @@ export default defineComponent({
      * re-mounted by its own v-if, showing «Выберите вариант» again — which is
      * exactly where the player was before choosing this branch.
      */
-    onTaskHandPick(payload: {index: number, cardPrompt: SelectCardModel, source?: EffectDecisionSource, nextStage?: string}): void {
+    /** Open the album a decision IS (`effectDecisionDirectPick`) — B there minimizes, RT declines. */
+    openEffectDecisionPick(action: EffectDecisionAction | undefined): void {
+      const vm = this.effectDecisionVm;
+      if (action === undefined || action.nested === undefined || vm === undefined || this.handPickActive) {
+        return;
+      }
+      this.onTaskHandPick({
+        index: action.optionIndex,
+        cardPrompt: action.nested,
+        source: vm.source,
+        nextStage: nextStageKeyOf(action),
+        decline: declineModelOf(vm.decline),
+        direct: true,
+      });
+    },
+    onTaskHandPick(payload: {
+      index: number, cardPrompt: SelectCardModel, source?: EffectDecisionSource, nextStage?: string,
+      /** The decision's refusal as a button — RT in the album, the plate in its question line. */
+      decline?: DeclineModel,
+      /** The album IS the decision (`effectDecisionDirectPick`): there is no screen behind it to return to. */
+      direct?: boolean,
+    }): void {
       const prompt = payload.cardPrompt;
       const reasons: Record<string, string> = {};
       for (const d of prompt.disabledCards ?? []) {
@@ -20028,6 +20096,8 @@ export default defineComponent({
       // both press kinds); a pick handed over by the generic task host carries
       // none, which is the honest answer there — nothing claims that flow.
       const nextStage = payload.nextStage ?? '';
+      const decline = payload.decline;
+      const promptKey = promptIdentityKey(this.playerView.waitingFor);
       if (ownsStage) {
         setWorkspaceOutcomePhase(pickStage);
       }
@@ -20048,6 +20118,9 @@ export default defineComponent({
         source: payload.source?.card !== undefined ?
           {kicker: this.effectDecisionVm?.eyebrowKey ?? 'Card effect', card: payload.source.card} :
           undefined,
+        decline,
+        // An album that IS the decision has no screen behind it: B is the decision's own minimize.
+        backLabel: payload.direct === true ? 'Minimize' : undefined,
       }, (cards) => {
         // ONLY OUR OWN KEY: by now the claim may already be naming something
         // else (or be gone entirely), and overwriting a stage we do not own is
@@ -20055,8 +20128,46 @@ export default defineComponent({
         if (ownsStage && workspaceOutcomeState.phaseKey === pickStage) {
           setWorkspaceOutcomePhase(nextStage);
         }
+        if (payload.direct === true) {
+          markDecisionPickAnswered(decisionPromptStamp(this.playerView));
+        }
         this.submit(orWrappedResponse(payload.index, cardsResponse(cards)));
-      });
+      }, payload.direct === true ? () => {
+        // B in an album that IS the decision — the decision's own B: minimize (one level up is the board / the
+        // hosting workspace's collapse, never a decline). Only while it is still this prompt: a cancel fired because
+        // the server moved on must not defer the NEXT one.
+        if (promptIdentityKey(this.playerView.waitingFor) !== promptKey) {
+          return;
+        }
+        // A hand the pick stood up OVER THE BOARD has nothing under it to return to: it gathers back into the dock —
+        // the board home is where the minimized decision's card waits. (Inside a workspace the hand is that
+        // workspace's, and the defer collapses it whole.)
+        const alone = this.handPickStandsAlone();
+        this.onTaskDefer();
+        if (alone) {
+          void this.closeHandWithReveal();
+        }
+      } : undefined, decline !== undefined ? () => {
+        // RT in the album — the refusal. Nothing follows it: the tail is handed on EMPTY.
+        if (ownsStage && workspaceOutcomeState.phaseKey === pickStage) {
+          setWorkspaceOutcomePhase('');
+        }
+        if (payload.direct === true) {
+          markDecisionPickAnswered(decisionPromptStamp(this.playerView));
+        }
+        // …and a hand the pick stood up over the board goes back into the dock with it (no discard cinematic will
+        // hand the surface off — nothing leaves the hand).
+        const alone = this.handPickStandsAlone();
+        this.submit(orOptionResponse(decline.index));
+        if (alone) {
+          void this.closeHandWithReveal();
+        }
+      } : undefined);
+    },
+    /** The hand stands only because a pick stood it up over the board (its own root frame, an overlay). */
+    handPickStandsAlone(): boolean {
+      const root = workspaceStackState.frames[0];
+      return workspaceStackState.frames.length === 1 && root?.kind === 'hand' && root.overlay;
     },
     /**
      * The FINALE's placement branch. Same board hand-off as every other nested
@@ -22279,6 +22390,9 @@ export default defineComponent({
     },
   },
   mounted() {
+    // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
+    // `immediate`, so the mount edge is asked here.
+    this.openEffectDecisionPick(this.effectDecisionDirectPick);
     // A CHOSEN TRACK's move (TR07) is seeded only while the stage that will play it stands — the shell knows.
     registerColonyTrackMoveHost((colony) => workspaceFrameKnown('colonies') && this.colonyFocus.open && this.colonyFocus.colonyName === colony);
     // A ROSTER change somebody else made is played on the colony GRID — only while that grid is what the player is

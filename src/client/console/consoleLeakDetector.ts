@@ -35,6 +35,7 @@ import {Message} from '@/common/logs/Message';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
+import {decisionPromptStamp, effectDecisionState} from '@/client/console/effectDecision/effectDecisionState';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 import {stackServes, workspaceStackCollapsed, workspaceSurfacesFor} from '@/client/console/consoleWorkspaceStack';
@@ -372,6 +373,13 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // and matching `.con-hand` per kind would be wrong, because the player can
   // also open the hand freely over a genuinely stranded prompt.
   if (isConsoleHandPickActive()) {
+    clearStranded();
+    return;
+  }
+  // …and the beat right AFTER such a pick, when the album was the decision itself (`directPick`): its answer is on
+  // the wire and the answered prompt stands until the server moves past it — deliberately with no surface (re-opening
+  // the album would ask the question twice). Bounded by the prompt's serial: the next prompt, or a refusal, ends it.
+  if (effectDecisionState.pickAnsweredAt !== '' && effectDecisionState.pickAnsweredAt === decisionPromptStamp(view)) {
     clearStranded();
     return;
   }

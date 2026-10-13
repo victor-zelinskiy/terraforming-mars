@@ -1,0 +1,79 @@
+/* ══ THE DECLINE PLATE — the refusal of an optional choice (`ConsoleDeclinePlate.vue`, 2026-10-13) ═══════════════════
+   The decline of «choose one of these, or decline» is a BUTTON (RT), never a row among the answers; this plate stands
+   in the surface's question line and repeats that button where the eye already is — one notch LOUDER than the command
+   bar (a plate with a kant, the glyph at full size), one notch QUIETER than an answer (no fill accent, no cursor: it is
+   not a focus stop). What the refusal forgoes rides beside the words, struck — never a silent loss. Paint baseline: no
+   `filter`, no `text-shadow` — colour, `box-shadow` and opacity only. */
+.con-decline {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+    max-width: 100%;
+    padding: .32rem .8rem .32rem .45rem;
+    border-radius: .55rem;
+    background: linear-gradient(180deg, rgba(36, 44, 58, 0.92), rgba(18, 24, 34, 0.92));
+    box-shadow:
+        inset 0 0 0 .06rem rgba(176, 196, 222, 0.42),
+        0 .25rem .8rem rgba(0, 0, 0, 0.45);
+    color: #e3ecf6;
+    white-space: nowrap;
+
+    &__glyph {
+        flex: 0 0 auto;
+    }
+    &__label {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: .82rem;
+        font-weight: 800;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+    }
+    &__forgone {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        flex: 0 0 auto;
+        color: rgba(196, 212, 230, 0.7);
+        font-size: .72rem;
+        font-weight: 600;
+    }
+    &__sep {
+        opacity: .6;
+    }
+    /* The forgone result reads as NOT received: the chip recedes and a hairline crosses it (a pseudo element — the chip
+       keeps its own markup, the strike is the plate's statement about it). The chip is sized in REM here: outside the
+       console's chip-token surfaces it falls back to the shared px sizes, which do not scale — at 4K the «+1» read as a
+       speck under the strike. */
+    &__chip {
+        position: relative;
+        display: inline-flex;
+        opacity: .8;
+
+        .action-effect-chip.action-effect-chip {
+            font-size: .85rem;
+            gap: .3rem;
+            padding: .2rem .55rem .2rem .35rem;
+        }
+        .action-effect-chip__icon.action-effect-chip__icon {
+            width: 1.2rem;
+            height: 1.2rem;
+        }
+
+        &::after {
+            content: '';
+            position: absolute;
+            left: -.15rem;
+            right: -.15rem;
+            top: 50%;
+            height: .08rem;
+            border-radius: .05rem;
+            background: rgba(232, 238, 246, 0.7);
+            transform: rotate(-8deg);
+            pointer-events: none;
+        }
+    }
+}

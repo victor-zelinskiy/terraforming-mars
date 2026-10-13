@@ -135,8 +135,8 @@ type ChainOpts = {
   /** Take an embedded batch with RT («Забрать все») instead of per-card A —
    *  the exact gesture of the reported bug. */
   takeAll?: boolean,
-  /** Answer the decision with its DECLINE (the last row) instead of the offer —
-   *  walk down until the decline row holds the focus, then press. */
+  /** Answer the question with its DECLINE instead of the offer — RT on an album that IS the decision (its plate in
+   *  the album's question line), or the decline CARD of a YES / NO (walk down to it, then press). */
   decline?: boolean,
 };
 
@@ -186,7 +186,8 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
         viewer: document.querySelector('dialog.con-zoom[open]') !== null,
         // The pick BRIDGE has borrowed the shelf — the workspace's own browse
         // layer IS the picker («--stagepaused» → data-flow).
-        picking: document.querySelector('.con-hand[data-flow="picking"]') !== null,
+        // (…or an album that IS the question — its decline plate in the question line, with or without a descent.)
+        picking: document.querySelector('.con-hand[data-flow="picking"], .con-hand__question [data-decline-plate]') !== null,
         focusedDecisionRow: document.querySelector('.con-decision__action--focused') !== null,
       };
     });
@@ -266,6 +267,9 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
     // walks the cursor to the decline row before pressing.
     if (s.revealEmbedded && opts.takeAll === true) {
       await press(page, 'Period', 800);
+    } else if (s.picking && opts.decline === true) {
+      // The decline is a BUTTON (2026-10-13): RT in the album, whose question line names it.
+      await press(page, 'Period', 800);
     } else if (s.focusedDecisionRow && opts.decline === true) {
       const onDecline = await page.evaluate(() =>
         document.querySelector('.con-decision__action--decline.con-decision__action--focused') !== null);
@@ -281,13 +285,18 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
 
 /**
  * The shared verdict — the same contract for every shape of the chain. `asked: false` — a question answered BEFORE the
- * press (TR51): no live decision may stand at all, the chain is the play and what it drew.
+ * press (TR51): no live decision may stand at all, the chain is the play and what it drew. `asked: 'album'` — a live
+ * question whose one answer is a card from the hand: it stands as the ALBUM, in place, with no decision screen before
+ * it (the owner, 2026-10-13).
  */
-function assertOneFlow(log: ChainLog, stages: ReadonlyArray<'play' | 'effect' | 'discard' | 'draw'>, opts: {asked?: boolean} = {}): void {
+function assertOneFlow(log: ChainLog, stages: ReadonlyArray<'play' | 'effect' | 'discard' | 'draw'>, opts: {asked?: false | 'decision' | 'album'} = {}): void {
   const seen = `[${log.stages.join(' › ')}]`;
   if (opts.asked === false) {
     expect(log.decisionEmbedded,
       'no live decision — the question was answered in the composer, before the press').toBeFalsy();
+  } else if (opts.asked === 'album') {
+    expect(log.pickedInPlace, 'the triggered effect asked as the album, INSIDE the workspace the play was made in').toBeTruthy();
+    expect(log.decisionEmbedded, 'no decision screen stood before the album — there was nothing to decide on one').toBeFalsy();
   } else {
     expect(log.decisionEmbedded,
       'the triggered effect asked INSIDE the workspace the play was made in').toBeTruthy();
@@ -399,25 +408,28 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
    * is back INSIDE the zone (a detached mount matches no selector at all), and
    * the strand guard never rises while the player reads it.
    */
-  test('«свернуть» → back: the embedded decision returns INSIDE the workspace', async ({page, request}) => {
+  test('«свернуть» → back: the embedded question returns INSIDE the workspace', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, DRAW_AND_TAG, ...FILLER]);
     // A LIVE decision needs a question the composer could not ask: the university on the table (its own question
     // declined in its composer), then a science tag whose play DRAWS — the card the player might discard does not exist
     // before the press, so the university's question is an honest follow-up (TR51, `HIDDEN_DRAW_NOTE`).
-    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'last'});
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'decline'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await cinematicBeat(page, 1500, 'the first play\'s workspace finishes its leave before the next one opens');
     await playFromHand(page, DRAW_AND_TAG);
 
-    // The batch presents first (surfaces go in turn) — take it (RT «Забрать все»); the decision follows in the zone.
-    const embedded = page.locator('.con-hand__outcome .con-decision');
+    // The batch presents first (surfaces go in turn) — take it (RT «Забрать все»); the question follows IN the
+    // workspace: the university's one answer is a card from the hand, so it stands as the ALBUM (the shelf picks in
+    // place), its decline named in the album's question line — no decision screen before it.
+    const embedded = page.locator('.con-hand .con-hand__question [data-decline-plate]');
     for (let i = 0; i < 12 && await embedded.count() === 0; i++) {
-      await page.locator('.con-hand__outcome .con-reveal, .con-hand__outcome .con-decision').first().waitFor({timeout: 60_000});
+      await page.locator('.con-hand__outcome .con-reveal, .con-hand__question [data-decline-plate]').first().waitFor({timeout: 60_000});
       if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
         await press(page, 'Period', 800);
       }
     }
     await expect(embedded).toBeVisible({timeout: 60_000});
+    await expect(page.locator('.con-decision'), 'no decision screen before the album').toHaveCount(0);
     await page.waitForTimeout(900); // let the arrival settle before minimizing
     await shoot(page, 'collapse-before');
 
@@ -425,6 +437,7 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     // becomes the door back (never a close: nothing is submitted here).
     await press(page, 'Escape', 1800);
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 30_000});
+    await expect(embedded, 'the album left with its workspace').toHaveCount(0, {timeout: 30_000});
     await expect(page.locator('.con-decision')).toHaveCount(0, {timeout: 30_000});
     const card = page.locator('[data-test="con-mandatory-announce"]');
     await expect(card).toBeVisible({timeout: 30_000});
@@ -434,7 +447,7 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     // decision, no second trip to the server.
     await press(page, 'Enter', 2500);
     await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 30_000});
-    await expect(embedded, 'the decision came back INSIDE the workspace it was minimized from')
+    await expect(embedded, 'the question came back INSIDE the workspace it was minimized from')
       .toBeVisible({timeout: 30_000});
     await shoot(page, 'collapse-restored');
 
@@ -444,10 +457,9 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     for (let i = 0; i < 8; i++) {
       await page.waitForTimeout(600);
       expect(await page.locator('.con-stranded').count(),
-        'no stranded-prompt guard over a restored embedded decision').toBe(0);
-      expect(await page.locator('.con-hand__outcome .con-decision').count(),
-        'the restored decision never fell back to a band of its own')
-        .toBe(await page.locator('.con-decision').count());
+        'no stranded-prompt guard over a restored embedded question').toBe(0);
+      expect(await page.locator('.con-decision').count(),
+        'the restored question never fell back to a decision band of its own').toBe(0);
     }
 
     // The round trip cost the flow nothing: it still finishes, and it still
@@ -474,8 +486,9 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
    * standalone band over the board.
    *
    * The take is the batch-wide RT («Забрать все»), the exact press of the bug
-   * report; the decision is answered with its DECLINE, so the chain ends there
-   * and the stage names stay unique for the crumb assertion.
+   * report; the question (the album — its one answer is a card from the hand)
+   * is answered with its DECLINE, RT, so the chain ends there and the stage
+   * names stay unique for the crumb assertion.
    */
   test('a draw AND an effect from one press: the take does not end the chain', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, DRAW_AND_TAG, ...FILLER]);
@@ -483,7 +496,7 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     // The FIRST play puts the university on the table; its own science tag's
     // question is a row of its composer (TR51) — declined there, and the
     // workspace finishes.
-    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'last'});
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'decline'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await page.waitForTimeout(1500);
 
@@ -493,7 +506,9 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     console.log(`[batch+effect trace]\n${log.trace.join('\n')}`);
     console.log(`[crumb stages] ${log.stages.join(' › ')}`);
 
-    assertOneFlow(log, ['play', 'draw', 'effect']);
+    // The question is the album (its one answer is a card from the hand), declined with RT — the crumb names it
+    // «СБРОС КАРТЫ», after the draw and never before it.
+    assertOneFlow(log, ['play', 'draw', 'discard'], {asked: 'album'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
   });
 });

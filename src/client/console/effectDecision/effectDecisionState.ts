@@ -14,11 +14,39 @@
  */
 
 import {reactive} from 'vue';
+import type {PlayerViewModel} from '@/common/models/PlayerModel';
+import {gameStateVersion} from '@/client/console/gameStateVersion';
 
 export const effectDecisionState = reactive({
   /** Index INTO the view model's `actions` the player last focused. */
   focusIdx: 0,
+  /**
+   * The PROMPT STAMP (`decisionPromptStamp`) at which the ALBUM a decision IS (`directPick`) was answered — a pick or
+   * its decline is on the wire, and the prompt it answered still stands until the server moves past it. The album
+   * must not re-open on that very prompt (it would ask a question already answered). '' = nothing in flight; a
+   * refused answer clears it (`clearDecisionPickAnswered`, the transport's unwind battery).
+   */
+  pickAnsweredAt: '',
 });
+
+/**
+ * WHICH PROMPT this view is asking — the server's own serial (`promptId`, a new one per `setWaitingFor`), never the
+ * game-state version: declining Mars University's FIRST question logs nothing and finishes no action, so the version
+ * does not move while the SECOND, identical question takes its place — a version latch held that one off for good.
+ * The version is only the fallback of a view with no serial.
+ */
+export function decisionPromptStamp(view: PlayerViewModel): string {
+  const serial = view.waitingFor?.promptId;
+  return serial !== undefined ? `prompt:${serial}` : `version:${gameStateVersion(view)}`;
+}
+
+export function markDecisionPickAnswered(stamp: string): void {
+  effectDecisionState.pickAnsweredAt = stamp;
+}
+
+export function clearDecisionPickAnswered(): void {
+  effectDecisionState.pickAnsweredAt = '';
+}
 
 export function rememberDecisionFocus(index: number): void {
   effectDecisionState.focusIdx = Math.max(0, index);

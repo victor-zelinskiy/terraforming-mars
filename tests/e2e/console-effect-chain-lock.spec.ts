@@ -23,6 +23,13 @@
  * in-page sampler (setInterval — never rAF, headless Chromium parks rAF on a
  * quiet screen) records the workspace-outcome / stack state every 250 ms so
  * a reproduced lock names its holder.
+ *
+ * Since the DECLINE became a button (2026-10-13 — `optionalChoice.ts`) the
+ * university's question IS its pick: the album opens directly, «Не сбрасывать»
+ * is RT with its plate in the album's question line. The chain is the same
+ * chain — a decision (or album) answered, the next one standing in the very
+ * next response — and the measurement is the same: the second one answers its
+ * FIRST press.
  */
 import {expect, test, APIRequestContext, Page} from './consoleTest';
 import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer} from './consoleStart';
@@ -79,6 +86,34 @@ type DiagSample = {
   diag: unknown,
 };
 
+/** The university's question stands as its ALBUM: the hand in pick mode, the RT decline named in its question line. */
+async function albumAsks(page: Page): Promise<boolean> {
+  return page.evaluate(() => document.querySelector('.con-hand__question [data-decline-plate]') !== null);
+}
+
+/** Press A once per second until the standing album REACTS (its answer is POSTed, or it leaves); ms, -1 = never. */
+async function firstPressLatency(page: Page): Promise<number> {
+  let posted = false;
+  const onPost = (r: {method(): string, url(): string}) => {
+    if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+      posted = true;
+    }
+  };
+  page.on('request', onPost);
+  const t0 = Date.now();
+  let reactedAt = -1;
+  for (let i = 0; i < 35 && reactedAt < 0; i++) {
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(1000);
+    const gone = await page.evaluate(() => document.querySelector('.con-hand__question [data-decline-plate]') === null);
+    if (posted || gone) {
+      reactedAt = Date.now() - t0;
+    }
+  }
+  page.off('request', onPost);
+  return reactedAt;
+}
+
 test.describe('two triggered effects in a row', () => {
   test.setTimeout(300_000);
 
@@ -99,7 +134,7 @@ test.describe('two triggered effects in a row', () => {
   test('choice → choice with NO draw between: the second decision answers its FIRST press', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, RESEARCH, ...FILLER]);
 
-    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'last'});
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'decline'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await page.waitForTimeout(1500);
 
@@ -113,7 +148,7 @@ test.describe('two triggered effects in a row', () => {
         samples.push({
           t: Math.round(performance.now() - t0),
           decision: document.querySelector('.con-decision') !== null,
-          decline: document.querySelector('.con-decision__action--decline') !== null,
+          decline: document.querySelector('[data-decline-plate]') !== null,
           focusedRow: document.querySelector('.con-decision__action--focused') !== null,
           picking: document.querySelector('.con-hand[data-flow="picking"]') !== null,
           revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
@@ -124,54 +159,34 @@ test.describe('two triggered effects in a row', () => {
 
     await playFromHand(page, RESEARCH);
 
-    // The play's own batch presents first (surfaces go in turn) — take it; prompt 1 follows.
-    for (let i = 0; i < 120 && await page.locator('.con-decision__action--focused').count() === 0; i++) {
+    // The play's own batch presents first (surfaces go in turn) — take it; prompt 1 follows, as its ALBUM.
+    for (let i = 0; i < 120 && !await albumAsks(page); i++) {
       if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
         await press(page, 'Period', 800);
       } else {
         await page.waitForTimeout(300);
       }
     }
-    await expect(page.locator('.con-decision__action--focused')).toBeVisible({timeout: 20_000});
-    await cinematicBeat(page, 1200, 'the first decision settles before its answer');
+    expect(await albumAsks(page), 'the university\'s first question stands as its album').toBe(true);
+    await cinematicBeat(page, 1200, 'the first album settles before its answer');
 
-    // Walk DOWN to the decline (nothing drawn, nothing discarded) and answer — its response carries prompt 2.
+    // RT — the decline (nothing drawn, nothing discarded); its response carries prompt 2.
     const answered = page.waitForResponse((r) => r.request().method() === 'POST' && /\/player\/input/.test(r.url()));
-    for (let i = 0; i < 6 && await page.locator('.con-decision__action--decline.con-decision__action--focused').count() === 0; i++) {
-      await press(page, 'ArrowDown', 400);
-    }
-    await page.keyboard.press('Enter');
+    await page.keyboard.press('Period');
     await answered;
 
-    // Prompt 2 — the university's SECOND question, in the same instance. No
-    // reveal stands between the two here.
+    // Prompt 2 — the university's SECOND question, its album again. No reveal stands between the two here.
     let secondUp = false;
     for (let i = 0; i < 120 && !secondUp; i++) {
-      const s = await page.evaluate(() => ({
-        decline: document.querySelector('.con-decision__action--decline') !== null,
-        focusedRow: document.querySelector('.con-decision__action--focused') !== null,
-      }));
-      if (s.decline && s.focusedRow) {
-        secondUp = true;
-        break;
+      secondUp = await albumAsks(page);
+      if (!secondUp) {
+        await page.waitForTimeout(300);
       }
-      await page.waitForTimeout(300);
     }
-    expect(secondUp, 'the second decision (the university\'s second question) reached the screen').toBeTruthy();
+    expect(secondUp, 'the second question (the university\'s second) reached the screen').toBeTruthy();
+    await cinematicBeat(page, 800, 'the second album settles before the measured press');
 
-    const t0 = Date.now();
-    let reactedAt = -1;
-    for (let i = 0; i < 35; i++) {
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(1000);
-      const reacted = await page.evaluate(() =>
-        document.querySelector('.con-hand[data-flow="picking"]') !== null ||
-        document.querySelector('.con-decision') === null);
-      if (reacted) {
-        reactedAt = Date.now() - t0;
-        break;
-      }
-    }
+    const reactedAt = await firstPressLatency(page);
 
     const samples = await page.evaluate(() => {
       const w = window as unknown as Record<string, unknown>;
@@ -194,8 +209,8 @@ test.describe('two triggered effects in a row', () => {
     console.log(`[no-draw lock samples]\n${compact.join('\n')}`);
     console.log(`[no-draw reaction latency] ${reactedAt} ms`);
 
-    expect(reactedAt, 'the second decision never reacted at all').toBeGreaterThanOrEqual(0);
-    expect(reactedAt, 'the visible «Сбросить карту» must answer its first press (≤4s), not a 20 s lock')
+    expect(reactedAt, 'the second question never reacted at all').toBeGreaterThanOrEqual(0);
+    expect(reactedAt, 'the visible album must answer its first press (≤4s), not a 20 s lock')
       .toBeLessThan(4000);
   });
 
@@ -218,7 +233,7 @@ test.describe('two triggered effects in a row', () => {
         samples.push({
           t: Math.round(performance.now() - t0),
           decision: document.querySelector('.con-decision') !== null,
-          decline: document.querySelector('.con-decision__action--decline') !== null,
+          decline: document.querySelector('[data-decline-plate]') !== null,
           focusedRow: document.querySelector('.con-decision__action--focused') !== null,
           picking: document.querySelector('.con-hand[data-flow="picking"]') !== null,
           revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
@@ -236,45 +251,28 @@ test.describe('two triggered effects in a row', () => {
     await playFromHand(page, MARS_UNIVERSITY, {[OLYMPUS]: 'first'});
 
     // Drive the middle of the chain: take any embedded drawn card; stop the
-    // moment the SECOND decision (it has a decline row) is up with a focused
-    // row. Deliberately no presses on the decision here — its first press is
-    // the measurement.
+    // moment the SECOND question (Mars University — its album, the decline
+    // named in its question line) stands. Deliberately no presses on it here —
+    // its first press is the measurement.
     let secondUp = false;
     for (let i = 0; i < 120 && !secondUp; i++) {
-      const s = await page.evaluate(() => ({
-        revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
-        decline: document.querySelector('.con-decision__action--decline') !== null,
-        focusedRow: document.querySelector('.con-decision__action--focused') !== null,
-      }));
-      if (s.decline && s.focusedRow) {
-        secondUp = true;
+      secondUp = await albumAsks(page);
+      if (secondUp) {
         break;
       }
-      if (s.revealEmbedded) {
+      if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
         await press(page, 'Enter', 700);
       } else {
         await page.waitForTimeout(300);
       }
     }
-    expect(secondUp, 'the second decision (Mars University) reached the screen').toBeTruthy();
+    expect(secondUp, 'the second question (Mars University) reached the screen').toBeTruthy();
+    await cinematicBeat(page, 800, 'the album settles before the measured press');
 
     // ── THE MEASUREMENT ──────────────────────────────────────────────────
-    // Press A once per second and time how long until the surface REACTS:
-    // the focused row is «Сбросить карту» (a handPick), so the reaction is
-    // the hand switching to picking mode — or the decision resolving.
-    const t0 = Date.now();
-    let reactedAt = -1;
-    for (let i = 0; i < 35; i++) {
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(1000);
-      const reacted = await page.evaluate(() =>
-        document.querySelector('.con-hand[data-flow="picking"]') !== null ||
-        document.querySelector('.con-decision') === null);
-      if (reacted) {
-        reactedAt = Date.now() - t0;
-        break;
-      }
-    }
+    // Press A once per second and time how long until the album REACTS: A on
+    // the focused candidate discards it — the answer is POSTed, the album leaves.
+    const reactedAt = await firstPressLatency(page);
 
     // Dump the sampler regardless of the verdict — the lock's holder is in it.
     const samples = await page.evaluate(() => {
@@ -299,8 +297,8 @@ test.describe('two triggered effects in a row', () => {
     console.log(`[lock samples]\n${compact.join('\n')}`);
     console.log(`[reaction latency] ${reactedAt} ms`);
 
-    expect(reactedAt, 'the second decision never reacted at all').toBeGreaterThanOrEqual(0);
-    expect(reactedAt, 'the visible «Сбросить карту» must answer its first press (≤4s), not a 20 s lock')
+    expect(reactedAt, 'the second question never reacted at all').toBeGreaterThanOrEqual(0);
+    expect(reactedAt, 'the visible album must answer its first press (≤4s), not a 20 s lock')
       .toBeLessThan(4000);
   });
 });

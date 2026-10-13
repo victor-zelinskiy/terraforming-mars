@@ -2742,18 +2742,28 @@ export async function handCount(page: Page): Promise<number> {
   return Number.isNaN(n) ? -1 : n;
 }
 
-/** How a table question is answered in the play composer: its first option, its last (the decline), or the discard
- *  chosen in the HAND ALBUM (the first option's door — the album's cursor stands on the first candidate). */
-export type TableQuestionAnswer = 'first' | 'last' | 'discard';
+/**
+ * How a table question is answered in the play composer: its first answer, its last answer, the DECLINE, or the
+ * discard chosen in the HAND ALBUM (the album's cursor stands on the first candidate).
+ *
+ * ⚠️ `decline` is a BUTTON, never a row (the owner's decisions, 2026-10-13 — `optionalChoice.ts`): RT on whatever
+ * the row opened, with the plate `[data-decline-plate]` standing in that surface's question line. A question whose ONE
+ * answer is a pick (Mars University's discard) opens that pick DIRECTLY — the album, no option list before it.
+ */
+export type TableQuestionAnswer = 'first' | 'last' | 'decline' | 'discard';
 
 /**
  * THE TABLE'S QUESTIONS ARE ROWS OF THE PLAY COMPOSER (TR51 — a reaction that asks the player is answered BEFORE the
  * press and rides the play's ONE POST). Answer every unanswered one by the card that asks it — a row the spec did not
- * plan for fails loudly (it would keep the commit rail out of reach). `discard` walks the door the owner's rule of
- * 2026-10-13 put there: the discard option opens the HAND ALBUM, A on the focused candidate answers it.
+ * plan for fails loudly (it would keep the commit rail out of reach). A row opens EITHER its answers' list OR — for a
+ * question whose one answer is a hand pick — the HAND ALBUM straight away (the owner's rule of 2026-10-13: a card from
+ * the hand is chosen IN the hand), and the driver reads which one stood up rather than assuming it.
  */
 export async function answerTableQuestions(page: Page, answers: Readonly<Record<string, TableQuestionAnswer>>): Promise<void> {
   const missing = page.locator('.con-composer--play .con-composer__row--reaction.con-composer__row--missing');
+  const composer = page.locator('.con-composer--play:visible');
+  const album = page.locator('.con-hand[data-flow="picking"]');
+  const options = page.locator('.con-composer--play .con-composer__sublist .con-vchoice__opt');
   for (let round = 0; round < 4 && await missing.count() > 0; round++) {
     const card = await missing.first().getAttribute('data-reaction-card') ?? '';
     const answer = answers[card];
@@ -2767,12 +2777,27 @@ export async function answerTableQuestions(page: Page, answers: Readonly<Record<
       await press(page, 'ArrowDown', 250);
     }
     expect(await onRow(), `the cursor reached «${card}»'s question`).toBe(1);
-    const options = page.locator('.con-composer--play .con-composer__sublist .con-vchoice__opt');
-    for (let i = 0; i < 3 && await options.count() === 0; i++) {
-      await press(page, 'Enter', 900);
+    // A opens the row's surface: its list, or the album the question IS.
+    const opened = await pressUntil(page, 'Enter', async () => await options.count() > 0 || await album.isVisible(), {tries: 3, settleMs: 900});
+    expect(opened, `«${card}»'s question opens its answers`).toBe(true);
+    if (await album.isVisible()) {
+      await settle(page);
+      if (answer === 'decline') {
+        await expect(page.locator('.con-hand [data-decline-plate]'), 'the album\'s question line names the RT decline').toBeVisible();
+        await pressUntil(page, 'Period', async () => await composer.count() === 1, {tries: 3, settleMs: 1200});
+      } else {
+        expect(answer, `«${card}» opened the hand album directly — answer it with the discard or the decline`).toBe('discard');
+        await pressUntil(page, 'Enter', async () => await composer.count() === 1, {tries: 3, settleMs: 1200});
+      }
+      await expect(composer, 'the album hands the answer back').toHaveCount(1, {timeout: 15_000});
+      continue;
+    }
+    if (answer === 'decline') {
+      await expect(page.locator('.con-composer--play [data-decline-plate]'), 'the list\'s question line names the RT decline').toBeVisible();
+      await press(page, 'Period', 900);
+      continue;
     }
     const n = await options.count();
-    expect(n, `«${card}»'s question offers its answers`).toBeGreaterThan(1);
     if (answer === 'last') {
       for (let i = 0; i < n - 1; i++) {
         await press(page, 'ArrowDown', 250);
@@ -2780,12 +2805,10 @@ export async function answerTableQuestions(page: Page, answers: Readonly<Record<
     }
     await press(page, 'Enter', 900);
     if (answer === 'discard') {
-      await expect(page.locator('.con-hand[data-flow="picking"]'), 'the discard opens the hand album').toBeVisible({timeout: 15_000});
+      await expect(album, 'the discard opens the hand album').toBeVisible({timeout: 15_000});
       await settle(page);
-      for (let i = 0; i < 3 && await page.locator('.con-composer--play:visible').count() === 0; i++) {
-        await press(page, 'Enter', 1200);
-      }
-      await expect(page.locator('.con-composer--play:visible'), 'the album hands the answer back').toHaveCount(1, {timeout: 15_000});
+      await pressUntil(page, 'Enter', async () => await composer.count() === 1, {tries: 3, settleMs: 1200});
+      await expect(composer, 'the album hands the answer back').toHaveCount(1, {timeout: 15_000});
     }
   }
   expect(await missing.count(), 'every table question is answered').toBe(0);

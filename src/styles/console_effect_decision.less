@@ -79,6 +79,9 @@
         align-items: center;
         text-align: center;
     }
+    .con-decision__ask {
+        justify-content: center;
+    }
     .con-decision__trigger {
         text-align: center;
     }
@@ -121,6 +124,19 @@
     color: fade(@con-cyan, 92%);
 }
 .con-decision__kicker-mark { color: @con-cyan; }
+/* THE QUESTION LINE — the headline and, when the refusal is a button, its plate at the line's far end (wraps under
+   the headline before either is cut). */
+.con-decision__ask {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+    min-width: 0;
+}
+.con-decision__decline {
+    flex: 0 0 auto;
+}
 .con-decision__title {
     margin: 0;
     font-size: 1.35rem;

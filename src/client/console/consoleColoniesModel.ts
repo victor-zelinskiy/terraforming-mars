@@ -128,6 +128,8 @@ export const consoleColoniesUi = reactive({
    *  A = choose, X = inspect the focused card — its own command grammar);
    *  `mix` = the Delta Works composition substep (LB/RB dial · X confirm). */
   composerSub: '' as '' | 'list' | 'lanes' | 'targets' | 'mix',
+  /** Focus stage: the open list's DECLINE as a button (RT, its i18n key — `optionalChoice.ts`); '' = none. */
+  composerDecline: '' as string,
   /** Focus stage: every decision is captured — X (confirm) is meaningful. */
   composerReady: false,
   /** Focus stage: the focused row opens something on A. */
@@ -209,6 +211,7 @@ export function resetColonyDockCursor(): void {
 export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.inspectOpen = false;
   consoleColoniesUi.composerSub = '';
+  consoleColoniesUi.composerDecline = '';
   consoleColoniesUi.composerReady = false;
   consoleColoniesUi.composerEditable = false;
   consoleColoniesUi.composerDecisions = false;

@@ -14,14 +14,18 @@ import {bootIntoGame, crumbText, fetchPlayerModel, focusCard, press, settle, sol
  * skin off the server's raw marker and leaving nothing (a PRE-SELECT — the card goes with the play's ONE POST), and
  * the answer returns into the option it was asked for.
  *
+ * …and the question whose ONE answer is that pick has no option list at all (the owner, 2026-10-13): «do nothing» is
+ * a BUTTON — RT, named by the plate in the album's question line («Не сбрасывать · без [+1 карта]») — so A on the row
+ * opens the ALBUM directly, and B there returns to the ROW.
+ *
  * Against a real server:
- *   A. (fhd + tv4k) Mars University played from the hand — its own question: the reaction row → its two options (no
- *      card name among them) → A on the discard → the HAND in pick mode (no list anywhere, the crumb's tail
- *      «Сброс карты») → B returns to the options → A again → a card → back in the composer, the row naming it → A →
- *      ONE POST carrying the addressed answer → the server: the card discarded, one drawn, nothing asked again (the
- *      harness's `preselectGuard` / `postCommitGuard` stay silent).
+ *   A. (fhd + tv4k) Mars University played from the hand — its own question: the reaction row → A → the HAND in pick
+ *      mode straight away (no option list ever stands, the crumb's tail «Сброс карты», the decline's plate and its RT
+ *      on the bar) → B returns to the ROW, nothing answered → A again → a card → back in the composer, the row naming
+ *      it → A → ONE POST carrying the addressed answer → the server: the card discarded, one drawn, nothing asked
+ *      again (the harness's `preselectGuard` / `postCommitGuard` stay silent).
  *   B. (fhd) The table's question — Mars University already on the table answers a science tag played after it: the
- *      same door from a play of ANOTHER card, its leaf «do nothing» answered on the first play.
+ *      same door from a play of ANOTHER card; the first play DECLINES its own question with RT inside the album.
  *
  * Heavy 4K: run with `--workers=1`.
  */
@@ -119,31 +123,23 @@ async function focusReactionRow(page: Page): Promise<void> {
   expect(await onRow(), 'the cursor reached the reaction row').toBe(1);
 }
 
-/** The reaction row → A → its OPTIONS (the composer's own list — the two answers, never the hand). */
-async function openReactionOptions(page: Page): Promise<void> {
-  await focusReactionRow(page);
-  for (let i = 0; i < 3 && await page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
-  const options = page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`);
-  await expect(options, 'the question offers its two answers').toHaveCount(2, {timeout: 10_000});
-}
-
 /** The hand in PICK mode — the album's own select classes (the card being played rides it DISABLED). */
 const handPicking = (page: Page) => page.locator('.con-hand[data-flow="picking"], .con-hand .con-hand__slot--select-disabled, .con-hand .con-hand__slot--select-picked');
 
 /**
- * THE DOOR: on the option list, A on the DISCARD (the first option, the cursor's home) must open the hand album —
- * and nothing else: no list of names stands anywhere while the hand picks, the crumb's tail names the discard.
+ * THE DOOR: A on the reaction ROW opens the hand album DIRECTLY — the question's one answer is a card from the hand —
+ * and nothing else: no option list, no list of names stands anywhere while the hand picks, the crumb's tail names the
+ * discard, and the decline is RT, its plate standing in the album's question line.
  */
 async function enterDiscardAlbum(page: Page, preset: string, shotName: string): Promise<void> {
+  await focusReactionRow(page);
   for (let i = 0; i < 3 && await handPicking(page).count() === 0; i++) {
     await press(page, 'Enter', 1200);
   }
   await expect(handPicking(page).first(), 'A on the discard opens the HAND in pick mode').toBeVisible({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
-  expect(await page.locator('.con-composer__sublist:visible').count(), 'no pick list stands while the hand picks').toBe(0);
+  expect(await page.locator('.con-composer__sublist').count(), 'no option list stood before the album — and none stands while it picks').toBe(0);
   expect(await page.locator(`${PLAY_COMPOSER}:visible`).count(), 'the composer waits underneath, hidden').toBe(0);
   const crumb = await crumbText(page);
   expect(crumb.toLowerCase(), `the crumb's tail names the discard — «${crumb}»`).toContain('сброс карты');
@@ -156,6 +152,12 @@ async function enterDiscardAlbum(page: Page, preset: string, shotName: string): 
   for (const name of FILLER) {
     await expect(page.locator(`.con-hand [data-zoom-slot="${name}"]`), `«${name}» stands in the album`).toHaveCount(1);
   }
+  // THE DECLINE is a button: its plate in the album's question line names RT and what it forgoes, and the bar agrees.
+  const plate = page.locator('.con-hand__question [data-decline-plate]');
+  await expect(plate, 'the decline stands in the question line').toBeVisible();
+  await expect(plate).toContainText(/Не сбрасывать/i);
+  await expect(plate.locator('[data-decline-forgone]'), 'what the refusal forgoes rides beside it').toHaveCount(1);
+  await expect(page.locator('.con-cmdbar')).toContainText(/Не сбрасывать/i);
   await shoot(page, preset, shotName);
 }
 
@@ -197,21 +199,21 @@ for (const preset of PRESETS) {
       const handBefore = before.thisPlayer.cardsInHandNbr;
       const postsAtStart = posts.length;
 
-      // ── 1. The composer; the reaction row opens its two ANSWERS — no card name among them.
+      // ── 1. The composer, the reaction row standing.
       await openPlayComposerOf(page, MU);
       await shoot(page, preset.id, 'A1-composer');
-      // The list holds the question's two ANSWERS — the photo's list held the whole hand (thirteen names).
-      await openReactionOptions(page);
-      await shoot(page, preset.id, 'A2-options');
+      const row = page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`);
 
-      // ── 2. A on the discard → the HAND album; B → back to the options (one level), the cursor on the discard.
+      // ── 2. A on the row → the HAND album directly; B → back to the ROW (there is no list above the album).
       let stopStory = await storyboard(page, preset.id, 'enter');
       await enterDiscardAlbum(page, preset.id, 'A3-album');
       await stopStory();
       stopStory = await storyboard(page, preset.id, 'back');
       await press(page, 'Escape', 1200);
-      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__sublist .con-vchoice__opt`), 'B returns to the two answers').toHaveCount(2, {timeout: 10_000});
+      await expect(page.locator(`${PLAY_COMPOSER}:visible`), 'B returns to the composer').toHaveCount(1, {timeout: 10_000});
+      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__sublist`), '…to the ROW — no option list above the album').toHaveCount(0);
       await expect(handPicking(page), 'the album let go').toHaveCount(0);
+      await expect(row, 'B answered nothing — it is never the decline').toHaveClass(/con-composer__row--missing/);
       await settle(page);
       await stopStory();
       await enterDiscardAlbum(page, preset.id, 'A4-album-again');
@@ -226,7 +228,6 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${PLAY_COMPOSER}:visible`), 'A on the card answers and returns to the composer').toHaveCount(1, {timeout: 15_000});
       await settle(page);
       await stopStory();
-      const row = page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`);
       await expect(row, 'the row is answered').not.toHaveClass(/con-composer__row--missing/);
       expect(posts.length - postsAtStart, 'nothing sent before the play\'s own A').toBe(0);
       await shoot(page, preset.id, 'A5-answered');
@@ -266,15 +267,26 @@ for (const preset of PRESETS) {
         });
         await settle(page);
 
-        // ── 1. Mars University itself, answered «do nothing» — the LEAF beside the door: no album, the row names it.
+        // ── 1. Mars University itself, DECLINED — RT inside the album: the composer takes the row back, answered with
+        //       the refusal in its own words, and the play's ONE POST carries the skip.
         await openPlayComposerOf(page, MU);
-        await openReactionOptions(page);
-        await press(page, 'ArrowDown', 300);
-        await press(page, 'Enter', 900);
-        await expect(handPicking(page), 'the leaf opens no album').toHaveCount(0);
-        await expect(page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`)).not.toHaveClass(/con-composer__row--missing/);
+        await enterDiscardAlbum(page, preset.id, 'B0-album-decline');
+        const stopStory = await storyboard(page, preset.id, 'decline');
+        for (let i = 0; i < 3 && await page.locator(`${PLAY_COMPOSER}:visible`).count() === 0; i++) {
+          await press(page, 'Period', 1400);
+        }
+        await expect(page.locator(`${PLAY_COMPOSER}:visible`), 'RT declines and returns to the composer').toHaveCount(1, {timeout: 15_000});
+        await expect(handPicking(page), 'the album let go').toHaveCount(0);
+        await settle(page);
+        await stopStory();
+        const muRow = page.locator(`${PLAY_COMPOSER} .con-composer__row--reaction[data-reaction-card="${MU}"]`);
+        await expect(muRow).not.toHaveClass(/con-composer__row--missing/);
+        await expect(muRow, 'the row reads the refusal, never «Ничего не делать»').toContainText(/Не сбрасывать/i);
+        await shoot(page, preset.id, 'B0-declined');
         await commitPlay(page, posts);
-        expect(muAnswerOf(posts[posts.length - 1])?.index, 'the leaf «do nothing»').toBe(1);
+        const declined = muAnswerOf(posts[posts.length - 1]);
+        expect(declined?.index, 'the skip option').toBe(1);
+        expect(declined?.response?.type, 'a bare option — nothing nested').toBe('option');
         await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === MU),
           {timeout: 30_000, message: 'Mars University is on the table'}).toBe(true);
         await settle(page, {timeoutMs: 30_000});
@@ -283,7 +295,6 @@ for (const preset of PRESETS) {
 
         // ── 2. A science tag: the table's question is a row of THIS card's composer, and its discard is the album.
         await openPlayComposerOf(page, SCIENCE_TAG);
-        await openReactionOptions(page);
         await enterDiscardAlbum(page, preset.id, 'B1-album');
         const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
         expect(await focusCard(page, DISCARD, slots * 2 + 6), `never focused «${DISCARD}» in the album`).toBe(true);

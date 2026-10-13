@@ -143,8 +143,11 @@ export type FocusCommandCtx =
    * SHARED `drawnRevealCommandRun` verbatim rather than paraphrasing it.
    */
   | {state: 'draw-pending'}
-  /** A sub-list pick (card / player / or). X inspects a CARD list's rows. */
-  | {state: 'sub-list', cardList: boolean}
+  /**
+   * A sub-list pick (card / player / or). X inspects a CARD list's rows; `decline` = an OPTIONAL choice's refusal
+   * label (the server's words or the shape's key) — RT, never a row (`optionalChoice.ts`).
+   */
+  | {state: 'sub-list', cardList: boolean, decline?: string}
   /**
    * The EMBEDDED played-card target step. LB/RB appear ONLY in tabbed owner
    * mode — in split view both groups are on screen and the d-pad crosses
@@ -156,6 +159,8 @@ export type FocusCommandCtx =
       ownerTabs: boolean,
       /** The server's merged up-to-N ask: A accumulates, RT submits. */
       multi?: {count: number, valid: boolean, verb: string},
+      /** A SINGLE pick answering an optional choice: RT is its decline (a multi ask spends RT on its submit). */
+      decline?: string,
     }
   /** The payment lanes sub-state. */
   | {state: 'sub-payment', covers: boolean}
@@ -228,6 +233,9 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     if (ctx.cardList) {
       run.push({control: 'secondary', label: 'Inspect'});
     }
+    if (ctx.decline !== undefined) {
+      run.push({control: 'triggerR', label: ctx.decline, priority: 1});
+    }
     run.push({control: 'back', label: 'Back'});
     return run;
   }
@@ -243,6 +251,9 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       run.push({control: 'triggerR', label: ctx.multi.verb, enabled: ctx.multi.valid});
     } else {
       run.push({control: 'confirm', label: 'Select'});
+      if (ctx.decline !== undefined) {
+        run.push({control: 'triggerR', label: ctx.decline, priority: 1});
+      }
     }
     run.push({control: 'secondary', label: 'Inspect'});
     run.push({control: 'back', label: 'Back'});

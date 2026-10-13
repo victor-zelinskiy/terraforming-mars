@@ -223,6 +223,12 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     expect(labels(playComposerFootHints(ctx({sub: 'list', subIsCardList: false})))).to.not.include('Inspect');
   });
 
+  it('an OPTIONAL choice names its DECLINE on RT, in a list and on a single table pick — never on a multi pick', () => {
+    const list = playComposerFootHints(ctx({sub: 'list', decline: 'Do not remove'}));
+    expect(list.find((h) => h.control === 'triggerR')?.label).to.equal('Do not remove');
+    expect(controls(playComposerFootHints(ctx({sub: 'list'}))), 'no decline, no RT').to.not.include('triggerR');
+  });
+
   it('no navigable rows → no Navigate hint', () => {
     expect(labels(playComposerFootHints(ctx({hasRows: false})))).to.not.include('Navigate');
   });

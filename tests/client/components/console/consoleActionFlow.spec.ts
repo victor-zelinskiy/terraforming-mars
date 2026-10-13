@@ -59,6 +59,17 @@ describe('consoleActionFlow', () => {
       expect(players.map((c) => c.label)).to.deep.eq(['Select', 'Back']);
     });
 
+    it('an OPTIONAL list names its DECLINE on RT — never a row, never B (2026-10-13)', () => {
+      const run = focusCommandRun({state: 'sub-list', cardList: false, decline: 'Do not remove'});
+      expect(run.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'back']);
+      expect(run[1].label).to.eq('Do not remove');
+      // A single table pick of an optional choice declines on RT too; a multi pick keeps RT for its submit.
+      const single = focusCommandRun({state: 'sub-played-target', ownerTabs: false, decline: 'Do not remove'});
+      expect(single.find((c) => c.control === 'triggerR')?.label).to.eq('Do not remove');
+      const multi = focusCommandRun({state: 'sub-played-target', ownerTabs: false, multi: {count: 0, valid: false, verb: 'Select'}, decline: 'Do not remove'});
+      expect(multi.filter((c) => c.control === 'triggerR').map((c) => c.label)).to.deep.eq(['Select']);
+    });
+
     /**
      * The EMBEDDED played-target step, reached from a blue action. It replaced
      * the hand-off to the «Разыграно» pick surface, so its contract has to be

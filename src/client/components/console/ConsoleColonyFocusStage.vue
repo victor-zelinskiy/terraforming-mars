@@ -325,7 +325,11 @@
 
           <!-- SUB: track advance choice (IncreaseColonyTrack). -->
           <template v-else-if="sub === 'track' && trackStep !== undefined">
-            <div class="con-colfocus__sub-title">{{ $t('Increase colony track before trade') }}</div>
+            <!-- THE QUESTION LINE — and «don't increase» as a BUTTON (RT) repeated by its plate, never a row. -->
+            <div class="con-colfocus__sub-head">
+              <div class="con-colfocus__sub-title">{{ $t('Increase colony track before trade') }}</div>
+              <ConsoleDeclinePlate v-if="trackDecline !== ''" class="con-colfocus__sub-decline" :label="trackDecline" :forgone="[]" />
+            </div>
             <div v-for="(opt, i) in trackOptions" :key="'tr' + i"
                  class="con-task__option"
                  :class="{
@@ -862,6 +866,7 @@ import {
   armOutcomeOriginFrom, playConfigRelease, playOutcomePhase, playOutcomeContent,
 } from '@/client/console/consoleActionOutcomeMotion';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import ConsoleColonyTrackInstrument from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import {ColonyTrackMove} from '@/common/parliament/colonyTrackAdvance';
@@ -1005,7 +1010,7 @@ type HeldView = {
 export default defineComponent({
   name: 'ConsoleColonyFocusStage',
   components: {
-    BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
+    BenefitGlyph, ConsoleDeclinePlate, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
     ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
     ConsoleColonyCitySeat, PremiumCountGlyph, ConsoleForecastDoor, ConsoleForecastLayer,
   },
@@ -1979,8 +1984,9 @@ export default defineComponent({
       const options: Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> = [];
       // Down to the plan's FLOOR: below it the colony refuses this player its
       // income (the Redux Pluto's data with no holder) — the server lists those
-      // steps disabled, and «don't increase» exists only when 0 is legal.
-      for (let n = step.steps; n >= step.minSteps; n--) {
+      // steps disabled, and «don't increase» exists only when 0 is legal — as
+      // the list's DECLINE (RT + the plate, `trackDecline`), never a row.
+      for (let n = step.steps; n >= Math.max(step.minSteps, 1); n--) {
         const position = Math.min(current + n, this.metadata.trade.quantity.length - 1);
         options.push({
           steps: n,
@@ -1993,6 +1999,11 @@ export default defineComponent({
         });
       }
       return options;
+    },
+    /** «Don't increase» — the optional advance's refusal as a button (RT), when 0 steps is legal; '' = none. */
+    trackDecline(): string {
+      const step = this.trackStep;
+      return step !== undefined && step.minSteps === 0 ? 'Don\'t increase colony track' : '';
     },
     trackSummary(): string {
       const chosen = this.captures['track'];
@@ -2866,6 +2877,7 @@ export default defineComponent({
         (this.sub === 'lanes' ? 'lanes' :
           (this.sub === 'targets' ? 'targets' :
             (this.sub === 'mix' ? 'mix' : 'list')));
+      consoleColoniesUi.composerDecline = this.sub === 'track' ? this.trackDecline : '';
       consoleColoniesUi.composerReady = this.canConfirm;
       consoleColoniesUi.composerEditable = this.configLive && this.focusedRowEditable;
       // The BAR follows the act's real grammar: a build that composes gets the
@@ -3104,6 +3116,10 @@ export default defineComponent({
       case 'nextTab':
         if (this.sub === 'lanes') {
           this.adjustPayLane(this.subIdx, 0, true);
+        } else if (this.sub === 'track' && this.trackDecline !== '') {
+          // RT — the advance's DECLINE: 0 steps, answered like any row.
+          this.captures = {...this.captures, track: 0};
+          this.sub = undefined;
         }
         return;
       case 'back':

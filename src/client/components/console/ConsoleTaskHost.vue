@@ -36,13 +36,15 @@
              height, hierarchy, profile ladders) rather than two look-alike
              rule sets that have drifted apart four times already. -->
         <ConsoleWsStageHead v-if="embedded" class="con-task__head" :title="titleText">
-          <template v-if="embeddedBadges.length > 0" #badges>
+          <template v-if="embeddedBadges.length > 0 || taskDecline !== undefined" #badges>
             <span v-for="badge in embeddedBadges" :key="badge.key" class="con-ws-stage-badge"
                   :class="{'con-ws-stage-badge--warn': badge.warn}">
               <span class="con-ws-stage-badge__label">{{ badge.label }}</span>
               <b class="con-ws-stage-badge__num">{{ badge.value }}</b>
               <i v-if="badge.coin" class="resource_icon resource_icon--megacredits con-ws-stage-badge__coin" aria-hidden="true"></i>
             </span>
+            <ConsoleDeclinePlate v-if="taskDecline !== undefined" class="con-task__decline"
+                                 :label="taskDecline.label" :forgone="taskDecline.forgone" />
           </template>
         </ConsoleWsStageHead>
         <header v-else class="con-task__head">
@@ -50,7 +52,13 @@
             <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(kickerText) }}</span>
           </div>
-          <div class="con-task__title">{{ titleText }}</div>
+          <!-- THE QUESTION LINE — the ask, and an optional choice's DECLINE as a plate: the refusal is RT, never one
+               more option among the answers (2026-10-13). -->
+          <div class="con-task__ask">
+            <div class="con-task__title">{{ titleText }}</div>
+            <ConsoleDeclinePlate v-if="taskDecline !== undefined" class="con-task__decline"
+                                 :label="taskDecline.label" :forgone="taskDecline.forgone" />
+          </div>
           <!-- Phase note (draft: what happens to the cards you don't keep). -->
           <div v-if="phaseSubtext !== ''" class="con-task__subtext">{{ phaseSubtext }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
@@ -681,6 +689,8 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {isHandCardSelection} from '@/client/console/consoleHandPick';
+import {DeclineModel, declineIsButton, optionalChoiceOf} from '@/client/console/optionalChoice';
+import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -715,6 +725,41 @@ type ChoiceEntry = {
  * stay on the desktop modal (the router's serve predicate mirrors this).
  */
 function nestedTaskFor(input: PlayerInputModel): ConsoleTask | undefined {
+  return nestedTaskOf(input);
+}
+
+/**
+ * THE CHOICE IS ITS PICK — an optional `or` whose ONE answer is a nested input this host draws as a wizard step (a
+ * card off the table, a player): the step opens straight away, its decline on RT + the plate — the list of one
+ * option before it was a step with nothing to decide. A pick from the HAND rides the album instead (the shell), never
+ * this wizard.
+ */
+function directNestedOf(task: ConsoleTask, wf: PlayerInputModel | undefined, handNames: ReadonlySet<string>): {index: number, input: PlayerInputModel} | undefined {
+  if (task.kind !== 'choice') {
+    return undefined;
+  }
+  const oc = optionalChoiceOf(wf);
+  if (!declineIsButton(oc) || oc.pick === undefined) {
+    return undefined;
+  }
+  const input = (wf as OrOptionsModel).options[oc.pick];
+  if (input === undefined || nestedTaskOf(input) === undefined) {
+    return undefined;
+  }
+  if (input.type === 'card' && isHandCardSelection(input as SelectCardModel, handNames)) {
+    return undefined;
+  }
+  return {index: oc.pick, input};
+}
+
+function handNamesOf(view: PlayerViewModel): ReadonlySet<string> {
+  return new Set<string>([
+    ...view.cardsInHand.map((c) => c.name),
+    ...(view.thisPlayer.selfReplicatingRobotsCards ?? []).map((c) => c.name),
+  ]);
+}
+
+function nestedTaskOf(input: PlayerInputModel): ConsoleTask | undefined {
   switch (input.type) {
   case 'card':
     return {kind: 'cardSelect', mode: 'target'};
@@ -746,7 +791,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {ConsoleVariantChoice, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -790,8 +835,9 @@ export default defineComponent({
       payCounts: {} as Partial<Record<SpendableResource, number>>,
       /** Re-keyed on each adjust so the dialed row's one-shot pulse replays. */
       payFlashNonce: 0,
-      /** T9: the OPEN nested option (one-level wizard) — B returns to the list. */
-      nested: undefined as {index: number, input: PlayerInputModel} | undefined,
+      /** T9: the OPEN nested option (one-level wizard) — B returns to the list. An optional choice whose one answer is
+       *  that step OPENS on it (`directNestedOf`) — B there is the decision's own (minimize). */
+      nested: directNestedOf(this.task, this.promptOverride ?? this.playerView.waitingFor, handNamesOf(this.playerView)),
       /** Blocks a duplicate submit between the emit and the next server response
        *  (e.g. rapid A presses in the pick phase) — cleared on every response. */
       submitting: false,
@@ -1208,7 +1254,9 @@ export default defineComponent({
       return this.titleText;
     },
     choiceEntries(): Array<ChoiceEntry> {
-      const all = this.allChoiceEntries;
+      // A BUTTON decline is no option (RT + the plate); a YES / NO keeps its refusal, last.
+      const declineAt = this.nested === undefined ? this.taskDecline?.index : undefined;
+      const all = this.allChoiceEntries.filter((e) => e.index !== declineAt);
       return [...all.filter((e) => !e.isSkip), ...all.filter((e) => e.isSkip)];
     },
     disabledChoiceEntries(): Array<{title: string, reason: string, playerColor: Color | undefined}> {
@@ -1505,11 +1553,38 @@ export default defineComponent({
     /** Every card the viewer holds (incl. Self-Replicating-Robots hosts) — the
      *  ownership test behind routing a nested pick to the hand overlay. */
     handNames(): ReadonlySet<string> {
-      const view = this.playerView;
-      return new Set<string>([
-        ...view.cardsInHand.map((c) => c.name),
-        ...(view.thisPlayer.selfReplicatingRobotsCards ?? []).map((c) => c.name),
-      ]);
+      return handNamesOf(this.playerView);
+    },
+    /**
+     * THE DECLINE of an optional choice (`optionalChoice.ts`) — a button (RT) and a plate in the question line, never
+     * one more option row; a YES / NO keeps its two options. Read off the TOP-LEVEL prompt, so it stands through the
+     * choice's own wizard step too.
+     */
+    taskDecline(): DeclineModel | undefined {
+      if (this.task.kind !== 'choice') {
+        return undefined;
+      }
+      const oc = optionalChoiceOf(this.parentWf);
+      return declineIsButton(oc) ? oc.decline : undefined;
+    },
+    /** The wizard step the choice opens ON (`directNestedOf`) — its B is the decision's, not «back to the list». */
+    directNested(): {index: number, input: PlayerInputModel} | undefined {
+      return directNestedOf(this.task, this.parentWf, this.handNames);
+    },
+    nestedIsDirect(): boolean {
+      return this.nested !== undefined && this.nested.index === this.directNested?.index;
+    },
+    /** RT is the DECLINE wherever the standing surface spends RT on nothing else (a multi pick commits on it, a dial
+     *  maxes, the draft opens its viewer). */
+    declineOnRt(): boolean {
+      if (this.taskDecline === undefined) {
+        return false;
+      }
+      const k = this.activeTask.kind;
+      if (k === 'choice' || k === 'player' || k === 'resource') {
+        return true;
+      }
+      return k === 'cardSelect' && this.singlePick && !this.isSpreadMode && !this.canInspectDrafted;
     },
     // ── card browser (T2) ────────────────────────────────────────────
     cardModel(): SelectCardModel | undefined {
@@ -1881,8 +1956,20 @@ export default defineComponent({
       }
     },
     /** The live command contract — published to the shell's ONE bottom
-     *  command bar through consolePanelUi (the footCommands watch below). */
+     *  command bar through consolePanelUi (the footCommands watch below). An
+     *  optional choice's DECLINE rides RT, just before the way back. */
     footCommands(): Array<ConsoleCommand> {
+      const run = this.baseFootCommands;
+      const decline = this.taskDecline;
+      if (!this.declineOnRt || decline === undefined || run.length === 0 || run.some((c) => c.control === 'triggerR')) {
+        return run;
+      }
+      const label = typeof decline.label === 'string' ? decline.label : translateMessage(decline.label);
+      const at = run.findIndex((c) => c.control === 'back');
+      const cmd: ConsoleCommand = {control: 'triggerR', label, priority: 1};
+      return at === -1 ? [...run, cmd] : [...run.slice(0, at), cmd, ...run.slice(at)];
+    },
+    baseFootCommands(): Array<ConsoleCommand> {
       // While the deal cinematic / a draft beat runs, selection is NOT
       // interactive yet — the bar advertises only the skip (any button skips).
       if (this.deal.state.active || this.trayPickBeat) {
@@ -1895,7 +1982,7 @@ export default defineComponent({
         return [];
       }
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
-      const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined ? 'Back' : this.deferLabel};
+      const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined && !this.nestedIsDirect ? 'Back' : this.deferLabel};
       // The select → confirm contract (A picks, X commits) every arm-then-confirm
       // kind shares — a generic OrOptions / player / resource pick.
       const selectThenConfirm: Array<ConsoleCommand> = [
@@ -2135,9 +2222,9 @@ export default defineComponent({
         this.scheduleSettleFit();
       },
     },
-    /** A genuinely NEW server prompt discards an open nested step. */
+    /** A genuinely NEW server prompt discards an open nested step — or opens the one it IS (`directNestedOf`). */
     baseKey() {
-      this.nested = undefined;
+      this.nested = this.directNested;
     },
     /** Every server response (root identity always changes) re-arms submission —
      *  robust against a same-key prompt re-send that the taskKey watcher misses. */
@@ -3278,6 +3365,11 @@ export default defineComponent({
         this.adjust(1);
         return;
       case 'nextTab':
+        // An optional choice's DECLINE — wherever RT has no other job on the standing surface.
+        if (this.declineOnRt) {
+          this.submitDecline();
+          return;
+        }
         // CARD context: RT is the MULTI (buy / multi-target) commit. In the
         // single-keep DRAFT (where RT would otherwise be inert) RT opens the
         // read-only drafted-cards viewer instead. In the LAYOUT it pours
@@ -3321,8 +3413,9 @@ export default defineComponent({
         this.onConfirm();
         return;
       case 'back':
-        // T9: inside a nested step B returns to the branch list, never defers.
-        if (this.nested !== undefined) {
+        // T9: inside a nested step B returns to the branch list, never defers — unless the choice opened ON that step
+        // (there is no list above it): then B is the decision's own minimize.
+        if (this.nested !== undefined && !this.nestedIsDirect) {
           this.exitNested();
           return;
         }
@@ -3423,7 +3516,8 @@ export default defineComponent({
           const handPick = entry.option.type === 'card' &&
             isHandCardSelection(entry.option, this.handNames) ? entry.option : undefined;
           if (handPick !== undefined) {
-            this.$emit('hand-pick', {index: entry.index, cardPrompt: handPick});
+            // The choice's refusal rides into the album (RT + the plate there too).
+            this.$emit('hand-pick', {index: entry.index, cardPrompt: handPick, decline: this.taskDecline});
             return;
           }
           // T9: OPEN the nested input as a one-level wizard step — its
@@ -3570,6 +3664,18 @@ export default defineComponent({
           }
         },
       }, {origin, availability: availabilityContextFor('project-play')});
+    },
+    /** RT — the optional choice's refusal, answered at the TOP level (never wrapped into an open wizard step). */
+    submitDecline(): void {
+      const decline = this.taskDecline;
+      if (decline === undefined || this.submitting) {
+        return;
+      }
+      this.submitting = true;
+      if (this.embedded) {
+        this.$emit('result-detached');
+      }
+      this.$emit('submit', orOptionResponse(decline.index));
     },
     /** T9: back from a nested step to the branch list (nothing submitted). */
     exitNested(): void {

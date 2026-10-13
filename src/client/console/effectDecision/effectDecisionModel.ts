@@ -48,6 +48,8 @@ import {
   SelectCardModel,
 } from '@/common/models/PlayerInputModel';
 import {buildOrItems, ConsoleOrItem} from '@/client/console/consoleOrChoice';
+import {DeclineModel, declineIsButton, DISCARD_DECLINE_KEY, optionalChoiceOf} from '@/client/console/optionalChoice';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 
 /**
  * What pressing an action DOES, which is the thing the old list never said.
@@ -96,6 +98,24 @@ export type EffectDecisionSource = {
   inspectable: boolean;
 };
 
+/**
+ * THE DECLINE AS A BUTTON (`optionalChoice.ts`, the owner's decisions 2026-10-13): every optional decision but a YES /
+ * NO refuses with RT, and a plate in the question line repeats that button — never one more card among the answers.
+ */
+export type EffectDecisionDecline = {
+  /** Index into `OrOptions.options` — what gets submitted. */
+  optionIndex: number;
+  /** i18n KEY — the decision's own refusal («Не атаковать», «Не сбрасывать»). */
+  title: string;
+  /** What the refusal forgoes, struck on the plate (a discard's exchange); empty when the words say it. */
+  forgone: ReadonlyArray<ActionEffect>;
+};
+
+/** The decline in the ONE shape every pick surface carries (`optionalChoice.DeclineModel`) — the album's plate and RT. */
+export function declineModelOf(decline: EffectDecisionDecline | undefined): DeclineModel | undefined {
+  return decline === undefined ? undefined : {index: decline.optionIndex, label: decline.title, forgone: decline.forgone};
+}
+
 /** An informational, non-selectable target (the server's `disabledOptions`). */
 export type EffectDecisionUnavailable = {
   title: string | Message;
@@ -124,8 +144,15 @@ export type EffectDecisionViewModel = {
   source?: EffectDecisionSource;
   actions: ReadonlyArray<EffectDecisionAction>;
   unavailable: ReadonlyArray<EffectDecisionUnavailable>;
-  /** Index INTO `actions` of the decline, when the prompt offers one. */
+  /** Index INTO `actions` of the decline — a YES / NO's refusal card (its two equal cards stay). */
   declineIndex?: number;
+  /** …every other decline is a BUTTON (RT + the plate), never an entry of `actions`. */
+  decline?: EffectDecisionDecline;
+  /**
+   * THE DECISION'S ONE ANSWER IS A PICK FROM THE HAND (Mars University's discard): there is nothing to decide on this
+   * screen, so the shell opens the album straight away — the decline inside it — and this surface never stands.
+   */
+  directPick?: EffectDecisionAction;
 };
 
 // ── copy keys (English text IS the i18n key) ────────────────────────────────
@@ -440,11 +467,25 @@ export function buildEffectDecision(
   // branches in (`RemoveAnyPlants` puts its skip mid-list on purpose).
   actions.sort((a, b) => Number(a.role === 'decline') - Number(b.role === 'decline'));
 
-  const declineIndex = actions.findIndex((a) => a.role === 'decline');
+  let declineIndex = actions.findIndex((a) => a.role === 'decline');
   const headlineKey = headlineKeyOf(actions, declineIndex !== -1, choice.mode);
-  if (declineIndex !== -1) {
+  // A YES / NO keeps its refusal as the second card; every other decline LEAVES the cards for the button + the plate.
+  const optional = optionalChoiceOf(model);
+  let decline: EffectDecisionDecline | undefined;
+  if (declineIndex !== -1 && declineIsButton(optional)) {
+    const pick = optional.pick !== undefined ? model.options[optional.pick] as SelectCardModel : undefined;
+    decline = {
+      optionIndex: actions[declineIndex].optionIndex,
+      // A discard refuses as a discard («Не сбрасывать»); anything else in the decision's own words.
+      title: pick?.discardPrompt !== undefined ? DISCARD_DECLINE_KEY : declineKeyOf(headlineKey),
+      forgone: optional.decline.forgone,
+    };
+    actions.splice(declineIndex, 1);
+    declineIndex = -1;
+  } else if (declineIndex !== -1) {
     actions[declineIndex] = {...actions[declineIndex], title: declineKeyOf(headlineKey)};
   }
+  const only = actions.length === 1 ? actions[0] : undefined;
 
   return {
     eyebrowKey: eyebrowKeyOf(choice),
@@ -455,6 +496,8 @@ export function buildEffectDecision(
     actions,
     unavailable: items.filter((i) => i.disabled).map(unavailableOf),
     declineIndex: declineIndex === -1 ? undefined : declineIndex,
+    decline,
+    directPick: decline !== undefined && only?.navigation === 'handCards' && only.nested !== undefined ? only : undefined,
   };
 }
 
@@ -484,6 +527,8 @@ function unavailableOf(item: ConsoleOrItem): EffectDecisionUnavailable {
  */
 export type EffectDecisionPress =
   | {kind: 'submit', optionIndex: number}
+  /** RT — the decision's DECLINE (a button, never B, never a card but a YES / NO's). */
+  | {kind: 'decline', optionIndex: number}
   | {kind: 'handPick', action: EffectDecisionAction}
   | {kind: 'inspectSource', card: CardName}
   | {kind: 'defer'};
@@ -507,6 +552,9 @@ export function decisionPressIntent(
     const card = vm.source?.inspectable === true ? vm.source.card : undefined;
     return card === undefined ? undefined : {kind: 'inspectSource', card};
   }
+  if (action === 'nextTab') {
+    return vm.decline !== undefined && !submitting ? {kind: 'decline', optionIndex: vm.decline.optionIndex} : undefined;
+  }
   if (action !== 'primary' || submitting) {
     return undefined;
   }
@@ -528,14 +576,26 @@ export function decisionFocusStep(vm: EffectDecisionViewModel, focusIdx: number,
 /**
  * The pad contract this screen publishes. `Select` vs `Confirm` is the honest
  * difference between "this opens another screen" and "this decides it here",
- * and the source verb appears ONLY when there is something to open.
+ * the source verb appears ONLY when there is something to open, and a button
+ * decline names itself on RT (the plate in the question line repeats it).
  */
-export function decisionCommandKeys(vm: EffectDecisionViewModel, focusIdx: number): Array<string> {
+export function decisionCommands(vm: EffectDecisionViewModel, focusIdx: number): Array<ConsoleCommand> {
   const chosen = vm.actions[focusIdx];
-  const keys = ['Navigate', chosen?.leadKey !== undefined ? 'Select' : 'Confirm'];
+  const run: Array<ConsoleCommand> = [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'confirm', label: chosen?.leadKey !== undefined ? 'Select' : 'Confirm'},
+  ];
   if (vm.source?.inspectable === true) {
-    keys.push('Inspect the source');
+    run.push({control: 'secondary', label: 'Inspect the source'});
   }
-  keys.push('Minimize');
-  return keys;
+  if (vm.decline !== undefined) {
+    run.push({control: 'triggerR', label: vm.decline.title, priority: 1});
+  }
+  run.push({control: 'back', label: 'Minimize'});
+  return run;
+}
+
+/** The contract's labels, in order. */
+export function decisionCommandKeys(vm: EffectDecisionViewModel, focusIdx: number): Array<string> {
+  return decisionCommands(vm, focusIdx).map((c) => c.label);
 }
