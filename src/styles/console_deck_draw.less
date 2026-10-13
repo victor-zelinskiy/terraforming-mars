@@ -8,7 +8,7 @@
    only; the stage is clipped; nothing animates layout.
 
    Authored in rem (the console logical space) — see the TV-profile note in
-   console_tv.less. The tray's own card art is px-free: it rides the shared
+   console_tv.less. The card art is px-free: it rides the shared
    .con-card-back sleeve.
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -38,7 +38,8 @@
     pointer-events: none;
     perspective: 45rem;
     will-change: transform, opacity; /* scoped: proxies exist only mid-scene */
-    filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
+    /* (No `filter` here: this element owns the `perspective`, and a filter flattens the 3D subtree — the contact
+       shadow lives on the shared faces, console_card_deal.less.) */
 }
 
 /* A FOUND card's confirmation: ONE calm sweep across the frame + a brief
@@ -95,188 +96,14 @@
     to { opacity: 1; transform: scaleX(1); }
 }
 
-/* ── The DISCARD tray ────────────────────────────────────────────────
-   The scene's secondary object: compact, off to the side, never centre.
-   Same material language as the draft tray («ОТОБРАННЫЕ КАРТЫ»), one
-   notch quieter — this is where cards go to stop mattering. */
-.con-deckdraw__tray {
-    position: fixed;
-    /* Parked in the free band between the inspect point (34vh, centre) and
-       the hold zone (62vh) — right of the action, clear of BOTH side rails
-       (the left resource rail ends ~11%, the right dashboard starts ~76%).
-       Never the centre: this is where cards go to stop mattering. */
-    left: 66%;
-    top: 38vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: .5rem;
-    pointer-events: none;
-    animation: con-deckdraw-trayin calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
-}
-@keyframes con-deckdraw-trayin {
-    from { opacity: 0; transform: translateY(.6rem) scale(0.94); }
-    to { opacity: 1; transform: none; }
-}
-.con-deckdraw__tray-pile {
-    position: relative;
-    width: 3.1rem;
-    height: 4.4rem;
-    filter: drop-shadow(0 .35rem .8rem rgba(0, 0, 0, 0.6));
-}
-/* Thickness caps at three backs; the count carries the rest (mirrors the
-   played-events pile — a pile of 14 must not become 14 DOM cards). */
-.con-deckdraw__tray-back {
-    position: absolute;
-    inset: 0;
-    border-radius: .3rem;
-    box-shadow: inset 0 0 0 .04rem rgba(150, 180, 210, 0.24);
-}
-.con-deckdraw__tray-back--2 { transform: translate(-.1rem, .12rem) rotate(-1.6deg); opacity: .88; }
-.con-deckdraw__tray-back--3 { transform: translate(.12rem, .24rem) rotate(2.1deg); opacity: .72; }
-/* The landing box the flying card aims at — the pile grows under a proxy
-   that has actually arrived, never beside it. */
-.con-deckdraw__tray-slot {
-    position: absolute;
-    inset: 0;
-}
-/* Before the first discard lands the pile has no cards, so the berth itself
-   is drawn: a quiet dashed outline that says "this is where they go". */
-.con-deckdraw__tray-pile--empty {
-    filter: none;
-
-    .con-deckdraw__tray-slot {
-        border: .05rem dashed fade(@con-amber, 30%);
-        border-radius: .3rem;
-    }
-}
-.con-deckdraw__tray-pile--pulse {
-    animation: con-deckdraw-traypulse calc(260ms * var(--motion-scale, 1)) ease-out 1;
-}
-@keyframes con-deckdraw-traypulse {
-    0% { transform: scale(1); }
-    45% { transform: scale(1.045); }
-    100% { transform: scale(1); }
-}
-.con-deckdraw__tray-meta {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-}
-.con-deckdraw__tray-label {
-    font-size: .5rem;
-    letter-spacing: .09rem;
-    text-transform: uppercase;
-    color: fade(@con-text-dim, 82%);
-}
-.con-deckdraw__tray-count {
-    min-width: 1.1rem;
-    padding: 0 .25rem;
-    border-radius: 49.95rem;
-    background: fade(@con-amber, 14%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
-    color: fade(@con-amber, 95%);
-    font-size: .65rem;
-    font-weight: 800;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── The tray INSIDE the reveal modal ────────────────────────────────
-   Its on-screen twin: the same pile + count, parked in a corner of the
-   modal. Secondary by construction — it never shrinks the received cards,
-   and inspecting it (X) is the player's own move, never the scene's. */
-.con-reveal__discard {
-    position: absolute;
-    right: 1.1rem;
-    bottom: 1.1rem;
-    display: flex;
-    align-items: center;
-    gap: .55rem;
-    padding: .4rem .6rem;
-    border: 0;
-    border-radius: .45rem;
-    background: rgba(12, 20, 30, 0.72);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
-    cursor: pointer;
-    transition:
-        box-shadow calc(140ms * var(--motion-scale, 1)) ease,
-        background-color calc(140ms * var(--motion-scale, 1)) ease,
-        /* …and the berth's own appearance: it is held while the scene's tray
-           flies here (`.con-reveal--bonus-held`), and takes over UNDER the
-           landed pile on the handoff — a fade, so the swap between the two
-           copies is never a hard edge. */
-        opacity calc(170ms * var(--motion-scale, 1)) ease;
-
-    &--focused {
-        background: rgba(18, 30, 44, 0.9);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 58%), 0 0 .8rem fade(@con-cyan, 18%);
-    }
-}
-.con-reveal__discard-pile {
-    position: relative;
-    display: block;
-    width: 1.9rem;
-    height: 2.7rem;
-    flex-shrink: 0;
-    filter: drop-shadow(0 .2rem .5rem rgba(0, 0, 0, 0.55));
-}
-.con-reveal__discard-back {
-    position: absolute;
-    inset: 0;
-    border-radius: .25rem;
-    box-shadow: inset 0 0 0 .04rem rgba(150, 180, 210, 0.22);
-}
-.con-reveal__discard-back--2 { transform: translate(-.09rem, .1rem) rotate(-1.5deg); opacity: .88; }
-.con-reveal__discard-back--3 { transform: translate(.1rem, .2rem) rotate(2deg); opacity: .72; }
-.con-reveal__discard-count {
-    position: absolute;
-    right: -.28rem;
-    top: -.28rem;
-    min-width: 1.05rem;
-    height: 1.05rem;
-    padding: 0 .2rem;
-    border-radius: 49.95rem;
-    background: linear-gradient(180deg, #ffd9ae, #ef9e5e);
-    color: #071018;
-    font-size: .6rem;
-    font-weight: 800;
-    line-height: 1.05rem;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-.con-reveal__discard-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: .15rem;
-}
-.con-reveal__discard-label {
-    font-size: .5rem;
-    letter-spacing: .08rem;
-    text-transform: uppercase;
-    color: fade(@con-text-dim, 85%);
-}
-/* The hint only appears on focus (the played-events pile's touch) — at rest
-   the tray says nothing, it is just there. */
-.con-reveal__discard-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: .25rem;
-    font-size: .55rem;
-    color: fade(@con-cyan, 0%);
-    transition: color calc(140ms * var(--motion-scale, 1)) ease;
-}
-.con-reveal__discard--focused .con-reveal__discard-hint {
-    color: fade(@con-cyan, 90%);
-}
+/* (The scene's DISCARD tray and the reveal's corner berth are gone — the thrown-away cards land on the table's
+   ONE pile beside the HUD deck: console_discard_pile.less, TR52 PL-260.) */
 
 /* Reduced motion: the physical path stays (the director shortens it) — only
    the decorative one-shots go. */
 @media (prefers-reduced-motion: reduce) {
     .con-deckdraw-proxy--found::after,
-    .con-deckdraw-proxy--revealing .con-deal-proxy__face::after,
-    .con-deckdraw__tray-pile--pulse { animation: none; }
-    .con-deckdraw__tray,
-    .con-deckdraw__hold { animation-duration: 1ms; }
+    .con-deckdraw-proxy--revealing .con-deal-proxy__face::after { animation: none; }
+    /* Never a 1 ms pop: the hold base fades in short. */
+    .con-deckdraw__hold { animation-duration: 120ms; }
 }

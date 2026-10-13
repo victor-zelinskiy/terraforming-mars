@@ -921,7 +921,8 @@ import {
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceClaimOwnsArrival, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {requestDiscardStream} from '@/client/console/deckDraw/consoleDeckDraw';
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
@@ -1160,6 +1161,9 @@ export type ComposerOutcome =
 const CARD_LEDGER_SCOPE = '[data-colony-ledger-scope="card"]';
 /** A walk that has not moved for this long while the SERVER owes it nothing is ended, named (the stall net). */
 const LEDGER_STALL_MS = 9000;
+/** How long a SEARCH's draw beat waits for the server to say which cards it threw away (PL-261) — past it the find
+ *  flies as before and the pile reads the server's count through the reveal. */
+const BEAT_SEARCH_ANSWER_NET_MS = 2500;
 
 /**
  * A STAGED ACTION VOTE's locked receipt — what the commit charges for the card: the branch's own COST chip on the
@@ -1247,6 +1251,10 @@ export default defineComponent({
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
       /** The draw beat's commit-handoff delay (cleared on abort/unmount). */
       beatDelayTimer: undefined as number | undefined,
+      /** A SEARCH's beat waiting for the server's answer — its bounded net (PL-261; cleared with the delay). */
+      beatAnswerNet: undefined as number | undefined,
+      /** The net fired: the beat goes on without the answer (the find as before). Reset with the delay. */
+      beatSearchNetSpent: false,
       /** Path-watcher mirror of the commit lifecycle (the abort rollback). */
       actionCommitState,
       /** The composed repeat-action pick (Viron): the chosen already-used
@@ -2955,6 +2963,10 @@ export default defineComponent({
     },
     /** The answer landed — the cards may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
+      if (arrived && this.beatAnswerNet !== undefined) {
+        // A search's beat was waiting for exactly this (`beatAwaitsSearchAnswer`).
+        void this.$nextTick(() => this.beginBeatFlight());
+      }
       if (arrived) {
         this.syncBeatFaces();
         // The faces have to EXIST in the DOM before the turn shows them, or
@@ -5668,6 +5680,21 @@ export default defineComponent({
       if (this.beatFlightOn) {
         return;
       }
+      // A SEARCH waits for its answer (PL-261): until the server has turned the cards over nobody knows which ones it
+      // threw away, and they leave the deck BEFORE the found ones — a beat launched on the round-trip flew the find
+      // first and the rejects never (the e2e under load: the pile then just «knew» 2). Bounded: past the net the find
+      // goes as before and the pile still says the server's count through the reveal.
+      if (this.beatAwaitsSearchAnswer()) {
+        if (this.beatAnswerNet === undefined) {
+          this.beatAnswerNet = window.setTimeout(() => {
+            this.beatAnswerNet = undefined;
+            this.beatSearchNetSpent = true;
+            this.beginBeatFlight();
+          }, BEAT_SEARCH_ANSWER_NET_MS); // a NET, not a motion: never scaled (reduced motion caps motions at 160 ms)
+        }
+        return;
+      }
+      this.clearBeatAnswerNet();
       const root = this.$refs.rootEl as HTMLElement | undefined;
       if (root === undefined) {
         // No stage to fly on (JSDOM / torn-down layout): never withhold the
@@ -5687,12 +5714,56 @@ export default defineComponent({
       // causal story the whole beat exists to tell. Released as the first card
       // visibly separates, so the tick lands ON the separation.
       holdDeckDisplay(this.playerView.game.deckSize);
+      // THE THROWN-AWAY CARDS LEAVE FIRST (TR52, PL-261): a search this beat
+      // deals turned cards over and threw them away BEFORE the found ones came
+      // off the deck — the scene's layer deals them aside onto the table's
+      // discard pile (the counter ticking per card under this hold), and the
+      // found cards start once the last one has left the deck. No answer yet
+      // (the beat covers the round-trip) → the found cards go as before and
+      // the pile still says the server's count through the reveal.
+      const stream = this.beatDiscardStream();
+      let launched = false;
+      const launch = () => {
+        if (launched) {
+          return;
+        }
+        launched = true;
+        void this.$nextTick(() => this.launchBeatBatch());
+      };
       void this.$nextTick(() => {
         // The stage must be SOLVED before the slots are measured, or the batch
         // would aim at a pre-fit geometry and land off its own targets.
         this.fitBeatStage();
-        void this.$nextTick(() => this.launchBeatBatch());
+        if (stream === undefined ||
+            !requestDiscardStream({eventId: stream.id, cards: stream.cards, onAllPeeled: launch})) {
+          launch();
+        }
       });
+    },
+    /** The beat's draw is a SEARCH (its chip carries the server's rule) and the answer is not in yet. */
+    beatAwaitsSearchAnswer(): boolean {
+      if (workspaceOutcomeState.answerIn || this.beatSearchNetSpent) {
+        return false;
+      }
+      return (this.selectedBranch?.effects ?? []).some((e) => e.search !== undefined);
+    },
+    clearBeatAnswerNet(): void {
+      if (this.beatAnswerNet !== undefined) {
+        window.clearTimeout(this.beatAnswerNet);
+        this.beatAnswerNet = undefined;
+      }
+    },
+    /**
+     * The batch this beat deals, when the server has answered and its search threw cards away — the thrown-away
+     * cards, in the server's order. `undefined` = nothing to stream (no answer yet, a plain draw, not this beat's).
+     */
+    beatDiscardStream(): {id: number, cards: Array<CardName>} | undefined {
+      const e = currentRevealEvent();
+      if (!workspaceOutcomeState.answerIn || e === undefined || !workspaceClaimOwnsArrival(e.source)) {
+        return undefined;
+      }
+      const cards = (e.sequence ?? []).filter((step) => !step.matched).map((step) => step.card.name);
+      return cards.length > 0 ? {id: e.id, cards} : undefined;
     },
     /** Measure the prepared slots and hand the batch to the director. */
     launchBeatBatch(): void {
@@ -5760,6 +5831,8 @@ export default defineComponent({
         window.clearTimeout(this.beatDelayTimer);
         this.beatDelayTimer = undefined;
       }
+      this.clearBeatAnswerNet();
+      this.beatSearchNetSpent = false;
     },
     /**
      * THE HANDOFF — the real surface has taken the zone, so the landed proxies

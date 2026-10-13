@@ -5,37 +5,15 @@
 
     Every card is born at the deck's own top-card rect (the SAME card.webp
     sleeve the deck stack shows — a separation, never a new object), and is
-    routed by the SERVER's verdict: a discard flows on into the compact tray,
-    a match settles into the hold zone. Pointer-inert, clipped; the controller
-    owns the beats, the director the GSAP.
+    routed by the SERVER's verdict: a discard is tossed aside onto the table's
+    discard pile (beside the deck — `ConsoleDiscardPile`), a match comes down
+    into the HOST's zone and settles into the hold row. Pointer-inert, clipped;
+    the controller owns the beats, the director the GSAP.
   -->
-  <div v-if="deckDrawState.active" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" aria-hidden="true">
-    <!-- The DISCARD tray — secondary by construction: compact, off to the
-         side, a face-down pile + a count. Only exists when the search really
-         discarded something, and only once the scene is actually playing
-         (never while we wait for the scene that earned this draw). -->
-    <div v-if="deckDrawState.hasDiscards && sceneLive" class="con-deckdraw__tray" ref="tray">
-      <div class="con-deckdraw__tray-pile" ref="trayPile"
-           :class="{
-             'con-deckdraw__tray-pile--pulse': trayPulse,
-             'con-deckdraw__tray-pile--empty': deckDrawState.trayCount === 0,
-           }">
-        <!-- Thickness is capped at three backs; the count carries the rest
-             (mirrors the played-events pile). -->
-        <div v-if="deckDrawState.trayCount > 2" class="con-card-back con-deckdraw__tray-back con-deckdraw__tray-back--3"></div>
-        <div v-if="deckDrawState.trayCount > 1" class="con-card-back con-deckdraw__tray-back con-deckdraw__tray-back--2"></div>
-        <div v-if="deckDrawState.trayCount > 0" class="con-card-back con-deckdraw__tray-back con-deckdraw__tray-back--1"></div>
-        <!-- The landing slot: the box the flying card aims at. Until the
-             first card lands it is the only thing drawn — an empty berth, so
-             the tray reads as "discards will land here", never as a stray
-             label floating in space. -->
-        <div class="con-deckdraw__tray-slot" ref="traySlot"></div>
-      </div>
-      <div class="con-deckdraw__tray-meta">
-        <span class="con-deckdraw__tray-label">{{ $t('DISCARDED') }}</span>
-        <span class="con-deckdraw__tray-count">{{ deckDrawState.trayCount }}</span>
-      </div>
-    </div>
+  <div v-if="deckDrawState.active || streamLive" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" aria-hidden="true">
+    <!-- (The discard TRAY that used to stand here — at 66 % / 38vh of the VIEWPORT, wherever the host was — is gone:
+         a thrown-away card now lands on the table's ONE pile, «СБРОШЕННЫЕ», beside the HUD deck it came from —
+         `ConsoleDiscardPile` / discardPile.ts, TR52 PL-260.) -->
 
     <!-- The hold zone's quiet base — the cards are the subject, this is only
          a hint that they are being gathered. -->
@@ -45,8 +23,8 @@
 
     <!-- One flyer per revealed card (the shared deal flip chassis). A MATCH
          renders its FACE (it flips up to be seen + held); a DISCARD renders
-         ONLY the back — it never turns face-up, it just flows past to the
-         tray, so the heavy premium face is never built for it. -->
+         ONLY the back — it never turns face-up, it is tossed aside onto the
+         discard pile, so the heavy premium face is never built for it. -->
     <div v-for="(step, i) in sceneCards" :key="sceneNonce + '|' + step.name + '#' + i"
          class="con-deckdraw-proxy"
          :data-dd-card="step.name"
@@ -92,11 +70,13 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
-  abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, endDeckDraw, releaseDeckDrawSeed,
-  isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
+  abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, DiscardStreamRequest, endDeckDraw,
+  releaseDeckDrawSeed, isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
   markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
-  setDeckDrawPhase,
+  registerDiscardStreamPlayer, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
+import {tickDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
@@ -111,13 +91,17 @@ import {probeTick} from '@/client/console/probeTick';
 import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
-  DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
-  inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
+  DeckDrawTimings, DrawBeat, RectLike, SceneStage, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
+  inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings, viewportStage,
 } from '@/client/console/deckDraw/deckDrawModel';
 import {
-  DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff,
-  runDeckDrawTraySeat, runDeckSettleTick,
+  DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckSettleTick,
 } from '@/client/console/deckDraw/deckDrawDirector';
+import {
+  discardPileHeldBy, discardPileSlotEl, landOnDiscardPile, openDiscardPile, releaseDiscardPile,
+} from '@/client/console/discardPile/discardPile';
+import {restingRectOf} from '@/client/console/cardFlight/landingRect';
+import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 
@@ -175,11 +159,13 @@ function cssEscape(value: string): string {
 type SceneCtx = {
   beatHandles: Array<DeckDrawHandle>,
   sceneHandle?: DeckDrawHandle,
-  /** The discard tray's own leg to its berth — it runs BESIDE the scene
-   *  handle (the frame beat), so it needs its own slot to be killable. */
-  trayHandle?: DeckDrawHandle,
   /** The plain draw's single deck→slot batch flight (the shared director). */
   batchHandle?: BatchArrivalHandle,
+  /**
+   * The DISCARD STREAM in flight or handing its lease over (PL-261): what a teardown must still settle — the owner's
+   * `onAllPeeled` (its flight waits on it) and the stream's lease on the pile. A killed timer must never strand either.
+   */
+  stream?: {lease: string, allPeeled: () => void},
   timers: Array<ReturnType<typeof setTimeout>>,
 };
 const ctx: SceneCtx = {beatHandles: [], timers: []};
@@ -194,8 +180,6 @@ function killAll(): void {
   ctx.beatHandles = [];
   ctx.sceneHandle?.kill();
   ctx.sceneHandle = undefined;
-  ctx.trayHandle?.kill();
-  ctx.trayHandle = undefined;
   ctx.batchHandle?.kill();
   ctx.batchHandle = undefined;
   clearTimers();
@@ -214,25 +198,16 @@ export default defineComponent({
       sceneNonce: 0,
       proxyRefs: [] as Array<HTMLElement | null>,
       flipRefs: [] as Array<HTMLElement | null>,
-      trayPulse: false,
+      /** The batch this scene deals — the name of its lease on the discard pile (`scene:<id>`). */
+      sceneEventId: undefined as number | undefined,
+      /** A DISCARD STREAM is playing (a workspace owns the batch's arrival; this layer deals its thrown-away cards). */
+      streamLive: false,
       /** The hold zone's base is only drawn once a card is actually resting. */
       showHoldBase: false,
       holdBaseStyle: {} as Record<string, string>,
     };
   },
   computed: {
-    /**
-     * The scene's own furniture (tray / hold base) appears only once the cards
-     * actually start coming off the deck — while we wait for the scene that
-     * earned the draw, the stage is claimed but empty.
-     *
-     * A READ of the shared fact, not a second copy of it: a hosting workspace
-     * lets its own stage go on the very same signal, and two flags for one
-     * moment is how the two would drift apart.
-     */
-    sceneLive(): boolean {
-      return deckDrawState.dealing;
-    },
     /**
      * The reveal batch this layer should drive NOW, and WHOSE it is. Watched
      * PRE-FLUSH so the arm lands BEFORE the overlay's first render — otherwise
@@ -360,19 +335,10 @@ export default defineComponent({
         this.claimScene(r.e);
       },
     },
-    'deckDrawState.trayCount'(): void {
-      // A calm one-shot pulse as a card lands on the pile.
-      this.trayPulse = false;
-      void this.$nextTick(() => {
-        this.trayPulse = true;
-        ctx.timers.push(setTimeout(() => {
-          this.trayPulse = false;
-        }, motionMs(260)));
-      });
-    },
   },
   mounted() {
     registerDeckDrawHandle({abort: () => this.teardown()});
+    registerDiscardStreamPlayer((req) => this.playDiscardStream(req));
     // The single-card fullscreen lifts THIS proxy (the card that just flew),
     // rather than opening a fresh copy over it.
     registerDeckDrawZoomOrigin(() => this.heldEls()[0] ?? null);
@@ -385,6 +351,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     registerDeckDrawHandle(undefined);
+    registerDiscardStreamPlayer(undefined);
     registerDeckDrawZoomOrigin(undefined);
     killAll();
   },
@@ -491,9 +458,16 @@ export default defineComponent({
         return;
       }
       const preDraw = deckDrawState.preDrawSize;
-      // The stage is ours now — the tray may appear, ready to receive, and
-      // a hosting workspace lets its own stage go on this same fact.
+      // The stage is ours now — a hosting workspace lets its own stage go on
+      // this same fact, and a search that throws cards away brings the table's
+      // DISCARD PILE out from under the strip in this very beat (its slide is
+      // shorter than the first card's peel + pull, so the pile is home before
+      // the first toss lands — the entry costs the scene nothing).
       markDeckDrawDealing();
+      this.sceneEventId = e.id;
+      if (deckDrawState.hasDiscards) {
+        openDiscardPile(`scene:${e.id}`);
+      }
 
       this.sceneCards = steps;
       this.sceneNonce++;
@@ -517,17 +491,20 @@ export default defineComponent({
 
       const t = this.timings();
       const beats = planDeckDraw(steps.map((s) => ({matched: s.matched})), t, plain);
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
       const matches = steps.filter((s) => s.matched).length;
-      const hScale = holdScale(vh, CARD_NATURAL_H);
-      const slots = holdSlots(matches, vw, vh, CARD_NATURAL_W * hScale);
-      const inspect = inspectPoint(vw, vh);
-      const iScale = inspectScale(vh, CARD_NATURAL_H);
+      // THE HOST's stage (PL-263): the cards are judged where they will land.
+      const stage = this.sceneStage();
+      const hScale = holdScale(stage.height, CARD_NATURAL_H);
+      const slots = holdSlots(matches, stage, CARD_NATURAL_W * hScale);
+      const inspect = inspectPoint(stage);
+      const iScale = inspectScale(stage.height, CARD_NATURAL_H);
 
-      // The tray's landing box, if this search has discards.
-      const trayRect = deckDrawState.hasDiscards ?
-        await stableRect(() => this.$refs.traySlot as HTMLElement | null) : undefined;
+      // The pile's landing box, at REST (the pile is still sliding out from
+      // under the strip — `restingRectOf` un-maps its live entry), if this
+      // search has discards. No pile measurable → the discard dives out
+      // honestly (the director's degrade), never a toss at nothing.
+      const pileSlot = deckDrawState.hasDiscards ? discardPileSlotEl() : undefined;
+      const trayRect = pileSlot !== undefined ? restingRectOf(pileSlot) : undefined;
       if (!deckDrawState.active) {
         return; // aborted while probing
       }
@@ -563,6 +540,7 @@ export default defineComponent({
             onLanded: () => {
               if (beat.kind === 'discard') {
                 markDeckDrawDiscarded();
+                landOnDiscardPile();
               }
               if (beat.kind !== 'discard') {
                 this.revealHoldBase(slots, hScale);
@@ -656,7 +634,7 @@ export default defineComponent({
       iScale: number,
       slots: ReadonlyArray<{x: number, y: number}>,
       hScale: number,
-      trayRect: DOMRect | undefined,
+      trayRect: RectLike | undefined,
     }) {
       const hold = beat.holdSlot !== undefined && geo.slots[beat.holdSlot] !== undefined ?
         {...geo.slots[beat.holdSlot], scale: geo.hScale} : undefined;
@@ -763,10 +741,9 @@ export default defineComponent({
         return;
       }
 
-      // The discard pile travels ON THE SAME LEG as the cards: they are one
-      // batch arriving at one stage, and a tray that set off later would read
-      // as a second, unrelated move.
-      this.seatDiscardTray(this.timings().routeMs * 1.25);
+      // (The discard pile does not travel any more: it is the table's, it
+      // stays home beside the deck, and the reveal holds it out for as long
+      // as it presents this batch — PL-260.)
       ctx.sceneHandle = runDeckDrawAssemble({
         proxies: held,
         targets: resolved as ReadonlyArray<RectLike>,
@@ -781,47 +758,6 @@ export default defineComponent({
       });
     },
 
-    /**
-     * THE TRAY TAKES ITS SEAT — the search's discard pile flies into the berth
-     * the reveal keeps for it, so the same stack of cards is ONE object from
-     * the first discard to the finished stage (it used to blink out of the
-     * scene's fixed spot while a second copy faded in inside the frame).
-     *
-     * Runs on the FRAME beat, so it lands exactly as the handoff releases the
-     * destination underneath it. A search with no discards, a headless
-     * single-card reveal (no berth exists) or an unmeasurable target simply
-     * skips it — the tray then leaves with the layer, as before.
-     */
-    seatDiscardTray(durationMs: number): void {
-      if (!deckDrawState.hasDiscards || deckDrawState.trayCount === 0) {
-        return;
-      }
-      const tray = this.$refs.tray as HTMLElement | undefined;
-      const pile = this.$refs.trayPile as HTMLElement | undefined;
-      if (tray === undefined || tray === null || pile === undefined || pile === null) {
-        return;
-      }
-      // Measured HERE and not polled: the reveal is mounted and laid out (its
-      // card slots were just measured off it in this same block), so the berth
-      // either exists now or does not exist at all — a headless single-card
-      // reveal renders none, and the tray then simply leaves with the layer.
-      const berth = document.querySelector<HTMLElement>('.con-reveal__discard-pile');
-      const target = berth !== null ? berth.getBoundingClientRect() : undefined;
-      if (target === undefined || target.width < 2) {
-        return;
-      }
-      ctx.trayHandle = runDeckDrawTraySeat({
-        tray,
-        pile,
-        target: target as RectLike,
-        meta: (tray.querySelector<HTMLElement>('.con-deckdraw__tray-meta') ?? undefined),
-        durationMs,
-        reduced: deckDrawState.reducedMotion,
-        onDone: () => {
-          ctx.trayHandle = undefined;
-        },
-      });
-    },
     /** Release the overlay's real cards, then dissolve the proxies over them. */
     releaseAndHandoff(held: ReadonlyArray<HTMLElement>): void {
       if (!deckDrawState.active) {
@@ -841,15 +777,12 @@ export default defineComponent({
       if (workspaceClaimsDrawReveal(arrived) || workspaceClaimsColonyReveal(arrived)) {
         markWorkspaceOutcomeArrivalDone();
       }
-      // …and the tray dissolves in the same breath, over the berth it just
-      // landed on (the destination is released by this very phase) — the
-      // proxies' own handoff, applied to the pile that travelled with them.
-      const tray = this.$refs.tray as HTMLElement | undefined;
       ctx.sceneHandle = runDeckDrawHandoff({
-        proxies: tray !== undefined && tray !== null ? [...held, tray] : held,
+        proxies: held,
         t: this.timings(),
         onDone: () => {
           endDeckDraw();
+          this.releasePile();
           this.sceneCards = [];
           this.showHoldBase = false;
         },
@@ -865,7 +798,157 @@ export default defineComponent({
       }
       this.sceneCards = [];
       this.showHoldBase = false;
-      this.trayPulse = false;
+      // The pile is NOT cut here: the scene's lease lets go, and whatever
+      // presents the batch now (the stock reveal an abort unveils) holds it —
+      // the pile leaves with its own phrase only when nobody does.
+      this.releasePile();
+      this.settleStream();
+    },
+    /** A stream cut short (teardown / unmount): its owner is told every card has left, and its lease lets go. */
+    settleStream(): void {
+      const stream = ctx.stream;
+      ctx.stream = undefined;
+      this.streamLive = false;
+      if (stream !== undefined) {
+        stream.allPeeled();
+        releaseDiscardPile(stream.lease);
+      }
+    },
+    /**
+     * THE DISCARD STREAM (PL-261): a workspace's own beat deals the batch's FOUND cards; this layer deals its
+     * thrown-away ones — the scene's own dealer's gesture (off the HUD deck, aside onto the table's pile), the counter
+     * ticking one card per peel under the owner's hold. `onAllPeeled` fires exactly once, when the last thrown-away
+     * card has LEFT the deck (bounded: a beat with no proxy counts as peeled, and a net past the plan's own length
+     * fires it anyway — the owner's flight can never wait on a stream that stalled).
+     */
+    playDiscardStream(req: DiscardStreamRequest): boolean {
+      if (deckDrawState.active || this.streamLive) {
+        return false;
+      }
+      const deck = document.querySelector<HTMLElement>(DECK_SEL)?.getBoundingClientRect();
+      if (deck === undefined || deck.width < 2) {
+        return false;
+      }
+      this.streamLive = true;
+      const lease = `stream:${req.eventId}`;
+      openDiscardPile(lease);
+      this.sceneCards = req.cards.map((name) => ({name, matched: false}));
+      this.sceneNonce++;
+      this.proxyRefs = [];
+      this.flipRefs = [];
+      const t = this.timings();
+      const reduced = consoleReducedMotionActive();
+      const beats = planDeckDraw(req.cards.map(() => ({matched: false})), t, false);
+      let peeled = 0;
+      let landed = 0;
+      let released = false;
+      const allPeeled = () => {
+        if (!released) {
+          released = true;
+          req.onAllPeeled();
+        }
+      };
+      ctx.stream = {lease, allPeeled};
+      const lastPeelMs = beats.length > 0 ? beats[beats.length - 1].atMs + t.peelMs : 0;
+      ctx.timers.push(setTimeout(allPeeled, motionMs(lastPeelMs) + motionMs(400)));
+      void this.$nextTick(() => {
+        const slot = discardPileSlotEl();
+        const trayRect = slot !== undefined ? restingRectOf(slot) : undefined;
+        const deckAnchor = {rect: deck as RectLike, naturalH: CARD_NATURAL_H};
+        const done = () => {
+          landed++;
+          if (landed >= beats.length) {
+            this.endDiscardStream(req.eventId, lease);
+          }
+        };
+        beats.forEach((beat) => {
+          const proxy = this.proxyRefs[beat.index];
+          const flip = this.flipRefs[beat.index];
+          if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
+            peeled++;
+            if (peeled >= beats.length) {
+              allPeeled();
+            }
+            done();
+            return;
+          }
+          ctx.timers.push(setTimeout(() => {
+            const handle = runDeckDrawBeat({
+              beat,
+              els: {proxy, flip},
+              deck: deckAnchor,
+              targets: {inspect: {x: 0, y: 0, scale: 1}, tray: trayRect},
+              t,
+              reduced,
+              onDrawn: () => {
+                tickDeckDisplay();
+                this.tickDeck();
+                peeled++;
+                if (peeled >= beats.length) {
+                  allPeeled();
+                }
+              },
+              onLanded: () => {
+                landOnDiscardPile();
+                done();
+              },
+            });
+            ctx.beatHandles.push(handle);
+          }, motionMs(beat.atMs)));
+        });
+      });
+      return true;
+    },
+    /**
+     * The stream is over: its proxies go, and its lease on the pile is HANDED to the reveal that presents the batch
+     * (the pile must not slide in and out between the stream's last toss and the surface's arrival) — released once
+     * the reveal holds the pile or the batch is no longer owed, bounded by a short net.
+     */
+    endDiscardStream(eventId: number, lease: string): void {
+      if (!deckDrawState.active) {
+        this.sceneCards = [];
+      }
+      this.streamLive = false;
+      const started = Date.now();
+      const handOver = () => {
+        const owed = pendingRevealEvents().some((e) => e.id === eventId);
+        if (discardPileHeldBy(`reveal:${eventId}`) || !owed || Date.now() - started > 4_000) {
+          releaseDiscardPile(lease);
+          if (ctx.stream?.lease === lease) {
+            ctx.stream = undefined;
+          }
+          return;
+        }
+        ctx.timers.push(setTimeout(handOver, 100));
+      };
+      handOver();
+    },
+    /** The scene's lease on the discard pile ends with the scene. */
+    releasePile(): void {
+      if (this.sceneEventId !== undefined) {
+        releaseDiscardPile(`scene:${this.sceneEventId}`);
+        this.sceneEventId = undefined;
+      }
+    },
+    /**
+     * THE STAGE the search plays in (PL-263): the workspace that hosts the
+     * draw — the band surface around the claim's own zone, else the band
+     * surface on screen — or the board's free area when nothing hosts it;
+     * the viewport only when none of them can be measured.
+     */
+    sceneStage(): SceneStage {
+      const measure = (el: Element | null | undefined): SceneStage | undefined => {
+        if (el === null || el === undefined) {
+          return undefined;
+        }
+        const r = el.getBoundingClientRect();
+        return r.width > 200 && r.height > 200 ? {left: r.left, top: r.top, width: r.width, height: r.height} : undefined;
+      };
+      const slot = workspaceOutcomeState.embedSlot;
+      const host = slot !== '' ? document.querySelector(slot)?.closest('.con-ws') : undefined;
+      const band = Array.from(document.querySelectorAll('.con-ws')).find((el) => measure(el) !== undefined);
+      return measure(host) ?? measure(band) ?? measure(document.querySelector('.con-main')) ??
+        viewportStage(window.innerWidth, window.innerHeight);
     },
   },
 });

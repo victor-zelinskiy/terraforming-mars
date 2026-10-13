@@ -30,6 +30,7 @@
 
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {holdDeckDisplay, releaseDeckDisplay, releaseDeckSeed, seedDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -467,6 +468,39 @@ export function abortDeckDraw(): void {
   // reveal invisible.
   deckDrawState.zoomEntryReady = true;
   h?.abort();
+}
+
+/*
+ * THE DISCARD STREAM (TR52, PL-261) — a search whose ARRIVAL a workspace's own beat deals («Действия карт»: the
+ * composer flies the FOUND cards into its prepared slots) used to show its thrown-away cards nowhere: they never left
+ * the deck, the counter fell by everything at once, and the reveal's count appeared from nothing. The owner of the
+ * arrival now asks this scene's layer to deal ONLY the thrown-away cards, the same dealer's gesture as a search the
+ * scene owns — off the HUD deck, aside onto the table's discard pile, the counter ticking per card — and launches its
+ * own found cards once the last thrown-away card has left the deck (`onAllPeeled`). The stream never claims the batch
+ * and never withholds a surface; it is one request at a time, and a layer that cannot play it answers `false` (the
+ * owner then deals as before — the pile still says the server's count through the reveal).
+ */
+export type DiscardStreamRequest = {
+  eventId: number,
+  /** The thrown-away cards to deal, in the server's order (the batch's own unmatched steps). */
+  cards: ReadonlyArray<CardName>,
+  /** The last thrown-away card has LEFT the deck — the owner's found cards may start now. Fired exactly once. */
+  onAllPeeled: () => void,
+};
+
+let streamHandler: ((req: DiscardStreamRequest) => boolean) | undefined;
+
+/** The layer registers the player of the stream (idempotent re-register; `undefined` on unmount). */
+export function registerDiscardStreamPlayer(fn: ((req: DiscardStreamRequest) => boolean) | undefined): void {
+  streamHandler = fn;
+}
+
+/** Ask for a discard stream. `false` → nothing will play (no layer, a scene mid-story): deal as before. */
+export function requestDiscardStream(req: DiscardStreamRequest): boolean {
+  if (streamHandler === undefined || deckDrawState.active || req.cards.length === 0) {
+    return false;
+  }
+  return streamHandler(req);
 }
 
 /** Full reset (tests / game-switch boundary). */

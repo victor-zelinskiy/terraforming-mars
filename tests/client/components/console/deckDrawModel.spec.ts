@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   FULL_RHYTHM_DISCARDS, MIN_DISCARD_PACE, deckCountAfter, deckDrawBudgetMs,
   deckDrawTimings, discardPace, holdSlots, inspectPoint, planDeckDraw, planEndMs,
-  reducedDeckDrawTimings,
+  reducedDeckDrawTimings, viewportStage,
 } from '@/client/console/deckDraw/deckDrawModel';
 
 /**
@@ -195,33 +195,48 @@ describe('deckDrawModel', () => {
     });
   });
 
-  describe('geometry', () => {
+  describe('geometry — the stage of the HOST, never the viewport (PL-263)', () => {
+    const zone = {left: 520, top: 110, width: 3200, height: 1860};
+
     it('the inspect point sits clear of the top bar — the deck is never covered by its own card', () => {
-      expect(inspectPoint(1280, 800).y).is.greaterThan(130);
-      expect(inspectPoint(3840, 2160).y).is.greaterThan(130);
+      expect(inspectPoint(viewportStage(1280, 800)).y).is.greaterThan(130);
+      expect(inspectPoint(viewportStage(3840, 2160)).y).is.greaterThan(130);
+      expect(inspectPoint({left: 0, top: 0, width: 1280, height: 100}).y, 'a squat stage still keeps the floor').is.greaterThan(130);
     });
 
-    it('hold slots are a centred row', () => {
-      const slots = holdSlots(3, 1920, 1080, 200);
+    it('the inspect point is the centre of the zone of the HOST, not of the screen', () => {
+      const p = inspectPoint(zone);
+      expect(p.x).to.eq(zone.left + zone.width / 2);
+      expect(p.y).to.be.closeTo(zone.top + zone.height * 0.34, 0.001);
+    });
+
+    it('hold slots are a centred row inside the stage', () => {
+      const slots = holdSlots(3, viewportStage(1920, 1080), 200);
       expect(slots).to.have.length(3);
       const centre = (slots[0].x + slots[2].x) / 2;
       expect(Math.round(centre)).to.eq(1920 / 2);
       expect(slots[1].x).is.greaterThan(slots[0].x);
       expect(slots.every((s) => s.y === slots[0].y)).to.eq(true);
+      const inZone = holdSlots(2, zone, 300);
+      expect(Math.round((inZone[0].x + inZone[1].x) / 2)).to.eq(zone.left + zone.width / 2);
+      expect(inZone[0].y).to.be.closeTo(zone.top + zone.height * 0.62, 0.001);
     });
 
     it('a single held card sits dead centre', () => {
-      expect(holdSlots(1, 1280, 800, 200)[0].x).to.eq(640);
+      expect(holdSlots(1, viewportStage(1280, 800), 200)[0].x).to.eq(640);
     });
 
-    it('many held cards squeeze instead of running off a handheld screen', () => {
-      const slots = holdSlots(6, 1280, 800, 240);
+    it('many held cards squeeze instead of running off the stage', () => {
+      const slots = holdSlots(6, viewportStage(1280, 800), 240);
       expect(slots[0].x).is.greaterThan(0);
       expect(slots[5].x).is.lessThan(1280);
+      const narrow = holdSlots(8, zone, 400);
+      expect(narrow[0].x).is.greaterThan(zone.left);
+      expect(narrow[7].x).is.lessThan(zone.left + zone.width);
     });
 
     it('no slots for an empty hold zone', () => {
-      expect(holdSlots(0, 1920, 1080, 200)).to.have.length(0);
+      expect(holdSlots(0, viewportStage(1920, 1080), 200)).to.have.length(0);
     });
   });
 });

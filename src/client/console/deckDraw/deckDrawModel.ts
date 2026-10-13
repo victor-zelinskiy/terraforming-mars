@@ -305,47 +305,56 @@ export function deckCountAfter(preDrawSize: number, revealed: number): number {
 }
 
 /**
- * The INSPECT point — where a card pauses to be judged. Centred horizontally,
- * high enough to sit clear of the hold zone below it, and always well below
- * the top bar so the deck it came from stays visible (the source must never
- * be covered by the card it just produced).
+ * THE SCENE'S STAGE — the rect the search plays in (PL-263, TR52). It used to be the VIEWPORT, so the inspect point
+ * and the hold row stood at the centre of the screen while the workspace that hosts the draw stayed EMPTY beside them
+ * (the hand's zone, the start's zone): the cards were judged in the middle of nothing. The stage is now the HOST's
+ * own surface — the workspace that will receive the reveal (its band right of the player rail), or the board's free
+ * area when no workspace hosts the draw — so the cards are judged where they will land. A rect the caller cannot
+ * measure falls back to the viewport.
  */
-export function inspectPoint(viewportW: number, viewportH: number): {x: number, y: number} {
-  return {x: viewportW / 2, y: Math.max(140 * conUiScale(), viewportH * 0.34)};
+export type SceneStage = RectLike;
+
+/** The viewport as a stage — the fallback, and the geometry of a draw no surface hosts. */
+export function viewportStage(viewportW: number, viewportH: number): SceneStage {
+  return {left: 0, top: 0, width: viewportW, height: viewportH};
 }
 
 /**
- * The scale a card is presented at while being judged. Big enough to take in
- * at a glance — the player must SEE that a real card was turned over — but
- * never a fullscreen event: a discard is shown, not offered for reading.
+ * The INSPECT point — where a card pauses to be judged. Centred in the stage, high enough to sit clear of the hold
+ * zone below it, and always well below the top bar so the deck it came from stays visible (the source must never be
+ * covered by the card it just produced).
  */
-export function inspectScale(viewportH: number, naturalH: number): number {
+export function inspectPoint(stage: SceneStage): {x: number, y: number} {
+  return {x: stage.left + stage.width / 2, y: Math.max(140 * conUiScale(), stage.top + stage.height * 0.34)};
+}
+
+/**
+ * The scale a card is presented at while being judged. Big enough to take in at a glance — the player must SEE that
+ * a real card was turned over — but never a fullscreen event: a discard is shown, not offered for reading. Read off
+ * the stage's height (a zone is a little shorter than the screen — the card keeps its proportion to the room).
+ */
+export function inspectScale(stageH: number, naturalH: number): number {
   const s = conUiScale();
-  return Math.min(0.66 * s, Math.max(0.3 * s, (viewportH * 0.42) / Math.max(1, naturalH)));
+  return Math.min(0.66 * s, Math.max(0.3 * s, (stageH * 0.42) / Math.max(1, naturalH)));
 }
 
 /**
- * The HOLD-ZONE slot centres — where found cards wait for the rest of the
- * search. A centred row that re-balances as it grows (the director tweens the
- * already-placed cards to their new centres, so nothing ever jumps).
+ * The HOLD-ZONE slot centres — where found cards wait for the rest of the search. A centred row in the stage that
+ * re-balances as it grows (the director tweens the already-placed cards to their new centres, so nothing ever jumps);
+ * a big find squeezes inside the stage's middle rather than running to its edges.
  */
-export function holdSlots(
-  count: number, viewportW: number, viewportH: number, cardW: number,
-): Array<{x: number, y: number}> {
+export function holdSlots(count: number, stage: SceneStage, cardW: number): Array<{x: number, y: number}> {
   if (count <= 0) {
     return [];
   }
   const gap = 26 * conUiScale();
   const pitch = cardW + gap;
   const totalW = count * cardW + (count - 1) * gap;
-  // The row must stay inside the free band between the side rails (the left
-  // resource rail ends ~11%, the right dashboard starts ~76%), so a big find
-  // overlaps rather than running under a panel — on any profile.
-  const maxW = viewportW * 0.46;
+  const maxW = stage.width * 0.62;
   const squeeze = totalW > maxW ? maxW / totalW : 1;
   const step = pitch * squeeze;
-  const first = viewportW / 2 - (step * (count - 1)) / 2;
-  const y = viewportH * 0.62;
+  const first = stage.left + stage.width / 2 - (step * (count - 1)) / 2;
+  const y = stage.top + stage.height * 0.62;
   return Array.from({length: count}, (_, i) => ({x: first + step * i, y}));
 }
 
@@ -354,7 +363,7 @@ export function holdSlots(
  * heroes, so they stay clearly readable — a notch under the inspect pose
  * (that one is the card's moment), never a thumbnail.
  */
-export function holdScale(viewportH: number, naturalH: number): number {
+export function holdScale(stageH: number, naturalH: number): number {
   const s = conUiScale();
-  return Math.min(0.5 * s, Math.max(0.24 * s, (viewportH * 0.3) / Math.max(1, naturalH)));
+  return Math.min(0.5 * s, Math.max(0.24 * s, (stageH * 0.3) / Math.max(1, naturalH)));
 }

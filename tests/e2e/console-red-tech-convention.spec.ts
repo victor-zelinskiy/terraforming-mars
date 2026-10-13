@@ -167,7 +167,8 @@ async function armProbe(page: Page): Promise<void> {
       if (cell.includes('+') && !p.deckUp.includes(cell) && p.deckUp.length < 8) {
         p.deckUp.push(cell);
       }
-      note(p.tray, text(document.querySelector('.con-deckdraw__tray-count')));
+      // The table's ONE discard pile (TR52, PL-260): its count ticks on each card's contact.
+      note(p.tray, document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '');
       const found = Array.from(document.querySelectorAll('.con-deckdraw-proxy.con-deckdraw-proxy--found'))
         .map((el) => el.getAttribute('data-dd-card') ?? '?');
       note(p.found, found.join(','));
@@ -291,7 +292,7 @@ for (const preset of PRESETS) {
       await expect(summary.locator('[data-draw-search]')).toHaveAttribute('data-draw-search', RULE);
       await expect(summary).toContainText(/Вскрыто\s*6/i);
       await expect(summary).toContainText(/Сброшено\s*3/i);
-      await expect(page.locator('.con-hand__outcome .con-reveal__discard-count'), 'the tray: the server\'s three').toHaveText('3');
+      await expect(page.locator('[data-discard-pile]'), 'the pile: the server\'s three').toHaveAttribute('data-discard-pile-count', '3');
       await stopStory();
       await shoot(page, preset.id, '02-reveal');
 
@@ -477,23 +478,24 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
     await summary.waitFor({timeout: 60_000});
     await settle(page, {timeoutMs: 40_000});
     await expect(summary).toHaveAttribute('data-search-revealed', '6');
-    await expect(page.locator('.con-hand__outcome .con-reveal__discard-count')).toHaveText('3');
+    await expect(page.locator('[data-discard-pile]')).toHaveAttribute('data-discard-pile-count', '3');
     // The summary is ONE line and is never cut by its row (the head reserves one row).
     const fits = await summary.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= window.innerWidth);
     expect(fits, 'the summary fits its own box and the screen').toBe(true);
-    // PL-091 (the owner's decision 2026-10-07): the discard berth's corner is kept clear by the stage fit — no card
-    // of the row runs under it (on the Deck the last card's VP badge did).
+    // PL-091 (the owner's decision 2026-10-07): no card of the row runs under the discard pile (on the Deck the last
+    // card's VP badge did, under the old corner berth). Since TR52 the pile is the TABLE's, beside the HUD deck under
+    // the status strip — outside the zone by construction; asserted against the plate the player sees.
     const hits = await page.evaluate(() => {
-      const berth = document.querySelector('.con-hand__outcome .con-reveal__discard')?.getBoundingClientRect();
-      if (berth === undefined) {
-        return ['no berth'];
+      const plate = document.querySelector('[data-discard-pile] .con-dpile__plate')?.getBoundingClientRect();
+      if (plate === undefined) {
+        return ['no pile'];
       }
       return Array.from(document.querySelectorAll('.con-hand__outcome .con-reveal__strip .con-cards__slot'))
         .map((el) => el.getBoundingClientRect())
-        .filter((r) => r.right > berth.left && r.left < berth.right && r.bottom > berth.top && r.top < berth.bottom)
-        .map((r) => `slot ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} vs berth ${Math.round(berth.left)},${Math.round(berth.top)}`);
+        .filter((r) => r.right > plate.left && r.left < plate.right && r.bottom > plate.top && r.top < plate.bottom)
+        .map((r) => `slot ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} vs pile ${Math.round(plate.left)},${Math.round(plate.top)}`);
     });
-    expect(hits, 'no card under the discard berth').toEqual([]);
+    expect(hits, 'no card under the discard pile').toEqual([]);
     // PL-092: the status line's NAME yields only when the line is full — «Горнопромышленный район» (the second
     // card) used to be cut to «…рай…» by a flat 17rem cap with a whole empty line on either side. Walk the row and
     // read every name: whole while its bar has room, cut only by its own ellipsis once it has none.
@@ -551,7 +553,7 @@ test.describe('TR32 Red Tech Convention · three clean cards on top', () => {
     await expect(summary).toHaveAttribute('data-search-revealed', '3');
     await expect(summary).toHaveAttribute('data-search-discarded', '0');
     await expect(summary.locator('[data-draw-search]')).toHaveAttribute('data-draw-search', RULE);
-    await expect(page.locator('.con-reveal__discard'), 'no tray').toHaveCount(0);
+    await expect(page.locator('[data-discard-pile]'), 'no pile').toHaveCount(0);
     await expect(page.locator('.con-cmdbar'), 'no R3 verb').not.toContainText(/сброшенные/i);
     await shoot(page, 'fhd', '06-clean-top');
     await press(page, 'Escape', 600);

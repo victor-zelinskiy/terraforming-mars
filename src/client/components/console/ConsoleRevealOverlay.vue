@@ -410,29 +410,9 @@
                 <span class="con-reveal__pager-b">]</span>
               </div>
             </div>
-            <!--
-              The DISCARD tray of a conditional deck search — the cards the
-              deck turned over and threw away to find these. Deliberately
-              SECONDARY: a compact face-down pile in its own corner that never
-              shrinks the received cards. It is NOT a focus target (it never
-              competes with the received cards for the selection frame) — it is
-              opened ONLY by R3, always available while the modal is up, so
-              inspecting it is a deliberate side-move, never part of the flow.
-            -->
-            <div v-if="discardedCards.length > 0" class="con-reveal__discard">
-              <span class="con-reveal__discard-pile" aria-hidden="true">
-                <span v-if="discardedCards.length > 2" class="con-card-back con-reveal__discard-back con-reveal__discard-back--3"></span>
-                <span v-if="discardedCards.length > 1" class="con-card-back con-reveal__discard-back con-reveal__discard-back--2"></span>
-                <span class="con-card-back con-reveal__discard-back con-reveal__discard-back--1"></span>
-                <span class="con-reveal__discard-count">{{ discardedCards.length }}</span>
-              </span>
-              <span class="con-reveal__discard-meta">
-                <span class="con-reveal__discard-label">{{ $t('DISCARDED') }}</span>
-                <span class="con-reveal__discard-hint">
-                  <GamepadGlyph control="stickR" /><span>{{ $t('Inspect') }}</span>
-                </span>
-              </span>
-            </div>
+            <!-- (The DISCARD berth that stood in this corner is gone: the cards the search threw away lie on the
+                 table's ONE pile beside the HUD deck — `ConsoleDiscardPile` — which this reveal holds out while it
+                 presents the batch; R3 «Сброшенные» opens the viewer OUT of that pile. TR52, PL-260.) -->
           </div>
 
           <!-- ── RESULT: the deck-check outcome (SearchForLife etc.) — a filled
@@ -589,8 +569,9 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
-  sourceSeatReservePx, StageCornerKeepOut, verdictStageFit, wsStageLayoutClearOf, wsStageLayoutStyle,
+  sourceSeatReservePx, verdictStageFit, wsStageLayout, wsStageLayoutStyle,
 } from '@/client/console/consoleWsStageLayout';
+import {discardPileStackEl, ensureDiscardPileCount, openDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleDrawSearchTally from '@/client/components/console/foundation/ConsoleDrawSearchTally.vue';
 import {discardedSteps, drawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
@@ -1584,8 +1565,41 @@ export default defineComponent({
       }
       return seq.filter((step) => !step.matched).map((step) => step.card);
     },
+    /**
+     * THIS REVEAL'S LEASE on the table's discard pile (TR52, PL-260): a batch that threw cards away keeps the pile
+     * out for as long as it is presented — the pile is what R3 «Сброшенные» opens, and the player reads the count
+     * beside the deck while choosing what to take. '' = no lease (a plain draw, another mode, a parked table).
+     */
+    discardPileLease(): string {
+      const e = this.drawnEvent;
+      // …and only while a card of the batch is still to TAKE. Past the take the pile has nothing left to say, and the
+      // batch may linger as «current» behind the follow-up hold (`holdRevealForFollowUp` — a plain module flag, so no
+      // computed notices its release): the global pile outlived the hand by 15 s at 4K (the TR52 e2e).
+      const untaken = e === undefined ? 0 : e.cards.length - e.takenIndices.size;
+      return e !== undefined && this.discardedCards.length > 0 && untaken > 0 ? `reveal:${e.id}` : '';
+    },
+    /** A deck-draw scene is playing (reactive read of the scene's own flag). */
+    deckDrawLive(): boolean {
+      return deckDrawState.active;
+    },
   },
   watch: {
+    discardPileLease: {
+      immediate: true,
+      handler(lease: string, was: string | undefined): void {
+        if (was !== undefined && was !== '' && was !== lease) {
+          releaseDiscardPile(was);
+        }
+        if (lease !== '') {
+          openDiscardPile(lease);
+          this.syncDiscardPileCount();
+        }
+      },
+    },
+    /** The scene that dealt this batch has ended: the pile must say every card the server threw away. */
+    deckDrawLive(): void {
+      this.syncDiscardPileCount();
+    },
     /*
      * LATCH the workspace ownership for this batch (see `ownedBatchKey`).
      * `immediate` because the rising edge is at or before mount — the claim is
@@ -1768,6 +1782,9 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    if (this.discardPileLease !== '') {
+      releaseDiscardPile(this.discardPileLease);
+    }
     setRevealVeilSuppressed(false);
     // The table's own handles die with the instance (a turn mid-flight finishes as an open card, never a frozen
     // half-turn on the next mount — the module's memory paints the same picture again).
@@ -2298,27 +2315,15 @@ export default defineComponent({
       // the seat is BESIDE the cards, so it may not cost them a single pixel of
       // the height they are the protagonists of.
       const seatReserve = sourceSeatReservePx(ui);
-      // THE DISCARD BERTH'S CORNER (PL-091): the search's pile stands absolute in the stage's lower-right corner and
-      // the rows must clear it — measured off the berth's own box (never a constant), applied only when a row would
-      // actually reach it, so a profile with room keeps the very shape it had (`wsStageLayoutClearOf`).
-      const berth = root.querySelector<HTMLElement>('.con-reveal__discard');
-      let keepOut: StageCornerKeepOut | undefined;
-      if (berth !== null) {
-        const sr = strip.getBoundingClientRect();
-        const br = berth.getBoundingClientRect();
-        const clearance = 8 * ui;
-        keepOut = {
-          left: br.left - (sr.left + (parseFloat(cs.paddingLeft) || 0)) - clearance,
-          top: br.top - (sr.top + (parseFloat(cs.paddingTop) || 0)) - clearance,
-        };
-      }
-      const layout = wsStageLayoutClearOf({
+      // (The discard berth's corner keep-out (PL-091) is gone with the berth: the search's pile is the table's now,
+      // beside the HUD deck — the stage keeps no corner for it. TR52, PL-260.)
+      const layout = wsStageLayout({
         availW: Math.max(1, availW - zoneExtraW - seatReserve * 2),
         availH: Math.max(1, availH - zoneExtraH),
         slotW, slotH, n, ui,
         rowGapPx: colGap + zoneCaptionH,
         padXPx: padX + zoneExtraW,
-      }, {w: availW, h: availH}, keepOut);
+      });
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;
@@ -2598,6 +2603,15 @@ export default defineComponent({
      * read). B returns to the modal with focus intact, exactly like the
      * played-events pile. No receive bridge: these cards are not takeable.
      */
+    /**
+     * The pile says at least the server's count of this batch's discards — once no scene is landing them (a reload
+     * into a standing reveal, an aborted scene): the cards are on the pile by the rules, the count may not lag them.
+     */
+    syncDiscardPileCount(): void {
+      if (this.discardPileLease !== '' && !deckDrawState.active) {
+        ensureDiscardPileCount(this.discardedCards.length);
+      }
+    },
     openDiscards(): void {
       const list = this.discardedCards;
       if (list.length === 0) {
@@ -2610,10 +2624,10 @@ export default defineComponent({
       openConsoleCardZoom(list, 0, undefined, undefined, {
         statusLabel: 'Discarded card',
         discardVerdictAt: (index) => drawDiscardVerdict(steps[index], search),
-        // The pile IS the physical origin — the viewer lifts out of it.
+        // The pile IS the physical origin — the viewer lifts out of the table's discard pile (beside the HUD deck).
         origin: {
           kind: 'physical',
-          resolve: () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-reveal__discard-pile') ?? null,
+          resolve: () => discardPileStackEl(),
         },
       });
     },

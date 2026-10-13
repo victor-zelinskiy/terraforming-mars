@@ -123,6 +123,18 @@ export function isDeckDisplayHeld(): boolean {
   return deckHoldState.held !== undefined;
 }
 
+/**
+ * ONE card has physically left the deck under a standing hold — the held count falls by one (TR52, PL-261: the
+ * thrown-away cards of a search a workspace's own beat deals tick the counter card by card, the found ones release it
+ * to the server's number). A no-op without a hold: the counter already shows the truth.
+ */
+export function tickDeckDisplay(): void {
+  if (deckHoldState.held !== undefined) {
+    deckHoldState.held = Math.max(0, deckHoldState.held - 1);
+    deckHoldState.seeded = false;
+  }
+}
+
 /** The value the widget shows: the held pre-animation size, else the
  *  server-authoritative one. */
 export function displayedDeckSize(actual: number): number {

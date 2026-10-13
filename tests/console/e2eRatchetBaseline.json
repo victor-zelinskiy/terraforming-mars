@@ -166,7 +166,7 @@
       "waitForTimeout": 5
     },
     "console-deck-draw.spec.ts": {
-      "waitForTimeout": 2
+      "waitForTimeout": 1
     },
     "console-deck-pick.spec.ts": {
       "waitForTimeout": 6
