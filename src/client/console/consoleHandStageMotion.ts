@@ -376,9 +376,8 @@ export function handStageLeaveHook(el: Element, done: () => void): void {
 const ART_WAIT_MS = 220;
 
 /** Every slot but the played card's own (held by its transfer), plus the browse chrome. */
-function pickSiblingsOf(browse: HTMLElement, source: string | undefined): Array<HTMLElement> {
-  return Array.from(browse.querySelectorAll<HTMLElement>('.con-hand__slot, .con-hand__pgedge, .con-hand__verdictbar, .con-hand__empty'))
-    .filter((el) => source === undefined || el.getAttribute('data-zoom-slot') !== source);
+function pickSiblingsOf(browse: HTMLElement): Array<HTMLElement> {
+  return Array.from(browse.querySelectorAll<HTMLElement>('.con-hand__slot, .con-hand__pgedge, .con-hand__verdictbar, .con-hand__empty'));
 }
 
 /** Resolves once every album card's art has settled (loaded, fallback or void) — or after `ART_WAIT_MS`. */
@@ -415,12 +414,14 @@ const livePickPhrases = new WeakMap<Element, () => void>();
  * value it wrote. `run` builds the motion and calls `finish` when it is done.
  */
 function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTMLElement}, targets: ReadonlyArray<HTMLElement>,
-  budgetMs: number, run: (finish: () => void, alive: () => boolean) => void): void {
+  budgetMs: number, run: (finish: () => void, alive: () => boolean) => void, onDone?: () => void): void {
   livePickPhrases.get(root)?.();
   killEpisode(root);
   const all = [layers.stage, layers.browse, ...targets];
   const release = acquireGate();
   let finished = false;
+  // ONE end, whichever road reaches it first (the timeline, the safety, a superseding phrase): the caller's `onDone`
+  // fires exactly once.
   const finish = () => {
     if (finished) {
       return;
@@ -433,14 +434,15 @@ function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTML
     gsap.killTweensOf(all);
     gsap.set(all, {clearProps: 'opacity,visibility,transform'});
     release();
+    onDone?.();
   };
   const safety = window.setTimeout(finish, motionMs(budgetMs) + 1200);
   livePickPhrases.set(root, finish);
   run(finish, () => !finished);
 }
 
-/** PAUSE — the stage gives the shelf back (see the section above). `source`: the played card's slot, if seated. */
-export function handStagePickPause(root: HTMLElement, source: string | undefined): void {
+/** PAUSE — the stage gives the shelf back (see the section above). */
+export function handStagePickPause(root: HTMLElement): void {
   const layers = pickLayersOf(root);
   if (typeof window === 'undefined' || layers === undefined || noGeometry(root) || consoleReducedMotionActive()) {
     livePickPhrases.get(root)?.();
@@ -448,7 +450,7 @@ export function handStagePickPause(root: HTMLElement, source: string | undefined
   }
   const {browse, stage} = layers;
   const items = cascadeItemsOf(stage);
-  const siblings = pickSiblingsOf(browse, source);
+  const siblings = pickSiblingsOf(browse);
   pickPhrase(root, layers, [...items, ...siblings], GROUPS_OUT_MS + SIBLINGS_IN_MS + ART_WAIT_MS, (finish, alive) => {
     // FIRST, before this flush can paint: the composer stays where it stood, the shelf stays dark.
     gsap.set(stage, {autoAlpha: 1});
@@ -479,15 +481,17 @@ export function handStagePickPause(root: HTMLElement, source: string | undefined
 }
 
 /** RESUME — the shelf gives the stage back: the hand lets go in place, the composer assembles behind the card. */
-export function handStagePickResume(root: HTMLElement, source: string | undefined): void {
+/** RESUME — the stage returns through the shelf's release. `onDone` fires once the phrase is over (at once without one). */
+export function handStagePickResume(root: HTMLElement, onDone?: () => void): void {
   const layers = pickLayersOf(root);
   if (typeof window === 'undefined' || layers === undefined || noGeometry(root) || consoleReducedMotionActive()) {
     livePickPhrases.get(root)?.();
+    onDone?.();
     return;
   }
   const {browse, stage} = layers;
   const items = cascadeItemsOf(stage);
-  const siblings = pickSiblingsOf(browse, source);
+  const siblings = pickSiblingsOf(browse);
   pickPhrase(root, layers, [...items, ...siblings], ISOLATE_MS + CASCADE_MS, (finish) => {
     // FIRST: the shelf stays on screen (the class just parked it), the stage stays dark (the class just lit it).
     gsap.set(browse, {autoAlpha: 1});
@@ -507,7 +511,7 @@ export function handStagePickResume(root: HTMLElement, source: string | undefine
     if (items.length > 0) {
       tl.to(items, {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', stagger: CASCADE_STAGGER_S}, s(ISOLATE_MS + 20));
     }
-  });
+  }, onDone);
 }
 
 // ── cancelled pairs ─────────────────────────────────────────────────────────

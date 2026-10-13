@@ -269,20 +269,15 @@
                    'con-hand__slot--notnow': !saleActive && !selectActive && cell.e.potential && !cell.e.playable,
                    'con-hand__slot--sale-picked': saleActive && isSaleSelected(cell.e.card.name),
                    'con-hand__slot--select-picked': selectActive && isSelectPicked(cell.e.card.name),
-                   'con-hand__slot--select-disabled': selectActive && !isSelectable(cell.e.card.name) && cell.e.card.name !== pickSource,
-                   'con-hand__slot--source': cell.e.card.name === pickSource,
+                   'con-hand__slot--select-disabled': selectActive && !isSelectable(cell.e.card.name),
                    'con-deal-hold': cell.e.card.name === stagedCard,
-                 }"
-                 :data-pick-source="cell.e.card.name === pickSource ? '' : undefined">
+                 }">
               <Card :card="cell.e.card" :key="cell.e.card.name" :art-tier="handArtTier" lightweight />
               <span v-if="cell.e.robot" class="con-hand__robot" v-i18n>Robots</span>
               <!-- State band: sale pick / select pick (✓), a "can't select"
                    marker on a non-candidate, else a COMPACT play blocker chip
                    (the full reason is in the info panel below). -->
-              <!-- THE CARD BEING PLAYED — home in its own slot while the hand answers its question: the protagonist,
-                   never a refused candidate (no dim, no «Недоступно»); A on it names why it is not a choice. -->
-              <span v-if="cell.e.card.name === pickSource" v-show="pickSourceSeated" class="con-cards__pickband con-cards__pickband--source" aria-hidden="true">{{ $t('Being played') }}</span>
-              <span v-else-if="saleActive && isSaleSelected(cell.e.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+              <span v-if="saleActive && isSaleSelected(cell.e.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
               <span v-else-if="selectActive && isSelectPicked(cell.e.card.name)"
                     class="con-cards__pickband"
                     :class="discard !== undefined ? 'con-cards__pickband--discard' : 'con-cards__pickband--select'"
@@ -390,8 +385,6 @@
              for a non-candidate card (the fork's always-explain rule). -->
         <span v-if="isSelectPicked(selected.name)" class="con-cards__verdict con-cards__verdict--picked"><span aria-hidden="true">{{ discard !== undefined ? '⌫' : '✓' }}</span> {{ $t(discard !== undefined ? 'Discarded' : 'Card selected') }}</span>
         <span v-else-if="isSelectable(selected.name)" class="con-cards__verdict con-cards__verdict--ok">{{ $t(discard !== undefined ? 'Can be discarded' : 'Not selected') }}</span>
-        <!-- The card being played, seated in its slot: the source of the question, never a refused candidate. -->
-        <span v-else-if="selected.name === pickSource" class="con-cards__verdict con-cards__verdict--source">{{ $t('Being played') }}</span>
         <template v-else>
           <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unavailable') }}</span>
           <span v-if="focusedSelectReason !== ''" class="con-hand__reason con-hand__reason--bar con-hand__reason--rule">{{ focusedSelectReason }}</span>
@@ -792,18 +785,11 @@ export default defineComponent({
      * handover pauses the stage too, with handoffs of their own.
      */
     handPickOpen: {type: Boolean, default: false},
-    /**
-     * THE CARD BEING PLAYED, seated in its own slot while the hand answers its composer's question: it is shown (never
-     * pickable — «Разыгрывается»), its transfer flies it home on the pause and back up on the resume.
-     */
-    pickSource: {type: String as PropType<CardName | undefined>, default: undefined},
-    /** …and it has LANDED in its slot: its «Разыгрывается» band pops on the touchdown, the answer to the arrival. */
-    pickSourceSeated: {type: Boolean, default: false},
   },
+  /** `pick-resumed`: the pick's RESUME phrase is done (or needed no phrase) — the shell releases the shelf's frozen look. */
+  emits: ['pick-resumed'],
   data() {
     return {
-      /** The played card seated by the pick that is out — remembered for its resume (the prop is gone by then). */
-      lastPickSource: undefined as CardName | undefined,
       box: {w: 0, h: 0},
       /** The workspace OUTCOME claim (module reactive — a path watcher needs
        *  the mirror here, or it never fires). */
@@ -1240,11 +1226,12 @@ export default defineComponent({
           return;
         }
         if (out) {
-          handStagePickPause(root, this.pickSource);
+          handStagePickPause(root);
         } else if (this.stageOpen && !this.discarding) {
-          handStagePickResume(root, this.lastPickSource);
+          handStagePickResume(root, () => this.$emit('pick-resumed'));
+        } else {
+          this.$emit('pick-resumed');
         }
-        this.lastPickSource = out ? this.pickSource : undefined;
       },
     },
     /**
@@ -1342,13 +1329,7 @@ export default defineComponent({
      *  set their own index) — adopt the current position as the new anchor
      *  even when the number itself did not change. */
     modeKey() {
-      const name = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
-      // A pick that SEATS the card being played never starts the cursor on it — the card the player just opened is
-      // the question's source, and the answer is among the candidates (the identity anchor would otherwise carry the
-      // browse cursor, which stood on that very card, into the pick).
-      this.focusName = name !== undefined && name === this.pickSource ?
-        (this.entries.find((e) => e.card.name !== this.pickSource && this.isSelectable(e.card.name))?.card.name ?? name) :
-        name;
+      this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
     },
     /**
      * FOCUS FOLLOWS THE CARD, NOT THE NUMBER. When the entries re-sort (a card
@@ -1368,13 +1349,6 @@ export default defineComponent({
       }
       const cur = clampNum(0, len - 1, this.index);
       const curName = list[cur]?.card.name;
-      // The card being played, SEATED for a pick, is never the anchor the cursor follows into it: the browse cursor
-      // stood on it (that press opened the play), and this watcher runs first in the flush that opens the pick — it
-      // would carry the cursor onto the question's source instead of the first answer the shell chose.
-      if (this.focusName !== undefined && this.focusName === this.pickSource && curName !== this.pickSource) {
-        this.focusName = curName;
-        return;
-      }
       if (this.focusName !== undefined && curName !== this.focusName) {
         const at = list.findIndex((e) => e.card.name === this.focusName);
         if (at >= 0) {

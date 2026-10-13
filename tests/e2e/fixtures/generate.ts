@@ -168,6 +168,9 @@ import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScie
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {AsteroidRights} from '../../../src/server/cards/promo/AsteroidRights';
+import {PublicPlans} from '../../../src/server/cards/promo/PublicPlans';
+import {AcquiredCompany} from '../../../src/server/cards/base/AcquiredCompany';
+import {InvestmentLoan} from '../../../src/server/cards/base/InvestmentLoan';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, seatResolution, seatEnacted} from '../../parliament/parliamentArrange';
 import {REDUX_PARTIES} from '../../../src/common/parliament/ParliamentTypes';
@@ -719,6 +722,23 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   p2.megaCredits = 30;
   runAllActions(game);
   write('variant-tiles', game);
+}
+
+// ── public-plans: X77 Public Plans in blue's hand beside five plain cards —
+//    «reveal any number of OTHER cards from your hand, +1 M€ each»: the play
+//    composer's pre-select is a MULTI pick in the hand album (the card being
+//    played is no candidate — the rules say OTHER — and the pick offers
+//    «select all»). 30 M€ so the play is affordable; CALM corporations on both
+//    seats (the seeded deal once handed blue Interplanetary Cinematics, whose
+//    event trigger answered the play with «+2» the spec had to explain away). ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1});
+  answerStartFlow(game, [p1, p2]);
+  p1.cardsInHand.push(new PublicPlans(), new AcquiredCompany(), new RoverConstruction(), new InvestmentLoan(), new Lichen(), new Algae());
+  p1.megaCredits = 30;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write('public-plans', game);
 }
 
 // ═══════════════════════ THE MARS PARLIAMENT (Turmoil Redux) ═══════════════════════

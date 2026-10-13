@@ -228,12 +228,11 @@
                           :turnWindowClosed="handTurnWindowClosed"
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
-                          :stagedCard="handPickSourceCard !== undefined ? undefined : stagedHandCard"
+                          :stagedCard="stagedHandCard"
                           :stage="handStage"
                           :stagePaused="pickBridgeActive"
                           :handPickOpen="handPickOverlays"
-                          :pickSource="handPickSourceCard"
-                          :pickSourceSeated="pickSourceLanded"
+                          @pick-resumed="pickResumeFreeze = undefined"
                           :transitHold="handRevealState.holdSlots"
                           :filterBusy="handRevealState.filterActive"
                           :underScene="sceneOverHand || consoleRevealMode !== undefined" />
@@ -1595,7 +1594,7 @@
              captured choices/payment must survive the hand round-trip (the
              director recognizes the pick bridge and never animates it). -->
         <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
-                                v-show="!pickBridgeActive || repeatPickHandoff || handPickSourceCard !== undefined"
+                                v-show="!pickBridgeActive || repeatPickHandoff || handPickPhrased"
                                 :class="{'con-bridgefade': repeatPickHandoff}"
                                 ref="playConfirm"
                                 :playerView="playerView"
@@ -2729,12 +2728,9 @@ export default defineComponent({
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
       returningPlayCard: undefined as CardName | undefined,
-      /** The card being played that a hand pick SEATED in its slot (`handPickSourceCard`) — its way back up. */
-      pickSeatedCard: undefined as CardName | undefined,
-      /** …and it has touched down there (its band pops on the landing, not under the proxy). */
-      pickSourceLanded: false,
-      /** The pick's last select look (kept while it stands) → frozen on the shelf while it leaves (`handSelectProps`). */
+      /** A phrased pick's last select look (kept while it stands) → frozen on the shelf while it leaves (`handSelectProps`). */
       lastPickSelect: undefined as ConsoleHandSelectMode | undefined,
+      /** …held until the section's resume phrase is done (`pick-resumed`) — never browse decorations under the departure. */
       pickResumeFreeze: undefined as ConsoleHandSelectMode | undefined,
       /** Stale-release token of the start excursion's quiet re-check (the
        *  release is confirmed one tick + one frame later, so a one-flush
@@ -3472,17 +3468,17 @@ export default defineComponent({
       return this.handPickActive && consoleHandPickState.request?.hosted === undefined;
     },
     /**
-     * THE CARD BEING PLAYED, SEATED IN ITS OWN SLOT while the hand answers its composer's question (the owner's hard
-     * rule 2026-10-13 — a card from the hand is chosen IN the hand, and the transition is the workspace's phrase, never
-     * a cut). Only for a PRE-SELECT of the play composer standing in this very hand (`leaving: 'none'`, the composer
-     * embedded in the hand's stage): the card flies home into its slot on the pause and back up to the composer on the
-     * resume (`handPickActive` watcher), shown «Разыгрывается» between — never pickable, never dimmed as refused.
+     * THE PICK IS A PHRASE OF THE PLAY COMPOSER STANDING IN THIS VERY HAND (the owner's hard rule 2026-10-13 — a card
+     * from the hand is chosen IN the hand, and the transition is the workspace's phrase, never a cut): a PRE-SELECT
+     * (`leaving: 'none'`) of the composer embedded in the hand's stage pauses that stage and resumes it through the
+     * section's own two phrases (`handStagePickPause` / `handStagePickResume`), so the composer stays MOUNTED and
+     * visible to let go in place. The card being played is NOT in the album during its pick (2026-10-14, the owner's
+     * Public Plans photo: «reveal any number of OTHER cards» — the rules never offer it, so it is not shown; it stays
+     * the composer's hero, L3 inspects it as the SOURCE).
      */
-    handPickSourceCard(): CardName | undefined {
-      if (!this.handPickActive || consoleHandPickState.request?.leaving !== 'none' || this.playEmbedTarget === undefined) {
-        return undefined;
-      }
-      return this.pendingPlayCard?.cardName;
+    handPickPhrased(): boolean {
+      return this.handPickActive && consoleHandPickState.request?.leaving === 'none' && this.playEmbedTarget !== undefined &&
+        this.pendingPlayCard !== undefined;
     },
     /**
      * The stage-reward pick is OUT (reactive read of the bridge state). While
@@ -6801,14 +6797,13 @@ export default defineComponent({
       // CLIENT composer pick: same narrowing as the server select, over the
       // pick's shown-hand universe (no staged card, no SRR-hosted cards).
       if (this.handPickActive) {
-        // …plus the card being played, SEATED in its own slot (`handPickSourceCard`) — whatever the filter says:
-        // it is the question's source, not a candidate the filter could hide.
-        const source = this.handPickSourceCard;
+        // The card being played is NOT among them (`handPickHandNames` leaves the staged card out): the rules never
+        // offer it — «reveal any number of OTHER cards» — so the album does not show it (2026-10-14).
         const shown = new Set(this.handPickHandNames);
-        const base = this.handEntriesAll.filter((e) => shown.has(e.card.name) || e.card.name === source);
+        const base = this.handEntriesAll.filter((e) => shown.has(e.card.name));
         if (this.handSelectSuitableOnly && this.handSelectFiltered) {
           const sel = new Set(this.handSelectSelectableNames);
-          return base.filter((e) => sel.has(e.card.name) || e.card.name === source);
+          return base.filter((e) => sel.has(e.card.name));
         }
         return base;
       }
@@ -6836,9 +6831,8 @@ export default defineComponent({
      */
     handAlbumUniverse(): ReadonlyArray<ConsoleHandEntry> {
       if (this.handPickActive) {
-        const source = this.handPickSourceCard;
         const shown = new Set(this.handPickHandNames);
-        return this.handEntriesAll.filter((e) => shown.has(e.card.name) || e.card.name === source);
+        return this.handEntriesAll.filter((e) => shown.has(e.card.name));
       }
       return this.handEntriesAll;
     },
@@ -6968,6 +6962,15 @@ export default defineComponent({
       const target = Math.min(req.selectable.length, req.max);
       return target > 0 && consoleHandPickState.selected.length >= target;
     },
+    /** The live multi select holds every candidate it may (`max`) — R3 then reads «unselect all». */
+    taskAllSelected(): boolean {
+      const model = this.handSelectModel;
+      if (model === undefined) {
+        return false;
+      }
+      const target = Math.min(this.handSelectSelectableNames.length, model.max);
+      return target > 0 && this.consoleState.select.selected.length >= target;
+    },
     /** PURE derivation of the select facts (pickable set / single-vs-multi /
      *  conditional-subset / per-card «why not» reasons) — the i18n of a
      *  disabledReason is injected so the derivation module stays locale-free. */
@@ -6987,11 +6990,6 @@ export default defineComponent({
           if (!selectableSet.has(name) && reasons[name] === undefined) {
             reasons[name] = translateText('This card cannot be chosen here');
           }
-        }
-        // The card being played, seated in its slot: A on it names WHY it is no answer.
-        const source = this.handPickSourceCard;
-        if (source !== undefined) {
-          reasons[source] = translateText('This card is being played');
         }
         return {
           selectable: pick.selectable,
@@ -9062,7 +9060,9 @@ export default defineComponent({
           }
         } else {
           cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
-          cmds.push({control: 'stickL', label: this.pickAllSelected ? 'Unselect all' : 'Select all'});
+          // R3 = select all / unselect all (L3 is the SOURCE on every contextual surface — the two once shared L3,
+          // and the source always won: 2026-10-14, the owner's Public Plans report).
+          cmds.push({control: 'stickR', label: this.pickAllSelected ? 'Unselect all' : 'Select all'});
           // With nothing picked an optional pick's RT is its DECLINE; from the first pick on it confirms the set.
           const decline = this.handPickDeclineLive ? consoleHandPickState.request?.decline : undefined;
           cmds.push(decline !== undefined ?
@@ -9507,7 +9507,7 @@ export default defineComponent({
         const n = this.consoleState.sale.selected.length;
         return [
           {control: 'confirm', label: 'Select'},
-          {control: 'stickL', label: this.saleAllSelected ? 'Unselect all' : 'Select all'},
+          {control: 'stickR', label: this.saleAllSelected ? 'Unselect all' : 'Select all'},
           {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0, priority: 1},
           {control: 'back', label: 'Cancel'},
@@ -9533,6 +9533,10 @@ export default defineComponent({
           cmds.push({control: 'confirm', label: verb, enabled: canPick});
         } else {
           cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
+          // The server's own «select all» (`SelectCard.showSelectAll` — Public Plans' live play) rides R3, beside L3's source.
+          if (this.handSelectModel?.showSelectAll === true) {
+            cmds.push({control: 'stickR', label: this.taskAllSelected ? 'Unselect all' : 'Select all'});
+          }
           cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
         }
         cmds.push({control: 'secondary', label: 'Inspect'});
@@ -12056,9 +12060,9 @@ export default defineComponent({
         setPickSuppressed(now);
       },
     },
-    /** A seated pick's latest select look — what the shelf freezes on while it leaves (`pickResumeFreeze`). */
+    /** A phrased pick's latest select look — what the shelf freezes on while it leaves (`pickResumeFreeze`). */
     handSelectProps(v: ConsoleHandSelectMode | undefined): void {
-      if (v !== undefined && this.handPickSourceCard !== undefined) {
+      if (v !== undefined && this.handPickPhrased) {
         this.lastPickSelect = v;
       }
     },
@@ -12072,11 +12076,14 @@ export default defineComponent({
      * overlay IS the origin, and it was never anywhere else.
      */
     handPickActive(now: boolean): void {
-      // THE CARD BEING PLAYED TRAVELS WITH THE PICK (`handPickSourceCard`): home into its own slot on the way in, back
-      // up into the composer's well on the way out — the cancel's and the descent's own transfers, so the pick reads
-      // as one level of the same workspace and the card never leaves the screen. Both start HERE, before the patch:
-      // the transfer measures its source synchronously (the composer's well / the seated slot as the player sees it).
-      this.flyPickSource(now);
+      // A PHRASED pick (`handPickPhrased`) resumes the embedded composer through the section's own phrase; the
+      // leaving shelf keeps the pick's LAST look until that phrase is done (`pickResumeFreeze`, released by the
+      // section's `pick-resumed`) — never browse decorations (play rings, requirement chips, «Можно разыграть»)
+      // flashing in under the departure. An un-phrased pick recorded no look, so nothing is frozen.
+      if (!now) {
+        this.pickResumeFreeze = this.lastPickSelect;
+        this.lastPickSelect = undefined;
+      }
       if (now) {
         const selectable = new Set(this.handSelectSelectableNames);
         const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
@@ -14946,20 +14953,15 @@ export default defineComponent({
         // DURING PLACEMENT L3 is the SAME verb: the card placing this tile.
         // (It used to be «next available cell» — a jump nobody used, on the one
         // screen where the shell's most consistent verb had nowhere to live.)
-        // P27: on the board home L3 toggles BOARD INSPECTION MODE. In the hand's
-        // sell-patents multi-select L3 = SELECT ALL / UNSELECT ALL.
+        // P27: on the board home L3 toggles BOARD INSPECTION MODE. (The hand's
+        // «select all» lives on R3 since 2026-10-14 — it shared L3 with the
+        // source, and the source, checked first, always won.)
         if (this.contextualSourceCard !== undefined) {
           this.inspectContextualSource();
         } else if (this.placementActive && this.consoleState.section === 'board') {
           this.inspectPlacementSource();
         } else if (onBoard) {
           this.toggleInspection();
-        } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
-          this.toggleSelectAllSale();
-        } else if (this.consoleState.section === 'hand' && this.handPickActive && !this.handSelectSingle) {
-          // Multi hand pick (Public Plans «reveal any number»): L3 = select all
-          // candidates (bounded by max) / clear — mirrors the sale-mode L3.
-          this.togglePickSelectAll();
         }
         return true;
       }
@@ -14974,6 +14976,17 @@ export default defineComponent({
           this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
         } else if (onBoard) {
           this.toggleScaleInspect();
+        } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
+          // The patent sale: R3 = SELECT ALL / UNSELECT ALL.
+          this.toggleSelectAllSale();
+        } else if (this.consoleState.section === 'hand' && this.handPickActive && !this.handSelectSingle) {
+          // A composer's multi hand pick (Public Plans «reveal any number»): R3 = select every candidate (bounded
+          // by max) / clear — the sale's R3. L3 stays the SOURCE (the card being played), as on every contextual
+          // surface; the two shared L3 until 2026-10-14 and the source always won.
+          this.togglePickSelectAll();
+        } else if (this.consoleState.section === 'hand' && this.handSelectTaskActive && !this.handSelectSingle && this.handSelectModel?.showSelectAll === true) {
+          // The server's own «select all» on a live multi select (`SelectCard.showSelectAll`).
+          this.toggleSelectAllTask();
         } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
           this.resetHandFilter();
         }
@@ -16352,63 +16365,6 @@ export default defineComponent({
         },
         onTouchdown: () => {
           this.returningPlayCard = undefined;
-        },
-      }));
-    },
-    /**
-     * THE PICK'S CARD FLIGHT (see the `handPickActive` watcher). In: the composer's well → the card's own album slot
-     * (both held — the well hides under the proxy, the slot stays empty until the touchdown). Out: the seated slot →
-     * the well. A pick that seated nothing (hosted, overlaying another workspace, a live prompt) flies nothing; a
-     * composer gone under the pick (the play left) has no well to return to.
-     */
-    flyPickSource(now: boolean): void {
-      const well = () => document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
-      if (now) {
-        const name = this.handPickSourceCard;
-        const from = name !== undefined ? well() : null;
-        if (name === undefined || from === null) {
-          this.pickSourceLanded = name !== undefined;
-          return;
-        }
-        this.pickSeatedCard = name;
-        this.pickSourceLanded = false;
-        void guardHandHeroFlight(runCardTransfer({
-          name,
-          from,
-          resolveTo: () => this.handExitSlot(name),
-          holdFrom: true,
-          holdTarget: true,
-          onTouchdown: () => {
-            if (this.pickSeatedCard === name) {
-              this.pickSourceLanded = true;
-            }
-          },
-        }));
-        return;
-      }
-      const name = this.pickSeatedCard;
-      this.pickSeatedCard = undefined;
-      this.pickSourceLanded = false;
-      const freeze = this.lastPickSelect;
-      this.lastPickSelect = undefined;
-      const from = name !== undefined ? this.handExitSlot(name) : null;
-      if (name === undefined || from === null || this.pendingPlayCard?.cardName !== name) {
-        return;
-      }
-      // The shelf keeps the pick's look until the card is back in the play (it has faded by then).
-      this.pickResumeFreeze = freeze;
-      void guardHandHeroFlight(runCardTransfer({
-        name,
-        from,
-        resolveTo: well,
-        holdFrom: true,
-        holdTarget: true,
-        // The descent's own answer to the press: the card lifts off its slot before it travels back into the play.
-        onSpawn: heroCommitLift,
-        onTouchdown: () => {
-          if (this.pickResumeFreeze === freeze) {
-            this.pickResumeFreeze = undefined;
-          }
         },
       }));
     },
@@ -22299,7 +22255,7 @@ export default defineComponent({
       }
       picked.push(name as CardName);
     },
-    /** L3 in a multi client pick: select every candidate (bounded by `max`),
+    /** R3 in a multi client pick: select every candidate (bounded by `max`),
      *  or clear the whole selection when it is already complete. */
     togglePickSelectAll(): void {
       const req = consoleHandPickState.request;
@@ -22309,6 +22265,16 @@ export default defineComponent({
       consoleHandPickState.selected = this.pickAllSelected ?
         [] :
         [...req.selectable.slice(0, req.max)];
+    },
+    /** R3 on a live multi select that offers it (`showSelectAll`): every candidate (bounded by `max`), or clear. */
+    toggleSelectAllTask(): void {
+      const model = this.handSelectModel;
+      if (model === undefined) {
+        return;
+      }
+      this.consoleState.select.selected = this.taskAllSelected ?
+        [] :
+        [...this.handSelectSelectableNames.slice(0, model.max)];
     },
     /** RT / confirm: deliver the accumulated multi-select picks (bounds-checked).
      *  A client pick resolves to its composer; the server task submits. */

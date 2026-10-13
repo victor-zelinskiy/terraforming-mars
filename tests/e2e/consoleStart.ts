@@ -2347,6 +2347,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // The variant choice of a card action — ONE printed row, SEVERAL branches: blue holds Atmo Collectors (2 floaters:
   // «аэростат → 2 титан / 3 энергия / 4 тепло») and Asteroid Rights (1 asteroid: «астероид → производство M€ ИЛИ 2 титан»).
   'variant-tiles' |
+  // X77 Public Plans in blue's hand beside five plain cards — the multi hand pick of a play («reveal any number of OTHER cards»).
+  'public-plans' |
   // TR25 Exclusive Colony: blue holds the card with 30 M€ and Unity's access; Luna at its printed limit (red ×2, blue ×1,
   // marker on cell 3), Titan with one cube of blue's and two floater holders, red's fleet on Ceres, Enceladus inactive
   // (docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md).

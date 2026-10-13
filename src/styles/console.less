@@ -9000,18 +9000,6 @@ html.console-mode {
         visibility: hidden;
         pointer-events: none;
     }
-    /* The card being played, SEATED in its own slot while the hand answers its question (`pickSource`): the steel
-       frame of its band — it stands out as the source, it does not read as a choice (the cursor's ring is cyan). */
-    &__slot--source > :is(.card-container, .pcard) {
-        box-shadow: 0 0 0 .12rem rgba(190, 214, 236, 0.9), 0 0 1.1rem rgba(170, 200, 230, 0.28);
-    }
-    /* …and it SNAPS out of the browse cursor's focus scale: the cursor leaves it in the very flush the pick opens
-       (the shelf is still dark), and the transfer flying the card home measures its landing rect at once — a 150 ms
-       ease there landed the card on the old, focus-scaled rect and the slot settled 9 px away under it. Doubled class:
-       the slot's own transition is declared later in this block at equal specificity. */
-    &__slot&__slot--source {
-        transition: none;
-    }
     /* The embedded stage zone — the teleport target. It carries no plate of
        its own: the frame above IS the plane, and a box inside a box is exactly
        what made the play step read as a modal that arrived. */
@@ -23548,14 +23536,6 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         box-shadow: inset 0 0 0 .075rem rgba(168, 196, 222, 0.9), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: #dcebf8;
     }
-    /* BEING PLAYED — the card whose question the hand is answering, seated in its own slot (the hand pick bridge,
-       2026-10-13). The steel of «played», one step brighter: the protagonist of the moment, never a candidate (no
-       cyan — that is the cursor's), never a refusal (no red, no dim). */
-    &__pickband--source {
-        background: linear-gradient(180deg, rgba(150, 180, 210, 0.34), rgba(150, 180, 210, 0.16)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem rgba(190, 214, 236, 0.95), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem rgba(170, 200, 230, 0.22);
-        color: #e8f2fb;
-    }
     &__pickband--awaiting {
         background: linear-gradient(180deg, rgba(110, 135, 160, 0.22), rgba(110, 135, 160, 0.10)), @con-glass;
         box-shadow: inset 0 0 0 .075rem rgba(140, 165, 192, 0.7), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
@@ -23718,13 +23698,6 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     &__verdict--off {
         opacity: 0.45;
         animation: none;
-    }
-    /* The card being played, seated in its slot during a hand pick — the steel of its band, never the red of a
-       refusal (it asks the question; it is not a wrong answer). */
-    &__verdict--source {
-        background: rgba(150, 180, 210, 0.14);
-        box-shadow: inset 0 0 0 .05rem rgba(190, 214, 236, 0.6);
-        color: #e8f2fb;
     }
 }
 

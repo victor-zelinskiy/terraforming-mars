@@ -81,12 +81,11 @@ async function openPlayComposerOf(page: Page, card: string): Promise<void> {
 }
 
 /**
- * The hand in PICK mode — the shelf's own flow state, plus the card being played SEATED in its slot as the question's
- * source (`--source`, «Разыгрывается» — the hand pick bridge, 2026-10-13; it used to ride the pick DISABLED) and any
- * picked slot. A probe keyed on `--select-disabled` alone missed a pick whose every other card is a candidate and
- * pressed A again — INTO the open album.
+ * The hand in PICK mode — the shelf's own flow state, plus any picked slot (the card being played is NOT in the album
+ * since 2026-10-14 — the rules never offer it). A probe keyed on `--select-disabled` alone missed a pick whose every
+ * other card is a candidate and pressed A again — INTO the open album.
  */
-const handPicking = (page: Page) => page.locator('.con-hand[data-flow="picking"], .con-hand .con-hand__slot--source, .con-hand .con-hand__slot--select-picked');
+const handPicking = (page: Page) => page.locator('.con-hand[data-flow="picking"], .con-hand .con-hand__slot--select-picked');
 
 for (const preset of PRESETS) {
   test.describe(`Sponsored Academies — the pre-selected discard · ${preset.id}`, () => {

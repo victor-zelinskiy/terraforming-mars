@@ -143,11 +143,11 @@ async function enterDiscardAlbum(page: Page, preset: string, shotName: string): 
   expect(await page.locator(`${PLAY_COMPOSER}:visible`).count(), 'the composer waits underneath, hidden').toBe(0);
   const crumb = await crumbText(page);
   expect(crumb.toLowerCase(), `the crumb's tail names the discard — «${crumb}»`).toContain('сброс карты');
-  // The card being played flew HOME into its own slot and sits there as the question's source («Разыгрывается»,
-  // popped on its touchdown) — the cursor starts on a candidate, never on it.
-  await expect(page.locator('.con-hand__slot--source'), 'the played card is seated in its slot').toHaveCount(1);
-  await expect(page.locator('.con-hand__slot--source .con-cards__pickband--source'), 'its band says it is being played').toBeVisible({timeout: 5_000});
-  expect(await page.locator('.con-hand__slot--source.con-hand__slot--selected').count(), 'the cursor starts on a candidate').toBe(0);
+  // The card being played is NOT in the album (2026-10-14 — the rules never offer it: «discard a card», «reveal any
+  // number of OTHER cards»; it stays the composer's hero, L3 inspects it as the source) — the cursor starts on a candidate.
+  await expect(page.locator(`.con-hand[data-flow="picking"] [data-zoom-slot="${MU}"]`), 'the played card is not among the choices').toHaveCount(0);
+  expect(await page.locator('.con-hand__slot--selected').count(), 'the cursor stands on a candidate').toBe(1);
+  expect(await page.locator('.con-hand__slot--selected.con-hand__slot--select-disabled').count(), 'the cursor starts on a candidate').toBe(0);
   // Every candidate stands in the album as the real card.
   for (const name of FILLER) {
     await expect(page.locator(`.con-hand [data-zoom-slot="${name}"]`), `«${name}» stands in the album`).toHaveCount(1);
