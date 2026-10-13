@@ -49,6 +49,7 @@ import {ResearchStartups} from './ResearchStartups';
 import {Supercomputer} from './Supercomputer';
 import {ExpeditionMechs} from './ExpeditionMechs';
 import {InfluentialDiscovery} from './InfluentialDiscovery';
+import {ScientificBreakthrough} from './ScientificBreakthrough';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -249,5 +250,6 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the SCIENTISTS' plate again; TR43 Ichtiology Grant's OPTIONAL `or` of two
     // «add to ANY card» branches as the whole card — the set's first «science to ANY card», against «6 data to ANY card».
     [CardName.INFLUENTIAL_DISCOVERY]: {Factory: InfluentialDiscovery},
+    [CardName.SCIENTIFIC_BREAKTHROUGH]: {Factory: ScientificBreakthrough},
   },
 });

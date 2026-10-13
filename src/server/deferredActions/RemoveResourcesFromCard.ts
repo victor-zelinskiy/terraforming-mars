@@ -28,6 +28,13 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
   private title: string | Message;
   private log: boolean;
   /**
+   * The LEAST a card must hold to be a target — `count` when the effect takes its whole amount off ONE card
+   * (`requireFullCount`: TR52 «remove 2 data from ANY player's card»), else 1 (the class's historical «take up to
+   * `count`»). A holder below it is shown DISABLED with its reason, never hidden; MarsBot answers with its
+   * attackable stock against the same floor.
+   */
+  private minimum: number;
+  /**
    * A removal from the player's OWN card writes the class's own SPEND line («spent 1 fighter from X») unless the
    * caller writes a more specific line of its own (`log: false`). Separate from `log`, whose default (false)
    * belongs to the attack path.
@@ -48,6 +55,12 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       mandatory?: boolean,
       /** If there's only one card, automatically select it. Default is true. Ignored if mandatory is false. */
       autoselect?: boolean
+      /**
+       * The whole `count` must come off ONE card: a card holding fewer is not a target (disabled, «Not enough
+       * resources on this card»), and MarsBot is one only while its attackable stock covers the count. Default
+       * false — the class's historical «up to `count`» (Predators, Ants, Air Raid take 1 anyway).
+       */
+      requireFullCount?: boolean,
       title?: string | Message,
       blockable?: boolean,
       log?: boolean,
@@ -65,6 +78,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     this.mandatory = options?.mandatory ?? true;
     this.blockable = options?.blockable ?? true;
     this.autoselect = options?.autoselect ?? true;
+    this.minimum = options?.requireFullCount === true ? Math.max(1, count) : 1;
     this.log = options?.log ?? false;
     this.logSpend = options?.log !== false;
     this.cause = options?.cause;
@@ -105,7 +119,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       return undefined;
     }
 
-    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source, this.minimum);
 
     // MarsBot as a card-resource target (Automa rulebook, Adding Expansions p.5):
     // the bot holds real microbes / animals / floaters in its shipping-board
@@ -134,7 +148,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     // vanishing — the premium picker's All/Available/Unavailable filter hides
     // them by default. They ride a SEPARATE `disabled` channel, so `cards`
     // stays the selectable set (auto-select / counts / validation unchanged).
-    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
+    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards, this.minimum);
 
     // With a bot target, ALWAYS present an OrOptions so the bot is a conscious,
     // visible choice alongside the card(s) — never auto-applied behind the picker.
@@ -205,14 +219,14 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
    * `onRemoved` fires after the removal (the deferred's `cb`, when applicable).
    * Returns `undefined` when there's no MarsBot opponent or it holds nothing.
    */
-  public static marsBotOption(player: IPlayer, cardResource: CardResource, count: number, onRemoved?: () => void): SelectOption | undefined {
+  public static marsBotOption(player: IPlayer, cardResource: CardResource, count: number, onRemoved?: () => void, minimum: number = 1): SelectOption | undefined {
     const bot = player.opponents.find((p) => p.isMarsBot);
     if (bot === undefined) {
       return undefined;
     }
     const attackable = AutomaTargeting.attackableCardResourceStock(bot, cardResource);
     const removable = Math.min(count, attackable);
-    if (removable <= 0) {
+    if (removable <= 0 || removable < minimum) {
       return undefined;
     }
     return new SelectOption(
@@ -233,15 +247,15 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
    * blue-card action's `canAct` must consult it so the action stays available
    * against a lone MarsBot (whose "cards" are its storage areas).
    */
-  public static hasTarget(player: IPlayer, cardResource: CardResource | undefined, source: Source = 'all'): boolean {
-    if (RemoveResourcesFromCard.getAvailableTargetCards(player, cardResource, source).length > 0) {
+  public static hasTarget(player: IPlayer, cardResource: CardResource | undefined, source: Source = 'all', minimum: number = 1): boolean {
+    if (RemoveResourcesFromCard.getAvailableTargetCards(player, cardResource, source, minimum).length > 0) {
       return true;
     }
     if (cardResource === undefined || source === 'self') {
       return false;
     }
     const bot = player.opponents.find((p) => p.isMarsBot);
-    return bot !== undefined && AutomaTargeting.attackableCardResourceStock(bot, cardResource) > 0;
+    return bot !== undefined && AutomaTargeting.attackableCardResourceStock(bot, cardResource) >= Math.max(1, minimum);
   }
 
   /** The MarsBot target option for THIS removal (or undefined) — a self / untyped
@@ -250,7 +264,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     if (this.cardResource === undefined || this.source === 'self') {
       return undefined;
     }
-    return RemoveResourcesFromCard.marsBotOption(this.player, this.cardResource, this.count, onRemoved);
+    return RemoveResourcesFromCard.marsBotOption(this.player, this.cardResource, this.count, onRemoved, this.minimum);
   }
 
   /**
@@ -265,12 +279,12 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     if (this.source !== 'self' && this.player.game.isSoloMode()) {
       return undefined;
     }
-    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source, this.minimum);
     const botOption = this.botOption();
     if (cards.length === 0 && botOption === undefined) {
       return undefined;
     }
-    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
+    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards, this.minimum);
     if (botOption !== undefined) {
       const orOptions = this.withCause(new OrOptions().setTitle(this.title));
       if (cards.length > 0) {
@@ -295,7 +309,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
    * would mean re-stating the targeting rule in a second place.
    */
   public previewTargetCards(): ReadonlyArray<ICard> {
-    return RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+    return RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source, this.minimum);
   }
 
   /**
@@ -311,14 +325,14 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     if (this.source !== 'self' && this.player.game.isSoloMode()) {
       return undefined;
     }
-    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source, this.minimum);
     if (cards.length === 0) {
       return undefined;
     }
     if (this.mandatory && cards.length === 1 && this.autoselect === true) {
       return undefined;
     }
-    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
+    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards, this.minimum);
     return this.withCause(new SelectCard(
       this.title,
       this.buttonLabel(),
@@ -366,8 +380,9 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     });
   }
 
-  public static getAvailableTargetCards(player: IPlayer, resourceType: CardResource | undefined, source: Source = 'all'): Array<ICard> {
+  public static getAvailableTargetCards(player: IPlayer, resourceType: CardResource | undefined, source: Source = 'all', minimum: number = 1): Array<ICard> {
     const resourceCards: Array<ICard> = [];
+    const holds = (card: ICard) => card.resourceCount >= minimum;
     for (const p of player.game.players) {
       if (p === player) {
         if (source !== 'opponents') {
@@ -377,7 +392,9 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
             if (card.protectedResources === true && card.name !== CardName.BIOENGINEERING_ENCLOSURE) {
               continue;
             }
-            resourceCards.push(card);
+            if (holds(card)) {
+              resourceCards.push(card);
+            }
           }
         }
       } else {
@@ -392,7 +409,9 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
                 continue;
               }
             }
-            resourceCards.push(card);
+            if (holds(card)) {
+              resourceCards.push(card);
+            }
           }
         }
       }
@@ -411,10 +430,13 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     resourceType: CardResource | undefined,
     source: Source,
     available: ReadonlyArray<ICard>,
+    minimum: number = 1,
   ): Array<{card: ICard, reason: string}> {
     if (resourceType === undefined) {
       return [];
     }
+    // The holders the floor alone keeps out — everything else not available is empty or protected.
+    const belowFloor = minimum > 1 ? RemoveResourcesFromCard.getAvailableTargetCards(player, resourceType, source, 1) : [];
     const result: Array<{card: ICard, reason: string}> = [];
     for (const p of player.game.players) {
       if (p === player ? source === 'opponents' : source === 'self') {
@@ -426,7 +448,8 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
         }
         result.push({
           card,
-          reason: card.resourceCount === 0 ? 'No resources on this card' : 'Card resources are protected',
+          reason: card.resourceCount === 0 ? 'No resources on this card' :
+            belowFloor.includes(card) ? 'Not enough resources on this card' : 'Card resources are protected',
         });
       }
     }
