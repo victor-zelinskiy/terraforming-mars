@@ -344,8 +344,74 @@ export function holderGainOutcomeReading(outcome: HolderGainOutcome): HolderRole
   }
 }
 
+/**
+ * WHAT A LOSS COSTS THE HOLDER (PL-267, TR52 — «remove 2 data from ANY player's card», the owner's decision
+ * 2026-10-13). The mirror of `holderGainOutcome` for resources LEAVING a holder: on an attack's target step a rival's
+ * card read only its static role («делегат на резолюцию за 3 единицы»), and the decision — whose census loses a
+ * READY delegate, whose Supercomputer loses 4 M€ of Science payment — was not on the screen. The same roles, the same
+ * prices, the other direction: a priced good the holder HAD within reach and no longer has (`lost`), still has
+ * (`kept`), or was short of and is now further from (`further`); tender's money lost; a look's count falling. The
+ * client compares with the role's own price only — never a rule of its own.
+ */
+export type HolderLossOutcome =
+  | {kind: 'money', amount: number, context: RailMcContext}
+  | {kind: 'reach', good: 'delegate' | 'trade' | 'action', role: HolderRole, from: number, to: number, need: number, state: 'lost' | 'kept' | 'further'}
+  | {kind: 'look', from: number, to: number};
+
+export function holderLossOutcome(role: HolderRole, from: number, to: number): HolderLossOutcome | undefined {
+  if (to >= from) {
+    return undefined;
+  }
+  const reach = (good: 'delegate' | 'trade' | 'action', need: number): HolderLossOutcome => ({
+    kind: 'reach', good, role, from, to, need,
+    state: from >= need ? (to >= need ? 'kept' : 'lost') : 'further',
+  });
+  switch (role.kind) {
+  case 'payment':
+    return {kind: 'money', amount: (from - to) * role.rate, context: role.context};
+  case 'delegate':
+  case 'trade':
+    return reach(role.kind, role.price);
+  case 'action':
+    return role.spend === 'all' ? {kind: 'look', from, to} : reach('action', role.spend);
+  default:
+    return undefined;
+  }
+}
+
+/** The reading keys of a priced good LOST, per state — the good's own word in each (the RU noun declines). */
+const LOSS_READING: Readonly<Record<'delegate' | 'trade' | 'action', Readonly<Record<'lost' | 'kept' | 'further', string>>>> = {
+  delegate: {
+    lost: 'No longer a delegate within reach: ${0} → ${1} / ${2}',
+    kept: 'A delegate still within reach: ${0} → ${1} / ${2}',
+    further: 'Further from a delegate: ${0} → ${1} / ${2}',
+  },
+  trade: {
+    lost: 'No longer a free trade within reach: ${0} → ${1} / ${2}',
+    kept: 'A free trade still within reach: ${0} → ${1} / ${2}',
+    further: 'Further from a free trade: ${0} → ${1} / ${2}',
+  },
+  action: {
+    lost: 'The action closes: ${0} → ${1} / ${2}',
+    kept: 'The action stays open: ${0} → ${1} / ${2}',
+    further: 'Further from the action: ${0} → ${1} / ${2}',
+  },
+};
+
+/** The reading of a loss outcome — one key per kind and state, its params exactly the placeholders it prints. */
+export function holderLossOutcomeReading(outcome: HolderLossOutcome): HolderRoleReading {
+  switch (outcome.kind) {
+  case 'money':
+    return {label: 'Payment: −${0} M€', params: [String(outcome.amount)], tail: MC_CONTEXT_KEYS[outcome.context]};
+  case 'reach':
+    return {label: LOSS_READING[outcome.good][outcome.state], params: [String(outcome.from), String(outcome.to), String(outcome.need)]};
+  case 'look':
+    return {label: 'Cards turned over: ${0} → ${1}', params: [String(outcome.from), String(outcome.to)]};
+  }
+}
+
 /** The icon an outcome reading wears: the coin, the good's own icon (a delegate, a trade, the action's good), the cards. */
-export function holderGainOutcomeIcon(outcome: HolderGainOutcome): string | undefined {
+export function holderGainOutcomeIcon(outcome: HolderGainOutcome | HolderLossOutcome): string | undefined {
   switch (outcome.kind) {
   case 'money':
     return 'megacredits';

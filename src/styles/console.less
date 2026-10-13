@@ -33939,6 +33939,51 @@ html.console-mode {
             box-shadow: 0 0 0 calc(.18rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 96%), 0 0 calc(1.3rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 44%);
         }
     }
+    /* A SHOWN NEAR MISS (TR52 — a holder short of what the step takes): the face recedes under an OPAQUE scrim
+       (never a see-through opacity, never a filter) and its refusal stands on it, de-zoomed to HUD size like the lock. */
+    &__slot--blocked > :is(.card-container, .pcard) { position: relative; }
+    &__slot--blocked::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: .4rem;
+        background: rgba(6, 10, 16, 0.58);
+        pointer-events: none;
+    }
+    &__blocked {
+        position: absolute;
+        left: 50%;
+        bottom: .6rem;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .2rem .65rem;
+        border-radius: 49.95rem;
+        transform: translateX(-50%);
+        background: rgba(30, 12, 12, 0.94);
+        box-shadow: inset 0 0 0 .06rem fade(@con-red, 70%);
+        color: #ffb3a8;
+        font-size: .9rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        zoom: calc(1 / var(--con-ptsel-zoom, .58));
+    }
+    &__blocked-x { font-weight: 900; }
+    &__railblock {
+        flex-shrink: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: .1rem .5rem;
+        border-radius: 49.95rem;
+        background: fade(@con-red, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%);
+        font-size: .75rem; font-weight: 800; letter-spacing: .02rem;
+        color: #ffb3a8;
+    }
     &__lock {
         position: absolute; top: .3rem; right: .3rem;
         width: 1.5rem; height: 1.5rem; border-radius: 50%;
@@ -34176,6 +34221,22 @@ html.console-mode {
         .con-ptsel__imp-label { font-weight: 800; }
     }
     &__imp--gain .con-ptsel__imp-label { font-weight: 700; }
+    /* A counter that FALLS (an attack's target, a price off a chosen card) reads in the console's spend tone — the
+       mint of a result on a «3 → 1» told the player the target was gaining (PL-270, TR52). */
+    &__imp--down &__imp-delta { color: fade(@con-amber, 96%); }
+    /* WHAT THIS LOSS COSTS (PL-267, TR52) — an attack's pick: LOST is the loud one (a ready delegate / trade / the
+       card's action is gone) — amber, by weight AND ring, so it survives a desaturated screen; KEPT speaks in the
+       quiet voice; FURTHER and LOSS stay the ordinary chip in the spend tone. */
+    &__imp--lost {
+        box-shadow: inset 0 0 0 .07rem fade(@con-amber, 82%);
+        color: @con-amber;
+        .con-ptsel__imp-label { font-weight: 800; }
+        .con-ptsel__imp-delta { color: @con-amber; }
+    }
+    &__imp--kept { opacity: .82; }
+    &__imp--kept .con-ptsel__imp-label { font-weight: 600; }
+    &__imp--further .con-ptsel__imp-label,
+    &__imp--loss .con-ptsel__imp-label { font-weight: 700; }
     &__imp--already { opacity: .82; }
     &__imp--already .con-ptsel__imp-label { font-weight: 600; }
     &__imp--value &__imp-label { font-weight: 600; }

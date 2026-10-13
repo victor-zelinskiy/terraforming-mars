@@ -120,8 +120,11 @@ export type PlayedTargetImpact = {
    * WHAT THIS GAIN DOES on the candidate (К-T1, TR48 — `holderRoles.holderGainOutcome`): `gain` — tender or a look
    * that simply grows; `opens` — the gain brings a priced good within reach (the loud one: it is the answer to «where
    * do the N go»); `short` — still short of it after the gain; `already` — it was within reach before (quiet).
+   * …and WHAT THIS LOSS COSTS (PL-267, TR52 — `holderRoles.holderLossOutcome`): `lost` — a priced good the holder had
+   * within reach is gone (the loud one of an attack's pick); `kept` — still within reach after the loss (quiet);
+   * `further` — it was short and is now further; `loss` — tender's money / a look's count falling.
    */
-  outcome?: 'gain' | 'opens' | 'short' | 'already';
+  outcome?: 'gain' | 'opens' | 'short' | 'already' | 'lost' | 'kept' | 'further' | 'loss';
 };
 
 /**
@@ -291,6 +294,13 @@ export type PlayedTargetCandidate = {
   resourceContext?: PlayedTargetResourceContext;
   /** The live card model (resource counts etc.) for the face + badges. */
   model: CardModel;
+  /**
+   * SHOWN, NEVER CHOSEN (TR52 — «a card with 1 data is not a target: shown unavailable with its reason, never
+   * hidden»): a holder of the resource that falls SHORT of what the step takes (the server's `disabledCards`, its
+   * own reason). It stands among the candidates so the player sees whose card is out of reach and why; A on it is
+   * refused, the rail reads the reason, its tag reads «have / need ✕». Undefined — an ordinary candidate.
+   */
+  blocked?: {reason: string, have: number, need: number};
 };
 
 export type PlayedTargetOwner = {
@@ -414,6 +424,11 @@ export type PlayedTargetPlayerRef = {
 export type BuildPlayedTargetInput = {
   /** The server's SELECTABLE candidates — eligibility, verbatim. */
   candidates: ReadonlyArray<CardModel>;
+  /**
+   * Holders SHOWN but not selectable — the near misses the caller chose from the server's `disabledCards` (see
+   * `playedTargetShortfalls`), each with the server's reason. Default: none — the step shows only what it can take.
+   */
+  blocked?: ReadonlyArray<{model: CardModel, reason: string, have: number, need: number}>;
   /** Every player, for owner resolution + the honest total counts. */
   players: ReadonlyArray<PlayedTargetPlayerRef>;
   /** The viewer's colour. */
@@ -482,7 +497,8 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
   // could forget to overwrite.
   type Grouping = Omit<PlayedTargetOwner, 'selfHarm'> & {candidates: Array<PlayedTargetCandidate>};
   const byColor = new Map<string, Grouping>();
-  for (const model of input.candidates) {
+  const blockedOf = new Map((input.blocked ?? []).map((b) => [b.model.name, b]));
+  for (const model of [...input.candidates, ...(input.blocked ?? []).map((b) => b.model)]) {
     const owner = input.players.find((p) => p.tableau.some((c) => c.name === model.name)) ??
       // THE CARD BEING PLAYED owns no tableau row YET, and for an on-play effect
       // that legally targets itself (Titan Floating Launch-pad puts its own two
@@ -510,15 +526,18 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       };
       byColor.set(owner.color, group);
     }
+    const shortfall = blockedOf.get(model.name);
     group.candidates.push({
       cardName: model.name as CardName,
       category: playedTargetCategoryOf(input.typeOf(model.name as CardName)),
       relation: model.name === input.sourceCardName ? 'source-card' : 'external-card',
       ownerId: owner.color,
       slotKey: model.name,
-      preview: input.preview(model.name as CardName),
+      // A near miss reads its refusal, never a preview of a move it cannot make.
+      preview: shortfall === undefined ? input.preview(model.name as CardName) : [],
       resourceContext: input.resourceContext?.(model.name as CardName, model),
       model,
+      ...(shortfall === undefined ? {} : {blocked: {reason: shortfall.reason, have: shortfall.have, need: shortfall.need}}),
     });
   }
   const grouped = [...byColor.values()];
@@ -527,6 +546,7 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
     input.direction ?? (input.takesFromTarget === true ? 'remove' : 'add');
   const carriesSource = (g: {candidates: ReadonlyArray<PlayedTargetCandidate>}) =>
     g.candidates.some((c) => c.relation === 'source-card');
+  const hasOpen = (g: {candidates: ReadonlyArray<PlayedTargetCandidate>}) => g.candidates.some((c) => c.blocked === undefined);
   const owners = grouped
     .map((g) => ({
       ...g,
@@ -536,9 +556,15 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
     .sort((a, b) => {
       // The source+«ЭТА КАРТА» pair wins the front (see the builder's doc).
       const pair = Number(carriesSource(b)) - Number(carriesSource(a));
-      return pair !== 0 ? pair : Number(a.self) - Number(b.self);
+      if (pair !== 0) {
+        return pair;
+      }
+      // A group with NOTHING to choose (only shown near misses) stands after every group that has a target — the
+      // cursor's first stop is a card it can take.
+      const open = Number(hasOpen(b)) - Number(hasOpen(a));
+      return open !== 0 ? open : Number(a.self) - Number(b.self);
     });
-  const targetCount = owners.reduce((n, o) => n + o.candidates.length, 0);
+  const targetCount = owners.reduce((n, o) => n + o.candidates.filter((c) => c.blocked === undefined).length, 0);
   return {
     owners,
     contract: {
@@ -563,7 +589,9 @@ function sortByCategory(candidates: ReadonlyArray<PlayedTargetCandidate>): Array
     if (self !== 0) {
       return self;
     }
-    return PLAYED_TARGET_CATEGORY_ORDER.indexOf(a.category) - PLAYED_TARGET_CATEGORY_ORDER.indexOf(b.category);
+    const category = PLAYED_TARGET_CATEGORY_ORDER.indexOf(a.category) - PLAYED_TARGET_CATEGORY_ORDER.indexOf(b.category);
+    // A shown near miss closes its category block — the takeable cards lead it.
+    return category !== 0 ? category : Number(a.blocked !== undefined) - Number(b.blocked !== undefined);
   });
 }
 
@@ -1192,6 +1220,26 @@ export function stepPlayedTargetOwner(
  * cursor lands on the nearest surviving candidate instead, and the caller sees
  * that its remembered selection no longer resolves.
  */
+/**
+ * THE NEAR MISSES A TAKING STEP SHOWS (TR52 — the prompt's rule 3): the server's `disabledCards` that HOLD the
+ * resource but fewer than the step takes (`requireFullCount` — «2 data off ONE card»), each with the server's reason.
+ * A holder with none, or a protected one, stays out exactly as before — those are every Predators / Ants step's
+ * whole table, and listing them would bury the targets. Only a step that takes MORE than one unit has a near miss.
+ */
+export function playedTargetShortfalls(
+  disabled: ReadonlyArray<CardModel> | undefined,
+  amount: number | undefined,
+  reasonOf: (card: CardModel) => string,
+): Array<{model: CardModel, reason: string, have: number, need: number}> {
+  const need = amount === undefined ? 0 : -amount;
+  if (need <= 1) {
+    return [];
+  }
+  return (disabled ?? [])
+    .filter((c) => (c.resources ?? 0) > 0 && (c.resources ?? 0) < need)
+    .map((c) => ({model: c, reason: reasonOf(c), have: c.resources ?? 0, need}));
+}
+
 export function reseatPlayedTargetFocus(
   focus: PlayedTargetFocus | undefined,
   owners: ReadonlyArray<PlayedTargetOwner>,

@@ -332,9 +332,21 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
       expect(quick.map((q) => q.outcome)).to.deep.eq([undefined, 'opens']);
     });
 
-    it('a LOSS has no outcome — the value line stands as before (Predators-like)', () => {
-      const loss = playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources: 3}], -1), CardName.MARTIAN_CENSUS);
-      expect(loss[0].impacts.map((imp) => imp.outcome ?? (imp.value === true ? 'value' : ''))).to.deep.eq(['', 'value']);
+    /**
+     * PL-267 (TR52 — «remove 2 data from ANY player's card», the owner's decision 2026-10-13): a LOSS reads what it
+     * COSTS by the same role, in the value line's slot for a priced good — it used to keep the value line («a delegate
+     * per 3 units»), which said nothing about WHOSE delegate the attack breaks.
+     */
+    it('a LOSS reads what it costs: a ready census delegate LOST, KEPT, or a short one FURTHER away', () => {
+      const of = (resources: number, amount: number) =>
+        playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources}], amount), CardName.MARTIAN_CENSUS)[0].impacts
+          .map((imp) => imp.outcome ?? (imp.value === true ? 'value' : ''));
+      expect(of(3, -2)).to.deep.eq(['', 'lost']);
+      expect(of(5, -2)).to.deep.eq(['', 'kept']);
+      expect(of(2, -1)).to.deep.eq(['', 'further']);
+      const lost = playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources: 3}], -2), CardName.MARTIAN_CENSUS)[0].impacts[1];
+      expect(lost).to.include({label: 'No longer a delegate within reach: ${0} → ${1} / ${2}', icon: 'delegate'});
+      expect(lost.params).to.deep.eq(['3', '1', '3']);
     });
   });
 });

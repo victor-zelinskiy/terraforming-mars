@@ -816,6 +816,9 @@ export type PlayFootContext = {
   /** When `sub === 'playedTarget'` and the ask is the server's merged up-to-N:
    *  the live accumulation, so the bar can offer RT with an honest badge. */
   targetMulti?: {count: number, valid: boolean, verb: string};
+  /** When `sub === 'playedTarget'`: the cursor stands on a SHOWN near miss (`PlayedTargetCandidate.blocked`) — A is
+   *  refused there, so its verb dims (the rail reads why). */
+  targetBlocked?: boolean;
   /** There are navigable pre-select rows (show the Navigate hint). */
   hasRows: boolean;
   /** The focused review row's kind (only meaningful when `sub === 'none'`). */
@@ -910,10 +913,10 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
       // The merged up-to-N ask: A accumulates, RT submits — the same grammar
       // the hand's multi pick and the patent sale already speak, so a stray A
       // can never send a half-built selection.
-      hints.push({control: 'confirm', label: 'Select / Deselect'});
+      hints.push({control: 'confirm', label: 'Select / Deselect', ...(ctx.targetBlocked === true ? {enabled: false} : {})});
       hints.push({control: 'triggerR', label: ctx.targetMulti.verb, enabled: ctx.targetMulti.valid, badge: ctx.targetMulti.count, highlight: ctx.targetMulti.count > 0});
     } else {
-      hints.push({control: 'confirm', label: 'Select'});
+      hints.push({control: 'confirm', label: 'Select', ...(ctx.targetBlocked === true ? {enabled: false} : {})});
       if (ctx.decline !== undefined) {
         hints.push({control: 'triggerR', label: ctx.decline, priority: 1});
       }

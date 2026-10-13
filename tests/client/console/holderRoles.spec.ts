@@ -3,7 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {actionGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderGroupKey, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
+import {actionGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderGroupKey, holderLossOutcome, holderLossOutcomeReading, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
 import {additionalResourceRoleGroups} from '@/client/components/additionalResources/additionalResources';
 import {buildExtrasTypes} from '@/client/console/extrasExplorerModel';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -227,10 +227,13 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'Payment: +${0} M€']);
     expect(impacts[1]).to.include({tail: 'for cards with a space tag', outcome: 'gain', icon: 'megacredits'});
     expect(impacts[1].params).to.deep.eq(['5']);
-    // A LOSS keeps the per-unit value line (TR29's source step spends the tender — nothing is gained).
+    // A LOSS reads what it COSTS in the same slot (PL-267, TR52 — it used to keep the per-unit value line, which said
+    // what a unit is worth and never what leaving cost): TR29's source step spending the tender loses 5 M€ of payment.
     const step = {kind: 'input', amount: -1, cardResource: 'mech'} as never;
     const spent = playedTargetQuickImpacts(playedTargetPreviewFor(step, input([{name: CardName.EVA_MECHS, resources: 2}]), CardName.EVA_MECHS));
-    expect(spent[1]).to.include({label: 'Pays ${0} M€ per unit', value: true});
+    expect(spent.map((i) => i.label)).to.deep.eq(['Resources on this card', 'Payment: −${0} M€']);
+    expect(spent[1]).to.include({tail: 'for cards with a space tag', outcome: 'loss', icon: 'megacredits'});
+    expect(spent[1].params).to.deep.eq(['5']);
   });
 
   it('К-T1 beside the value line: a priced holder ALREADY within reach keeps the value line (the gain opens nothing); one the gain reaches reads the outcome', () => {
@@ -258,12 +261,16 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     expect(political[1].plate).to.eq(undefined);
   });
 
-  it('a fighter spent FROM Mars Army Ships (TR29\'s source step, −1): the counter falls, and the same value line says what leaves — a delegate\'s fuel', () => {
+  it('a fighter spent FROM Mars Army Ships (TR29\'s source step, −1): the counter falls, and the slot says what the loss costs — the delegate stays within reach (PL-267)', () => {
     const step = {kind: 'input', amount: -1, cardResource: 'fighter'} as never;
     const impacts = playedTargetQuickImpacts(playedTargetPreviewFor(step, input([{name: CardName.MARS_ARMY_SHIPS, resources: 2}]), CardName.MARS_ARMY_SHIPS));
-    expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'A delegate on a resolution per unit']);
+    expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'A delegate still within reach: ${0} → ${1} / ${2}']);
     expect(impacts[0]).to.include({from: 2, to: 1, icon: 'fighter'});
-    expect(impacts[1]).to.include({value: true, icon: 'delegate'});
+    expect(impacts[1]).to.include({outcome: 'kept', icon: 'delegate'});
+    expect(impacts[1].params).to.deep.eq(['2', '1', '1']);
+    // …and the last fighter takes the delegate with it.
+    const last = playedTargetQuickImpacts(playedTargetPreviewFor(step, input([{name: CardName.MARS_ARMY_SHIPS, resources: 1}]), CardName.MARS_ARMY_SHIPS));
+    expect(last[1]).to.include({label: 'No longer a delegate within reach: ${0} → ${1} / ${2}', outcome: 'lost'});
   });
 
   it('PL-219 — THE OUTCOME TAG under every candidate: the family of seven reads by meaning in glyphs and digits, from the same outcome as the rail', () => {
@@ -334,6 +341,54 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
       expect(holderGainOutcome(holderRoleOf(CardName.MARTIAN_FIBER), 1, 3)).to.eq(undefined);
       expect(holderGainOutcome({kind: 'store'}, 0, 2)).to.eq(undefined);
       expect(holderGainOutcome(holderRoleOf(CardName.MARTIAN_CENSUS), 3, 1)).to.eq(undefined);
+    });
+  });
+
+  describe('the LOSS outcome — what −N cost there (PL-267, TR52)', () => {
+    it('tender: the payment it no longer makes, with its «where» (Supercomputer 3 → 1 = −4 M€ for a Science card)', () => {
+      const outcome = holderLossOutcome(holderRoleOf(CardName.SUPERCOMPUTER), 3, 1);
+      expect(outcome).to.deep.eq({kind: 'money', amount: 4, context: 'science'});
+      expect(holderLossOutcomeReading(outcome!)).to.deep.eq({label: 'Payment: −${0} M€', params: ['4'], tail: 'for cards with a science tag'});
+      expect(holderGainOutcomeIcon(outcome!)).to.eq('megacredits');
+    });
+
+    it('a priced DELEGATE (the census, 3 data): lost · kept · further', () => {
+      const census = holderRoleOf(CardName.MARTIAN_CENSUS);
+      const read = (from: number, to: number) => holderLossOutcomeReading(holderLossOutcome(census, from, to)!);
+      expect(read(3, 1)).to.deep.eq({label: 'No longer a delegate within reach: ${0} → ${1} / ${2}', params: ['3', '1', '3']});
+      expect(read(5, 3)).to.deep.eq({label: 'A delegate still within reach: ${0} → ${1} / ${2}', params: ['5', '3', '3']});
+      expect(read(2, 0)).to.deep.eq({label: 'Further from a delegate: ${0} → ${1} / ${2}', params: ['2', '0', '3']});
+      expect(holderLossOutcome(census, 3, 1)).to.deep.include({kind: 'reach', good: 'delegate', state: 'lost'});
+      expect(holderGainOutcomeIcon(holderLossOutcome(census, 3, 1)!)).to.eq('delegate');
+    });
+
+    it('a TRADE and the card\'s own ACTION at a numeric spend read their own words', () => {
+      expect(holderLossOutcome(holderRoleOf(CardName.AUTOMATED_CONVOYS), 1, 0)).to.deep.include({kind: 'reach', good: 'trade', state: 'lost'});
+      const sims = holderRoleOf(CardName.BIOLOGICAL_SIMULATIONS);
+      expect(holderLossOutcome(sims, 4, 2)).to.deep.include({kind: 'reach', good: 'action', state: 'kept'});
+      expect(holderLossOutcomeReading(holderLossOutcome(sims, 2, 0)!).label).to.eq('The action closes: ${0} → ${1} / ${2}');
+    });
+
+    it('a LOOK shrinks; a gain, VP and storage answer nothing', () => {
+      expect(holderLossOutcome(holderRoleOf(CardName.RESEARCH_STARTUPS), 4, 2)).to.deep.eq({kind: 'look', from: 4, to: 2});
+      expect(holderLossOutcome(holderRoleOf(CardName.MARTIAN_CENSUS), 1, 3)).to.eq(undefined);
+      expect(holderLossOutcome(holderRoleOf(CardName.MARTIAN_FIBER), 3, 1)).to.eq(undefined);
+      expect(holderLossOutcome({kind: 'store'}, 2, 0)).to.eq(undefined);
+    });
+
+    it('every loss reading prints exactly its placeholders (PL-160)', () => {
+      const roles = [CardName.SUPERCOMPUTER, CardName.MARTIAN_CENSUS, CardName.AUTOMATED_CONVOYS, CardName.BIOLOGICAL_SIMULATIONS, CardName.RESEARCH_STARTUPS];
+      for (const name of roles) {
+        for (const [from, to] of [[5, 3], [3, 1], [2, 0]]) {
+          const outcome = holderLossOutcome(holderRoleOf(name), from, to);
+          if (outcome === undefined) {
+            continue;
+          }
+          const reading = holderLossOutcomeReading(outcome);
+          const holes = new Set((reading.label.match(/\$\{\d\}/g) ?? []));
+          expect(reading.params.length, `${name} ${from} → ${to}: ${reading.label}`).to.eq(holes.size);
+        }
+      }
     });
   });
 });

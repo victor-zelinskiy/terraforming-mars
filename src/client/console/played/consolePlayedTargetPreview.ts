@@ -36,7 +36,8 @@ import {AdjacencyAmountBasis} from '@/common/models/CardAdjacencyPayoutModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext, PlayedTargetTag} from './consolePlayedTargetModel';
 import {
-  HolderGainOutcome, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading,
+  HolderGainOutcome, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderLossOutcome, holderLossOutcomeReading,
+  holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading,
 } from '@/client/console/holderRoles';
 import {RAIL_CONTEXT_TAG} from '@/client/console/railValueModel';
 
@@ -215,7 +216,15 @@ export function playedTargetPreviewFor(
     // A good that was within reach BEFORE the gain changes nothing the decision weighs — the value line stays.
     const reached = amount > 0 ? holderGainOutcome(role, from, from + amount) : undefined;
     const outcome = reached?.kind === 'reach' && reached.state === 'already' ? undefined : reached;
-    const supersedes = outcome !== undefined && (outcome.kind === 'money' || (outcome.kind === 'reach' && outcome.good !== 'action'));
+    /**
+     * …and WHAT THIS LOSS COSTS THERE (PL-267, TR52 — «remove 2 data from ANY player's card»): the mirror for a
+     * resource LEAVING the holder — a rival's census whose delegate was ready and no longer is, a Supercomputer's lost
+     * Science payment. Same supersede rule as a gain: money and a priced delegate / trade take the value line's slot
+     * (the price stands inside the fraction), the card's own action and a look stand after it.
+     */
+    const lost = amount < 0 ? holderLossOutcome(role, from, Math.max(0, from + amount)) : undefined;
+    const supersedes = (outcome !== undefined && (outcome.kind === 'money' || (outcome.kind === 'reach' && outcome.good !== 'action'))) ||
+      (lost !== undefined && (lost.kind === 'money' || (lost.kind === 'reach' && lost.good !== 'action')));
     const reading = supersedes ? undefined : holderRoleReading(role);
     if (reading !== undefined) {
       const plate = holderRolePlate(role);
@@ -231,6 +240,16 @@ export function playedTargetPreviewFor(
       impacts.push({
         label: said.label, params: said.params, icon: holderGainOutcomeIcon(outcome),
         outcome: outcome.kind === 'reach' ? outcome.state : 'gain',
+        ...(said.tail === undefined ? {} : {tail: said.tail}),
+        ...(plate === undefined ? {} : {plate}),
+      });
+    }
+    if (lost !== undefined) {
+      const said = holderLossOutcomeReading(lost);
+      const plate = lost.kind === 'reach' ? holderRolePlate(lost.role) : undefined;
+      impacts.push({
+        label: said.label, params: said.params, icon: holderGainOutcomeIcon(lost),
+        outcome: lost.kind === 'reach' ? lost.state : 'loss',
         ...(said.tail === undefined ? {} : {tail: said.tail}),
         ...(plate === undefined ? {} : {plate}),
       });

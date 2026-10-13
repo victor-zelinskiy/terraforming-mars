@@ -508,7 +508,7 @@
                     <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
                     <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
                     <span v-for="imp in targetSummaryImpacts(item.choice)" :key="imp.key" class="con-ptsel__imp"
-                          :class="imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : undefined">
+                          :class="[imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : '', {'con-ptsel__imp--down': imp.from !== undefined && imp.to !== undefined && imp.to < imp.from && imp.static !== true}]">
                       <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
                       <!-- ONE renderer for a reading with params (PL-160): `$t(imp.label)` printed «Потратьте ${0}
                            отсюда: +${1}» on the TV — the key has placeholders, the params were dropped here. -->
@@ -1004,7 +1004,7 @@ import {
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
   PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
-  togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
+  togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks, playedTargetShortfalls,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {readingTailText, readingText} from '@/client/console/readingText';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
@@ -2009,6 +2009,7 @@ export default defineComponent({
               verb: this.playedTargetInput?.buttonLabel || 'Select',
             } : undefined,
             decline: this.subDecline !== undefined ? textOf(this.subDecline.label) : undefined,
+            blocked: playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.blocked !== undefined,
           });
         }
         return focusCommandRun({
@@ -4434,6 +4435,8 @@ export default defineComponent({
         // A NEGATIVE delta means the step takes FROM the chosen card, which is
         // what makes «your own card» a warning rather than the ordinary target.
         takesFromTarget: (choice.amount ?? 0) < 0,
+        // The near misses of a step taking more than one — shown with the server's reason, never chosen.
+        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason)),
         preview: (name) => this.playedTargetPreview(choice, model, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });
@@ -4501,7 +4504,7 @@ export default defineComponent({
         return;
       }
       const candidate = playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? []);
-      if (candidate === undefined) {
+      if (candidate === undefined || candidate.blocked !== undefined) {
         return;
       }
       this.sub = {
@@ -4539,7 +4542,8 @@ export default defineComponent({
       const owners = this.playedTargetModel?.owners ?? [];
       const candidate = playedTargetAt(this.sub.focus, owners);
       const choice = this.playedTargetChoice;
-      if (candidate === undefined || choice === undefined) {
+      // A shown near miss is never chosen — the rail reads why, the bar's A is dim.
+      if (candidate === undefined || choice === undefined || candidate.blocked !== undefined) {
         return;
       }
       this.playedTargetResults = {

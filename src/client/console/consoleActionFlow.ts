@@ -161,6 +161,8 @@ export type FocusCommandCtx =
       multi?: {count: number, valid: boolean, verb: string},
       /** A SINGLE pick answering an optional choice: RT is its decline (a multi ask spends RT on its submit). */
       decline?: string,
+      /** The cursor stands on a SHOWN near miss (`PlayedTargetCandidate.blocked`) — A is refused, its verb dims. */
+      blocked?: boolean,
     }
   /** The payment lanes sub-state. */
   | {state: 'sub-payment', covers: boolean}
@@ -247,10 +249,10 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     if (ctx.multi !== undefined) {
       // A accumulates, RT submits — the same grammar the hand's multi pick and
       // the patent sale speak, so a stray A can never send a half-built pick.
-      run.push({control: 'confirm', label: 'Select / Deselect'});
+      run.push({control: 'confirm', label: 'Select / Deselect', ...(ctx.blocked === true ? {enabled: false} : {})});
       run.push({control: 'triggerR', label: ctx.multi.verb, enabled: ctx.multi.valid});
     } else {
-      run.push({control: 'confirm', label: 'Select'});
+      run.push({control: 'confirm', label: 'Select', ...(ctx.blocked === true ? {enabled: false} : {})});
       if (ctx.decline !== undefined) {
         run.push({control: 'triggerR', label: ctx.decline, priority: 1});
       }

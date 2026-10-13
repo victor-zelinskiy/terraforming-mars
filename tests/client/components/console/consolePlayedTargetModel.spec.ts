@@ -27,6 +27,7 @@ import {
   togglePlayedTargetPick,
   playedTargetPicksValid,
   prunePlayedTargetPicks,
+  playedTargetShortfalls,
   PlayedTargetOwner,
   PlayedTargetLayout,
 } from '@/client/console/played/consolePlayedTargetModel';
@@ -259,6 +260,54 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       const m = build({candidates: ['Ghost Card'], admin: ['Mars Hydro Turbines']});
       expect(m.owners).to.have.length(0);
       expect(m.contract.targetCount).to.eq(0);
+    });
+  });
+
+  /**
+   * TR52 — «a card with 1 data is not a target: shown unavailable with its reason, never hidden». The step shows the
+   * NEAR MISSES of a step that takes more than one; the ordinary empty / protected holders stay out as before.
+   */
+  describe('shown near misses (TR52)', () => {
+    const data = (name: string, resources: number): CardModel => ({name, resources, disabledReason: 'Not enough resources on this card'} as unknown as CardModel);
+
+    it('playedTargetShortfalls keeps only holders that HOLD the resource but fewer than the step takes', () => {
+      const disabled = [data('Supercomputer', 1), data('Research Startups', 0)];
+      const got = playedTargetShortfalls(disabled, -2, (c) => String(c.disabledReason));
+      expect(got.map((b) => [b.model.name, b.have, b.need, b.reason])).to.deep.eq([['Supercomputer', 1, 2, 'Not enough resources on this card']]);
+      expect(playedTargetShortfalls(disabled, -1, () => ''), 'a step taking ONE has no near miss').to.deep.eq([]);
+      expect(playedTargetShortfalls(disabled, 2, () => ''), 'a GAIN has none').to.deep.eq([]);
+      expect(playedTargetShortfalls(undefined, -2, () => '')).to.deep.eq([]);
+    });
+
+    it('a near miss stands in its owner\'s group, after the takeable ones, never counted as a target', () => {
+      const m = buildPlayedTargetModel({
+        candidates: [card('Predators')],
+        blocked: [{model: card('Mars Hydro Turbines'), reason: 'Not enough', have: 1, need: 2}],
+        players: [{name: 'victor', color: 'blue', tableau: [{name: 'Mars Hydro Turbines'}, {name: 'Predators'}]}],
+        viewerColor: 'red',
+        ask: '',
+        typeOf: (n) => TYPES[n],
+        preview: () => [{key: 'x', title: 't', entity: 'target', impacts: [{label: 'x'}]}],
+      });
+      expect(m.owners[0].candidates.map((c) => [c.cardName, c.blocked?.have ?? null])).to.deep.eq([['Predators', null], ['Mars Hydro Turbines', 1]]);
+      expect(m.contract.targetCount, 'a near miss is not a target').to.eq(1);
+      expect(m.owners[0].candidates[1].preview, 'it previews no move it cannot make').to.deep.eq([]);
+    });
+
+    it('a group with ONLY near misses stands after every group that has a target — the cursor starts on a takeable card', () => {
+      const m = buildPlayedTargetModel({
+        candidates: [card('Predators')],
+        blocked: [{model: card('Mars Hydro Turbines'), reason: 'Not enough', have: 1, need: 2}],
+        players: [
+          {name: 'admin', color: 'red', tableau: [{name: 'Predators'}]},
+          {name: 'victor', color: 'blue', tableau: [{name: 'Mars Hydro Turbines'}]},
+        ],
+        viewerColor: 'red',
+        ask: '',
+        typeOf: (n) => TYPES[n],
+        preview: () => [],
+      });
+      expect(m.owners.map((o) => o.id), 'the viewer\'s takeable group first, the rival\'s near miss after').to.deep.eq(['red', 'blue']);
     });
   });
 

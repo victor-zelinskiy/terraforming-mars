@@ -56,7 +56,7 @@
             :class="['player_color_' + owner.color, {'con-ptsel__tab--active': owner.id === activeOwnerId}]">
         <span class="con-ptsel__tab-dot" :class="'player_bg_color_' + owner.color" aria-hidden="true"></span>
         <span class="con-ptsel__tab-name">{{ owner.name }}</span>
-        <b>{{ owner.candidates.length }}</b>
+        <b>{{ selectableIn(owner.candidates) }}</b>
       </span>
       <GamepadGlyph control="bumperR" />
     </div>
@@ -99,7 +99,7 @@
                ONLY with several owners, where it answers «where are they»
                instead of repeating the contract's total. -->
           <span v-if="showsOwnerTargets" class="con-ptsel__ownercount">
-            <i>{{ $t('Selectable') }}</i><b class="con-ptsel__ownercount-live">{{ owner.candidates.length }}</b>
+            <i>{{ $t('Selectable') }}</i><b class="con-ptsel__ownercount-live">{{ selectableIn(owner.candidates) }}</b>
           </span>
         </header>
 
@@ -111,7 +111,7 @@
             <div v-if="showsRails(owner)" class="con-ptsel__catrail" :class="{'con-ptsel__catrail--blank': section.self}">
               <template v-if="!section.self">
                 <span class="con-ptsel__catname">{{ $t(section.label) }}</span>
-                <span class="con-ptsel__catcount">{{ section.candidates.length }}</span>
+                <span class="con-ptsel__catcount">{{ selectableIn(section.candidates) }}</span>
               </template>
             </div>
             <div class="con-ptsel__cards">
@@ -177,7 +177,9 @@
                      :class="{
                        'con-ptsel__slot--focused': isFocused(owner.id, cand.cardName),
                        'con-ptsel__slot--locked': isChosen(cand.cardName),
+                       'con-ptsel__slot--blocked': cand.blocked !== undefined,
                      }"
+                     :data-ptsel-blocked="cand.blocked !== undefined ? '1' : undefined"
                      :data-zoom-slot="cand.slotKey">
                   <!-- THE LIVE MODEL, so the card's OWN capsule (bottom-left,
                        beside the expansion stamp — the premium face's service
@@ -188,6 +190,12 @@
                        on every surface. -->
                   <ConsoleCardFaceLite :name="cand.cardName" :card="cand.model" />
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
+                  <!-- A SHOWN NEAR MISS (TR52): its refusal stands ON the card — «✕ 1 / 2» in the rules' own register,
+                       absolute (zero layout); the face beneath recedes under a scrim, never into see-through. -->
+                  <span v-if="cand.blocked !== undefined" class="con-ptsel__blocked" aria-hidden="true">
+                    <span class="con-ptsel__blocked-x">✕</span>
+                    <b class="con-ptsel__blocked-num">{{ cand.blocked.have }} / {{ cand.blocked.need }}</b>
+                  </span>
                 </div>
                 <!-- THE OUTCOME TAG (PL-219): what the N do on THIS candidate, under every card at once — «where do the
                      N go» answered by looking. Glyphs and digits only (the rail under the cursor keeps the sentence);
@@ -240,6 +248,8 @@
              already names WHOSE card this is one segment to the left, so this
              adds the judgement, not the fact. -->
         <span v-if="focusedSelfHarm" class="con-ptsel__railwarn">⚠ {{ $t('This is your own card') }}</span>
+        <!-- …and a near miss reads WHY it cannot be taken (the server's own reason) — the whole payload of the line. -->
+        <span v-if="focused.blocked !== undefined" class="con-ptsel__railblock" data-ptsel-rail-blocked>✕ {{ focused.blocked.reason }}</span>
         <template v-if="railImpacts.length > 0">
           <!-- The arrow SEPARATES the identity from its consequences; with the
                identity suppressed (see `showsRailCard`) it would open the line
@@ -248,7 +258,7 @@
           <span class="con-ptsel__railimpacts">
             <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp"
                   :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static, 'con-ptsel__imp--value': imp.value},
-                           imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : '']"
+                           imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : '', {'con-ptsel__imp--down': imp.from !== undefined && imp.to !== undefined && imp.to < imp.from && imp.static !== true}]"
                   :data-impact-outcome="imp.outcome">
               <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="[iconClass(imp.icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
                  :data-impact-plate="imp.plate" aria-hidden="true"></i>
@@ -858,6 +868,10 @@ export default defineComponent({
      *  different card than the one the host is pointing at. */
     indexOf(owner: PlayedTargetOwner, cardName: string): number {
       return owner.candidates.findIndex((c) => c.cardName === cardName);
+    },
+    /** «ДОСТУПНО N» counts what can be CHOSEN — a shown near miss (`blocked`) stands in the row, never in the count. */
+    selectableIn(candidates: ReadonlyArray<PlayedTargetCandidate>): number {
+      return candidates.filter((c) => c.blocked === undefined).length;
     },
     isFocused(ownerId: string, cardName: string): boolean {
       return this.focus.ownerId === ownerId && this.focused?.cardName === cardName;
