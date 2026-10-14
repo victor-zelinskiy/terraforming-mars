@@ -49,6 +49,7 @@ function settled(overrides: Partial<AdmissionSignals> = {}): AdmissionSignals {
     announceGate: false,
     stageGated: false,
     anyAnimation: false,
+    boardStory: false,
     ...overrides,
   };
 }

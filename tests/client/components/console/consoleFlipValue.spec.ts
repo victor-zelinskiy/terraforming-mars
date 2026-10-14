@@ -58,8 +58,11 @@ describe('ConsoleFlipValue', () => {
     const wrapper = mount(ConsoleFlipValue, {props: {value: 30, flipOnDecrease: true}});
     await wrapper.setProps({value: 27});
     expect(wrapper.classes()).to.contain('con-flipval--flip');
+    expect(wrapper.classes(), 'rolled the OTHER way — the direction the number went (TR47)').to.contain('con-flipval--down');
     expect(wrapper.find('.con-flipval__card--out').text()).to.eq('30');
     expect(wrapper.find('.con-flipval__card--in').text()).to.eq('27');
+    await wrapper.setProps({value: 29});
+    expect(wrapper.classes(), 'an increase rolls the ordinary way').to.not.contain('con-flipval--down');
     wrapper.unmount();
   });
 

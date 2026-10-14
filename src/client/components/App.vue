@@ -355,6 +355,7 @@ import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
+import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
@@ -816,6 +817,9 @@ export default defineComponent({
             // …and what a SCALE STEP paid (TR24 — another seat's raise, a world move, the Solar Phase): the
             // viewer's counter waits for the tokens born at the marker (the same block as the apply).
             seedScaleStepRewardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a PARAMETER SWING another seat played (TR47 «ОБРАТНЫЙ ХОД» — the server's record): every seat watches
+            // the same story — the scene's start is presented from this very block, or the fall paints before its beat.
+            seedParameterSwings(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and the DECK COUNTER (PL-088): a draw that arrived through this frame keeps its cards on the counter
             // until the flight that deals them (the same block as the apply).
             seedDeckDrawHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);

@@ -98,6 +98,15 @@ export const boardBeatParkState = reactive({
   scaleStory: false,
   /** Bumped per drain — lets a spec (or a future scene) key on the run. */
   nonce: 0,
+  /**
+   * «ОБРАТНЫЙ ХОД» (TR47 — `scaleSwing/scaleSwingDirector.ts`): the values a PARAMETER SWING presents until each
+   * leg's own turn — the peak the fall starts from, or the value a raise that arrived with its fall glides up
+   * from. Written by the swing director ONLY (never by the drain), merged UNDER the park's held values: a raise
+   * the park still holds is the drain's story, and the swing's display takes over once the drain lets it go.
+   */
+  swingParams: undefined as Partial<HeldGlobalParams> | undefined,
+  /** …and the scale-bonus claim map as it stood before a raise the swing plays itself (its capture plays on the glide). */
+  swingClaims: undefined as Record<string, Color> | undefined,
 });
 
 // The DRAIN is a real board cinematic: notifications queue behind it exactly
@@ -333,12 +342,36 @@ export function noteBoardScaleAdvance(oldGame: GameModel, newGame: GameModel): v
  *  already decided. ONE merge for both surfaces. */
 export function boardBeatDisplayParams(base: HeldGlobalParams): HeldGlobalParams {
   const held = boardBeatParkState.heldParams;
-  return held === undefined ? base : {...base, ...held};
+  const swing = boardBeatParkState.swingParams;
+  if (held === undefined && swing === undefined) {
+    return base;
+  }
+  return {...base, ...(swing ?? {}), ...(held ?? {})};
 }
 
-/** The scale-bonus claim map the board should DISPLAY (held ?? live). */
+/** The scale-bonus claim map the board should DISPLAY (held ?? the swing's ?? live). */
 export function boardBeatDisplayClaims(live: Record<string, Color>): Record<string, Color> {
-  return boardBeatParkState.heldClaims ?? live;
+  return boardBeatParkState.heldClaims ?? boardBeatParkState.swingClaims ?? live;
+}
+
+/**
+ * Does the board / the status strip display anything but the live values right now? The ONE gate both read
+ * (the park's held values, the swing's presented ones) — reactive through `boardBeatParkState`.
+ */
+export function boardBeatDisplayHeld(): boolean {
+  return boardBeatParkState.heldParams !== undefined ||
+    boardBeatParkState.heldClaims !== undefined ||
+    boardBeatParkState.swingParams !== undefined ||
+    boardBeatParkState.swingClaims !== undefined;
+}
+
+/**
+ * The swing director's ONE writer of its display (`undefined` = nothing presented). Never touched by the drain
+ * or the park's safety: the swing owns its own bound (its stage due) and its own release.
+ */
+export function setBoardSwingDisplay(params: Partial<HeldGlobalParams> | undefined, claims?: Record<string, Color>): void {
+  boardBeatParkState.swingParams = params !== undefined && Object.keys(params).length > 0 ? {...params} : undefined;
+  boardBeatParkState.swingClaims = claims !== undefined ? {...claims} : undefined;
 }
 
 /**
@@ -539,6 +572,7 @@ export function boardBeatStoryPending(): boolean {
  *  a dead shell's computeds must never decide the next game's parks. */
 export function resetBoardBeatPark(): void {
   releaseBoardBeatPark();
+  setBoardSwingDisplay(undefined);
   watchableProbe = undefined;
   surfaceLeavingProbe = undefined;
   redriveHook = undefined;

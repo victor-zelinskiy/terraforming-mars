@@ -74,7 +74,7 @@ import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
   planetFocusState, captureGlobalParams, PlanetFocusPhase,
 } from '@/client/console/planetFocus';
-import {boardBeatParkState, boardBeatDisplayParams, boardBeatDisplayClaims} from '@/client/console/boardBeatPark';
+import {boardBeatParkState, boardBeatDisplayParams, boardBeatDisplayClaims, boardBeatDisplayHeld} from '@/client/console/boardBeatPark';
 import {registerBoardGeometryProbe, boardSpaceEpoch, bumpBoardSpaceEpoch} from '@/client/console/boardSpaceGeometry';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
@@ -449,9 +449,8 @@ export default defineComponent({
       // probe counts the focused stage as covered) — keeps its pre-change
       // value, and its pre-change scale-bonus claim map, until the drain
       // releases them over a watchable board with the glide + the accent.
-      const parkHeld = this.boardBeatParkState.heldParams !== undefined ||
-        this.boardBeatParkState.heldClaims !== undefined;
-      if (!parkHeld) {
+      // …and a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД») presents its peak until each leg's turn — the same merge.
+      if (!boardBeatDisplayHeld()) {
         return this.playerView.game;
       }
       return {

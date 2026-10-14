@@ -1434,6 +1434,8 @@
     <ConsoleCityPayoutLayer />
     <!-- «ШАГ ШКАЛЫ ПЛАТИТ» (TR24): a card that answers each step of a scale — its tokens condense on the marker. -->
     <ConsoleScaleStepRewardLayer />
+    <!-- «ОБРАТНЫЙ ХОД» (TR47): the tags of a parameter swing — the fall's «−1 · РТ остаётся», a limit's «МАКС.». -->
+    <ConsoleScaleSwingLayer />
 
     <!-- The MARS NOMADS MOVE stage — the camp module lifts off its cell
          (the contact shadow stays behind and lets go), hops to the adjacent
@@ -2055,7 +2057,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {boardBeatParkPending, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
+import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {
   COLONY_LEDGER_STAGE,
@@ -2095,10 +2097,12 @@ import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotio
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
+import ConsoleScaleSwingLayer from '@/client/components/console/scaleSwing/ConsoleScaleSwingLayer.vue';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
 import {PlacementPeek, peekTargetOf} from '@/client/console/tilePlacement/placementPeek';
 import {resetScaleStepRewards} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {resetScaleStepRating} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {resetScaleSwing} from '@/client/console/scaleSwing/scaleSwingDirector';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
 import {abortTilePlacement, tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
@@ -2480,6 +2484,7 @@ export default defineComponent({
     ConsoleTilePlacementLayer,
     ConsoleCityPayoutLayer,
     ConsoleScaleStepRewardLayer,
+    ConsoleScaleSwingLayer,
     ConsoleNomadMoveLayer,
     ConsoleColonyBuildLayer,
     ConsoleColonyCityLayer,
@@ -3824,7 +3829,34 @@ export default defineComponent({
         // cell the marker has not settled on yet (see the block's own doc).
         stageGated: this.hydroQueuedPromptForLaterStep,
         anyAnimation: isAnimationHoldActive(),
+        // The board owes a scale story over a board in plain view (PL-336): a new placement waits for it.
+        boardStory: this.boardStoryBeforePlacement,
       };
+    },
+    /**
+     * PL-336 (TR47 «ВВЕРХ И ОБРАТНО»): the park holds scale values (or drains them) while the board is in plain view
+     * BUT FOR a placement — the term of `boardBeatsWatchable` deliberately left out here, because it is the very thing
+     * this signal holds back (reading it would close a reactivity cycle through `placementHeld`). The CAMERA is left
+     * out too: a placement held by this block does not hold Planet Focus (`planetFocusTarget`), so the focus the last
+     * placement engaged pulls back, the scales tell their story, and the camera comes in again for the next pick. A
+     * covered board (a workspace, a sheet) raises nothing: no placement may wait on a drain that cannot run.
+     */
+    boardStoryBeforePlacement(): boolean {
+      void boardBeatParkState.heldParams;
+      const plainView = this.consoleState.section === 'board' &&
+        this.consoleState.sheet === undefined &&
+        !this.workspaceScreenUp;
+      return plainView && (boardBeatParkPending() || boardBeatParkState.draining);
+    },
+    /**
+     * The server's placement is held WHILE the board owes its scale story (PL-336) — the one state that releases the
+     * camera. Deliberately NOT «board-story is the top block»: the focus's own exit raises a BLOCKING hold
+     * (`planet-focus` → `presentation`, which outranks `board-story`), so a top-block test re-engaged the camera the
+     * moment it started to leave, and the two edges ping-ponged until the page froze. Both facts here are
+     * independent of the camera, so the release is stable for the story's whole length.
+     */
+    placementHeldForBoardStory(): boolean {
+      return this.playerView.waitingFor?.type === 'space' && this.placementHeld && this.admissionSignals.boardStory;
     },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
@@ -6309,7 +6341,9 @@ export default defineComponent({
      */
     planetFocusTarget(): boolean {
       const prompt = this.placementSpaceModel;
-      if (prompt !== undefined &&
+      // A placement held for the board's owed scale story (PL-336) does not hold the camera: the scales can only be
+      // READ with the arcs back, so the focus pulls back for the story and comes in again when the pick is admitted.
+      if (prompt !== undefined && !this.placementHeldForBoardStory &&
           qualifiesForPlanetFocus(prompt.spaces, this.playerView.game.spaces)) {
         return true;
       }
@@ -22915,6 +22949,7 @@ export default defineComponent({
     // …and what a scale step still owed to tell (TR24): its holds release honestly, no record replays.
     resetScaleStepRewards();
     resetScaleStepRating();
+    resetScaleSwing(); // …and a parameter swing's scene (TR47): its display lets go, its held rating ticks.
     this.releaseRevealQueuePark?.();
     this.releaseRevealQueuePark = undefined;
     // …and the presentation ledger with it: a dead shell's closures must

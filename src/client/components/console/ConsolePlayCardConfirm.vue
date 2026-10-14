@@ -202,7 +202,13 @@
                 </template>
               </ConsoleVariantChoice>
               <div v-else-if="immediateEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips">
-                <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
+                <!-- A chip that opens a PHASE of the result («THEN» — TR47's fall after its raise; «Net» — the rating the
+                     whole swing leaves) is preceded by the card's own printed divider word: the row reads in the face's
+                     order (the raise · ЗАТЕМ · the fall · ИТОГ), never one undivided list of ups and downs. -->
+                <template v-for="(eff, k) in immediateEffects" :key="k">
+                  <span v-if="eff.phase !== undefined" class="con-composer__phase" :data-phase="eff.phase">{{ $t(eff.phase) }}</span>
+                  <ActionEffectChip :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
+                </template>
               </div>
               <!-- «ПОЧЕМУ» (PL-156, the owner's M1 2026-10-11): a walk whose length the card COUNTS (TR42) explains its
                    number as a READING of the result, at the chips' scale, right under them — never as a «ДАЛЕЕ» row (the

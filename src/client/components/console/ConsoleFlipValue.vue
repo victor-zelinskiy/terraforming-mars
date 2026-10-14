@@ -1,6 +1,6 @@
 <template>
   <span class="con-flipval"
-        :class="[`con-flipval--${accent}`, {'con-flipval--flip': flipping}]">
+        :class="[`con-flipval--${accent}`, {'con-flipval--flip': flipping, 'con-flipval--down': flipping && falling}]">
     <span class="con-flipval__viewport">
       <span v-if="flipping"
             :key="'out:' + flipNonce"
@@ -41,9 +41,11 @@
  *    in CSS);
  *  - a DECREASE (undo / a different game opened in-session) snaps
  *    silently — never a celebration for a rollback. Readouts whose NORMAL
- *    event IS a decrease (the project-deck count shrinks on every draw)
- *    opt in via `flipOnDecrease` — the same calm one-shot beat plays in
- *    both directions;
+ *    event IS a decrease (the project-deck count shrinks on every draw; a
+ *    global parameter a card LOWERS — TR47 «ОБРАТНЫЙ ХОД») opt in via
+ *    `flipOnDecrease` — the same calm one-shot beat, rolled the OTHER way
+ *    (`--down`: the old value drops away below, the new one comes in from
+ *    above — the direction the number went);
  *  - `accent` tints only the ONE-SHOT beat (shine + scanline); the
  *    persistent colour of the readout stays the host's own (e.g. the gold
  *    `con-status__gen--final`), which the cards inherit.
@@ -75,6 +77,8 @@ export default defineComponent({
       shownText: this.display(this.value, this.text),
       prevText: this.display(this.value, this.text),
       flipping: false,
+      /** The running flip is a DECREASE (rolls the other way). */
+      falling: false,
       flipNonce: 0,
       clearTimer: undefined as number | undefined,
     };
@@ -98,6 +102,7 @@ export default defineComponent({
         this.shownText = nextText;
         return;
       }
+      this.falling = next < this.shown;
       this.prevText = this.shownText;
       this.shown = next;
       this.shownText = nextText;

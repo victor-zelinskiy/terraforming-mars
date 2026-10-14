@@ -40,6 +40,7 @@ function signals(partial: Partial<AdmissionSignals> = {}): AdmissionSignals {
     announceGate: false,
     stageGated: false,
     anyAnimation: false,
+    boardStory: false,
     ...partial,
   };
 }

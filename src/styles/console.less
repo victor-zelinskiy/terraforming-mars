@@ -2567,6 +2567,23 @@ html.con-reduced-motion {
             con-flipval-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.25, 0.35, 1) calc(190ms * var(--motion-scale, 1)) both,
             con-flipval-shine calc(940ms * var(--motion-scale, 1)) ease-out calc(190ms * var(--motion-scale, 1));
     }
+    /* THE REVERSE FLIP (TR47 «ОБРАТНЫЙ ХОД» — a readout whose decrease is an EVENT, `flipOnDecrease`): the same
+       drum rolled the other way — the old value drops away below, the new one comes in from above — the number
+       went DOWN and the card says so by its direction, never by a colour of its own (the delta chip carries the
+       loss tone). The scanline sweeps UP. */
+    &--down &__card--out {
+        transform-origin: 50% 92%;
+        animation-name: con-flipval-out-down;
+    }
+    &--down &__card--in {
+        transform-origin: 50% 4%;
+        animation-name: con-flipval-in-down, con-flipval-shine;
+    }
+    &--down &__flash {
+        top: auto;
+        bottom: -.25rem;
+        animation-name: con-flipval-scan-up;
+    }
     /* One thin light line sweeps down the digits — a single pass. */
     &__flash {
         position: absolute;
@@ -2602,6 +2619,21 @@ html.con-reduced-motion {
     0% { transform: translateY(0); opacity: 0; }
     18% { opacity: 1; }
     100% { transform: translateY(1.9rem); opacity: 0; }
+}
+@keyframes con-flipval-out-down {
+    from { transform: rotateX(0deg); opacity: 1; }
+    to { transform: rotateX(-74deg) translateY(.12rem); opacity: 0; }
+}
+@keyframes con-flipval-in-down {
+    0% { transform: rotateX(78deg) translateY(-.14rem); opacity: 0; }
+    55% { opacity: 1; }
+    78% { transform: rotateX(-6deg) translateY(0); }
+    100% { transform: rotateX(0deg) translateY(0); opacity: 1; }
+}
+@keyframes con-flipval-scan-up {
+    0% { transform: translateY(0); opacity: 0; }
+    18% { opacity: 1; }
+    100% { transform: translateY(-1.9rem); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-flipval__card--out,
@@ -34650,6 +34682,15 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
        so their chips take the COMPACT family — one decision for the whole
        inline-chip hierarchy (see `--con-chip-c-*`). */
     &__result-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+    /* A PHASE divider inside the result strip (TR47 «UP AND BACK»: the face's printed «THEN» between the raise and
+       the fall, «Net» before the rating the swing leaves) — the card's own word, a quiet tracked-caps marker at the
+       chips' scale with a hairline on each side, never a chip and never a second strip. */
+    &__phase {
+        display: inline-flex; align-items: center; gap: .3rem;
+        font-size: calc(var(--con-chip-c-fs, .82rem) * .86); font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+        color: fade(@con-amber, 85%); white-space: nowrap;
+        &::before, &::after { content: ''; display: inline-block; width: .55rem; height: 1px; background: fade(@con-amber, 55%); }
+    }
     &__result-chips .action-effect-chip.action-effect-chip,
     &__variant-chips .action-effect-chip.action-effect-chip {
         font-size: var(--con-chip-c-fs, .82rem);

@@ -123,7 +123,15 @@ export type AdmissionBlock =
    */
   | 'stage-gate'
   /** ANY animation hold, including the 'notification-only' scopes. */
-  | 'animation';
+  | 'animation'
+  /**
+   * THE BOARD OWES A STORY (TR47 «ВВЕРХ И ОБРАТНО», PL-336): the board-beat park holds scale values a covered board
+   * could not show, the board is now in plain view — and only a live placement keeps the park from draining (the
+   * drain never plays while the player aims). A NEW placement waits for that story first: one response, several
+   * effects — the raise is told, THEN the next board demand comes alive. Raised only while the board is otherwise
+   * watchable, so a covered board (a workspace still up) never waits on a drain that cannot run.
+   */
+  | 'board-story';
 
 /**
  * The live signals, all owned + computed by ConsoleShell. Grouped as ONE object
@@ -160,6 +168,8 @@ export type AdmissionSignals = {
   announceGate: boolean;
   /** `isAnimationHoldActive()` — every scope, including 'notification-only'. */
   anyAnimation: boolean;
+  /** The park owes / plays a scale story over a board that is watchable but for the placement itself (PL-336). */
+  boardStory: boolean;
   /**
    * The prompt is owned by a traversal step whose cell the marker has not
    * settled on (`hydroStepQueuedFor`). Ownership, not timing — see the block.
@@ -179,7 +189,7 @@ const BLOCK_ORDER: ReadonlyArray<AdmissionBlock> = [
   // not been reached» rather than «a card is still flying».
   'stage-gate',
   'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
-  'card-discard', 'presentation', 'announce-gate', 'animation',
+  'card-discard', 'presentation', 'announce-gate', 'board-story', 'animation',
 ];
 
 /** Is this block RAISED by the current signals? */
@@ -195,6 +205,7 @@ function raised(block: AdmissionBlock, s: AdmissionSignals): boolean {
   case 'announce-gate': return s.announceGate;
   case 'stage-gate': return s.stageGated;
   case 'animation': return s.anyAnimation;
+  case 'board-story': return s.boardStory;
   }
 }
 
@@ -242,7 +253,7 @@ const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   placement: new Set<AdmissionBlock>([
     'stage-gate',
     'reveal', 'played-hero', 'tile-hero', 'card-arrival',
-    'card-discard', 'presentation', 'announce-gate',
+    'card-discard', 'presentation', 'announce-gate', 'board-story',
   ]),
   followUp: new Set<AdmissionBlock>([
     'stage-gate',

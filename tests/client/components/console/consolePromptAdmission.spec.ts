@@ -24,6 +24,7 @@ function idle(): AdmissionSignals {
     announceGate: false,
     stageGated: false,
     anyAnimation: false,
+    boardStory: false,
   };
 }
 
@@ -140,6 +141,18 @@ describe('consolePromptAdmission (the one prompt-surface admission gate)', () =>
       const s = {...idle(), boardBonus: true};
       expect(promptAdmissionBlock('host', s)).to.equal('board-bonus');
       expect(isPromptAdmitted('placement', s)).to.be.true;
+    });
+
+    /*
+     * PL-336 (TR47 «ВВЕРХ И ОБРАТНО»): the park owes a scale story over a board in plain view — only a NEW
+     * placement waits for it (the raise is told, THEN the next board demand comes alive); no other family does.
+     */
+    it('an owed board story holds ONLY the placement', () => {
+      const s = {...idle(), boardStory: true};
+      expect(promptAdmissionBlock('placement', s)).to.equal('board-story');
+      for (const surface of ['host', 'section', 'scene', 'followUp', 'standaloneModal'] as const) {
+        expect(isPromptAdmitted(surface, s), surface).to.be.true;
+      }
     });
 
     /*

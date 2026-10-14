@@ -1,0 +1,91 @@
+// ═══ «ОБРАТНЫЙ ХОД» — the tags of a PARAMETER SWING (TR47 Ecological Experiment) ═══
+//
+// The layer (ConsoleScaleSwingLayer.vue) is one fixed sheet on the flight
+// layers' step of the z ladder (`con-scalepay`'s — the rating tokens that ride
+// the transfer chips take over above it). It draws only TAGS: the fall's
+// «−1 · РТ остаётся» beside the marker that steps down (or under the strip's
+// readout of a scale with no board marker — the ocean count), a limit's
+// «МАКС.» where the parameter stands still.
+//
+// The tag is a STATEMENT, not a reward: the LOSS tone of the delta chips for
+// the number (the parameter fell), a calm cyan for «the TR stays» (what did
+// NOT fall), never a celebration. It condenses in place (opacity + a small
+// scale, 220 ms), stands for the read, and dissolves (180 ms) — scale and
+// opacity only; reduced motion keeps the tag and drops the motion.
+
+.con-scaleswing {
+    position: fixed;
+    inset: 0;
+    z-index: 11650;
+    pointer-events: none;
+    contain: layout style;
+
+    &__tag {
+        position: absolute;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .3rem;
+        padding: .22rem .55rem .24rem .5rem;
+        border-radius: .5rem;
+        white-space: nowrap;
+        font-size: .82rem;
+        font-weight: 700;
+        line-height: 1.1;
+        background: linear-gradient(180deg, fade(#0b1622, 94%) 0%, fade(#08111a, 96%) 100%);
+        box-shadow: 0 0 0 1px fade(@con-cyan, 30%), 0 .3rem .9rem fade(#000, 55%);
+        color: fade(@con-text, 92%);
+
+        // Beside the marker: its left edge on the marker's right rim, centred on the marker's line.
+        &--at-marker { transform: translate(0, -50%); }
+        // Under the strip's readout: centred under it, hanging from its foot.
+        &--at-hud { transform: translate(-50%, 0); }
+    }
+
+    &__delta {
+        font-variant-numeric: tabular-nums;
+        font-weight: 800;
+        color: lighten(@con-red, 8%);
+    }
+    &__sep { color: fade(@con-text, 45%); }
+    &__note {
+        font-size: .9em;
+        letter-spacing: .02em;
+        color: fade(@con-cyan, 92%);
+    }
+
+    // A limit named in place: the parameter did not move — the quiet amber of «stays», tracked caps.
+    &__tag--max,
+    &__tag--min {
+        box-shadow: 0 0 0 1px fade(@con-amber, 40%), 0 .3rem .9rem fade(#000, 55%);
+    }
+    &__limit {
+        font-size: .9em;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(@con-amber, 95%);
+    }
+}
+
+// The tag's own phrase: it condenses IN PLACE (opacity + a small scale — the `scale` property composes with the
+// anchor's `transform`, so the tag never leaves its anchor) and dissolves on the spot.
+.con-scaleswing-tag-enter-active {
+    transition:
+        opacity calc(220ms * var(--motion-scale, 1)) ease-out,
+        scale calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.2, 0.35, 1);
+}
+.con-scaleswing-tag-leave-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease-in;
+}
+.con-scaleswing-tag-enter-from {
+    opacity: 0;
+    scale: 0.86;
+}
+.con-scaleswing-tag-leave-to {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-scaleswing-tag-enter-active,
+    .con-scaleswing-tag-leave-active { transition: none; }
+}

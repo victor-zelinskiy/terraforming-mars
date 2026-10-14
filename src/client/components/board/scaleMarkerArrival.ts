@@ -54,6 +54,16 @@ export function scaleMarkerArrived(accent: ScaleMarkerAccent, after: number): bo
   return !pose.moving && pose.value !== undefined && pose.value >= after;
 }
 
+/**
+ * Does the cursor REST exactly on `value`? Direction-free — the arrival of a FALL (TR47 «ОБРАТНЫЙ ХОД»: the
+ * marker glides DOWN to the value the swing left) can never be read by `scaleMarkerArrived`, whose «at or past»
+ * is a raise's question.
+ */
+export function scaleMarkerRestsOn(accent: ScaleMarkerAccent, value: number): boolean {
+  const pose = scaleMarkerPoses[accent];
+  return !pose.moving && pose.value === value;
+}
+
 /** Specs / a game switch: forget every pose. */
 export function resetScaleMarkerPoses(): void {
   for (const accent of Object.keys(scaleMarkerPoses) as Array<ScaleMarkerAccent>) {

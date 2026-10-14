@@ -59,14 +59,16 @@
            :aria-label="terraAriaLabel">
         <!-- Every readout announces its change TWICE over: the premium
              flip-swap of the value itself (nested INSIDE the value cell —
-             see ConsoleFlipValue's layering note) plus the delta chip. -->
+             see ConsoleFlipValue's layering note) plus the delta chip. A global
+             parameter a card LOWERS (TR47 «ОБРАТНЫЙ ХОД») is an event too: the
+             four parameters flip on a decrease, rolled the other way. -->
         <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'temperature'}">
           <!-- data-wheel-anchor="temp": reserved acknowledgement anchor (the
                heat conversion's SERVER result animates here via the existing
                flip/delta pipeline — no scripted pre-timing). -->
           <i class="wgt-icon wgt-icon--temperature con-status__icon" data-wheel-anchor="temp" aria-hidden="true"></i>
           <span class="con-status__value">
-            <ConsoleFlipValue :value="game.temperature" :text="`${game.temperature}°C`" />
+            <ConsoleFlipValue :value="game.temperature" :text="`${game.temperature}°C`" flip-on-decrease />
           </span>
           <AnimatedMetricValue
             :value="game.temperature"
@@ -78,7 +80,7 @@
         <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'oxygen'}">
           <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
-            <ConsoleFlipValue :value="game.oxygenLevel" :text="`${game.oxygenLevel}%`" />
+            <ConsoleFlipValue :value="game.oxygenLevel" :text="`${game.oxygenLevel}%`" flip-on-decrease />
           </span>
           <AnimatedMetricValue
             :value="game.oxygenLevel"
@@ -90,7 +92,7 @@
         <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'oceans'}">
           <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
-            <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/9`" />
+            <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/9`" flip-on-decrease />
           </span>
           <AnimatedMetricValue
             :value="game.oceans"
@@ -118,7 +120,7 @@
             :class="{'con-status__param--ghost': ghostParam === 'venus'}">
         <i class="wgt-icon wgt-icon--venus con-status__icon" aria-hidden="true"></i>
         <span class="con-status__value">
-          <ConsoleFlipValue :value="game.venusScaleLevel" :text="`${game.venusScaleLevel}%`" />
+          <ConsoleFlipValue :value="game.venusScaleLevel" :text="`${game.venusScaleLevel}%`" flip-on-decrease />
         </span>
         <AnimatedMetricValue
           :value="game.venusScaleLevel"
@@ -325,7 +327,8 @@ export default defineComponent({
       // the shell's watchable probe). The strip's readout keeps the
       // pre-change value the player last saw until the drain releases it in
       // one synchronized beat with the arc markers.
-      if (boardBeatParkState.heldParams === undefined) {
+      // …and a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД») presents its peak until each leg's turn — the same merge.
+      if (boardBeatParkState.heldParams === undefined && boardBeatParkState.swingParams === undefined) {
         return this.playerView.game;
       }
       return {

@@ -60,7 +60,7 @@ import {
   beginPanelRewardHold, heldStock, releasePanelRewardHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint,
+  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, scaleStepTokenOrigins} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 
@@ -108,7 +108,9 @@ const SCALES: ReadonlyArray<{accent: ScaleStepRatingAccent, key: keyof HeldGloba
  * the tile's; a direct TR beside a scale step is nobody's to fly; a rival's
  * step never moves the viewer's rating; the World Government pays no rating).
  */
-export function scaleStepRatingPlan(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): ScaleStepRatingPlan | undefined {
+export function scaleStepRatingPlan(
+  before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldByOthers = 0,
+): ScaleStepRatingPlan | undefined {
   if (before === undefined || after === undefined || before.id !== after.id || after.game.phase !== Phase.ACTION) {
     return undefined;
   }
@@ -117,7 +119,10 @@ export function scaleStepRatingPlan(before: PlayerViewModel | undefined, after: 
   if (was === undefined || now === undefined) {
     return undefined;
   }
-  const rating = now.terraformRating - was.terraformRating;
+  // The part of the rise ANOTHER owner of this same response already holds for a cause of its own (the ocean's TR —
+  // its tile beat flies it) is not the scales': a play that raises two scales AND places an ocean reads +3 for two
+  // steps, and the scales' two tokens were lost to that one extra point (PL-330, TR47).
+  const rating = now.terraformRating - was.terraformRating - heldByOthers;
   if (rating <= 0) {
     return undefined;
   }
@@ -146,7 +151,9 @@ export function scaleStepRatingPlan(before: PlayerViewModel | undefined, after: 
     moves,
     rating,
     venusBonus,
-    ...(megacredits === GREENS_MEGACREDITS_PER_TR * rating ? {reaction: megacredits} : {}),
+    // The answer is recognized only on a rise that is the scales' alone — beside another owner's rating the M€ row
+    // carries that owner's answer too, and a guessed split is never flown.
+    ...(heldByOthers === 0 && megacredits === GREENS_MEGACREDITS_PER_TR * rating ? {reaction: megacredits} : {}),
   };
 }
 
@@ -247,16 +254,24 @@ function releaseHeld(e: Entry): void {
  * apply), AFTER every owner that may hold the rating for a cause of its own:
  * a rating already held is never held twice.
  */
-export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
-  const plan = scaleStepRatingPlan(before, after);
-  if (plan === undefined || typeof document === 'undefined' || consoleReducedMotionActive() || heldStock(RATING_RAIL_KEY) > 0) {
+export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldThisResponse = 0): void {
+  // An OLDER hold of the rating stands (a beat of an earlier response still owed): never held twice. What THIS
+  // response's other owners hold (`heldThisResponse` — the transport measures it across its own seed block) is
+  // subtracted from the rise instead, so the scales' own steps still fly beside an ocean's TR (PL-330).
+  if (heldStock(RATING_RAIL_KEY) > heldThisResponse) {
+    return;
+  }
+  const plan = scaleStepRatingPlan(before, after, heldThisResponse);
+  if (plan === undefined || typeof document === 'undefined' || consoleReducedMotionActive()) {
     return;
   }
   const origins = originsOf(plan);
   const cause: Array<ResourceTransferSpec> = origins.map(() => ({channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}));
   const reactions: Array<ResourceTransferSpec> = plan.reaction === undefined ? [] :
     [{channel: 'stock', resource: 'megacredits', amount: plan.reaction}];
-  const verdict = verifyRailReward({cause, reactions}, before, after);
+  const verdict = verifyRailReward({
+    cause, reactions, ...(heldThisResponse > 0 ? {known: {[railRowKey(cause[0])]: heldThisResponse}} : {}),
+  }, before, after);
   if (verdict.mismatches.length > 0 && process.env.NODE_ENV !== 'production') {
     console.warn(`[scale-step-rating] not shown as promised — ${verdict.mismatches.join('; ')}`);
   }

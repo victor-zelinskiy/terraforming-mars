@@ -106,6 +106,9 @@ import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRe
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
+import {heldStock as heldRailStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
@@ -581,6 +584,8 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
  * All calls are no-ops unless their transaction armed rewards.
  */
 function seedRewardHolds(newView?: PlayerViewModel): void {
+  // The rating held BEFORE this block — what this response's own owners hold is measured against it (PL-330).
+  const ratingHeldBefore = heldRailStock(RATING_RAIL_KEY);
   // The DECK COUNTER (PL-088): a new batch of cards off the project deck stays on the counter until the flight that
   // deals it — the same block as the commit, or the HUD paints the smaller count and the flight's hold flips it back up.
   seedDeckDrawHold(currentView(), newView);
@@ -673,8 +678,12 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // …and the RATING a scale step the viewer made pays (TR41 Plasma Fans — a scale step from a card action, a play's
   // scale step, a standard project's): the rating cell keeps its pre-step number until the token born on the marker
   // has landed, the Greens' answer ticks a beat after it. Seeded LAST — after every owner that holds the rating for a
-  // cause of its own (a direct TR, a tile's), so a rating is never held twice.
-  seedScaleStepRatingHold(currentView(), newView);
+  // cause of its own (a direct TR, a tile's), so a rating is never held twice: what they held in THIS block is
+  // subtracted from the rise, so the scales' own steps still fly beside an ocean's TR (PL-330).
+  // …preceded by a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД» — the server's record of «up and back»): the scene's start
+  // is presented from this very block, and a raise that arrived together with its fall flies its rating itself.
+  seedParameterSwings(currentView(), newView);
+  seedScaleStepRatingHold(currentView(), newView, heldRailStock(RATING_RAIL_KEY) - ratingHeldBefore);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {
