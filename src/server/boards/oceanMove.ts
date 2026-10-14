@@ -19,9 +19,11 @@ import {
  * WHO MAY MOVE — ANY plain ocean tile on the board: an ocean has no owner
  * (`simpleAddTile` seats it unowned), so «any 1 ocean tile» is every one of
  * them, whoever placed it — on an ocean reserve or on land (after Artificial
- * Lake, or after this very card). The reading of «ocean tile» is the Water
- * Export removal's (RX33, `RemoveOceanTile`): `getOceanSpaces({upgradedOceans:
- * false})` — a plain ocean, never a Wetlands.
+ * Lake, or after this very card), and the plain ocean lying UNDER an ordinary
+ * city (TR44 Aquatic Research Station — the set's FAQ, p. 18: the ocean
+ * moves out from under, the city stays; `cellPieces.ts`). The reading of
+ * «ocean tile» is the Water Export removal's (RX33, `RemoveOceanTile`):
+ * `getOceanSpaces({upgradedOceans: false})` — a plain ocean, never a Wetlands.
  *
  * WHERE — the cells ADJACENT to the ocean out of TWO families, and the card
  * prints no «ignoring other placement restrictions», so the ordinary cell
@@ -60,9 +62,9 @@ function isAnyOceanTile(space: Space): boolean {
   return space.spaceType !== SpaceType.COLONY && Board.isOceanSpace(space);
 }
 
-/** A PLAIN ocean tile — the one kind the card may lift. */
+/** A PLAIN ocean tile — the one kind the card may lift: on top of the cell, or under an ordinary city (TR44). */
 export function isPlainOcean(space: Space): boolean {
-  return space.tile?.tileType === TileType.OCEAN;
+  return Board.hasPlainOcean(space);
 }
 
 /**

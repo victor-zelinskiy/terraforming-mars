@@ -402,6 +402,7 @@ const PLACEMENT_CLAUSE: Partial<Record<PlacementType, string>> = {
   'volcanic': 'on a volcanic area',
   'upgradeable-ocean': 'on top of an existing ocean tile',
   'upgradeable-ocean-new-holland': 'on top of an existing ocean tile',
+  'city-over-ocean': 'on top of an existing ocean tile',
   'city': 'on a city area',
   'greenery': 'on a greenery area',
 };

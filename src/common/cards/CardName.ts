@@ -1115,6 +1115,7 @@ export enum CardName {
   PLASMA_FANS = 'Plasma Fans',
   GREEN_ALLEGIANCE = 'Green Allegiance',
   ICHTIOLOGY_GRANT = 'Ichtiology Grant',
+  AQUATIC_RESEARCH_STATION = 'Aquatic Research Station',
   COMPOSTING_INITIATIVE = 'Composting Initiative',
   RESEARCH_STARTUPS = 'Research Startups',
   SUPERCOMPUTER = 'Supercomputer',

@@ -1,9 +1,11 @@
 // TYPE-ONLY: `Game.ts` imports this module beside `Board`, and a VALUE import of `Board` here closed an import cycle
 // (Board → … → MoonBoard → Board, «Cannot access 'Board' before initialization» in every server spec). The ocean
-// predicate is the SAME set `Board.isOceanSpace` reads (`OCEAN_TILES`), taken from the common module directly.
+// predicate is the SAME reading `Board.isOceanSpace` stands on (`common/boards/cellPieces.ts` — a plain ocean
+// under a TR44 city counts), taken from the common module directly.
 import type {Board} from './Board';
 import type {Space} from './Space';
-import {OCEAN_TILES, TileType} from '../../common/TileType';
+import {TileType} from '../../common/TileType';
+import {countsAsOcean} from '../../common/boards/cellPieces';
 import {SpaceId} from '../../common/Types';
 import {AdjacencyVpChange} from '../../common/boards/TileMove';
 
@@ -30,7 +32,7 @@ export type CapitalAdjacencyVp = {space: SpaceId; player: string; oceans: number
 
 /** How many oceans stand beside `space` — the Capital's own scoring predicate. */
 function adjacentOceans(board: Board, space: Space): number {
-  return board.getAdjacentSpaces(space).filter((s) => s.tile !== undefined && OCEAN_TILES.has(s.tile.tileType)).length;
+  return board.getAdjacentSpaces(space).filter(countsAsOcean).length;
 }
 
 /**

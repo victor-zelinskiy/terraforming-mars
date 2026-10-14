@@ -2,6 +2,7 @@ import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
 import {LiftedCity, adjacentCitySpaces, adjacentCityTiers, liftTopCity} from './cityStack';
+import {buriedOceanOf, liftOcean} from './cellPieces';
 import {cityMoveOffer, cityMoveReasoner} from './cityMove';
 import {oceanMoveOffer, oceanMoveReasoner} from './oceanMove';
 import {TileMoveOffer} from './tileMove';
@@ -201,6 +202,11 @@ export function boardCellPreview(
   }
   facts.push(...placementEffectFacts(player, ctx));
   facts.push(...greeneryRevisionFacts(player, ctx));
+  if (kind === 'city-over-ocean' && legal) {
+    // TR44: what tells this placement from an Ocean City's — the ocean under the city is a tile of its own and
+    // keeps paying the neighbours (the same rule, the same rate `oceanNeighbourRuleFact` states on a hovered ocean).
+    facts.push(oceanUnderCityFact(player));
+  }
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
   // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency
   // (`Board.onMarsGrid` — the gate that keeps `countsAs` SEPARATE from scoring).
@@ -311,16 +317,20 @@ function hasPrintedBonus(space: Space): boolean {
   return space.bonus.some((b) => b !== SpaceBonus._RESTRICTED);
 }
 
-/** What a tile counts AS for rules/scoring (a composite tile is several). */
-function countsAsFor(tileType: TileType): Array<'city' | 'ocean' | 'greenery'> {
+/**
+ * What the CELL counts AS for rules/scoring — a composite tile is several
+ * (Ocean City: one tile, city and ocean), and so is a city standing on its
+ * ocean (TR44: two pieces, the same two words — `cellPieces.ts` reads both).
+ */
+function countsAsFor(space: Space): Array<'city' | 'ocean' | 'greenery'> {
   const out: Array<'city' | 'ocean' | 'greenery'> = [];
-  if (CITY_TILES.has(tileType)) {
+  if (Board.isCitySpace(space)) {
     out.push('city');
   }
-  if (OCEAN_TILES.has(tileType)) {
+  if (Board.isOceanSpace(space)) {
     out.push('ocean');
   }
-  if (GREENERY_TILES.has(tileType)) {
+  if (Board.isGreenerySpace(space)) {
     out.push('greenery');
   }
   return out;
@@ -342,6 +352,10 @@ function externalAreaFact(): BoardFact {
 
 /** A passive one-liner under the header — never says "Вы получите" (hover, no action). */
 function cellDescription(space: Space, status: BoardCellStatus): string | undefined {
+  if (status.under === 'ocean') {
+    // TR44: the one sentence that tells this cell from an Ocean City — two pieces, and the water still pays.
+    return 'Two tiles: a city stands on an ocean tile. The ocean still pays its neighbours and still counts.';
+  }
   if (status.content === 'ocean') {
     return 'This cell is occupied by an ocean.';
   }
@@ -388,10 +402,12 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     // tile is inherently SPECIAL even when its TileType is a plain CITY.
     const external = !board.onMarsGrid(space);
     const special = isSpecialTile(tileType) || external;
-    const countsAs = countsAsFor(tileType);
+    const countsAs = countsAsFor(space);
     // A CITY STACK (Skyscrapers) names its height in the header — «Город ×2».
     const tiers = Board.tiersOf(space);
     const stack = tiers > 1 ? {stackHeight: tiers} : {};
+    // TWO TILES ON ONE CELL (TR44): the plain ocean under the city is a piece of its own — the inspector says so.
+    const under = buriedOceanOf(space) !== undefined ? {under: 'ocean' as const} : {};
     // Prefer the recorded SOURCE card (set by `behavior.city`/`behavior.tile`);
     // fall back to the canonical tile-type name for a special TileType, but NEVER
     // the generic 'city'/'ocean'/'greenery' pseudo-names (an ordinary CITY tile
@@ -407,7 +423,7 @@ function baseCellStatus(player: IPlayer, space: Space): BoardCellStatus {
     const content = Board.isCitySpace(space) ? 'city' :
       Board.isOceanSpace(space) ? 'ocean' :
         Board.isGreenerySpace(space) ? 'greenery' : 'special-tile';
-    return {content, ownerColor, tileLabel, special, countsAs, external, ...stack};
+    return {content, ownerColor, tileLabel, special, countsAs, external, ...stack, ...under};
   }
   return {content: 'empty', spaceTypeLabel: spaceTypeLabel(space.spaceType)};
 }
@@ -578,6 +594,28 @@ function oceanNeighbourRuleFact(player: IPlayer): BoardFact {
     recipient: {kind: 'neutral'},
     title: 'Adjacent placement',
     description: 'A tile placed next to an ocean grants M€ to the player who places it.',
+    delta: {icon: 'megacredits', amount: player.oceanBonus, direction: 'gain'},
+    source: {type: 'global-rule', label: 'Ocean adjacency'},
+  };
+}
+
+/**
+ * TWO TILES ON ONE CELL (Turmoil Redux TR44 Aquatic Research Station): the
+ * placement's own statement that the ocean it covers is NOT replaced — it
+ * stays a tile of its own under the city, counts toward nine, and keeps
+ * paying every tile placed beside it (`Board.isOceanSpace` reads the pieces).
+ * The rate is the same rule `oceanNeighbourRuleFact` states, so the two can
+ * never quote different money.
+ */
+function oceanUnderCityFact(player: IPlayer): BoardFact {
+  return {
+    id: 'ocean-under-city',
+    category: 'ocean-adjacency-bonus',
+    timing: 'rule',
+    severity: 'info',
+    recipient: {kind: 'neutral'},
+    title: 'The ocean stays under the city',
+    description: 'Two tiles on one cell: the ocean still counts and still grants M€ to the player who places a tile next to it.',
     delta: {icon: 'megacredits', amount: player.oceanBonus, direction: 'gain'},
     source: {type: 'global-rule', label: 'Ocean adjacency'},
   };
@@ -1254,7 +1292,7 @@ function previewContext(
  * and gets its illegal reason instead.
  */
 function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
-  if (!ctx.removesTile || space.tile?.tileType !== TileType.OCEAN) {
+  if (!ctx.removesTile || !Board.hasPlainOcean(space)) {
     return [];
   }
   const game = player.game;
@@ -1267,6 +1305,12 @@ function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
     description: 'The ocean count drops by one. The cell\'s bonuses are not returned; an ocean placed here later pays them again.',
     delta: {icon: 'ocean', amount: 1, direction: 'cost', current, resulting: current - 1},
   });
+  if (buriedOceanOf(space) !== undefined) {
+    // TR44: the ocean leaves from UNDER the city — the city stays (the set's FAQ, p. 18), and the cell stops
+    // counting as an ocean: its neighbours are paid no more, the Capital beside it is a point poorer.
+    out.push(rule('remove-ocean-under-city', 'placement-effect', 'The city stays',
+      'Only the ocean under the city leaves. The city, its owner and its stack stay in place; the cell no longer counts as an ocean.', 'neutral'));
+  }
   out.push(rule('remove-ocean-no-tr', 'placement-effect', 'Nobody loses TR',
     'The player who placed the ocean keeps the terraform rating it paid.', 'nobody'));
   // The neighbours that SCORE PER ADJACENT OCEAN — their owner is one point poorer at the end.
@@ -1839,18 +1883,19 @@ function withCityLifted<T>(from: Space, read: (lifted: LiftedCity) => T): T {
 
 /**
  * Run `read` against the board with the OCEAN LIFTED off `from` — the first
- * half of `Game.moveOceanTile` (an ocean has no owner, no stack, no adjacency,
- * no co-owner: the lift is the tile alone) — then put the very same tile
- * object back. Nothing inside `read` may mutate.
+ * half of `Game.moveOceanTile` (`liftOcean`: an ocean has no owner, no stack,
+ * no adjacency, no co-owner — the lift is the tile alone; from UNDER a TR44
+ * city the city stays and the cell's tile is rebuilt without its cover) —
+ * then put the very same tile object back. Nothing inside `read` may mutate.
  */
 function withOceanLifted<T>(from: Space, read: (lifted: LiftedTile) => T): T {
   const tile = from.tile;
   if (tile === undefined) {
     throw new Error('No tile to lift on ' + from.id);
   }
-  from.tile = undefined;
+  const ocean = liftOcean(from);
   try {
-    return read({tile, tiers: {before: 1, after: 0}});
+    return read({tile: ocean, tiers: {before: 1, after: 0}});
   } finally {
     from.tile = tile;
   }
@@ -1864,13 +1909,15 @@ function withTileLifted<T>(kind: MoveKind, from: Space, read: (lifted: LiftedTil
 /**
  * THE HYPOTHESIS OF A MOVE, whole: the tile lifted off `from` AND standing on
  * `to` — what the board reads as once the move has run. The kind is the
- * tile's: an ocean on `from` is the ocean's move, anything else the city's.
+ * tile's: an ocean on `from` is the ocean's move, anything else the city's —
+ * a city standing on its ocean (TR44) may be the source of EITHER, so the
+ * caller that knows which says so (`kind`); unnamed, the city moves.
  * The destination preview composes the same two halves (it reads some facts
  * between them); this is the form a caller that needs only «the board after
  * the move» takes. Restores both cells exactly.
  */
-export function withHypotheticalMove<T>(player: IPlayer, from: Space, to: Space, read: () => T): T {
-  const kind: MoveKind = from.tile?.tileType === TileType.OCEAN ? 'ocean-move' : 'city-move';
+export function withHypotheticalMove<T>(player: IPlayer, from: Space, to: Space, read: () => T, kind?: MoveKind): T {
+  kind ??= Board.isPlainOceanTop(from) ? 'ocean-move' : 'city-move';
   return withTileLifted(kind, from, (lifted) => {
     const ctx = previewContext(kind, lifted.tile.tileType, false, Board.hasRealTile(to), to.tile !== undefined, 'tile');
     return withHypotheticalTile(player, to, ctx, read);
@@ -2682,6 +2729,7 @@ function placedTileType(kind: BoardPlacementKind, tileType: TileType | undefined
   case 'city':
   case 'city-tier':
   case 'city-move':
+  case 'city-over-ocean':
   case 'away-from-cities': return TileType.CITY;
   default: return undefined;
   }

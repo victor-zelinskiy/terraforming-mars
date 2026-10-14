@@ -3,7 +3,8 @@ import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {PlayerId, SpaceId} from '../../common/Types';
 import {SpaceType} from '../../common/boards/SpaceType';
 import {SpaceBonus} from '../../common/boards/SpaceBonus';
-import {BASE_OCEAN_TILES, CITY_TILES, CUBE_TILES, GREENERY_TILES, HAZARD_TILES, OCEAN_TILES, isSpecialTile} from '../../common/TileType';
+import {BASE_OCEAN_TILES, CITY_TILES, CUBE_TILES, GREENERY_TILES, HAZARD_TILES, isSpecialTile} from '../../common/TileType';
+import {countsAsOcean, hasPlainOcean, isPlainOceanTop} from '../../common/boards/cellPieces';
 import {SerializedBoard, SerializedSpace} from './SerializedBoard';
 import {CardName} from '../../common/cards/CardName';
 import {AresHandler} from '../ares/AresHandler';
@@ -365,9 +366,26 @@ export abstract class Board {
     return cityTiersOf(space);
   }
 
-  // Returns true when the space has an ocean tile or any derivative tiles (ocean city, wetlands)
+  /**
+   * Does the cell COUNT AS an ocean — an ocean tile or any derivative on top
+   * (Ocean City, Wetlands), or a plain ocean lying UNDER an ordinary city
+   * (Turmoil Redux TR44 Aquatic Research Station — two tiles on one cell).
+   * The ONE reading (`common/boards/cellPieces.ts`): the nine-ocean count,
+   * the adjacency M€, the Capital's VP, every «next to an ocean» rule and the
+   * client's picture of the cell all stand on it.
+   */
   public static isOceanSpace(space: Space): boolean {
-    return space.tile !== undefined && OCEAN_TILES.has(space.tile.tileType);
+    return countsAsOcean(space);
+  }
+
+  /** Is a PLAIN ocean on the cell at all — on top, or under an ordinary city? (the move's and the removal's source test) */
+  public static hasPlainOcean(space: Space): boolean {
+    return hasPlainOcean(space);
+  }
+
+  /** Is the TOP of the cell a plain ocean with nothing on it? (what an ocean cover may be placed ON) */
+  public static isPlainOceanTop(space: Space): boolean {
+    return isPlainOceanTop(space);
   }
 
   /**

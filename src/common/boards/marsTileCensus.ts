@@ -15,6 +15,10 @@
  *  - an UPGRADED ocean (Ocean City / Ocean Farm / Ocean Sanctuary / New
  *    Holland) is ONE tile — the engine keeps one, TR39 never moves it as an
  *    ocean;
+ *  - a CITY OVER AN OCEAN (TR44 Aquatic Research Station) is TWO tiles — the
+ *    city (its stack's tiers) and the plain ocean lying under it, which stays
+ *    an ocean of its own (`cellPieces.ts`: the same reading the count toward
+ *    nine, the adjacency M€ and the moves use);
  *  - NOT a tile: an Ares HAZARD («hazard tiles don't really count as tiles»,
  *    `Board.hasRealTile`), a neutral CUBE kept in `space.tile` so it renders
  *    (`CUBE_TILES` — Martian Nature Wonders, Rey Skywalker), a marker with no
@@ -31,10 +35,9 @@
  * (`GREENERY_TILES` — Wetlands), ocean (the rest of `OCEAN_TILES` — Ocean
  * Farm, Ocean Sanctuary), else special.
  *
- * TR44 FORWARD: Aquatic Research Station puts a city ON TOP of an ocean (the
- * rulebook FAQ p.18 — two tiles on one cell). The census asks «what pieces
- * stand on this cell» (`marsTilePiecesOn`), so that card adds its buried
- * ocean there in one line, and the total, the kinds and the cells follow.
+ * The census asks «what pieces stand on this cell» (`marsTilePiecesOn`, over
+ * `cellPieces.ts`), so the buried ocean of TR44 is one line there, and the
+ * total, the kinds and the cells follow.
  *
  * Dependency-free on purpose: the cell shape asked for is structural (the
  * server's `Space` and the client's `SpaceModel` both satisfy it).
@@ -42,14 +45,12 @@
 import {SpaceId} from '../Types';
 import {SpaceType} from './SpaceType';
 import {CITY_TILES, CUBE_TILES, GREENERY_TILES, HAZARD_TILES, OCEAN_TILES, TileType} from '../TileType';
-import {tiersOf} from './cityStack';
+import {PiecedCell, piecesOf} from './cellPieces';
 
-/** What the census reads of a cell: where it is, the tile on it and how high it stands. */
-export type CensusCell = {
+/** What the census reads of a cell: where it is, and the pieces on it (`cellPieces.ts` — either side's shape). */
+export type CensusCell = PiecedCell & {
   id: SpaceId;
   spaceType: SpaceType;
-  tile?: {tileType: TileType};
-  stackHeight?: number;
 };
 
 /** The kinds a tile on Mars is counted in — the composition, in the order it is read. */
@@ -88,13 +89,14 @@ export function marsTileKindOf(tileType: TileType): MarsTileKind {
 
 /** Why the cell's tile is not a tile on Mars — `undefined` for a counted tile and for an empty cell. */
 export function marsTileExclusionOf(cell: CensusCell): MarsTileExclusion | undefined {
-  if (cell.tile === undefined) {
+  const tile = piecesOf(cell).tile;
+  if (tile === undefined) {
     return undefined;
   }
-  if (HAZARD_TILES.has(cell.tile.tileType)) {
+  if (HAZARD_TILES.has(tile)) {
     return 'hazard';
   }
-  if (CUBE_TILES.has(cell.tile.tileType)) {
+  if (CUBE_TILES.has(tile)) {
     return 'cube';
   }
   if (cell.spaceType === SpaceType.COLONY) {
@@ -106,14 +108,20 @@ export function marsTileExclusionOf(cell: CensusCell): MarsTileExclusion | undef
 /**
  * THE PHYSICAL PIECES ON ONE CELL — what a «per tile» rule counts there, by
  * kind: the stack's tiers in the base tile's kind (a stack is built of plain
- * cities on a city — `cityStack.ts`), nothing for an empty cell. The ONE place
- * a cell's piece count is decided (TR44 adds its buried ocean here).
+ * cities on a city — `cityStack.ts`), then the plain ocean lying UNDER an
+ * ordinary city (TR44 — a piece of its own, in the ocean's kind), nothing
+ * for an empty cell. The ONE place a cell's piece count is decided.
  */
 export function marsTilePiecesOn(cell: CensusCell): ReadonlyArray<{kind: MarsTileKind, count: number}> {
-  if (cell.tile === undefined) {
+  const pieces = piecesOf(cell);
+  if (pieces.tile === undefined) {
     return [];
   }
-  return [{kind: marsTileKindOf(cell.tile.tileType), count: tiersOf(cell)}];
+  const out: Array<{kind: MarsTileKind, count: number}> = [{kind: marsTileKindOf(pieces.tile), count: pieces.tiers}];
+  if (pieces.under !== undefined) {
+    out.push({kind: marsTileKindOf(pieces.under), count: 1});
+  }
+  return out;
 }
 
 /**
@@ -139,7 +147,7 @@ export function marsTileCensus(cells: Iterable<CensusCell>): MarsTileCensus {
   for (const cell of cells) {
     const exclusion = marsTileExclusionOf(cell);
     if (exclusion !== undefined) {
-      add(excluded, exclusion, tiersOf(cell), cell.id);
+      add(excluded, exclusion, piecesOf(cell).tiers, cell.id);
       continue;
     }
     for (const piece of marsTilePiecesOn(cell)) {

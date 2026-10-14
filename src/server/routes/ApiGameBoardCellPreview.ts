@@ -21,6 +21,7 @@ import {movableOceans} from '../boards/oceanMove';
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
   'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland', 'city-tier', 'ocean-removal', 'city-move', 'ocean-move',
+  'city-over-ocean',
 ];
 
 const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker', 'remove', 'move'];

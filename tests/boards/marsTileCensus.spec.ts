@@ -31,6 +31,8 @@ function cell(spaceType: SpaceType, tileType?: TileType, stackHeight?: number): 
 const land = (t?: TileType, h?: number) => cell(SpaceType.LAND, t, h);
 const ocean = (t?: TileType) => cell(SpaceType.OCEAN, t);
 const offMars = (t?: TileType) => cell(SpaceType.COLONY, t);
+/** An ordinary city standing on a plain ocean (TR44) — the server's shape: the ocean in the city's `covers`. */
+const cityOverOcean = (h?: number): CensusCell => ({...cell(SpaceType.OCEAN, TileType.CITY, h), tile: {tileType: TileType.CITY, covers: {tileType: TileType.OCEAN}}});
 
 type Row = {name: string, cells: Array<CensusCell>, total: number, parts?: Record<string, number>, excluded?: Record<string, number>};
 
@@ -43,6 +45,8 @@ const TABLE: ReadonlyArray<Row> = [
   {name: 'the Capital → a city', cells: [land(TileType.CAPITAL)], total: 1, parts: {city: 1}},
   {name: 'Red City / New Holland → cities', cells: [land(TileType.RED_CITY), ocean(TileType.NEW_HOLLAND)], total: 2, parts: {city: 2}},
   {name: 'Ocean City → ONE tile, a city (the owner\'s decision: an upgrade is one tile)', cells: [ocean(TileType.OCEAN_CITY)], total: 1, parts: {city: 1}},
+  {name: 'a CITY OVER AN OCEAN (TR44) → TWO tiles: city 1 + ocean 1; with a tier on it → three (the owner\'s decision: a stack ocean + city = 2)',
+    cells: [cityOverOcean(), cityOverOcean(2)], total: 5, parts: {city: 3, ocean: 2}},
   {name: 'Ocean Farm / Ocean Sanctuary → ONE tile each, oceans', cells: [ocean(TileType.OCEAN_FARM), ocean(TileType.OCEAN_SANCTUARY)], total: 2, parts: {ocean: 2}},
   {name: 'Wetlands → ONE tile, a greenery', cells: [land(TileType.WETLANDS)], total: 1, parts: {greenery: 1}},
   {name: 'MarsBot\'s Neural Instance and the Mohole → special tiles', cells: [land(TileType.NEURAL_INSTANCE), land(TileType.MOHOLE_AREA)], total: 2, parts: {special: 2}},
@@ -92,10 +96,16 @@ describe('marsTileCensus', () => {
     expect(marsTileKindOf(TileType.OCEAN_FARM)).eq('ocean');
   });
 
-  it('reads the pieces on ONE cell — the stack in its base\'s kind (the door TR44 adds its buried ocean through)', () => {
+  it('reads the pieces on ONE cell — the stack in its base\'s kind, then the ocean lying under a TR44 city', () => {
     expect(marsTilePiecesOn(land())).deep.eq([]);
     expect(marsTilePiecesOn(land(TileType.CAPITAL, 2))).deep.eq([{kind: 'city', count: 2}]);
     expect(marsTilePiecesOn(ocean(TileType.OCEAN))).deep.eq([{kind: 'ocean', count: 1}]);
+    expect(marsTilePiecesOn(cityOverOcean())).deep.eq([{kind: 'city', count: 1}, {kind: 'ocean', count: 1}]);
+    expect(marsTilePiecesOn(cityOverOcean(3))).deep.eq([{kind: 'city', count: 3}, {kind: 'ocean', count: 1}]);
+    // The client's shape of the same cell — what the server publishes as `under`.
+    expect(marsTilePiecesOn({id: '1' as SpaceId, spaceType: SpaceType.OCEAN, tileType: TileType.CITY, under: TileType.OCEAN})).deep.eq([{kind: 'city', count: 1}, {kind: 'ocean', count: 1}]);
+    // An Ocean City records the ocean it replaced in `covers` too — but a composite is ONE tile.
+    expect(marsTilePiecesOn({...ocean(TileType.OCEAN_CITY), tile: {tileType: TileType.OCEAN_CITY, covers: {tileType: TileType.OCEAN}}})).deep.eq([{kind: 'city', count: 1}]);
   });
 
   describe('on a real game — the countable, every owner, the edges of the board', () => {

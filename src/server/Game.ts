@@ -97,6 +97,8 @@ import {Tag} from '../common/cards/Tag';
 import {AddTileOptions, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
 import {liftTopCity} from './boards/cityStack';
+import {buriedOceanOf, liftOcean} from './boards/cellPieces';
+import {buriedOceanUnder} from '../common/boards/cellPieces';
 import {cityStandsOnOcean, isOwnCityOnMars} from './boards/cityMove';
 import {isPlainOcean, oceanMoveOffer} from './boards/oceanMove';
 import {findTileMove} from './boards/tileMove';
@@ -2079,6 +2081,15 @@ export class Game implements IGame, Logger {
   // the tile on its new cell — and exactly two things differ, both in
   // `simpleAddTile`: the log line says «moved», and the recorder writes
   // `tile-moved` in place of `tile-placed` (so «tiles placed» does not grow).
+  //
+  // `options.overOcean` (Turmoil Redux TR44 Aquatic Research Station): an
+  // ORDINARY city is admitted ON TOP of a plain ocean with nothing on it, and
+  // the cell keeps BOTH pieces (`simpleAddTile` records the ocean in
+  // `tile.covers`; `common/boards/cellPieces.ts` reads it as a piece). What
+  // the cell pays is the ordinary COVER's: no printed bonus (the ocean took
+  // it), the M€ of the OTHER oceans beside it, the Ares neighbours, the
+  // parliament, every «a city tile was placed» hook. The ocean under the city
+  // is not its neighbour and pays nothing.
   public addTile(
     player: IPlayer,
     space: Space,
@@ -2097,7 +2108,7 @@ export class Game implements IGame, Logger {
         throw new Error('This space is land claimed by ' + space.player.name);
       }
 
-      if (!MarsBoard.canCover(space, tile)) {
+      if (!MarsBoard.canCover(space, tile, {overOcean: options?.overOcean === true})) {
         throw new Error('Selected space is occupied: ' + space.id);
       }
     }
@@ -2314,6 +2325,15 @@ export class Game implements IGame, Logger {
     // THE CAPITALS' RECOUNT of a PLACEMENT (PL-141 — PL-041's second case): an ocean landing beside somebody's
     // Capital is read BEFORE the cell changes, against the same cells after (a move brings the mover's own snapshot).
     const placedCapitalsBefore = moved === undefined && OCEAN_TILES.has(tile.tileType) ? capitalAdjacencyVpAround(this.board, [space]) : undefined;
+    // THE ONE WRITER OF A COVER: the real tile the new one lands ON is recorded on it (`tile.covers`) — the plain
+    // ocean under an Ares composite (one tile that counts as both) or under TR44's ordinary city (two pieces —
+    // `common/boards/cellPieces.ts` tells the two apart). A hazard is REMOVED, never covered (the survey family reads
+    // `covers` as «the cell's printed bonus was not paid», which a hazard cell's never is either way — upstream's
+    // own reading); a tile that already names its cover (Wetlands) keeps it.
+    if (tile.covers === undefined && Board.hasRealTile(space)) {
+      tile.covers = space.tile;
+    }
+    const overOcean = buriedOceanUnder(tile.tileType, tile.covers?.tileType) !== undefined;
     space.tile = tile;
     // A fresh tile object on the cell is one tile: whatever stack stood here is gone with the tile it stood on.
     // Removed rather than set to undefined: an absent key IS height 1 (the serializer omits it), and a key that
@@ -2351,7 +2371,11 @@ export class Game implements IGame, Logger {
       this.events.recordTileMoved(player, fact);
       return;
     }
-    LogHelper.logTilePlacement(player, space, tile.tileType);
+    if (overOcean) {
+      LogHelper.logTilePlacementOverOcean(player, space);
+    } else {
+      LogHelper.logTilePlacement(player, space, tile.tileType);
+    }
     const recount = placedCapitalsBefore === undefined ? [] :
       capitalAdjacencyVpChanges(placedCapitalsBefore, capitalAdjacencyVpAround(this.board, [space]));
     this.logCapitalRecount(recount);
@@ -2449,13 +2473,16 @@ export class Game implements IGame, Logger {
    *     a plain ocean, the destination among ITS destinations — an empty ocean
    *     reserve or Artificial Lake's land beside it) — before anything is
    *     touched, so a refusal leaves the board exactly as it was.
-   *  2. LIFT the ocean off `from`: an ocean has no owner, no stack, no Ares
-   *     adjacency, no co-owner, no cathedral — the cell is simply bare, with
-   *     its printed bonus (it pays again to whoever takes it next; an ocean
-   *     reserve accepts an ocean again, paying its TR again — the removal's
-   *     own ruling, RX33). Done first because the landing must not see the
-   *     ocean still standing on `from` — the Capital beside both cells, the
-   *     ocean adjacency of a destination beside the source.
+   *  2. LIFT the ocean off `from` (`liftOcean`): an ocean has no owner, no
+   *     stack, no Ares adjacency, no co-owner, no cathedral — the cell is
+   *     simply bare, with its printed bonus (it pays again to whoever takes it
+   *     next; an ocean reserve accepts an ocean again, paying its TR again —
+   *     the removal's own ruling, RX33). An ocean UNDER AN ORDINARY CITY (TR44
+   *     Aquatic Research Station) leaves the same way and the CITY STAYS —
+   *     its card, its owner, its stack; the cell no longer counts as an ocean
+   *     (the set's FAQ, p. 18). Done first because the landing must not see
+   *     the ocean still standing on `from` — the Capital beside both cells,
+   *     the ocean adjacency of a destination beside the source.
    *  3. LAND it on `to` through the engine's own `addTile` with `moved` — the
    *     Ares cleanup price, the cell's printed bonus, the M€ of the OTHER
    *     oceans beside it, the Ares neighbours, the party passives (Mars
@@ -2483,7 +2510,7 @@ export class Game implements IGame, Logger {
     }
     // The Capitals beside either cell, as they score NOW (PL-041) — read before the board changes.
     const capitalsBefore = capitalAdjacencyVpAround(this.board, [from, to]);
-    from.tile = undefined;
+    liftOcean(from);
     this.addTile(player, to, {tileType: TileType.OCEAN}, {moved: {from, capitalsBefore}});
     // THE MOVE'S OWN RATING, and what the table answers it with — published
     // for the landing's scene (`lastTileMoveReward`, the `lastOceanBonus`
@@ -2749,14 +2776,28 @@ export class Game implements IGame, Logger {
    * (`tile-removed`, journal-visible — the Reds' action, RX33, Kaguya Tech)
    * carrying the Capitals' recount of a removed ocean (PL-141); without one
    * (a test's arrangement) it is the bare mutation it always was.
+   *
+   * A cell carrying TWO pieces — an ordinary city over a plain ocean (TR44
+   * Aquatic Research Station) — gives up the OCEAN alone (the owner's
+   * decision 2026-10-13 and the set's FAQ, p. 18: «remove only the ocean at
+   * the bottom of the stack, and keep the city in place»): the city, its
+   * owner and its stack stay; the ocean count drops by one; the Capitals
+   * beside recount. Every removal of the game today names an OCEAN (RX33,
+   * the Reds, Dry Deserts) or a cell with one piece, so no other piece of a
+   * two-piece cell is ever asked for.
    */
   public removeTile(spaceId: SpaceId, actor?: IPlayer): void {
     const space = this.board.getSpaceOrThrow(spaceId);
-    const tileType = space.tile?.tileType;
+    const buried = buriedOceanOf(space);
+    const tileType = buried !== undefined ? buried.tileType : space.tile?.tileType;
     const capitalsBefore = tileType !== undefined && OCEAN_TILES.has(tileType) ? capitalAdjacencyVpAround(this.board, [space]) : undefined;
-    space.tile = undefined;
-    space.player = undefined;
-    delete space.stackHeight;
+    if (buried !== undefined) {
+      liftOcean(space);
+    } else {
+      space.tile = undefined;
+      space.player = undefined;
+      delete space.stackHeight;
+    }
     if (actor === undefined || tileType === undefined) {
       return;
     }

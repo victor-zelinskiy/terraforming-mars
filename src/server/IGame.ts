@@ -97,7 +97,20 @@ export type TileMoveOrigin = {
 };
 
 /** The options of `IGame.addTile` — see the method. */
-export type AddTileOptions = {stacking?: boolean, moved?: TileMoveOrigin};
+export type AddTileOptions = {
+  /** A city TIER onto the player's own city (Skyscrapers, RX20): the cell's stack grows. */
+  stacking?: boolean,
+  /** The tile TRAVELLED here (TR14 / TR39): the log says «moved», the recorder writes `tile-moved`. */
+  moved?: TileMoveOrigin,
+  /**
+   * An ORDINARY CITY ON TOP OF A PLAIN OCEAN (Turmoil Redux TR44 Aquatic
+   * Research Station): `canCover` admits the city, and the cell keeps BOTH
+   * pieces — the city on top, the ocean under it in `tile.covers`, each what
+   * it was (`common/boards/cellPieces.ts`). Without it a city on an ocean is
+   * «occupied», as it always was.
+   */
+  overOcean?: boolean,
+};
 
 export interface IGame extends Logger {
   readonly id: GameId;

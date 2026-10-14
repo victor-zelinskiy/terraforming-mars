@@ -123,6 +123,7 @@
     "${0}'s Capital loses an adjacent ocean: ${1} → ${2} VP": "Столица ${0} теряет соседний океан: ${1} → ${2} ПО",
     "${0}'s Capital gains an adjacent ocean: ${1} → ${2} VP": "Столица ${0} получает соседний океан: ${1} → ${2} ПО",
     "${0} moved an ocean tile · ${1} → ${2}": "${0} перенёс тайл океана · ${1} → ${2}",
+    "${0} placed a city tile on top of the ocean tile · ${1}": "${0} разместил тайл города поверх тайла океана · ${1}",
     "removed": "удалён",
     "eroded": "разрушил эрозией",
     "board space": "клетку",

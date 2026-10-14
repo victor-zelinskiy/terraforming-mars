@@ -47,10 +47,10 @@ export class PlaceTile extends DeferredAction<Space> {
     })
       .andThen((space: Space) => {
         const tile: Tile = {...this.options.tile};
-        if (this.options.on === 'upgradeable-ocean' || this.options.on === 'upgradeable-ocean-new-holland') {
-          tile.covers = space.tile;
-        }
-        game.addTile(this.player, space, tile);
+        // The ocean a cover lands on is recorded by the ONE writer (`Game.simpleAddTile` — `tile.covers`), for the
+        // Ares composites and for TR44's city alike; the knob says the city is admitted ON TOP of the water.
+        const kind = typeof on === 'string' ? on : this.options.placementType;
+        game.addTile(this.player, space, tile, {overOcean: kind === 'city-over-ocean'});
         space.adjacency = this.options.adjacencyBonus;
         this.cb(space);
         return undefined;

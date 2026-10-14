@@ -25,7 +25,8 @@ import {PlacementIllegalReason} from '../inputs/PlacementIllegalReason';
 /** Mirrors `src/server/boards/PlacementType.ts` (kept in common so models + client share it). */
 export type BoardPlacementKind =
   'land' | 'ocean' | 'greenery' | 'city' | 'away-from-cities' | 'isolated' |
-  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier' | 'ocean-removal' | 'city-move' | 'ocean-move';
+  'volcanic' | 'upgradeable-ocean' | 'upgradeable-ocean-new-holland' | 'city-tier' | 'ocean-removal' | 'city-move' | 'ocean-move' |
+  'city-over-ocean';
 
 /**
  * WHO receives a fact's effect. The single most important field — the UI groups
@@ -213,6 +214,14 @@ export type BoardCellStatus = {
    * city carries no field.
    */
   stackHeight?: number;
+  /**
+   * TWO TILES ON ONE CELL (Turmoil Redux TR44 Aquatic Research Station): the
+   * plain ocean lying UNDER the city, a piece of its own — the inspector says
+   * «two tiles» and that the ocean still pays its neighbours. Absent for a
+   * composite (Ocean City is ONE tile that counts as both) and for every
+   * ordinary cell.
+   */
+  under?: 'ocean';
 };
 
 /** One player's Asteroid-Deflection-Zone plant-protection status. */

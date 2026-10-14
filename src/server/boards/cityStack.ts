@@ -17,6 +17,7 @@ import type {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import type {IPlayer} from '../IPlayer';
 import {TileType} from '../../common/TileType';
 import {cityTiersOf as cityTiersOfCell, countCityTiers as countCityTiersOfCells, tiersOf as tiersOfCell} from '../../common/boards/cityStack';
+import {buriedOceanOf} from './cellPieces';
 
 /** HOW MANY TILES stand on the cell — the stack's height for a stacked city, 1 for any other tile, 0 for an empty cell. */
 export function tiersOf(space: Space): number {
@@ -84,6 +85,12 @@ export type LiftedCity = {
  *    its Ares `adjacency`, its co-owner. The cell is left bare land with no
  *    owner — `adjacency` cleared too, because an adjacency without an owner is
  *    what `AresHandler.earnAdjacencyBonuses` throws on.
+ *  · A SINGLE city STANDING ON AN OCEAN (TR44 Aquatic Research Station — two
+ *    pieces on the cell, `cellPieces.ts`) leaves the same way, and the OCEAN
+ *    STAYS: the cell is that plain ocean again, nobody's (the ocean count
+ *    does not move, a Capital beside it keeps its point). What travels is the
+ *    city WITHOUT its `covers` — a tile that lands on land must not carry a
+ *    phantom ocean with it. No piece changes its kind.
  *
  * Mutates ONLY the cell. The caller owns everything about the game that is
  * not the cell (the St. Joseph cathedral list, the events, the landing).
@@ -102,14 +109,16 @@ export function liftTopCity(space: Space): LiftedCity {
     }
     return {tile: {tileType: TileType.CITY}, tiers: {before, after}};
   }
-  const lifted: LiftedCity = {tile: space.tile, tiers: {before, after: 0}};
+  const ocean = buriedOceanOf(space);
+  const {covers: _covers, ...travelling} = space.tile;
+  const lifted: LiftedCity = {tile: ocean === undefined ? space.tile : travelling, tiers: {before, after: 0}};
   if (space.adjacency !== undefined) {
     lifted.adjacency = space.adjacency;
   }
   if (space.coOwner !== undefined) {
     lifted.coOwner = space.coOwner;
   }
-  space.tile = undefined;
+  space.tile = ocean;
   space.player = undefined;
   delete space.stackHeight;
   delete space.adjacency;

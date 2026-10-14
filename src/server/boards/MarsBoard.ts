@@ -113,15 +113,25 @@ export class MarsBoard extends Board {
     case 'away-from-cities': return this.getSpacesAwayFromCities(player, canAffordOptions);
     case 'isolated': return this.getAvailableIsolatedSpaces(player, canAffordOptions);
     case 'volcanic': return this.getAvailableVolcanicSpaces(player, canAffordOptions);
-    case 'upgradeable-ocean': return this.getOceanSpaces({upgradedOceans: false});
+    // A COVER lands ON TOP of a plain ocean with nothing on it: a cell already
+    // carrying a composite (Ocean City) or a city over its ocean (TR44) is
+    // occupied, however much it still counts as an ocean.
+    case 'upgradeable-ocean': return this.getPlainOceanTops();
     // A REMOVAL picks a plain ocean tile to take OFF the board — the very
-    // filter `RemoveOceanTile` reads (an upgraded ocean is never removed).
+    // filter `RemoveOceanTile` reads (an upgraded ocean is never removed; the
+    // ocean UNDER a TR44 city is — only the ocean leaves, `Game.removeTile`).
     case 'ocean-removal': return this.getOceanSpaces({upgradedOceans: false});
     case 'upgradeable-ocean-new-holland': {
-      const oceanSpaces = this.getOceanSpaces({upgradedOceans: false});
+      const oceanSpaces = this.getPlainOceanTops();
       const filtered = this.getAvailableSpacesForCity(player, undefined, oceanSpaces);
       return filtered;
     }
+    // A CITY OVER AN OCEAN (Turmoil Redux TR44 Aquatic Research Station):
+    // any plain ocean in play with nothing on it — whoever placed it, on a
+    // reserve or on land — «ignoring other placement restrictions» (a city
+    // beside is no bar). The cell keeps both pieces (`Game.addTile` with
+    // `overOcean`).
+    case 'city-over-ocean': return this.getPlainOceanTops();
     case 'city-tier': return this.getAvailableSpacesForCityTier(player);
     // A CITY MOVE (TR14): every cell SOME city of the player's may travel to.
     case 'city-move': return tileMoveDestinations(cityMoveOffer(player, canAffordOptions));
@@ -131,11 +141,24 @@ export class MarsBoard extends Board {
     }
   }
 
+  /**
+   * The cells whose TOP is a plain ocean with nothing on it — what a tile may
+   * be placed ON TOP OF (an Ares composite, New Holland, a TR44 city). Never
+   * a colony slot; never a cell that already carries a cover.
+   */
+  public getPlainOceanTops(): ReadonlyArray<Space> {
+    return this.spaces.filter((space) => space.spaceType !== SpaceType.COLONY && Board.isPlainOceanTop(space));
+  }
+
   /*
    * Returns spaces on the board with ocean tiles.
    *
    * The default condition is to return those oceans used to count toward the global parameter, so
    * upgraded oceans are included, but Wetlands is not. That's why the boolean values have different defaults.
+   *
+   * A plain ocean lying UNDER an ordinary city (TR44) is an ocean of its own
+   * (`Board.isOceanSpace` reads the pieces): counted toward the parameter, and
+   * listed among the PLAIN oceans a removal or a move may take.
    */
   public getOceanSpaces(include?: {upgradedOceans?: boolean, wetlands?: boolean}): ReadonlyArray<Space> {
     const spaces = this.spaces.filter((space) => {
@@ -592,14 +615,20 @@ export class MarsBoard extends Board {
     // city) would wrongly read as "already occupied".
     // An OCEAN REMOVAL (Water Export) reads the same way: a plain ocean tile is
     // what the pick REQUIRES, and only an upgraded one is «occupied».
-    if (placementType === 'upgradeable-ocean' || placementType === 'upgradeable-ocean-new-holland' || placementType === 'ocean-removal') {
+    // A CITY OVER AN OCEAN (TR44) reads the same way too: the plain ocean is
+    // required, and a cell that already carries a cover — a composite, or a
+    // city standing on its ocean — is occupied.
+    if (placementType === 'upgradeable-ocean' || placementType === 'upgradeable-ocean-new-holland' ||
+        placementType === 'ocean-removal' || placementType === 'city-over-ocean') {
       // No ocean tile to build on: an empty ocean reserve, or a land / colony cell.
       if (space.tile === undefined || !Board.isOceanSpace(space)) {
         return 'requires-ocean-tile';
       }
       // The cell already carries an upgraded / special ocean tile (Ocean City,
-      // New Holland, Wetlands, …) — only a plain ocean tile can be upgraded.
-      if (space.tile.tileType !== TileType.OCEAN) {
+      // New Holland, Wetlands, …) — only a plain ocean tile can be upgraded. A
+      // removal takes the plain ocean from UNDER a city too, so for it only a
+      // cell with no plain ocean at all is occupied.
+      if (placementType === 'ocean-removal' ? !Board.hasPlainOcean(space) : !Board.isPlainOceanTop(space)) {
         return 'occupied';
       }
       // New Holland additionally follows normal city placement restrictions:
@@ -752,8 +781,15 @@ export class MarsBoard extends Board {
     return 'unavailable';
   }
 
-  // Returns true if |newTile| can cover go on |space|, particularly if |space| already has a tile.
-  public static canCover(space: Space, newTile: Tile): boolean {
+  /**
+   * May `newTile` go on `space`, particularly when the cell already carries
+   * a tile? An unprotected hazard is covered (removed) by anything; a PLAIN
+   * ocean with nothing on it takes an Ares composite (one tile that counts as
+   * both) — or, with `overOcean` (Turmoil Redux TR44 Aquatic Research
+   * Station), an ORDINARY city that stands on it as a second piece
+   * (`cellPieces.ts`). Nothing else covers anything.
+   */
+  public static canCover(space: Space, newTile: Tile, options?: {overOcean?: boolean}): boolean {
     if (space.tile === undefined) {
       return true;
     }
@@ -762,8 +798,13 @@ export class MarsBoard extends Board {
     if (AresHandler.hasHazardTile(space) && space.tile.protectedHazard !== true) {
       return true;
     }
-    if (space.tile.tileType === TileType.OCEAN && OCEAN_UPGRADE_TILES.has(newTile.tileType)) {
-      return true;
+    if (Board.isPlainOceanTop(space)) {
+      if (OCEAN_UPGRADE_TILES.has(newTile.tileType)) {
+        return true;
+      }
+      if (options?.overOcean === true && newTile.tileType === TileType.CITY) {
+        return true;
+      }
     }
     return false;
   }

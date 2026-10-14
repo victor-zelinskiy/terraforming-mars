@@ -42,4 +42,16 @@ export type PlacementType =
    * prompt says what the pick does through `placementEffect: 'move'`. The
    * ocean parameter never moves — the move pays its own TR (`Game.moveOceanTile`).
    */
-  'ocean-move';
+  'ocean-move' |
+  /**
+   * A CITY OVER AN OCEAN (Turmoil Redux TR44 Aquatic Research Station: «place
+   * a city on top of an ocean tile in play, ignoring other placement
+   * restrictions»): an ORDINARY city lands ON a plain ocean with nothing on
+   * it, and the cell keeps BOTH pieces — the city on top, the ocean under it,
+   * each what it was (`common/boards/cellPieces.ts`). The legal cells are the
+   * plain ocean tops (`getPlainOceanTops`); the commit is `Game.addTile` with
+   * `overOcean`. Unlike `upgradeable-ocean` (one composite tile), the ocean
+   * still counts, still pays its neighbours, and may still be moved or
+   * removed out from under the city.
+   */
+  'city-over-ocean';

@@ -51,6 +51,19 @@ export class LogHelper {
   }
 
   /**
+   * An ORDINARY CITY placed ON TOP OF A PLAIN OCEAN (Turmoil Redux TR44
+   * Aquatic Research Station — two tiles on one cell): the line names the
+   * COVER, because «placed city tile» alone would read as a city on land and
+   * the water it stands on is the whole point of the card.
+   */
+  static logTilePlacementOverOcean(player: IPlayer, space: Space) {
+    if ((space.x === -1 && space.y === -1) || player.name === 'neutral') {
+      return;
+    }
+    player.game.log('${0} placed a city tile on top of the ocean tile · ${1}', (b) => b.player(player).space(space));
+  }
+
+  /**
    * A tile MOVED between two cells (Turmoil Redux TR14 Re-settlement — a city
    * of the player's own; TR39 Canyon Carving — any plain ocean: the one line
    * `Game.moveCityTile` / `moveOceanTile` write in place of «placed … tile»).
