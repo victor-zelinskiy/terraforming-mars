@@ -70,15 +70,16 @@ describe('uncoverFacts — what a lifted piece uncovers', () => {
       expect(uncovers(preview.ruleFacts).map(brief)).deep.eq(['uncover-reserve:The ocean reserve will take an ocean again']);
     });
 
-    it('the water UNDER a TR44 city: NOTHING is uncovered — the city stays (and the removal\'s own «the city stays» stands beside it)', () => {
+    it('the water UNDER a TR44 city: NOTHING is uncovered — the city stays, said ONCE under the family\'s own id (PL-335)', () => {
       const [game, p1, p2] = table();
       const {plants} = reserves(game, p1);
       seatOcean(plants);
       game.addTile(p2, plants, {tileType: TileType.CITY}, {overOcean: true});
       runAllActions(game);
       const preview = boardCellPreview(p1, plants, 'ocean-removal', {tileType: TileType.OCEAN, placementEffect: 'remove'});
-      expect(uncovers(preview.ruleFacts).map(brief)).deep.eq(['uncover-city-stays:Nothing is uncovered — a city stays on the cell']);
-      expect(preview.ruleFacts.some((f) => f.id === 'remove-ocean-under-city')).is.true;
+      expect(uncovers(preview.ruleFacts).map(brief)).deep.eq(['remove-ocean-under-city:Nothing is uncovered — a city stays on the cell']);
+      const stays = preview.ruleFacts.filter((f) => /stays/.test(typeof f.title === 'string' ? f.title : f.title.message));
+      expect(stays, 'one sentence for one fact — no «the city stays» rule beside it').to.have.length(1);
     });
 
     it('an ocean on LAND (Artificial Lake\'s family): the printed bonus, then «the land is free again»; land with no bonus says so', () => {
@@ -111,7 +112,7 @@ describe('uncoverFacts — what a lifted piece uncovers', () => {
       game.addTile(p2, plants, {tileType: TileType.CITY}, {overOcean: true});
       runAllActions(game);
       const preview = boardCellPreview(p1, plants, 'ocean-move', {tileType: TileType.OCEAN, placementEffect: 'move'});
-      expect(uncovers(preview.ruleFacts).map(brief)).deep.eq(['uncover-city-stays:Nothing is uncovered — a city stays on the cell']);
+      expect(uncovers(preview.ruleFacts).map(brief)).deep.eq(['move-ocean-under-city:Nothing is uncovered — a city stays on the cell']);
     });
 
     it('TR14 — a city lifted off land: its cell\'s bonus; off its water (TR44): the ocean stays; the top of a stack: the stack stays', () => {
@@ -126,7 +127,7 @@ describe('uncoverFacts — what a lifted piece uncovers', () => {
       game.addTile(p1, plants, {tileType: TileType.CITY}, {overOcean: true});
       runAllActions(game);
       const water = boardCellPreview(p1, plants, 'city-move', {tileType: TileType.CITY, placementEffect: 'move'});
-      expect(uncovers(water.ruleFacts).map(brief)).deep.eq(['uncover-ocean-stays:Nothing is uncovered — the ocean stays on the cell']);
+      expect(uncovers(water.ruleFacts).map(brief)).deep.eq(['move-city-off-water:Nothing is uncovered — the ocean stays on the cell']);
       game.addCityTier(p1, land);
       runAllActions(game);
       const stack = boardCellPreview(p1, land, 'city-move', {tileType: TileType.CITY, placementEffect: 'move'});

@@ -708,7 +708,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-bcur--pickup'), 'the reticle wears its pickup pose over the pile').toHaveCount(1);
       await expect.poll(() => inspectorText(page), {timeout: 10_000, message: 'the dossier reads the SOURCE in the ocean\'s words'}).toMatch(/Этот океан/i);
       const source = await inspectorText(page);
-      expect(source, 'К-W1: the city stays — said before the lift').toMatch(/Город остаётся/);
+      expect(source, 'К-W1: the city stays — said before the lift, ONCE (PL-335)').toMatch(/на клетке остаётся город/);
+      expect((source.match(/остаётся город|Город остаётся/g) ?? []).length, 'one sentence for one fact').toBe(1);
       expect(source, 'only the ocean leaves, the cell stops counting').toMatch(/Уходит только океан из-под города/);
       // THE SEE-THROUGH («ПРОСВЕТ», TR47): the WATER under the city is the piece that would leave — its tier goes
       // translucent while the city over it keeps its paint — and the dossier says nothing is uncovered: the city stays.

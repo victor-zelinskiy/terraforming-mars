@@ -1322,11 +1322,9 @@ function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
     description: 'The ocean count drops by one. The cell\'s bonuses are not returned; an ocean placed here later pays them again.',
     delta: {icon: 'ocean', amount: 1, direction: 'cost', current, resulting: current - 1},
   });
-  if (buriedOceanOf(space) !== undefined) {
-    out.push(cityStaysFact('remove-ocean-under-city'));
-  }
-  // WHAT THE REMOVAL UNCOVERS — the see-through's words (the «ПРОСВЕТ» law, TR47).
-  out.push(...uncoverFacts(space, 'ocean', 'removal'));
+  // WHAT THE REMOVAL UNCOVERS — the see-through's words (the «ПРОСВЕТ» law, TR47); under a TR44 city that is the
+  // city staying, said ONCE under the family's own id (К-W1, PL-335).
+  out.push(...uncoverFacts(space, 'ocean', 'removal', buriedOceanOf(space) !== undefined ? 'remove-ocean-under-city' : undefined));
   out.push(rule('remove-ocean-no-tr', 'placement-effect', 'Nobody loses TR',
     'The player who placed the ocean keeps the terraform rating it paid.', 'nobody'));
   // The neighbours that SCORE PER ADJACENT OCEAN — their owner is one point poorer at the end.
@@ -1358,8 +1356,13 @@ function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
  * picker's), `timing: 'future'` on the chips (the next tile's), and under its
  * own category so the dossier can seat the section between the cell's toll
  * and the other players. Read-only; the printed bonus is the cell's own.
+ *
+ * THE PIECE THAT STAYS is said ONCE (PL-335): a TR44 pair's «the city stays» /
+ * «the ocean stays» was its family's own rule fact AND this section's line —
+ * two sentences for one fact in one panel. The family's id (`stays`) now rides
+ * this ONE line, which carries the whole explanation.
  */
-function uncoverFacts(space: Space, lifted: 'top' | 'ocean', mode: 'removal' | 'source' | 'cleared'): Array<BoardFact> {
+function uncoverFacts(space: Space, lifted: 'top' | 'ocean', mode: 'removal' | 'source' | 'cleared', stays?: string): Array<BoardFact> {
   const pieces = piecesOf(space);
   if (pieces.tile === undefined) {
     return [];
@@ -1373,12 +1376,12 @@ function uncoverFacts(space: Space, lifted: 'top' | 'ocean', mode: 'removal' | '
       'The tile leaves first; the cell\'s printed bonus is paid by the placement.', 'nobody')];
   }
   if (lifted === 'ocean' && pieces.under === TileType.OCEAN) {
-    return [rule('uncover-city-stays', 'uncovered-bonus', 'Nothing is uncovered — a city stays on the cell',
-      'Only the water leaves from under the city.', 'nobody')];
+    return [rule(stays ?? 'uncover-city-stays', 'uncovered-bonus', 'Nothing is uncovered — a city stays on the cell',
+      'Only the ocean under the city leaves. The city, its owner and its stack stay in place; the cell no longer counts as an ocean.', 'nobody')];
   }
   if (lifted === 'top' && pieces.under === TileType.OCEAN) {
-    return [rule('uncover-ocean-stays', 'uncovered-bonus', 'Nothing is uncovered — the ocean stays on the cell',
-      'Only the city leaves; the water under it keeps the cell.', 'nobody')];
+    return [rule(stays ?? 'uncover-ocean-stays', 'uncovered-bonus', 'Nothing is uncovered — the ocean stays on the cell',
+      'Only the city leaves. The ocean under it stays in place, nobody\'s, and still counts.', 'nobody')];
   }
   if (lifted === 'top' && pieces.tiers > 1) {
     return [rule('uncover-stack-stays', 'uncovered-bonus', 'Nothing is uncovered — the stack stays',
@@ -1815,22 +1818,14 @@ function cityScoringCells(board: Board, space: Space, tileType: TileType): Reado
   return tileType === TileType.CAPITAL ? [...greeneries, ...adjacent.filter(Board.isOceanSpace)] : greeneries;
 }
 
-/**
+/*
  * TWO TILES ON ONE CELL — WHAT STAYS WHEN ONE PIECE LEAVES (TR44, the set's FAQ p. 18; К-W1). The ocean leaving from
  * UNDER a city (TR39's move, RX33 / the Reds' removal): the city, its owner and its stack stay, and the cell stops
  * counting as an ocean — its neighbours are paid no more, the Capital beside it is a point poorer. The city leaving
  * OFF the water (TR14's move): the ocean stays, nobody's, and keeps counting. ONE fact each, stated by every family
- * that lifts a piece, so the player is never left to guess which piece the move takes.
+ * that lifts a piece — since TR47 it is the «ОТКРОЕТСЯ» line itself (`uncoverFacts(…, stays)`, PL-335): one sentence
+ * for one fact, never a rule line beside it.
  */
-function cityStaysFact(id: string): BoardFact {
-  return rule(id, 'placement-effect', 'The city stays',
-    'Only the ocean under the city leaves. The city, its owner and its stack stay in place; the cell no longer counts as an ocean.', 'neutral');
-}
-
-function oceanStaysFact(id: string): BoardFact {
-  return rule(id, 'placement-effect', 'The ocean stays',
-    'Only the city leaves. The ocean under it stays in place, nobody\'s, and still counts.', 'neutral');
-}
 
 /** THE SOURCE reading — see {@link tileMovePreview}. */
 function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer: TileMoveOffer): BoardPlacementPreview {
@@ -1864,24 +1859,18 @@ function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer:
           params: [String(tiers), String(tiers - 1)],
         });
       }
-      // TR44: the city leaves the WATER — the ocean under it stays (К-W1).
-      if (source !== undefined && buriedOceanOf(space) !== undefined) {
-        facts.push(oceanStaysFact('move-city-off-water'));
-      }
-      // WHAT THE LIFT UNCOVERS on the former cell — the see-through's words (the «ПРОСВЕТ» law, TR47).
+      // WHAT THE LIFT UNCOVERS on the former cell — the see-through's words (the «ПРОСВЕТ» law, TR47); off a TR44
+      // water that is the ocean staying, said ONCE under the family's own id (К-W1, PL-335).
       if (source !== undefined) {
-        facts.push(...uncoverFacts(space, 'top', 'source'));
+        facts.push(...uncoverFacts(space, 'top', 'source', buriedOceanOf(space) !== undefined ? 'move-city-off-water' : undefined));
       }
     } else if (source !== undefined) {
       // An ocean scores nothing of its own; what its leaving changes is the
       // Capital beside it — the removal's own reading, whoever owns the Capital.
       facts.push(...capitalOceanLossFacts(board, space, 'move-capital'));
-      // TR44: the ocean leaves from UNDER a city — the city stays (К-W1).
-      if (buriedOceanOf(space) !== undefined) {
-        facts.push(cityStaysFact('move-ocean-under-city'));
-      }
-      // WHAT THE LIFT UNCOVERS on the former cell — the see-through's words (the «ПРОСВЕТ» law, TR47).
-      facts.push(...uncoverFacts(space, 'ocean', 'source'));
+      // WHAT THE LIFT UNCOVERS on the former cell — the see-through's words (the «ПРОСВЕТ» law, TR47); from under a
+      // TR44 city that is the city staying, said ONCE under the family's own id (К-W1, PL-335).
+      facts.push(...uncoverFacts(space, 'ocean', 'source', buriedOceanOf(space) !== undefined ? 'move-ocean-under-city' : undefined));
     }
   }
   const preview = classifyPlacementFacts(facts, player, space.id, kind, source !== undefined);
