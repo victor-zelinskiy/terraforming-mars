@@ -368,6 +368,21 @@
     &--column &__print,
     &--list &__print { flex: 0 0 auto; min-height: 0; }
     &--column &__or { .con-vchoice-seam-across(); }
+    /* THE LIST ROW reads as ONE LINE — the name (its owner dot, a door's ›) on the left, the READING (the host's chips,
+       the reason) right-aligned so the rows compare down a column, the seal in its reserved slot at the end. A row is
+       a reading line, not a tile: no column of head-over-body (that was the slab of the owner's 2026-10-14 photo). */
+    &--list &__opt { min-height: 3.1rem; }
+    &--list &__text {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .4rem .9rem;
+    }
+    &--list &__head { flex: 1 1 10rem; width: auto; min-width: 0; }
+    &--list &__title { font-size: .86rem; }
+    &--list &__dot { width: .8rem; height: .8rem; }
+    &--list &__body { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; }
+    &--list &__reason { flex: 0 1 auto; align-self: center; }
     /* Under a print, a row's caption keeps the headline weight — the print is a lead, not a hero, on a row. */
     &--column &__print + &__text &__title,
     &--list &__print + &__text &__title { font-size: .8rem; font-weight: 600; color: @con-text; }
@@ -392,15 +407,22 @@ html.con-profile-tv .con-vchoice {
     --vchoice-print-zoom: 1.7;
     gap: .7rem .5rem;
 }
+/* ⚠ The tile's MEASURE and CAP are the COMPARE layout's alone: `html.con-profile-tv .con-vchoice__opt` outranks
+   `.con-vchoice--list .con-vchoice__opt`, and in a stacked (column) group a flex-basis is a HEIGHT — a 12rem basis
+   printed the owner's three 480 px slabs (2026-10-14). Every profile override of a tile's size names its layout. */
 html.con-profile-tv .con-vchoice__opt {
-    flex-basis: 12rem;
-    max-width: 28rem;
     gap: .55rem;
     padding: .85rem 1rem .8rem;
 }
+html.con-profile-tv .con-vchoice--compare .con-vchoice__opt {
+    flex-basis: 12rem;
+    max-width: 28rem;
+}
 html.con-profile-tv .con-vchoice--column .con-vchoice__opt,
 html.con-profile-tv .con-vchoice--list .con-vchoice__opt { padding: .7rem 1rem; }
-html.con-profile-tv .con-vchoice--list .con-vchoice__opt { padding-right: 2.9rem; }
+html.con-profile-tv .con-vchoice--list .con-vchoice__opt { min-height: 3.5rem; padding-right: 3rem; }
+html.con-profile-tv .con-vchoice--list .con-vchoice__title { font-size: var(--con-t-body); }
+html.con-profile-tv .con-vchoice--list .con-vchoice__dot { width: .95rem; height: .95rem; }
 html.con-profile-tv .con-vchoice__print { min-height: 2.8rem; }
 html.con-profile-tv .con-vchoice__title { font-size: var(--con-t-secondary); }
 html.con-profile-tv .con-vchoice__print + .con-vchoice__text .con-vchoice__title { font-size: var(--con-t-caption); }
@@ -436,7 +458,7 @@ html.con-profile-handheld .con-vchoice {
     --vchoice-print-zoom: 1;
     gap: .35rem .3rem;
 }
-html.con-profile-handheld .con-vchoice__opt { padding: .45rem .6rem .45rem; gap: .3rem; }
+html.con-profile-handheld .con-vchoice--compare .con-vchoice__opt { padding: .45rem .6rem .45rem; gap: .3rem; }
 html.con-profile-handheld .con-vchoice__print { min-height: 1.9rem; }
 html.con-profile-handheld .con-vchoice--compare .con-vchoice__print + .con-vchoice__text .con-vchoice__head { display: none; }
 html.con-profile-handheld .con-vchoice__or { width: 1.8rem; }

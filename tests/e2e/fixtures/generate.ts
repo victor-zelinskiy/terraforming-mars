@@ -169,6 +169,7 @@ import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns'
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
 import {AsteroidRights} from '../../../src/server/cards/promo/AsteroidRights';
 import {PublicPlans} from '../../../src/server/cards/promo/PublicPlans';
+import {AsteroidMiningConsortium} from '../../../src/server/cards/base/AsteroidMiningConsortium';
 import {AcquiredCompany} from '../../../src/server/cards/base/AcquiredCompany';
 import {InvestmentLoan} from '../../../src/server/cards/base/InvestmentLoan';
 import {Parliament} from '../../../src/server/parliament/Parliament';
@@ -739,6 +740,25 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   p2.megaCredits = 30;
   runAllActions(game);
   write('public-plans', game);
+}
+
+// ── player-pick: a PLAYER TARGET pick of a play — Asteroid Mining Consortium
+//    («decrease ANY titanium production 1 step, raise your own») on a three-seat
+//    table where every seat produces titanium (blue 3, red 2, green 6): the
+//    composer's target row opens the list of players with their «3 → 2»
+//    readings (the owner's TV photo of 2026-10-14: three empty slabs). ──
+{
+  const [game, p1, p2, p3] = testGame(3, {skipInitialCardSelection: false, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE, CardName.TERACTOR], startingCorporations: 1});
+  answerStartFlow(game, [p1, p2, p3]);
+  p1.cardsInHand.push(new AsteroidMiningConsortium(), new Lichen(), new Algae());
+  p1.production.add(Resource.TITANIUM, 3);
+  p2.production.add(Resource.TITANIUM, 2);
+  p3.production.add(Resource.TITANIUM, 6);
+  p1.megaCredits = 30;
+  p2.megaCredits = 30;
+  p3.megaCredits = 30;
+  runAllActions(game);
+  write('player-pick', game);
 }
 
 // ═══════════════════════ THE MARS PARLIAMENT (Turmoil Redux) ═══════════════════════

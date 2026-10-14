@@ -2349,6 +2349,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'variant-tiles' |
   // X77 Public Plans in blue's hand beside five plain cards — the multi hand pick of a play («reveal any number of OTHER cards»).
   'public-plans' |
+  // A PLAYER target pick of a play: Asteroid Mining Consortium in blue's hand, three seats producing titanium (3 / 2 / 6).
+  'player-pick' |
   // TR25 Exclusive Colony: blue holds the card with 30 M€ and Unity's access; Luna at its printed limit (red ×2, blue ×1,
   // marker on cell 3), Titan with one cube of blue's and two floater holders, red's fleet on Ceres, Enceladus inactive
   // (docs/TURMOIL_REDUX_EXCLUSIVE_COLONY.md).
