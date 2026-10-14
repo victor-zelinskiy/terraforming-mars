@@ -60,6 +60,10 @@ export type TileStageEls = {
   /** The surface-acceptance overlay INSIDE the departing proxy — present only
    *  when that proxy is a MOVE's (it lands, so it is accepted by the surface). */
   departTouch?: HTMLElement | undefined,
+  /** THE COVER of the piece that STAYS when the piece under it leaves (TR44: the city over the water the move takes)
+   *  — painted above the departing proxy for the lift, settling with the real tier, hidden once the water has cleared.
+   *  Absent on every other scene. */
+  cover?: HTMLElement | undefined,
 };
 
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
@@ -410,6 +414,48 @@ export function removeMoveProxy(els: TileStageEls): void {
   }
   if (els.shadow !== undefined) {
     gsap.to(els.shadow, {autoAlpha: 0, duration: 0.11, ease: 'power1.out'});
+  }
+  hideStayingCover(els);
+}
+
+/**
+ * THE COVER OF THE PIECE THAT STAYS (`coverDescentPlan`): posed 1:1 over the city's rung in the same synchronous turn
+ * the water's proxy is posed, then settled to the ground over the dry beat (the real tier's own keyframe, the same
+ * duration and curve) — so the water is seen to slide out from UNDER a city that stays put. `false` = no cover on
+ * this stage (the scene plays without it; the degrade is the one frame of water over the city it existed to remove).
+ */
+export function placeStayingCover(els: TileStageEls, plan: {from: TileRect, to: TileRect, ms: number}): boolean {
+  const cover = els.cover;
+  if (cover === undefined || plan.from.w < 8 || plan.to.w < 8) {
+    return false;
+  }
+  gsap.killTweensOf(cover);
+  gsap.set(cover, {
+    width: plan.to.w,
+    height: plan.to.h,
+    x: plan.from.x + plan.from.w / 2 - plan.to.w / 2,
+    y: plan.from.y + plan.from.h / 2 - plan.to.h / 2,
+    scale: plan.from.w / plan.to.w,
+    rotation: 0,
+    transformOrigin: 'center center',
+    autoAlpha: 1,
+  });
+  gsap.to(cover, {
+    x: plan.to.x,
+    y: plan.to.y,
+    scale: 1,
+    duration: plan.ms / 1000,
+    ease: 'power2.out',
+    overwrite: 'auto',
+  });
+  return true;
+}
+
+/** The cover leaves the frame the water has cleared the hex — the real city underneath is identical; never a fade. */
+export function hideStayingCover(els: TileStageEls): void {
+  if (els.cover !== undefined) {
+    gsap.killTweensOf(els.cover);
+    gsap.set(els.cover, {autoAlpha: 0});
   }
 }
 

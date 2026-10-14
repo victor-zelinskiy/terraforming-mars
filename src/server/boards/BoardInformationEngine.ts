@@ -1315,10 +1315,7 @@ function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
     delta: {icon: 'ocean', amount: 1, direction: 'cost', current, resulting: current - 1},
   });
   if (buriedOceanOf(space) !== undefined) {
-    // TR44: the ocean leaves from UNDER the city — the city stays (the set's FAQ, p. 18), and the cell stops
-    // counting as an ocean: its neighbours are paid no more, the Capital beside it is a point poorer.
-    out.push(rule('remove-ocean-under-city', 'placement-effect', 'The city stays',
-      'Only the ocean under the city leaves. The city, its owner and its stack stay in place; the cell no longer counts as an ocean.', 'neutral'));
+    out.push(cityStaysFact('remove-ocean-under-city'));
   }
   out.push(rule('remove-ocean-no-tr', 'placement-effect', 'Nobody loses TR',
     'The player who placed the ocean keeps the terraform rating it paid.', 'nobody'));
@@ -1714,6 +1711,23 @@ function cityScoringCells(board: Board, space: Space, tileType: TileType): Reado
   return tileType === TileType.CAPITAL ? [...greeneries, ...adjacent.filter(Board.isOceanSpace)] : greeneries;
 }
 
+/**
+ * TWO TILES ON ONE CELL — WHAT STAYS WHEN ONE PIECE LEAVES (TR44, the set's FAQ p. 18; К-W1). The ocean leaving from
+ * UNDER a city (TR39's move, RX33 / the Reds' removal): the city, its owner and its stack stay, and the cell stops
+ * counting as an ocean — its neighbours are paid no more, the Capital beside it is a point poorer. The city leaving
+ * OFF the water (TR14's move): the ocean stays, nobody's, and keeps counting. ONE fact each, stated by every family
+ * that lifts a piece, so the player is never left to guess which piece the move takes.
+ */
+function cityStaysFact(id: string): BoardFact {
+  return rule(id, 'placement-effect', 'The city stays',
+    'Only the ocean under the city leaves. The city, its owner and its stack stay in place; the cell no longer counts as an ocean.', 'neutral');
+}
+
+function oceanStaysFact(id: string): BoardFact {
+  return rule(id, 'placement-effect', 'The ocean stays',
+    'Only the city leaves. The ocean under it stays in place, nobody\'s, and still counts.', 'neutral');
+}
+
 /** THE SOURCE reading — see {@link tileMovePreview}. */
 function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer: TileMoveOffer): BoardPlacementPreview {
   const board = player.game.board;
@@ -1746,10 +1760,18 @@ function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer:
           params: [String(tiers), String(tiers - 1)],
         });
       }
+      // TR44: the city leaves the WATER — the ocean under it stays (К-W1).
+      if (source !== undefined && buriedOceanOf(space) !== undefined) {
+        facts.push(oceanStaysFact('move-city-off-water'));
+      }
     } else if (source !== undefined) {
       // An ocean scores nothing of its own; what its leaving changes is the
       // Capital beside it — the removal's own reading, whoever owns the Capital.
       facts.push(...capitalOceanLossFacts(board, space, 'move-capital'));
+      // TR44: the ocean leaves from UNDER a city — the city stays (К-W1).
+      if (buriedOceanOf(space) !== undefined) {
+        facts.push(cityStaysFact('move-ocean-under-city'));
+      }
     }
   }
   const preview = classifyPlacementFacts(facts, player, space.id, kind, source !== undefined);

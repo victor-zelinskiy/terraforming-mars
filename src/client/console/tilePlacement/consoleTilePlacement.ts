@@ -124,7 +124,7 @@ import {
   oceanEdgePoint, oceanShoreDirection,
   PlacementLawWave, lawWaveFor, LAW_WAVE_BREATH_MS,
   TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_DUST_MS, TIER_SETTLE_MS,
-  stackLandingRect, tierHoverPoint,
+  stackLandingRect, tierHoverPoint, coverDescentPlan,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {beginStackLoad, stackContact, clearStackScene, stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
 import {markCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
@@ -157,7 +157,7 @@ import {
   playAresSourcePulses, playCoverSplash,
   placeDepartProxy, playTileDeparture,
   playTierApproach, playTierDescent, playStackDust,
-  placeMoveProxy, playTileMove, removeMoveProxy,
+  placeMoveProxy, playTileMove, removeMoveProxy, placeStayingCover, hideStayingCover,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -220,6 +220,9 @@ export const tilePlacementState = reactive({
   /** The owner marker standing on that doomed tile — it leaves ON it, so the
    *  proxy carries a twin posed for the live hex. */
   departingCube: undefined as DepartingCubePose | undefined,
+  /** TWO PIECES (TR44): the piece that STAYS while the piece under it leaves — the city over the water a move takes.
+   *  Set at arm, it mounts the cover the director poses over the departing water (`placeStayingCover`). */
+  stayingCover: undefined as {tileType: TileType, cube: DepartingCubePose | undefined} | undefined,
   /** A CITY TIER (Skyscrapers): the stack's height before and after — set at
    *  detect (server-proven), it selects the crane descent over the ordinary
    *  landing and is what the counter ticks between. Undefined otherwise. */
@@ -479,6 +482,7 @@ export function armTilePlacement(opts: {
   tilePlacementState.coveredTile = undefined;
   tilePlacementState.departingTile = undefined;
   tilePlacementState.departingCube = undefined;
+  tilePlacementState.stayingCover = undefined;
   tilePlacementState.stack = undefined;
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
@@ -558,6 +562,11 @@ export function detectTilePlacement(
     tilePlacementState.departingTile = landed.moves.tileType;
     tilePlacementState.departingCube = departingCubePose(landed.moves.color, hexRect);
     moveSourceHex = measureBoardHexRect(landed.moves.from);
+    // The water out from UNDER a city: the city that stays is painted over the leaving water (the cover).
+    const stays = landed.moves.stays;
+    tilePlacementState.stayingCover = stays !== undefined && stays.tileType !== TileType.OCEAN ?
+      {tileType: stays.tileType, cube: departingCubePose(stays.color, moveSourceHex)} :
+      undefined;
     const record = tileMoveRecordFor(opts?.tileMoves, landed.moves.from, spaceId);
     if (record !== undefined) {
       claimTileMove(record.seq);
@@ -951,6 +960,11 @@ async function runMove(
     await wait(60);
     return;
   }
+  // THE COVER of the piece that stays (the water out from under a city): posed over the water's proxy in this same
+  // turn, settling with the real tier's dry beat, hidden once the water has cleared the hex (`onCleared`).
+  if (tilePlacementState.stayingCover !== undefined && moveSourceHex !== undefined) {
+    placeStayingCover(els, coverDescentPlan(moveSourceHex));
+  }
   // THE HANDOFF — same synchronous turn as the pose above.
   vacateSource();
   await nextTick(); // A repaints: a bare hex with its printed icons, the lower stack — or the piece that stays
@@ -985,7 +999,8 @@ async function runMove(
     onCleared: () => {
       // The tile has left A's contour: the vacated cell settles once. A stack
       // answered already (its counter, its base) — it is not vacated; nor is
-      // a cell whose other piece stays (TR44).
+      // a cell whose other piece stays (TR44) — its cover lets go here instead.
+      hideStayingCover(els);
       if (tilePlacementState.active && move.stack === undefined && !stays) {
         markCellVacated(move.from);
       }

@@ -110,6 +110,21 @@
           :style="departCubeStyle"></player-cube>
         <div v-if="tilePlacementState.move !== undefined" ref="departTouch" class="con-tileplace__touch"></div>
       </div>
+      <!-- THE PIECE THAT STAYS, painted OVER the piece leaving from UNDER it (TR44: the water out from under a city).
+           The board paints the city, the flight layer paints the water's proxy above the board — without this cover
+           the water would surface THROUGH the city for the lift. Posed by the director 1:1 over the city's rung, it
+           settles with the real tier's dry beat and is hidden once the water has cleared the hex. It never travels
+           (no touch overlay, no `data-tile-move` — the probes count the ONE travelling object). -->
+      <div v-if="coverArtClass !== ''" ref="cover" class="con-tileplace__tile con-tileplace__tile--cover" data-tile-cover="own">
+        <div class="con-tileplace__edge" :class="coverArtClass"></div>
+        <div class="con-tileplace__art" :class="coverArtClass"></div>
+        <player-cube
+          v-if="tilePlacementState.stayingCover?.cube !== undefined"
+          class="board-owner-cube"
+          :color="tilePlacementState.stayingCover.cube.color"
+          :size="tilePlacementState.stayingCover.cube.size"
+          :style="coverCubeStyle"></player-cube>
+      </div>
       <!-- THE ARRIVING TILE — the shared proxy anatomy (ConsoleTileProxy: edge · art · touch), the same piece a
            tile laid on a colony tile flies (ConsoleColonyCityLayer). -->
       <ConsoleTileProxy v-if="artClass !== ''" ref="tile" :artClass="artClass" />
@@ -167,6 +182,17 @@
           :size="remotePlacementState.departingCube.size"
           :style="remoteDepartCubeStyle"></player-cube>
         <div v-if="remotePlacementState.move" ref="remoteDepartTouch" class="con-tileplace__touch"></div>
+      </div>
+      <!-- …and the same cover on the REMOTE stage: the opponent's water out from under their city. -->
+      <div v-if="remoteCoverArtClass !== ''" ref="remoteCover" class="con-tileplace__tile con-tileplace__tile--cover con-tileplace__tile--remote" data-tile-cover="remote">
+        <div class="con-tileplace__edge" :class="remoteCoverArtClass"></div>
+        <div class="con-tileplace__art" :class="remoteCoverArtClass"></div>
+        <player-cube
+          v-if="remotePlacementState.stayingCover?.cube !== undefined"
+          class="board-owner-cube"
+          :color="remotePlacementState.stayingCover.cube.color"
+          :size="remotePlacementState.stayingCover.cube.size"
+          :style="remoteCoverCubeStyle"></player-cube>
       </div>
       <ConsoleTileProxy v-if="remoteArtClass !== ''" ref="remoteTile" class="con-tileplace__tile--remote" :artClass="remoteArtClass" />
       <!-- The VIEWER's own tiles answering a REMOTE placement (Ares owner
@@ -287,6 +313,31 @@ export default defineComponent({
         right: `${c.right}px`,
         bottom: `${c.bottom}px`,
       };
+    },
+    /** The cover of the piece that STAYS (TR44 — the city over the water a move takes): its art, on either stage. */
+    coverArtClass(): string {
+      const t = tilePlacementState.stayingCover?.tileType;
+      if (t === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    remoteCoverArtClass(): string {
+      const t = remotePlacementState.stayingCover?.tileType;
+      if (t === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    coverCubeStyle(): Record<string, string> {
+      const c = tilePlacementState.stayingCover?.cube;
+      return c === undefined ? {} : {right: `${c.right}px`, bottom: `${c.bottom}px`};
+    },
+    remoteCoverCubeStyle(): Record<string, string> {
+      const c = remotePlacementState.stayingCover?.cube;
+      return c === undefined ? {} : {right: `${c.right}px`, bottom: `${c.bottom}px`};
     },
   },
   methods: {
@@ -410,6 +461,7 @@ export default defineComponent({
           depart: connected(this.$refs.depart as HTMLElement | undefined),
           departEdge: connected(this.$refs.departEdge as HTMLElement | undefined),
           departTouch: connected(this.$refs.departTouch as HTMLElement | undefined),
+          cover: connected(this.$refs.cover as HTMLElement | undefined),
           dust: connected(this.$refs.dust as HTMLElement | undefined),
         };
       },
@@ -439,6 +491,7 @@ export default defineComponent({
           depart: connected(this.$refs.remoteDepart as HTMLElement | undefined),
           departEdge: connected(this.$refs.remoteDepartEdge as HTMLElement | undefined),
           departTouch: connected(this.$refs.remoteDepartTouch as HTMLElement | undefined),
+          cover: connected(this.$refs.remoteCover as HTMLElement | undefined),
         };
       },
     });

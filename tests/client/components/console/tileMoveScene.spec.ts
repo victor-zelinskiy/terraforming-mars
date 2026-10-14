@@ -9,7 +9,7 @@ import {
   verifyPlacement, verifyMove, applyVacatePreview, applySpacePreview, departingCubePose,
   movePlan, moveLiftPose, moveCarryPose, moveLandPose, moveShadowAt, moveSourceRect, moveSceneMs,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, MOVE_LIFT_PX, MOVE_CARRY_SCALE, MOVE_VACATED_T, MOVE_ARC_RISE, MOVE_DESCENT_T,
-  stackLandingRect, STACK_SCALE, BONUS_PRELIFT_START_T,
+  stackLandingRect, STACK_SCALE, BONUS_PRELIFT_START_T, coverDescentPlan, STACK_DRY_MS,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_DEPART_MS, TILE_DEPART_BREATH_MS,
   TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_SETTLE_MS,
   TileRect,
@@ -323,6 +323,16 @@ describe('TR14 Re-settlement — the MOVE scene', () => {
       // The crane, reversed: the lift off a stack is as vertical as the tier's descent was.
       expect(moveLiftPose(tier, 0.5).x).eq(tier.from.x);
       expect(moveCarryPose(tier, 1).scale, 'by the end of the carry it is a full-size city').closeTo(MOVE_CARRY_SCALE, 1e-9);
+    });
+
+    it('THE WATER OUT FROM UNDER A CITY (TR44): the city\'s COVER is born on the pile\'s rung and settles to the ground over the dry beat — the water is seen to slide out from UNDER it', () => {
+      const plan = coverDescentPlan(hexA);
+      expect(plan.from, 'born 1:1 over the city in its lift').deep.eq(stackLandingRect(hexA, 2));
+      expect(plan.to, 'settles onto the full hex').eq(hexA);
+      expect(plan.ms, 'in step with the real tier\'s dry keyframe').eq(STACK_DRY_MS);
+      expect(STACK_DRY_MS).eq(260);
+      // …while the WATER's own source is the full hex it is the ground of (the cover stands over it).
+      expect(moveSourceRect(hexA, 1)).eq(hexA);
     });
 
     it('the ground shadow separates and softens with the lift, and tightens back to contact', () => {

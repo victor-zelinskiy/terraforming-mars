@@ -359,6 +359,21 @@ describe('TwoTileCell — a city over an ocean (TR44)', () => {
       expect(ids).to.include('remove-ocean-under-city');
     });
 
+    it('the move previews say what STAYS (К-W1): TR39 lifting the ocean from under — «the city stays»; TR14 lifting the city off the water — «the ocean stays»', () => {
+      const t = table();
+      seatOcean(t.game, O1);
+      seatOcean(t.game, O2);
+      cityOverOcean(t, O1);
+      const idsOf = (p: ReturnType<typeof boardCellPreview>) => [...p.immediateFacts, ...p.ruleFacts, ...p.futureScoringFacts].map((f) => f.id);
+      const oceanMove = boardCellPreview(t.p1, cell(t.game, O1), 'ocean-move');
+      expect(oceanMove.legal, 'the ocean under the city may be lifted').is.true;
+      expect(idsOf(oceanMove)).to.include('move-ocean-under-city');
+      expect(idsOf(boardCellPreview(t.p1, cell(t.game, O2), 'ocean-move')), 'a bare ocean says nothing of a city').to.not.include('move-ocean-under-city');
+      const cityMove = boardCellPreview(t.p1, cell(t.game, O1), 'city-move');
+      expect(cityMove.legal, 'the city may leave the water').is.true;
+      expect(idsOf(cityMove)).to.include('move-city-off-water');
+    });
+
     it('`liftOcean` is the one lift: from the top of a bare ocean cell, or from under a city — never from a composite', () => {
       const t = table({aresExtension: true});
       const bare = seatOcean(t.game, O2);

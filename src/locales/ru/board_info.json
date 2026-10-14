@@ -110,6 +110,8 @@
   "The ocean stays under the city": "Океан остаётся под городом",
   "Two tiles: the ocean still counts and still pays its neighbours.": "Два тайла: океан по-прежнему считается и платит соседям.",
   "The city stays": "Город остаётся",
+  "The ocean stays": "Океан остаётся",
+  "Only the city leaves. The ocean under it stays in place, nobody's, and still counts.": "Уходит только город. Океан под ним остаётся на месте, ничей, и по-прежнему считается.",
   "Only the ocean under the city leaves. The city, its owner and its stack stay in place; the cell no longer counts as an ocean.": "Уходит только океан из-под города. Город, его владелец и его ярусы остаются на месте; клетка больше не считается океаном.",
   "Only an ocean tile can be placed here.": "Сюда можно разместить только океан.",
   "A tile can be placed here when an action allows it.": "Сюда можно разместить тайл, когда действие это позволяет.",

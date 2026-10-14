@@ -69,7 +69,7 @@ import {
   OCEAN_PULSE_MS, OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_SPLASH_MS, oceanEdgePoint, oceanShoreDirection,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSourceRect, departingCubePose, DepartingCubePose, VerifiedMove,
-  stackLandingRect,
+  stackLandingRect, coverDescentPlan,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {claimTileMove, pairTileMoves} from '@/client/console/tilePlacement/tileMoveRecords';
 import {stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
@@ -90,7 +90,7 @@ import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
   playAresSourcePulses, playCoverSplash, seatTileProxy,
   placeDepartProxy, playTileDeparture,
-  placeMoveProxy, playTileMove, removeMoveProxy,
+  placeMoveProxy, playTileMove, removeMoveProxy, placeStayingCover, hideStayingCover,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {boardSpaceEpoch, waitBoardGeometryStable} from '@/client/console/boardSpaceGeometry';
 import {
@@ -169,6 +169,8 @@ export const remotePlacementState = reactive({
   move: false,
   /** The owner marker riding a MOVE's proxy (the twin's socket for the live hex). */
   departingCube: undefined as DepartingCubePose | undefined,
+  /** TWO PIECES (TR44): the piece that STAYS while the piece under it leaves — the cover's art and cube. */
+  stayingCover: undefined as {tileType: TileType, cube: DepartingCubePose | undefined} | undefined,
   /** A move could not be played as one carried object (no measurable hex, no
    *  stage) — both cells went straight to their final poses. A probe's witness. */
   moveDegraded: false,
@@ -546,6 +548,7 @@ function releaseMoveSource(ev: RemoteEvent): void {
 function clearMoveStage(): void {
   remotePlacementState.move = false;
   remotePlacementState.departingCube = undefined;
+  remotePlacementState.stayingCover = undefined;
   remotePlacementState.moveDegraded = false;
 }
 
@@ -631,6 +634,10 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.departingTile = move.tileType;
   remotePlacementState.departingCube = departingCubePose(move.color, dest);
+  // The water out from UNDER a city: the city that stays is painted over the leaving water (the cover).
+  remotePlacementState.stayingCover = move.stays !== undefined && move.stays.tileType !== TileType.OCEAN ?
+    {tileType: move.stays.tileType, cube: departingCubePose(move.stays.color, sourceHex)} :
+    undefined;
   remotePlacementState.move = true;
   remotePlacementState.aresExtension = ev.aresExtension;
   remotePlacementState.nonce++;
@@ -646,6 +653,10 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
   if (els === undefined || !placeMoveProxy(els, moveSourceRect(sourceHex, sourceTiers), dest)) {
     await degradeMove(ev, myEpoch);
     return;
+  }
+  // THE COVER of the piece that stays (the water out from under a city) — posed in the same turn as the proxy.
+  if (remotePlacementState.stayingCover !== undefined) {
+    placeStayingCover(els, coverDescentPlan(sourceHex));
   }
   // THE HANDOFF: the proxy stands 1:1 over the city, so the real source cell
   // may become what was committed NOW — nothing is seen to change.
@@ -665,6 +676,7 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
     carryMs: motionMs(MOVE_CARRY_MS),
     landMs: motionMs(MOVE_LAND_MS),
     onCleared: () => {
+      hideStayingCover(els);
       if (epoch === myEpoch && move.stack === undefined && !stays) {
         markCellVacated(move.from);
       }
@@ -688,6 +700,7 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
   removeMoveProxy(els);
   remotePlacementState.departingTile = undefined;
   remotePlacementState.departingCube = undefined;
+  remotePlacementState.stayingCover = undefined;
   remotePlacementState.move = false;
   clearStackRelease(move.from as SpaceId);
   if (ev.income.length > 0) {
@@ -702,6 +715,7 @@ async function degradeMove(ev: RemoteEvent, myEpoch: number): Promise<void> {
   releaseMoveSource(ev);
   remotePlacementState.departingTile = undefined;
   remotePlacementState.departingCube = undefined;
+  remotePlacementState.stayingCover = undefined;
   remotePlacementState.move = false;
   remotePlacementState.active = true; // the stage root mounts — the witness below is readable
   remotePlacementState.moveDegraded = true;

@@ -280,6 +280,20 @@ export const TIER_DUST_MOTES = 8;
  */
 export const STACK_STEP_PX = 3.5;
 export const STACK_SCALE = 0.86;
+/** The DRY beat (`board-stack-dry`, board.less): a city whose water left from under it settles from the rung to the
+ *  ground — the JS mirror of the keyframe's duration, so the cover on the flight layer descends in step with it. */
+export const STACK_DRY_MS = 260;
+
+/**
+ * THE COVER OF THE PIECE THAT STAYS (TR44 — the water leaving from UNDER a city). The board paints the city, but the
+ * flight layer paints the water's proxy above the board, so without a cover the water would surface THROUGH the city
+ * for the lift. The cover is the city painted once more on the flight layer: born 1:1 over the city's rung, it settles
+ * to the ground in step with the real tier's dry beat and is hidden the moment the water has cleared the hex (the real
+ * city underneath is then identical). It never travels.
+ */
+export function coverDescentPlan(hex: TileRect): {from: TileRect, to: TileRect, ms: number} {
+  return {from: stackLandingRect(hex, 2), to: hex, ms: STACK_DRY_MS};
+}
 /** The board cell's authored height (board px) — the step scales with the live hex. */
 const BOARD_HEX_H_PX = 51;
 
