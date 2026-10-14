@@ -2495,6 +2495,14 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'aquatic-research-station' |
   'aquatic-research-station-canyon' |
   'aquatic-research-station-action' |
+  // TR47 Ecological Experiment — «up and back»: blue's action phase with the card in hand, 20 M€, the Scientists enacted,
+  // Supercomputer (0 data) on the table; the planet at −12 °C / 4 % / three plain oceans of different printed bonuses
+  // (`-max`: every parameter reaches its maximum on the raise; `-cascade`: 0 °C and 8 % crossed; `-under-city`: the
+  // TR44 station over the ocean on 33 beside a plain ocean on 34).
+  'ecological-experiment' |
+  'ecological-experiment-max' |
+  'ecological-experiment-cascade' |
+  'ecological-experiment-under-city' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

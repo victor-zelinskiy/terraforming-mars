@@ -215,6 +215,7 @@ import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensu
 import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCensus';
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {CanyonCarving} from '../../../src/server/cards/turmoilRedux/CanyonCarving';
+import {EcologicalExperiment} from '../../../src/server/cards/turmoilRedux/EcologicalExperiment';
 import {Capital} from '../../../src/server/cards/base/Capital';
 import {OceanCity} from '../../../src/server/cards/ares/OceanCity';
 import {AquaticResearchStation} from '../../../src/server/cards/turmoilRedux/AquaticResearchStation';
@@ -1712,6 +1713,96 @@ function aquaticFixture(name: string, at: 'hand' | 'placed' | 'table'): void {
 aquaticFixture('aquatic-research-station', 'hand');
 aquaticFixture('aquatic-research-station-canyon', 'placed');
 aquaticFixture('aquatic-research-station-action', 'table');
+
+// ── TR47 · ECOLOGICAL EXPERIMENT — «UP AND BACK» (docs/TURMOIL_REDUX_ECOLOGICAL_EXPERIMENT.md): blue's action phase with
+//    the card in hand, 20 M€ (the card costs 18), the SCIENTISTS enacted (the card's requirement is their plate), TR48
+//    Supercomputer on blue's table with 0 data (the ONE holder the 3 data go onto — shown, never auto-selected). The board is
+//    ARRANGED on Tharsis, never dealt; red sits at a pinned corporation with no first action (the second client watches
+//    the planet go up and come back). The fixtures differ by where the planet stands:
+//      · `ecological-experiment`           — −12 °C · 4 % · three plain oceans on reserves printing DIFFERENT bonuses
+//                                             (28: two plants · 04: two steel · 07: nothing): the raise crosses no threshold,
+//                                             the card's own ocean is the fourth, the fall asks WHICH ocean leaves
+//                                             (every plain ocean — the fresh one too) and lowers the two scales in its answer;
+//      · `ecological-experiment-max`       — +6 °C · 13 % · eight oceans: every parameter reaches its MAXIMUM on the raise,
+//                                             so the fall touches nothing and names all three — the swing in ONE response;
+//      · `ecological-experiment-cascade`   — −2 °C · 7 % · five oceans: the raise reaches 0 °C (a bonus ocean, asked live
+//                                             BEFORE the card's own ocean lands) and 8 % (a temperature step) — the cascade
+//                                             the composer forecasts; the fall then asks the removal among seven oceans;
+//      · `ecological-experiment-under-city` — −12 °C · 4 % · blue's TR44 station OVER the ocean on 33 beside a plain ocean
+//                                             on 34: the removal offers the water UNDER the city too, and the city stays.
+//    The ids are the e2e spec's own constants (`tests/e2e/console-ecological-experiment.spec.ts`); the engine's reading of
+//    the arrangement is asserted below, so a board change fails HERE, by name. ──
+const ECOLOGICAL_SITE = {plants: '28', steel: '04', bare: '07', card: '06', cards: '13', titanium: '63', station: '33', beside: '34'} as const;
+function ecologicalFixture(name: string, stand: 'plain' | 'max' | 'cascade' | 'under-city'): void {
+  const planet = {
+    'plain': {temperature: -12, oxygen: 4, oceans: [ECOLOGICAL_SITE.plants, ECOLOGICAL_SITE.steel, ECOLOGICAL_SITE.bare]},
+    'max': {temperature: 6, oxygen: 13, oceans: [ECOLOGICAL_SITE.plants, ECOLOGICAL_SITE.steel, ECOLOGICAL_SITE.bare, ECOLOGICAL_SITE.card, ECOLOGICAL_SITE.cards, '32', '33', '34']},
+    'cascade': {temperature: -2, oxygen: 7, oceans: [ECOLOGICAL_SITE.plants, ECOLOGICAL_SITE.steel, ECOLOGICAL_SITE.bare, ECOLOGICAL_SITE.card, ECOLOGICAL_SITE.titanium]},
+    'under-city': {temperature: -12, oxygen: 4, oceans: [ECOLOGICAL_SITE.station, ECOLOGICAL_SITE.beside]},
+  }[stand];
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+      for (const id of planet.oceans) {
+        cell(id).tile = {tileType: TileType.OCEAN};
+        cell(id).player = undefined;
+      }
+      setTemperature(game, planet.temperature);
+      setOxygenLevel(game, planet.oxygen);
+      if (stand === 'under-city') {
+        p1.playedCards.push(new AquaticResearchStation());
+        game.addTile(p1, cell(ECOLOGICAL_SITE.station), {tileType: TileType.CITY, card: CardName.AQUATIC_RESEARCH_STATION}, {overOcean: true});
+      }
+      const holder = new Supercomputer();
+      holder.resourceCount = 0;
+      p1.playedCards.push(holder);
+      p1.cardsInHand.push(new EcologicalExperiment());
+      runAllActions(game);
+      p1.megaCredits = 20;
+      p1.steel = 0;
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.ECOLOGICAL_EXPERIMENT);
+      const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card) !== false,
+        ruling: parliament.rulingParty(),
+        temperature: game.getTemperature(),
+        oxygen: game.getOxygenLevel(),
+        oceans: game.board.getOceanSpaces().map((s) => s.id).sort(),
+        plain: game.board.getOceanSpaces({upgradedOceans: false}).map((s) => s.id).sort(),
+        bonuses: stand === 'plain' ? [cell(ECOLOGICAL_SITE.plants).bonus.join(','), cell(ECOLOGICAL_SITE.steel).bonus.join(','), cell(ECOLOGICAL_SITE.bare).bonus.join(',')] : [],
+        station: stand === 'under-city' ? [cell(ECOLOGICAL_SITE.station).tile?.tileType, cell(ECOLOGICAL_SITE.station).tile?.covers?.tileType] : [],
+        holders: p1.playedCards.asArray().filter((c) => c.name === CardName.SUPERCOMPUTER).map((c) => `${c.name}:${c.resourceCount}`),
+        money: [p1.megaCredits, p1.steel],
+      };
+      const expected = {
+        playable: true,
+        ruling: PartyName.SCIENTISTS,
+        temperature: planet.temperature,
+        oxygen: planet.oxygen,
+        oceans: [...planet.oceans].sort(),
+        plain: [...planet.oceans].sort(),
+        bonuses: stand === 'plain' ? [`${SpaceBonus.PLANT},${SpaceBonus.PLANT}`, `${SpaceBonus.STEEL},${SpaceBonus.STEEL}`, ''] : [],
+        station: stand === 'under-city' ? [TileType.CITY, TileType.OCEAN] : [],
+        holders: [`${CardName.SUPERCOMPUTER}:0`],
+        money: [20, 0],
+      };
+      if (JSON.stringify(facts) !== JSON.stringify(expected)) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+ecologicalFixture('ecological-experiment', 'plain');
+ecologicalFixture('ecological-experiment-max', 'max');
+ecologicalFixture('ecological-experiment-cascade', 'cascade');
+ecologicalFixture('ecological-experiment-under-city', 'under-city');
 // ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
 //    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
 //    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:
