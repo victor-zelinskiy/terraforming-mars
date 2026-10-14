@@ -151,6 +151,15 @@ export type ActionEffect = {
    */
   host?: string;
   /**
+   * This chip OPENS A PHASE of the formula — an i18n word the composer draws
+   * as a divider BEFORE it («THEN» — Turmoil Redux TR47 Ecological Experiment:
+   * the planet goes up, THEN comes back down; «Net» — the closing line of what
+   * the press leaves the player with). A chip without one continues the phase
+   * before it. Never set on the first chip of a formula: a formula does not
+   * begin with a divider.
+   */
+  phase?: string;
+  /**
    * This chip RESTATES a step another chip of the same list already pays —
    * an ocean's own TR drawn beside the ocean (Water Hauling's «[океан] · [РТ]»):
    * the stage reads it, the effect forecast's GRANTS skip it (a scale step is

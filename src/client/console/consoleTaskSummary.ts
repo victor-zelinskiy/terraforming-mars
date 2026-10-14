@@ -44,6 +44,7 @@ import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Phase} from '@/common/Phase';
 import {PlacementEffect, PlayerInputModel, SelectAmountModel} from '@/common/models/PlayerInputModel';
+import {TileType} from '@/common/TileType';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {nestedDiscardBranch} from '@/client/console/cardDiscard/discardIntent';
@@ -191,9 +192,10 @@ function compositeKicker(wf: PlayerInputModel | undefined): string {
  * pick names a tile that LEAVES, and the kicker says so.
  */
 export function placementKicker(wf: PlayerInputModel | undefined): string {
-  const effect = (wf as {placementEffect?: PlacementEffect} | undefined)?.placementEffect;
+  const effect = (wf as {placementEffect?: PlacementEffect, tileType?: TileType} | undefined)?.placementEffect;
   if (effect === 'remove') {
-    return 'Tile removal';
+    // The tile the pick names leaves — an OCEAN says so by its own word (TR47's «СНЯТИЕ ОКЕАНА»); any other, the tile's.
+    return (wf as {tileType?: TileType} | undefined)?.tileType === TileType.OCEAN ? 'Ocean removal' : 'Tile removal';
   }
   // A MOVE (`'move'` — Turmoil Redux TR14): a tile the player owns travels to another cell.
   if (effect === 'move') {

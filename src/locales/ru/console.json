@@ -1114,5 +1114,13 @@
     "card choice": "выбор карты",
     "take the card": "взять карту",
     "{patent|patents} sold": "{проданный патент|проданных патента|проданных патентов}",
-    "of ${0} turned over · ${1} to the discard": "из ${0} вскрытых · ${1} в сброс"
+    "of ${0} turned over · ${1} to the discard": "из ${0} вскрытых · ${1} в сброс",
+    "Then": "Затем",
+    "Net": "Итог",
+    "stays at maximum": "остаётся на максимуме",
+    "remove any ocean": "снимите любой океан",
+    "Then remove any ocean tile from the board": "Затем снимите с поля любой тайл океана",
+    "The ocean leaves the board. The action is already underway.": "Океан уходит с поля. Действие уже идёт.",
+    "The experiment lowers the planet again. The card is already played; the TR stays.": "Эксперимент снова опускает планету. Карта уже разыграна; РТ остаётся.",
+    "Ocean removal": "Снятие океана"
 }

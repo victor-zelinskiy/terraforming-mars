@@ -405,5 +405,12 @@
     "${0} added ${1} ${2} to ${3} for ${4} adjacent {city|cities}": "${0} выложил ${1} ${2} на ${3} за ${4} {соседний город|соседних города|соседних городов}",
     "${0} discarded ${1} ${2} from ${3} to gain ${4} TR": "${0} сбросил ${1} ${2} с ${3} и получил ${4} РТ",
     "${0} spent ${1} ${2} from ${3}": "${0} потратил ${1} ${2} с ${3}",
-    "${0} discarded ${1} ${2} from ${3} to look at ${4} card(s) from the deck": "${0} сбросил ${1} ${2} с ${3}, чтобы посмотреть ${4} {карту|карты|карт} из колоды"
+    "${0} discarded ${1} ${2} from ${3} to look at ${4} card(s) from the deck": "${0} сбросил ${1} ${2} с ${3}, чтобы посмотреть ${4} {карту|карты|карт} из колоды",
+    "${0} lowered ${1} 1 step (${2} → ${3}) — the TR stays": "${0} опустил ${1} на 1 шаг (${2} → ${3}) — РТ остаётся",
+    "Temperature is at its maximum — not lowered": "Температура на максимуме — не понижается",
+    "Oxygen is at its maximum — not lowered": "Кислород на максимуме — не понижается",
+    "Oceans are at their maximum — not lowered": "Океаны на максимуме — не понижаются",
+    "Lower the temperature 1 step": "Опустить температуру на 1 шаг",
+    "Lower the oxygen level 1 step": "Опустить кислород на 1 шаг",
+    "Remove an ocean tile": "Снять тайл океана"
 }

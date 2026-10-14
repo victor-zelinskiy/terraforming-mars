@@ -174,6 +174,7 @@ export class Server {
       tileMoves: game.tileMoves.length > 0 ? game.tileMoves : undefined,
       cardAdjacencyPayouts: game.cardAdjacencyPayouts.length > 0 ? game.cardAdjacencyPayouts : undefined,
       scaleStepRewards: game.scaleStepRewards.length > 0 ? game.scaleStepRewards : undefined,
+      parameterSwings: game.parameterSwings.length > 0 ? game.parameterSwings : undefined,
       awards: this.getAwards(game),
       colonies: coloniesToModel(game, game.colonies, false, true),
       deckSize: game.projectDeck.drawPile.length,

@@ -3,6 +3,7 @@ import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../boards/TileMove';
 import {CardAdjacencyPayoutModel} from './CardAdjacencyPayoutModel';
 import {ScaleStepRewardModel} from './ScaleStepRewardModel';
+import {ParameterSwingModel} from './ParameterSwingModel';
 import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
@@ -52,6 +53,12 @@ export type GameModel = {
    *  seat and every other viewer alike. Presentation only; consumed once by
    *  `seq`. See `ScaleStepRewardModel`. */
   scaleStepRewards?: ReadonlyArray<ScaleStepRewardModel>;
+  /** Latest PARAMETER SWINGS (Turmoil Redux TR47 Ecological Experiment — «up
+   *  and back»): the planet raised and lowered by one card, the record the
+   *  board scene plays when both halves land in one response and the view's
+   *  diff reads zero. Presentation only; consumed once by `seq`. See
+   *  `ParameterSwingModel`. */
+  parameterSwings?: ReadonlyArray<ParameterSwingModel>;
   awards: ReadonlyArray<FundedAwardModel>;
   colonies: ReadonlyArray<ColonyModel>;
   discardedColonies: ReadonlyArray<ColonyName>;

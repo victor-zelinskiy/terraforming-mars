@@ -29,6 +29,7 @@ import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel'
 import {TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
+import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
 import {MoonData} from './moon/MoonData';
 import {SeededRandom} from '../common/utils/Random';
 import {PathfindersData} from './pathfinders/PathfindersData';
@@ -197,6 +198,23 @@ export interface IGame extends Logger {
   scaleStepRewards: Array<ScaleStepRewardModel>;
   /** Publish one payout into `scaleStepRewards` (the ring's `seq` law) — called only by `cards/scaleStepReward.recordScaleStepReward`. */
   publishScaleStepReward(reward: Omit<ScaleStepRewardModel, 'seq'>): void;
+  /**
+   * Bounded ring of the latest PARAMETER SWINGS — «up and back» (Turmoil
+   * Redux TR47 Ecological Experiment): the planet raised and lowered by one
+   * card, the record the board's scene plays when the two halves land in one
+   * response and the view's diff reads zero. See `ParameterSwingModel`. Not
+   * serialized: a restart loses only the animation, never the rule.
+   */
+  parameterSwings: Array<ParameterSwingModel>;
+  /** Publish one swing into `parameterSwings` (the ring's `seq` law) — called only by `cards/parameterSwing.recordParameterSwing`. */
+  publishParameterSwing(swing: Omit<ParameterSwingModel, 'seq'>): void;
+  /**
+   * A CARD LOWERS A SCALE one step — the ONE function (TR47): a parameter at
+   * its maximum STAYS and is named, the floor is named, otherwise the
+   * engine's own negative branch with the player as the author (no rating
+   * taken, no threshold re-armed). The oceans' fall is `RemoveOceanTile`.
+   */
+  lowerParameters(player: IPlayer, parameters: ReadonlyArray<'temperature' | 'oxygen'>): Array<ParameterSwingDown>;
   /**
    * THE ONE DISPATCHER of «a global parameter scale went up»
    * (`ICard.onGlobalParameterRaised`): every seat's tableau in generation

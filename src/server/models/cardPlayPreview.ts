@@ -117,7 +117,22 @@ function cardPlayPreviewOf(player: IPlayer, card: ICard): ActionPreview {
   if (card.cardPlayPreview !== undefined) {
     return card.cardPlayPreview(player);
   }
+  return declarativeCardPlayPreview(player, card);
+}
 
+/**
+ * THE DECLARATIVE DOOR, exported — the preview a card's `behavior` derives
+ * (the chips, the pre-collected steps, the staged placement), the way the
+ * route builds it for a card WITHOUT a hook. A card whose play has a bespoke
+ * TAIL beyond its declaration (Turmoil Redux TR47 Ecological Experiment —
+ * «THEN decrease each Mars global parameter…») calls this from its own
+ * `cardPlayPreview` and APPENDS to the branch it returns, so the first half
+ * of its formula is never rewritten by hand and the guards that cover a
+ * declaration (`cardPlayReplayCoverage`, `stagedPlacementParity`) keep
+ * covering it. Read-only. The route's exit passes (`withImpliedRatings`,
+ * `withPreselectAddresses`) run on the hook's result as on any.
+ */
+export function declarativeCardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
   const base = {
     card: card.name,
     isCorporation: card.type === CardType.CORPORATION,

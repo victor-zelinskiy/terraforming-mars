@@ -71,6 +71,9 @@ import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel'
 import {AdjacencyVpChange, TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
+import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
+import {parameterRoom, ParameterTable} from '../common/parliament/parameterMove';
+import {recordSkippedEffect} from './deferredActions/skippedEffect';
 import {GlobalParameterRaise} from './cards/GlobalParameterRaise';
 import {GameSetup, normalizeBoardName} from './GameSetup';
 import {GameCards} from './GameCards';
@@ -216,6 +219,7 @@ export class Game implements IGame, Logger {
   public tileMoves: Array<TileMoveRecordModel> = []; // Not serialized (presentation ring — see IGame.tileMoves)
   public cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel> = []; // Not serialized (presentation ring — see IGame.cardAdjacencyPayouts)
   public scaleStepRewards: Array<ScaleStepRewardModel> = []; // Not serialized (presentation ring — see IGame.scaleStepRewards)
+  public parameterSwings: Array<ParameterSwingModel> = []; // Not serialized (presentation ring — see IGame.parameterSwings)
   public moonData: MoonData | undefined;
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
@@ -2060,6 +2064,69 @@ export class Game implements IGame, Logger {
     return this.temperature;
   }
 
+  /** The table as the engine has it right now — the ONE reader of the shared `parameterRoom` arithmetic in this file. */
+  private parameterTable(): ParameterTable {
+    return {
+      oxygenLevel: this.oxygenLevel,
+      temperature: this.temperature,
+      oceans: this.board.getOceanSpaces().length,
+      venusScaleLevel: this.gameOptions.venusNextExtension ? this.venusScaleLevel : undefined,
+    };
+  }
+
+  /**
+   * A PARAMETER COMES BACK DOWN (Turmoil Redux TR47 Ecological Experiment —
+   * «THEN decrease each Mars global parameter that isn't at maximum by 1
+   * step; keep the TR you gained») — the ONE function a CARD lowers a scale
+   * with, as `parameterRoom` is the one arithmetic of whether it can:
+   *  · a parameter AT ITS MAXIMUM stays — the card's own clause, checked
+   *    FIRST and NAMED (`recordSkippedEffect` — the engine's early return
+   *    would be silent); at the floor the skip is named too;
+   *  · otherwise ONE step down through the engine's own negative branch
+   *    (`increaseTemperature(player, -1)` / `increaseOxygenLevel(player, -1)`)
+   *    WITH THE PLAYER as its author — this is a card's effect, so the event
+   *    names who lowered the planet (never `unrewarded`: that is the World
+   *    Government's and a resolution's «for nobody» mode, a lie about the
+   *    author here). The negative branch pays no rating, wakes no threshold,
+   *    runs no `globalParameterRaised` — nothing is taken back and nothing is
+   *    re-armed: the rating the raise paid stays, the claims the raise made
+   *    stand (`claimCrossedScaleBonuses` claims each threshold once).
+   *  · the journal line carries `before → after` and says the TR stays.
+   * The OCEANS' fall is a REMOVAL that asks (`RemoveOceanTile`) — not here.
+   * Returns what each parameter did, for the swing's record.
+   */
+  public lowerParameters(player: IPlayer, parameters: ReadonlyArray<'temperature' | 'oxygen'>): Array<ParameterSwingDown> {
+    const out: Array<ParameterSwingDown> = [];
+    for (const parameter of parameters) {
+      const gp = parameter === 'temperature' ? GlobalParameter.TEMPERATURE : GlobalParameter.OXYGEN;
+      const room = parameterRoom({parameter, steps: -1}, this.parameterTable());
+      const label = parameter === 'temperature' ? 'Lower the temperature 1 step' : 'Lower the oxygen level 1 step';
+      if (room.current >= room.max) {
+        const reason = parameter === 'temperature' ? 'Temperature is at its maximum — not lowered' : 'Oxygen is at its maximum — not lowered';
+        recordSkippedEffect(player, reason, {label, effect: {direction: 'cost', icon: parameter, amount: 1}});
+        out.push({parameter, atMax: true, at: room.current});
+        continue;
+      }
+      if (!room.moves) {
+        const reason = parameter === 'temperature' ? 'Temperature is already at its minimum' : 'Oxygen is already at its minimum';
+        recordSkippedEffect(player, reason, {label, effect: {direction: 'cost', icon: parameter, amount: 1}});
+        out.push({parameter, atMin: true, at: room.current});
+        continue;
+      }
+      const before = room.current;
+      if (parameter === 'temperature') {
+        this.increaseTemperature(player, -1);
+      } else {
+        this.increaseOxygenLevel(player, -1);
+      }
+      const after = parameter === 'temperature' ? this.temperature : this.oxygenLevel;
+      this.log('${0} lowered ${1} 1 step (${2} → ${3}) — the TR stays', (b) =>
+        b.player(player).globalParameter(gp).number(before).number(after));
+      out.push({parameter, before, after});
+    }
+    return out;
+  }
+
   public getGeneration(): number {
     return this.generation;
   }
@@ -2574,6 +2641,21 @@ export class Game implements IGame, Logger {
     this.scaleStepRewards.push({...reward, seq: base + Math.min(n, 99)});
     while (this.scaleStepRewards.length > 8) {
       this.scaleStepRewards.shift();
+    }
+  }
+
+  /**
+   * PUBLISH a PARAMETER SWING — «up and back» (Turmoil Redux TR47 Ecological
+   * Experiment) for the board's scene: the same bounded ring and `seq` law as
+   * `publishScaleStepReward`. Written by ONE function,
+   * `cards/parameterSwing.recordParameterSwing`, after the fall.
+   */
+  public publishParameterSwing(swing: Omit<ParameterSwingModel, 'seq'>): void {
+    const base = this.gameAge * 100;
+    const n = this.parameterSwings.filter((s) => s.seq >= base).length;
+    this.parameterSwings.push({...swing, seq: base + Math.min(n, 99)});
+    while (this.parameterSwings.length > 8) {
+      this.parameterSwings.shift();
     }
   }
 

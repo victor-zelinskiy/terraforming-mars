@@ -16,7 +16,9 @@ import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
+import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_FOR_OCEAN_BONUS} from '../../common/constants';
+import {parameterRoom} from '../../common/parliament/parameterMove';
+import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
@@ -139,6 +141,118 @@ export function oceanGain(player: IPlayer, amount: number): ActionEffect {
   const current = player.game.board.getOceanSpaces().length;
   return {direction: 'gain', icon: 'oceans', amount, current, resulting: Math.min(MAX_OCEAN_TILES, current + amount)};
 }
+/** The chip's own word that a phase begins here — the printed «THEN» of a card whose formula has two halves (TR47). */
+export const THEN_PHASE = 'Then';
+/** …and the word of the formula's closing line — what the whole press leaves the player with (TR47's «ИТОГ»). */
+export const NET_PHASE = 'Net';
+/** The note of a chip whose parameter STAYS at its maximum through the fall — the card's own clause, named (TR47). */
+export const STAYS_AT_MAXIMUM_NOTE = 'stays at maximum';
+/** The note of the oceans' fall — the player picks the ocean on the board (TR47). */
+export const REMOVE_ANY_OCEAN_NOTE = 'remove any ocean';
+/** The «ДАЛЕЕ» row of the oceans' fall — the board step the play hands on (TR47). */
+export const OCEAN_REMOVAL_NEXT_STEP = 'Then remove any ocean tile from the board';
+
+export type ParameterSwingRaise = {
+  /** The temperature steps the card's own raise makes (0 when it raises none). */
+  temperature: number;
+  /** The oxygen steps the card's own raise makes. */
+  oxygen: number;
+  /** The oceans the card's own raise places. */
+  oceans: number;
+};
+
+export type ParameterSwingTail = {
+  /** The chips of the fall — one per Mars parameter, in the card's printed order; the first opens the «THEN» phase. */
+  effects: Array<ActionEffect>;
+  /** The board step the fall hands on (the ocean to remove), when one is asked. */
+  steps: Array<ActionPreviewStep>;
+  /** Where the raise leaves the planet — the PEAK the fall is read from. */
+  peak: {temperature: number, oxygenLevel: number, oceans: number};
+  /** The rating the whole swing leaves with the mover (the raise's steps; the fall takes none back). */
+  rating: number;
+};
+
+/**
+ * «THEN DECREASE EACH MARS GLOBAL PARAMETER THAT ISN'T AT MAXIMUM» — the
+ * composer's reading of a card's FALL (Turmoil Redux TR47 Ecological
+ * Experiment), read from the PEAK the card's own raise reaches, with the
+ * engine's own thresholds walked exactly as `effectForecast.scaleBonusPass`
+ * walks them (8 % oxygen → a temperature step, 0 °C → a bonus ocean while one
+ * is left) and the engine's own arithmetic of room (`parameterRoom`,
+ * `tileRemovalRoom` — never a second «at maximum» of this file's own):
+ *  · a parameter the raise left BELOW its maximum: a «−1» chip from the peak
+ *    (`current → resulting` — the values the player will see, not today's);
+ *  · a parameter AT its maximum after the raise: the same chip at rest
+ *    (`current === resulting` — the chip's own honest «no effect») with the
+ *    card's clause as its note («stays at maximum») — information, never a
+ *    warning (nothing is lost: that is the point of the experiment);
+ *  · the oceans: «−1 · remove any ocean» with a «ДАЛЕЕ» board step — the
+ *    choice is made on the board AFTER the commit, honestly (which ocean
+ *    depends on where the raise's ocean landed); at nine, at rest and named.
+ * The FIRST chip of the fall opens the «THEN» phase (`ActionEffect.phase`),
+ * so the composer draws the printed divider instead of one undivided row.
+ */
+export function parameterSwingTail(player: IPlayer, raise: ParameterSwingRaise): ParameterSwingTail {
+  const game = player.game;
+  // THE CURSOR: where the raise takes each scale, thresholds included.
+  let temperature = game.getTemperature();
+  let oxygenLevel = game.getOxygenLevel();
+  let oceans = game.board.getOceanSpaces().length;
+  let plainOceans = game.board.getOceanSpaces({upgradedOceans: false}).length;
+  let rating = 0;
+  const placeOcean = (): void => {
+    if (oceans < MAX_OCEAN_TILES) {
+      oceans++;
+      plainOceans++;
+      rating++;
+    }
+  };
+  const raiseTemperature = (steps: number): void => {
+    for (let i = 0; i < steps && temperature < MAX_TEMPERATURE; i++) {
+      const from = temperature;
+      temperature += 2;
+      rating++;
+      if (from < TEMPERATURE_FOR_OCEAN_BONUS && temperature >= TEMPERATURE_FOR_OCEAN_BONUS) {
+        placeOcean();
+      }
+    }
+  };
+  raiseTemperature(raise.temperature);
+  for (let i = 0; i < raise.oxygen && oxygenLevel < MAX_OXYGEN_LEVEL; i++) {
+    const from = oxygenLevel;
+    oxygenLevel++;
+    rating++;
+    if (from < OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS && oxygenLevel >= OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
+      raiseTemperature(1);
+    }
+  }
+  for (let i = 0; i < raise.oceans; i++) {
+    placeOcean();
+  }
+  const peak = {temperature, oxygenLevel, oceans};
+  const table = {temperature, oxygenLevel, oceans, venusScaleLevel: game.getVenusScaleLevel()};
+
+  const effects: Array<ActionEffect> = [];
+  const scaleChip = (parameter: 'oxygen' | 'temperature'): ActionEffect => {
+    const m = GLOBAL_META[parameter];
+    const room = parameterRoom({parameter, steps: -1}, table);
+    const atMax = room.current >= room.max;
+    const resulting = atMax || !room.moves ? room.current : room.resulting;
+    return {
+      direction: 'cost', icon: parameter, amount: m.step, current: room.current, resulting, unit: m.unit,
+      ...(atMax ? {note: STAYS_AT_MAXIMUM_NOTE} : {}),
+    };
+  };
+  const oceanRoom = tileRemovalRoom({tile: 'ocean', executor: 'first-player'}, {oceans, removableOceans: plainOceans});
+  const oceanChip: ActionEffect = oceanRoom.removes ?
+    {direction: 'cost', icon: 'oceans', amount: 1, current: oceans, resulting: oceans - 1, note: REMOVE_ANY_OCEAN_NOTE} :
+    {direction: 'cost', icon: 'oceans', amount: 1, current: oceans, resulting: oceans, ...(oceanRoom.atMax ? {note: STAYS_AT_MAXIMUM_NOTE} : {})};
+  // The card's printed order — O₂ · t° · ocean.
+  effects.push({...scaleChip('oxygen'), phase: THEN_PHASE}, scaleChip('temperature'), oceanChip);
+  const steps: Array<ActionPreviewStep> = oceanRoom.removes ? [noteStep('board', OCEAN_REMOVAL_NEXT_STEP)] : [];
+  return {effects, steps, peak, rating};
+}
+
 /** The scales whose STEP is a terraform-rating step for the raiser (and the oceans — a placed tile is one too), in the units `globalGain` / `oceanGain` write. */
 const RATING_STEP_UNIT: Readonly<Record<string, number>> = {oxygen: 1, temperature: 2, venus: 2, oceans: 1};
 

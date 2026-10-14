@@ -15,14 +15,14 @@
  *    generation order as the handle (`worldStepHandle` — the nearest human
  *    when that seat is MarsBot) and routes the prompt to it. The contract
  *    stands: the step MUTATES or ASKS — here it asks, and the answer removes.
- *  · THE ENGINE'S OWN REMOVAL: `Game.removeTile` on a cell from
- *    `board.getOceanSpaces({upgradedOceans: false})` — the very mutation and
- *    the very filter `RemoveOceanTile` (the Reds' party action, the Dry
- *    Deserts event) uses; an UPGRADED ocean (Ocean City, Ocean Farm…) is never
- *    offered, exactly as there. The journal line is the shared
- *    `logBoardTileAction` too. What is NOT reused is the deferred class itself:
- *    it swallows its own answer (no `andThen`) and returns `undefined` when
- *    nothing can be removed — the silence this step exists to replace.
+ *  · THE FAMILY'S ONE PROMPT: `oceanRemovalPrompt` (`deferredActions/
+ *    RemoveOceanTile.ts` — since TR47 the honest form of EVERY ocean removal:
+ *    the Reds' party action, the Dry Deserts event, a card that lowers the
+ *    planet) — the plain oceans of `board.getOceanSpaces({upgradedOceans:
+ *    false})`, an UPGRADED ocean (Ocean City, Ocean Farm…) never offered, the
+ *    console's markers, the engine's own `Game.removeTile` and the shared
+ *    `logBoardTileAction` in its answer. What stays THIS step's is the
+ *    resolution's two clauses below and its record.
  *  · TWO CONDITIONS, TWO REASONS, checked in the card's own order. «If oceans
  *    are not at maximum» is the CARD's clause — `game.canAddOcean()` false →
  *    a named skip (`OCEANS_AT_MAX_REASON`). Then the physical one: no plain
@@ -50,10 +50,11 @@ import {
 } from '../../../common/parliament/tileRemoval';
 import {ChoiceContextSource} from '../../../common/models/PlayerInputModel';
 import {TileType} from '../../../common/TileType';
-import {SelectSpace} from '../../inputs/SelectSpace';
-import {committedPlacement} from '../../inputs/placementContext';
-import {LogHelper} from '../../LogHelper';
+import {oceanRemovalPrompt, REMOVE_OCEAN_TITLE} from '../../deferredActions/RemoveOceanTile';
 import {EnactStep} from './IResolution';
+
+/** The committed plate's sentence for the resolution's own ask. */
+export const RESOLUTION_REMOVAL_REASON = 'The first player removes this ocean. The resolution is already enacted.';
 
 /** THE SHARED TILE REMOVAL STEP of `resolution` — declared in a card's `worldSteps` beside its `tileRemoval`. */
 export function tileRemovalStep(resolution: ResolutionId, _declaration: TileRemovalDeclaration): EnactStep {
@@ -81,27 +82,20 @@ export function tileRemovalStep(resolution: ResolutionId, _declaration: TileRemo
         return undefined;
       }
       // THE ASK — to the executor the driver handed in (the first player), the
-      // cell to be REMOVED, the console told so by the server's own marker
-      // (`placementEffect: 'remove'` arms the departure, never a landing), the
-      // source plate naming the law through `placementContext.source`.
+      // cell to be REMOVED: the family's ONE prompt (`oceanRemovalPrompt` —
+      // the markers, the per-cell reasons, the engine's removal in its
+      // answer), the source plate naming the law through `placementContext.source`;
+      // what stays this step's own is the resolution's record and its line.
       const executor = ctx.player;
-      const prompt = new SelectSpace('Select an ocean tile to remove from the board', removable);
-      prompt.placementEffect = 'remove';
-      // The KIND names the legal set for the board's own explainer (the plain
-      // oceans) — without a kind the console draws no dossier for the pick.
-      prompt.placementType = 'ocean-removal';
-      prompt.tileType = TileType.OCEAN;
-      prompt.placementContext = committedPlacement('The first player removes this ocean. The resolution is already enacted.', source);
-      return prompt.andThen((space) => {
-        const before = board.getOceanSpaces().length;
-        // THE ENGINE'S REMOVAL — the same mutation the Reds' action makes.
-        game.removeTile(space.id, executor);
-        const after = board.getOceanSpaces().length;
-        LogHelper.logBoardTileAction(executor, space, 'ocean tile', 'removed');
-        game.log('${0}: the ocean count falls ${1} → ${2}; nobody loses TR for it', (b) =>
-          b.resolution(resolution).number(before).number(after));
-        ctx.report({kind: 'tileRemoved', space: space.id, tile: TileType.OCEAN, chosenBy: executor.id, amount: after - before, parameter: {id: 'oceans', before, after}});
-        return undefined;
+      return oceanRemovalPrompt(executor, {
+        title: REMOVE_OCEAN_TITLE,
+        source,
+        reason: RESOLUTION_REMOVAL_REASON,
+        onRemoved: (space, {before, after}) => {
+          game.log('${0}: the ocean count falls ${1} → ${2}; nobody loses TR for it', (b) =>
+            b.resolution(resolution).number(before).number(after));
+          ctx.report({kind: 'tileRemoved', space: space.id, tile: TileType.OCEAN, chosenBy: executor.id, amount: after - before, parameter: {id: 'oceans', before, after}});
+        },
       });
     },
   };
