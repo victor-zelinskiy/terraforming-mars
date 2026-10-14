@@ -47,6 +47,7 @@ import {IchtiologyGrant} from './IchtiologyGrant';
 import {AquaticResearchStation} from './AquaticResearchStation';
 import {CompostingInitiative} from './CompostingInitiative';
 import {ResearchStartups} from './ResearchStartups';
+import {EcologicalExperiment} from './EcologicalExperiment';
 import {Supercomputer} from './Supercomputer';
 import {ExpeditionMechs} from './ExpeditionMechs';
 import {InfluentialDiscovery} from './InfluentialDiscovery';
@@ -246,6 +247,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // PATENT SALE — the fork hook `onPatentsSold` with the cards sold (its one writer: the standard project), its rate
     // on the sale prompt's `patentSale` model — and Hi-Tech Lab's «X → X cards, keep 1» with X the data here.
     [CardName.RESEARCH_STARTUPS]: {Factory: ResearchStartups},
+    // Only the module's icon at the bottom left: the SCIENTISTS' plate again; the set's first «UP AND BACK» — every
+    // Mars parameter one step up for everybody (ONE declaration: the engine's raise, the data onto a card, the staged
+    // ocean), then every parameter NOT at its maximum one step back down (the card's own tail: the family's one
+    // removal step, the engine's one lowering function, the swing's one record — `cards/parameterSwing.ts`).
+    [CardName.ECOLOGICAL_EXPERIMENT]: {Factory: EcologicalExperiment},
     // Only the module's icon at the bottom left: the SCIENTISTS' plate again; the set's THIRD card-bound payment unit
     // (`supercomputerData` — the data here pay 2 M€ for a Science card, the second data unit after Aurorai's) beside
     // an action that puts 2 data on ANY card — the whole card a declaration.

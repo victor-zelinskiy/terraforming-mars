@@ -1118,6 +1118,7 @@ export enum CardName {
   AQUATIC_RESEARCH_STATION = 'Aquatic Research Station',
   COMPOSTING_INITIATIVE = 'Composting Initiative',
   RESEARCH_STARTUPS = 'Research Startups',
+  ECOLOGICAL_EXPERIMENT = 'Ecological Experiment',
   SUPERCOMPUTER = 'Supercomputer',
   EXPEDITION_MECHS = 'Expedition Mechs',
   INFLUENTIAL_DISCOVERY = 'Influential Discovery',
