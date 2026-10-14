@@ -14,6 +14,7 @@
          class="board-space board-stack__tier"
          :class="tierArtClassOf(k)"
          :style="{'--stack-k': k}"
+         :data-stack-piece="pieceUnder !== undefined && k === pile.length - 1 ? 'under' : undefined"
          data-stack-tier></div>
     <board-space-tile
       :space="space"
@@ -92,7 +93,7 @@ import {Color} from '@/common/Color';
 import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
-import {placementRenderState} from '@/client/components/board/placementRenderState';
+import {placementRenderState, peekPieceAt, PlacementPeekPiece} from '@/client/components/board/placementRenderState';
 import {isRemoteRevealHeld, heldPrevTileOf, heldPrevColorOf, heldPrevUnderOf, heldStackHeightOf} from '@/client/console/tilePlacement/remoteRevealHold';
 import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
@@ -268,6 +269,13 @@ export default defineComponent({
       if (stackDriedAt(this.space.id)) {
         css += ' board-space--dried';
       }
+      // THE SEE-THROUGH («ПРОСВЕТ», TR47): the piece a lifting pick would take off THIS cell is drawn translucent —
+      // the top piece, or the water under a TR44 city — what stays keeps its paint (`placementPeek.ts`).
+      if (this.peekPiece === 'under') {
+        css += ' board-space--peek board-space--peek-under';
+      } else if (this.peekPiece === 'top') {
+        css += ' board-space--peek board-space--peek-top';
+      }
       // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
       // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
       if (this.stackLoading) {
@@ -391,7 +399,19 @@ export default defineComponent({
       if (this.placementCleared && heldPrevTileOf(this.space.id) !== undefined) {
         return false;
       }
-      return this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared;
+      if (this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared) {
+        return true;
+      }
+      // THE SEE-THROUGH of a lone piece (TR47): the bonus the cell will pay again is painted under the translucent
+      // tile. A piece that leaves a pile (the water under a city, a stack's tier) uncovers nothing — no icons.
+      return this.peekPiece === 'top' && this.pile.length === 1;
+    },
+    /** Which piece of this cell a lifting pick sees through right now (undefined = none — `placementPeek.ts`). */
+    peekPiece(): PlacementPeekPiece | undefined {
+      if (this.tileView !== 'show' || this.placementCleared) {
+        return undefined;
+      }
+      return peekPieceAt(this.space.id);
     },
     // Cube reveal phase for this space (`hidden` during the tile placement
     // animation, `dropping` while the cube lands, `rest` otherwise). PlayerCube

@@ -3,6 +3,7 @@ import {Space} from './Space';
 import {Board, isSpecialTile} from './Board';
 import {LiftedCity, adjacentCitySpaces, adjacentCityTiers, liftTopCity} from './cityStack';
 import {buriedOceanOf, liftOcean} from './cellPieces';
+import {piecesOf} from '../../common/boards/cellPieces';
 import {cityMoveOffer, cityMoveReasoner} from './cityMove';
 import {oceanMoveOffer, oceanMoveReasoner} from './oceanMove';
 import {TileMoveOffer} from './tileMove';
@@ -96,6 +97,8 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
     } else {
       // What's already here scores at endgame — show for whom.
       facts.push(...existingTileScoringFacts(player, space));
+      // …and what lies UNDER the tile (К-E1): the printed bonus the cell will pay again should the tile leave.
+      facts.push(...coveredBonusFacts(space));
       // Hovering an OCEAN tile: explain that it's an adjacency SOURCE (the base
       // for the future Ares "source nearby" language).
       if (Board.isOceanSpace(space)) {
@@ -195,6 +198,11 @@ export function boardCellPreview(
   }
   if (ctx.grantsPlacementBonus) {
     facts.push(...printedBonusFacts(space, ctx.bonusesCovered));
+    // A REMOVE-AND-REPLACE (Kaguya Tech): what the doomed tile uncovers is collected at once — said in one line
+    // (the gain itself is the printed bonus above) so the see-through and the dossier agree (the «ПРОСВЕТ» law, TR47).
+    if (cleared) {
+      facts.push(...uncoverFacts(space, 'top', 'cleared'));
+    }
   } else if (stacking) {
     // NO SILENT LOSS: the cell's bonuses were collected by the first city —
     // the tier says so out loud where an ordinary landing lists its rewards.
@@ -1317,11 +1325,103 @@ function tileRemovalFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
   if (buriedOceanOf(space) !== undefined) {
     out.push(cityStaysFact('remove-ocean-under-city'));
   }
+  // WHAT THE REMOVAL UNCOVERS — the see-through's words (the «ПРОСВЕТ» law, TR47).
+  out.push(...uncoverFacts(space, 'ocean', 'removal'));
   out.push(rule('remove-ocean-no-tr', 'placement-effect', 'Nobody loses TR',
     'The player who placed the ocean keeps the terraform rating it paid.', 'nobody'));
   // The neighbours that SCORE PER ADJACENT OCEAN — their owner is one point poorer at the end.
   out.push(...capitalOceanLossFacts(board, space, 'remove-capital'));
   return out;
+}
+
+/**
+ * WHAT A LIFTED PIECE UNCOVERS — «ЧТО ОТКРОЕТСЯ» (the owner's accent of
+ * 2026-10-14, Turmoil Redux TR47: «the player must ALWAYS understand what
+ * exactly they uncover on the board and which placement bonus becomes
+ * available again»). ONE function for every picker that lifts a piece off a
+ * cell — an ocean removal (RX33, the Reds, TR47), a move's SOURCE level
+ * (TR39's ocean, TR14's city), a remove-and-replace (Kaguya Tech) — so the
+ * field's see-through (the cell's own `--peek` class) and the dossier's
+ * «ОТКРОЕТСЯ» section say the same thing, from the same pieces reading
+ * (`cellPieces.piecesOf`):
+ *  · a SINGLE piece leaves: the cell is bare again — its PRINTED BONUS pays
+ *    again to whoever takes it next (one neutral chip per bonus kind, the
+ *    `describeSpaceBonus` words every surface already prints), an ocean
+ *    RESERVE takes an ocean again (its TR and the bonus with it), land is
+ *    free again; a cell with no printed bonus says so, never silence;
+ *  · the water leaves from UNDER a city (TR44): NOTHING is uncovered — the
+ *    city stays on the cell; a city leaves OFF its water: the ocean stays;
+ *    a stack's top tier leaves: the cities under it stay;
+ *  · a remove-and-replace (`cleared`): the bonus is uncovered AND collected
+ *    at once — the gain is in «ВЫ ПОЛУЧИТЕ» already, so this is one line.
+ * Addressed to NOBODY (a statement about the cell, never a gain of the
+ * picker's), `timing: 'future'` on the chips (the next tile's), and under its
+ * own category so the dossier can seat the section between the cell's toll
+ * and the other players. Read-only; the printed bonus is the cell's own.
+ */
+function uncoverFacts(space: Space, lifted: 'top' | 'ocean', mode: 'removal' | 'source' | 'cleared'): Array<BoardFact> {
+  const pieces = piecesOf(space);
+  if (pieces.tile === undefined) {
+    return [];
+  }
+  if (mode === 'cleared') {
+    return [rule('uncover-collected', 'uncovered-bonus', 'Uncovered and collected at once',
+      'The tile leaves first; the cell\'s printed bonus is paid by the placement.', 'nobody')];
+  }
+  if (lifted === 'ocean' && pieces.under === TileType.OCEAN) {
+    return [rule('uncover-city-stays', 'uncovered-bonus', 'Nothing is uncovered — a city stays on the cell',
+      'Only the water leaves from under the city.', 'nobody')];
+  }
+  if (lifted === 'top' && pieces.under === TileType.OCEAN) {
+    return [rule('uncover-ocean-stays', 'uncovered-bonus', 'Nothing is uncovered — the ocean stays on the cell',
+      'Only the city leaves; the water under it keeps the cell.', 'nobody')];
+  }
+  if (lifted === 'top' && pieces.tiers > 1) {
+    return [rule('uncover-stack-stays', 'uncovered-bonus', 'Nothing is uncovered — the stack stays',
+      'Only the top tier leaves; the cities under it keep the cell.', 'nobody')];
+  }
+  const out = uncoveredBonusChips(space, 'uncover', 'Cell bonus available again', 'future');
+  if (space.spaceType === SpaceType.OCEAN) {
+    out.push({
+      ...rule('uncover-reserve', 'uncovered-bonus', 'The ocean reserve will take an ocean again', '+1 TR and the cell bonus again.', 'nobody'),
+      timing: 'future',
+    });
+  } else if (out.length > 0) {
+    out.push({...rule('uncover-land', 'uncovered-bonus', 'The land is free again', '', 'nobody'), timing: 'future', description: undefined});
+  } else {
+    out.push({...rule('uncover-land', 'uncovered-bonus', 'No printed bonus — the land is free again', '', 'nobody'), timing: 'future', description: undefined});
+  }
+  return out;
+}
+
+/** The cell's printed bonuses as NEUTRAL chips (one per kind) — the words `describeSpaceBonus` prints everywhere. */
+function uncoveredBonusChips(space: Space, idPrefix: string, title: string, timing: BoardFact['timing']): Array<BoardFact> {
+  const out: Array<BoardFact> = [];
+  for (const [bonus, count] of countBonuses(space.bonus)) {
+    const d = describeSpaceBonus(bonus, count);
+    if (d.delta === undefined) {
+      continue;
+    }
+    out.push({
+      id: `${idPrefix}-${d.delta.icon}`, category: 'uncovered-bonus', timing, severity: 'info', recipient: {kind: 'nobody'},
+      title, delta: d.delta, source: {type: 'board-cell', label: 'Cell bonus'},
+    });
+  }
+  return out;
+}
+
+/**
+ * THE HOVER OF AN OCCUPIED CELL says what lies UNDER its tile (К-E1): the
+ * printed bonus a single tile covers — paid once to whoever placed it, paid
+ * again to the next tile should this one leave. A two-piece cell and a stack
+ * carry their own mark (the miniature under the pile) and say nothing here.
+ */
+function coveredBonusFacts(space: Space): Array<BoardFact> {
+  const pieces = piecesOf(space);
+  if (pieces.tile === undefined || pieces.under !== undefined || pieces.tiers > 1 || !hasPrintedBonus(space)) {
+    return [];
+  }
+  return uncoveredBonusChips(space, 'under-tile', 'Under the tile', 'rule');
 }
 
 /**
@@ -1764,6 +1864,10 @@ function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer:
       if (source !== undefined && buriedOceanOf(space) !== undefined) {
         facts.push(oceanStaysFact('move-city-off-water'));
       }
+      // WHAT THE LIFT UNCOVERS on the former cell — the see-through's words (the «ПРОСВЕТ» law, TR47).
+      if (source !== undefined) {
+        facts.push(...uncoverFacts(space, 'top', 'source'));
+      }
     } else if (source !== undefined) {
       // An ocean scores nothing of its own; what its leaving changes is the
       // Capital beside it — the removal's own reading, whoever owns the Capital.
@@ -1772,6 +1876,8 @@ function moveSourcePreview(player: IPlayer, space: Space, kind: MoveKind, offer:
       if (buriedOceanOf(space) !== undefined) {
         facts.push(cityStaysFact('move-ocean-under-city'));
       }
+      // WHAT THE LIFT UNCOVERS on the former cell — the see-through's words (the «ПРОСВЕТ» law, TR47).
+      facts.push(...uncoverFacts(space, 'ocean', 'source'));
     }
   }
   const preview = classifyPlacementFacts(facts, player, space.id, kind, source !== undefined);

@@ -196,6 +196,36 @@ describe('placementDossier', () => {
       expect(dossierSections(p).map((s) => s.key)).to.deep.equal(['gain', 'progress', 'endgame', 'rules']);
     });
 
+    it('«ОТКРОЕТСЯ» (TR47): the uncovered-bonus facts have their own section — right after the cell\'s own effect on a removal, right after the tile on a move\'s source — never among the field rules', () => {
+      const uncover = (id: string, over: Partial<BoardFact> = {}) => fact({
+        id, category: 'uncovered-bonus', timing: 'future', severity: 'info', recipient: {kind: 'nobody'},
+        title: 'Cell bonus available again', delta: {icon: 'plants', amount: 2, direction: 'gain'}, ...over,
+      });
+      const removal = preview({
+        kind: 'ocean-removal',
+        placesTile: false,
+        costFacts: [fact({id: 'leaves', timing: 'cost', severity: 'warning', recipient: {kind: 'nobody'}})],
+        recipientFacts: [fact({id: 'capital', recipient: {kind: 'player', color: 'red'}, timing: 'endgame'})],
+        ruleFacts: [uncover('uncover-plants'), fact({id: 'no-tr', timing: 'rule', recipient: {kind: 'nobody'}})],
+      });
+      const sections = dossierSections(removal, 'blue');
+      expect(sections.map((s) => s.key)).to.deep.equal(['effect', 'uncovers', 'others', 'rules']);
+      const uncovers = sections[1];
+      expect(uncovers.titleKey).to.equal('Uncovers');
+      expect(uncovers.rows.map((r) => r.key)).to.deep.equal(['uncover-plants']);
+      expect(uncovers.rows[0].neutralDelta, 'a statement about the cell, never a gain of the picker\'s').to.be.true;
+      expect(sections[3].rows.map((r) => r.key), 'the field rules keep only their own').to.deep.equal(['no-tr']);
+      expect(RU['Uncovers'], 'missing RU translation for "Uncovers"').to.be.a('string');
+      expect(RU['Cell bonus available again']).to.be.a('string');
+
+      const source = preview({
+        kind: 'ocean-move',
+        placesTile: false,
+        ruleFacts: [fact({id: 'reach', category: 'tile-move', timing: 'rule', recipient: {kind: 'neutral'}}), uncover('uncover-reserve', {delta: undefined, title: 'The ocean reserve will take an ocean again'})],
+      });
+      expect(dossierSections(source).map((s) => s.key)).to.deep.equal(['source', 'uncovers']);
+    });
+
     it('the endgame block totals the CELL’s own forecast, never a single row', () => {
       const vp = (id: string, to: number): BoardFact =>
         fact({id, timing: 'endgame', category: 'future-scoring', vp: {from: 0, to}});

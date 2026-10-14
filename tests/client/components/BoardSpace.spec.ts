@@ -5,6 +5,10 @@ import BoardSpace from '@/client/components/BoardSpace.vue';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {TileType} from '@/common/TileType';
 import {clearRemoteRevealHolds, holdRemoteReveal, releaseRemoteReveal} from '@/client/console/tilePlacement/remoteRevealHold';
+import {setPlacementPeek} from '@/client/components/board/placementRenderState';
+import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {SpaceModel} from '@/common/models/SpaceModel';
+import {SpaceId} from '@/common/Types';
 
 describe('BoardSpace', () => {
   it('has visible tile', async () => {
@@ -245,6 +249,93 @@ describe('BoardSpace', () => {
           clearRemoteRevealHolds();
         }
       });
+    });
+  });
+
+  describe('the SEE-THROUGH — «ПРОСВЕТ» (Turmoil Redux TR47)', () => {
+    afterEach(() => {
+      setPlacementPeek(undefined);
+    });
+
+    function lone(bonus: Array<SpaceBonus>, over: Partial<SpaceModel> = {}) {
+      return mount(BoardSpace, {
+        ...globalConfig,
+        props: {
+          space: {id: 'm07', bonus, x: 2, y: 1, spaceType: SpaceType.OCEAN, tileType: TileType.OCEAN, ...over} as SpaceModel,
+          tileView: 'show',
+        },
+      });
+    }
+
+    it('nothing peeked: no class, no bonus icons under a standing tile', () => {
+      const wrapper = lone([SpaceBonus.PLANT, SpaceBonus.PLANT]);
+      expect(wrapper.classes()).to.not.contain('board-space--peek');
+      expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
+    });
+
+    it('a lone ocean seen through: the TOP class, the tile still painted (never cleared), the printed bonus PAINTED under it', async () => {
+      const wrapper = lone([SpaceBonus.PLANT, SpaceBonus.PLANT]);
+      setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.contain('board-space--peek');
+      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.find('[data-test="tile"]').classes(), 'the sprite stays — translucent by CSS, never cleared').to.contain('board-space-tile--ocean');
+      expect(wrapper.find('[data-test="tile"]').classes()).to.not.contain('board-space-tile--placement-cleared');
+      expect(wrapper.findAll('.board-space-bonus'), 'the two plants show through').to.have.length(2);
+      setPlacementPeek({spaceId: 'm08' as SpaceId, piece: 'top'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes(), 'the peek moved to another cell').to.not.contain('board-space--peek');
+      expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
+    });
+
+    it('a lone cell with no printed bonus seen through: the class, and no icons to paint', async () => {
+      const wrapper = lone([]);
+      setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
+    });
+
+    it('the WATER under a TR44 city seen through: the UNDER class, the water tier marked as the piece, the city keeps its paint, no icons', async () => {
+      const wrapper = lone([SpaceBonus.PLANT, SpaceBonus.PLANT], {tileType: TileType.CITY, color: 'blue', under: TileType.OCEAN});
+      setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'under'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.contain('board-space--peek-under');
+      expect(wrapper.classes()).to.not.contain('board-space--peek-top');
+      const tiers = wrapper.findAll('[data-stack-tier]');
+      expect(tiers).to.have.length(1);
+      expect(tiers[0].attributes('data-stack-piece'), 'the water tier is the piece the CSS dims').to.eq('under');
+      expect(tiers[0].classes()).to.contain('board-space-tile--ocean');
+      expect(wrapper.find('[data-test="tile"]').classes(), 'the city on top, untouched').to.contain('board-space-tile--city');
+      expect(wrapper.findAll('.board-space-bonus'), 'nothing is uncovered — the city stays').to.have.length(0);
+    });
+
+    it('the city OFF its water (a city move\'s source): the TOP class, the water tier is not the piece, no icons', async () => {
+      const wrapper = lone([SpaceBonus.PLANT], {tileType: TileType.CITY, color: 'blue', under: TileType.OCEAN});
+      setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.findAll('.board-space-bonus'), 'the ocean stays — nothing uncovered').to.have.length(0);
+    });
+
+    it('a stack\'s top tier seen through: no icons (the lower tiers keep the cell)', async () => {
+      const wrapper = lone([SpaceBonus.STEEL], {spaceType: SpaceType.LAND, tileType: TileType.CITY, color: 'blue', stackHeight: 2});
+      setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
+    });
+
+    it('a held cell (the scene owns it) never peeks', async () => {
+      const wrapper = lone([SpaceBonus.PLANT]);
+      holdRemoteReveal('m07', TileType.OCEAN);
+      try {
+        setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
+        await wrapper.vm.$nextTick();
+        expect(wrapper.classes()).to.not.contain('board-space--peek');
+      } finally {
+        clearRemoteRevealHolds();
+      }
     });
   });
 });

@@ -34,8 +34,22 @@
 import {reactive} from 'vue';
 import {SpaceId} from '@/common/Types';
 
+/** Which piece of the peeked cell the pick would lift — the one drawn translucent (`placementPeek.ts`). */
+export type PlacementPeekPiece = 'top' | 'under';
+
 type PlacementRenderState = {
   hiddenTiles: ReadonlySet<SpaceId>;
+  /**
+   * THE SEE-THROUGH («ПРОСВЕТ», TR47): the focused LEGAL candidate of a pick
+   * that LIFTS a piece (an ocean removal, a move's source level, a
+   * remove-and-replace) is seen through — the piece that would leave goes
+   * translucent, what stays keeps its paint, a bare cell's printed bonus is
+   * painted under it. ONE owner: the shell, from its one prompt resolver and
+   * the board's focused cell (`peekTargetOf`); undefined = nothing peeked.
+   * Unlike `hiddenTiles` nothing is removed from the picture — the player
+   * still chooses among tiles they can see.
+   */
+  peek: {spaceId: SpaceId, piece: PlacementPeekPiece} | undefined;
   // BRD-3 (docs/PERFORMANCE_AUDIT.md): a reactive mirror of "`.board-space--available`
   // currently exists on the board". ConsoleBoardInput is the ONLY source of that class
   // (bulk-added in `animateSpaces`, bulk-removed in `disableAnimation`), so it
@@ -47,8 +61,24 @@ type PlacementRenderState = {
 
 export const placementRenderState: PlacementRenderState = reactive({
   hiddenTiles: new Set<SpaceId>(),
+  peek: undefined,
   highlightActive: false,
 });
+
+/** The shell's one write of the see-through target (undefined clears it). */
+export function setPlacementPeek(peek: {spaceId: SpaceId, piece: PlacementPeekPiece} | undefined): void {
+  const current = placementRenderState.peek;
+  if (current?.spaceId === peek?.spaceId && current?.piece === peek?.piece) {
+    return;
+  }
+  placementRenderState.peek = peek;
+}
+
+/** The cell's render gate: which of its pieces is seen through right now (undefined = none). */
+export function peekPieceAt(spaceId: SpaceId): PlacementPeekPiece | undefined {
+  const peek = placementRenderState.peek;
+  return peek !== undefined && peek.spaceId === spaceId ? peek.piece : undefined;
+}
 
 /** Set by ConsoleBoardInput when it adds/removes the `.board-space--available`
  *  highlight set, so hover handlers can read placement-mode reactively. */

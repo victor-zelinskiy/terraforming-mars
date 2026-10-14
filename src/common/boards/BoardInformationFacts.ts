@@ -82,7 +82,13 @@ export type BoardFactCategory =
   // scores, a neighbour that loses an adjacent city). A departure is a loss
   // and must read as one on the field.
   | 'tile-move'
-  | 'tile-departure';
+  | 'tile-departure'
+  // WHAT A LIFTED TILE UNCOVERS (the «ПРОСВЕТ» law, Turmoil Redux TR47): the
+  // printed bonus the cell will pay again to the next tile, the reserve that
+  // will take an ocean again — or the piece that STAYS and uncovers nothing
+  // (a city over its water, a stack). ONE function states it for a removal,
+  // a move's source, a remove-and-replace and the hover of an occupied cell.
+  | 'uncovered-bonus';
 
 export type BoardFactSource = {
   type:

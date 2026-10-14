@@ -281,7 +281,7 @@ function actionLineOf(opts: {
 
 // ── sections ─────────────────────────────────────────────────────────
 
-export type DossierSectionKey = 'effect' | 'gain' | 'reactions' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'endgame' | 'rules';
+export type DossierSectionKey = 'effect' | 'gain' | 'reactions' | 'uncovers' | 'others' | 'tile' | 'source' | 'departure' | 'progress' | 'endgame' | 'rules';
 
 /**
  * The card a reward THE CELL DECIDES will land on, as the staged play chose it
@@ -708,6 +708,8 @@ const TILE_STANDING_CATEGORIES: ReadonlyArray<BoardFact['category']> =
  * rule»: it is the other half of the decision.
  */
 const MOVE_CATEGORY: BoardFact['category'] = 'tile-move';
+/** What a lifted piece UNCOVERS (the «ПРОСВЕТ» law, TR47 — the engine's own category): its own section, never a field rule. */
+const UNCOVERED_CATEGORY: BoardFact['category'] = 'uncovered-bonus';
 
 /**
  * The panel's reading order. THE CELL'S OWN TOLL comes first (a forced loss
@@ -757,6 +759,23 @@ export function dossierSections(
   if (unplaced.length > 0) {
     out.push(section('reactions', 'Will trigger', unplaced, ['immediate', 'on-confirm']));
   }
+  // «ПРАВИЛА ПОЛЯ» used to be one bag: the tile's own future-adjacency
+  // mechanic (a TRIGGER → OUTCOME the player is buying) sat in it beside
+  // passive square notes, under one generic head — which is how the Natural
+  // Preserve's whole point ended up an ellipsis. The split is by CATEGORY.
+  const standing = preview.ruleFacts.filter((f) => TILE_STANDING_CATEGORIES.includes(f.category));
+  const move = preview.ruleFacts.filter((f) => f.category === MOVE_CATEGORY);
+  // WHAT THE LIFT UNCOVERS («ОТКРОЕТСЯ», TR47 — the see-through's words, `uncoverFacts`): a removal's, a move
+  // source's, a remove-and-replace's. Its own section — seated right after the cell's own effect (a removal) or
+  // right after the tile being pointed at (a move's source level): the decision's own object first, then what
+  // its leaving opens, then everybody else. Never a field rule.
+  const uncovers = preview.ruleFacts.filter((f) => f.category === UNCOVERED_CATEGORY);
+  const fieldRules = preview.ruleFacts.filter((f) =>
+    !TILE_STANDING_CATEGORIES.includes(f.category) && f.category !== MOVE_CATEGORY && f.category !== UNCOVERED_CATEGORY);
+  const uncoversSection = uncovers.length > 0 ? section('uncovers', 'Uncovers', uncovers, []) : undefined;
+  if (uncoversSection !== undefined && move.length === 0) {
+    out.push(uncoversSection);
+  }
   if (preview.recipientFacts.length > 0) {
     // Aggregation is PER RECIPIENT: two players' identical gains are two
     // different statements and may never be summed into one.
@@ -767,13 +786,6 @@ export function dossierSections(
       rows: groups.flatMap((g) => g.rows), groups, stated: [],
     });
   }
-  // «ПРАВИЛА ПОЛЯ» used to be one bag: the tile's own future-adjacency
-  // mechanic (a TRIGGER → OUTCOME the player is buying) sat in it beside
-  // passive square notes, under one generic head — which is how the Natural
-  // Preserve's whole point ended up an ellipsis. The split is by CATEGORY.
-  const standing = preview.ruleFacts.filter((f) => TILE_STANDING_CATEGORIES.includes(f.category));
-  const move = preview.ruleFacts.filter((f) => f.category === MOVE_CATEGORY);
-  const fieldRules = preview.ruleFacts.filter((f) => !TILE_STANDING_CATEGORIES.includes(f.category) && f.category !== MOVE_CATEGORY);
   if (standing.length > 0) {
     out.push(section('tile', 'When placed adjacent', standing, ['rule']));
   }
@@ -785,6 +797,9 @@ export function dossierSections(
     out.push(preview.placesTile === false ?
       section('source', preview.kind === 'ocean-move' ? 'This ocean' : 'This city', move, ['rule']) :
       section('departure', 'Former space', move, ['rule']));
+    if (uncoversSection !== undefined) {
+      out.push(uncoversSection);
+    }
   }
   const progress = preview.progressFacts ?? [];
   if (progress.length > 0) {

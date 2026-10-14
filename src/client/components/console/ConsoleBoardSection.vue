@@ -35,7 +35,7 @@
         :tileArtClass="cursorArtClass"
         :cubeColor="cursorCubeColor"
         :bonusZone="cursorBonusZone"
-        :pickup="movePick"
+        :pickup="movePick || placementShape?.placementEffect === 'remove'"
         :afloat="placementShape?.placementType === 'city-over-ocean'" />
     </Teleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
@@ -573,6 +573,11 @@ export default defineComponent({
       // A move's CITY LEVEL: the object is the real tile standing on the cell —
       // a ghost of a tile over a tile would be a second object.
       if (this.movePick) {
+        return '';
+      }
+      // A REMOVAL (RX33, the Reds, TR47): the object is the real tile that LEAVES — the reticle rings it and the
+      // see-through shows what lies under it; an ocean projected over the ocean was that second object (К-E2).
+      if (shape.placementEffect === 'remove') {
         return '';
       }
       const tt = shape.tileType ?? swatchForKind(shape.placementType);

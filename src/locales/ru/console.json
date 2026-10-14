@@ -1122,5 +1122,6 @@
     "Then remove any ocean tile from the board": "Затем снимите с поля любой тайл океана",
     "The ocean leaves the board. The action is already underway.": "Океан уходит с поля. Действие уже идёт.",
     "The experiment lowers the planet again. The card is already played; the TR stays.": "Эксперимент снова опускает планету. Карта уже разыграна; РТ остаётся.",
-    "Ocean removal": "Снятие океана"
+    "Ocean removal": "Снятие океана",
+    "Uncovers": "Откроется"
 }

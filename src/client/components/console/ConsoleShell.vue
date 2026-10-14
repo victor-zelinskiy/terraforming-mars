@@ -2095,6 +2095,8 @@ import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotio
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
+import {setPlacementPeek} from '@/client/components/board/placementRenderState';
+import {PlacementPeek, peekTargetOf} from '@/client/console/tilePlacement/placementPeek';
 import {resetScaleStepRewards} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {resetScaleStepRating} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
@@ -6331,6 +6333,18 @@ export default defineComponent({
      * The (cell, tile) the preview is for — the refetch key. '' → no preview
      * (not placing, no cell focused, or a custom SelectSpace with no kind).
      */
+    /**
+     * THE SEE-THROUGH's target («ПРОСВЕТ», TR47): the focused LEGAL candidate of a pick that LIFTS a piece — an
+     * ocean removal, a move's SOURCE level, a remove-and-replace — read from the ONE prompt resolver and the
+     * board's focused cell (`peekTargetOf`, pure). The watcher below is the ONE writer of the render state.
+     */
+    placementPeekTarget(): PlacementPeek | undefined {
+      if (!this.placementActive) {
+        return undefined;
+      }
+      return peekTargetOf(this.placementSpaceModel, this.placementMoveLevelNow, this.consoleState.boardSpaceId as SpaceId | undefined,
+        this.playerView.game.spaces);
+    },
     cellPreviewKey(): string {
       const prompt = this.placementSpaceModel;
       const id = this.consoleState.boardSpaceId;
@@ -11698,6 +11712,13 @@ export default defineComponent({
       immediate: true,
       handler(): void {
         this.loadCellPreview();
+      },
+    },
+    /** …and the SEE-THROUGH follows the focused candidate (TR47): one writer of the cell's `--peek` class. */
+    placementPeekTarget: {
+      immediate: true,
+      handler(peek: PlacementPeek | undefined): void {
+        setPlacementPeek(peek);
       },
     },
     // Server-driven placement pulls the player to the board (§10: a

@@ -448,6 +448,25 @@
 	.board-space > .board-space-tile--vacated { animation: none; }
 }
 
+// ── THE SEE-THROUGH — «ПРОСВЕТ» (TR47, the owner's accent 2026-10-14) ────
+//
+// The focused LEGAL candidate of a pick that LIFTS a piece (an ocean removal,
+// a move's source level, a remove-and-replace) is seen through: the piece that
+// would leave — the top tile and its owner cube, or the WATER under a TR44 city
+// — goes translucent, what stays keeps its paint, and a bare cell's printed
+// bonus is painted under it (BoardSpace renders the icons; they come later in
+// the cell's flow, so they paint ABOVE the translucent sprite). Nothing moves
+// while the player aims: a near-instant class (90 ms linear — under the
+// reticle's own 120 ms glide), `opacity` only — the console strips `filter`.
+// The selector carries `.con-board` so it outranks the placement-mode dims of
+// console.less by order and specificity alike.
+.con-board .board-space--peek-top > [class*="board-space-tile--"]:not(.board-stack__tier),
+.con-board .board-space--peek-top > .player-cube.board-owner-cube,
+.con-board .board-space--peek-under > .board-stack__tier[data-stack-piece="under"] {
+	opacity: 0.35;
+	transition: opacity calc(90ms * var(--motion-scale, 1)) linear;
+}
+
 // ── Placement mode: HOVERED legal cell ────────────────────────────────
 //
 // Strongest state in the whole system — outline goes near-white amber,

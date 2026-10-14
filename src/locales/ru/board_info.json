@@ -254,5 +254,19 @@
   "Beside ${0} {ocean|oceans} — no data": "Рядом ${0} {океан|океана|океанов} — данных не будет",
   "Beside ${0} {greenery|greeneries} — no data": "Рядом ${0} {озеленение|озеленения|озеленений} — данных не будет",
   "Beside ${0} {ocean|oceans} and ${1} {greenery|greeneries} — no data": "Рядом ${0} {океан|океана|океанов} и ${1} {озеленение|озеленения|озеленений} — данных не будет",
-  "Red Museum pays only for a city or special tile with no greenery and no ocean beside it.": "Красный музей платит только за город или особый тайл, рядом с которым нет ни озеленения, ни океана."
+  "Red Museum pays only for a city or special tile with no greenery and no ocean beside it.": "Красный музей платит только за город или особый тайл, рядом с которым нет ни озеленения, ни океана.",
+  "Cell bonus available again": "Бонус клетки снова доступен",
+  "The ocean reserve will take an ocean again": "Резерв океана снова примет океан",
+  "+1 TR and the cell bonus again.": "+1 РТ и бонус клетки — снова.",
+  "The land is free again": "Клетка суши снова свободна",
+  "No printed bonus — the land is free again": "Бонуса нет — клетка суши снова свободна",
+  "Nothing is uncovered — a city stays on the cell": "Ничего не откроется — на клетке остаётся город",
+  "Only the water leaves from under the city.": "Из-под города уходит только вода.",
+  "Nothing is uncovered — the ocean stays on the cell": "Ничего не откроется — на клетке остаётся океан",
+  "Only the city leaves; the water under it keeps the cell.": "Уходит только город; вода под ним остаётся на клетке.",
+  "Nothing is uncovered — the stack stays": "Ничего не откроется — стопка остаётся",
+  "Only the top tier leaves; the cities under it keep the cell.": "Уходит только верхний ярус; города под ним остаются на клетке.",
+  "Uncovered and collected at once": "Откроется — и сразу будет получено",
+  "The tile leaves first; the cell's printed bonus is paid by the placement.": "Тайл уходит первым; печатный бонус клетки выдаёт само размещение.",
+  "Under the tile": "Под тайлом"
 }
