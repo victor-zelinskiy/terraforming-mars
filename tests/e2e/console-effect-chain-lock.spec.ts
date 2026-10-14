@@ -36,8 +36,9 @@ import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGa
 
 const OLYMPUS = 'Olympus Conference';
 const MARS_UNIVERSITY = 'Mars University';
-/** TWO science tags AND a draw of two: with the university on the table its question is asked TWICE, and both are
- *  honest follow-ups (the play draws before them — TR51, `HIDDEN_DRAW_NOTE`), so they arrive LIVE, one after another. */
+/** TWO science tags AND a draw of two: with the university on the table its question is asked TWICE, and both may
+ *  wait for that draw (2026-10-15, `tableQuestionDeferral`) — left for after it (the composer's default; the driver
+ *  walks past them), they arrive LIVE, one after another. */
 const RESEARCH = 'Research';
 const FILLER = ['Acquired Company', 'Rover Construction', 'Investment Loan'];
 

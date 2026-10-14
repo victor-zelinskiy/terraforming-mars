@@ -132,11 +132,14 @@ export type EffectForecastAlternative = {
 };
 
 /**
- * The two honest-follow-up notes of a table question that is NOT pre-collected (TR51 — `models/tableQuestions.ts`):
- * a discard from the hand behind a draw of the same play, and a question whose existence depends on the answer above it.
- * English is the i18n key — one constant for the server that writes it and the console that names it.
+ * The notes of a table question the composer does not simply collect (TR51 — `models/tableQuestions.ts`). English is
+ * the i18n key — one constant for the server that writes it and the console that names it.
+ *
+ * `DEFERRABLE_DRAW_NOTE` — a discard from the hand behind a draw of the same play: the player may answer it in the
+ * composer OR leave it for after the draw (2026-10-15 — the card drawn first may be the one worth giving up).
+ * `DEPENDS_ON_ANSWER_NOTE` — a question whose very existence depends on the answer above it: asked after the press.
  */
-export const HIDDEN_DRAW_NOTE = 'Asked after this play: a card it draws may be the one to discard';
+export const DEFERRABLE_DRAW_NOTE = 'Answer now or after the draw: a card drawn first may be the one to discard';
 export const DEPENDS_ON_ANSWER_NOTE = 'Asked after this play: it depends on the answer above';
 
 export type EffectForecastFact = {

@@ -425,7 +425,7 @@ and posts them in the play's ONE POST.
 
 | Question | Why it stays after the press | Where it says so |
 | --- | --- | --- |
-| a discard FROM THE HAND behind a draw of the same play (Mars University after the card's own draw, after Olympus «remove to draw», after a first Mars University) | the card that might be discarded does not exist yet (hidden) | `HIDDEN_DRAW_NOTE` on the fact; a draw that is an OPTION above it gates the row (`reaction.afterDraw` — the composer hands it on as «ДАЛЕЕ» only when the answer above draws) |
+| a discard FROM THE HAND behind a draw of the same play (Mars University after the card's own draw, after Olympus «remove to draw», after a first Mars University) | **not a follow-up since 2026-10-15** — answered NOW or AFTER THE DRAW (the card drawn first may be the one to give up) | the step stays; `reaction.drawnBefore` (a draw nobody chooses — may wait from the start) / `reaction.afterDraw` (an answer above that may draw — the row waits for it, `locked`); `DEFERRABLE_DRAW_NOTE` on the fact; ONE rule `common/models/tableQuestionDeferral.ts`; an unanswered deferrable row posts nothing and is asked live (the guard's DEFERRED walk); ledger section AM |
 | a second Olympus / Pharmacy Union question of the same play | whether it is asked depends on the first answer | `DEPENDS_ON_ANSWER_NOTE` |
 | Neptunian Power Consultants | asked after the ocean is placed on the BOARD (the board is the commit) | the forecast's `asks` without a step |
 | a deck pick, another player's decision | hidden information / not the player's choice | by construction |

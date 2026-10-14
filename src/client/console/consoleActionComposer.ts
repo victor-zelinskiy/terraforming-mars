@@ -48,6 +48,7 @@ import {
   SelectPlayerModel,
 } from '@/common/models/PlayerInputModel';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
+import type {DeferralReaction} from '@/common/models/tableQuestionDeferral';
 
 // ── The choice model ─────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ export type ComposerChoice = {
    * A QUESTION OF THE TABLE (TR51 — `ActionPreviewStep.reaction`): a reaction the play wakes asks it, the composer
    * collects the answer before the press. The row names the asker («Сработает · <карта> · ваш выбор»).
    */
-  reaction?: {card: CardName, fact: string, afterDraw?: ReadonlyArray<string>};
+  reaction?: DeferralReaction;
 };
 
 function choiceKind(input: PlayerInputModel): ComposerChoice['kind'] {

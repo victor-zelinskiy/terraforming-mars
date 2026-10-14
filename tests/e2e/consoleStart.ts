@@ -2506,6 +2506,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // The field lock of 2026-10-14: Research Colony in hand with Mars University on the table — draw 2, the colony step
   // inside the hand (Miranda's animal target asked on the stage, Luna's M€ asked nothing), then the university's album.
   'mu-research-colony' |
+  // The owner's photo of 2026-10-14 22:21: Mars University in hand under Olympus Conference holding a science — Olympus'
+  // question first, the university's after it: answerable now, or LEFT FOR AFTER THE DRAW (2026-10-15).
+  'mu-olympus' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |
@@ -2782,7 +2785,12 @@ export async function handCount(page: Page): Promise<number> {
  * the row opened, with the plate `[data-decline-plate]` standing in that surface's question line. A question whose ONE
  * answer is a pick (Mars University's discard) opens that pick DIRECTLY — the album, no option list before it.
  */
-export type TableQuestionAnswer = 'first' | 'last' | 'decline' | 'discard';
+/**
+ * `'defer'` — a question that may wait for a draw (2026-10-15 — Mars University behind Olympus' «remove to draw»,
+ * `data-tq-state="deferred"`) is LEFT FOR AFTER THE DRAW: the driver walks past it and the server asks it live. It is
+ * also what an UNPLANNED deferred row gets (it holds nothing up); `'discard'` / `'decline'` on such a row answer it NOW.
+ */
+export type TableQuestionAnswer = 'first' | 'last' | 'decline' | 'discard' | 'defer';
 
 /**
  * THE TABLE'S QUESTIONS ARE ROWS OF THE PLAY COMPOSER (TR51 — a reaction that asks the player is answered BEFORE the
@@ -2790,18 +2798,39 @@ export type TableQuestionAnswer = 'first' | 'last' | 'decline' | 'discard';
  * plan for fails loudly (it would keep the commit rail out of reach). A row opens EITHER its answers' list OR — for a
  * question whose one answer is a hand pick — the HAND ALBUM straight away (the owner's rule of 2026-10-13: a card from
  * the hand is chosen IN the hand), and the driver reads which one stood up rather than assuming it.
+ *
+ * A question that MAY WAIT FOR A DRAW (2026-10-15) holds nothing up and is answered only when the spec plans an answer
+ * for it; the cursor, OFFERED to it once, is walked on to the commit rail at the end — so the caller's next A plays.
  */
 export async function answerTableQuestions(page: Page, answers: Readonly<Record<string, TableQuestionAnswer>>): Promise<void> {
   const missing = page.locator('.con-composer--play .con-composer__row--reaction.con-composer__row--missing');
+  const deferred = page.locator('.con-composer--play .con-composer__row--reaction[data-tq-state="deferred"]');
   const composer = page.locator('.con-composer--play:visible');
   const album = page.locator('.con-hand[data-flow="picking"]');
   const options = page.locator('.con-composer--play .con-composer__sublist .con-vchoice__opt');
-  for (let round = 0; round < 4 && await missing.count() > 0; round++) {
-    const card = await missing.first().getAttribute('data-reaction-card') ?? '';
+  /** The next row to answer: one that holds the commit up, else a deferred one the spec answers NOW. */
+  const nextQuestion = async (): Promise<string | undefined> => {
+    if (await missing.count() > 0) {
+      return await missing.first().getAttribute('data-reaction-card') ?? '';
+    }
+    for (let i = 0; i < await deferred.count(); i++) {
+      const card = await deferred.nth(i).getAttribute('data-reaction-card') ?? '';
+      if (answers[card] !== undefined && answers[card] !== 'defer') {
+        return card;
+      }
+    }
+    return undefined;
+  };
+  for (let round = 0; round < 4; round++) {
+    const card = await nextQuestion();
+    if (card === undefined) {
+      break;
+    }
     const answer = answers[card];
     expect(answer, `an unplanned table question from «${card}»`).toBeDefined();
+    expect(answer, `«${card}»'s question holds the commit up — it cannot be left for after the draw`).not.toBe('defer');
     const onRow = () => page.locator(
-      `.con-composer--play .con-composer__row--focused.con-composer__row--missing[data-reaction-card="${card}"]`).count();
+      `.con-composer--play .con-composer__row--focused[data-reaction-card="${card}"]:is(.con-composer__row--missing, [data-tq-state="deferred"])`).count();
     for (let i = 0; i < 6 && await onRow() === 0; i++) {
       await press(page, 'ArrowUp', 250);
     }
@@ -2844,6 +2873,19 @@ export async function answerTableQuestions(page: Page, answers: Readonly<Record<
     }
   }
   expect(await missing.count(), 'every table question is answered').toBe(0);
+  await passDeferredTableQuestions(page);
+}
+
+/**
+ * THE COMMIT IS THE NEXT STOP: a table question that may wait for a draw (2026-10-15) is OFFERED to the cursor once —
+ * on open, or after the answer above it — although it holds nothing up. Walk past it (leaving it for after the draw),
+ * so the next A plays instead of opening its album.
+ */
+export async function passDeferredTableQuestions(page: Page): Promise<void> {
+  const onDeferred = page.locator('.con-composer--play .con-composer__row--focused[data-tq-state="deferred"]');
+  for (let i = 0; i < 6 && await onDeferred.count() > 0; i++) {
+    await press(page, 'ArrowDown', 250);
+  }
 }
 
 /**
@@ -2931,6 +2973,8 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
     await page.locator('.con-hand:not(.con-hand--transit)')
       .waitFor({state: 'visible', timeout: 15_000});
     await press(page, 'Enter', 900); // open the play composer
+    // A table question left for after a draw is offered to the cursor once — never answered by a blind A here.
+    await passDeferredTableQuestions(page);
     for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
       await press(page, 'Enter', 900);
     }

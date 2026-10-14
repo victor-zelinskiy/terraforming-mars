@@ -323,8 +323,11 @@
               <div v-for="row in decisionRows" :key="row.id"
                    class="con-composer__row" data-unfold-item
                    :class="{'con-composer__row--focused': focusIdx === row.i, 'con-composer__row--missing': rowMissing(row),
-                            'con-composer__row--reaction': row.kind === 'step' && row.choice.reaction !== undefined}"
+                            'con-composer__row--reaction': row.kind === 'step' && row.choice.reaction !== undefined,
+                            'con-composer__row--locked': row.kind === 'step' && tableRowView(row.choice)?.state.kind === 'locked',
+                            'con-composer__row--deferred': row.kind === 'step' && tableRowView(row.choice)?.state.kind === 'deferred'}"
                    :data-reaction-card="row.kind === 'step' ? row.choice.reaction?.card : undefined"
+                   :data-tq-state="row.kind === 'step' ? tableRowView(row.choice)?.state.kind : undefined"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
                 <!-- A tabbedTargets row (Virus) — the chosen target or a prompt. -->
                 <template v-if="row.kind === 'tabbed'">
@@ -476,6 +479,46 @@
                       +{{ mb.amount }} <i class="con-composer__row-impact-icon" :class="iconClass(mb.resource)" aria-hidden="true"></i> · {{ $t(mb.card) }}
                     </span>
                   </div>
+                </template>
+                <!-- A TABLE QUESTION THAT COULD WAIT FOR A DRAW (the owner's decision 2026-10-15 — «Конференция на
+                     Олимпе» × «Марсианский университет»): THREE lines in every state, so a change of state re-flows
+                     nothing — the asker («Сработает · <карта> · ваш выбор», + «МОЖНО ПОЗЖЕ» while it waits), the value
+                     («Ждёт ответа: …» → «Спросят после добора» / the answer), the note (why it waits, or what waiting
+                     buys: who draws first, the cards chip, «сбросить можно будет и новую карту»). The value and the
+                     note cross-fade in ONE grid cell on a change of state (a v-if swap blinks). -->
+                <template v-else-if="tableRowView(row.choice) !== undefined">
+                  <template v-for="tq in [tableRowView(row.choice)]" :key="row.id + '#tq'">
+                    <template v-if="tq !== undefined">
+                      <div class="con-composer__row-label con-composer__tq-head">
+                        <span class="con-composer__tq-title">{{ choiceTitle(row.choice) }}</span>
+                        <span class="con-composer__tq-badge" :class="{'con-composer__tq-badge--on': tq.state.kind === 'deferred'}"
+                              data-tq-badge aria-hidden="true">{{ $t('Can wait') }}</span>
+                      </div>
+                      <div class="con-composer__tq-cell">
+                        <transition name="con-tq-swap">
+                          <div :key="tq.state.kind" class="con-composer__tq-body">
+                            <div class="con-composer__row-value con-composer__tq-value" :class="'con-composer__tq-value--' + tq.state.kind" data-tq-value>
+                              <span v-if="tq.state.kind === 'locked'" class="con-composer__tq-glyph" aria-hidden="true">◷</span>
+                              <span v-else-if="tq.state.kind === 'deferred'" class="con-composer__tq-glyph" aria-hidden="true">↷</span>
+                              <span class="con-composer__tq-text" :class="{'con-composer__row-empty': tq.state.kind === 'plain' && chosenLabel(row.choice) === ''}">{{ tq.value }}</span>
+                              <!-- «Ⓐ Выбрать сейчас» — drawn ONLY while the cursor is here (one button, one verb at a time),
+                                   its slot reserved either way so gaining the cursor moves nothing. -->
+                              <span v-if="tq.state.kind === 'deferred'" class="con-composer__target-change con-composer__tq-now"
+                                    :class="{'con-composer__target-change--on': focusIdx === row.i}">
+                                <GamepadGlyph control="confirm" />
+                                <span>{{ $t('Choose now') }}</span>
+                              </span>
+                            </div>
+                            <div v-if="tq.lead !== ''" class="con-composer__tq-note" data-tq-note>
+                              <span class="con-composer__tq-lead">{{ tq.lead }}</span>
+                              <ActionEffectChip v-if="tq.drawn !== undefined" class="con-composer__tq-chip" :effect="tq.drawn" />
+                              <span v-if="tq.tail !== ''" class="con-composer__tq-tail">— {{ tq.tail }}</span>
+                            </div>
+                          </div>
+                        </transition>
+                      </div>
+                    </template>
+                  </template>
                 </template>
                 <template v-else>
                   <div class="con-composer__row-label">{{ choiceTitle(row.choice) }}</div>
@@ -633,7 +676,13 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
-import {optionDraws, printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {reactionDeferral, ReactionDeferral} from '@/common/models/tableQuestionDeferral';
+import {
+  TableQuestionRowState, cardsHeldByOtherDiscards, deferPlateOf, tableQuestionCanWait, tableQuestionNote, tableQuestionRowFocusable,
+  tableQuestionRowMissing, tableQuestionRowOffered, tableQuestionRowState, tableQuestionValue,
+} from '@/client/console/tableQuestionRow';
+import {armDeferredDiscards, deferredDiscardKey} from '@/client/console/deferredDiscardFresh';
 import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
 import {AddressableInput, roleOf} from '@/common/inputs/preselectAddress';
 import type {ItemType} from '@/common/cards/render/Types';
@@ -642,7 +691,7 @@ import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.v
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
-import {EffectForecast, forecastSourceIsCardless, HIDDEN_DRAW_NOTE} from '@/common/models/EffectForecastModel';
+import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {
   DiscountTail, ForecastBranchInfo, VariantReaction,
@@ -977,6 +1026,12 @@ export default defineComponent({
        *  `consoleRepeatPick`; carried as `repeat` in the confirm payload. */
       repeatResult: undefined as ConsoleRepeatPickResult | undefined,
       focusIdx: 0,
+      /**
+       * The table questions the cursor has been OFFERED and has left (2026-10-15): a question that may wait for a draw
+       * holds nothing up, but the walk sends the cursor to it once, as to the next question — after that the walk goes
+       * on to the commit (`tableQuestionRowOffered`).
+       */
+      offeredSeen: {} as Record<string, true>,
       sub: undefined as SubState | undefined,
       submitting: false,
       /** Bumped on each quick-adjust to re-trigger the one-shot chip pulse. */
@@ -1634,6 +1689,43 @@ export default defineComponent({
       return this.allChoices.filter((c) =>
         this.choiceMode(c) !== 'followup' && this.choiceMode(c) !== 'repeat' && !this.isCollapsedMergeStep(c));
     },
+    /** The play's TABLE questions (TR51 — card-level pre-steps a reaction asks), in the live queue's order. */
+    tableQuestionChoices(): ReadonlyArray<ComposerChoice> {
+      return this.allChoices.filter((c) => c.scope === 'pre' && c.reaction !== undefined);
+    },
+    /**
+     * The table questions LEFT FOR AFTER THE DRAW right now — deferrable and unanswered: the batch posts nothing for
+     * them, the server asks them live once the draw has landed (the commit witness counts them handed on).
+     */
+    deferredTableChoices(): ReadonlyArray<ComposerChoice> {
+      return this.tableQuestionChoices.filter((c) => this.tableRowState(c).kind === 'deferred');
+    },
+    /**
+     * Every DISCARD this composer has answered before the press, by choice: the card's own discard step, a table
+     * question's discard option (Mars University). Two of them must never name one card — the album of each refuses the
+     * cards the others hold.
+     */
+    discardAnswers(): ReadonlyArray<{id: string, cards: ReadonlyArray<string>}> {
+      const out: Array<{id: string, cards: ReadonlyArray<string>}> = [];
+      for (const c of this.allChoices) {
+        if (c.input.type === 'or') {
+          const pick = this.picks[c.id];
+          const opt = pick !== undefined ? (c.input as OrOptionsModel).options[Number(pick)] : undefined;
+          const nested = this.picks[nestedPickKey(c.id)];
+          if (opt !== undefined && (opt as SelectCardModel).discardPrompt !== undefined && nested !== undefined && nested !== '') {
+            out.push({id: c.id, cards: nested.split(NESTED_PICK_SEP)});
+          }
+        } else if (c.input.type === 'card' && (c.input as SelectCardModel).discardPrompt !== undefined) {
+          const multi = this.multiPicks[c.id];
+          const single = this.picks[c.id];
+          const cards = multi !== undefined ? multi : (single !== undefined ? [single] : []);
+          if (cards.length > 0) {
+            out.push({id: c.id, cards});
+          }
+        }
+      }
+      return out;
+    },
     followUpChoices(): ReadonlyArray<ComposerChoice> {
       // The repeat choice is its OWN dedicated row (never a follow-up note).
       return this.allChoices.filter((c) => !this.stepChoices.includes(c) && this.choiceMode(c) !== 'repeat');
@@ -1881,10 +1973,9 @@ export default defineComponent({
     followUpNotes(): Array<NextStepRow> {
       const b = this.selectedBranch;
       if (b === undefined) {
-        // A table question handed on by a draw above it is the PLAY's, not a variant's (TR51 — card-level pre-steps):
-        // it is named before any variant is chosen too.
-        return this.followUpChoices.flatMap((c) => c.reaction !== undefined ?
-          [noteRow(`${translateCardName(c.reaction.card)}: ${translateText(HIDDEN_DRAW_NOTE)}`)] : []);
+        // A table question handed on is the PLAY's, not a variant's (TR51 — card-level pre-steps): it is named before
+        // any variant is chosen too.
+        return this.followUpChoices.flatMap((c) => c.reaction !== undefined ? [this.reactionFollowUpRow(c)] : []);
       }
       const out: Array<NextStepRow> = [];
       if (b.reveal !== undefined) {
@@ -1944,9 +2035,9 @@ export default defineComponent({
         if (this.isCollapsedMergeStep(c)) {
           continue;
         }
-        // A table question handed on by a draw above it says WHY, in its asker's name.
+        // A table question handed on says so in its asker's name.
         if (c.reaction !== undefined) {
-          out.push(noteRow(`${translateCardName(c.reaction.card)}: ${translateText(HIDDEN_DRAW_NOTE)}`));
+          out.push(this.reactionFollowUpRow(c));
           continue;
         }
         const t = textOf(c.input.title);
@@ -2082,7 +2173,9 @@ export default defineComponent({
         (row.kind === 'cta' ? 'cta' : (row.kind === 'variant' ? 'variant' : (this.focusedOpensPicker ? 'picker' : 'other')));
       return playPrimaryVerb({
         focused,
-        pickAnswered: row !== undefined && !this.rowMissing(row),
+        // ANSWERED, not «not missing»: a table question left for after the draw holds nothing up and has no answer.
+        pickAnswered: row !== undefined && !this.rowMissing(row) && !(row.kind === 'step' && this.stepUnanswered(row.choice)),
+        pickDeferred: row?.kind === 'step' && row.choice.reaction !== undefined && this.tableRowState(row.choice).kind === 'deferred',
         primary: this.primaryActionState,
         // The vote's door names itself in the bar exactly as on the rail («Выбрать резолюцию»): the press
         // opens the Parliament, it does not finish the play. (The board's door keeps its historical bar verb.)
@@ -2383,9 +2476,14 @@ export default defineComponent({
     /** The radiogroup's memory: the option the cursor last stood on, so ↑
      *  from the payment / rail re-enters the group there (whatever moved
      *  the cursor — the pad, a click, the opening focus). */
-    focusIdx(idx: number): void {
+    focusIdx(idx: number, was: number): void {
       if (this.rows[idx]?.kind === 'variant') {
         this.variantReturnIdx = idx;
+      }
+      // A table question OFFERED to the cursor is seen once the cursor leaves it — the walk then goes on to the commit.
+      const left = this.rows[was];
+      if (left?.kind === 'step' && left.choice.reaction !== undefined && idx !== was) {
+        this.offeredSeen[left.choice.id] = true;
       }
     },
     /**
@@ -2717,8 +2815,19 @@ export default defineComponent({
      *  else the «Разыграть» CTA (so a ready card lands the player on the explicit
      *  play button showing Ⓐ — never on a pick row where A might read as "play"). */
     firstActionableIndex(): number {
-      const missing = this.rows.findIndex((r) => this.rowMissing(r));
-      return missing >= 0 ? missing : this.ctaIndex;
+      const missing = this.firstMissingIndex();
+      if (missing >= 0) {
+        return missing;
+      }
+      // …then a table question that may wait for a draw, OFFERED once (2026-10-15 — «and this one: now, or after the
+      // draw?»): it holds nothing up, but it is the next question, so the cursor goes there before the commit.
+      const offered = this.rows.findIndex((r) => r.kind === 'step' && r.choice.reaction !== undefined &&
+        tableQuestionRowOffered(this.tableRowState(r.choice), this.offeredSeen[r.choice.id] === true));
+      return offered >= 0 ? offered : this.ctaIndex;
+    },
+    /** The first row that holds up the commit (-1 = none). */
+    firstMissingIndex(): number {
+      return this.rows.findIndex((r) => this.rowMissing(r));
     },
     /** The A-verb a row publishes while it holds the cursor and is unanswered
      *  — the next real step, not the screen's eventual purpose. */
@@ -2736,7 +2845,8 @@ export default defineComponent({
         return 'Choose a player';
       }
       switch (row.kind === 'step' ? row.choice.kind : undefined) {
-      case 'card': return cardPickAskKey(row.kind === 'step' ? row.choice.amount : undefined);
+      case 'card': return row.kind === 'step' && (row.choice.input as SelectCardModel).discardPrompt !== undefined ?
+        'Select a card to discard' : cardPickAskKey(row.kind === 'step' ? row.choice.amount : undefined);
       case 'player': return 'Choose a player';
       // An optional choice whose one answer is a pick IS that pick — its kind's verb, never «Choose an option».
       case 'or': return row.kind === 'step' ? this.optionalPickVerb(row.choice) : 'Choose an option';
@@ -2904,10 +3014,61 @@ export default defineComponent({
       }
     },
     stepMissing(c: ComposerChoice): boolean {
+      // A table question that WAITS (for the answer above it, or — deferrable — for a draw) holds nothing up.
+      if (c.reaction !== undefined && c.scope === 'pre') {
+        return tableQuestionRowMissing(this.tableRowState(c), !this.stepUnanswered(c));
+      }
+      return this.stepUnanswered(c);
+    },
+    /** Has this choice no answer captured? (Not «does it hold up the commit» — that is `stepMissing`.) */
+    stepUnanswered(c: ComposerChoice): boolean {
       if (c.scope === 'option') {
         return this.capturedOption === undefined;
       }
       return c.scope === 'pre' ? this.capturedPre[c.index] === undefined : this.captured[c.index] === undefined;
+    },
+    /**
+     * MAY THIS TABLE QUESTION WAIT — the shared rule (`common/models/tableQuestionDeferral.ts`, 2026-10-15) over the
+     * play's table questions and this composer's answers: `locked` (an earlier answer that may draw is still unanswered),
+     * `deferrable` (a draw lands first — answer now or after it), `none`.
+     */
+    tableDeferral(c: ComposerChoice): ReactionDeferral {
+      if (c.reaction === undefined || c.scope !== 'pre') {
+        return {state: 'none'};
+      }
+      return reactionDeferral(c, this.tableQuestionChoices, (q) => this.capturedPre[(q as ComposerChoice).index]);
+    },
+    /** The ROW of a table question: plain · locked · deferred · early (`tableQuestionRow.ts`). */
+    tableRowState(c: ComposerChoice): TableQuestionRowState {
+      return tableQuestionRowState(this.tableDeferral(c), !this.stepUnanswered(c));
+    },
+    /**
+     * THE ROW OF A TABLE QUESTION THAT COULD WAIT FOR A DRAW (2026-10-15) — its three lines, translated: the value
+     * («Ждёт ответа: …» / «Спросят после добора» / the answer), the note (why it waits, or what waiting buys) and the
+     * drawn-cards chip. `undefined` for any other row (the generic row draws it).
+     */
+    tableRowView(c: ComposerChoice): {state: TableQuestionRowState, value: string, lead: string, drawn?: ActionEffect, tail: string} | undefined {
+      if (c.reaction === undefined || c.scope !== 'pre' || !tableQuestionCanWait(c.reaction)) {
+        return undefined;
+      }
+      const state = this.tableRowState(c);
+      const say = (line: {key: string, params: ReadonlyArray<string>} | undefined): string =>
+        line === undefined ? '' : (line.params.length > 0 ? translateTextWithParams(line.key, [...line.params]) : translateText(line.key));
+      const fixed = tableQuestionValue(state, translateCardName);
+      const chosen = this.chosenLabel(c);
+      const value = fixed !== undefined ? say(fixed) : (chosen !== '' ? chosen : `${this.pickPlaceholder(c)}…`);
+      const note = tableQuestionNote(state, translateCardName, true);
+      return {
+        state,
+        value,
+        lead: say(note?.lead),
+        drawn: note?.drawn !== undefined ? {direction: 'gain', icon: 'cards', amount: note.drawn} : undefined,
+        tail: say(note?.tail),
+      };
+    },
+    /** May the cursor stop on this row? A table question waiting for the one above it has nothing to do yet. */
+    rowFocusable(row: PlayRow | undefined): boolean {
+      return row !== undefined && (row.kind !== 'step' || row.choice.reaction === undefined || tableQuestionRowFocusable(this.tableRowState(row.choice)));
     },
     // ── amount / spendHeat helpers ──────────────────────────────────────
     amountModel(c: ComposerChoice): SelectAmountModel {
@@ -3005,7 +3166,8 @@ export default defineComponent({
     optionalPickVerb(c: ComposerChoice): string {
       const pick = optionalPickInputOf(c.input);
       if (pick?.type === 'card') {
-        return cardPickAskKey(c.amount);
+        // A DISCARD asks for the card to give up — «Выберите себе карту» read as a card GAINED (2026-10-15).
+        return (pick as SelectCardModel).discardPrompt !== undefined ? 'Select a card to discard' : cardPickAskKey(c.amount);
       }
       if (pick?.type === 'player') {
         return 'Choose a player';
@@ -3019,7 +3181,8 @@ export default defineComponent({
         return translateText('Pick cards on the table');
       }
       switch (c.kind) {
-      case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' : cardPickAskKey(c.amount));
+      case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' :
+        ((c.input as SelectCardModel).discardPrompt !== undefined ? 'Select a card to discard' : cardPickAskKey(c.amount)));
       case 'player': return translateText('Choose a player');
       case 'or': return translateText(this.optionalPickVerb(c));
       default: return translateText('Choose an option');
@@ -3235,7 +3398,15 @@ export default defineComponent({
         // used to SELECT it, which is why «where I am» and «what I chose» were
         // one thing on screen and the player could commit a result they had only
         // scrolled past. Selection is a press (A / a click), never a move.
-        this.focusIdx = Math.min(this.navMaxIndex, Math.max(0, this.focusIdx + (dir === 'down' ? 1 : -1)));
+        // A table question WAITING for the one above it is no stop (nothing to do there yet) — the walk steps over it.
+        const step = dir === 'down' ? 1 : -1;
+        let next = this.focusIdx + step;
+        while (next >= 0 && next <= this.navMaxIndex && !this.rowFocusable(this.rows[next])) {
+          next += step;
+        }
+        if (next >= 0 && next <= this.navMaxIndex) {
+          this.focusIdx = next;
+        }
         this.scrollFocused();
         return;
       }
@@ -3344,10 +3515,12 @@ export default defineComponent({
           this.openPaymentEditor();
           return;
         }
-        // Otherwise lead the player to the first unresolved choice (+ open it).
-        this.focusIdx = this.firstActionableIndex();
+        // Otherwise lead the player to the first unresolved choice (+ open it) — a question that holds the commit up,
+        // never one that may wait for a draw (it is not why the rail refused).
+        const missing = this.firstMissingIndex();
+        this.focusIdx = missing >= 0 ? missing : this.firstActionableIndex();
         const target = this.focusedRow;
-        if (target !== undefined && target.kind !== 'cta') {
+        if (missing >= 0 && target !== undefined && target.kind !== 'cta') {
           this.openRow(target);
         }
         this.scrollFocused();
@@ -3400,10 +3573,23 @@ export default defineComponent({
       for (const c of this.followUpChoices) {
         honest.push(c.reaction !== undefined ? {card: c.reaction.card, role: '*'} : {card: this.cardName, role: roleOf(c.input as unknown as AddressableInput)});
       }
+      // A table question LEFT FOR AFTER THE DRAW (2026-10-15) is the player's own choice to be asked live — handed on by
+      // the press itself; its album will mark the card the draw brought (`deferredDiscardFresh`).
+      const deferred = this.deferredTableChoices.flatMap((c) => c.reaction !== undefined ? [c.reaction.card] : []);
+      for (const card of deferred) {
+        honest.push({card, role: '*'});
+      }
+      armDeferredDiscards(deferred, this.playerView.cardsInHand.map((cd) => cd.name).filter((n) => n !== this.cardName),
+        deferredDiscardKey(this.playerView.game.generation, this.thisPlayer.actionsTakenThisGame));
       if ((this.selectedBranch?.steps ?? []).some((st) => st.kind === 'note' && st.noteKind !== 'warning')) {
         honest.push({card: this.cardName, role: '*'});
       }
       armPostCommitWitness(this.cardName, asks.map((f) => f.source.name), honest);
+    },
+    /** A table question the composer cannot host (a shape it does not draw) — handed on in its asker's name. */
+    reactionFollowUpRow(c: ComposerChoice): NextStepRow {
+      const title = textOf(c.input.title);
+      return noteRow(`${translateCardName(c.reaction?.card ?? this.cardName)}: ${title !== '' ? title : translateText('Choose a target')}`);
     },
     clickVariantAt(index: number): void {
       this.settled?.around();
@@ -3438,31 +3624,9 @@ export default defineComponent({
     /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */
     choiceMode(c: ComposerChoice): PlayChoiceMode {
-      // A table question whose candidates a draw ABOVE it hides (TR51 — Mars University behind Olympus' «remove to
-      // draw», `reaction.afterDraw`) is handed on: an honest follow-up, named, never a pick over a hand that will change.
-      if (this.reactionHiddenByDraw(c)) {
-        return 'followup';
-      }
+      // (A table question behind a draw is no follow-up since 2026-10-15: it stays a row — answerable now, or left for
+      // after the draw — `tableRowState`.)
       return playChoiceMode(c, this.handNamesSet, this.playedNamesSet, this.cardName);
-    },
-    /**
-     * Does an answer collected ABOVE this table question draw a card before it asks? The answers are the composer's own
-     * captures; «draws» is the chosen option's own server chips (`metadata.effects` — a cards gain) or a discard that
-     * buys cards (`discardPrompt.exchange`). The server named which questions gate it (`reaction.afterDraw`).
-     */
-    reactionHiddenByDraw(c: ComposerChoice): boolean {
-      const gates = c.reaction?.afterDraw;
-      if (gates === undefined || gates.length === 0) {
-        return false;
-      }
-      return this.allChoices.some((d) => {
-        if (d.scope !== 'pre' || d.reaction === undefined || !gates.includes(d.reaction.fact) || d.input.type !== 'or') {
-          return false;
-        }
-        const answer = this.capturedPre[d.index] as {type?: string, index?: number} | undefined;
-        const chosen = answer?.type === 'or' && answer.index !== undefined ? (d.input as OrOptionsModel).options[answer.index] : undefined;
-        return chosen !== undefined && optionDraws(chosen);
-      });
     },
     /**
      * THE CONTEXTUAL PREVIEW for one candidate — the ONE place this flow's
@@ -3966,6 +4130,19 @@ export default defineComponent({
       for (const d of model.disabledCards ?? []) {
         reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
       }
+      // TWO DISCARDS ANSWERED BEFORE THE PRESS NEVER NAME ONE CARD (the card's own discard and Mars University's, two
+      // university questions): the second would meet a hand without it. A card another discard holds is refused here,
+      // with its reason — shown, never hidden.
+      const held = model.discardPrompt !== undefined ? cardsHeldByOtherDiscards(this.discardAnswers, c.id) : new Set<string>();
+      for (const name of held) {
+        reasons[name] = translateText('Already chosen for another discard');
+      }
+      // A table question that MAY WAIT FOR A DRAW (2026-10-15): the album carries the way back to «after the draw» —
+      // R3 «Решить после добора», its plate beside the decline's.
+      const defer = c.reaction !== undefined ? deferPlateOf(this.tableRowState(c)) : undefined;
+      if (c.reaction !== undefined) {
+        this.offeredSeen[c.id] = true;
+      }
       const multi = model.max > 1;
       const answered = orItem !== undefined && this.picks[c.id] === String(orItem.optionIndex) ?
         (this.picks[nestedPickKey(c.id)]?.split(NESTED_PICK_SEP) ?? []) : [];
@@ -3980,7 +4157,7 @@ export default defineComponent({
       enterConsoleHandPick({
         title: model.title,
         buttonLabel: model.buttonLabel || 'Select',
-        selectable: model.cards.map((cd) => cd.name),
+        selectable: model.cards.map((cd) => cd.name).filter((name) => !held.has(name)),
         reasons,
         min: model.min ?? 1,
         max: model.max ?? 1,
@@ -3995,6 +4172,8 @@ export default defineComponent({
         leaving: 'none',
         // An optional choice's refusal — a button inside the album, never a row before it.
         decline: orItem !== undefined ? this.choiceDecline(c) : undefined,
+        // …and a question that may wait for a draw: the way back to «after the draw».
+        defer,
       }, (cards) => {
         this.handPickOpen = undefined;
         // Re-locate the choice by id — the preview may have refreshed under
@@ -4033,7 +4212,22 @@ export default defineComponent({
         // RT in the album — the DECLINE: the choice is answered with its refusal, the composer takes the row back.
         this.handPickOpen = undefined;
         this.answerDecline(this.allChoices.find((x) => x.id === c.id) ?? c);
+      }, defer === undefined ? undefined : () => {
+        // R3 in the album — DECIDE AFTER THE DRAW: whatever was chosen before is let go, the row reads «Спросят после
+        // добора» again, the batch will post nothing for it.
+        this.handPickOpen = undefined;
+        this.deferTableQuestion(this.allChoices.find((x) => x.id === c.id) ?? c);
       });
+    },
+    /** Leave a table question for after the draw: its early answer (if any) is cleared; the walk goes on. */
+    deferTableQuestion(c: ComposerChoice): void {
+      delete this.picks[c.id];
+      delete this.picks[nestedPickKey(c.id)];
+      this.captureFor(c, undefined);
+      this.offeredSeen[c.id] = true;
+      this.sub = undefined;
+      this.focusIdx = this.firstActionableIndex();
+      this.scrollFocused();
     },
     /**
      * DESCEND into an `or` option whose own answer is a question. WHERE it is answered is ONE verdict

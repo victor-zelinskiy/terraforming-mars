@@ -9027,9 +9027,21 @@ html.console-mode {
         color: fade(@con-text, 82%);
         font-weight: 600;
     }
+    /* The question line's BUTTONS, right-aligned as one group: «decide after the draw» (R3, 2026-10-15) then the
+       decline (RT). The group keeps its words; the ask on the left yields first. */
+    &__question-plates {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        margin-left: auto;
+    }
+    &__question-defer {
+        flex: 0 1 auto;
+    }
     &__question-decline {
         flex: 0 0 auto;
-        margin-left: auto;
     }
     /* A pick BRIDGE is out: the shelf is the picker again. The stage keeps its
        claim (and its zone, and the composer's captures inside it) — it just
@@ -33170,6 +33182,56 @@ html.console-mode {
         color: fade(@con-amber, 92%);
         &::before { content: '⚡ '; }
     }
+    /* A TABLE QUESTION THAT COULD WAIT FOR A DRAW (the owner's decision 2026-10-15 — «Конференция на Олимпе» ×
+       «Марсианский университет», `tableQuestionRow.ts`). THREE lines in every state — asker · value · note — so a change
+       of state (waits for the answer above → may wait for the draw → answered now) re-flows nothing; the value and the
+       note cross-fade in ONE grid cell. While it WAITS for the answer above it the row recedes (no cursor stop, no amber
+       — the question above holds the commit, not this one); while it MAY WAIT FOR THE DRAW it wears a cool kant and
+       «МОЖНО ПОЗЖЕ» (a slot reserved in every state — the badge fades, the line never moves). */
+    &__tq-head { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+    &__tq-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    &__tq-badge {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: .06rem .5rem;
+        border-radius: .4rem;
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .06rem;
+        color: #dff5fc;
+        background: fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
+        opacity: 0;
+        transition: opacity calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--on { opacity: 1; }
+    }
+    &__tq-cell { display: grid; min-width: 0; }
+    &__tq-body { grid-area: 1 / 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+    &__tq-value { align-items: center; flex-wrap: nowrap; min-width: 0; }
+    &__tq-value--locked { color: @con-text-dim; font-weight: 600; }
+    &__tq-value--deferred { color: #c4f0fb; }
+    &__tq-glyph { flex: 0 0 auto; font-size: .95rem; font-weight: 600; opacity: .85; }
+    &__tq-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    &__tq-now { margin-left: auto; }
+    &__tq-note {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+        font-size: .75rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    &__tq-lead { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    &__tq-tail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    &__tq-chip { flex: 0 0 auto; }
+    &__row--locked {
+        background: rgba(12, 18, 28, 0.42);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.1);
+    }
+    &__row--locked &__row-label { opacity: .72; }
+    &__row--deferred { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%); }
     &__row-value { font-size: .95rem; font-weight: 700; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
     &__row-empty { color: fade(@con-amber, 92%); font-weight: 600; }
     &__row-impact { font-size: .8rem; font-weight: 600; color: #8ff0c4; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .25rem; }
@@ -37805,3 +37867,41 @@ dialog.con-zoom {
    seats' pills keep only their dot (no width floor), the name may take 12rem. Two and three seats: unchanged. */
 .con-status__ribbon--dense .con-status__pstatus { min-width: 0; }
 .con-status__ribbon--dense .con-status__pname { max-width: 12rem; }
+
+/* A deferred table question keeps the console's focus ring when the cursor is on it (flat — the ring outranks the
+   row's own cool kant, 2026-10-15). */
+.con-composer__row--deferred.con-composer__row--focused {
+    box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%);
+}
+/* THE TABLE QUESTION'S STATE CHANGE — the value and the note cross-fade in their one grid cell (`.con-composer__tq-cell`):
+   the old words let go on the spot while the new surface from inside; never a v-if blink, never a slide. */
+.con-tq-swap-enter-active,
+.con-tq-swap-leave-active {
+    transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+}
+.con-tq-swap-enter-from,
+.con-tq-swap-leave-to {
+    opacity: 0;
+}
+/* The WAITING row's value is quiet (the question above holds the commit — this one has nothing to do yet): the row's
+   own value weight is outranked flat, element on element. */
+.con-composer__row-value.con-composer__tq-value--locked {
+    color: fade(@con-text-dim, 92%);
+    font-weight: 600;
+}
+/* The note line is ONE fixed height in every state — the drawn-cards chip rides INSIDE it, sized to the line, so
+   «Ждёт ответа» → «Спросят после добора» moves neither the payment block nor the commit rail (measured: the chip's own
+   size pushed the column 17 px down at fhd). */
+.con-composer__tq-note {
+    height: 1.45rem;
+}
+.con-composer__tq-chip.action-effect-chip {
+    font-size: .72rem;
+    gap: .25rem;
+    padding: .05rem .45rem .05rem .3rem;
+    line-height: 1;
+    .action-effect-chip__icon {
+        width: .95rem;
+        height: .95rem;
+    }
+}

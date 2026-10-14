@@ -28,7 +28,7 @@ import {CardRenderItemType} from '../../../src/common/cards/render/CardRenderIte
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {newProjectCard} from '../../../src/server/createCard';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
-import {playPreviewWithTableQuestions, HIDDEN_DRAW_NOTE} from '../../../src/server/models/tableQuestions';
+import {playPreviewWithTableQuestions, DEFERRABLE_DRAW_NOTE} from '../../../src/server/models/tableQuestions';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {requiredPartyOf} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {buildCardInformation} from '../../../src/server/tools/cardInfo/buildCardInformation';
@@ -341,7 +341,7 @@ describe('ScientificBreakthrough', () => {
       expect(cast(t.player.getWaitingFor(), SelectCard).cards.map((c) => c.name)).deep.eq([CardName.VECTOR_COMPUTATIONS, CardName.MARTIAN_CENSUS]);
     });
 
-    it('Olympus Conference with a science ASKS before the card; Mars University\'s discard stands behind the draw — an honest follow-up', () => {
+    it('Olympus Conference with a science ASKS before the card; Mars University\'s discard stands behind the draw — answerable now or after it', () => {
       holder(t.player, new OlympusConference(), 1);
       t.player.playedCards.push(new MarsUniversity());
       t.player.cardsInHand.push(card(CardName.ALGAE));
@@ -349,8 +349,10 @@ describe('ScientificBreakthrough', () => {
       const composed = playPreviewWithTableQuestions(t.player, t.card);
       const facts = composed.forecast?.facts ?? [];
       const mu = facts.find((f) => f.source.name === CardName.MARS_UNIVERSITY);
-      expect(mu?.note, 'the card the player might discard does not exist yet').eq(HIDDEN_DRAW_NOTE);
-      expect(mu?.preselect).is.undefined;
+      expect(mu?.note, 'the card drawn first may be the one to discard — the question may wait for it').eq(DEFERRABLE_DRAW_NOTE);
+      expect(mu?.preselect, 'still a step of the composer').is.not.undefined;
+      const step = (composed.preSteps ?? []).find((s) => s.kind === 'input' && s.reaction?.card === CardName.MARS_UNIVERSITY);
+      expect(step?.kind === 'input' ? step.reaction?.drawnBefore?.map((d) => d.card) : undefined, 'the play draws before it').to.include(CardName.SCIENTIFIC_BREAKTHROUGH);
       const olympus = facts.find((f) => f.source.name === CardName.OLYMPUS_CONFERENCE);
       expect(olympus?.preselect, 'Olympus is a pre-step of the play').is.not.undefined;
       play(t);

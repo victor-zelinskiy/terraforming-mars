@@ -101,6 +101,10 @@ async function focusTile(page: Page, n: number): Promise<void> {
 async function answerReaction(page: Page, card: string, index: number): Promise<void> {
   const row = page.locator(`${PLAY} .con-composer__row--reaction[data-reaction-card="${card}"]`);
   await expect(row, `the «Сработает · ${card}» row stands`).toHaveCount(1);
+  // The row may stand ABOVE the cursor (a later question is offered the cursor once the one above is answered).
+  for (let i = 0; i < 6 && await row.evaluate((el) => !el.classList.contains('con-composer__row--focused')); i++) {
+    await press(page, 'ArrowUp', 300);
+  }
   for (let i = 0; i < 10 && await row.evaluate((el) => !el.classList.contains('con-composer__row--focused')); i++) {
     await press(page, 'ArrowDown', 300);
   }
@@ -251,7 +255,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a-04-board');
     });
 
-    test(`(B) the table asks — Olympus and Mars University answered in the composer; a draw above hands the discard on; ONE POST (${preset.id})`, async ({page, request}) => {
+    test(`(B) the table asks — Olympus and Mars University answered in the composer; a draw above lets the discard wait; ONE POST (${preset.id})`, async ({page, request}) => {
       test.setTimeout(300_000);
       const seen = watchPage(page);
       const {playerId} = await bootFixtureSeats(page, request, 'influential-discovery-askers', {query: preset.query});
@@ -264,17 +268,21 @@ for (const preset of PRESETS) {
       await expect(rows, 'two questions of the table, before any variant is chosen').toHaveCount(2);
       await expect(rows.first()).toHaveAttribute('data-reaction-card', 'Olympus Conference');
       await expect(rows.nth(1)).toHaveAttribute('data-reaction-card', 'Mars University');
+      // The discard WAITS for Olympus' answer (2026-10-15): whether a card arrives before it depends on it.
+      await expect(rows.nth(1), 'the discard waits for Olympus').toHaveAttribute('data-tq-state', 'locked');
       await expect(page.locator(`${PLAY} .con-composer__cta--ready`), 'the play waits for its questions').toHaveCount(0);
       await shoot(page, preset.id, 'b-01-rows');
 
-      // Olympus «remove a science to draw» — the discard below it can no longer be chosen over the hand: handed on.
+      // Olympus «remove a science to draw» — the discard below it MAY WAIT for that card: still a row, never a «ДАЛЕЕ».
       await answerReaction(page, 'Olympus Conference', 0);
-      await expect(page.locator(`${PLAY} .con-composer__row--reaction[data-reaction-card="Mars University"]`), 'the discard leaves the rows').toHaveCount(0);
-      await expect(page.locator(`${PLAY} .con-composer__next`), 'and is named as a follow-up').toContainText(/Марсианский университет/i);
-      await shoot(page, preset.id, 'b-02-handed-on');
-      // …and «add a science» brings it back.
+      const universityRow = page.locator(`${PLAY} .con-composer__row--reaction[data-reaction-card="Mars University"]`);
+      await expect(universityRow, 'the discard stays a row').toHaveCount(1);
+      await expect(universityRow, '«Спросят после добора» — answerable now, or after the draw').toHaveAttribute('data-tq-state', 'deferred');
+      await expect(page.locator(`${PLAY} .con-composer__next`).filter({hasText: /Марсианский университет/i}), 'no «ДАЛЕЕ» line for it').toHaveCount(0);
+      await shoot(page, preset.id, 'b-02-may-wait');
+      // …and «add a science» makes it an ordinary question again (nothing draws before it).
       await answerReaction(page, 'Olympus Conference', 1);
-      await expect(page.locator(`${PLAY} .con-composer__row--reaction[data-reaction-card="Mars University"]`), 'the discard is a question again').toHaveCount(1);
+      await expect(universityRow, 'the discard is owed again').toHaveAttribute('data-tq-state', 'plain');
       await declineHandReaction(page, 'Mars University');
 
       // The card's own choice: the data option → Supercomputer.

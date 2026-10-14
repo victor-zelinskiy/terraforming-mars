@@ -227,8 +227,13 @@
           <i :class="discardExchangeIconClass" class="con-hand__discard-icon" aria-hidden="true"></i>
         </span>
       </div>
-      <ConsoleDeclinePlate v-if="pickDecline !== undefined" class="con-hand__question-decline"
-                           :label="pickDecline.label" :forgone="pickDecline.forgone" />
+      <!-- The question line's BUTTONS, right-aligned together: «decide after the draw» (R3) of a question that may wait
+           for a draw, then the decline (RT). -->
+      <span v-if="pickDefer !== undefined || pickDecline !== undefined" class="con-hand__question-plates">
+        <ConsoleDeferPlate v-if="pickDefer !== undefined" class="con-hand__question-defer" :defer="pickDefer" />
+        <ConsoleDeclinePlate v-if="pickDecline !== undefined" class="con-hand__question-decline"
+                             :label="pickDecline.label" :forgone="pickDecline.forgone" />
+      </span>
     </div>
     <!-- Premium hand ALBUM: a strict page of profile-fixed shape (5×2 on the
          couch, 4×1 on the Deck) — never a scrolling canvas. The strip carries
@@ -284,6 +289,7 @@
                     aria-hidden="true">{{ discard !== undefined ? '⌫ ' + $t('Discarded') : '✓ ' + $t('Card selected') }}</span>
               <span v-else-if="selectActive && !isSelectable(cell.e.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
               <span v-else-if="selectActive && isBonusFresh(cell.e.card.name)" class="con-hand__fresh" data-hand-fresh aria-hidden="true">{{ freshBonusText }}</span>
+              <span v-else-if="selectActive && isDrawFresh(cell.e.card.name)" class="con-hand__fresh" data-hand-fresh="draw" aria-hidden="true">{{ $t('New card') }}</span>
               <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(cell.e) || '') }}</span>
               <!-- THE FORECAST PLATE — one grammar, two readers (`countedPlay.handForecastPlate`): a card that
                    advances the Agenda marker says HOW FAR (К-H1, TR42 — «[★] 2», `CardModel.agendaWalk`), a play
@@ -525,6 +531,8 @@ import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/card
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
+import ConsoleDeferPlate from '@/client/components/console/foundation/ConsoleDeferPlate.vue';
+import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
 import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {colonyFleetBerth, setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {
@@ -629,6 +637,16 @@ export type ConsoleHandSelectMode = {
    * (RT) repeated where the eye is, and what refusing forgoes. Absent for a pick that must be answered.
    */
   decline?: DeclineModel,
+  /**
+   * «DECIDE AFTER THE DRAW» of a table question that may wait for a draw (2026-10-15): its plate beside the decline's
+   * in the question line (R3 answers it — the early answer let go, the question asked live once the draw has landed).
+   */
+  defer?: DeferPlateModel,
+  /**
+   * The cards the DRAW JUST BROUGHT, in the live album of a discard the player left for after it (2026-10-15): each
+   * wears «НОВАЯ КАРТА» (the colony bonus's badge) — the card the player waited for is findable among the rest.
+   */
+  fresh?: ReadonlyArray<string>,
 };
 
 /** Fallback box before the first measure / under JSDOM (rects are 0). */
@@ -677,7 +695,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
@@ -954,10 +972,14 @@ export default defineComponent({
     pickDecline(): DeclineModel | undefined {
       return this.selectActive ? this.select?.decline : undefined;
     },
+    /** «Decide after the draw» of a table question that may wait (R3; its plate beside the decline's). */
+    pickDefer(): DeferPlateModel | undefined {
+      return this.selectActive ? this.select?.defer : undefined;
+    },
     /** The question line stands: past the descent for a discard (the header's own block is under the deep crumb), and
-     *  for any pick that can be declined (its plate has nowhere else to stand). */
+     *  for any pick that can be declined or left for after a draw (its plates have nowhere else to stand). */
     questionShown(): boolean {
-      return this.selectActive && (this.questionAskShown || this.pickDecline !== undefined);
+      return this.selectActive && (this.questionAskShown || this.pickDecline !== undefined || this.pickDefer !== undefined);
     },
     /** …and it carries the ASK only where the header cannot (past the descent) — never the same block twice. */
     questionAskShown(): boolean {
@@ -1468,6 +1490,10 @@ export default defineComponent({
         return false;
       }
       return colonyBonusFreshFor(colonyResolutionUi.bonusFresh, {colonyName: d.colonyName, index: d.sequence.index}, name);
+    },
+    /** A discard LEFT FOR AFTER THE DRAW: is this the card the draw just brought (2026-10-15)? */
+    isDrawFresh(name: string): boolean {
+      return this.select?.fresh?.includes(name) ?? false;
     },
     /** Select mode: the pre-translated «why not» reason for a non-candidate. */
     selectReason(name: string): string {

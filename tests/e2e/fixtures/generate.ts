@@ -5406,8 +5406,8 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
 
 // ── mu-research-colony: the FIELD LOCK of 2026-10-14 — «Научная колония» played with «Марсианский университет» on the
 //    table. One press, three stages: the play draws 2, asks for its colony (a live step hosted INSIDE the hand), and
-//    only then does the university's science tag ask its discard — an honest follow-up (the play's own draw comes
-//    before it, TR51 `HIDDEN_DRAW_NOTE`), whose one answer is a card from the hand: the hand ALBUM. Blue (seat 0) holds
+//    only then does the university's science tag ask its discard — left for after the draw (the play's own draw comes
+//    before it; answerable now too since 2026-10-15), whose one answer is a card from the hand: the hand ALBUM. Blue (seat 0) holds
 //    three animal holders, so Miranda's build bonus is a real target pick (asked on the colony stage, riding the
 //    colony's own POST); Luna's pays M€ with no question. Two seats (no solo colony-removal pick), Miranda / Luna /
 //    Europa / Callisto open, 100 M€, Research Colony + 12 cards in hand. ──
@@ -5444,6 +5444,40 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   if (game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) ||
       card === undefined || !blue.canPlay(card)) {
     throw new Error(`${name}: expected blue on the move with Research Colony playable (active=${game.activePlayer.id})`);
+  }
+  write(name, game);
+}
+
+// ── mu-olympus: THE OWNER'S PHOTO of 2026-10-14 22:21 — «Марсианский университет» played under «Конференция на
+//    Олимпе» holding a science. Two table questions in one play: Olympus asks first («remove a science to draw a
+//    card, or add one»), the university after it («discard a card to draw one»). Since 2026-10-15 the university WAITS
+//    for Olympus' answer in the composer, then — when that answer draws — may be answered now or LEFT FOR AFTER THE DRAW
+//    (asked live with Olympus' card in the hand, «НОВАЯ КАРТА»). Two seats, 100 M€, Mars University + 10 cards in hand
+//    (the photo's 11), Olympus on blue's table with 1 science (the deck's own copies — one instance of every card). ──
+{
+  const name = 'mu-olympus';
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false,
+    customCorporationsList: [CardName.CREDICOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  moveToDeckTop(game, CardName.OLYMPUS_CONFERENCE);
+  const olympus = game.projectDeck.drawOrThrow(game);
+  olympus.resourceCount = 1;
+  blue.playedCards.push(olympus);
+  moveToDeckTop(game, CardName.MARS_UNIVERSITY);
+  blue.cardsInHand.length = 0;
+  blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  while (blue.cardsInHand.length < 11) {
+    blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+  blue.megaCredits = 100;
+  red.megaCredits = 40;
+  runAllActions(game);
+  const card = blue.cardsInHand.find((c) => c.name === CardName.MARS_UNIVERSITY);
+  if (game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) ||
+      card === undefined || !blue.canPlay(card) || olympus.name !== CardName.OLYMPUS_CONFERENCE) {
+    throw new Error(`${name}: expected blue on the move with Mars University playable under Olympus (active=${game.activePlayer.id})`);
   }
   write(name, game);
 }

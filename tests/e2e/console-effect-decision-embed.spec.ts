@@ -411,8 +411,8 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
   test('«свернуть» → back: the embedded question returns INSIDE the workspace', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, DRAW_AND_TAG, ...FILLER]);
     // A LIVE decision needs a question the composer could not ask: the university on the table (its own question
-    // declined in its composer), then a science tag whose play DRAWS — the card the player might discard does not exist
-    // before the press, so the university's question is an honest follow-up (TR51, `HIDDEN_DRAW_NOTE`).
+    // declined in its composer), then a science tag whose play DRAWS — the university's question may wait for that card
+    // (2026-10-15, `tableQuestionDeferral`); left for after the draw, it is asked LIVE.
     await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'decline'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
     await cinematicBeat(page, 1500, 'the first play\'s workspace finishes its leave before the next one opens');

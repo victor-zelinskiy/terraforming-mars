@@ -23,7 +23,8 @@ import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {cast} from '../../src/common/utils/utils';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
-import {HIDDEN_DRAW_NOTE, playPreviewWithTableQuestions} from '../../src/server/models/tableQuestions';
+import {DEFERRABLE_DRAW_NOTE, playPreviewWithTableQuestions} from '../../src/server/models/tableQuestions';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {parkedBatchTailLength, replayBatch} from '../../src/server/inputs/deferredInputBatch';
 import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
 
@@ -32,8 +33,9 @@ import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
  * pre-select» of 2026-10-12). A reaction the play wakes that ASKS the player (Olympus Conference, Mars University,
  * Pharmacy Union, Viral Enhancers, Splice, Recyclon) is one more step of the play's preview — the SAME prompt its live
  * hook defers, addressed to the reacting card — so its answer rides the play's ONE POST and lands wherever the live
- * queue raises it (the addressee steps forward). A question whose answer is hidden before the press (a discard after a
- * draw of the same play) or depends on an earlier answer stays an honest follow-up and says why.
+ * queue raises it (the addressee steps forward). A discard after a draw of the same play may be answered NOW or AFTER
+ * THE DRAW (2026-10-15 — the step names who draws first); a question whose existence depends on an earlier answer stays
+ * an honest follow-up and says why.
  */
 type Table = {game: IGame, player: TestPlayer, card: IProjectCard};
 
@@ -181,18 +183,114 @@ describe('tableQuestions — the table\'s questions are pre-collected', () => {
     expect(t.player.cardsInHand.some((c) => c.name === CardName.MARTIAN_RAILS)).is.false;
   });
 
-  it('HIDDEN — a play that DRAWS (Research, 2 cards) keeps Mars University a follow-up; the second Olympus question depends on the first', () => {
+  it('MAY WAIT — a play that DRAWS (Research, 2 cards): Mars University\'s discards are steps that may wait from the start; the second Olympus question depends on the first', () => {
     const t = table(new Research());
     const olympus = new OlympusConference();
     olympus.resourceCount = 1;
     t.player.cardsInHand.push(new MartianRails());
     t.player.playedCards.push(olympus, new MarsUniversity());
     const preview = playPreviewWithTableQuestions(t.player, t.card);
-    expect(tableSteps(preview).map((s) => s.reaction?.card), 'only the first Olympus question').deep.eq([CardName.OLYMPUS_CONFERENCE]);
+    const steps = tableSteps(preview);
+    expect(steps.map((s) => s.reaction?.card), 'the first Olympus question, then both of the university\'s')
+      .deep.eq([CardName.OLYMPUS_CONFERENCE, CardName.MARS_UNIVERSITY, CardName.MARS_UNIVERSITY]);
     const olympusFacts = preview.forecast!.facts.filter((f) => f.source.name === CardName.OLYMPUS_CONFERENCE);
     expect(olympusFacts.map((f) => f.preselect !== undefined)).deep.eq([true, false]);
     expect(olympusFacts[1].note).eq('Asked after this play: it depends on the answer above');
-    expect(preview.forecast!.facts.filter((f) => f.source.name === CardName.MARS_UNIVERSITY).every((f) => f.preselect === undefined && f.note === HIDDEN_DRAW_NOTE)).is.true;
+    const [first, second] = steps.slice(1);
+    expect(first.reaction?.drawnBefore, 'Research draws its two before the university asks; the second Olympus question may draw too')
+      .deep.eq([{card: CardName.RESEARCH, cards: 2}, {card: CardName.OLYMPUS_CONFERENCE}]);
+    expect(first.reaction?.afterDraw, 'and the first Olympus answer is a gate').deep.eq([olympusFacts[0].id]);
+    expect(second.reaction?.afterDraw, 'the second discard also waits on the first (its discard draws)').to.include(first.reaction!.fact);
+    const universityFacts = preview.forecast!.facts.filter((f) => f.source.name === CardName.MARS_UNIVERSITY);
+    expect(universityFacts.every((f) => f.preselect !== undefined && f.note === DEFERRABLE_DRAW_NOTE)).is.true;
+  });
+
+  describe('THE OWNER\'S CASE (2026-10-15) — playing Mars University under Olympus Conference holding a science', () => {
+    function owners(): {t: Table, olympus: OlympusConference} {
+      const t = table(new MarsUniversity());
+      const olympus = new OlympusConference();
+      olympus.resourceCount = 1;
+      t.player.cardsInHand.push(new MartianRails());
+      t.player.playedCards.push(olympus);
+      return {t, olympus};
+    }
+
+    it('Olympus first, the university\'s discard after it — waiting for Olympus\' answer, never handed on', () => {
+      const {t} = owners();
+      const preview = playPreviewWithTableQuestions(t.player, t.card);
+      const steps = tableSteps(preview);
+      expect(steps.map((s) => s.reaction?.card)).deep.eq([CardName.OLYMPUS_CONFERENCE, CardName.MARS_UNIVERSITY]);
+      const olympusFact = preview.forecast!.facts.find((f) => f.source.name === CardName.OLYMPUS_CONFERENCE)!;
+      expect(steps[1].reaction?.afterDraw).deep.eq([olympusFact.id]);
+      expect(steps[1].reaction?.drawnBefore, 'nothing draws before it whatever the answers').is.undefined;
+      const discard = (steps[1].input as OrOptionsModel).options[0] as unknown as {cards: Array<{name: string}>};
+      expect(discard.cards.map((c) => c.name), 'the hand the play leaves — the university itself is not a candidate').deep.eq([CardName.MARTIAN_RAILS]);
+    });
+
+    it('«remove to draw» AND the discard chosen NOW: both land — the chosen card discarded, Olympus\' card kept, nothing asked after the press', () => {
+      const {t, olympus} = owners();
+      const preview = playPreviewWithTableQuestions(t.player, t.card);
+      const [olympusStep, universityStep] = tableSteps(preview);
+      replayBatch(t.player, [
+        playHead(t),
+        addressed(universityStep, {type: 'or', index: 0, response: {type: 'card', cards: [CardName.MARTIAN_RAILS]}}),
+        addressed(olympusStep, {type: 'or', index: 0, response: {type: 'option'}}),
+      ]);
+      expectActionMenu(t);
+      expect(parkedBatchTailLength(t.player)).eq(0);
+      expect(olympus.resourceCount, 'the science spent on the draw').eq(0);
+      expect(t.player.cardsInHand.some((c) => c.name === CardName.MARTIAN_RAILS), 'Martian Rails discarded').is.false;
+      expect(t.player.cardsInHand.length, 'Olympus drew one, the university swapped Martian Rails for another').eq(2);
+    });
+
+    it('«remove to draw» with the discard LEFT FOR AFTER THE DRAW: the batch carries Olympus alone — the university asks LIVE, the drawn card among its candidates', () => {
+      const {t, olympus} = owners();
+      const preview = playPreviewWithTableQuestions(t.player, t.card);
+      const [olympusStep] = tableSteps(preview);
+      replayBatch(t.player, [
+        playHead(t),
+        addressed(olympusStep, {type: 'or', index: 0, response: {type: 'option'}}),
+      ]);
+      expect(olympus.resourceCount).eq(0);
+      const question = cast(t.player.getWaitingFor(), OrOptions);
+      expect(question.choiceContext?.source.card, 'the university\'s own question, live').eq(CardName.MARS_UNIVERSITY);
+      const drawn = t.player.cardsInHand.find((c) => c.name !== CardName.MARTIAN_RAILS)!;
+      expect(drawn, 'Olympus\' card is in the hand by now').is.not.undefined;
+      const pick = cast(question.options[0], SelectCard);
+      expect(pick.cards.map((c) => c.name)).to.have.members([CardName.MARTIAN_RAILS, drawn.name]);
+      // The player gives up the card Olympus just brought.
+      t.player.process({type: 'or', index: 0, response: {type: 'card', cards: [drawn.name]}} as InputResponse);
+      expectActionMenu(t);
+      expect(t.player.cardsInHand.some((c) => c.name === drawn.name), 'the drawn card discarded').is.false;
+      expect(t.player.cardsInHand.some((c) => c.name === CardName.MARTIAN_RAILS), 'Martian Rails kept').is.true;
+    });
+
+    it('«add a science»: no draw — the discard is an ordinary pre-select and lands over the hand the player saw', () => {
+      const {t, olympus} = owners();
+      const preview = playPreviewWithTableQuestions(t.player, t.card);
+      const [olympusStep, universityStep] = tableSteps(preview);
+      replayBatch(t.player, [
+        playHead(t),
+        addressed(olympusStep, {type: 'or', index: 1, response: {type: 'option'}}),
+        addressed(universityStep, {type: 'or', index: 1, response: {type: 'option'}}),
+      ]);
+      expectActionMenu(t);
+      expect(olympus.resourceCount).eq(2);
+      expect(t.player.cardsInHand.map((c) => c.name), 'declined: nothing discarded, nothing drawn').deep.eq([CardName.MARTIAN_RAILS]);
+    });
+  });
+
+  it('the steps stand in the LIVE QUEUE\'S order — a university played BEFORE the conference still asks after it', () => {
+    const t = table(new InfluentialDiscovery());
+    const olympus = new OlympusConference();
+    olympus.resourceCount = 1;
+    t.player.cardsInHand.push(new MartianRails());
+    t.player.playedCards.push(new MarsUniversity(), olympus, new Supercomputer());
+    const preview = playPreviewWithTableQuestions(t.player, t.card);
+    const steps = tableSteps(preview);
+    expect(steps.map((s) => s.reaction?.card)).deep.eq([CardName.OLYMPUS_CONFERENCE, CardName.MARS_UNIVERSITY]);
+    const olympusFact = preview.forecast!.facts.find((f) => f.source.name === CardName.OLYMPUS_CONFERENCE)!;
+    expect(steps[1].reaction?.afterDraw, 'the gate is read whatever the tableau order').deep.eq([olympusFact.id]);
   });
 
   it('Splice on the OPPONENT asks the card PLAYER: the question is the player\'s pre-select, addressed to Splice', () => {

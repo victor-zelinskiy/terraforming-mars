@@ -77,3 +77,69 @@
         }
     }
 }
+
+/* ══ THE DEFER PLATE — «decide after the draw» (`ConsoleDeferPlate.vue`, 2026-10-15) ═══════════════════════════════════
+   The decline plate's twin for a table question that may wait for a draw (Mars University behind Olympus' «remove to
+   draw»): the same chassis and weight — a button repeated where the eye is, never a focus stop — with a COOL kant where
+   the decline is neutral: waiting is no refusal, the question comes back with the new card in the hand. What waiting
+   buys rides beside the words — who draws first and the cards chip (never struck: it is coming). Paint baseline: no
+   `filter`, no `text-shadow`. */
+.con-defer {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+    max-width: 100%;
+    padding: .32rem .8rem .32rem .45rem;
+    border-radius: .55rem;
+    background: linear-gradient(180deg, rgba(22, 46, 62, 0.92), rgba(12, 26, 38, 0.92));
+    box-shadow:
+        inset 0 0 0 .06rem rgba(110, 214, 240, 0.5),
+        0 .25rem .8rem rgba(0, 0, 0, 0.45);
+    color: #dff5fc;
+    white-space: nowrap;
+
+    &__glyph {
+        flex: 0 0 auto;
+    }
+    &__label {
+        flex: 0 0 auto;
+        font-size: .82rem;
+        font-weight: 800;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+    }
+    &__why {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        color: rgba(186, 226, 240, 0.78);
+        font-size: .72rem;
+        font-weight: 600;
+    }
+    &__sep {
+        opacity: .6;
+    }
+    /* The drawer's name yields first (ellipsis in its OWN box) — the label and the chip keep theirs. */
+    &__drawers {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__chip {
+        display: inline-flex;
+        flex: 0 0 auto;
+
+        .action-effect-chip.action-effect-chip {
+            font-size: .85rem;
+            gap: .3rem;
+            padding: .2rem .55rem .2rem .35rem;
+        }
+        .action-effect-chip__icon.action-effect-chip__icon {
+            width: 1.2rem;
+            height: 1.2rem;
+        }
+    }
+}

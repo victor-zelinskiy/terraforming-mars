@@ -481,11 +481,17 @@ export type ActionPreviewStep =
      * A QUESTION OF THE TABLE, not of the card (TR51 — `models/tableQuestions.ts`): a reaction the play wakes asks it
      * (Olympus Conference, Mars University, Pharmacy Union, …) and the composer collects its answer before the press.
      * `card` is the reacting card (the row's «Сработает · <карта>»), `fact` the forecast fact that names it.
-     * `afterDraw` — the facts of EARLIER table questions whose answer may DRAW a card before this one (a discard from
-     * the hand behind Olympus' «remove to draw»): when the answer collected for one of them draws, this question's
-     * candidates are hidden at the press and the composer hands it on as a named follow-up.
+     *
+     * A DISCARD FROM THE HAND BEHIND A DRAW OF THE SAME PLAY is a question the player may answer NOW or AFTER THE DRAW
+     * (the owner's decision 2026-10-15, «Конференция на Олимпе» × «Марсианский университет» —
+     * `common/models/tableQuestionDeferral.ts`): the card drawn first may be the one worth giving up, so the composer
+     * offers the question and lets it wait — an unanswered row posts nothing and is asked live once the draw landed.
+     * `afterDraw` — the facts of EARLIER table questions whose ANSWER may draw a card before this one (Olympus' «remove
+     * to draw», a first Mars University): the row waits for them, then may wait for the draw when the answer draws.
+     * `drawnBefore` — the draws that land before this question WHATEVER the player answers (the card's own draw, an
+     * exact reaction, a question that is itself asked after the press): who draws, and how many when known.
      */
-    reaction?: {card: CardName, fact: string, afterDraw?: ReadonlyArray<string>},
+    reaction?: {card: CardName, fact: string, afterDraw?: ReadonlyArray<string>, drawnBefore?: ReadonlyArray<{card: CardName, cards?: number}>},
   }
   /** A "spend N heat" payment hosted INLINE by the premium SpendHeatContent
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source

@@ -2,9 +2,9 @@
  * «НАУЧНАЯ КОЛОНИЯ» WITH «МАРСИАНСКИЙ УНИВЕРСИТЕТ» ON THE TABLE — the field lock of 2026-10-14.
  *
  * One press, three stages: the play draws 2 cards, asks for its colony (a live step hosted INSIDE the hand), and only
- * then does the university's science tag ask its discard — an honest follow-up (the play's own draw comes before it,
- * TR51 `HIDDEN_DRAW_NOTE`: the card the player might discard does not exist before the press), whose one answer is a
- * card from the hand, so it stands as the hand ALBUM.
+ * then does the university's science tag ask its discard — LEFT FOR AFTER THE DRAW (the play's own draw comes before
+ * it: since 2026-10-15 the composer offers it «now, or after the draw», and the driver leaves it for after), whose one
+ * answer is a card from the hand, so it stands as the hand ALBUM.
  *
  * THE LOCK (the owner's TV, 4K): the album stood on the hand's shelf while the colony step still stood INSIDE that
  * hand. The stack's projection (`consoleState.section`, the deepest frame) said «colonies», so A, RT, the d-pad and X

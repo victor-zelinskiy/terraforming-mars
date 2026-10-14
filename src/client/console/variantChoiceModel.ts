@@ -158,17 +158,7 @@ export function printedVariantRows(renderData: CardComponent | undefined, count:
 }
 
 /**
- * Does an option DRAW a card when chosen — its own server chips (`metadata.effects` — a cards gain) or a discard that
- * buys cards (`discardPrompt.exchange`)? Read by a table question that a draw above it would hide (TR51,
- * `reaction.afterDraw`).
+ * Does an option DRAW a card when chosen? The ONE reading lives with the rule that needs it
+ * (`common/models/tableQuestionDeferral.ts` — a discard behind a draw may wait for it); re-exported for the readers here.
  */
-export function optionDraws(option: unknown): boolean {
-  const o = option as {metadata?: {effects?: ReadonlyArray<{direction?: string, icon?: string}>}, discardPrompt?: {exchange?: {icon?: string}}, options?: ReadonlyArray<unknown>};
-  if ((o.metadata?.effects ?? []).some((e) => e.direction === 'gain' && e.icon === 'cards')) {
-    return true;
-  }
-  if (o.discardPrompt?.exchange?.icon === 'cards') {
-    return true;
-  }
-  return (o.options ?? []).some((inner) => optionDraws(inner));
-}
+export {optionDraws} from '@/common/models/tableQuestionDeferral';

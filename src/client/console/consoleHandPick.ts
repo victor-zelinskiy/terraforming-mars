@@ -27,6 +27,7 @@ import {DiscardPromptMeta, SelectCardModel} from '@/common/models/PlayerInputMod
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {isHandPick} from '@/client/console/handPickRouting';
 import type {DeclineModel} from '@/client/console/optionalChoice';
+import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -91,6 +92,13 @@ export type ConsoleHandPickRequest = {
    */
   decline?: DeclineModel;
   /**
+   * The pick answers a TABLE QUESTION THAT MAY WAIT FOR A DRAW (2026-10-15 — Mars University behind Olympus' «remove to
+   * draw»): the album's question line carries a second plate, R3 «Решить после добора», and R3 answers it
+   * (`deferConsoleHandPick`) — whatever was chosen before the press is let go and the question is asked live once the
+   * draw has landed. Never B (B is one level back, the old answer kept).
+   */
+  defer?: DeferPlateModel;
+  /**
    * What B does here, as the bar names it (an i18n key; default «Назад»). An album that IS the decision (the live
    * effect decision's `directPick`) has no screen behind it — its B is the decision's own «Свернуть».
    */
@@ -109,6 +117,7 @@ export const consoleHandPickState = reactive({
 let resolveCb: ((cards: ReadonlyArray<CardName>) => void) | undefined;
 let cancelCb: (() => void) | undefined;
 let declineCb: (() => void) | undefined;
+let deferCb: (() => void) | undefined;
 
 export function isConsoleHandPickActive(): boolean {
   return consoleHandPickState.active;
@@ -137,6 +146,7 @@ export function enterConsoleHandPick(
   onResolve: (cards: ReadonlyArray<CardName>) => void,
   onCancel?: () => void,
   onDecline?: () => void,
+  onDefer?: () => void,
 ): void {
   const selectableSet = new Set(request.selectable);
   consoleHandPickState.request = request;
@@ -146,6 +156,7 @@ export function enterConsoleHandPick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   declineCb = request.decline !== undefined ? onDecline : undefined;
+  deferCb = request.defer !== undefined ? onDefer : undefined;
   consoleHandPickState.active = true;
 }
 
@@ -155,6 +166,16 @@ export function declineConsoleHandPick(): void {
     return;
   }
   const cb = declineCb;
+  resetConsoleHandPick();
+  cb();
+}
+
+/** R3 on a pick that may wait for a draw: deliver «decide after the draw» to the waiting composer (a no-op otherwise). */
+export function deferConsoleHandPick(): void {
+  if (!consoleHandPickState.active || deferCb === undefined) {
+    return;
+  }
+  const cb = deferCb;
   resetConsoleHandPick();
   cb();
 }
@@ -189,6 +210,7 @@ export function resetConsoleHandPick(): void {
   resolveCb = undefined;
   cancelCb = undefined;
   declineCb = undefined;
+  deferCb = undefined;
 }
 
 /**

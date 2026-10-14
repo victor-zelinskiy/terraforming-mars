@@ -11,11 +11,12 @@ import {InputResponse} from '../../src/common/inputs/InputResponse';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
 import {AddressableInput, PreselectAddress, answerAddressOf, reaskedBy} from '../../src/common/inputs/preselectAddress';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '../../src/common/models/ActionPreviewModel';
-import {OrOptionsModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel} from '../../src/common/models/PlayerInputModel';
+import {OrOptionsModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectPlayerModel} from '../../src/common/models/PlayerInputModel';
 import {PlayerInput} from '../../src/server/PlayerInput';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {IGame} from '../../src/server/IGame';
 import {playPreviewWithTableQuestions} from '../../src/server/models/tableQuestions';
+import {reactionDeferral} from '../../src/common/models/tableQuestionDeferral';
 import {drainBatchTail, expireSupersededStagedTail, parkedBatchTailLength, replayBatch} from '../../src/server/inputs/deferredInputBatch';
 import {buildPlayCardBatch} from '../../src/client/console/consolePlayCardComposer';
 import {orderedPreResponses, orderedStepResponses} from '../../src/client/console/consoleActionComposer';
@@ -122,6 +123,18 @@ const PROFILES: ReadonlyArray<Profile> = [
     },
   },
   {
+    // THE OWNER'S CASE of 2026-10-15 across every science play: Olympus Conference holding a science asks first, Mars
+    // University after it — and when Olympus' answer DRAWS, the university's discard may be answered now (the batch
+    // carries it and it lands after the draw) or left for after the draw (the deferred walk: asked live, honestly).
+    label: 'olympus-university',
+    options: REDUX,
+    apply: (_game, player) => {
+      const olympus = new OlympusConference();
+      olympus.resourceCount = 1;
+      player.playedCards.push(olympus, new MarsUniversity());
+    },
+  },
+  {
     label: 'reds',
     options: {turmoilExtension: true, venusNextExtension: true, coloniesExtension: true},
     apply: (game, player) => {
@@ -190,7 +203,7 @@ function answerOf(model: PlayerInputModel, exclude: ReadonlySet<string> = new Se
   case 'or': {
     const m = model as OrOptionsModel;
     for (let i = 0; i < m.options.length; i++) {
-      const inner = answerOf(m.options[i]);
+      const inner = answerOf(m.options[i], exclude);
       if (inner !== undefined) {
         return {type: 'or', index: i, response: inner};
       }
@@ -205,21 +218,45 @@ function answerOf(model: PlayerInputModel, exclude: ReadonlySet<string> = new Se
   }
   case 'payment':
     return {type: 'payment', payment: Payment.of({megacredits: (model as SelectPaymentModel).amount})};
+  case 'colony': {
+    // A colony the play builds (Research Colony) — the first legal tile; a pre-select parked behind it lands after.
+    const colonies = (model as SelectColonyModel).coloniesModel;
+    return colonies.length === 0 ? undefined : {type: 'colony', colonyName: colonies[0].name};
+  }
   default:
     return undefined;
   }
 }
 
-/** The pre-collect the composer would make for one branch: captured answers by step index, the option answer, the pre answers. */
-function capture(preview: ActionPreview, branch: ActionPreviewBranch): {pre: Record<number, unknown>, steps: Record<number, unknown>, option: unknown} | undefined {
+/**
+ * The pre-collect the composer would make for one branch: captured answers by step index, the option answer, the pre
+ * answers. `defer` — the DEFERRED walk: a table question that may wait for a draw above it
+ * (`common/models/tableQuestionDeferral.ts`, the composer's own rule) is left unanswered, as the player who skips it;
+ * `deferred` names those askers. Two discards from the hand never pick the same card (the composer's album refuses a
+ * card another discard already holds).
+ */
+function capture(preview: ActionPreview, branch: ActionPreviewBranch, defer = false):
+  {pre: Record<number, unknown>, steps: Record<number, unknown>, option: unknown, deferred: Array<string>} | undefined {
   const pre: Record<number, unknown> = {};
-  for (const [i, step] of (preview.preSteps ?? []).entries()) {
+  const deferred: Array<string> = [];
+  const preSteps = preview.preSteps ?? [];
+  const questions = preSteps.flatMap((s) => s.kind === 'input' ? [s] : []);
+  const discarded = new Set<string>();
+  for (const [i, step] of preSteps.entries()) {
     if (step.kind === 'input') {
-      const a = answerOf(step.input);
+      if (defer && reactionDeferral(step, questions, (q) => pre[preSteps.indexOf(q as ActionPreviewStep)]).state === 'deferrable') {
+        deferred.push(step.reaction!.card);
+        continue;
+      }
+      const a = answerOf(step.input, discarded);
       if (a === undefined) {
         return undefined;
       }
       pre[i] = a;
+      const nested = (a as {response?: {type?: string, cards?: Array<string>}}).response;
+      if (nested?.type === 'card') {
+        nested.cards?.forEach((c) => discarded.add(c));
+      }
     }
   }
   const steps: Record<number, unknown> = {};
@@ -238,6 +275,11 @@ function capture(preview: ActionPreview, branch: ActionPreviewBranch): {pre: Rec
       continue;
     }
     const exclude = new Set<string>((step.dedupeFromSteps ?? []).flatMap((j) => chosen.get(j) ?? []));
+    // The card's OWN discard never takes a card a table question already discards (Sponsored Academies under Mars
+    // University — the composer's album refuses it, «Already chosen for another discard»).
+    if ((step.input as {discardPrompt?: unknown}).discardPrompt !== undefined) {
+      discarded.forEach((c) => exclude.add(c));
+    }
     const a = answerOf(step.input, exclude);
     if (a === undefined) {
       return undefined;
@@ -254,7 +296,7 @@ function capture(preview: ActionPreview, branch: ActionPreviewBranch): {pre: Rec
       return undefined;
     }
   }
-  return {pre, steps, option};
+  return {pre, steps, option, deferred};
 }
 
 /** canPlay, or false when the card cannot even be ASKED on this table (a board-bound card on another map). */
@@ -321,7 +363,12 @@ function answerAsThePlayer(player: TestPlayer, input: PlayerInput): boolean {
 
 type Outcome = {failure?: string, info?: string};
 
-function replayOne(Factory: new () => ICard, name: string, module: GameModule, profile: Profile, unaddressed: boolean): Outcome | undefined {
+/**
+ * `defer` — the DEFERRED walk (2026-10-15): every table question that may wait for a draw above it is skipped, as the
+ * player who leaves it for after the draw; it must then be asked live, honestly, and `undefined` means the play has no
+ * such question (nothing to walk).
+ */
+function replayOne(Factory: new () => ICard, name: string, module: GameModule, profile: Profile, unaddressed: boolean, defer = false): Outcome | undefined {
   const a = table(Factory, profile);
   if (a === undefined || !playable(a)) {
     return undefined;
@@ -339,9 +386,12 @@ function replayOne(Factory: new () => ICard, name: string, module: GameModule, p
   if (branch === undefined || !preCollects(preview, branch)) {
     return undefined;
   }
-  const captured = capture(preview, branch);
+  const captured = capture(preview, branch, defer);
   if (captured === undefined) {
     return {info: `${module}/${name} [${profile.label}] :: an answer the guard cannot synthesize (repeat / espionage / an unknown input)`};
+  }
+  if (defer && captured.deferred.length === 0) {
+    return undefined;
   }
 
   const b = table(Factory, profile)!;
@@ -377,14 +427,23 @@ function replayOne(Factory: new () => ICard, name: string, module: GameModule, p
   }
   // The interlopers in front: answered as the player would, the parked answers draining behind them. A TABLE question
   // among them is a pre-select the composer should have collected — unless the forecast named it an honest follow-up.
-  const honest = new Set((preview.forecast?.facts ?? []).filter((f) => f.certainty === 'asks' && f.preselect === undefined).map((f) => f.source.name));
+  const honest = new Set<string>([
+    ...(preview.forecast?.facts ?? []).filter((f) => f.certainty === 'asks' && f.preselect === undefined).map((f) => f.source.name),
+    // The deferred walk's own skips — left for after the draw by the player, asked live by right.
+    ...captured.deferred,
+  ]);
   const askedAfter: Array<string> = [];
+  // Every asker answered as the player after the batch (the deferred walk requires its skips among them).
+  const asked = new Set<string>();
   for (let guard = 0; guard < 8 && parkedBatchTailLength(b.player) > 0; guard++) {
     const live = b.player.getWaitingFor();
     if (live === undefined || isActionMenu(live)) {
       break;
     }
     const asker = live.choiceContext?.source.card;
+    if (asker !== undefined) {
+      asked.add(asker);
+    }
     if (asker !== undefined && asker !== b.card.name && !honest.has(asker)) {
       askedAfter.push(shapeOf(live));
     }
@@ -403,6 +462,32 @@ function replayOne(Factory: new () => ICard, name: string, module: GameModule, p
   }
   if (parked > 0) {
     return {failure: `${where} :: ${parked} pre-selected answer(s) never landed (waiting: ${shapeOf(live)})`};
+  }
+  if (defer) {
+    // A question LEFT FOR AFTER THE DRAW is a promise too: the server asks it live once the draw has landed. Walk the
+    // rest of the play as the player and require every skipped asker to come up.
+    const trail: Array<string> = [];
+    for (let guard = 0; guard < 12; guard++) {
+      const w = b.player.getWaitingFor();
+      if (w === undefined || isActionMenu(w)) {
+        trail.push(w === undefined ? 'nothing' : 'menu');
+        break;
+      }
+      trail.push(shapeOf(w));
+      const asker = w.choiceContext?.source.card ?? w.discardPrompt?.source?.card;
+      if (asker !== undefined) {
+        asked.add(asker);
+      }
+      if (!answerAsThePlayer(b.player, w)) {
+        trail.push('(unanswerable)');
+        break;
+      }
+    }
+    const silent = [...new Set(captured.deferred)].filter((c) => !asked.has(c));
+    if (silent.length > 0) {
+      return {failure: `${where} :: LEFT FOR AFTER THE DRAW, NEVER ASKED — ${silent.join(', ')} (walked: ${trail.join(' → ')})`};
+    }
+    return {};
   }
   if (live === undefined || isActionMenu(live)) {
     return {};
@@ -427,13 +512,13 @@ function replayOne(Factory: new () => ICard, name: string, module: GameModule, p
   return {};
 }
 
-function sweep(unaddressed: boolean): {failures: Array<string>, infos: Array<string>, verified: number} {
+function sweep(unaddressed: boolean, defer = false): {failures: Array<string>, infos: Array<string>, verified: number} {
   const failures: Array<string> = [];
   const infos: Array<string> = [];
   let verified = 0;
   forEachInScopeProjectCard((Factory, name, module) => {
     for (const profile of PROFILES) {
-      const outcome = replayOne(Factory, name, module, profile, unaddressed);
+      const outcome = replayOne(Factory, name, module, profile, unaddressed, defer);
       if (outcome === undefined) {
         continue;
       }
@@ -463,6 +548,18 @@ describe('card-play replay coverage (the pre-select contract for PLAYS)', () => 
     const fixed = [...LEFTOVER_PRESELECT_WORKLIST].filter((name) => !leaking.has(name));
     expect(unexpected, `\n${unexpected.join('\n')}\n`).is.empty;
     expect(fixed, `fixed — remove from LEFTOVER_PRESELECT_WORKLIST:\n${fixed.join('\n')}`).is.empty;
+  }).timeout(600_000);
+
+  it('a discard LEFT FOR AFTER THE DRAW is asked live once the draw has landed — every play whose table question may wait (2026-10-15)', () => {
+    const {failures, verified} = sweep(false, true);
+    if (process.env.TM_REPLAY_COVERAGE_VERBOSE !== undefined) {
+      console.log(`
+[deferred walk] walked ${verified} play(s)`);
+    }
+    // The walk must find plays to defer: every science play under Olympus + Mars University, every drawing play under
+    // the university — a table that stopped dealing them would pass vacuously.
+    expect(verified, 'plays walked with a question left for after the draw').is.greaterThan(20);
+    expect(failures, `\n${failures.join('\n')}\n`).is.empty;
   }).timeout(600_000);
 
   it('every input step and every branch pick of an in-scope play preview is ADDRESSED (the composer stamps what the preview carries)', () => {

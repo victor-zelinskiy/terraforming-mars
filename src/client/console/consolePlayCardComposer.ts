@@ -729,6 +729,11 @@ export function playPrimaryVerb(ctx: {
   focused: PlayFocusTarget,
   /** For a `picker` row: does it already hold an answer? */
   pickAnswered?: boolean,
+  /**
+   * For a `picker` row: a table question LEFT FOR AFTER THE DRAW (2026-10-15) — unanswered and valid as it is, so A
+   * here is «Выбрать сейчас» (answer it before the draw), never a bare «Выбрать» that reads as owed.
+   */
+  pickDeferred?: boolean,
   primary: PrimaryActionState,
   /**
    * The READY commit is a DOOR whose verb the bar must repeat word for word
@@ -751,6 +756,9 @@ export function playPrimaryVerb(ctx: {
     }
   }
   if (ctx.focused === 'picker') {
+    if (ctx.pickAnswered !== true && ctx.pickDeferred === true) {
+      return {label: 'Choose now', enabled: true};
+    }
     return {label: ctx.pickAnswered === true ? 'Change' : 'Select', enabled: true};
   }
   if (ctx.focused === 'variant') {

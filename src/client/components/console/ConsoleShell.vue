@@ -2176,7 +2176,8 @@ import {probeTick} from '@/client/console/probeTick';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {deferredDiscardKey, freshCardsForDeferredDiscard} from '@/client/console/deferredDiscardFresh';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -2373,6 +2374,13 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  * refusal must not become a render dependency of anything.
  */
 let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
+
+/**
+ * THE FRESH-CARD FOCUS of the open hand pick has been given (2026-10-15): a question left for after a draw opens on the
+ * card the draw brought — once per pick (the player's own cursor is never taken back). Plain module state: the watcher
+ * that reads it is its only consumer.
+ */
+let freshPickFocusGiven = false;
 
 /**
  * THE PARLIAMENT'S LEAVE NET (v3 В1): the director's section dissolve is ~170 ms and reports back when it
@@ -7141,6 +7149,19 @@ export default defineComponent({
     handSelectUiActive(): boolean {
       return this.handSelectTaskActive || this.handPickActive;
     },
+    /**
+     * Where the card the DRAW JUST BROUGHT stands among the open pick's entries (-1 = none yet): the album opens while
+     * the intake still holds the view, so the newcomer joins the entries a beat AFTER the pick stood up — the watcher
+     * below moves the cursor onto it then (2026-10-15).
+     */
+    freshPickFocusAt(): number {
+      if (!this.handSelectUiActive || this.deferredDiscardFresh.length === 0) {
+        return -1;
+      }
+      const fresh = new Set(this.deferredDiscardFresh);
+      const selectable = new Set(this.handSelectSelectableNames);
+      return this.handEntries.findIndex((e) => fresh.has(e.card.name) && selectable.has(e.card.name));
+    },
     /** The «suitable only» filter of whichever select source is active. */
     handSelectSuitableOnly(): boolean {
       return this.handPickActive ? consoleHandPickState.suitableOnly : this.consoleState.select.suitableOnly;
@@ -7157,6 +7178,27 @@ export default defineComponent({
     handPickDeclineLive(): boolean {
       return this.handPickActive && consoleHandPickState.request?.decline !== undefined && !isCardDiscardActive() &&
         (this.handSelectSingle || consoleHandPickState.selected.length === 0);
+    },
+    /**
+     * R3 IS «DECIDE AFTER THE DRAW» of the open pick right now (2026-10-15): a single pick answering a table question
+     * that may wait for a draw (`request.defer`). Never while a discard cinematic is playing.
+     */
+    handPickDeferLive(): boolean {
+      return this.handPickActive && this.handSelectSingle && consoleHandPickState.request?.defer !== undefined && !isCardDiscardActive();
+    },
+    /**
+     * The cards THE DRAW JUST BROUGHT, in the album of a discard the player LEFT FOR AFTER THE DRAW (2026-10-15): the
+     * composer armed its askers and the hand it left at the commit; the live question of that asker, in that action,
+     * marks the newcomers «НОВАЯ КАРТА» (`deferredDiscardFresh`).
+     */
+    deferredDiscardFresh(): ReadonlyArray<string> {
+      // A composer's own PRE-SELECT (before the commit) has nothing fresh; the live decision's album (`directPick`)
+      // rides the same bridge and is exactly the reader.
+      if (this.handPickActive && consoleHandPickState.request?.leaving === 'none') {
+        return [];
+      }
+      return freshCardsForDeferredDiscard(this.discardMeta?.source?.card, this.playerView.cardsInHand.map((c) => c.name),
+        deferredDiscardKey(this.playerView.game.generation, this.playerView.thisPlayer.actionsTakenThisGame));
     },
     /** The A-verb of whichever select source is active (server buttonLabel /
      *  the pick request's verb — 'Discard' / 'Reveal' / 'Link card' / …). */
@@ -7356,6 +7398,10 @@ export default defineComponent({
         // THE DECLINE of an optional pick — its plate in the question line (RT answers it). A MULTI pick declines
         // only while nothing is picked: from the first pick on RT confirms the set, and the plate steps aside.
         decline: this.handPickDeclineLive ? pick?.decline : undefined,
+        // …«decide after the draw» of a table question that may wait (R3 — its plate beside the decline's, 2026-10-15)…
+        defer: this.handPickDeferLive ? pick?.defer : undefined,
+        // …and the cards the draw brought, in the live album of a question left for after it.
+        fresh: this.deferredDiscardFresh.length > 0 ? [...this.deferredDiscardFresh] : undefined,
       };
     },
     /** A hand-served shell task (play-from-hand OR mandatory hand-select) — the
@@ -9275,6 +9321,13 @@ export default defineComponent({
           const decline = this.handPickDeclineLive ? consoleHandPickState.request?.decline : undefined;
           if (decline !== undefined) {
             cmds.push({control: 'triggerR', label: typeof decline.label === 'string' ? decline.label : translateMessage(decline.label), priority: 1});
+          }
+          // …and «decide after the draw» of a table question that may wait (2026-10-15) — R3, its plate beside.
+          const defer = this.handPickDeferLive ? consoleHandPickState.request?.defer : undefined;
+          if (defer !== undefined) {
+            // The bar's SHORT form («После добора» — the plate above says it whole, with who draws): a tight fhd bar
+            // keeps it beside the decline instead of dropping it.
+            cmds.push({control: 'stickR', label: 'After the draw', priority: 1});
           }
         } else {
           cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
@@ -12291,6 +12344,30 @@ export default defineComponent({
         setPickSuppressed(now);
       },
     },
+    /**
+     * The card the draw brought joined the open pick's entries: the cursor goes to it — once per pick (2026-10-15).
+     * Seated by NAME, and seated again after the flush: the album's own entries watcher follows the card it was on
+     * (`focusName`, the hand's «focus follows the card» law) and, in the very flush the newcomer arrives in, still names
+     * the stale first card — it would carry the cursor straight back there.
+     */
+    freshPickFocusAt(at: number): void {
+      if (at < 0 || freshPickFocusGiven) {
+        return;
+      }
+      freshPickFocusGiven = true;
+      const name = this.handEntries[at]?.card.name;
+      const seat = (): void => {
+        const i = this.handEntries.findIndex((e) => e.card.name === name);
+        if (i >= 0) {
+          this.consoleState.handIndex = i;
+        }
+      };
+      seat();
+      void this.$nextTick(() => {
+        seat();
+        void this.$nextTick(() => (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible());
+      });
+    },
     /** A phrased pick's latest select look — what the shelf freezes on while it leaves (`pickResumeFreeze`). */
     handSelectProps(v: ConsoleHandSelectMode | undefined): void {
       if (v !== undefined && this.handPickPhrased) {
@@ -12316,9 +12393,8 @@ export default defineComponent({
         this.lastPickSelect = undefined;
       }
       if (now) {
-        const selectable = new Set(this.handSelectSelectableNames);
-        const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
-        this.consoleState.handIndex = idx !== -1 ? idx : 0;
+        freshPickFocusGiven = false;
+        this.consoleState.handIndex = this.firstPickFocusIndex();
         if (!workspaceFrameMounted('hand')) {
           // A HOSTED pick (the resolution action's selection — Turmoil Redux)
           // stands as a STEP of the workspace that asked, in its published
@@ -13318,9 +13394,23 @@ export default defineComponent({
     },
     /** Land the cursor on the first pickable card of a hand select. */
     focusFirstSelectableHandCard(): void {
+      freshPickFocusGiven = false;
+      this.consoleState.handIndex = this.firstPickFocusIndex();
+    },
+    /**
+     * Where a hand pick OPENS: on the card the draw just brought when the player LEFT THE QUESTION FOR AFTER IT
+     * (2026-10-15 — the card they waited for, usually the last of the hand, on a page the album would not open on);
+     * else on the first pickable card.
+     */
+    firstPickFocusIndex(): number {
       const selectable = new Set(this.handSelectSelectableNames);
+      const fresh = new Set(this.deferredDiscardFresh);
+      const freshAt = this.handEntries.findIndex((e) => fresh.has(e.card.name) && selectable.has(e.card.name));
+      if (freshAt !== -1) {
+        return freshAt;
+      }
       const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
-      this.consoleState.handIndex = idx !== -1 ? idx : 0;
+      return idx !== -1 ? idx : 0;
     },
     /**
      * Report the traded colony's COMMITTED track position — GATED on the
@@ -15264,6 +15354,10 @@ export default defineComponent({
         } else if (this.padSection === 'hand' && this.consoleState.sale.active) {
           // The patent sale: R3 = SELECT ALL / UNSELECT ALL.
           this.toggleSelectAllSale();
+        } else if (this.padSection === 'hand' && this.handPickActive && this.handSelectSingle && this.handPickDeferLive) {
+          // A table question that may wait for a draw (2026-10-15): R3 = «Решить после добора» — the early answer let
+          // go, the question asked live once the draw has landed. Its plate stands in the album's question line.
+          deferConsoleHandPick();
         } else if (this.padSection === 'hand' && this.handPickActive && !this.handSelectSingle) {
           // A composer's multi hand pick (Public Plans «reveal any number»): R3 = select every candidate (bounded
           // by max) / clear — the sale's R3. L3 stays the SOURCE (the card being played), as on every contextual
@@ -19880,6 +19974,20 @@ export default defineComponent({
       if (sibling !== undefined) {
         retainWorkspaceOutcomeForNextBatch(sibling.cards.length);
         return;
+      }
+      // …and ONE PRESS, TWO REACTIONS THAT DRAW (2026-10-15 — «Конференция на Олимпе» «remove to draw» + «Марсианский
+      // университет»'s discard chosen before the press, both in the play's ONE response): the second batch is the
+      // play chain's own next stage — a card of the viewer's OWN table drew it — never a standalone band over the board
+      // after the workspace folded. A batch a card of another seat (or no card) sent keeps its own surface.
+      if (isPlayOutcomeHost(host)) {
+        const own = new Set(this.playerView.thisPlayer.tableau.map((c) => c.name as string));
+        const chained = drawnCardsState.events.find((e) =>
+          e.id !== taken && !e.dismissed && e.cards.length - e.takenIndices.size > 0 &&
+          e.source?.type === 'card' && own.has(e.source.cardName));
+        if (chained !== undefined) {
+          retainWorkspaceOutcomeForNextBatch(chained.cards.length);
+          return;
+        }
       }
       // FORCED — same licence as `drawn-complete`: the result's detach is the
       // take, and the batch's own tail must not refuse it.
