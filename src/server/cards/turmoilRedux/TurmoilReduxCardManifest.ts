@@ -49,6 +49,7 @@ import {CompostingInitiative} from './CompostingInitiative';
 import {ResearchStartups} from './ResearchStartups';
 import {EcologicalExperiment} from './EcologicalExperiment';
 import {Supercomputer} from './Supercomputer';
+import {CuttingEdgeDesign} from './CuttingEdgeDesign';
 import {ExpeditionMechs} from './ExpeditionMechs';
 import {InfluentialDiscovery} from './InfluentialDiscovery';
 import {ScientificBreakthrough} from './ScientificBreakthrough';
@@ -256,6 +257,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // (`supercomputerData` — the data here pay 2 M€ for a Science card, the second data unit after Aurorai's) beside
     // an action that puts 2 data on ANY card — the whole card a declaration.
     [CardName.SUPERCOMPUTER]: {Factory: Supercomputer},
+    // Only the module's icon at the bottom left: the SCIENTISTS' plate again; the set's ONE-PLAY card — it ARMS the next
+    // card played this generation, whose global requirements are WAIVED (by kind, never by a number): one declaration,
+    // the class (`cards/armedPlayEffects.ts` · `models/requirementEasing.ts`) reads it.
+    [CardName.CUTTING_EDGE_DESIGN]: {Factory: CuttingEdgeDesign},
     // Only the module's icon at the bottom left: the SCIENTISTS' plate again; the set's SEVENTH mech holder — TR40
     // Forestry Mechs with another B (1 mech off here → a card off the deck): ONE DECLARATION of the Local Shading class.
     [CardName.EXPEDITION_MECHS]: {Factory: ExpeditionMechs},
