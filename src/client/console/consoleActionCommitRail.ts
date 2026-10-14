@@ -312,7 +312,10 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           // capsule ticks on the touchdown, the token sinks into it in `TRANSFER_QUICK_ABSORB_MS` with no settle on the
           // box, and the surface may fold ONE such beat later — a workspace standing ≈ 0.5 s past its own last tick,
           // «Выполняется…» over a card that had already answered, was the pause the A scene paid on every mech.
-          await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing], absorb: 'quick'});
+          // EACH token lands on ITS card (TR44's action: the animal into the hero's capsule, the data onto the Census's
+          // miniature — one link, two touchdowns; one destination for all sent the data into the hero's capsule).
+          const landingOf = (spec: ResourceTransferSpec): TransferPoint | undefined => points[specs.indexOf(spec)] ?? points[landing];
+          await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing], destinationOf: landingOf, absorb: 'quick'});
           // The run resolves on the touchdown; the token is ABSORBED into the card over the quick beat — the card it
           // lands on must still be there for that (folded on the touchdown, the chip hung over the board where its
           // card had been). One beat of the animation clock, never a timer.

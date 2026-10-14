@@ -23,6 +23,9 @@ import {Ants} from '../../src/server/cards/base/Ants';
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {AerialMappers} from '../../src/server/cards/venusNext/AerialMappers';
+import {AquaticResearchStation} from '../../src/server/cards/turmoilRedux/AquaticResearchStation';
+import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
 import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
@@ -236,6 +239,35 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
      * composer's opaque glass («летит в никуда», the owner's TV 2026-10-10). The link lands on the miniature, the
      * surface stands to the touchdown, the miniature's capsule is held, the wave carries no second chip.
      */
+    it('TR44 — a gain through an OPTIONAL choice\'s pick («may add 1 data to ANY card» → the Census): the animal onto the hero and the data onto the miniature are ONE last link; declined, the data is not flown at all', () => {
+      const {p} = table();
+      const station = new AquaticResearchStation();
+      station.resourceCount = 1;
+      const census = new MartianCensus();
+      census.resourceCount = 2;
+      p.playedCards.push(station, new Supercomputer(), census);
+      const branch = branchesOf(p, station)[0];
+      expect(branch, 'the station\'s one branch').is.not.undefined;
+      const stepIndex = branch.steps.findIndex((s) => s.kind === 'input' && s.input.type === 'or');
+      expect(stepIndex, 'the optional data pick is an `or` step').is.greaterThan(-1);
+      const picked = {[stepIndex]: {type: 'or', index: 0, response: {type: 'card', cards: [CardName.MARTIAN_CENSUS]}}};
+      const plan = commitRailPlan(station.name, branch, picked, []);
+      expect(plan?.reward.cause, 'the pick is read THROUGH the choice\'s wrapper').deep.eq([
+        {channel: 'card-resource', resource: 'animal', amount: 1, targetCard: CardName.AQUATIC_RESEARCH_STATION},
+        {channel: 'card-resource', resource: 'data', amount: 1, targetCard: CardName.MARTIAN_CENSUS},
+      ]);
+      expect(plan?.links).deep.eq([[0, 1]]);
+      expect(plan?.holdsSurface, 'the workspace stands to the touchdown on the miniature').is.true;
+      expect(plan?.capsules, 'both capsules held').deep.eq([CardName.AQUATIC_RESEARCH_STATION, CardName.MARTIAN_CENSUS]);
+      expect(commitWaveSpecs(station.name, branch, picked, plan), 'no second chip in the wave').deep.eq([]);
+      const declined = {[stepIndex]: {type: 'or', index: 1, response: {type: 'option'}}};
+      const planDeclined = commitRailPlan(station.name, branch, declined, []);
+      expect(planDeclined?.reward.cause, 'declined: the animal alone — a refused gain is not flown').deep.eq([
+        {channel: 'card-resource', resource: 'animal', amount: 1, targetCard: CardName.AQUATIC_RESEARCH_STATION},
+      ]);
+      expect(commitWaveSpecs(station.name, branch, declined, planDeclined), 'nor does the wave carry it').deep.eq([]);
+    });
+
     it('a gain on ANOTHER card the composer\'s own step chose (Aerial Mappers → Dirigibles): one link onto the miniature, the surface held, its capsule held', () => {
       const {p} = table();
       const mappers = new AerialMappers();

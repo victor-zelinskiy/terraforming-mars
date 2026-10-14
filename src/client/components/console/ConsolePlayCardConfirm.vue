@@ -676,7 +676,7 @@ import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {orOptionDoor} from '@/client/console/handPickRouting';
-import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf} from '@/client/console/optionalChoice';
+import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf, optionalPickInputOf} from '@/client/console/optionalChoice';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -2712,7 +2712,8 @@ export default defineComponent({
       switch (row.kind === 'step' ? row.choice.kind : undefined) {
       case 'card': return cardPickAskKey(row.kind === 'step' ? row.choice.amount : undefined);
       case 'player': return 'Choose a player';
-      case 'or': return 'Choose an option';
+      // An optional choice whose one answer is a pick IS that pick — its kind's verb, never «Choose an option».
+      case 'or': return row.kind === 'step' ? this.optionalPickVerb(row.choice) : 'Choose an option';
       case 'spendHeat': return 'Heat sources';
       default: return 'Select';
       }
@@ -2956,6 +2957,13 @@ export default defineComponent({
       if (merged !== '') {
         return merged;
       }
+      // AN OPTIONAL CHOICE WHOSE ONE ANSWER IS A PICK IS THAT PICK (`optionalPickInputOf`): its row carries the
+      // pick's own title, ahead of the `or` input's own generic «Select one option».
+      const pick = optionalPickInputOf(c.input);
+      const pickTitle = pick !== undefined ? textOf(pick.title) : '';
+      if (pickTitle !== '') {
+        return pickTitle;
+      }
       const t = textOf(c.input.title);
       if (t !== '') {
         return t;
@@ -2963,9 +2971,20 @@ export default defineComponent({
       switch (c.kind) {
       case 'card': return translateText(cardPickAskKey(c.amount));
       case 'player': return translateText('Choose a player');
-      case 'or': return translateText('Choose an option');
+      case 'or': return translateText(this.optionalPickVerb(c));
       default: return '';
       }
+    },
+    /** The verb of an `or` choice: its one pick's ask when the choice IS a pick, else «Choose an option». */
+    optionalPickVerb(c: ComposerChoice): string {
+      const pick = optionalPickInputOf(c.input);
+      if (pick?.type === 'card') {
+        return cardPickAskKey(c.amount);
+      }
+      if (pick?.type === 'player') {
+        return 'Choose a player';
+      }
+      return 'Choose an option';
     },
     pickPlaceholder(c: ComposerChoice): string {
       // The merged pick answers N slots at once ON THE TABLE — the generic
@@ -2976,6 +2995,7 @@ export default defineComponent({
       switch (c.kind) {
       case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' : cardPickAskKey(c.amount));
       case 'player': return translateText('Choose a player');
+      case 'or': return translateText(this.optionalPickVerb(c));
       default: return translateText('Choose an option');
       }
     },

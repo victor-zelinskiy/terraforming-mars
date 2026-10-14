@@ -28,7 +28,7 @@ import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardReso
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, TransferRect, cardResourceKey, extractPlayRewards, isStandardResource, mergeTransferSpecs,
-  railRewardSpecs, railRowKey,
+  pickedCardOf, railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 
@@ -558,9 +558,9 @@ export type SpendContext = {
 };
 
 /** The card a captured `{type: 'card', cards: [X]}` answer picked. */
+/** The card a step's answer picked — the ONE reader (`pickedCardOf`: an optional choice's pick reads through its wrapper). */
 function pickedCard(response: unknown): CardName | undefined {
-  const r = response as {type?: string, cards?: ReadonlyArray<string>} | undefined;
-  return r?.type === 'card' && Array.isArray(r.cards) && r.cards.length === 1 ? r.cards[0] as CardName : undefined;
+  return pickedCardOf(response);
 }
 
 type SourceStep = {step: Extract<ActionPreviewStep, {kind: 'input'}>, response: unknown};

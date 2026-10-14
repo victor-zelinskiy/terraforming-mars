@@ -430,7 +430,7 @@ export function flyRailRewardLink(
   key: string,
   specs: ReadonlyArray<ResourceTransferSpec>,
   originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined,
-  opts: {destination?: TransferPoint, absorb?: 'quick'} = {},
+  opts: {destination?: TransferPoint, destinationOf?: (spec: ResourceTransferSpec) => TransferPoint | undefined, absorb?: 'quick'} = {},
 ): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   const held = entry === undefined ? [] : specs.filter((spec) => entry.cause.includes(spec));
@@ -452,6 +452,9 @@ export function flyRailRewardLink(
     origins,
     arrival: 'auto',
     ...(opts.destination !== undefined ? {destination: opts.destination} : {}),
+    // Two tokens of one link may land on two different cards the surface shows (TR44: the hero's capsule and a
+    // chosen card's miniature) — each spec names its own touchdown.
+    ...(opts.destinationOf !== undefined ? {destinationOf: (spec: ResourceTransferSpec) => opts.destinationOf?.(spec)} : {}),
     ...(opts.absorb !== undefined ? {absorb: opts.absorb} : {}),
     onArrive: (spec) => {
       const live = entryOf(key);

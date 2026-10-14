@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {DISCARD_DECLINE_KEY, declineIsButton, declineResponse, isDeclineOption, optionalChoiceOf} from '../../src/client/console/optionalChoice';
+import {DISCARD_DECLINE_KEY, declineIsButton, declineResponse, isDeclineOption, optionalChoiceOf, optionalPickInputOf} from '../../src/client/console/optionalChoice';
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 
 /**
@@ -34,6 +34,20 @@ describe('optionalChoice — the decline is a button, never a row', () => {
     expect(c.decline.forgone).deep.eq([{direction: 'gain', icon: 'cards', amount: 1}]);
     expect(declineIsButton(c)).is.true;
     expect(declineResponse(c)).deep.eq({type: 'or', index: 1, response: {type: 'option'}});
+  });
+
+  it('TR44 «you may add 1 data to any card»: the choice IS its table pick — the row speaks in the pick\'s words, the decline «Do not add Data»', () => {
+    const pick = {type: 'card', title: 'Select a card — Data: +1', buttonLabel: 'Add resource', cards: [{name: 'Supercomputer'}, {name: 'Martian Census'}], min: 1, max: 1};
+    const input = or([pick, skip('Do not add Data')], 'optional-effect');
+    const c = optionalChoiceOf(input)!;
+    expect(c.pick).eq(0);
+    expect(c.binary).is.false;
+    expect(c.decline.label).eq('Do not add Data');
+    expect(c.decline.forgone, 'the words say what is forgone').deep.eq([]);
+    expect(optionalPickInputOf(input), 'the input the choice IS').deep.eq(pick);
+    expect(optionalPickInputOf(or([leaf('A'), leaf('B'), skip()])), 'a list of answers is no pick').eq(undefined);
+    expect(optionalPickInputOf(or([leaf('Yes'), skip('No')])), 'a yes / no is no pick').eq(undefined);
+    expect(optionalPickInputOf(pick as unknown as PlayerInputModel), 'a bare pick is not an optional choice').eq(undefined);
   });
 
   it('a target list (a steal): the answers stay, the decline goes to the button with the server\'s own words', () => {

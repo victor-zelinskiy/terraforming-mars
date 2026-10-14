@@ -454,12 +454,31 @@ function chosenOptionOf(model: OrOptionsModel, response: unknown): ReadonlyArray
   return opt?.metadata?.effects;
 }
 
-function pickedCardOf(response: unknown): CardName | undefined {
-  const r = response as {type?: string, cards?: ReadonlyArray<string>} | undefined;
-  if (r !== undefined && r.type === 'card' && Array.isArray(r.cards) && r.cards.length > 0) {
+/**
+ * THE CARD A STEP'S ANSWER PICKED — the ONE reader (the reward extractor, the commit rail's spends and VP). An
+ * answer may be wrapped: an OPTIONAL CHOICE's pick (TR44's «may add 1 data to ANY card» — `{or, 0, {card}}`) is the
+ * same pick one level down, and the data it adds lands on that card's miniature in the composer row (PL-162) —
+ * read bare, the wrapper hid the target and the gain fell to the satellite's counter. A declined optional choice
+ * (`{or, i, {option}}`) names no card.
+ */
+export function pickedCardOf(response: unknown): CardName | undefined {
+  const r = response as {type?: string, cards?: ReadonlyArray<string>, response?: unknown} | undefined;
+  if (r === undefined) {
+    return undefined;
+  }
+  if (r.type === 'or') {
+    return pickedCardOf(r.response);
+  }
+  if (r.type === 'card' && Array.isArray(r.cards) && r.cards.length > 0) {
     return r.cards[0] as CardName;
   }
   return undefined;
+}
+
+/** An optional choice answered with its DECLINE: the effect it offered is not made — nothing to fly. */
+export function declinedOptionalChoice(response: unknown): boolean {
+  const r = response as {type?: string, response?: {type?: string}} | undefined;
+  return r?.type === 'or' && r.response?.type === 'option';
 }
 
 /**
@@ -484,7 +503,7 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
   const out: Array<ResourceTransferSpec> = [];
   const claimedSteps = new Set<number>();
 
-  const claimTargetStep = (icon: string): CardName | undefined => {
+  const claimTargetStep = (icon: string): {card: CardName | undefined, declined: boolean} => {
     for (let i = 0; i < args.steps.length; i++) {
       const step = args.steps[i];
       if (claimedSteps.has(i) || step.kind !== 'input' || step.cardResource !== icon) {
@@ -494,9 +513,9 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
         continue; // a REMOVE pick — never a reward target
       }
       claimedSteps.add(i);
-      return pickedCardOf(args.stepResponses[i]);
+      return {card: pickedCardOf(args.stepResponses[i]), declined: declinedOptionalChoice(args.stepResponses[i])};
     }
-    return undefined;
+    return {card: undefined, declined: false};
   };
 
   for (const e of args.effects) {
@@ -510,7 +529,11 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
     } else if (e.note === 'on this card' && e.icon !== 'resources') {
       out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: args.cardName});
     } else if (e.note === 'to a card' && e.icon !== 'resources') {
-      out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: claimTargetStep(e.icon)});
+      const target = claimTargetStep(e.icon);
+      if (target.declined) {
+        continue; // «Do not add …» — the player refused the gain; it is not made and must not be flown
+      }
+      out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: target.card});
     }
   }
 

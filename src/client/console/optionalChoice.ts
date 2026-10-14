@@ -106,3 +106,18 @@ export function declineResponse(choice: OptionalChoice): {type: 'or', index: num
 export function declineIsButton(choice: OptionalChoice | undefined): choice is OptionalChoice {
   return choice !== undefined && !choice.binary;
 }
+
+/**
+ * THE INPUT AN OPTIONAL CHOICE IS — its one pick (a card / player question) when the choice is that pick with a
+ * button decline beside it; `undefined` for a list of answers or a yes / no. A composer's row for such a choice
+ * speaks in the PICK's own words (its title, its ask «Выберите карту-получателя», its kind's verb on the bar) —
+ * never the generic «Choose an option», which TR44's «may add 1 data to any card» printed as «Выберите вариант»
+ * over a row that is a card pick.
+ */
+export function optionalPickInputOf(input: PlayerInputModel | undefined): PlayerInputModel | undefined {
+  const choice = optionalChoiceOf(input);
+  if (!declineIsButton(choice) || choice.pick === undefined) {
+    return undefined;
+  }
+  return (input as OrOptionsModel).options[choice.pick];
+}

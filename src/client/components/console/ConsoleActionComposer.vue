@@ -892,7 +892,7 @@ import {
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft, railFocusKeysOf, consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
-import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf} from '@/client/console/optionalChoice';
+import {DeclineModel, declineIsButton, declineResponse, optionalChoiceOf, optionalPickInputOf} from '@/client/console/optionalChoice';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -1810,7 +1810,8 @@ export default defineComponent({
       switch (missing.kind) {
       case 'card': return translateText(cardPickAskKey(missing.amount));
       case 'player': return translateText('Choose a player');
-      case 'or': return translateText('Choose an option');
+      // An optional choice whose one answer is a pick IS that pick — its kind's verb, never «Choose an option».
+      case 'or': return translateText(this.optionalPickVerb(missing));
       case 'payment': return translateText('Configure payment');
       case 'spendHeat': return translateText('Heat sources');
       default: return '';
@@ -3303,8 +3304,30 @@ export default defineComponent({
       if (source !== undefined && source.kindKey === 'Colony' && typeof source.name === 'string' && source.name !== '') {
         return `${translateText(source.kindKey)} · ${translateText(source.name)}`;
       }
+      // AN OPTIONAL CHOICE WHOSE ONE ANSWER IS A PICK IS THAT PICK (`optionalPickInputOf`): its row carries the
+      // pick's own title, ahead of the `or` input's own (an `OrOptions` always carries the generic «Select one
+      // option») — TR44's «may add 1 data to any card» printed «Выберите вариант» over a row that is a card pick.
+      const pick = optionalPickInputOf(c.input);
+      const pickTitle = pick !== undefined ? textOf(pick.title) : '';
+      if (pickTitle !== '') {
+        return pickTitle;
+      }
       const t = textOf(c.input.title);
-      return t !== '' ? t : translateText(CHOICE_KIND_LABEL[c.kind] ?? 'Choose an option');
+      if (t !== '') {
+        return t;
+      }
+      return translateText(c.kind === 'or' ? this.optionalPickVerb(c) : (CHOICE_KIND_LABEL[c.kind] ?? 'Choose an option'));
+    },
+    /** The verb of an `or` choice: its one pick's ask when the choice IS a pick, else «Choose an option». */
+    optionalPickVerb(c: ComposerChoice): string {
+      const pick = optionalPickInputOf(c.input);
+      if (pick?.type === 'card') {
+        return cardPickAskKey(c.amount);
+      }
+      if (pick?.type === 'player') {
+        return 'Choose a player';
+      }
+      return 'Choose an option';
     },
     pickPlaceholder(c: ComposerChoice): string {
       if (c.repeatAction === true) {
@@ -3313,7 +3336,7 @@ export default defineComponent({
       if (c.kind === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1) {
         return translateText('Pick cards from hand');
       }
-      return translateText(c.kind === 'card' ? cardPickAskKey(c.amount) : c.kind === 'player' ? 'Choose a player' : 'Choose an option');
+      return translateText(c.kind === 'card' ? cardPickAskKey(c.amount) : c.kind === 'player' ? 'Choose a player' : this.optionalPickVerb(c));
     },
     choiceMissing(c: ComposerChoice): boolean {
       if (c.repeatAction === true) {
@@ -4289,7 +4312,7 @@ export default defineComponent({
       switch (c.kind) {
       case 'card': return cardPickAskKey(c.amount);
       case 'player': return 'Choose a player';
-      case 'or': return 'Choose an option';
+      case 'or': return this.optionalPickVerb(c);
       case 'payment': return 'Configure payment';
       case 'spendHeat': return 'Heat sources';
       default: return 'Select';

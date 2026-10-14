@@ -443,6 +443,13 @@ export type ResourceTransferRun = {
    */
   destination?: TransferPoint;
   /**
+   * A PER-SPEC destination, aligned with `specs` by index — for a run whose tokens land on DIFFERENT cards the
+   * caller shows (TR44's action: the animal into the hero's capsule, the data onto the chosen card's miniature in
+   * the composer row — one link, two touchdowns). `undefined` for a spec falls back to `destination`, then to the
+   * spec's own home.
+   */
+  destinationOf?: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined;
+  /**
    * THE RESULT OUTLIVES ITS SURFACE (PL-165 — the second half of the law of visible ends). A gain whose destination
    * EXISTS but is COVERED by the standing surface that produced it (the ДОП. РЕСУРСЫ satellite under the action
    * composer's glass) is not dropped: its token is born on the visible source, pops out of it, and WAITS in the
@@ -549,7 +556,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint, detached?: boolean}> = [];
   for (const [i, e] of specEntries.entries()) {
     const skippedHere: Array<SkippedEnd> = [];
-    const row = run.destination ?? targetPointFor(e.spec, skippedHere);
+    const row = run.destinationOf?.(e.spec, i) ?? run.destination ?? targetPointFor(e.spec, skippedHere);
     const sourcePoint = e.origin ?? run.source.point ??
       (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
     if (row === undefined && sourcePoint !== undefined && detachable(run, e.spec, skippedHere)) {
@@ -646,7 +653,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         uiScale,
         hold: run.arrival === 'hold',
         pace,
-        launch: transferLaunchFor(e.spec, run.destination !== undefined),
+        launch: transferLaunchFor(e.spec, run.destination !== undefined || run.destinationOf !== undefined),
         ...(run.absorb === undefined ? {} : {absorb: run.absorb}),
       });
       const loss = e.spec.direction === 'loss';
@@ -703,7 +710,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
 
 /** «Is this gain's destination COVERED by a surface that will leave?» — only then may its token wait for it (PL-165). */
 function detachable(run: ResourceTransferRun, spec: ResourceTransferSpec, skipped: ReadonlyArray<SkippedEnd>): boolean {
-  return run.detachCovered === true && run.arrival === 'auto' && run.destination === undefined &&
+  return run.detachCovered === true && run.arrival === 'auto' && run.destination === undefined && run.destinationOf === undefined &&
     spec.direction !== 'loss' && skipped.some((s) => !s.verdict.visible && s.verdict.why === 'covered');
 }
 
