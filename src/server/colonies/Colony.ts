@@ -571,6 +571,21 @@ export abstract class Colony implements IColony {
    * marked `colonyRepeat` with the card as its source instead of
    * `colonyBonus` (which routes the colony workspace).
    */
+  /**
+   * THE BUILD'S CARD BONUS RIDES THE BUILD. «Add a resource to a card» defers at its own priority
+   * (`GAIN_RESOURCE_OR_PRODUCTION`), which sorts AFTER every question the same press woke on the player's table
+   * (Mars University's discard at `DISCARD_AND_DRAW`): «Научная колония» on Miranda built the colony, asked the
+   * university, and only then placed the animal — the colony's own answer, pre-collected with the colony on its
+   * stage, waited parked behind a foreign question while the colony stage stood «awaiting» over it (the field lock of
+   * 2026-10-14). A build's bonus is the build's — it resolves next, at the build's own priority, before anything
+   * queued behind the build. Rules-neutral (the two effects are independent); a trade's income and every other
+   * bonus keep their own order.
+   */
+  private buildBonusPriority(bonusType: ColonyBenefit, benefit: ColonyBenefitRole): Priority | undefined {
+    const cardResource = bonusType === ColonyBenefit.ADD_RESOURCES_TO_CARD || bonusType === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD;
+    return benefit === 'build' && cardResource ? Priority.BUILD_COLONY : undefined;
+  }
+
   private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer, via?: CardName): undefined | PlayerInput {
     const game = player.game;
 
@@ -966,7 +981,7 @@ export abstract class Colony implements IColony {
          */
         return action.execute();
       } else {
-        game.defer(action);
+        game.defer(action, this.buildBonusPriority(bonusType, benefit));
         return undefined;
       }
     } else {

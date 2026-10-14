@@ -51,6 +51,7 @@ import {
   workspaceStackSheet,
   workspaceStackState,
   workspaceStackTop,
+  workspaceStepsEmbeddedIn,
 } from '@/client/console/consoleWorkspaceStack';
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
@@ -752,6 +753,33 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceFrameHasNested('colonies'), 'the top frame hosts nothing').to.eq(false);
     leaveWorkspace();
     expect(workspaceFrameHasNested('hand'), 'the chain is over now').to.eq(false);
+  });
+
+  /*
+   * WHAT A FRAME'S PAUSED STAGE HIDES (the field lock of 2026-10-14). A hand pick stood on the hand's own shelf while
+   * a played card's colony step still stood INSIDE that hand: the projection named the hidden step («colonies») and
+   * every press but B went into it. The shell asks this predicate before it treats the shelf as the surface on top —
+   * true only when everything above the frame is an EMBEDDED step (an overlay stands over it; nothing above, nothing
+   * to cover).
+   */
+  it('steps embedded IN a frame are what its paused stage hides — never an overlay, never nothing', () => {
+    openHandPlayingTradingColony();
+    expect(workspaceStepsEmbeddedIn('hand'), 'nothing stands above the hand').to.eq(false);
+    addColonyStep();
+    expect(workspaceStepsEmbeddedIn('hand'), 'the colony step stands inside the hand').to.eq(true);
+    expect(workspaceStackSection(), 'the projection names the deepest frame — the step').to.eq('colonies');
+    expect(workspaceStepsEmbeddedIn('colonies'), 'the top frame covers nothing').to.eq(false);
+    expect(workspaceStepsEmbeddedIn('start'), 'an absent frame covers nothing').to.eq(false);
+    resetWorkspaceStack();
+    pushWorkspaceFrame({
+      kind: 'card-actions', subject: '', stage: '', phase: 'configure',
+      serves: [], anchor: ALWAYS,
+    });
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: ALWAYS, overlay: true,
+    });
+    expect(workspaceStepsEmbeddedIn('card-actions'), 'an OVERLAY stands over its host, not inside its stage').to.eq(false);
   });
 
   /*

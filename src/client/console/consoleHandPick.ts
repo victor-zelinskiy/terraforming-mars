@@ -115,6 +115,14 @@ export function isConsoleHandPickActive(): boolean {
 }
 
 /**
+ * The crumb tail of a pick standing as a STAGE of the flow that asked — one word: a discard «СБРОС КАРТЫ», any
+ * other pick «ВЫБОР КАРТ». One answer for the asking door and for the header that names the pick.
+ */
+export function handPickStageKey(request: Pick<ConsoleHandPickRequest, 'discard'> | undefined): string {
+  return request?.discard !== undefined ? 'Discarding a card' : 'Card selection';
+}
+
+/**
  * Does answering this pick take the cards out of the hand THROUGH THE DISCARD TRAY? Not a sale (its terminal takes
  * them) and not a pre-select (nothing leaves before the commit) — the ONE answer both confirm paths ask.
  */

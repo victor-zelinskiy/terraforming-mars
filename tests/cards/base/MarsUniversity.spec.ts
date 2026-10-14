@@ -22,6 +22,7 @@ import {Callisto} from '../../../src/server/colonies/Callisto';
 import {Ceres} from '../../../src/server/colonies/Ceres';
 import {Miranda} from '../../../src/server/colonies/Miranda';
 import {InventionContest} from '../../../src/server/cards/base/InventionContest';
+import {Predators} from '../../../src/server/cards/base/Predators';
 
 describe('MarsUniversity', () => {
   let card: MarsUniversity;
@@ -133,6 +134,36 @@ describe('MarsUniversity', () => {
     const selectColony = cast(player.popWaitingFor(), SelectColony);
     selectColony.cb(selectColony.colonies[0]);
     runAllActions(game);
+
+    const orOptions = cast(player.popWaitingFor(), OrOptions);
+    expect(orOptions.options[0].title).to.match(/Select a card to discard/);
+  });
+
+  // The field lock of 2026-10-14: the colony's own CARD bonus (Miranda's animal) resolves WITH its build — before the
+  // question the same play woke (Mars University). After Mars U, the colony stage stood «awaiting» over a foreign
+  // question with its pre-collected answer parked behind it.
+  it('A colony\'s card bonus resolves with its build, before Mars U', () => {
+    [game, player] = testGame(2, {coloniesExtension: true});
+    const miranda = new Miranda();
+    miranda.isActive = true;
+    game.colonies = [miranda, new Callisto(), new Ceres()];
+    player.cardsInHand = [new EarthOffice()];
+    const pets = new Pets();
+    const predators = new Predators();
+    player.playedCards.push(card, pets, predators);
+
+    player.playCard(new ResearchColony());
+    runAllActions(game);
+
+    const selectColony = cast(player.popWaitingFor(), SelectColony);
+    selectColony.cb(miranda);
+    runAllActions(game);
+
+    const target = cast(player.popWaitingFor(), SelectCard);
+    expect(target.cards).to.have.members([pets, predators]);
+    target.cb([predators]);
+    runAllActions(game);
+    expect(predators.resourceCount).eq(1);
 
     const orOptions = cast(player.popWaitingFor(), OrOptions);
     expect(orOptions.options[0].title).to.match(/Select a card to discard/);

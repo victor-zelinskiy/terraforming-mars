@@ -834,6 +834,29 @@ export function workspaceFrameHasNested(kind: WorkspaceFrameKind): boolean {
   return depth !== -1 && depth < workspaceStackState.frames.length - 1;
 }
 
+/**
+ * Does everything standing ABOVE this frame stand INSIDE its zone — embedded steps all the way up, none an overlay and
+ * none handed a whole scene? False when nothing stands above it.
+ *
+ * The question a frame asks before it covers its own stage: what it pauses there (`--stagepaused`) is then exactly
+ * the frames above it, so the surface it shows instead is the one ON TOP — even though the stack's projection
+ * (`workspaceStackSection`, the deepest frame) still names the hidden step. A hand pick standing on the hand that
+ * hosts a played card's colony step is the case (the field lock of 2026-10-14).
+ */
+export function workspaceStepsEmbeddedIn(kind: WorkspaceFrameKind): boolean {
+  const frames = workspaceStackState.frames;
+  const depth = workspaceFrameIndex(kind);
+  if (depth === -1 || depth >= frames.length - 1) {
+    return false;
+  }
+  for (let i = depth + 1; i < frames.length; i++) {
+    if (frames[i].overlay || frameStepFor(frames[i - 1].kind, frames[i].kind) !== 'embed') {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** The frame's OWN zone — what it publishes for whatever stands inside it
  *  (a descent's composer, or the frame above). '' while it is not standing. */
 export function workspaceFrameSlot(kind: WorkspaceFrameKind): string {

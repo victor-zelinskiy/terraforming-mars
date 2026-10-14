@@ -2503,6 +2503,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'ecological-experiment-max' |
   'ecological-experiment-cascade' |
   'ecological-experiment-under-city' |
+  // The field lock of 2026-10-14: Research Colony in hand with Mars University on the table — draw 2, the colony step
+  // inside the hand (Miranda's animal target asked on the stage, Luna's M€ asked nothing), then the university's album.
+  'mu-research-colony' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

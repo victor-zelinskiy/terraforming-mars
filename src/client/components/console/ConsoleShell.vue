@@ -1871,6 +1871,7 @@ import {
   workspaceStackCrumb,
   workspaceStackState,
   workspaceStackTopAxis,
+  workspaceStepsEmbeddedIn,
   FrameAnchor,
   WorkspaceFrameKind,
 } from '@/client/console/consoleWorkspaceStack';
@@ -2163,7 +2164,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl, activeGlyphSet} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
-import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleQuickId, ConsoleSection} from '@/client/console/consoleRouter';
 import {surfaceShadeOn, surfaceShadeFullBleed, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/client/console/quickWheel/wheelArmModel';
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
@@ -2175,7 +2176,7 @@ import {probeTick} from '@/client/console/probeTick';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
@@ -3474,6 +3475,27 @@ export default defineComponent({
      */
     handPickOverlays(): boolean {
       return this.handPickActive && consoleHandPickState.request?.hosted === undefined;
+    },
+    /**
+     * THE PICK COVERS THE STEPS HOSTED IN ITS HAND — a hand pick stands on the hand's OWN shelf while a step of the
+     * play is still standing INSIDE that hand (a played card's colony step finishing its build bonus — «Научная
+     * колония» with «Марсианский университет» on the table, the field lock of 2026-10-14). Pausing the stage for the
+     * pick (`--stagepaused`) hides exactly those steps, so the shelf is the surface ON TOP — while the stack's
+     * projection still names the deepest frame. Read wherever «which surface do the presses belong to» is decided
+     * (`padSection`), or the album stands on screen with every press routed into the hidden step.
+     *
+     * Not while a hydro frame covers the hand: that one is a sibling of the hand, not a step inside its stage.
+     */
+    handPickCoversSteps(): boolean {
+      return this.handPickOverlays && workspaceStepsEmbeddedIn('hand') && !this.handCoveredByHydro;
+    },
+    /**
+     * THE SECTION THE PAD DRIVES — the stack's projection (`consoleState.section`: the DEEPEST projecting frame),
+     * except where a live hand pick covers the steps hosted in its hand (`handPickCoversSteps`): there the album is
+     * the surface on top, and A / RT / LT / the d-pad / X / LB·RB / R3 are its verbs.
+     */
+    padSection(): ConsoleSection {
+      return this.handPickCoversSteps ? 'hand' : this.consoleState.section;
     },
     /**
      * THE PICK IS A PHRASE OF THE PLAY COMPOSER STANDING IN THIS VERY HAND (the owner's hard rule 2026-10-13 — a card
@@ -6851,7 +6873,11 @@ export default defineComponent({
       // screen up. The step publishes its own name UP the stack
       // (`setWorkspaceFrameStage`), so this is a READ of the one source, never a
       // second one; it outranks the terms below because depth outranks phase.
-      const nestedStage = workspaceFrameHasNested('hand') ?
+      // …except where a hand pick COVERS those steps (`handPickCoversSteps`): the album is the surface on top, so the
+      // tail is the PICK's — «СБРОС КАРТЫ» over Mars University's discard — never the hidden colony step's
+      // «МИРАНДА · ОСМОТР» (the field lock of 2026-10-14 named the colony over the discard album).
+      const pickStage = this.handPickCoversSteps ? handPickStageKey(consoleHandPickState.request) : '';
+      const nestedStage = pickStage !== '' ? pickStage : workspaceFrameHasNested('hand') ?
         (workspaceStackCrumb()?.stage ?? '') : '';
       const stage = nestedStage !== '' ? nestedStage :
         (outcomeStage !== '' ? outcomeStage : workspaceFrameStage('hand'));
@@ -6863,7 +6889,7 @@ export default defineComponent({
       // A HOSTED COLONY STEP folds the colony it carries INTO the tail — «КАРТЫ В РУКЕ › СПОНСОРЫ КОЛОНИЙ › ЛУНА ·
       // ТРЕК» — the grammar «Действия карт» speaks for the same step (`colonyStepCrumbParts`): the subject slot is
       // already the card's. Before a colony is picked up there is only the stage.
-      const colonyTail = workspaceFrameHost('colonies') === 'hand' && workspaceFrameSubject('colonies') !== '' ?
+      const colonyTail = pickStage === '' && workspaceFrameHost('colonies') === 'hand' && workspaceFrameSubject('colonies') !== '' ?
         colonyStepCrumbParts(workspaceFrameSubject('colonies'), workspaceFrameStage('colonies')).map((part) => translateText(part)).join(' · ') :
         undefined;
       return {
@@ -7050,7 +7076,7 @@ export default defineComponent({
      * the page is derived from the focus index — no measure, no drift.
      */
     handDockAlbum(): HandDockAlbum | undefined {
-      if (this.consoleState.section !== 'hand') {
+      if (this.padSection !== 'hand') {
         return undefined;
       }
       if (workspaceFrameDescended('hand') && !this.handPickActive) {
@@ -7226,10 +7252,12 @@ export default defineComponent({
       // L3 = the source — the console-wide inspection grammar (X inspects
       // the current object, L3 the card that produced it). Standalone
       // colonies (the player walked in) have no source and no L3.
-      if (workspaceFrameHost('colonies') !== undefined) {
+      // …unless a hand pick COVERS that step (`handPickCoversSteps`): the album on screen is the pick's, and its
+      // source is the card that asked it (Mars University), never the colony's.
+      if (workspaceFrameHost('colonies') !== undefined && !this.handPickCoversSteps) {
         return this.colonyEmbedSourceCard;
       }
-      if (this.consoleState.section !== 'hand') {
+      if (this.padSection !== 'hand') {
         return undefined;
       }
       // The CLIENT bridge: a decision screen / composer sent the player here.
@@ -7386,7 +7414,7 @@ export default defineComponent({
      *  in the hand section with nothing layered on top (a play-confirm / task /
      *  reveal / fullscreen zoom would otherwise get scrolled through blindly). */
     handScrollActive(): boolean {
-      return this.consoleState.section === 'hand' &&
+      return this.padSection === 'hand' &&
         !isHandRevealEpisodeRunning() && // flight targets pin the layout
         // A hidden play composer under a live client hand pick doesn't block —
         // the hand grid IS the active surface for the pick's lifetime.
@@ -15181,13 +15209,13 @@ export default defineComponent({
       // The console-native Hydronetwork screen owns its whole grammar
       // (stages / bonus / CTA / confirm modal / help). Y = Info Mode stays
       // global (handled before this point); the journal is board-home only.
-      if (this.consoleState.section === 'hydro') {
+      if (this.padSection === 'hydro') {
         const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
         hydro?.handleIntent(intent);
         return true;
       }
       // The Parliament owns its whole grammar too (zones / stages / submits).
-      if (this.consoleState.section === 'parliament') {
+      if (this.padSection === 'parliament') {
         const parliament = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
         parliament?.handleIntent(intent);
         return true;
@@ -15199,7 +15227,7 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return true;
       }
-      const onBoard = this.consoleState.section === 'board';
+      const onBoard = this.padSection === 'board';
       // Stick-clicks are screen-specific (no base semantic action, by design) —
       // they carry board/hand context verbs, handled raw before the semantic switch.
       if (intent.button === 'stickL') {
@@ -15215,7 +15243,7 @@ export default defineComponent({
         // source, and the source, checked first, always won.)
         if (this.contextualSourceCard !== undefined) {
           this.inspectContextualSource();
-        } else if (this.placementActive && this.consoleState.section === 'board') {
+        } else if (this.placementActive && this.padSection === 'board') {
           this.inspectPlacementSource();
         } else if (onBoard) {
           this.toggleInspection();
@@ -15228,23 +15256,23 @@ export default defineComponent({
         // P27b: on the board home R3 = SCALE INSPECTION (the cursor walks
         // the track bonuses in a circle). In the hand (non-sale) R3 RESETS the
         // tag filter to "All" (the right-stick AXIS still scrolls the grid).
-        if (this.placementActive && this.consoleState.section === 'board') {
+        if (this.placementActive && this.padSection === 'board') {
           this.consoleState.freeRoam = !this.consoleState.freeRoam;
           this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
         } else if (onBoard) {
           this.toggleScaleInspect();
-        } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
+        } else if (this.padSection === 'hand' && this.consoleState.sale.active) {
           // The patent sale: R3 = SELECT ALL / UNSELECT ALL.
           this.toggleSelectAllSale();
-        } else if (this.consoleState.section === 'hand' && this.handPickActive && !this.handSelectSingle) {
+        } else if (this.padSection === 'hand' && this.handPickActive && !this.handSelectSingle) {
           // A composer's multi hand pick (Public Plans «reveal any number»): R3 = select every candidate (bounded
           // by max) / clear — the sale's R3. L3 stays the SOURCE (the card being played), as on every contextual
           // surface; the two shared L3 until 2026-10-14 and the source always won.
           this.togglePickSelectAll();
-        } else if (this.consoleState.section === 'hand' && this.handSelectTaskActive && !this.handSelectSingle && this.handSelectModel?.showSelectAll === true) {
+        } else if (this.padSection === 'hand' && this.handSelectTaskActive && !this.handSelectSingle && this.handSelectModel?.showSelectAll === true) {
           // The server's own «select all» on a live multi select (`SelectCard.showSelectAll`).
           this.toggleSelectAllTask();
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
+        } else if (this.padSection === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
           this.resetHandFilter();
         }
         return true;
@@ -15260,7 +15288,7 @@ export default defineComponent({
         // LB/RB beside the position). The first page swallows the press.
         if (onBoard) {
           this.openSheet('milestones');
-        } else if (this.consoleState.section === 'hand') {
+        } else if (this.padSection === 'hand') {
           this.turnHandPage(-1);
         }
         return true;
@@ -15268,7 +15296,7 @@ export default defineComponent({
         // In the hand ALBUM RB is the NEXT PAGE (see prevSection).
         if (onBoard) {
           this.openSheet('awards');
-        } else if (this.consoleState.section === 'hand') {
+        } else if (this.padSection === 'hand') {
           this.turnHandPage(1);
         }
         return true;
@@ -15286,7 +15314,7 @@ export default defineComponent({
           this.openQuick('actions');
           return true;
         }
-        if (this.consoleState.section === 'hand') {
+        if (this.padSection === 'hand') {
           if (this.consoleState.sale.active) {
             this.confirmSale();
           } else if (this.handSelectUiActive) {
@@ -15310,9 +15338,9 @@ export default defineComponent({
         // one filter axis); the BROWSE hand cycles the tag filter BACK.
         if (onBoard) {
           this.openQuick('basics');
-        } else if (this.consoleState.section === 'hand' && this.handSelectUiActive) {
+        } else if (this.padSection === 'hand' && this.handSelectUiActive) {
           this.toggleSuitableOnly();
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
+        } else if (this.padSection === 'hand' && !this.consoleState.sale.active) {
           this.cycleHandFilter(-1);
         }
         return true;
@@ -15330,13 +15358,13 @@ export default defineComponent({
         // verbs lead to two different surfaces now, so the bar's choice is
         // real (an earlier iteration had dropped X because both led to the
         // same stage).
-        if (this.consoleState.section === 'colonies' && colonyDockCursor.active && this.colonyDocks.length > 0) {
+        if (this.padSection === 'colonies' && colonyDockCursor.active && this.colonyDocks.length > 0) {
           // A DOCK IS A CARD: X is the card's own inspection (the live model —
           // the fleet on its ▲ included), never a colony dossier.
           this.inspectFleetDock(this.colonyDocks[Math.min(colonyDockCursor.index, this.colonyDocks.length - 1)].card);
-        } else if (this.consoleState.section === 'colonies') {
+        } else if (this.padSection === 'colonies') {
           this.enterColonyFocus('inspect');
-        } else if (this.consoleState.section === 'hand') {
+        } else if (this.padSection === 'hand') {
           this.zoomHandCard();
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
@@ -15354,13 +15382,13 @@ export default defineComponent({
       // Mid-reveal the hand grid must not scroll (the flight targets were
       // measured against the current layout) — nav resumes at touchdown.
       // A FILTER episode never blocks input: snap it and navigate at once.
-      if (this.consoleState.section === 'hand' && isHandRevealEpisodeRunning()) {
+      if (this.padSection === 'hand' && isHandRevealEpisodeRunning()) {
         if (runningHandRevealKind() !== 'filter') {
           return;
         }
         finishInstant();
       }
-      if (this.consoleState.section === 'board') {
+      if (this.padSection === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         // P27b: SCALE INSPECTION — the cursor walks the bonus ring
         // (left/up = counter-clockwise, right/down = clockwise, wraps).
@@ -15392,7 +15420,7 @@ export default defineComponent({
         board?.move(dir);
         return;
       }
-      if (this.consoleState.section === 'colonies') {
+      if (this.padSection === 'colonies') {
         // 2D stepping over the premium tile grid (layout-aware columns).
         const count = this.coloniesForRail.length;
         const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
@@ -15417,13 +15445,13 @@ export default defineComponent({
       // No accidental card activation under the flying reveal proxies —
       // A waits out the episode (navigation stays free; B reverses).
       // A FILTER episode never blocks input: snap it and confirm at once.
-      if (this.consoleState.section === 'hand' && isHandRevealEpisodeRunning()) {
+      if (this.padSection === 'hand' && isHandRevealEpisodeRunning()) {
         if (runningHandRevealKind() !== 'filter') {
           return;
         }
         finishInstant();
       }
-      if (this.consoleState.section === 'board') {
+      if (this.padSection === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         if (this.placementActive) {
           const flow = this.placementFlowState;
@@ -15484,7 +15512,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.consoleState.section === 'colonies') {
+      if (this.padSection === 'colonies') {
         this.confirmColonySelection();
         return;
       }
@@ -19726,6 +19754,9 @@ export default defineComponent({
      */
     endPlayCardFlow(): void {
       const playedIn: WorkspaceFrameKind = workspaceFrameIndex('hand') !== -1 ? 'hand' : 'start';
+      if (playedIn === 'hand') {
+        this.adoptPlayEffectDecision();
+      }
       // THE LANDING SCENE LETS GO — but not into an empty frame. While this
       // workspace's own outcome is still on its way, the settled tableau stays
       // on screen and the arriving surface is what relieves it (the handoff in
@@ -19737,6 +19768,45 @@ export default defineComponent({
         this.pendingPlayCard = undefined;
       }
       this.concludeWorkspaceFlowOrOwe(playedIn, false);
+    },
+    /**
+     * THE PLAY'S CHAIN STILL ASKS — after a STEP of the play ended (the colony «Научная колония» builds), a card of the
+     * player's that this very press woke is asking now (Mars University answering the science tag), and no claim is
+     * left to own the question: the play's ended at its batch's take (the colony was the step it still owed), the
+     * colony step's ended with the colony. Concluded there, the workspace left and the question rose as a fresh album
+     * over the board — a stage of the play with the play gone (the field report of 2026-10-14).
+     *
+     * It IS this play's next stage: the server asks a player one thing at a time, so a decision standing while the
+     * play's frame is past its commit is that press's chain — the same reading the play's own optimistic claim makes
+     * for every play (`claimPlayOutcome`: `'effect'` for every play, settled by the reconciler). So the claim is made
+     * again, late, with what it would hold by now: the execution beat long played, the arrival long landed, the
+     * outcome on stage. The decision then opens in the hand that made the play and the conclusion holds for it
+     * (`live-outcome`) — and its draw arrives in the same zone. A pick the decision already opened on this shelf
+     * names its stage now (it opened when nothing owned it, so it named none).
+     */
+    adoptPlayEffectDecision(): void {
+      if (workspaceOutcomeClaimed() || this.rawEffectDecisionVm === undefined ||
+          !isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
+        return;
+      }
+      const card = workspaceFrameSubject('hand');
+      if (card === '' || claimPlayOutcome(card) !== 'hand') {
+        return;
+      }
+      markWorkspaceOutcomeAnswerIn();
+      markWorkspaceOutcomeBeatDone();
+      markWorkspaceOutcomePresenting();
+      markWorkspaceOutcomeArrivalDone();
+      // …and the crumb names the coming stage NOW, in the same flush the step's frame left: the album the decision
+      // IS (`directPick` — «СБРОС КАРТЫ») or the decision's own stage. Left unnamed until the album opened, the tail
+      // fell back to «РОЗЫГРЫШ» for that gap — backwards, through a flow that only moves forward.
+      const vm = this.rawEffectDecisionVm;
+      const direct = vm.directPick?.nested;
+      const stage = this.handPickActive ? handPickStageKey(consoleHandPickState.request) :
+        direct !== undefined ? handPickStageKey({discard: direct.discardPrompt}) : vm.stageKey;
+      if (stage !== '') {
+        setWorkspaceOutcomePhase(stage);
+      }
     },
     /**
      * «ДЕЙСТВИЯ КАРТ» reports its committed flow finished (the deck-check
@@ -20091,8 +20161,17 @@ export default defineComponent({
             PLAY_CLAIMED_TASK_KINDS.has(task?.kind as TaskKind) ||
               this.effectDecisionBelongsToWorkspace :
             // The prompt exists but the gate is still holding it: it may yet be
-            // ours once it opens.
-            (this.hostServesPrompt && this.hostTask === undefined));
+            // ours once it opens — but only a prompt of a kind THIS claim can
+            // host (`workspaceOutcomePromptServed`, read off the RAW prompt: a
+            // card pick / payment for a `pick` claim, the woken effect for an
+            // `effect` one). Any held prompt used to count, so a colony build's
+            // `pick` claim — its card target pre-collected with the colony, so
+            // no pick would ever come — was kept for Mars University's question
+            // held behind the build's cinematic: the colony step stood
+            // «awaiting» over the question and the university's card arrived in
+            // a fullscreen viewer over a colony stage (the field report of
+            // 2026-10-14).
+            (this.hostServesPrompt && this.hostTask === undefined && this.workspaceOutcomePromptServed));
         if (ours) {
           return;
         }
@@ -20335,7 +20414,7 @@ export default defineComponent({
       // its own `beforeUnmount` would otherwise clear the tail; it deliberately
       // only clears a phase that is still its own, so this write wins.
       const ownsStage = workspaceClaimsEffect();
-      const pickStage = prompt.discardPrompt !== undefined ? 'Discarding a card' : 'Card selection';
+      const pickStage = handPickStageKey({discard: prompt.discardPrompt});
       // …and the tail is HANDED ON at the answer rather than retracted. What
       // this pick buys is the flow's next stage (the card the discard draws),
       // and between the submit and the deal nothing owns the tail — retracting
