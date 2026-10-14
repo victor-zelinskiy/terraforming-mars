@@ -75,6 +75,18 @@ without declaring what it waits for**.
   into `cardArrival` would make a placement cancel **itself** the instant the
   player pressed A. Its meaningful window — the cards actually being shown — is
   covered for `placement` by `reveal*`, which the same response raises.
+- **`placement` alone waits for `board-story`** (PL-336, TR47 «ВВЕРХ И ОБРАТНО»):
+  the board-beat park owes a scale story (values held while the board was
+  covered, or a drain in flight) over a board in PLAIN VIEW — and only a live
+  placement keeps the park from draining. A NEW server placement waits for that
+  story first: the raise is told, THEN the next board demand comes alive. Raised
+  only when the section / sheet / workspace leave the board in view
+  (`ConsoleShell.boardStoryBeforePlacement`), so a covered board never waits on a
+  drain that cannot run; and a placement held while the story is owed releases
+  Planet Focus (`placementHeldForBoardStory` — «held AND owed», never «the top
+  block»: the focus's own exit raises the blocking `planet-focus` hold, which
+  outranks `board-story`, and a top-block test ping-ponged the camera until the
+  page froze). Bounded by the park's own 30 s ledger safety.
 - **`scene` yields only to a reveal or a blocking presentation** — it owns the
   screen and hosts its own cinematics.
 - **`followUp` is a DOOR, not a presence — so it waits for everything.** The
