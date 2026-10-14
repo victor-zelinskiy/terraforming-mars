@@ -195,8 +195,12 @@ describe('EcologicalExperiment', () => {
       expect(blocks).deep.eq([
         'Requires Scientists to be ruling or that you have 2 delegates on its resolution.',
         'Increase each Mars global parameter 1 step and add 3 data to ANY card.',
-        'Then decrease each Mars global parameter that isn\'t at maximum 1 step (remove any ocean you like). Keep the TR you gained.',
+        'Decrease each Mars global parameter that isn\'t at maximum 1 step (remove any ocean you like). Keep the TR you gained.',
       ]);
+      // Each row is described by its own block (the fall anchored on its printed «THEN», never on a free node of the
+      // raise's row — `cardInformation` § «undescribed mechanic»).
+      const rows = new Set(info?.groups.flatMap((g) => g.blocks.map((b) => b.graphicId)).filter((id) => id?.startsWith('g:')));
+      expect(rows.size, `the two printed rows are both described: ${[...rows].join(' · ')}`).eq(2);
     });
   });
 

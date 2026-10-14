@@ -872,6 +872,9 @@ describe('Game', () => {
       'cardAdjacencyPayouts',
       // The scale-step payout ring (TR24 Venusian Census, Aphrodite) — the same law.
       'scaleStepRewards',
+      // The parameter-swing ring (TR47 Ecological Experiment) — the same law: a restart loses only the scene
+      // «ОБРАТНЫЙ ХОД», never the parameters (the journal keeps the lowering).
+      'parameterSwings',
       'createdTime',
       'discardedColonies',
       'doubleDownPrelude',

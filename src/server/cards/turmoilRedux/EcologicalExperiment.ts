@@ -160,7 +160,9 @@ export class EcologicalExperiment extends Card implements IProjectCard {
         cardNumber: 'TR47',
         infoText: [
           {text: 'Increase each Mars global parameter 1 step and add 3 data to ANY card.', tokens: ['oxygen', 'temperature', 'oceans', 'res-data']},
-          {text: 'Then decrease each Mars global parameter that isn\'t at maximum 1 step (remove any ocean you like). Keep the TR you gained.', tokens: ['oxygen', 'temperature', 'oceans']},
+          // The fall is the SECOND row — anchored on its printed «THEN» (the row's only token the raise's row lacks: a
+          // parameter token would bind the block to the first free node of the raise's row). The order is the blocks'.
+          {text: 'Decrease each Mars global parameter that isn\'t at maximum 1 step (remove any ocean you like). Keep the TR you gained.', tokens: ['text']},
         ],
         renderData: CardRenderer.builder((b) => {
           // The scan's one row, folded under the row budget: the raise with the data, then «THEN» and the fall.
