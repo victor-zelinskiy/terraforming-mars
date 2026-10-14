@@ -20,7 +20,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {expect, Page, APIRequestContext} from '@playwright/test';
-import {openConsole, soloGameConfig, CORP_WITH_FIRST_ACTION} from './consoleStart';
+import {cinematicBeat, openConsole, soloGameConfig, CORP_WITH_FIRST_ACTION} from './consoleStart';
 import {SPENDABLE_RESOURCES} from '../../src/common/inputs/Spendable';
 
 export type WirePrompt = {
@@ -353,7 +353,7 @@ export async function holdFinishFinale(page: Page): Promise<void> {
   await page.keyboard.down('Period');
   for (let i = 0; i < 8; i++) {
     await forceFrame(page);
-    await page.waitForTimeout(140);
+    await cinematicBeat(page, 140, 'the RT hold ring fills on the wall clock (HOLD_CONFIRM_MS) — the press must stay DOWN that long');
   }
   await page.keyboard.up('Period');
 }
