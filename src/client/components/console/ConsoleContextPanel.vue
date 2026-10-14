@@ -57,6 +57,37 @@
         <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
       </header>
 
+      <!-- ── THE FINALE's own block (the final greenery is played ON THE BOARD — PL-295). Constant for the whole pick:
+           it reads the STOCK, never the focused cell, so it never moves while the player points. The plant stock
+           as OBJECTS — one greenery hex per tile it still pays for (the board's own art), the rest as a hex
+           filled have / need — and what finishing now leaves unused. No controller prompt here: the finish is
+           the bar's RT hold. -->
+      <section v-if="finale !== undefined" class="con-context__finale" data-finale-bank>
+        <div class="con-context__finale-head">
+          <span class="con-context__finale-label">{{ $t(FINALE_BANK_LABEL) }}</span>
+          <span class="con-context__finale-stock">
+            <span class="con-context__f-ico" :class="plantIconClass" aria-hidden="true"></span>
+            <b>{{ finale.plants }}</b>
+          </span>
+        </div>
+        <div class="con-context__finale-bank">
+          <span v-for="(slot, i) in finale.bank.slots" :key="i"
+                class="con-context__finale-hex" :class="'con-context__finale-hex--' + slot.kind"
+                :data-finale-hex="slot.kind" aria-hidden="true">
+            <span v-if="slot.kind === 'full'" class="con-context__tile-art" :class="finaleTileClass"></span>
+            <template v-else>
+              <span class="con-context__finale-fill" :style="{'--fill': String(slot.have / slot.need)}"></span>
+              <span class="con-context__finale-part">{{ slot.have }}/{{ slot.need }}</span>
+            </template>
+          </span>
+          <span v-if="finale.bank.overflow > 0" class="con-context__finale-more">+{{ finale.bank.overflow }}</span>
+        </div>
+        <div class="con-context__finale-line">
+          <span>{{ finaleEnoughText }}</span>
+          <span class="con-context__finale-burn">{{ finaleBurnText }}</span>
+        </div>
+      </section>
+
       <!-- ── THE FOCUSED CELL: one fixed line; the refusal expands below
            without a jump (grid-rows well), so legal ↔ illegal never shifts
            the identity above it. The LOCKED phase re-registers the same bar
@@ -227,6 +258,7 @@ import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
 import {CardName} from '@/common/cards/CardName';
+import {TileType} from '@/common/TileType';
 import {PromptSourceView} from '@/client/console/promptSource';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -244,6 +276,7 @@ import {
   placementFollowUpLine,
   placementIdentity,
 } from '@/client/console/placementDossier';
+import {BANK_BURNS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalGreeneryBank} from '@/client/console/finalGreenery/finalGreeneryModel';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -262,6 +295,7 @@ export default defineComponent({
       /** Something is already scrolled past — drives the TOP fade. */
       scrolledDown: false,
       resizeObserver: undefined as ResizeObserver | undefined,
+      FINALE_BANK_LABEL,
     };
   },
   watch: {
@@ -327,8 +361,25 @@ export default defineComponent({
     trackScale: {type: Object as PropType<{titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null>, default: null},
     // cell mode (P27b): curated special-cell lore
     lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
+    /** The FINALE's block (the final greenery's board pick) — the plant stock and what finishing burns. */
+    finale: {type: Object as PropType<{plants: number, cost: number, bank: FinalGreeneryBank} | undefined>, default: undefined},
   },
   computed: {
+    /** The plant glyph of the finale's stock line. */
+    plantIconClass(): string {
+      return iconClassFor('plants');
+    },
+    /** A whole greenery of the bank wears the board's own greenery art — the same sprite the cell will draw. */
+    finaleTileClass(): string {
+      const suffix = tileCssClassOf(TileType.GREENERY, this.aresTiles);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    finaleEnoughText(): string {
+      return this.finale === undefined ? '' : translateTextWithParams(BANK_ENOUGH, [String(this.finale.bank.affordable)]);
+    },
+    finaleBurnText(): string {
+      return this.finale === undefined ? '' : translateTextWithParams(BANK_BURNS, [String(this.finale.bank.burns)]);
+    },
     /** The source CARD, when there is one — what L3 opens fullscreen. */
     sourceCard(): CardName | undefined {
       return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;

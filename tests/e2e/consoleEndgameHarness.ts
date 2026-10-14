@@ -321,35 +321,53 @@ export async function shoot(page: Page, dir: string, name: string): Promise<void
   await page.screenshot({path: `${dir}/${name}.png`});
 }
 
+/** The finale's own block in the cell dossier — present exactly while the finale's board pick is out. */
+export const FINALE_BLOCK = '[data-finale-bank]';
+
 /**
- * The VIEWED seat answers its own final-greenery question THROUGH THE PAGE
- * (take pending reveals → open past the announce → walk to «Завершить свою
- * партию» → arm → confirm) — the couch player's own two presses.
+ * Wait until the viewer's FINALE stands on the board: take pending reveals,
+ * open past the announce (A), until the board is in placement with the
+ * finale's block in the dossier (the final greenery is played ON THE BOARD —
+ * 2026-10-14; there is no finale dialog any more).
  */
-export async function finishFinaleThroughPage(page: Page): Promise<void> {
+export async function openFinaleOnBoard(page: Page): Promise<void> {
   await waitWithFrames(page, async () => {
     if ((await page.locator('.con-reveal').count()) > 0) {
       await page.keyboard.press('Enter'); // take the pending drawn cards first
       return false;
     }
     if ((await page.locator('.con-mandatory').count()) > 0) {
-      await page.keyboard.press('Enter'); // the announce hands the screen over
+      await page.keyboard.press('Enter'); // the announce hands the board over
       return false;
     }
-    return (await page.locator('.con-finale').count()) > 0;
-  }, 45_000, 'the final-greenery screen');
-  for (let i = 0; i < 4; i++) {
-    const onFinish = (await page.locator('.con-finale__action--destructive.con-finale__action--focused').count()) > 0;
-    if (onFinish) {
-      break;
-    }
-    await page.keyboard.press('ArrowDown');
+    return (await page.locator(FINALE_BLOCK).count()) > 0;
+  }, 45_000, 'the final greenery on the board (the finale block in the dossier)');
+}
+
+/**
+ * «Завершить свою партию» — the irreversible stop is a HOLD of RT (the shared
+ * hold-to-confirm, the «Пас» gesture): keyboard Period down past the hold,
+ * then up. A tap does nothing by design.
+ */
+export async function holdFinishFinale(page: Page): Promise<void> {
+  await page.keyboard.down('Period');
+  for (let i = 0; i < 8; i++) {
     await forceFrame(page);
+    await page.waitForTimeout(140);
   }
-  await page.keyboard.press('Enter'); // arm
-  await forceFrame(page);
-  await page.keyboard.press('Enter'); // finish my game
-  await waitWithFrames(page, async () => (await page.locator('.con-finale').count()) === 0, 20_000, 'the finale submit');
+  await page.keyboard.up('Period');
+}
+
+/**
+ * The VIEWED seat answers its own final-greenery question THROUGH THE PAGE —
+ * open the finale on the board, then HOLD the finish (the couch player's own
+ * gesture). Places nothing: the journeys that use it are about the endgame,
+ * not the conversion.
+ */
+export async function finishFinaleThroughPage(page: Page): Promise<void> {
+  await openFinaleOnBoard(page);
+  await holdFinishFinale(page);
+  await waitWithFrames(page, async () => (await page.locator(FINALE_BLOCK).count()) === 0, 20_000, 'the finale finish');
 }
 
 /**

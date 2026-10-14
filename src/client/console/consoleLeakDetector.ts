@@ -108,9 +108,6 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // The MARSBOT ATTACK modal — it stands in for the generic card browser on a
   // marked hostile-effect prompt, so it is that prompt's serving surface.
   '.con-botattack',
-  // The FINAL GREENERY finale screen — the endgame conversion beat, which
-  // stands in for the host on that one (marked) prompt.
-  '.con-finale',
   // The CARD-DISCARD scene: the discard answer closes the hand section while
   // the condemned cards are still flying to the pile, so a follow-up prompt
   // committed at the landing has no surface for that window — the discard

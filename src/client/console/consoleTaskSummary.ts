@@ -285,6 +285,12 @@ function kindSummary(
     };
 
   case 'choice':
+    // THE FINALE (PL-295): the plate names the PHASE and what A starts — «Конец партии · Финальное озеленение · A
+    // Разместить озеленение» — never the generic «ВЫБОР»; the board takes the pick on that A (no dialog behind it).
+    // Structural (the server's marker), never the title.
+    if (wf?.finalGreeneryPrompt !== undefined) {
+      return {kickerKey: 'End of the game', ask: 'Final greenery', openKey: 'Place a greenery', returnKey: 'Return to the final greenery'};
+    }
     switch (task.flavor) {
     case 'wgt':
       return {kickerKey: 'Government Support', ask: ask(wf, 'Choose an option'), returnKey: 'Return to the decision'};

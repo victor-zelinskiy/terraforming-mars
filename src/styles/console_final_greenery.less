@@ -1,229 +1,126 @@
 /* ═══════════════════════════════════════════════════════════════════
-   CONSOLE FINAL GREENERY — the endgame conversion beat
-   (ConsoleFinalGreenery.vue / finalGreeneryModel.ts).
+   CONSOLE FINAL GREENERY — the finale's block in the cell DOSSIER
+   (ConsoleContextPanel `finale` prop · finalGreeneryModel.ts).
 
-   ONE PREMIUM LANGUAGE. The chassis here is deliberately the SAME as every
-   other console modal — `.con-decision`'s blue-grey glass panel, its rim, its
-   kicker, its card grammar and its state rail. An earlier draft tinted the
-   whole surface green ("this screen is about plants"), which made the most
-   important screen of the match look like it came from a different game.
+   THE FINALE IS PLAYED ON THE BOARD (the owner's decision, 2026-10-14). The
+   old dialog over a dimmed planet is gone; the board stays in placement for
+   the whole conversion loop and the dossier of the focused cell carries ONE
+   extra block, constant for the whole pick (it reads the stock, never the
+   cell — so it never moves while the player points):
 
-   Colour is spent only where it MEANS something, through the TV design
-   system's semantic aliases (console.less §SEMANTIC):
+     · the PLANT STOCK as OBJECTS — one greenery hex per tile the plants still
+       pay for (the board's own greenery art, the same sprite the cell will
+       draw), then the rest as a hex filled `have / need`;
+     · one reading line — «Хватит на N» and what finishing now burns.
 
-     · @sem-go     — the conversion branch (its rail, its chevron). The only
-                     green on the screen, and it marks the offer you may repeat.
-     · @sem-focus  — the cursor. The ONE focus colour, on both cards.
-     · @sem-danger — the finish, which ENDS the player's game: a red hairline at
-                     rest, and red OWNS the ring the moment it is armed.
-
-   Nothing is dimmed to signal danger (dim reads as "unavailable"), and every
-   state rides box-shadow / colour so the paint baseline cannot strip a cue.
-   Authored in rem.
+   No controller prompt lives here (the dossier's law): the finish verb is
+   the bar's RT hold. Colour is spent where it MEANS something — mint for the
+   stock that converts, amber for what finishing leaves unused; states ride
+   box-shadow / colour (the paint baseline strips `filter`). Authored in rem.
    ═══════════════════════════════════════════════════════════════════ */
 
-.con-finale {
-    /* The modal band supplies only the FRAME BOX — centring is each host's own
-       job (the same three lines as `.con-decision` / `.con-task-host`). */
-    .con-ws-band();
+.con-context__finale {
+    display: flex;
+    flex-direction: column;
+    gap: .42rem;
+    padding: .55rem .65rem .6rem;
+    border-radius: .55rem;
+    background: linear-gradient(180deg, rgba(26, 52, 40, 0.42), rgba(14, 26, 22, 0.28));
+    box-shadow:
+        inset 0 0 0 .05rem fade(@con-mint, 34%),
+        inset 0 .06rem 0 fade(@con-mint, 16%);
+}
+
+.con-context__finale-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    min-width: 0;
+}
+.con-context__finale-label {
+    font-size: var(--ctx-t-chrome);
+    letter-spacing: var(--ctx-track-chrome);
+    text-transform: uppercase;
+    color: fade(@con-mint, 88%);
+    white-space: nowrap;
+}
+.con-context__finale-stock {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-family: @con-font;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    color: @con-text;
+
+    .con-context__f-ico { width: 1.25rem; height: 1.25rem; }
+}
+
+/* THE BANK — a row of hexes, never wrapping (the model caps the row and
+   states the cut as «+N»). */
+.con-context__finale-bank {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: .28rem;
+    min-height: 3.35rem;
+}
+.con-context__finale-hex {
+    position: relative;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: .3rem 0;
-    box-sizing: border-box;
-    z-index: 11480;
-    contain: layout style;
-}
+    width: 3rem;
+    height: 3.3rem;
 
-.con-finale__panel {
-    position: relative;
-    width: min(38rem, 100%);
-    /* Content-sized, like the decision panel: two choices are a compact card,
-       never a half-empty screen. */
-    height: auto;
-    max-height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: .85rem;
-    padding: 1.1rem 1.25rem 1.2rem;
-    border-radius: .75rem;
-    background: linear-gradient(180deg, rgba(16, 26, 38, 0.96), rgba(10, 16, 25, 0.97));
-    box-shadow:
-        inset 0 0 0 .05rem rgba(120, 160, 200, 0.22),
-        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
-}
+    /* A whole greenery the stock pays for: the board's own tile art, at rest. */
+    &--full .con-context__tile-art {
+        zoom: calc(var(--ctx-finale-tile-zoom, 1.26) * var(--con-ui-scale, 1));
+    }
 
-/* ── header ──────────────────────────────────────────────────────────── */
-.con-finale__head {
-    display: flex;
-    flex-direction: column;
-    gap: .3rem;
-}
-.con-finale__kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    font-size: .62rem;
-    letter-spacing: .11rem;
-    text-transform: uppercase;
-    color: fade(@con-cyan, 92%);
-}
-.con-finale__kicker-mark { color: @con-cyan; }
-.con-finale__title {
-    margin: 0;
-    font-size: 1.35rem;
-    font-weight: 700;
-    line-height: 1.15;
-    color: @con-text;
-}
-
-/* ── the supply line: the arithmetic, stated once ────────────────────── */
-.con-finale__supply {
-    display: flex;
-    align-items: stretch;
-    gap: .5rem;
-}
-.con-finale__stat {
-    flex: 1 1 0;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: .2rem;
-    padding: .5rem .65rem;
-    border-radius: .5rem;
-    background: rgba(14, 23, 34, 0.7);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 160, 200, 0.18);
-}
-/* The number the decision actually turns on — emphasis, not a colour change. */
-.con-finale__stat--headline {
-    background: linear-gradient(180deg, rgba(26, 42, 60, 0.86), rgba(14, 23, 34, 0.74));
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%);
-}
-.con-finale__stat-label {
-    font-size: .58rem;
-    letter-spacing: .07rem;
-    text-transform: uppercase;
-    color: fade(@con-text-dim, 82%);
-    /* TV rule: a long localisation wraps rather than truncating. */
-    overflow-wrap: anywhere;
-}
-.con-finale__stat-value {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: @con-text;
-    font-variant-numeric: tabular-nums;
-}
-.con-finale__stat-icon {
-    width: .95rem;
-    height: .95rem;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    flex-shrink: 0;
-}
-
-/* ── the two choices ─────────────────────────────────────────────────── */
-.con-finale__actions {
-    display: flex;
-    flex-direction: column;
-    gap: .55rem;
-}
-.con-finale__action {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: .3rem;
-    padding: .7rem .85rem;
-    border-radius: .55rem;
-    background: linear-gradient(180deg, rgba(22, 36, 52, 0.9), rgba(14, 23, 34, 0.92));
-    box-shadow: inset 0 0 0 .05rem rgba(120, 160, 200, 0.2);
-    transition:
-        transform calc(140ms * var(--motion-scale, 1)) @con-ease-standard,
-        box-shadow calc(140ms * var(--motion-scale, 1)) ease-out;
-
-    /* The state rail — the same grammar the decision screen and the task host
-       use; only its COLOUR says which branch this is. */
-    &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: .5rem;
-        bottom: .5rem;
-        width: .12rem;
-        border-radius: 49.95rem;
-        background: fade(@sem-go, 45%);
+    /* The REST — a hex shell filled from the bottom by `--fill` (have / need):
+       part of a greenery, never a whole one. The fill is a clip of a
+       transform-free inner box, so the shell keeps its outline. */
+    &--part {
+        clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+        background: rgba(20, 34, 30, 0.85);
+        box-shadow: inset 0 0 0 .08rem fade(@con-mint, 40%);
     }
 }
-
-/* FINISHING THE GAME. Never a quiet grey row, and never dimmed (dim would read
-   as "unavailable", which is the opposite of what this is): a red hairline and
-   an amber sub-line, on the SAME chassis as its sibling. */
-.con-finale__action--destructive {
-    box-shadow: inset 0 0 0 .05rem fade(@sem-danger, 42%);
-
-    &::before { background: fade(@sem-danger, 62%); }
-
-    .con-finale__action-lead { color: fade(@sem-warn, 90%); }
+.con-context__finale-fill {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, fade(@con-mint, 46%), fade(@con-mint, 26%));
+    clip-path: inset(calc((1 - var(--fill, 0)) * 100%) 0 0 0);
+}
+.con-context__finale-part {
+    position: relative;
+    font-family: @con-font;
+    font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+    color: #e9fff4;
+}
+.con-context__finale-more {
+    margin-left: .1rem;
+    font-family: @con-font;
+    font-size: .95rem;
+    color: fade(@con-mint, 90%);
 }
 
-/* FOCUS. Declared AFTER --destructive on purpose: both are single-class, so
-   source order decides which ring a focused destructive card wears — and the
-   cursor must read as the cursor on BOTH cards. */
-.con-finale__action--focused {
-    transform: translateX(.18rem);
-    box-shadow:
-        inset 0 0 0 .075rem fade(@sem-focus, 88%),
-        0 0 1.1rem fade(@sem-focus, 18%),
-        0 .4rem 1.1rem rgba(0, 0, 0, 0.45);
-
-    &::before { background: @sem-focus; }
-}
-
-/* ARMED — the next press really does it. The ONE moment red owns the ring,
-   which is why focus stays cyan above: the escalation has to be legible. */
-.con-finale__action--armed {
-    box-shadow:
-        inset 0 0 0 .1rem fade(@sem-danger, 96%),
-        0 0 1.6rem fade(@sem-danger, 34%);
-
-    &::before { background: @sem-danger; }
-}
-
-.con-finale__action-head {
+/* THE READING LINE — the count the decision turns on, and what stopping
+   costs (amber: the plants that finishing leaves unused). */
+.con-context__finale-line {
     display: flex;
-    align-items: center;
-    gap: .45rem;
-    min-width: 0;
-}
-.con-finale__action-title {
-    font-size: .98rem;
-    font-weight: 700;
-    color: @con-text;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-/* «this one leads somewhere» — the conversion's chevron, the one green mark. */
-.con-finale__action-go {
-    color: fade(@sem-go, 90%);
-    font-size: 1rem;
-    line-height: 1;
-}
-.con-finale__action-a { margin-left: auto; }
-.con-finale__action-lead {
-    font-size: .76rem;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: .55rem;
+    row-gap: .1rem;
+    font-size: var(--ctx-t-label);
     line-height: 1.3;
-    color: fade(@con-text-dim, 92%);
+    color: @con-text;
 }
-.con-finale__action-confirm {
-    margin-top: .1rem;
-    padding: .3rem .55rem;
-    border-radius: .4rem;
-    background: fade(@sem-danger, 18%);
-    box-shadow: inset 0 0 0 .05rem fade(@sem-danger, 70%);
-    color: #ffd7d2;
-    font-size: .78rem;
-    font-weight: 700;
+.con-context__finale-burn {
+    color: fade(@sem-warn, 74%);
 }

@@ -51,6 +51,12 @@ export type PlacementCommandState = {
   moveLevel?: PlacementMoveLevel;
   /** A move's family — the words the levels speak. Defaults to the city's (the family that existed first). */
   moveFamily?: PlacementMoveFamily;
+  /**
+   * THE FINALE's pick (the final greenery — the board IS the finale's surface, 2026-10-14): B MINIMIZES the
+   * mandatory loop instead of cancelling a placement (there is no screen behind it to cancel back to), and the
+   * one way to stop placing — the irreversible «Завершить свою партию» — stands as a HOLD beside A.
+   */
+  finale?: {finish: ConsoleCommand};
 };
 
 /** The move's verbs, per family — English i18n keys. */
@@ -119,6 +125,8 @@ export function placementCommands(state: PlacementCommandState): Array<ConsoleCo
   if (state.moveLevel === 'cell') {
     // A tile is lifted: B is ONE level — it stands back on its cell, whether or not the flow can be cancelled.
     cmds.push({control: 'back', label: words.another});
+  } else if (state.finale !== undefined) {
+    cmds.push(state.finale.finish, {control: 'back', label: 'Minimize'});
   } else if (state.cancellable) {
     cmds.push({control: 'back', label: 'Cancel placement'});
   }

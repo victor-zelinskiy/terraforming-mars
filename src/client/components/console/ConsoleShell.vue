@@ -176,7 +176,8 @@
                              :chosenTarget="placementChosenTarget"
                              :trackInfo="trackInfo"
                              :trackScale="trackScaleOverview"
-                             :lore="selectedCellLore" />
+                             :lore="selectedCellLore"
+                             :finale="finalePanel" />
       </transition>
       <!-- The console-NATIVE journal (View) — REPLACES the right info panel
            while open: an absolute overlay anchored to the right edge, wider
@@ -770,21 +771,8 @@
       </transition>
     </Teleport>
 
-    <!-- FINAL GREENERY — the endgame conversion beat. Deliberately NOT the
-         decision screen above: there the quiet bottom card is a harmless
-         decline, here it ENDS THE PLAYER'S GAME. Same submit / defer /
-         space-pick contract as the host it replaces. -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleFinalGreenery v-if="finalGreeneryActive && finalGreeneryVm !== undefined && finalGreeneryPrompt !== undefined"
-                            ref="finalGreenery"
-                            :vm="finalGreeneryVm"
-                            :prompt="finalGreeneryPrompt"
-                            @submit="onTaskSubmit"
-                            @defer="onTaskDefer"
-                            @space-pick="onFinalGreenerySpacePick" />
-    </transition>
+    <!-- FINAL GREENERY has no surface of its own: the finale is played ON THE BOARD (2026-10-14, PL-295) — the
+         placement dossier carries its block (`finalePanel`), the bar its finish hold. See finalGreeneryModel.ts. -->
 
     <!-- Government Support (World Government Terraforming) — the dedicated
          premium 2×2 briefing panel (replaces the generic host for this ONE
@@ -1804,8 +1792,8 @@ import ConsoleEffectDecision from '@/client/components/console/ConsoleEffectDeci
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import ConsoleFinalGreenery from '@/client/components/console/ConsoleFinalGreenery.vue';
-import {buildFinalGreenery, EYEBROW as FINAL_GREENERY_EYEBROW, FinalGreeneryViewModel} from '@/client/console/finalGreenery/finalGreeneryModel';
+import {buildFinalGreenery, FINALE_KICKER, FinalGreeneryBank, FinalGreeneryViewModel, finalGreeneryBank, finalGreeneryFinishCommand} from '@/client/console/finalGreenery/finalGreeneryModel';
+import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
 import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDeckPickLayer.vue';
@@ -2365,6 +2353,9 @@ const REVEAL_EXIT_BARRIER_NET_MS = 4000;
  */
 const OWED_CONCLUSION_FORCE_MS = 8000;
 
+/** The shared hold-to-confirm key of the finale's irreversible stop (PL-296). */
+const FINALE_FINISH_HOLD = 'final-greenery-finish';
+
 /**
  * THE LAST REFUSED CONCLUSION — which workspace, and the NAMED hold that refused it (`workspaceConclusionFor`'s
  * reason). Diagnostics only (the conclusion witness's heal warn reads it): plain module state, never reactive — a
@@ -2452,7 +2443,6 @@ export default defineComponent({
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
     ConsoleEffectDecision,
-    ConsoleFinalGreenery,
     ConsoleProductionLoss,
     ConsoleDeckPick,
     ConsoleDeckPickLayer,
@@ -3709,10 +3699,12 @@ export default defineComponent({
       return this.effectDecisionActive || this.effectDecisionHeldForWorkspace;
     },
     /**
-     * THE FINALE. The endgame "turn your plants into greeneries" loop, on its
-     * own screen — see finalGreeneryModel.ts for why it is not just another
-     * optional decision (one of its two branches ends the player's game).
-     * Marker-gated like every other adapter: unmarked → the host keeps it.
+     * THE FINALE. The endgame "turn your plants into greeneries" loop, played
+     * ON THE BOARD (PL-295, the owner's decision 2026-10-14) — see
+     * finalGreeneryModel.ts for why stopping is a hold and placing is the
+     * board's own pick. Marker-gated like every other adapter: unmarked → the
+     * host keeps it. This is the ADMITTED read (the gate / the host's
+     * admission let the finale open); the board pick reads the raw one.
      */
     finalGreeneryVm(): FinalGreeneryViewModel | undefined {
       if (this.hostTask?.kind !== 'choice') {
@@ -3720,11 +3712,28 @@ export default defineComponent({
       }
       return buildFinalGreenery(this.playerView.waitingFor, this.playerView.thisPlayer);
     },
-    /** The live prompt behind the finale — the placement branch is handed to
-     *  the board with it. Narrowed here so the surface's prop stays required. */
-    finalGreeneryPrompt(): PlayerInputModel | undefined {
-      return this.finalGreeneryVm === undefined ? undefined : this.playerView.waitingFor;
+    /**
+     * The finale read off the RAW prompt — what the board pick, its dossier
+     * block and its finish hold stand on. Admission may blink while the pick
+     * is out (a bot card's flow hold, a landing cinematic), and the stock and
+     * the finish verb must not blink with it.
+     */
+    finalGreeneryRawVm(): FinalGreeneryViewModel | undefined {
+      return buildFinalGreenery(this.playerView.waitingFor, this.playerView.thisPlayer);
     },
+    /** The dossier's FINALE block — only while the finale's own board pick is out. */
+    finalePanel(): {plants: number, cost: number, bank: FinalGreeneryBank} | undefined {
+      const vm = this.finalGreeneryRawVm;
+      if (!this.finalGreeneryPickPending || vm === undefined) {
+        return undefined;
+      }
+      return {plants: vm.plants, cost: vm.cost, bank: finalGreeneryBank(vm)};
+    },
+    /**
+     * THE FINALE STANDS OPEN with no board pick out — a transient state: the
+     * watcher below hands the placement to the board the moment it rises (the
+     * announce's A, a restored minimize, the next greenery after a landing).
+     */
     finalGreeneryActive(): boolean {
       return this.finalGreeneryVm !== undefined &&
         !this.finalGreeneryCommitting &&
@@ -6335,6 +6344,10 @@ export default defineComponent({
     /** What this cell pick actually PUTS DOWN — a tile, or a marker (a claim /
      *  a camp move). The key comes from the ONE prompt-copy source. */
     placementKickerKey(): string {
+      // The finale's pick names its PHASE («Конец партии»), not the generic «Размещение тайла».
+      if (this.finalGreeneryPickPending) {
+        return FINALE_KICKER;
+      }
       return placementKicker(this.placementSpaceModel);
     },
     /**
@@ -6377,7 +6390,8 @@ export default defineComponent({
      * the amount is the live, Ecoline-adjusted price the server exposes.
      */
     plantConversion(): PlacementConversion | undefined {
-      if (this.convertPlantsPending === undefined) {
+      // The FINALE's pick is the same exchange (8 plants → 1 greenery) — stated the same way in its dossier.
+      if (this.convertPlantsPending === undefined && !this.finalGreeneryPickPending) {
         return undefined;
       }
       return {amount: this.thisPlayer.plantsNeededForGreenery, icon: 'plants'};
@@ -8630,7 +8644,7 @@ export default defineComponent({
           (this.effectDecisionVm?.eyebrowKey ?? 'Awaiting decision');
       }
       if (this.finalGreeneryActive) {
-        return FINAL_GREENERY_EYEBROW;
+        return FINALE_KICKER;
       }
       if (this.hostTask !== undefined && this.parliamentStageTask && workspaceFrameMounted('parliament') && !this.consoleState.task.deferred) {
         // EMBEDDED in the Parliament's sitting (the recipient picker in the reward stage's zone): the
@@ -9006,7 +9020,9 @@ export default defineComponent({
         return [...(panelCommands('effectDecision') ?? [])];
       }
       if (this.finalGreeneryActive) {
-        return [...(panelCommands('finalGreenery') ?? [])];
+        // The beat between «the finale stands open» and the board taking the pick (the watcher hands it over in the
+        // same flush): the finale's own verbs, never the host's.
+        return [finalGreeneryFinishCommand(), {control: 'back', label: 'Minimize'}];
       }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The task host publishes its live contract (browse / pick / lanes /
@@ -9510,6 +9526,7 @@ export default defineComponent({
           sourceInspectable: this.placementSourceInspectable,
           moveLevel: this.placementMoveLevelNow,
           moveFamily: this.placementMoveFamilyNow,
+          finale: this.finalGreeneryPickPending ? {finish: finalGreeneryFinishCommand()} : undefined,
         });
       }
       if (this.consoleState.sale.active) {
@@ -12366,6 +12383,20 @@ export default defineComponent({
         }
       });
     },
+    /**
+     * THE FINALE TAKES THE BOARD whenever it stands open with no pick out (PL-295): the announce's A, the return
+     * from a minimize, the next greenery after a landing (the commit hold `finalGreeneryCommitting` keeps it off
+     * until the answer has landed and the landing hero holds the foreground). `post`: the admission it rides is
+     * settled by then, and the board binder sees the prompt the pick answers.
+     */
+    finalGreeneryActive: {
+      flush: 'post',
+      handler(on: boolean): void {
+        if (on) {
+          this.openFinalGreeneryOnBoard();
+        }
+      },
+    },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
     playerView: {
@@ -13524,6 +13555,15 @@ export default defineComponent({
       if (this.consoleCardZoom.card !== undefined) {
         return this.handleZoomIntent(intent);
       }
+      // THE FINALE ON THE BOARD (PL-296): while the finale's own board pick is out, RT is the FINISH — a HOLD (the
+      // shared hold-to-confirm, «Пас»'s gesture), never the actions wheel (nothing else can be done at the end of the
+      // game). Only at the cell-choice level: a LOCKED cell is a placement in progress — B steps back first.
+      if (this.finalGreeneryPickPending && this.placementActive && intent.kind === 'press' && intent.button === 'triggerR') {
+        if (this.placementFlowState.phase === 'navigate') {
+          this.beginFinalGreeneryFinish();
+        }
+        return true;
+      }
       // MANDATORY PROMPT (consoleMandatoryGate): while the prompt card is
       // visible the pending mandatory decision is the priority — A OPENS a held
       // one / RETURNS to a deferred one (A is free on the board home; the
@@ -13881,11 +13921,18 @@ export default defineComponent({
         panel?.handleIntent(intent);
         return true;
       }
-      // The FINALE screen owns input on the same terms (its A is the arming
-      // one — that lives in the panel, not here).
+      // THE FINALE between «open» and the board pick (one flush): A hands the pick over now, B minimizes, RT holds.
       if (this.finalGreeneryActive) {
-        const panel = this.$refs.finalGreenery as InstanceType<typeof ConsoleFinalGreenery> | undefined;
-        panel?.handleIntent(intent);
+        if (intent.kind === 'press') {
+          const act = consoleActionOf(intent);
+          if (act === 'back') {
+            this.deferFinalGreenery();
+          } else if (intent.button === 'triggerR') {
+            this.beginFinalGreeneryFinish();
+          } else if (act === 'primary') {
+            this.openFinalGreeneryOnBoard();
+          }
+        }
         return true;
       }
       // CTS T1–T3: the task host owns input while it serves (B inside the
@@ -15650,6 +15697,10 @@ export default defineComponent({
         // still nothing sent. The whole-flow cancel is one more B away.
         if (this.placementMoveLevelNow === 'cell') {
           putDownMoveSource();
+          return;
+        }
+        if (this.finalGreeneryPickPending) {
+          this.deferFinalGreenery();
           return;
         }
         if (this.placementCancellable) {
@@ -18512,6 +18563,10 @@ export default defineComponent({
       armBoardCardBonus({kind: 'board-cell', spaceId});
     },
     cancelPlacement(): void {
+      if (this.taskSpacePending !== undefined && this.finalGreeneryPickPending) {
+        this.deferFinalGreenery();
+        return;
+      }
       if (this.taskSpacePending !== undefined) {
         // A task's nested board pick: nothing committed — return to the task.
         this.taskSpacePending = undefined;
@@ -20157,6 +20212,48 @@ export default defineComponent({
     onFinalGreenerySpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {
       this.finalGreeneryPickPending = true;
       this.onTaskSpacePick(payload);
+    },
+    /**
+     * THE FINALE TAKES THE BOARD (PL-295): the placement branch goes straight to the board pick — on the announce's
+     * A, on the way back from a minimize and after every landing. There is no dialog in between.
+     */
+    openFinalGreeneryOnBoard(): void {
+      const vm = this.finalGreeneryVm;
+      const wf = this.playerView.waitingFor;
+      if (vm === undefined || wf?.type !== 'or' || this.taskSpacePending !== undefined) {
+        return;
+      }
+      const spacePrompt = (wf as {options: Array<PlayerInputModel>}).options[vm.placeIndex];
+      if (spacePrompt === undefined) {
+        return;
+      }
+      this.onFinalGreenerySpacePick({index: vm.placeIndex, spacePrompt});
+    },
+    /** B on the finale: MINIMIZE — the pick is dropped (nothing was sent), the board home's plate brings it back. */
+    deferFinalGreenery(): void {
+      cancelHoldConfirm(FINALE_FINISH_HOLD);
+      this.taskSpacePending = undefined;
+      this.finalGreeneryPickPending = false;
+      this.consoleState.task.deferred = true;
+    },
+    /** RT down on the finale: the irreversible stop arms the shared hold; letting go is a safe cancel. */
+    beginFinalGreeneryFinish(): void {
+      beginHoldConfirm(FINALE_FINISH_HOLD, () => this.finishFinalGreenery(), 'triggerR');
+    },
+    /**
+     * The hold completed: THE PLAYER'S GAME ENDS — the «I am done» branch, answered. The board pick (nothing sent)
+     * is dropped first and the loop is held off until the answer lands, so the board cannot re-enter placement on
+     * the prompt the answer is about to retire.
+     */
+    finishFinalGreenery(): void {
+      const vm = this.finalGreeneryRawVm;
+      if (vm === undefined) {
+        return;
+      }
+      this.taskSpacePending = undefined;
+      this.finalGreeneryPickPending = false;
+      this.finalGreeneryCommitting = true;
+      this.submit(orOptionResponse(vm.stopIndex));
     },
     onTaskSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
       const pending = this.taskSpacePending;
@@ -22383,6 +22480,13 @@ export default defineComponent({
     // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
     // `immediate`, so the mount edge is asked here.
     this.openEffectDecisionPick(this.effectDecisionDirectPick);
+    // …and a FINALE standing open at boot (a reload mid-finale): the watcher is not `immediate`, so its mount edge
+    // is asked here — the board takes the pick once the shell has rendered.
+    void this.$nextTick(() => {
+      if (this.finalGreeneryActive) {
+        this.openFinalGreeneryOnBoard();
+      }
+    });
     // A CHOSEN TRACK's move (TR07) is seeded only while the stage that will play it stands — the shell knows.
     registerColonyTrackMoveHost((colony) => workspaceFrameKnown('colonies') && this.colonyFocus.open && this.colonyFocus.colonyName === colony);
     // A ROSTER change somebody else made is played on the colony GRID — only while that grid is what the player is
