@@ -20,7 +20,7 @@ import {gsap} from 'gsap';
 import {
   TileRect, TileFlightProfile, OWN_FLIGHT_PROFILE,
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
-  TILE_SETTLE_PX, TILE_TOUCH_MS,
+  TILE_SETTLE_PX, TILE_TOUCH_MS, SPROUT_PEAK_SCALE,
   TIER_CRUISE_SCALE, tierDescentScaleAt, dustMoteVector,
   MovePose, movePlan, moveLiftPose, moveCarryPose, moveLandPose, moveShadowAt,
   MOVE_VACATED_T, MOVE_SHADOW_LAG, MOVE_DESCENT_T,
@@ -785,6 +785,37 @@ export function seatTileProxy(els: TileStageEls, hex: TileRect): void {
       width: hex.w, height: hex.h * 0.5, x: hex.x, y: hex.y + hex.h * 0.42,
     });
   }
+}
+
+export type TileSproutOpts = {
+  /** The live hex rect — the tile is born ON it. */
+  hex: TileRect,
+  uiScale: number,
+  sproutMs: number,
+  settleMs: number,
+};
+
+/**
+ * THE GREENERY GROWS OUT OF ITS PLANTS (PL-306) — the landing of a tile the player BOUGHT WITH PLANTS (the conversion,
+ * the final greenery). The price has just been drawn into this very cell (the rail's token, absorbed at the hex), so
+ * nothing comes from the table: the proxy — posed by `placeTileProxy` AT the hex with `SPROUT_PROFILE` — clears in
+ * fast, GROWS out of the cell to a hair above the board's scale (`SPROUT_PEAK_SCALE`) and settles into it, the ground
+ * shadow tightening with the growth, and lands with the one TOUCH every tile speaks (`addTileTouch` — a piece does not
+ * change the way it lands by where it came from). Transform / opacity only; resolves after the settle.
+ */
+export function playTileSprout(els: TileStageEls, opts: TileSproutOpts): Promise<void> {
+  const settlePx = Math.max(2, Math.round(TILE_SETTLE_PX * opts.uiScale));
+  const grow = opts.sproutMs / 1000;
+  return guarded((done) => {
+    const tl = gsap.timeline({onComplete: done});
+    tl.to(els.tile, {autoAlpha: 1, duration: grow * 0.35, ease: 'power1.out'}, 0);
+    tl.to(els.tile, {scale: SPROUT_PEAK_SCALE, duration: grow * 0.7, ease: 'power2.out'}, 0);
+    tl.to(els.tile, {scale: 1, duration: grow * 0.3, ease: 'power1.inOut'}, grow * 0.7);
+    if (els.shadow !== undefined) {
+      tl.fromTo(els.shadow, {autoAlpha: 0, scale: 0.6}, {autoAlpha: 0.42, scale: 1, duration: grow, ease: 'power1.out'}, 0);
+    }
+    addTileTouch(tl, els, {at: grow, settlePx, settleMs: opts.settleMs});
+  }, opts.sproutMs + opts.settleMs + 400);
 }
 
 /** The frame-perfect handoff: the REAL board tile is already painted

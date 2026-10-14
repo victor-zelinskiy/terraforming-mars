@@ -1535,12 +1535,14 @@
       <console-board-input v-if="convertPlantsPrompt !== undefined"
                            :playerView="playerView"
                            :playerinput="convertPlantsPrompt"
+                           :price="plantExchangePrice"
                            :onsave="onConvertPlantsSpacePicked" />
       <!-- Nested board pick from a task's space-type option (WGT ocean):
            the same board-input binder as convert-plants. -->
       <console-board-input v-if="taskSpacePrompt !== undefined"
                            :playerView="playerView"
                            :playerinput="taskSpacePrompt"
+                           :price="finalGreeneryPickPending ? plantExchangePrice : undefined"
                            :onsave="onTaskSpacePicked" />
       <!-- STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): the play's cell pick
            BEFORE the batch is submitted — the third client-side picker, fed a
@@ -6547,6 +6549,15 @@ export default defineComponent({
         return undefined;
       }
       return {amount: this.thisPlayer.plantsNeededForGreenery, icon: 'plants'};
+    },
+    /**
+     * THE PRICE OF A GREENERY BOUGHT WITH PLANTS (PL-306) — the dossier's own exchange (`plantConversion`, the live
+     * `plantsNeededForGreenery`), handed to the conversion pickers' arm: the price leaves the plants row for the cell
+     * and the greenery grows out of it. ONE source for the formula the player reads and the token they watch.
+     */
+    plantExchangePrice(): {resource: string, amount: number} | undefined {
+      const conversion = this.plantConversion;
+      return conversion === undefined ? undefined : {resource: conversion.icon, amount: conversion.amount};
     },
     placementTitle(): string {
       const t = this.placementSpaceModel?.title;

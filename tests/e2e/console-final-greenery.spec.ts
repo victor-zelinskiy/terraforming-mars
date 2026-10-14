@@ -20,9 +20,10 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {cinematicBeat, openConsole, press} from './consoleStart';
 import {
-  FINALE_BLOCK, armFinaleWitness, disarmFinaleWitness, finaleStage, fixtureTable, forceFrame, getModel, holdFinishFinale,
-  openFinaleOnBoard, placeFinaleGreenery, postInput, readFinaleWitness, shoot, terraformAnswer, titleOf, waitWithFrames, WireModel,
+  FINALE_BLOCK, armFinaleWitness, armPriceProbe, disarmFinaleWitness, finaleStage, fixtureTable, forceFrame, getModel, holdFinishFinale,
+  openFinaleOnBoard, placeFinaleGreenery, postInput, readFinaleWitness, readPriceProbe, shoot, storyboard, terraformAnswer, titleOf, waitWithFrames, WireModel,
 } from './consoleEndgameHarness';
+import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 const PROFILES = [
   {tag: 'fhd', width: 1920, height: 1080, query: ''},
@@ -133,12 +134,18 @@ for (const profile of PROFILES) {
       await shoot(page, shots, '01-finale-on-board');
 
       // ── ② one greenery lands; the context is ONE — nothing around the board lets go ──
+      // …and its PRICE is a departure (PL-306): the plants leave the rail for the cell, the tile grows out of it.
+      const spacesBefore = (await getModel(request, ids[0]) as unknown as {game: {spaces: Array<{id: string, tileType?: number}>}}).game.spaces;
       await armFinaleWitness(page);
+      await armTransferWitness(page);
+      await armPriceProbe(page);
+      const stopStory = await storyboard(page, shots, 'price-into-cell');
       expect(await placeFinaleGreenery(page, request, ids[0]), 'a greenery is placed through the board').toBe(true);
       await waitWithFrames(page, async () => (await finaleStage(page)) === 'pick' && await onBoardPick(page),
         60_000, 'the board back in the finale placement after the landing');
       // The landing's whole story has played by now (the hero, the bonus beats): read the witness after a calm beat.
       await cinematicBeat(page, 1_200, "the landing's whole story (the hero, the bonus beats) settles before the witness is read");
+      await stopStory();
       const witness = await readFinaleWitness(page);
       await disarmFinaleWitness(page);
       expect(witness.panelRemounts, 'the dossier never re-mounted').toBe(0);
@@ -147,6 +154,39 @@ for (const profile of PROFILES) {
       expect(witness.hostSeen, 'no task band rose between two greeneries').toBe(0);
       expect(witness.focusExits, 'the planet never shrank between two greeneries').toBe(0);
       expect(witness.stages, 'the stage walked pick → landing → pick').toEqual(['landing', 'pick']);
+      // ── PL-306: the price of the greenery, off the rail, INTO the cell — and the tile born there ──
+      const flights = await transferWitness(page);
+      const priceProbe = await readPriceProbe(page);
+      const placed = (await getModel(request, ids[0]) as unknown as {game: {spaces: Array<{id: string, tileType?: number}>}}).game.spaces
+        .find((s) => s.tileType !== undefined && spacesBefore.find((b) => b.id === s.id)?.tileType === undefined)?.id;
+      expect(placed, 'the server placed the greenery on a fresh cell').toBeDefined();
+      const trail = `${transferTrail(flights)}\nrows ${JSON.stringify(priceProbe.rows)} chips ${JSON.stringify(priceProbe.chips)} price ${JSON.stringify(priceProbe.price)} tile ${JSON.stringify(priceProbe.tileFirst)}`;
+      const born = flights.births.filter((b) => b.under === 'rail:plants');
+      expect(born.length, `ONE price token born on the plants row's ink (${trail})`).toBe(1);
+      expect(born[0].value, `it reads the price, minus ${before.cost} (${trail})`).toMatch(new RegExp(`^[−-]${before.cost}$`));
+      const landing = flights.landings.find((l) => l.id === born[0].id);
+      expect(landing?.under, `…and is drawn into the CELL the greenery grows out of (${trail})`).toBe(`cell:${placed}`);
+      expect(endsOverGlass(flights), 'no end of any flight over glass').toEqual([]);
+      const tick = priceProbe.rows.find(([, text]) => text === String(before.plants - before.cost));
+      expect(tick, `the row reads ${before.plants - before.cost} — the price left it (${trail})`).toBeDefined();
+      expect(tick![0], `…ticking on the DEPARTURE, not before the birth (${trail})`).toBeGreaterThanOrEqual(born[0].t - 40);
+      expect(tick![0], `…and not after the touchdown (${trail})`).toBeLessThanOrEqual(landing!.t);
+      // …and its own «−N» chip says so AT that tick — never a beat later, in the commit's frame (the departure IS the cause).
+      const chip = priceProbe.chips.find(([, text]) => /^[−-]\d+$/.test(text));
+      expect(chip?.[1], `the row's delta chip names the price (${trail})`).toMatch(new RegExp(`^[−-]${before.cost}$`));
+      expect(chip![0] - tick![0], `…painted with the departure's tick, not with the commit (${trail})`).toBeLessThan(250);
+      expect(priceProbe.price.map(([, a]) => a), `the hero's own account: the price was flown (${trail})`).toContain('flown');
+      const cell = await page.evaluate((id) => {
+        const r = document.querySelector(`.board-space[data_space_id="${id}"]`)?.getBoundingClientRect();
+        return r === undefined ? undefined : {cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width};
+      }, placed);
+      expect(priceProbe.tileFirst, `the tile proxy was painted (${trail})`).toBeDefined();
+      expect(Math.hypot(priceProbe.tileFirst!.cx - cell!.cx, priceProbe.tileFirst!.cy - cell!.cy),
+        `the greenery is BORN on its cell — never carried in from the table (${trail})`).toBeLessThan(cell!.w * 0.5);
+      // The greenery grows out of the token AS it is absorbed (PL-140 — the result is born out of the quick absorb),
+      // so its first frame is the price's TOUCHDOWN, never before it; one sampler quantum of slack on each clock.
+      expect(landing!.touched, `the price token touched its cell down (${trail})`).toBeDefined();
+      expect(priceProbe.tileFirst!.t, `…and only once the price has reached it (${trail})`).toBeGreaterThanOrEqual(landing!.touched! - 40);
       const after = await viewerStock(request, ids[0]);
       expect(after.plants, 'the stock moved by the server\'s own number').toBeLessThan(before.plants);
       const bankAfter = await bankShape(page);

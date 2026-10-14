@@ -37,7 +37,7 @@ import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeServi
 import {midPromptRefreshEnabled, serverAheadOfView} from '@/client/components/realtime/viewFreshness';
 import {registerTruthWitness} from '@/client/console/presentationLedger';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
-import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
+import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {SoundManager} from '@/client/utils/SoundManager';
@@ -527,6 +527,17 @@ export function cancelPlacement(): void {
   submitInput({type: 'cancel'});
 }
 
+/** The viewer's six stock rows, as a view reads them (the tile hero's price check — PL-306). */
+function stockReadingOf(player: PublicPlayerModel | undefined): Record<string, number> {
+  if (player === undefined) {
+    return {};
+  }
+  return {
+    megacredits: player.megacredits, steel: player.steel, titanium: player.titanium,
+    plants: player.plants, energy: player.energy, heat: player.heat,
+  };
+}
+
 function currentPromptIsWGT(): boolean {
   const wf = currentWaitingFor();
   if (wf === undefined || wf.type !== 'or') {
@@ -836,6 +847,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             cardPayouts: newView.game?.cardAdjacencyPayouts,
             prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
             viewerCards: newView.thisPlayer?.tableau,
+            // …and the viewer's stock in both views: the price a conversion pays off the rail (PL-306) is flown only
+            // when its row moved by exactly that price plus what the placement pays back.
+            viewerStock: {before: stockReadingOf(currentView().thisPlayer), after: stockReadingOf(newView.thisPlayer)},
           });
         if (tileHeroEvent !== undefined) {
           transportHolds.tilePlacementHero = true;

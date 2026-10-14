@@ -665,6 +665,79 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     });
   });
 
+  describe('THE PRICE OFF THE RAIL (PL-306 — a greenery bought with plants)', () => {
+    let teardown: () => void = () => undefined;
+    afterEach(() => teardown());
+    const greenery = (bonus: Array<SpaceBonus> = []) => ({
+      prev: [space('05', {bonus})],
+      next: [space('05', {bonus, tileType: TileType.GREENERY, color: 'green'})],
+    });
+
+    it('the row ticks on the DEPARTURE (a hold before the commit), and the commit\'s block lets it go with no transition', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', price: {resource: 'plants', amount: 8}});
+      const {prev, next} = greenery();
+      expect(detectTilePlacement(prev, next, {viewerStock: {before: {plants: 16}, after: {plants: 8}}})).to.not.be.undefined;
+      await runTilePlacement(prev, next);
+      // JSDOM has no rail row to be born on: the token degrades honestly — but the departure still reads on the row.
+      expect(tilePlacementState.price).to.match(/^degraded: no-/);
+      expect(heldStock('plants'), 'the row reads committed − 8 before the view is applied').to.eq(8);
+      seedTilePlacementRewardHold();
+      expect(heldStock('plants'), 'released in the commit\'s own block').to.eq(0);
+    });
+
+    it('a cell that pays plants back keeps BOTH holds apart: the departure leaves, the bonus stays for its own beat', async () => {
+      teardown = boardCell('05', {bonusIcons: 1});
+      armTilePlacement({spaceId: '05', price: {resource: 'plants', amount: 8}});
+      const {prev, next} = greenery([SpaceBonus.PLANT]);
+      detectTilePlacement(prev, next, {viewerStock: {before: {plants: 16}, after: {plants: 9}}});
+      await runTilePlacement(prev, next);
+      expect(heldStock('plants')).to.eq(8);
+      seedTilePlacementRewardHold();
+      expect(heldStock('plants'), 'only the printed plant, held to its touchdown').to.eq(1);
+    });
+
+    it('a row that moved otherwise is NOT flown — nothing held, the account names it', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', price: {resource: 'plants', amount: 8}});
+      const {prev, next} = greenery();
+      detectTilePlacement(prev, next, {viewerStock: {before: {plants: 16}, after: {plants: 5}}});
+      await runTilePlacement(prev, next);
+      expect(tilePlacementState.price).to.match(/^mismatch: plants 16 → 5/);
+      expect(heldStock('plants')).to.eq(0);
+    });
+
+    it('an unmeasurable cell flies no token: the row ticks with the commit and the account says why', async () => {
+      armTilePlacement({spaceId: '05', price: {resource: 'plants', amount: 8}});
+      const {prev, next} = greenery();
+      detectTilePlacement(prev, next, {viewerStock: {before: {plants: 16}, after: {plants: 8}}});
+      await runTilePlacement(prev, next);
+      expect(tilePlacementState.price).to.eq('degraded: no measurable cell');
+      expect(heldStock('plants')).to.eq(0);
+    });
+
+    it('an abort after the departure returns the row to the truth — a refused placement paid nothing', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05', price: {resource: 'plants', amount: 8}});
+      const {prev, next} = greenery();
+      detectTilePlacement(prev, next, {viewerStock: {before: {plants: 16}, after: {plants: 8}}});
+      await runTilePlacement(prev, next);
+      expect(heldStock('plants')).to.eq(8);
+      abortTilePlacement();
+      expect(heldStock('plants')).to.eq(0);
+    });
+
+    it('a placement with no price declared plays no price beat', async () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05'});
+      const {prev, next} = greenery();
+      detectTilePlacement(prev, next, {viewerStock: {before: {plants: 16}, after: {plants: 16}}});
+      await runTilePlacement(prev, next);
+      expect(tilePlacementState.price).to.eq('');
+      expect(heldStock('plants')).to.eq(0);
+    });
+  });
+
   it('sequential placements stay separate transactions (fresh arm re-keys)', async () => {
     armTilePlacement({spaceId: '05'});
     const firstNonce = tilePlacementState.nonce;

@@ -321,6 +321,26 @@ export async function shoot(page: Page, dir: string, name: string): Promise<void
   await page.screenshot({path: `${dir}/${name}.png`});
 }
 
+/** A STORYBOARD of one scene (`TM_E2E_STORYBOARD=1` only): every frame the compositor produced, named by its time. */
+export async function storyboard(page: Page, dir: string, name: string): Promise<() => Promise<void>> {
+  if (process.env.TM_E2E_STORYBOARD !== '1') {
+    return async () => {};
+  }
+  const out = path.join(dir, `story-${name}`);
+  fs.rmSync(out, {recursive: true, force: true});
+  fs.mkdirSync(out, {recursive: true});
+  const client = await page.context().newCDPSession(page);
+  const t0 = Date.now();
+  client.on('Page.screencastFrame', (frame) => {
+    fs.writeFileSync(path.join(out, `t${String(Date.now() - t0).padStart(5, '0')}.jpg`), Buffer.from(frame.data, 'base64'));
+    void client.send('Page.screencastFrameAck', {sessionId: frame.sessionId}).catch(() => undefined);
+  });
+  await client.send('Page.startScreencast', {format: 'jpeg', quality: 82, everyNthFrame: 1});
+  return async () => {
+    await client.send('Page.stopScreencast').catch(() => undefined);
+  };
+}
+
 /**
  * The finale's own block in the cell dossier — present for the SESSION's whole life (PL-303 / PL-304): the pick,
  * the landing, another seat's answer. Its `data-finale-stage` says where the context stands.
@@ -399,6 +419,84 @@ export async function disarmFinaleWitness(page: Page): Promise<void> {
     const w = (window as unknown as {__finaleWitness?: {observer: MutationObserver}});
     w.__finaleWitness?.observer.disconnect();
     delete w.__finaleWitness;
+  });
+}
+
+/**
+ * THE PRICE PROBE (PL-306 — a greenery bought with plants): armed beside the transfer witness (same moment, same
+ * `performance.now()` clock to within a millisecond), it records the plants row's digits as the player reads them,
+ * the hero's own account of the price beat (`data-tile-price`) and the FIRST painted frame of the own tile proxy
+ * (where the tile is born — the sprout grows out of its cell, never from the table). A 16 ms sampler + a
+ * MutationObserver, never rAF.
+ */
+export type PriceProbe = {
+  rows: Array<[number, string]>;
+  /** The plants row's own ±N delta chip, as painted (text, '' when none). */
+  chips: Array<[number, string]>;
+  price: Array<[number, string]>;
+  tileFirst: {t: number, cx: number, cy: number, w: number} | undefined;
+};
+
+export async function armPriceProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    type Probe = {rows: Array<[number, string]>, chips: Array<[number, string]>, price: Array<[number, string]>, tileFirst: {t: number, cx: number, cy: number, w: number} | undefined};
+    const w = window as unknown as {__priceProbe?: {probe: Probe, stop: () => void}};
+    w.__priceProbe?.stop();
+    const probe: Probe = {rows: [], chips: [], price: [], tileFirst: undefined};
+    const t0 = performance.now();
+    const opacityOf = (el: Element): number => {
+      let op = 1;
+      for (let n: Element | null = el; n !== null; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.visibility === 'hidden' || cs.display === 'none') {
+          return 0;
+        }
+        op *= Number(cs.opacity);
+      }
+      return op;
+    };
+    const sample = () => {
+      const t = Math.round(performance.now() - t0);
+      const digits = document.querySelector('.con-res__row--plants .con-res__digits');
+      const text = (digits?.firstChild?.textContent ?? '').trim();
+      if (probe.rows[probe.rows.length - 1]?.[1] !== text) {
+        probe.rows.push([t, text]);
+      }
+      const chip = (document.querySelector('.con-res__row--plants .con-res__digits .metric-feedback-host')?.textContent ?? '').replace(/\s+/g, '');
+      if (probe.chips[probe.chips.length - 1]?.[1] !== chip) {
+        probe.chips.push([t, chip]);
+      }
+      const account = document.querySelector('.con-tileplace')?.getAttribute('data-tile-price') ?? '';
+      if (probe.price[probe.price.length - 1]?.[1] !== account) {
+        probe.price.push([t, account]);
+      }
+      if (probe.tileFirst === undefined) {
+        const tile = document.querySelector('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--cover):not(.con-tileplace__tile--remote)');
+        if (tile !== null && opacityOf(tile) > 0.05) {
+          const r = tile.getBoundingClientRect();
+          if (r.width > 2) {
+            probe.tileFirst = {t, cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width};
+          }
+        }
+      }
+    };
+    const timer = window.setInterval(sample, 16);
+    const mo = new MutationObserver(sample);
+    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
+    sample();
+    w.__priceProbe = {probe, stop: () => {
+      window.clearInterval(timer);
+      mo.disconnect();
+    }};
+  });
+}
+
+export async function readPriceProbe(page: Page): Promise<PriceProbe> {
+  return page.evaluate(() => {
+    const w = window as unknown as {__priceProbe?: {probe: PriceProbe, stop: () => void}};
+    w.__priceProbe?.stop();
+    const p = w.__priceProbe?.probe;
+    return {rows: [...(p?.rows ?? [])], chips: [...(p?.chips ?? [])], price: [...(p?.price ?? [])], tileFirst: p?.tileFirst};
   });
 }
 

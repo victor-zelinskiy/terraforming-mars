@@ -54,6 +54,7 @@ export type TilePlacementPhase =
   | 'armed' // space pick submitted — nothing visual yet
   | 'departing' // remove-and-replace: the doomed tile lifts off the cell
   | 'moving' // a MOVE: the one proxy carries the city from its cell to the armed one
+  | 'paying' // the placement's own PRICE leaves the rail for the cell (PL-306 — a greenery bought with plants)
   | 'approaching' // server success proven; the tile flies to the hex
   | 'landed' // touchdown + settle done; real tile painted under the proxy
   | 'rewarding' // post-commit: printed bonuses materialize + pay out
@@ -485,6 +486,59 @@ export function departingCubePose(color: Color | undefined, hex: TileRect | unde
   };
 }
 
+// ── THE PRICE OF A PLACEMENT, OFF THE RAIL (PL-306) ─────────────────────────
+
+/**
+ * A placement whose tile is BOUGHT with a resource off the rail — the conversion of plants into a greenery (the
+ * standard action, the final greenery): the price is the one structurally-known exchange the dossier already prints
+ * as `8 [plants] → 1 [greenery]` (the live `plantsNeededForGreenery`). Declared by the CLIENT at the arm (the shell
+ * knows which pick is a conversion), never derived from a title.
+ */
+export type PlacementPrice = {resource: string, amount: number};
+
+/** The viewer's stock rows, as two views read them (`megacredits` … `heat`). */
+export type StockReading = Partial<Record<string, number>>;
+
+/**
+ * THE PROMISE AGAINST THE ANSWER — the price is flown only when the row it leaves moved by exactly the price plus
+ * what this very placement is KNOWN to pay back onto that row (the cell's printed plants, a law's groves, an Ares
+ * neighbour's plants — `knownGains`, read off the hero's own captured beats). A row that moved otherwise is not flown:
+ * it ticks with the commit and the verdict names why (the PL-099 family's law: never a token for a number the server
+ * did not move that way). PURE.
+ */
+export function placementPriceVerdict(
+  price: PlacementPrice | undefined,
+  before: StockReading | undefined,
+  after: StockReading | undefined,
+  knownGains: number,
+): {price: PlacementPrice} | {mismatch: string} | undefined {
+  if (price === undefined || price.amount <= 0) {
+    return undefined;
+  }
+  const was = before?.[price.resource];
+  const now = after?.[price.resource];
+  if (was === undefined || now === undefined) {
+    return {mismatch: `no ${price.resource} reading in the two views`};
+  }
+  const expected = was - price.amount + knownGains;
+  if (now !== expected) {
+    return {mismatch: `${price.resource} ${was} → ${now}, the price promised ${expected} (−${price.amount} +${knownGains})`};
+  }
+  return {price};
+}
+
+/**
+ * THE GREENERY GROWS OUT OF ITS PLANTS (PL-306): a tile bought with plants does not come from the table — the price
+ * has just been drawn into its very cell, and the tile rises OUT of it. Born small and clear at the hex, it grows to a
+ * hair above the board's scale and settles with the ordinary touch. The flight's own profile shape (scale relative to
+ * the hex-fitted landing scale), with no carried tilt — nothing was carried.
+ */
+export const TILE_SPROUT_MS = 420;
+export const SPROUT_START_SCALE = 0.56;
+export const SPROUT_PEAK_SCALE = 1.05;
+/** Where in the growth the printed bonuses start to rise off the cell (they are displaced by the growing tile). */
+export const SPROUT_BONUS_LIFT_T = 0.2;
+
 /** Departure pose: the tile is picked up CLOSE to the camera… */
 export const TILE_START_SCALE = 1.32;
 /** …with a slight carried tilt that fully unwinds before the approach. */
@@ -515,6 +569,13 @@ export const REMOTE_FLIGHT_PROFILE: TileFlightProfile = {
   startScale: 1.14,
   cruiseScale: 1.08,
   startTiltDeg: 3.2,
+};
+
+/** The SPROUT's pose (PL-306): born small at its own cell, no tilt — the proxy is posed AT the hex, never carried. */
+export const SPROUT_PROFILE: TileFlightProfile = {
+  startScale: SPROUT_START_SCALE,
+  cruiseScale: SPROUT_PEAK_SCALE,
+  startTiltDeg: 0,
 };
 
 export type TileRect = {x: number, y: number, w: number, h: number};

@@ -106,6 +106,25 @@ The finale's numbers read the RAW prompt while the pick is out
 stage: `finaleStock(plants, plantsNeededForGreenery)`); the ADMITTED read
 (`finalGreeneryVm`) decides only when the next pick may open.
 
+## The price of a greenery flies into its cell (PL-306)
+
+A greenery bought with PLANTS — the final greenery, and the board's ordinary conversion (the LT wheel's «Озеленение
+из растений») — is one exchange, and the scene now tells it in its causal order: the price leaves first, the result
+is born from it. The shell declares the price at the arm (`ConsoleBoardInput.price` ← `plantExchangePrice` — the very
+formula the dossier prints, `plantConversion`, so the number the player reads and the token they watch cannot
+disagree); the hero checks the promise against the two views at detect (`placementPriceVerdict`: the plants row moved
+by exactly the price plus what this placement pays back onto it — the cell's printed plants, a law's groves; anything
+else is not flown and the account says why) and opens with the PRICE BEAT (phase `paying`): the «−8» token is born
+on the plants row's ink, leaves SIDEWAYS at its own row's height (PL-104), and is drawn QUICKLY into the cell (PL-140
+— a price into the result it buys); the row ticks on the DEPARTURE through a departure hold that the commit's own
+block releases with no transition. Then the greenery GROWS OUT OF THE CELL (`playTileSprout`, `SPROUT_PROFILE`) — no
+flight from the table, no carried tilt: the plants became the forest — and lands with the ordinary touch. The hero's
+own account rides `data-tile-price` on the flight layer (`flying` → `flown` · `reduced` · `mismatch: …` ·
+`degraded: …`). Guards: `tests/console/placementPrice.spec.ts`, `consoleTilePlacement.spec` § PL-306, e2e
+`console-final-greenery` ② (the transfer witness: one token born on `rail:plants`, landed on `cell:<id>`; the row
+ticked between the birth and the touchdown, its «−8» chip painted with that tick — never in the commit's frame; the
+tile's first painted frame on its own cell, no earlier than the touchdown).
+
 ## The block (`FinalePanelModel`, PL-304 / PL-305)
 
 Constant for the whole pick (it reads the stock, never the focused cell, so it

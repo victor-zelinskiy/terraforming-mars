@@ -67,6 +67,7 @@ import BoardPlacementPreviewContent from '@/client/components/board/BoardPlaceme
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {armTilePlacement} from '@/client/console/tilePlacement/consoleTilePlacement';
+import type {PlacementPrice} from '@/client/console/tilePlacement/tilePlacementModel';
 import {armNomadMove} from '@/client/console/nomads/consoleNomadMove';
 import {
   beginPlacementCommit,
@@ -135,6 +136,15 @@ export default defineComponent({
     staged: {
       type: Boolean,
       default: false,
+    },
+    /**
+     * The tile is BOUGHT with a resource off the rail (PL-306 — the shell's conversion of plants into a greenery, the
+     * standard action and the final greenery): the arm carries it, and the hero opens with the price leaving its row
+     * for the cell before the tile grows out of it. Undefined for every other placement.
+     */
+    price: {
+      type: Object as () => PlacementPrice | undefined,
+      default: undefined,
     },
   },
   watch: {
@@ -587,6 +597,8 @@ export default defineComponent({
           replacing: this.isClearedTarget(this.spaceId),
           stacking: this.playerinput.placementType === 'city-tier',
           overOcean: this.playerinput.placementType === 'city-over-ocean',
+          // …and whether the tile is BOUGHT off the rail (PL-306) is the shell's declaration: the conversion's price.
+          ...(this.price !== undefined ? {price: this.price} : {}),
         });
       }
       this.onsave({type: 'space', spaceId: this.spaceId});

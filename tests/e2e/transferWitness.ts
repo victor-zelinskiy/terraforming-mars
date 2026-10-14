@@ -80,7 +80,8 @@ export type TransferEnd = {
   /**
    * The anchor under the chip's centre: `hero` · `composer-card:<name>` · `recv:<card|front>` · `played:<card>` ·
    * `rail:<row>` · `aux:<key>` · `payrow:<unit>` · `forecast:<row|bolt>` (a «Сработает» chip — the table's answer is
-   * born there, PL-220) — or, with no anchor there, `glass:<surface>` · `board` · `other:<tag>`;
+   * born there, PL-220) · `cell:<id>` (a board cell — PL-306's price into the cell) — or, with no anchor there,
+   * `glass:<surface>` · `board` · `other:<tag>`;
    * an anchor COVERED by a foreign band surface reads `glass:<surface>→<anchor>`.
    */
   under: string;
@@ -137,6 +138,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['payrow', '.con-payrow'],
       ['rail', '.con-res__row, .con-score__cell'],
       ['aux', '.con-res-aux__cell'],
+      // A board CELL — the least specific anchor: a price drawn into the cell its tile grows out of (PL-306).
+      ['cell', '.board-space[data_space_id]'],
     ];
     const anchorName = (kind: string, el: Element): string => {
       switch (kind) {
@@ -152,6 +155,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
         return `rail:${cls.replace(/^con-res__row--|^con-score__cell--/, '')}`;
       }
       case 'aux': return `aux:${name(el, 'data-aux-resource')}`;
+      case 'cell': return `cell:${name(el, 'data_space_id')}`;
       default: return kind;
       }
     };

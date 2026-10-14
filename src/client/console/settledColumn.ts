@@ -201,15 +201,26 @@ export class SettledColumn {
     this.flip(block, snap);
   }
 
-  /** Unmount: drop every inline style and running slide. */
+  /**
+   * Unmount (`beforeUnmount`): STATE ONLY — never a write to the column's own DOM.
+   *
+   * Vue runs the hook SYNCHRONOUSLY when the vnode goes, and the band's leave transition keeps the surface PAINTED for
+   * its whole fade afterwards (`beforeunmount-still-paints-during-leave`). Un-pinning here re-centred the column on the
+   * leave's first frame: a composer whose block had shrunk under the pin (the colony ledger's receipt) jumped 134 px
+   * (fhd) / 116 px (4K) at full opacity as the workspace left — `console-habitat-science` «the ledger stood in ONE
+   * box». The inline pin dies with the node; a running slide is FROZEN where it stands (killed, never cleared — a
+   * cleared transform snaps), and the pending press's `play` finds no pin and does nothing.
+   */
   public stop(): void {
     const block = this.host.block();
     if (block !== null && block !== undefined) {
-      const mine = [block, ...settleItems(block)].filter((el) => this.sliding.has(el));
-      gsap.killTweensOf(mine);
-      gsap.set(mine, {clearProps: 'opacity,transform'});
+      const items = [block, ...Array.from(block.querySelectorAll<HTMLElement>(SETTLE_ITEMS))];
+      gsap.killTweensOf(items.filter((el) => this.sliding.has(el)));
     }
-    this.release();
+    this.pinned = undefined;
+    this.frame = undefined;
+    this.snapshot = undefined;
+    this.styled = undefined;
   }
 
   /** A group this column may measure and slide: not running someone else's tween. */

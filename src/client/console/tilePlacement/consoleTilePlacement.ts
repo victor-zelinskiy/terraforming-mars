@@ -83,6 +83,22 @@
  *   one short beat. Contract: docs/claude/console/tile-replacement.md § THE
  *   FOURTH CASE.
  *
+ *   A TILE BOUGHT WITH A RESOURCE OFF THE RAIL (PL-306 — the conversion of
+ *   plants into a greenery: the standard action, the FINAL GREENERY) prefixes
+ *   ONE beat and changes the landing: the arm carries the price the shell
+ *   declared (`price` — the dossier's own exchange, `8 [plants] → 1
+ *   [greenery]`), detect checks it against the two views (the row moved by
+ *   exactly the price plus what this placement is known to pay back onto it —
+ *   `placementPriceVerdict`; anything else is not flown and names itself),
+ *   and the scene opens with the PRICE: the «−8» token is born on the plants
+ *   row's ink, leaves SIDEWAYS (PL-104) and is drawn QUICKLY into the cell
+ *   (PL-140 — a price into the result it buys), the row ticking on the
+ *   DEPARTURE through a departure hold (the view is not applied yet; the
+ *   commit's block releases it with no transition). Then the greenery GROWS
+ *   OUT OF THE CELL (`playTileSprout`) instead of flying in from the table —
+ *   nothing was carried: the plants became the forest. Reduced motion: no
+ *   token, the row ticks with the commit, the ordinary paint.
+ *
  * Ownership map:
  *   - phases / geometry / bonus extraction → tilePlacementModel (pure);
  *   - GSAP work on the stage              → tilePlacementDirector;
@@ -116,6 +132,7 @@ import {
   placementBonuses, verifyPlacement, findSpace, applySpacePreview, applyVacatePreview,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSceneMs, moveSourceRect,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
+  PlacementPrice, StockReading, placementPriceVerdict, SPROUT_PROFILE, TILE_SPROUT_MS, SPROUT_BONUS_LIFT_T,
   TILE_DEPART_MS, TILE_DEPART_SCALE, TILE_DEPART_TILT_DEG, TILE_DEPART_FADE_T,
   TILE_DEPART_REVEAL_T, TILE_DEPART_BREATH_MS, departureLiftPx, departingCubePose, DepartingCubePose,
   BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
@@ -158,6 +175,7 @@ import {
   placeDepartProxy, playTileDeparture,
   playTierApproach, playTierDescent, playStackDust,
   placeMoveProxy, playTileMove, removeMoveProxy, placeStayingCover, hideStayingCover,
+  playTileSprout,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -245,6 +263,9 @@ export const tilePlacementState = reactive({
   /** THE LAW'S WAVE is playing: the enacted resolution's own payout of this
    *  same cell (a probe's witness that the two waves went IN TURN). */
   lawWave: false,
+  /** THE PRICE BEAT's own account (PL-306): '' (none) · `flying` · `flown` · `reduced` · `mismatch: …` · `degraded: …`.
+   *  A probe's witness (`data-tile-price` on the layer) — every end names itself, never a silent skip. */
+  price: '' as string,
   reducedMotion: false,
 });
 
@@ -296,6 +317,13 @@ function moveRewardFor(reward: TileMoveRewardModel | undefined, from: string, sp
  */
 type PendingCityPayout = {payout: CardAdjacencyPayoutModel, own: boolean, cardModel: CardModel | undefined, vpSteps: ReadonlyArray<number>};
 let pendingCityPayouts: ReadonlyArray<PendingCityPayout> = [];
+/** The price the ARM declared (PL-306) — checked at detect, then flown as the scene's opening beat. */
+let armedPrice: PlacementPrice | undefined;
+/** The price the ANSWER confirmed — the opening beat's manifest (undefined: no price beat). */
+let pendingPrice: PlacementPrice | undefined;
+/** The departure holds the price beat seeded (gain-shaped, against the not-yet-applied view) — released by the
+ *  commit's block (`seedTilePlacementRewardHold`), or let go with every hold by an abort. */
+const priceDepartures: Array<ResourceTransferSpec> = [];
 
 /** The satellite's hold of a card payout (the receiving card's home cell ticks when the card comes back). */
 function cityPayoutHoldSpec(payout: CardAdjacencyPayoutModel): ResourceTransferSpec {
@@ -446,6 +474,9 @@ export function armTilePlacement(opts: {
   /** The prompt DECLARED a city ON TOP OF an ocean (`placementType: 'city-over-ocean'`, TR44): the tile lands INTO
    *  the pile's lift over the water — the splash at contact, the cell's one jolt, the water never gone for a frame. */
   overOcean?: boolean,
+  /** The tile is BOUGHT with a resource off the rail (PL-306 — the shell's conversion of plants into a greenery):
+   *  the price leaves its row for this cell before the tile grows out of it. */
+  price?: PlacementPrice,
 }): void {
   // A confirm that lands while Planet Focus is still GROWING the board
   // snaps the transition to its settled state NOW — the detect measures the
@@ -471,6 +502,10 @@ export function armTilePlacement(opts: {
   armedReplacing = opts.replacing === true;
   armedStacking = opts.stacking === true;
   armedOverOcean = opts.overOcean === true;
+  armedPrice = opts.price !== undefined && opts.price.amount > 0 ? {...opts.price} : undefined;
+  pendingPrice = undefined;
+  priceDepartures.length = 0;
+  tilePlacementState.price = '';
   clearMoveScene();
   armedMovedFrom = opts.movedFrom;
   clearStackScene();
@@ -529,6 +564,8 @@ export function detectTilePlacement(
     prevCardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
     /** The viewer's tableau — where the receiving card's face comes from. */
     viewerCards?: ReadonlyArray<CardModel>,
+    /** The viewer's stock rows in the APPLIED view and in the ANSWER — what the price's promise is checked against. */
+    viewerStock?: {before: StockReading, after: StockReading},
   },
 ): {spaceId: string} | undefined {
   if (!tilePlacementState.active || claimed) {
@@ -622,7 +659,47 @@ export function detectTilePlacement(
   // …and every CARD this tile paid (TR21's neighbouring cities, TR30 / Pets / Martian Census answering the
   // tile itself): the server's records of THIS cell.
   pendingCityPayouts = claimCityPayouts(spaceId, opts);
+  // THE PRICE (PL-306): flown only when the row it leaves moved by exactly the price plus what this very placement
+  // pays back onto it (read off the beats captured above). Anything else ticks with the commit and names itself.
+  const verdict = placementPriceVerdict(armedPrice, opts?.viewerStock?.before, opts?.viewerStock?.after,
+    armedPrice === undefined ? 0 : pendingStockGains(armedPrice.resource));
+  armedPrice = undefined;
+  if (verdict !== undefined && 'mismatch' in verdict) {
+    tilePlacementState.price = `mismatch: ${verdict.mismatch}`;
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[tile-placement] the price was not shown as promised — ${verdict.mismatch}`);
+    }
+  } else if (verdict !== undefined) {
+    pendingPrice = verdict.price;
+  }
   return {spaceId};
+}
+
+/**
+ * What THIS placement is known to pay back onto a stock row (PL-306's promise): the cell's printed bonuses, the
+ * water, the Ares neighbours, the law's wave, the move's answer — exactly the specs the reward hold will hold.
+ */
+function pendingStockGains(resource: string): number {
+  const specs: Array<ResourceTransferSpec> = [...pendingBonuses.map((b) => b.spec), ...pendingAresFlights.map((f) => f.spec)];
+  if (pendingOceanBonus !== undefined) {
+    specs.push({channel: 'stock', resource: 'megacredits', amount: pendingOceanBonus.megacredits});
+  }
+  if (pendingLawWave !== undefined) {
+    specs.push(...pendingLawWave.printed.map((b) => b.spec));
+    if (pendingLawWave.ocean !== undefined) {
+      specs.push({channel: 'stock', resource: 'megacredits', amount: pendingLawWave.ocean.megacredits});
+    }
+    if (pendingLawWave.greeneries !== undefined) {
+      specs.push({channel: 'stock', resource: 'megacredits', amount: pendingLawWave.greeneries.megacredits});
+      specs.push({channel: 'stock', resource: 'plants', amount: pendingLawWave.greeneries.plants});
+    }
+  }
+  if (pendingMoveReward !== undefined) {
+    specs.push(...pendingMoveReward.reactions);
+  }
+  return specs
+    .filter((spec) => spec.channel === 'stock' && spec.resource === resource && spec.direction !== 'loss')
+    .reduce((sum, spec) => sum + spec.amount, 0);
 }
 
 /**
@@ -684,7 +761,7 @@ async function executeApproach(
   }
   const move = tilePlacementState.move;
   const departing = move === undefined && tilePlacementState.departingTile !== undefined;
-  tilePlacementState.phase = move !== undefined ? 'moving' : departing ? 'departing' : 'approaching';
+  tilePlacementState.phase = move !== undefined ? 'moving' : departing ? 'departing' : pendingPrice !== undefined ? 'paying' : 'approaching';
   // The removal window closes in the SAME synchronous turn the new tile
   // paints: the cell must never be simultaneously "cleared" and carrying its
   // replacement (that would blank the tile that just landed).
@@ -725,6 +802,11 @@ async function executeApproach(
     if (move !== undefined && !tilePlacementState.reducedMotion) {
       tilePlacementState.moveDegraded = true;
     }
+    // THE PRICE (PL-306) has no token here: the row ticks with the commit, and the account says why.
+    if (pendingPrice !== undefined) {
+      pendingPrice = undefined;
+      tilePlacementState.price = tilePlacementState.reducedMotion ? 'reduced' : 'degraded: no measurable cell';
+    }
     vacateSource();
     paintRealTile();
     tilePlacementState.phase = 'landed';
@@ -763,9 +845,23 @@ async function executeApproach(
   // landing use) — never onto the full hex: the water stays the ground, painted the whole way.
   const afloat = armedOverOcean && tilePlacementState.coveredTile === TileType.OCEAN && tilePlacementState.tileType === TileType.CITY;
   const landingRect = afloat ? stackLandingRect(hexRect, 2) : hexRect;
+  // THE PRICE FIRST (PL-306): the plants leave the rail for this very cell, the row ticking on the departure; the
+  // tile is then born OUT of the cell (the sprout) — a greenery bought with plants is never fetched from the table.
+  const sprout = pendingPrice !== undefined && tilePlacementState.coveredTile === undefined && !afloat;
+  if (pendingPrice !== undefined) {
+    const price = pendingPrice;
+    pendingPrice = undefined;
+    await runPriceBeat(landingRect, price);
+    if (!tilePlacementState.active) {
+      return; // aborted mid-payment — the abort already let every hold go
+    }
+    tilePlacementState.phase = 'approaching';
+  }
+  const tileFrom = sprout ? {x: landingRect.x + landingRect.w / 2, y: landingRect.y + landingRect.h / 2} : tableSupplyPoint(ui);
   if (els === undefined || !placeTileProxy(els, {
     hex: landingRect,
-    from: tableSupplyPoint(ui),
+    from: tileFrom,
+    ...(sprout ? {profile: SPROUT_PROFILE} : {}),
   })) {
     if (afloat) {
       stackContact(tilePlacementState.spaceId as SpaceId);
@@ -775,7 +871,7 @@ async function executeApproach(
     await wait(60);
     return;
   }
-  const flightMs = motionMs(TILE_FLIGHT_MS);
+  const flightMs = motionMs(sprout ? TILE_SPROUT_MS : TILE_FLIGHT_MS);
   if (els.bonusIcons.length > 0) {
     // The "revealed from under the tile" beat: the icon proxies take over
     // the printed icons 1:1 (the REAL ones blank in this same synchronous
@@ -787,18 +883,20 @@ async function executeApproach(
     holdRealBonuses();
     bonusesHovering = true;
     playBonusPreLift(els.bonusIcons, {
-      delayMs: Math.round(flightMs * BONUS_PRELIFT_START_T),
+      delayMs: Math.round(flightMs * (sprout ? SPROUT_BONUS_LIFT_T : BONUS_PRELIFT_START_T)),
       riseMs: motionMs(BONUS_RISE_MS),
       hoverPx: Math.round(BONUS_HOVER_PX * ui),
     });
   }
-  await playTileFlight(els, {
-    hex: landingRect,
-    from: tableSupplyPoint(ui),
-    uiScale: ui,
-    flightMs,
-    settleMs: motionMs(TILE_SETTLE_MS),
-  });
+  await (sprout ?
+    playTileSprout(els, {hex: landingRect, uiScale: ui, sproutMs: flightMs, settleMs: motionMs(TILE_SETTLE_MS)}) :
+    playTileFlight(els, {
+      hex: landingRect,
+      from: tableSupplyPoint(ui),
+      uiScale: ui,
+      flightMs,
+      settleMs: motionMs(TILE_SETTLE_MS),
+    }));
   if (!tilePlacementState.active) {
     return; // aborted mid-flight — abort already cleaned up
   }
@@ -831,6 +929,52 @@ async function executeApproach(
   if (cubeHeld && tilePlacementState.active) {
     cubeHeld = false;
     dropCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
+  }
+}
+
+/**
+ * THE PRICE BEAT (PL-306 — the PL-099 law at the placement door): the price token is born on its row's ink, leaves
+ * SIDEWAYS at its own row's height (the transfer language's loss launch, PL-104), and is drawn QUICKLY into the cell
+ * the tile is about to grow out of (`absorb: 'quick'`, PL-140 — a price into the result it buys, no settle). The row
+ * ticks on the DEPARTURE: the view is not applied yet (the commit waits for the landing), so a departure hold makes it
+ * read `committed − amount` from the launch, and the commit's block releases that hold against the applied view —
+ * the same number, no transition, no second chip. Resolves at the TOUCHDOWN (the growth starts out of the absorb).
+ */
+async function runPriceBeat(hex: TileRect, price: PlacementPrice): Promise<void> {
+  const spec: ResourceTransferSpec = {channel: 'stock', resource: price.resource, amount: price.amount, direction: 'loss'};
+  tilePlacementState.price = 'flying';
+  let degraded: string | undefined;
+  await runResourceTransfers({
+    specs: [spec],
+    // A LOSS walks the geometry backwards: born on the row, absorbed at the run's source — the cell.
+    source: {point: {x: hex.x + hex.w / 2, y: hex.y + hex.h / 2}},
+    arrival: 'auto',
+    absorb: 'quick',
+    onArrive: (s) => {
+      if (tilePlacementState.active) {
+        seedPriceDeparture(s);
+      }
+    },
+    onDegrade: (_s, why) => {
+      degraded = why;
+    },
+  });
+  if (tilePlacementState.active) {
+    tilePlacementState.price = degraded === undefined ? 'flown' : `degraded: ${degraded}`;
+  }
+}
+
+/** Seed ONE departure hold: from here the row reads `committed − amount` — the pre-commit value minus what just left. */
+function seedPriceDeparture(spec: ResourceTransferSpec): void {
+  const hold: ResourceTransferSpec = {channel: 'stock', resource: spec.resource, amount: spec.amount};
+  priceDepartures.push(hold);
+  beginPanelRewardHold([hold]);
+}
+
+/** Let go of the price's departure holds (the commit's block — the rows already read the applied number). */
+function releasePriceDepartures(): void {
+  for (const hold of priceDepartures.splice(0)) {
+    releasePanelRewardHold(hold);
   }
 }
 
@@ -1088,6 +1232,12 @@ async function runDeparture(hex: TileRect): Promise<void> {
  * defaults — those chips ride the commit).
  */
 export function seedTilePlacementRewardHold(): void {
+  // THE PRICE'S DEPARTURE HOLDS END HERE (PL-306) — in the commit's own block: the row the price left already reads
+  // the applied number, so the release is no transition (and never a chip). Before the early returns: a placement
+  // with nothing else to hold still paid.
+  if (tilePlacementState.active) {
+    releasePriceDepartures();
+  }
   if (!tilePlacementState.active || bonusHoldSeeded ||
       (pendingBonuses.length === 0 && pendingOceanBonus === undefined && pendingAresFlights.length === 0 && pendingLawWave === undefined &&
        pendingMoveReward === undefined && pendingCityPayouts.length === 0)) {
@@ -1539,6 +1689,10 @@ export function abortTilePlacement(): void {
     abortCityPayoutBeat(); // …and the cities that paid the card (TR21)
   }
   clearPanelRewardHold();
+  // …the price's departure holds went with it (the row returns to the truth — a refused placement paid nothing).
+  priceDepartures.length = 0;
+  armedPrice = undefined;
+  pendingPrice = undefined;
   restoreHeldBonuses(); // the printed icons un-blank — the field is intact
   // …and a removal caught mid-lift puts the doomed tile back: the server may
   // have refused the placement, in which case that tile is still standing.
@@ -1586,6 +1740,9 @@ export function abortTilePlacement(): void {
 function finish(): void {
   clearTimers();
   clearPanelRewardHold(); // safety — the reward beat leaves it empty
+  priceDepartures.length = 0;
+  armedPrice = undefined;
+  pendingPrice = undefined;
   // Un-blank the printed icons: the placed tile's art covers them on the
   // real board anyway (same as every pre-existing tile) — invisible swap.
   restoreHeldBonuses();

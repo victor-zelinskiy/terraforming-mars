@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {relativeDeltas, settleTop} from '../../src/client/console/settledColumn';
+import {relativeDeltas, settleTop, SettledColumn} from '../../src/client/console/settledColumn';
 
 /**
  * THE SETTLED COLUMN — the pure geometry of a decision column that composes centred and never re-centres while the
@@ -44,6 +44,81 @@ describe('settledColumn', () => {
       const before = [{top: 0, parent: -1}, {top: 100, parent: 0}, {top: 120, parent: 1}];
       const after = [{top: 0, parent: -1}, {top: 150, parent: 0}, {top: 170, parent: 1}];
       expect(relativeDeltas(before, after)).deep.eq([0, -50, 0]);
+    });
+  });
+
+  describe('stop — the unmount writes NOTHING to the column (the leave keeps it painted)', () => {
+    // A column and its block, faked to the few members the pin touches: the block stands 240 px into a 1000 px column.
+    function stand(): {column: FakeEl, block: FakeEl} {
+      const column = new FakeEl({top: 0, height: 1000});
+      const block = new FakeEl({top: 240, height: 400});
+      block.parentElement = column;
+      return {column, block};
+    }
+    class FakeEl {
+      public style: Record<string, string> = {};
+      public attrs = new Map<string, string>();
+      public parentElement: FakeEl | null = null;
+      public clientTop = 0;
+      public clientWidth = 600;
+      public clientHeight: number;
+      public offsetHeight: number;
+      constructor(private readonly box: {top: number, height: number}) {
+        this.clientHeight = box.height;
+        this.offsetHeight = box.height;
+      }
+      getBoundingClientRect() {
+        return {top: this.box.top, left: 0, width: 600, height: this.box.height};
+      }
+      setAttribute(k: string, v: string) {
+        this.attrs.set(k, v);
+      }
+      removeAttribute(k: string) {
+        this.attrs.delete(k);
+      }
+      querySelectorAll() {
+        return [];
+      }
+    }
+    const g = globalThis as unknown as {getComputedStyle?: unknown};
+    let saved: unknown;
+    before(() => {
+      saved = g.getComputedStyle;
+      g.getComputedStyle = () => ({paddingTop: '0px', paddingBottom: '0px', position: 'static'});
+    });
+    after(() => {
+      g.getComputedStyle = saved;
+    });
+
+    it('the press PINS the block where it stands; the unmount leaves the pin on the dying node', () => {
+      const {column, block} = stand();
+      const settled = new SettledColumn({
+        column: () => column as unknown as HTMLElement,
+        block: () => block as unknown as HTMLElement,
+        active: () => true,
+      });
+      settled.pin();
+      expect(column.style.paddingTop, 'pinned at its centred top').eq('240px');
+      expect(column.style.justifyContent).eq('flex-start');
+      settled.stop();
+      // Un-pinning here re-centred the column on the leave's first frame: the colony ledger jumped 134 px (fhd) at full
+      // opacity as the workspace left. The node dies with the mount — its inline pin goes with it.
+      expect(column.style.paddingTop, 'never un-pinned by the unmount').eq('240px');
+      expect(column.style.justifyContent).eq('flex-start');
+      expect(column.attrs.has('data-settled')).is.true;
+    });
+
+    it('a live RELEASE (a new composition) still un-pins — only the unmount is state-only', () => {
+      const {column, block} = stand();
+      const settled = new SettledColumn({
+        column: () => column as unknown as HTMLElement,
+        block: () => block as unknown as HTMLElement,
+        active: () => true,
+      });
+      settled.pin();
+      settled.release();
+      expect(column.style.paddingTop).eq('');
+      expect(column.attrs.has('data-settled')).is.false;
     });
   });
 });
