@@ -39,7 +39,7 @@ export type WirePrompt = {
 };
 export type WireModel = {
   waitingFor?: WirePrompt & {finalGreeneryPrompt?: unknown},
-  game: {phase: string, temperature: number, oxygenLevel: number, oceans: number},
+  game: {phase: string, temperature: number, oxygenLevel: number, oceans: number, finalGreenery?: {done: Array<string>}},
   thisPlayer: {victoryPointsBreakdown?: {total: number}},
   players: Array<{color: string, name: string, victoryPointsBreakdown?: {total: number}}>,
 };
@@ -321,8 +321,112 @@ export async function shoot(page: Page, dir: string, name: string): Promise<void
   await page.screenshot({path: `${dir}/${name}.png`});
 }
 
-/** The finale's own block in the cell dossier — present exactly while the finale's board pick is out. */
+/**
+ * The finale's own block in the cell dossier — present for the SESSION's whole life (PL-303 / PL-304): the pick,
+ * the landing, another seat's answer. Its `data-finale-stage` says where the context stands.
+ */
 export const FINALE_BLOCK = '[data-finale-bank]';
+
+/** The finale context's stage as the dossier states it (`pick` / `landing` / `wait`), or undefined when it is gone. */
+export async function finaleStage(page: Page): Promise<string | undefined> {
+  return page.evaluate((sel) => (document.querySelector(sel) as HTMLElement | null)?.dataset.finaleStage, FINALE_BLOCK);
+}
+
+/**
+ * THE CONTEXT WITNESS (PL-303): an in-page observer armed across a landing or a hand-off that records what the
+ * owner saw on the TV — the dossier re-mounting, a plate or a task band rising over the board, the planet focus
+ * letting go, the dossier's leave transition. Every count must be zero for the context to be ONE.
+ */
+export async function armFinaleWitness(page: Page): Promise<void> {
+  await page.evaluate((sel) => {
+    const w = (window as unknown as {__finaleWitness?: Record<string, unknown>});
+    const panel = document.querySelector(sel)?.closest('.con-context') ?? null;
+    const state = {
+      panelAtStart: panel,
+      panelRemounts: 0,
+      plateSeen: 0,
+      hostSeen: 0,
+      focusExits: 0,
+      panelLeaves: 0,
+      stages: [] as Array<string>,
+      lastStage: (document.querySelector(sel) as HTMLElement | null)?.dataset.finaleStage ?? '',
+    };
+    const board = document.querySelector('.con-board');
+    const observer = new MutationObserver(() => {
+      const now = document.querySelector(sel)?.closest('.con-context') ?? null;
+      if (now !== null && state.panelAtStart !== null && now !== state.panelAtStart) {
+        state.panelRemounts += 1;
+        state.panelAtStart = now;
+      }
+      if (document.querySelector('.con-mandatory') !== null) {
+        state.plateSeen += 1;
+      }
+      if (document.querySelector('.con-task-host') !== null) {
+        state.hostSeen += 1;
+      }
+      if (board?.classList.contains('con-board--pfocus-exit')) {
+        state.focusExits += 1;
+      }
+      if (document.querySelector('.con-context.con-ctx-leave-active') !== null) {
+        state.panelLeaves += 1;
+      }
+      const stage = (document.querySelector(sel) as HTMLElement | null)?.dataset.finaleStage ?? '';
+      if (stage !== state.lastStage) {
+        state.lastStage = stage;
+        state.stages.push(stage === '' ? 'gone' : stage);
+      }
+    });
+    observer.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-finale-stage']});
+    w.__finaleWitness = {state, observer};
+  }, FINALE_BLOCK);
+}
+
+export type FinaleWitness = {panelRemounts: number, plateSeen: number, hostSeen: number, focusExits: number, panelLeaves: number, stages: Array<string>};
+
+export async function readFinaleWitness(page: Page): Promise<FinaleWitness> {
+  return page.evaluate(() => {
+    const w = (window as unknown as {__finaleWitness?: {state: FinaleWitness & {panelAtStart: unknown, lastStage: string}, observer: MutationObserver}});
+    const s = w.__finaleWitness?.state;
+    if (s === undefined) {
+      return {panelRemounts: -1, plateSeen: -1, hostSeen: -1, focusExits: -1, panelLeaves: -1, stages: []};
+    }
+    return {panelRemounts: s.panelRemounts, plateSeen: s.plateSeen, hostSeen: s.hostSeen, focusExits: s.focusExits, panelLeaves: s.panelLeaves, stages: [...s.stages]};
+  });
+}
+
+export async function disarmFinaleWitness(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = (window as unknown as {__finaleWitness?: {observer: MutationObserver}});
+    w.__finaleWitness?.observer.disconnect();
+    delete w.__finaleWitness;
+  });
+}
+
+/**
+ * PLACE ONE FINAL GREENERY through the page: lock, confirm past the dwell, judged by the SERVER's stock dropping —
+ * never by the dossier leaving (inside the session it never does). An illegal cell under the cursor walks one
+ * step and retries, like `placeTile`.
+ */
+export async function placeFinaleGreenery(page: Page, request: APIRequestContext, viewerId: string, maxTries = 24): Promise<boolean> {
+  const stockOf = async () => (await getModel(request, viewerId) as unknown as {thisPlayer: {plants: number}}).thisPlayer.plants;
+  const before = await stockOf();
+  const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowUp'];
+  for (let i = 0; i < maxTries; i++) {
+    await page.keyboard.press('Enter'); // lock
+    await cinematicBeat(page, 420, 'the two-phase pick: the confirm must land PAST the 280 ms lock dwell');
+    await page.keyboard.press('Enter'); // confirm
+    for (let waited = 0; waited < 6_000; waited += 150) {
+      if (await stockOf() < before) {
+        return true;
+      }
+      await forceFrame(page);
+      await cinematicBeat(page, 150, "the server's answer is on the wire — the stock is the witness");
+    }
+    await page.keyboard.press(dirs[i % dirs.length]);
+    await cinematicBeat(page, 300, 'the cursor step lands before the next lock');
+  }
+  return (await stockOf()) < before;
+}
 
 /**
  * Wait until the viewer's FINALE stands on the board: take pending reveals,

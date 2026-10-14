@@ -863,7 +863,7 @@ describe('Game', () => {
 
     // 'marsIsTerraformedAnnounced' is private, so it is not in keyof Game, but it
     // is still an enumerable runtime property that must be accounted for here.
-    const unserializedFieldsInGame: Array<keyof Game | 'marsIsTerraformedAnnounced'> = [
+    const unserializedFieldsInGame: Array<keyof Game | 'marsIsTerraformedAnnounced' | 'finalGreeneryStarted'> = [
       // The Ares adjacency presentation manifest — a bounded transient ring
       // (a restart loses only the animation, never the money).
       'aresAdjacencyGrants',
@@ -876,6 +876,9 @@ describe('Game', () => {
       // «ОБРАТНЫЙ ХОД», never the parameters (the journal keeps the lowering).
       'parameterSwings',
       'createdTime',
+      // The finale's own in-progress flag (PL-302) — re-derived on every entry of the final greenery loop, a loaded
+      // game's included (the restore path re-enters the loop), so a restart loses nothing.
+      'finalGreeneryStarted',
       'discardedColonies',
       'doubleDownPrelude',
       // The analytics recorder serializes as `gameEvents` + `eventSeq`, not `events`.

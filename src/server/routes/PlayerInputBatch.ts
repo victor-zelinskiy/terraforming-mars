@@ -96,6 +96,9 @@ export class PlayerInputBatch extends Handler {
           validatePromptId(entity, player);
           const inputResponses: ReadonlyArray<InputResponse> = Array.isArray(entity.responses) ? entity.responses : [];
           replayBatch(player, inputResponses);
+          // Same law as `PlayerInput` (PL-301): the batch may have handed a prompt
+          // to another seat off the `takeAction` path — broadcast once it settled.
+          player.game.notifyStateChange();
           responses.writeJson(res, ctx, Server.getPlayerModel(player));
           resolve();
         } catch (e) {

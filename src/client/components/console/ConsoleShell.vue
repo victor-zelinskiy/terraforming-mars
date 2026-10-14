@@ -731,7 +731,7 @@
              prompt) stays committed through the await, so without this term
              the band would stand over its own result. Safe: the transition is
              a registered animation hold, so the leak detector stays quiet. -->
-        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionOwnsPrompt && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !energyConversionState.active && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionOwnsPrompt && !finalGreeneryActive && !finalePromptOwned && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !energyConversionState.active && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                          ref="taskHost"
                          :playerView="playerView"
                          :task="hostTask"
@@ -1794,7 +1794,9 @@ import ConsoleEffectDecision from '@/client/components/console/ConsoleEffectDeci
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import {buildFinalGreenery, FINALE_KICKER, FinalGreeneryBank, FinalGreeneryViewModel, finalGreeneryBank, finalGreeneryFinishCommand} from '@/client/console/finalGreenery/finalGreeneryModel';
+import {buildFinalGreenery, FINALE_KICKER, FINALE_RETURN, FINALE_TITLE, FINISH_WAITS, LANDING_LINE, FinalePanelModel, FinaleStage, FinalGreeneryViewModel, finaleQueue, finaleStageOf, finaleStock, finaleWaitingOn, finaleYieldKey, finalGreeneryBank, finalGreeneryFinishCommand} from '@/client/console/finalGreenery/finalGreeneryModel';
+import {collapseFinaleSession, endFinaleSession, enterFinaleSession, finaleSessionState, resetFinaleSession, restoreFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
+import {TileType} from '@/common/TileType';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
@@ -3728,13 +3730,30 @@ export default defineComponent({
     finalGreeneryRawVm(): FinalGreeneryViewModel | undefined {
       return buildFinalGreenery(this.playerView.waitingFor, this.playerView.thisPlayer);
     },
-    /** The dossier's FINALE block — only while the finale's own board pick is out. */
-    finalePanel(): {plants: number, cost: number, bank: FinalGreeneryBank} | undefined {
-      const vm = this.finalGreeneryRawVm;
-      if (!this.finalGreeneryPickPending || vm === undefined) {
+    /**
+     * The dossier's FINALE block — the whole session long (PL-304): the stock as objects, the board's room when
+     * it is what caps the count, the per-greenery yield, every seat's place in the phase, and in the wait stage
+     * WHO the table waits on. Reads the public model, never the pick: it stands without a prompt.
+     */
+    finalePanel(): FinalePanelModel | undefined {
+      const stage = this.finaleStage;
+      if (stage === undefined) {
         return undefined;
       }
-      return {plants: vm.plants, cost: vm.cost, bank: finalGreeneryBank(vm)};
+      const stock = finaleStock(this.thisPlayer.plants, this.thisPlayer.plantsNeededForGreenery);
+      const spaces = this.finalGreeneryRawVm?.spaces;
+      return {
+        stage,
+        plants: stock.plants,
+        cost: stock.cost,
+        bank: finalGreeneryBank(stock),
+        freeCells: spaces !== undefined && spaces < stock.affordable ? spaces : undefined,
+        yieldKey: finaleYieldKey(this.game.parliament !== undefined),
+        queue: finaleQueue(this.playerView.players, this.game.finalGreenery?.done ?? [], this.thisPlayer.color, true),
+        waitingOn: stage === 'wait' ?
+          finaleWaitingOn(this.playerView.players, this.thisPlayer.color, liveWaitingSignal(this.waitingOnPlayers)) :
+          undefined,
+      };
     },
     /**
      * THE FINALE STANDS OPEN with no board pick out — a transient state: the
@@ -3747,6 +3766,58 @@ export default defineComponent({
         !this.govSupportActive && !this.productionLossActive &&
         !this.consoleState.task.deferred && this.taskSpacePending === undefined &&
         !this.handPickActive;
+    },
+    /**
+     * THE FINALE SESSION (PL-303 / PL-304 — `finalGreenerySession.ts`): the player is IN the finale, from the
+     * announce's A to the seat's end of the phase. Every reader that used to ask «is a placement on?» — the
+     * dossier, Planet Focus, the command bar, the announce gate — asks THIS instead while it stands, so nothing
+     * lets go between two greeneries or while another seat answers a triggered pick.
+     *
+     * A FOREIGN mandatory prompt for the viewer (their own Philares firing on another seat's landing) yields the
+     * context: that decision's plate and surface stand exactly as anywhere else, and the context returns the
+     * moment it is answered (the session itself never ends for it).
+     */
+    finaleForeignPrompt(): boolean {
+      const wf = this.playerView.waitingFor;
+      return wf !== undefined && wf.finalGreeneryPrompt === undefined;
+    },
+    finaleSessionEngaged(): boolean {
+      return finaleSessionState.active && !finaleSessionState.collapsed && !this.finaleForeignPrompt;
+    },
+    /** The player minimized the finale (B) — the board home's plate is the way back. */
+    finaleCollapsed(): boolean {
+      return finaleSessionState.active && finaleSessionState.collapsed;
+    },
+    /** WHERE the context stands: the pick is out / a greenery is landing / another seat decides. */
+    finaleStage(): FinaleStage | undefined {
+      if (!this.finaleSessionEngaged) {
+        return undefined;
+      }
+      return finaleStageOf({
+        pickOut: this.finalGreeneryPickPending && this.taskSpacePending !== undefined,
+        promptStands: this.finalGreeneryRawVm !== undefined,
+        committing: this.finalGreeneryCommitting,
+      });
+    },
+    /**
+     * The finale prompt is the SESSION's, never the generic host's: while the session lives, the host must not
+     * serve it for the frame between a landing and the next pick (the «модалка мигает» of the field report).
+     */
+    finalePromptOwned(): boolean {
+      return finaleSessionState.active && this.finalGreeneryRawVm !== undefined;
+    },
+    /**
+     * THE SEAT'S FINALE IS OVER — the server's fact (`game.finalGreenery.done`), the END, or the phase gone from
+     * the model altogether (an undo past it). The watcher ends the session on it; nothing else may.
+     */
+    finaleOverForViewer(): boolean {
+      if (!finaleSessionState.active) {
+        return false;
+      }
+      const phase = this.game.finalGreenery;
+      return this.game.phase === Phase.END ||
+        (phase !== undefined && phase.done.includes(this.thisPlayer.color)) ||
+        (phase === undefined && this.finalGreeneryRawVm === undefined);
     },
     /** Every card the viewer holds (incl. Self-Replicating-Robots hosts) — the
      *  ownership test that decides whether a nested pick is a HAND pick. */
@@ -5482,7 +5553,10 @@ export default defineComponent({
      * OWN turn continuations stay `turn` and open immediately.
      */
     viewerForcedReaction(): boolean {
-      return actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers)) === 'forcedaction';
+      const label = actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers));
+      // The FINALE is a forced reaction for the gate's purposes: the player was idle through production, so its
+      // first prompt is ANNOUNCED (a stray press must not land on the board); the chip names it by its own label.
+      return label === 'forcedaction' || label === 'finalgreenery';
     },
     /**
      * Pending FLOW-scoped mandatory actions, in the ONE deterministic order
@@ -5526,6 +5600,13 @@ export default defineComponent({
       // an interruption: no plate, no beacon over the workspace that owes it,
       // no gate on a door the walk itself opens (`ledgerDiscardStepDue`).
       if (task?.kind === 'handSelect' && this.ledgerDiscardStepOwed) {
+        task = undefined;
+      }
+      // THE FINALE SESSION owns its own prompt (PL-303): once the player is in the finale, the greenery prompt
+      // coming back — after a landing, after another seat's triggered answer — is the CONTINUATION of what they
+      // are doing, never a new interruption to announce; the board takes the pick by itself. The first prompt
+      // (no session yet) and a prompt returning to a MINIMIZED session are announced as before.
+      if (task?.kind === 'choice' && wf?.finalGreeneryPrompt !== undefined && this.finaleSessionEngaged) {
         task = undefined;
       }
       // The EXTERNAL-DRAW take is ONE demand for the whole batch: every take
@@ -5611,7 +5692,9 @@ export default defineComponent({
         // ADMITTED task alone is how a live decision became unreachable
         // whenever the admission gate happened to be holding.
         workspaceStackCollapsed()) &&
-        this.consoleState.task.deferred;
+        this.consoleState.task.deferred ||
+        // A MINIMIZED FINALE with no prompt of its own standing (another seat decides) still offers its way back.
+        (this.finaleCollapsed && !this.mandatoryGateHeld);
     },
     /**
      * The player is on the MAIN board view and has opened NOTHING of their own
@@ -5635,6 +5718,8 @@ export default defineComponent({
         !this.consoleState.inspecting &&
         !this.consoleState.scaleInspecting &&
         !this.placementActive &&
+        // The finale context standing is the player's own context, like a placement (a foreign prompt yields it).
+        !this.finaleSessionEngaged &&
         !this.botTurnReviewState.open &&
         !this.govScaleFocusState.holding &&
         !this.govScaleFocusState.closing;
@@ -5788,6 +5873,17 @@ export default defineComponent({
           sourceCard: undefined,
           sourceResolution: this.activeTaskSummary?.sourceResolution,
           openLabel: 'Open',
+        };
+      }
+      // THE MINIMIZED FINALE (no live task of its own — another seat decides, or the seat's next prompt is on
+      // its way): the plate names the phase and the way back.
+      if (this.finaleCollapsed && !this.mandatoryGateHeld) {
+        return {
+          kicker: translateText(FINALE_KICKER),
+          ask: translateText(FINALE_TITLE),
+          sourceCard: undefined,
+          sourceResolution: undefined,
+          openLabel: FINALE_RETURN,
         };
       }
       return {
@@ -6340,6 +6436,12 @@ export default defineComponent({
      * the normal stage).
      */
     planetFocusTarget(): boolean {
+      // THE FINALE SESSION HOLDS THE CAMERA (PL-303): the planet grew for the first pick and stays grown through
+      // every landing and every hand-off until the seat's finale is over — never the shrink-and-grow around each
+      // greenery the per-pick target produced (the exit ran while the admission gate waited out the hero).
+      if (this.finaleSessionEngaged) {
+        return true;
+      }
       const prompt = this.placementSpaceModel;
       // A placement held for the board's owed scale story (PL-336) does not hold the camera: the scales can only be
       // READ with the arcs back, so the focus pulls back for the story and comes in again when the pick is admitted.
@@ -6393,7 +6495,7 @@ export default defineComponent({
      *  a camp move). The key comes from the ONE prompt-copy source. */
     placementKickerKey(): string {
       // The finale's pick names its PHASE («Конец партии»), not the generic «Размещение тайла».
-      if (this.finalGreeneryPickPending) {
+      if (this.finalGreeneryPickPending || this.finaleSessionEngaged) {
         return FINALE_KICKER;
       }
       return placementKicker(this.placementSpaceModel);
@@ -6406,7 +6508,9 @@ export default defineComponent({
     placementShape(): PlacementShape | undefined {
       const prompt = this.placementSpaceModel;
       if (prompt === undefined) {
-        return undefined;
+        // The finale's context stands without a prompt (the landing, another seat's answer): what lands is
+        // still a greenery — the identity never blinks to nothing between two picks.
+        return this.finaleSessionEngaged ? {tileType: TileType.GREENERY} : undefined;
       }
       // A PARKED staged cell (the server's own marker) reads as one more
       // upcoming placement of THIS chain: while the interloper prompt (the
@@ -6439,7 +6543,7 @@ export default defineComponent({
      */
     plantConversion(): PlacementConversion | undefined {
       // The FINALE's pick is the same exchange (8 plants → 1 greenery) — stated the same way in its dossier.
-      if (this.convertPlantsPending === undefined && !this.finalGreeneryPickPending) {
+      if (this.convertPlantsPending === undefined && !this.finalGreeneryPickPending && !this.finaleSessionEngaged) {
         return undefined;
       }
       return {amount: this.thisPlayer.plantsNeededForGreenery, icon: 'plants'};
@@ -6496,7 +6600,9 @@ export default defineComponent({
     },
     // ── context panel ──────────────────────────────────────────────────
     contextMode(): 'placement' | 'cell' | 'track' | 'idle' {
-      if (this.placementActive) {
+      // The FINALE SESSION keeps the dossier in placement mode between two picks and through another seat's
+      // answer (PL-303): the panel never unmounts, its stage block says where the context stands.
+      if (this.placementActive || this.finaleSessionEngaged) {
         return 'placement';
       }
       if (this.consoleState.scaleInspecting && this.consoleState.trackMarker !== undefined) {
@@ -8691,7 +8797,7 @@ export default defineComponent({
           (this.effectDecisionVm?.stageKey ?? 'Awaiting decision') :
           (this.effectDecisionVm?.eyebrowKey ?? 'Awaiting decision');
       }
-      if (this.finalGreeneryActive) {
+      if (this.finalGreeneryActive || this.finaleSessionEngaged) {
         return FINALE_KICKER;
       }
       if (this.hostTask !== undefined && this.parliamentStageTask && workspaceFrameMounted('parliament') && !this.consoleState.task.deferred) {
@@ -9557,6 +9663,11 @@ export default defineComponent({
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: 'To the board'},
         ];
+      }
+      // THE FINALE CONTEXT WITHOUT A PICK (PL-303): the finish stands, disabled with its reason on the press (the
+      // seat holds nothing to answer yet); B minimizes. The bar never flips to the board-home run mid-finale.
+      if (this.finaleSessionEngaged && !this.placementActive) {
+        return [{...finalGreeneryFinishCommand(), enabled: false}, {control: 'back', label: 'Minimize'}];
       }
       if (this.placementActive) {
         // P21: the placement footer is CONTEXT-ONLY and one-line by
@@ -12452,6 +12563,12 @@ export default defineComponent({
         }
       },
     },
+    /** THE SEAT'S FINALE IS OVER (the server's fact / the END): the session ends, the camera and the dossier let go. */
+    finaleOverForViewer(over: boolean): void {
+      if (over) {
+        endFinaleSession();
+      }
+    },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
     playerView: {
@@ -13989,6 +14106,24 @@ export default defineComponent({
           }
         }
         return true;
+      }
+      // THE FINALE CONTEXT STANDS WITHOUT A PICK (PL-303 — a greenery landing, another seat deciding): B minimizes,
+      // RT names why the finish waits (nothing of ours to answer), A has nothing to open yet; everything else (the
+      // hand, the quick wheel, the sticks, the log) passes through — the player may look around inside the context.
+      if (this.finaleSessionEngaged && !this.placementActive && intent.kind === 'press') {
+        const act = consoleActionOf(intent);
+        if (act === 'back') {
+          this.deferFinalGreenery();
+          return true;
+        }
+        if (intent.button === 'triggerR') {
+          const who = this.finalePanel?.waitingOn;
+          this.showNotice(who !== undefined ? translateTextWithParams(FINISH_WAITS, [who.name]) : translateText(LANDING_LINE));
+          return true;
+        }
+        if (act === 'primary') {
+          return true;
+        }
       }
       // CTS T1–T3: the task host owns input while it serves (B inside the
       // host = defer-to-board / cancel, handled there). No View-peek.
@@ -19155,6 +19290,14 @@ export default defineComponent({
       // a submit acknowledges it — else the surface the press opens waits behind that card's TTL (the host's
       // `presentation` admission holds while one stands and no surface is up), a dead A of up to five seconds.
       acknowledgeFlowHoldingCards();
+      // A MINIMIZED FINALE whose prompt stands again (PL-303): the plate's A is the way BACK into the session — the
+      // minimize's defer flag lets go and the context returns; the session's own watcher then hands the pick to the
+      // board (nothing else opens here — the finale has no surface of its own).
+      if (this.playerView.waitingFor?.finalGreeneryPrompt !== undefined && this.finaleCollapsed) {
+        this.consoleState.task.deferred = false;
+        restoreFinaleSession();
+        return;
+      }
       // A FLOW beat runs its own open route — the ONE door into the workspace
       // (the auto-enter on the phase flip is gone). The acknowledge above has
       // already dropped `mandatoryGateHeld` synchronously, so a second A finds
@@ -19997,6 +20140,12 @@ export default defineComponent({
      *  Shared by the prompt card's A and the global B-back. */
     restoreDeferredTask(): void {
       this.consoleState.task.deferred = false;
+      // THE MINIMIZED FINALE comes back as it stood (the context, the camera); a standing prompt's pick follows
+      // through the session's own watcher.
+      if (this.finaleCollapsed) {
+        restoreFinaleSession();
+        return;
+      }
       // A PARKED STACK comes back exactly as it was — same depth, same
       // decision, same picks and no second trip to the server. That is the
       // entire difference between «свернуть» and «закрыть», and it is one
@@ -20282,6 +20431,8 @@ export default defineComponent({
       if (spacePrompt === undefined) {
         return;
       }
+      // THE SESSION RISES with the first pick (and returns from a minimize with the next): one context from here on.
+      enterFinaleSession();
       this.onFinalGreenerySpacePick({index: vm.placeIndex, spacePrompt});
     },
     /** B on the finale: MINIMIZE — the pick is dropped (nothing was sent), the board home's plate brings it back. */
@@ -20290,6 +20441,8 @@ export default defineComponent({
       this.taskSpacePending = undefined;
       this.finalGreeneryPickPending = false;
       this.consoleState.task.deferred = true;
+      // …and the SESSION folds with it (PL-303): the context hides, the camera lets go, the plate offers the way back.
+      collapseFinaleSession();
     },
     /** RT down on the finale: the irreversible stop arms the shared hold; letting go is a safe cancel. */
     beginFinalGreeneryFinish(): void {
@@ -22949,6 +23102,7 @@ export default defineComponent({
     // …and what a scale step still owed to tell (TR24): its holds release honestly, no record replays.
     resetScaleStepRewards();
     resetScaleStepRating();
+    resetFinaleSession(); // …and the finale's session (PL-303): a dead shell's context must not outlive it.
     resetScaleSwing(); // …and a parameter swing's scene (TR47): its display lets go, its held rating ticks.
     this.releaseRevealQueuePark?.();
     this.releaseRevealQueuePark = undefined;

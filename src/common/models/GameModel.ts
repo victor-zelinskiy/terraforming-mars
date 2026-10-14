@@ -86,6 +86,13 @@ export type GameModel = {
   oceans: number;
   oxygenLevel: number;
   passedPlayers: ReadonlyArray<Color>;
+  /**
+   * THE FINAL GREENERY PHASE stands — present from the loop's entry to the END, absent otherwise. `done` names
+   * the seats that have finished their finale (placed all they could, or stopped); the seat being asked carries
+   * `waitingForKind: 'finalgreenery'` on its own public model. The console's finale context (its right-panel
+   * queue, its «waiting on …» stage) and the status strip read it — never a title, never the phase alone.
+   */
+  finalGreenery?: FinalGreeneryPhaseModel;
   pathfinders: PathfindersModel | undefined;
   /** MarsBot (Automa) public state. Undefined in ordinary games. */
   automa: MarsBotModel | undefined;
@@ -113,3 +120,8 @@ export type GameModel = {
   // taken via World Government and belongs to no one. Public to every client.
   scaleBonusClaims: Record<string, Color>;
 }
+
+/** The final greenery phase's public facts (see `GameModel.finalGreenery`). */
+export type FinalGreeneryPhaseModel = {
+  done: ReadonlyArray<Color>;
+};

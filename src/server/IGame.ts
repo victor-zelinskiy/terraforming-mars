@@ -335,6 +335,10 @@ export interface IGame extends Logger {
    * If nobody can add a greenery, end the game.
    */
   /* for testing */ takeNextFinalGreeneryAction(): void;
+  /** The final greenery phase stands (entered, game not ended). */
+  finalGreeneryInProgress(): boolean;
+  /** The seats done with the finale, as colours. */
+  getDonePlayers(): Array<Color>;
   /* for testing */ worldGovernmentTerraforming(): void;
   /* for World Government Advisor and Terra colony */
   worldGovernmentTerraformingInput(player: IPlayer): OrOptions;

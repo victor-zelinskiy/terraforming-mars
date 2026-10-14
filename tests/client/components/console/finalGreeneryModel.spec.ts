@@ -2,7 +2,14 @@ import {expect} from 'chai';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
   FINISH_LABEL,
+  YIELD_TR,
+  YIELD_VP,
   buildFinalGreenery,
+  finaleQueue,
+  finaleStageOf,
+  finaleStock,
+  finaleWaitingOn,
+  finaleYieldKey,
   finalGreeneryBank,
   finalGreeneryFinishCommand,
 } from '@/client/console/finalGreenery/finalGreeneryModel';
@@ -102,5 +109,63 @@ describe('finalGreeneryModel', () => {
     // Any other placement keeps its own B.
     const plain = placementCommands({...base, phase: 'navigate'});
     expect(plain.find((c) => c.control === 'back')?.label).eq('Cancel placement');
+  });
+  // ── the SESSION's readers (PL-303 / PL-304 / PL-305) ──────────────────────
+
+  it('THE BANK IS DRAWN TO THE COUNT (PL-305): big hexes for two, a wrapping grid for twelve, a cut only past 24', () => {
+    const two = finalGreeneryBank(finaleStock(16, 8));
+    expect(two.slots.map((s) => s.kind)).to.deep.eq(['full', 'full']);
+    expect(two.tier).to.eq('xl');
+    expect(finalGreeneryBank(finaleStock(23, 8)).tier, 'two whole + the rest = three').to.eq('lg');
+    expect(finalGreeneryBank(finaleStock(60, 8)).tier, 'seven whole + the rest').to.eq('md');
+    expect(finalGreeneryBank(finaleStock(96, 8)).tier, 'twelve').to.eq('sm');
+    const huge = finalGreeneryBank(finaleStock(8 * 30, 8));
+    expect(huge.slots, 'cut at 24').to.have.length(24);
+    expect(huge.overflow).to.eq(6);
+    expect(huge.tier).to.eq('xs');
+    // The stock without a prompt (the wait stage) reads the same arithmetic as the prompt's view.
+    expect(finaleStock(23, 8)).to.deep.eq({plants: 23, cost: 8, affordable: 2, remainder: 7});
+    expect(finaleStock(5, 0).cost, 'a zero cost is read as one — never a division by zero').to.eq(1);
+  });
+
+  it('the STAGE is read from facts: the pick out → pick; a prompt or a commit in flight → landing; nothing of ours → wait', () => {
+    expect(finaleStageOf({pickOut: true, promptStands: true, committing: false})).to.eq('pick');
+    expect(finaleStageOf({pickOut: false, promptStands: true, committing: false})).to.eq('landing');
+    expect(finaleStageOf({pickOut: false, promptStands: false, committing: true})).to.eq('landing');
+    expect(finaleStageOf({pickOut: false, promptStands: false, committing: false})).to.eq('wait');
+  });
+
+  it("the FINALE ORDER names every seat's place: done by the server's list, placing by the asked seat's kind, the rest waiting", () => {
+    const seats = finaleQueue([
+      {color: 'blue', name: 'player1', isWaitingForInput: true, waitingForKind: 'finalgreenery'},
+      {color: 'red', name: 'player2', isWaitingForInput: false},
+      {color: 'green', name: 'player3', isWaitingForInput: true}, // a triggered pick — not the finale's
+    ], ['red'], 'blue');
+    expect(seats.map((s) => `${s.color}:${s.state}${s.viewer ? ':you' : ''}`)).to.deep.eq([
+      'blue:placing:you', 'red:done', 'green:waiting',
+    ]);
+    // The viewer's own finale in progress (the session stands) reads «placing» even while a triggered pick elsewhere holds the prompt.
+    const waiting = finaleQueue([
+      {color: 'blue', name: 'player1', isWaitingForInput: false},
+      {color: 'red', name: 'player2', isWaitingForInput: true},
+    ], [], 'blue', true);
+    expect(waiting.map((s) => `${s.color}:${s.state}`)).to.deep.eq(['blue:placing', 'red:waiting']);
+  });
+
+  it('WHO the table waits on: the live poll outranks the snapshot, and it is never the viewer', () => {
+    const players = [
+      {color: 'blue', name: 'player1', isWaitingForInput: false},
+      {color: 'red', name: 'player2', isWaitingForInput: true},
+    ] as const;
+    expect(finaleWaitingOn(players, 'blue', undefined)).to.deep.eq({color: 'red', name: 'player2'});
+    expect(finaleWaitingOn(players, 'blue', ['blue']), 'the viewer is never the answer').to.be.undefined;
+    expect(finaleWaitingOn([{color: 'blue', name: 'p1', isWaitingForInput: true}, {color: 'red', name: 'p2', isWaitingForInput: true}], 'blue', ['red']))
+      .to.deep.eq({color: 'red', name: 'p2'});
+    expect(finaleWaitingOn(players, 'red', undefined), 'nobody else is waited on').to.be.undefined;
+  });
+
+  it('the yield follows the ruleset: a VP for the tile, a TR under the Parliament', () => {
+    expect(finaleYieldKey(false)).to.eq(YIELD_VP);
+    expect(finaleYieldKey(true)).to.eq(YIELD_TR);
   });
 });

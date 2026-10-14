@@ -1,24 +1,27 @@
 /*
- * THE FINAL GREENERY IS PLAYED ON THE BOARD (the owner's decision, 2026-10-14 — ledger section AH, PL-295 / PL-296).
+ * THE FINAL GREENERY IS ONE CONTEXT ON THE BOARD (the owner's decisions of 2026-10-14 — ledger section AH:
+ * PL-295 / PL-296 «финал на поле», PL-303 / PL-304 / PL-305 «единый контекст»).
  *
- * The finale used to be a small dialog over a dimmed planet («Превратить растения в озеленения?» + three numbers +
- * two rows), then the board for the cell, then the dialog again — a screen change per tile, the planet the phase is
- * ABOUT hidden behind glass. What this spec pins, on a real two-seat table driven to the viewer's final greenery:
+ * The finale used to be a small dialog over a dimmed planet, then (PL-295) a chain of board PICKS — and between two
+ * greeneries everything that reads «is a placement on?» let go: the planet shrank and grew again around every
+ * landing, the dossier slid out and in, a surface blinked behind it. What this spec pins, on a real two-seat table
+ * driven to the viewer's final greenery:
  *
- *  ① A on the announce puts the BOARD into placement at once — no dialog, the dossier carries the finale's block
- *    (`[data-finale-bank]`): one hex per greenery the stock pays for (the server's plants ÷ the server's cost), a
- *    part-filled hex for the rest, «Конец партии» as the kicker, and the bar's finish verb is a HOLD;
- *  ② a landing does NOT bring a dialog back: the board is in placement again for the next greenery by itself, the
- *    bank one hex shorter (the server's own stock after the answer);
+ *  ① A on the announce puts the BOARD into placement at once — no dialog; the dossier carries the finale's block
+ *    (`[data-finale-bank]`): the stock as hexes SIZED BY THEIR COUNT (two greeneries = two big hexes), the yield
+ *    tail, the FINALE ORDER with the viewer «placing», «Конец партии» as the kicker, the finish verb a HOLD, and the
+ *    top strip's own chip reading «ОЗЕЛЕНЕНИЕ»;
+ *  ② a landing is ONE context: the dossier never re-mounts, no plate and no task band rises, the planet focus never
+ *    exits, the stage walks pick → landing → pick, and the bank is one hex shorter by the server's own stock;
  *  ③ B MINIMIZES (the board home's plate), A on the plate returns to the board pick;
  *  ④ a TAP of RT finishes nothing (the stop is irreversible); a HOLD finishes the seat's game — the server's prompt
- *    is gone.
+ *    is gone, the context with it, and the chip reads «ЗАВЕРШЕНО».
  */
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {openConsole, placeTile, press} from './consoleStart';
+import {cinematicBeat, openConsole, press} from './consoleStart';
 import {
-  FINALE_BLOCK, fixtureTable, forceFrame, getModel, holdFinishFinale, openFinaleOnBoard, postInput, shoot, terraformAnswer,
-  titleOf, waitWithFrames, WireModel,
+  FINALE_BLOCK, armFinaleWitness, disarmFinaleWitness, finaleStage, fixtureTable, forceFrame, getModel, holdFinishFinale,
+  openFinaleOnBoard, placeFinaleGreenery, postInput, readFinaleWitness, shoot, terraformAnswer, titleOf, waitWithFrames, WireModel,
 } from './consoleEndgameHarness';
 
 const PROFILES = [
@@ -73,12 +76,13 @@ async function viewerStock(request: APIRequestContext, id: string): Promise<View
   return {plants: m.thisPlayer.plants, cost: Math.max(1, m.thisPlayer.plantsNeededForGreenery)};
 }
 
-async function bankShape(page: Page): Promise<{full: number, part: number, text: string}> {
+async function bankShape(page: Page): Promise<{full: number, part: number, tier: string, text: string}> {
   return page.evaluate((sel) => {
     const root = document.querySelector(sel);
     return {
       full: root?.querySelectorAll('[data-finale-hex="full"]').length ?? -1,
       part: root?.querySelectorAll('[data-finale-hex="part"]').length ?? -1,
+      tier: (root?.querySelector('[data-finale-tier]') as HTMLElement | null)?.dataset.finaleTier ?? '',
       text: ((root as HTMLElement | null)?.innerText ?? '').replace(/\s+/g, ' '),
     };
   }, FINALE_BLOCK);
@@ -88,12 +92,20 @@ async function onBoardPick(page: Page): Promise<boolean> {
   return page.evaluate((sel) => document.querySelector(sel) !== null && document.querySelector('.con-board--placing') !== null, FINALE_BLOCK);
 }
 
+/** The viewer's own chip in the top strip — its status word. */
+async function viewerChipStatus(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const chip = document.querySelector('.con-status__player');
+    return (chip?.querySelector('.con-status__pstatus-text')?.textContent ?? '').trim();
+  });
+}
+
 for (const profile of PROFILES) {
   test.describe(`console final greenery · ${profile.tag}`, () => {
     test.use({viewport: {width: profile.width, height: profile.height}, deviceScaleFactor: 1});
     test.setTimeout(420_000);
 
-    test('the finale is a board phase: bank in the dossier, the board stays in placement, B minimizes, RT HOLD finishes', async ({page, request}) => {
+    test('the finale is ONE board context: bank sized by count + the order, a landing changes nothing around it, B minimizes, RT HOLD finishes', async ({page, request}) => {
       const shots = `screenshots/console-final-greenery/${profile.tag}`;
       const ids = await fixtureTable(request);
       // Everyone is driven over the API to the VIEWER's final-greenery question (the viewer is first in order) —
@@ -106,27 +118,40 @@ for (const profile of PROFILES) {
       // ── ① A on the announce → the board, in placement, with the finale's block ──
       await openFinaleOnBoard(page);
       expect(await onBoardPick(page), 'the board is in placement with the finale block').toBe(true);
+      expect(await finaleStage(page), 'the context stands at the pick').toBe('pick');
       const bank = await bankShape(page);
-      expect(bank.full, `one hex per greenery the stock pays for (${before.plants} ÷ ${before.cost}) — ${bank.text}`)
-        .toBe(Math.min(6, Math.floor(before.plants / before.cost)));
+      const affordable = Math.floor(before.plants / before.cost);
+      expect(bank.full, `one hex per greenery the stock pays for (${before.plants} ÷ ${before.cost}) — ${bank.text}`).toBe(Math.min(24, affordable));
       expect(bank.part, 'a part-filled hex exactly when there is a rest').toBe(before.plants % before.cost > 0 ? 1 : 0);
+      expect(bank.tier, 'the hexes take their size from their count (PL-305)').toBe(bank.full + bank.part <= 2 ? 'xl' : bank.full + bank.part <= 4 ? 'lg' : 'md');
       await expect(page.locator('.con-context__task-kicker')).toContainText(/Конец партии/i);
+      await expect(page.locator('[data-finale-yield]'), 'what one greenery is worth stands in the formula').toContainText(/\+1 (ПО|РТ)/);
+      await expect(page.locator('[data-finale-queue] [data-finale-seat="placing"]'), 'the order names the viewer as the one placing').toHaveCount(1);
       await expect(page.locator('.con-cmdbar'), 'the bar carries the finish verb').toContainText(/Завершить свою партию/i);
+      expect(await viewerChipStatus(page), 'the strip names the phase on the viewer\'s own chip').toMatch(/Озеленение/i);
       await forceFrame(page);
       await shoot(page, shots, '01-finale-on-board');
 
-      // ── ② one greenery lands; the board comes back into placement BY ITSELF ──
-      expect(await placeTile(page), 'a greenery is placed through the board').toBe(true);
-      // No dialog can come back between two greeneries: the finale has no surface of its own (the board is it).
-      await waitWithFrames(page, async () => {
-        // The stock moved (the cell's own bonus may pay plants back — the server's number, never «before − cost»).
-        const after = await viewerStock(request, ids[0]);
-        return after.plants < before.plants && await onBoardPick(page);
-      }, 60_000, 'the board back in the finale placement after the landing');
+      // ── ② one greenery lands; the context is ONE — nothing around the board lets go ──
+      await armFinaleWitness(page);
+      expect(await placeFinaleGreenery(page, request, ids[0]), 'a greenery is placed through the board').toBe(true);
+      await waitWithFrames(page, async () => (await finaleStage(page)) === 'pick' && await onBoardPick(page),
+        60_000, 'the board back in the finale placement after the landing');
+      // The landing's whole story has played by now (the hero, the bonus beats): read the witness after a calm beat.
+      await cinematicBeat(page, 1_200, "the landing's whole story (the hero, the bonus beats) settles before the witness is read");
+      const witness = await readFinaleWitness(page);
+      await disarmFinaleWitness(page);
+      expect(witness.panelRemounts, 'the dossier never re-mounted').toBe(0);
+      expect(witness.panelLeaves, 'the dossier never played its leave').toBe(0);
+      expect(witness.plateSeen, 'no plate rose between two greeneries').toBe(0);
+      expect(witness.hostSeen, 'no task band rose between two greeneries').toBe(0);
+      expect(witness.focusExits, 'the planet never shrank between two greeneries').toBe(0);
+      expect(witness.stages, 'the stage walked pick → landing → pick').toEqual(['landing', 'pick']);
       const after = await viewerStock(request, ids[0]);
+      expect(after.plants, 'the stock moved by the server\'s own number').toBeLessThan(before.plants);
       const bankAfter = await bankShape(page);
       expect(bankAfter.full, `the bank reads the server's stock after the answer — ${bankAfter.text}`)
-        .toBe(Math.min(6, Math.floor(after.plants / after.cost)));
+        .toBe(Math.min(24, Math.floor(after.plants / after.cost)));
       await shoot(page, shots, '02-next-greenery');
 
       // ── ③ B minimizes; A on the plate returns to the board pick ──
@@ -144,6 +169,16 @@ for (const profile of PROFILES) {
       await holdFinishFinale(page);
       await waitWithFrames(page, async () => (await page.locator(FINALE_BLOCK).count()) === 0 &&
         (await getModel(request, ids[0])).waitingFor?.finalGreeneryPrompt === undefined, 30_000, 'the finish answered by the server');
+      // The seat is DONE by the server's own word; while the table's finale still runs (another seat placing), the
+      // viewer's chip reads «ЗАВЕРШЕНО» — once nobody can place any more the game ENDS instead, and the endgame
+      // workspace is the screen (the strip is gone with the board).
+      const finished = await getModel(request, ids[0]);
+      const viewerColor = (finished as unknown as {thisPlayer: {color: string}}).thisPlayer.color;
+      expect(finished.game.phase === 'end' || (finished.game.finalGreenery?.done ?? []).includes(viewerColor),
+        'the server marks the seat done (or the game ended with it)').toBe(true);
+      if (finished.game.phase !== 'end') {
+        await waitWithFrames(page, async () => /Завершено/i.test(await viewerChipStatus(page)), 15_000, 'the chip reads «ЗАВЕРШЕНО» once the seat is done');
+      }
       await shoot(page, shots, '04-finished');
     });
   });

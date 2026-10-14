@@ -5364,3 +5364,42 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   }
   write(name, t.game);
 }
+
+// ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
+//    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;
+//    the second seat is PHILARES with one greenery on a quiet cell, so a greenery landing next to it hands
+//    a resource pick to the OTHER seat mid-finale — the first seat's context must stand through it, and
+//    the prompt's return must reach it over the socket, never the 20 s fallback poll. ──
+{
+  const name = 'two-player-finale-trigger';
+  const pinned = [CardName.CREDICOR, CardName.PHILARES];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, promoCardsOption: true, startingCorporations: 1,
+    customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  // Philares' seat gets one greenery on a QUIET cell (no printed bonus, no neighbour) — the builder places it with
+  // the engine's own door (its first action is still pending on its first turn; the finale never takes it).
+  const quiet = game.board.getAvailableSpacesForGreenery(p2)
+    .find((s) => s.bonus.length === 0 && !game.board.getAdjacentSpaces(s).some((a) => a.tile !== undefined));
+  if (quiet === undefined) {
+    throw new Error(`${name}: no quiet cell for Philares' greenery`);
+  }
+  addGreenery(p2, quiet.id);
+  runAllActions(game);
+  if (!game.board.spaces.some((s) => s.tile?.tileType === TileType.GREENERY && s.player?.id === p2.id)) {
+    throw new Error(`${name}: Philares' seat holds no greenery on the board`);
+  }
+  setTemperature(game, MAX_TEMPERATURE);
+  maxOutOceans(p1);
+  setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+  p1.plants = 16;
+  p2.plants = 0;
+  p1.clearWaitingFor();
+  p2.clearWaitingFor();
+  runAllActions(game);
+  // The loader re-enters the finale loop on load (PRODUCTION + the game over): the first seat is asked there.
+  game.phase = Phase.PRODUCTION;
+  write(name, game);
+}

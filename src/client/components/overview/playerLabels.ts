@@ -130,6 +130,12 @@ export function actionLabelForPlayer(
     if (player.waitingForKind === 'delegate') {
       return 'delegate';
     }
+    // THE FINALE (the server's own marker, never the phase): the seat is turning
+    // its plants into greeneries at the end of the game — «ОЗЕЛЕНЕНИЕ», not the
+    // generic off-turn «ДЕЙСТВИЕ» the PRODUCTION phase would degrade it to.
+    if (player.waitingForKind === 'finalgreenery') {
+      return 'finalgreenery';
+    }
     // A card-granted BONUS action (Head Start) outranks the phase: the player
     // is acting on the BOARD while `game.phase` still says PRELUDES, so the
     // phase-derived «ФАЗА ПРОЛОГОВ» would describe the wrong thing on every
@@ -183,6 +189,15 @@ export function actionLabelForPlayer(
         'turn' :
         'forcedaction';
     }
+  }
+
+  // THE FINAL GREENERY PHASE outranks «спасовал»: everybody passed the last
+  // generation, and that word now says nothing about the one thing happening at
+  // the table — who has finished their finale and who still waits for their
+  // turn in it (or for another seat's triggered answer). Server fact
+  // (`game.finalGreenery`, present only while the phase stands).
+  if (game.finalGreenery !== undefined) {
+    return game.finalGreenery.done.includes(player.color) ? 'finished' : 'waiting';
   }
 
   if (game.passedPlayers.includes(player.color)) {

@@ -145,11 +145,28 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
     textKey: 'Delegate pick',
     showCounter: false,
   },
+  // The FINAL GREENERY: the seat is placing its last greeneries — same active
+  // pose, named by what it is doing (the key is the tile's own name).
+  'finalgreenery': {
+    category: 'active',
+    glyph: 'dot',
+    textKey: 'Greenery',
+    showCounter: false,
+  },
   // ─── positive idle ───────────────────────────────────────────────
   'ready': {
     category: 'ready',
     glyph: 'check',
     textKey: 'Done',
+    showCounter: false,
+  },
+  // A seat DONE with its finale — the same positive «done your part» pose as
+  // `ready`, its own word («ЗАВЕРШЕНО» — neutral, like a state, never a verb
+  // with a gender).
+  'finished': {
+    category: 'ready',
+    glyph: 'check',
+    textKey: 'Finished',
     showCounter: false,
   },
   // ─── neutral idle ────────────────────────────────────────────────

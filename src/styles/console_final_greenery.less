@@ -1,36 +1,163 @@
 /* ═══════════════════════════════════════════════════════════════════
    CONSOLE FINAL GREENERY — the finale's block in the cell DOSSIER
-   (ConsoleContextPanel `finale` prop · finalGreeneryModel.ts).
+   (ConsoleContextPanel `finale` prop · finalGreeneryModel.ts ·
+   finalGreenerySession.ts).
 
-   THE FINALE IS PLAYED ON THE BOARD (the owner's decision, 2026-10-14). The
-   old dialog over a dimmed planet is gone; the board stays in placement for
-   the whole conversion loop and the dossier of the focused cell carries ONE
-   extra block, constant for the whole pick (it reads the stock, never the
-   cell — so it never moves while the player points):
+   THE FINALE IS ONE CONTEXT ON THE BOARD (the owner's decisions of
+   2026-10-14 — PL-295 «финал на поле», PL-303 «единый контекст»). The
+   dossier stands for the SESSION's whole life — the pick, the landing,
+   another seat's answer — and carries ONE block that is the finale's own:
 
-     · the PLANT STOCK as OBJECTS — one greenery hex per tile the plants still
-       pay for (the board's own greenery art, the same sprite the cell will
-       draw), then the rest as a hex filled `have / need`;
-     · one reading line — «Хватит на N» and what finishing now burns.
+     · the STAGE line (wait / landing only) — who the table waits on, or
+       that a greenery is landing and the next pick follows by itself;
+     · the PLANT STOCK as OBJECTS — one greenery hex per tile the plants
+       still pay for (the board's own tile art), the rest as a hex filled
+       `have / need`; the hexes take their SIZE from their COUNT and wrap
+       into rows (PL-305 — two greeneries are two big hexes, twelve are a
+       calm two-row grid; never a row that runs off the panel);
+     · one reading line — «Хватит на N», the board's room when it is what
+       caps the count, and what finishing now burns;
+     · the FINALE ORDER — every seat's place in the phase.
 
    No controller prompt lives here (the dossier's law): the finish verb is
-   the bar's RT hold. Colour is spent where it MEANS something — mint for the
-   stock that converts, amber for what finishing leaves unused; states ride
-   box-shadow / colour (the paint baseline strips `filter`). Authored in rem.
+   the bar's RT hold. Colour is spent where it MEANS something — mint for
+   the stock that converts, amber for what finishing leaves unused, cyan
+   for «awaited»; states ride box-shadow / colour (the paint baseline
+   strips `filter`). Authored in rem. The ONLY motion: the 90 ms value
+   flick of a changed number, a spent hex leaving, the wait pulse — none
+   of it while the player points (the stage line does not exist then).
    ═══════════════════════════════════════════════════════════════════ */
 
 .con-context__finale {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: .42rem;
-    padding: .55rem .65rem .6rem;
-    border-radius: .55rem;
-    background: linear-gradient(180deg, rgba(26, 52, 40, 0.42), rgba(14, 26, 22, 0.28));
+    gap: .5rem;
+    padding: .62rem .7rem .66rem;
+    border-radius: .6rem;
+    background:
+        linear-gradient(180deg, rgba(28, 58, 44, 0.46), rgba(12, 24, 20, 0.3));
     box-shadow:
         inset 0 0 0 .05rem fade(@con-mint, 34%),
-        inset 0 .06rem 0 fade(@con-mint, 16%);
+        inset 0 .06rem 0 fade(@con-mint, 18%);
+
+    /* The END-OF-GAME accent: a warm seam along the top — this is the last
+       thing the seat does in the game, and the block says so without a word. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: .7rem;
+        right: .7rem;
+        top: 0;
+        height: .09rem;
+        border-radius: 0 0 .1rem .1rem;
+        background: linear-gradient(90deg, transparent, fade(@con-amber, 70%) 18%, fade(@con-amber, 70%) 82%, transparent);
+        pointer-events: none;
+    }
+
+    /* The wait stage: the whole block reads as «standing» — a touch quieter
+       green, the cyan of the awaited seat carrying the line. */
+    &--wait {
+        background: linear-gradient(180deg, rgba(22, 46, 44, 0.44), rgba(10, 20, 20, 0.3));
+    }
 }
 
+/* ── THE STAGE PILL (the eyebrow's right side) ──────────────────────── */
+.con-context__finale-stage {
+    display: inline-flex;
+    align-items: center;
+    gap: .32rem;
+    max-width: 100%;
+    padding: .08rem .5rem .08rem .4rem;
+    border-radius: 49.95rem;
+    font-size: var(--ctx-t-chrome);
+    letter-spacing: .06rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #dff3ff;
+    background: fade(@con-cyan, 10%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
+
+    &-dot {
+        width: .42rem;
+        height: .42rem;
+        border-radius: 50%;
+        background: @con-cyan;
+        box-shadow: 0 0 .4rem fade(@con-cyan, 70%);
+    }
+    &--landing {
+        color: #fff2d0;
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+        .con-context__finale-stage-dot { background: @con-amber; box-shadow: 0 0 .4rem fade(@con-amber, 70%); }
+    }
+    &--wait .con-context__finale-stage-dot {
+        animation: con-finale-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+}
+
+/* ── THE YIELD TAIL of the exchange formula (`8 🌱 → 1 [tile] · +1 ПО`) ── */
+.con-context__f-yield {
+    margin-left: .5rem;
+    padding: .06rem .46rem;
+    border-radius: 49.95rem;
+    font-family: @con-font;
+    font-size: var(--ctx-t-chrome);
+    letter-spacing: .05rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #ffe9b3;
+    background: fade(@con-amber, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 48%);
+}
+
+/* ── THE STAGE LINE (wait / landing) ─────────────────────────────────── */
+.con-context__finale-wait {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    padding: .42rem .55rem;
+    border-radius: .45rem;
+    background: fade(@con-cyan, 9%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%);
+    font-size: var(--ctx-t-label);
+    line-height: 1.3;
+    color: #e6f4ff;
+
+    &--landing {
+        background: fade(@con-amber, 8%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+        color: #fff1d2;
+
+        .con-context__finale-pulse { background: @con-amber; box-shadow: 0 0 .5rem fade(@con-amber, 75%); }
+    }
+}
+.con-context__finale-pulse {
+    flex: 0 0 auto;
+    width: .55rem;
+    height: .55rem;
+    border-radius: 50%;
+    background: @con-cyan;
+    box-shadow: 0 0 .5rem fade(@con-cyan, 75%);
+    animation: con-finale-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+.con-context__finale-pulse--seat {
+    /* The seat's own colour (the `player_bg_color_*` background) — the base's cyan is only the nameless pulse. */
+    width: .7rem;
+    height: .7rem;
+    box-shadow: 0 0 0 .07rem rgba(0, 0, 0, 0.45), 0 0 .45rem rgba(255, 255, 255, 0.25);
+}
+.con-context__finale-wait-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+@keyframes con-finale-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .45; transform: scale(.78); }
+}
+
+/* ── THE HEAD ROW ────────────────────────────────────────────────────── */
 .con-context__finale-head {
     display: flex;
     align-items: center;
@@ -56,15 +183,35 @@
 
     .con-context__f-ico { width: 1.25rem; height: 1.25rem; }
 }
+/* A changed stock replays the dossier's own 90 ms value flick (keyed on the number). */
+.con-context__finale-stock-num,
+.con-context__finale-enough,
+.con-context__finale-cells,
+.con-context__finale-burn {
+    animation: con-dossier-val-in calc(90ms * var(--motion-scale, 1)) ease-out;
+}
 
-/* THE BANK — a row of hexes, never wrapping (the model caps the row and
-   states the cut as «+N»). */
+/* ── THE BANK — hexes sized by their COUNT, wrapping into rows (PL-305) ── */
 .con-context__finale-bank {
     display: flex;
     align-items: center;
-    flex-wrap: nowrap;
-    gap: .28rem;
-    min-height: 3.35rem;
+    flex-wrap: wrap;
+    gap: .28rem .3rem;
+    min-height: 2rem;
+
+    /* The tier tokens — the hex box and the board art's zoom inside it
+       (46 px native width × zoom ≈ the box, by the documented zoom×ui-scale
+       integration). Profiles re-tune nothing here: rem carries the TV. */
+    --fin-hex-w: 2.55rem;
+    --fin-hex-h: 2.8rem;
+    --fin-art-zoom: 1.11;
+    --fin-part-t: .72rem;
+
+    &--xl { --fin-hex-w: 3.6rem; --fin-hex-h: 3.95rem; --fin-art-zoom: 1.57; --fin-part-t: .95rem; gap: .4rem .45rem; }
+    &--lg { --fin-hex-w: 3.1rem; --fin-hex-h: 3.4rem; --fin-art-zoom: 1.35; --fin-part-t: .84rem; gap: .34rem .38rem; }
+    &--md { --fin-hex-w: 2.55rem; --fin-hex-h: 2.8rem; --fin-art-zoom: 1.11; --fin-part-t: .72rem; }
+    &--sm { --fin-hex-w: 2.05rem; --fin-hex-h: 2.25rem; --fin-art-zoom: .89; --fin-part-t: .6rem; gap: .22rem .24rem; }
+    &--xs { --fin-hex-w: 1.7rem; --fin-hex-h: 1.87rem; --fin-art-zoom: .74; --fin-part-t: .52rem; gap: .18rem .2rem; }
 }
 .con-context__finale-hex {
     position: relative;
@@ -72,12 +219,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 3rem;
-    height: 3.3rem;
+    width: var(--fin-hex-w);
+    height: var(--fin-hex-h);
 
     /* A whole greenery the stock pays for: the board's own tile art, at rest. */
     &--full .con-context__tile-art {
-        zoom: calc(var(--ctx-finale-tile-zoom, 1.26) * var(--con-ui-scale, 1));
+        zoom: calc(var(--fin-art-zoom) * var(--con-ui-scale, 1));
     }
 
     /* The REST — a hex shell filled from the bottom by `--fill` (have / need):
@@ -98,7 +245,7 @@
 .con-context__finale-part {
     position: relative;
     font-family: @con-font;
-    font-size: .72rem;
+    font-size: var(--fin-part-t);
     font-variant-numeric: tabular-nums;
     color: #e9fff4;
 }
@@ -109,18 +256,117 @@
     color: fade(@con-mint, 90%);
 }
 
-/* THE READING LINE — the count the decision turns on, and what stopping
-   costs (amber: the plants that finishing leaves unused). */
+/* ── THE READING LINE ─────────────────────────────────────────────────── */
 .con-context__finale-line {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    column-gap: .55rem;
+    column-gap: .6rem;
     row-gap: .1rem;
     font-size: var(--ctx-t-label);
     line-height: 1.3;
     color: @con-text;
 }
+.con-context__finale-enough {
+    font-family: @con-font;
+    letter-spacing: .02rem;
+    color: #eafff5;
+}
+.con-context__finale-cells {
+    color: fade(@con-cyan, 92%);
+}
 .con-context__finale-burn {
-    color: fade(@sem-warn, 74%);
+    color: fade(@sem-warn, 78%);
+}
+
+/* ── THE FINALE ORDER — every seat's place in the phase ───────────────── */
+.con-context__finale-queue {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    padding-top: .45rem;
+    border-top: .05rem solid fade(@con-mint, 18%);
+}
+.con-context__finale-seats {
+    display: flex;
+    flex-direction: column;
+    gap: .18rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.con-context__finale-seat {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .42rem;
+    min-height: 1.35rem;
+    font-size: var(--ctx-t-label);
+    line-height: 1.25;
+    color: @con-text-dim;
+
+    &-dot {
+        width: .62rem;
+        height: .62rem;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .07rem rgba(0, 0, 0, 0.45);
+    }
+    &-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        i {
+            font-style: normal;
+            color: fade(@con-text-dim, 70%);
+        }
+    }
+    &-state {
+        font-family: @con-font;
+        font-size: var(--ctx-t-chrome);
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    /* The three places, readable without colour: ✓ done (mint, quiet), ● placing (cyan, lit), ○ waiting (dim). */
+    &--done {
+        .con-context__finale-seat-state { color: fade(@con-mint, 85%); }
+        .con-context__finale-seat-state::before { content: '✓ '; }
+    }
+    &--placing {
+        color: @con-text;
+        .con-context__finale-seat-state { color: #dff3ff; }
+        .con-context__finale-seat-state::before { content: '● '; color: @con-cyan; }
+    }
+    &--waiting {
+        .con-context__finale-seat-state { color: fade(@con-text-dim, 75%); }
+        .con-context__finale-seat-state::before { content: '○ '; }
+    }
+    &--you .con-context__finale-seat-name {
+        color: @con-text;
+    }
+}
+
+/* ── A SPENT HEX LEAVES (the landing paid it): a short settle, never a cut. ── */
+.con-finale-hex-leave-active {
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease, transform calc(220ms * var(--motion-scale, 1)) ease;
+}
+.con-finale-hex-leave-to {
+    opacity: 0;
+    transform: scale(.6);
+}
+.con-finale-hex-enter-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-finale-hex-enter-from {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-context__finale-pulse,
+    .con-context__finale-stage--wait .con-context__finale-stage-dot { animation: none; }
+    .con-finale-hex-leave-active,
+    .con-finale-hex-enter-active { transition: none; }
 }

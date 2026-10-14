@@ -119,6 +119,16 @@ export class PlayerInput extends Handler {
             // the play modal gets its turn now, instead of being asked again.
             // See `inputs/deferredInputBatch.ts`.
             drainBatchTail(player);
+            // THE REQUEST IS OBSERVABLE THE MOMENT IT RETURNS (PL-301). An answer
+            // routinely hands a prompt to ANOTHER seat without passing through
+            // `takeAction` — the final greenery loop (`takeActionForFinalGreenery`)
+            // defers Philares' pick to its owner, and that owner's answer puts the
+            // greenery prompt back on the first seat. Neither hop saved nor bumped
+            // the cursor, so no WebSocket invalidation went out and the other seat
+            // learned of its prompt only from the stretched fallback poll (≈20 s
+            // in the field). One broadcast per processed request, after the state
+            // has settled; the client coalesces it with the save's own.
+            player.game.notifyStateChange();
             responses.writeJson(res, ctx, Server.getPlayerModel(player));
           }
           resolve();

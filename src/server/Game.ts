@@ -195,6 +195,12 @@ export class Game implements IGame, Logger {
   public activePlayer: IPlayer;
   /** Players that are done with the game after final greenery placement. */
   private donePlayers = new Set<PlayerId>();
+  /**
+   * THE FINALE IS IN PROGRESS — set the moment the final greenery loop is entered (every entry of
+   * `takeNextFinalGreeneryAction`, a restored game's included), cleared by the END. Not serialized on purpose:
+   * a loaded game re-enters the loop on load, and the flag is re-derived there.
+   */
+  private finalGreeneryStarted = false;
   private passedPlayers = new Set<PlayerId>();
   private researchedPlayers = new Set<PlayerId>();
   /** The first player of this generation. */
@@ -1651,6 +1657,7 @@ export class Game implements IGame, Logger {
    * If nobody can add a greenery, end the game.
    */
   public /* for testing */ takeNextFinalGreeneryAction(): void {
+    this.finalGreeneryStarted = true;
     for (const player of this.playersInGenerationOrder) {
       if (this.donePlayers.has(player.id)) {
         continue;
@@ -2129,6 +2136,24 @@ export class Game implements IGame, Logger {
 
   public getGeneration(): number {
     return this.generation;
+  }
+
+  /**
+   * The FINAL GREENERY phase stands (the loop was entered and the game has not ended) — the client's finale
+   * context and the seats' statuses («Озеленение» / «Завершено» / «Ожидает») read it; never derived from
+   * `phase` alone (PRODUCTION covers the production itself and the Redux quest gates before the loop).
+   */
+  public finalGreeneryInProgress(): boolean {
+    return this.finalGreeneryStarted && this.phase !== Phase.END;
+  }
+
+  /** The seats DONE with the finale (placed all they could, or stopped), as colours. */
+  public getDonePlayers(): Array<Color> {
+    const colors: Array<Color> = [];
+    this.donePlayers.forEach((id) => {
+      colors.push(this.getPlayerById(id).color);
+    });
+    return colors;
   }
 
   public getPassedPlayers():Array<Color> {

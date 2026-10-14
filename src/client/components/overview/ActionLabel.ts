@@ -44,6 +44,15 @@ export type ActionLabel =
   | 'globalsupport'    // World Government Terraforming — picking which global
                        // parameter to bump as the "world government" (SOLAR phase).
   | 'delegate'         // Turmoil delegate placement / party choice prompt.
+  | 'finalgreenery'    // The seat holds the FINAL GREENERY prompt (the server's
+                       // `waitingForKind: 'finalgreenery'` — its structural marker):
+                       // it is turning leftover plants into greeneries, one at a
+                       // time, at the end of the game. Active pose, no counter.
+                       // The console's announce gate treats it as a forced
+                       // reaction (the player was idle through production).
+  | 'finished'         // The FINAL GREENERY phase stands and this seat is DONE
+                       // with it (`game.finalGreenery.done`) — placed all it
+                       // could, or stopped. Positive idle, like `ready`.
                        //
                        // NOTE: MarsBot's active turn ALSO resolves to 'turn' (it
                        // is the server's ACTION-phase active player during its

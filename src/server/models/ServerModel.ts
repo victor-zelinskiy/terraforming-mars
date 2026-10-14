@@ -9,7 +9,7 @@ import {Space} from '../boards/Space';
 import {IPlayer} from '../IPlayer';
 import {PlayerInput} from '../PlayerInput';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
-import {PlayerViewModel, Protection, PublicPlayerModel} from '../../common/models/PlayerModel';
+import {PlayerViewModel, Protection, PublicPlayerModel, WaitingForKind} from '../../common/models/PlayerModel';
 import {SpaceHighlight, SpaceModel} from '../../common/models/SpaceModel';
 import {TileType} from '../../common/TileType';
 import {buriedOceanOf} from '../../common/boards/cellPieces';
@@ -99,9 +99,14 @@ function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
  * containers (sub-prompts like SelectSpace, SelectCard never carry a
  * cross-phase title we'd match on).
  */
-function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' | 'delegate' | undefined {
+function detectWaitingForKind(input: PlayerInput | undefined): WaitingForKind | undefined {
   if (input === undefined) {
     return undefined;
+  }
+  // THE FINALE: the final greenery prompt carries its own structural marker at the top — the seat's chip reads
+  // «ОЗЕЛЕНЕНИЕ» (and the console's finale context knows WHO is placing), never the phase-derived «ДЕЙСТВИЕ».
+  if (input.finalGreeneryPrompt !== undefined) {
+    return 'finalgreenery';
   }
   // NB: a card-granted BONUS action is deliberately NOT a kind here. It is a
   // whole TURN, not one prompt — the player plays a card and the next three
@@ -109,7 +114,7 @@ function detectWaitingForKind(input: PlayerInput | undefined): 'globalsupport' |
   // carry the menu's marker. The status label reads the LEDGER
   // (`PublicPlayerModel.bonusActions`) instead, so it holds for the whole
   // window and for every seat.
-  let result: 'globalsupport' | 'delegate' | undefined;
+  let result: WaitingForKind | undefined;
   const visit = (node: PlayerInput, depth: number): boolean => {
     if (depth > 3) {
       return false;
@@ -195,6 +200,8 @@ export class Server {
       oceans: game.board.getOceanSpaces().length,
       oxygenLevel: game.getOxygenLevel(),
       passedPlayers: game.getPassedPlayers(),
+      // The FINAL GREENERY phase's facts — present only while it stands (its seats' statuses, the console's finale context).
+      finalGreenery: game.finalGreeneryInProgress() ? {done: game.getDonePlayers()} : undefined,
       pathfinders: createPathfindersModel(game),
       parliament: getParliamentModel(game, viewer),
       automa: this.getAutomaModel(game),

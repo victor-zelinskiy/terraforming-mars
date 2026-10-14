@@ -100,7 +100,9 @@ export type PublicPlayerModel = {
   // label show e.g. "ПОДДЕРЖКА" (World Government Terraforming) vs.
   // "ДЕЛЕГАТ" (Turmoil delegate placement) instead of a generic catch-all.
   // Undefined for plain phase-derived prompts (action / drafting / research).
-  waitingForKind?: 'globalsupport' | 'delegate';
+  // …and 'finalgreenery': the seat holds the final greenery prompt (its
+  // structural marker) — the chip reads «ОЗЕЛЕНЕНИЕ», never a phase guess.
+  waitingForKind?: WaitingForKind;
   /** Card-granted bonus actions still owed, INCLUDING the one being taken now
    *  (undefined when none). Public so an opponent's chip can read «БОНУСНОЕ
    *  ДЕЙСТВИЕ 1/2» instead of a generic phase label. */
@@ -317,3 +319,6 @@ export type MaCostsModel = {
   milestone: number;
   award: number;
 };
+
+/** The distinguishable cross-phase prompt kinds a seat's chip names (see `PublicPlayerModel.waitingForKind`). */
+export type WaitingForKind = 'globalsupport' | 'delegate' | 'finalgreenery';

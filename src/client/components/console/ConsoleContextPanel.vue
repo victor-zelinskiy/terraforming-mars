@@ -20,6 +20,12 @@
           <div class="con-context__task-kicker">{{ $t(placementKickerKey) }}</div>
           <!-- P20: the inspect-all toggle announces itself as a distinct mode. -->
           <div v-if="inspectAll" class="con-context__mode-chip">{{ $t('Inspecting all cells') }}</div>
+          <!-- THE FINALE's STAGE (PL-304): where the context stands — the pick, a landing, another seat's
+               answer. A pill, not a title: the kicker and the object stay the panel's voice. -->
+          <div v-else-if="finale !== undefined" class="con-context__finale-stage"
+               :class="'con-context__finale-stage--' + finale.stage" :data-finale-stage="finale.stage">
+            <span class="con-context__finale-stage-dot" aria-hidden="true"></span>{{ $t(finaleStageKey) }}
+          </div>
         </div>
         <!-- WHAT LANDS — the real tile art + its name, never the server's
              whole sentence (placementDossier owns the naming law). -->
@@ -41,6 +47,8 @@
           <span v-if="swatchClass !== undefined" class="con-context__f-tile" aria-hidden="true">
             <span class="con-context__tile-art" :class="swatchClass"></span>
           </span>
+          <!-- What one final greenery is WORTH under the table's rules (classic VP / Redux TR) — the formula's tail. -->
+          <span v-if="finale !== undefined" class="con-context__f-yield" data-finale-yield>{{ $t(finale.yieldKey) }}</span>
         </div>
         <!-- The demoted server sentence — only when it adds a real constraint. -->
         <div v-else-if="identity.actionLine !== ''" class="con-context__action-line">{{ identity.actionLine }}</div>
@@ -62,16 +70,36 @@
            as OBJECTS — one greenery hex per tile it still pays for (the board's own art), the rest as a hex
            filled have / need — and what finishing now leaves unused. No controller prompt here: the finish is
            the bar's RT hold. -->
-      <section v-if="finale !== undefined" class="con-context__finale" data-finale-bank>
+      <section v-if="finale !== undefined" class="con-context__finale" :class="'con-context__finale--' + finale.stage"
+               data-finale-bank :data-finale-stage="finale.stage">
+        <!-- THE STAGE LINE — only when the board is NOT the thing to read: another seat's answer is awaited (who),
+             or a greenery is landing and the next pick follows by itself. In the pick stage the cell row below
+             says everything, so this line does not exist. -->
+        <div v-if="finale.stage === 'wait'" class="con-context__finale-wait" data-finale-wait>
+          <!-- ONE dot: the awaited seat's own colour, pulsing; the bare cyan pulse only until the poll names a seat. -->
+          <span v-if="finale.waitingOn !== undefined" class="con-context__finale-pulse con-context__finale-pulse--seat"
+                :class="'player_bg_color_' + finale.waitingOn.color" aria-hidden="true"></span>
+          <span v-else class="con-context__finale-pulse" aria-hidden="true"></span>
+          <span class="con-context__finale-wait-text">{{ finaleWaitText }}</span>
+        </div>
+        <div v-else-if="finale.stage === 'landing'" class="con-context__finale-wait con-context__finale-wait--landing" data-finale-landing>
+          <span class="con-context__finale-pulse" aria-hidden="true"></span>
+          <span class="con-context__finale-wait-text">{{ $t(LANDING_LINE) }}</span>
+        </div>
         <div class="con-context__finale-head">
           <span class="con-context__finale-label">{{ $t(FINALE_BANK_LABEL) }}</span>
           <span class="con-context__finale-stock">
             <span class="con-context__f-ico" :class="plantIconClass" aria-hidden="true"></span>
-            <b>{{ finale.plants }}</b>
+            <b :key="finale.plants" class="con-context__finale-stock-num">{{ finale.plants }}</b>
           </span>
         </div>
-        <div class="con-context__finale-bank">
-          <span v-for="(slot, i) in finale.bank.slots" :key="i"
+        <!-- THE BANK — drawn to the COUNT (PL-305): the hexes take their size from how many there are and wrap into
+             rows; an absurd stock is cut and the cut is stated. -->
+        <TransitionGroup tag="div" name="con-finale-hex" class="con-context__finale-bank"
+                         :class="'con-context__finale-bank--' + finale.bank.tier" :data-finale-tier="finale.bank.tier">
+          <!-- A whole hex is keyed by its place, the rest by its kind: a landing removes the LAST whole hex (it
+               leaves with a short settle) and re-fills the rest in place — never a row that re-mounts. -->
+          <span v-for="(slot, i) in finale.bank.slots" :key="slot.kind === 'full' ? 'full' + i : 'part'"
                 class="con-context__finale-hex" :class="'con-context__finale-hex--' + slot.kind"
                 :data-finale-hex="slot.kind" aria-hidden="true">
             <span v-if="slot.kind === 'full'" class="con-context__tile-art" :class="finaleTileClass"></span>
@@ -80,18 +108,37 @@
               <span class="con-context__finale-part">{{ slot.have }}/{{ slot.need }}</span>
             </template>
           </span>
-          <span v-if="finale.bank.overflow > 0" class="con-context__finale-more">+{{ finale.bank.overflow }}</span>
-        </div>
+          <span v-if="finale.bank.overflow > 0" key="more" class="con-context__finale-more">+{{ finale.bank.overflow }}</span>
+        </TransitionGroup>
         <div class="con-context__finale-line">
-          <span>{{ finaleEnoughText }}</span>
-          <span class="con-context__finale-burn">{{ finaleBurnText }}</span>
+          <span :key="finaleEnoughText" class="con-context__finale-enough">{{ finaleEnoughText }}</span>
+          <span v-if="finale.freeCells !== undefined" :key="'c' + finale.freeCells" class="con-context__finale-cells" data-finale-cells>{{ finaleCellsText }}</span>
+          <span v-if="finale.bank.burns > 0" :key="finaleBurnText" class="con-context__finale-burn">{{ finaleBurnText }}</span>
+        </div>
+        <!-- THE FINALE ORDER — every seat's place in the phase (the server's `finalGreenery.done` + the asked seat's
+             own kind): the player sees they are the one placing, who is done, who still waits — the «очередь
+             игроков» of the owner's concept. -->
+        <div class="con-context__finale-queue" data-finale-queue>
+          <span class="con-context__finale-label">{{ $t(QUEUE_LABEL) }}</span>
+          <ul class="con-context__finale-seats">
+            <li v-for="seat in finale.queue" :key="seat.color"
+                class="con-context__finale-seat" :class="{['con-context__finale-seat--' + seat.state]: true, 'con-context__finale-seat--you': seat.viewer}"
+                :data-finale-seat="seat.state">
+              <span class="con-context__finale-seat-dot" :class="'player_bg_color_' + seat.color" aria-hidden="true"></span>
+              <span class="con-context__finale-seat-name">{{ seat.name }}<i v-if="seat.viewer"> · {{ $t(SEAT_YOU) }}</i></span>
+              <span class="con-context__finale-seat-state">{{ $t(seatStateKey(seat.state)) }}</span>
+            </li>
+          </ul>
         </div>
       </section>
 
       <!-- ── THE FOCUSED CELL: one fixed line; the refusal expands below
            without a jump (grid-rows well), so legal ↔ illegal never shifts
            the identity above it. The LOCKED phase re-registers the same bar
-           (amber, «выбрано») — a paint-only change, zero geometry. -->
+           (amber, «выбрано») — a paint-only change, zero geometry.
+           Inside the finale session only while the PICK is out (PL-304): a landing or another seat's answer has
+           no focused cell to read, and the stage line above says so instead. -->
+      <template v-if="finale === undefined || finale.stage === 'pick'">
       <div class="con-context__cell">
         <div class="con-context__cellbar"
              :class="cellbarClass">
@@ -162,6 +209,7 @@
           <console-placement-fact-row v-for="row in fallbackRows" :key="row.key" :row="row" />
         </section>
       </div>
+      </template>
     </template>
 
     <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
@@ -276,7 +324,10 @@ import {
   placementFollowUpLine,
   placementIdentity,
 } from '@/client/console/placementDossier';
-import {BANK_BURNS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalGreeneryBank} from '@/client/console/finalGreenery/finalGreeneryModel';
+import {
+  BANK_BURNS, BANK_CELLS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalePanelModel, FinaleSeatState, LANDING_LINE,
+  QUEUE_LABEL, SEAT_DONE, SEAT_PLACING, SEAT_WAITING, SEAT_YOU, STAGE_LANDING, STAGE_PICK, STAGE_WAIT, WAITING_ON,
+} from '@/client/console/finalGreenery/finalGreeneryModel';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -296,6 +347,9 @@ export default defineComponent({
       scrolledDown: false,
       resizeObserver: undefined as ResizeObserver | undefined,
       FINALE_BANK_LABEL,
+      LANDING_LINE,
+      QUEUE_LABEL,
+      SEAT_YOU,
     };
   },
   watch: {
@@ -361,8 +415,8 @@ export default defineComponent({
     trackScale: {type: Object as PropType<{titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null>, default: null},
     // cell mode (P27b): curated special-cell lore
     lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
-    /** The FINALE's block (the final greenery's board pick) — the plant stock and what finishing burns. */
-    finale: {type: Object as PropType<{plants: number, cost: number, bank: FinalGreeneryBank} | undefined>, default: undefined},
+    /** The FINALE's block (the session's whole life, PL-304) — the stock, the yield, the order, the stage. */
+    finale: {type: Object as PropType<FinalePanelModel | undefined>, default: undefined},
   },
   computed: {
     /** The plant glyph of the finale's stock line. */
@@ -379,6 +433,22 @@ export default defineComponent({
     },
     finaleBurnText(): string {
       return this.finale === undefined ? '' : translateTextWithParams(BANK_BURNS, [String(this.finale.bank.burns)]);
+    },
+    finaleCellsText(): string {
+      return this.finale?.freeCells === undefined ? '' : translateTextWithParams(BANK_CELLS, [String(this.finale.freeCells)]);
+    },
+    /** The stage pill's word. */
+    finaleStageKey(): string {
+      switch (this.finale?.stage) {
+      case 'wait': return STAGE_WAIT;
+      case 'landing': return STAGE_LANDING;
+      default: return STAGE_PICK;
+      }
+    },
+    /** «Ждём ответа: <seat>» — the seat the table waits on; the bare word when the poll has not named one yet. */
+    finaleWaitText(): string {
+      const who = this.finale?.waitingOn;
+      return who === undefined ? translateText(STAGE_WAIT) : translateTextWithParams(WAITING_ON, [who.name]);
     },
     /** The source CARD, when there is one — what L3 opens fullscreen. */
     sourceCard(): CardName | undefined {
@@ -478,6 +548,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** A seat's word in the finale order. */
+    seatStateKey(state: FinaleSeatState): string {
+      return state === 'done' ? SEAT_DONE : state === 'placing' ? SEAT_PLACING : SEAT_WAITING;
+    },
     groupDot(group: DossierRecipientGroup): Color | undefined {
       const r = group.recipient;
       if (r.kind === 'current-player') {
