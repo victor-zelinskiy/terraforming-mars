@@ -56,6 +56,10 @@
     flex-wrap: wrap;
     align-items: stretch;
     gap: .55rem .4rem;
+    /* THE HALO — the cursor LIFTS its tile and rings it; a group standing at the top of a scroller had that lift and
+       its ring's top edge cut by the scroller's own edge (measured 2026-10-14: 6 px at 4K). The group keeps the room
+       its states paint into. */
+    padding-block: .3rem;
     /* The printed graphic's zoom over the face's own px scale: a 24 px icon on the card → 30 px here at 1080 — the
        scene's scale (the hero formula's chips), never the HUD's. */
     --vchoice-print-zoom: 1.4;
@@ -249,14 +253,16 @@
     &__reason-mark { font-weight: 800; color: #ff9f8c; }
 
     /* ── THE SEAL — the ONE mark of «this is my answer», on every surface. Absolute, so its slot costs no layout; a
-       one-shot latch (scale + opacity) when the answer is given, reduced motion → at once. ── */
+       one-shot latch (scale + opacity) when the answer is given, reduced motion → at once. It sits INSIDE the tile's
+       corner, never astride its edge: an edge-riding seal is cut by whatever scroller or band the tile stands in
+       (the owner's photo, 2026-10-14 — the ✓ half-hidden under the action composer's scroll edge). ── */
     &__seal {
         position: absolute;
-        top: -.5rem;
-        right: -.5rem;
+        top: .45rem;
+        right: .45rem;
         z-index: 2;
-        width: 1.55rem;
-        height: 1.55rem;
+        width: 1.4rem;
+        height: 1.4rem;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -279,7 +285,7 @@
     }
     &__seal::after {
         content: '✓';
-        font-size: .92rem;
+        font-size: .84rem;
         font-weight: 900;
         line-height: 1;
         color: #04281b;
@@ -390,11 +396,14 @@
     /* THE LIST — tighter rows, the print at the face's own scale, the seal at the row's end. */
     &--list { gap: .4rem; }
     &--list &__opt { padding: .55rem 2.6rem .55rem .85rem; gap: .55rem; }
-    &--list &__seal {
+    /* A ROW's seal stands at its end, centred on the row's line — its lane is the row's reserved right padding. */
+    &--list &__seal,
+    &--column &__seal {
         top: 50%;
         right: .6rem;
-        margin-top: -.775rem;
+        margin-top: -.7rem;
     }
+    &--column &__opt { padding-right: 2.6rem; }
     &--list &__ink { --vchoice-print-zoom: 1; }
 
     @media (prefers-reduced-motion: reduce) {
@@ -448,8 +457,11 @@ html.con-profile-tv .con-vchoice__opt--off.con-vchoice__opt--focused {
 html.con-profile-tv .con-vchoice__or { width: 2.6rem; }
 html.con-profile-tv .con-vchoice__or-medal { font-size: var(--con-t-floor); min-width: 2.4rem; height: 2.4rem; border-radius: 1.2rem; }
 html.con-profile-tv .con-vchoice--column .con-vchoice__or { height: 2rem; }
-html.con-profile-tv .con-vchoice__seal { width: 1.8rem; height: 1.8rem; top: -.6rem; right: -.6rem; }
-html.con-profile-tv .con-vchoice--list .con-vchoice__seal { top: 50%; right: .7rem; margin-top: -.9rem; }
+html.con-profile-tv .con-vchoice { padding-block: .35rem; }
+html.con-profile-tv .con-vchoice__seal { width: 1.7rem; height: 1.7rem; top: .55rem; right: .55rem; }
+html.con-profile-tv .con-vchoice--list .con-vchoice__seal,
+html.con-profile-tv .con-vchoice--column .con-vchoice__seal { top: 50%; right: .7rem; margin-top: -.85rem; }
+html.con-profile-tv .con-vchoice--column .con-vchoice__opt { padding-right: 3rem; }
 html.con-profile-tv .con-vchoice__seal::after { font-size: 1.05rem; }
 
 /* THE HANDHELD — the Deck's 800-tall band holds the same composition: a smaller print, tighter tiles, and the caption

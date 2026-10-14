@@ -72,7 +72,7 @@
            track), but an always-mounted overlay would still run a
            ResizeObserver through every band animation of every card action. -->
       <ConsolePlayedTargetLink v-if="selfTargetPresent" />
-      <div class="con-composer__actright">
+      <div class="con-composer__actright" ref="actRight">
 
       <!-- (No carried action graphic here: the pressed slot's schema stays in
            the browser where it serves comparison. This layer already says the
@@ -243,13 +243,26 @@
             <ActionEffectChip v-for="(eff, k) in heroCost" :key="'c' + k" :effect="eff" />
           </div>
         </div>
-        <span v-if="heroCost.length > 0 && (heroGain.length > 0 || heroTimeline !== undefined)" class="con-composer__hero-arrow" aria-hidden="true">→</span>
+        <!-- The arrow LEADS the consequence (it rides inside the «Вы получите» side): when the line wraps on the couch,
+             «→ Вы получите» opens the second row — never an arrow stranded at the end of the first. -->
         <div v-if="heroGain.length > 0 || heroTimeline !== undefined" class="con-composer__hero-side">
+          <span v-if="heroCost.length > 0" class="con-composer__hero-arrow" aria-hidden="true">→</span>
           <div class="con-composer__hero-label">{{ $t('You will receive') }}</div>
           <div class="con-composer__hero-chips">
             <!-- A TIMELINE on the card's own capsule (TR28): ONE chip, start → end, its two movements in order. -->
             <ActionEffectChip v-if="heroTimeline !== undefined" :effect="heroTimeline.effect" :moves="heroTimeline.moves" data-capsule-timeline />
             <ActionEffectChip v-for="(eff, k) in heroGain" :key="'g' + k" :effect="eff" />
+          </div>
+        </div>
+        <!-- THE RESERVED SIDE (2026-10-14 — the owner's «the workspace jumps after a choice»): while the variant is
+             unchosen the formula already HAS its «Вы получите» side — an empty slot the answer will fill — so choosing
+             fills a place that stood there, it never grows the line (the formula grew a second row and slid the tiles
+             126 px down under the cursor that had just pressed them). -->
+        <div v-else-if="heroPending" class="con-composer__hero-side con-composer__hero-side--pending" data-hero-pending>
+          <span v-if="heroCost.length > 0" class="con-composer__hero-arrow" aria-hidden="true">→</span>
+          <div class="con-composer__hero-label">{{ $t('You will receive') }}</div>
+          <div class="con-composer__hero-chips">
+            <span class="con-composer__hero-slot" aria-hidden="true"></span>
           </div>
         </div>
         <div v-if="heroChoice.length > 0" class="con-composer__hero-side">
@@ -688,11 +701,14 @@
            relabels to «Готово») — unmounting it there would move the whole
            column, which is exactly the jump this rework removes. -->
       <div v-if="sub === undefined || sub.kind === 'payment'" class="con-composer__ctadock" data-unfold-item>
-        <!-- The honest readiness line: names the FIRST missing decision. -->
-        <div v-if="ctaDockHint !== ''" class="con-composer__cta-hint">
-          <span aria-hidden="true">◈</span>
-          <span>{{ ctaDockHint }}</span>
-        </div>
+        <!-- The honest readiness line: names the FIRST missing decision. It rides the dock's own LANE above the rail
+             (absolute — zero layout): answering the last question takes the line away without moving the rail. -->
+        <transition name="con-ctahint">
+          <div v-if="ctaDockHint !== ''" class="con-composer__cta-hint">
+            <span aria-hidden="true">◈</span>
+            <span>{{ ctaDockHint }}</span>
+          </div>
+        </transition>
         <!-- THE COMMIT ROW. It stays in place whatever the gate says — the flow
              must keep its shape — but it only wears the ACTIVE treatment (ring,
              live Ⓐ) when the gate would actually run it. `--held` is the honest
@@ -855,6 +871,7 @@ import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from 
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
 import {playCommitVerb, playDoorNextStepKey, playDoorOf, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
 import {useResizeObserver} from '@vueuse/core';
+import {SettledColumn} from '@/client/console/settledColumn';
 import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
@@ -1232,6 +1249,8 @@ export default defineComponent({
   emits: ['confirm', 'committing', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
   data() {
     return {
+      /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
+      settled: undefined as SettledColumn | undefined,
       /**
        * The variant group's live AXIS, measured off the rendered tiles (all at one `offsetTop` ⇒ a row, ←→ switch
        * them; stacked ⇒ a column, the ordinary ↑↓ walk) — never a duplicated breakpoint.
@@ -1683,10 +1702,19 @@ export default defineComponent({
      *  option cards carry their own chips → no hero until one is chosen). */
     showHero(): boolean {
       if (this.selectedBranch === undefined) {
-        // The variants' COMMON price is the action's: «Будет списано» states it before a variant is chosen (PL-074).
-        return this.commonCost.length > 0;
+        // The variants' COMMON price is the action's: «Будет списано» states it before a variant is chosen (PL-074) —
+        // and the formula stands from the first frame whenever a variant will fill it (`heroPending`).
+        return this.commonCost.length > 0 || this.heroPending;
       }
       return this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0 || this.heroTimeline !== undefined;
+    },
+    /** The formula's «Вы получите» side is RESERVED — a variant is still to be chosen (the slot the answer fills). */
+    heroPending(): boolean {
+      return this.needBranchRow && this.selectedBranch === undefined;
+    },
+    /** A hosted step that owns the whole decision column lifts the settled pin while it stands. */
+    settleSuspended(): boolean {
+      return this.sub?.kind === 'playedTarget';
     },
     /**
      * THE PRICE EVERY OFFERED VARIANT SHARES (PL-074 — `commonVariantCost`): printed once, on the formula's price
@@ -2732,6 +2760,9 @@ export default defineComponent({
     },
   },
   watch: {
+    settleSuspended(now: boolean) {
+      this.settled?.suspend(now);
+    },
     /**
      * The group's memory: the tile the cursor last stood on (↑ from the row below re-enters there). Written on every
      * ARRIVAL here (a ←→ switch, a walk back in) and at the moment of LEAVING in `onNav` — the seeded first focus
@@ -3089,6 +3120,15 @@ export default defineComponent({
     // Deriving it from `hasDecisions` made the title depend on the ASYNC
     // preview, so it changed under the entering animation.)
   },
+  created() {
+    // THE SETTLED COLUMN: centred for the opening composition, pinned from the player's first press — every later change
+    // grows downward and slides into place (`settledColumn.ts`; the owner's 4K report of 2026-10-14).
+    this.settled = markRaw(new SettledColumn({
+      column: () => this.$refs.actRight as HTMLElement | undefined,
+      block: () => this.$refs.surfaceEl as HTMLElement | undefined,
+      active: () => !this.submitting,
+    }));
+  },
   mounted() {
     // THE RAIL RECEDES BEHIND THE FORMULA (PL-139): the OWNER composer publishes the rows its formula touches for as
     // long as it stands; a guest instance (the repeat pick's, `publishCommands: false`) publishes nothing — one
@@ -3136,6 +3176,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.settled?.stop();
     // The rail lights every row again the moment the owner's formula leaves the screen (PL-139).
     if (this.publishCommands) {
       consoleCardActionsUi.railFocus = undefined;
@@ -3896,6 +3937,9 @@ export default defineComponent({
     },
     // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
+      // The player's press pins the decision column where it stands (centred) — nothing it causes re-centres it — and
+      // whatever it moves inside the column slides into place.
+      this.settled?.around();
       // THE DRAW PHASE never sees the pad: while it is pending the action is
       // already committed (nothing to fire, nothing to cancel), and once the
       // reveal has teleported in the SHELL routes intents straight to it —
@@ -4758,6 +4802,7 @@ export default defineComponent({
     },
     /** A click on a variant tile — the same SELECT as A on it (never a commit). */
     pickBranchAt(index: number): void {
+      this.settled?.around();
       const pos = this.branchItemPositions[index];
       if (pos !== undefined && this.sub === undefined) {
         this.selectBranch(pos);

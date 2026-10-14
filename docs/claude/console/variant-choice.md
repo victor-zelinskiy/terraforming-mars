@@ -42,6 +42,16 @@ Files: `foundation/ConsoleVariantChoice.vue` · `console/variantChoiceModel.ts` 
 - **The three facts, three paints** are the TR51 grammar unchanged: cursor = cold lift + cyan ring; answer = seal +
   mint kant (survives the cursor leaving; the other live options RECEDE at .6, never hide); rules = faded print + the
   reason on its own plate inside the tile. No `filter` anywhere.
+- **The seal stands INSIDE the tile's corner** (2026-10-14 — the owner: «the ✓ can be half hidden»): astride the edge it
+  was cut by the scroller the group stood in (the action composer's group sits at its scroller's top — 24 px of the
+  seal gone at 4K). A row's seal (list, column) stands at its end, in the row's reserved right lane. The group keeps a
+  `padding-block` HALO (.3 / .35rem) so the cursor's lift and its ring are not cut by the same edge.
+- **Choosing moves nothing the player is looking at** — the decision column SETTLES (`console/settledColumn.ts`, rule
+  § A DECISION COLUMN SETTLES): pinned from the first press, growing downward, every moved group sliding, every new one
+  rising; the action formula's «Вы получите» side is reserved from the first frame (a chip-shaped slot) and the
+  readiness hint rides the CTA dock's own lane. Measured at 4K (`screenshots/select-settle/{before,after}`): the action
+  composer's plate / formula / tiles / rail 126 / 180 / 126 / 54 px of movement → 0; the play composer's column top
+  122 px → 0, its rail's 243 px a 240 ms slide instead of a cut.
 
 ## 2 · The group is a ROW, and it moves the way it looks
 

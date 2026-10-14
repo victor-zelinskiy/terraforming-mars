@@ -621,7 +621,8 @@
  * payment = `buildPaymentView` (all rules there — the component never re-derives
  * payment math).
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
+import {SettledColumn} from '@/client/console/settledColumn';
 import Card from '@/client/components/card/CardFace.vue';
 import {Color} from '@/common/Color';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -923,6 +924,8 @@ export default defineComponent({
   emits: ['confirm', 'cancel'],
   data() {
     return {
+      /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
+      settled: undefined as SettledColumn | undefined,
       boardPeekUi: boardPeekState,
       preview: undefined as ActionPreview | undefined,
       loading: true,
@@ -997,6 +1000,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** A hosted step that owns the whole work column (the played-target step) lifts the settled pin while it stands. */
+    settleSuspended(): boolean {
+      return this.sub?.kind === 'playedTarget';
+    },
     // ── THE EFFECT FORECAST (rides inside the preview) ──────────────────
     forecast(): EffectForecast | undefined {
       return this.preview?.forecast;
@@ -2258,6 +2265,9 @@ export default defineComponent({
     },
   },
   watch: {
+    settleSuspended(now: boolean) {
+      this.settled?.suspend(now);
+    },
     /** PL-127: the hosted-step declaration, handed to the shell as it changes (cleared with the composer by `resetConsolePlayCardUi`). */
     hostedStepDeclared: {
       immediate: true,
@@ -2416,6 +2426,15 @@ export default defineComponent({
       handStageReveal(this.$refs.rootEl as HTMLElement | undefined);
     },
   },
+  created() {
+    // THE SETTLED COLUMN: the work column composes centred, the player's first press pins it — a chosen variant's
+    // step section grows the column DOWNWARD and every group below slides into place (`settledColumn.ts`).
+    this.settled = markRaw(new SettledColumn({
+      column: () => this.$refs.playRight as HTMLElement | undefined,
+      block: () => (this.$refs.scroll as {$el?: unknown} | undefined)?.$el as HTMLElement | undefined,
+      active: () => !this.submitting && !this.loading,
+    }));
+  },
   mounted() {
     // THE SECOND REVEAL. The zone opened a flush ago (it must exist before the
     // teleport resolves, or the content is dropped), so its own enter hook had
@@ -2426,6 +2445,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.settled?.stop();
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
     closeBoardPeek(true);
@@ -3120,6 +3140,9 @@ export default defineComponent({
     },
     // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
+      // The player's press pins the work column where it stands (centred) — nothing it causes re-centres it — and
+      // whatever it moves inside the column slides into place.
+      this.settled?.around();
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open («the player drives
       // the surface they see»); R3 at the review level opens it. Both are
       // resolved BEFORE the semantic map, which has no default verb for R3.
@@ -3383,6 +3406,7 @@ export default defineComponent({
       armPostCommitWitness(this.cardName, asks.map((f) => f.source.name), honest);
     },
     clickVariantAt(index: number): void {
+      this.settled?.around();
       const row = this.variantRows[index];
       if (row !== undefined) {
         this.clickVariant(row);

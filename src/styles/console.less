@@ -33025,6 +33025,34 @@ html.console-mode {
     &__hero-label { font-size: .6rem; letter-spacing: .07rem; text-transform: uppercase; color: @con-text-dim; }
     &__hero-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__hero-arrow { font-size: 1.3rem; font-weight: 800; color: fade(@con-cyan, 90%); align-self: center; }
+    /* THE RESERVED SIDE (the variant still to be chosen): the place the chosen variant's chip will stand — a chip-sized
+       dashed outline with a quiet «?», never a chip of its own (it states no number). Same height as the chip it awaits,
+       so filling it changes nothing around it. */
+    &__hero-side--pending .con-composer__hero-label { opacity: .72; }
+    /* Built like the compact chip it awaits — the chip's own padding token, a 1 px edge, an icon-sized core — so the
+       two are the same height on every profile by construction, never by a copied number. */
+    &__hero-slot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 3.4rem;
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+        border: 1px dashed fade(@con-cyan, 60%);
+        background: fade(@con-cyan, 7%);
+        &::before {
+            content: '?';
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: var(--con-chip-c-icon, 1.05rem);
+            height: var(--con-chip-c-icon, 1.05rem);
+            font-size: var(--con-chip-c-fs, .82rem);
+            font-weight: 800;
+            line-height: 1;
+            color: fade(@con-cyan, 72%);
+        }
+    }
     /* The formula's FOURTH side — «Сработает» — is set apart from the
        cost → reward pair by a quiet mint hairline on its leading edge; the
        row itself is the shared unit (no caption: the side's label names it). */
@@ -35123,12 +35151,16 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
        machined hairline seam above it closes the plate's reading ladder:
        rule → consequence → commit. */
     .con-composer__ctadock {
+        position: relative;
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
         gap: .3rem;
         margin-top: .5rem;
-        padding-top: .5rem;
+        /* THE HINT LANE is the dock's own: reserved whether a hint stands in it or not, so answering the last
+           question takes the line away and the rail stays exactly where it was (2026-10-14 — the line's removal
+           used to pull the whole column 54 px). */
+        padding-top: calc(.5rem + var(--con-ctahint-lane, 1.3rem));
         box-shadow: 0 -.05rem 0 rgba(120, 150, 185, 0.14);
     }
     /* A payment panel mounting mid-configuration (a priced branch was just
@@ -35138,12 +35170,30 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     }
     /* The honest disabled-CTA reason (names the first missing decision). */
     .con-composer__cta-hint {
-        display: inline-flex;
+        position: absolute;
+        top: .5rem;
+        left: 0;
+        right: 0;
+        height: var(--con-ctahint-lane, 1.3rem);
+        display: flex;
         align-items: center;
         gap: .4rem;
+        min-width: 0;
         font-size: .75rem;
         color: #ffe6b0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         span:first-child { color: @con-amber; }
+    }
+    /* The line comes and goes IN its lane — a fade, never a cut. */
+    .con-ctahint-enter-active,
+    .con-ctahint-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard; }
+    .con-ctahint-enter-from,
+    .con-ctahint-leave-to { opacity: 0; }
+    @media (prefers-reduced-motion: reduce) {
+        .con-ctahint-enter-active,
+        .con-ctahint-leave-active { transition: none; }
     }
     .con-composer__cta { margin-top: 0; }
 
