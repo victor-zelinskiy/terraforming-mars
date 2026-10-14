@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {expectSeeThrough, expectUncovers} from './peekWitness';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -469,6 +470,10 @@ for (const preset of PRESETS) {
       await expect(page.locator(panel), 'the dossier reads the SOURCE').toContainText('Этот город', {timeout: 10_000});
       await expect(page.locator(panel)).toContainText(/Клеток для переселения:\s*\d/);
       await expect(page.locator(panel)).toContainText(/Сейчас приносит:\s*1\s*ПО/);
+      // THE SEE-THROUGH («ПРОСВЕТ», TR47 — the move's SOURCE level lifts a piece): the focused city goes translucent
+      // with its owner cube, and the dossier says what the move uncovers — 16 prints no bonus, so the land line alone.
+      await expectSeeThrough(page, X, 'top', 'the move\'s city level');
+      await expectUncovers(page, [/Бонуса нет — клетка суши снова свободна/], 'the move\'s city level');
       await shoot(page, preset.id, '02-city-level');
 
       await press(page, 'KeyV', 500); // R3 — «все клетки»

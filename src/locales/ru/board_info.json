@@ -267,6 +267,7 @@
   "Nothing is uncovered — the stack stays": "Ничего не откроется — стопка остаётся",
   "Only the top tier leaves; the cities under it keep the cell.": "Уходит только верхний ярус; города под ним остаются на клетке.",
   "Uncovered and collected at once": "Откроется — и сразу будет получено",
+  "No printed bonus — nothing is uncovered": "Бонуса нет — открывать нечего",
   "The tile leaves first; the cell's printed bonus is paid by the placement.": "Тайл уходит первым; печатный бонус клетки выдаёт само размещение.",
   "Under the tile": "Под тайлом"
 }

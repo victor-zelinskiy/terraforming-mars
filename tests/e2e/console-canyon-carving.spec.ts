@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {expectSeeThrough, expectUncovers} from './peekWitness';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -491,6 +492,12 @@ for (const preset of PRESETS) {
       const bar = await barText(page);
       expect(bar, 'the bar speaks the ocean\'s verb').toMatch(/Взять океан/);
       expect(bar, 'never the city\'s').not.toMatch(/город/i);
+      // THE SEE-THROUGH («ПРОСВЕТ», TR47 — the move's SOURCE level lifts a piece too): the focused ocean goes
+      // translucent on its reserve, the reserve's printed bonus (two plants on 33) is painted under it, and the
+      // dossier names what the move uncovers under «ОТКРОЕТСЯ» — the same words as a removal's.
+      const peek = await expectSeeThrough(page, X, 'top', 'the move\'s source level');
+      expect(peek.bonusIcons, 'the reserve\'s printed bonus is painted under the translucent ocean').toBeGreaterThan(0);
+      await expectUncovers(page, [/Бонус клетки снова доступен/, /Резерв океана снова примет океан/], 'the move\'s source level');
       await shoot(page, preset.id, '02-source-level');
 
       // ── 3. A LIFTS the ocean: the pose, the vector, the destination's dossier ──

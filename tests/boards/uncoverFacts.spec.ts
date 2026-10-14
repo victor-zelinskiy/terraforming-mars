@@ -142,6 +142,12 @@ describe('uncoverFacts — what a lifted piece uncovers', () => {
     const preview = boardCellPreview(p1, land, 'city', {cleared: true, tileType: TileType.CITY, sourceCard: CardName.KAGUYA_TECH});
     expect(uncovers(preview.ruleFacts).map(brief)).deep.eq(['uncover-collected:Uncovered and collected at once']);
     expect(preview.immediateFacts.some((f) => f.category === 'printed-placement-bonus' && f.delta?.icon === 'steel'), 'the bonus is the player\'s gain').is.true;
+    // A bare cell under the doomed tile promises nothing — and says so, never a line about a bonus the commit cannot pay.
+    const bareLand = game.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.length === 0 && game.board.onMarsGrid(s))!;
+    game.addGreenery(p1, bareLand);
+    runAllActions(game);
+    const bare = boardCellPreview(p1, bareLand, 'city', {cleared: true, tileType: TileType.CITY, sourceCard: CardName.KAGUYA_TECH});
+    expect(uncovers(bare.ruleFacts).map(brief)).deep.eq(['uncover-collected-none:No printed bonus — nothing is uncovered']);
   });
 
   describe('the HOVER of an occupied cell (К-E1)', () => {

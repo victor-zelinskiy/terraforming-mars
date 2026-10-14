@@ -269,7 +269,7 @@ describe('BoardSpace', () => {
 
     it('nothing peeked: no class, no bonus icons under a standing tile', () => {
       const wrapper = lone([SpaceBonus.PLANT, SpaceBonus.PLANT]);
-      expect(wrapper.classes()).to.not.contain('board-space--peek');
+      expect(wrapper.attributes('data-peek')).to.be.undefined;
       expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
     });
 
@@ -277,14 +277,13 @@ describe('BoardSpace', () => {
       const wrapper = lone([SpaceBonus.PLANT, SpaceBonus.PLANT]);
       setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
       await wrapper.vm.$nextTick();
-      expect(wrapper.classes()).to.contain('board-space--peek');
-      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.attributes('data-peek'), 'the see-through is the root\'s ATTRIBUTE — never a class (the focus ring is written imperatively on this element)').to.eq('top');
       expect(wrapper.find('[data-test="tile"]').classes(), 'the sprite stays — translucent by CSS, never cleared').to.contain('board-space-tile--ocean');
       expect(wrapper.find('[data-test="tile"]').classes()).to.not.contain('board-space-tile--placement-cleared');
       expect(wrapper.findAll('.board-space-bonus'), 'the two plants show through').to.have.length(2);
       setPlacementPeek({spaceId: 'm08' as SpaceId, piece: 'top'});
       await wrapper.vm.$nextTick();
-      expect(wrapper.classes(), 'the peek moved to another cell').to.not.contain('board-space--peek');
+      expect(wrapper.attributes('data-peek'), 'the peek moved to another cell').to.be.undefined;
       expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
     });
 
@@ -292,7 +291,7 @@ describe('BoardSpace', () => {
       const wrapper = lone([]);
       setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
       await wrapper.vm.$nextTick();
-      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.attributes('data-peek')).to.eq('top');
       expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
     });
 
@@ -300,8 +299,7 @@ describe('BoardSpace', () => {
       const wrapper = lone([SpaceBonus.PLANT, SpaceBonus.PLANT], {tileType: TileType.CITY, color: 'blue', under: TileType.OCEAN});
       setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'under'});
       await wrapper.vm.$nextTick();
-      expect(wrapper.classes()).to.contain('board-space--peek-under');
-      expect(wrapper.classes()).to.not.contain('board-space--peek-top');
+      expect(wrapper.attributes('data-peek')).to.eq('under');
       const tiers = wrapper.findAll('[data-stack-tier]');
       expect(tiers).to.have.length(1);
       expect(tiers[0].attributes('data-stack-piece'), 'the water tier is the piece the CSS dims').to.eq('under');
@@ -314,7 +312,7 @@ describe('BoardSpace', () => {
       const wrapper = lone([SpaceBonus.PLANT], {tileType: TileType.CITY, color: 'blue', under: TileType.OCEAN});
       setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
       await wrapper.vm.$nextTick();
-      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.attributes('data-peek')).to.eq('top');
       expect(wrapper.findAll('.board-space-bonus'), 'the ocean stays — nothing uncovered').to.have.length(0);
     });
 
@@ -322,8 +320,25 @@ describe('BoardSpace', () => {
       const wrapper = lone([SpaceBonus.STEEL], {spaceType: SpaceType.LAND, tileType: TileType.CITY, color: 'blue', stackHeight: 2});
       setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
       await wrapper.vm.$nextTick();
-      expect(wrapper.classes()).to.contain('board-space--peek-top');
+      expect(wrapper.attributes('data-peek')).to.eq('top');
       expect(wrapper.findAll('.board-space-bonus')).to.have.length(0);
+    });
+
+    it('the peek toggling NEVER rewrites the cell\'s classes — a class the board section wrote imperatively (the focus ring) survives it', async () => {
+      // The board section writes `con-cell-sel`, the availability classes and the move's source mark straight onto the
+      // element; Vue rewrites `className` wholesale when the `:class` binding changes, so a peek that lived in that
+      // binding wiped the focus it stood with (TR39's source level read no focused cell). The peek is an attribute.
+      const wrapper = lone([SpaceBonus.PLANT]);
+      wrapper.element.classList.add('con-cell-sel', 'board-space--available');
+      setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
+      await wrapper.vm.$nextTick();
+      expect(wrapper.attributes('data-peek')).to.eq('top');
+      expect(wrapper.classes(), 'the focus ring written by the section stands').to.contain('con-cell-sel');
+      expect(wrapper.classes(), 'the availability class stands').to.contain('board-space--available');
+      setPlacementPeek(undefined);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.attributes('data-peek')).to.be.undefined;
+      expect(wrapper.classes()).to.contain('con-cell-sel');
     });
 
     it('a held cell (the scene owns it) never peeks', async () => {
@@ -332,7 +347,7 @@ describe('BoardSpace', () => {
       try {
         setPlacementPeek({spaceId: 'm07' as SpaceId, piece: 'top'});
         await wrapper.vm.$nextTick();
-        expect(wrapper.classes()).to.not.contain('board-space--peek');
+        expect(wrapper.attributes('data-peek')).to.be.undefined;
       } finally {
         clearRemoteRevealHolds();
       }

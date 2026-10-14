@@ -6,6 +6,7 @@ import {
   placementState, press, pressUntil, settle, walkToSpace,
 } from './consoleStart';
 import {answerGateAs, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {expectSeeThrough, expectUncovers} from './peekWitness';
 
 /**
  * WATER EXPORT (Turmoil Redux, RX33) — the ONE e2e of the new mechanic: a WORLD
@@ -302,6 +303,12 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     }).toBe(true);
     const rows = await dossierRows(page);
     expect(rows.some((r) => /РТ никто не теряет|Nobody loses TR/i.test(r.label)), `no silent loss — the rating nobody loses is said (${JSON.stringify(rows)})`).toBe(true);
+    // THE SEE-THROUGH («ПРОСВЕТ», TR47 — one class for every picker that lifts a piece): the focused ocean goes
+    // translucent on its reserve, the reserve's PRINTED bonus (two steel on 04) is painted under it, the reticle wears
+    // the pickup ring and projects no water over the water; the dossier says the same in words under «ОТКРОЕТСЯ».
+    const peek = await expectSeeThrough(page, oceanId, 'top', 'the ocean removal');
+    expect(peek.bonusIcons, 'the reserve\'s printed bonus is painted under the translucent ocean').toBeGreaterThan(0);
+    await expectUncovers(page, [/Бонус клетки снова доступен/, /Резерв океана снова примет океан/], 'the ocean removal');
     await shoot(page, '03-ocean-pick-dossier');
 
     // ── ④ THE COMMIT REMOVES THE TILE — and the frame is VISIBLE on both clients.

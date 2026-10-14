@@ -1365,6 +1365,10 @@ function uncoverFacts(space: Space, lifted: 'top' | 'ocean', mode: 'removal' | '
     return [];
   }
   if (mode === 'cleared') {
+    // A cell with nothing printed uncovers nothing — said, never a line promising a bonus the commit cannot pay.
+    if (uncoveredBonusChips(space, 'uncover', '', 'future').length === 0) {
+      return [{...rule('uncover-collected-none', 'uncovered-bonus', 'No printed bonus — nothing is uncovered', '', 'nobody'), description: undefined}];
+    }
     return [rule('uncover-collected', 'uncovered-bonus', 'Uncovered and collected at once',
       'The tile leaves first; the cell\'s printed bonus is paid by the placement.', 'nobody')];
   }

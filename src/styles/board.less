@@ -460,9 +460,9 @@
 // reticle's own 120 ms glide), `opacity` only — the console strips `filter`.
 // The selector carries `.con-board` so it outranks the placement-mode dims of
 // console.less by order and specificity alike.
-.con-board .board-space--peek-top > [class*="board-space-tile--"]:not(.board-stack__tier),
-.con-board .board-space--peek-top > .player-cube.board-owner-cube,
-.con-board .board-space--peek-under > .board-stack__tier[data-stack-piece="under"] {
+.con-board .board-space[data-peek="top"] > [class*="board-space-tile--"]:not(.board-stack__tier),
+.con-board .board-space[data-peek="top"] > .player-cube.board-owner-cube,
+.con-board .board-space[data-peek="under"] > .board-stack__tier[data-stack-piece="under"] {
 	opacity: 0.35;
 	transition: opacity calc(90ms * var(--motion-scale, 1)) linear;
 }

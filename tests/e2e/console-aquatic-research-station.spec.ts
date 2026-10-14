@@ -1,6 +1,7 @@
 import {test, expect} from './consoleTest';
 import type {Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace} from './consoleStart';
+import {expectSeeThrough, expectUncovers} from './peekWitness';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {TileType} from '../../src/common/TileType';
 import * as fs from 'fs';
@@ -709,6 +710,10 @@ for (const preset of PRESETS) {
       const source = await inspectorText(page);
       expect(source, 'К-W1: the city stays — said before the lift').toMatch(/Город остаётся/);
       expect(source, 'only the ocean leaves, the cell stops counting').toMatch(/Уходит только океан из-под города/);
+      // THE SEE-THROUGH («ПРОСВЕТ», TR47): the WATER under the city is the piece that would leave — its tier goes
+      // translucent while the city over it keeps its paint — and the dossier says nothing is uncovered: the city stays.
+      await expectSeeThrough(page, LIFT.source, 'under', 'the ocean out from under');
+      await expectUncovers(page, [/Ничего не откроется — на клетке остаётся город/], 'the ocean out from under');
       await shoot(page, preset.id, 'canyon-01-source');
 
       // ── 2. A LIFTS the ocean out from under; the destination is the bare reserve beside. ──

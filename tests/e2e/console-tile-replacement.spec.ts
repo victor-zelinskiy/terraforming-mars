@@ -23,7 +23,8 @@
 import {expect, test, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {bootIntoGame, forceSwiftPlacement, soloGameConfig, press} from './consoleStart';
+import {bootIntoGame, forceSwiftPlacement, soloGameConfig, press, walkToSpace} from './consoleStart';
+import {expectSeeThrough, expectUncovers} from './peekWitness';
 
 const OUT = path.resolve('screenshots', 'tile-replacement');
 
@@ -167,9 +168,16 @@ test.describe('a tile that REPLACES one of yours is placed, not swapped', () => 
       'the Kaguya placement never opened').toHaveCount(1, {timeout: 30_000});
     await expect(cell).toHaveClass(/board-space--available/, {timeout: 15_000});
     const atPick = await readCell(page, greenery);
-    await shoot(page, '2-picking-the-greenery');
     expect(atPick.tile, 'the greenery must be VISIBLE while it is being chosen').toBe('greenery');
     expect(atPick.cleared, 'nothing is removed yet — the window opens at the commit').toBeFalsy();
+    // THE SEE-THROUGH («ПРОСВЕТ», TR47 — a remove-and-replace lifts a piece too): with the cursor on the doomed
+    // greenery it goes translucent with its cube, the cell's printed bonus (if any) is painted under it, and the
+    // dossier says the bonus is uncovered AND collected at once — the commit pays it, so the peek promises nothing else.
+    await walkToSpace(page, greenery);
+    const peek = await expectSeeThrough(page, greenery, 'top', 'the Kaguya pick', {reticle: 'projection'});
+    await expectUncovers(page, [peek.bonusIcons > 0 ? /Откроется — и сразу будет получено/ : /Бонуса нет — открывать нечего/], 'the Kaguya pick');
+    expect((await readCell(page, greenery)).cleared, 'the see-through is not the removal window').toBeFalsy();
+    await shoot(page, '2-picking-the-greenery');
 
     // ── CONFIRM, and watch the order of the beats. ──
     //

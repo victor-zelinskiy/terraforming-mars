@@ -1,5 +1,6 @@
 <template>
-  <div v-if="space !== undefined" :class="mainClass" :style="stackStyle" :data_space_id="space.id" :data-stack-height="stackHeight > 1 ? stackHeight : undefined">
+  <div v-if="space !== undefined" :class="mainClass" :style="stackStyle" :data_space_id="space.id" :data-stack-height="stackHeight > 1 ? stackHeight : undefined"
+       :data-peek="peekPiece">
     <!-- THE CITY STACK (Turmoil Redux — Skyscrapers): the LOWER TIERS paint under
          the top tile, each one stepped down, so the stack reads by its silhouette
          (a pile of tokens); the counter below names the height outright. Drawn
@@ -269,13 +270,12 @@ export default defineComponent({
       if (stackDriedAt(this.space.id)) {
         css += ' board-space--dried';
       }
-      // THE SEE-THROUGH («ПРОСВЕТ», TR47): the piece a lifting pick would take off THIS cell is drawn translucent —
-      // the top piece, or the water under a TR44 city — what stays keeps its paint (`placementPeek.ts`).
-      if (this.peekPiece === 'under') {
-        css += ' board-space--peek board-space--peek-under';
-      } else if (this.peekPiece === 'top') {
-        css += ' board-space--peek board-space--peek-top';
-      }
+      // THE SEE-THROUGH («ПРОСВЕТ», TR47) is NOT a class here — it is the root's `data-peek` ATTRIBUTE. The focus
+      // ring (`con-cell-sel`), the availability classes and the move's source mark are written IMPERATIVELY on this
+      // element by the board section, and Vue rewrites `className` wholesale whenever this binding changes: a class
+      // that toggles exactly while the cursor stands on the cell wiped the focus it was standing with (measured on
+      // TR39's source level — `focusedSpaceId` read «» with the reticle plainly on 33). A separate attribute is patched
+      // on its own and leaves `className` alone.
       // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
       // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
       if (this.stackLoading) {
