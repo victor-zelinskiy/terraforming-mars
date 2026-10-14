@@ -304,7 +304,7 @@
                    fixed-height line each: tile icon, the «ДАЛЕЕ» context label,
                    then the sentence. Only the muted constraint tail may clip. -->
               <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next" data-unfold-item :aria-label="n.full">
-                <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
+                <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :class="{'con-composer__next-tile--over': n.over !== undefined}" :style="tileIconStyle(n.tileType, n.over)" aria-hidden="true"></span>
                 <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
                 <span class="con-composer__next-label">{{ $t('Next') }}</span>
                 <span class="con-composer__next-text">{{ n.text }}</span>

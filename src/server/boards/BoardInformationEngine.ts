@@ -356,6 +356,10 @@ function cellDescription(space: Space, status: BoardCellStatus): string | undefi
     // TR44: the one sentence that tells this cell from an Ocean City — two pieces, and the water still pays.
     return 'Two tiles: a city stands on an ocean tile. The ocean still pays its neighbours and still counts.';
   }
+  if (status.special === true && status.countsAs?.includes('city') === true && status.countsAs.includes('ocean')) {
+    // …and the composite says the other half (К-W1): ONE tile, counting as both.
+    return 'One special tile: it counts as a city and as an ocean.';
+  }
   if (status.content === 'ocean') {
     return 'This cell is occupied by an ocean.';
   }
@@ -488,10 +492,15 @@ function specialZoneFacts(
 function printedBonusFacts(space: Space, covering: boolean): Array<BoardFact> {
   if (covering) {
     // Only worth a line when the cell actually prints a bonus the cover
-    // suppresses — «no bonus» on a bonus-less cell is a non-event.
-    return hasPrintedBonus(space) ?
-      [rule('cover-no-bonus', 'placement-effect', 'No placement bonus', 'Placing over an existing tile does not grant the printed cell bonuses.', 'neutral')] :
-      [];
+    // suppresses — «no bonus» on a bonus-less cell is a non-event. A cover
+    // over an OCEAN says WHY (К-W2): the ocean already collected it.
+    if (!hasPrintedBonus(space)) {
+      return [];
+    }
+    const why = Board.isOceanSpace(space) ?
+      'The ocean already took the printed cell bonus.' :
+      'Placing over an existing tile does not grant the printed cell bonuses.';
+    return [rule('cover-no-bonus', 'placement-effect', 'No placement bonus', why, 'neutral')];
   }
   const out: Array<BoardFact> = [];
   for (const [bonus, count] of countBonuses(space.bonus)) {
@@ -615,7 +624,7 @@ function oceanUnderCityFact(player: IPlayer): BoardFact {
     severity: 'info',
     recipient: {kind: 'neutral'},
     title: 'The ocean stays under the city',
-    description: 'Two tiles on one cell: the ocean still counts and still grants M€ to the player who places a tile next to it.',
+    description: 'Two tiles: the ocean still counts and still pays its neighbours.',
     delta: {icon: 'megacredits', amount: player.oceanBonus, direction: 'gain'},
     source: {type: 'global-rule', label: 'Ocean adjacency'},
   };

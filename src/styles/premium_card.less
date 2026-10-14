@@ -1954,6 +1954,46 @@
   background-position: center;
   background-repeat: no-repeat;
 }
+/* A TILE OVER A TILE (TR44 — «place a city ON TOP OF an ocean»): ONE pictogram, two pieces, as the printed card
+   draws it — the water at the foot, the city lifted over it, their overlap the depth of a stacked token, and the
+   printed DOWN-ARROW on the right shoulder saying «on top of». The box is one tile wide and one and a half tall; the
+   pieces are the real tile arts (never a composite tile's art — that is Ocean City's, ONE tile), so the symbol reads
+   as two tiles the way the cell on the board does. No background on the host: the pieces carry the art. */
+.pcard-tile--over {
+  height: calc(var(--pcard-mech-icon) * 2.25);
+  background-image: none !important;
+  filter: none;
+}
+.pcard-tile__under,
+.pcard-tile__top {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: calc(var(--pcard-mech-icon) * 1.58);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.pcard-tile__under {
+  bottom: 0;
+}
+.pcard-tile__top {
+  top: 0;
+}
+.pcard-tile__down {
+  position: absolute;
+  right: -18%;
+  top: 38%;
+  width: 34%;
+  height: 34%;
+  /* A chevron drawn by borders — no glyph font, no image: the arrow of the printed card in the panel's own ink. */
+  box-sizing: border-box;
+  border-right: calc(var(--pcard-mech-icon) * 0.09) solid rgba(248, 244, 232, 0.96);
+  border-bottom: calc(var(--pcard-mech-icon) * 0.09) solid rgba(248, 244, 232, 0.96);
+  transform: rotate(45deg);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
 
 /* ══ LOWER SECTION — mechanics content + anchored service elements ════
  *

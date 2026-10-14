@@ -351,7 +351,8 @@ function nodeWeight(node: ItemType): number {
     return 0.35;
   }
   if (isICardRenderTile(node)) {
-    return 1.6;
+    // A tile over a tile (TR44) stands a piece taller than one tile.
+    return node.over === undefined ? 1.6 : 2.2;
   }
   if (isICardRenderProductionBox(node)) {
     return 1.2 + sumRows(node.rows);

@@ -124,6 +124,8 @@ const KIND_TITLE: Partial<Record<BoardPlacementKind, string>> = {
   'city-move': 'City',
   // AN OCEAN MOVE (Canyon Carving): the object is the ocean that travels.
   'ocean-move': 'Ocean',
+  // A CITY OVER AN OCEAN (TR44): the object is the city — the water it lands on is the prompt's own sentence.
+  'city-over-ocean': 'City',
 };
 
 /**
@@ -232,7 +234,8 @@ export function swatchForKind(kind: BoardPlacementKind | undefined): TileType | 
   case 'greenery': return TileType.GREENERY;
   case 'city':
   case 'city-tier':
-  case 'city-move': return TileType.CITY;
+  case 'city-move':
+  case 'city-over-ocean': return TileType.CITY;
   case 'ocean':
   case 'ocean-move': return TileType.OCEAN;
   default: return undefined;

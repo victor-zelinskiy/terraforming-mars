@@ -147,6 +147,8 @@
     "Move your city": "переселите свой город",
     "Move ${0} of your cities": "переселите ${0} своих города",
     "Move an ocean tile": "перенесите тайл океана",
+    "Place the city on top of an ocean tile": "поставьте город поверх тайла океана",
+    "Place ${0} cities on top of ocean tiles": "поставьте ${0} городов поверх тайлов океана",
     "Move ${0} ocean tiles": "перенесите ${0} тайла океана",
     "to an adjacent space reserved for ocean or not reserved at all": "на соседнюю клетку, отведённую под океан или не отведённую ни подо что",
     "Place the ocean tile": "разместите тайл океана",

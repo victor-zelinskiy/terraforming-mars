@@ -12,6 +12,7 @@ import {PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {PlayerViewModel, Protection, PublicPlayerModel} from '../../common/models/PlayerModel';
 import {SpaceHighlight, SpaceModel} from '../../common/models/SpaceModel';
 import {TileType} from '../../common/TileType';
+import {buriedOceanOf} from '../../common/boards/cellPieces';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {CardResource} from '../../common/CardResource';
@@ -893,6 +894,12 @@ export class Server {
       }
       if (space.stackHeight !== undefined && space.stackHeight > 1) {
         model.stackHeight = space.stackHeight;
+      }
+      // TWO TILES ON ONE CELL (TR44): the plain ocean under an ordinary city is a piece — the client draws it from this,
+      // never from `covers` (a composite's cover is not a piece — `cellPieces.ts`).
+      const under = buriedOceanOf(space);
+      if (under !== undefined) {
+        model.under = under;
       }
 
       return model;

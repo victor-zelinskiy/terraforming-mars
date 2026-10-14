@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import BoardSpace from '@/client/components/BoardSpace.vue';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {TileType} from '@/common/TileType';
+import {clearRemoteRevealHolds, holdRemoteReveal, releaseRemoteReveal} from '@/client/console/tilePlacement/remoteRevealHold';
 
 describe('BoardSpace', () => {
   it('has visible tile', async () => {
@@ -146,6 +147,103 @@ describe('BoardSpace', () => {
         expect(capital(2).classes()).to.contain('board-space--stack-special');
         expect(cell(2).classes(), 'a pile of plain cities keeps the ordinary counter').to.not.contain('board-space--stack-special');
         expect(cell(undefined).classes()).to.not.contain('board-space--stack-special');
+      });
+    });
+
+    /**
+     * TWO TILES ON ONE CELL (Turmoil Redux TR44 Aquatic Research Station — an ordinary city ON TOP OF an ocean): the
+     * pile is drawn as the pieces lie — the WATER is the base, the city the tier over it, the water's miniature marks
+     * what lies under; the counter is the city stack's and a single city carries none. An Ocean City is ONE tile and
+     * draws none of it. The server publishes `under` from its one reading; the picture reads nothing else.
+     */
+    describe('a city OVER AN OCEAN (TR44) — two pieces, the water the base', () => {
+      function afloat(stackHeight: number | undefined, tileView: 'show' | 'hide' = 'show') {
+        return mount(BoardSpace, {
+          ...globalConfig,
+          props: {
+            space: {id: 'm33', bonus: [], x: 3, y: 3, spaceType: SpaceType.OCEAN, tileType: TileType.CITY, color: 'blue', under: TileType.OCEAN, stackHeight},
+            tileView,
+          },
+        });
+      }
+      const topOf = (wrapper: ReturnType<typeof afloat>) => wrapper.find('[data-test="tile"]').classes();
+      const tiersOf = (wrapper: ReturnType<typeof afloat>) => wrapper.findAll('[data-stack-tier]').map((t) =>
+        t.classes().find((c) => c.startsWith('board-space-tile--')));
+
+      it('a single city on the water: the city on top, ONE lower tier in the OCEAN art, the water marked, no counter', () => {
+        const wrapper = afloat(undefined);
+        expect(topOf(wrapper)).to.contain('board-space-tile--city');
+        expect(tiersOf(wrapper), 'the water is the base of the pile').to.deep.eq(['board-space-tile--ocean']);
+        expect(wrapper.classes(), 'the pile lifts the city like a stack').to.contain('board-space--stack');
+        expect(wrapper.classes()).to.contain('board-space--afloat');
+        expect(wrapper.attributes('style')).to.contain('--stack-n: 2');
+        const mark = wrapper.find('[data-stack-under]');
+        expect(mark.exists(), 'the buried water is marked').to.be.true;
+        expect(mark.attributes('data-stack-under-tile')).to.eq('board-space-tile--ocean');
+        expect(wrapper.find('[data-stack-count]').exists(), 'the counter counts CITY tiers — a single city carries none').to.be.false;
+        expect(wrapper.classes(), 'the counter stands clear of the mark, as on a special city').to.contain('board-space--stack-special');
+      });
+
+      it('a Skyscrapers tier on it: a plain city on top, the base city under it, the water at the foot, «×2»', () => {
+        const wrapper = afloat(2);
+        expect(topOf(wrapper)).to.contain('board-space-tile--city');
+        expect(tiersOf(wrapper), 'nearest first — the base city, then the water').to.deep.eq(['board-space-tile--city', 'board-space-tile--ocean']);
+        expect(wrapper.attributes('style')).to.contain('--stack-n: 3');
+        expect(wrapper.find('[data-stack-count]').text()).to.eq('×2');
+        expect(wrapper.find('[data-stack-under]').attributes('data-stack-under-tile'), 'the water stays the mark').to.eq('board-space-tile--ocean');
+      });
+
+      it('three city tiers over the water: two city tiers drawn, the water no longer drawn but still marked, «×3»', () => {
+        const wrapper = afloat(3);
+        expect(tiersOf(wrapper)).to.deep.eq(['board-space-tile--city', 'board-space-tile--city']);
+        expect(wrapper.find('[data-stack-count]').text()).to.eq('×3');
+        expect(wrapper.find('[data-stack-under]').attributes('data-stack-under-tile')).to.eq('board-space-tile--ocean');
+      });
+
+      it('an Ocean City is ONE tile: no tier, no mark, no counter, its own art', () => {
+        const wrapper = mount(BoardSpace, {
+          ...globalConfig,
+          props: {
+            space: {id: 'm34', bonus: [], x: 4, y: 3, spaceType: SpaceType.OCEAN, tileType: TileType.OCEAN_CITY, color: 'red'},
+            tileView: 'show',
+          },
+        });
+        expect(topOf(wrapper)).to.contain('board-space-tile--ocean-city');
+        expect(wrapper.findAll('[data-stack-tier]')).to.have.length(0);
+        expect(wrapper.find('[data-stack-under]').exists()).to.be.false;
+        expect(wrapper.find('[data-stack-count]').exists()).to.be.false;
+        expect(wrapper.classes()).to.not.contain('board-space--stack');
+        expect(wrapper.classes()).to.not.contain('board-space--afloat');
+      });
+
+      it('a hidden tile view draws neither the water tier nor the mark', () => {
+        const wrapper = afloat(undefined, 'hide');
+        expect(wrapper.findAll('[data-stack-tier]')).to.have.length(0);
+        expect(wrapper.find('[data-stack-under]').exists()).to.be.false;
+      });
+
+      it('a cell HELD by a remote scene at «a city over its water» keeps painting the whole pile — never a bare city, never a bare hex', async () => {
+        // The model already says what the server committed (the water left from under the city); the hold says what STOOD there.
+        holdRemoteReveal('m33', TileType.CITY, 'blue', TileType.OCEAN);
+        try {
+          const wrapper = mount(BoardSpace, {
+            ...globalConfig,
+            props: {
+              space: {id: 'm33', bonus: [], x: 3, y: 3, spaceType: SpaceType.OCEAN, tileType: TileType.CITY, color: 'blue'},
+              tileView: 'show',
+            },
+          });
+          expect(topOf(wrapper)).to.contain('board-space-tile--city');
+          expect(tiersOf(wrapper), 'the held water is the base').to.deep.eq(['board-space-tile--ocean']);
+          expect(wrapper.find('[data-stack-under]').attributes('data-stack-under-tile')).to.eq('board-space-tile--ocean');
+          expect(wrapper.classes()).to.contain('board-space--afloat');
+          releaseRemoteReveal('m33');
+          await wrapper.vm.$nextTick();
+          expect(tiersOf(wrapper), 'released: the committed cell — a city on dry ground').to.deep.eq([]);
+          expect(wrapper.find('[data-stack-under]').exists()).to.be.false;
+        } finally {
+          clearRemoteRevealHolds();
+        }
       });
     });
   });

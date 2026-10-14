@@ -32,4 +32,12 @@ export type SpaceModel = {
    * cell, so the stack reads without a cursor.
    */
   stackHeight?: number;
+  /**
+   * TWO TILES ON ONE CELL (Turmoil Redux TR44 Aquatic Research Station): the
+   * plain OCEAN lying UNDER the cell's city as a piece of its own — published
+   * from the server's one reading (`common/boards/cellPieces.ts`), never
+   * derived here. The board draws the water as the base of the pile and
+   * marks it; a composite (Ocean City) carries none (it is one tile).
+   */
+  under?: TileType;
 }

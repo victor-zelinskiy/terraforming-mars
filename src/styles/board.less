@@ -1073,6 +1073,24 @@
 		bottom: calc(14px + @stack-step * (var(--stack-n, 2) - 1));
 	}
 }
+/* ── TWO TILES ON ONE CELL (Turmoil Redux TR44 — a city ON TOP OF an ocean) ──
+   The same truthful stack: the city is a TIER (lifted by the stack's step, at the stack's scale — the very geometry the
+   tier's landing and a move's lift use, `stackLandingRect`), the water's miniature is the mark at the foot — one
+   language with Skyscrapers. Two things differ, and both are what tells the cell from an Ocean City at arm's length:
+     · THE WATER IS THE GROUND, NOT A TOKEN — the ocean base stays at the FULL hex (never scaled to the stack's 0.86):
+       the city stands in a ring of its own water, and the ring is what the eye reads as «two tiles» from the couch
+       (the stack's 3.5 px strip alone was a line nobody could see — the stand frames of 2026-10-14, b1 over a);
+     · THE SEAM IS A SHORELINE — under a city the water's upper part lies in the city's shadow and the lip is a thin lit
+       waterline, so the ring reads as water the city stands IN, not as the shadowed edge of a token.
+   The city's own rim keeps the stack's shadow. A composite (Ocean City) is one tile and never takes this class. */
+.board-space--afloat {
+	> .board-stack__tier.board-space-tile--ocean {
+		transform: none;
+		&::before {
+			background: linear-gradient(to bottom, rgba(10, 28, 54, 0.34) 0%, rgba(14, 40, 78, 0.22) 78%, rgba(176, 226, 255, 0.52) 100%);
+		}
+	}
+}
 /* ── THE TIER'S LANDING on the real cell (the console scene's two states, `cityStackScene`) ──
    LOADING — a tier hangs over this cell: the base TAKES THE LOAD. The contour tightens a hair, the
    standing tile settles one pixel and compresses to the stack's scale (so the paint at contact, which
@@ -1131,6 +1149,18 @@
 	animation: board-stack-unload calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1 both;
 	transform-origin: 50% 50%;
 }
+/* THE WATER LEFT FROM UNDER THE CITY (TR44 — TR39 out from under, RX33 / the Reds from under; `cityStackScene`
+   `dried`): in the frame the water stops painting on the cell (the proxy has taken it over) the city SETTLES from the
+   pile's lift onto the ground — one short descent from the tier's pose to the full hex, the mirror of its landing.
+   A stack over the water keeps its own poses (it is still a stack) — only a cell that stopped being a pile settles. */
+.board-space--dried:not(.board-space--stack) > [class*="board-space-tile--"] {
+	animation: board-stack-dry calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) 1 both;
+	transform-origin: 50% 50%;
+}
+@keyframes board-stack-dry {
+	0% { transform: translateY(-@stack-step) scale(@stack-scale); }
+	100% { transform: translateY(0) scale(1); }
+}
 @keyframes board-stack-untick {
 	0% { transform: scale(1); opacity: 1; }
 	18% { transform: scale(1.38); opacity: 1; }
@@ -1145,6 +1175,7 @@
 	.board-space--stack-release > .board-stack__count { animation: none; }
 	.board-space--stack-release:not(.board-space--stack) > .board-stack__count { animation: none; opacity: 0; }
 	.board-space--stack-unloading:not(.board-space--stack) > [class*="board-space-tile--"] { animation: none; }
+	.board-space--dried:not(.board-space--stack) > [class*="board-space-tile--"] { animation: none; }
 }
 
 /* ── THE BURIED TILE's mark. A stack is drawn as the pieces lie: plain cities on top, the cell's own

@@ -626,7 +626,7 @@
           <!-- Honest "after confirming" (board placement / reveal / notes).
                Same fixed-height «ДАЛЕЕ» row as the play composer. -->
           <div v-for="(n, i) in afterNotes" :key="'n' + i" class="con-composer__next" :aria-label="n.full">
-            <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
+            <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :class="{'con-composer__next-tile--over': n.over !== undefined}" :style="tileIconStyle(n.tileType, n.over)" aria-hidden="true"></span>
             <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
             <span class="con-composer__next-label">{{ $t('Next') }}</span>
             <span class="con-composer__next-text">{{ n.text }}</span>

@@ -46,7 +46,21 @@ export const stackSceneState = reactive({
   released: undefined as SpaceId | undefined,
   /** …and its base is returning to the full hex. */
   unloading: undefined as SpaceId | undefined,
+  /**
+   * THE WATER LEFT FROM UNDER THE CITY (TR44 — TR39 out from under, RX33 from under): the city SETTLES from the
+   * pile's lift onto the ground in the frame its water stops painting on the cell (the proxy has taken it over).
+   */
+  dried: undefined as SpaceId | undefined,
 });
+
+/** The ocean left from under the city on `id` — set in the SAME synchronous turn the model drops the water. */
+export function stackDried(id: SpaceId): void {
+  stackSceneState.dried = id;
+}
+
+export function stackDriedAt(id: SpaceId): boolean {
+  return stackSceneState.dried === id;
+}
 
 export function beginStackLoad(id: SpaceId): void {
   stackSceneState.contact = undefined;
@@ -72,6 +86,9 @@ export function clearStackRelease(id: SpaceId): void {
   }
   if (stackSceneState.unloading === id) {
     stackSceneState.unloading = undefined;
+  }
+  if (stackSceneState.dried === id) {
+    stackSceneState.dried = undefined;
   }
 }
 

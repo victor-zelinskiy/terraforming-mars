@@ -72,6 +72,8 @@ const SINGULAR: Readonly<Record<PlacementShape, string>> = {
   colony: 'Choose where to build a colony',
   move: 'Move your city',
   moveOcean: 'Move an ocean tile',
+  // TR44: an ordinary city ON TOP OF an ocean in play — the step names the water, the icon shows both tiles.
+  cityOverOcean: 'Place the city on top of an ocean tile',
 };
 const PLURAL: Readonly<Record<PlacementShape, string>> = {
   generic: 'Place ${0} tiles',
@@ -84,6 +86,8 @@ const PLURAL: Readonly<Record<PlacementShape, string>> = {
   move: 'Move ${0} of your cities',
   // Defensive only: no card moves several oceans in one step today.
   moveOcean: 'Move ${0} ocean tiles',
+  // Defensive only: no card puts several cities on oceans in one step today.
+  cityOverOcean: 'Place ${0} cities on top of ocean tiles',
 };
 /** A special tile that HAS a name. Each language picks its own word order — EN
  *  reads «Place the Solar Farm special tile», RU «разместите особый тайл «…»» —
@@ -93,7 +97,7 @@ const SPECIAL_NAMED = 'Place the ${0} special tile';
  *  (`behavior.tile` carries no count), but the name must survive if one ever does. */
 const SPECIAL_NAMED_PLURAL = 'Place the ${0} special tile (×${1})';
 
-type PlacementShape = 'generic' | 'city' | 'ocean' | 'greenery' | 'special' | 'colony' | 'move' | 'moveOcean';
+type PlacementShape = 'generic' | 'city' | 'ocean' | 'greenery' | 'special' | 'colony' | 'move' | 'moveOcean' | 'cityOverOcean';
 
 /** The ordinary tiles that have their own localized noun («тайл океана»). */
 const ORDINARY_SHAPE: Partial<Record<TileType, PlacementShape>> = {
@@ -162,6 +166,8 @@ export type NextStepRow = {
   text: string;
   /** The tile icon key; absent for a colony build or a prose note. */
   tileType?: TileType;
+  /** The tile `tileType` is placed ON TOP OF (TR44's city over an ocean): the icon draws both, as the card face does. */
+  over?: TileType;
   /** The muted tail ("рядом с городом"); `''` when there is none. It is the ONLY
    *  part allowed to ellipsis, so the tile's name always survives in full. */
   constraint: string;
@@ -212,6 +218,7 @@ export function placementRow(
   return {
     text: described.label,
     tileType: described.tileType,
+    ...(step.placementType === 'city-over-ocean' ? {over: TileType.OCEAN} : {}),
     constraint,
     full: constraint !== '' ? `${described.label} — ${constraint}` : described.label,
   };
@@ -228,6 +235,11 @@ function shapeOf(step: BoardPlacementStep, special: boolean): PlacementShape {
   }
   if (step.placementType === 'ocean-move') {
     return 'moveOcean';
+  }
+  // A CITY OVER AN OCEAN (TR44): the kind says where the city goes — the ordinary «place the city tile» would
+  // send the player looking for land.
+  if (step.placementType === 'city-over-ocean') {
+    return 'cityOverOcean';
   }
   // A colony is built off-Mars: no tile, so neither a name nor "special".
   if (step.tileType === undefined) {

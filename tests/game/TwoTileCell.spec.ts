@@ -250,8 +250,11 @@ describe('TwoTileCell — a city over an ocean (TR44)', () => {
       seatOcean(t.game, O2);
       const preview = boardCellPreview(t.p1, cell(t.game, O1), 'city-over-ocean', {tileType: TileType.CITY, sourceCard: CARD});
       expect(preview.legal).is.true;
-      const ids = [...preview.immediateFacts, ...preview.futureScoringFacts, ...preview.ruleFacts].map((f) => f.id);
+      const all = [...preview.immediateFacts, ...preview.futureScoringFacts, ...preview.ruleFacts];
+      const ids = all.map((f) => f.id);
       expect(ids).to.include('cover-no-bonus');
+      // К-W2: the cover's «no bonus» says WHY — the ocean already took it (the composites' dossier reads the same).
+      expect(String(all.find((f) => f.id === 'cover-no-bonus')?.description)).to.match(/The ocean already took/);
       expect(ids).to.include('ocean-under-city');
       expect(ids).to.include('place-city');
       const ocean = preview.immediateFacts.find((f) => f.id === 'ocean-adjacency');
@@ -273,6 +276,18 @@ describe('TwoTileCell — a city over an ocean (TR44)', () => {
       expect(info.description).eq('Two tiles: a city stands on an ocean tile. The ocean still pays its neighbours and still counts.');
       expect(info.facts.map((f) => f.id)).to.include('ocean-neighbour-rule');
       expect(info.facts.map((f) => f.id)).to.include('score-city');
+    });
+
+    it('…and the inspector of a COMPOSITE says the other half (К-W1): one special tile, counting as both — never «two tiles»', () => {
+      const t = table({aresExtension: true});
+      const composite = seatOcean(t.game, O1);
+      t.game.addTile(t.p2, composite, {tileType: TileType.OCEAN_CITY, card: CardName.OCEAN_CITY});
+      runAllActions(t.game);
+      const info = boardCellInfo(t.p1, composite);
+      expect(info.status.special).is.true;
+      expect(info.status.under).is.undefined;
+      expect(info.status.countsAs).deep.eq(['city', 'ocean']);
+      expect(info.description).eq('One special tile: it counts as a city and as an ocean.');
     });
   });
 

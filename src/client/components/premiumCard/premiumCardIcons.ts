@@ -345,6 +345,12 @@ export type TileIconSpec = {
   base: string;
   /** Optional symbol drawn over a special-tile canvas. */
   symbol?: string;
+  /**
+   * A TILE OVER A TILE (`ICardRenderTile.over` — TR44's city on top of an
+   * ocean): the art of the tile this one stands ON, drawn as the lower piece
+   * of ONE composite pictogram with the printed down-arrow between them.
+   */
+  over?: string;
 };
 
 /**
@@ -423,6 +429,16 @@ const TILE_VISUAL: Partial<Record<TileType, TileVisual>> = {
 };
 
 export function tileIcon(tile: ICardRenderTile): TileIconSpec {
+  const own = tileIconOf(tile);
+  if (tile.over === undefined) {
+    return own;
+  }
+  // The piece underneath: its own full art (a plain ocean for TR44) — never a canvas + symbol.
+  const under = tileIconOf({is: 'tile', tile: tile.over});
+  return {...own, over: under.base};
+}
+
+function tileIconOf(tile: ICardRenderTile): TileIconSpec {
   const visual = TILE_VISUAL[tile.tile];
   if (visual === undefined) {
     warnUnmapped(`tile/${TileType[tile.tile]}`);

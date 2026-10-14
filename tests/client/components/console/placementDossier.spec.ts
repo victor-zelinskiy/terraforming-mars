@@ -451,6 +451,15 @@ describe('placementDossier', () => {
       expect(identity({placementType: 'city-move', placementEffect: 'move'}).tileType, 'the kind alone still draws a city').to.equal(TileType.CITY);
     });
 
+    it('A CITY OVER AN OCEAN (TR44): the object is the CITY — the kind titles «City» and draws the city; the prompt\'s own sentence stays as the action line', () => {
+      const afloat = identity({placementType: 'city-over-ocean', tileType: TileType.CITY, translatedTitle: 'Поставьте город поверх тайла океана'}, ru);
+      expect(afloat.title).to.equal(RU['City']);
+      expect(afloat.tileType).to.equal(TileType.CITY);
+      expect(afloat.special, 'an ORDINARY city').to.be.false;
+      expect(afloat.actionLine, 'the water is the sentence\'s whole point — never demoted as generic').to.equal('Поставьте город поверх тайла океана');
+      expect(identity({placementType: 'city-over-ocean'}).tileType, 'the kind alone still draws a city').to.equal(TileType.CITY);
+    });
+
     it('AN OCEAN\'S move (TR39): the object is the ocean that travels — the kind titles «Ocean», draws the ocean, and the SOURCE reading is «This ocean»', () => {
       const ocean = identity({placementType: 'ocean-move', placementEffect: 'move', tileType: TileType.OCEAN}, ru);
       expect(ocean.title).to.equal(RU['Ocean']);

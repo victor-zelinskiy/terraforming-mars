@@ -57,6 +57,13 @@
   </span>
 
   <!-- TILE -->
+  <!-- A TILE OVER A TILE (TR44 — a city on top of an ocean): ONE pictogram of two pieces — the water below, the
+       city above, the printed down-arrow between them; the same node the dossier and the composer draw. -->
+  <span v-else-if="tileNode !== undefined && tileSpec.over !== undefined" class="pcard-tile pcard-tile--over" data-tile-over>
+    <span class="pcard-tile__under" :style="{backgroundImage: `url(${tileSpec.over})`}"></span>
+    <span class="pcard-tile__top" :style="{backgroundImage: `url(${tileSpec.base})`}"></span>
+    <span class="pcard-tile__down" aria-hidden="true"></span>
+  </span>
   <span v-else-if="tileNode !== undefined" class="pcard-tile" :style="{backgroundImage: `url(${tileSpec.base})`}">
     <span v-if="tileSpec.symbol !== undefined" class="pcard-tile__symbol" :style="{backgroundImage: `url(${tileSpec.symbol})`}"></span>
   </span>

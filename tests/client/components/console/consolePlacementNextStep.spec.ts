@@ -97,6 +97,18 @@ describe('consolePlacementNextStep', () => {
     expect(row.full).to.equal('перенесите тайл океана — на соседнюю клетку, отведённую под океан или не отведённую ни подо что');
   });
 
+  it('a CITY OVER AN OCEAN (TR44) names the water: «поставьте город поверх тайла океана» — the row draws BOTH tiles', () => {
+    const over = step({placementType: 'city-over-ocean', tileType: TileType.CITY});
+    const d = describeTilePlacement(over, ru);
+    expect(d.key).to.equal('Place the city on top of an ocean tile');
+    expect(d.label).to.equal('поставьте город поверх тайла океана');
+    expect(d.tileType, 'the city is the tile').to.equal(TileType.CITY);
+    expect(d.special).to.be.false;
+    const row = placementRow(over, ru, (text) => ru(typeof text === 'string' ? text : text.message));
+    expect(row.over, 'the icon is the card face\'s one node — the city over the water').to.equal(TileType.OCEAN);
+    expect(placementRow(step({placementType: 'city', tileType: TileType.CITY}), ru, (t) => String(t)).over, 'an ordinary city stands on nothing').to.be.undefined;
+  });
+
   it('an OCEAN tile names its type', () => {
     const d = describeTilePlacement(step({placementType: 'ocean', tileType: TileType.OCEAN}), ru);
     expect(d.label).to.equal('разместите тайл океана');

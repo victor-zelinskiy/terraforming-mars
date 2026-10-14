@@ -40,7 +40,7 @@
            («×1»), so the tick at contact reads 1 → 2 — the frame the real tile paints. The mirror for a
            tier that LEFT (a move's `released`): the counter names the lower height once more — «×1»
            included — ticks, and at height 1 goes. -->
-      <span v-if="(stackHeight > 1 || stackLoading || stackReleased) && !placementCleared" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
+      <span v-if="(stackHeight > 1 || stackLoading || stackReleased) && pileDrawn" class="board-stack__count" data-stack-count>×{{ stackHeight }}</span>
       <!-- THE BURIED TILE's mark: a special city under a tier is no longer what the top of the pile shows
            (the top is a plain city), and only a strip of it peeks out below — so a MINIATURE of the tile
            lying underneath stands at the foot of the pile, nested in the hex's lower vertex. A single
@@ -93,11 +93,12 @@ import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
-import {isRemoteRevealHeld, heldPrevTileOf, heldPrevColorOf, heldStackHeightOf} from '@/client/console/tilePlacement/remoteRevealHold';
+import {isRemoteRevealHeld, heldPrevTileOf, heldPrevColorOf, heldPrevUnderOf, heldStackHeightOf} from '@/client/console/tilePlacement/remoteRevealHold';
 import {nomadCellHidden, nomadGhostAt} from '@/client/console/nomads/consoleNomadMove';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
-import {stackLoadingAt, stackContactAt, stackReleasedAt, stackUnloadingAt} from '@/client/console/tilePlacement/cityStackScene';
+import {stackLoadingAt, stackContactAt, stackReleasedAt, stackUnloadingAt, stackDriedAt} from '@/client/console/tilePlacement/cityStackScene';
 import {stackBuriedTile, stackTopTile} from '@/common/boards/cityStack';
+import {buriedTileOf} from '@/common/boards/cellPieces';
 import {TileType} from '@/common/TileType';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 
@@ -194,16 +195,14 @@ export default defineComponent({
       return suffix === '' ? '' : 'board-space-tile--' + suffix;
     },
     /**
-     * A lower tier's art, by where the piece LIES: the lowest drawn tier is the pile's BASE and wears the cell's own
-     * tile; every tier between it and the top is a plain city (a stack is built by putting plain city tiles on top).
+     * A lower tier's art, by where the piece LIES (`pile`, bottom-up): `--stack-k` 1 is the piece right under the
+     * top, 2 the one under that. The lowest piece of a cell is its OWN tile — or, on a TR44 cell, the plain OCEAN the
+     * city stands on; every tier between the base and the top is a plain city (a stack is built by putting plain
+     * city tiles on top).
      */
     tierArtClassOf(k: number): string {
-      const tileType = this.space.tileType;
-      if (tileType === undefined) {
-        return '';
-      }
-      const base = k === this.tierLayers.length;
-      return this.artClassOf(base ? tileType : stackTopTile(tileType, this.stackHeight));
+      const piece = this.pile[this.pile.length - 1 - k];
+      return piece === undefined ? '' : this.artClassOf(piece);
     },
     refreshMarkerPlacement(): void {
       if (this.markerTimer !== null) {
@@ -252,13 +251,22 @@ export default defineComponent({
     mainClass(): string {
       let css = 'board-space board-space-' + this.space?.id.toString();
       css += ' board-space-selectable';
-      if (this.stackHeight > 1 && !this.placementCleared) {
+      if (this.pile.length > 1 && this.pileDrawn) {
         css += ' board-space--stack';
       }
       // A SPECIAL city's cell (the tile a tier would bury): its counter stands clear of the buried tile's mark. A fact
       // of the cell's own tile, never of the height — so the counter does not move when the mark appears or goes.
-      if (stackBuriedTile(this.space.tileType, 2) !== undefined) {
+      // A city OVER AN OCEAN (TR44) is such a cell too: the water is the piece its mark names.
+      if (stackBuriedTile(this.space.tileType, 2) !== undefined || this.pieceUnder !== undefined) {
         css += ' board-space--stack-special';
+      }
+      // TWO TILES ON ONE CELL (TR44): the pile's base is WATER — the seam under the city is a shoreline, not a token's edge.
+      if (this.pieceUnder === TileType.OCEAN && this.pileDrawn) {
+        css += ' board-space--afloat';
+      }
+      // …and the water LEFT from under the city (a move, a removal): the city settles onto the ground, once.
+      if (stackDriedAt(this.space.id)) {
+        css += ' board-space--dried';
       }
       // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
       // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
@@ -295,12 +303,49 @@ export default defineComponent({
     cubeColor(): Color | undefined {
       return this.space.color ?? heldPrevColorOf(this.space.id);
     },
-    /** The lower tiers drawn under the top tile, nearest first (`--stack-k` 1 = right under it); at most two. */
-    tierLayers(): ReadonlyArray<number> {
-      if (this.stackHeight <= 1 || this.placementCleared || this.tileView !== 'show') {
+    /**
+     * THE PILE, bottom-up — every physical piece on the cell (`common/boards/cellPieces.ts`): the plain OCEAN a TR44
+     * city stands on (if any), the cell's own tile (the base of a city stack), then a plain city per further tier.
+     * Empty for an empty cell. The picture is drawn from this list and nothing else: the top is its last piece, the
+     * lower tiers the pieces under it.
+     */
+    pile(): ReadonlyArray<TileType> {
+      const tileType = this.pieceTop;
+      if (tileType === undefined) {
         return [];
       }
-      const drawn = Math.min(2, this.stackHeight - 1);
+      const pieces: Array<TileType> = this.pieceUnder !== undefined ? [this.pieceUnder] : [];
+      pieces.push(tileType);
+      for (let tier = 1; tier < this.stackHeight; tier++) {
+        pieces.push(stackTopTile(tileType, this.stackHeight));
+      }
+      return pieces;
+    },
+    /**
+     * THE PIECES AS PAINTED: the model's — or, while a remote scene HOLDS this cell at what stood here before the
+     * commit (a move or a removal out from under a city, a city leaving its water), the held pieces: the cell keeps
+     * painting its whole pile until the proxy takes one piece over 1:1.
+     */
+    pieceTop(): TileType | undefined {
+      const held = this.placementCleared ? heldPrevTileOf(this.space.id) : undefined;
+      return held ?? this.space.tileType;
+    },
+    pieceUnder(): TileType | undefined {
+      if (this.placementCleared) {
+        return heldPrevTileOf(this.space.id) !== undefined ? heldPrevUnderOf(this.space.id) : undefined;
+      }
+      return this.space.under;
+    },
+    /** The pile is DRAWN: an ordinary cell, or a held cell still painting the pieces that stood on it. */
+    pileDrawn(): boolean {
+      return !this.placementCleared || heldPrevTileOf(this.space.id) !== undefined;
+    },
+    /** The lower tiers drawn under the top tile, nearest first (`--stack-k` 1 = right under it); at most two. */
+    tierLayers(): ReadonlyArray<number> {
+      if (this.pile.length <= 1 || !this.pileDrawn || this.tileView !== 'show') {
+        return [];
+      }
+      const drawn = Math.min(2, this.pile.length - 1);
       return Array.from({length: drawn}, (_, i) => i + 1);
     },
     /**
@@ -308,24 +353,27 @@ export default defineComponent({
      * special city (the Capital is underneath then). Undefined for every single tile and for a pile of plain cities.
      */
     topArt(): TileType | undefined {
-      const tileType = this.space.tileType;
+      const tileType = this.pieceTop;
       if (tileType === undefined) {
         return undefined;
       }
       const top = stackTopTile(tileType, this.stackHeight);
       return top === tileType ? undefined : top;
     },
-    /** The special tile lying UNDER the tiers — its miniature marks the pile ('' = nothing buried, or nothing drawn). */
+    /**
+     * The piece lying UNDER the top that the top no longer shows — its miniature marks the pile ('' = nothing buried,
+     * or nothing drawn): the plain OCEAN under a TR44 city, else a special city under a tier (`buriedTileOf`).
+     */
     buriedArtClass(): string {
-      if (this.placementCleared || this.tileView !== 'show') {
+      if (!this.pileDrawn || this.tileView !== 'show') {
         return '';
       }
-      const buried = stackBuriedTile(this.space.tileType, this.stackHeight);
+      const buried = buriedTileOf({tileType: this.pieceTop, under: this.pieceUnder, stackHeight: this.stackHeight});
       return buried === undefined ? '' : this.artClassOf(buried);
     },
     /** `--stack-n` drives the lift of the top tile and the step of every tier (board px, under the board's zoom). */
     stackStyle(): Record<string, string> {
-      return this.stackHeight > 1 ? {'--stack-n': String(Math.min(3, this.stackHeight))} : {};
+      return this.pile.length > 1 ? {'--stack-n': String(Math.min(3, this.pile.length))} : {};
     },
     // True while this occupied cell is a remove-and-replace placement target
     // OR a console remote-placement reveal hold (the committed tile is hidden

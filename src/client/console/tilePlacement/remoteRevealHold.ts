@@ -30,14 +30,20 @@ const heldColors = reactive(new Map<string, Color>());
 /** A STACK's height as it stood before the commit (a MOVE off a stack: the
  *  cell keeps painting every tier until the proxy takes the top one). */
 const heldStackHeights = reactive(new Map<string, number>());
+/** THE WATER UNDER a held city (TR44 — a move or a removal out from under it, a city leaving the water): the cell
+ *  keeps painting its whole pile — the city in the lift, the water as the ground — until the proxy takes one piece. */
+const heldUnders = reactive(new Map<string, TileType>());
 
 /** Hide the space's committed tile until its flight lands. `prevTileType`
  *  (an ocean being covered) keeps painting in its place meanwhile — with
- *  `prevColor`, so does its owner cube. */
-export function holdRemoteReveal(spaceId: string, prevTileType?: TileType, prevColor?: Color): void {
+ *  `prevColor`, so does its owner cube; with `prevUnder`, the water under it. */
+export function holdRemoteReveal(spaceId: string, prevTileType?: TileType, prevColor?: Color, prevUnder?: TileType): void {
   held.set(spaceId, prevTileType);
   if (prevColor !== undefined) {
     heldColors.set(spaceId, prevColor);
+  }
+  if (prevUnder !== undefined) {
+    heldUnders.set(spaceId, prevUnder);
   }
 }
 
@@ -46,11 +52,17 @@ export function holdRemoteReveal(spaceId: string, prevTileType?: TileType, prevC
 export function releaseRemoteReveal(spaceId: string): void {
   held.delete(spaceId);
   heldColors.delete(spaceId);
+  heldUnders.delete(spaceId);
 }
 
 /** The owner cube a HELD space keeps showing (undefined = whatever the model says). */
 export function heldPrevColorOf(spaceId: string): Color | undefined {
   return heldColors.get(spaceId);
+}
+
+/** The water a HELD city keeps standing on (undefined = whatever the model says). */
+export function heldPrevUnderOf(spaceId: string): TileType | undefined {
+  return heldUnders.get(spaceId);
 }
 
 /** Keep painting the stack at `height` (its height BEFORE the commit) until the scene releases it. */
@@ -82,6 +94,7 @@ export function clearRemoteRevealHolds(): void {
   held.clear();
   heldColors.clear();
   heldStackHeights.clear();
+  heldUnders.clear();
 }
 
 /*
