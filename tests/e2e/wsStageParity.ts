@@ -78,8 +78,15 @@ export const WS_STAGE_BOX: Record<string, StageBox> = {
   // sits 8 px under its own 2026-08-15 value (1492) because of the deliberate Э5 status rail (2.6rem instead
   // of 2.4 — the parliament pick's 2.5rem chips were clipped by 4 px). Heads, widths and status heights are
   // untouched. Analysis: `docs/claude/e2e-foreign-reds-fix.md` § B.
+  //
+  // Re-pinned 2026-10-14 (the stall iteration, ledger AH), tv4k WIDTHS ONLY: the TV action composer (PL-139 —
+  // the hero at 1.6× BESIDE the decision column, the owner's M3 of 2026-10-10) gives the outcome zone 374 px less
+  // (2482 → 2108, the row 2386 → 2012). Heights, zoom and the hero itself are untouched (964.80 × 1386.89 at the
+  // same x / y), and the PARITY these constants exist for holds byte for byte: `[PARITY:tv4k]` of the purchase and
+  // the receive specs print the same frame / head / row / hero. Both specs had been red on HEAD since that change
+  // (A/B against a HEAD client, the same failure on both sides) — nobody had re-run them on the TV profile.
   fhd: {headH: 36, rowH: 768, rowW: 1065, statusH: 48, zoom: '1.581', hostW: 1113, zoneW: 1113},
-  tv4k: {headH: 94, rowH: 1484, rowW: 2386, statusH: 104, zoom: '3.015', hostW: 2482, zoneW: 2482},
+  tv4k: {headH: 94, rowH: 1484, rowW: 2012, statusH: 104, zoom: '3.015', hostW: 2108, zoneW: 2108},
   deck: {headH: 36, rowH: 512, rowW: 823, statusH: 44, zoom: '1.033', hostW: 859, zoneW: 859},
 };
 

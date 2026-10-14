@@ -36,6 +36,22 @@ export class DeferredActionsQueue {
     return out;
   }
 
+  /**
+   * WHO keeps each open chain open — the same roots as `openEventCorrelations`, one row per pending action, named
+   * by its class and the player it runs for. Diagnostics only: the client prints it when a chain outlives its
+   * ceiling, so a leaked chain names its holder instead of «leaked open chain?» (PL-297).
+   */
+  public openEventCorrelationHolders(): Array<{id: number, holder: string}> {
+    const out: Array<{id: number, holder: string}> = [];
+    for (const action of this.queue) {
+      const rootId = action.eventContext?.rootId;
+      if (rootId !== undefined) {
+        out.push({id: rootId, holder: `deferred:${action.constructor.name}@${action.player.color}`});
+      }
+    }
+    return out;
+  }
+
   public runAllFor(player: IPlayer, cb: () => void): void {
     let b: IDeferredAction | undefined;
     let j = -1;

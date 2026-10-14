@@ -765,6 +765,18 @@ export class Game implements IGame, Logger {
     return out;
   }
 
+  /** The holders of {@link openEventCorrelations}, named (diagnostics — PL-297). */
+  public openEventCorrelationHolders(): Array<{id: number, holder: string}> {
+    const out = this.deferredActions.openEventCorrelationHolders();
+    for (const player of this.players) {
+      const rootId = player.openWaitingForCorrelation();
+      if (rootId !== undefined) {
+        out.push({id: rootId, holder: `prompt:${player.getWaitingFor()?.type ?? '?'}@${player.color}`});
+      }
+    }
+    return out;
+  }
+
   public marsIsTerraformed(): boolean {
     const oxygenMaxed = this.oxygenLevel >= constants.MAX_OXYGEN_LEVEL;
     const temperatureMaxed = this.temperature >= constants.MAX_TEMPERATURE;

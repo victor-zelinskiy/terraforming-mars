@@ -151,7 +151,7 @@
             <template v-if="beatCount > 1" #badges>
               <span class="con-ws-stage-badge">
                 <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards"></span>
-                <span class="con-ws-stage-badge__label">{{ $t(beatLanded ? 'Received' : 'Cards') }}</span>
+                <span class="con-ws-stage-badge__label">{{ $t(beatLanded && !beatLook ? 'Received' : 'Cards') }}</span>
                 <b class="con-ws-stage-badge__num">{{ beatCount }}</b>
               </span>
             </template>
@@ -972,6 +972,7 @@ import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {BatchArrivalHandle, runBatchArrival, settleBatchProxiesOnto} from '@/client/console/consoleBatchArrivalMotion';
+import {probeTick} from '@/client/console/probeTick';
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
@@ -1838,7 +1839,10 @@ export default defineComponent({
     },
     /** Still waiting: the zone is standing but nothing has been re-homed yet. */
     outcomePendingBeat(): boolean {
-      return this.drawOutcomeOn && workspaceOutcomeState.stage !== 'presenting';
+      // AWAITING, never «not presenting»: a RELEASED claim reads `idle`, and while the workspace concluded around a
+      // still-set draw flow that re-opened the prepared stage for a frame — an empty «Вскрываем карту» over the
+      // leaving zone, with a beat flight scheduled behind it (the TR46 probe's last sample, 2026-10-14).
+      return this.drawOutcomeOn && workspaceOutcomeState.stage === 'awaiting';
     },
     /**
      * The card has LANDED but the server still has not answered — the genuine
@@ -1875,15 +1879,21 @@ export default defineComponent({
       return this.beatFaces.length;
     },
     /**
+     * A LOOK («X cards off the deck, keep 1» — the branch's draw chip carries `look`) does not RECEIVE the cards it
+     * turns over: four of five go to the discard, and «Получены карты» over them promised the hand five (PL-205).
+     * The head and the count badge read it alike.
+     */
+    beatLook(): boolean {
+      return (this.selectedBranch?.effects ?? []).some((e) => e.look !== undefined);
+    },
+    /**
      * The prepared stage's own sentence. It is the DRAW's heading, not the
      * arriving surface's — the surface may turn out to be a buy pick, and
      * promising «Купить» before the server has said so would be a lie. The
      * plural follows the count, which is known from the claim.
      */
     beatTitleKey(): string {
-      // A LOOK («X cards off the deck, keep 1» — the branch's draw chip carries `look`) does not RECEIVE the cards it
-      // turns over: four of five go to the discard, and «Получены карты» over them promised the hand five (PL-205).
-      const look = (this.selectedBranch?.effects ?? []).some((e) => e.look !== undefined);
+      const look = this.beatLook;
       // THE PROCESS UNTIL THE CARDS ARE HERE (PL-206, the owner's decision 2026-10-12): «Получена карта» over an empty
       // socket announced a result ~0.6 s before the card left the deck. Until the last card touches down the head says
       // what is happening — «Берём карту из колоды» / «Вскрываем карты» — and turns into the result in place, on the
@@ -5923,12 +5933,11 @@ export default defineComponent({
         // ends on a visible kick instead of a settle. One frame to paint the
         // real cards unfocused, one for the transition to have a `from` state,
         // and the ring eases in on top of a card that is already still.
-        const open = () => markWorkspaceOutcomeArrivalDone();
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => requestAnimationFrame(open));
-        } else {
-          open();
-        }
+        // ⚠ ON THE PROBE CLOCK, never bare rAF (PL-294): rAF is the COMPOSITOR's clock, and under a 4K commit
+        // stall one frame took 1.6 s — the double rAF alone held the purchase stage DEAD (cards on screen, every
+        // press swallowed, the bar on its fallback) for over three seconds. `probeTick` keeps the frame
+        // alignment while frames run and stops being a liveness dependency when they do not.
+        probeTick(() => probeTick(() => markWorkspaceOutcomeArrivalDone()));
       };
       const proxies = asElements(this.$refs.batchProxies);
       const root = this.$refs.rootEl as HTMLElement | undefined;
@@ -5955,7 +5964,7 @@ export default defineComponent({
           '[data-outcome-zone] :is(.con-cards__slot, .con-reveal__bonus-slot) :is(.card-container, .pcard)'));
         if (targets.length === 0 && frames < 40) {
           frames++;
-          requestAnimationFrame(seek);
+          probeTick(seek); // the same clock as the gate below (PL-294) — 40 ticks ≤ 2 s on a starved compositor
           return;
         }
         settleBatchProxiesOnto({

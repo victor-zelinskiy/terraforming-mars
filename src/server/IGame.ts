@@ -273,6 +273,9 @@ export interface IGame extends Logger {
   /** Correlation roots of causal chains that may still grow (pending deferred
    *  actions + pending prompts) — the client's atomic-notification gate. */
   openEventCorrelations(): Array<number>;
+  /** Who holds each open chain (a pending action's class / a player's prompt) — diagnostics for a chain that
+   *  outlives the client's ceiling (PL-297). */
+  openEventCorrelationHolders(): Array<{id: number, holder: string}>;
   /** Logs a message if Mars is fully terraformed. */
   maybeLogMarsIsTerraformed(): void;
   lastSoloGeneration(): number;

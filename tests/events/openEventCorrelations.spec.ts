@@ -40,6 +40,23 @@ describe('openEventCorrelations (the atomic-notification gate)', () => {
     expect(game.openEventCorrelations()).not.contains(rootId);
   });
 
+  it('names WHO holds each open chain — a pending action by class, a prompt by type and player (PL-297)', () => {
+    const [game, player, player2] = testGame(2);
+    game.events.beginAction(player, {kind: 'card', card: 'Birds' as never, owner: player.color});
+    player.stock.add('megacredits' as never, 1);
+    const rootId = game.events.captureContext()?.rootId;
+    game.defer(new SimpleDeferredAction(player2, () => undefined));
+    player.setWaitingFor(new SelectOption('Continue'), () => {});
+    game.events.endScope();
+    expect(game.openEventCorrelationHolders()).deep.eq([
+      {id: rootId, holder: `deferred:SimpleDeferredAction@${player2.color}`},
+      {id: rootId, holder: `prompt:option@${player.color}`},
+    ]);
+    player.process({type: 'option'});
+    runAllActions(game);
+    expect(game.openEventCorrelationHolders()).deep.eq([]);
+  });
+
   it('is served on the game model (viewer-independent, additive)', () => {
     const [game, player] = testGame(2);
     const model = Server.getPlayerModel(player);

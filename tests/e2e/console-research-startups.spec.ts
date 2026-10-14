@@ -364,9 +364,20 @@ for (const preset of PRESETS) {
       const act = await page.evaluate(() => (window as unknown as {__act: Array<{t: number, head: string, rejects: number, carried: number, ws: number}>}).__act);
       expect(act.length, 'the action probe sampled').toBeGreaterThan(10);
       // PL-205: the prepared stage says the cards are TURNED OVER — four of five go to the discard, none is «received».
+      // Since PL-206 the head names the PROCESS until the last card has touched down («Вскрываем карты»), and the
+      // landing hands the zone to the pick in the same flush — the result wording is the pick's own, never this head's.
+      // The stage is prepared for EVERY card that leaves the deck (five), from its first frame: a look sized by the
+      // kept count dealt one slot — «Вскрываем карту» — and could fly one card before the pick laid out five.
       const heads = [...new Set(act.map((s) => s.head).filter((h) => h !== ''))];
-      expect(heads.some((h) => /Вскрыты карты/.test(h)), `the stage reads «Вскрыты карты» (${JSON.stringify(heads)})`).toBe(true);
-      expect(heads.filter((h) => /Получен[аы] карт/.test(h)), 'never «Получены карты» over a look').toEqual([]);
+      // The head's TIMELINE (each wording with its first / last sample) — a wrong wording names WHEN it stood.
+      const timeline = heads.map((h) => {
+        const at = act.filter((s) => s.head === h).map((s) => s.t);
+        return `${h} @${at[0]}–${at[at.length - 1]}`;
+      });
+      expect(heads.some((h) => /Вскрываем карты/.test(h)), `the stage reads «Вскрываем карты» (${JSON.stringify(timeline)})`).toBe(true);
+      expect(heads.filter((h) => /Вскрываем карту|Вскрыта карта/.test(h)),
+        `one slot for a look of five — the stage is prepared for every card turned over (${JSON.stringify(timeline)})`).toEqual([]);
+      expect(heads.filter((h) => /Получен[аы] карт|Берём карт/.test(h)), 'never the RECEIVE wording over a look').toEqual([]);
       // PL-207: the rest start leaving while the kept card is still in the air — never after it has landed.
       // PL-212: the RESULT OUTLIVES ITS SURFACE — the workspace folds UNDER the kept card's flight into the dock (it used
       // to wait for the whole intake: ≈ 1.3 s of one card in the air over an empty zone at 4K).

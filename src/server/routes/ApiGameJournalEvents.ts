@@ -77,7 +77,8 @@ export class ApiGameJournalEvents extends Handler {
     // release before its payout arrived (the 2026-09-04 stream-skew audit).
     // The bare-array response stays for older clients.
     if (ctx.url.searchParams.get('meta') === '1') {
-      responses.writeJson(res, ctx, {events, openEventCorrelations: game.openEventCorrelations()});
+      // The HOLDERS ride along (diagnostics): a chain that outlives the client's ceiling names what kept it open.
+      responses.writeJson(res, ctx, {events, openEventCorrelations: game.openEventCorrelations(), openEventCorrelationHolders: game.openEventCorrelationHolders()});
       return;
     }
     responses.writeJson(res, ctx, events);

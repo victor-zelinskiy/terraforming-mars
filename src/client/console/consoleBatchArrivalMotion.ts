@@ -564,7 +564,9 @@ export function settleBatchProxiesOnto(args: {
       finish();
       return;
     }
-    requestAnimationFrame(aim);
+    probeTick(aim);
   };
-  requestAnimationFrame(aim);
+  // The PROBE clock (PL-294): a frame when the compositor runs, else a short timer — under a 4K commit stall
+  // one frame was 1.6 s, and the two equal samples this loop needs then cost longer than the travel itself.
+  probeTick(aim);
 }

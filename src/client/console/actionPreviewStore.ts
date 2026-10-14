@@ -287,7 +287,11 @@ export function branchOutcomeClaimPlan(
   let expectedCards = 0;
   for (const e of branch?.effects ?? []) {
     if (e.direction === 'gain' && e.icon === 'cards') {
-      expectedCards += Math.max(1, Math.round(e.amount));
+      // A LOOK («X off the deck, keep 1» — TR46) turns over `revealed` cards and keeps `amount`: the prepared
+      // stage is the TABLE those cards lie on, so it is sized by what leaves the deck. Sized by the kept count it
+      // dealt ONE slot, «Вскрываем карту», and — on an answer slower than the launch — flew one card before the
+      // pick laid out five.
+      expectedCards += Math.max(1, Math.round(e.look?.revealed ?? e.amount));
     }
   }
   if (branch?.reveal !== undefined) {

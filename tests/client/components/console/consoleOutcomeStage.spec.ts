@@ -144,6 +144,22 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
     w.unmount();
   });
 
+  it('a RELEASED claim never re-opens the prepared stage — the flow is over, nothing is promised any more', async () => {
+    // The take releases the claim (`idle`) while the workspace concludes around a draw flow that is still set: the
+    // stage used to read «not presenting» as «waiting» and re-opened an empty «Вскрываем карту» for a frame, with a
+    // beat flight scheduled behind it (the TR46 probe, 2026-10-14).
+    const w = factory();
+    claimWorkspaceOutcome('card-actions', 'AI Central', ['draw'], 0, 2);
+    await w.setProps({outcome: {kind: 'draw'}});
+    markWorkspaceOutcomePresenting();
+    await w.vm.$nextTick();
+    resetWorkspaceOutcome();
+    await w.vm.$nextTick();
+    expect(workspaceOutcomeState.stage).to.eq('idle');
+    expect(w.find('.con-composer__beatstage').exists(), 'no prepared stage over a finished flow').to.eq(false);
+    w.unmount();
+  });
+
   it('the zone is the SAME element in pending and draw — the arrival must not move the column', async () => {
     const w = factory();
     await w.setProps({outcome: {kind: 'pending'}});

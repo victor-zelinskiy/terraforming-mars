@@ -286,6 +286,17 @@ export type NotificationLifecycleStage = 'preparing' | 'queued' | 'presented';
  */
 export const PREPARING_MAX_MS = 90_000;
 
+/**
+ * WHO keeps each open chain open — the server's named holders from the last coherent events read (a pending
+ * deferred action's class, a player's prompt). Diagnostics only: the ceiling's warn names them, so a field log of a
+ * leaked chain says what held it instead of «leaked open chain?» (PL-297 — the Ares planetary event held 90 s).
+ */
+let openCorrelationHolders: ReadonlyArray<{id: number, holder: string}> = [];
+
+export function noteOpenCorrelationHolders(holders: ReadonlyArray<{id: number, holder: string}> | undefined): void {
+  openCorrelationHolders = holders ?? [];
+}
+
 /** Stash (or refresh) a model whose causal chain is still open. */
 export function stashPreparing(model: NotificationModel, now: number): void {
   if (model.correlationId === undefined) {
@@ -318,9 +329,11 @@ export function takePreparedModels(openCorrelations: ReadonlySet<number>, now: n
       continue;
     }
     if (overdue && openCorrelations.has(corrId)) {
+      const holders = openCorrelationHolders.filter((h) => h.id === corrId).map((h) => h.holder);
       console.warn(
         `[notifications] correlation ${corrId} stayed open for over ${PREPARING_MAX_MS}ms — ` +
-        'releasing its prepared notification anyway (leaked open chain?)');
+        'releasing its prepared notification anyway (leaked open chain?) — held by ' +
+        (holders.length > 0 ? holders.join(', ') : 'unknown (no holders in the last read)'));
     }
     released.push(model);
     notificationState.preparing.delete(corrId);

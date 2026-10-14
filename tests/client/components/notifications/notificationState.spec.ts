@@ -14,6 +14,7 @@ import {
   resetNotifications,
   stashPreparing,
   takePreparedModels,
+  noteOpenCorrelationHolders,
   preparingIds,
   dropPreparing,
   PREPARING_MAX_MS,
@@ -226,6 +227,21 @@ describe('notificationState (lifecycle)', () => {
       expect(takePreparedModels(new Set([9]), 1000 + PREPARING_MAX_MS - 1)).to.have.length(0);
       const released = takePreparedModels(new Set([9]), 1000 + PREPARING_MAX_MS);
       expect(released).to.have.length(1);
+    });
+
+    it('the ceiling warn NAMES what held the chain (the holders the server named — PL-297)', () => {
+      const warns: Array<string> = [];
+      const original = console.warn;
+      console.warn = (...args: Array<unknown>) => warns.push(args.map(String).join(' '));
+      try {
+        noteOpenCorrelationHolders([{id: 9, holder: 'prompt:or@blue'}, {id: 4, holder: 'deferred:X@red'}]);
+        stashPreparing(model('g9', 'normal', {correlationId: 9}), 1000);
+        takePreparedModels(new Set([9]), 1000 + PREPARING_MAX_MS);
+      } finally {
+        console.warn = original;
+        noteOpenCorrelationHolders(undefined);
+      }
+      expect(warns.some((w) => w.includes('correlation 9') && w.includes('held by prompt:or@blue') && !w.includes('X@red'))).is.true;
     });
 
     it('dropPreparing forgets an undone event', () => {

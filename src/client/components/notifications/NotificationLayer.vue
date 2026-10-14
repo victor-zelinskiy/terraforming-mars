@@ -136,6 +136,7 @@ import {
   promoteFromQueue,
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
+  noteOpenCorrelationHolders,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {currentBlockReason, isNotificationDeliveryBlocked} from '@/client/components/presentation/presentationFlow';
@@ -422,7 +423,7 @@ export default defineComponent({
           fetch(`${apiUrl(paths.API_GAME_LOGS)}?id=${id}&generation=${generation}`, {signal: logsAbort.signal})
             .then((r) => r.json() as Promise<ReadonlyArray<LogMessage> | null>),
           fetch(`${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${id}&generation=${generation}&meta=1`, {signal: eventsAbort.signal})
-            .then((r) => r.json() as Promise<{events: ReadonlyArray<GameEvent>; openEventCorrelations: ReadonlyArray<number>} | ReadonlyArray<GameEvent> | null>),
+            .then((r) => r.json() as Promise<{events: ReadonlyArray<GameEvent>; openEventCorrelations: ReadonlyArray<number>; openEventCorrelationHolders?: ReadonlyArray<{id: number, holder: string}>} | ReadonlyArray<GameEvent> | null>),
         ]);
         let events: ReadonlyArray<GameEvent> = [];
         let coherentOpen: ReadonlyArray<number> | undefined;
@@ -430,6 +431,7 @@ export default defineComponent({
           if ('events' in eventsPayload) {
             events = eventsPayload.events;
             coherentOpen = eventsPayload.openEventCorrelations;
+            noteOpenCorrelationHolders(eventsPayload.openEventCorrelationHolders);
           } else {
             events = eventsPayload; // an older server answered the bare array
           }
