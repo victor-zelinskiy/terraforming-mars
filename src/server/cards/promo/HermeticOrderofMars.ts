@@ -8,7 +8,7 @@ import {IPlayer} from '../../IPlayer';
 import {SpaceType} from '../../../common/boards/SpaceType';
 import {Resource} from '../../../common/Resource';
 import {Board} from '../../boards/Board';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
 export class HermeticOrderOfMars extends Card implements IProjectCard {
@@ -60,11 +60,17 @@ export class HermeticOrderOfMars extends Card implements IProjectCard {
     return undefined;
   }
 
+  // The COUNTED play — the M€ gain with what it counted (the empty areas next to
+  // the player's tiles; the printed +2 production is the declaration's): the hand
+  // tile's plate, the composer's chip and its «ПОЧЕМУ» are this one reading.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    const areas = this.emptyAdjacentSpaces(player);
+    return [actionPreviews.counted(actionPreviews.stockGain(player, Resource.MEGACREDITS, areas), {count: areas, label: 'Empty areas next to your tiles'})];
+  }
+
   // The on-play preview: `playPreview` auto-includes the declarative +2 M€
   // production chip; we add the bespoke M€ gain so the modal shows the FULL result.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.stockGain(player, Resource.MEGACREDITS, this.emptyAdjacentSpaces(player)),
-    ]);
+    return actionPreviews.playPreview(this, player, this.countedPlayForecast(player));
   }
 }

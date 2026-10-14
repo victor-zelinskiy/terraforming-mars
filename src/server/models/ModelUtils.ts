@@ -154,7 +154,8 @@ export function cardsToModel(
     }
     // A play COUNTED off the table (TR45's tiles on Mars, TR23's colonies, …) — the OWN hand only (the same opt-in),
     // the counted members of the declaration through the play preview's own chip builder: one reading, three surfaces.
-    if (options.unplayableReasons === true && card.behavior !== undefined) {
+    // A BESPOKE play has no declaration and still counts (Interplanetary Trade — its `countedPlayForecast`).
+    if (options.unplayableReasons === true && (card.behavior !== undefined || card.countedPlayForecast !== undefined)) {
       const counted = countedPlayEffects(player, card);
       if (counted.length > 0) {
         model.countedPlay = counted;

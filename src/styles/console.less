@@ -9555,6 +9555,14 @@ html.console-mode {
         &--worth { gap: .25rem; opacity: .9; }
     }
     &__plate-eq { font-weight: 600; opacity: .8; }
+    /* «ещё N» — the counted goods past the plate's two (Productive Outpost): WORDS, quieter and smaller than the
+       amounts, so it reads as «and more in the composer», never as one more amount beside them. */
+    &__plate-more {
+        color: fade(#e8fbff, 66%);
+        font-size: .78rem;
+        font-weight: 600;
+        letter-spacing: .02rem;
+    }
     &__plate-icon {
         display: inline-block;
         width: 1.25rem;

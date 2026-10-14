@@ -302,6 +302,9 @@
                   <span class="con-hand__plate-icon" :class="[item.iconClass, {'con-hand__plate-icon--prod': item.production}]"></span>
                   <span class="con-hand__plate-n">{{ item.signed ? signedAmount(item.amount) : item.amount }}</span>
                 </span>
+                <!-- More counted goods than a tile holds (Productive Outpost's colony bonuses): NAMED in words («ещё 1»),
+                     never dropped and never a «+1» that reads as one more amount — the composer reads every one. -->
+                <span v-if="(forecastPlates.get(cell.e.card.name)?.more ?? 0) > 0" class="con-hand__plate-more" :data-hand-more="forecastPlates.get(cell.e.card.name)?.more">{{ plateMoreText(forecastPlates.get(cell.e.card.name)?.more ?? 0) }}</span>
                 <!-- THE TENDER (К-H1, TR48): what pays for a card M€ alone cannot — after the forecast, behind a hairline. -->
                 <span v-if="forecastPlates.has(cell.e.card.name) && tenderPlates.has(cell.e.card.name)" class="con-hand__plate-sep" aria-hidden="true"></span>
                 <span v-for="t in tenderPlates.get(cell.e.card.name) ?? []" :key="'pay-' + t.unit" class="con-hand__plate-item con-hand__plate-item--pay">
@@ -1473,6 +1476,10 @@ export default defineComponent({
     /** Compact blocker chip label for an unavailable card (english i18n key). */
     signedAmount(n: number): string {
       return signedAmount(n);
+    },
+    /** «ещё N» — the counted goods past the plate's two, in WORDS: a «+N» beside «+1» amounts read as one more amount. */
+    plateMoreText(n: number): string {
+      return readingText({label: 'and ${0} more', params: [String(n)]});
     },
     /** A tender unit's sprite (the payment panel's own table — `seeds` → seed, `supercomputerData` → data). */
     tenderIconClass(unit: string): string {

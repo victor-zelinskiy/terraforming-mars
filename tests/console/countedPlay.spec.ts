@@ -65,6 +65,15 @@ describe('countedPlay', () => {
       expect(handForecastPlate(card({}))).is.undefined;
     });
 
+    it('goods past the plate\'s two are COUNTED for «ещё N», never dropped (Productive Outpost\'s colony bonuses)', () => {
+      const good = (icon: string, amount: number): ActionEffect => ({direction: 'gain', icon, amount});
+      const plate = handForecastPlate(card({countedPlay: [good('steel', 2), good('heat', 2), good('plants', 1), good('cards', 1)]}))!;
+      expect(plate.items.map((i) => i.amount)).deep.eq([2, 2]);
+      expect(plate.more).eq(2);
+      expect(handForecastPlate(card({countedPlay: [census]}))!.more).eq(0);
+      expect(handForecastPlate(card({agendaWalk: {walked: 1, printed: 1} as CardModel['agendaWalk']}))!.more).eq(0);
+    });
+
     it('a signed reading never prints «+0»', () => {
       expect([signedAmount(14), signedAmount(0), signedAmount(-2)]).deep.eq(['+14', '0', '−2']);
     });
@@ -97,6 +106,15 @@ describe('countedPlay', () => {
       const tags = countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 3, basis: [{count: 3, label: 'Your tags', tag: Tag.SPACE}]}])!;
       expect(tags.glyph).deep.include({type: CardRenderItemType.TAG, tag: Tag.SPACE, anyPlayer: false});
       expect(countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 2, basis: [{count: 2, label: 'Your floaters'}]}])!.glyph, 'no printed item → words').is.undefined;
+    });
+
+    it('a bespoke counted play reads with the glyph its card prints after the «/» (`countedPlayForecast`)', () => {
+      const glyphOf = (label: string) => countedWhyOf([{direction: 'gain', icon: 'megacredits', amount: 3, basis: [{count: 3, label}]}])!.glyph;
+      expect(glyphOf('Your different tags')).deep.include({type: CardRenderItemType.DIVERSE_TAG});
+      expect(glyphOf('Cards with no tags')).deep.include({type: CardRenderItemType.NO_TAGS});
+      expect(glyphOf('Events played by all players')).deep.include({type: CardRenderItemType.TAG, tag: Tag.EVENT, anyPlayer: true});
+      expect(glyphOf('Empty areas next to your tiles')).deep.include({type: CardRenderItemType.EMPTY_TILE});
+      expect(glyphOf('Cards in hand')).deep.include({type: CardRenderItemType.CARDS});
     });
 
     it('PL-196 — a basis of TWO plain terms names no one reason (the chip keeps its pill); a cost is never a «why»', () => {

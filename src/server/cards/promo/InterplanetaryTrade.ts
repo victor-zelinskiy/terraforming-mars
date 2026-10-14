@@ -6,7 +6,7 @@ import {Tag} from '../../../common/cards/Tag';
 import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../../cards/render/CardRenderer';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
 export class InterplanetaryTrade extends Card implements IProjectCard {
@@ -40,12 +40,18 @@ export class InterplanetaryTrade extends Card implements IProjectCard {
     return undefined;
   }
 
+  // The COUNTED play — the raise with what it counted (the different tags, this
+  // card's own Space tag included): the hand tile's plate, the composer's chip and
+  // its «ПОЧЕМУ» are this one reading.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    const tags = this.megacreditProductionGain(player);
+    return [actionPreviews.counted(actionPreviews.productionChange(player, Resource.MEGACREDITS, tags), {count: tags, label: 'Your different tags'})];
+  }
+
   // The on-play preview: the M€ production raise (1 per distinct tag in play) is a
   // FIXED, computable result — show it as a `current → resulting` chip in the play
   // modal instead of leaving the player to guess. No choice, so no steps.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.productionChange(player, Resource.MEGACREDITS, this.megacreditProductionGain(player)),
-    ]);
+    return actionPreviews.playPreview(this, player, this.countedPlayForecast(player));
   }
 }

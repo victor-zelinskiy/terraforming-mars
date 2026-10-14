@@ -19,7 +19,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE, OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, TEMPERATURE_FOR_OCEAN_BONUS} from '../../common/constants';
 import {parameterRoom} from '../../common/parliament/parameterMove';
 import {tileRemovalRoom} from '../../common/parliament/tileRemoval';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis, ActionRevealDescriptor, StagedPlacementModel, VictoryPointsDelta, AgendaWalkModel, NeutralRallyModel} from '../../common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
@@ -103,6 +103,16 @@ export function productionChange(player: IPlayer, resource: Resource, amount: nu
   const cur = player.production.get(resource);
   const resulting = amount >= 0 ? cur + amount : Math.max(cur + amount, productionFloor(resource));
   return {direction: amount >= 0 ? 'gain' : 'cost', icon: resource, amount: Math.abs(amount), current: cur, resulting, note: 'production'};
+}
+/**
+ * A chip COUNTED off the table — the builder's own chip plus the live BASIS of
+ * its number (what was counted, `ActionEffect.basis`): the composer reads its
+ * «ПОЧЕМУ» from it and the hand tile's forecast plate shows the same chip
+ * (`ICard.countedPlayForecast`). The count is the entity's, never the amount
+ * re-derived — «1 M€ production per different tag» counts the tags.
+ */
+export function counted(effect: ActionEffect, ...basis: ReadonlyArray<ActionEffectBasis>): ActionEffect {
+  return {...effect, basis};
 }
 /** Raise terraform rating by N. */
 export function trGain(player: IPlayer, amount: number): ActionEffect {

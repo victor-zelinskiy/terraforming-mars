@@ -18,6 +18,7 @@ import {ActionEffect, ActionEffectBasis, ActionEffectBasisPartKind} from '@/comm
 import {CardModel} from '@/common/models/CardModel';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
+import {Tag} from '@/common/cards/Tag';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import type {ICardRenderItem} from '@/common/cards/render/Types';
 import type {SpaceId} from '@/common/Types';
@@ -30,9 +31,11 @@ export type HandPlateItem = {iconClass: string, production: boolean, amount: num
 /**
  * THE PLATE — «[★] 2» for a walk (TR42), «[microbe] +14» for a counted play.
  * `value` is the e2e hook's number (`data-hand-walk` / `data-hand-count`);
- * `zero` mutes the plate (a zero is a reading, never hidden).
+ * `zero` mutes the plate (a zero is a reading, never hidden); `more` counts
+ * the counted goods past `HAND_PLATE_MAX_ITEMS` — named «ещё N», never dropped
+ * (Productive Outpost's colony bonuses can be three goods and more).
  */
-export type HandForecastPlate = {kind: 'walk' | 'count', items: ReadonlyArray<HandPlateItem>, value: number, zero: boolean};
+export type HandForecastPlate = {kind: 'walk' | 'count', items: ReadonlyArray<HandPlateItem>, value: number, zero: boolean, more: number};
 
 /** At most this many counted units on one plate — a tile is a card, not a ledger (the composer holds the rest). */
 export const HAND_PLATE_MAX_ITEMS = 2;
@@ -50,6 +53,7 @@ export function handForecastPlate(card: CardModel): HandForecastPlate | undefine
       items: [{iconClass: 'resource_icon resource_icon--agenda-step', production: false, amount: walk.walked, signed: false}],
       value: walk.walked,
       zero: walk.walked === 0,
+      more: 0,
     };
   }
   const counted = card.countedPlay;
@@ -66,6 +70,7 @@ export function handForecastPlate(card: CardModel): HandForecastPlate | undefine
     })),
     value: counted[0].direction === 'cost' ? -counted[0].amount : counted[0].amount,
     zero: counted.every((e) => e.amount === 0),
+    more: Math.max(0, counted.length - HAND_PLATE_MAX_ITEMS),
   };
 }
 
@@ -144,6 +149,17 @@ export function countGlyphOf(term: ActionEffectBasis): CountedGlyph | undefined 
   case 'Tags in play':
   case 'Opponent tags':
     return term.tag === undefined ? undefined : glyph(CardRenderItemType.TAG, {tag: term.tag, anyPlayer: term.label !== 'Your tags'});
+  // The bespoke counted plays (`ICard.countedPlayForecast`) — each the glyph its card prints after the «/».
+  case 'Your different tags':
+    return glyph(CardRenderItemType.DIVERSE_TAG);
+  case 'Cards with no tags':
+    return glyph(CardRenderItemType.NO_TAGS, {amount: -1});
+  case 'Events played by all players':
+    return glyph(CardRenderItemType.TAG, {tag: Tag.EVENT, anyPlayer: true});
+  case 'Empty areas next to your tiles':
+    return glyph(CardRenderItemType.EMPTY_TILE);
+  case 'Cards in hand':
+    return glyph(CardRenderItemType.CARDS);
   }
   return undefined;
 }

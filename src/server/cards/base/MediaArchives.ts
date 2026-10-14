@@ -8,7 +8,7 @@ import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {sum} from '../../../common/utils/utils';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
 export class MediaArchives extends Card implements IProjectCard {
@@ -40,11 +40,17 @@ export class MediaArchives extends Card implements IProjectCard {
     return undefined;
   }
 
+  // The COUNTED play — the gain with what it counted (the events every player has
+  // ever played): the hand tile's plate, the composer's chip and its «ПОЧЕМУ» are
+  // this one reading.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    const events = this.megacreditGain(player);
+    return [actionPreviews.counted(actionPreviews.stockGain(player, Resource.MEGACREDITS, events), {count: events, label: 'Events played by all players'})];
+  }
+
   // The on-play preview: a FIXED, computable M€ gain — show it as a chip in the
   // play modal. No choice, so no steps.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.stockGain(player, Resource.MEGACREDITS, this.megacreditGain(player)),
-    ]);
+    return actionPreviews.playPreview(this, player, this.countedPlayForecast(player));
   }
 }

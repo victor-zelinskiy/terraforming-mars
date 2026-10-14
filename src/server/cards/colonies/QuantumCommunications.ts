@@ -8,7 +8,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
 export class QuantumCommunications extends Card implements IProjectCard {
@@ -47,11 +47,16 @@ export class QuantumCommunications extends Card implements IProjectCard {
     return undefined;
   }
 
+  // The COUNTED play — the raise with what it counted (every player's colonies):
+  // the hand tile's plate, the composer's chip and its «ПОЧЕМУ» are this one reading.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    const colonies = this.megacreditProductionGain(player);
+    return [actionPreviews.counted(actionPreviews.productionChange(player, Resource.MEGACREDITS, colonies), {count: colonies, label: 'Colonies in play'})];
+  }
+
   // The on-play preview: a FIXED, computable M€ production raise (1 per colony in
   // play) — show it as a `current → resulting` chip in the play modal. No choice.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.productionChange(player, Resource.MEGACREDITS, this.megacreditProductionGain(player)),
-    ]);
+    return actionPreviews.playPreview(this, player, this.countedPlayForecast(player));
   }
 }

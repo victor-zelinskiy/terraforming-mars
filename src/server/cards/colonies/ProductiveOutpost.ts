@@ -4,7 +4,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {allColonyBonusesEffects, allColonyBonusesLedger, gainAllColonyBonuses} from '../../colonies/allColonyBonuses';
 import * as actionPreviews from '../actionPreviews';
 
@@ -54,5 +54,12 @@ export class ProductiveOutpost extends Card implements IProjectCard {
     const options = {via: this.name};
     const {effects, steps} = allColonyBonusesEffects(player, options);
     return actionPreviews.playPreview(this, player, effects, steps, {colonyBonuses: allColonyBonusesLedger(player, options)});
+  }
+
+  // The COUNTED play — the same aggregated chips (the colonies' bonuses, summed by
+  // good) for the hand tile's plate. No basis: the composer explains the sums with
+  // its LEDGER (a row per colony), never with one counted reason.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    return allColonyBonusesEffects(player, {via: this.name}).effects;
   }
 }

@@ -453,9 +453,21 @@ const UNDERWORLD_LABEL: Record<typeof UNDERWORLD_KEYS[number], string> = {
  * declaration's VARIABLE members are read (no branches, no steps, no
  * forecast), through the SAME chip builder and the SAME basis as the play
  * preview (`effectsForBehavior` over the counted members alone), so the plate,
- * the composer and the play can never say three numbers. Read-only.
+ * the composer and the play can never say three numbers. A BESPOKE play whose
+ * count lives in its own code (Interplanetary Trade's different tags,
+ * Terraforming Ganymede's Jovian tags, Productive Outpost's colony bonuses, …)
+ * adds its chips through its co-located `countedPlayForecast` — the function
+ * its own `cardPlayPreview` builds them with. Read-only. The worklist that
+ * finds every counted play BY BEHAVIOUR (a chip whose number moves with the
+ * table): `tests/models/countedPlayForecast.spec.ts`.
  */
 export function countedPlayEffects(player: IPlayer, card: ICard): ReadonlyArray<ActionEffect> {
+  const own = card.countedPlayForecast?.(player) ?? [];
+  return [...declaredCountedPlayEffects(player, card), ...own];
+}
+
+/** The declaration's counted members as chips (the composer's own), `[]` when it has none. */
+function declaredCountedPlayEffects(player: IPlayer, card: ICard): ReadonlyArray<ActionEffect> {
   const b = card.behavior;
   if (b === undefined) {
     return [];
@@ -463,6 +475,12 @@ export function countedPlayEffects(player: IPlayer, card: ICard): ReadonlyArray<
   const counted: Behavior = {};
   if (isVariableAmount(b.addResources)) {
     counted.addResources = b.addResources;
+  }
+  // «Add N to ANY card» with N counted (Bactoviral Research, Hydrogen to Venus) — only the counted additions; a
+  // fixed «+2 microbes to a card» is printed. No holder → no chip, as in the composer (the step names the skip).
+  const additions = addToAnyCardList(b).filter((a) => isVariableAmount(a.count));
+  if (additions.length > 0) {
+    counted.addResourcesToAnyCard = additions;
   }
   for (const key of ['stock', 'production'] as const) {
     const units = b[key];
@@ -524,7 +542,10 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   // says so, and a gain chip would be a lie — the silent-loss bug this closes).
   for (const a of addToAnyCardList(behavior)) {
     if (addAnyCardCandidates(player, card, a).length > 0) {
-      out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card'});
+      // A COUNTED addition («1 microbe per science tag» — Bactoviral Research,
+      // Hydrogen to Venus) names what it counted, as every counted chip does.
+      const basis = countableBasis(ctx, a.count);
+      out.push({direction: 'gain', icon: a.type !== undefined ? cardResourceIcon(a.type) : 'resources', amount: ctx.count(a.count), note: 'to a card', ...(basis !== undefined ? {basis} : {})});
     }
   }
   for (const g of GLOBAL) {

@@ -7,7 +7,7 @@ import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
 export class NitrogenRichAsteroid extends Card implements IProjectCard {
@@ -57,12 +57,19 @@ export class NitrogenRichAsteroid extends Card implements IProjectCard {
     return undefined;
   }
 
+  // The COUNTED play — the raise with what decides it (the plant tags: 1 step, 4
+  // from three): the hand tile's plate, the composer's chip and its «ПОЧЕМУ» are
+  // this one reading.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    return [actionPreviews.counted(
+      actionPreviews.productionChange(player, Resource.PLANTS, this.plantProductionGain(player)),
+      {count: player.tags.count(Tag.PLANT), label: 'Your tags', tag: Tag.PLANT})];
+  }
+
   // The on-play preview: `playPreview` auto-includes the declarative chips
   // (temperature + TR), and we add the bespoke plant-production raise so the modal
   // shows the FULL on-play result, not just the part the behavior DSL covers.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.productionChange(player, Resource.PLANTS, this.plantProductionGain(player)),
-    ]);
+    return actionPreviews.playPreview(this, player, this.countedPlayForecast(player));
   }
 }

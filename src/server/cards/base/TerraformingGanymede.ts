@@ -5,7 +5,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 
 export class TerraformingGanymede extends Card implements IProjectCard {
@@ -36,11 +36,17 @@ export class TerraformingGanymede extends Card implements IProjectCard {
     return undefined;
   }
 
+  // The COUNTED play — the rating with what it counted (the Jovian tags, this
+  // card's own included): the hand tile's plate, the composer's chip and its
+  // «ПОЧЕМУ» are this one reading.
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    const tr = this.computeTr(player).tr;
+    return [actionPreviews.counted(actionPreviews.trGain(player, tr), {count: tr, label: 'Your tags', tag: Tag.JOVIAN})];
+  }
+
   // The on-play preview: a FIXED, computable TR raise (1 per Jovian tag, incl. this)
   // — show it as a chip in the play modal. No choice, so no steps.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.playPreview(this, player, [
-      actionPreviews.trGain(player, this.computeTr(player).tr),
-    ]);
+    return actionPreviews.playPreview(this, player, this.countedPlayForecast(player));
   }
 }

@@ -22,7 +22,7 @@ import {IStandardProjectCard} from './IStandardProjectCard';
 import {Warning} from '../../common/cards/Warning';
 import {PreludeNeed} from '../../common/cards/PreludeOutlook';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {ActionPreview, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
@@ -118,6 +118,19 @@ export interface ICard {
    * game state.
    */
   agendaWalkForecast?(player: IPlayer): AgendaWalkModel;
+  /**
+   * Optional READ-ONLY chips of a BESPOKE play whose result is COUNTED off the
+   * table («1 M€ production per different tag», «1 TR per Jovian tag», «1 M€
+   * per empty area next to your tiles», «all your colony bonuses») — the part
+   * of the play a `behavior` declaration cannot carry, so `countedPlayEffects`
+   * cannot read it. The card's own `cardPlayPreview` builds its chips with the
+   * SAME function (the ONE reading: the hand tile's forecast plate, the
+   * composer and the play cannot say two numbers); a chip whose count is one
+   * reason carries its `basis`, which is the composer's «ПОЧЕМУ». A declarative
+   * counted member never needs it. MUST NOT mutate game state. Guard (the
+   * worklist): `tests/models/countedPlayForecast.spec.ts`.
+   */
+  countedPlayForecast?(player: IPlayer): ReadonlyArray<ActionEffect>;
   /**
    * The card GRANTS N bonus actions when played (Head Start's «immediately
    * take 2 actions»). Co-located on the card class; exported to `ClientCard`

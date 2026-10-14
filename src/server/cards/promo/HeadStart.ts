@@ -3,8 +3,8 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {Resource} from '../../../common/Resource';
 import {CardRenderer} from '../render/CardRenderer';
-import {ActionPreview} from '../../../common/models/ActionPreviewModel';
-import {noteStep, playPreview, stockGain} from '../actionPreviews';
+import {ActionEffect, ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {counted, noteStep, playPreview, stockGain} from '../actionPreviews';
 
 /** The bonus actions the card hands the player, immediately. */
 export const HEAD_START_BONUS_ACTIONS = 2;
@@ -93,11 +93,16 @@ export class HeadStart extends PreludeCard {
    * so they get a note.
    */
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const megacredits = player.cardsInHand.length * 2;
     return playPreview(
       this,
       player,
-      [stockGain(player, Resource.STEEL, 2), stockGain(player, Resource.MEGACREDITS, megacredits)],
+      [stockGain(player, Resource.STEEL, 2), ...this.countedPlayForecast(player)],
       [noteStep('generic', 'After this prelude you take 2 extra actions immediately; you choose whether the steel and M€ arrive before or after them.')]);
+  }
+
+  /** The COUNTED gain — 2 M€ per project card in hand TODAY, with what it counted (the composer's «ПОЧЕМУ»). */
+  public countedPlayForecast(player: IPlayer): ReadonlyArray<ActionEffect> {
+    const cards = player.cardsInHand.length;
+    return [counted(stockGain(player, Resource.MEGACREDITS, cards * 2), {count: cards, label: 'Cards in hand'})];
   }
 }
