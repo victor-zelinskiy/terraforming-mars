@@ -224,6 +224,21 @@ export interface AddResource {
   /** When true, include self-replicating robots cards. */
   robotCards?: true,
 
+  /**
+   * The addition is a «YOU MAY» — a bonus the player may decline (Turmoil
+   * Redux TR44 Aquatic Research Station: «add 1 animal to this card. You may
+   * also add 1 data resource to ANY card»). The mirror of `OrBehavior.optional`
+   * for ONE target step: with a holder, the pick is asked INSIDE an optional
+   * choice — the `SelectCard` beside a `skip`-marked decline
+   * (`AddResourcesToCard.buildOptionalChoice`, the one shape the console's
+   * optional-choice law reads: the pick opens directly, the refusal is a
+   * button); with no holder the addition is skipped BY NAME as any «add to
+   * any card» is. Never a reason for the action to be unavailable (no
+   * `mustHaveCard` is implied); the preview's target step carries the same
+   * optional choice, so the composer and the live prompt are one shape.
+   */
+  optional?: boolean,
+
   // NOTE: there is deliberately NO `autoSelect` here. "Add to ANY card" ALWAYS
   // asks the player WHERE the resource goes — even with a single candidate — so
   // the choice is never resolved silently behind the board (the legacy

@@ -615,7 +615,9 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
         return;
       }
       const tag = entry.tag !== undefined ? ` ${entry.tag}` : '';
-      push(`addToAny.${i}`, `Add ${n} ${enCardResource(res, n)} to any${tag} card.`, [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
+      // A «you may» addition (`AddResource.optional`) says so — the rule's own words.
+      const verb = entry.optional === true ? 'You may add' : 'Add';
+      push(`addToAny.${i}`, `${verb} ${n} ${enCardResource(res, n)} to any${tag} card.`, [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
     });
   }
   if (b.removeAnyPlants !== undefined) {

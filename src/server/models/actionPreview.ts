@@ -782,7 +782,9 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
         skipped: actionPreviews.skippedAddToCard(a.type, count),
       });
     } else {
-      const model = target.previewSelectCard();
+      // A «YOU MAY» addition (`AddResource.optional`, TR44) is pre-collected as the SAME optional choice the live
+      // path raises — the pick beside its decline — so the composer shows the refusal as a button, never a row.
+      const model = a.optional === true ? target.previewOptionalChoice() : target.previewSelectCard();
       if (model !== undefined) {
         // The signed delta lets the picker show "N → N+count" per candidate card;
         // `cardResource` (the icon key) makes the picker prompt name the resource.

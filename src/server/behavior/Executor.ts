@@ -622,6 +622,8 @@ export class Executor implements BehaviorExecutor {
               // removed fork-wide; see Behavior.AddResourcesToAnyCard.)
               autoSelect: false,
               cause: cardSource(card),
+              // A «you may» addition asks its pick INSIDE an optional choice (TR44).
+              optional: arctac.optional === true,
             });
           if (hasPlacement) {
             player.game.defer(action, Priority.PLAY_CARD_RESOURCE_CHOICE);

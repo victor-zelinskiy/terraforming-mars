@@ -18,6 +18,7 @@ import {Counter} from '../behavior/Counter';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {Turmoil} from '../turmoil/Turmoil';
+import type {PlacementType} from '../boards/PlacementType';
 
 /**
  * Authoritative, structured explanation of why `card` (a project card in the
@@ -378,6 +379,14 @@ function collectAffordabilityReason(player: IPlayer, card: IProjectCard, out: Ar
 }
 
 const PLACEMENT: UnplayableReason = {type: 'placement', message: 'No space available for the tile'};
+/**
+ * A placement KIND whose empty set has a more specific name than «no space»:
+ * a city over an ocean (TR44) needs an OCEAN with nothing on it, and the
+ * hand should say that rather than send the player looking for land.
+ */
+const PLACEMENT_BY_KIND: Partial<Record<PlacementType, UnplayableReason>> = {
+  'city-over-ocean': {type: 'placement', message: 'No ocean tile to place a city on'},
+};
 
 /**
  * Placement / target / production blockers — mirrors the board and target
@@ -405,7 +414,7 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
   }
   if (b.tile !== undefined) {
     if (game.board.getAvailableSpacesForType(player, b.tile.on, opts).length === 0) {
-      out.push(PLACEMENT);
+      out.push(PLACEMENT_BY_KIND[b.tile.on] ?? PLACEMENT);
     }
   }
 

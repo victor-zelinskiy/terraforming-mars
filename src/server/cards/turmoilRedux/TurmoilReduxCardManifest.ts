@@ -44,6 +44,7 @@ import {ForestryMechs} from './ForestryMechs';
 import {PlasmaFans} from './PlasmaFans';
 import {GreenAllegiance} from './GreenAllegiance';
 import {IchtiologyGrant} from './IchtiologyGrant';
+import {AquaticResearchStation} from './AquaticResearchStation';
 import {CompostingInitiative} from './CompostingInitiative';
 import {ResearchStartups} from './ResearchStartups';
 import {Supercomputer} from './Supercomputer';
@@ -232,6 +233,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // branches (`OrBehavior.optional`, the knob this card brings: no holder of either kind, the production still stands and
     // the choice is skipped by name) — the set's first play with a card target INSIDE an `or` branch.
     [CardName.ICHTIOLOGY_GRANT]: {Factory: IchtiologyGrant},
+    // Only the module's icon at the bottom left: the GREENS' plate again; the set's FIRST card that puts TWO TILES ON
+    // ONE CELL — an ordinary city ON TOP OF an ocean in play (`common/boards/cellPieces.ts`: one reading of what lies
+    // on a cell; the kind `city-over-ocean`; three writers), beside an action of two standing classes and the «you may»
+    // knob of an «add to any card» step (`AddResource.optional` — the pick beside its decline, one surface).
+    [CardName.AQUATIC_RESEARCH_STATION]: {Factory: AquaticResearchStation},
     // Only the module's icon at the bottom left: the GREENS' plate a seventh time; ONE DECLARATION of a play COUNTED off
     // the board — 1 microbe per tile on Mars of ANY player, the census (`common/boards/marsTileCensus.ts`, the `tiles`
     // countable this card brought: its number, composition and cells one reading) — and the TR38 action class.

@@ -1,6 +1,9 @@
 import {IPlayer} from '../IPlayer';
 import {SelectCard} from '../inputs/SelectCard';
-import {ChoiceContextSource, SelectCardModel} from '../../common/models/PlayerInputModel';
+import {SelectOption} from '../inputs/SelectOption';
+import {OrOptions} from '../inputs/OrOptions';
+import {skip} from '../inputs/optionMetadata';
+import {ChoiceContextSource, OrOptionsModel, SelectCardModel} from '../../common/models/PlayerInputModel';
 import {CardResource} from '../../common/CardResource';
 import {CardName} from '../../common/cards/CardName';
 import {ICard} from '../cards/ICard';
@@ -109,7 +112,17 @@ export type Options = {
    * resolution) has no card of its own to log through, so it says so here.
    */
   from?: From;
+  /**
+   * A «YOU MAY» addition (`AddResource.optional` — TR44's «you may also add 1
+   * data to ANY card»): with a holder the pick is asked inside an OPTIONAL
+   * CHOICE — the card pick beside a `skip`-marked decline — instead of a bare
+   * pick; with no holder the addition is skipped by name, as always.
+   */
+  optional?: boolean;
 }
+
+/** The decline of an optional addition — the i18n key the plate and the row print (`${0}` = the resource's name). */
+export const DECLINE_ADDITION_KEY = 'Do not add ${0}';
 
 /**
  * `andThen` receives the card the resources landed on — a caller that
@@ -201,11 +214,50 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
       return undefined;
     }
 
+    // A «YOU MAY» addition: the pick, and the decline beside it — one surface.
+    if (this.options.optional === true) {
+      return this.buildOptionalChoice(cards);
+    }
+
     return this.buildSelectCard(cards)
       .andThen(([card]) => {
         this.addResource(card, qty);
         return undefined;
       });
+  }
+
+  /**
+   * THE OPTIONAL CHOICE of a «you may add» (`Options.optional`): the card pick
+   * — the very `SelectCard` the mandatory path presents, its answer adding the
+   * resource — beside ONE `skip`-marked decline («Do not add data»). The
+   * shape the console's optional-choice law reads (`optionalChoice.ts`: a
+   * choice whose one answer is a pick opens that pick directly, the refusal is
+   * RT and a plate in the question line), and the shape the composer's
+   * pre-collected step carries (`previewOptionalChoice`), so the promise and
+   * the live prompt are one. A decline is the player's deliberate answer —
+   * nothing is recorded as lost.
+   */
+  public buildOptionalChoice(cards: ReadonlyArray<ICard>): OrOptions {
+    const qty = this.options.count ?? 1;
+    const pick = this.buildSelectCard(cards).andThen(([card]) => {
+      this.addResource(card, qty);
+      return undefined;
+    });
+    const decline = new SelectOption(message(DECLINE_ADDITION_KEY, (b) => b.string(this.resourceType ?? 'resources')))
+      .withMetadata(skip());
+    const choice = new OrOptions(pick, decline);
+    return this.options.cause === undefined ?
+      choice :
+      choice.markChoiceContext({source: this.options.cause, mode: 'optional-effect'});
+  }
+
+  /** READ-ONLY: the optional choice the live path WOULD present (`buildOptionalChoice`), or `undefined` with no holder. */
+  public previewOptionalChoice(): OrOptionsModel | undefined {
+    const cards = this.getCards();
+    if (cards.length === 0) {
+      return undefined;
+    }
+    return this.buildOptionalChoice(cards).toModel(this.player);
   }
 
   /**

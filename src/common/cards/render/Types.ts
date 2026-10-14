@@ -34,6 +34,14 @@ export interface ICardRenderTile extends CardComponent {
   tile: TileType;
   hasSymbol?: true;
   isAres?: true;
+  /**
+   * A TILE OVER A TILE (Turmoil Redux TR44 Aquatic Research Station — «place
+   * a city ON TOP OF an ocean tile in play»): the tile this one stands ON.
+   * ONE node, drawn as two pieces with the arrow of the printed card — the
+   * card face, the placement dossier's kind icon and the composer's «next
+   * step» all read it, so the two-tile cell has one picture everywhere.
+   */
+  over?: TileType;
   readonly is: 'tile';
 }
 

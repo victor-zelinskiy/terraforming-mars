@@ -49,10 +49,15 @@ class CardRenderTile implements ICardRenderTile {
   public tile: TileType;
   public hasSymbol: LiteBoolean;
   public isAres: LiteBoolean;
-  constructor(tile: TileType, hasSymbol: boolean, isAres: boolean) {
+  /** The tile this one stands ON TOP OF (TR44's city over an ocean) — present only when authored. */
+  public over?: TileType;
+  constructor(tile: TileType, hasSymbol: boolean, isAres: boolean, over?: TileType) {
     this.tile = tile;
     this.hasSymbol = liteBoolean(hasSymbol);
     this.isAres = liteBoolean(isAres);
+    if (over !== undefined) {
+      this.over = over;
+    }
   }
 }
 
@@ -638,8 +643,13 @@ abstract class Builder<T> {
     return this;
   }
 
-  public tile(tile: TileType, hasSymbol: boolean = false, isAres: boolean = false): this {
-    return this._appendToRow(new CardRenderTile(tile, hasSymbol, isAres));
+  /**
+   * A tile. `options.over` prints a TILE OVER A TILE — the tile this one is
+   * placed ON TOP OF (Turmoil Redux TR44: a city over an ocean) — as ONE node
+   * the face, the dossier and the composer all draw alike.
+   */
+  public tile(tile: TileType, hasSymbol: boolean = false, isAres: boolean = false, options?: {over?: TileType}): this {
+    return this._appendToRow(new CardRenderTile(tile, hasSymbol, isAres, options?.over));
   }
 
   /*
