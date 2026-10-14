@@ -302,6 +302,17 @@ export function isMandatoryPromptsHeld(): boolean {
   return mandatoryPromptsHeld(flags());
 }
 
+/**
+ * The half of `isMandatoryPromptsHeld` that is the SCREEN's, not the feed's: the player opened the turn theater, or a
+ * blocking cinematic is playing. The other half — a flow-holding card (the compact bot-turn card) on screen — holds a
+ * decision's FIRST PRESENTATION only for that card's read beat (PL-290 — the shell asks the feed for that), never for
+ * its whole TTL: two bot turns in a row were ten seconds of «nothing happens» before the plate.
+ */
+export function isMandatoryPromptsHeldByScreen(): boolean {
+  const f = flags();
+  return f.theaterOpen || f.blockingAnimationHolds > 0;
+}
+
 // ── transition broadcast ─────────────────────────────────────────────────────
 
 type Subscriber = () => void;

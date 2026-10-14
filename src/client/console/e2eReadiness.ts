@@ -38,6 +38,7 @@ import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTra
 import {railRewardDiag} from '@/client/console/resourceTransfer/railReward';
 import {actionCommitRailState} from '@/client/console/consoleActionCommitRail';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 
 export type ConsoleReadinessSnapshot = {
   input: InputEchoSnapshot;
@@ -62,6 +63,8 @@ export type ConsoleReadinessSnapshot = {
   actionCommitRail: {card: string, phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string};
   /** The card PLAY's landing scene: its phase and how its SHIPMENT BEAT (the price taken off the rail — PL-107) ended, by name. */
   playedHero: {phase: string, shipment: string};
+  /** The workspace OUTCOME claim's gates — who holds it, how far the answer / the beat / the arrival are (an embedded stage swallows presses while `arrivalDone` is false). */
+  outcome: {host: string, stage: string, answerIn: boolean, beatDone: boolean, arrivalDone: boolean, arrivalFlown: boolean};
   at: number;
 };
 
@@ -79,6 +82,10 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     railReward: railRewardDiag(),
     actionCommitRail: {card: actionCommitRailState.card, phase: actionCommitRailState.phase, link: actionCommitRailState.link, lastEnd: actionCommitRailState.lastEnd, capsules: [...actionCommitRailState.capsules], fallback: actionCommitRailState.fallback},
     playedHero: {phase: playedHeroState.phase, shipment: playedHeroState.shipment},
+    outcome: {
+      host: workspaceOutcomeState.host ?? '', stage: workspaceOutcomeState.stage, answerIn: workspaceOutcomeState.answerIn,
+      beatDone: workspaceOutcomeState.beatDone, arrivalDone: workspaceOutcomeState.arrivalDone, arrivalFlown: workspaceOutcomeState.arrivalFlown,
+    },
     partyFlow: consoleCardActionsUi.partyFlow === undefined ? undefined : {
       party: consoleCardActionsUi.partyFlow.party, resolution: consoleCardActionsUi.partyFlow.resolution,
       stage: consoleCardActionsUi.partyFlow.stage, fleetBefore: consoleCardActionsUi.partyFlow.fleetBefore,

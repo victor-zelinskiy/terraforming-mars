@@ -231,7 +231,49 @@ const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
  */
 const POST_COMMIT_CHOICE = 'POST-COMMIT CHOICE';
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void}, {workerServer: WorkerServer, workerBuild: string}>({
+/**
+ * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
+ *
+ * The console names its own recoveries — a ledger story degraded, a truth witness healing a lie, a workspace torn down
+ * as a ghost, a bot turn that kept the player's prompt, a hold past its ceiling — and each one is a moment the player
+ * sat in front of a screen that owed them something. A green spec that printed one was green over a stall. The harvest
+ * makes them visible: a `stall` annotation per test (the first lines), and with `TM_E2E_STALL_LOG=<file>` one JSON
+ * line per warning across the whole run, so a sweep over the representative suites names WHICH flows stall.
+ */
+const STALL_MARKERS: ReadonlyArray<string> = [
+  '[presentation-ledger]', '[workspace-stall]', '[console-foreground-watchdog]', '[bot-turn]', '[notifications]',
+  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]',
+];
+
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, stallHarvest: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  stallHarvest: [async ({context}, use, testInfo) => {
+    const t0 = Date.now();
+    const seen: Array<{at: number, text: string}> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        if (message.type() !== 'warning' && message.type() !== 'error') {
+          return;
+        }
+        const text = message.text();
+        if (STALL_MARKERS.some((marker) => text.includes(marker))) {
+          seen.push({at: Date.now() - t0, text: text.slice(0, 600)});
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (seen.length === 0) {
+      return;
+    }
+    testInfo.annotations.push({type: 'stall', description: seen.slice(0, 6).map((s) => `+${s.at}ms ${s.text.slice(0, 220)}`).join(' ‖ ')});
+    const file = process.env.TM_E2E_STALL_LOG;
+    if (file !== undefined && file !== '') {
+      const title = `${path.basename(testInfo.file)} › ${testInfo.titlePath.slice(1).join(' › ')}`;
+      fs.appendFileSync(file, seen.map((s) => JSON.stringify({test: title, at: s.at, text: s.text})).join('\n') + '\n');
+    }
+  }, {auto: true}],
+
   /**
    * EVERY TEST, EVERY PAGE OF ITS CONTEXT: no question the player already answered in a composer is asked again. The
    * stranded-prompt witness could never see this class — a re-asked prompt IS served (the hand screen serves a

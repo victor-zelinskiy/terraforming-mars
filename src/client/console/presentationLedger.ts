@@ -69,6 +69,12 @@ export type TruthWitness = {
   graceMs: number,
   /** Re-drive the owning subsystem. Idempotent. */
   heal: () => void,
+  /**
+   * WHAT the lie is made of — the story's `diagnose` twin, appended to the heal warn. A heal that only says «healing»
+   * names the net and hides the hole: the field log of 2026-10-14 carried four bare heals of
+   * «workspace-conclusion-owed» and nothing about which hold refused the conclusion. Guarded; called only on a heal.
+   */
+  diagnose?: () => unknown,
 };
 
 type StoryEntry = OwedStory & {since: number, lastRedriveAt: number};
@@ -97,8 +103,8 @@ function now(): number {
   return Date.now();
 }
 
-/** Run a story's diagnose hook safely — a throwing/absent hook degrades to ''. */
-function storyDiagnose(story: OwedStory): string {
+/** Run a story's (or a witness's) diagnose hook safely — a throwing/absent hook degrades to ''. */
+function storyDiagnose(story: {diagnose?: () => unknown}): string {
   if (story.diagnose === undefined) {
     return '';
   }
@@ -223,7 +229,7 @@ export function settlePresentationDue(): void {
     }
     witness.lastHealAt = t;
     presentationLedgerStats.heals++;
-    console.warn(`[presentation-ledger] witness «${witness.id}» healing — the lie outlived its grace (${witness.graceMs}ms)`);
+    console.warn(`[presentation-ledger] witness «${witness.id}» healing — the lie outlived its grace (${witness.graceMs}ms, lying ${t - witness.lyingSince}ms)${storyDiagnose(witness)}`);
     try {
       witness.heal();
     } catch (err) {

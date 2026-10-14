@@ -38,8 +38,8 @@
          first action / forced hand pick / off-turn reaction / a must-open
          workspace flow like the between-generations draft) is ANNOUNCED here —
          not popped open — and the player opens it with A when they're ready.
-         Its FIRST presentation waits out the whole ordinary-notification feed
-         (queue empty, exit animations done); once presented it is a STANDING
+         Its FIRST presentation waits for the card ON SCREEN to have been read
+         (a 1.5 s beat — never for the queue, PL-290); once presented it is a STANDING
          state that later notifications may join but never hide or reset. A
          drawn-cards reveal is NOT announced — it flows straight through from
          its draw cinematic (never split from it). -->
@@ -1689,9 +1689,9 @@ import ConsoleTerraformingCeremony from '@/client/components/console/ConsoleTerr
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
-import {acquireForegroundLease, isMandatoryPromptsHeld, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
+import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
-import {notificationState, notificationsSettled, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
+import {notificationState, notificationFeedReadForDecision, acknowledgeFlowHoldingCards, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -2364,6 +2364,13 @@ const REVEAL_EXIT_BARRIER_NET_MS = 4000;
  * hangs earned — see `docs/claude/console/flow-close-gates.md` § THE STALL NET.
  */
 const OWED_CONCLUSION_FORCE_MS = 8000;
+
+/**
+ * THE LAST REFUSED CONCLUSION — which workspace, and the NAMED hold that refused it (`workspaceConclusionFor`'s
+ * reason). Diagnostics only (the conclusion witness's heal warn reads it): plain module state, never reactive — a
+ * refusal must not become a render dependency of anything.
+ */
+let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
 
 /**
  * THE PARLIAMENT'S LEAVE NET (v3 В1): the director's section dissolve is ~170 ms and reports back when it
@@ -5592,19 +5599,21 @@ export default defineComponent({
     /**
      * MAY THE CURRENT BEAT'S FIRST PRESENTATION HAPPEN NOW? The pending →
      * presented transition of the mandatory-action lifecycle (the watcher
-     * below latches it). It waits for the ordinary-notification feed to
-     * finish COMPLETELY — nothing visible, empty queue, the last card's exit
-     * animation done (`notificationsSettled`) — and for every running
-     * presentation beat (theater / flow-holding card / animation holds /
-     * reveals / heroes). Deliberately NOT gated on the player's location:
+     * below latches it). It waits for the card ON SCREEN to have had its read
+     * beat (`notificationFeedReadForDecision` — never for the QUEUE: the queue
+     * presents beside the standing plate) and for every running presentation
+     * beat of the SCREEN (theater / animation holds / reveals / heroes); a
+     * flow-holding bot card holds it for that same read beat, never its TTL
+     * (PL-290 — the whole feed in front of a decision was the 23 s pause before
+     * the final greenery). Deliberately NOT gated on the player's location:
      * the presentation moment is one; WHERE the player stands only decides
      * the FORM (the plate on the board home, the chip beacon elsewhere).
      */
     mandatoryPresentationReady(): boolean {
       return this.mandatoryGateHeld &&
         !isMandatoryBeatPresented(this.mandatoryBeat) &&
-        notificationsSettled() &&
-        !this.presentationHeld &&
+        notificationFeedReadForDecision() &&
+        !isMandatoryPromptsHeldByScreen() &&
         !isAnimationHoldActive() &&
         this.consoleRevealMode === undefined &&
         !this.rawDrawnRevealPending &&
@@ -19032,6 +19041,10 @@ export default defineComponent({
         return;
       }
       acknowledgeMandatoryBeat(beat.key);
+      // THE PRESS IS THE PLAYER PLAYING ON (PL-290): a flow-holding bot card still on screen is acknowledged here, as
+      // a submit acknowledges it — else the surface the press opens waits behind that card's TTL (the host's
+      // `presentation` admission holds while one stands and no surface is up), a dead A of up to five seconds.
+      acknowledgeFlowHoldingCards();
       // A FLOW beat runs its own open route — the ONE door into the workspace
       // (the auto-enter on the phase flip is gone). The acknowledge above has
       // already dropped `mandatoryGateHeld` synchronously, so a second A finds
@@ -19273,8 +19286,10 @@ export default defineComponent({
         parked: workspaceFrameParked(kind),
       });
       if (conclusion.verdict === 'hold') {
+        lastConclusionHold = {kind, reason: conclusion.reason, at: Date.now()};
         return false;
       }
+      lastConclusionHold = undefined;
       resetConsoleActionComposerUi();
       // The workspace goes and takes everything standing in it. `closeConsoleLayers`
       // is what clears the transient shell state that rode with it (quick
@@ -22424,11 +22439,23 @@ export default defineComponent({
       // reported done and cannot dismiss for a reason no ingredient re-surfaced.
       lying: () => {
         const o = this.owedConclusion;
+        // …and NOT a claim still SERVING a live prompt / batch (PL-292): the player has something to answer on
+        // screen (drawn cards not taken yet), the funnel refuses that release anyway, and the force phase needs
+        // a non-serving ghost — the heal could only re-ask a held conclusion every half second and print a lie
+        // into the field log (the four 00:40 heals of 2026-10-14 were a prelude's three cards waiting to be taken).
         return o !== undefined && workspaceFrameKnown(o.kind) &&
-          !workspaceFrameHasNested(o.kind) && !workspaceFrameParked(o.kind);
+          !workspaceFrameHasNested(o.kind) && !workspaceFrameParked(o.kind) && !this.workspaceOutcomeServingNow;
       },
       graceMs: 2500,
       heal: () => this.retryOwedConclusion(),
+      // The heal NAMES the hold — the owed kind, the hold `workspaceConclusionFor` last refused it with, and the
+      // ingredient signature (a bare «healing» line was all the field log of 2026-10-14 had to go on).
+      diagnose: () => ({
+        owed: this.owedConclusion?.kind,
+        owedForMs: this.owedConclusionSince === 0 ? 0 : Date.now() - this.owedConclusionSince,
+        refused: lastConclusionHold === undefined ? undefined : `${lastConclusionHold.kind}:${lastConclusionHold.reason}`,
+        signal: this.owedConclusionSignal,
+      }),
     });
     // THE BOARD-BEAT PARK'S «watchable» verdict (boardBeatPark) — coverage
     // facts only, shell-owned. Registered at mount, so a reload that lands

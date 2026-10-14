@@ -325,6 +325,8 @@ export type NotificationModel = {
 export type LiveNotification = NotificationModel & {
   /** Whether the card is currently expanded (pauses auto-dismiss). */
   expanded: boolean;
+  /** Epoch ms the card became VISIBLE (pushed or promoted) — the decision read beat counts from here. */
+  presentedAt?: number;
 };
 
 /** Default time-to-live per kind (ms). 0 ⇒ persistent. (~20% snappier than the

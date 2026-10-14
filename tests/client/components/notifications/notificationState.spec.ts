@@ -21,6 +21,8 @@ import {
   drainQueueToJournal,
   pendingSummary,
   notificationsSettled,
+  notificationFeedReadForDecision,
+  DECISION_READ_BEAT_MS,
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
 } from '@/client/components/notifications/notificationState';
@@ -457,6 +459,49 @@ describe('notificationState (lifecycle)', () => {
       noteNotificationLeaveStart({} as unknown as Element);
       clearTransient();
       expect(notificationState.leaving).to.eq(0);
+    });
+  });
+
+  // PL-290: the field's last generation stood 23 s on «Бот сыграл…», «Бот спасовал», «player2 спасовал» before the
+  // final-greenery plate — the decision waited for the whole serialized feed. It waits for ONE read beat now.
+  describe('the DECISION READ BEAT (a decision never waits for the feed\'s tail)', () => {
+    it('an empty screen is read — and a QUEUE behind the visible card is never a term', () => {
+      expect(notificationFeedReadForDecision()).to.eq(true);
+      pushMany([model('a'), model('b'), model('c')]);
+      const shownAt = notificationState.transient[0].presentedAt ?? 0;
+      expect(shownAt, 'a visible card is stamped when it presents').to.be.greaterThan(0);
+      expect(notificationFeedReadForDecision(shownAt), 'the card the player is looking at gets its beat').to.eq(false);
+      expect(notificationFeedReadForDecision(shownAt + DECISION_READ_BEAT_MS - 1)).to.eq(false);
+      expect(notificationFeedReadForDecision(shownAt + DECISION_READ_BEAT_MS),
+        'one beat on screen — the two cards queued behind it do not hold the decision').to.eq(true);
+      expect(notificationsSettled(), 'the feed itself is still busy (the e2e quiet is unchanged)').to.eq(false);
+    });
+
+    it('a PROMOTED card is stamped when it becomes visible, not when it was queued', () => {
+      pushMany([model('a'), model('b')]);
+      dismiss('a');
+      const b = notificationState.transient[0];
+      expect(b.id).to.eq('b');
+      expect(b.presentedAt, 'promotion stamps the card').to.be.a('number');
+      expect(notificationFeedReadForDecision((b.presentedAt ?? 0) + 10), 'the promoted card gets its own beat').to.eq(false);
+    });
+
+    it('an EXPANDED card holds the decision — the player is reading it', () => {
+      pushTransient(model('a'));
+      const card = notificationState.transient[0];
+      card.expanded = true;
+      expect(notificationFeedReadForDecision((card.presentedAt ?? 0) + 60_000)).to.eq(false);
+      card.expanded = false;
+      expect(notificationFeedReadForDecision((card.presentedAt ?? 0) + 60_000)).to.eq(true);
+    });
+
+    it('a flow-holding bot card is held to the same beat — and acknowledged by the player playing on', () => {
+      pushTransient(model('bot:1', 'normal', {holdsFlow: true, botTurnKey: 'red:1'}));
+      const card = notificationState.transient[0];
+      expect(notificationFeedReadForDecision(card.presentedAt ?? 0)).to.eq(false);
+      expect(notificationFeedReadForDecision((card.presentedAt ?? 0) + DECISION_READ_BEAT_MS)).to.eq(true);
+      acknowledgeFlowHoldingCards();
+      expect(notificationState.transient, 'the press on the plate dismisses it').to.have.length(0);
     });
   });
 

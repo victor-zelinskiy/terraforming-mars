@@ -247,7 +247,8 @@ export function promoteFromQueue(): void {
       }
     });
     const next = notificationState.queue.splice(bestIdx, 1)[0];
-    notificationState.transient.push({...next, expanded: false});
+    notificationState.transient.push({...next, expanded: false, presentedAt: Date.now()});
+    armDecisionReadBeat();
   }
 }
 
@@ -392,7 +393,8 @@ export function pushTransient(model: NotificationModel): void {
     notificationState.queue.push(model);
     return;
   }
-  notificationState.transient.push({...model, expanded: false});
+  notificationState.transient.push({...model, expanded: false, presentedAt: Date.now()});
+  armDecisionReadBeat();
 }
 
 export function pushMany(models: ReadonlyArray<NotificationModel>): void {
@@ -532,11 +534,12 @@ export function noteNotificationLeaveEnd(el: Element): void {
 
 /**
  * THE ORDINARY-NOTIFICATION FEED IS COMPLETELY FINISHED: nothing on screen,
- * nothing queued behind a blocker, and no card still animating out. This is
- * the boundary a pending MANDATORY action's first presentation waits behind
- * (consoleMandatoryGate's pending → presented transition) — and the ONLY
- * coupling between the two: notifications never queue behind a pending
- * mandatory action, and a mandatory action never enters this feed.
+ * nothing queued behind a blocker, and no card still animating out. The e2e
+ * readiness probe's «quiet» — and NO LONGER the boundary a pending MANDATORY
+ * action's first presentation waits behind: that waits for the visible card's
+ * read beat only (`notificationFeedReadForDecision`, PL-290 — the whole feed in
+ * front of a decision was a 20 s queue). Notifications never queue behind a
+ * pending mandatory action, and a mandatory action never enters this feed.
  *
  * The singleton `turn` card is deliberately NOT part of the answer: it mirrors
  * `waitingFor` itself, so it stands exactly as long as the pending decision
@@ -546,6 +549,47 @@ export function notificationsSettled(): boolean {
   return notificationState.transient.length === 0 &&
     notificationState.queue.length === 0 &&
     notificationState.leaving === 0;
+}
+
+// ── The DECISION READ BEAT (the feed is never a queue in front of a decision) ─
+
+/**
+ * How long a card must have been ON SCREEN before a pending mandatory decision may present beside it.
+ *
+ * ⚠ A DECISION DOES NOT WAIT FOR THE FEED'S TAIL (2026-10-14, PL-290). The first presentation of a mandatory beat
+ * used to wait for the WHOLE feed (`notificationsSettled`): nothing visible, nothing queued. The feed is serialized
+ * (one card at a time) and its cards live 5–13 s, so every event of the closing turn stood IN FRONT of the decision —
+ * measured on the field's own table (two humans + MarsBot, the last generation): «Бот сыграл Электростанция» 5 s,
+ * «Бот спасовал» 5 s, «player2 спасовал» 9.6 s, and only then «Выполнить финальное озеленение» — 23 s after the
+ * prompt had reached the client, with nothing on screen to say why (the field report «долгая задержка перед
+ * промтом на финальное озеленение»; the between-generations draft waited the same way every generation).
+ *
+ * The plate never covers a toast (it is a top card on the board home; a toast claims B, the plate A), so what the
+ * decision owes the feed is ONE thing: the card the player is looking at gets a beat to be read. The queue behind it
+ * keeps presenting BESIDE the standing plate — the lifecycle's existing «once presented, later cards show beside it».
+ */
+export const DECISION_READ_BEAT_MS = 1500;
+
+/** Bumped once a visible card's read beat has run out — the reactive edge `notificationFeedReadForDecision` rides. */
+const decisionReadBeatClock = reactive({tick: 0});
+
+function armDecisionReadBeat(): void {
+  if (typeof setTimeout !== 'function') {
+    return;
+  }
+  setTimeout(() => {
+    decisionReadBeatClock.tick++;
+  }, DECISION_READ_BEAT_MS + 30);
+}
+
+/**
+ * MAY A PENDING DECISION PRESENT BESIDE THE FEED NOW? Every VISIBLE card has been on screen for its read beat and
+ * none is EXPANDED (the player is reading one in detail). The queue is NOT a term — it presents beside the plate.
+ * Vacuously true over an empty screen.
+ */
+export function notificationFeedReadForDecision(now: number = Date.now()): boolean {
+  void decisionReadBeatClock.tick;
+  return notificationState.transient.every((n) => !n.expanded && now - (n.presentedAt ?? 0) >= DECISION_READ_BEAT_MS);
 }
 
 // ── Presentation-flow wiring (module init) ──────────────────────────────────
