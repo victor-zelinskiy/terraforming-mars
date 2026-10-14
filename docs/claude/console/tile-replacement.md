@@ -337,6 +337,34 @@ stage) and e2e `console-re-settlement.spec.ts` (two profiles, both clients: one
 proxy, a centre that never turns back, never two cities or none, `--vacated`
 before the landing, the bonus counter after it).
 
+## The FIFTH case: TWO PIECES ON ONE CELL (Turmoil Redux — Aquatic Research Station, TR44)
+
+An ordinary CITY lands ON TOP OF an ordinary OCEAN and neither changes its kind
+(`docs/TURMOIL_REDUX_AQUATIC_RESEARCH_STATION.md`). Three things tell it from the
+covers above: ① it is NOT a replacement — the ocean stays a piece of the cell
+(`tile.covers`, read through `common/boards/cellPieces.ts`; the client sees it
+as `SpaceModel.under`), counts toward nine, pays its neighbours and can be lifted
+out from under later; ② the pile is drawn as the pieces lie (§ THE TRUTHFUL
+STACK): the water at the FULL hex with its shoreline, the city a step above it,
+the ocean's miniature at the foot — `.board-space--afloat`; an Ares Ocean City
+(ONE tile that counts as both) stays one blue tile beside it; ③ the landing is
+INTO the water: the reticle projects the city in the lift (`con-bcur--afloat`),
+the proxy aims at the pile's second rung (`stackLandingRect(hex, 2)`), the
+full-hex splash plays at contact (`playCoverSplash`) with the `stackContact`
+jolt, and the water is painted on every frame (the e2e's landing probe forbids a
+«bare city» sample). LEAVING the pair: the ocean out from under (TR39's move,
+RX33's removal) is the pair A: CITY+under → CITY / B: empty → OCEAN — the city
+stays and the cell DRIES in place (`cityStackScene.stackDried`,
+`.board-space--dried`, 260 ms) — and, because the flight layer paints above the
+board, the city is painted once more on that layer as a COVER over the leaving
+water (`[data-tile-cover]`, `placeStayingCover` ← `coverDescentPlan`: born on the
+rung, settling with the dry beat, hidden at `onCleared`), so the water is seen to
+come out from UNDER the city, never through it (PL-327); the city off the water
+(TR14) is A: CITY+under → OCEAN nobody's / B: → CITY, the proxy wearing the CITY. The same pairs on the
+remote stage (`consoleRemotePlacement`), a held remote cell holding its water
+(`holdRemoteReveal(id, tile, color, under)`). Probe:
+`console-aquatic-research-station.spec.ts`.
+
 ## Where else this shape appears
 
 The engine's tile→tile replacements are a **closed set**: the two cards above, plus

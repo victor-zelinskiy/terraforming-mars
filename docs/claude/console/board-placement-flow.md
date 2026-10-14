@@ -106,6 +106,17 @@ fx-lite stop-list, the workspace pause-list and the reduced-motion media
 block (the class-bridge sheet's «loops play once» covers the override path —
 both loops are 0%/100%-symmetric).
 
+**A placement ONTO an ocean (`'city-over-ocean'`, TR44 Aquatic Research Station).**
+The legal cells are the plain ocean tops — anybody's — so the reticle stands over
+a TILE for the whole aim: it projects the city IN THE LIFT (`afloat` →
+`con-bcur--afloat`: aim −5.5 px / .82, travel −8 px / .78, locked −3.5 px / .86)
+and never hides the water under a full projection; `armTilePlacement({overOcean})`
+licenses the landing onto the pile's second rung with the full-hex splash. The
+dossier's title is the TILE («Город»), the cover's bill reads one line each
+(«Без бонуса размещения · Бонус клетки уже получил океан.», «Океан остаётся под
+городом»), and a bare reserve's refusal names the kind («Размещается только на
+существующем океане»). Contract: `docs/TURMOIL_REDUX_AQUATIC_RESEARCH_STATION.md`.
+
 ## Field grammar around it
 
 - `.con-board--placing` / `.con-board--locked` on the board root (never

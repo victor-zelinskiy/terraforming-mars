@@ -166,6 +166,14 @@ Staged-хвост (`inputs/deferredInputBatch.ts`): базовые подпис�
    запись у него не рождается, его сцена байт-в-байт.
 7. **Чего НЕ потребовалось:** второй сцены, второго прокси, правок таймингов TR14 (`tileMoveScene.spec` пинит), правок
    `TileMoveSourceModel` / `TileMoveFact` / `TileMoveRecordModel`, правок staged-хвоста и парковки.
+8. **Клетка с ДВУМЯ фишками (TR44 Aquatic Research Station, 2026-10-14).** Океан под городом — верхушка простого океана по
+   пьесам (`common/boards/cellPieces.ts`), поэтому TR39 поднимает его из-под города БЕЗ нового вида и без «upgraded-ocean»
+   (`liftOcean` — город, владелец и ярусы остаются; клетка больше не считается океаном), а TR14 переселяет город TR44 с воды
+   (`liftTopCity` над водой оставляет океан стоять, ничей; едущий город не несёт фантомного `covers`). Клиент: пары
+   `verifyMove` «океан из-под» (A: CITY+under → CITY, B: пусто → OCEAN — клетка СОХНЕТ, `stackDried`) и «город с воды»
+   (A: CITY+under → OCEAN ничей, B: → CITY), `sourceTiers` из стопки, прокси носит ЕДУЩУЮ фишку. Досье уровня источника
+   говорит, что остаётся (`move-ocean-under-city` «Город остаётся» / `move-city-off-water` «Океан остаётся»). Контракт:
+   `docs/TURMOIL_REDUX_AQUATIC_RESEARCH_STATION.md`; e2e — `console-aquatic-research-station` (TR39 из-под города).
 
 ## 3. Клиент — ВЫБОР (коммит 3)
 
