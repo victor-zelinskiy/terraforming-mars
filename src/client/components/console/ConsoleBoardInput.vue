@@ -580,10 +580,13 @@ export default defineComponent({
         // the server's declaration too (`placementType: 'city-tier'` —
         // Skyscrapers): it licenses the hero to read a stack growing as a
         // landing, and selects the crane descent over the ordinary flight.
+        // …and whether the city lands ON TOP OF an ocean as a second piece (TR44 — `placementType:
+        // 'city-over-ocean'`): it selects the landing INTO the pile's lift over the water, the splash at contact.
         armTilePlacement({
           spaceId: this.spaceId,
           replacing: this.isClearedTarget(this.spaceId),
           stacking: this.playerinput.placementType === 'city-tier',
+          overOcean: this.playerinput.placementType === 'city-over-ocean',
         });
       }
       this.onsave({type: 'space', spaceId: this.spaceId});

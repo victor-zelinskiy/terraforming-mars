@@ -95,6 +95,13 @@ export default defineComponent({
      * own lift (console.less) to say «this one».
      */
     pickup: {type: Boolean, default: false},
+    /**
+     * THE AFLOAT POSE (a city ON TOP OF an ocean, Turmoil Redux TR44): the cell under the reticle holds the WATER,
+     * and the projection is the second object — truthfully: the ghost stands in the pile's lift over the water
+     * (the stack's step and scale — `stackLandingRect`), exactly where the board will paint the landed city, so
+     * the lock, the hero's proxy and the painted tile are one geometry. No quiet zone: the water took the bonus.
+     */
+    afloat: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -132,6 +139,8 @@ export default defineComponent({
         // cell, so a phase change mid-glide must not keep it airborne.
         'con-bcur--travel': this.traveling && this.phase === 'navigate',
         'con-bcur--pickup': this.pickup && this.legal && this.phase === 'navigate',
+        // The afloat pose rides every phase with a projection: aiming, travelling, locked and committing alike.
+        'con-bcur--afloat': this.afloat && this.tileArtClass !== '',
       };
     },
     /** One key so a diagonal step arms exactly one settle cycle. */

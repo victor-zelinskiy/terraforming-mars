@@ -712,6 +712,12 @@ export type VerifiedMove = {
   color: Color | undefined,
   /** The source was a STACK: only its top tier left. */
   stack?: {from: number, to: number},
+  /**
+   * TWO TILES ON ONE CELL (TR44): the OTHER piece STAYS on A — the plain ocean when the city leaves the water
+   * (TR14: A is that ocean again, nobody's), the city when the ocean leaves from under it (TR39: A keeps the city, its
+   * owner and its stack). The scene reads it to keep that piece painted through the lift — never a bare hex for a frame.
+   */
+  stays?: {tileType: TileType, color: Color | undefined},
 };
 
 /**
@@ -720,7 +726,10 @@ export type VerifiedMove = {
  *              is the SAME tile (a Capital stays the Capital), a stack's top
  *              tier lands as a plain city; for an OCEAN (TR39) — a plain ocean
  *              of nobody's, as the one that left;
- *   A (`from`) a city → EMPTY, or the same city one tier lower; an ocean → EMPTY.
+ *   A (`from`) a city → EMPTY, or the same city one tier lower; an ocean → EMPTY;
+ *              TWO PIECES (TR44): a city over an ocean → that ocean, nobody's
+ *              (the city left the water); a city over an ocean → the same city
+ *              without its ocean (the ocean left from under it).
  * Anything else (the destination was not empty, the owner differs, the source
  * did not change, a hazard on either side) is not this move.
  */
@@ -740,6 +749,12 @@ export function verifyMove(
   if (a.tileType === undefined || b.tileType !== undefined || b2.tileType === undefined) {
     return undefined;
   }
+  // AN OCEAN OUT FROM UNDER A CITY (TR39 on a TR44 cell): A keeps the SAME city — its owner, its stack — and loses its
+  // ocean; a plain ocean of nobody's stands on B. The proxy is the ocean; the city never leaves the cell.
+  if (a.under === TileType.OCEAN && a2.under === undefined && a2.tileType === a.tileType && a2.color === a.color &&
+      (a2.stackHeight ?? 1) === (a.stackHeight ?? 1) && b2.tileType === TileType.OCEAN && b2.color === undefined) {
+    return {tileType: TileType.OCEAN, color: undefined, moves: {from: a.id, tileType: TileType.OCEAN, color: undefined, stays: {tileType: a.tileType, color: a.color}}};
+  }
   // AN OCEAN (TR39 Canyon Carving): a plain ocean of NOBODY'S left A whole and the same plain ocean stands on B —
   // nobody's again. No owner rides it (there is no cube on the proxy), no stack exists for it.
   if (a.tileType === TileType.OCEAN) {
@@ -753,9 +768,15 @@ export function verifyMove(
     return undefined;
   }
   const before = a.stackHeight ?? 1;
+  // A CITY OFF THE WATER (TR14 on a TR44 cell): the single city left WHOLE and A is its plain ocean again, nobody's.
+  if (a.under === TileType.OCEAN && a2.tileType === TileType.OCEAN && a2.color === undefined && a2.under === undefined) {
+    return before === 1 && b2.tileType === a.tileType && b2.under === undefined ?
+      {tileType: b2.tileType, color: b2.color, moves: {from: a.id, tileType: a.tileType, color: a.color, stays: {tileType: TileType.OCEAN, color: undefined}}} : undefined;
+  }
   if (a2.tileType === undefined) {
-    // The tile left WHOLE: the very same tile stands on B.
-    return before === 1 && b2.tileType === a.tileType ?
+    // The tile left WHOLE: the very same tile stands on B. A city that stood on an ocean never leaves the cell EMPTY —
+    // the water stays (the pair above) — so an emptied TR44 cell is not this move either.
+    return before === 1 && a.under === undefined && b2.tileType === a.tileType ?
       {tileType: b2.tileType, color: b2.color, moves: {from: a.id, tileType: a.tileType, color: a.color}} : undefined;
   }
   // The top TIER left: the same city one tier lower, a plain city on B.
@@ -866,6 +887,11 @@ export type FreshPlacement = {
   /** The plain ocean this tile landed ON (Ares ocean covers): the held cell
    *  keeps painting the water, and the touchdown plays the splash. */
   covers?: TileType;
+  /**
+   * A REMOVAL event riding the same queue (`FreshRemoval` — TR44's water from under a city): the piece that STAYS on
+   * the cell. Never set on a placement; the remote stage reads it on its removal branch only.
+   */
+  stays?: {tileType: TileType, color: Color | undefined};
 };
 
 /**
@@ -909,13 +935,18 @@ export function detectFreshPlacements(
   return out;
 }
 
-/** One tile the response took OFF a cell (TILED → EMPTY) — the removal scene's unit of work. */
+/** One tile the response took OFF a cell (TILED → EMPTY, or the ocean out from UNDER a city) — the removal scene's unit of work. */
 export type FreshRemoval = {
   spaceId: SpaceId;
   /** The tile that LEFT — the departure proxy's art. */
   tileType: TileType;
   /** Its owner, when it had one (an ocean never does) — the cube leaves ON the tile. */
   color: Color | undefined;
+  /**
+   * TWO TILES ON ONE CELL (TR44): the piece that STAYS — the city the ocean was taken from under (RX33, the Reds). The
+   * scene keeps it painted through the lift: the cell is never bare, the ocean slides out from under the city.
+   */
+  stays?: {tileType: TileType, color: Color | undefined};
 };
 
 /**
@@ -936,11 +967,21 @@ export function detectFreshRemovals(
   for (let i = 0; i < len; i++) {
     const prev = prevSpaces[i];
     const next = newSpaces[i];
-    if (prev.id !== next.id || prev.tileType === undefined || next.tileType !== undefined || HAZARD_TILES.has(prev.tileType)) {
+    if (prev.id !== next.id || prev.tileType === undefined || HAZARD_TILES.has(prev.tileType)) {
       continue;
     }
     // …and a hosted cell has no departure scene on the board either (see `detectFreshPlacements`).
     if (isHostedSpace(next.id)) {
+      continue;
+    }
+    // THE OCEAN OUT FROM UNDER A CITY (TR44 — RX33, the Reds): the cell keeps its city, owner and stack, and loses its
+    // ocean. What leaves is the ocean; what stays is named, so the scene never paints the cell bare.
+    if (prev.under === TileType.OCEAN && next.under === undefined && next.tileType === prev.tileType && next.color === prev.color &&
+        (next.stackHeight ?? 1) === (prev.stackHeight ?? 1)) {
+      out.push({spaceId: prev.id, tileType: TileType.OCEAN, color: undefined, stays: {tileType: prev.tileType, color: prev.color}});
+      continue;
+    }
+    if (next.tileType !== undefined) {
       continue;
     }
     out.push({spaceId: prev.id, tileType: prev.tileType, color: prev.color});
@@ -979,6 +1020,10 @@ export function applySpacePreview(
   if (next.stackHeight !== undefined) {
     prev.stackHeight = next.stackHeight;
   }
+  // …and so does the OCEAN UNDER a landed city (TR44): the pile paints its water base in the frame the city does.
+  if (next.under !== undefined) {
+    prev.under = next.under;
+  }
   // …and so does a cathedral that TRAVELLED with its city (a move): painted in
   // the frame its tile is, never a beat later on a cell that was already whole.
   if (next.cathedral !== undefined) {
@@ -1005,7 +1050,7 @@ export function applyVacatePreview(
   if (prev === undefined || next === undefined) {
     return;
   }
-  const carried = ['tileType', 'color', 'stackHeight', 'rotated', 'cathedral', 'coOwner'] as const;
+  const carried = ['tileType', 'color', 'stackHeight', 'rotated', 'cathedral', 'coOwner', 'under'] as const;
   for (const key of carried) {
     if (next[key] === undefined) {
       delete prev[key];

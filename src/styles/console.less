@@ -5641,6 +5641,20 @@ html.con-section-leaving .con-strat {
     opacity: 0.88;
     transform: translateY(0) scale(1);
 }
+/* THE AFLOAT POSE (TR44 — a city on top of an ocean): the projection is a SECOND object over the water, and it
+   stands where the board will paint the landed city — the pile's lift: one stack step up, the stack's scale
+   (board.less `@stack-step` / `@stack-scale`; the hero lands its proxy on the same `stackLandingRect`). Aiming
+   keeps the quiet lift above that; the lock settles INTO the lift, never onto the full hex. */
+.con-bcur--afloat .con-bcur__ghost {
+    transform: translateY(-5.5px) scale(0.82); /* keep-px: board px-space — the lift plus the aiming hover */
+}
+.con-bcur--afloat.con-bcur--travel .con-bcur__ghost {
+    transform: translateY(-8px) scale(0.78); /* keep-px: board px-space */
+}
+.con-bcur--afloat.con-bcur--locked .con-bcur__ghost,
+.con-bcur--afloat.con-bcur--committing .con-bcur__ghost {
+    transform: translateY(-3.5px) scale(0.86); /* keep-px: board px-space — exactly the pile's top tier */
+}
 .con-bcur--blocked .con-bcur__ghost { opacity: 0; }
 .con-bcur__art {
     position: absolute;

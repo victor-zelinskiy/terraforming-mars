@@ -69,9 +69,10 @@ import {
   OCEAN_PULSE_MS, OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_SPLASH_MS, oceanEdgePoint, oceanShoreDirection,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSourceRect, departingCubePose, DepartingCubePose, VerifiedMove,
+  stackLandingRect,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {claimTileMove, pairTileMoves} from '@/client/console/tilePlacement/tileMoveRecords';
-import {stackRelease, clearStackRelease} from '@/client/console/tilePlacement/cityStackScene';
+import {stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {SpaceId} from '@/common/Types';
 import {probeTick} from '@/client/console/probeTick';
@@ -357,8 +358,14 @@ export function stageRemoteTileEvents(
       }
       // A — the committed cell is what the city LEFT (a bare hex, or the stack
       // one tier lower), so it keeps painting what stood there — tile, owner
-      // cube, every tier — until the proxy takes it over 1:1.
-      if (move.stack === undefined) {
+      // cube, every tier — until the proxy takes it over 1:1. TWO PIECES
+      // (TR44): the cell keeps painting the city IN ITS LIFT over the water
+      // whichever piece travels — the city off the water, or the water out
+      // from under the city (`stays` names the other).
+      if (move.stays !== undefined) {
+        const cityStays = move.stays.tileType !== TileType.OCEAN;
+        holdRemoteReveal(move.from, cityStays ? move.stays.tileType : move.tileType, cityStays ? move.stays.color : move.color, TileType.OCEAN);
+      } else if (move.stack === undefined) {
         holdRemoteReveal(move.from, move.tileType, move.color);
       } else {
         holdStackHeight(move.from, move.stack.from);
@@ -384,8 +391,13 @@ export function stageRemoteTileEvents(
       // tile that LEFT until the departure proxy takes it over 1:1 — the
       // player must never see the tile vanish before it lifts. Nothing is
       // paid to anybody (no income hold), and the cube — if the tile had one —
-      // leaves on the proxy.
-      holdRemoteReveal(e.spaceId, e.tileType);
+      // leaves on the proxy. THE WATER FROM UNDER A CITY (TR44): the cell keeps
+      // painting the city in its lift over the water — the city stays.
+      if (e.stays !== undefined) {
+        holdRemoteReveal(e.spaceId, e.stays.tileType, e.stays.color, TileType.OCEAN);
+      } else {
+        holdRemoteReveal(e.spaceId, e.tileType);
+      }
       if (e.color !== undefined) {
         holdCubeForHeroPlacement(e.spaceId);
       }
@@ -627,7 +639,11 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
     return;
   }
   const els = tileStageRemoteEls();
-  if (els === undefined || !placeMoveProxy(els, moveSourceRect(sourceHex, move.stack?.from ?? 1), dest)) {
+  // TWO PIECES (TR44): a city leaving its water starts in the pile's lift (the top of the two-piece cell); the water
+  // leaving from under a city starts on the full hex it is the ground of (`stays` names the piece that keeps the cell).
+  const sourceTiers = move.stack?.from ?? (move.stays?.tileType === TileType.OCEAN ? 2 : 1);
+  const stays = move.stays !== undefined;
+  if (els === undefined || !placeMoveProxy(els, moveSourceRect(sourceHex, sourceTiers), dest)) {
     await degradeMove(ev, myEpoch);
     return;
   }
@@ -638,15 +654,18 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
   if (move.stack !== undefined) {
     stackRelease(move.from as SpaceId);
   }
+  if (move.stays !== undefined && move.stays.tileType !== TileType.OCEAN) {
+    stackDried(move.from as SpaceId); // the city that stays settles onto the ground in this very turn
+  }
   await playTileMove(els, {
-    source: moveSourceRect(sourceHex, move.stack?.from ?? 1),
+    source: moveSourceRect(sourceHex, sourceTiers),
     dest,
     uiScale: ui,
     liftMs: motionMs(MOVE_LIFT_MS),
     carryMs: motionMs(MOVE_CARRY_MS),
     landMs: motionMs(MOVE_LAND_MS),
     onCleared: () => {
-      if (epoch === myEpoch && move.stack === undefined) {
+      if (epoch === myEpoch && move.stack === undefined && !stays) {
         markCellVacated(move.from);
       }
     },
@@ -744,8 +763,12 @@ async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
     return;
   }
   // THE SWAP: the proxy stands 1:1 over the tile, so the real cell may blank
-  // NOW — nothing is seen to change until the proxy starts to move.
+  // NOW — nothing is seen to change until the proxy starts to move. The water
+  // from under a city (TR44): the city that stays settles onto the ground.
   releaseRemoteReveal(ev.spaceId);
+  if (ev.stays !== undefined) {
+    stackDried(ev.spaceId as SpaceId);
+  }
   await playTileDeparture(els, {
     hex,
     liftPx: departureLiftPx(hex),
@@ -757,8 +780,13 @@ async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (epoch !== myEpoch) {
     return;
   }
-  // The vacated cell settles once; the cube (if the tile had one) is gone with the tile.
-  markCellVacated(ev.spaceId);
+  // The vacated cell settles once; the cube (if the tile had one) is gone with the tile. A cell whose city stays
+  // (the water left from under it) is not vacated — it settled with its city.
+  if (ev.stays === undefined) {
+    markCellVacated(ev.spaceId);
+  } else {
+    clearStackRelease(ev.spaceId as SpaceId);
+  }
   if (ev.color !== undefined) {
     restCubeForHeroPlacement(ev.spaceId);
   }
@@ -799,6 +827,11 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   }
   const aimEpoch = boardSpaceEpoch();
   const ui = conUiScale();
+  // A CITY ON TOP OF AN OCEAN (TR44): the tile lands INTO the pile's lift over the water — where the board paints the
+  // top of a two-piece cell (`stackLandingRect`, the hero's own geometry) — while the splash stays the water's (the
+  // full hex). A composite (an Ocean City) is one tile and lands on the hex as it always did.
+  const afloat = ev.covers === TileType.OCEAN && ev.tileType === TileType.CITY;
+  const landingOf = (h: TileRect): TileRect => (afloat ? stackLandingRect(h, 2) : h);
   remotePlacementState.active = true;
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.aresExtension = ev.aresExtension;
@@ -810,12 +843,12 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   const els = tileStageRemoteEls();
   const profile = ev.own ? OWN_FLIGHT_PROFILE : REMOTE_FLIGHT_PROFILE;
   const from = ev.own ? tableSupplyPoint(ui) : remoteOriginPoint(ev.color, ui);
-  if (els === undefined || !placeTileProxy(els, {hex, from, profile})) {
+  if (els === undefined || !placeTileProxy(els, {hex: landingOf(hex), from, profile})) {
     degradeReveal(ev);
     return;
   }
   await playTileFlight(els, {
-    hex,
+    hex: landingOf(hex),
     from,
     uiScale: ui,
     flightMs: motionMs(TILE_FLIGHT_MS),
@@ -824,7 +857,10 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
     // The live-anchor contract: the final approach re-reads the cell and
     // blends the remaining leg onto it — a focus exit that lands mid-flight
     // no longer parks the tile hundreds of px off its hex.
-    liveHex: () => measureBoardHexRect(ev.spaceId),
+    liveHex: () => {
+      const live = measureBoardHexRect(ev.spaceId);
+      return live === undefined ? undefined : landingOf(live);
+    },
   });
   if (epoch !== myEpoch) {
     return; // aborted mid-flight — abort already revealed everything
@@ -838,7 +874,7 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
     if (live !== undefined &&
         (Math.abs(live.x - hex.x) > 1 || Math.abs(live.y - hex.y) > 1 ||
          Math.abs(live.w - hex.w) > 1 || Math.abs(live.h - hex.h) > 1)) {
-      seatTileProxy(els, live);
+      seatTileProxy(els, landingOf(live));
       hex = live;
     }
   }

@@ -216,6 +216,10 @@ import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCen
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {CanyonCarving} from '../../../src/server/cards/turmoilRedux/CanyonCarving';
 import {Capital} from '../../../src/server/cards/base/Capital';
+import {OceanCity} from '../../../src/server/cards/ares/OceanCity';
+import {AquaticResearchStation} from '../../../src/server/cards/turmoilRedux/AquaticResearchStation';
+import {hasPlainOcean, isPlainOceanTop} from '../../../src/server/boards/cellPieces';
+import {marsTileCensus} from '../../../src/common/boards/marsTileCensus';
 import {oceanMoveOffer} from '../../../src/server/boards/oceanMove';
 import {Arboretum} from '../../../src/server/cards/turmoilRedux/Arboretum';
 import {RedMuseum, museumBlockers} from '../../../src/server/cards/turmoilRedux/RedMuseum';
@@ -1564,6 +1568,150 @@ function greenAllegianceFixture(name: string, rating: number, from: number, step
 greenAllegianceFixture('green-allegiance', 33, 1, [{to: 2, bonus: 'tr'}, {to: 3}]);
 greenAllegianceFixture('green-allegiance-zero', 23, 1, []);
 greenAllegianceFixture('green-allegiance-long', 45, 0, [{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}]);
+// ── TR44 · AQUATIC RESEARCH STATION — TWO TILES ON ONE CELL (`common/boards/cellPieces.ts`): the STAND the picture is
+//    judged on — blue's city OVER an ocean beside every neighbour it must be told from. Blue's action phase, the Greens
+//    ruling by the STARTING RULE (nothing enacted — generation 1), Ares ON (an Ocean City needs the module). Tharsis,
+//    arranged, never dealt:
+//      · 33 — blue's TR44 city ON TOP OF a plain ocean (two pieces: the city, the water under it — `covers`);
+//      · 32 — red's OCEAN CITY, the composite (ONE tile that counts as both), beside 33: the contrast at arm's length;
+//      · 34 — a plain ocean beside 33; 43 — an empty ocean reserve;
+//      · 42 — a plain city of blue's (land beside 33); 24 — a Skyscrapers STACK of two (the counter, the seam) beside 33.
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate). The engine's reading of the stand is
+//    asserted below, so a board change fails HERE, by name. ──
+const AQUATIC_STAND = {afloat: '33', composite: '32', ocean: '34', reserve: '43', city: '42', stack: '24'} as const;
+parliamentFixture('aquatic-research-station-twins', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {aresExtension: true, aresHazards: false, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+    seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    cell(AQUATIC_STAND.ocean).tile = {tileType: TileType.OCEAN};
+    cell(AQUATIC_STAND.ocean).player = undefined;
+    // Blue's city over the water — the engine's own writer, so the cell is exactly what a play leaves.
+    cell(AQUATIC_STAND.afloat).tile = {tileType: TileType.OCEAN};
+    cell(AQUATIC_STAND.afloat).player = undefined;
+    p1.playedCards.push(new AquaticResearchStation());
+    game.addTile(p1, cell(AQUATIC_STAND.afloat), {tileType: TileType.CITY, card: CardName.AQUATIC_RESEARCH_STATION}, {overOcean: true});
+    // Red's Ocean City — the composite, through the same writer (the ocean under it is recorded, never a piece).
+    cell(AQUATIC_STAND.composite).tile = {tileType: TileType.OCEAN};
+    cell(AQUATIC_STAND.composite).player = undefined;
+    p2.playedCards.push(new OceanCity());
+    game.addTile(p2, cell(AQUATIC_STAND.composite), {tileType: TileType.OCEAN_CITY, card: CardName.OCEAN_CITY});
+    game.simpleAddTile(p1, cell(AQUATIC_STAND.city), {tileType: TileType.CITY});
+    game.simpleAddTile(p1, cell(AQUATIC_STAND.stack), {tileType: TileType.CITY});
+    cell(AQUATIC_STAND.stack).stackHeight = 2;
+    runAllActions(game);
+    p1.megaCredits = 20;
+  },
+  expect: ({game, p1, p2}) => {
+    const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+    const afloat = cell(AQUATIC_STAND.afloat);
+    const composite = cell(AQUATIC_STAND.composite);
+    const facts = {
+      afloat: [afloat.tile?.tileType, afloat.tile?.covers?.tileType, afloat.player?.color, hasPlainOcean(afloat), isPlainOceanTop(afloat), marsTileCensus([afloat]).total],
+      composite: [composite.tile?.tileType, composite.player?.color, hasPlainOcean(composite), marsTileCensus([composite]).total],
+      oceans: game.board.getOceanSpaces().map((s) => s.id),
+      stack: cell(AQUATIC_STAND.stack).stackHeight,
+      cities: game.board.countCities(p1),
+    };
+    const expected = {
+      afloat: [TileType.CITY, TileType.OCEAN, p1.color, true, false, 2],
+      composite: [TileType.OCEAN_CITY, p2.color, false, 1],
+      oceans: [AQUATIC_STAND.composite, AQUATIC_STAND.afloat, AQUATIC_STAND.ocean],
+      stack: 2,
+      cities: 4,
+    };
+    if (JSON.stringify(facts) !== JSON.stringify(expected)) {
+      throw new Error(`the aquatic-research-station-twins fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+    }
+  },
+});
+// ── TR44 · AQUATIC RESEARCH STATION — THE PLAY, THE MOVE OUT FROM UNDER, THE ACTION. Blue's action phase, the Greens
+//    ruling by the STARTING RULE (nothing enacted — generation 1), Tharsis arranged, never dealt:
+//      · `aquatic-research-station`        — the card in hand, 20 M€, 0 steel; three plain oceans (33 = the target
+//                                             O1, 34 = O2 beside it — it pays +2, 43 = O3 beside O2 only); blue's
+//                                             greenery on 42 beside O1 (the city will score it); 32 an EMPTY reserve
+//                                             beside O1, 24 free land beside O1 (the refusals' witnesses);
+//      · `aquatic-research-station-canyon` — blue's TR44 city ALREADY on O1 (the engine's own writer), Canyon Carving
+//                                             in hand (the Greens' plate again), 32 the empty reserve beside O1 the
+//                                             ocean may move to, 34 a plain ocean;
+//      · `aquatic-research-station-action` — TR44 on blue's table with 1 animal, its action unused; data holders:
+//                                             Supercomputer (0 data), Martian Census (2 data).
+//    Red sits at a pinned corporation with no first action (Teractor / Thorgate — the second client watches). ──
+const AQUATIC_SITE = {target: '33', payer: '34', third: '43', greenery: '42', reserve: '32', land: '24'} as const;
+function aquaticFixture(name: string, at: 'hand' | 'placed' | 'table'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+      const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+      for (const id of at === 'placed' ? [AQUATIC_SITE.target, AQUATIC_SITE.payer] : [AQUATIC_SITE.target, AQUATIC_SITE.payer, AQUATIC_SITE.third]) {
+        cell(id).tile = {tileType: TileType.OCEAN};
+        cell(id).player = undefined;
+      }
+      if (at === 'hand') {
+        game.simpleAddTile(p1, cell(AQUATIC_SITE.greenery), {tileType: TileType.GREENERY});
+        p1.cardsInHand.push(new AquaticResearchStation());
+      } else if (at === 'placed') {
+        p1.playedCards.push(new AquaticResearchStation());
+        game.addTile(p1, cell(AQUATIC_SITE.target), {tileType: TileType.CITY, card: CardName.AQUATIC_RESEARCH_STATION}, {overOcean: true});
+        p1.cardsInHand.push(new CanyonCarving());
+      } else {
+        const card = new AquaticResearchStation();
+        card.resourceCount = 1;
+        p1.playedCards.push(card, new Supercomputer());
+        const census = new MartianCensus();
+        census.resourceCount = 2;
+        p1.playedCards.push(census);
+      }
+      runAllActions(game);
+      p1.megaCredits = 20;
+      p1.steel = 0;
+    },
+    expect: ({game, p1}) => {
+      const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+      const adjacent = (a: string, b: string) => game.board.getAdjacentSpaces(cell(a)).some((s) => s.id === b);
+      const facts = {
+        adjacent: [adjacent(AQUATIC_SITE.target, AQUATIC_SITE.payer), adjacent(AQUATIC_SITE.target, AQUATIC_SITE.greenery), adjacent(AQUATIC_SITE.target, AQUATIC_SITE.reserve),
+          adjacent(AQUATIC_SITE.target, AQUATIC_SITE.land), adjacent(AQUATIC_SITE.target, AQUATIC_SITE.third)],
+        oceans: game.board.getOceanSpaces().map((s) => s.id),
+        legal: at === 'hand' ? game.board.getAvailableSpacesForType(p1, 'city-over-ocean').map((s) => s.id) : [],
+        reserve: cell(AQUATIC_SITE.reserve).tile?.tileType,
+        target: [cell(AQUATIC_SITE.target).tile?.tileType, cell(AQUATIC_SITE.target).tile?.covers?.tileType],
+        // The deal is real (the rest of the hand varies; the corporation sits on the table) — only OUR cards are read.
+        hand: p1.cardsInHand.filter((c) => c.name === CardName.AQUATIC_RESEARCH_STATION || c.name === CardName.CANYON_CARVING).map((c) => c.name),
+        table: p1.playedCards.asArray()
+          .filter((c) => [CardName.AQUATIC_RESEARCH_STATION, CardName.SUPERCOMPUTER, CardName.MARTIAN_CENSUS].includes(c.name))
+          .map((c) => `${c.name}:${c.resourceCount}`),
+        money: [p1.megaCredits, p1.steel],
+      };
+      const expected = {
+        adjacent: [true, true, true, true, false],
+        oceans: at === 'placed' ? [AQUATIC_SITE.target, AQUATIC_SITE.payer] : [AQUATIC_SITE.target, AQUATIC_SITE.payer, AQUATIC_SITE.third],
+        legal: at === 'hand' ? [AQUATIC_SITE.target, AQUATIC_SITE.payer, AQUATIC_SITE.third] : [],
+        reserve: undefined,
+        target: at === 'placed' ? [TileType.CITY, TileType.OCEAN] : [TileType.OCEAN, undefined],
+        hand: at === 'hand' ? [CardName.AQUATIC_RESEARCH_STATION] : at === 'placed' ? [CardName.CANYON_CARVING] : [],
+        table: at === 'table' ? [`${CardName.AQUATIC_RESEARCH_STATION}:1`, `${CardName.SUPERCOMPUTER}:0`, `${CardName.MARTIAN_CENSUS}:2`] :
+          at === 'placed' ? [`${CardName.AQUATIC_RESEARCH_STATION}:0`] : [],
+        money: [20, 0],
+      };
+      if (JSON.stringify(facts) !== JSON.stringify(expected)) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+      }
+    },
+  });
+}
+aquaticFixture('aquatic-research-station', 'hand');
+aquaticFixture('aquatic-research-station-canyon', 'placed');
+aquaticFixture('aquatic-research-station-action', 'table');
 // ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
 //    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
 //    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:

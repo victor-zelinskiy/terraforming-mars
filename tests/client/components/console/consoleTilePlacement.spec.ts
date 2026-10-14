@@ -243,6 +243,24 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     expect(isTilePlacementActive()).to.be.false;
   });
 
+  it('a CITY ON TOP OF AN OCEAN (TR44) lands as a cover — the water remembered, the pile painted WITH its ocean, no printed bonuses', async () => {
+    armTilePlacement({spaceId: '09', overOcean: true});
+    const prev = [space('09', {bonus: [SpaceBonus.PLANT, SpaceBonus.PLANT], tileType: TileType.OCEAN})];
+    const next = [space('09', {bonus: [SpaceBonus.PLANT, SpaceBonus.PLANT], tileType: TileType.CITY, color: 'blue', under: TileType.OCEAN})];
+    expect(detectTilePlacement(prev, next)).to.deep.eq({spaceId: '09'});
+    expect(tilePlacementState.coveredTile, 'the water the city lands on').to.eq(TileType.OCEAN);
+    expect(tilePlacementState.tileType).to.eq(TileType.CITY);
+    expect(tilePlacementState.stack, 'not a tier — a cover').to.be.undefined;
+    await runTilePlacement(prev, next);
+    // The real two-piece cell painted silently under the proxy: the city on top, the ocean UNDER it — never a bare city.
+    expect(prev[0].tileType).to.eq(TileType.CITY);
+    expect(prev[0].under).to.eq(TileType.OCEAN);
+    seedTilePlacementRewardHold();
+    expect(panelRewardHold.active, 'the ocean took the printed bonus').to.be.false;
+    await endTilePlacement();
+    expect(isTilePlacementActive()).to.be.false;
+  });
+
   it('non-stock printed bonuses (card / ocean) are never held nor transferred', async () => {
     armTilePlacement({spaceId: '08'});
     const prev = [space('08', {bonus: [SpaceBonus.DRAW_CARD, SpaceBonus.OCEAN]})];

@@ -35,7 +35,8 @@
         :tileArtClass="cursorArtClass"
         :cubeColor="cursorCubeColor"
         :bonusZone="cursorBonusZone"
-        :pickup="movePick" />
+        :pickup="movePick"
+        :afloat="placementShape?.placementType === 'city-over-ocean'" />
     </Teleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
          iteration 2) — this component owns the STAGE + selection only. -->

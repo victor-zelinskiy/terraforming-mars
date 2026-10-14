@@ -140,6 +140,50 @@ describe('TR14 Re-settlement — the MOVE scene', () => {
       expect(verifyMove(prev, swapped, A, B)).is.undefined;
     });
 
+    /**
+     * TWO TILES ON ONE CELL (TR44 Aquatic Research Station — a city over an ocean): two DECLARED pairs, each naming
+     * the piece that STAYS, so the scene never paints A bare for a frame.
+     */
+    it('a CITY OFF THE WATER (TR14 on a TR44 cell): the city left whole, A is its plain ocean again, nobody\'s — the water STAYS', () => {
+      const prev = [space(A, {tileType: TileType.CITY, color: 'red', under: TileType.OCEAN}), space(B)];
+      const next = [space(A, {tileType: TileType.OCEAN}), space(B, {tileType: TileType.CITY, color: 'red'})];
+      expect(verifyMove(prev, next, A, B)).deep.eq({
+        tileType: TileType.CITY, color: 'red',
+        moves: {from: A, tileType: TileType.CITY, color: 'red', stays: {tileType: TileType.OCEAN, color: undefined}},
+      });
+      // A stack over the water gives up its top tier like any stack — the base and its water stay (the ordinary pair).
+      const stacked = [space(A, {tileType: TileType.CITY, color: 'red', under: TileType.OCEAN, stackHeight: 2}), space(B)];
+      const lower = [space(A, {tileType: TileType.CITY, color: 'red', under: TileType.OCEAN}), space(B, {tileType: TileType.CITY, color: 'red'})];
+      expect(verifyMove(stacked, lower, A, B)?.moves).deep.eq({from: A, tileType: TileType.CITY, color: 'red', stack: {from: 2, to: 1}});
+      // Nothing looser: the water «left» with the city, or somebody owns the ocean left behind.
+      const gone = [space(A), space(B, {tileType: TileType.CITY, color: 'red'})];
+      expect(verifyMove(prev, gone, A, B), 'the ocean did not stay').is.undefined;
+      const owned = [space(A, {tileType: TileType.OCEAN, color: 'red'}), space(B, {tileType: TileType.CITY, color: 'red'})];
+      expect(verifyMove(prev, owned, A, B), 'an ocean is nobody\'s').is.undefined;
+      const carried = [space(A, {tileType: TileType.OCEAN}), space(B, {tileType: TileType.CITY, color: 'red', under: TileType.OCEAN})];
+      expect(verifyMove(prev, carried, A, B), 'a city never carries its water to land').is.undefined;
+    });
+
+    it('an OCEAN OUT FROM UNDER A CITY (TR39 on a TR44 cell): A keeps the same city, owner and stack; a plain ocean stands on B — the city STAYS', () => {
+      const prev = [space(A, {tileType: TileType.CITY, color: 'red', under: TileType.OCEAN}), space(B)];
+      const next = [space(A, {tileType: TileType.CITY, color: 'red'}), space(B, {tileType: TileType.OCEAN})];
+      expect(verifyMove(prev, next, A, B)).deep.eq({
+        tileType: TileType.OCEAN, color: undefined,
+        moves: {from: A, tileType: TileType.OCEAN, color: undefined, stays: {tileType: TileType.CITY, color: 'red'}},
+      });
+      // …with a stack on the water: the whole stack stays, only the water goes.
+      const stacked = [space(A, {tileType: TileType.CITY, color: 'red', under: TileType.OCEAN, stackHeight: 2}), space(B)];
+      const dry = [space(A, {tileType: TileType.CITY, color: 'red', stackHeight: 2}), space(B, {tileType: TileType.OCEAN})];
+      expect(verifyMove(stacked, dry, A, B)?.moves?.stays).deep.eq({tileType: TileType.CITY, color: 'red'});
+      // Nothing looser: the city changed with it, or a tier went missing, or the ocean arrived owned.
+      const changed = [space(A, {tileType: TileType.CITY, color: 'blue'}), space(B, {tileType: TileType.OCEAN})];
+      expect(verifyMove(prev, changed, A, B), 'the city is not the same').is.undefined;
+      const shorter = [space(A, {tileType: TileType.CITY, color: 'red'}), space(B, {tileType: TileType.OCEAN})];
+      expect(verifyMove(stacked, shorter, A, B), 'the stack lost a tier with the water').is.undefined;
+      const owned = [space(A, {tileType: TileType.CITY, color: 'red'}), space(B, {tileType: TileType.OCEAN, color: 'red'})];
+      expect(verifyMove(prev, owned, A, B), 'an ocean is nobody\'s').is.undefined;
+    });
+
     it('a declared move the response does NOT show is refused — never read as a plain landing', () => {
       const {prev, next} = singleMove();
       const stayed = [space(A, {tileType: TileType.CITY, color: 'red'}), next[1], next[2]];

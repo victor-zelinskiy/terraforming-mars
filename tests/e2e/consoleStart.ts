@@ -2487,6 +2487,14 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'green-allegiance-zero' |
   'green-allegiance-long' |
   'canyon-carving' |
+  // TR44 Aquatic Research Station — two tiles on one cell: the STAND (blue's city over the ocean on 33 beside red's
+  // Ocean City on 32, a plain ocean on 34, a plain city on 42, a stack of two on 24 — Ares on).
+  'aquatic-research-station-twins' |
+  // …the play (the card in hand, three oceans, blue's greenery beside the target), the move out from under (the city
+  // already on 33, Canyon Carving in hand) and the action (the card on the table with 1 animal, two data holders).
+  'aquatic-research-station' |
+  'aquatic-research-station-canyon' |
+  'aquatic-research-station-action' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |

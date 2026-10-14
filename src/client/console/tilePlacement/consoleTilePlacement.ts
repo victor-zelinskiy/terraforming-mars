@@ -126,7 +126,7 @@ import {
   TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_DUST_MS, TIER_SETTLE_MS,
   stackLandingRect, tierHoverPoint,
 } from '@/client/console/tilePlacement/tilePlacementModel';
-import {beginStackLoad, stackContact, clearStackScene, stackRelease, clearStackRelease} from '@/client/console/tilePlacement/cityStackScene';
+import {beginStackLoad, stackContact, clearStackScene, stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
 import {markCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
 import {claimTileMove, tileMoveRecordFor} from '@/client/console/tilePlacement/tileMoveRecords';
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
@@ -229,7 +229,7 @@ export const tilePlacementState = reactive({
    *  it selects the relocation over the ordinary landing, and its presence is
    *  what the board section reads to let the pick's vector be eaten behind
    *  the tile. Undefined otherwise. */
-  move: undefined as {from: SpaceId, stack?: {from: number, to: number}} | undefined,
+  move: undefined as {from: SpaceId, stack?: {from: number, to: number}, stays?: {tileType: TileType, color: Color | undefined}} | undefined,
   /** The move could NOT be played as one carried object (no measurable hex, no
    *  stage): both cells went straight to their final poses. A probe's witness
    *  (`data-tile-move-degraded`) — reduced motion is not a degrade. */
@@ -334,6 +334,8 @@ let armedReplacing = false;
 /** The armed pick is a DECLARED city TIER (the prompt's `placementType:
  *  'city-tier'`). Only such an arm may read a stack growing as a landing. */
 let armedStacking = false;
+/** The prompt declared a city ON TOP OF an ocean (TR44): the landing aims at the pile's lift over the water. */
+let armedOverOcean = false;
 /** The armed pick DECLARED a move: the cell of the city that travels (the
  *  answer's `movedFrom`). Only such an arm may read the pair «left A · stands
  *  on B» as a relocation. */
@@ -438,6 +440,9 @@ export function armTilePlacement(opts: {
   /** The pick DECLARED a MOVE (`placementEffect: 'move'`): the cell of the city
    *  that travels to `spaceId` — one proxy carried across the shared edge. */
   movedFrom?: string,
+  /** The prompt DECLARED a city ON TOP OF an ocean (`placementType: 'city-over-ocean'`, TR44): the tile lands INTO
+   *  the pile's lift over the water — the splash at contact, the cell's one jolt, the water never gone for a frame. */
+  overOcean?: boolean,
 }): void {
   // A confirm that lands while Planet Focus is still GROWING the board
   // snaps the transition to its settled state NOW — the detect measures the
@@ -462,6 +467,7 @@ export function armTilePlacement(opts: {
   cubeHeld = false;
   armedReplacing = opts.replacing === true;
   armedStacking = opts.stacking === true;
+  armedOverOcean = opts.overOcean === true;
   clearMoveScene();
   armedMovedFrom = opts.movedFrom;
   clearStackScene();
@@ -548,7 +554,7 @@ export function detectTilePlacement(
     // proxy's own box, which is the DESTINATION hex). The source is measured
     // RAW, now, while the city still stands on it. The server's record of this
     // move is claimed: the hero plays it, the remote stage never will.
-    tilePlacementState.move = {from: landed.moves.from, stack: landed.moves.stack};
+    tilePlacementState.move = {from: landed.moves.from, stack: landed.moves.stack, ...(landed.moves.stays !== undefined ? {stays: landed.moves.stays} : {})};
     tilePlacementState.departingTile = landed.moves.tileType;
     tilePlacementState.departingCube = departingCubePose(landed.moves.color, hexRect);
     moveSourceHex = measureBoardHexRect(landed.moves.from);
@@ -691,6 +697,10 @@ async function executeApproach(
     if (move.stack !== undefined) {
       stackRelease(move.from);
     }
+    // THE WATER LEFT FROM UNDER THE CITY (TR44): the city that stays settles onto the ground in this very turn.
+    if (move.stays !== undefined && move.stays.tileType !== TileType.OCEAN) {
+      stackDried(move.from);
+    }
   };
 
   const stack = tilePlacementState.stack;
@@ -739,10 +749,18 @@ async function executeApproach(
   }
   const els = stage?.els();
   const ui = conUiScale();
+  // A CITY ON TOP OF AN OCEAN (TR44): the tile lands INTO the pile's lift over the water — where the board paints
+  // the top of a two-piece cell (`stackLandingRect`, the same geometry the reticle's afloat pose and the tier's
+  // landing use) — never onto the full hex: the water stays the ground, painted the whole way.
+  const afloat = armedOverOcean && tilePlacementState.coveredTile === TileType.OCEAN && tilePlacementState.tileType === TileType.CITY;
+  const landingRect = afloat ? stackLandingRect(hexRect, 2) : hexRect;
   if (els === undefined || !placeTileProxy(els, {
-    hex: hexRect,
+    hex: landingRect,
     from: tableSupplyPoint(ui),
   })) {
+    if (afloat) {
+      stackContact(tilePlacementState.spaceId as SpaceId);
+    }
     paintRealTile();
     tilePlacementState.phase = 'landed';
     await wait(60);
@@ -766,7 +784,7 @@ async function executeApproach(
     });
   }
   await playTileFlight(els, {
-    hex: hexRect,
+    hex: landingRect,
     from: tableSupplyPoint(ui),
     uiScale: ui,
     flightMs,
@@ -788,8 +806,14 @@ async function executeApproach(
   }
   if (tilePlacementState.coveredTile !== undefined) {
     // The tile landed ON the water — the sea acknowledges the mass with one
-    // calm ring while the proxy dissolves onto the committed tile.
+    // calm ring while the proxy dissolves onto the committed tile. The ring is
+    // the WATER's (the full hex), whatever the tile's own landing rect.
     playCoverSplash(els, {hex: hexRect, uiScale: ui, splashMs: motionMs(OCEAN_SPLASH_MS)});
+  }
+  if (afloat) {
+    // THE FRAME OF CONTACT on the water: the cell takes its one micro-jolt (the stack scene's own — a city settling
+    // onto its ground; no counter here, so nothing ticks) in the same synchronous turn the pile paints.
+    stackContact(tilePlacementState.spaceId as SpaceId);
   }
   paintRealTile();
   tilePlacementState.phase = 'landed';
@@ -907,13 +931,18 @@ async function runTierDescent(hex: TileRect, tiers: number, paintRealTile: () =>
  */
 async function runMove(
   hex: TileRect,
-  move: {from: SpaceId, stack?: {from: number, to: number}},
+  move: {from: SpaceId, stack?: {from: number, to: number}, stays?: {tileType: TileType, color: Color | undefined}},
   vacateSource: () => void,
   paintRealTile: () => void,
 ): Promise<void> {
   const els = stage?.els();
   const ui = conUiScale();
-  const source = moveSourceHex === undefined ? undefined : moveSourceRect(moveSourceHex, move.stack?.from ?? 1);
+  // TWO TILES ON ONE CELL (TR44): a city leaving its WATER starts in the pile's lift (the top of a two-piece cell —
+  // `stackLandingRect`, exactly where the board paints it); the water leaving from UNDER a city starts on the full
+  // hex it is the ground of. The piece that stays is painted the whole way — the cell is never bare for a frame.
+  const sourceTiers = move.stack?.from ?? (move.stays?.tileType === TileType.OCEAN ? 2 : 1);
+  const source = moveSourceHex === undefined ? undefined : moveSourceRect(moveSourceHex, sourceTiers);
+  const stays = move.stays !== undefined;
   if (els === undefined || source === undefined || !placeMoveProxy(els, source, hex)) {
     tilePlacementState.moveDegraded = true;
     vacateSource();
@@ -924,13 +953,13 @@ async function runMove(
   }
   // THE HANDOFF — same synchronous turn as the pose above.
   vacateSource();
-  await nextTick(); // A repaints: a bare hex with its printed icons, or the lower stack
+  await nextTick(); // A repaints: a bare hex with its printed icons, the lower stack — or the piece that stays
   if (!tilePlacementState.active) {
     return;
   }
   const liftMs = motionMs(MOVE_LIFT_MS);
   const carryMs = motionMs(MOVE_CARRY_MS);
-  if (move.stack === undefined) {
+  if (move.stack === undefined && !stays) {
     // The bare hex SURFACES under the lifting tile (the removal's own one-shot).
     revealVacatedBonuses(move.from, Math.round(liftMs * TILE_DEPART_REVEAL_T));
   }
@@ -955,8 +984,9 @@ async function runMove(
     landMs: motionMs(MOVE_LAND_MS),
     onCleared: () => {
       // The tile has left A's contour: the vacated cell settles once. A stack
-      // answered already (its counter, its base) — it is not vacated.
-      if (tilePlacementState.active && move.stack === undefined) {
+      // answered already (its counter, its base) — it is not vacated; nor is
+      // a cell whose other piece stays (TR44).
+      if (tilePlacementState.active && move.stack === undefined && !stays) {
         markCellVacated(move.from);
       }
     },

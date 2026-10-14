@@ -62,6 +62,17 @@ describe('Water Export — the removal scene and its readings', () => {
     expect(detectFreshRemovals(next, prev), 'read backwards, the city\'s landing is the removal and the ocean\'s removal is a landing').deep.eq([{spaceId: '12', tileType: TileType.CITY, color: 'blue'}]);
   });
 
+  it('the ocean OUT FROM UNDER a city (TR44): the removal names the ocean that left AND the city that stays — the same city, owner and stack', () => {
+    const over = (stackHeight?: number): SpaceModel => ({...cell('10', TileType.CITY, 'blue'), under: TileType.OCEAN, ...(stackHeight === undefined ? {} : {stackHeight})});
+    const dry = (stackHeight?: number): SpaceModel => ({...cell('10', TileType.CITY, 'blue'), ...(stackHeight === undefined ? {} : {stackHeight})});
+    expect(detectFreshRemovals([over()], [dry()])).deep.eq([{spaceId: '10', tileType: TileType.OCEAN, color: undefined, stays: {tileType: TileType.CITY, color: 'blue'}}]);
+    expect(detectFreshRemovals([over(2)], [dry(2)]), 'the stack stays whole').deep.eq([{spaceId: '10', tileType: TileType.OCEAN, color: undefined, stays: {tileType: TileType.CITY, color: 'blue'}}]);
+    expect(detectFreshRemovals([over(2)], [dry()]), 'a stack that lost a tier with its water is not this removal').deep.eq([]);
+    expect(detectFreshRemovals([over()], [cell('10', TileType.CITY, 'red')]), 'another owner\'s city is not the same city').deep.eq([]);
+    expect(detectFreshRemovals([over()], [cell('10')]), 'a cell emptied whole is the whole tile\'s removal (never what the engine does to a TR44 cell)').deep.eq([{spaceId: '10', tileType: TileType.CITY, color: 'blue'}]);
+    expect(detectFreshPlacements([over()], [dry()]), 'the placement diff sees nothing').deep.eq([]);
+  });
+
   it('STAGING a removal holds the emptied cell PAINTING the tile that left, queues the lift and HOLDS the presentation', () => {
     const prev = [cell('10', TileType.OCEAN)];
     const next = [cell('10')];
