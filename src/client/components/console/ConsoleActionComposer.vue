@@ -944,7 +944,7 @@ import {heldCardCapsule, releasePanelRewardHold} from '@/client/console/resource
 import {choiceSourceView} from '@/client/console/promptSource';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import type {ICardRenderEffect, ItemType} from '@/common/cards/render/Types';
-import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import {adoptDeckSeed, holdDeckDisplay, isDeckDisplayHeld, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -5689,6 +5689,9 @@ export default defineComponent({
       // first and the rejects never (the e2e under load: the pile then just «knew» 2). Bounded: past the net the find
       // goes as before and the pile still says the server's count through the reveal.
       if (this.beatAwaitsSearchAnswer()) {
+        // The deck's counter is HELD at its pre-answer size NOW (PL-281): held after the answer it read the answered
+        // size, the stream ticked it two further down, and the release flipped it back UP by two (reduced motion).
+        this.holdBeatDeck();
         if (this.beatAnswerNet === undefined) {
           this.beatAnswerNet = window.setTimeout(() => {
             this.beatAnswerNet = undefined;
@@ -5717,7 +5720,7 @@ export default defineComponent({
       // before anything has physically left, which is the opposite of the
       // causal story the whole beat exists to tell. Released as the first card
       // visibly separates, so the tick lands ON the separation.
-      holdDeckDisplay(this.playerView.game.deckSize);
+      this.holdBeatDeck();
       // THE THROWN-AWAY CARDS LEAVE FIRST (TR52, PL-261): a search this beat
       // deals turned cards over and threw them away BEFORE the found ones came
       // off the deck — the scene's layer deals them aside onto the table's
@@ -5743,6 +5746,26 @@ export default defineComponent({
           launch();
         }
       });
+    },
+    /**
+     * The deck's hold for this beat (PL-281) — the apply block's seed adopted when the answer is already in, else the
+     * PRE-ANSWER size, taken once: a counter the answer has already moved is never held back (that would flip it UP
+     * again — PL-088), and a standing hold is never overwritten with a later value.
+     */
+    holdBeatDeck(): void {
+      // The answer is in and the apply block kept the pre-draw count for this very batch (PL-088): take it over.
+      if (adoptDeckSeed()) {
+        return;
+      }
+      // A hold already stands (this beat's own, from an earlier entry): never re-held at a later value.
+      if (isDeckDisplayHeld()) {
+        return;
+      }
+      // Before the answer the live count IS the pre-draw count; after it, with no seed, the counter has already
+      // moved — holding it back would flip it UP again (PL-088), so it is left alone and the beat ticks nothing.
+      if (!workspaceOutcomeState.answerIn) {
+        holdDeckDisplay(this.playerView.game.deckSize);
+      }
     },
     /** The beat's draw is a SEARCH (its chip carries the server's rule) and the answer is not in yet. */
     beatAwaitsSearchAnswer(): boolean {

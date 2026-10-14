@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, settle, walkFocusUntil,
+  bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -418,8 +418,16 @@ for (const preset of PRESETS) {
           await press(page, 'Enter', 2000);
         }
         if (await embeddedHand.count() > 0) {
-          await cinematicBeat(page, 1600, 'the hand opens');
-          await press(page, 'Enter', 600); // discard the focused card
+          // The album is READY once its open flight has landed (`--live` arms after the mount settles and is held off
+          // through a reveal episode); at 4K on SwiftShader that flight outlasts any fixed beat, and a press inside it
+          // is absorbed by design — so A is repeated until the throw has visibly begun (the hand leaving, the discard
+          // proxy born, the pile ARMED for the hand's card), never counted by the press.
+          await page.locator('.con-colonies .con-hand--embedded .con-hand__pagestrip--live').first()
+            .waitFor({state: 'visible', timeout: 20_000}).catch(() => undefined);
+          await cinematicBeat(page, 600, 'the hand is open');
+          const thrown = async () => await embeddedHand.count() === 0 ||
+            await page.locator('.con-discard-proxy, [data-discard-pile] .con-dpile__plate--armed').count() > 0;
+          expect(await pressUntil(page, 'Enter', thrown, {tries: 4, settleMs: 2500}), `cycle ${cycle}: the discard press took`).toBe(true);
           discards++;
           await cinematicBeat(page, 900, 'the discarded card is on its way to the pile');
           if (cycle === 1) {

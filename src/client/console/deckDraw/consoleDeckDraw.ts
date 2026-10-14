@@ -66,6 +66,13 @@ export type DeckDrawHandle = {
 
 export const deckDrawState = reactive({
   active: false,
+  /**
+   * A DISCARD STREAM is in flight (PL-261 — the layer deals a workspace's rejects onto the pile): from the request to
+   * the LAST toss's landing. A reveal pulls the pile up to the server's count only once no stream is landing cards
+   * (PL-280: in reduced motion the find stood before the stream's tosses touched down — the reveal set the count to
+   * 2, then the two landings ticked it to 4).
+   */
+  streaming: false,
   phase: 'idle' as DeckDrawPhase,
   /** Bumped per arm — the layer (re-)starts its scene on this. */
   nonce: 0,
@@ -491,6 +498,11 @@ export type DiscardStreamRequest = {
 let streamHandler: ((req: DiscardStreamRequest) => boolean) | undefined;
 
 /** The layer registers the player of the stream (idempotent re-register; `undefined` on unmount). */
+/** The layer reports the stream's life: true at the request, false once every toss has landed (or the stream was cut). */
+export function markDiscardStreaming(on: boolean): void {
+  deckDrawState.streaming = on;
+}
+
 export function registerDiscardStreamPlayer(fn: ((req: DiscardStreamRequest) => boolean) | undefined): void {
   streamHandler = fn;
 }

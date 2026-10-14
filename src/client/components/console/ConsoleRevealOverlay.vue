@@ -1578,9 +1578,9 @@ export default defineComponent({
       const untaken = e === undefined ? 0 : e.cards.length - e.takenIndices.size;
       return e !== undefined && this.discardedCards.length > 0 && untaken > 0 ? `reveal:${e.id}` : '';
     },
-    /** A deck-draw scene is playing (reactive read of the scene's own flag). */
+    /** The deck is DEALING — the scene, or a workspace's discard stream (reactive reads of the module's own facts). */
     deckDrawLive(): boolean {
-      return deckDrawState.active;
+      return deckDrawState.active || deckDrawState.streaming;
     },
   },
   watch: {
@@ -2608,7 +2608,7 @@ export default defineComponent({
      * into a standing reveal, an aborted scene): the cards are on the pile by the rules, the count may not lag them.
      */
     syncDiscardPileCount(): void {
-      if (this.discardPileLease !== '' && !deckDrawState.active) {
+      if (this.discardPileLease !== '' && !deckDrawState.active && !deckDrawState.streaming) {
         ensureDiscardPileCount(this.discardedCards.length);
       }
     },

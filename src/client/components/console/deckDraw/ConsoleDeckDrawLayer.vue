@@ -10,7 +10,7 @@
     into the HOST's zone and settles into the hold row. Pointer-inert, clipped;
     the controller owns the beats, the director the GSAP.
   -->
-  <div v-if="deckDrawState.active || streamLive" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" aria-hidden="true">
+  <div v-if="deckDrawState.active || deckDrawState.streaming" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" aria-hidden="true">
     <!-- (The discard TRAY that used to stand here — at 66 % / 38vh of the VIEWPORT, wherever the host was — is gone:
          a thrown-away card now lands on the table's ONE pile, «СБРОШЕННЫЕ», beside the HUD deck it came from —
          `ConsoleDiscardPile` / discardPile.ts, TR52 PL-260.) -->
@@ -73,7 +73,7 @@ import {
   abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, DiscardStreamRequest, endDeckDraw,
   releaseDeckDrawSeed, isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
   markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
-  registerDiscardStreamPlayer, setDeckDrawPhase,
+  markDiscardStreaming, registerDiscardStreamPlayer, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
 import {tickDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
@@ -200,8 +200,6 @@ export default defineComponent({
       flipRefs: [] as Array<HTMLElement | null>,
       /** The batch this scene deals — the name of its lease on the discard pile (`scene:<id>`). */
       sceneEventId: undefined as number | undefined,
-      /** A DISCARD STREAM is playing (a workspace owns the batch's arrival; this layer deals its thrown-away cards). */
-      streamLive: false,
       /** The hold zone's base is only drawn once a card is actually resting. */
       showHoldBase: false,
       holdBaseStyle: {} as Record<string, string>,
@@ -326,6 +324,12 @@ export default defineComponent({
           // with the turn — the table ADOPTS the seed instead of letting it go (colony polish 1).
           if (settlementClaimsBatch(r.e.source)) {
             adoptSettlementDeck();
+            return;
+          }
+          // A WORKSPACE's own beat deals this batch (the card-actions composer — PL-261): it ADOPTS the seed at its
+          // entry and ticks it per card; released here, the answered count showed a beat before anything had left the
+          // deck whenever the answer beat the beat's entry (PL-281 — a fast local server, every run).
+          if (workspaceClaimOwnsArrival(r.e.source)) {
             return;
           }
           // Somebody else flies it — the apply-block seed that kept its cards on the counter lets go (PL-088).
@@ -808,7 +812,7 @@ export default defineComponent({
     settleStream(): void {
       const stream = ctx.stream;
       ctx.stream = undefined;
-      this.streamLive = false;
+      markDiscardStreaming(false);
       if (stream !== undefined) {
         stream.allPeeled();
         releaseDiscardPile(stream.lease);
@@ -822,14 +826,14 @@ export default defineComponent({
      * fires it anyway — the owner's flight can never wait on a stream that stalled).
      */
     playDiscardStream(req: DiscardStreamRequest): boolean {
-      if (deckDrawState.active || this.streamLive) {
+      if (deckDrawState.active || deckDrawState.streaming) {
         return false;
       }
       const deck = document.querySelector<HTMLElement>(DECK_SEL)?.getBoundingClientRect();
       if (deck === undefined || deck.width < 2) {
         return false;
       }
-      this.streamLive = true;
+      markDiscardStreaming(true);
       const lease = `stream:${req.eventId}`;
       openDiscardPile(lease);
       this.sceneCards = req.cards.map((name) => ({name, matched: false}));
@@ -908,7 +912,8 @@ export default defineComponent({
       if (!deckDrawState.active) {
         this.sceneCards = [];
       }
-      this.streamLive = false;
+      // Every toss has LANDED (the caller's `done`) — only now may a reveal read the server's count onto the pile.
+      markDiscardStreaming(false);
       const started = Date.now();
       const handOver = () => {
         const owed = pendingRevealEvents().some((e) => e.id === eventId);
