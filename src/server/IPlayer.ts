@@ -186,6 +186,18 @@ export type PendingCardIntake = {
  */
 export type CardAction = 'add' | 'discard' | 'nothing' | 'double-down';
 
+/**
+ * ONE term of a player's global-requirement bonus on one parameter — WHO
+ * (`source`, named like a discount's) gives how many `steps`, and whether the
+ * next card play spends it (`oneShot`: a `nextCardOnly` declaration, the
+ * Ecology Experts probe). See `IPlayer.requirementBonusBreakdown`.
+ */
+export type RequirementBonusEntry = {
+  source: EventSource;
+  steps: number;
+  oneShot: boolean;
+};
+
 export interface IPlayer {
   readonly id: PlayerId;
   name: string;
@@ -516,10 +528,32 @@ export interface IPlayer {
    */
   getGlobalParameterRequirementBonus(parameter: GlobalParameter): number;
   /**
+   * {@link getGlobalParameterRequirementBonus} itemized — WHO gives how many
+   * steps (a card, a corporation, a party policy, an underground token), and
+   * whether the next card play spends it. The sum IS the bonus: the one
+   * breakdown every reading of a requirement modifier stands on
+   * (`models/requirementEasing.ts`, `unplayableReasons`' `effectiveCount`).
+   */
+  requirementBonusBreakdown(parameter: GlobalParameter): Array<RequirementBonusEntry>;
+  /**
+   * WHO lets this player IGNORE the global requirements on `parameter` right
+   * now (Cutting-Edge Design TR49 / Ecology Experts while armed — a
+   * `{waive: true}` declaration), or `undefined`. A waived requirement is MET
+   * (`GlobalParameterRequirement.satisfies`), before any Think Tank bridge:
+   * never a bound stretched by a sentinel number.
+   */
+  globalRequirementWaiver(parameter: GlobalParameter): EventSource | undefined;
+  /**
    * When Ecology Experts evaluates whether it can be played, it needs
    * this temporary requirement bonus for global parameters.
    */
   temporaryGlobalParameterRequirementBonus: number;
+  /**
+   * The PROBE's waiver: a card that asks «could a card be played if its own
+   * waiver were armed?» (Ecology Experts' `bespokeCanPlay`) names itself here
+   * for the length of the question (try / finally) — never serialized.
+   */
+  temporaryGlobalRequirementWaiver: CardName | undefined;
   /**
    * Called when this player is responsible for increasing a global parameter.
    */

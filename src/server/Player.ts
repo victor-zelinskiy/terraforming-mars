@@ -41,7 +41,11 @@ import {Timer} from '../common/Timer';
 import {TurmoilHandler} from './turmoil/TurmoilHandler';
 import {AllOptions, DrawCards, DrawOptions} from './deferredActions/DrawCards';
 import {Units} from '../common/Units';
-import {EventSource} from '../common/events/EventSource';
+import {EventSource, sourceKey} from '../common/events/EventSource';
+import {RequirementEasedFact} from '../common/events/EventImpact';
+import {RequirementEasingModel} from '../common/models/ArmedPlayEffectModel';
+import {requirementEasingOf} from './models/requirementEasing';
+import {LogMessageBuilder} from './logs/LogMessageBuilder';
 import {CapturedEventContext} from './events/EventRecorder';
 import {MoonExpansion} from './moon/MoonExpansion';
 import {IStandardProjectCard} from './cards/IStandardProjectCard';
@@ -71,7 +75,7 @@ import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/gam
 import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -376,6 +380,7 @@ export class Player implements IPlayer {
   public deltaProjectData?: DeltaProjectPlayerModel;
   public standardProjectsThisGeneration: Set<CardName> = new Set();
   public temporaryGlobalParameterRequirementBonus = 0;
+  public temporaryGlobalRequirementWaiver: CardName | undefined = undefined;
 
   // The number of actions a player can take this round.
   // It's almost always 2, but certain cards can change this value (Mars Maths, Tool with the First Order)
@@ -777,19 +782,104 @@ export class Player implements IPlayer {
   }
 
   public getGlobalParameterRequirementBonus(parameter: GlobalParameter): number {
-    let requirementsBonus = this.temporaryGlobalParameterRequirementBonus;
+    // The SUM of the one breakdown — the two readings can never disagree.
+    return this.requirementBonusBreakdown(parameter).reduce((sum, entry) => sum + entry.steps, 0);
+  }
+
+  public requirementBonusBreakdown(parameter: GlobalParameter): Array<RequirementBonusEntry> {
+    const out: Array<RequirementBonusEntry> = [];
+    if (this.temporaryGlobalParameterRequirementBonus !== 0) {
+      out.push({source: {kind: 'system'}, steps: this.temporaryGlobalParameterRequirementBonus, oneShot: true});
+    }
     for (const card of this.tableau) {
-      requirementsBonus += card.getGlobalParameterRequirementBonus(this, parameter);
+      const steps = card.getGlobalParameterRequirementBonus(this, parameter);
+      if (steps !== 0) {
+        out.push({
+          source: {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color},
+          steps,
+          oneShot: card.globalParameterRequirementBonus?.nextCardOnly === true,
+        });
+      }
     }
 
     // PoliticalAgendas Scientists P2 hook
     if (PartyHooks.shouldApplyPolicy(this, PartyName.SCIENTISTS, 'sp02')) {
-      requirementsBonus += 2;
+      out.push({source: {kind: 'party', name: PartyName.SCIENTISTS, owner: this.color}, steps: 2, oneShot: false});
     }
 
-    requirementsBonus += UnderworldExpansion.getGlobalParameterRequirementBonus(this, parameter);
+    const underworld = UnderworldExpansion.getGlobalParameterRequirementBonus(this, parameter);
+    if (underworld !== 0) {
+      out.push({source: {kind: 'system'}, steps: underworld, oneShot: false});
+    }
+    return out;
+  }
 
-    return requirementsBonus;
+  public globalRequirementWaiver(parameter: GlobalParameter): EventSource | undefined {
+    if (this.temporaryGlobalRequirementWaiver !== undefined) {
+      return {kind: 'card', card: this.temporaryGlobalRequirementWaiver, owner: this.color};
+    }
+    // The table, and the replayed events beside it (Playwrights) — the same
+    // two places the price breakdown asks for a one-play discount.
+    for (const card of [...this.tableau, ...this.removedFromPlayCards]) {
+      if (card.waivesGlobalRequirements?.(this, parameter) === true) {
+        return {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color};
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * The play's own record of WHO let it through (TR49 class): one
+   * `requirement-eased` event per modifier of a requirement met ONLY thanks to
+   * it, and a detail line under «played» (like «saved N M€ playing with X»).
+   */
+  private recordRequirementEasing(card: IProjectCard, eased: ReadonlyArray<RequirementEasingModel>): void {
+    const bySource = new Map<string, {source: EventSource, fact: RequirementEasedFact & {requirements: Array<RequirementEasedFact['requirements'][number]>}}>();
+    for (const easing of eased) {
+      for (const share of easing.sources) {
+        const key = sourceKey(share.source);
+        let entry = bySource.get(key);
+        if (entry === undefined) {
+          entry = {source: share.source, fact: {kind: share.kind, oneShot: share.oneShot, requirements: []}};
+          if (share.steps !== undefined) {
+            entry.fact.steps = share.steps;
+          }
+          bySource.set(key, entry);
+        }
+        entry.fact.requirements.push({type: easing.type, parameter: easing.parameter, max: easing.max, printed: easing.printed, effective: easing.effective});
+      }
+    }
+    for (const {source, fact} of bySource.values()) {
+      this.game.events?.recordRequirementEased(this, source, card.name, fact);
+      const name = (b: LogMessageBuilder) => {
+        if (source.kind === 'card' || source.kind === 'corporation') {
+          b.cardName(source.card);
+        } else if (source.kind === 'party') {
+          b.partyName(source.name);
+        }
+      };
+      if (source.kind !== 'card' && source.kind !== 'corporation' && source.kind !== 'party') {
+        continue;
+      }
+      if (fact.kind === 'waive') {
+        this.game.log('${0} ignored the global requirements of ${1} thanks to ${2}', (b) => {
+          b.player(this).card(card);
+          name(b);
+        });
+        continue;
+      }
+      for (const requirement of fact.requirements) {
+        const effective = requirement.effective;
+        if (effective === 'waived') {
+          continue;
+        }
+        this.game.log('${0} met the ${1} requirement of ${2} thanks to ${3}: ${4} → ${5}', (b) => {
+          b.player(this).globalParameter(requirement.parameter).card(card);
+          name(b);
+          b.number(requirement.printed).number(effective);
+        });
+      }
+    }
   }
 
   public onGlobalParameterIncrease(parameter: GlobalParameter, steps: number): void {
@@ -1400,6 +1490,9 @@ export class Player implements IPlayer {
     ColoniesHandler.maybeActivateColonies(this.game, selectedCard);
 
     if (selectedCard.type !== CardType.PROXY) {
+      // Read BEFORE `lastCardPlayed` moves: a one-play modifier that lets this
+      // card through is still armed here, and THIS assignment spends it.
+      const eased = requirementEasingOf(this, selectedCard).filter((easing) => easing.decisive);
       this.lastCardPlayed = selectedCard.name;
       this.game.log('${0} played ${1}', (b) => b.player(this).card(selectedCard));
       // Discount detail lines — grouped UNDER the play (role 'detail'), so the
@@ -1412,6 +1505,7 @@ export class Player implements IPlayer {
           }
         }
       }
+      this.recordRequirementEasing(selectedCard, eased);
     }
 
     // Play the card

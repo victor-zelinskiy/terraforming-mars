@@ -1,4 +1,5 @@
 import {Units} from '../Units';
+import {RequirementType} from '../cards/RequirementType';
 import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
 import {CardName} from '../cards/CardName';
@@ -31,6 +32,14 @@ export type CardResourceBasis = {count: number; unitKey: string};
  */
 /** THE ROAD a party's effect came or went by (`EventImpact.partyEffect`). */
 export type PartyEffectBasis = 'ruling' | 'delegates' | 'card';
+
+/** One modifier's share of a play's eased requirements — see `EventImpact.requirementEased`. */
+export type RequirementEasedFact = {
+  kind: 'shift' | 'waive';
+  steps?: number;
+  oneShot: boolean;
+  requirements: ReadonlyArray<{type: RequirementType; parameter: GlobalParameter; max: boolean; printed: number; effective: number | 'waived'}>;
+};
 
 export type EventImpact = {
   /** Standard resource stock change (signed). */
@@ -68,6 +77,13 @@ export type EventImpact = {
    * microbes, Carbon Nanosystems graphene, …), never inferred from a stock delta.
    */
   megacreditsSaved?: number;
+  /**
+   * `requirement-eased` (TR49 class): the printed global requirements of the
+   * played card that THIS modifier let through — `effective` the bound it
+   * made of the printed one, or `'waived'`; `kind` / `steps` the
+   * modifier's own reading; `oneShot` = the play spent it.
+   */
+  requirementEased?: RequirementEasedFact;
   /**
    * Card resources SPENT as payment (Psychrophiles microbes worth 2 M€, Carbon
    * Nanosystems graphene worth 4 M€, …) — tracked SEPARATELY from accumulation

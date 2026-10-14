@@ -1,0 +1,106 @@
+import {CardName} from '../cards/CardName';
+import {CardType} from '../cards/CardType';
+import {RequirementType} from '../cards/RequirementType';
+import {Tag} from '../cards/Tag';
+import {GlobalParameter} from '../GlobalParameter';
+import {EventSource} from '../events/EventSource';
+
+/**
+ * WHAT A ONE-PLAY EFFECT DOES to the card that spends it — the three kinds the
+ * card set prints (TR49 class, `docs/TURMOIL_REDUX_CUTTING_EDGE_DESIGN.md`):
+ *
+ * - `requirementShift` — every global requirement of the next card is ±`steps`
+ *   steps (Special Design: ±2, «your choice in each case»); `parameter` narrows
+ *   it to one scale (none in the set today — the field is the declaration's).
+ * - `requirementWaiver` — the next card IGNORES its global requirements
+ *   (Cutting-Edge Design TR49, Ecology Experts). A KIND, never a number: an
+ *   ignored requirement is MET, not «stretched by 50 steps».
+ * - `discount` — the next card costs `amount` M€ less (Indentured Workers 8,
+ *   Conscription 16, Eccentric Sponsor 25).
+ */
+export type ArmedPlayEffectKind =
+  | {kind: 'requirementShift'; steps: number; parameter?: GlobalParameter}
+  | {kind: 'requirementWaiver'; parameter?: GlobalParameter}
+  | {kind: 'discount'; amount: number; tag?: Tag};
+
+/**
+ * AN ARMED ONE-PLAY EFFECT — what the NEXT card this player plays this
+ * generation will spend. Armed by the card that was played last
+ * (`IPlayer.lastCardPlayed` — one field, so one armed card at a time: a new
+ * play REPLACES what was armed), spent by the next card played by ANY road
+ * (from hand, from a prelude's «play a card», a variant), whether or not that
+ * card needs it; lost on the pass that ends the player's generation.
+ *
+ * Read by ONE server reader (`cards/armedPlayEffects.ts`) off the source
+ * card's own declarations, and published PUBLICLY on the seat
+ * (`PublicPlayerModel.armedPlayEffects`): the arming card lies face-up on the
+ * table and `lastCardPlayed` is public already, so a rival's «ЭФФЕКТЫ» shows
+ * what this seat holds just as its own hand does.
+ */
+export type ArmedPlayEffectModel = {
+  /** The card that armed it — the card played last. */
+  source: CardName;
+  /** The source's type — a PRELUDE hosts its own next play inside its effect. */
+  sourceType: CardType;
+  effect: ArmedPlayEffectKind;
+  /** It ends with the next card play (or the pass that ends the generation). */
+  expires: 'next-play';
+};
+
+/**
+ * ONE MODIFIER OF A PRINTED GLOBAL REQUIREMENT, named — a card, a corporation,
+ * a party policy, an underground token (`EventSource`, the same naming the
+ * discount breakdown uses). `shift` moves the bound by `steps` (both
+ * directions — a MIN bound relaxes down, a MAX bound stretches up); `waive`
+ * sets the requirement aside entirely. `oneShot` = the next card play spends it.
+ */
+export type RequirementEasingSourceModel = {
+  source: EventSource;
+  kind: 'shift' | 'waive';
+  /** For `shift`: the steps this source adds (always > 0 in the set). */
+  steps?: number;
+  oneShot: boolean;
+};
+
+/**
+ * A PRINTED GLOBAL REQUIREMENT UNDER A MODIFIER — the server's ONE reading
+ * (`models/requirementEasing.ts`) of how the player's modifiers bend one
+ * global-parameter requirement of one card, so every surface that prints the
+ * requirement (the face's requirement cassette in the hand / the composer's
+ * hero / the inspector, the hand's plate, the availability verdict, «ДЛЯ ВАС»,
+ * the composer's requirement row) tells the SAME story without deriving a
+ * rule: printed → effective, by whom, for one play or for good.
+ *
+ * Present only when at least one modifier touches the requirement. Self-only
+ * (rides the viewer's own hand, like `unplayableReasons`): a rival's card
+ * face stays printed.
+ */
+export type RequirementEasingModel = {
+  /**
+   * The requirement's address — the same `req:<type>[~n]` the rules block and
+   * `UnplayableReason.requirementKey` use, so the cassette, the reason and
+   * the rule line point at one requirement.
+   */
+  key: string;
+  /** Position in the card's printed requirement list (the cassette's order). */
+  index: number;
+  type: RequirementType;
+  parameter: GlobalParameter;
+  /** A MAX bound («or less»). */
+  max: boolean;
+  /** The printed bound, in the scale's own units. */
+  printed: number;
+  /** The bound after every modifier; `'waived'` = the requirement is ignored. */
+  effective: number | 'waived';
+  /** The scale's value now (the HUD number). */
+  current: number;
+  /** The modifiers, named, in the order the engine sums them. */
+  sources: ReadonlyArray<RequirementEasingSourceModel>;
+  /** Met with the modifiers. */
+  met: boolean;
+  /**
+   * Met ONLY because of the modifiers — the printed bound alone fails it. The
+   * card is playable THANKS TO a named effect, and every surface says so.
+   */
+  decisive: boolean;
+};

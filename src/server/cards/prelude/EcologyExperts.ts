@@ -10,6 +10,9 @@ export class EcologyExperts extends PreludeCard {
     super({
       name: CardName.ECOLOGY_EXPERTS,
       tags: [Tag.PLANT, Tag.MICROBE],
+      // The card it plays IGNORES its global requirements — a waiver by KIND
+      // (TR49 class), spent by that very play.
+      globalParameterRequirementBonus: {waive: true, nextCardOnly: true},
 
       behavior: {
         production: {plants: 1},
@@ -33,14 +36,6 @@ export class EcologyExperts extends PreludeCard {
       },
     });
   }
-  public override getGlobalParameterRequirementBonus(player: IPlayer): number {
-    if (player.lastCardPlayed === this.name) {
-      // Magic number high enough to always ignore requirements.
-      return 50;
-    }
-    return 0;
-  }
-
   // bespokeCanPlay (NOT a full canPlay override) so the base still ANDs the
   // requirement + `canExecute(behavior)` checks — that keeps the unplayable-reason
   // mirror (`unplayableReasons`) honest. The behavior here is only `production:
@@ -56,7 +51,8 @@ export class EcologyExperts extends PreludeCard {
 
   public override bespokeCanPlay(player: IPlayer) {
     // NOTE: If the player has production-based benefits from this prelude (like )
-    player.temporaryGlobalParameterRequirementBonus += 50;
+    // The waiver this card arms, named for the length of the question.
+    player.temporaryGlobalRequirementWaiver = this.name;
     player.production.plants++;
     if (player.playedCards.has(CardName.MANUTECH)) {
       player.plants++;
@@ -64,7 +60,7 @@ export class EcologyExperts extends PreludeCard {
     try {
       return player.getPlayableCards().length > 0;
     } finally {
-      player.temporaryGlobalParameterRequirementBonus -= 50;
+      player.temporaryGlobalRequirementWaiver = undefined;
       player.production.plants--;
       if (player.playedCards.has(CardName.MANUTECH)) {
         player.plants--;

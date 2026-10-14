@@ -12,6 +12,9 @@ export class EccentricSponsor extends PreludeCard {
   constructor() {
     super({
       name: CardName.ECCENTRIC_SPONSOR,
+      // A ONE-PLAY discount on the card this prelude plays (TR49 class) — the
+      // engine reads it while this card is `lastCardPlayed`.
+      cardDiscount: {amount: ECCENTRIC_SPONSOR_DISCOUNT, nextCardOnly: true},
 
       metadata: {
 
@@ -37,8 +40,8 @@ export class EccentricSponsor extends PreludeCard {
    * through `bespokePlay`.
    *
    * The question is asked about the POST-PLAY state, because the discount is not
-   * observable yet: `getCardDiscount` only grants it once this card sits in the
-   * tableau AND `lastCardPlayed` names it. A hypothetical `extraDiscount` is the
+   * observable yet: the `nextCardOnly` declaration only grants it once this card
+   * sits in the tableau AND `lastCardPlayed` names it. A hypothetical `extraDiscount` is the
    * WHOLE difference — playing a prelude costs nothing, this card carries no
    * tags (so it triggers nothing) and grants no resources.
    *
@@ -66,13 +69,6 @@ export class EccentricSponsor extends PreludeCard {
     // not active yet. Same function, so it restores exactly what it wrote.
     player.getPlayableCards();
     return playable;
-  }
-
-  public override getCardDiscount(player: IPlayer) {
-    if (player.lastCardPlayed === this.name) {
-      return ECCENTRIC_SPONSOR_DISCOUNT;
-    }
-    return 0;
   }
 
   public override bespokePlay(player: IPlayer) {

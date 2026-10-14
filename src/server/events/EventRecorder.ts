@@ -13,7 +13,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
-import {CardResourceBasis, DeckSearchFact, EventImpact, SkippedEffectFact} from '../../common/events/EventImpact';
+import {CardResourceBasis, DeckSearchFact, EventImpact, RequirementEasedFact, SkippedEffectFact} from '../../common/events/EventImpact';
 import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
 import {IPlayer} from '../IPlayer';
@@ -821,6 +821,28 @@ export class EventRecorder {
       target: target !== undefined ? {card: target} : undefined,
       impact: {megacreditsSaved: saved},
       tags: source.kind === 'corporation' ? ['discount', 'corporation', 'passive-effect'] : ['discount', 'passive-effect'],
+    });
+  }
+
+  /**
+   * A CARD WAS PLAYED THANKS TO A REQUIREMENT MODIFIER (TR49 class) — one
+   * event per modifier `source`, its eased requirements in `fact`. Under the
+   * play's own scope, so it joins the play's chain: the journal draws its row
+   * under the root, a rival's notification names the modifier. A PASSIVE
+   * effect of the modifier (like a discount), so the effects overlay counts
+   * it as one of its triggers. Written only by `Player.playCard`.
+   */
+  public recordRequirementEased(player: IPlayer, source: EventSource, card: CardName, fact: RequirementEasedFact): void {
+    if (fact.requirements.length === 0) {
+      return;
+    }
+    this.record({
+      type: 'requirement-eased',
+      source, player: player.color,
+      target: {card},
+      impact: {requirementEased: fact},
+      visibility: 'journal',
+      tags: source.kind === 'corporation' ? ['corporation', 'passive-effect'] : ['passive-effect'],
     });
   }
 

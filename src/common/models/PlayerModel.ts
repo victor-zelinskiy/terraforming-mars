@@ -11,6 +11,7 @@ import {CardResource} from '../CardResource';
 import {PartyName} from '../turmoil/PartyName';
 import {Agenda} from '../turmoil/Types';
 import {Tag} from '../cards/Tag';
+import type {ArmedPlayEffectModel} from './ArmedPlayEffectModel';
 import {UnderworldPlayerData} from '../underworld/UnderworldPlayerData';
 import {GlobalParameter} from '../GlobalParameter';
 import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
@@ -113,6 +114,15 @@ export type PublicPlayerModel = {
    *  mid-action and no prompt carries the marker. */
   bonusActionSource?: CardName;
   lastCardPlayed?: CardName;
+  /**
+   * THE ONE-PLAY EFFECTS THIS SEAT HAS ARMED (TR49 class) — what the next card
+   * it plays this generation will spend (Special Design ±2, Cutting-Edge
+   * Design: requirements ignored, Indentured Workers −8 M€, …), read by the
+   * server off the card `lastCardPlayed` names (`cards/armedPlayEffects.ts`).
+   * PUBLIC: the arming card lies face-up and `lastCardPlayed` is public, so a
+   * rival's «ЭФФЕКТЫ» shows it too. Absent when nothing is armed.
+   */
+  armedPlayEffects?: ReadonlyArray<ArmedPlayEffectModel>;
   megacredits: number;
   megacreditProduction: number;
   name: string;

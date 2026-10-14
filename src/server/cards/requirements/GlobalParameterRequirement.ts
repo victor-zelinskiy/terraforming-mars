@@ -30,15 +30,38 @@ export abstract class GlobalParameterRequirement extends InequalityRequirement {
    * relaxes DOWN — the same directions `getScore` folds the bonus in, just
    * expressed on the threshold side so a UI can print it next to the raw
    * parameter value.
+   *
+   * `'waived'` when the player IGNORES the requirement (TR49 / Ecology
+   * Experts — `IPlayer.globalRequirementWaiver`): there is no bound left to
+   * print, and a number would be a lie.
    */
-  public effectiveThreshold(player: IPlayer): number {
-    const bonusUnits = player.getGlobalParameterRequirementBonus(this.parameter) * this.scale;
+  public effectiveThreshold(player: IPlayer): number | 'waived' {
+    if (player.globalRequirementWaiver(this.parameter) !== undefined) {
+      return 'waived';
+    }
+    return this.thresholdWithBonus(player.getGlobalParameterRequirementBonus(this.parameter));
+  }
+
+  /** The printed bound moved by `steps` requirement steps (MIN relaxes down, MAX stretches up). */
+  public thresholdWithBonus(steps: number): number {
+    const bonusUnits = steps * this.scale;
     return this.max ? this.count + bonusUnits : this.count - bonusUnits;
+  }
+
+  /** Whether `value` (the scale, in its own units) meets the printed bound moved by `steps`. */
+  public meetsWithBonus(value: number, steps: number): boolean {
+    const bound = this.thresholdWithBonus(steps);
+    return this.max ? value <= bound : value >= bound;
   }
 
   public abstract getGlobalValue(player: IPlayer): number;
 
   public override satisfies(player: IPlayer, card: IProjectCard): boolean {
+    // An IGNORED requirement is met — before the Think Tank / Aeron bridge,
+    // which therefore spends nothing on it.
+    if (player.globalRequirementWaiver(this.parameter) !== undefined) {
+      return true;
+    }
     if (super.satisfies(player, card)) {
       return true;
     }

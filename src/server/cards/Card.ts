@@ -133,6 +133,10 @@ export abstract class Card implements ICard {
         throw new Error(`${name} must have a cost property`);
       }
     }
+    const requirementBonus = external.globalParameterRequirementBonus;
+    if (requirementBonus !== undefined && (requirementBonus.steps === undefined) === (requirementBonus.waive !== true)) {
+      throw new Error(`${name}: globalParameterRequirementBonus declares exactly one of steps / waive`);
+    }
     let step = 0;
     try {
       // TODO(kberg): apply these changes in CardVictoryPoints.vue and remove this conditional altogether.
@@ -240,6 +244,10 @@ export abstract class Card implements ICard {
   }
   public get cardDiscount() {
     return this.properties.cardDiscount;
+  }
+  /** The declared requirement bonus / waiver (Adaptation Technology, Special Design, TR49), as printed. */
+  public get globalParameterRequirementBonus(): GlobalParameterRequirementBonus | undefined {
+    return this.properties.globalParameterRequirementBonus;
   }
   public get reserveUnits(): Units {
     return this.properties.reserveUnits || Units.EMPTY;
@@ -447,6 +455,11 @@ export abstract class Card implements ICard {
     let sum = 0;
     const discounts = asArray(this.cardDiscount);
     for (const discount of discounts) {
+      // A ONE-PLAY discount (Indentured Workers) holds only while this card is
+      // the one played last — the same reading as `nextCardOnly` below.
+      if (discount.nextCardOnly === true && player.lastCardPlayed !== this.name) {
+        continue;
+      }
       if (discount.tag === undefined) {
         sum += discount.amount;
       } else {
@@ -462,21 +475,28 @@ export abstract class Card implements ICard {
   }
 
   public getGlobalParameterRequirementBonus(player: IPlayer, parameter: GlobalParameter): number {
-    if (this.properties.globalParameterRequirementBonus !== undefined) {
-      const globalParameterRequirementBonus = this.properties.globalParameterRequirementBonus;
-      if (globalParameterRequirementBonus.nextCardOnly === true) {
-        if (player.lastCardPlayed !== this.name) {
-          return 0;
-        }
-      }
-      if (globalParameterRequirementBonus.parameter !== undefined) {
-        if (globalParameterRequirementBonus.parameter !== parameter) {
-          return 0;
-        }
-      }
-      return globalParameterRequirementBonus.steps;
+    const declared = this.activeRequirementBonus(player, parameter);
+    // A waiver is not a number of steps (see `waivesGlobalRequirements`).
+    return declared?.steps ?? 0;
+  }
+
+  public waivesGlobalRequirements(player: IPlayer, parameter: GlobalParameter): boolean {
+    return this.activeRequirementBonus(player, parameter)?.waive === true;
+  }
+
+  /** The declaration, when it applies to `parameter` right now (a one-play one only while armed). */
+  private activeRequirementBonus(player: IPlayer, parameter: GlobalParameter): GlobalParameterRequirementBonus | undefined {
+    const declared = this.properties.globalParameterRequirementBonus;
+    if (declared === undefined) {
+      return undefined;
     }
-    return 0;
+    if (declared.nextCardOnly === true && player.lastCardPlayed !== this.name) {
+      return undefined;
+    }
+    if (declared.parameter !== undefined && declared.parameter !== parameter) {
+      return undefined;
+    }
+    return declared;
   }
 
   public addWarning(warning: Warning): void {

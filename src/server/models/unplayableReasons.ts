@@ -78,8 +78,12 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
     // construction, and a per-branch flag is a flag somebody forgets.
     const reason: UnplayableReason = {...requirementReason(req, player, card), requirement: true};
     if (req instanceof GlobalParameterRequirement) {
+      // The bound the player's modifiers make of the printed one — read off the
+      // ONE breakdown (`IPlayer.requirementBonusBreakdown`, summed), the same
+      // number `requirementEasingOf` names its sources for. An unmet
+      // requirement is never waived (a waived one is met).
       const effective = req.effectiveThreshold(player);
-      if (effective !== req.count) {
+      if (typeof effective === 'number' && effective !== req.count) {
         reason.effectiveCount = effective;
       }
       if (requirementUnattainable(player, card, req)) {
@@ -144,7 +148,7 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
  * `nextTo` (adjacency), and any card whose rule block was consolidated —
  * those simply never match an address we produce).
  */
-function requirementBlockId(req: CardRequirement, ordinal: number): string | undefined {
+export function requirementBlockId(req: CardRequirement, ordinal: number): string | undefined {
   if (req.all || req.nextTo || !FULLY_RESTATED_REQUIREMENTS.has(req.type)) {
     return undefined;
   }

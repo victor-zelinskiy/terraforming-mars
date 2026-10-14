@@ -2,7 +2,7 @@ import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectC
 import {expect} from 'chai';
 import {EccentricSponsor} from '../../../src/server/cards/prelude/EccentricSponsor';
 import {TestPlayer} from '../../TestPlayer';
-import {runAllActions} from '../../TestingUtils';
+import {fakeCard, runAllActions} from '../../TestingUtils';
 import {NitrogenRichAsteroid} from '../../../src/server/cards/base/NitrogenRichAsteroid';
 import {Farming} from '../../../src/server/cards/base/Farming';
 import {testGame} from '../../TestGame';
@@ -19,9 +19,9 @@ describe('EccentricSponsor', () => {
   });
 
   it('Gets card discount', () => {
-    expect(eccentricSponsor.getCardDiscount(player)).to.eq(0);
+    expect(eccentricSponsor.getCardDiscount(player, fakeCard())).to.eq(0);
     player.lastCardPlayed = eccentricSponsor.name;
-    expect(eccentricSponsor.getCardDiscount(player)).to.eq(25);
+    expect(eccentricSponsor.getCardDiscount(player, fakeCard())).to.eq(25);
   });
 
   // canPlay answers "does this prelude do anything?" BEFORE it is played — the

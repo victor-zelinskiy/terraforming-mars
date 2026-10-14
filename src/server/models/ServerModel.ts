@@ -51,6 +51,8 @@ import {ConvertHeat} from '../cards/base/standardActions/ConvertHeat';
 import {potentialActions, potentialHydroAdvance} from './potentialActions';
 import {parkedStagedPlacement} from '../inputs/deferredInputBatch';
 import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
+import {armedPlayEffectsOf} from '../cards/armedPlayEffects';
+import {ArmedPlayEffectModel} from '../../common/models/ArmedPlayEffectModel';
 
 const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
 const KELVINISTS_HEAT_FOR_TEMPERATURE = 6;
@@ -68,6 +70,12 @@ const DELEGATE_TITLE_PATTERNS = [
   'Select where to send a delegate',
   'Send a delegate', // matches the "Send a delegate in an area …" variants
 ];
+
+/** The seat's armed one-play effects (TR49 class), present only when something is armed. */
+function armedPlayEffectsField(player: IPlayer): {armedPlayEffects?: ReadonlyArray<ArmedPlayEffectModel>} {
+  const armed = armedPlayEffectsOf(player);
+  return armed.length > 0 ? {armedPlayEffects: armed} : {};
+}
 
 function titleText(title: string | Message | undefined): string {
   if (title === undefined) {
@@ -667,6 +675,7 @@ export class Server {
       bonusActionsGranted: player.bonusActions > 0 ? player.bonusActionsGranted : undefined,
       bonusActionSource: player.bonusActions > 0 ? player.bonusActionSource : undefined,
       lastCardPlayed: player.lastCardPlayed,
+      ...armedPlayEffectsField(player),
       megacredits: player.megaCredits,
       megacreditProduction: player.production.megacredits,
       name: player.name,

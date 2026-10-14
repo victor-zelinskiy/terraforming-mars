@@ -179,6 +179,19 @@ export type GameEventType =
    * it was. Journal-visible, never a delta.
    */
   | 'effect-skipped'
+  /**
+   * A CARD WAS PLAYED THANKS TO A REQUIREMENT MODIFIER (TR49 class): at least
+   * one printed GLOBAL requirement was met ONLY because of a named modifier —
+   * an armed Special Design (±2), Cutting-Edge Design / Ecology Experts (the
+   * requirement ignored), Inventrix / Adaptation Technology (±2 for good).
+   * `source` is the modifier (one event per source), `target.card` the card
+   * played, `impact.requirementEased` the requirements it let through
+   * (printed → effective | waived) and whether the play spent it (`oneShot`).
+   * Written ONCE, by the play (`Player.playCard`), never by a preview — the
+   * journal's row under the play, the rival's notification line and the
+   * modifier's trigger count in «ЭФФЕКТЫ» read it. Journal-visible, never a delta.
+   */
+  | 'requirement-eased'
   // High-level game milestones:
   | 'milestone-claimed'
   | 'award-funded'

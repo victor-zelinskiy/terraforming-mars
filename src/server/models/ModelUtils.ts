@@ -20,6 +20,7 @@ import {buildStandardProjectPreview} from './standardProjectPreview';
 import {Message} from '../../common/logs/Message';
 import {isFleetDocked} from '../colonies/FleetDock';
 import {countedPlayEffects} from './actionPreview';
+import {requirementEasingOf} from './requirementEasing';
 
 export function cardsToModel(
   player: IPlayer,
@@ -159,6 +160,14 @@ export function cardsToModel(
       const counted = countedPlayEffects(player, card);
       if (counted.length > 0) {
         model.countedPlay = counted;
+      }
+    }
+    // The requirement under a modifier (TR49 class) — the OWN hand only (the same opt-in): one reading, every
+    // surface that prints the card's requirement.
+    if (options.unplayableReasons === true && isIProjectCard(card)) {
+      const easing = requirementEasingOf(player, card);
+      if (easing.length > 0) {
+        model.requirementEasing = easing;
       }
     }
     if (actionReasonList !== undefined) {

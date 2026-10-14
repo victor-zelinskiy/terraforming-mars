@@ -9,7 +9,8 @@ import {CardName} from '../../common/cards/CardName';
 import {CardMetadata} from '../../common/cards/CardMetadata';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {BoardType} from '../boards/BoardType';
-import {CardDiscount} from '../../common/cards/Types';
+import {CardDiscount, GlobalParameterRequirementBonus} from '../../common/cards/Types';
+import type {ArmedPlayEffectKind} from '../../common/models/ArmedPlayEffectModel';
 import {CountableVictoryPoints} from '../../common/cards/CountableVictoryPoints';
 import {VictoryPointsSign} from '../../common/cards/victoryPointsIcon';
 import {TileType} from '../../common/TileType';
@@ -241,6 +242,23 @@ export interface ICard {
    * see `globalParameterRequirementBonus` for more information.
    */
   getGlobalParameterRequirementBonus(player: IPlayer, parameter: GlobalParameter): number;
+  /**
+   * The global requirements are IGNORED right now (Cutting-Edge Design TR49,
+   * Ecology Experts — `globalParameterRequirementBonus: {waive: true}`): a
+   * waived requirement is MET, by kind, never by a number of steps. Read by
+   * ONE function, `IPlayer.globalRequirementWaiver`.
+   */
+  waivesGlobalRequirements?(player: IPlayer, parameter: GlobalParameter): boolean;
+  /** The declared requirement bonus / waiver, as printed (Card exposes its own). */
+  globalParameterRequirementBonus?: GlobalParameterRequirementBonus;
+  /**
+   * A ONE-PLAY EFFECT this card arms that NO declaration describes (a bespoke
+   * «your next card …»): co-located with the bespoke code that grants it, read
+   * by `armedPlayEffectsOf` only while this card is `lastCardPlayed`. A card
+   * whose one-play effect IS declared (`cardDiscount` / requirement bonus with
+   * `nextCardOnly`) needs nothing — the reader reads the declaration.
+   */
+  armedPlayEffect?(player: IPlayer): ArmedPlayEffectKind | undefined;
   victoryPoints?: number | 'special' | CountableVictoryPoints,
   /** What a bespoke ('special') VP icon can ever score (see `common/cards/victoryPointsIcon.ts`). */
   victoryPointsSign?: VictoryPointsSign,

@@ -19,7 +19,8 @@ import {EventSource, sourceKey} from './EventSource';
 const UNIT_KEYS: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
 
 // Event types that count as "a use / a firing" of a source (for triggerCount).
-const TRIGGER_TYPES: ReadonlyArray<GameEventType> = ['action', 'copied-action', 'effect-triggered', 'discount-applied'];
+// A requirement modifier letting a card through (`requirement-eased`, TR49 class) is a firing of the modifier, like a discount.
+const TRIGGER_TYPES: ReadonlyArray<GameEventType> = ['action', 'copied-action', 'effect-triggered', 'discount-applied', 'requirement-eased'];
 
 /**
  * Steel/Titanium spent UNDER a payment-value modifier + the EXACT extra M€ it
@@ -578,7 +579,7 @@ export function aggregateAttacks(events: ReadonlyArray<GameEvent>): Map<Color, A
  * to fall back to honest card-level stats.
  */
 export type EffectStatChannel = EventTrigger
-  | 'discount' | 'resource-payment' | 'payment-bonus'
+  | 'discount' | 'requirement' | 'resource-payment' | 'payment-bonus'
   | 'colony-track' | 'trade-discount' | 'greenery-discount'
   | 'unattributed';
 
@@ -771,6 +772,9 @@ const TAG_CHANNELS: ReadonlyArray<EffectStatChannel & EventTag> =
 function channelOfPassiveEvent(e: GameEvent, byId: Map<number, GameEvent>): EffectStatChannel {
   if (e.type === 'discount-applied') {
     return 'discount';
+  }
+  if (e.type === 'requirement-eased') {
+    return 'requirement';
   }
   for (const tag of TAG_CHANNELS) {
     if (e.tags?.includes(tag) === true) {

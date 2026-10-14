@@ -11,14 +11,27 @@ export type CardDiscount = {
   amount: number,
   /** Describes whether the discount is applied once for the card, or for ever tag. */
   per?: 'card' | 'tag',
+  /**
+   * A ONE-PLAY discount: it applies only to the NEXT card the owner plays this
+   * generation (while `lastCardPlayed` names the declaring card) — Indentured
+   * Workers, Conscription, Eccentric Sponsor. The same knob, the same reading
+   * as `GlobalParameterRequirementBonus.nextCardOnly` (TR49 class).
+   */
+  nextCardOnly?: boolean,
  }
 
 /**
  * A type of global parameter requirement bonus.
  */
 export type GlobalParameterRequirementBonus = {
-  /** The size of the bonus. */
-  steps: number,
+  /** The size of the bonus, in steps. Exactly one of `steps` / `waive`. */
+  steps?: number,
+  /**
+   * The requirements are IGNORED rather than shifted (Cutting-Edge Design
+   * TR49, Ecology Experts): a waived requirement is MET — never a bound
+   * «stretched by 50», which would leak a sentinel number into every reader.
+   */
+  waive?: true,
   /** The global parameter it applies to */
   parameter?: GlobalParameter,
   /** This discount only applies to the next card played when this is true. */

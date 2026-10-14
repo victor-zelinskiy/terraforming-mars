@@ -13,6 +13,7 @@ import {Message} from '../logs/Message';
 // `PlayerInputModel` type-imports `ActionEffect`).
 import type {ActionEffect, AgendaWalkModel} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
+import type {RequirementEasingModel} from './ArmedPlayEffectModel';
 
 /**
  * The GUARANTEED result of a standard project, computed server-side from the
@@ -108,6 +109,18 @@ export interface CardModel {
      * [microbe]») and the inspector's «ДЛЯ ВАС» read it; the client counts nothing.
      */
     countedPlay?: ReadonlyArray<ActionEffect>;
+    /**
+     * THE REQUIREMENT UNDER A MODIFIER (TR49 class): for each printed GLOBAL
+     * requirement this player's modifiers touch — an armed Special Design (±2),
+     * Cutting-Edge Design / Ecology Experts (ignored), Inventrix / Adaptation
+     * Technology (±2 for good) — printed → effective, the sources named, and
+     * whether the card is playable only thanks to them. The server's one
+     * reading (`models/requirementEasing.ts`); the face's requirement
+     * cassette, the hand plate, the availability verdict, «ДЛЯ ВАС» and the
+     * composer read it and derive nothing. The OWN hand only (the same opt-in
+     * as `unplayableReasons`); absent when no modifier touches a requirement.
+     */
+    requirementEasing?: ReadonlyArray<RequirementEasingModel>;
     // Structured reasons this card's activatable ACTION can't be used right now.
     // Set for (a) the viewer's OWN tableau (their PublicPlayerModel is the
     // self-model) — an action card whose action is currently unavailable AND not

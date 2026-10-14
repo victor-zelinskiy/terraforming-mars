@@ -10,6 +10,7 @@ import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectC
 import {MicroMills} from '../../../src/server/cards/base/MicroMills';
 import {Manutech} from '../../../src/server/cards/venusNext/Manutech';
 import {cast} from '../../../src/common/utils/utils';
+import {GlobalParameter} from '../../../src/common/GlobalParameter';
 
 describe('EcologyExperts', () => {
   let card: EcologyExperts;
@@ -20,10 +21,22 @@ describe('EcologyExperts', () => {
     [/* game */, player] = testGame(1);
   });
 
-  it('Gets requirement bonus', () => {
-    expect(card.getGlobalParameterRequirementBonus(player)).to.eq(0);
+  it('Waives the global requirements of the card it plays — by KIND, never by a number of steps', () => {
+    expect(card.waivesGlobalRequirements(player, GlobalParameter.OXYGEN)).is.false;
     player.lastCardPlayed = card.name;
-    expect(card.getGlobalParameterRequirementBonus(player)).to.eq(50);
+    expect(card.waivesGlobalRequirements(player, GlobalParameter.OXYGEN)).is.true;
+    expect(card.waivesGlobalRequirements(player, GlobalParameter.VENUS)).is.true;
+    // No sentinel: the bonus in steps stays zero (TR49 class — «ignore» is a kind).
+    expect(card.getGlobalParameterRequirementBonus(player, GlobalParameter.OXYGEN)).to.eq(0);
+  });
+
+  it('the canPlay probe names its waiver for the question only', () => {
+    const ants = new Ants();
+    player.cardsInHand.push(ants);
+    player.megaCredits = ants.cost;
+    expect(card.canPlay(player)).is.true;
+    expect(player.temporaryGlobalRequirementWaiver).is.undefined;
+    expect(player.canPlay(ants)).is.false;
   });
 
   it('Can Play', () => {
