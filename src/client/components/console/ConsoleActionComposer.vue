@@ -341,8 +341,12 @@
             <ConsoleDeclinePlate v-if="subDecline !== undefined" class="con-composer__sub-decline"
                                  :label="subDecline.label" :forgone="subDecline.forgone" />
           </div>
-          <!-- THE PICK LIST — the variant grammar's LIST layout (`ConsoleVariantChoice`, TR51). -->
-          <ConsoleVariantChoice class="con-composer__sublist" layout="list" :exclusive="false"
+          <!-- THE PICK LIST — the variant grammar's LIST layout (`ConsoleVariantChoice`, TR51); a pick of ONE standard
+               resource among several (Astrodrill's «any standard resource») is its PALETTE (TR54): one row of equal
+               tiles, the resource's own sprite and number leading each, the printed «?» on the kicker, ←→ along it. -->
+          <ConsoleVariantChoice class="con-composer__sublist" :layout="subPalette ? 'palette' : 'list'" :exclusive="false"
+                                :kicker="subPalette ? paletteKicker : ''" :emblem="subPalette ? 'wild' : 'none'"
+                                :data-variant-axis="subPalette ? 'row' : undefined"
                                 :options="listOptions" :label="subTitle">
             <template #body="{index}">
               <template v-for="item in [listItems[index]]" :key="item.key">
@@ -926,7 +930,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
-import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {heroOfEffect, paletteOf, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
 import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
@@ -2060,10 +2064,12 @@ export default defineComponent({
             blocked: playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? [])?.blocked !== undefined,
           });
         }
-        return focusCommandRun({
+        // A palette is a row — «◄► Ресурс» while the cursor stands in it (the variant group's «◄► Вариант»).
+        const paletteHint: Array<ConsoleCommand> = this.subPalette ? [{control: 'dpadH', label: 'Resource'}] : [];
+        return [...paletteHint, ...focusCommandRun({
           state: 'sub-list', cardList: this.subListIsCards,
           decline: this.subDecline !== undefined ? textOf(this.subDecline.label) : undefined,
-        });
+        })];
       }
       const kind = this.focusedRowKind;
       const item = this.focusedItem;
@@ -2300,14 +2306,35 @@ export default defineComponent({
     /** The pick list in the variant grammar — one option per row of `listItems`. */
     listOptions(): ReadonlyArray<VariantChoiceOption> {
       const at = this.sub?.kind === 'list' || this.sub?.kind === 'orNested' ? this.sub.index : undefined;
-      return this.listItems.map((item, i): VariantChoiceOption => ({
-        key: item.key,
-        state: {focused: at === i, selected: item.chosen, off: item.disabled},
-        title: item.label,
-        reason: item.disabled && item.reason !== '' ? item.reason : undefined,
-        door: item.nested === true && !item.chosen && !item.disabled,
-        color: item.color,
-      }));
+      const palette = this.subPalette;
+      return this.listItems.map((item, i): VariantChoiceOption => {
+        const hero = palette ? this.listHeroes[i] : undefined;
+        return {
+          key: item.key,
+          state: {focused: at === i, selected: item.chosen, off: item.disabled},
+          // A palette tile speaks with its hero and its number — the words would only repeat them.
+          title: hero !== undefined ? '' : item.label,
+          reason: item.disabled && item.reason !== '' ? item.reason : undefined,
+          door: item.nested === true && !item.chosen && !item.disabled,
+          color: item.color,
+          hero,
+          attrs: hero !== undefined ? {'data-palette-resource': hero.icon} : undefined,
+        };
+      });
+    },
+    /** Each pick row's hero — the standard resource its own first chip gains (`heroOfEffect`, the server's number). */
+    listHeroes(): ReadonlyArray<VariantHero | undefined> {
+      return this.listItems.map((item) => heroOfEffect(item.chips?.[0]));
+    },
+    /**
+     * The open pick is a PALETTE (TR54): an or-pick (never a card / player list) whose every option gains a different
+     * standard resource — «which resource» asked as ONE row of six tiles, not six sentences.
+     */
+    subPalette(): boolean {
+      return this.sub?.kind === 'list' && paletteOf(this.listHeroes.map((hero) => ({hero})));
+    },
+    paletteKicker(): string {
+      return translateTextWithParams('One of ${0}', [String(this.listItems.length)]);
     },
     subTitle(): string {
       const c = this.subChoice;
@@ -4043,6 +4070,11 @@ export default defineComponent({
       }
       if (this.sub !== undefined) {
         const len = this.sub.kind === 'payment' ? this.payEditableRows.length : this.listItems.length;
+        // A PALETTE is a row: ←→ walk it (wrapping, the side-by-side group's rule); ↑↓ keep their list walk.
+        if (this.subPalette && (dir === 'left' || dir === 'right') && len > 0) {
+          this.sub.index = (this.sub.index + (dir === 'left' ? -1 : 1) + len) % len;
+          return;
+        }
         if (dir === 'up' || dir === 'down') {
           this.sub.index = Math.min(len - 1, Math.max(0, this.sub.index + (dir === 'up' ? -1 : 1)));
           this.scrollFocused();

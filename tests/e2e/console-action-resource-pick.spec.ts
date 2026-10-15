@@ -17,9 +17,12 @@ import {bootIntoGame, openCardActions, press, soloGameConfig, waitForTurn} from 
  * This spec drives the real surface and proves the three halves of the fix:
  *
  *  1. the resource pick is a REQUIRED ROW inside the workspace (the commit is
- *     refused until it is answered) and its options render in the PREMIUM
- *     language — the resource icon + the player's own `current → resulting`
- *     via the shared `ActionEffectChip`, never six bare words;
+ *     refused until it is answered) and its options render as the PALETTE of
+ *     the variant grammar (TR54, «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА») — six equal
+ *     tiles in ONE row, each led by its resource's own sprite (louder than the
+ *     reading chip by a step) and its number, the player's own
+ *     `current → resulting` via the shared `ActionEffectChip` under it, the
+ *     printed «?» on the kicker, ←→ along the row — never six sentences;
  *  2. confirming produces NO standalone task band — the whole action is one
  *     submit;
  *  3. the chosen resource actually LANDS: the rail counter moves by exactly
@@ -164,9 +167,41 @@ for (const profile of PROFILES) {
       expect(withChips, 'every option renders its own ActionEffectChip').toBeGreaterThanOrEqual(6);
       const chipText = await page.locator('.con-composer__sublist .con-vchoice__opt').first().innerText();
       expect(chipText, `the first option must state a before→after: «${chipText}»`).toMatch(/\d+\s*→\s*\d+/);
-      // The icon is a real sprite, not a text fallback.
-      expect(await page.locator('.con-composer__sublist .con-vchoice__opt .action-effect-chip__icon').count())
+      // Every tile leads with a real resource sprite (the hero), not a text fallback.
+      expect(await page.locator('.con-composer__sublist .con-vchoice__opt .con-vchoice__heroicon.resource_icon').count())
         .toBeGreaterThanOrEqual(6);
+
+      // ── THE PALETTE (TR54): one row of six equal tiles, the hero louder than the chip, the «?» on the kicker, no
+      //    medallion, ←→ along the row. ──
+      await expect(page.locator('.con-composer__sublist.con-vchoice--palette'), 'the pick is the palette').toHaveCount(1);
+      const geometry = await page.evaluate(() => {
+        const group = document.querySelector('.con-composer__sublist')!;
+        const tiles = Array.from(group.querySelectorAll<HTMLElement>('.con-vchoice__opt'));
+        return {
+          axis: group.getAttribute('data-variant-axis'),
+          tops: [...new Set(tiles.map((t) => t.offsetTop))],
+          widths: tiles.map((t) => Math.round(t.getBoundingClientRect().width)),
+          hero: Math.min(...tiles.map((t) => t.querySelector('.con-vchoice__heroicon')?.getBoundingClientRect().width ?? 0)),
+          chip: group.querySelector('.action-effect-chip')?.getBoundingClientRect().height ?? 0,
+          figures: tiles.map((t) => t.querySelector('[data-vchoice-figure]')?.textContent?.trim() ?? ''),
+          emblem: group.querySelector('[data-vchoice-emblem="wild"]') !== null,
+          medals: group.querySelectorAll('.con-vchoice__or').length,
+        };
+      });
+      expect(geometry.axis, 'the palette walks as a row').toBe('row');
+      expect(geometry.tops, `ONE row: ${JSON.stringify(geometry.tops)}`).toHaveLength(1);
+      expect(Math.max(...geometry.widths) - Math.min(...geometry.widths), `equal tiles: ${geometry.widths}`).toBeLessThanOrEqual(2);
+      expect(geometry.hero, `the hero (${geometry.hero}) is louder than the reading chip (${geometry.chip}) by a step`).toBeGreaterThanOrEqual(geometry.chip * 1.25);
+      expect(geometry.figures, 'every tile states its number').toEqual(['+1', '+1', '+1', '+1', '+1', '+1']);
+      expect(geometry.emblem, 'the printed «?» on the kicker').toBe(true);
+      expect(geometry.medals, 'a palette draws no «ИЛИ» medallion').toBe(0);
+      const focusedAt = () => page.evaluate(() => Array.from(document.querySelectorAll('.con-composer__sublist .con-vchoice__opt'))
+        .findIndex((el) => el.classList.contains('con-vchoice__opt--focused')));
+      expect(await focusedAt(), 'the cursor opens on the first tile').toBe(0);
+      await press(page, 'ArrowRight', 300);
+      expect(await focusedAt(), '→ walks the row').toBe(1);
+      await press(page, 'ArrowLeft', 300);
+      expect(await focusedAt(), '← walks it back').toBe(0);
 
       // ── The breadcrumb never left the workspace while the step is open. ──
       await expect(page.locator('.con-cardactions')).toHaveCount(1);
