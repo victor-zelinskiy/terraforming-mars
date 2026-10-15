@@ -551,5 +551,7 @@
     "Spend all data: draw that many, keep 1": "Все данные: столько же карт, 1 в руку",
     "Science tag: data here pay 2 M€ each": "Метка Науки: данные отсюда как 2 M€",
     "+1 animal here; may add 1 data to any card": "+1 животное сюда; можно 1 данных на любую карту",
-    "5 M€ → +1 to a card with one; draw unless science": "5 M€ → +1 на карту с ресурсом; карта, если не наука"
+    "5 M€ → +1 to a card with one; draw unless science": "5 M€ → +1 на карту с ресурсом; карта, если не наука",
+    "Requires Industrialists to be ruling or that you have 2 delegates on its resolution.": "Требуется: «Индустриалисты» правят или 2 ваших делегата на их резолюции.",
+    "Gain 9 energy.": "Получите 9 энергии."
 }

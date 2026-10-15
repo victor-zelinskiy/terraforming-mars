@@ -1125,6 +1125,7 @@ export enum CardName {
   EXPEDITION_MECHS = 'Expedition Mechs',
   INFLUENTIAL_DISCOVERY = 'Influential Discovery',
   SCIENTIFIC_BREAKTHROUGH = 'Scientific Breakthrough',
+  NUCLEAR_WARHEAD_UTILIZATION = 'Nuclear Warhead Utilization',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

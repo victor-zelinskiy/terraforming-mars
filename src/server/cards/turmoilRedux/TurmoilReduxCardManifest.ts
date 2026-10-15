@@ -54,6 +54,7 @@ import {FrontierLabs} from './FrontierLabs';
 import {ExpeditionMechs} from './ExpeditionMechs';
 import {InfluentialDiscovery} from './InfluentialDiscovery';
 import {ScientificBreakthrough} from './ScientificBreakthrough';
+import {NuclearWarheadUtilization} from './NuclearWarheadUtilization';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -273,5 +274,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // «add to ANY card» branches as the whole card — the set's first «science to ANY card», against «6 data to ANY card».
     [CardName.INFLUENTIAL_DISCOVERY]: {Factory: InfluentialDiscovery},
     [CardName.SCIENTIFIC_BREAKTHROUGH]: {Factory: ScientificBreakthrough},
+    // Only the module's icon at the bottom left: the set's FIRST Industrialists' plate; «+9 energy, 2 VP» — a whole
+    // declaration, whose printed VP are the score cell's first source with a body (docs/claude/console/score-cell.md).
+    [CardName.NUCLEAR_WARHEAD_UTILIZATION]: {Factory: NuclearWarheadUtilization},
   },
 });
