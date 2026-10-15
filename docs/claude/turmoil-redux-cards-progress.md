@@ -2905,7 +2905,7 @@ Eccentric Sponsor / Ecology Experts — `efd2c7794b`; (2) карта + спек 
 §2 контракта, слой полётов и удержания (`armedEffectFlight.ts`), `armedSpends` staged-розыгрыша.
 
 **Лист трёх состояний кассеты (4K, `screenshots/tr49/concept/tv4k/`, `screenshots/cutting-edge-design/tv4k/`).** ПЕЧАТНОЕ —
-Lake Marineris до взвода «≥ 0 °C»; СМЯГЧЕНО — Grass при Special Design «≥ −16 › −18 ±2 ✓» (решающее) и Lake «≥ 0 › −4 ±2»
+Lake Marineris до взвода «≥ 0 °C»; СМЯГЧЕНО — Grass при Special Design (−18 °C) «≥ −16 › −20 ±2 ✓» — ±2 ШАГА температуры = 4 °C (решающее) и Lake «≥ 0 › −4 ±2»
 (не хватает); СНЯТО — после TR49 вся кассета под красной диагональью скана, значение читается, ✓ в торце; герой композера —
 то же (PL-353), плашка плитки — значок шкалы перечёркнут + ✓.
 
