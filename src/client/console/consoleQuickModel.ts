@@ -42,6 +42,17 @@ export type QuickEntry = {
   glyph?: string,
   /** Availability count (playable cards / available actions). */
   badge?: number,
+  /**
+   * The count's register (`potentialAvailability.countTone`): `neutral` when every action it counts would change
+   * nothing — still shown, never the mint «there is something to do».
+   */
+  badgeTone?: 'neutral',
+  /**
+   * The verb is AVAILABLE but would change nothing right now (the server's «no effect» verdict — a heat conversion at
+   * the temperature's maximum): an English i18n key naming why. The tile stays activatable (a player may stall), its
+   * content quiets and the reason stands where the meta would.
+   */
+  futile?: string,
   /** Secondary line (conversion cost etc.), already composed. */
   meta?: string,
   available: boolean,
@@ -80,6 +91,8 @@ export type RtQuickContext = {
   cardsTotal: number,
   /** Card / corporation actions potentially performable. */
   actionsAvailable: number,
+  /** Every one of those actions would change nothing (`countTone` → `neutral`): the badge loses its «go» register. */
+  actionsFutile?: boolean,
   /** Remaining potential trade actions — min(open colonies, free fleets). */
   tradesAvailable: number,
   /** 0 or 1 — the once-per-generation Hydronetwork advance. */
@@ -119,6 +132,7 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
     {
       id: 'cardActions', slot: 'up', label: 'Card actions', barIcon: 'actions',
       badge: ctx.actionsAvailable, available: !over, reason: over ? 'The game is over' : '',
+      ...(ctx.actionsFutile === true ? {badgeTone: 'neutral' as const} : {}),
     },
     {
       // The badge is the number of trades still POSSIBLE, not the number of
@@ -182,6 +196,8 @@ export type LtQuickContext = {
   turnControlReason?: string,
   convertPlantsAvailable: boolean,
   convertHeatAvailable: boolean,
+  /** The heat conversion is offered but would change nothing (the reason key) — the temperature's maximum. */
+  convertHeatFutile?: string,
   plantsNeeded: number,
   heatNeeded: number,
 };
@@ -251,6 +267,7 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
       iconClass: 'resource_icon resource_icon--heat',
       meta: `${ctx.heatNeeded}`,
       ...turnGate(ctx.convertHeatAvailable, 'Not enough heat'),
+      ...(ctx.convertHeatAvailable && ctx.convertHeatFutile !== undefined ? {futile: ctx.convertHeatFutile} : {}),
     },
   ];
 }

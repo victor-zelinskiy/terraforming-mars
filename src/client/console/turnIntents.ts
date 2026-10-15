@@ -190,6 +190,20 @@ export function findEndTurnPath(wf: PlayerInputModel | undefined): ReadonlyArray
 
 export type ConvertHeatMatch = {path: ReadonlyArray<number>, option: SelectOptionModel};
 
+/**
+ * Is this option the HEAT CONVERSION (the 8-heat standard action or the Kelvinists' 6-heat variant)? Read off the
+ * option's STRUCTURE — the server's `heatConversionMetadata` on both: a temperature step paid in heat — never off its
+ * title (cross-cutting invariant 1: i18n rewrites a prompt's text in place).
+ */
+function isHeatConversion(opt: PlayerInputModel): boolean {
+  if (opt.type !== 'option') {
+    return false;
+  }
+  const meta = (opt as SelectOptionModel).metadata;
+  return meta?.kind === 'globalParameter' && meta.icon === 'temperature' &&
+    (meta.effects ?? []).some((e) => e.direction === 'cost' && e.icon === 'heat');
+}
+
 export function findConvertHeatOption(
   wf: PlayerInputModel | undefined,
   pathSoFar: ReadonlyArray<number> = [],
@@ -201,8 +215,7 @@ export function findConvertHeatOption(
   if (options !== undefined) {
     for (let i = 0; i < options.length; i++) {
       const opt = options[i];
-      const t = inputTitleText(opt.title);
-      if (opt.type === 'option' && typeof t === 'string' && t.includes('heat into temperature')) {
+      if (isHeatConversion(opt)) {
         return {path: [...pathSoFar, i], option: opt as SelectOptionModel};
       }
       const deeper = findConvertHeatOption(opt, [...pathSoFar, i]);

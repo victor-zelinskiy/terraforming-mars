@@ -58,6 +58,12 @@
 
         <!-- WHAT THE PASS LEAVES UNUSED (the desktop PassConfirmContent parity set) — named, never a bare «are you
              sure»: each is a row of its own under one quiet heading. -->
+        <!-- Nothing of value is left — only actions with no effect: ONE quiet line, never a warning (the owner's decision
+             of 2026-10-15 — they are still the player's to take, e.g. to stall instead of passing). -->
+        <p v-if="quiet !== ''" class="con-confirm__quiet" data-confirm-quiet>
+          <span class="con-confirm__quiet-mark" aria-hidden="true">○</span>{{ quiet }}
+        </p>
+
         <section v-if="warnings.length > 0" class="con-confirm__warns" data-confirm-warns>
           <h3 class="con-confirm__warns-title">{{ $t('Still available this generation') }}</h3>
           <div v-for="(w, i) in warnings" :key="i" class="con-confirm__warn">
@@ -117,6 +123,8 @@ export default defineComponent({
     body: {type: String, default: ''},
     /** What the pass leaves unused — already translated. */
     warnings: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** Only actions with no effect are left — the one quiet line, already translated ('' = none). */
+    quiet: {type: String, default: ''},
     /** The viewer (the layer's own tableau) and every seat (the explorer's names and colours). */
     thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     players: {type: Array as PropType<ReadonlyArray<ForecastSeat>>, default: () => []},
@@ -140,7 +148,7 @@ export default defineComponent({
     /** The plate's tier — content decides: the operation and its answer are a compact confirm (`s`); a LIST of what
      *  the pass leaves unused is reading width (`m`). */
     promptSize(): 's' | 'm' {
-      return this.warnings.length > 0 ? 'm' : 's';
+      return this.warnings.length > 0 || this.quiet !== '' ? 'm' : 's';
     },
     /** The compact row exists iff it has a chip to show. */
     answerShown(): boolean {

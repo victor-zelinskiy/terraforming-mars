@@ -14,6 +14,7 @@ import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOf, parameterMaxed} from '../actionFutilities';
 
 export const OCEAN_COST = 8;
 export class AquiferPumping extends Card implements IActionCard, IProjectCard {
@@ -72,6 +73,11 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
       actionPreviews.stockCost(player, Resource.MEGACREDITS, OCEAN_COST),
     ]);
   }
+  /** NO EFFECT (`models/actionFutility.ts`): the action's whole result is an ocean — nothing once every ocean is placed. */
+  public actionFutility(player: IPlayer) {
+    return futilityOf(parameterMaxed(player, 'oceans'));
+  }
+
   public action(player: IPlayer) {
     player.game.defer(new SelectPaymentDeferred(player, 8, {canUseSteel: true, title: TITLES.payForCardAction(this.name), cause: cardSource(this)}))
       // `sourceCard` is the STAGED tail's address (deferredInputBatch): the

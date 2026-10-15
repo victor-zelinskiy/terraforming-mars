@@ -27,7 +27,7 @@
           <GamepadGlyph v-else :control="cmd.control" />
             <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
             <span class="con-cmdbar__label">{{ cmdLabel(cmd) }}</span>
-            <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
+            <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge" :class="{'con-cmdbar__badge--neutral': cmd.badgeTone === 'neutral'}" :data-badge-tone="cmd.badgeTone ?? 'go'">{{ cmd.badge }}</span>
           </template>
         </span>
       </div>
@@ -61,7 +61,7 @@
           <GamepadGlyph v-else :control="cmd.control" />
           <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
           <span class="con-cmdbar__label">{{ cmdLabel(cmd) }}</span>
-          <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
+          <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge" :class="{'con-cmdbar__badge--neutral': cmd.badgeTone === 'neutral'}" :data-badge-tone="cmd.badgeTone ?? 'go'">{{ cmd.badge }}</span>
         </template>
       </span>
     </div>

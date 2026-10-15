@@ -616,6 +616,13 @@
             </div>
           </template>
 
+          <!-- The action changes NOTHING right now (the server's proven verdict): one calm line, never a warning —
+               the press stays a full commit (the player may take it to stall). -->
+          <div v-if="futileVerdict !== undefined" class="con-composer__warn con-composer__warn--futile" data-composer-futile>
+            <span class="con-composer__warn-glyph" aria-hidden="true">○</span>
+            <span class="con-composer__warn-text">{{ $t(futileVerdict.reason) }} · {{ $t('the action will change nothing') }}</span>
+          </div>
+
           <!-- Warnings (no-effect gains at cap). -->
           <div v-for="(w, i) in warnings" :key="'w' + i" class="con-composer__warn">
             <span class="con-composer__warn-glyph" aria-hidden="true">!</span><span class="con-composer__warn-text">{{ $t(w) }}</span>
@@ -868,6 +875,7 @@ import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {ActionFutilityVerdict} from '@/common/models/ActionFutilityModel';
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
 import {playCommitVerb, playDoorNextStepKey, playDoorOf, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
 import {useResizeObserver} from '@vueuse/core';
@@ -2179,8 +2187,22 @@ export default defineComponent({
       }
       return out;
     },
+    /**
+     * The chosen action would change nothing right now — the server's PROVEN verdict for the selected branch (or the
+     * whole card when it has a single action): said before the press, in the calm register, never a block.
+     */
+    futileVerdict(): ActionFutilityVerdict | undefined {
+      const branch = this.selectedBranch;
+      if (branch?.futile !== undefined) {
+        return branch.futile;
+      }
+      return this.branches.length <= 1 ? this.entry.futility?.verdict : undefined;
+    },
     warnings(): Array<string> {
-      const out: Array<string> = this.heroGain.some((e) => e.current !== undefined && e.current === e.resulting) ?
+      // A gain that lands at its cap is the client's reading of ONE chip; the server's verdict on the whole action
+      // supersedes it (it says more, and the two must never stand together).
+      const out: Array<string> = this.futileVerdict === undefined &&
+        this.heroGain.some((e) => e.current !== undefined && e.current === e.resulting) ?
         ['One of the gains has no effect — the value is already at maximum.'] : [];
       // The check is unwinnable in THIS game (no card of its kind exists) — said
       // before the press, in the amber register; the action itself stays legal.
@@ -2262,6 +2284,8 @@ export default defineComponent({
           // The words speak only where nothing else does — no printed row and an empty formula.
           title: printed === undefined && this.branchView(pos).empty ? this.branchTitle(branch) : '',
           reason: branch.available ? undefined : this.branchReason(branch),
+          // The server proved this live branch changes nothing right now — said on the tile, before the choice.
+          ...(branch.available && branch.futile !== undefined ? {quiet: translateText(branch.futile.reason)} : {}),
           printed,
           attrs: {'data-branch-pos': String(pos), 'data-branch-nav': this.branchNavKind(pos)},
         };

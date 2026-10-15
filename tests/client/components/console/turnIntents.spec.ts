@@ -28,6 +28,15 @@ function or(title: string, options: Array<any>): any {
 function option(title: string): any {
   return {type: 'option', title};
 }
+/** The heat conversion as the server builds it (`heatConversionMetadata`): a temperature step paid in heat. */
+function heatOption(title = 'Convert 8 heat into temperature'): any {
+  return {
+    type: 'option', title,
+    metadata: {kind: 'globalParameter', icon: 'temperature', amount: 1, effects: [
+      {direction: 'cost', icon: 'heat', amount: 8}, {direction: 'gain', icon: 'temperature', amount: 1},
+    ]},
+  };
+}
 function projectCard(title: string, cards: Array<any> = []): any {
   return {type: 'projectCard', title, cards};
 }
@@ -39,7 +48,7 @@ function actionMenu(): any {
     projectCard('Standard projects', [{name: 'Power Plant:SP'}]),
     or('Claim a milestone', [option('Terraformer'), option('Mayor')]),
     or('Fund an award (14 M€)', [option('Landlord')]),
-    option('Convert 8 heat into temperature'),
+    heatOption(),
     {type: 'space', title: 'Convert 8 plants into greenery'},
     {type: 'card', title: 'Sell patents', cards: [], patentSale: {megacreditsPerCard: 1}},
     option('Pass for this generation'),
@@ -99,6 +108,13 @@ describe('turnIntents', () => {
     expect(findSellPatentsAction(wf)?.model, 'the server rate rides the path').to.deep.eq({megacreditsPerCard: 1});
     expect(findPassPath(wf)).to.deep.eq([7]);
     expect(findEndTurnPath(wf)).to.deep.eq([8]);
+  });
+
+  it('finds the heat conversion by its STRUCTURE (a temperature step paid in heat), never by its title', () => {
+    const titled = or('menu', [option('Convert 8 heat into temperature')]) as PlayerInputModel;
+    expect(findConvertHeatOption(titled), 'a title alone is no conversion').to.eq(undefined);
+    const translated = or('menu', [option('Повысить температуру'), heatOption('Потратить 6 тепла (Кельвинисты)')]) as PlayerInputModel;
+    expect(findConvertHeatOption(translated)?.path).to.deep.eq([1]);
   });
 
   it('finds the sale by its STRUCTURAL marker, never by its (translatable) title', () => {

@@ -22,6 +22,7 @@ import * as actionPreviews from '../cards/actionPreviews';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {drawSearchOf} from '../deferredActions/drawSearch';
 import {withPreselectAddresses} from './preselectAddresses';
+import {actionFutility} from './actionFutility';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -44,7 +45,31 @@ import {withPreselectAddresses} from './preselectAddresses';
  */
 export function actionPreview(player: IPlayer, card: ICard & IActionCard): ActionPreview {
   // …and every step addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
-  return withPreselectAddresses(withImpliedRatings(actionPreviewOf(player, card)));
+  return withActionFutility(player, card, withPreselectAddresses(withImpliedRatings(actionPreviewOf(player, card))));
+}
+
+/**
+ * The «no effect» verdict on every branch it names (`actionFutility.ts` — the ONE writer, the same one the tableau
+ * model carries): the composer says WHY a legal branch would change nothing before the press. Only a branch the player
+ * can take wears it (a dead branch already says why it is dead); a shape the verdict does not match is left alone.
+ */
+function withActionFutility(player: IPlayer, card: ICard & IActionCard, preview: ActionPreview): ActionPreview {
+  const futility = actionFutility(player, card);
+  if (futility === undefined) {
+    return preview;
+  }
+  const perBranch = futility.branches ??
+    (futility.verdict !== undefined && preview.branches.length === 1 ? [{futile: true, verdict: futility.verdict}] : undefined);
+  if (perBranch === undefined || perBranch.length !== preview.branches.length) {
+    return preview;
+  }
+  return {
+    ...preview,
+    branches: preview.branches.map((b, i) => {
+      const verdict = perBranch[i].verdict;
+      return b.available !== false && perBranch[i].futile && verdict !== undefined ? {...b, futile: verdict} : b;
+    }),
+  };
 }
 
 /**

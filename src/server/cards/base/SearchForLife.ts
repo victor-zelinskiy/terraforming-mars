@@ -11,6 +11,7 @@ import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOf, vpCapped} from '../actionFutilities';
 import * as actionReveals from '../actionReveals';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {Resource} from '../../../common/Resource';
@@ -94,6 +95,14 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
         // science) → the amber "no more VP" warning before confirming.
         vp: {from: this.vpFor(this.resourceCount), to: this.vpFor(this.resourceCount + 1)},
       }});
+  }
+
+  /**
+   * NO EFFECT (`models/actionFutility.ts`): the card scores its points from the FIRST science on, and nothing spends
+   * science here — a find past it adds nothing to this card (the engine still asks whether the table counts it).
+   */
+  public actionFutility() {
+    return futilityOf(this.resourceCount > 0 ? vpCapped(CardResource.SCIENCE) : undefined);
   }
 
   public action(player: IPlayer) {

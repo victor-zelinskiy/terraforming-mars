@@ -12,6 +12,7 @@ import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOfBranches, zeroYield} from '../actionFutilities';
 import {cardSource, effectChoice} from '../../inputs/choiceContext';
 
 export class JupiterFloatingStation extends Card implements IProjectCard {
@@ -64,6 +65,14 @@ export class JupiterFloatingStation extends Card implements IProjectCard {
         title: 'Gain 1 M€ per floater here (max 4)',
         effects: [actionPreviews.stockGain(player, Resource.MEGACREDITS, Math.min(this.resourceCount, 4))],
       },
+    ]);
+  }
+
+  /** NO EFFECT, per `actionPreview` branch: the M€ is counted off the floaters here — none, nothing. */
+  public actionFutility() {
+    return futilityOfBranches([
+      {available: true},
+      {available: true, verdict: this.resourceCount === 0 ? zeroYield() : undefined},
     ]);
   }
 

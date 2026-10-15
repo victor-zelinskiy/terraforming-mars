@@ -46,6 +46,12 @@ export type WheelCounts = {
   cards: number;
   /** Potentially performable card / corporation actions. */
   cardActions: number;
+  /**
+   * Of `cardActions`, the ones that would change NOTHING right now (the server's «no effect» verdict —
+   * `server/models/actionFutility.ts`). Still counted in `cardActions`: they CAN be taken (a player may stall with one);
+   * only the count's REGISTER changes when nothing else is left (`countTone`).
+   */
+  futileCardActions: number;
   /** 0 or 1 — a Hydronetwork advance is still potentially possible. */
   hydro: number;
   /** Remaining potential trade actions: min(tradeable colonies, free fleets). */
@@ -63,8 +69,21 @@ export function wheelPotentialCounts(input: WheelCountsInput): WheelCounts {
     // cards (Turmoil Redux), so its badge counts both — each number the
     // server's own verdict.
     cardActions: Math.max(0, p.cardActions) + Math.max(0, p.partyActions ?? 0),
+    // A party action is never «for nothing» (the parliament's own verdict); only card actions can be.
+    futileCardActions: Math.max(0, Math.min(p.futileCardActions ?? 0, p.cardActions)),
     // A category absent from this game shows nothing at all rather than a 0.
     hydro: input.hasHydro ? Math.max(0, p.hydroAdvance) : 0,
     trade: input.hasColonies ? Math.max(0, p.colonyTrades) : 0,
   };
+}
+
+/**
+ * The REGISTER a count is painted in: `go` (the mint «there is something to do») while at least one of what it counts
+ * is worth doing, `neutral` (white) when every one of them would change nothing — still shown, still activatable (a
+ * player may stall with one), never an invitation. Nothing counted → `go` (the surface shows no badge at all).
+ */
+export type CountTone = 'go' | 'neutral';
+
+export function countTone(total: number, futile: number): CountTone {
+  return total > 0 && futile >= total ? 'neutral' : 'go';
 }

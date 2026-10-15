@@ -24,6 +24,7 @@ import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {StandardProjectPreviewModel} from '../../common/models/CardModel';
 import {Resource} from '../../common/Resource';
 import * as preview from '../cards/actionPreviews';
+import {standardProjectFutility} from './actionFutility';
 
 /**
  * Build the guaranteed preview for one standard project.
@@ -89,6 +90,11 @@ export function buildStandardProjectPreview(
   const forecast = rewardReactionForecast(player, card, effects);
   if (forecast !== undefined) {
     model.forecast = forecast;
+  }
+  // NO EFFECT: the project's whole result is a maxed parameter's step and nothing answers it (`actionFutility.ts`).
+  const futile = standardProjectFutility(player, card, (extras ?? []).length > 0, target !== undefined);
+  if (futile !== undefined) {
+    model.futile = futile;
   }
   return model;
 }

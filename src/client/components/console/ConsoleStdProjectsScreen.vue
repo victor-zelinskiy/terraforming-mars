@@ -59,6 +59,9 @@
                        'con-stdp__card--focused': i === index,
                        'con-stdp__card--go': it.available && !isCommitRow(it),
                        'con-stdp__card--off': !it.available,
+                       // AVAILABLE and changing nothing (the server's proven verdict): a live row a step quieter —
+                       // never reordered, never refused (the player may still take it).
+                       'con-stdp__card--futile': rowFutile(it),
                        // THE COMMIT PHRASE, on the row that was pressed:
                        // `--pressing` is the tactile answer (it plays on the
                        // press frame, before the server has said anything);
@@ -68,7 +71,9 @@
                        'con-stdp__card--committing': commitPhase === 'committing' && it.key === commitCardKey,
                        'con-stdp__card--committed': commitPhase === 'committed' && it.key === commitCardKey,
                      }"
-                     :ref="i === index ? 'focusedCard' : undefined">
+                     :ref="i === index ? 'focusedCard' : undefined"
+                     :data-stdp-card="it.cardName"
+                     :data-stdp-futile="rowFutile(it) ? it.preview?.futile?.kind : undefined">
             <span v-if="it.available" class="con-stdp__rail" aria-hidden="true">
               <!-- The gold pass's own body inside the state marker: the rail
                    is re-forged rather than repainted. -->
@@ -137,7 +142,12 @@
                      the DOOR of the R3 «Эффекты» layer (PL-066). -->
                 <ConsoleForecastDoor :reaction="focusedReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
                 <span v-if="nextStepKey !== undefined" class="con-stdp__context-next">› {{ $t(nextStepKey) }}</span>
-                <span v-for="w in focusedWarnings" :key="w" class="con-stdp__context-warning">⚠ {{ $t(warningTextOf(w)) }}</span>
+                <!-- The project changes NOTHING right now — the server's verdict supersedes the per-chip warnings
+                     (it says more, and the two never stand together). -->
+                <span v-if="focusedFutile !== undefined" class="con-stdp__context-futile" data-stdp-context-futile>○ {{ $t(focusedFutile) }} · {{ $t('the action will change nothing') }}</span>
+                <template v-else>
+                  <span v-for="w in focusedWarnings" :key="w" class="con-stdp__context-warning">⚠ {{ $t(warningTextOf(w)) }}</span>
+                </template>
               </template>
             </div>
           </div>
@@ -284,6 +294,11 @@ export default defineComponent({
     focusedWarnings(): ReadonlyArray<Warning> {
       return this.focused?.warnings ?? [];
     },
+    /** The focused project would change nothing (the server's reason key) — undefined for one that does something. */
+    focusedFutile(): string | undefined {
+      const f = this.focused;
+      return f !== undefined && this.rowFutile(f) ? f.preview?.futile?.reason : undefined;
+    },
     /** The pay-on-commit follow-up, named BEFORE the descent (§7: only the
      *  guaranteed part is promised — target-dependent results arrive with the
      *  step's own preview surfaces). Existing i18n keys, nothing coined. */
@@ -425,6 +440,9 @@ export default defineComponent({
       return this.chipKeyOf(e);
     },
     /** Is this the row the commit phrase is playing on? */
+    rowFutile(it: StdProjectItem): boolean {
+      return it.available && it.preview?.futile !== undefined;
+    },
     isCommitRow(it: StdProjectItem): boolean {
       return this.commitPhase !== 'idle' && it.key === this.commitCardKey;
     },

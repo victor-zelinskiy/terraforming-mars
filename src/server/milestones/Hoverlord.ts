@@ -3,6 +3,7 @@ import {IPlayer} from '../IPlayer';
 import {CardResource} from '../../common/CardResource';
 
 export class Hoverlord extends BaseMilestone {
+  public readonly cardResourceCount = [CardResource.FLOATER];
   constructor() {
     super(
       'Hoverlord',

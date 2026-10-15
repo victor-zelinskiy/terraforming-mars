@@ -174,10 +174,19 @@ describe('wheel potential counts', () => {
     playableCards: 4, cardActions: 3, hydroAdvance: 1, colonyTrades: 2, ...over,
   });
 
+  it('passes the futile card actions through, clamped to the card actions (never more than counted)', () => {
+    expect(wheelPotentialCounts({
+      potential: projection({futileCardActions: 2}), handTotal: 7, hasColonies: true, hasHydro: true,
+    }).futileCardActions).to.eq(2);
+    expect(wheelPotentialCounts({
+      potential: projection({futileCardActions: 9}), handTotal: 7, hasColonies: true, hasHydro: true,
+    }).futileCardActions).to.eq(3);
+  });
+
   it('passes the server projection through for every category', () => {
     expect(wheelPotentialCounts({
       potential: projection(), handTotal: 7, hasColonies: true, hasHydro: true,
-    })).to.deep.eq({cards: 4, cardActions: 3, hydro: 1, trade: 2});
+    })).to.deep.eq({cards: 4, cardActions: 3, futileCardActions: 0, hydro: 1, trade: 2});
   });
 
   /*
@@ -213,7 +222,7 @@ describe('wheel potential counts', () => {
   it('no projection (an opponent seat / an older server) degrades to zeros', () => {
     expect(wheelPotentialCounts({
       potential: undefined, handTotal: 7, hasColonies: true, hasHydro: true,
-    })).to.deep.eq({cards: 0, cardActions: 0, hydro: 0, trade: 0});
+    })).to.deep.eq({cards: 0, cardActions: 0, futileCardActions: 0, hydro: 0, trade: 0});
   });
 
   /*

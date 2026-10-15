@@ -1,12 +1,20 @@
 import {MilestoneName} from '../../common/ma/MilestoneName';
 import {IPlayer} from '../IPlayer';
 import {IGame} from '../IGame';
+import {CardResource} from '../../common/CardResource';
 
 export interface IMilestone {
   name: MilestoneName;
   description: string;
   canClaim(player: IPlayer): boolean;
   getScore(player: IPlayer): number;
+  /**
+   * The card resources whose AMOUNT this one counts (`'any'` — every kind): one more unit of such a resource on a card
+   * moves the score. Declared beside `getScore` (the one reader that knows), read by the «no effect» verdict
+   * (`models/actionFutility.ts`) — a resource that still counts for a live award / milestone is never «for nothing».
+   * Guard: `tests/models/actionFutility.spec.ts` (every scorer reading a resource amount declares it).
+   */
+  readonly cardResourceCount?: ReadonlyArray<CardResource> | 'any';
   // Optional per-game overrides. Most milestones have a single fixed
   // threshold + description; a few (Terraformer) vary by expansion (e.g.
   // Turmoil's lower terraform-rating target). When implemented, the server

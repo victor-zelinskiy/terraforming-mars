@@ -47,6 +47,8 @@ export type ConsoleCommand = {
   enabled?: boolean,
   /** Availability count (LB Достижения ②) — rendered as a badge chip. */
   badge?: number,
+  /** The badge's register: `neutral` (white) when everything it counts would change nothing — never the mint «go». */
+  badgeTone?: 'neutral',
   /** Something is claimable behind this command — the glyph+label glow. */
   highlight?: boolean,
   /**

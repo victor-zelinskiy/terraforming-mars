@@ -16,6 +16,7 @@ import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOfBranches, parameterMaxed} from '../actionFutilities';
 
 export class RotatorImpacts extends Card implements IActionCard {
   constructor() {
@@ -92,6 +93,14 @@ export class RotatorImpacts extends Card implements IActionCard {
         steps: payAdd !== undefined ? [payAdd] : [],
         unavailableReason: actionReason.needMoreMC(player, 6),
       },
+    ]);
+  }
+
+  /** NO EFFECT, per `actionPreview` branch: the removal's whole result is a Venus step; the purchase adds an asteroid. */
+  public actionFutility(player: IPlayer) {
+    return futilityOfBranches([
+      {available: this.canSpendResource(player), verdict: parameterMaxed(player, 'venus')},
+      {available: this.canAddResource(player)},
     ]);
   }
 

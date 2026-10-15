@@ -15,6 +15,7 @@ import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOfBranches, parameterMaxed} from '../actionFutilities';
 import {TileType} from '../../../common/TileType';
 
 const ASTEROID_COST = 10;
@@ -102,6 +103,14 @@ export class IcyImpactors extends Card implements IActionCard {
         steps: [pay],
         unavailableReason: actionReason.needMoreMC(player, ASTEROID_COST),
       },
+    ]);
+  }
+
+  /** NO EFFECT, per `actionPreview` branch: an asteroid for an ocean credited to you; 10 M€ adds two asteroids. */
+  public actionFutility(player: IPlayer) {
+    return futilityOfBranches([
+      {available: this.canAffordToPlaceOcean(player), verdict: parameterMaxed(player, 'oceans')},
+      {available: this.canAffordToBuyAsteroids(player)},
     ]);
   }
 

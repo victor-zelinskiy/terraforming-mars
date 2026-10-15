@@ -5,6 +5,7 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {ActionFutility} from '@/common/models/ActionFutilityModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {ActionState, ActionStateInput, computeActionState} from '@/client/components/actions/actionPlayability';
@@ -21,6 +22,11 @@ export type ActionEntry = {
   cardName: CardName;
   isCorporation: boolean;
   state: ActionState;
+  /**
+   * The server's PROVEN «this action would change nothing right now» verdict (`CardModel.actionFutility` — own
+   * tableau only; absent = it has value). Information, never a block: the action stays activatable.
+   */
+  futility?: ActionFutility;
 };
 
 export type AvailabilityFilter = 'all' | 'available' | 'unavailable';
@@ -69,6 +75,7 @@ export function buildActionEntries(
       cardName: group.cardName,
       isCorporation: group.isCorporation,
       state: computeActionState(card, input),
+      ...(card.actionFutility !== undefined ? {futility: card.actionFutility} : {}),
     };
   });
 }

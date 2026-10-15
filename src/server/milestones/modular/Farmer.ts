@@ -3,6 +3,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardResource} from '../../../common/CardResource';
 
 export class Farmer extends BaseMilestone {
+  public readonly cardResourceCount = [CardResource.MICROBE, CardResource.ANIMAL];
   constructor() {
     super(
       'Farmer',

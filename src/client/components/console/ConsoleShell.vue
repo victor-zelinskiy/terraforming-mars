@@ -110,7 +110,7 @@
       <ConsoleResourcePanel ref="conRailEl"
                             :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
-                            :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
+                            :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && convertHeatFutile === undefined && railShowsSelf"
                             :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneVisible"
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
@@ -641,6 +641,7 @@
                             :forecast="confirmForecast"
                             :body="confirmBody"
                             :warnings="confirmWarnings"
+                            :quiet="confirmQuiet"
                             :thisPlayer="thisPlayer"
                             :players="playerView.players"
                             :statsView="playerView" />
@@ -1719,7 +1720,8 @@ import {shareViewSnapshot} from '@/client/utils/viewSnapshotShare';
  * safe across a shell remount.
  */
 const maHudZoneShare: {milestones?: MaHudZone, awards?: MaHudZone} = {};
-import {wheelPotentialCounts, WheelCounts} from '@/client/console/potentialAvailability';
+import {countTone, wheelPotentialCounts, WheelCounts} from '@/client/console/potentialAvailability';
+import {PassWarnings, passWarnings} from '@/client/console/passWarnings';
 import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsoleStrategyRail from '@/client/components/console/ConsoleStrategyRail.vue';
@@ -2848,6 +2850,10 @@ export default defineComponent({
     convertHeatReady(): boolean {
       return findConvertHeatOption(this.playerView.waitingFor) !== undefined;
     },
+    /** …and it would change nothing (the temperature at its maximum — the option's own `futile` verdict): the reason key. */
+    convertHeatFutile(): string | undefined {
+      return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.futile?.reason;
+    },
     playAction() {
       return findPlayProjectCardAction(this.playerView.waitingFor);
     },
@@ -2877,6 +2883,10 @@ export default defineComponent({
     wheelCountsTotal(): number {
       const c = this.wheelCounts;
       return c.cards + c.cardActions + c.hydro + c.trade;
+    },
+    /** …of which worth doing — an action with no effect is counted above and never invites (the bar's glow). */
+    wheelCountsUseful(): number {
+      return this.wheelCountsTotal - this.wheelCounts.futileCardActions;
     },
     /** The hand total every HUD readout shows — the same intake-aware count
      *  the dock's «КАРТЫ» line uses (held / in-flight / untaken-reveal
@@ -7535,28 +7545,31 @@ export default defineComponent({
       return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.forecast;
     },
     /** T7 info parity: the desktop PassConfirmContent warning set. */
-    confirmWarnings(): Array<string> {
+    /**
+     * WHAT THE PASS LEAVES UNUSED (`passWarnings.ts`): an action with no effect is never listed as an opportunity —
+     * the futile card actions are subtracted, a heat conversion at the temperature's maximum is dropped — and when
+     * nothing BUT such actions is left, one quiet line says so (`confirmQuiet`) and the pass stays calm.
+     */
+    passReading(): PassWarnings {
       if (this.consoleState.confirm !== 'pass') {
-        return [];
+        return {lines: []};
       }
-      const warnings: Array<string> = [];
-      const unused = this.actionsAvailableCount;
-      if (unused > 0) {
-        warnings.push(`${translateText('You still have unused available actions')}: ${unused}`);
-      }
-      if (this.tradeColonyContext !== undefined) {
-        warnings.push(translateText('You still have a free trade fleet and can afford a colony trade'));
-      }
-      if (findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) !== undefined) {
-        warnings.push(translateText('You can still convert plants into greenery'));
-      }
-      if (findConvertHeatOption(this.playerView.waitingFor) !== undefined) {
-        warnings.push(translateText('You can still convert heat into temperature'));
-      }
-      if (this.hydroActionAvailable) {
-        warnings.push(translateText('You can still advance the Hydronetwork this generation'));
-      }
-      return warnings;
+      return passWarnings({
+        cardActions: this.actionsAvailableCount,
+        futileCardActions: this.wheelCounts.futileCardActions,
+        trade: this.tradeColonyContext !== undefined,
+        plants: findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) !== undefined,
+        heat: !this.convertHeatReady ? 'none' : this.convertHeatFutile !== undefined ? 'futile' : 'useful',
+        hydro: this.hydroActionAvailable,
+      });
+    },
+    confirmWarnings(): Array<string> {
+      return this.passReading.lines.map((l) => l.count !== undefined ? `${translateText(l.key)}: ${l.count}` : translateText(l.key));
+    },
+    /** The ONE quiet line when only actions with no effect are left ('' otherwise). */
+    confirmQuiet(): string {
+      const q = this.passReading.quiet;
+      return q === undefined ? '' : `${translateText(q.key)}: ${q.count ?? ''}`;
     },
     // ── colonies / hydro ───────────────────────────────────────────────
     tradeColonyContext() {
@@ -8442,6 +8455,7 @@ export default defineComponent({
           cardsPlayable: this.wheelCounts.cards,
           cardsTotal: this.cardsTotalCount,
           actionsAvailable: this.wheelCounts.cardActions,
+          actionsFutile: countTone(this.wheelCounts.cardActions, this.wheelCounts.futileCardActions) === 'neutral',
           tradesAvailable: this.wheelCounts.trade,
           hydroAvailable: this.wheelCounts.hydro,
           hasColonies: this.game.colonies.length > 0,
@@ -8466,6 +8480,7 @@ export default defineComponent({
           turnControlReason: bonusActionTurnControlReason(this.playerView),
           convertPlantsAvailable: this.convertPlantsReady,
           convertHeatAvailable: this.convertHeatReady,
+          convertHeatFutile: this.convertHeatFutile,
           plantsNeeded: this.thisPlayer.plantsNeededForGreenery,
           heatNeeded: this.thisPlayer.heatNeededForTemperature,
         });
@@ -9953,7 +9968,9 @@ export default defineComponent({
         // never say different numbers. The HIGHLIGHT is the other question
         // («can I act right now»), and that one is legitimately turn-gated.
         {control: 'triggerR', label: 'Actions', badge: this.wheelCountsTotal,
-          highlight: this.myTurn && this.wheelCountsTotal > 0},
+          // The glow invites only to what is worth doing; a count of actions with no effect alone reads white.
+          highlight: this.myTurn && this.wheelCountsUseful > 0,
+          ...(countTone(this.wheelCountsTotal, this.wheelCounts.futileCardActions) === 'neutral' ? {badgeTone: 'neutral' as const} : {})},
         // The SHORT hint key on purpose — the footer's centre bay (hand
         // dock) splits this richest set across two zones, and the full
         // «Базовые действия» is the one atom that fits neither; the LT

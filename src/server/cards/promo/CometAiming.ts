@@ -17,6 +17,7 @@ import {Payment} from '../../../common/inputs/Payment';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOfBranches, parameterMaxed} from '../actionFutilities';
 import {TileType} from '../../../common/TileType';
 
 export class CometAiming extends Card implements IActionCard, IProjectCard {
@@ -109,6 +110,14 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
         vpBox: actionPreviews.targetVictoryPoints(player, asteroidCards, 1),
         unavailableReason: actionReason.notEnoughTitanium(),
       },
+    ]);
+  }
+
+  /** NO EFFECT, per `actionPreview` branch: an asteroid for an ocean; titanium adds an asteroid to a card. */
+  public actionFutility(player: IPlayer) {
+    return futilityOfBranches([
+      {available: this.resourceCount > 0 && this.canAffordOcean(player), verdict: parameterMaxed(player, 'oceans')},
+      {available: player.titanium > 0},
     ]);
   }
 

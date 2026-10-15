@@ -18,6 +18,7 @@ import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOfBranches, parameterMaxed} from '../actionFutilities';
 
 const ADD_COST = 6;
 
@@ -129,6 +130,14 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
         steps: [pay, actionPreviews.addToCardStep(player, CardResource.ASTEROID, this.asteroidTargetOptions())],
         unavailableReason: actionReason.needMoreMC(player, ADD_COST),
       },
+    ]);
+  }
+
+  /** NO EFFECT, per `actionPreview` branch: the removal's whole result is a temperature step; the purchase adds an asteroid. */
+  public actionFutility(player: IPlayer) {
+    return futilityOfBranches([
+      {available: this.removeIsOffered(player), verdict: parameterMaxed(player, 'temperature')},
+      {available: this.canPayForAsteroid(player)},
     ]);
   }
 

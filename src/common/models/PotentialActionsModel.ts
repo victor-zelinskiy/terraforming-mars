@@ -47,6 +47,12 @@ export type PotentialActionsModel = {
    * Absent without the module (an older server too — the client defaults to 0).
    */
   partyActions?: number;
+  /**
+   * Of `cardActions`, how many would change NOTHING right now (`server/models/actionFutility.ts` — every branch the
+   * player can take is futile). Still counted above (they CAN be taken — a player may stall with one); a surface paints
+   * the count neutral instead of «go» when nothing else is left, and the pass warning names only the useful ones.
+   */
+  futileCardActions?: number;
 };
 
 /** An all-zero projection — the shape a client can safely default to. */

@@ -24,6 +24,7 @@ import {Warning} from '../../common/cards/Warning';
 import {PreludeNeed} from '../../common/cards/PreludeOutlook';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionEffect, ActionPreview, AgendaWalkModel} from '../../common/models/ActionPreviewModel';
+import {ActionFutility} from '../../common/models/ActionFutilityModel';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
@@ -96,6 +97,15 @@ export interface ICard {
    * MUST NOT mutate game state. Builders live in `src/server/cards/actionPreviews.ts`.
    */
   actionPreview?(player: IPlayer): ActionPreview;
+  /**
+   * Optional READ-ONLY verdict that this card's ACTIVATABLE ACTION would change nothing right now (the «no effect»
+   * class — `src/server/models/actionFutility.ts`), for a BESPOKE action the declarative reader cannot see into: a
+   * branch that spends to raise a maxed parameter, a gain counted off the table, a resource past the card's points.
+   * Per branch in `actionPreview` order, built with `cards/actionFutilities.ts`; `undefined` = nothing to say. The
+   * RESCUES (a Whales owner, a reacting card, a live award) are the engine's, never the hook's. Lives beside
+   * `action()` / `canAct()` so an upstream change to the action meets it in the same diff. MUST NOT mutate state.
+   */
+  actionFutility?(player: IPlayer): ActionFutility | undefined;
   /**
    * Optional READ-ONLY preview of PLAYING this card — its ON-PLAY effects and the
    * per-choice steps the player will make — so the "РАЗЫГРАТЬ КАРТУ" modal can

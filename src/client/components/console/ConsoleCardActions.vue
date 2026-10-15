@@ -92,7 +92,11 @@
             <span class="con-cardactions__stat">
               <b>{{ model.totalTiles }}</b><i>{{ $t('total') }}</i>
             </span>
-            <span class="con-cardactions__stat con-cardactions__stat--go" :class="{'con-cardactions__stat--zero': model.availableTiles === 0}">
+            <!-- The count keeps every allowed action; it stops inviting (white, not mint) when each of them would
+                 change nothing (`countTone`). -->
+            <span class="con-cardactions__stat con-cardactions__stat--go"
+                  :class="{'con-cardactions__stat--zero': model.availableTiles === 0, 'con-cardactions__stat--neutral': performTone === 'neutral'}"
+                  :data-stat-tone="performTone">
               <b>{{ model.availableTiles }}</b><i>{{ $t(repeat ? 'can select' : 'can perform') }}</i>
             </span>
           </div>
@@ -207,11 +211,13 @@
 
           <!-- Prominent availability verdict — tied directly under the card
                it judges. -->
-          <div class="con-cardactions__verdict" :class="'con-cardactions__verdict--' + focusedTile.status">
-            <span class="con-cardactions__verdict-mark" aria-hidden="true">{{ verdictMark(focusedTile.status) }}</span>
+          <div class="con-cardactions__verdict" :class="'con-cardactions__verdict--' + tileVerdict(focusedTile)"
+               :data-verdict="tileVerdict(focusedTile)">
+            <span class="con-cardactions__verdict-mark" aria-hidden="true">{{ verdictMark(tileVerdict(focusedTile)) }}</span>
             <div class="con-cardactions__verdict-body">
-              <div class="con-cardactions__verdict-head">{{ $t(statusHeading(focusedTile.status)) }}</div>
-              <div v-if="focusedTile.status !== 'available' && tileReason(focusedTile) !== ''" class="con-cardactions__verdict-reason">{{ tileReason(focusedTile) }}</div>
+              <div class="con-cardactions__verdict-head">{{ $t(statusHeading(tileVerdict(focusedTile))) }}</div>
+              <div v-if="tileVerdict(focusedTile) === 'futile'" class="con-cardactions__verdict-reason">{{ $t(focusedTile.futile?.reason ?? '') }}</div>
+              <div v-else-if="focusedTile.status !== 'available' && tileReason(focusedTile) !== ''" class="con-cardactions__verdict-reason">{{ tileReason(focusedTile) }}</div>
             </div>
           </div>
 
@@ -309,6 +315,7 @@
                  {
                    'con-cardactions__group--wide': group.tiles.length > 1,
                    'con-cardactions__group--live': groupHasFocus(group),
+                   'con-cardactions__group--futile': group.futile !== undefined,
                  },
                ]">
             <!-- The CARD PLATE — the group's identity header: reading order
@@ -347,9 +354,11 @@
                        'con-cardactions__tile--focused': focusKey === tile.key,
                        'con-cardactions__tile--shake': shakeKey === tile.key,
                        'con-cardactions__tile--descend': descendKey === tile.key,
+                       'con-cardactions__tile--futile': tileFutile(tile),
                      },
                    ]"
                    :ref="focusKey === tile.key ? 'focused' : undefined"
+                   :data-action-futile="tileFutile(tile) ? tile.futile?.kind : undefined"
                    :data-action-card="tile.cardName"
                    :data-action-party="tile.party"
                    :data-action-resolution="tile.resolutionAction">
@@ -368,8 +377,8 @@
                        in words instead. Never both. -->
                   <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
                   <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ $t('Option') }} {{ tile.nodeIndex + 1 }}</span>
-                  <span v-if="tile.status !== 'available'" class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tile.status">
-                    {{ $t(statusLabel(tile.status)) }}
+                  <span v-if="tileVerdict(tile) !== 'available'" class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tileVerdict(tile)">
+                    {{ $t(statusLabel(tileVerdict(tile))) }}
                   </span>
                 </div>
 
@@ -441,6 +450,13 @@
                        class="con-cardactions__tile-reason"
                        :class="'con-cardactions__tile-reason--' + slotMeta(tile).tone">
                     <span aria-hidden="true">{{ slotMeta(tile).tone === 'warning' ? '⏳' : '✕' }}</span>
+                    <span>{{ slotMeta(tile).text }}</span>
+                  </div>
+                  <!-- AVAILABLE and changing nothing: the server's reason, in the quiet register — a fact, not a
+                       refusal (the slot stays a live verb). -->
+                  <div v-else-if="slotMeta(tile).kind === 'futile'"
+                       class="con-cardactions__tile-reason con-cardactions__tile-reason--futile" data-tile-futile>
+                    <span aria-hidden="true">○</span>
                     <span>{{ slotMeta(tile).text }}</span>
                   </div>
                   <div v-else-if="slotMeta(tile).kind === 'continuation'" class="con-cardactions__tile-choices">
@@ -590,6 +606,7 @@ import {
   ConsoleVariableChip,
   RepeatAvailability,
 } from '@/client/console/consoleCardActions';
+import {CountTone, countTone} from '@/client/console/potentialAvailability';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {fitDescTiers} from '@/client/console/descTier';
@@ -668,19 +685,27 @@ import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/consol
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
-const STATUS_HEADING: Record<ActionStatus, string> = {
+/**
+ * A slot's VERDICT: its status, or `futile` — AVAILABLE and changing nothing right now (the server's proven verdict).
+ * Only an `available` slot reads `futile`: a not-now / blocked / used one already says why, and one visible key wins.
+ */
+type TileVerdict = ActionStatus | 'futile';
+
+const STATUS_HEADING: Record<TileVerdict, string> = {
   available: 'Can perform',
   rules: 'Action unavailable',
   soft: 'Not available right now',
   activated: 'Already activated this generation',
+  futile: 'Available, but changes nothing now',
 };
-const STATUS_LABEL: Record<ActionStatus, string> = {
+const STATUS_LABEL: Record<TileVerdict, string> = {
   available: 'Available',
   rules: 'Unavailable',
   soft: 'Not now',
   activated: 'Activated',
+  futile: 'No effect now',
 };
-const VERDICT_MARK: Record<ActionStatus, string> = {available: '✦', rules: '✕', soft: '⏳', activated: '✓'};
+const VERDICT_MARK: Record<TileVerdict, string> = {available: '✦', rules: '✕', soft: '⏳', activated: '✓', futile: '○'};
 
 const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHeat', string> = {
   card: 'Choose a card',
@@ -846,6 +871,10 @@ export default defineComponent({
   computed: {
     thisPlayer() {
       return this.playerView.thisPlayer;
+    },
+    /** The «можно выполнить» stat's register: white when every action it counts would change nothing. */
+    performTone(): CountTone {
+      return this.repeat ? 'go' : countTone(this.model.availableTiles, this.model.futileTiles);
     },
     /** The server's activatable-NOW set (authoritative gate). */
     availableNames(): Set<CardName> {
@@ -1605,8 +1634,10 @@ export default defineComponent({
           return;
         }
         if (this.focusKey === '') {
-          // Fresh open — lead with the first activatable variant, else the first shown.
-          const firstAvail = this.model.tiles.find((t) => t.status === 'available');
+          // Fresh open — lead with the first activatable variant that DOES something, else the first activatable,
+          // else the first shown.
+          const firstAvail = this.model.tiles.find((t) => t.status === 'available' && t.futile === undefined) ??
+            this.model.tiles.find((t) => t.status === 'available');
           this.focusKey = firstAvail?.key ?? keys[0];
           return;
         }
@@ -2096,14 +2127,21 @@ export default defineComponent({
     resIconClass(icon: string | CardResource): string {
       return iconClassFor(String(icon).toLowerCase().replace(/\s+/g, '-'));
     },
-    statusLabel(status: ActionStatus): string {
+    statusLabel(status: TileVerdict): string {
       return STATUS_LABEL[status];
     },
-    statusHeading(status: ActionStatus): string {
+    statusHeading(status: TileVerdict): string {
       return STATUS_HEADING[status];
     },
-    verdictMark(status: ActionStatus): string {
+    verdictMark(status: TileVerdict): string {
       return VERDICT_MARK[status];
+    },
+    /** The slot is a LIVE verb that would change nothing right now (the quiet paint, the bottom band). */
+    tileFutile(tile: ConsoleActionTile): boolean {
+      return tile.futile !== undefined && (tile.status === 'available' || tile.status === 'soft');
+    },
+    tileVerdict(tile: ConsoleActionTile): TileVerdict {
+      return tile.status === 'available' && tile.futile !== undefined ? 'futile' : tile.status;
     },
     tileReason(tile: ConsoleActionTile): string {
       return this.reasonText(tile.reason);
@@ -2134,12 +2172,16 @@ export default defineComponent({
      *                     draw (`choiceKinds`: payment, a card pick, …).
      * Nothing else may enter this zone.
      */
-    slotMeta(tile: ConsoleActionTile): {kind: 'validation' | 'continuation' | 'none', text: string, tone: 'warning' | 'danger'} {
+    slotMeta(tile: ConsoleActionTile): {kind: 'validation' | 'futile' | 'continuation' | 'none', text: string, tone: 'warning' | 'danger'} {
       if (tile.status !== 'available') {
         const reason = this.tileReason(tile);
         if (reason !== '') {
           return {kind: 'validation', text: reason, tone: tile.blocker?.tone ?? 'danger'};
         }
+      }
+      // AVAILABLE and changing nothing: what the press would do is the slot's news, before the steps it would ask.
+      if (tile.futile !== undefined) {
+        return {kind: 'futile', text: translateText(tile.futile.reason), tone: 'warning'};
       }
       if (tile.choiceKinds.length > 0) {
         return {kind: 'continuation', text: this.choiceKindsLabel(tile), tone: 'danger'};

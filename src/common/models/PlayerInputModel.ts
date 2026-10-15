@@ -3,6 +3,7 @@ import type {PatentSaleModel} from './PatentSaleModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
+import type {ActionFutilityVerdict} from './ActionFutilityModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
 import type {ExternalDrawTakeMeta} from './ExternalDrawPromptModel';
 import type {DeltaBonusPromptMeta} from './DeltaBonusPromptModel';
@@ -843,6 +844,11 @@ export type OptionMetadata = {
    * bonus step the raise crosses. Absent = nothing reacts, one press.
    */
   forecast?: EffectForecast;
+  /**
+   * NO EFFECT (`ActionFutilityModel.ts`): the option is legal and changes nothing right now — the heat conversion at the
+   * temperature's maximum. The console never counts, warns about or paints it as an opportunity, and never blocks it.
+   */
+  futile?: ActionFutilityVerdict;
   /** A NON-numeric downside of taking this option, shown as a warning chip (e.g.
    *  "Card turned face down — its effect stops"). i18n text/Message. */
   tradeoff?: string | Message;

@@ -48,6 +48,10 @@
           <div v-if="opt.state.off && opt.reason !== undefined && opt.reason !== ''" class="con-vchoice__reason">
             <span class="con-vchoice__reason-mark" aria-hidden="true">✕</span>{{ opt.reason }}
           </div>
+          <!-- LIVE and changing nothing right now: a calm fact on the same plate shape, never a refusal. -->
+          <div v-else-if="quiet(opt)" class="con-vchoice__reason con-vchoice__reason--quiet" data-vchoice-quiet>
+            <span class="con-vchoice__reason-mark" aria-hidden="true">○</span>{{ opt.quiet }}
+          </div>
         </div>
       </div>
     </template>
@@ -57,7 +61,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
-import {groupDecided, variantOptionClasses, VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {groupDecided, variantOptionClasses, variantQuiet, VariantChoiceOption} from '@/client/console/variantChoiceModel';
 
 export default defineComponent({
   name: 'ConsoleVariantChoice',
@@ -83,12 +87,15 @@ export default defineComponent({
   },
   methods: {
     optionClasses(opt: VariantChoiceOption): Record<string, boolean> {
-      return variantOptionClasses(opt.state, this.decided);
+      return {...variantOptionClasses(opt.state, this.decided), 'con-vchoice__opt--quiet': variantQuiet(opt)};
+    },
+    quiet(opt: VariantChoiceOption): boolean {
+      return variantQuiet(opt);
     },
     /** Anything beside the print — words, the host's body, a refusal. */
     hasText(opt: VariantChoiceOption): boolean {
       return opt.title !== '' || opt.color !== undefined || opt.door === true || this.$slots.body !== undefined ||
-        (opt.state.off && opt.reason !== undefined && opt.reason !== '');
+        (opt.state.off && opt.reason !== undefined && opt.reason !== '') || variantQuiet(opt);
     },
   },
 });

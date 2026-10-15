@@ -21,6 +21,8 @@ import {Message} from '../../common/logs/Message';
 import {isFleetDocked} from '../colonies/FleetDock';
 import {countedPlayEffects} from './actionPreview';
 import {requirementEasingOf} from './requirementEasing';
+import {actionFutility} from './actionFutility';
+import {ActionFutility} from '../../common/models/ActionFutilityModel';
 
 export function cardsToModel(
   player: IPlayer,
@@ -53,6 +55,7 @@ export function cardsToModel(
     // generation (a used/disabled card is the "activated" state, not a rules
     // block, so it carries no reasons).
     let actionReasonList: ReadonlyArray<UnplayableReason> | undefined;
+    let futility: ActionFutility | undefined;
     if (options.actionReasons === true &&
         isIActionCard(card) &&
         card.isDisabled !== true &&
@@ -60,6 +63,11 @@ export function cardsToModel(
       const reasons = computeActionUnavailableReasons(player, card);
       if (reasons.length > 0) {
         actionReasonList = reasons;
+      }
+      // …and an AVAILABLE action that would change nothing right now — the one verdict, with the view (the action list
+      // orders by it, so it may not wait for a preview).
+      if (card.canAct(player)) {
+        futility = actionFutility(player, card);
       }
     }
 
@@ -172,6 +180,9 @@ export function cardsToModel(
     }
     if (actionReasonList !== undefined) {
       model.actionReasons = actionReasonList;
+    }
+    if (futility !== undefined) {
+      model.actionFutility = futility;
     }
     return model;
   });

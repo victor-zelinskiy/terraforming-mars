@@ -8,6 +8,7 @@ import {Resource} from '../../../../common/Resource';
 import {OptionMetadata} from '../../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../../actionPreviews';
 import {rewardReactionForecast} from '../../../models/effectForecast';
+import {parameterMaxed} from '../../actionFutilities';
 
 /**
  * THE OPTION'S READING (PL-067): the price and the step as chips — the step's
@@ -24,7 +25,14 @@ export function heatConversionMetadata(player: IPlayer, heat: number): OptionMet
     actionPreviews.globalGain(player, 'temperature', 1),
   ]);
   const forecast = rewardReactionForecast(player, undefined, effects);
-  return {kind: 'globalParameter', icon: 'temperature', amount: 1, effects, ...(forecast !== undefined ? {forecast} : {})};
+  // NO EFFECT at the temperature's maximum: the step moves nothing and the engine pays nothing for it (no TR, no party
+  // reward, no reaction) — the console must not count or warn about the conversion as an opportunity (never a block).
+  const futile = parameterMaxed(player, 'temperature');
+  return {
+    kind: 'globalParameter', icon: 'temperature', amount: 1, effects,
+    ...(forecast !== undefined ? {forecast} : {}),
+    ...(futile !== undefined ? {futile} : {}),
+  };
 }
 
 

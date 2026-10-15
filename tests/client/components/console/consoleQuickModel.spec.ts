@@ -15,6 +15,16 @@ import {CardName} from '@/common/cards/CardName';
  */
 describe('consoleQuickModel (P27)', () => {
   describe('RT — action categories', () => {
+    it('the card actions badge keeps its number and turns NEUTRAL when every counted action changes nothing', () => {
+      const base = {cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 2, tradesAvailable: 0, hydroAvailable: 0,
+        hasColonies: false, hasParliament: false, votesAvailable: 0, hasHydro: false};
+      const useful = buildRtQuickEntries(base).find((e) => e.id === 'cardActions');
+      expect(useful?.badgeTone).to.eq(undefined);
+      const futile = buildRtQuickEntries({...base, actionsFutile: true}).find((e) => e.id === 'cardActions');
+      expect(futile?.badge).to.eq(2);
+      expect(futile?.badgeTone).to.eq('neutral');
+    });
+
     it('maps the spec slots: Cards center, Card actions up, Trading right, Parliament down, Hydro left', () => {
       const entries = buildRtQuickEntries({
         cardsPlayable: 3, cardsTotal: 5, actionsAvailable: 2, tradesAvailable: 2, hydroAvailable: 1,
@@ -142,6 +152,16 @@ describe('consoleQuickModel (P27)', () => {
       plantsNeeded: 8,
       heatNeeded: 8,
       ...over,
+    });
+
+    it('a heat conversion that changes nothing stays a live verb, quiet, with its reason in place of the price', () => {
+      const heat = buildLtQuickEntries(ctx({convertHeatFutile: 'The temperature is at its maximum'})).find((e) => e.id === 'convertHeat');
+      expect(heat?.available).to.eq(true);
+      expect(heat?.futile).to.eq('The temperature is at its maximum');
+      // Never on a heat conversion that cannot be taken — a refusal already says why.
+      const off = buildLtQuickEntries(ctx({convertHeatAvailable: false, convertHeatFutile: 'The temperature is at its maximum'}))
+        .find((e) => e.id === 'convertHeat');
+      expect(off?.futile).to.eq(undefined);
     });
 
     it('maps the spec slots: Std projects center, Skip up, Pass down, Plants left, Heat right', () => {

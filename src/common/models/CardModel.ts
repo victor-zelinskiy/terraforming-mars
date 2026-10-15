@@ -14,6 +14,7 @@ import {Message} from '../logs/Message';
 import type {ActionEffect, AgendaWalkModel} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
 import type {RequirementEasingModel} from './ArmedPlayEffectModel';
+import type {ActionFutility, ActionFutilityVerdict} from './ActionFutilityModel';
 
 /**
  * The GUARANTEED result of a standard project, computed server-side from the
@@ -40,6 +41,11 @@ export interface StandardProjectPreviewModel {
      * Absent = nothing reacts. A placement's answer is the cell dossier's.
      */
     forecast?: EffectForecast;
+    /**
+     * NO EFFECT (`ActionFutilityModel.ts`): the project's whole result is a step of a maxed parameter (an asteroid at
+     * +8 °C, an aquifer with every ocean placed) and nothing on the table answers it — the row says why; never a block.
+     */
+    futile?: ActionFutilityVerdict;
 }
 
 export interface CardModel {
@@ -129,6 +135,11 @@ export interface CardModel {
     // question, same shape, one renderer. Reuses UnplayableReason's shape.
     // Drives the "why is this disabled" popover / status line.
     actionReasons?: ReadonlyArray<UnplayableReason>;
+    // The viewer's OWN tableau: an action card whose action IS available would change nothing right now — the whole
+    // action (`verdict`) and/or some of its branches (`ActionFutilityModel.ts`, `server/models/actionFutility.ts`). It
+    // arrives WITH the view, so the action list can order by it without waiting for a preview (no re-sort under the
+    // cursor). Never a block: the action stays activatable.
+    actionFutility?: ActionFutility;
     reserveUnits?: Readonly<Units>; // Written for The Moon, but useful in other contexts.
     bonusResource?: Array<Resource>; // Used with the Mining cards and Robotic Workforce
     cloneTag?: Tag; // Used with Pathfinders

@@ -24,11 +24,13 @@
              :class="{'con-quick__cross--armed': armedSlot !== undefined}">
           <div v-for="entry in entries"
                :key="entry.id"
+               :data-quick-id="entry.id"
                class="con-quick__slot"
                :class="[`con-quick__slot--${entry.slot}`, {
                  'con-quick__slot--center': entry.slot === 'center',
                  'con-quick__slot--disabled': !entry.available,
                  'con-quick__slot--soft': !entry.available && entry.soft === true,
+                 'con-quick__slot--futile': entry.available && entry.futile !== undefined,
                  'con-quick__slot--focus': focusedSlot === entry.slot && armedSlot === undefined,
                  'con-quick__slot--armed': armedSlot === entry.slot,
                  'con-quick__slot--armed-blocked': armedSlot === entry.slot && armedBlocked,
@@ -47,9 +49,15 @@
                 <span v-else-if="entry.glyph !== undefined" class="con-quick__slot-glyph">{{ entry.glyph }}</span>
               </span>
               <span class="con-quick__slot-label">{{ $t(entry.label) }}</span>
-              <span v-if="entry.meta !== undefined && entry.available" class="con-quick__slot-meta">{{ entry.meta }}</span>
-              <span v-if="entry.badge !== undefined && entry.badge > 0" class="con-quick__slot-badge">{{ entry.badge }}</span>
+              <span v-if="entry.meta !== undefined && entry.available && entry.futile === undefined" class="con-quick__slot-meta">{{ entry.meta }}</span>
+              <!-- The count's register: mint while something it counts is worth doing, white when nothing is. -->
+              <span v-if="entry.badge !== undefined && entry.badge > 0" class="con-quick__slot-badge"
+                    :class="{'con-quick__slot-badge--neutral': entry.badgeTone === 'neutral'}"
+                    :data-badge-tone="entry.badgeTone ?? 'go'">{{ entry.badge }}</span>
               <span v-if="!entry.available" class="con-quick__slot-reason">{{ $t(entry.reason) }}</span>
+              <!-- AVAILABLE and changing nothing: the reason where the meta would stand, in the quiet register. -->
+              <span v-else-if="entry.futile !== undefined" class="con-quick__slot-reason con-quick__slot-reason--futile"
+                    data-slot-futile>{{ $t(entry.futile) }}</span>
             </div>
           </div>
         </div>

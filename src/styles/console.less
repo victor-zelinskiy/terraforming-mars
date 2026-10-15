@@ -10358,6 +10358,24 @@ html.console-mode {
         font-size: .95rem;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
+
+        /* Every action it counts would change nothing (`countTone` → neutral): the number stays, the «go» goes —
+           white on steel, the register of a fact, never an invitation. */
+        &--neutral {
+            background:
+                linear-gradient(180deg, rgba(230, 238, 246, 0.12), rgba(230, 238, 246, 0.05)),
+                rgba(8, 14, 22, 0.85);
+            box-shadow:
+                inset 0 0 0 .06rem rgba(220, 230, 242, 0.5),
+                inset 0 .1rem .25rem rgba(0, 0, 0, 0.4);
+            color: #e8eef5;
+        }
+    }
+    /* AVAILABLE and changing nothing (a heat conversion at the temperature's maximum): the tile stays a live verb, its
+       content quiets a step (opacity on the children — the tile stays opaque) and the reason stands in its own line. */
+    &__slot--futile &__slot-icon,
+    &__slot--futile &__slot-label {
+        opacity: .74;
     }
     &__slot-reason {
         display: inline-block;
@@ -10404,6 +10422,9 @@ html.console-mode {
             0 .4rem 1rem rgba(0, 0, 0, 0.45);
     }
     &__slot--soft &__slot-reason { color: fade(@con-amber, 88%); }
+    /* AVAILABLE and changing nothing: a calm fact in white, never the amber of a refusal (after the base rule — same
+       specificity, the later one wins). */
+    &__slot-reason&__slot-reason--futile { color: fade(#e3eaf2, 86%); }
 
     /* ── FOCUS (focus-confirm's persistent cursor): the CALM first stage —
        a clear ring, a touch of extra depth, a soft inner light. Deliberately
@@ -13425,6 +13446,12 @@ html.con-profile-handheld .con-mafocus {
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
 
         &--off { opacity: 0.62; filter: saturate(0.55); }
+        /* AVAILABLE and changing nothing: the emblem and the words a step back (opacity on the children — the row
+           stays opaque), the price legible; back to full under the cursor. */
+        &--futile .con-stdp__stage,
+        &--futile .con-stdp__body { opacity: .55; }
+        &--futile&--focused .con-stdp__stage,
+        &--futile&--focused .con-stdp__body { opacity: .9; }
         &--focused {
             box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 90%), 0 0 1.1rem fade(@con-cyan, 24%);
             opacity: 1;
@@ -13743,6 +13770,16 @@ html.con-profile-handheld .con-mafocus {
         color: @con-amber;
         font-size: .78rem;
         white-space: nowrap;
+    }
+    /* The project changes nothing right now — a calm fact in white, never the amber of a warning. */
+    &__context-futile {
+        flex-shrink: 1;
+        min-width: 0;
+        color: fade(#e3eaf2, 90%);
+        font-size: .78rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     &__context--committed .con-stdp__context-state { color: @con-amber; }
 
@@ -15956,6 +15993,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: @con-mint;
         font-size: .75rem;
         font-weight: 700;
+
+        /* Everything it counts would change nothing — the same white register as the wheel's badge. */
+        &--neutral {
+            background: rgba(230, 238, 246, 0.1);
+            box-shadow: inset 0 0 0 .05rem rgba(220, 230, 242, 0.48);
+            color: #e8eef5;
+        }
     }
     /* TV-size the shared glyph badges inside the bar. */
     .gp-glyph {
@@ -30892,6 +30936,8 @@ html.console-mode {
         i { font-size: .6rem; font-style: normal; letter-spacing: .03rem; text-transform: uppercase; color: @con-text-dim; }
         &--go { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); b { color: @con-mint; } }
         &--zero { background: rgba(120, 140, 160, 0.1); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.24); b { color: @con-text-dim; } }
+        /* Every action it counts would change nothing (`countTone`) — the number stays, white on steel. */
+        &--go&--neutral { background: rgba(220, 230, 242, 0.08); box-shadow: inset 0 0 0 .05rem rgba(215, 226, 238, 0.4); b { color: #eef3f8; } }
     }
     /* ── THE DEEP CELL — the variant chip at the crumb's tail. Absolute inside
        a cell that reserves its height, so the chip's crossfade (and its yield
@@ -31181,6 +31227,16 @@ html.console-mode {
         }
         &--rules::before, &--soft::before { background: fade(@con-amber, 62%); }
         &--activated::before { background: rgba(120, 150, 180, 0.38); }
+        /* AVAILABLE and changing nothing (the server's proven verdict): a LIVE verb in the quiet register — a steel
+           stripe instead of the mint one, the content a step back (opacity on the children — the slot stays opaque);
+           the focus ring stays the ordinary cyan, because A still activates it. */
+        &--futile::before { background: rgba(205, 218, 232, 0.42); }
+        &--futile {
+            .con-cardactions__graphic, .con-cardactions__desc, .con-cardactions__tile-variant { opacity: 0.55; }
+        }
+        &--focused&--futile {
+            .con-cardactions__graphic, .con-cardactions__desc, .con-cardactions__tile-variant { opacity: 0.88; }
+        }
 
         &--focused {
             background:
@@ -31253,6 +31309,8 @@ html.console-mode {
         &--rules { color: #ffb0a6; background: fade(@con-red, 12%); }
         &--soft { color: @con-amber; background: fade(@con-amber, 12%); }
         &--activated { color: fade(@con-cyan, 90%); background: fade(@con-cyan, 12%); }
+        /* «Без эффекта» — a fact in white on steel, never the amber of a refusal. */
+        &--futile { color: #e3eaf2; background: rgba(205, 218, 232, 0.12); }
     }
     /* ── ACTION BODY — zone 2: the fixed canvas and, beside it, the action's
        own sentence. Its height IS the canvas height, so the «или» seam badge
@@ -31419,6 +31477,8 @@ html.console-mode {
            be salmon whatever the state, which read as «this action is broken»
            for the commonest case of all — an opponent's turn. */
         &--warning { color: fade(#ffe6b0, 92%); }
+        /* AVAILABLE and changing nothing — the server's reason as a calm fact, the register of the tile's own chip. */
+        &--futile { color: fade(#e3eaf2, 86%); }
     }
     /* Non-amount pre-submit choices, NAMED (card / player / payment pick). */
     &__tile-choices {
@@ -31527,8 +31587,11 @@ html.console-mode {
         &--rules { background: fade(@con-red, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%); }
         &--soft { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 38%); }
         &--activated { background: fade(@con-cyan, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%); }
+        &--futile { background: rgba(215, 226, 238, 0.07); box-shadow: inset 0 0 0 .05rem rgba(215, 226, 238, 0.34); }
     }
     &__verdict-mark { flex-shrink: 0; font-size: 1rem; font-weight: 800; line-height: 1.2; }
+    &__verdict--futile &__verdict-mark { color: #dfe7f0; }
+    &__verdict--futile &__verdict-reason { color: fade(#e3eaf2, 86%); }
     &__verdict--available &__verdict-mark { color: @con-mint; }
     &__verdict--rules &__verdict-mark { color: #ff8478; }
     &__verdict--soft &__verdict-mark { color: @con-amber; }
@@ -33165,6 +33228,12 @@ html.console-mode {
             background-size: contain !important; background-repeat: no-repeat; background-position: center;
         }
         &-text { line-height: 1.35; color: #f4d3a6; }
+        /* The action changes NOTHING right now (the server's proven verdict) — a calm fact in white on steel, never
+           the amber of a warning: the press stays a full commit. */
+        &--futile {
+            background: rgba(215, 226, 238, 0.07); box-shadow: inset 0 0 0 .05rem rgba(215, 226, 238, 0.3); color: #e3eaf2;
+        }
+        &--futile &-text { color: fade(#e3eaf2, 92%); }
     }
     /* «ДАЛЕЕ» — the one-line "what you do after confirming" row.
        HEIGHT IS FIXED (`--con-next-h`) and identical for every variant: a bare

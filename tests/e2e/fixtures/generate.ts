@@ -54,6 +54,11 @@ import {SolarPower} from '../../../src/server/cards/base/SolarPower';
 import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
 import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
+import {WaterSplittingPlant} from '../../../src/server/cards/base/WaterSplittingPlant';
+import {AquiferPumping} from '../../../src/server/cards/base/AquiferPumping';
+import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
+import {actionFutility} from '../../../src/server/models/actionFutility';
+import {IActionCard, ICard} from '../../../src/server/cards/ICard';
 import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
 import {ShipmentToEarth} from '../../../src/server/cards/promo/ShipmentToEarth';
 import {Sponsors} from '../../../src/server/cards/base/Sponsors';
@@ -471,6 +476,61 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   runAllActions(game);
   write('rail-reward-action', game);
 }
+
+// ── futile-only / futile-mixed: ACTIONS THAT CHANGE NOTHING (the owner's iteration of 2026-10-15 — «действия, которые
+//    фактически не имеют смысла»). A solo action phase on a FINISHED planet — +8 °C, 14 % oxygen, every ocean placed —
+//    Teractor (no standard-project rebate, no first action), an empty hand (nothing playable — the RT count is the card
+//    actions alone), 8 heat (the heat conversion is offered and changes nothing), no plants. Three card actions, each
+//    proven futile by the server: Water Splitting Plant (3 energy → an oxygen step at its maximum), Search For Life
+//    (its science already scores its points) and Aquifer Pumping (an ocean with every ocean placed).
+//      · `futile-only` — those three and nothing else: the pass reads ONE quiet line, the RT badge goes white, the
+//        Action Center's «можно выполнить» too; the asteroid and aquifer projects are futile on the std-projects screen.
+//      · `futile-mixed` — beside them, Restricted Area (2 M€ → a card: useful), GHG Producing Bacteria with 2 microbes
+//        (the temperature branch futile, the add branch useful — the card stays useful) and Space Elevator with no
+//        steel (blocked): the futile band sinks under the blocked card. ──
+function futileFixture(name: string, mixed: boolean): void {
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.TERACTOR], startingCorporations: 1});
+  setTemperature(game, MAX_TEMPERATURE);
+  setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+  maxOutOceans(player);
+  runAllActions(game);
+  player.cardsInHand.length = 0;
+  const search = new SearchForLife();
+  search.resourceCount = 1;
+  if (mixed) {
+    const ghg = new GHGProducingBacteria();
+    ghg.resourceCount = 2;
+    player.playedCards.push(new RestrictedArea(), ghg, new SpaceElevator());
+  }
+  player.playedCards.push(new WaterSplittingPlant(), search, new AquiferPumping());
+  player.megaCredits = 40;
+  player.steel = 0;
+  player.titanium = 0;
+  player.plants = 0;
+  player.energy = 3;
+  player.heat = 8;
+  runAllActions(game);
+  const acting = (n: CardName) => player.playedCards.get(n) as (ICard & IActionCard) | undefined;
+  const futile = [CardName.WATER_SPLITTING_PLANT, CardName.SEARCH_FOR_LIFE, CardName.AQUIFER_PUMPING];
+  const verdicts = futile.map((n) => {
+    const card = acting(n);
+    return card !== undefined && card.canAct(player) && actionFutility(player, card)?.verdict !== undefined;
+  });
+  const ghg = acting(CardName.GHG_PRODUCING_BACTERIA);
+  const useful = mixed ? [CardName.RESTRICTED_AREA, CardName.GHG_PRODUCING_BACTERIA].map((n) => {
+    const card = acting(n);
+    return card !== undefined && card.canAct(player) && actionFutility(player, card)?.verdict === undefined;
+  }) : [];
+  const elevator = acting(CardName.SPACE_ELEVATOR);
+  if (verdicts.includes(false) || useful.includes(false) || game.canAddOcean() || player.cardsInHand.length !== 0 ||
+      (mixed && (ghg === undefined || actionFutility(player, ghg)?.branches?.some((b) => b.futile) !== true || elevator?.canAct(player) !== false)) ||
+      !player.playedCards.has(CardName.TERACTOR)) {
+    throw new Error(`the ${name} fixture expected three futile card actions${mixed ? ', two useful ones (GHG with its spend branch futile) and a blocked Space Elevator' : ''}, every ocean placed, an empty hand and Teractor — got futile=${verdicts} useful=${useful} oceans=${!game.canAddOcean()} hand=${player.cardsInHand.length}`);
+  }
+  write(name, game);
+}
+futileFixture('futile-only', false);
+futileFixture('futile-mixed', true);
 
 // ── shipment-to-earth: X87 SHIPMENT TO EARTH — the first EVENT whose effect takes TWO resources OFF THE RAIL
 //    (docs/claude/prompts/promo-x87-shipment-to-earth.md § 2 B3 — the shipment beat before the lift). A solo

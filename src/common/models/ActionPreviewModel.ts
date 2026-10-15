@@ -10,6 +10,7 @@ import {PlayerInputModel, SelectCardModel, SelectColonyModel, SelectPartyModel} 
 import {DeltaAdvanceOffer} from './DeltaBonusPromptModel';
 import {AllColonyBonusesModel} from './ColonyBonusLedgerModel';
 import {EffectForecast} from './EffectForecastModel';
+import type {ActionFutilityVerdict} from './ActionFutilityModel';
 import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
 import type {DrawSearchModel} from './CardDrawRevealModel';
@@ -381,6 +382,12 @@ export type ActionPreviewBranch = {
    * `draw` / `draw-discard` draws cards; a `card` row is a pick).
    */
   colonyBonuses?: AllColonyBonusesModel;
+  /**
+   * NO EFFECT (`ActionFutilityModel.ts`): this branch is legal and would change nothing right now (a maxed parameter's
+   * step, a counted gain of zero, a resource past the card's points). The composer says why before the press; the
+   * branch stays selectable.
+   */
+  futile?: ActionFutilityVerdict;
 };
 
 /**

@@ -8,6 +8,7 @@ import {Resource} from '../../../common/Resource';
 import {Board, isSpecialTileSpace} from '../../boards/Board';
 import {IActionCard} from '../ICard';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOf, zeroYield} from '../actionFutilities';
 
 export class RedShips extends Card implements IActionCard {
   constructor() {
@@ -34,27 +35,29 @@ export class RedShips extends Card implements IActionCard {
     return true;
   }
 
-  public actionPreview(player: IPlayer) {
+  /** The M€ the action pays: every city and special tile next to an ocean — one count for the preview, the verdict and the action. */
+  private paidTiles(player: IPlayer): number {
     const board = player.game.board;
     const candidates = board.spaces.filter((space) => {
       return Board.isCitySpace(space) || isSpecialTileSpace(space);
     });
-    const included = candidates.filter(
-      (space) => board.getAdjacentSpaces(space).some((adj) => Board.isOceanSpace(adj)));
+    return candidates.filter(
+      (space) => board.getAdjacentSpaces(space).some((adj) => Board.isOceanSpace(adj))).length;
+  }
+
+  public actionPreview(player: IPlayer) {
     return actionPreviews.singleBranch(this, player, [], [
-      actionPreviews.stockGain(player, Resource.MEGACREDITS, included.length),
+      actionPreviews.stockGain(player, Resource.MEGACREDITS, this.paidTiles(player)),
     ]);
   }
 
-  action(player: IPlayer): undefined {
-    const board = player.game.board;
-    const candidates = board.spaces.filter((space) => {
-      return Board.isCitySpace(space) || isSpecialTileSpace(space);
-    });
-    const included = candidates.filter(
-      (space) => board.getAdjacentSpaces(space).some((adj) => Board.isOceanSpace(adj)));
+  /** NO EFFECT (`models/actionFutility.ts`): no city or special tile beside an ocean — the action pays 0 M€. */
+  public actionFutility(player: IPlayer) {
+    return futilityOf(this.paidTiles(player) === 0 ? zeroYield() : undefined);
+  }
 
-    const megacredits = included.length;
+  action(player: IPlayer): undefined {
+    const megacredits = this.paidTiles(player);
     if (megacredits === 0) {
       player.game.log('${0} gained 0 M€ from ${1} action.', (b) => b.player(player).card(this));
     }

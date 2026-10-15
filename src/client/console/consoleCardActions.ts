@@ -37,6 +37,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {Message} from '@/common/logs/Message';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionFutility, ActionFutilityVerdict} from '@/common/models/ActionFutilityModel';
 import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {ActionEntry, ActionFilterState, AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
@@ -129,6 +130,13 @@ export type ConsoleActionTile = {
   /** Why this variant can't be used right now (undefined when available). */
   reason: ConsoleActionReason | undefined;
   /**
+   * AVAILABLE and changing nothing right now — the server's proven verdict (`ActionFutilityVerdict`: the parameter is
+   * at its maximum, the yield is zero, no card can take the resource, the card's points no longer grow). The tile
+   * stays a live verb (a player may take it to stall instead of passing); it quiets, names the reason and its card
+   * sinks to the bottom band. Undefined for every action that does something — and for every blocked one.
+   */
+  futile?: ActionFutilityVerdict;
+  /**
    * The STRUCTURED semantics of that reason (undefined when available): does it
    * take the action out of the potential count, and which register does the
    * slot paint? Never re-derived from the reason's TEXT — see
@@ -189,6 +197,11 @@ export type ConsoleActionGroup = {
   resolutionParty?: ReduxParty;
   /** Card-level status (the best of its variants — drives the group badge). */
   status: ActionStatus;
+  /**
+   * EVERY action the card offers would change nothing (the server's card-level verdict, synchronous with the view):
+   * the card's SORT band drops below the blocked ones — still listed, still activatable.
+   */
+  futile?: ActionFutilityVerdict;
   /** The SERVER-side card status (`entry.state.status`) — the SORT key.
    *  Deliberately NOT the preview-refined `status`: previews arrive
    *  asynchronously, and sorting by a value that changes on arrival made the
@@ -233,6 +246,11 @@ export type ConsoleActionsModel = {
    * opened it. See `src/common/availability/AvailabilityBlocker.ts`.
    */
   availableTiles: number;
+  /**
+   * Of those, the ones that would change nothing (`ConsoleActionTile.futile`) — the header's «можно выполнить» keeps
+   * the whole number and turns white when every one of them is futile (`countTone`).
+   */
+  futileTiles: number;
   /** Flat focus order over the VISIBLE tiles (group order, node order within). */
   flatKeys: ReadonlyArray<string>;
   /** The 2-COLUMN visual grid as focus rows (see {@link packActionRows}) —
@@ -305,7 +323,7 @@ export function packActionRows(
  * first stays intact) and never splits a card. One column (handheld) has no
  * holes to fill, so the order passes through untouched.
  */
-export function arrangeGroupsForGrid<T extends {tiles: ReadonlyArray<unknown>, sortStatus: ActionStatus}>(
+export function arrangeGroupsForGrid<T extends {tiles: ReadonlyArray<unknown>, sortStatus: ActionStatus, futile?: unknown}>(
   groups: ReadonlyArray<T>,
   columns: 1 | 2 = 2,
 ): Array<T> {
@@ -320,7 +338,7 @@ export function arrangeGroupsForGrid<T extends {tiles: ReadonlyArray<unknown>, s
     if (holeOpen && next.tiles.length > 1) {
       // A wide card would close the row — pull the nearest single of the SAME
       // band into the hole instead (if there is one).
-      const filler = rest.findIndex((g) => g.tiles.length === 1 && g.sortStatus === next.sortStatus);
+      const filler = rest.findIndex((g) => g.tiles.length === 1 && sortBand(g) === sortBand(next));
       if (filler > 0) {
         out.push(...rest.splice(filler, 1));
         holeOpen = false;
@@ -687,6 +705,45 @@ const ACTIVATION_DEFS: ReadonlyArray<{value: ActivationFilter, label: string}> =
 /** Display/sort rank — available first, blocked/soft next, activated last. */
 const STATUS_RANK: Record<ActionStatus, number> = {available: 0, rules: 1, soft: 1, activated: 2};
 
+/**
+ * The SORT band of a source: its server status's rank, except that a card whose every action would change nothing
+ * stands BELOW the blocked ones (1.5) — at the bottom of what can still be done, above what is already done. Both
+ * inputs are synchronous with the view (the server status, the card-level verdict), so the order never moves when a
+ * preview lands.
+ */
+function sortBand(g: {sortStatus: ActionStatus, futile?: unknown}): number {
+  return g.futile !== undefined && g.sortStatus !== 'activated' && g.sortStatus !== 'rules' ? 1.5 : STATUS_RANK[g.sortStatus];
+}
+
+/**
+ * A variant's «changes nothing» verdict. The card-level verdict covers every live variant when the WHOLE card is
+ * futile; otherwise a variant is futile exactly when every LIVE branch it offers is (its branch set read through the
+ * preview's node → branch mapping, the verdict from the card's own per-branch list — the server's, in the preview's
+ * branch order). A row with a live branch that does something is not futile.
+ */
+function variantFutility(
+  futility: ActionFutility | undefined,
+  group: ActionEntry['group'],
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  nodeIndex: number,
+): ActionFutilityVerdict | undefined {
+  if (futility === undefined) {
+    return undefined;
+  }
+  if (futility.verdict !== undefined) {
+    return futility.verdict;
+  }
+  const perBranch = futility.branches;
+  if (perBranch === undefined || branches.length !== perBranch.length) {
+    return undefined;
+  }
+  const live = branchPositionsForNode(group, branches, nodeIndex).filter((p) => branches[p]?.available === true);
+  if (live.length === 0 || !live.every((p) => perBranch[p]?.futile === true)) {
+    return undefined;
+  }
+  return perBranch[live[0]].verdict;
+}
+
 function reasonFrom(
   message: string | Message | undefined,
   params: ReadonlyArray<unknown> | undefined,
@@ -929,6 +986,10 @@ function buildTiles(
       reason = reasonFrom(entry.state.softReason?.message, entry.state.softReason?.params);
     }
 
+    // Only a LIVE verb can be futile — a blocked or activated one already says why it is not offered.
+    const futile = repeat === undefined && (status === 'available' || status === 'soft') ?
+      variantFutility(entry.futility, group, branches, i) :
+      undefined;
     const timeline = capsuleTimelineReading(branch);
     const effects = (branch?.effects ?? []).filter((e) => timeline === undefined || !timeline.parts.includes(e));
     const variable = branch !== undefined ?
@@ -955,6 +1016,7 @@ function buildTiles(
       choiceKinds: branchChoiceKinds(branch, preview, avail.branching),
       cardPickAmount: firstCardPickAmount(branch, preview),
       reason,
+      ...(futile !== undefined ? {futile} : {}),
       // A 'soft' variant is blocked by the WINDOW only (the card meets every
       // rule) — it keeps the calm register and stays in the potential count.
       blocker: actionStatusBlocker(status, entry.state.softReason),
@@ -1219,6 +1281,8 @@ export function buildConsoleActionsModel(
       usedThisGen: tiles[0]?.usedThisGen ?? false,
       cardResource,
       vp: resourceVp(entry.cardName, cardResource?.count ?? 0),
+      // The repeat pick sorts by its candidate set alone (a copy of an action is its own question).
+      ...(repeat === undefined && entry.futility?.verdict !== undefined ? {futile: entry.futility.verdict} : {}),
       tiles,
     };
   });
@@ -1245,12 +1309,12 @@ export function buildConsoleActionsModel(
       });
     }
   }
-  // Stable sort by the SERVER card status (available → blocked → activated);
+  // Stable sort by the SERVER card status (available → blocked → nothing to gain → activated);
   // the corp-first tableau order the entries arrive in is preserved within a
   // band, and the order NEVER changes when previews land.
   const sorted = groups
     .map((g, i) => ({g, i}))
-    .sort((a, b) => (STATUS_RANK[a.g.sortStatus] - STATUS_RANK[b.g.sortStatus]) || (a.i - b.i))
+    .sort((a, b) => (sortBand(a.g) - sortBand(b.g)) || (a.i - b.i))
     .map((x) => x.g);
 
   const allTiles = sorted.flatMap((g) => g.tiles);
@@ -1294,13 +1358,15 @@ export function buildConsoleActionsModel(
   // The flat focus order — the same tile objects the groups render.
   const tiles: ReadonlyArray<ConsoleActionFlatTile> = visibleGroups.flatMap((g) => g.tiles);
 
+  const potential = allTiles.filter((t) => t.blocker === undefined || !t.blocker.affectsPotentialCount);
   return {
     groups: visibleGroups,
     tiles,
     availabilityChips,
     activationChips,
     totalTiles: allTiles.length,
-    availableTiles: allTiles.filter((t) => t.blocker === undefined || !t.blocker.affectsPotentialCount).length,
+    availableTiles: potential.length,
+    futileTiles: potential.filter((t) => t.futile !== undefined).length,
     flatKeys: tiles.map((t) => t.key),
     rows: packActionRows(visibleGroups, layoutColumns),
   };

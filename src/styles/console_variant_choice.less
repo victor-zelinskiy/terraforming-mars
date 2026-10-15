@@ -146,6 +146,11 @@
     &__opt--off &__print { opacity: .34; }
     &__opt--off &__title { color: fade(@con-text-dim, 70%); }
     &__opt--off &__body { opacity: .42; }
+    /* LIVE and changing nothing (the server's «no effect» verdict): the print a step back — less than a refusal's —
+       and back to full under the cursor or once chosen; the tile keeps every live paint (ring, seal, kant). */
+    &__opt--quiet &__print { opacity: .58; }
+    &__opt--quiet&__opt--focused &__print,
+    &__opt--quiet&__opt--selected &__print { opacity: .9; }
 
     /* ── THE HERO — the printed graphic, bare on the glass ──────────────── */
     &__print {
@@ -251,6 +256,13 @@
         box-shadow: inset 0 0 0 .05rem rgba(255, 140, 120, 0.34);
     }
     &__reason-mark { font-weight: 800; color: #ff9f8c; }
+    /* The calm twin: a fact in white on steel. */
+    &__reason--quiet {
+        color: #e3eaf2;
+        background: rgba(30, 40, 54, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(205, 218, 232, 0.3);
+    }
+    &__reason--quiet &__reason-mark { color: #cfd9e4; }
 
     /* ── THE SEAL — the ONE mark of «this is my answer», on every surface. Absolute, so its slot costs no layout; a
        one-shot latch (scale + opacity) when the answer is given, reduced motion → at once. It sits INSIDE the tile's

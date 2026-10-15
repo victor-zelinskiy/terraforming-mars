@@ -729,6 +729,21 @@ html.con-profile-handheld {
     }
     &__body-mark { flex: 0 0 auto; font-weight: 800; color: @con-amber; }
 
+    /* Only actions with NO EFFECT are left (the owner's decision 2026-10-15): one QUIET line — the steel register of a
+       fact, no amber, no plate of its own; the pass verb stays calm. */
+    &__quiet {
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        margin: var(--con-prompt-gap) 0 0;
+        padding: 0 .2rem;
+        .con-read-text(450);
+        font-size: ~"calc(var(--con-prompt-trigger-fs) * var(--con-read-scale, 1))";
+        line-height: 1.4;
+        color: fade(#dbe4ee, 78%);
+    }
+    &__quiet-mark { flex: 0 0 auto; color: fade(#dbe4ee, 55%); }
+
     /* ── WHAT THE PASS LEAVES UNUSED — one row per opportunity, the family's row plate with an amber lead and a
        round «!» (a mark of its own shape, not a red alarm: the pass stays a legitimate move). ── */
     &__warns {

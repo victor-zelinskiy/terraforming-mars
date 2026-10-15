@@ -2,6 +2,7 @@ import {IPlayer} from '../IPlayer';
 import {PotentialActionsModel} from '../../common/models/PotentialActionsModel';
 import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
 import {availablePartyActionCount} from '../parliament/ParliamentModel';
+import {actionFutility} from './actionFutility';
 
 /**
  * The TURN-INDEPENDENT availability projection of one player (see
@@ -20,9 +21,12 @@ import {availablePartyActionCount} from '../parliament/ParliamentModel';
  * effect, and the serializer re-runs them afterwards anyway.
  */
 export function potentialActions(player: IPlayer): PotentialActionsModel {
+  const cardActions = player.getPlayableActionCards();
   const model: PotentialActionsModel = {
     playableCards: player.getPlayableCards().length,
-    cardActions: player.getPlayableActionCards().length,
+    cardActions: cardActions.length,
+    // Of those, the ones that would change NOTHING now (`actionFutility.ts` — the one verdict; still counted above).
+    futileCardActions: cardActions.filter((card) => actionFutility(player, card)?.verdict !== undefined).length,
     hydroAdvance: potentialHydroAdvance(player) ? 1 : 0,
     colonyTrades: player.colonies.potentialTradeCount(),
   };

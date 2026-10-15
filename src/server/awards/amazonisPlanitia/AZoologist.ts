@@ -5,6 +5,7 @@ import {IAward} from '../IAward';
 export class AZoologist implements IAward {
   public readonly name = 'A. Zoologist';
   public readonly description = 'Own the most animal and microbe resources';
+  public readonly cardResourceCount = [CardResource.ANIMAL, CardResource.MICROBE];
 
   public getScore(player: IPlayer): number {
     const resourceTypes = [CardResource.ANIMAL, CardResource.MICROBE];

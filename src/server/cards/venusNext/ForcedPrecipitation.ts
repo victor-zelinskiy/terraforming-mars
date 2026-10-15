@@ -16,6 +16,7 @@ import {TITLES} from '../../inputs/titles';
 import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {futilityOfBranches, parameterMaxed} from '../actionFutilities';
 
 const ADD_COST = 2;
 
@@ -81,6 +82,14 @@ export class ForcedPrecipitation extends Card implements IActionCard {
         steps: [pay],
         unavailableReason: actionReason.needMoreMC(player, ADD_COST),
       },
+    ]);
+  }
+
+  /** NO EFFECT, per `actionPreview` branch: two floaters for a Venus step; the purchase adds a floater. */
+  public actionFutility(player: IPlayer) {
+    return futilityOfBranches([
+      {available: this.resourceCount > 1 && player.canAfford({cost: 0, tr: {venus: 1}}), verdict: parameterMaxed(player, 'venus')},
+      {available: player.canAfford(ADD_COST)},
     ]);
   }
 

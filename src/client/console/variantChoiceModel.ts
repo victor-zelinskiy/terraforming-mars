@@ -38,6 +38,12 @@ export type VariantChoiceOption = {
   title: string;
   /** Why the rules refuse it (already translated). Absent → the tile says nothing (PL-171: one loss, one voice). */
   reason?: string;
+  /**
+   * The option is LIVE but would change nothing right now — the server's proven «no effect» verdict, already
+   * translated. The tile quiets (its print a step back) and names it in a calm line; it stays a full answer (a
+   * player may take it to stall). Never on an `off` option — a refusal already says why.
+   */
+  quiet?: string;
   /** The card's printed graphic of THIS option (face node references) — the tile's headline. */
   printed?: ReadonlyArray<ItemType>;
   /** The option OPENS a pick of its own (a door, not an answer) — the ›. */
@@ -69,6 +75,11 @@ export function variantOptionClasses(state: VariantChoiceState, decided: boolean
     'con-vchoice__opt--off': state.off,
     'con-vchoice__opt--recede': variantRecedes(state, decided),
   };
+}
+
+/** A live option the server proved changes nothing — the quiet paint and its line (never on a refused one). */
+export function variantQuiet(opt: {state: VariantChoiceState, quiet?: string}): boolean {
+  return !opt.state.off && opt.quiet !== undefined && opt.quiet !== '';
 }
 
 function isOrNode(node: ItemType): boolean {
