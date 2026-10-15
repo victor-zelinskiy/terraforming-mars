@@ -104,3 +104,21 @@ export type RequirementEasingModel = {
    */
   decisive: boolean;
 };
+
+/**
+ * WHAT THIS PLAY SPENDS (TR49 class): every armed one-play effect is spent by
+ * the next card played, whether that card needs it or not — so the composer of
+ * the next card names each one, and says whether THIS card uses it (`used`: a
+ * requirement it lets through, a price it lowers) or spends it for nothing.
+ * Computed by the server beside the play's forecast (`models/armedPlayForecast.ts`).
+ */
+export type ArmedPlayConsumption = {
+  armed: ArmedPlayEffectModel;
+  used: boolean;
+};
+
+/** The play's whole reading of the class: what it spends, and its requirements under modifiers. */
+export type ArmedPlayForecast = {
+  consumes: ReadonlyArray<ArmedPlayConsumption>;
+  easings: ReadonlyArray<RequirementEasingModel>;
+};

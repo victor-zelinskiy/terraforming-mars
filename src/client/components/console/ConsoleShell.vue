@@ -1462,6 +1462,8 @@
          source → exact panel zone → delta chip
          (consoleResourceTransfer.ts / resourceTransferDirector). -->
     <ConsoleResourceTransferLayer />
+    <!-- The one-play class's tokens (TR49): an armed effect spent into / armed out of the played card. -->
+    <ConsoleArmedFlightLayer />
 
     <!-- The FOOTER — one composed band: the command bar with its centre BAY
          + the permanent HAND DOCK sitting in it. The dock is absolutely
@@ -1511,6 +1513,7 @@
                        :album="handDockAlbum"
                        :inspecting="infoModeState.open"
                        :inspection="dockInspection"
+                       :armed="dockArmedEffects"
                        @mouseenter="dockHover = true"
                        @mouseleave="dockHover = false"
                        @open="onHandDockOpen"
@@ -2018,6 +2021,11 @@ import {cardHasRules, cardRuleAnnotations, denserRulesTier, RulesLengthTier, rul
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildZoomAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import {withRequirementEasing} from '@/client/console/composerRequirementRow';
+import {armedEffectsOf} from '@/client/console/armedEffects';
+import {PresentedArmedEffect, presentedArmedEffects, stageArmedSpends} from '@/client/console/armedEffectFlight';
+import {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
+import ConsoleArmedFlightLayer from '@/client/components/console/ConsoleArmedFlightLayer.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
@@ -2497,6 +2505,7 @@ export default defineComponent({
     ConsolePlayedHeroLayer,
     ConsolePatentSaleLayer,
     ConsoleResourceTransferLayer,
+    ConsoleArmedFlightLayer,
     ConsoleTilePlacementLayer,
     ConsoleCityPayoutLayer,
     ConsoleScaleStepRewardLayer,
@@ -9999,6 +10008,11 @@ export default defineComponent({
       return name !== undefined && cardHasRules(name, this.zoomCoveredRequirements);
     },
     /** Rules blocks the availability panel restates in full (server keys). */
+    /** The viewer's ARMED one-play effects (TR49 class) — the dock's chip beside its count. */
+    dockArmedEffects(): ReadonlyArray<PresentedArmedEffect> {
+      // Through the class's flight holds: a spent effect stands until its token leaves, an armed one lands (TR49).
+      return presentedArmedEffects(armedEffectsOf(this.thisPlayer));
+    },
     zoomCoveredRequirements(): ReadonlyArray<string> {
       return this.zoomAvailabilityView?.coveredRequirementIds ?? [];
     },
@@ -10021,12 +10035,18 @@ export default defineComponent({
       const walk = card?.agendaWalk;
       // A play COUNTED off the table (TR45) reads its composition here too — the composer's own «why», as one row.
       const counted = walk === undefined ? countedWhyOf(card?.countedPlay) : undefined;
+      // TR49 class: a printed requirement a modifier bends is ANNOTATED under its own rule (the viewer's own card).
+      const easings = card?.requirementEasing ?? [];
       if (name === undefined) {
         return undefined;
       }
       const t = {text: translateText, params: translateTextWithParams};
       const forYou = walk !== undefined ? agendaWalkForYouAnnotation(walk, t) : counted !== undefined ? countedPlayForYouAnnotation(counted, t) : undefined;
-      return forYou === undefined ? undefined : [...cardRuleAnnotations(name, this.zoomCoveredRequirements), forYou];
+      if (forYou === undefined && easings.length === 0) {
+        return undefined;
+      }
+      const rules = withRequirementEasing(cardRuleAnnotations(name, this.zoomCoveredRequirements), easings, t);
+      return forYou === undefined ? rules : [...rules, forYou];
     },
     /** A parliament face's rules (Turmoil Redux) — only when the viewer is on a resolution / party entry. */
     zoomParliamentAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
@@ -16776,7 +16796,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, targetSpends?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, targetSpends?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -16843,6 +16863,7 @@ export default defineComponent({
           batch,
           target: {kind: 'cell', placement: payload.staged},
           ...(payload.stagedCardTarget !== undefined ? {cardTarget: payload.stagedCardTarget} : {}),
+          ...(payload.armedSpends !== undefined && payload.armedSpends.length > 0 ? {armedSpends: payload.armedSpends} : {}),
           rewards: payload.rewards,
           draws: payload.draws ?? 0,
           deckCheck: false,
@@ -16878,6 +16899,7 @@ export default defineComponent({
           isEvent,
           batch,
           target: {kind: 'resolution', vote: payload.stagedVote},
+          ...(payload.armedSpends !== undefined && payload.armedSpends.length > 0 ? {armedSpends: payload.armedSpends} : {}),
           draws: payload.draws ?? 0,
           deckCheck: false,
           pending,
@@ -16904,6 +16926,7 @@ export default defineComponent({
           isEvent,
           batch,
           target: {kind: 'colony', pick: payload.stagedColony},
+          ...(payload.armedSpends !== undefined && payload.armedSpends.length > 0 ? {armedSpends: payload.armedSpends} : {}),
           draws: payload.draws ?? 0,
           deckCheck: false,
           pending,
@@ -20722,6 +20745,8 @@ export default defineComponent({
       // (backVerb 'none'), exactly like every committed beat — except this
       // one's «commit» is still ahead, on the board.
       setWorkspaceFramePhase('hand', 'executing');
+      // The one-play class (TR49): what this play spends rides the ritual — drawn out of the dock into the card.
+      stageArmedSpends(arm.armedSpends ?? []);
       armPlayedHero(pending.cardName, isEvent, {
         manualTableOpen: this.playedOpen,
         host: 'workspace',

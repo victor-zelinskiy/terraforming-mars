@@ -721,7 +721,7 @@ export default defineComponent({
      *  Built by the SHARED cardAvailability model — the fullscreen panel
      *  renders the same view, so the two can never disagree. */
     statusAvailability(): CardAvailabilityView | undefined {
-      return buildCardAvailability({reasons: this.statusEntry?.card?.unplayableReasons}, 'draft');
+      return buildCardAvailability({reasons: this.statusEntry?.card?.unplayableReasons, easing: this.statusEntry?.card?.requirementEasing}, 'draft');
     },
     /** The bar contract facts (published to `consoleDraftUi` by a watcher). */
     commandState(): DraftCommandState {

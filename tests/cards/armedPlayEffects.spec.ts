@@ -14,6 +14,9 @@ import {Conscription} from '../../src/server/cards/colonies/Conscription';
 import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {EccentricSponsor} from '../../src/server/cards/prelude/EccentricSponsor';
 import {CardType} from '../../src/common/cards/CardType';
+import {armedPlayForecastOf} from '../../src/server/models/armedPlayForecast';
+import {Fish} from '../../src/server/cards/base/Fish';
+import {Comet} from '../../src/server/cards/base/Comet';
 
 /**
  * THE ONE READER OF ARMED ONE-PLAY EFFECTS (TR49 class): what the next card
@@ -89,5 +92,38 @@ describe('armedPlayEffects', () => {
     const reloaded = loaded.getPlayerById(player.id);
     expect(armedPlayEffectsOf(reloaded).map((e) => e.effect)).deep.eq([{kind: 'requirementShift', steps: 2}]);
     expect(reloaded.getGlobalParameterRequirementBonus(GlobalParameter.OXYGEN)).eq(2);
+  });
+});
+
+describe('armedPlayForecastOf — what a play spends, and whether it uses it', () => {
+  it('nothing armed, nothing bent → no reading', () => {
+    const [/* game */, player] = testGame(2);
+    expect(armedPlayForecastOf(player, new Algae())).is.undefined;
+  });
+
+  it('a card that needs the armed ±2 USES it; one that needs nothing spends it for NOTHING', () => {
+    const [game, player] = testGame(2);
+    setTemperature(game, -2);
+    player.playCard(new SpecialDesign());
+    expect(armedPlayForecastOf(player, new Fish())?.consumes.map((c) => c.used)).deep.eq([true]);
+    const comet = armedPlayForecastOf(player, new Comet());
+    expect(comet?.consumes.map((c) => [c.armed.source, c.used])).deep.eq([[CardName.SPECIAL_DESIGN, false]]);
+    expect(comet?.easings).deep.eq([]);
+  });
+
+  it('a one-play discount is used by any card that costs something', () => {
+    const [/* game */, player] = testGame(2);
+    player.playCard(new IndenturedWorkers());
+    expect(armedPlayForecastOf(player, new Comet())?.consumes[0].used).is.true;
+    expect(armedPlayForecastOf(player, new IndenturedWorkers())?.consumes[0].used, 'a free card gains nothing from −8').is.false;
+  });
+
+  it('a permanent modifier alone reads easings but spends nothing', () => {
+    const [game, player] = testGame(2);
+    setTemperature(game, -2);
+    player.playedCards.push(new AdaptationTechnology());
+    const reading = armedPlayForecastOf(player, new Fish());
+    expect(reading?.consumes).deep.eq([]);
+    expect(reading?.easings[0].decisive).is.true;
   });
 });

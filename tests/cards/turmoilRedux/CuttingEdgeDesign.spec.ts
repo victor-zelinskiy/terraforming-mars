@@ -25,7 +25,6 @@ import {quietResolutionOf, seatEnacted, seatResolution} from '../../parliament/p
 import {addOcean, maxOutOceans, runAllActions, setOxygenLevel, setTemperature, setVenusScaleLevel} from '../../TestingUtils';
 import {LakeMarineris} from '../../../src/server/cards/base/LakeMarineris';
 import {ArchaeBacteria} from '../../../src/server/cards/base/ArchaeBacteria';
-import {Fish} from '../../../src/server/cards/base/Fish';
 import {GeneRepair} from '../../../src/server/cards/base/GeneRepair';
 import {SpecialDesign} from '../../../src/server/cards/base/SpecialDesign';
 import {MediaGroup} from '../../../src/server/cards/base/MediaGroup';

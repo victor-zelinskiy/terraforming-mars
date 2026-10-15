@@ -1456,7 +1456,7 @@ export default defineComponent({
       if (ctx === undefined || this.mode !== 'drawn' || entry === undefined) {
         return undefined;
       }
-      return buildCardAvailability({reasons: entry.card.unplayableReasons}, ctx);
+      return buildCardAvailability({reasons: entry.card.unplayableReasons, easing: entry.card.requirementEasing}, ctx);
     },
     /** The count class the tv profile keys its per-count boost / gap off. */
     stripCountClass(): string {

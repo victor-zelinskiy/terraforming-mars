@@ -148,8 +148,13 @@
           <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--effects"
                    :class="zoneStateClass('effects')" data-zone="effects">
             <h3 class="con-info__block-title">{{ $t('Effects') }}</h3>
-            <template v-if="effectsZone.total > 0">
+            <template v-if="effectsZone.total > 0 || armedCount > 0">
               <div class="con-info__stat-lines">
+                <!-- TR49 class: an effect ARMED for the next card is an active effect of the seat — counted, named. -->
+                <div v-if="armedCount > 0" class="con-info__stat-line" data-armed-zone>
+                  <span class="con-info__efam"><i class="con-info__efam-dot con-info__efam-dot--armed" aria-hidden="true"></i>{{ $t('Armed for your next card') }}</span>
+                  <b class="con-info__mint">{{ armedCount }}</b>
+                </div>
                 <div v-for="f in effectsZone.families" :key="f.family" class="con-info__stat-line">
                   <span class="con-info__efam"><i class="con-info__efam-dot" :class="'con-info__efam-dot--' + f.family" aria-hidden="true"></i>{{ $t(f.label) }}</span>
                   <b>{{ f.count }}</b>
@@ -295,6 +300,8 @@
         <!-- Turmoil Redux: the PARTY EFFECTS this seat holds stand beside the
              card effects — the same premium rendering the Parliament uses,
              each with WHY the seat holds it. Absent without the module. -->
+        <!-- TR49 class: what the seat has ARMED for its next card (the public model — a rival's too). -->
+        <ConsoleArmedEffectsSection :player="viewed" />
         <ConsolePartyEffectsStrip v-if="playerView.game.parliament !== undefined"
                                   :parliament="playerView.game.parliament"
                                   :color="viewed.color" />
@@ -395,6 +402,7 @@ import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplor
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
+import ConsoleArmedEffectsSection from '@/client/components/console/ConsoleArmedEffectsSection.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {PARLIAMENT_AGENDA_STEPS} from '@/common/parliament/ParliamentTypes';
 import {seatParliamentReadingOf, SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
@@ -434,7 +442,7 @@ export default defineComponent({
   name: 'ConsoleInfoMode',
   components: {
     ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer,
-    ConsoleInfoParliament, ConsolePartyEffectsStrip, ConsoleWsHead, GamepadGlyph,
+    ConsoleInfoParliament, ConsolePartyEffectsStrip, ConsoleArmedEffectsSection, ConsoleWsHead, GamepadGlyph,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -712,6 +720,10 @@ export default defineComponent({
     },
     /** Per-EFFECT family counts for the zone (the old per-card «Активные /
      *  Скидки» pair — whose discount predicate was always true — is gone). */
+    /** The inspected seat's armed one-play effects (TR49 class — public). */
+    armedCount(): number {
+      return this.viewed.armedPlayEffects?.length ?? 0;
+    },
     effectsZone(): EffectsZoneCounts {
       return effectsZoneCounts(playerEffects(this.viewed.tableau), this.viewed.tableau);
     },

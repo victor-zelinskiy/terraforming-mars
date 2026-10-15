@@ -17,6 +17,7 @@ import type {ReduxParty, ResolutionId, ResolutionInstanceId} from '../parliament
 import type {ResolutionCountMetricModel} from '../parliament/resolutionCounts';
 import type {MarsTileExclusion, MarsTileKind} from '../boards/marsTileCensus';
 import type {SpaceId} from '../Types';
+import type {ArmedPlayEffectKind} from './ArmedPlayEffectModel';
 
 /**
  * What a resource move does to ONE candidate card's victory points.
@@ -104,6 +105,14 @@ export type ActionPreview = {
    * tableau).
    */
   cardVictoryPoints?: CardVictoryPointsDetail;
+  /**
+   * WHAT THIS PLAY ARMS FOR THE NEXT CARD (TR49 class — Cutting-Edge Design,
+   * Special Design, Indentured Workers): the card's one-play declarations,
+   * read by the server's one reader (`oneShotEffectsOf`). The composer of the
+   * arming card names it before the press («ВЗВЕДЁТ: …») — a card with no
+   * behavior used to read as an empty result. Card plays only.
+   */
+  arms?: ReadonlyArray<ArmedPlayEffectKind>;
 };
 
 /**

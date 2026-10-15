@@ -30,8 +30,9 @@ import {Tag} from '@/common/cards/Tag';
 import {CountableVictoryPoints} from '@/common/cards/CountableVictoryPoints';
 import {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
 import {formulaFor, ScoreFormula} from '@/client/console/scoreExplorerModel';
+import {ArmedPlayEffectKind} from '@/common/models/ArmedPlayEffectModel';
 
-export type PlayResultCategory = 'action' | 'effect' | 'vp' | 'tags' | 'fallback';
+export type PlayResultCategory = 'action' | 'effect' | 'armed' | 'vp' | 'tags' | 'fallback';
 
 export type PlayResultSection = {
   kind: PlayResultCategory;
@@ -56,6 +57,8 @@ export type PlayResultSection = {
   eventTags?: boolean;
   /** A muted one-line clarification under the row (i18n key). */
   note?: string;
+  /** What the play ARMS for the next card (TR49 class — the `armed` section): the server's one-play declarations. */
+  arms?: ReadonlyArray<ArmedPlayEffectKind>;
 };
 
 export type PlayCardResultMeta = {
@@ -76,6 +79,12 @@ export type PlayCardResultMeta = {
   /** Event tags DO count while this is true (the Odyssey corporation makes an
    *  event's tags count like any other). Defaults to false. */
   eventTagsCounted?: boolean;
+  /**
+   * What this play ARMS for the next card (TR49 class — `ActionPreview.arms`, the server's one reader): Cutting-Edge
+   * Design's waiver, Special Design's ±2, Indentured Workers' −8. Such a card has no `behavior`, so without this its
+   * result read «Метки события» alone — the card's whole point unnamed (К-E5).
+   */
+  arms?: ReadonlyArray<ArmedPlayEffectKind>;
 };
 
 export type PlayResultContext = {
@@ -103,6 +112,9 @@ export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResu
   }
   if (meta.hasEffect) {
     out.push({kind: 'effect', text: 'Permanent effect'});
+  }
+  if (meta.arms !== undefined && meta.arms.length > 0) {
+    out.push({kind: 'armed', text: 'Arms your next card', arms: meta.arms, note: 'Until your next card play'});
   }
   const vp = victoryPointSection(meta.victoryPoints, meta.vpProjection);
   if (vp !== undefined) {

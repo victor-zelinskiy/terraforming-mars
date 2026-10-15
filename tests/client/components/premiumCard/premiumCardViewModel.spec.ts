@@ -5,6 +5,7 @@ import {CardResource} from '@/common/CardResource';
 import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {RequirementType} from '@/common/cards/RequirementType';
+import {GlobalParameter} from '@/common/GlobalParameter';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
@@ -433,6 +434,44 @@ describe('vpVariantOf (VP badge sizing / lower safe reserve)', () => {
   it('a subject-less amount («−1», «?») is compact, like a fixed one', () => {
     expect(vpVariantOf(vmOf(CardName.LAW_SUIT).vp!)).to.eq('compact');
     expect(vpVariantOf(vmOf(CardName.AGRICOLA_INC).vp!)).to.eq('compact');
+  });
+});
+
+describe('the requirement cassette under a modifier (TR49 class)', () => {
+  const source = {kind: 'card', card: CardName.SPECIAL_DESIGN} as const;
+  it('PRINTED: no reading on the model → the requirement carries no easing', () => {
+    const vm = vmOf(CardName.LAKE_MARINERIS, {});
+    expect(vm.requirements[0].easing).is.undefined;
+  });
+
+  it('EASED: the effective bound and the total shift ride the printed requirement; the printed value stays', () => {
+    const vm = vmOf(CardName.LAKE_MARINERIS, {requirementEasing: [{
+      key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
+      printed: 0, effective: -4, current: -18, met: false, decisive: false,
+      sources: [{source, kind: 'shift', steps: 2, oneShot: true}],
+    }]});
+    expect(vm.requirements[0].value, 'the printed value is never replaced').eq(0);
+    expect(vm.requirements[0].easing).deep.eq({effective: -4, met: false, decisive: false, steps: 2, oneShot: true});
+  });
+
+  it('WAIVED + DECISIVE: «waived» is a state, never a number', () => {
+    const vm = vmOf(CardName.LAKE_MARINERIS, {requirementEasing: [{
+      key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
+      printed: 0, effective: 'waived', current: -30, met: true, decisive: true,
+      sources: [{source: {kind: 'card', card: CardName.CUTTING_EDGE_DESIGN}, kind: 'waive', oneShot: true}],
+    }]});
+    expect(vm.requirements[0].easing).deep.eq({effective: 'waived', met: true, decisive: true, steps: 0, oneShot: true});
+  });
+
+  it('a reading seats on ITS requirement only (by position and type) — the others stay printed', () => {
+    // A card printing a global requirement BESIDE a tag one (the seat's own descriptor list).
+    const card = {...getCardOrThrow(CardName.LIVESTOCK), requirements: [{oxygen: 9}, {tag: Tag.SCIENCE, count: 2}]};
+    const vm = buildPremiumCardViewModel(card, model(CardName.LIVESTOCK, {requirementEasing: [{
+      key: 'req:O2', index: 0, type: RequirementType.OXYGEN, parameter: GlobalParameter.OXYGEN, max: false,
+      printed: 9, effective: 'waived', current: 0, met: true, decisive: true,
+      sources: [{source: {kind: 'card', card: CardName.CUTTING_EDGE_DESIGN}, kind: 'waive', oneShot: true}],
+    }]}));
+    expect(vm.requirements.map((r) => r.easing?.effective)).deep.eq(['waived', undefined]);
   });
 });
 

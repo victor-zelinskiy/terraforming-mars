@@ -1,0 +1,191 @@
+import {expect} from 'chai';
+import {CardName} from '@/common/cards/CardName';
+import {CardType} from '@/common/cards/CardType';
+import {GlobalParameter} from '@/common/GlobalParameter';
+import {RequirementType} from '@/common/cards/RequirementType';
+import {ArmedPlayEffectModel, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
+import {EffectForecast, emptyEffectForecast} from '@/common/models/EffectForecastModel';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {
+  compactForecastChips,
+  discountTail,
+  forecastGroups,
+  forecastItemCard,
+  forecastLayerAvailable,
+  modifierItemsOf,
+} from '@/client/console/effectForecastModel';
+import {derivePlayResultSections} from '@/client/console/consolePlayCardResult';
+import {
+  composerConsumeNotes,
+  composerRequirementViews,
+  requirementStateText,
+  withRequirementEasing,
+} from '@/client/console/composerRequirementRow';
+import {armedEffectsOf} from '@/client/console/armedEffects';
+import {
+  armedEffectsChange,
+  armedFlightState,
+  presentedArmedEffects,
+  releaseArmedEffectHolds,
+  settleArmedEffectHolds,
+} from '@/client/console/armedEffectFlight';
+
+/**
+ * THE ONE-PLAY CLASS IN THE PLAY'S OWN SURFACES (TR49): the «Сработает» row and its R3 layer, the composer's
+ * requirement row and consume note, the result's `armed` section, the payment head's one-play discount, and the
+ * flights' presentation holds. Every number is the server's (`ArmedPlayForecast`); these specs pin the arrangement.
+ */
+const CED = CardName.CUTTING_EDGE_DESIGN;
+const SD = CardName.SPECIAL_DESIGN;
+const IW = CardName.INDENTURED_WORKERS;
+
+const waiver: ArmedPlayEffectModel = {source: CED, sourceType: CardType.EVENT, effect: {kind: 'requirementWaiver'}, expires: 'next-play'};
+const shift: ArmedPlayEffectModel = {source: SD, sourceType: CardType.EVENT, effect: {kind: 'requirementShift', steps: 2}, expires: 'next-play'};
+const discount: ArmedPlayEffectModel = {source: IW, sourceType: CardType.EVENT, effect: {kind: 'discount', amount: 8}, expires: 'next-play'};
+
+const waived: RequirementEasingModel = {
+  key: 'req:temperature', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
+  printed: 0, effective: 'waived', current: -20, met: true, decisive: true,
+  sources: [{source: {kind: 'card', card: CED}, kind: 'waive', oneShot: true}],
+};
+const standing: RequirementEasingModel = {
+  key: 'req:oxygen', index: 0, type: RequirementType.OXYGEN, parameter: GlobalParameter.OXYGEN, max: false,
+  printed: 5, effective: 3, current: 3, met: true, decisive: true,
+  sources: [{source: {kind: 'card', card: CardName.ADAPTATION_TECHNOLOGY}, kind: 'shift', steps: 2, oneShot: false}],
+};
+
+function withModifiers(modifiers: EffectForecast['modifiers'], base = 20): EffectForecast {
+  return {...emptyEffectForecast(base), modifiers};
+}
+
+function viewOf(armed: ReadonlyArray<ArmedPlayEffectModel>): PlayerViewModel {
+  return {thisPlayer: {armedPlayEffects: armed}} as unknown as PlayerViewModel;
+}
+
+describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
+  describe('the forecast — «Сработает» and its R3 layer', () => {
+    it('an armed waiver this play USES is a modifier item, with the requirement it lifts', () => {
+      const items = modifierItemsOf(withModifiers({consumes: [{armed: waiver, used: true}], easings: [waived]}));
+      expect(items).has.length(1);
+      expect(items[0]).to.include({kind: 'modifier', used: true, oneShot: true, waive: true, badge: ''});
+      expect(items[0].easings.map((e) => e.key)).deep.eq(['req:temperature']);
+      expect(forecastItemCard(items[0])).eq(CED);
+    });
+
+    it('an armed shift spent FOR NOTHING is still named — muted, never hidden', () => {
+      const items = modifierItemsOf(withModifiers({consumes: [{armed: shift, used: false}], easings: []}));
+      expect(items.map((i) => [i.badge, i.used, i.easings.length])).deep.eq([['±2', false, 0]]);
+    });
+
+    it('a USED armed discount is the discounts group\'s — no second tile; an unused one is a modifier', () => {
+      expect(modifierItemsOf(withModifiers({consumes: [{armed: discount, used: true}], easings: []}))).deep.eq([]);
+      expect(modifierItemsOf(withModifiers({consumes: [{armed: discount, used: false}], easings: []})).map((i) => i.badge)).deep.eq(['−8']);
+    });
+
+    it('a STANDING modifier (Adaptation Technology) is one item per source, not one-shot', () => {
+      const items = modifierItemsOf(withModifiers({consumes: [], easings: [standing]}));
+      expect(items.map((i) => [i.oneShot, i.badge, i.armed === undefined])).deep.eq([[false, '±2', true]]);
+    });
+
+    it('the row leads with the modifier chips; the layer opens on a modifiers-only forecast', () => {
+      const forecast = withModifiers({consumes: [{armed: waiver, used: true}], easings: [waived]});
+      const row = compactForecastChips(forecast);
+      expect(row.chips.map((c) => c.kind)).deep.eq(['modifier']);
+      expect(forecastLayerAvailable(forecast)).is.true;
+      expect(forecastLayerAvailable(emptyEffectForecast(20))).is.false;
+    });
+
+    it('the layer\'s FIRST group is «Модификаторы розыгрыша»', () => {
+      const groups = forecastGroups(withModifiers({consumes: [{armed: shift, used: true}], easings: []}));
+      expect(groups[0].id).eq('modifiers');
+      expect(groups[0].items.map((i) => i.kind)).deep.eq(['modifier']);
+    });
+
+    it('the payment head names a ONE-PLAY discount the play spends — a standing one stays in the layer', () => {
+      const forecast: EffectForecast = {...emptyEffectForecast(21), discounts: {base: 21, final: 13, other: 0, items: [
+        {source: {kind: 'card', card: IW}, amount: 8, oneShot: true},
+      ]}};
+      expect(discountTail(forecast)).deep.eq({base: 21, final: 13, saved: 8, armedSource: IW});
+      const plain: EffectForecast = {...emptyEffectForecast(21), discounts: {base: 21, final: 19, other: 0, items: [
+        {source: {kind: 'card', card: CardName.EARTH_OFFICE}, amount: 2},
+      ]}};
+      expect(discountTail(plain)?.armedSource).is.undefined;
+    });
+  });
+
+  describe('the composer', () => {
+    it('the requirement row: printed · effective (absent when ignored) · now · who', () => {
+      const [w, s] = composerRequirementViews([waived, standing]);
+      expect(w).to.include({waived: true, met: true, decisive: true, now: '-20°C'});
+      expect(w.effective).is.undefined;
+      expect(s).to.include({waived: false});
+      expect(s.effective).is.not.undefined;
+      expect(requirementStateText(w)).eq('Requirement ignored');
+      expect(requirementStateText(s)).eq('Met thanks to the modifier');
+    });
+
+    it('the consume note says USED or FOR NOTHING, naming the source', () => {
+      const notes = composerConsumeNotes({consumes: [{armed: shift, used: false}, {armed: waiver, used: true}], easings: []});
+      expect(notes.map((n) => [n.source, n.used])).deep.eq([[SD, false], [CED, true]]);
+      expect(notes[0].text).eq('This play spends Special Design for nothing — this card does not need it');
+      expect(notes[1].text).eq('This play spends Cutting-Edge Design: Global requirements ignored');
+    });
+
+    it('the rules panel gains a line right under the requirement a modifier bends', () => {
+      const t = {text: (k: string) => k, params: (k: string, p: Array<string>) => `${k}|${p.join('|')}`};
+      const groups = withRequirementEasing([{kind: 'requirement', rows: [
+        {id: 'req:temperature', text: 'x', params: [], special: false, anyPlayer: false},
+        {id: 'req:ocean', text: 'y', params: [], special: false, anyPlayer: false},
+      ]} as never], [waived], t);
+      expect((groups[0] as unknown as {rows: Array<{id: string}>}).rows.map((r) => r.id)).deep.eq(['req:temperature', 'req:temperature:eased', 'req:ocean']);
+    });
+
+    it('the result names what the play ARMS (К-E5) — an event with no behavior is no longer «event tags» alone', () => {
+      const sections = derivePlayResultSections(
+        {tags: [], hasAction: false, hasEffect: false, isEvent: true, arms: [{kind: 'requirementWaiver'}]},
+        {hasImmediate: false, hasFollowUp: false});
+      expect(sections.map((s) => s.kind)).deep.eq(['armed']);
+      expect(sections[0]).to.include({text: 'Arms your next card', note: 'Until your next card play'});
+    });
+  });
+
+  describe('the flights\' presentation holds', () => {
+    afterEach(() => releaseArmedEffectHolds());
+
+    it('a spent effect stops being drawn from its token\'s launch; an armed one is drawn invisible until it lands', () => {
+      const live = armedEffectsOf({armedPlayEffects: [shift]});
+      armedFlightState.gone.push(live[0]);
+      armedFlightState.arriving.push({view: armedEffectsOf({armedPlayEffects: [waiver]})[0], landed: false, committed: false});
+      expect(presentedArmedEffects(live).map((e) => [e.source, e.held === true])).deep.eq([[CED, true]]);
+      armedFlightState.arriving[0].landed = true;
+      expect(presentedArmedEffects(live).map((e) => [e.source, e.held === true])).deep.eq([[CED, false]]);
+    });
+
+    it('once the view carries the effect, the hold is the view\'s — never drawn twice', () => {
+      armedFlightState.arriving.push({view: armedEffectsOf({armedPlayEffects: [waiver]})[0], landed: false, committed: false});
+      const live = armedEffectsOf({armedPlayEffects: [waiver]});
+      expect(presentedArmedEffects(live)).has.length(1);
+      releaseArmedEffectHolds();
+      expect(presentedArmedEffects(live)).deep.eq(live);
+    });
+
+    it('the commit settles: a landed arm lets go; one still in the air keeps the VIEW chip invisible until its touchdown', () => {
+      const waiverView = armedEffectsOf({armedPlayEffects: [waiver]})[0];
+      armedFlightState.arriving.push({view: waiverView, landed: false, committed: false});
+      armedFlightState.gone.push(armedEffectsOf({armedPlayEffects: [shift]})[0]);
+      settleArmedEffectHolds();
+      expect(armedFlightState.gone).deep.eq([]);
+      const live = armedEffectsOf({armedPlayEffects: [waiver]});
+      expect(presentedArmedEffects(live).map((e) => e.held === true)).deep.eq([true]);
+      // Committed + unlanded never draws a SECOND copy, even when the view no longer carries it.
+      expect(presentedArmedEffects([])).deep.eq([]);
+    });
+
+    it('the scene asks whether the answer arms or spends anything', () => {
+      expect(armedEffectsChange(viewOf([]), viewOf([waiver]))).is.true;
+      expect(armedEffectsChange(viewOf([shift]), viewOf([]))).is.true;
+      expect(armedEffectsChange(viewOf([shift]), viewOf([shift]))).is.false;
+      expect(armedEffectsChange(undefined, viewOf([shift]))).is.false;
+    });
+  });
+});

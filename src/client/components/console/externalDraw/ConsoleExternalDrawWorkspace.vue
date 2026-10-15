@@ -324,7 +324,7 @@ export default defineComponent({
       if (context === undefined) {
         return undefined;
       }
-      return buildCardAvailability({reasons: this.liveModelFor(this.focusedName)?.unplayableReasons}, context);
+      return buildCardAvailability({reasons: this.liveModelFor(this.focusedName)?.unplayableReasons, easing: this.liveModelFor(this.focusedName)?.requirementEasing}, context);
     },
     /** The take's PROGRESS («Заберите карты: 6» / «Взято 1 из 6») — STATE, the
      *  rail's one pill, kept whole under width pressure. */

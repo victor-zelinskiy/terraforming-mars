@@ -65,7 +65,7 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.PRELUDE))).to.deep.equal({kind: 'label', text: 'Prelude', accent: 'prelude'});
     expect(mechItemIcon(itemNode(CardRenderItemType.AWARD))).to.deep.equal({kind: 'label', text: 'Award', accent: 'award'});
     expect(mechItemIcon(itemNode(CardRenderItemType.MILESTONE))).to.deep.equal({kind: 'label', text: 'Milestone', accent: 'award'});
-    expect(mechItemIcon(itemNode(CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS))).to.deep.equal({kind: 'label', text: 'Global requirements'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS))).to.deep.equal({kind: 'label', text: 'Global requirements', accent: 'waived'});
   });
 
   it('trade discount is a value-bearing token', () => {

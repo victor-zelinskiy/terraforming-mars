@@ -53,6 +53,8 @@ import {
   runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {measureBoardHexRect} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
+import {releaseStagedArmedSpends} from '@/client/console/armedEffectFlight';
 
 /**
  * The composer's raw capture snapshot — written by ConsolePlayCardConfirm at
@@ -139,6 +141,12 @@ export type StagedPlayArm = {
   /** Whether entering staged play moved a workspace stack aside (and so
    *  whether B must bring one back). */
   yieldedStack: boolean;
+  /**
+   * THE ONE-PLAY CLASS (TR49): the armed effects this play SPENDS, as the server's forecast read them before the
+   * press — the landing ritual draws them out of the dock into the card (`armedEffectFlight.stageArmedSpends`); the
+   * chip stays gone until the staged play is over (`clearStagedPlay` — committed, or cancelled and back).
+   */
+  armedSpends?: ReadonlyArray<ArmedPlayEffectModel>;
 };
 
 export const stagedPlayState = reactive({
@@ -218,6 +226,9 @@ export function abortStagedPlayCommit(): void {
 export function clearStagedPlay(): void {
   stagedPlayState.arm = undefined;
   stagedPlayState.committing = false;
+  // The armed effects the ritual drew into the card: the applied view no longer has them (committed), or the
+  // play came back to its composer and they are armed again (cancelled) — either way the view speaks now.
+  releaseStagedArmedSpends();
 }
 
 // ── THE CARD-SEAL REWARD WAVE (stage-4 §8-bis, minimal form) ────────────────

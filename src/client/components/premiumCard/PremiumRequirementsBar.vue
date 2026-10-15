@@ -5,7 +5,7 @@
     <div class="pcard__reqs-field">
       <template v-for="(req, i) in requirements" :key="i">
         <span v-if="i > 0" class="pcard-req__sep" aria-hidden="true"></span>
-        <span class="pcard-req" :class="{'pcard-req--binary': req.isBinary}">
+        <span class="pcard-req" :class="segmentClass(req)" :data-req-state="stateOf(req)">
           <!-- binary requirement (party / chairman / plants-removed): icon-only
                with an optional «minus» overlay — a Redux party by its EMBLEM,
                a party with no emblem (classic Turmoil) by a text label. -->
@@ -25,9 +25,19 @@
             <span v-else class="pcard-req__label">{{ formulaLabel(req) }}</span>
             <!-- a PLAIN requirement («GEN 4+») prints its floor as «N+», never the ≥ glyph -->
             <PremiumRequirementOperator v-if="!(req.plain && req.comparator === 'min')" :comparator="req.comparator" />
-            <span class="pcard-req__value">{{ req.value
-              }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
+            <!-- the PRINTED value always stays (the player sees what the modifier bends);
+                 under a SHIFT it steps back and the effective bound follows a chevron -->
+            <span class="pcard-req__value" :class="{'pcard-req__value--printed': isShifted(req)}">{{ valueText(req.value)
+              }}<span v-if="req.suffix && !isShifted(req)" class="pcard-req__suffix">{{ req.suffix }}</span></span>
+            <template v-if="isShifted(req)">
+              <span class="pcard-req__shift" aria-hidden="true"></span>
+              <span class="pcard-req__value pcard-req__value--effective" data-req-effective>{{ effectiveText(req)
+                }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
+              <span v-if="showsModBadge(req)" class="pcard-req__mod" data-req-mod>±{{ req.easing?.steps }}</span>
+            </template>
           </template>
+          <!-- MET ONLY THANKS TO the modifier — the state is a FORM (a check), never colour alone -->
+          <span v-if="req.easing?.decisive === true" class="pcard-req__verdict" data-req-decisive aria-hidden="true"></span>
         </span>
       </template>
     </div>
@@ -88,10 +98,44 @@ export default defineComponent({
         'pcard__reqs--all': this.hasAll,
         'pcard__reqs--multi': n > 1,
         'pcard__reqs--dense': n > 2,
+        'pcard__reqs--eased': this.requirements.some((r) => r.easing !== undefined),
+        'pcard__reqs--waived': this.requirements.some((r) => r.easing?.effective === 'waived'),
+        'pcard__reqs--decisive': this.requirements.some((r) => r.easing?.decisive === true),
       };
     },
   },
   methods: {
+    /** The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class). */
+    stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' {
+      if (req.easing === undefined) {
+        return 'printed';
+      }
+      return req.easing.effective === 'waived' ? 'waived' : 'eased';
+    },
+    isShifted(req: NormalizedRequirement): boolean {
+      return req.easing !== undefined && req.easing.effective !== 'waived';
+    },
+    segmentClass(req: NormalizedRequirement): Record<string, boolean> {
+      const state = this.stateOf(req);
+      return {
+        'pcard-req--binary': req.isBinary,
+        'pcard-req--eased': state === 'eased',
+        'pcard-req--waived': state === 'waived',
+        'pcard-req--decisive': req.easing?.decisive === true,
+      };
+    },
+    effectiveText(req: NormalizedRequirement): string {
+      const effective = req.easing?.effective;
+      return typeof effective === 'number' ? this.valueText(effective) : '';
+    },
+    /** A bound as the plate prints it — a negative one with the typographic minus (wide enough to survive a stroke). */
+    valueText(value: number): string {
+      return value < 0 ? `−${Math.abs(value)}` : String(value);
+    },
+    /** The «±N» badge only where a lone requirement leaves the plate room for it. */
+    showsModBadge(req: NormalizedRequirement): boolean {
+      return this.requirements.length === 1 && (req.easing?.steps ?? 0) > 0;
+    },
     iconStyle(req: NormalizedRequirement): Record<string, string> {
       if (req.type === RequirementType.TAG && req.tag !== undefined) {
         return tagIconStyle(req.tag);

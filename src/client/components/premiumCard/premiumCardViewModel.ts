@@ -57,6 +57,25 @@ export type NormalizedRequirement = {
    * glyph (a ceiling keeps the glyph: «GEN ≤ N»).
    */
   plain: boolean;
+  /**
+   * THE REQUIREMENT UNDER A MODIFIER (TR49 class) — the server's reading of
+   * this printed requirement for the VIEWER (`CardModel.requirementEasing`,
+   * own hand only): the bound the modifiers make of the printed one, or
+   * `'waived'`; `decisive` = met ONLY thanks to them; `steps` = the total
+   * shift (±N); `oneShot` = the next play spends a modifier here. The
+   * cassette keeps the printed value and draws the state beside it (eased ›
+   * effective, waived — the scan's red diagonal, decisive — the check).
+   * Absent = printed (a rival's card, a static face, no modifier).
+   */
+  easing?: RequirementEasingVM;
+};
+
+export type RequirementEasingVM = {
+  effective: number | 'waived';
+  met: boolean;
+  decisive: boolean;
+  steps: number;
+  oneShot: boolean;
 };
 
 /**
@@ -394,6 +413,35 @@ function buildProse(clientCard: ClientCard): string | undefined {
 }
 
 /**
+ * Seat the viewer's requirement reading (`CardModel.requirementEasing`) on the
+ * printed requirement it describes — by its position in the printed list, the
+ * same order the server compiled. Nothing is derived here: no threshold, no
+ * comparison with a scale (invariant 2).
+ */
+function withEasing(requirements: Array<NormalizedRequirement>, model: CardModel | undefined): Array<NormalizedRequirement> {
+  const easings = model?.requirementEasing;
+  if (easings === undefined || easings.length === 0) {
+    return requirements;
+  }
+  return requirements.map((req, index) => {
+    const easing = easings.find((e) => e.index === index && e.type === req.type);
+    if (easing === undefined) {
+      return req;
+    }
+    return {
+      ...req,
+      easing: {
+        effective: easing.effective,
+        met: easing.met,
+        decisive: easing.decisive,
+        steps: easing.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0),
+        oneShot: easing.sources.some((s) => s.oneShot),
+      },
+    };
+  });
+}
+
+/**
  * Build the premium face view-model.
  * `model` is optional — static proxies (console deal flyers) pass only the
  * manifest card and get the pristine printed face.
@@ -417,7 +465,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     cost: buildCost(clientCard, model),
     tags,
     tagCluster: tagClusterPlan(tags.length),
-    requirements: (clientCard.requirements ?? []).map(normalizeRequirement),
+    requirements: withEasing((clientCard.requirements ?? []).map(normalizeRequirement), model),
     // Projects/preludes always get an art viewport (fallback baked in);
     // corporations and CEOs show real art if they have it, else their own
     // identity zone (resolveArt returns undefined then — corp wordmark /

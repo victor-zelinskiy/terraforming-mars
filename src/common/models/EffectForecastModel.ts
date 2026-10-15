@@ -6,6 +6,7 @@ import {Message} from '../logs/Message';
 import {EventSource} from '../events/EventSource';
 import {EventTrigger} from '../events/GameEvent';
 import type {ActionEffect, ActionPreviewStep} from './ActionPreviewModel';
+import type {ArmedPlayForecast} from './ArmedPlayEffectModel';
 
 /**
  * THE EFFECT FORECAST — what the TABLE answers to a card play / a card action,
@@ -186,6 +187,8 @@ export type EffectForecastFact = {
 export type EffectForecastDiscountItem = {
   source: EventSource;
   amount: number;
+  /** A ONE-PLAY discount (TR49 class — Indentured Workers' armed −8): this play spends it. */
+  oneShot?: true;
 };
 
 export type EffectForecastDiscounts = {
@@ -223,6 +226,14 @@ export type EffectForecast = {
   paymentValues: ReadonlyArray<EffectForecastPaymentValue>;
   /** `partial` when at least one live hook stayed uncomputed (an `unknown`). */
   coverage: 'complete' | 'partial';
+  /**
+   * THE PLAY'S MODIFIERS (TR49 class — card plays only): every armed one-play
+   * effect this play SPENDS (used or for nothing) and the card's printed global
+   * requirements under the player's modifiers. The «Сработает» row draws a chip
+   * per modifier, the R3 layer a tile; absent when nothing is armed and nothing
+   * bends a requirement (`models/armedPlayForecast.ts`).
+   */
+  modifiers?: ArmedPlayForecast;
 };
 
 /** The empty forecast — nothing reacts, nothing discounts. */

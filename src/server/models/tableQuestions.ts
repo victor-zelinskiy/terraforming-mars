@@ -6,6 +6,7 @@ import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
 import {cardPlayPreview} from './cardPlayPreview';
 import {effectForecastForPlay} from './effectForecast';
+import {oneShotEffectsOf} from '../cards/armedPlayEffects';
 
 /**
  * THE TABLE'S QUESTIONS, ASKED IN THE COMPOSER (TR51 Influential Discovery — the owner's «strictly pre-select» of
@@ -195,5 +196,7 @@ export function withTableQuestions(preview: ActionPreview, forecast: EffectForec
 export function playPreviewWithTableQuestions(player: IPlayer, card: ICard): ActionPreview {
   const base = cardPlayPreview(player, card);
   const {preview, forecast} = withTableQuestions(base, effectForecastForPlay(player, card, base), card.name);
-  return {...preview, forecast};
+  // What this play ARMS for the next card (TR49 class) — the card's one-play declarations, named before the press.
+  const arms = oneShotEffectsOf(card, player);
+  return arms.length > 0 ? {...preview, forecast, arms} : {...preview, forecast};
 }

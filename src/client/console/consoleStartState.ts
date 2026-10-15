@@ -432,7 +432,7 @@ export function wizardSteps(input: SelectInitialCardsModel): Array<StartWizardSt
  * `undefined` = nothing to say.
  */
 export function startCardAvailability(card: CardModel | undefined): CardAvailabilityView | undefined {
-  return buildCardAvailability({reasons: card?.unplayableReasons}, 'draft');
+  return buildCardAvailability({reasons: card?.unplayableReasons, easing: card?.requirementEasing}, 'draft');
 }
 
 /**

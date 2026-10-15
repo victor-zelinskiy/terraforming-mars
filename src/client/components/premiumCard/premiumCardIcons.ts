@@ -29,7 +29,7 @@ export type MechIconSpec =
   | {kind: 'img', url: string, mod?: string}
   /** A localized text plate (prelude / award / milestone / ignore-global-req).
    *  `text` is the English i18n KEY — the component translates it. */
-  | {kind: 'label', text: string, accent?: 'prelude' | 'award'}
+  | {kind: 'label', text: string, accent?: 'prelude' | 'award' | 'waived'}
   /** A value-bearing light token (trade discount) — the amount rides `amountInside`. */
   | {kind: 'token'}
   /** A premium player cube (community) — the SAME 3D board marker,
@@ -634,7 +634,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
   case CardRenderItemType.MILESTONE:
     return {kind: 'label', text: 'Milestone', accent: 'award'};
   case CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS:
-    return {kind: 'label', text: 'Global requirements'};
+    // The printed glyph is the plate STRUCK THROUGH by a red diagonal (TR49's scan, Ecology Experts) — the
+    // class's language for «waived», the same stroke the requirement cassette of the next card wears.
+    return {kind: 'label', text: 'Global requirements', accent: 'waived'};
   case CardRenderItemType.COMMUNITY:
     // Arcadian Communities marker — the board renders it as a player cube;
     // the card shows the SAME cube, orange (its identity + legacy tone).

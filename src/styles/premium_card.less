@@ -900,6 +900,100 @@
   z-index: 1;
 }
 
+/* ══ THE REQUIREMENT UNDER A MODIFIER (TR49 class) ════════════════════════
+ *
+ * ONE plate, three states, every host (the hand tile, the composer's hero, the
+ * inspector — the live `CardModel.requirementEasing` reaches them through the
+ * view-model, never per host): PRINTED (nothing touches it) · EASED (a ±N
+ * shift: the printed value steps back, a chevron, the EFFECTIVE bound in mint;
+ * a lone requirement wears the «±N» badge) · WAIVED (the scan's own language —
+ * a red diagonal across the segment, its values dimmed but legible: the player
+ * still reads WHAT is set aside). DECISIVE (met ONLY thanks to the modifier)
+ * adds a check at the segment's end — every state is a FORM, never colour
+ * alone. No `filter` anywhere (the console strips it): opacity and
+ * pseudo-elements only. A rival's card, a static face, the journal stay
+ * printed — the reading is self-only. */
+.pcard-req__value--printed {
+  font-size: 14px;
+  opacity: 0.62;
+}
+.pcard-req__shift {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 -1px;
+  border-top: 2px solid rgba(var(--pcard-req-accent-rgb), 0.85);
+  border-right: 2px solid rgba(var(--pcard-req-accent-rgb), 0.85);
+  transform: rotate(45deg);
+}
+.pcard-req__value--effective {
+  color: #d2fff1;
+  text-shadow: 0 1px 1px rgba(8, 36, 26, 0.92), 0 0 6px rgba(92, 232, 190, 0.5);
+}
+.pcard-req__mod {
+  flex: 0 0 auto;
+  margin-left: 1px;
+  padding: 2px 4px 1.5px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #072a1f;
+  text-shadow: none;
+  background: linear-gradient(180deg, #c3f9e8 0%, #74dbba 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 1px rgba(20, 8, 2, 0.55);
+}
+/* a waived segment: the scale and its operator step back, the printed bound stays LEGIBLE (the player reads what
+   is set aside), the diagonal crosses them all (the verdict stays bright) */
+.pcard-req--waived > :not(.pcard-req__verdict) { opacity: 0.55; }
+.pcard-req--waived > .pcard-req__value { opacity: 0.86; }
+.pcard-req--waived::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: calc(50% - 1.25px);
+  height: 2.5px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ff5a45 0%, #d8261c 100%);
+  box-shadow: 0 0 0 1px rgba(64, 6, 3, 0.6);
+  transform: rotate(-11deg);
+  pointer-events: none;
+  z-index: 2;
+}
+.pcard-req__verdict {
+  position: relative;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #8ff0c8 0%, #2fb27e 62%, #1b7a55 100%);
+  box-shadow: 0 0 0 1.2px rgba(10, 44, 31, 0.75), 0 1px 1px rgba(20, 8, 2, 0.5);
+  z-index: 3;
+}
+.pcard-req__verdict::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 2.5px;
+  width: 4px;
+  height: 7.5px;
+  border-right: 2.2px solid #f4fff9;
+  border-bottom: 2.2px solid #f4fff9;
+  transform: rotate(40deg);
+}
+/* the plate itself says «under a modifier» with a mint inner kant (structure, not a repaint) */
+.pcard__reqs--eased:not(.pcard__reqs--all) .pcard__reqs-field {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 207, 0.38),
+    inset 0 -2px 2px rgba(48, 24, 9, 0.52),
+    inset 0 0 0 1.4px rgba(116, 219, 186, 0.55);
+}
+.pcard__reqs--dense .pcard-req__value--printed { font-size: 12.5px; }
+
 /* exotic no-icon requirement / party name — a compact engraved chip so it
    reads as a seated token, not naked text */
 .pcard-req__label {
@@ -1712,6 +1806,24 @@
   background: linear-gradient(180deg, #f3c07a, #d88a34);
   border-color: #8a561c;
   color: #3a2408;
+}
+/* «IGNORE GLOBAL REQUIREMENTS» (TR49, Ecology Experts) — the plate struck through by the scan's
+   red diagonal: the face's statement of the waiver, one stroke with the cassette's `--waived`. */
+.pcard-plate--waived {
+  position: relative;
+}
+.pcard-plate--waived::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: calc(50% - 1.5px);
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ff5a45 0%, #d8261c 100%);
+  box-shadow: 0 0 0 1px rgba(64, 6, 3, 0.55);
+  transform: rotate(-8deg);
+  pointer-events: none;
 }
 /* ── the ONCE-PER-GAME action marker (CEO `opgArrow`) ─────────────────
    Replaces the legacy red «OPG» PNG with a premium-native, language-

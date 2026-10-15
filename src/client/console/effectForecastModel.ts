@@ -25,6 +25,7 @@ import {
   forecastSourceIsCardless,
 } from '@/common/models/EffectForecastModel';
 import {EventSource} from '@/common/events/EventSource';
+import {ArmedPlayEffectModel, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {EventTrigger} from '@/common/events/GameEvent';
 import {EffectSignature} from '@/client/components/effects/effectSummary';
 import {expectedChannelsFor} from '@/client/components/effects/effectChannels';
@@ -59,6 +60,13 @@ export type ForecastChip =
    */
   | {kind: 'skipped', key: string, effect: ActionEffect, production: boolean, facts: number}
   | {kind: 'unknown', key: string, facts: number}
+  /**
+   * A REQUIREMENT MODIFIER OF THIS PLAY (TR49 class): an armed one-play effect
+   * the play spends — «±2» / the struck plate of a waiver / «−8» when it is
+   * spent for nothing — or a standing modifier (Inventrix) bending one of the
+   * card's printed requirements. `used: false` = spent for nothing (muted).
+   */
+  | {kind: 'modifier', key: string, badge: string, waive: boolean, used: boolean, oneShot: boolean, facts: number}
   | {kind: 'more', key: string, count: number, facts: number};
 
 /** Which operation the forecast describes — the WHEN vocabulary differs. */
@@ -172,6 +180,10 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
   if (forecast === undefined) {
     return {chips: [], represented: 0, total: 0};
   }
+  // THE PLAY'S MODIFIERS lead (TR49 class): they concern the card's own legality and price, before the table answers.
+  const modifierChips: Array<ForecastChip> = modifierItemsOf(forecast).map((m) => ({
+    kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, used: m.used, oneShot: m.oneShot, facts: 1,
+  }));
   const own = new Map<string, ChipSlot>();
   const asks = new Map<string, ChipSlot>();
   const other = new Map<string, ChipSlot & {color: Color, bot: boolean}>();
@@ -249,6 +261,10 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
     }
     return all.size;
   };
+  for (const [i, chip] of modifierChips.entries()) {
+    ordered.splice(i, 0, {chip, ids: new Set([chip.key])});
+    total++;
+  }
   if (ordered.length <= FORECAST_CHIP_CAP) {
     return {chips: ordered.map((o) => o.chip), represented: distinct(ordered), total};
   }
@@ -371,13 +387,24 @@ export function forecastForFixedBranch(forecast: EffectForecast | undefined, pos
 
 // ── The payment head's discount tail (§5.4) ─────────────────────────────────
 
-export type DiscountTail = {base: number, final: number, saved: number};
+/**
+ * The payment head's discount. `armedSource` names a ONE-PLAY discount this play SPENDS (TR49 class — Indentured
+ * Workers' armed −8, К-E2): the one discount source the head names, because the play uses it up — a standing
+ * discount's sources stay in the R3 layer.
+ */
+export type DiscountTail = {base: number, final: number, saved: number, armedSource?: CardName};
 
 export function discountTail(forecast: EffectForecast | undefined): DiscountTail | undefined {
   if (forecast === undefined || forecast.discounts.final >= forecast.discounts.base) {
     return undefined;
   }
-  return {base: forecast.discounts.base, final: forecast.discounts.final, saved: forecast.discounts.base - forecast.discounts.final};
+  const tail: DiscountTail = {base: forecast.discounts.base, final: forecast.discounts.final, saved: forecast.discounts.base - forecast.discounts.final};
+  const armed = forecast.discounts.items.find((d) => d.oneShot === true);
+  const armedSource = armed !== undefined ? sourceCardOf(armed.source) : undefined;
+  if (armedSource !== undefined) {
+    tail.armedSource = armedSource;
+  }
+  return tail;
 }
 
 // ── Does the forecast have a LAYER to open at all (§6.7)? ───────────────────
@@ -390,7 +417,8 @@ export function forecastLayerAvailable(forecast: EffectForecast | undefined): bo
   }
   return allForecastFacts(forecast).length > 0 ||
     forecast.discounts.final < forecast.discounts.base ||
-    forecast.paymentValues.length > 0;
+    forecast.paymentValues.length > 0 ||
+    modifierItemsOf(forecast).length > 0;
 }
 
 /** The compact row exists iff it has at least one chip (a discount-only
@@ -401,13 +429,15 @@ export function forecastRowPresent(forecast: EffectForecast | undefined): boolea
 
 // ── The eight groups of the layer (§6.3) ────────────────────────────────────
 
-export type ForecastGroupId = 'receive' | 'asked' | 'depends' | 'discounts' | 'others' | 'later' | 'skipped' | 'no';
+export type ForecastGroupId = 'modifiers' | 'receive' | 'asked' | 'depends' | 'discounts' | 'others' | 'later' | 'skipped' | 'no';
 
-export const FORECAST_GROUP_ORDER: ReadonlyArray<ForecastGroupId> = ['receive', 'asked', 'depends', 'discounts', 'others', 'later', 'skipped', 'no'];
+export const FORECAST_GROUP_ORDER: ReadonlyArray<ForecastGroupId> = ['modifiers', 'receive', 'asked', 'depends', 'discounts', 'others', 'later', 'skipped', 'no'];
 
 /** Glyph + English label per group — the glyph is the SAME the compact row's
  *  chip / badge carries, so the legend is learnt by adjacency. */
 export const FORECAST_GROUP_META: Readonly<Record<ForecastGroupId, {glyph: string, label: string}>> = {
+  // TR49 class: what bends this card's requirements / what armed effect this play spends — before the table's answers.
+  modifiers: {glyph: '⚡', label: 'Modifiers of this play'},
   receive: {glyph: '⚡', label: 'You will receive'},
   asked: {glyph: '?', label: 'You will be asked'},
   // The SAME bolt the variant cards' «⚡ сработает» caption carries — the
@@ -428,7 +458,77 @@ export type ForecastItem =
   | {kind: 'discount', key: string, source: EventSource, amount: number, group: 'discounts'}
   | {kind: 'other-discount', key: string, amount: number, group: 'discounts'}
   | {kind: 'payment', key: string, value: EffectForecastPaymentValue, group: 'discounts'}
-  | {kind: 'branch-empty', key: string, branchPos: number, group: 'depends'};
+  | {kind: 'branch-empty', key: string, branchPos: number, group: 'depends'}
+  | ForecastModifierItem;
+
+/**
+ * A REQUIREMENT MODIFIER OF THE PLAY (TR49 class) — one per SOURCE: an armed
+ * one-play effect this play spends (`armed`; `used: false` = spent for
+ * nothing), or a standing modifier bending a printed requirement (Inventrix,
+ * Adaptation Technology — no `armed`). `easings` are the card's requirements
+ * this source bends. An armed DISCOUNT this card uses is the discounts
+ * group's (named «один розыгрыш» there), never a second tile.
+ */
+export type ForecastModifierItem = {
+  kind: 'modifier', key: string, group: 'modifiers',
+  source: EventSource,
+  armed?: ArmedPlayEffectModel,
+  used: boolean,
+  oneShot: boolean,
+  waive: boolean,
+  badge: string,
+  easings: ReadonlyArray<RequirementEasingModel>,
+};
+
+function sourceCardOf(source: EventSource): CardName | undefined {
+  return source.kind === 'card' || source.kind === 'corporation' ? source.card : undefined;
+}
+
+/** The play's modifier items, in the server's order: the armed one first, then the standing ones. */
+export function modifierItemsOf(forecast: EffectForecast | undefined): Array<ForecastModifierItem> {
+  const modifiers = forecast?.modifiers;
+  if (modifiers === undefined) {
+    return [];
+  }
+  const out: Array<ForecastModifierItem> = [];
+  const armedSources = new Set<string>();
+  for (const c of modifiers.consumes) {
+    armedSources.add(c.armed.source);
+    if (c.armed.effect.kind === 'discount' && c.used) {
+      continue; // the discounts group names it
+    }
+    out.push({
+      kind: 'modifier', key: `mod-armed-${c.armed.source}`, group: 'modifiers',
+      source: {kind: 'card', card: c.armed.source},
+      armed: c.armed, used: c.used, oneShot: true,
+      waive: c.armed.effect.kind === 'requirementWaiver',
+      badge: c.armed.effect.kind === 'requirementShift' ? `±${c.armed.effect.steps}` :
+        c.armed.effect.kind === 'discount' ? `−${c.armed.effect.amount}` : '',
+      easings: modifiers.easings.filter((e) => e.sources.some((s) => sourceCardOf(s.source) === c.armed.source)),
+    });
+  }
+  const standing = new Map<string, ForecastModifierItem>();
+  for (const easing of modifiers.easings) {
+    for (const share of easing.sources) {
+      const card = sourceCardOf(share.source);
+      const key = card ?? share.source.kind;
+      if (card !== undefined && armedSources.has(card)) {
+        continue;
+      }
+      let item = standing.get(key);
+      if (item === undefined) {
+        item = {
+          kind: 'modifier', key: `mod-${key}`, group: 'modifiers', source: share.source,
+          used: true, oneShot: share.oneShot, waive: share.kind === 'waive',
+          badge: share.kind === 'shift' ? `±${share.steps ?? 0}` : '', easings: [],
+        };
+        standing.set(key, item);
+      }
+      item.easings = [...item.easings, easing];
+    }
+  }
+  return [...out, ...standing.values()];
+}
 
 export type ForecastGroup = {
   id: ForecastGroupId;
@@ -467,8 +567,9 @@ export function forecastGroups(
     return [];
   }
   const items: Record<ForecastGroupId, Array<ForecastItem>> = {
-    receive: [], asked: [], depends: [], discounts: [], others: [], later: [], skipped: [], no: [],
+    modifiers: [], receive: [], asked: [], depends: [], discounts: [], others: [], later: [], skipped: [], no: [],
   };
+  items.modifiers.push(...modifierItemsOf(forecast));
   for (const fact of forecast.facts) {
     const group = groupOfFact(fact, false);
     items[group].push({kind: 'fact', key: fact.id, fact, group});
@@ -595,6 +696,8 @@ export function forecastItemCard(item: ForecastItem): CardName | undefined {
     const source = item.kind === 'discount' ? item.source : item.value.source;
     return source.kind === 'card' || source.kind === 'corporation' ? source.card : undefined;
   }
+  case 'modifier':
+    return sourceCardOf(item.source);
   default:
     return undefined;
   }
@@ -732,6 +835,9 @@ export function attributeItemToEffect<E extends AttributableEffect>(item: Foreca
     const pay = entries.filter((e) => e.signature.valueAsPayment);
     return pay.length === 1 ? pay[0] : (entries.length === 1 ? entries[0] : undefined);
   }
+  case 'modifier':
+    // A standing modifier's ONE printed effect (Adaptation Technology); an event (Special Design) has none.
+    return entries.length === 1 ? entries[0] : undefined;
   default:
     return undefined;
   }

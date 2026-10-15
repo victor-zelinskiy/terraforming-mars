@@ -165,7 +165,12 @@
         </span>
       </span>
       <span v-else class="con-handdock__status">
-        <span class="con-handdock__status-label">{{ $t('Cards') }}</span>
+        <!-- THE ARMED ONE-PLAY EFFECT's compact twin (TR49 class) stands IN THE LABEL'S PLACE while something is armed:
+             «⚡ ТРЕБ. 4/4» — what the next card spends, readable from the board. The plate is a low trapezoid: beside the
+             count the chip overran its slope at 4K («⚡ ТРЕ…»), above it the plate's clip cut it to a sliver; the label's
+             own width barely changes, so the count hardly moves. -->
+        <ConsoleArmedEffectsStrip v-if="armed.length > 0" class="con-handdock__armed" :effects="armed" variant="chip" />
+        <span v-else class="con-handdock__status-label">{{ $t('Cards') }}</span>
         <span class="con-handdock__ratio">
           <span :key="'a' + playableCount"
                 class="con-handdock__num con-handdock__num--active"
@@ -226,6 +231,8 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
+import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
 
 /**
  * The album spine's live state (undefined → the plain «КАРТЫ n/m» line).
@@ -245,7 +252,7 @@ export type HandDockAlbum = {
 
 export default defineComponent({
   name: 'ConsoleHandDock',
-  components: {AnimatedMetricValue, GamepadGlyph},
+  components: {AnimatedMetricValue, GamepadGlyph, ConsoleArmedEffectsStrip},
   props: {
     /**
      * THE ALBUM SPINE: while the hand album owns the cards, the bay centre
@@ -322,6 +329,8 @@ export default defineComponent({
      * while inspecting the viewer's own seat.
      */
     inspection: {type: Object as PropType<DockInspectionView | undefined>, default: undefined},
+    /** The viewer's ARMED one-play effects (TR49 class) — the chip beside the count; empty: nothing drawn. */
+    armed: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, default: () => []},
   },
   emits: ['open', 'page'],
   data() {

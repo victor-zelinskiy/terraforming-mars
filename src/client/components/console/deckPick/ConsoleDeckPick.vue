@@ -322,7 +322,7 @@ export default defineComponent({
       if (context === undefined) {
         return undefined;
       }
-      return buildCardAvailability({reasons: this.liveModelFor(this.focusedName)?.unplayableReasons}, context);
+      return buildCardAvailability({reasons: this.liveModelFor(this.focusedName)?.unplayableReasons, easing: this.liveModelFor(this.focusedName)?.requirementEasing}, context);
     },
     sourceView(): PromptSourceView | undefined {
       return this.frozen !== undefined ? this.frozen.source : promptSourceView(this.model);

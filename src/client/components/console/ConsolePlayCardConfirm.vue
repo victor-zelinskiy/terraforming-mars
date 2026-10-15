@@ -71,7 +71,7 @@
                'con-composer__playcard--targetfocus': selfTargetFocused,
                'con-composer__playcard--targetlock': selfTargetLocked,
              }">
-          <Card v-if="card !== undefined" :card="card" :key="card.name" />
+          <Card v-if="heroCard !== undefined" :card="heroCard" :key="heroCard.name" />
         </div>
 
         <!-- THE SELF-TARGET CONNECTOR — the wire from the selector's proxy to
@@ -236,6 +236,24 @@
                    the ONE strip the board peek's HUD shows too (`ConsoleCountedWhy`). -->
               <ConsoleCountedWhy v-else-if="countWhy !== undefined && !hasVariants" class="con-composer__countwhy" :why="countWhy" />
 
+              <!-- THE REQUIREMENT UNDER A MODIFIER (TR49 class): each printed global requirement an effect bends — the
+                   printed bound (struck when ignored), the effective one, the scale now, the verdict and who bends it.
+                   Every number is the server's reading (`ArmedPlayForecast.easings`); one fixed line per requirement. -->
+              <div v-for="r in requirementViews" :key="'req' + r.key" class="con-composer__reqrow"
+                   :class="{'con-composer__reqrow--waived': r.waived, 'con-composer__reqrow--decisive': r.decisive, 'con-composer__reqrow--short': !r.met}"
+                   data-composer-req :data-req-state="r.waived ? 'waived' : (r.decisive ? 'decisive' : (r.met ? 'eased' : 'short'))">
+                <span class="con-composer__reqrow-kicker">{{ $t('Requirement') }}</span>
+                <i class="con-composer__reqrow-ico" :class="r.iconClass" aria-hidden="true"></i>
+                <span class="con-composer__reqrow-printed">{{ r.printed }}</span>
+                <template v-if="r.effective !== undefined">
+                  <span class="con-composer__reqrow-arrow" aria-hidden="true">→</span>
+                  <b class="con-composer__reqrow-eff">{{ r.effective }}</b>
+                </template>
+                <span class="con-composer__reqrow-now">{{ $t('now') }} {{ r.now }}</span>
+                <span class="con-composer__reqrow-state">{{ requirementStateText(r) }}</span>
+                <span class="con-composer__reqrow-src">{{ r.sources }}</span>
+              </div>
+
               <!-- ── THE SECOND LEVEL — what the card IS once it is on the
                    table (a new action, an ongoing effect, endgame points, the
                    tags it carries), under the immediate state change above it.
@@ -284,6 +302,14 @@
                                       class="con-composer__rescat-vpglyph" :glyph="glyph" data-vp-glyph
                   />{{ formulaOperandsText(sec.formula) }}<template v-if="shortfallText(sec.formula) !== ''"
                   > · {{ shortfallText(sec.formula) }}</template></span>
+                  <!-- WHAT THE PLAY ARMS (TR49 class): the effect's badge — the waiver's struck plate — and its formula. -->
+                  <span v-if="sec.kind === 'armed' && sec.arms !== undefined" class="con-composer__rescat-arms" data-composer-arms>
+                    <template v-for="(arm, ai) in sec.arms" :key="'arm' + ai">
+                      <span v-if="arm.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+                      <span v-else class="con-armed__badge" aria-hidden="true">{{ armedEffectBadge(arm) }}</span>
+                      <span class="con-composer__rescat-armtext" :data-armed-kind="arm.kind">{{ armedEffectFormula(arm) }}</span>
+                    </template>
+                  </span>
                   <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
                     <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
                   </span>
@@ -304,6 +330,14 @@
                   </span>
                   <span class="con-composer__warn-text">{{ w.reason }}</span>
                 </span>
+              </div>
+
+              <!-- THE CONSUME NOTE (TR49 class, the owner's decision 7): an armed one-play effect this card does not need is
+                   still SPENT by the play — said in the info tone, never a block and never a second press. A USED one is
+                   named where it acts (the requirement row above, the price head's discount). -->
+              <div v-for="c in wastedConsumes" :key="'cons' + c.source" class="con-composer__warn con-composer__warn--info" data-unfold-item data-composer-consume>
+                <span class="con-composer__warn-glyph" aria-hidden="true">⚡</span>
+                <span class="con-composer__warn-body"><span class="con-composer__warn-text">{{ c.text }}</span></span>
               </div>
 
               <!-- Honest post-confirm follow-up (board placement / notes). ONE
@@ -816,6 +850,9 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
+import {ComposerConsumeNote, ComposerRequirementView, composerConsumeNotes, composerRequirementViews, requirementStateText} from '@/client/console/composerRequirementRow';
+import {armedEffectBadge, armedEffectFormula} from '@/client/console/requirementEasingText';
+import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {CountedWhy, countedWhyOf} from '@/client/console/countedPlay';
 import {boardPeekState, closeBoardPeek, openBoardPeek, peekable} from '@/client/console/boardPeek';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
@@ -1155,6 +1192,16 @@ export default defineComponent({
     },
     card(): CardModel | undefined {
       return this.input.cards.find((c) => c.name === this.cardName);
+    },
+    /**
+     * THE HERO AS THE PLAYER READS IT (TR49 class): the prompt's card model carries no requirement reading (it is the
+     * prompt's, not the hand's), so the hero's requirement cassette would print the bare bound beside a row saying it
+     * is lifted. The server's reading rides in: the face shows eased / lifted / decisive exactly as the hand tile does.
+     */
+    heroCard(): CardModel | undefined {
+      const card = this.card;
+      const easings = this.requirementEasings;
+      return card === undefined || easings.length === 0 ? card : {...card, requirementEasing: [...easings]};
     },
     titleText(): string {
       return translateCardName(this.cardName);
@@ -1906,6 +1953,8 @@ export default defineComponent({
           isEvent: meta?.type === CardType.EVENT,
           // Odyssey makes an event's tags count like any other card's.
           eventTagsCounted: this.thisPlayer.tableau.some((c) => c.name === CardName.ODYSSEY),
+          // What the play arms for the next card (TR49 class) — the server's reading, named before the press.
+          arms: this.preview?.arms,
         },
         // The repeat slot IS the meaningful result for ProjectInspection — count
         // it so the block is never the misleading "applied after confirming".
@@ -1932,6 +1981,19 @@ export default defineComponent({
     variantLossesInStrip(): boolean {
       const sel = this.selectedBranch;
       return sel !== undefined && isGeneralBranch(sel, this.branches) && this.warningSteps.length > 0;
+    },
+    /** The card's printed global requirements under the player's modifiers (TR49 class) — the server's reading:
+     *  the play preview's own (`forecast.modifiers`, versioned with the answer), else the hand card's. */
+    requirementEasings(): ReadonlyArray<RequirementEasingModel> {
+      return this.forecast?.modifiers?.easings ??
+        this.playerView.cardsInHand.find((c) => c.name === this.cardName)?.requirementEasing ?? [];
+    },
+    requirementViews(): ReadonlyArray<ComposerRequirementView> {
+      return composerRequirementViews(this.requirementEasings);
+    },
+    /** The armed one-play effects this play spends FOR NOTHING (decision 7) — named, never blocking. */
+    wastedConsumes(): ReadonlyArray<ComposerConsumeNote> {
+      return composerConsumeNotes(this.forecast?.modifiers).filter((c) => !c.used);
     },
     warningSteps(): Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> {
       const out: Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> = [];
@@ -2687,10 +2749,14 @@ export default defineComponent({
     iconClass(icon: string | undefined): string {
       return icon !== undefined ? iconClassFor(icon) : '';
     },
+    armedEffectBadge,
+    armedEffectFormula,
+    requirementStateText,
     rescatGlyph(kind: string): string {
       switch (kind) {
       case 'action': return '⟳';
       case 'effect': return '✦';
+      case 'armed': return '⚡';
       case 'vp': return '★';
       case 'tags': return '#';
       default: return '›';
@@ -3441,11 +3507,11 @@ export default defineComponent({
         this.openPaymentEditor();
         return;
       case 'inspect':
-        if (this.card !== undefined) {
+        if (this.heroCard !== undefined) {
           // "One physical card": the composer's mini card PHYSICALLY lifts
           // into fullscreen and returns into the SAME slot on close (its
           // slot is held empty meanwhile — the card is never in two places).
-          openConsoleCardZoom([this.card], 0, undefined, undefined, {
+          openConsoleCardZoom([this.heroCard], 0, undefined, undefined, {
             origin: {
               kind: 'physical',
               resolve: () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
@@ -4678,6 +4744,9 @@ export default defineComponent({
         // A reward the CELL decides (Arboretum): the card its units will land on — the board's dossier prints
         // that card's «before → after» per cell. The pick itself rides the batch like any other.
         stagedCardTarget: this.stagedCardTargetOf(),
+        // THE ONE-PLAY CLASS (TR49): the armed effects this play SPENDS (the server's forecast) — a STAGED play's
+        // landing ritual draws them out of the dock into the card before the board, the answer not being known yet.
+        armedSpends: (this.forecast?.modifiers?.consumes ?? []).map((c) => c.armed),
         // …and the raw capture snapshot that restores this very screen when
         // the player comes back from the board with B. Opaque to the shell.
         composerDraft: this.composerDraftSnapshot(),

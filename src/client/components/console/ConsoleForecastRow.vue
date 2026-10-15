@@ -59,6 +59,13 @@
         <template v-else-if="chip.kind === 'unknown'">
           <span class="con-forecast__unknown" aria-hidden="true">⚡ ?</span>
         </template>
+        <!-- A REQUIREMENT MODIFIER this play spends or reads (TR49 class): the armed effect's own badge —
+             the waiver's struck plate, «±2», «−8» — muted when this play spends it for nothing. -->
+        <template v-else-if="chip.kind === 'modifier'">
+          <span v-if="chip.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+          <span v-else class="con-armed__badge" aria-hidden="true">{{ chip.badge }}</span>
+          <span v-if="chip.oneShot" class="con-forecast__oneshot" aria-hidden="true">1×</span>
+        </template>
         <template v-else>
           <span class="con-forecast__more">+{{ chip.count }}</span>
         </template>
@@ -109,6 +116,8 @@ export default defineComponent({
         return `${chip.key}|${chip.facts}`;
       case 'more':
         return `${chip.key}|${chip.count}`;
+      case 'modifier':
+        return `${chip.key}|${chip.badge}|${chip.used ? 1 : 0}`;
       default:
         return `${chip.key}|${chip.effect.amount}`;
       }
@@ -122,6 +131,7 @@ export default defineComponent({
         ['con-forecast__chip--' + chip.kind]: true,
         'con-forecast__chip--bot': chip.kind === 'other' && chip.bot,
         'con-forecast__chip--loss': chip.kind === 'other' && chip.effect.direction === 'cost',
+        'con-forecast__chip--unused': chip.kind === 'modifier' && !chip.used,
         'con-forecast__chip--production': (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other' || chip.kind === 'skipped') && chip.production,
       };
     },

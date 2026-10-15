@@ -211,6 +211,13 @@
                         <i class="resource_icon resource_icon--megacredits con-efx__meta-icon" aria-hidden="true"></i>
                         <span class="con-efx__meta-text">{{ discountTotal }}</span>
                       </template>
+                      <!-- A REQUIREMENT MODIFIER of the play (TR49 class): its badge (the waiver's struck plate), and what this
+                           play does with it — spends it (one play), spends it for NOTHING, or reads a standing ±2. -->
+                      <template v-else-if="tile.item.kind === 'modifier'">
+                        <span v-if="tile.item.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+                        <span v-else-if="tile.item.badge !== ''" class="con-armed__badge">{{ tile.item.badge }}</span>
+                        <span class="con-efx__meta-text" :data-forecast-modifier="tile.item.used ? 'used' : 'unused'">{{ modifierMetaText(tile.item) }}</span>
+                      </template>
                       <template v-else-if="tile.item.kind === 'payment'">
                         <span class="con-efx__meta-num">1</span>
                         <span class="con-efx__meta-icon" :class="iconClassFor(String(tile.item.value.resource))" aria-hidden="true"></span>
@@ -434,7 +441,9 @@ import {
   forecastItemPoliticalSource,
   forecastMetaLine,
   forecastOrderBand,
+  ForecastModifierItem,
 } from '@/client/console/effectForecastModel';
+import {armedEffectFormula, easingLine} from '@/client/console/requirementEasingText';
 import {EffectsExplorerUi, effectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 import {actionDescTier, stepActionRows} from '@/client/console/consoleCardActions';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
@@ -1102,6 +1111,9 @@ export default defineComponent({
       if (item.kind === 'branch-empty') {
         return translateText('Nothing will trigger');
       }
+      if (item.kind === 'modifier') {
+        return item.armed !== undefined ? armedEffectFormula(item.armed.effect) : item.easings.map((e) => easingLine(e)).join(' · ');
+      }
       const law = this.fdiscountLawName(tile);
       return translateText(law === '' ? 'Effect of this card' : law);
     },
@@ -1172,6 +1184,13 @@ export default defineComponent({
       const count = per.stat?.triggerCount ?? 0;
       return count > 0 ? `${translateText('Times triggered')}: ${count}` : translateText('Not triggered yet');
     },
+    /** A modifier tile's meta: spent by this play / spent for nothing / a standing modifier (TR49 class). */
+    modifierMetaText(item: ForecastModifierItem): string {
+      if (!item.oneShot) {
+        return translateText('Standing modifier');
+      }
+      return translateText(item.used ? 'One play — spent by this play' : 'One play — this play spends it for nothing');
+    },
     paymentAvailable(count: number): string {
       return translateTextWithParams('${0} available in payment', [String(count)]);
     },
@@ -1235,6 +1254,19 @@ export default defineComponent({
         out.push({id: 'condition', label: 'Condition', text: this.discountTotal === '' ? '' : `${translateText('Cost')} ${this.discountTotal}`, state: 'met'});
         out.push({id: 'whom', label: 'To whom', text: translateText('You')});
         out.push({id: 'when', label: 'When', text: translateText('At payment')});
+        return out;
+      }
+      if (item.kind === 'modifier') {
+        // THE FIVE QUESTIONS of a requirement modifier (TR49 class) — every word from the class's one formatter.
+        const name = this.ftileTitle(tile);
+        out.push({id: 'what', label: 'What', text: item.armed !== undefined ? armedEffectFormula(item.armed.effect) : item.easings.map((e) => easingLine(e)).join(' · '),
+          note: item.oneShot ? translateText(item.used ? 'One play — spent by this play' : 'One play — this play spends it for nothing') : undefined});
+        out.push({id: 'why', label: 'Why', text: translateTextWithParams(item.armed !== undefined ? '${0} armed it for your next card' : '${0} bends the printed requirement', [name])});
+        if (item.easings.length > 0) {
+          out.push({id: 'condition', label: 'Condition', text: item.easings.map((e) => easingLine(e)).join(' · '), state: item.easings.every((e) => e.met) ? 'met' : 'unmet'});
+        }
+        out.push({id: 'whom', label: 'To whom', text: translateText('You')});
+        out.push({id: 'when', label: 'When', text: translateText('On play')});
         return out;
       }
       if (item.kind === 'payment') {

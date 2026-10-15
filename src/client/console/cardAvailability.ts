@@ -33,6 +33,8 @@ import {UnplayableReason, UnplayableReasonType} from '@/common/cards/UnplayableR
 import {blockerForReason} from '@/common/availability/AvailabilityBlocker';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {reasonUnit, unplayableReasonCompact, unplayableReasonEmblem, unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
+import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
+import {easingCompact, easingLine, easingSourcesText, easingThanksText} from '@/client/console/requirementEasingText';
 
 export type CardAvailabilityContext = 'draft' | 'play';
 
@@ -44,10 +46,16 @@ export type CardAvailabilitySeverity =
   /** Play voice: real rule blockers — the card cannot be played right now. */
   | 'blocked'
   /** Play voice: nothing wrong with the card, only the action window blocks. */
-  | 'waiting';
+  | 'waiting'
+  /**
+   * Play voice: the card IS playable — but ONLY thanks to a named requirement
+   * modifier (TR49 class: an armed Special Design, Cutting-Edge Design, …).
+   * Not a blocker: the state an «undefined, nothing to say» used to hide.
+   */
+  | 'eased';
 
 /** The visual register a severity paints (perf-safe colours, never the only signal). */
-export type CardAvailabilityTone = 'warning' | 'danger';
+export type CardAvailabilityTone = 'warning' | 'danger' | 'eased';
 
 export interface CardAvailabilityReasonView {
   /** Stable render/dedupe key. */
@@ -116,6 +124,7 @@ const ICONS: Readonly<Record<CardAvailabilitySeverity, string>> = {
   missed: '✕',
   blocked: '✕',
   waiting: '⏳',
+  eased: '✓',
 };
 
 const TONES: Readonly<Record<CardAvailabilitySeverity, CardAvailabilityTone>> = {
@@ -123,6 +132,7 @@ const TONES: Readonly<Record<CardAvailabilitySeverity, CardAvailabilityTone>> = 
   missed: 'danger',
   blocked: 'danger',
   waiting: 'warning',
+  eased: 'eased',
 };
 
 /** English i18n keys (the text IS the key). */
@@ -132,6 +142,7 @@ const TITLES = {
   missedOne: 'Requirement can no longer be met',
   missedMany: 'Requirements can no longer be met',
   blocked: 'Unplayable now',
+  eased: 'Playable now',
 } as const;
 
 function reasonKey(r: UnplayableReason): string {
@@ -143,14 +154,42 @@ function reasonKey(r: UnplayableReason): string {
  * server reported an effective bound different from the printed one (i.e. the
  * player HOLDS a requirement bonus and it still isn't enough).
  */
-function modifierNote(r: UnplayableReason): string | undefined {
+function modifierNote(r: UnplayableReason, easing?: RequirementEasingModel): string | undefined {
   if (r.effectiveCount === undefined) {
     return undefined;
   }
-  return translateTextWithParams('With your modifiers: ${0}', [`${r.effectiveCount}${reasonUnit(r)}`]);
+  const note = translateTextWithParams('With your modifiers: ${0}', [`${r.effectiveCount}${reasonUnit(r)}`]);
+  // The modifiers NAMED (TR49 class) — the server's reading of the same requirement, by its address.
+  return easing === undefined ? note : `${note} · ${easingSourcesText(easing)}`;
 }
 
-function reasonView(r: UnplayableReason, severity: CardAvailabilitySeverity): CardAvailabilityReasonView {
+/** The server's reading of the requirement a reason restates (by the rules-block address). */
+function easingFor(r: UnplayableReason, easings: ReadonlyArray<RequirementEasingModel> | undefined): RequirementEasingModel | undefined {
+  if (r.requirementKey === undefined || easings === undefined) {
+    return undefined;
+  }
+  return easings.find((e) => e.key === r.requirementKey);
+}
+
+/**
+ * A requirement met ONLY thanks to a modifier, as a reason line in the
+ * `eased` voice — «Температура ≥ 0°C — требование игнорируется» with the
+ * modifier named beneath. Never a blocker; never covers a rules block (the
+ * rule stays: it is still printed, and bent).
+ */
+function easedView(easing: RequirementEasingModel): CardAvailabilityReasonView {
+  return {
+    key: `eased|${easing.key}`,
+    type: 'globalParameter',
+    text: easingLine(easing),
+    compact: easingCompact(easing),
+    severity: 'eased',
+    tone: TONES.eased,
+    modifiers: easingSourcesText(easing),
+  };
+}
+
+function reasonView(r: UnplayableReason, severity: CardAvailabilitySeverity, easings?: ReadonlyArray<RequirementEasingModel>): CardAvailabilityReasonView {
   const view: CardAvailabilityReasonView = {
     key: reasonKey(r),
     type: r.type,
@@ -163,7 +202,7 @@ function reasonView(r: UnplayableReason, severity: CardAvailabilitySeverity): Ca
   if (emblem !== undefined) {
     view.emblem = emblem;
   }
-  const modifiers = modifierNote(r);
+  const modifiers = modifierNote(r, easingFor(r, easings));
   if (modifiers !== undefined) {
     view.modifiers = modifiers;
   }
@@ -215,6 +254,13 @@ export type CardAvailabilityInput = {
   /** The server's structured reasons (`CardModel.unplayableReasons`). */
   reasons: ReadonlyArray<UnplayableReason> | undefined;
   /**
+   * The server's requirement-under-a-modifier reading (`CardModel.requirementEasing`,
+   * TR49 class): names the modifiers of a still-short requirement, and turns
+   * «nothing to say» into «playable THANKS TO …» when a requirement is met
+   * only because of one.
+   */
+  easing?: ReadonlyArray<RequirementEasingModel>;
+  /**
    * Play context only: the shell's already-decided action-window reason
    * (`offTurnReason` / `actionBlockedReason` — an English i18n key), present
    * exactly when the window is closed. The model never re-derives turn state
@@ -244,8 +290,8 @@ export function buildCardAvailability(
     // The decisive verdict leads: a provably-lost requirement outranks a
     // still-open one, both in the headline and in the list order.
     const reasons = dedupe([
-      ...missed.map((r) => reasonView(r, 'missed')),
-      ...pending.map((r) => reasonView(r, 'pending')),
+      ...missed.map((r) => reasonView(r, 'missed', input.easing)),
+      ...pending.map((r) => reasonView(r, 'pending', input.easing)),
     ]);
     const severity: CardAvailabilitySeverity = missed.length > 0 ? 'missed' : 'pending';
     const title = severity === 'missed' ?
@@ -265,16 +311,28 @@ export function buildCardAvailability(
       [{key: `turn|${input.turnReason}`, type: 'turn' as const, text: translateText(input.turnReason), compact: translateText(input.turnReason), severity: 'waiting' as const, tone: TONES.waiting}] :
       []),
   ]);
+  // The requirements met ONLY thanks to a modifier (TR49 class) — said, never hidden.
+  const decisive = (input.easing ?? []).filter((e) => e.decisive);
   if (domain.length > 0) {
     // Real blockers make the verdict red; the turn note keeps its own amber
     // voice at the END of the list — context, not a reason.
-    const reasons = [...dedupe(domain.map((r) => reasonView(r, 'blocked'))), ...turnNotes];
+    const reasons = [...dedupe(domain.map((r) => reasonView(r, 'blocked', input.easing))), ...decisive.map(easedView), ...turnNotes];
     return assemble(context, 'blocked', translateText(TITLES.blocked), reasons);
   }
   if (turnNotes.length > 0) {
     // Nothing wrong with the card — only the action window. The note IS the
-    // headline; no reason list beneath repeats it.
-    return assemble(context, 'waiting', turnNotes[0].text, turnNotes.slice(1));
+    // headline; no reason list beneath repeats it (a decisive modifier is
+    // context after it).
+    return assemble(context, 'waiting', turnNotes[0].text, [...turnNotes.slice(1), ...decisive.map(easedView)]);
+  }
+  if (decisive.length > 0) {
+    // PLAYABLE — and only because of a named modifier: «✓ Можно разыграть ·
+    // благодаря …». The compact rail reads the thanks; the panel names each
+    // requirement with its printed and effective bound.
+    const reasons = decisive.map(easedView);
+    const view = assemble(context, 'eased', translateText(TITLES.eased), reasons);
+    view.primary = {...reasons[0], compact: easingThanksText(decisive)};
+    return view;
   }
   return undefined;
 }
@@ -384,7 +442,7 @@ export type ZoomAvailabilityInput = {
    * non-card zoom entry (an Automa bonus plate) simply carries none and the
    * builder answers `undefined` — never a panel over a non-card.
    */
-  card: {name: string, unplayableReasons?: ReadonlyArray<UnplayableReason>} | undefined,
+  card: {name: string, unplayableReasons?: ReadonlyArray<UnplayableReason>, requirementEasing?: ReadonlyArray<RequirementEasingModel>} | undefined,
   /**
    * The live hand offer for this card, when the viewer's OWN hand carries it.
    * Play voice only: a playable offer wins over `unplayableReasons` (the offer
@@ -412,12 +470,15 @@ export function buildZoomAvailability(input: ZoomAvailabilityInput): CardAvailab
   }
   if (context === 'play') {
     if (input.handEntry?.playable === true) {
-      return undefined;
+      // A playable offer has nothing to BLOCK — but a card playable only thanks to a modifier says so
+      // (the state is a panel, not an absence).
+      return buildCardAvailability({reasons: undefined, easing: card.requirementEasing}, 'play');
     }
     return buildCardAvailability({
       reasons: card.unplayableReasons,
+      easing: card.requirementEasing,
       turnReason: input.handEntry !== undefined ? input.turnReason : undefined,
     }, 'play');
   }
-  return buildCardAvailability({reasons: card.unplayableReasons}, 'draft');
+  return buildCardAvailability({reasons: card.unplayableReasons, easing: card.requirementEasing}, 'draft');
 }

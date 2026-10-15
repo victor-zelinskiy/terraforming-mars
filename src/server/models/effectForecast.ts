@@ -2,6 +2,8 @@ import {IPlayer} from '../IPlayer';
 import {IGame} from '../IGame';
 import {ICard} from '../cards/ICard';
 import {isIProjectCard} from '../cards/IProjectCard';
+import {armedPlayEffectsOf} from '../cards/armedPlayEffects';
+import {armedPlayForecastOf} from './armedPlayForecast';
 import {CardName} from '../../common/cards/CardName';
 import {SpaceId} from '../../common/Types';
 import {CardResource} from '../../common/CardResource';
@@ -889,10 +891,15 @@ function discountsOf(player: IPlayer, card: ICard, operation: 'play' | 'action')
   }
   const breakdown = player.getCardCostBreakdown(card);
   const itemized = breakdown.discounts.reduce((sum, d) => sum + d.amount, 0);
+  // The ONE-PLAY discounts this play spends (TR49 class) — named as such in the payment group.
+  const armedDiscounts = new Set(armedPlayEffectsOf(player).filter((a) => a.effect.kind === 'discount').map((a) => a.source));
   return {
     base: breakdown.base,
     final: breakdown.final,
-    items: breakdown.discounts.map((d) => ({source: d.source, amount: d.amount})),
+    items: breakdown.discounts.map((d) => {
+      const oneShot = (d.source.kind === 'card' || d.source.kind === 'corporation') && armedDiscounts.has(d.source.card);
+      return oneShot ? {source: d.source, amount: d.amount, oneShot: true} : {source: d.source, amount: d.amount};
+    }),
     other: Math.max(0, breakdown.base - breakdown.final - itemized),
   };
 }
@@ -1166,12 +1173,14 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
     strippedByBranch[Number(pos)] = stripTouchedPools(byBranch[Number(pos)].map((f) => stampHosts(f, card)), ownEffects, card);
   }
   const all = [...stripped, ...Object.values(strippedByBranch).flat()];
+  const modifiers = operation === 'play' && isIProjectCard(card) ? armedPlayForecastOf(player, card) : undefined;
   return {
     facts: stripped,
     byBranch: Object.keys(strippedByBranch).length > 0 ? strippedByBranch : undefined,
     discounts: discountsOf(player, card, operation),
     paymentValues: paymentValuesOf(player, card, operation),
     coverage: coverageOf(all),
+    ...(modifiers !== undefined ? {modifiers} : {}),
   };
 }
 

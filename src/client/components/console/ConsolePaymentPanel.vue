@@ -34,6 +34,9 @@
         <b class="con-pay__price-value">{{ view.cost }}</b>
         <i class="resource_icon con-pay__price-icon" :class="'resource_icon--' + costUnit" aria-hidden="true"></i>
         <span v-if="discount !== undefined" class="con-pay__price-saved" data-pay-saved>−{{ discount.base - discount.final }}</span>
+        <!-- A ONE-PLAY discount this play SPENDS is named (TR49 class, К-E2): «⚡ 1× Наёмные рабочие» — the play uses
+             it up, so the player must see whose it is; a standing discount's sources stay in the R3 layer. -->
+        <span v-if="discount?.armedSource !== undefined" class="con-pay__price-armed" data-pay-armed>⚡ 1× {{ $t(discount.armedSource) }}</span>
       </span>
 
       <!-- FREE — the price came to ZERO (the printed cost, or discounts that
@@ -142,7 +145,7 @@ export default defineComponent({
      * «−saved» pill. Undefined (no discount) renders the head exactly as it
      * always did; the pill never changes the head's height.
      */
-    discount: {type: Object as PropType<{base: number, final: number} | undefined>, default: undefined},
+    discount: {type: Object as PropType<{base: number, final: number, armedSource?: string} | undefined>, default: undefined},
     /**
      * The price is ZERO (the server's `calculatedCost === 0` — a printed zero,
      * or discounts that ate the whole cost): the block collapses to its head

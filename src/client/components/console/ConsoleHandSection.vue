@@ -54,6 +54,9 @@
         <!-- Not in the SALE (PL-208): the screen is asking which cards to sell, and «Можно разыграть: 4» beside the sale's
              own summary read as a second, unrelated count — every other playability mark already stands aside there. -->
         <span v-if="!selectActive && !saleActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
+        <!-- «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» (TR49 class): what the NEXT card played will spend, where that card is chosen.
+             Nothing when nothing is armed — and it reserves nothing: the head keeps its one line, the formula yields. -->
+        <ConsoleArmedEffectsStrip v-if="!selectActive && !saleActive" class="con-hand__armed" :effects="armedEffects" variant="strip" />
       </div>
       <!-- Tag filter (LB/RB cycle, R3 reset — advertised in the footer). The
            active chip is the always-visible source of truth for the filter. -->
@@ -297,13 +300,26 @@
                    play preview's own chips `CardModel.countedPlay`). The server's number before the composer opens.
                    Quiet, never a blocker: no red, the art's lower edge, a zero muted and never hidden. Rules-playable
                    only — a refusal speaks first. -->
-              <span v-else-if="!saleActive && !selectActive && cell.e.potential && (forecastPlates.has(cell.e.card.name) || tenderPlates.has(cell.e.card.name))"
+              <span v-else-if="!saleActive && !selectActive && cell.e.potential && (forecastPlates.has(cell.e.card.name) || tenderPlates.has(cell.e.card.name) || easingPlates.has(cell.e.card.name))"
                     class="con-hand__plate"
-                    :class="[forecastPlates.has(cell.e.card.name) ? 'con-hand__plate--' + forecastPlates.get(cell.e.card.name)?.kind : 'con-hand__plate--pay', {'con-hand__plate--zero': forecastPlates.get(cell.e.card.name)?.zero && !tenderPlates.has(cell.e.card.name)}]"
+                    :class="[forecastPlates.has(cell.e.card.name) ? 'con-hand__plate--' + forecastPlates.get(cell.e.card.name)?.kind : tenderPlates.has(cell.e.card.name) ? 'con-hand__plate--pay' : 'con-hand__plate--ease', {'con-hand__plate--zero': forecastPlates.get(cell.e.card.name)?.zero && !tenderPlates.has(cell.e.card.name) && !easingPlates.has(cell.e.card.name)}]"
                     :data-hand-pay="tenderHook(cell.e.card.name)"
                     :data-hand-walk="forecastPlates.get(cell.e.card.name)?.kind === 'walk' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
                     :data-hand-count="forecastPlates.get(cell.e.card.name)?.kind === 'count' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
+                    :data-hand-ease="easingHook(cell.e.card.name)"
                     aria-hidden="true">
+                <!-- THE REQUIREMENT UNDER AN EFFECT (TR49 class) — the plate's FIRST reader, the precondition before what
+                     the play gives: «[t°] ±2» (shifted) · the scale struck (ignored) · a check when the card is playable
+                     ONLY thanks to it. The server's reading (`CardModel.requirementEasing`) — nothing compared here. -->
+                <template v-if="easingPlates.has(cell.e.card.name)">
+                  <span v-for="(item, k) in easingPlates.get(cell.e.card.name)?.items ?? []" :key="'ease-' + k"
+                        class="con-hand__plate-item con-hand__plate-item--ease" :class="'con-hand__plate-item--' + item.kind">
+                    <span class="con-hand__plate-icon" :class="item.iconClass"></span>
+                    <span v-if="item.kind === 'shift'" class="con-hand__plate-n">±{{ item.steps }}</span>
+                  </span>
+                  <span v-if="easingPlates.get(cell.e.card.name)?.decisive" class="con-hand__plate-check" aria-hidden="true"></span>
+                  <span v-if="forecastPlates.has(cell.e.card.name) || tenderPlates.has(cell.e.card.name)" class="con-hand__plate-sep" aria-hidden="true"></span>
+                </template>
                 <span v-for="(item, k) in forecastPlates.get(cell.e.card.name)?.items ?? []" :key="k" class="con-hand__plate-item">
                   <span class="con-hand__plate-icon" :class="[item.iconClass, {'con-hand__plate-icon--prod': item.production}]"></span>
                   <span class="con-hand__plate-n">{{ item.signed ? signedAmount(item.amount) : item.amount }}</span>
@@ -404,6 +420,8 @@
       </template>
       <template v-else-if="selectedPlayable">
         <span class="con-cards__verdict con-cards__verdict--ok"><span aria-hidden="true">✓</span> {{ $t('Playable now') }}</span>
+        <!-- …and WHY, when it is playable only thanks to a requirement modifier (TR49 class): «благодаря: Особая разработка». -->
+        <span v-if="selectedEasedThanks !== ''" class="con-hand__reason con-hand__reason--bar con-hand__reason--eased" data-hand-eased>{{ selectedEasedThanks }}</span>
       </template>
       <!-- A card with NO server rules-reason but not playable is rules-OK, just
            not your window (opponent's turn / mid-action). That is an EXECUTION
@@ -571,6 +589,10 @@ import type {DeclineModel} from '@/client/console/optionalChoice';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {HandForecastPlate, handForecastPlate, signedAmount} from '@/client/console/countedPlay';
 import {HandTenderItem, handTenderItems} from '@/client/console/handTenderPlate';
+import {HandEasingPlate, handEasingPlate} from '@/client/console/handEasingPlate';
+import {armedEffectsOf} from '@/client/console/armedEffects';
+import {PresentedArmedEffect, presentedArmedEffects} from '@/client/console/armedEffectFlight';
+import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
 import {paymentUnitIcon} from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
@@ -695,7 +717,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
@@ -933,8 +955,35 @@ export default defineComponent({
       }
       return buildCardAvailability({
         reasons: this.selected.unplayableReasons,
+        easing: this.selected.requirementEasing,
         turnReason: this.turnWindowClosed ? this.softReason : undefined,
       }, 'play');
+    },
+    /**
+     * A PLAYABLE card met ONLY thanks to a requirement modifier names it (TR49 class) — the eased voice's compact form
+     * of the SAME shared model the fullscreen panel renders; '' when the card needs no help.
+     */
+    selectedEasedThanks(): string {
+      if (this.selected === undefined || !this.selectedPlayable || this.saleActive || this.selectActive) {
+        return '';
+      }
+      const view = buildCardAvailability({reasons: undefined, easing: this.selected.requirementEasing}, 'play');
+      return view?.severity === 'eased' ? view.primary?.compact ?? '' : '';
+    },
+    /** The viewer's armed one-play effects (TR49 class) — the public seat model the shell hands in as the payer. */
+    armedEffects(): ReadonlyArray<PresentedArmedEffect> {
+      return presentedArmedEffects(armedEffectsOf(this.payer));
+    },
+    /** The plate's requirement reader (TR49 class), keyed by name. */
+    easingPlates(): ReadonlyMap<CardName, HandEasingPlate> {
+      const out = new Map<CardName, HandEasingPlate>();
+      for (const e of this.entries) {
+        const plate = handEasingPlate(e.card);
+        if (plate !== undefined) {
+          out.set(e.card.name, plate);
+        }
+      }
+      return out;
     },
     /** The verdict bar's visible rows (compact: the top of the shared list). */
     playReasonRows(): ReadonlyArray<CardAvailabilityReasonView> {
@@ -1519,6 +1568,15 @@ export default defineComponent({
     tenderHook(name: CardName): string | undefined {
       const items = this.tenderPlates.get(name);
       return items === undefined ? undefined : items.map((t) => t.unit + ':' + t.count).join(' ');
+    },
+    /** The e2e hook of the requirement plate (TR49 class): «temperature:waive ✓» / «temperature:±2». */
+    easingHook(name: CardName): string | undefined {
+      const plate = this.easingPlates.get(name);
+      if (plate === undefined) {
+        return undefined;
+      }
+      const items = plate.items.map((i) => i.kind === 'waive' ? 'waive' : '±' + i.steps).join(' ');
+      return plate.decisive ? items + ' ✓' : items;
     },
     chipLabel(entry: ConsoleHandEntry): string | undefined {
       return shortBlockerLabel(entry.card.unplayableReasons ?? []);

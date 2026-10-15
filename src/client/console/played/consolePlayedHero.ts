@@ -74,6 +74,7 @@ import {TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey} from '@/client/console
 import {iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
+import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
 import {Tag} from '@/common/cards/Tag';
 
 /** The result beat is SHORT when the server already queued the next decision
@@ -711,7 +712,10 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
     sceneSafety = window.setTimeout(() => {
       // rAF stall / lost element — force the gate open, degrade gracefully.
       freeRunGate();
-    }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 + (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0));
+    }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
+      (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0) +
+      // The one-play class (TR49): a spend wave, then an arm wave.
+      (armedEffectsChange(before, view) ? 2 * shipmentBudgetMs() + 1000 : 0));
     void executeFlight().finally(() => {
       // PRE-COMMIT, table on screen: measure where the cards this play sends
       // back to hand are lying. The commit removes them from the tableau one
@@ -752,6 +756,10 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
   // play with nothing else to hold still shipped.
   if (playedHeroState.active) {
     releaseDepartures();
+    // The one-play class (TR49): the shipment presented what the answer arms / spends ahead of the view — the
+    // applied view now draws exactly that, so its holds settle in this same block (an arm still in the air keeps the
+    // view's own chip invisible until its touchdown).
+    settleArmedEffectHolds();
   }
   if (!playedHeroState.active || rewardHoldSeeded || (pendingRewards.length === 0 && pendingRail === undefined && pendingReactions.length === 0)) {
     return;
@@ -957,18 +965,24 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   const stock = shipStockSpends(mine);
   const cards = shipCardPrice(price, mine);
   const target = shipTargetSpends(mine);
-  if (stock === undefined && cards === undefined && target === undefined) {
+  // THE ONE-PLAY CLASS (TR49): an armed effect this play spends is drawn into the card, and what the card arms
+  // leaves its printed glyph for the dock — in the same beat, while the card stands in its composer.
+  const armed = shipArmedEffects(standingSourceEl(), beforeView, landingView, mine);
+  if (stock === undefined && cards === undefined && target === undefined && armed === undefined) {
     return;
   }
   playedHeroState.phase = 'shipping';
-  await Promise.all([stock, cards, target]);
+  await Promise.all([stock, cards, target, armed]);
   if (!mine()) {
     return;
   }
   // The absorb beat: the card takes the shipment in before it lifts — one beat of the animation clock (the runs
   // resolve at the TOUCHDOWN, so this beat is what keeps the card standing until the last token has been absorbed —
-  // a shorter one lifted the card out from under a token still being absorbed: the TR52 transfer witness).
-  await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+  // a shorter one lifted the card out from under a token still being absorbed: the TR52 transfer witness). An armed
+  // spend alone resolves only once ABSORBED (its quick beat is its own) — no second beat (TR49, measured A/B).
+  if (stock !== undefined || cards !== undefined || target !== undefined) {
+    await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+  }
   if (mine() && playedHeroState.shipment === 'flying') {
     playedHeroState.shipment = 'flown';
   }
@@ -1468,6 +1482,9 @@ export function abortPlayedHero(): void {
   abortPlayedCardReturns();
   releaseHeroRewards();
   releaseHeroRail('aborted');
+  releaseArmedEffectHolds();
+  // An aborted ritual puts the card back in its composer — what it was drawing out of the dock is armed again.
+  releaseStagedArmedSpends();
   pendingReactions = [];
   heldReactions = [];
   // A failed play ships nothing: the rows the shipment left return to the truth (one honest transition).
@@ -1508,6 +1525,7 @@ function finish(): void {
   heldReactions = [];
   releaseHeroRail('finished'); // safety — the reward beat flies it; an ending that skipped the beat lets go
   releaseDepartures(); // safety — the commit's block released them; an ending that skipped the commit lets go
+  settleArmedEffectHolds(); // safety — the commit settled them; an ending that skipped the commit lets go (TR49 class)
   pendingSpends = undefined;
   pendingPrice = undefined;
   beforeView = undefined;
