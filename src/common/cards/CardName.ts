@@ -1121,6 +1121,7 @@ export enum CardName {
   ECOLOGICAL_EXPERIMENT = 'Ecological Experiment',
   SUPERCOMPUTER = 'Supercomputer',
   CUTTING_EDGE_DESIGN = 'Cutting-Edge Design',
+  FRONTIER_LABS = 'Frontier Labs',
   EXPEDITION_MECHS = 'Expedition Mechs',
   INFLUENTIAL_DISCOVERY = 'Influential Discovery',
   SCIENTIFIC_BREAKTHROUGH = 'Scientific Breakthrough',

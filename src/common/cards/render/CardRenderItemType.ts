@@ -41,6 +41,13 @@ export enum CardRenderItemType {
    * Award). Never a bare tag: a tag alone would read as «any tag you have».
    */
   VP_CARD = 'vp-card',
+  /**
+   * A CARD THAT HOLDS RESOURCES — the white card with three orange cubes
+   * (Turmoil Redux TR53 Frontier Labs: «a card that ALREADY has a resource»).
+   * The object of the rule is the HOLDER, never a cube (one unit) and never a
+   * tag: the glyph is the card cover with the cubes on its face.
+   */
+  RESOURCE_CARD = 'resource-card',
   NO_TAGS = 'no_tags',
   EMPTY_TAG = 'empty_tag',
   WILD = 'wild',

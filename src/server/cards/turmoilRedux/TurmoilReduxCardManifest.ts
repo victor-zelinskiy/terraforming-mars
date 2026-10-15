@@ -50,6 +50,7 @@ import {ResearchStartups} from './ResearchStartups';
 import {EcologicalExperiment} from './EcologicalExperiment';
 import {Supercomputer} from './Supercomputer';
 import {CuttingEdgeDesign} from './CuttingEdgeDesign';
+import {FrontierLabs} from './FrontierLabs';
 import {ExpeditionMechs} from './ExpeditionMechs';
 import {InfluentialDiscovery} from './InfluentialDiscovery';
 import {ScientificBreakthrough} from './ScientificBreakthrough';
@@ -261,6 +262,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // card played this generation, whose global requirements are WAIVED (by kind, never by a number): one declaration,
     // the class (`cards/armedPlayEffects.ts` · `models/requirementEasing.ts`) reads it.
     [CardName.CUTTING_EDGE_DESIGN]: {Factory: CuttingEdgeDesign},
+    // Only the module's icon at the bottom left: the SCIENTISTS' plate again; an action that PAYS to grow a card that
+    // ALREADY holds a resource and draws unless it is science — the first «what else» read off the CHOSEN candidate
+    // (`AddResourcesToCard.extraByCard`, one marker member every host prints).
+    [CardName.FRONTIER_LABS]: {Factory: FrontierLabs},
     // Only the module's icon at the bottom left: the SCIENTISTS' plate again; the set's SEVENTH mech holder — TR40
     // Forestry Mechs with another B (1 mech off here → a card off the deck): ONE DECLARATION of the Local Shading class.
     [CardName.EXPEDITION_MECHS]: {Factory: ExpeditionMechs},

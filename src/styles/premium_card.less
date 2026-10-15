@@ -1569,6 +1569,51 @@
   white-space: nowrap;
 }
 
+/* A CARD THAT HOLDS RESOURCES (PremiumResourceCardGlyph — TR53 Frontier Labs): the scan's white card with three
+   orange cubes on its face. Same square as the VP card glyph (--pvpcard-size); paint only, no asset. */
+.presourcecard {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--pvpcard-size, var(--pcard-mech-icon, 24px));
+  height: var(--pvpcard-size, var(--pcard-mech-icon, 24px));
+  vertical-align: middle;
+}
+.presourcecard.pcard-ic { background: none; filter: none; }
+.presourcecard__cover {
+  position: absolute;
+  left: 16%;
+  top: 2%;
+  width: 68%;
+  height: 96%;
+  border-radius: 12% / 8%;
+  background: linear-gradient(180deg, #ffffff 0%, #e6ecf2 62%, #c7d1db 100%);
+  box-shadow:
+    0 0 0 1px rgba(120, 136, 152, 0.9),
+    0 0 0 2px rgba(10, 14, 20, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.presourcecard__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 18%;
+  background: linear-gradient(180deg, #6fb7e6 0%, #3b86bf 100%);
+}
+.presourcecard__cube {
+  position: absolute;
+  width: 22%;
+  height: 15%;
+  border-radius: 12%;
+  background: linear-gradient(160deg, #ffb05c 0%, #f07a1c 60%, #b8520c 100%);
+  box-shadow: 0 0 0 1px rgba(120, 50, 6, 0.75);
+}
+.presourcecard__cube--a { left: 18%; top: 48%; }
+.presourcecard__cube--b { left: 58%; top: 48%; }
+.presourcecard__cube--c { left: 39%; top: 68%; }
+
 /* A PRINTED TAG as a counted object (PremiumCountGlyph — Turmoil Redux's «for
    each Power tag you have»). The medallion the face's tag cluster wears, alone
    and optically centred in the SAME square the card glyph uses

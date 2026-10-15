@@ -278,6 +278,14 @@ abstract class Builder<T> {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.VP_CARD, 1, {...options, ...(tag === undefined ? {} : {secondaryTag: tag})}));
   }
 
+  /**
+   * A card that HOLDS resources — the object of «add a resource to a card that
+   * already has one» (TR53 Frontier Labs). Never a cube and never a tag.
+   */
+  public resourceCard(options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.RESOURCE_CARD, 1, options));
+  }
+
   public city(options?: ItemOptions) {
     const item = new CardRenderItem(CardRenderItemType.CITY, -1, options);
     item.size = options?.size ?? Size.MEDIUM;

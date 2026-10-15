@@ -32,6 +32,8 @@
     <PremiumVpCardGlyph v-else-if="isVpCard" class="pcard-ic pcard-ic--vp-card" :tag="vpCardTag" />
     <!-- a card with a requirement of ANY party (TR13) — the plate with the wild-party pill -->
     <PremiumPartyRequirementGlyph v-else-if="isPartyRequirement" class="pcard-ic pcard-ic--party-req" />
+    <!-- a card that HOLDS resources (TR53) — the white card with its three cubes -->
+    <PremiumResourceCardGlyph v-else-if="isResourceCard" class="pcard-ic pcard-ic--resource-card" />
     <!-- image icons -->
     <template v-else-if="iconUrl !== undefined">
       <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
@@ -148,6 +150,7 @@ import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import NomadToken from '@/client/components/NomadToken.vue';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
+import PremiumResourceCardGlyph from './PremiumResourceCardGlyph.vue';
 import PremiumPartyRequirementGlyph from './PremiumPartyRequirementGlyph.vue';
 import PremiumFleetMark from './PremiumFleetMark.vue';
 
@@ -160,7 +163,7 @@ type CorpBoxLike = {rows: Array<Array<ItemType>>};
  */
 export default defineComponent({
   name: 'PremiumMechNode',
-  components: {PlayerCube, NomadToken, PremiumVpCardGlyph, PremiumPartyRequirementGlyph, PremiumFleetMark},
+  components: {PlayerCube, NomadToken, PremiumVpCardGlyph, PremiumPartyRequirementGlyph, PremiumResourceCardGlyph, PremiumFleetMark},
   props: {
     node: {
       type: [Object, String] as unknown as () => ItemType,
@@ -281,6 +284,9 @@ export default defineComponent({
     },
     isPartyRequirement(): boolean {
       return this.mechIcon?.kind === 'partyRequirement';
+    },
+    isResourceCard(): boolean {
+      return this.mechIcon?.kind === 'resourceCard';
     },
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;

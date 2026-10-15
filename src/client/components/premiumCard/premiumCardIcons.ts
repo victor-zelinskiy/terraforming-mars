@@ -47,6 +47,8 @@ export type MechIconSpec =
   | {kind: 'vpCard', tag?: Tag}
   /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`. */
   | {kind: 'partyRequirement'}
+  /** A card that HOLDS resources (Turmoil Redux TR53) — `PremiumResourceCardGlyph`. */
+  | {kind: 'resourceCard'}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -607,6 +609,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     const tag = secondary !== undefined && (Object.values(Tag) as Array<string>).includes(secondary) ? secondary as Tag : undefined;
     return tag === undefined ? {kind: 'vpCard'} : {kind: 'vpCard', tag};
   }
+  case CardRenderItemType.RESOURCE_CARD:
+    // «A card that already holds a resource» (TR53): the white card with the three cubes — the HOLDER, never a cube.
+    return {kind: 'resourceCard'};
   case CardRenderItemType.PARTY_REQUIREMENT:
     // «A card with a requirement of ANY party» (TR13): the requirements plate
     // in miniature with the wild-party pill — drawn, never a party plate.

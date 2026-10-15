@@ -48,6 +48,8 @@ export class CardRenderItem implements ICardRenderItem {
   public over?: number;
   public resource?: CardResource | undefined;
   public tag?: Tag | undefined;
+  /** The unit's KIND is the reader's choice — the face prints «?» on it (TR53: «+1 resource of THAT card's kind»). */
+  public questionMark?: true;
 
   constructor(public type: CardRenderItemType, public amount: number = -1, options?: ItemOptions) {
     switch (options?.digit) {
@@ -88,6 +90,9 @@ export class CardRenderItem implements ICardRenderItem {
     }
     if (options.tag !== undefined) {
       this.tag = options.tag;
+    }
+    if (options.questionMark === true) {
+      this.questionMark = true;
     }
 
     return this;
