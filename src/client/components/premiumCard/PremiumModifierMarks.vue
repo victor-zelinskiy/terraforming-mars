@@ -20,6 +20,7 @@
 import {defineComponent, PropType} from 'vue';
 import {translateText} from '@/client/directives/i18n';
 import {requirementPartyEmblem} from './partyEmblems';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {ModifierSourceVM, sealOrder} from './premiumModifierSources';
 
 export default defineComponent({
@@ -40,7 +41,7 @@ export default defineComponent({
       return this.sources.length - this.shown.length;
     },
     label(): string {
-      return this.sources.map((s) => (s.card !== undefined ? translateText(s.card) : s.party !== undefined ? translateText(s.party) : ''))
+      return this.sources.map((s) => (s.card !== undefined ? translateText(s.card) : s.party !== undefined ? translateText(partyNameKey(s.party)) : ''))
         .filter((n) => n !== '').join(', ');
     },
   },
