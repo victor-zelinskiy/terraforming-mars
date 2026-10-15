@@ -416,9 +416,12 @@ for (const preset of PRESETS) {
       expect(reading, `the plants 5 → 2 — got «${reading.slice(0, 500)}»`).toMatch(/5\s*→\s*2/);
       expect(reading, 'the steel 4 → 1').toMatch(/4\s*→\s*1/);
       expect(reading, `the rating ${N} → ${N + 3}`).toMatch(new RegExp(`${N}\\s*→\\s*${N + 3}`));
-      // The M€ chip reads the pool (`current → resulting`) with its BASIS — the two Earth tags it counted.
+      // The M€ chip reads the pool (`current → resulting`); its BASIS — the two Earth tags it counted — is the counted
+      // play's «ПОЧЕМУ» strip under the chips since PL-196 (`ConsoleCountedWhy`: the tag's glyph, «2 → +4»), never the
+      // chip's own pill any more.
       expect(reading, `the M€ ${mc0} → ${mc0 + 4} for two Earth tags`).toMatch(new RegExp(`${mc0}\\s*→\\s*${mc0 + 4}`));
-      expect(reading, 'the basis names the tags').toMatch(/Ваши метки/);
+      await expect(page.locator(`${composer} .con-composer__countwhy`), 'the basis stands as the «ПОЧЕМУ» strip').toHaveCount(1);
+      expect(reading, 'the basis counts the two Earth tags').toMatch(/Почему[^#]*2\s*→\s*\+4/);
       expect(reading.search(/5\s*→\s*2/), 'the shipment reads BEFORE the rating').toBeLessThan(reading.search(new RegExp(`${N}\\s*→\\s*${N + 3}`)));
       expect(reading, 'nothing at the table answers this play (a calm corporation)').not.toMatch(/Сработает/);
       expect(seen.posts, 'nothing sent before A').toEqual([]);

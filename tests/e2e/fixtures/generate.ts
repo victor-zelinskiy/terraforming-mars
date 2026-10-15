@@ -245,6 +245,7 @@ import {AutomaState} from '../../../src/server/automa/AutomaState';
 import {lobbyingDelegates} from '../../../src/server/automa/AutomaLobbying';
 import {botQuestReachable} from '../../../src/common/parliament/botQuestPath';
 import {botQuestTableOf} from '../../../src/server/automa/BotQuestEvents';
+import {armedPlayEffectsOf} from '../../../src/server/cards/armedPlayEffects';
 
 const OUT_DIR = __dirname;
 
@@ -2814,6 +2815,70 @@ function scientificBreakthroughFixture(name: string, variant: 'journey' | 'clean
 scientificBreakthroughFixture('scientific-breakthrough', 'journey');
 scientificBreakthroughFixture('scientific-breakthrough-clean', 'clean');
 scientificBreakthroughFixture('scientific-breakthrough-actions', 'actions');
+
+// ── TR49 CUTTING-EDGE DESIGN — the ONE-PLAY class (docs/claude/prompts/project-tr49-cutting-edge-design.md). Blue's action
+//    phase, the SCIENTISTS enacted (the card's plate), red at a pinned corporation with no first action:
+//      · `cutting-edge-design`        — −20 °C / 2 % O₂, 60 M€; the hand: TR49 (playable), Lake Marineris (0 °C — short),
+//                                       Grass (−16 °C — short), Comet (no requirement — the play that would SPEND the
+//                                       waiver on nothing), Special Design (the sister: ±2);
+//      · `special-design-armed`       — Special Design ARMED (on the table, `lastCardPlayed`), −18 °C: Lake Marineris
+//                                       still short (0 → −4), Grass playable ONLY thanks to it (−16 → −20), Comet needs
+//                                       nothing and would spend it;
+//      · `indentured-workers-armed`   — Indentured Workers ARMED: Comet 21 → 13 M€, the discount named.
+//    A DRY RUN on a copy proves every verdict the e2e reads. ──
+function cuttingEdgeFixture(name: string, variant: 'journey' | 'special-design' | 'indentured'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [60, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1}) => {
+      seatEnacted(game.parliament!, quietResolutionOf(PartyName.SCIENTISTS));
+      p1.megaCredits = 60;
+      setTemperature(game, variant === 'journey' ? -20 : -18);
+      setOxygenLevel(game, 2);
+      const take = (card: CardName): IProjectCard => {
+        moveToDeckTop(game, card);
+        return game.projectDeck.drawOrThrow(game);
+      };
+      const hand = variant === 'journey' ?
+        [CardName.CUTTING_EDGE_DESIGN, CardName.LAKE_MARINERIS, CardName.GRASS, CardName.COMET, CardName.SPECIAL_DESIGN] :
+        variant === 'special-design' ?
+          [CardName.LAKE_MARINERIS, CardName.GRASS, CardName.COMET] :
+          [CardName.COMET, CardName.LAKE_MARINERIS];
+      p1.cardsInHand = hand.map(take);
+      if (variant !== 'journey') {
+        const armer = take(variant === 'special-design' ? CardName.SPECIAL_DESIGN : CardName.INDENTURED_WORKERS);
+        p1.playedCards.push(armer);
+        p1.lastCardPlayed = armer.name;
+      }
+    },
+    expect: ({p1}) => {
+      const can = (n: CardName) => {
+        const card = p1.cardsInHand.find((c) => c.name === n);
+        return card !== undefined && p1.canPlay(card);
+      };
+      const facts = {
+        tr49: can(CardName.CUTTING_EDGE_DESIGN),
+        lake: can(CardName.LAKE_MARINERIS),
+        grass: can(CardName.GRASS),
+        comet: can(CardName.COMET),
+        armed: armedPlayEffectsOf(p1).map((e) => e.effect.kind).join(','),
+        cometCost: p1.cardsInHand.find((c) => c.name === CardName.COMET) === undefined ? -1 : p1.getCardCost(p1.cardsInHand.find((c) => c.name === CardName.COMET)!),
+      };
+      const ok = variant === 'journey' ?
+        facts.tr49 && !facts.lake && !facts.grass && facts.comet && facts.armed === '' :
+        variant === 'special-design' ?
+          !facts.lake && facts.grass && facts.comet && facts.armed === 'requirementShift' :
+          facts.comet && facts.cometCost === 13 && facts.armed === 'discount';
+      if (!ok) {
+        throw new Error(`the ${name} fixture expected the ${variant} verdicts — got ${JSON.stringify(facts)}`);
+      }
+    },
+  });
+}
+cuttingEdgeFixture('cutting-edge-design', 'journey');
+cuttingEdgeFixture('special-design-armed', 'special-design');
+cuttingEdgeFixture('indentured-workers-armed', 'indentured');
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's

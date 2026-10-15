@@ -2472,6 +2472,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'scientific-breakthrough' |
   'scientific-breakthrough-clean' |
   'scientific-breakthrough-actions' |
+  // TR49 Cutting-Edge Design — THE ONE-PLAY CLASS: the journey (TR49 + Lake Marineris / Grass / Comet / Special Design at
+  // −20 °C, nothing armed) · Special Design ARMED at −18 °C (Grass decisive, Comet spends it for nothing) · Indentured
+  // Workers ARMED (Comet 21 → 13, the payment head names the one-play discount).
+  'cutting-edge-design' |
+  'special-design-armed' |
+  'indentured-workers-armed' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |
