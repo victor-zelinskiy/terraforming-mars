@@ -323,7 +323,7 @@ describe('actionFutility — the «no effect» verdict', () => {
       const offenders = [...readings.entries()].filter(([, r]) => r.low.kinds.includes('parameter-maxed')).map(([n]) => n);
       expect(offenders).to.deep.eq([]);
     });
-  });
+  }).timeout(60_000); // two fresh tables per in-scope action card — seconds, and it grows with every card shipped
 
   it('every award / milestone that reads a resource AMOUNT declares it (`cardResourceCount`)', () => {
     const offenders: Array<string> = [];
