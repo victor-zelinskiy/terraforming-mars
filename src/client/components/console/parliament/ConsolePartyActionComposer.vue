@@ -206,12 +206,14 @@
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[ri] !== undefined ? '✓' : String(ri + 1) }}</span>
                 <span class="con-pact__row-kicker">{{ $t(row.label) }}</span>
               </span>
-              <!-- The options — the variant grammar (`ConsoleVariantChoice`, TR51): a pick among productions, no «ИЛИ». -->
+              <!-- The options — the variant grammar (`ConsoleVariantChoice`, TR51): a pick among productions, no «ИЛИ»;
+                   a row of productions is its PALETTE (TR54) — each tile led by the production's own plate and «−1» / «+1». -->
               <ConsoleVariantChoice v-if="row.items.length > 0" class="con-pact__opts" :exclusive="false"
+                                    :layout="industrialistsPalette(ri) ? 'palette' : 'compare'"
                                     :options="industrialistsOptions(ri)" :label="$t(row.label)"
                                     @pick="pickAt(ri, $event)">
                 <template #body="{index}">
-                  <ActionEffectChip v-for="(chip, k) in row.items[index].chips" :key="k" :effect="chip" />
+                  <ActionEffectChip v-for="(chip, k) in industrialistsReading(ri, index)" :key="k" :effect="chip" />
                 </template>
               </ConsoleVariantChoice>
               <span v-else class="con-pact__none">{{ $t(row.emptyKey) }}</span>
@@ -410,7 +412,7 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
-import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {heroOfEffect, paletteOf, VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -1162,12 +1164,28 @@ export default defineComponent({
     /** One Industrialists row in the variant grammar — the cursor, the pick (the seal), the label when no chip speaks. */
     industrialistsOptions(ri: number): ReadonlyArray<VariantChoiceOption> {
       const row = this.industrialistsRows[ri];
-      return (row?.items ?? []).map((item, i): VariantChoiceOption => ({
-        key: item.key,
-        state: {focused: this.cursorRow === ri && this.cursor[ri] === i, selected: this.picks[ri] === i, off: item.disabled},
-        title: item.chips.length === 0 ? this.textOf(item.label) : '',
-        attrs: {'data-pact-opt': String(i)},
-      }));
+      return (row?.items ?? []).map((item, i): VariantChoiceOption => {
+        const hero = heroOfEffect(item.chips[0]);
+        return {
+          key: item.key,
+          state: {focused: this.cursorRow === ri && this.cursor[ri] === i, selected: this.picks[ri] === i, off: item.disabled},
+          title: item.chips.length === 0 ? this.textOf(item.label) : '',
+          hero,
+          attrs: {'data-pact-opt': String(i), ...(hero !== undefined ? {'data-palette-resource': hero.icon} : {})},
+        };
+      });
+    },
+    /**
+     * A tile's reading. On a PALETTE tile the production's plate already says «production» — the chip under it reads
+     * the pool alone («0 → −1»), never the word a third time.
+     */
+    industrialistsReading(ri: number, index: number): ReadonlyArray<ActionEffect> {
+      const chips = this.industrialistsRows[ri]?.items[index]?.chips ?? [];
+      return this.industrialistsPalette(ri) ? chips.map((chip) => (chip.note === 'production' ? {...chip, note: undefined} : chip)) : chips;
+    },
+    /** A row whose every option is a production of its own (the decrease of six, the increase of two) is a palette. */
+    industrialistsPalette(ri: number): boolean {
+      return paletteOf(this.industrialistsOptions(ri), 2);
     },
     textOf(value: string | Message): string {
       return typeof value === 'string' ? translateText(value) : translateMessage(value);

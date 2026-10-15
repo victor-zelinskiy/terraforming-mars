@@ -263,6 +263,42 @@ for (const preset of [
   });
 }
 
+// ── THE INDUSTRIALISTS' TWO ROWS AS PALETTES on the TV (TR54, «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА»): each row one line of
+//    equal tiles, every tile led by the production's own bronze plate and its «−1» / «+2» — never a chip per tile. ──
+test.describe('parliament · Industrialists palette · tv4k', () => {
+  test.use({viewport: {width: 3840, height: 2160}});
+
+  test('the decrease and the increase read as palettes: one row each, the production plate leading, the number', async ({page, request}) => {
+    test.setTimeout(240_000);
+    await bootFixtureSeats(page, request, 'parliament-actions', {query: '&consoleProfile=tv'});
+    await openCardActions(page);
+    await focusPartyTile(page, 'Industrialists');
+    await openPartyComposer(page, 'industrialists');
+    await settle(page, {timeoutMs: 15_000});
+    const dir = path.resolve('screenshots', 'parliament-actions', 'tv-4k');
+    fs.mkdirSync(dir, {recursive: true});
+    await page.screenshot({path: path.join(dir, '02-industrialists-stage.png')});
+    const rows = await page.evaluate(() => Array.from(document.querySelectorAll('.con-pact__opts')).map((group) => {
+      const tiles = Array.from(group.querySelectorAll<HTMLElement>('.con-vchoice__opt'));
+      return {
+        palette: group.classList.contains('con-vchoice--palette'),
+        tops: [...new Set(tiles.map((t) => t.offsetTop))].length,
+        plates: group.querySelectorAll('.con-vchoice__heroplate--prod').length,
+        figures: tiles.map((t) => t.querySelector('[data-vchoice-figure]')?.textContent?.trim() ?? ''),
+        tiles: tiles.length,
+      };
+    }));
+    expect(rows.length, 'two rows — the decrease, the increase').toBe(2);
+    for (const [i, row] of rows.entries()) {
+      expect(row.palette, `row ${i + 1} is a palette`).toBe(true);
+      expect(row.tops, `row ${i + 1} stands on one line`).toBe(1);
+      expect(row.plates, `row ${i + 1}: every tile on its production plate`).toBe(row.tiles);
+    }
+    expect(rows[0].figures.every((f) => f === '−1'), `the decrease reads −1 on every tile: ${rows[0].figures}`).toBe(true);
+    expect(rows[1].figures.every((f) => /^\+\d+$/.test(f)), `the increase reads its +N on every tile: ${rows[1].figures}`).toBe(true);
+  });
+});
+
 test.describe('parliament · party actions', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 

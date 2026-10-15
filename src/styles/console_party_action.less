@@ -58,7 +58,7 @@
     &__opts { display: flex; flex-wrap: wrap; gap: .35rem; }
     /* THE OPTIONS — the variant grammar (`console_variant_choice.less`, TR51): cursor · the seal · the rules. Here the
        tiles are TOKENS (a production, «+2 [data]»), so they hug their content instead of taking a reading measure. */
-    &__opts .con-vchoice__opt {
+    &__opts:not(.con-vchoice--palette) .con-vchoice__opt {
         flex: 0 1 auto;
         min-width: 0;
         flex-direction: row;
@@ -68,6 +68,9 @@
         font-size: .8rem;
     }
     &__opts .con-vchoice__or { align-self: center; }
+    /* …a row of PRODUCTIONS is the grammar's PALETTE (TR54): the tile keeps its own anatomy (the plate, the number, the
+       reading), and the row stands under its own head — left, never adrift in the middle of a wide panel. */
+    &__opts.con-vchoice--palette { justify-content: flex-start; }
     &__opt-amount { font-size: .9rem; font-weight: 800; }
     &__res-icon { width: 1.2rem; height: 1.2rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; &--sm { width: .95rem; height: .95rem; } }
     /* THE TOTAL — the whole operation per pool, one line. */
