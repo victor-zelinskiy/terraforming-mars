@@ -315,8 +315,8 @@
                   <span v-for="(item, k) in easingPlates.get(cell.e.card.name)?.items ?? []" :key="'ease-' + k"
                         class="con-hand__plate-item con-hand__plate-item--ease" :class="'con-hand__plate-item--' + item.kind">
                     <span class="con-hand__plate-icon" :class="item.iconClass"></span>
-                    <!-- WHO bends it — the source's coin(s), the one-play ⚡ pip on an armed effect's -->
-                    <PremiumModifierCoins class="con-hand__plate-coins" :sources="item.sources" />
+                    <!-- WHAT bends it — a card on the table / the one-play bolt / a policy, one mark per source -->
+                    <PremiumModifierMarks class="con-hand__plate-marks" :sources="item.sources" />
                     <span v-if="item.kind === 'shift'" class="con-hand__plate-n">±{{ item.steps }}</span>
                   </span>
                   <span v-if="easingPlates.get(cell.e.card.name)?.decisive" class="con-hand__plate-check" aria-hidden="true"></span>
@@ -595,7 +595,7 @@ import {HandEasingPlate, handEasingPlate} from '@/client/console/handEasingPlate
 import {armedEffectsOf} from '@/client/console/armedEffects';
 import {PresentedArmedEffect, presentedArmedEffects} from '@/client/console/armedEffectFlight';
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
-import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
+import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
 import {paymentUnitIcon} from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
@@ -720,7 +720,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip, PremiumModifierCoins},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip, PremiumModifierMarks},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},

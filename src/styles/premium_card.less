@@ -950,10 +950,10 @@
   background: linear-gradient(180deg, #c3f9e8 0%, #74dbba 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 1px rgba(20, 8, 2, 0.55);
 }
-/* The SEAL's coins at the verdict's own size (a ✓ and a coin are one family of round marks on the plate). A crowded
-   plate — several requirements — keeps the coins and drops the pill and the number. */
-.pcard-req__mod .pcard-mods { font-size: 12.6px; }
-.pcard-req__mod--coins {
+/* The SEAL's marks at the verdict's own size (a ✓ and a mark are one family of small dark objects on the plate). A
+   crowded plate — several requirements — keeps the marks and drops the pill and the number. */
+.pcard-req__mod .pcard-modmarks { font-size: 12.6px; }
+.pcard-req__mod--marks {
   padding: 0;
   background: none;
   box-shadow: none;
@@ -2556,37 +2556,73 @@
 }
 
 
-/* ══ THE MODIFIER COINS (`PremiumModifierCoins` — TR49 class) ════════════════
- * WHO bends a requirement, as coins: the source card's own art (thumb tier) in the class's mint ring, a dark kerf
- * between overlapping coins so each reads as its own object, a one-play effect with the ⚡ pip at its lower right.
- * Sized in em — the coin takes the type size of the line it stands in (the face's seal pins it to the verdict's size).
- * No filter, no animation: rings and the kerf are box-shadows, the art a background. */
-.pcard-mods {
+/* ══ THE MODIFIER SEAL (`PremiumModifierMarks` — TR49 class) ═════════════════
+ * WHAT KIND of modifier bends a requirement, as a SYMBOL (never the source's art — noise at this size): a card
+ * silhouette for a standing effect of a card on the table (several overlap into a little pile, the first on top),
+ * the class's bolt on a dark bead for a ONE-PLAY effect (the gold ring is the class's «spent by the next card»), the
+ * party's emblem for a policy, «±» for a rule. Every mark is a DARK object with a light rim, so it reads on the
+ * seal's mint pill, on the copper plate and on a dark console line alike. Sized in em — the mark takes the type size
+ * of the line it stands in. No filter, no animation: rims are box-shadows, the bolt a clip-path. */
+.pcard-modmarks {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
   line-height: 1;
 }
-.pcard-mod {
+.pcard-modmark {
   position: relative;
   flex: 0 0 auto;
-  width: 1.18em;
-  height: 1.18em;
+  width: 1em;
+  height: 1em;
   border-radius: 50%;
-  background-color: #24423b;
+  background-color: #0c1a17;
   background-size: cover;
-  background-position: 50% 38%;
+  background-position: center;
   background-repeat: no-repeat;
   box-shadow:
-    inset 0 0 0 .09em rgba(160, 244, 214, 0.95),
-    inset 0 0 0 .15em rgba(6, 30, 22, 0.55),
-    0 0 0 .07em rgba(6, 20, 16, 0.92),
-    0 .06em .12em rgba(0, 0, 0, 0.5);
+    inset 0 0 0 .08em rgba(160, 244, 214, 0.9),
+    0 0 0 .06em rgba(4, 18, 14, 0.9);
 
-  & + & { margin-left: -.4em; }
+  & + & { margin-left: .14em; }
 
-  /* a source with no art of its own (a party policy): the class's mark on the coin */
-  &--plain::before {
+  /* a STANDING effect of a card on the table: an upright card — dark body, a light title band, the class's rim */
+  &--card {
+    width: .72em;
+    height: .98em;
+    border-radius: .13em;
+    background:
+      linear-gradient(180deg, rgba(186, 250, 228, 0.95) 0 .21em, rgba(4, 18, 14, 0.9) .21em .27em, transparent .27em),
+      linear-gradient(180deg, #1d5446 0%, #0c2c24 100%);
+    box-shadow:
+      inset 0 0 0 .07em rgba(186, 250, 228, 0.92),
+      0 0 0 .06em rgba(4, 18, 14, 0.92),
+      .04em .05em .1em rgba(0, 0, 0, 0.45);
+  }
+  /* several standing cards = a pile: each next card peeks from behind, a step up and to the right */
+  &--card + &--card { margin-left: -.42em; transform: translateY(-.1em); }
+  &--card + &--card + &--card { transform: translateY(-.2em); }
+
+  /* a ONE-PLAY effect: the class's bolt on a dark bead, ringed in gold */
+  &--once {
+    background: radial-gradient(circle at 50% 32%, #1e2d29 0%, #08120f 100%);
+    box-shadow:
+      inset 0 0 0 .08em rgba(255, 206, 92, 0.95),
+      0 0 0 .06em rgba(4, 18, 14, 0.9);
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: .16em .22em .15em .24em;
+      background: linear-gradient(180deg, #fff1b0 0%, #ffc542 55%, #f39a1e 100%);
+      clip-path: polygon(64% 0, 10% 57%, 45% 57%, 30% 100%, 92% 38%, 56% 38%, 76% 0);
+    }
+  }
+  /* a party's policy: its emblem (a dark badge with a gold rim of its own) */
+  &--party {
+    box-shadow: 0 0 0 .06em rgba(4, 18, 14, 0.9);
+  }
+  /* a rule with no card behind it */
+  &--system::before {
     content: '±';
     position: absolute;
     inset: 0;
@@ -2597,31 +2633,15 @@
     font-weight: 800;
     color: #d2fff1;
   }
-  /* the ONE-PLAY pip: the class's bolt on a dark bead at the coin's lower right */
-  &--once::after {
-    content: '⚡';
-    position: absolute;
-    right: -.22em;
-    bottom: -.2em;
-    width: 1.3em;
-    height: 1.3em;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .46em;
-    line-height: 1;
-    color: #ffd76a;
-    background: #0b1715;
-    box-shadow: 0 0 0 .14em rgba(160, 244, 214, 0.9);
-  }
   &--more {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: auto;
+    min-width: 1em;
+    padding: 0 .18em;
+    border-radius: .5em;
     font-size: .62em;
-    width: 1.9em;
-    height: 1.9em;
     font-weight: 800;
     color: #d2fff1;
     background: #123029;

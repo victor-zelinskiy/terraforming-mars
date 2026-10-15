@@ -33,13 +33,13 @@ export type ComposerRequirementView = {
   /** «±2 Особая разработка · один розыгрыш». */
   sources: string;
   /**
-   * EACH source with its own share — the coin and «±2 Inventrix» / «Новаторская разработка · один розыгрыш»: with
+   * EACH source with its own share — the mark and «±2 Inventrix» / «Новаторская разработка · один розыгрыш»: with
    * several modifiers the row reads the FINAL bound (`effective`) and then who contributed what.
    */
   shares: ReadonlyArray<{source: ModifierSourceVM, text: string}>;
   /**
    * SEVERAL sources: the row stands on TWO lines — the FINAL bound and the verdict on the first, the composition on
-   * the second as a SUM («[coin] ±2 Inventrix + [coin] ±2 Adaptation Technology + … = ±6»), so the arithmetic that
+   * the second as a SUM («[card] ±2 Inventrix + [card] ±2 Adaptation Technology + … = ±6»), so the arithmetic that
    * moved the bound is read, never inferred. One source keeps the one line.
    */
   stacked: boolean;

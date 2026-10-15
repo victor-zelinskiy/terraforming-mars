@@ -1,29 +1,54 @@
 /*
  * WHO BENDS A REQUIREMENT — the source side of «требование под эффектом» (TR49 class), read by every surface that
- * shows a bent requirement: the face's cassette (its coin seal), the hand tile's plate, the composer's requirement row,
- * the «Сработает» modifier chip. One source = one COIN (the source card's own art in a ring; a one-play effect wears the
- * class's ⚡ pip); several sources stack into one seal beside the TOTAL bend, while the bound itself is always the
- * FINAL one (`RequirementEasingModel.effective` — the server's sum). Pure: no Vue, no DOM, no i18n.
+ * shows a bent requirement: the face's cassette (its seal), the hand tile's plate, the composer's requirement row,
+ * the «Сработает» modifier chip. A source is a SYMBOL of what KIND of modifier it is — never its art, which is noise at
+ * a seal's size: a permanent effect of a card on the table (a card silhouette; several stack), a ONE-PLAY effect (the
+ * class's bolt), a party policy (the party's emblem), the rules themselves (±). WHICH card is named in words where
+ * there is room (the verdict, the composer's row). Several sources stand as one seal beside the TOTAL bend, while the
+ * bound itself is always the FINAL one (`RequirementEasingModel.effective` — the server's sum). Pure: no Vue, no DOM,
+ * no i18n.
  */
 import {CardName} from '@/common/cards/CardName';
 import {EventSource} from '@/common/events/EventSource';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {RequirementEasingModel, RequirementEasingSourceModel} from '@/common/models/ArmedPlayEffectModel';
+
+/**
+ * The seal's vocabulary — the KIND of a modifier, which is what the player needs at a glance (will it still bend the
+ * next card?): `card` a standing effect of a card / corporation on the table, `once` spent by the next card played,
+ * `party` a ruling party's policy, `system` a rule with no card behind it.
+ */
+export type ModifierSymbol = 'card' | 'once' | 'party' | 'system';
 
 export type ModifierSourceVM = {
   /** Stable render key. */
   key: string;
-  /** The source card (its art is the coin; its name the hint). Absent for a non-card source (a party policy). */
+  symbol: ModifierSymbol;
+  /** The source card (its NAME — the hint, the composer's share). Absent for a non-card source. */
   card?: CardName;
+  /** The party behind a policy (its emblem). */
+  party?: PartyName;
   kind: 'shift' | 'waive';
   /** For `shift`: the steps this source adds. */
   steps?: number;
-  /** Spent by the next card played (an armed effect) — the coin wears the ⚡ pip. */
+  /** Spent by the next card played (an armed effect). */
   oneShot: boolean;
 };
 
 /** The card behind a modifier, when a card is what bends the requirement. */
 export function modifierSourceCard(source: EventSource): CardName | undefined {
   return source.kind === 'card' || source.kind === 'corporation' ? source.card : undefined;
+}
+
+/** The symbol of one source: a one-play effect is a bolt whoever armed it; otherwise its kind. */
+export function modifierSymbolOf(source: EventSource, oneShot: boolean): ModifierSymbol {
+  if (oneShot) {
+    return 'once';
+  }
+  if (source.kind === 'card' || source.kind === 'corporation') {
+    return 'card';
+  }
+  return source.kind === 'party' ? 'party' : 'system';
 }
 
 function keyOf(source: EventSource, index: number): string {
@@ -33,9 +58,12 @@ function keyOf(source: EventSource, index: number): string {
 
 export function modifierSourceOf(share: RequirementEasingSourceModel, index = 0): ModifierSourceVM {
   const card = modifierSourceCard(share.source);
-  const vm: ModifierSourceVM = {key: keyOf(share.source, index), kind: share.kind, oneShot: share.oneShot};
+  const vm: ModifierSourceVM = {key: keyOf(share.source, index), symbol: modifierSymbolOf(share.source, share.oneShot), kind: share.kind, oneShot: share.oneShot};
   if (card !== undefined) {
     vm.card = card;
+  }
+  if (share.source.kind === 'party') {
+    vm.party = share.source.name;
   }
   if (share.kind === 'shift' && share.steps !== undefined) {
     vm.steps = share.steps;
@@ -46,6 +74,15 @@ export function modifierSourceOf(share: RequirementEasingSourceModel, index = 0)
 /** Every source of one bent requirement, in the server's order (the order the breakdown names them). */
 export function modifierSourcesOf(easing: Pick<RequirementEasingModel, 'sources'>): ReadonlyArray<ModifierSourceVM> {
   return easing.sources.map((share, i) => modifierSourceOf(share, i));
+}
+
+const SYMBOL_ORDER: Readonly<Record<ModifierSymbol, number>> = {card: 0, party: 1, system: 2, once: 3};
+
+/** The seal's order: the standing cards first (they stack), the one-play bolt last — stable within a kind. */
+export function sealOrder(sources: ReadonlyArray<ModifierSourceVM>): ReadonlyArray<ModifierSourceVM> {
+  return sources.map((s, i) => ({s, i}))
+    .sort((a, b) => SYMBOL_ORDER[a.s.symbol] - SYMBOL_ORDER[b.s.symbol] || a.i - b.i)
+    .map(({s}) => s);
 }
 
 /**

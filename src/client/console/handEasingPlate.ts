@@ -20,7 +20,7 @@ export type HandEasingItem = {
   kind: 'shift' | 'waive';
   /** The TOTAL bend (every source summed). */
   steps: number;
-  /** WHO bends it — the coins (the plate names the source on the tile, before the player focuses it). */
+  /** WHAT bends it — one mark per source (a card on the table / the one-play bolt / a policy), before the player focuses it. */
   sources: ReadonlyArray<ModifierSourceVM>;
 };
 

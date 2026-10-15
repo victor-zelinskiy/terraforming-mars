@@ -75,10 +75,10 @@ export type RequirementEasingVM = {
   effective: number | 'waived';
   met: boolean;
   decisive: boolean;
-  /** The TOTAL bend in steps — every source summed (the cassette's «±N» beside the coins). */
+  /** The TOTAL bend in steps — every source summed (the cassette's «±N» beside the marks). */
   steps: number;
   oneShot: boolean;
-  /** WHO bends it — one coin per source, in the server's order (`premiumModifierSources`). */
+  /** WHAT bends it — one mark per source, in the server's order (`premiumModifierSources`). */
   sources: ReadonlyArray<ModifierSourceVM>;
   /** Met anyway under a shift — the cassette stays printed (`easingIsQuiet`). */
   quiet: boolean;

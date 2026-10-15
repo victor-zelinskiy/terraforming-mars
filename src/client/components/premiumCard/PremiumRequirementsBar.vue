@@ -33,17 +33,18 @@
               <span class="pcard-req__shift" aria-hidden="true"></span>
               <span class="pcard-req__value pcard-req__value--effective" data-req-effective>{{ effectiveText(req)
                 }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
-              <!-- THE MODIFIER SEAL: who bends it (one coin per source, stacked) and the TOTAL bend; the bound before it
-                   is already the FINAL one. A crowded plate keeps the coins and drops the number. -->
-              <span class="pcard-req__mod" :class="{'pcard-req__mod--coins': !showsModBadge(req)}" data-req-mod
+              <!-- THE MODIFIER SEAL: what bends it (one mark per source — a card on the table, the one-play bolt, a
+                   policy) and the TOTAL bend; the bound before it is already the FINAL one. A crowded plate keeps the
+                   marks and drops the number. -->
+              <span class="pcard-req__mod" :class="{'pcard-req__mod--marks': !showsModBadge(req)}" data-req-mod
                     :data-req-mod-steps="req.easing?.steps">
-                <PremiumModifierCoins :sources="req.easing?.sources ?? []" />
+                <PremiumModifierMarks :sources="req.easing?.sources ?? []" />
                 <span v-if="showsModBadge(req)" class="pcard-req__mod-steps">±{{ req.easing?.steps }}</span>
               </span>
             </template>
             <!-- LIFTED: the struck value stays readable, and the seal names who lifted it. -->
-            <span v-else-if="stateOf(req) === 'waived'" class="pcard-req__mod pcard-req__mod--coins" data-req-mod>
-              <PremiumModifierCoins :sources="req.easing?.sources ?? []" />
+            <span v-else-if="stateOf(req) === 'waived'" class="pcard-req__mod pcard-req__mod--marks" data-req-mod>
+              <PremiumModifierMarks :sources="req.easing?.sources ?? []" />
             </span>
           </template>
           <!-- MET ONLY THANKS TO the modifier — the state is a FORM (a check), never colour alone -->
@@ -60,7 +61,7 @@ import {RequirementType} from '@/common/cards/RequirementType';
 import {translateText} from '@/client/directives/i18n';
 import {NormalizedRequirement} from './premiumCardViewModel';
 import PremiumRequirementOperator from './PremiumRequirementOperator.vue';
-import PremiumModifierCoins from './PremiumModifierCoins.vue';
+import PremiumModifierMarks from './PremiumModifierMarks.vue';
 import {tagIconStyle} from './premiumCardIcons';
 
 /**
@@ -89,7 +90,7 @@ import {tagIconStyle} from './premiumCardIcons';
  */
 export default defineComponent({
   name: 'PremiumRequirementsBar',
-  components: {PremiumRequirementOperator, PremiumModifierCoins},
+  components: {PremiumRequirementOperator, PremiumModifierMarks},
   props: {
     requirements: {
       type: Array as () => ReadonlyArray<NormalizedRequirement>,

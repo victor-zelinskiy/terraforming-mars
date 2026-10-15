@@ -452,7 +452,7 @@ describe('the requirement cassette under a modifier (TR49 class)', () => {
     }]});
     expect(vm.requirements[0].value, 'the printed value is never replaced').eq(0);
     expect(vm.requirements[0].easing).deep.eq({effective: -4, met: false, decisive: false, steps: 2, oneShot: true, quiet: false,
-      sources: [{key: 'card:' + CardName.SPECIAL_DESIGN, card: CardName.SPECIAL_DESIGN, kind: 'shift', steps: 2, oneShot: true}]});
+      sources: [{key: 'card:' + CardName.SPECIAL_DESIGN, symbol: 'once', card: CardName.SPECIAL_DESIGN, kind: 'shift', steps: 2, oneShot: true}]});
   });
 
   it('WAIVED + DECISIVE: «waived» is a state, never a number', () => {
@@ -462,7 +462,7 @@ describe('the requirement cassette under a modifier (TR49 class)', () => {
       sources: [{source: {kind: 'card', card: CardName.CUTTING_EDGE_DESIGN}, kind: 'waive', oneShot: true}],
     }]});
     expect(vm.requirements[0].easing).deep.eq({effective: 'waived', met: true, decisive: true, steps: 0, oneShot: true, quiet: false,
-      sources: [{key: 'card:' + CardName.CUTTING_EDGE_DESIGN, card: CardName.CUTTING_EDGE_DESIGN, kind: 'waive', oneShot: true}]});
+      sources: [{key: 'card:' + CardName.CUTTING_EDGE_DESIGN, symbol: 'once', card: CardName.CUTTING_EDGE_DESIGN, kind: 'waive', oneShot: true}]});
   });
 
   it('SEVERAL sources: the total shift, every source in the server\'s order — and met ANYWAY is quiet', () => {

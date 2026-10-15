@@ -104,15 +104,15 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
       expect(items.map((i) => [i.oneShot, i.badge, i.armed === undefined])).deep.eq([[false, '±2', true]]);
     });
 
-    it('several sources: the armed one first, then every standing source — each chip wears its coin', () => {
+    it('several sources: the armed one first, then every standing source — each chip wears the mark of its kind', () => {
       const forecast = withModifiers({consumes: [{armed: shift, used: true}], easings: [several]});
       const items = modifierItemsOf(forecast);
       expect(items.map((i) => [forecastItemCard(i), i.oneShot, i.badge])).deep.eq([
         [SD, true, '±2'], [CardName.INVENTRIX, false, '±2'], [CardName.ADAPTATION_TECHNOLOGY, false, '±2'],
       ]);
       const chips = compactForecastChips(forecast).chips.filter((c) => c.kind === 'modifier');
-      expect(chips.map((c) => c.kind === 'modifier' ? [c.coin.card, c.coin.oneShot] : [])).deep.eq([
-        [SD, true], [CardName.INVENTRIX, false], [CardName.ADAPTATION_TECHNOLOGY, false],
+      expect(chips.map((c) => c.kind === 'modifier' ? [c.mark.card, c.mark.symbol] : [])).deep.eq([
+        [SD, 'once'], [CardName.INVENTRIX, 'card'], [CardName.ADAPTATION_TECHNOLOGY, 'card'],
       ]);
     });
 
@@ -159,7 +159,7 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
       expect(requirementStateText(s)).eq('Met thanks to the modifier');
     });
 
-    it('several modifiers: the row reads the FINAL bound, then each source with its own coin and share', () => {
+    it('several modifiers: the row reads the FINAL bound, then each source with its own mark and share', () => {
       const [row] = composerRequirementViews([several]);
       expect(row).to.include({waived: false, met: true, decisive: true});
       expect(row.shares.map((s) => [s.source.card, s.source.oneShot, s.text])).deep.eq([

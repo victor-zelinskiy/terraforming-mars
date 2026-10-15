@@ -14,8 +14,9 @@ import {easingCompact, easingLine, easingSourcesText} from '@/client/console/req
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
 import PremiumRequirementsBar from '@/client/components/premiumCard/PremiumRequirementsBar.vue';
 import {normalizeRequirement} from '@/client/components/premiumCard/premiumCardViewModel';
-import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
-import {easingIsQuiet, modifierSourcesOf} from '@/client/components/premiumCard/premiumModifierSources';
+import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
+import {easingIsQuiet, modifierSourcesOf, modifierSymbolOf} from '@/client/components/premiumCard/premiumModifierSources';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {globalConfig} from '../components/getLocalVue';
 
 /**
@@ -107,12 +108,12 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
     it('a shift reads «±2», a waiver is struck, decisive and one-shot are the card\'s', () => {
       expect(handEasingPlate({name: CardName.LAKE_MARINERIS, requirementEasing: [shifted]} as CardModel)).deep.eq({
         items: [{iconClass: 'wgt-icon wgt-icon--temperature', kind: 'shift', steps: 2,
-          sources: [{key: 'card:' + SD, card: SD, kind: 'shift', steps: 2, oneShot: true}]}], decisive: false, oneShot: true,
+          sources: [{key: 'card:' + SD, symbol: 'once', card: SD, kind: 'shift', steps: 2, oneShot: true}]}], decisive: false, oneShot: true,
       });
       expect(handEasingPlate({name: CardName.LAKE_MARINERIS, requirementEasing: [waived]} as CardModel)?.items[0].kind).eq('waive');
       expect(handEasingPlate({name: CardName.LAKE_MARINERIS, requirementEasing: [waived]} as CardModel)?.decisive).is.true;
     });
-    it('several sources: ONE item with the TOTAL and every coin, in the server\'s order', () => {
+    it('several sources: ONE item with the TOTAL and every mark, in the server\'s order', () => {
       const plate = handEasingPlate({name: CardName.GRASS, requirementEasing: [several]} as CardModel)!;
       expect(plate.items.map((i) => [i.steps, i.sources.map((s) => s.card)])).deep.eq([[6, [CardName.INVENTRIX, CardName.ADAPTATION_TECHNOLOGY, SD]]]);
       expect(plate.decisive).is.true;
@@ -122,38 +123,42 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
     });
   });
 
-  describe('who bends it — the source model and its coins', () => {
+  describe('what bends it — the source model and its marks (a symbol of the KIND, never the art)', () => {
     it('quiet = met anyway under a SHIFT; a waiver, a decisive or a still-short bend is never quiet', () => {
       expect(easingIsQuiet(quiet)).is.true;
       expect(easingIsQuiet(several)).is.false;
       expect(easingIsQuiet(shifted)).is.false;
       expect(easingIsQuiet(waived)).is.false;
     });
-    it('one source per share, the card behind a corporation too, the one-play flag kept', () => {
-      expect(modifierSourcesOf(several).map((s) => [s.key, s.card, s.steps, s.oneShot])).deep.eq([
-        ['card:' + CardName.INVENTRIX, CardName.INVENTRIX, 2, false],
-        ['card:' + CardName.ADAPTATION_TECHNOLOGY, CardName.ADAPTATION_TECHNOLOGY, 2, false],
-        ['card:' + SD, SD, 2, true],
+    it('one source per share, the SYMBOL of its kind: a card / corporation on the table, a one-play bolt, a policy, a rule', () => {
+      expect(modifierSourcesOf(several).map((s) => [s.key, s.symbol, s.card, s.steps, s.oneShot])).deep.eq([
+        ['card:' + CardName.INVENTRIX, 'card', CardName.INVENTRIX, 2, false],
+        ['card:' + CardName.ADAPTATION_TECHNOLOGY, 'card', CardName.ADAPTATION_TECHNOLOGY, 2, false],
+        ['card:' + SD, 'once', SD, 2, true],
       ]);
-      const party = modifierSourcesOf({sources: [{source: {kind: 'party', party: 'Reds'} as never, kind: 'shift', steps: 1, oneShot: false}]});
-      expect(party[0].card, 'a non-card source has no art to show').is.undefined;
+      const policy = modifierSourcesOf({sources: [{source: {kind: 'party', name: PartyName.SCIENTISTS}, kind: 'shift', steps: 2, oneShot: false}]});
+      expect([policy[0].symbol, policy[0].party, policy[0].card]).deep.eq(['party', PartyName.SCIENTISTS, undefined]);
+      expect(modifierSymbolOf({kind: 'system'}, false)).eq('system');
+      expect(modifierSymbolOf({kind: 'system'}, true), 'one play is a bolt whoever armed it').eq('once');
     });
-    it('the stack: the first source on top, the one-play pip, the source\'s own art', () => {
-      const w = mount(PremiumModifierCoins, {...globalConfig, props: {sources: modifierSourcesOf(several)}});
-      const coins = w.findAll('[data-req-coin]');
-      expect(w.find('[data-req-coins]').attributes('data-req-coins')).eq('3');
-      expect(coins.map((c) => c.attributes('data-req-coin'))).deep.eq([CardName.INVENTRIX, CardName.ADAPTATION_TECHNOLOGY, SD]);
-      expect(coins.map((c) => Number((c.element as HTMLElement).style.zIndex))).deep.eq([3, 2, 1]);
-      expect(coins.map((c) => c.classes('pcard-mod--once'))).deep.eq([false, false, true]);
-      expect(w.find('[data-req-coins]').attributes('aria-label')).contains(CardName.INVENTRIX);
+    it('the seal: the standing cards first as a pile (the first on top), the bolt last; the names ride the aria-label', () => {
+      const reversed = [...modifierSourcesOf(several)].reverse();
+      const w = mount(PremiumModifierMarks, {...globalConfig, props: {sources: reversed}});
+      const marks = w.findAll('[data-req-mark]');
+      expect(w.find('[data-req-marks]').attributes('data-req-marks')).eq('3');
+      expect(marks.map((m) => m.attributes('data-req-mark'))).deep.eq(['card', 'card', 'once']);
+      expect(marks.map((m) => m.attributes('data-req-mark-source'))).deep.eq([CardName.ADAPTATION_TECHNOLOGY, CardName.INVENTRIX, SD]);
+      expect(marks.map((m) => Number((m.element as HTMLElement).style.zIndex))).deep.eq([3, 2, 1]);
+      expect(marks.every((m) => (m.element as HTMLElement).style.backgroundImage === ''), 'no art on a mark').is.true;
+      expect(w.find('[data-req-marks]').attributes('aria-label')).contains(CardName.INVENTRIX);
     });
-    it('past max a «+N» coin takes the rest; no source → no seal at all; no art → the plain coin', () => {
-      const many = mount(PremiumModifierCoins, {...globalConfig, props: {sources: modifierSourcesOf(several), max: 2}});
-      expect(many.findAll('[data-req-coin]')).has.length(1);
-      expect(many.find('.pcard-mod--more').text()).eq('+2');
-      expect(mount(PremiumModifierCoins, {...globalConfig, props: {sources: []}}).find('.pcard-mods').exists()).is.false;
-      const plain = mount(PremiumModifierCoins, {...globalConfig, props: {sources: [{key: 'party:0', kind: 'shift', steps: 1, oneShot: false}]}});
-      expect(plain.find('.pcard-mod--plain').exists()).is.true;
+    it('a policy wears its party\'s emblem; past max a «+N» mark takes the rest; no source → no seal at all', () => {
+      const policy = mount(PremiumModifierMarks, {...globalConfig, props: {sources: [{key: 'party:0', symbol: 'party', party: PartyName.SCIENTISTS, kind: 'shift', steps: 2, oneShot: false}]}});
+      expect((policy.find('.pcard-modmark--party').element as HTMLElement).style.backgroundImage).contains('scientists');
+      const many = mount(PremiumModifierMarks, {...globalConfig, props: {sources: modifierSourcesOf(several), max: 2}});
+      expect(many.findAll('[data-req-mark]')).has.length(1);
+      expect(many.find('.pcard-modmark--more').text()).eq('+2');
+      expect(mount(PremiumModifierMarks, {...globalConfig, props: {sources: []}}).find('.pcard-modmarks').exists()).is.false;
     });
   });
 
@@ -224,16 +229,16 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(w.find('.pcard-req__value--printed').text()).eq('0');
       expect(w.find('[data-req-effective]').text()).eq('−4°C');
       expect(w.find('[data-req-mod]').text()).eq('±2');
-      expect(w.find('[data-req-mod] [data-req-coin]').attributes('data-req-coin'), 'the seal names its source').eq(SD);
+      expect(w.find('[data-req-mod] [data-req-mark]').attributes('data-req-mark'), 'the seal says what kind bends it').eq('once');
       expect(w.find('[data-req-decisive]').exists()).is.false;
       expect(w.find('.pcard__reqs--eased').exists()).is.true;
     });
-    it('several modifiers: the FINAL bound, one coin per source, the TOTAL bend', () => {
+    it('several modifiers: the FINAL bound, one mark per source, the TOTAL bend', () => {
       const w = bar(several);
       expect(w.find('[data-req-state]').attributes('data-req-state')).eq('eased');
       expect(w.find('[data-req-effective]').text()).eq('−28°C');
       expect(w.find('[data-req-mod]').attributes('data-req-mod-steps')).eq('6');
-      expect(w.findAll('[data-req-mod] [data-req-coin]')).has.length(3);
+      expect(w.findAll('[data-req-mod] [data-req-mark]').map((m) => m.attributes('data-req-mark'))).deep.eq(['card', 'card', 'once']);
       expect(w.find('[data-req-mod]').text()).eq('±6');
       expect(w.find('[data-req-decisive]').exists()).is.true;
     });
@@ -251,7 +256,7 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(w.find('.pcard-req__value').text()).eq('0°C');
       expect(w.find('[data-req-decisive]').exists()).is.true;
       expect(w.find('.pcard__reqs--waived').exists()).is.true;
-      expect(w.find('[data-req-mod] [data-req-coin]').attributes('data-req-coin'), 'the seal names who lifted it').eq(CED);
+      expect(w.find('[data-req-mod] [data-req-mark]').attributes('data-req-mark-source'), 'the seal marks what lifted it').eq(CED);
     });
   });
 });

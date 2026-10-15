@@ -278,12 +278,6 @@ html.con-profile-tv .con-armsec {
     .con-armed__badge { font-size: var(--con-chip-c-fs, .82rem); padding: .02rem .32rem; }
     .con-armed__struck { font-size: calc(var(--con-chip-c-fs, .82rem) * 0.72); }
 }
-.con-forecast__oneshot {
-    font-size: calc(var(--con-chip-c-fs, .82rem) * 0.7);
-    font-weight: 800;
-    letter-spacing: .04rem;
-    color: #9ff0d5;
-}
 .con-forecast__chip--unused {
     opacity: .62;
     box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.34);
@@ -480,24 +474,24 @@ html.con-profile-tv .con-pay__price-armed { font-size: .82rem; line-height: 1.5r
 .con-armed__formula--held { opacity: 0; }
 .con-armed--arriving { opacity: 0; }
 
-/* ── THE MODIFIER COINS in the console's lines (`PremiumModifierCoins`) — the coin takes the line's type size ── */
-/* the hand tile's plate: «[t°] [coin] ±2 ✓» — the source named on the tile, before the player focuses it */
-.con-hand__plate-coins { margin: 0 .12rem 0 .06rem; font-size: 1.05em; }
-/* the composer's requirement row: each source with its share — «[coin] ±2 Inventrix · [coin] ±2 Adaptation Technology» */
+/* ── THE MODIFIER SEAL in the console's lines (`PremiumModifierMarks`) — the mark takes the line's type size ── */
+/* the hand tile's plate: «[t°] [card][card][bolt] ±6 ✓» — what kind of modifiers bend it, before the player focuses it */
+.con-hand__plate-marks { margin: 0 .12rem 0 .1rem; font-size: 1.05em; }
+/* the composer's requirement row: each source with its share — «[card] ±2 Inventrix + [bolt] ±2 Особая разработка» */
 .con-composer__reqrow-src { display: inline-flex; align-items: center; gap: .55rem; }
 .con-composer__reqrow-share {
     display: inline-flex;
     align-items: center;
     gap: .3rem;
     white-space: nowrap;
-    .pcard-mods { font-size: .95rem; }
+    .pcard-modmarks { font-size: .95rem; }
 }
 .con-composer__reqrow-share + .con-composer__reqrow-share::before {
     content: '·';
     margin-right: .25rem;
     color: fade(@con-text, 40%);
 }
-/* SEVERAL sources: the composition takes its own line and reads as a SUM — «[coin] ±2 A + [coin] ±2 B = ±6». The second
+/* SEVERAL sources: the composition takes its own line and reads as a SUM — «[card] ±2 A + [bolt] ±2 B = ±4». The second
    line wraps between shares on a narrow column, never inside one; nothing is cut by an ellipsis. */
 .con-composer__reqrow--stacked {
     flex-wrap: wrap;
@@ -522,5 +516,5 @@ html.con-profile-tv .con-pay__price-armed { font-size: .82rem; line-height: 1.5r
     font-variant-numeric: tabular-nums;
     color: #ffffff;
 }
-/* the «Сработает» modifier chip: the coin leads */
-.con-forecast__chip--modifier .pcard-mods { font-size: calc(var(--con-chip-c-fs, .82rem) * 1.15); }
+/* the «Сработает» modifier chip: the mark leads (the bolt says «one play» — no «1×» beside it) */
+.con-forecast__chip--modifier .pcard-modmarks { font-size: calc(var(--con-chip-c-fs, .82rem) * 1.15); }

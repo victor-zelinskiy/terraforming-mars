@@ -255,7 +255,7 @@
                      reads as the SUM that moved the bound above («… + … = ±6»). -->
                 <span class="con-composer__reqrow-src">
                   <span v-for="sh in r.shares" :key="sh.source.key" class="con-composer__reqrow-share" data-composer-req-share>
-                    <PremiumModifierCoins :sources="[sh.source]" />{{ sh.text }}
+                    <PremiumModifierMarks :sources="[sh.source]" />{{ sh.text }}
                   </span>
                   <span v-if="r.total !== undefined" class="con-composer__reqrow-total" data-composer-req-total>= {{ r.total }}</span>
                 </span>
@@ -857,7 +857,7 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
-import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
+import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
 import {ComposerConsumeNote, ComposerRequirementView, composerConsumeNotes, composerRequirementViews, requirementStateText} from '@/client/console/composerRequirementRow';
 import {armedEffectBadge, armedEffectFormula} from '@/client/console/requirementEasingText';
 import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
@@ -999,7 +999,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierCoins},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
