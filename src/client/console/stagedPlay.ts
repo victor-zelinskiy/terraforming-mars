@@ -55,6 +55,15 @@ import {
 import {measureBoardHexRect} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
 import {releaseStagedArmedSpends} from '@/client/console/armedEffectFlight';
+import {claimVpShares, dropVpClaim, flyVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+
+/**
+ * The score cell's ledger owner of the card-seal wave (TR55): a staged play's card is no longer on screen when its
+ * answer lands — its PRINTED points are born on the tile that seals it, after the card's own gains, like them.
+ */
+export const STAGED_PLAY_VP_OWNER = 'staged-play';
+/** The card's own play outranks the tile scene of the same response (the hero's rank). */
+const STAGED_PLAY_VP_RANK = 10;
 
 /**
  * The composer's raw capture snapshot — written by ConsolePlayCardConfirm at
@@ -220,6 +229,8 @@ export function markStagedPlayCommitting(): void {
 export function abortStagedPlayCommit(): void {
   stagedPlayState.committing = false;
   pendingSeal = undefined;
+  // A refused commit scored nothing: the seal's claim on the card's points ends with it.
+  dropVpClaim(STAGED_PLAY_VP_OWNER);
 }
 
 /** The staged play is over (committed and applied, or cancelled). */
@@ -298,12 +309,21 @@ export function resolveStagedPinDropped(): void {
       releasePanelRewardHold(spec);
     }
   }
+  // …and the card's points: no tile to be born on — they tick now, named beside the score cell (TR55).
+  releaseVpShares(STAGED_PLAY_VP_OWNER, {why: 'the pinned placement was dropped'});
+  dropVpClaim(STAGED_PLAY_VP_OWNER);
 }
 
 /** Called at the cell confirm, BEFORE the submit — the wave's plan. */
 export function armStagedSeal(spaceId: string): void {
   const specs = (stagedPlayState.arm?.rewards ?? []).filter((s) => s.amount > 0);
-  pendingSeal = specs.length > 0 ? {spaceId, specs} : undefined;
+  const card = stagedPlayState.arm?.cardName;
+  // THE CARD'S PRINTED POINTS ride the seal too (TR55): claimed at the confirm, held by the ledger in the apply
+  // block, born on the tile after the card's gains — a seal with no gain still owes its points' token.
+  if (card !== undefined && stagedPlayState.arm?.flow !== 'action') {
+    claimVpShares(STAGED_PLAY_VP_OWNER, (share) => share.source.kind === 'card' && share.source.card === card, STAGED_PLAY_VP_RANK);
+  }
+  pendingSeal = specs.length > 0 || card !== undefined ? {spaceId, specs} : undefined;
 }
 
 /** Transport seed block (synchronous with the commit — see seedRewardHolds). */
@@ -333,15 +353,25 @@ export function runStagedSealWave(): Promise<void> {
     for (const spec of seal.specs) {
       releasePanelRewardHold(spec);
     }
+    releaseVpShares(STAGED_PLAY_VP_OWNER, {why: 'the sealed tile could not be measured'});
+    dropVpClaim(STAGED_PLAY_VP_OWNER);
     return Promise.resolve();
   }
-  return runResourceTransfers({
+  const centre = {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2};
+  const gains = seal.specs.length === 0 ? Promise.resolve() : runResourceTransfers({
     specs: seal.specs,
-    source: {point: {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2}},
+    source: {point: centre},
     arrival: 'auto',
     fromBoard: true,
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
+  // …then the card's printed points, from the same tile (a loss walks the token back INTO it — PL-104's way out).
+  return gains
+    .then(() => flyVpShares(STAGED_PLAY_VP_OWNER, () => centre, {fromBoard: true}))
+    .then(() => {
+      releaseVpShares(STAGED_PLAY_VP_OWNER, {why: 'the seal wave ended'});
+      dropVpClaim(STAGED_PLAY_VP_OWNER);
+    });
 }
 
 /** Is a seal wave still owed? (The transport's fallback path asks.) */

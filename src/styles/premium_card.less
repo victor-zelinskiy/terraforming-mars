@@ -2344,6 +2344,22 @@
     0 1px 1.5px rgba(0, 0, 0, 0.5),
     0 3px 6px rgba(0, 0, 0, 0.48);
 }
+/* THE BADGE ANSWERS ITS TOKEN'S BIRTH (TR55 — the score cell): the moment the
+   «+N VP» token leaves it for the rail's score cell, the printed badge gives
+   one short press — the cause owning its effect. An ATTRIBUTE (the badge's own
+   `:class` would wipe an imperative class), transform only, one shot. */
+.pcard__vp[data-vp-emit] {
+  transform-origin: 50% 60%;
+  animation: pcard-vp-emit calc(260ms * var(--motion-scale, 1)) cubic-bezier(.3, .7, .3, 1) 1;
+}
+@keyframes pcard-vp-emit {
+  0% { transform: scale(1); }
+  35% { transform: scale(.9); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcard__vp[data-vp-emit] { animation: none; }
+}
 .pcard__vp-value {
   font-size: 20px;
   color: var(--pcard-ink);

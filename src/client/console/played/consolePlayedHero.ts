@@ -77,6 +77,22 @@ import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
 import {Tag} from '@/common/cards/Tag';
+import {VpShare} from '@/common/game/vpAttribution';
+import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+
+/**
+ * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
+ * share (its printed VP, a resource the play put on it) flies from its PRINTED badge after the card's own gains; a
+ * card the play puts resources on, or wakes, has its share released on the touchdown of its last token.
+ */
+export const PLAYED_HERO_VP_OWNER = 'played-hero';
+/** A card's own play outranks a tile scene of the same response (both may match the card's share). */
+const PLAYED_HERO_VP_RANK = 10;
+
+/** Is this share a card row of `cards`? */
+function cardShareOf(cards: ReadonlySet<string>): (share: VpShare) => boolean {
+  return (share) => share.source.kind === 'card' && cards.has(share.source.card);
+}
 
 /** The result beat is SHORT when the server already queued the next decision
  *  — the demonstration yields to the game (spec §13). */
@@ -580,6 +596,14 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
   pendingReactions = opts.reactions ?? [];
+  // THE SCORE CELL (TR55): the card's own share and the shares of the cards this play feeds or wakes are this scene's
+  // to show — claimed at the press, held by the ledger in the apply block, flown / released by the reward beat.
+  releaseVpShares(PLAYED_HERO_VP_OWNER, {why: 're-armed'});
+  claimVpShares(PLAYED_HERO_VP_OWNER, cardShareOf(new Set<string>([
+    card,
+    ...pendingRewards.flatMap((spec) => (spec.channel === 'card-resource' && spec.targetCard !== undefined ? [spec.targetCard] : [])),
+    ...pendingReactions.flatMap((r) => (r.spec.targetCard !== undefined ? [r.spec.targetCard] : [])),
+  ])), PLAYED_HERO_VP_RANK);
   heldReactions = [];
   playedHeroState.reactions = '';
   releaseHeroRail('re-armed');
@@ -1279,7 +1303,10 @@ export async function endPlayedHero(): Promise<void> {
   playedHeroState.proxy = undefined;
   playedHeroState.phase = 'showing-result';
   const railKey = heldRailKey !== undefined && railRewardPending(heldRailKey) ? heldRailKey : undefined;
-  if ((pendingRewards.length > 0 || heldReactions.length > 0 || railKey !== undefined) && !consoleReducedMotionActive()) {
+  // THE CARD'S PRINTED POINTS (TR55): a card whose play changes nothing but the score (Reds News Outlet, a «2 VP»
+  // card with no gain) still owes the beat — its token is the whole story of the landing's result.
+  const vpOwed = holdsVpShares(PLAYED_HERO_VP_OWNER);
+  if ((pendingRewards.length > 0 || heldReactions.length > 0 || railKey !== undefined || vpOwed) && !consoleReducedMotionActive()) {
     // THE REWARD BEAT — the final chord of the play: the landed card is read
     // for a quiet moment, then its immediate gains emerge from it as
     // physical resource chips and land where they belong. Each touchdown
@@ -1293,7 +1320,12 @@ export async function endPlayedHero(): Promise<void> {
       return;
     }
     const source = {selectors: heroRewardSourceSelectors(playedHeroState.card ?? '')};
-    const release = (spec: ResourceTransferSpec) => releaseHeroReward(spec);
+    // A card the play FEEDS or WAKES scores on the touchdown of its own last token (TR27's law, TR55's ledger).
+    const releaseFedVp = vpReleaseOnTouchdown(playedHeroState.card ?? '', [...rewards, ...heldReactions.map((r) => r.spec)]);
+    const release = (spec: ResourceTransferSpec) => {
+      releaseHeroReward(spec);
+      releaseFedVp(spec);
+    };
     const hooks = effectHooks;
     if (playedHeroState.host === 'workspace' && hooks !== undefined) {
       // THE EFFECT RESOLUTION SEQUENCE (the receiving stage): card targets
@@ -1315,11 +1347,14 @@ export async function endPlayedHero(): Promise<void> {
           return;
         }
       }
-      if (railSpecs.length > 0 && playedHeroState.active) {
-        await runResourceTransfers({specs: railSpecs, source, arrival: 'auto', onArrive: release});
+      if (playedHeroState.active) {
+        await railWaveWithPrintedVp(railSpecs, source, release);
       }
-    } else if (rewards.length > 0) {
-      await runResourceTransfers({specs: rewards, source, arrival: 'auto', onArrive: release});
+    } else {
+      await railWaveWithPrintedVp(rewards, source, release);
+    }
+    if (!playedHeroState.active) {
+      return;
     }
     // THE TABLE'S ANSWER ON THE CARDS (К-S1): the holders the play woke, each its own group after the card's own
     // gains — before the TR, which stays last.
@@ -1329,6 +1364,8 @@ export async function endPlayedHero(): Promise<void> {
     // Belt-and-braces: any hold of OURS a degraded transfer left behind snaps to
     // the committed truth now (its chip fires marginally late, never lost).
     releaseHeroRewards();
+    // …and a fed card's points whose token never reached it tick now, NAMED beside the score cell (TR55).
+    releaseVpShares(PLAYED_HERO_VP_OWNER, {why: 'a fed card was not reached by its token'});
     if (!playedHeroState.active) {
       return;
     }
@@ -1478,6 +1515,9 @@ export function abortPlayedHero(): void {
   abortPlayedCardReturns();
   releaseHeroRewards();
   releaseHeroRail('aborted');
+  // The score cell's shares this scene held tick now, named (a play that landed and was not shown still scored).
+  releaseVpShares(PLAYED_HERO_VP_OWNER, {why: 'the scene aborted'});
+  dropVpClaim(PLAYED_HERO_VP_OWNER);
   releaseArmedEffectHolds();
   // An aborted ritual puts the card back in its composer — what it was drawing out of the dock is armed again.
   releaseStagedArmedSpends();
@@ -1520,6 +1560,9 @@ function finish(): void {
   pendingReactions = [];
   heldReactions = [];
   releaseHeroRail('finished'); // safety — the reward beat flies it; an ending that skipped the beat lets go
+  // …and the score cell's shares (TR55): the beat flies / releases them; an ending that skipped it names them.
+  releaseVpShares(PLAYED_HERO_VP_OWNER, {why: 'the scene ended before its beat'});
+  dropVpClaim(PLAYED_HERO_VP_OWNER);
   releaseDepartures(); // safety — the commit's block released them; an ending that skipped the commit lets go
   settleArmedEffectHolds(); // safety — the commit settled them; an ending that skipped the commit lets go (TR49 class)
   pendingSpends = undefined;
@@ -1825,6 +1868,111 @@ function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint
         .find((icon) => icon.closest('.pcard-effect') === null && needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
       const ir = printed?.getBoundingClientRect();
       return ir !== undefined && ir.width > 4 ? {x: ir.left + ir.width / 2, y: ir.top + ir.height / 2} : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A card the play FEEDS (a resource onto another card of the tableau) or WAKES (a reaction) scores its points on
+ * the touchdown of ITS LAST token — the counter and the score are one event (TR27's law; TR55 — the ledger holds the
+ * share, this releases it). The played card itself is not here: its share flies from its own printed badge.
+ */
+function vpReleaseOnTouchdown(played: string, specs: ReadonlyArray<ResourceTransferSpec>): (spec: ResourceTransferSpec) => void {
+  const left = new Map<string, number>();
+  for (const spec of specs) {
+    if (spec.channel === 'card-resource' && spec.targetCard !== undefined && spec.targetCard !== played) {
+      left.set(spec.targetCard, (left.get(spec.targetCard) ?? 0) + 1);
+    }
+  }
+  return (spec) => {
+    const card = spec.targetCard;
+    if (spec.channel !== 'card-resource' || card === undefined || card === played || !left.has(card)) {
+      return;
+    }
+    const n = (left.get(card) ?? 0) - 1;
+    left.set(card, n);
+    if (n <= 0) {
+      releaseVpShares(PLAYED_HERO_VP_OWNER, {filter: cardShareOf(new Set([card])), named: false});
+    }
+  };
+}
+
+/**
+ * THE CARD'S RAIL WAVE AND ITS PRINTED POINTS (TR55, the owner's decision 4): what the card IS follows what it GAVE —
+ * as the NEXT TOKEN OF THE SAME WAVE, one stagger after the gains (`transferWaveDelayMs`), never as a beat of its own:
+ * a whole second flight after the wave would lengthen every play by a flight. The token is born on the landed card's
+ * printed VP badge (the face-down pile for an event), the badge answers with a short press, and the score cell ticks
+ * on the touchdown; before the table's answer, before the TR. Resolves once both have touched down.
+ */
+async function railWaveWithPrintedVp(
+  specs: ReadonlyArray<ResourceTransferSpec>,
+  source: {selectors: Array<string>},
+  release: (spec: ResourceTransferSpec) => void,
+): Promise<void> {
+  const card = playedHeroState.card ?? '';
+  const wave = specs.length === 0 ? Promise.resolve() : runResourceTransfers({specs, source, arrival: 'auto', onArrive: release});
+  const vp = (specs.length === 0 ? Promise.resolve() : wait(motionMs(transferWaveDelayMs(1, 2))))
+    .then(() => (playedHeroState.active ? flyHeroCardVp(card) : undefined));
+  await Promise.all([wave, vp]);
+}
+
+/** The landed card's own share — one token from its printed VP badge (TR55). Resolves at the touchdown. */
+async function flyHeroCardVp(card: string): Promise<void> {
+  const own = cardShareOf(new Set([card]));
+  if (card === '' || !holdsVpShares(PLAYED_HERO_VP_OWNER, own)) {
+    return;
+  }
+  const badge = heroVpBadgeEl(card);
+  if (badge !== undefined) {
+    // The badge ANSWERS the birth — one short press (an attribute: the badge's own `:class` never wipes it).
+    badge.setAttribute('data-vp-emit', '');
+    gsap.delayedCall(motionMs(VP_EMIT_PRESS_MS) / 1000, () => badge.removeAttribute('data-vp-emit'));
+  }
+  await flyVpShares(PLAYED_HERO_VP_OWNER, () => heroVpOrigin(card), {filter: own});
+}
+
+/** The press the printed badge plays as its token is born (ms @ motion scale 1). */
+const VP_EMIT_PRESS_MS = 260;
+
+/** The landed card's printed VP badge on the first measurable place of the reward ladder, if its face is up. */
+function heroVpBadgeEl(card: string): HTMLElement | undefined {
+  if (typeof document === 'undefined' || card === '') {
+    return undefined;
+  }
+  for (const selector of heroRewardSourceSelectors(card)) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 4 || r.height <= 4) {
+        continue;
+      }
+      const badge = el.querySelector<HTMLElement>('.pcard__vp');
+      const br = badge?.getBoundingClientRect();
+      return badge !== null && badge !== undefined && br !== undefined && br.width > 4 ? badge : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * WHERE THE CARD'S POINTS ARE BORN (TR55): the centre of the landed card's printed VP badge — and, when the place
+ * prints no face (an EVENT lies face-down on its pile), the centre of that place: the card's honest location.
+ */
+function heroVpOrigin(card: string): TransferPoint | undefined {
+  const badge = heroVpBadgeEl(card);
+  if (badge !== undefined) {
+    const r = badge.getBoundingClientRect();
+    return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+  }
+  if (typeof document === 'undefined' || card === '') {
+    return undefined;
+  }
+  for (const selector of heroRewardSourceSelectors(card)) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 4 && r.height > 4) {
+        return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+      }
     }
   }
   return undefined;

@@ -1604,6 +1604,7 @@
 </template>
 
 <script lang="ts">
+import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 /**
  * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
@@ -16417,6 +16418,8 @@ export default defineComponent({
       beginMaFocusCommit({gameAge: this.game.gameAge, undoCount: this.game.undoCount});
       claimMaCeremonyEmbed(item.kind, item.name);
       armMaCeremony({kind: item.kind, name: item.name, cost: view.cost, free: view.free});
+      // THE SCORE CELL (TR55): the milestone's +5 / the award's place is the ceremony's to show — held to its token.
+      claimMaVp(item.kind, item.name);
       this.armMaFocusSafety();
       // Deliberately NOT `submitInnerOption` — that helper closes the console
       // layers, and the whole point here is that the workspace stays up.
@@ -16431,6 +16434,7 @@ export default defineComponent({
         if (maFocusState.phase === 'committing') {
           abandonMaCeremonyEmbed();
           disarmMaCeremony();
+          dropMaVp('the claim never resolved');
           failMaFocusCommit('Unavailable right now');
         }
       }, MA_COMMIT_SAFETY_MS);
@@ -16497,6 +16501,7 @@ export default defineComponent({
         this.clearMaFocusSafety();
         abandonMaCeremonyEmbed();
         disarmMaCeremony();
+        dropMaVp('the claim was refused');
         const reason = outcome.cause === 'raced' ?
           (maFocusState.kind === 'milestone' ? 'Already claimed' : 'Already funded') :
           (this.maFocusBlockReason !== '' ? this.maFocusBlockReason : 'Unavailable right now');
@@ -16516,9 +16521,16 @@ export default defineComponent({
       if (maFocusState.phase !== 'ceremony') {
         return;
       }
-      beginMaFocusClosing();
-      abandonMaCeremonyEmbed();
-      leaveWorkspace();
+      // THE POINTS LEAVE THE CEREMONY FIRST (TR55): the token is born on its «+5» and has left it before the
+      // workspace lets go — the cell ticks at the touchdown, the surface never folds over a token still on it.
+      void flyMaVp(maFocusState.kind).then(() => {
+        if (maFocusState.phase !== 'ceremony') {
+          return;
+        }
+        beginMaFocusClosing();
+        abandonMaCeremonyEmbed();
+        leaveWorkspace();
+      });
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {
       if (row === undefined || row.kind === 'header') {

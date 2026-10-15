@@ -85,6 +85,8 @@ import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel
 import {CardModel} from '@/common/models/CardModel';
 import {claimCityPayout, cityPayoutVpSteps, cityPayoutsFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
+import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, isBoardVpShare, noteVpHeldElsewhere, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {VpShare} from '@/common/game/vpAttribution';
 import {cityPayoutReactionSpecs, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat, seatChipPoint} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {ResourceTransferSpec, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
@@ -229,6 +231,75 @@ export type RemoteEvent = FreshPlacement & {
 
 const queue: Array<RemoteEvent> = [];
 let draining = false;
+
+// ── THE SCORE CELL'S SHARE OF A FOREIGN TILE (TR55, the owner's decision 5) ─────────────────────────────────────
+// A rival's greenery beside the viewer's city, an ocean beside their Capital, a city under their Vermin: the
+// viewer's points move because of a tile THIS stage lands. The ledger holds those shares from the apply block until
+// the tile is on the board, then each is born on the cell that caused it and flies to the score cell. The claim
+// lives for the stage's whole story and a short grace after it — the bot's pipeline lands its tiles turn by turn and
+// applies the view (the score) only with its last turn.
+export const REMOTE_TILE_VP_OWNER = 'remote-tiles';
+const REMOTE_TILE_VP_RANK = 1;
+const REMOTE_VP_GRACE_MS = 8000;
+/** The cells this story landed (or lifted), in order — the shares' possible sources. */
+let remoteVpCells: Array<string> = [];
+let remoteVpDropTimer: number | undefined;
+
+function claimRemoteVp(): void {
+  if (remoteVpDropTimer !== undefined) {
+    window.clearTimeout(remoteVpDropTimer);
+    remoteVpDropTimer = undefined;
+  }
+  claimVpShares(REMOTE_TILE_VP_OWNER, isBoardVpShare, REMOTE_TILE_VP_RANK, {
+    // Seeded after the story's tiles already landed (the bot's last turn): fly now, from the cells they landed on.
+    onSeeded: () => {
+      if (!draining) {
+        void flyRemoteVp();
+      }
+    },
+  });
+}
+
+function scheduleRemoteVpDrop(): void {
+  if (remoteVpDropTimer !== undefined) {
+    window.clearTimeout(remoteVpDropTimer);
+  }
+  remoteVpDropTimer = window.setTimeout(() => {
+    remoteVpDropTimer = undefined;
+    releaseVpShares(REMOTE_TILE_VP_OWNER, {why: 'the story of the foreign tiles is over'});
+    dropVpClaim(REMOTE_TILE_VP_OWNER);
+    remoteVpCells = [];
+  }, REMOTE_VP_GRACE_MS);
+}
+
+/** The viewer's shares of this story, each from the cell that caused it (a city's — the nearest landed cell). */
+async function flyRemoteVp(): Promise<void> {
+  if (!holdsVpShares(REMOTE_TILE_VP_OWNER)) {
+    return;
+  }
+  await nextTick();
+  const cells = [...remoteVpCells];
+  await flyVpShares(REMOTE_TILE_VP_OWNER, (share) => remoteVpOrigin(share, cells), {fromBoard: true});
+}
+
+/** The centre of the landed cell nearest to the share's own (a city); otherwise the last cell the story landed. */
+function remoteVpOrigin(share: VpShare, cells: ReadonlyArray<string>): TransferPoint | undefined {
+  const rects = cells.flatMap((id) => {
+    const r = measureBoardHexRect(id);
+    return r === undefined ? [] : [{x: r.x + r.w / 2, y: r.y + r.h / 2}];
+  });
+  if (rects.length === 0) {
+    return undefined;
+  }
+  if (share.source.kind === 'city') {
+    const own = measureBoardHexRect(share.source.space);
+    if (own !== undefined) {
+      const c = {x: own.x + own.w / 2, y: own.y + own.h / 2};
+      return rects.reduce((best, p) => (Math.hypot(p.x - c.x, p.y - c.y) < Math.hypot(best.x - c.x, best.y - c.y) ? p : best));
+    }
+  }
+  return rects[rects.length - 1];
+}
 /** Bumped by abort — a drain loop mid-await sees the change and exits
  *  without touching the (already cleaned) state. */
 let epoch = 0;
@@ -433,6 +504,7 @@ export function stageRemoteTileEvents(
     queued = true;
   }
   if (queued) {
+    claimRemoteVp();
     armStageSafety();
     void drainQueue();
   }
@@ -488,6 +560,8 @@ export function claimCityPayoutsOf(spaceId: string, opts: RemoteStageOpts | unde
     if (item.own) {
       beginPanelRewardHold(cityPayoutHoldSpecs(item.payout));
       beginPanelVpHold(cityPayoutVp(item.payout));
+      // The score cell's ledger nets them out of the card's share — the payout's own token brings them (TR55).
+      noteVpHeldElsewhere({kind: 'card', card: item.payout.target}, cityPayoutVp(item.payout));
     }
   }
   return out.length > 0 ? out : undefined;
@@ -534,6 +608,10 @@ export function abortRemotePlacements(): void {
     releaseCityPayoutHolds(ev);
   }
   queue.length = 0;
+  // The viewer's shares of this story tick now, named (the tiles were revealed at once, with no flight).
+  releaseVpShares(REMOTE_TILE_VP_OWNER, {why: 'the remote stage aborted'});
+  dropVpClaim(REMOTE_TILE_VP_OWNER);
+  remoteVpCells = [];
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
   draining = false;
   remotePlacementState.active = false;
@@ -572,24 +650,16 @@ async function drainQueue(): Promise<void> {
   draining = true;
   const myEpoch = epoch;
   try {
-    while (queue.length > 0 && epoch === myEpoch) {
-      const ev = queue[0];
-      try {
-        if (ev.move !== undefined) {
-          await moveRemote(ev, ev.move, myEpoch);
-        } else if (ev.removal === true) {
-          await liftRemote(ev, myEpoch);
-        } else {
-          await flyRemote(ev, myEpoch);
-        }
-      } finally {
-        if (epoch === myEpoch) {
-          // Whatever happened, the COMMITTED cell must be visible (a tile, or the bare hex it became).
-          releaseRemoteReveal(ev.spaceId);
-          releaseMoveSource(ev);
-          queue.shift();
-        }
+    // A tile queued WHILE the score's tokens fly is drained after them — the outer loop re-reads the queue.
+    do {
+      await drainEvents(myEpoch);
+      // THE VIEWER'S SCORE answers the tiles it just watched land (TR55): their shares fly now, each from its cause.
+      if (epoch === myEpoch) {
+        await flyRemoteVp();
       }
+    } while (queue.length > 0 && epoch === myEpoch);
+    if (epoch === myEpoch) {
+      scheduleRemoteVpDrop();
     }
   } finally {
     if (epoch === myEpoch) {
@@ -599,6 +669,30 @@ async function drainQueue(): Promise<void> {
       remotePlacementState.departingTile = undefined;
       clearMoveStage();
       clearStageSafety();
+    }
+  }
+}
+
+/** Land every queued event in turn (the drain's inner loop). */
+async function drainEvents(myEpoch: number): Promise<void> {
+  while (queue.length > 0 && epoch === myEpoch) {
+    const ev = queue[0];
+    try {
+      if (ev.move !== undefined) {
+        await moveRemote(ev, ev.move, myEpoch);
+      } else if (ev.removal === true) {
+        await liftRemote(ev, myEpoch);
+      } else {
+        await flyRemote(ev, myEpoch);
+      }
+    } finally {
+      if (epoch === myEpoch) {
+        // Whatever happened, the COMMITTED cell must be visible (a tile, or the bare hex it became).
+        releaseRemoteReveal(ev.spaceId);
+        releaseMoveSource(ev);
+        queue.shift();
+        remoteVpCells.push(ev.spaceId);
+      }
     }
   }
 }

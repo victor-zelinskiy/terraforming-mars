@@ -69,6 +69,10 @@ import {RailAnswerFlight, flyRailReward, flyRailRewardLink, railRewardHoldsAnswe
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {RECEIVE_READ_MS, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
+import {claimVpShares, dropVpClaim, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+
+/** The score cell's ledger owner of an action's chain (TR55): the cards its links feed score on their touchdowns. */
+export const ACTION_COMMIT_VP_OWNER = 'action-commit';
 
 export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
 
@@ -132,6 +136,9 @@ function clearOwedFly(): void {
 
 function resetHalf(why: string): void {
   clearOwedFly();
+  // The score cell's shares of the cards this chain fed tick on their tokens' touchdowns; whatever is left ends here, named.
+  releaseVpShares(ACTION_COMMIT_VP_OWNER, {why});
+  dropVpClaim(ACTION_COMMIT_VP_OWNER);
   actionCommitRailState.ended++;
   actionCommitRailState.card = '';
   actionCommitRailState.phase = 'idle';
@@ -175,6 +182,14 @@ export function seedActionCommitRail(before: PlayerViewModel | undefined, after:
     return;
   }
   seededRail = rail;
+  // THE SCORE CELL (TR55, К-V2): a card a link LANDS a resource on scores with that touchdown — its share (the server's
+  // attribution, whatever the preview printed — Security Fleet's fighter has no `vpBox`) is held by the ledger, seeded
+  // last in this very block, and released by the contact beat of the first token onto that card.
+  const fed = new Set(rail.reward.cause.flatMap((spec) =>
+    spec.channel === 'card-resource' && spec.direction !== 'loss' && spec.targetCard !== undefined ? [spec.targetCard as string] : []));
+  if (fed.size > 0) {
+    claimVpShares(ACTION_COMMIT_VP_OWNER, (share) => share.source.kind === 'card' && fed.has(share.source.card), 5, {releaseOnLanding: true});
+  }
   actionCommitRailState.card = plan.sourceCard;
   actionCommitRailState.phase = 'seeded';
   actionCommitRailState.link = -1;

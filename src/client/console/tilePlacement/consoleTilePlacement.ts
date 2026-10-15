@@ -182,6 +182,15 @@ import {
   beginPanelVpHold, releasePanelVpHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
+import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, isBoardVpShare, noteVpHeldElsewhere, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+
+/**
+ * The score cell's ledger owner of the viewer's OWN landing (TR55): what the tile changed in the score — a city's
+ * adjacency, a greenery's own point (outside the Redux revision), a card whose points read the board (Capital, a
+ * penalty per city) — is born on the landed tile once the cell's own payouts have spoken. A card's own play outranks it.
+ */
+export const TILE_VP_OWNER = 'tile';
+const TILE_VP_RANK = 1;
 import {
   ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
   RATING_RAIL_KEY, TOUCHDOWN_TICK_GAP_MS, isStandardResource,
@@ -522,6 +531,9 @@ export function armTilePlacement(opts: {
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
   tilePlacementState.reducedMotion = consoleReducedMotionActive();
+  // THE SCORE CELL (TR55): the board's share of this landing's score change is the tile's to show.
+  releaseVpShares(TILE_VP_OWNER, {why: 're-armed'});
+  claimVpShares(TILE_VP_OWNER, isBoardVpShare, TILE_VP_RANK);
   armSafety = window.setTimeout(() => abortTilePlacement(), TILE_ARM_SAFETY_MS);
 }
 
@@ -1293,6 +1305,13 @@ export function seedTilePlacementRewardHold(): void {
   beginPanelRewardHold(specs);
   // …and the points they bring their cards (the museum's «1 per 2 data»): the VP cell is derived (PL-014 / PL-073).
   beginPanelVpHold(ownCityPayoutVp(pendingCityPayouts));
+  // The score cell's ledger nets them out of each card's share — the payout's own token brings them (TR55, К-V3:
+  // the client's count is checked against the server's attribution there, a disagreement named in its trace).
+  for (const item of pendingCityPayouts) {
+    if (item.own) {
+      noteVpHeldElsewhere({kind: 'card', card: item.payout.target}, item.vpSteps.reduce((a, b) => a + b, 0));
+    }
+  }
 }
 
 /**
@@ -1330,8 +1349,9 @@ export async function endTilePlacement(): Promise<void> {
       startCityPayouts(cityPayouts, tileRect);
     }
   };
+  const vpOwed = holdsVpShares(TILE_VP_OWNER);
   if (tilePlacementState.reducedMotion ||
-      (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0 && lawWave === undefined && moveReward === undefined)) {
+      (bonuses.length === 0 && ocean === undefined && aresFlights.length === 0 && lawWave === undefined && moveReward === undefined && !vpOwed)) {
     finish();
     kickCityPayout();
     return;
@@ -1361,6 +1381,11 @@ export async function endTilePlacement(): Promise<void> {
   // cell; the table's answer ticks one beat after its touchdown, never before its cause (PL-002).
   if (moveReward !== undefined && tilePlacementState.active) {
     await runMoveRewardBeat(moveReward);
+  }
+  // …and what the tile changed in the SCORE (TR55): the city it is (or stands beside), a card that reads the board —
+  // one token per share born on the landed tile, the score cell ticking on the touchdown (a loss on its departure).
+  if (vpOwed && tilePlacementState.active) {
+    await runTileVpBeat();
   }
   // Belt-and-braces: any hold a degraded transfer left behind snaps to the
   // committed truth now (its chip fires marginally late, never lost).
@@ -1399,6 +1424,18 @@ async function runLawWave(wave: PlacementLawWave): Promise<void> {
   } finally {
     tilePlacementState.lawWave = false;
   }
+}
+
+/**
+ * THE TILE'S SCORE BEAT (TR55 — docs/claude/console/score-cell.md): every share the landing changed in the viewer's
+ * score — the city's adjacency, a greenery's point, a card that reads the board — leaves the LANDED TILE as one token
+ * and lands on the score cell's ink. The tile is the cause («what counts»), so it is the source; no measurable tile →
+ * the shares tick, named.
+ */
+async function runTileVpBeat(): Promise<void> {
+  const rect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
+  const centre = rect === undefined ? undefined : {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2};
+  await flyVpShares(TILE_VP_OWNER, () => centre, {fromBoard: true, pace: tileRewardTransferPace()});
 }
 
 /**
@@ -1688,6 +1725,8 @@ export function abortTilePlacement(): void {
   if (cityPayoutState.mode === 'own') {
     abortCityPayoutBeat(); // …and the cities that paid the card (TR21)
   }
+  releaseVpShares(TILE_VP_OWNER, {why: 'the landing aborted'});
+  dropVpClaim(TILE_VP_OWNER);
   clearPanelRewardHold();
   // …the price's departure holds went with it (the row returns to the truth — a refused placement paid nothing).
   priceDepartures.length = 0;
@@ -1739,6 +1778,9 @@ export function abortTilePlacement(): void {
 
 function finish(): void {
   clearTimers();
+  // The score cell's shares this landing held and did not fly tick now, named (TR55).
+  releaseVpShares(TILE_VP_OWNER, {why: 'the landing ended before its score beat'});
+  dropVpClaim(TILE_VP_OWNER);
   clearPanelRewardHold(); // safety — the reward beat leaves it empty
   priceDepartures.length = 0;
   armedPrice = undefined;

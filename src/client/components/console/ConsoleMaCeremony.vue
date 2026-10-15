@@ -74,6 +74,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
 import {$t} from '@/client/directives/i18n';
+import {flyMaVp} from '@/client/console/scoreCell/maVp';
 
 /** The own coronation lingers a beat longer than the seal / a rival's beat. */
 const MILESTONE_LIFETIME_MS = 3600;
@@ -147,10 +148,21 @@ export default defineComponent({
       const base = prefersReducedMotion() ? REDUCED_LIFETIME_MS :
         !this.event.own ? REMOTE_LIFETIME_MS :
           this.event.kind === 'milestone' ? MILESTONE_LIFETIME_MS : AWARD_LIFETIME_MS;
+      const own = this.event.own;
+      const kind = this.event.kind;
       this.hideTimer = setTimeout(() => {
-        this.visible = false;
         this.hideTimer = undefined;
-        this.stopFx();
+        const hide = () => {
+          this.visible = false;
+          this.stopFx();
+        };
+        // THE POINTS LEAVE THE CEREMONY FIRST (TR55): the own beat's token is born on its «+5» / its seal and has
+        // left it before the shell fades — the score cell ticks at the touchdown.
+        if (own) {
+          void flyMaVp(kind).then(hide);
+        } else {
+          hide();
+        }
       }, motionMs(base));
     },
     /** The coronation gets the full burst; a rival's remote beat only a calm
