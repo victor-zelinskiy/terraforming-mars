@@ -32,3 +32,6 @@ paths:
 
 ## Deep reference
 `docs/claude/cards/premium-card-renderer.md`, `card-information-model.md`, `fullscreen-card-viewer.md`, `card-lore-archive-entry.md`, `card-action-buttons.md`.
+
+## THE REQUIREMENT UNDER A MODIFIER — the cassette has three states, fed by the LIVE model (TR49, 2026-10-15)
+`premiumCardViewModel.withEasing` folds the server's `CardModel.requirementEasing` into the normalized requirements (matched by index + type); `PremiumRequirementsBar` paints `pcard-req--eased` (the printed bound stays, the effective one beside it, a «±2» badge), `--waived` (the printed values stay READABLE under the scan's red diagonal — `::after`, never `filter`) and `--decisive` (a ✓ in the end: met ONLY thanks to the modifier) — state by FORM, never colour alone; hooks `data-req-state` / `data-req-effective` / `data-req-mod` / `data-req-decisive`. The same face in every host (the hand tile, the composer's hero — `ConsolePlayCardConfirm.heroCard` merges the reading into the prompt's model, which carries none — and the fullscreen viewer); a card with no live model (a rival's, the journal, a card already on the table) prints its cassette as printed. A face that PRINTS «ignore global requirements» (`IGNORE_GLOBAL_REQUIREMENTS`) shows the struck «Глобальные параметры» plate (`accent: 'waived'`).
