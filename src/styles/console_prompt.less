@@ -338,14 +338,16 @@ html.con-profile-handheld {
        lands, the tag rings once. One-shot, transform/opacity only, and each
        part starts once the plate has MATERIALIZED (the band surface's own
        ~210 ms entrance): a beat played under a fading plate is a beat unseen. */
+    /* `--con-prompt-beat-at` — the wait of a plate that ARRIVES after another let go (PL-384): the beat is the
+       arrived plate's, never the release's. */
     &--shift &__crest {
-        animation: con-prompt-crest-wipe calc(520ms * var(--motion-scale, 1)) @con-ease-enter calc(140ms * var(--motion-scale, 1)) both;
+        animation: con-prompt-crest-wipe calc(520ms * var(--motion-scale, 1)) @con-ease-enter ~"calc((140ms + var(--con-prompt-beat-at, 0ms)) * var(--motion-scale, 1))" both;
     }
     &--shift &__emblem {
-        animation: con-prompt-emblem-land calc(560ms * var(--motion-scale, 1)) @con-ease-settle calc(180ms * var(--motion-scale, 1)) both;
+        animation: con-prompt-emblem-land calc(560ms * var(--motion-scale, 1)) @con-ease-settle ~"calc((180ms + var(--con-prompt-beat-at, 0ms)) * var(--motion-scale, 1))" both;
     }
     &--shift &__tag::after {
-        animation: con-prompt-ring calc(900ms * var(--motion-scale, 1)) @con-ease-standard calc(320ms * var(--motion-scale, 1)) both;
+        animation: con-prompt-ring calc(900ms * var(--motion-scale, 1)) @con-ease-standard ~"calc((320ms + var(--con-prompt-beat-at, 0ms)) * var(--motion-scale, 1))" both;
     }
     /* An ABSORBED press (inside the settle) — the tag rings once: «read this first». */
     &--nudge-a &__tag::after { animation: con-prompt-ring-a calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
@@ -531,4 +533,256 @@ html.con-profile-handheld {
             box-shadow: inset 0 0 0 .06rem fade(@prompt-loss, 75%);
         }
     }
+}
+
+/* ── THE ACTION CONFIRM (`ConsoleActionConfirm.vue` — PL-385 / PL-394) ─────────────────────────────────────────────
+   The quick wheel's second press — «Пас», the heat conversion the table answers — on the family's plate. Three
+   blocks under the head, one reading order: THE OPERATION (the wheel slot's own symbol on a medallion beside the
+   server's formula — the subject, one step LOUDER than any row's reading), WHAT THE TABLE ANSWERS (the «Сработает»
+   row at the plate's chip scale, the door of the R3 «Эффекты» layer) and, for a pass, WHAT IT LEAVES UNUSED. The
+   STAGE is the room the layer unfolds into — it paints nothing; the plate stands centred in it as on any band. */
+html.console-native {
+    --con-confirm-stage-w: 60rem;
+    --con-confirm-stage-h: 32rem;
+    --con-confirm-hero: 3.3rem;
+}
+html.con-profile-tv {
+    --con-confirm-stage-w: 70rem;
+    --con-confirm-stage-h: 34rem;
+    --con-confirm-hero: 3.9rem;
+}
+html.con-profile-handheld {
+    --con-confirm-stage-w: 100%;
+    --con-confirm-stage-h: 100%;
+    --con-confirm-hero: 2.6rem;
+}
+
+.con-confirm {
+    /* THE MODAL BAND — the box between the bars, right of the player rail; this surface centres its own stage. */
+    .con-ws-band();
+    z-index: 11520;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* The band's whole box: the plate centres in it at its own height (a pass's list may be tall), and the layer's
+       ROOM is a box of its own centred in the same place. */
+    &__stage {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+    }
+    .con-fxlayer {
+        inset: 0;
+        margin: auto;
+        width: min(var(--con-confirm-stage-w), 100%);
+        height: min(var(--con-confirm-stage-h), 100%);
+    }
+    /* The layer's panel is the family's own plate here — it stands over the shaded board, not over a parked column
+       of a larger surface, so its glass is opaque (PL-137: depth is the gradient's, never the alpha's). */
+    .con-fxpanel {
+        padding: var(--con-prompt-pad-t) var(--con-prompt-pad-x) var(--con-prompt-pad-b);
+        border-radius: var(--con-prompt-radius);
+        background: @con-prompt-plate;
+        box-shadow: inset 0 0 0 .05rem @con-prompt-rim, 0 1.2rem 3.4rem rgba(0, 0, 0, 0.62);
+    }
+
+    /* ── THE OPERATION — one object: the symbol and what it does. ── */
+    &__op {
+        .con-prompt-row();
+        display: flex;
+        align-items: center;
+        gap: 1.05rem;
+        min-width: 0;
+        padding: .8rem 1.05rem .8rem .85rem;
+    }
+    &__hero {
+        position: relative;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--con-confirm-hero);
+        height: var(--con-confirm-hero);
+        border-radius: 50%;
+        background: radial-gradient(circle at 50% 30%, rgba(48, 58, 72, 0.98) 0%, rgba(12, 18, 27, 0.99) 100%);
+        box-shadow:
+            inset 0 0 0 .08rem rgba(170, 195, 222, 0.32),
+            0 0 0 .14rem rgba(6, 10, 14, 0.92),
+            0 .25rem .75rem rgba(0, 0, 0, 0.5);
+        /* The slot's own ink: the heat's warmth, the pass's amber — the wheel's tile, carried in. */
+        &--convertHeat {
+            box-shadow:
+                inset 0 0 0 .08rem fade(@con-heat-warm, 62%),
+                0 0 0 .14rem rgba(6, 10, 14, 0.92),
+                0 0 1.2rem fade(@con-heat-warm, 22%),
+                0 .25rem .75rem rgba(0, 0, 0, 0.5);
+        }
+        &--pass {
+            color: fade(@con-amber, 95%);
+            box-shadow:
+                inset 0 0 0 .08rem fade(@con-amber, 48%),
+                0 0 0 .14rem rgba(6, 10, 14, 0.92),
+                0 .25rem .75rem rgba(0, 0, 0, 0.5);
+        }
+    }
+    /* The wheel flight's landing anchor (`data-wheel-anchor="confirm"`) — the symbol inside the medallion. */
+    &__emblem {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 58%;
+        height: 58%;
+
+        .bar-btn-icon { width: 100%; height: 100%; }
+        .resource_icon {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+    }
+    &__formula {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .5rem .55rem;
+    }
+    /* The operation is the plate's SUBJECT: its chips one step louder than a row's reading (token-derived — the
+       chip-system rule; doubled classes beat the chip's scoped styles whatever the injection order). */
+    &__formula .action-effect-chip.action-effect-chip {
+        font-size: ~"calc(var(--con-chip-fs, .85rem) + .12rem)";
+        padding: .38rem .8rem .38rem .5rem;
+    }
+    &__formula .action-effect-chip__icon.action-effect-chip__icon {
+        width: ~"calc(var(--con-chip-icon, 1.3rem) + .25rem)";
+        height: ~"calc(var(--con-chip-icon, 1.3rem) + .25rem)";
+    }
+    &__consequence {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        .con-read-text(520);
+        font-size: ~"calc(var(--con-prompt-trigger-fs) * 1.08 * var(--con-read-scale, 1))";
+        line-height: 1.4;
+        color: @con-text;
+    }
+
+    /* ── WHAT THE TABLE ANSWERS — the «Сработает» row at the plate's chip scale (never the compact family's: on a
+       plate of its own it is a statement, not a footnote), the bolt's amber as its lead, the R3 key at full size at
+       the row's end: the door is visible as a door. ── */
+    &__answer {
+        margin-top: var(--con-prompt-gap);
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        padding: .55rem .85rem .55rem .9rem;
+        border-radius: .55rem;
+        background: linear-gradient(90deg, fade(@con-amber, 8%) 0%, rgba(10, 17, 26, 0.72) 55%);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 140, 110, 0.24), inset .2rem 0 0 0 fade(@con-amber, 72%);
+        --con-chip-c-fs: var(--con-chip-fs, .85rem);
+        --con-chip-c-icon: var(--con-chip-icon, 1.3rem);
+        --con-chip-c-pad: .3rem .65rem .3rem .4rem;
+        --con-chip-c-gap: .3rem;
+    }
+    &__forecast.con-forecast {
+        flex: 1 1 auto;
+        gap: .55rem;
+        .con-forecast__glyph { width: 1.2rem; font-size: 1.05rem; }
+        .con-forecast__label {
+            font-size: var(--con-prompt-kicker-fs);
+            font-weight: 600;
+            letter-spacing: .12rem;
+            text-transform: uppercase;
+            color: fade(#ffe3b0, 92%);
+        }
+        .con-forecast__chips { gap: .45rem; }
+        .con-forecast__key {
+            margin-left: auto;
+            .gp-glyph { transform: none; opacity: 1; }
+        }
+    }
+
+    /* The conversion's one WARNING sentence (the temperature's maximum — the step is empty). */
+    &__body {
+        display: flex;
+        align-items: baseline;
+        gap: .55rem;
+        margin: var(--con-prompt-gap) 0 0;
+        padding: .5rem .8rem;
+        border-radius: .5rem;
+        background: fade(@con-amber, 9%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
+        .con-read-text(500);
+        font-size: ~"calc(var(--con-prompt-trigger-fs) * var(--con-read-scale, 1))";
+        line-height: 1.4;
+        color: #ffe3b0;
+    }
+    &__body-mark { flex: 0 0 auto; font-weight: 800; color: @con-amber; }
+
+    /* ── WHAT THE PASS LEAVES UNUSED — one row per opportunity, the family's row plate with an amber lead and a
+       round «!» (a mark of its own shape, not a red alarm: the pass stays a legitimate move). ── */
+    &__warns {
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+        margin-top: var(--con-prompt-gap);
+    }
+    &__warns-title {
+        margin: 0 0 .1rem;
+        font-size: var(--con-prompt-kicker-fs);
+        font-weight: 600;
+        letter-spacing: .12rem;
+        line-height: 1.25;
+        text-transform: uppercase;
+        color: fade(#ffe3b0, 90%);
+    }
+    &__warn {
+        .con-prompt-row();
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        padding: .5rem .8rem .5rem .65rem;
+        box-shadow: inset 0 0 0 .05rem @con-prompt-row-rim, inset .2rem 0 0 0 fade(@con-amber, 75%);
+    }
+    &__warn-mark {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.3rem;
+        height: 1.3rem;
+        border-radius: 50%;
+        font-size: .78rem;
+        font-weight: 900;
+        line-height: 1;
+        color: #1a1408;
+        background: @con-amber;
+    }
+    &__warn-text {
+        min-width: 0;
+        .con-read-text(500);
+        font-size: ~"calc(var(--con-prompt-trigger-fs) * var(--con-read-scale, 1))";
+        line-height: 1.35;
+        color: @con-text;
+    }
+}
+html.con-profile-tv .con-confirm {
+    &__op { gap: 1.25rem; padding: .95rem 1.25rem .95rem 1rem; }
+    &__warn-mark { width: 1.5rem; height: 1.5rem; font-size: .85rem; }
+}
+html.con-profile-handheld .con-confirm {
+    &__op { gap: .75rem; padding: .6rem .75rem .6rem .6rem; }
+    &__answer { padding: .4rem .6rem .4rem .7rem; }
+    &__warns { gap: .3rem; }
+    &__warn { padding: .38rem .6rem .38rem .5rem; }
 }

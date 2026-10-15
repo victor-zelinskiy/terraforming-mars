@@ -173,113 +173,61 @@
     min-width: 0;
 }
 
-/* ── an action CARD ──────────────────────────────────────────────────── */
-.con-decision__action {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: .4rem;
-    padding: .7rem .85rem;
-    border-radius: .55rem;
-    background: linear-gradient(180deg, rgba(22, 36, 52, 0.9), rgba(14, 23, 34, 0.92));
-    box-shadow: inset 0 0 0 .05rem rgba(120, 160, 200, 0.2);
-    transition:
-        transform calc(140ms * var(--motion-scale, 1)) @con-ease-standard,
-        box-shadow calc(140ms * var(--motion-scale, 1)) ease-out;
-
-    /* The state rail — the same grammar the task host uses. */
-    &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: .5rem;
-        bottom: .5rem;
-        width: .12rem;
-        border-radius: 49.95rem;
-        background: fade(@con-cyan, 30%);
-    }
-}
-/* The cursor is the console's ONE ring (`.con-focus()` — its couch weight rides the ring tokens on the TV). */
-.con-decision__action--focused {
-    transform: translateX(.18rem);
-    .con-focus();
-
-    &::before { background: @con-cyan; }
-}
-.con-decision__action--armed {
-    box-shadow:
-        inset 0 0 0 .075rem fade(@con-mint, 88%),
-        0 0 1.1rem fade(@con-mint, 20%);
-
-    &::before { background: @con-mint; }
-}
-
-/* THE DECLINE — graphite, calm, fully readable. Quieter than the offer, and
-   deliberately NOT dimmed: refusing is a decision, not an unavailable one. */
-.con-decision__action--decline {
-    background: linear-gradient(180deg, rgba(28, 33, 40, 0.9), rgba(18, 22, 28, 0.92));
-    box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.24);
-
-    &::before { background: rgba(160, 172, 188, 0.42); }
-
-    .con-decision__action-title { color: fade(@con-text, 92%); }
-}
-.con-decision__action--decline.con-decision__action--focused {
-    box-shadow:
-        inset 0 0 0 .075rem fade(@con-cyan, 82%),
-        0 0 1rem fade(@con-cyan, 15%);
-
-    &::before { background: @con-cyan; }
-}
-
-.con-decision__action-head {
-    display: flex;
-    align-items: center;
-    gap: .45rem;
+/* ── THE ANSWERS — the variant grammar (`ConsoleVariantChoice`, `console_variant_choice.less`; PL-383) ──────────
+   The tiles, the cursor, the seal, «ИЛИ» and the refused rows are the grammar's — this file dresses only what the
+   decision puts INSIDE a tile (the body slot: where the press leads, the server's sub-line, the price and the result,
+   a downside) and the one role the grammar has no word for: the DECLINE of a YES / NO, a calm graphite answer that is
+   a legitimate play, never a disabled one. */
+.con-decision__choices {
     min-width: 0;
 }
-.con-decision__action-seat { display: inline-flex; }
-.con-decision__action-title {
-    font-size: .98rem;
-    font-weight: 700;
-    color: @con-text;
-    /* TV rule: never truncate a decision — wrap instead. */
+/* Where the press LEADS — a door's second line («Откроется: карты в руке»). */
+.con-decision__opt-lead {
+    width: 100%;
     min-width: 0;
-    overflow-wrap: anywhere;
-}
-/* "this opens another screen" */
-.con-decision__action-go {
-    color: fade(@con-mint, 90%);
-    font-size: 1rem;
-    line-height: 1;
-}
-.con-decision__action-a { margin-left: auto; }
-
-.con-decision__action-lead {
-    font-size: .74rem;
+    font-size: .78rem;
     letter-spacing: .04rem;
     color: fade(@con-mint, 86%);
 }
-.con-decision__action-desc {
-    font-size: .78rem;
-    line-height: 1.3;
-    color: fade(@con-text-dim, 92%);
+/* A on the cursor's tile, in the SEAL's reserved lane at the row's end (the grammar's `padding-right` — zero layout). */
+.con-decision__opt-a {
+    position: absolute;
+    top: 50%;
+    right: .55rem;
+    translate: 0 -50%;
+    z-index: 2;
 }
-.con-decision__action-chips {
+.con-decision__opt-desc {
+    width: 100%;
+    .con-read-text(450);
+    font-size: ~"calc(.84rem * var(--con-read-scale, 1))";
+    line-height: 1.35;
+    color: fade(@con-text-dim, 94%);
+}
+/* The price and the result — the chip-system tokens (`.con-decision` is a token root): no zoom here, ever. */
+.con-decision__opt-chips {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: .35rem;
-    /* ActionEffectChip is px-authored — integrate through zoom, per the
-       console scale model. */
-    zoom: calc(1.1 * var(--con-ui-scale, 1));
+    gap: .4rem;
 }
-.con-decision__action-tradeoff {
-    font-size: .74rem;
-    color: fade(@con-amber, 92%);
+.con-decision__opt-tradeoff {
+    width: 100%;
+    .con-read-text(500);
+    font-size: ~"calc(.8rem * var(--con-read-scale, 1))";
+    line-height: 1.3;
+    color: fade(@con-amber, 94%);
+}
+/* THE DECLINE of a YES / NO — graphite, fully readable, its own calm rim (the cursor and the seal still paint over it). */
+.con-decision .con-vchoice__opt[data-decision-role="decline"]:not(.con-vchoice__opt--focused):not(.con-vchoice__opt--selected) {
+    background: linear-gradient(168deg, rgba(30, 35, 43, 0.96) 0%, rgba(18, 22, 28, 0.97) 100%);
+    box-shadow: inset 0 0 0 .05rem rgba(160, 172, 188, 0.26), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
+}
+.con-decision .con-vchoice__opt[data-decision-role="decline"] .con-vchoice__title {
+    color: fade(@con-text, 90%);
 }
 
-/* ── unavailable targets (informational, never focusable) ────────────── */
+/* ── unavailable targets (informational, never focusable) — the grammar's refused rows under a quiet heading ── */
 .con-decision__unavailable {
     margin-top: .25rem;
     display: flex;
@@ -287,23 +235,15 @@
     gap: .3rem;
 }
 .con-decision__unavailable-title {
-    font-size: .58rem;
-    letter-spacing: .09rem;
+    font-size: .62rem;
+    letter-spacing: .1rem;
     text-transform: uppercase;
-    color: fade(@con-text-dim, 72%);
+    color: fade(@con-text-dim, 76%);
 }
-.con-decision__unavailable-row {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    padding: .35rem .6rem;
-    border-radius: .4rem;
-    background: rgba(14, 18, 24, 0.7);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 140, 165, 0.16);
-    font-size: .76rem;
-    color: fade(@con-text-dim, 82%);
-}
-.con-decision__unavailable-reason {
-    margin-left: auto;
-    color: fade(@con-amber, 82%);
+
+html.con-profile-tv {
+    .con-decision__opt-lead { font-size: var(--con-t-caption); }
+    .con-decision__opt-desc { font-size: ~"calc(var(--con-t-read-sm) * var(--con-read-scale, 1))"; }
+    .con-decision__opt-tradeoff { font-size: ~"calc(var(--con-t-read-sm) * var(--con-read-scale, 1))"; }
+    .con-decision__unavailable-title { font-size: var(--con-t-floor); }
 }

@@ -51,6 +51,9 @@ export type SurfaceMotionId =
   | 'bot-attack'
   | 'gov-support'
   | 'production-loss'
+  | 'spend-heat'
+  | 'venus-bonus'
+  | 'ares-globals'
   | 'info-mode'
   | 'section';
 

@@ -28,7 +28,9 @@
        :class="{'con-ws': !embedded, 'con-decision--embedded': embedded}"
        :role="embedded ? 'group' : 'dialog'" :aria-label="$t(vm.headlineKey)"
        :data-motion-surface="embedded ? undefined : 'effect-decision'">
-    <transition name="con-task-swap" mode="out-in">
+    <transition :css="false" mode="out-in"
+                @enter="promptSwapEnterHook" @leave="promptSwapLeaveHook"
+                @enter-cancelled="promptSwapEnterCancelledHook" @leave-cancelled="promptSwapLeaveCancelledHook">
       <!-- STANDALONE, the panel is a plate of the PROMPT-MODAL FAMILY (`console_prompt.less`) — its tone read off the
            prompt's structural markers, its size off the content (a FULL source card beside the actions is `l`). -->
       <div class="con-decision__panel" :key="panelKey" data-motion-panel
@@ -69,40 +71,33 @@
                                :view="sourceView" ref="sourceCard" />
 
           <div class="con-decision__actions">
-            <div v-for="(action, i) in vm.actions" :key="action.key"
-                 class="con-decision__action"
-                 :class="{
-                   'con-decision__action--focused': focusIdx === i,
-                   'con-decision__action--decline': action.role === 'decline',
-                   'con-decision__action--armed': focusIdx === i && armed,
-                 }">
-              <div class="con-decision__action-head">
-                <span v-if="action.playerColor !== undefined" class="con-decision__action-seat">
-                  <span :class="'con-status__dot player_bg_color_' + action.playerColor"></span>
-                </span>
-                <span class="con-decision__action-title">{{ labelOf(action) }}</span>
-                <!-- Does this press RESOLVE, or open another screen? The old
-                     list never said; a decision screen must. -->
-                <span v-if="action.leadKey !== undefined" class="con-decision__action-go" aria-hidden="true">›</span>
-                <GamepadGlyph v-if="focusIdx === i" control="confirm" class="con-decision__action-a" />
-              </div>
-              <div v-if="action.leadKey !== undefined" class="con-decision__action-lead">{{ $t(action.leadKey) }}</div>
-              <div v-if="descriptionOf(action) !== ''" class="con-decision__action-desc">{{ descriptionOf(action) }}</div>
-              <div v-if="action.chips.length > 0" class="con-decision__action-chips">
-                <ActionEffectChip v-for="(chip, k) in action.chips" :key="k" :effect="chip" />
-              </div>
-              <div v-if="tradeoffOf(action) !== ''" class="con-decision__action-tradeoff">⚠ {{ tradeoffOf(action) }}</div>
-            </div>
+            <!-- THE ANSWERS — the console's ONE grammar of «choose one of these» (`ConsoleVariantChoice`, TR51; PL-383):
+                 the cursor a cold lift, the answer given the ONE seal (A resolves on the spot — the seal stands on the
+                 answered tile until the server moves on), «ИЛИ» between a few exclusive results, a player target a
+                 row with its seat dot. A press that OPENS another screen says so (the door ›, the lead line); what a
+                 choice costs and gives is read on the tile, before the press. -->
+            <ConsoleVariantChoice class="con-decision__choices" :layout="choiceLayout" :exclusive="choiceExclusive"
+                                  :options="choiceOptions" :label="$t(vm.headlineKey)">
+              <template #body="{index}">
+                <template v-for="action in [vm.actions[index]]" :key="action.key">
+                  <div v-if="action.leadKey !== undefined" class="con-decision__opt-lead">{{ $t(action.leadKey) }}</div>
+                  <!-- A on the cursor's tile — in the seal's own lane (absolute, zero layout: the cursor moving re-flows
+                       nothing); the press's seal takes the lane once A is given. -->
+                  <GamepadGlyph v-if="focusIdx === index && !armed" control="confirm" class="con-decision__opt-a" />
+                  <div v-if="descriptionOf(action) !== ''" class="con-decision__opt-desc">{{ descriptionOf(action) }}</div>
+                  <div v-if="action.chips.length > 0" class="con-decision__opt-chips">
+                    <ActionEffectChip v-for="(chip, k) in action.chips" :key="k" :effect="chip" />
+                  </div>
+                  <div v-if="tradeoffOf(action) !== ''" class="con-decision__opt-tradeoff">⚠ {{ tradeoffOf(action) }}</div>
+                </template>
+              </template>
+            </ConsoleVariantChoice>
 
-            <!-- Relevant targets the rules exclude: shown, with the reason,
-                 never silently dropped — and never pressable. -->
+            <!-- Relevant targets the rules exclude: shown, with the reason, never silently dropped and never pressable —
+                 the same grammar, refused (the task host's own block). -->
             <div v-if="vm.unavailable.length > 0" class="con-decision__unavailable">
               <div class="con-decision__unavailable-title">{{ $t('Unavailable targets') }}</div>
-              <div v-for="(u, i) in vm.unavailable" :key="'u' + i" class="con-decision__unavailable-row">
-                <span v-if="u.playerColor !== undefined" :class="'con-status__dot player_bg_color_' + u.playerColor"></span>
-                <span class="con-decision__unavailable-name">{{ textOf(u.title) }}</span>
-                <span class="con-decision__unavailable-reason">{{ textOf(u.reason) }}</span>
-              </div>
+              <ConsoleVariantChoice layout="list" :exclusive="false" :options="unavailableOptions" :label="$t('Unavailable targets')" />
             </div>
           </div>
         </div>
@@ -122,6 +117,11 @@ import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
+import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import {
+  promptSwapEnterCancelledHook, promptSwapEnterHook, promptSwapLeaveCancelledHook, promptSwapLeaveHook,
+} from '@/client/console/surfaceMotion/promptHandoffMotion';
+import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -155,7 +155,7 @@ function textOf(value: string | Message | undefined): string {
 export default defineComponent({
   name: 'ConsoleEffectDecision',
   // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {GamepadGlyph, ActionEffectChip, ConsoleDeclinePlate, ConsolePromptHead},
+  components: {GamepadGlyph, ActionEffectChip, ConsoleDeclinePlate, ConsolePromptHead, ConsoleVariantChoice},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
@@ -202,6 +202,38 @@ export default defineComponent({
     sequenceKey(): string {
       const wf = this.playerView.waitingFor;
       return this.embedded || wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+    },
+    /** A seat is the subject of the answers (an attack's targets) → a pick LIST, one row per seat, no «ИЛИ»; otherwise
+     *  the answers are RESULTS, stacked tiles a cursor walks with the d-pad. */
+    choiceLayout(): 'column' | 'list' {
+      return this.vm.actions.some((a) => a.playerColor !== undefined) ? 'list' : 'column';
+    },
+    /** «ИЛИ» stands between a FEW mutually exclusive results — never down a list of targets. */
+    choiceExclusive(): boolean {
+      return this.choiceLayout === 'column' && this.vm.actions.length <= 3;
+    },
+    /** The three facts of the grammar: the cursor, the answer given (A pressed — it resolves on the spot, so the seal
+     *  is the press's own acknowledgement until the server moves on) and the refusal (none here: every action is a
+     *  legal answer — a refused target lives in `unavailableOptions`). The role rides as a data hook (the decline of a
+     *  YES / NO keeps its own calm paint). */
+    choiceOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.vm.actions.map((action, i): VariantChoiceOption => ({
+        key: action.key,
+        state: {focused: this.focusIdx === i, selected: this.focusIdx === i && this.armed, off: false},
+        title: this.labelOf(action),
+        door: action.leadKey !== undefined,
+        color: action.playerColor,
+        attrs: {'data-decision-action': action.key, 'data-decision-role': action.role},
+      }));
+    },
+    unavailableOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.vm.unavailable.map((u, i): VariantChoiceOption => ({
+        key: 'u' + i,
+        state: {focused: false, selected: false, off: true},
+        title: textOf(u.title),
+        reason: textOf(u.reason),
+        color: u.playerColor,
+      }));
     },
     /** The plate's SIZE tier: a FULL source card beside the actions is `l`; actions alone are `m`. */
     promptSize(): 'm' | 'l' {
@@ -298,6 +330,12 @@ export default defineComponent({
     }
   },
   methods: {
+    // The keyed panel's prompt → prompt swap: the PROMPT HANDOFF phrase (release → arrive → compose, PL-384) on a
+    // family plate; an embedded stage keeps its quiet swap.
+    promptSwapEnterHook,
+    promptSwapLeaveHook,
+    promptSwapEnterCancelledHook,
+    promptSwapLeaveCancelledHook,
     textOf,
     labelOf(action: EffectDecisionAction): string {
       return textOf(action.title);

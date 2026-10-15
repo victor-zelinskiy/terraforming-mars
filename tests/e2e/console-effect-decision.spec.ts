@@ -244,9 +244,9 @@ test('an attack: the targets stay cards, the decline is the button in the questi
   await shoot(page, '3-attack');
 
   await expect(page.locator('.con-decision .con-prompt-head__title')).toHaveText(/Атаковать соперника\?/i);
-  const actions = page.locator('.con-decision__action');
+  const actions = page.locator('.con-decision [data-decision-action]');
   await expect(actions, 'the target is a card — the refusal is not').toHaveCount(1);
-  await expect(page.locator('.con-decision__action--decline')).toHaveCount(0);
+  await expect(page.locator('.con-decision [data-decision-action][data-decision-role="decline"]')).toHaveCount(0);
   const plate = page.locator('.con-decision .con-prompt-head__ask [data-decline-plate]');
   await expect(plate).toBeVisible();
   await expect(plate).toContainText(/Не атаковать/i);
@@ -293,12 +293,12 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   await expect(page.locator('.con-decision .con-prompt-head__title')).toHaveText(/Купить карту\?/i);
   await expect(page.locator('.con-decision .con-prompt-head__trigger')).toContainText(/собор/i);
   // The price is a preview, not a surprise.
-  await expect(page.locator('.con-decision__action').nth(0)).toContainText('144');
-  await expect(page.locator('.con-decision__action').nth(0)).toContainText('142');
+  await expect(page.locator('.con-decision [data-decision-action]').nth(0)).toContainText('144');
+  await expect(page.locator('.con-decision [data-decision-action]').nth(0)).toContainText('142');
   // An immediate action promises no second screen.
-  expect(await page.locator('.con-decision__action').nth(0).locator('.con-decision__action-go').count()).toBe(0);
+  expect(await page.locator('.con-decision [data-decision-action]').nth(0).locator('.con-vchoice__door').count()).toBe(0);
   // The decline speaks this decision's language.
-  await expect(page.locator('.con-decision__action').nth(1).locator('.con-decision__action-title'))
+  await expect(page.locator('.con-decision [data-decision-action]').nth(1).locator('.con-vchoice__title'))
     .toHaveText(/Не покупать карту/i);
 
   // The panel sizes to its content — no half-empty screen under two choices.

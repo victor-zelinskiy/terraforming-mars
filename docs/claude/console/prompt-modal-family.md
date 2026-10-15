@@ -2,9 +2,11 @@
 
 > `src/client/console/promptTone.ts` · `src/client/console/promptSequence.ts` ·
 > `src/client/components/console/foundation/ConsolePromptHead.vue` · `ConsolePromptOutcome.vue` · `ConsolePromptEmblem.vue` ·
-> `src/styles/console_prompt.less`
-> Guards: `tests/console/promptTone.spec.ts` · `tests/console/promptSequence.spec.ts` ·
-> `tests/e2e/console-prompt-family.spec.ts` (fhd + tv4k)
+> `src/client/console/surfaceMotion/promptHandoffModel.ts` + `promptHandoffMotion.ts` (the handoff) ·
+> `src/client/components/console/ConsoleActionConfirm.vue` (the wheel's confirm) · `src/styles/console_prompt.less`
+> Guards: `tests/console/promptTone.spec.ts` · `tests/console/promptSequence.spec.ts` · `tests/console/promptHandoffModel.spec.ts` ·
+> `tests/e2e/console-prompt-family.spec.ts` (fhd + tv4k — the chain with the HANDOFF WITNESS, the gallery) ·
+> `tests/e2e/console-action-confirm.spec.ts` (fhd + tv4k — the confirm, its R3 layer)
 
 ## The defect (the owner's case)
 
@@ -35,11 +37,11 @@ glyph by list index).
 | `ConsoleAresGlobals` | neutral | m | — (each row states its consequence) |
 | `ConsoleGovernmentSupport` | neutral | l (a 2×2 briefing) | — (each tile states `current → resulting`) |
 | `ConsoleMandatoryAnnounce` | the announced prompt's | — | — (emblem + tag only) |
+| `ConsoleActionConfirm` (the quick wheel's «Пас» / heat conversion) | neutral | s, m with the pass's list | — (the operation block + «Сработает») |
 
 **Outside the family, on purpose:** the composers (play / action / corp-first — the workspace grammar), every EMBEDDED stage
-(it hands its stage name up, it never titles itself — `ConsoleWsStageHead`), `ConsoleDeckPick` (a workspace stage),
-the quick-wheel action confirm `.con-confirm` (the player's own action, with its wheel-handoff anchor), and the system
-surfaces (`.con-stranded`, `.con-alert`, `.con-quit`). `ConsoleConfirmDialog.vue` is imported by nothing.
+(it hands its stage name up, it never titles itself — `ConsoleWsStageHead`), `ConsoleDeckPick` (a workspace stage), and
+the system surfaces (`.con-stranded`, `.con-alert`, `.con-quit`). `ConsoleConfirmDialog.vue` is imported by nothing.
 
 ## The anatomy (top → bottom)
 
@@ -116,6 +118,57 @@ loss rows, the task host's distribution lanes, the spend-heat / Venus lanes and 
 Support tiles take the same cursor (their accent stays their identity: the wash and the preview ink). One resource
 vocabulary: `compositePrompts.LANE_LABELS` names a pool on every row (the loss rows printed «сталь», the lanes «Сталь»).
 
+## The answers are the VARIANT GRAMMAR (PL-383)
+
+A decision between OPTIONS on a family plate renders `ConsoleVariantChoice` — the task host's choice and targets (TR51) and,
+since PL-383, the effect decision's answers too: `layout="column"` for results (with «ИЛИ» between ≤ 3 exclusive ones),
+`list` when a seat is the subject (an attack's targets — the seat dot, no «ИЛИ»), the refused targets as the grammar's own
+`off` rows under «НЕДОСТУПНЫЕ ЦЕЛИ». The cursor is the cold lift, the press is the SEAL (A resolves on the spot, so the seal
+is the press's acknowledgement until the server moves on), a door says so (`›` + the lead line). The body slot carries the
+decision's own reading (lead · the server's sub-line · the price → result chips · a downside); a YES / NO's decline keeps
+a calm graphite tile (`[data-decision-role="decline"]`). E2E hooks: `[data-decision-action]` / `[data-decision-role]` on
+the tile, `.con-vchoice__opt--focused`, `.con-vchoice__door`, `.con-vchoice__title`. Chips: `.con-decision` is a
+chip-token root — never a `zoom` × `--con-ui-scale` around a chip inside one (that DOUBLES it on the couch: the task host's
+`.con-task__opt-effects` printed 97 px type at 4K until PL-396). A stacked group's «ИЛИ» stands on its seam's centre —
+the seam's width is the token `--vchoice-or-w`, never a profile `width` rule (PL-399: one pinned it to the column's left
+edge on the TV and the Deck).
+
+## One decision gives way to the next — THE HANDOFF (PL-384)
+
+One press routinely answers a decision AND raises the next. The two plates used to swap as a ~110 ms cross-fade (two band
+surfaces: the task host's reward → the production loss) or a plain out-in fade (a keyed panel inside one surface): the
+answered plate and the new one were briefly the same blur, and the new question arrived the way a re-render does. Now ONE
+phrase in both hosts (`promptHandoffModel.ts` — the pure timings, `promptHandoffMotion.ts` — the GSAP half):
+
+1. **RELEASE** (130 ms) — the answered plate lets go ON THE SPOT: a hair of scale back (.975), opacity out, no travel.
+2. **ARRIVE** (300 ms, from .965) — the next plate materializes where decisions stand, starting 40 ms BEFORE the release has
+   gone: the stage is never empty, and the two plates are never both legible (the release is at ~⅓ when the arrival starts).
+3. **COMPOSE** — its head lines (category · the ask · why) and then its blocks rise 6 px into place in reading order (70 ms
+   in, 45 ms apart, 240 ms each, at most six): the eye is led back to the top of a NEW question. A tone flip's beat
+   (crest · emblem · tag) starts once the plate has arrived (`--con-prompt-beat-at`, read by the head at render).
+
+Measured (e2e witness, the Philares → hazard chain): from the release to the next plate fully legible **234 ms (fhd) /
+283 ms (4K)**, an empty stage **0 ms**, two legible plates **never**. Where it runs: the director (`PROMPT_SURFACES` — a
+closed table: a family plate entering ≤ 450 ms after another let go waits out the release; an ordinary OPEN of a family
+plate keeps the workspace materialize and composes its blocks the same way), and the keyed `<transition mode="out-in">` of
+the task host and the effect decision (`promptSwap*Hook` — an EMBEDDED panel, which has no `.con-prompt`, keeps the
+stage's quiet swap). The plate's own CSS opacity transition (the task host's table-beat release) is off for the episode —
+it would trail every frame the tween writes. Reduced motion: a short opacity beat, no cascade.
+
+## The quick wheel's CONFIRM (PL-385, PL-394)
+
+`ConsoleActionConfirm` — «Пас» always, the heat conversion when the table answers it (PL-067) or its step is empty. The
+family's head («БАЗОВЫЕ ДЕЙСТВИЯ» · «Пас до следующего поколения» / «Повысить температуру за тепло»), then the OPERATION as
+one object (the wheel slot's symbol on a medallion — `data-wheel-anchor="confirm"`, the flight's landing anchor — beside
+the server's formula, one step louder than the chip token; a pass's consequence sentence in its place), then «Сработает» at
+the plate's chip scale (`--con-chip-c-*` rebound to the token) with its R3 key at full size, then the pass's unused
+opportunities as rows under «ЕЩЁ ДОСТУПНО В ЭТОМ ПОКОЛЕНИИ». No verb in the panel: A «Пас» (danger ink when something is
+left unused) / «Конвертировать», R3 «Эффекты» (only when `forecastLayerAvailable`), B «Отмена». **R3 opens the «Эффекты»
+layer** (the `'confirm'` forecast host): the plate parks in place, the explorer unfolds out of the row into a room centred
+in the band (`--con-confirm-stage-w/-h`), the bar's context reads «ПОДТВЕРЖДЕНИЕ · ЭФФЕКТЫ», B / R3 fold it back; the
+layer folds instantly with the surface. Before PL-394 the row drew the key and nothing answered it, and the formula chips
+were the 13 px desktop chips on a 4K TV (`.con-confirm` was no chip-token root).
+
 ## Adding the next prompt modal
 
 1. The plate: `class="… con-prompt con-prompt--<size> con-prompt--<tone>"` + `data-prompt-panel` on the panel; no own
@@ -129,3 +182,7 @@ vocabulary: `compositePrompts.LANE_LABELS` names a pool on every row (the loss r
 6. A row → the `.con-prompt-row*` mixins.
 7. Route its intents through the shell AFTER the settle gate (the branch order in `handleIntent`).
 8. A row in this file's table, and the surface in `console-prompt-family.spec.ts`'s gallery.
+9. Its `data-motion-surface` id in `PROMPT_SURFACES` (`promptHandoffModel.ts`) — or it cross-fades with its neighbours; a
+   keyed panel inside it rides `promptSwap*Hook`.
+10. Options → `ConsoleVariantChoice`; chips inside a chip-token root (add the root to the list in `console.less`), never
+    a `zoom` × `--con-ui-scale` around them.

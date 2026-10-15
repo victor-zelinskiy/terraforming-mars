@@ -189,7 +189,7 @@ async function expectFreePayment(page: Page, label: string): Promise<void> {
  *  with their FIRST option until the board home stands. */
 async function finishPlay(page: Page): Promise<void> {
   for (let i = 0; i < 12; i++) {
-    if (await page.locator('.con-decision__action--focused').count() > 0) {
+    if (await page.locator('.con-decision .con-vchoice__opt--focused').count() > 0) {
       await press(page, 'Enter', 900);
       continue;
     }

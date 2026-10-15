@@ -52,6 +52,11 @@ import {
   surfaceMotionState,
 } from '@/client/console/surfaceMotion/surfaceMotionState';
 import {colonyEntryCascade} from '@/client/console/consoleColonyFocusMotion';
+import {
+  PROMPT_COMPOSE_AT_MS, PROMPT_COMPOSE_MAX, PROMPT_COMPOSE_MS, PROMPT_COMPOSE_STEP_MS, PROMPT_RELEASE_MS,
+  isPromptSurface, notePromptRelease, promptArrivalSpanMs, promptHandoffDelayNow,
+} from '@/client/console/surfaceMotion/promptHandoffModel';
+import {playPromptArrive, playPromptRelease, promptComposeItems} from '@/client/console/surfaceMotion/promptHandoffMotion';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
@@ -363,6 +368,23 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     return;
   }
 
+  // ── ONE DECISION GIVES WAY TO THE NEXT (PL-384 — `promptHandoffModel.ts`) ─────────────────────────────────
+  // A prompt-family plate entering while another one has JUST let go is the next decision of the same moment
+  // (one response answers one prompt and raises the next): it waits out the release's last beat, materializes
+  // from a hair further back and composes its head and blocks in reading order — never the cross-fade of two
+  // look-alike plates. Still no travel: a workspace frame never moves.
+  if (isPromptSurface(id) && kind === 'open') {
+    const delay = promptHandoffDelayNow();
+    if (delay !== undefined) {
+      guarded(el, delay + promptArrivalSpanMs(PROMPT_COMPOSE_MAX) + 120, done, (finish) => {
+        const tl = gsap.timeline({onComplete: finish});
+        playPromptArrive(tl, panel, s(delay));
+        return tl;
+      });
+      return;
+    }
+  }
+
   // ── THE WORKSPACE FAMILY MATERIALIZES IN PLACE ───────────────────────────
   // A workspace surface (the `con-ws` marker: everything docked right of the
   // player rail between the two bars) is a FRAME the player learns the
@@ -556,6 +578,21 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
  */
 function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline, at: number): void {
   const u = conUiScale();
+  if (isPromptSurface(id)) {
+    // THE PROMPT FAMILY composes in reading order — category · the ask · why · the blocks — the same cascade a
+    // handoff plays (PL-384), so a decision always arrives as a question to read from the top, never as a block.
+    const panel = panelOf(el);
+    const items = panel === undefined ? [] : promptComposeItems(panel);
+    if (items.length > 0) {
+      tl.fromTo(items,
+        {y: 6 * u, opacity: 0},
+        {
+          y: 0, opacity: 1, duration: s(PROMPT_COMPOSE_MS), ease: 'power3.out',
+          stagger: s(PROMPT_COMPOSE_STEP_MS), clearProps: 'transform,opacity',
+        }, at + s(Math.max(0, PROMPT_COMPOSE_AT_MS - 40)));
+    }
+    return;
+  }
   if (id === 'info-mode') {
     // The dossier composes FROM the rail seam: the crumb header first, then
     // the summary columns spread left→right (ONE layout for every
@@ -1058,6 +1095,17 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
   }
   if (id === 'section' && compositorLeaveSupported(panels)) {
     guarded(el, SECTION_OUT_MS, done, (finish) => sectionLeaveEpisode(panels, finish));
+    return;
+  }
+  // A PROMPT plate lets go ON THE SPOT (PL-384) — and says so: a plate of the family entering in this beat is the
+  // next decision, and it waits out the release's last frames instead of cross-fading over it.
+  if (isPromptSurface(id)) {
+    notePromptRelease();
+    guarded(el, PROMPT_RELEASE_MS, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      playPromptRelease(tl, panels, 0);
+      return tl;
+    });
     return;
   }
   guarded(el, id === 'section' ? SECTION_OUT_MS : DISMISS_MS, done, (finish) => gsap.to(panels, {

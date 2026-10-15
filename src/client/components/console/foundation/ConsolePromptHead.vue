@@ -17,6 +17,7 @@
               'con-prompt-head--nudge-b': nudgePhase === 2,
             },
           ]"
+          :style="beatAt > 0 ? {'--con-prompt-beat-at': beatAt + 'ms'} : undefined"
           :data-prompt-tone="tone"
           :data-prompt-ordinal="presentation?.ordinal"
           :data-prompt-shift="shiftBeat ? '1' : undefined"
@@ -50,6 +51,7 @@ import ConsolePromptEmblem from '@/client/components/console/foundation/ConsoleP
 import {PromptTone, promptToneTagKey} from '@/client/console/promptTone';
 import {PromptPresentation, presentPrompt, promptSequenceState, SETTLE_FOLLOW_MS, withdrawPrompt} from '@/client/console/promptSequence';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {promptHandoffDelayNow} from '@/client/console/surfaceMotion/promptHandoffModel';
 
 /**
  * @console-shared LIVE — the ONE head of the prompt-modal family.
@@ -83,6 +85,10 @@ export default defineComponent({
       nudgePhase: 0,
       /** The nudge counter at presentation — only presses absorbed AFTER it pulse this head. */
       nudgeBase: 0,
+      /** How long this plate WAITS before it arrives (a handoff from the decision before it — PL-384): the tone
+       *  flip's beat starts once the plate is there, never under a plate still letting the last one go. Read at
+       *  render, so the CSS delay is in place before the first style pass. */
+      beatAt: promptHandoffDelayNow() ?? 0,
     };
   },
   computed: {
@@ -141,6 +147,7 @@ export default defineComponent({
         return;
       }
       this.presentation = presentPrompt(this.promptKey, this.tone);
+      this.beatAt = promptHandoffDelayNow() ?? 0;
       this.nudgeBase = promptSequenceState.nudge;
       this.nudgePhase = 0;
     },

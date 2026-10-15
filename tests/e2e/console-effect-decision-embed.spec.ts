@@ -188,7 +188,7 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
         // layer IS the picker («--stagepaused» → data-flow).
         // (…or an album that IS the question — its decline plate in the question line, with or without a descent.)
         picking: document.querySelector('.con-hand[data-flow="picking"], .con-hand__question [data-decline-plate]') !== null,
-        focusedDecisionRow: document.querySelector('.con-decision__action--focused') !== null,
+        focusedDecisionRow: document.querySelector('.con-decision .con-vchoice__opt--focused') !== null,
       };
     });
     const stage = await crumbTail(page);
@@ -272,7 +272,7 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
       await press(page, 'Period', 800);
     } else if (s.focusedDecisionRow && opts.decline === true) {
       const onDecline = await page.evaluate(() =>
-        document.querySelector('.con-decision__action--decline.con-decision__action--focused') !== null);
+        document.querySelector('.con-decision .con-vchoice__opt--focused[data-decision-role="decline"]') !== null);
       await press(page, onDecline ? 'Enter' : 'ArrowDown', onDecline ? 800 : 300);
     } else if (s.focusedDecisionRow || s.picking || s.revealEmbedded) {
       await press(page, 'Enter', 800);

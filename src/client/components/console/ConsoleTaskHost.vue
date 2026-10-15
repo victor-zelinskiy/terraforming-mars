@@ -13,8 +13,11 @@
        :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'task-host'">
 
-    <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
-    <transition name="con-task-swap" mode="out-in">
+    <!-- Keyed frame: a prompt → prompt switch is the PROMPT HANDOFF (PL-384 — the answered plate lets go, the next
+         one arrives and composes from the top; `promptHandoffMotion.ts`), never a plain cross-fade. -->
+    <transition :css="false" mode="out-in"
+                @enter="promptSwapEnterHook" @leave="promptSwapLeaveHook"
+                @enter-cancelled="promptSwapEnterCancelledHook" @leave-cancelled="promptSwapLeaveCancelledHook">
       <!-- `con-ws-stage-*` are the SHARED embedded-stage chassis classes (frame
            / card row / status line). The drawn reveal wears the same three, so
            both stages spend the SAME chrome and the shared fit returns the same
@@ -611,6 +614,9 @@ import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+import {
+  promptSwapEnterCancelledHook, promptSwapEnterHook, promptSwapLeaveCancelledHook, promptSwapLeaveHook,
+} from '@/client/console/surfaceMotion/promptHandoffMotion';
 import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, OrOptionsModel, AndOptionsModel, CardResourceDistributionMeta, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
@@ -904,8 +910,8 @@ export default defineComponent({
     /** The keyed FRAME's identity: the prompt PLUS the native projectCard
      *  stage — pick → pay is a stage swap of the same prompt, and unkeyed it
      *  re-dressed the standing plate in one frame (a card grid snapping into
-     *  the pay panel). Keying it rides the same `con-task-swap` crossfade
-     *  every prompt→prompt switch uses. `taskKey` itself stays prompt-only:
+     *  the pay panel). Keying it rides the same prompt handoff every
+     *  prompt→prompt switch plays. `taskKey` itself stays prompt-only:
      *  the reset epoch and the nested-step machinery must not see a stage
      *  flip as a new ask. */
     panelKey(): string {
@@ -2447,6 +2453,12 @@ export default defineComponent({
     }
   },
   methods: {
+    // The keyed panel's prompt → prompt swap: the PROMPT HANDOFF phrase (release → arrive → compose, PL-384) on a
+    // family plate; an embedded stage keeps its quiet swap.
+    promptSwapEnterHook,
+    promptSwapLeaveHook,
+    promptSwapEnterCancelledHook,
+    promptSwapLeaveCancelledHook,
     /** A target impact's label — the ONE renderer of a reading with params (PL-160). */
     impactText(imp: PlayedTargetImpact): string {
       return readingText(imp);

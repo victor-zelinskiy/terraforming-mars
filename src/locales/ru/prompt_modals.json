@@ -4,5 +4,8 @@
     "You will lose": "Вы потеряете",
     "Accept the loss": "Принять убыток",
     "Decision ${0}": "Решение ${0}",
-    "Take back": "Вернуть"
+    "Take back": "Вернуть",
+    "Pass until the next generation": "Пас до следующего поколения",
+    "Raise the temperature with heat": "Повысить температуру за тепло",
+    "Still available this generation": "Ещё доступно в этом поколении"
 }

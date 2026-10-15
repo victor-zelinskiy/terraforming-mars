@@ -627,45 +627,23 @@
       <ConsoleSheet v-else-if="consoleState.sheet !== undefined && consoleState.sheet !== 'cardActions'" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
     </transition>
 
-    <!-- Console confirm panel (pass / risky conversions). Surface-motion:
-         rides the shared shade + the director — a wheel's Пас slot hands
-         off INTO this card (directional entry from the chosen slot). -->
+    <!-- The quick wheel's CONFIRM (pass / the heat conversion the table answers) — a plate of the prompt-modal
+         family (`ConsoleActionConfirm`, PL-385) with the R3 «Эффекты» layer its «Сработает» row is the door of
+         (PL-394). Surface-motion: rides the shared shade + the director — a wheel's slot hands off INTO this card
+         (its medallion is the flight's landing anchor). -->
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-    <div v-if="consoleState.confirm !== undefined" class="con-confirm con-ws" role="dialog" data-motion-surface="confirm">
-      <div class="con-confirm__card" data-motion-panel>
-        <!-- The emblem doubles as the wheel flight's landing anchor: a pass /
-             max-temp heat commit carries its tile icon INTO this card. -->
-        <div class="con-confirm__title">
-          <span class="con-confirm__emblem" data-wheel-anchor="confirm" aria-hidden="true">
-            <BarButtonIcon v-if="consoleState.confirm === 'pass'" name="pass" />
-            <i v-else class="resource_icon resource_icon--heat"></i>
-          </span>
-          <span>{{ $t(confirmTitle) }}</span>
-        </div>
-        <!-- THE FORMULA (PL-067): the conversion's price, the step and its implied rating as the one chip row every
-             door prints, and under it the «Сработает» row — what the table answers (the server's forecast on the
-             option). The body sentence stays for the one case that is a warning (the temperature's maximum). -->
-        <div v-if="confirmEffects.length > 0" class="con-confirm__formula" data-confirm-formula>
-          <ActionEffectChip v-for="(eff, i) in confirmEffects" :key="i" :effect="eff" />
-        </div>
-        <ConsoleForecastRow v-if="confirmForecast !== undefined" class="con-confirm__forecast" :forecast="confirmForecast" />
-        <div v-if="confirmBody !== ''" class="con-confirm__body">{{ $t(confirmBody) }}</div>
-        <!-- T7 info parity: the desktop PassConfirmContent warnings (unused
-             actions / free trade fleet / conversions / hydro) carry over. -->
-        <div v-if="confirmWarnings.length > 0" class="con-confirm__warns">
-          <div v-for="(w, i) in confirmWarnings" :key="i" class="con-confirm__warn">
-            <span aria-hidden="true">!</span>
-            <span>{{ w }}</span>
-          </div>
-        </div>
-        <div class="con-confirm__actions">
-          <span class="con-confirm__action con-confirm__action--yes"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
-          <span class="con-confirm__action"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
-        </div>
-      </div>
-    </div>
+      <ConsoleActionConfirm v-if="consoleState.confirm !== undefined"
+                            ref="actionConfirm"
+                            :kind="consoleState.confirm"
+                            :effects="confirmEffects"
+                            :forecast="confirmForecast"
+                            :body="confirmBody"
+                            :warnings="confirmWarnings"
+                            :thisPlayer="thisPlayer"
+                            :players="playerView.players"
+                            :statsView="playerView" />
     </transition>
 
     <!-- Transient notice (unsupported verb, refusals). -->
@@ -2184,7 +2162,6 @@ import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
 import {actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, previewBranchByIndex, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {probeTick} from '@/client/console/probeTick';
-import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
@@ -2303,8 +2280,7 @@ import {
 import type {PlayComposerDraft, StagedPlayArm, StagedReceipt} from '@/client/console/stagedPlay';
 import type {ActionEffect, AgendaWalkModel, NeutralRallyModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {EffectForecast} from '@/common/models/EffectForecastModel';
-import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
-import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
+import ConsoleActionConfirm from '@/client/components/console/ConsoleActionConfirm.vue';
 import {
   clearColonyTrackMove, colonyTrackMoveAnswered, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove,
   registerColonyTrackMoveHost,
@@ -2435,8 +2411,7 @@ export default defineComponent({
   name: 'ConsoleShell',
   components: {
     ConsoleCountedWhy,
-    ActionEffectChip,
-    ConsoleForecastRow,
+    ConsoleActionConfirm,
     ConsoleDrawSearchRule,
     ConsoleStatusStrip,
     ConsoleMandatoryAnnounce,
@@ -2448,7 +2423,6 @@ export default defineComponent({
     ConsoleMaScreen,
     ConsoleMaCeremony,
     ConsoleQuickSelector,
-    BarButtonIcon,
     ConsoleStdProjectsScreen,
     ConsoleContextPanel,
     ConsoleStrategyRail,
@@ -7536,12 +7510,11 @@ export default defineComponent({
       }
       return '';
     },
-    confirmTitle(): string {
-      return this.consoleState.confirm === 'pass' ? 'Pass for this generation' : 'Convert heat';
-    },
     confirmBody(): string {
+      // The pass's consequence is the plate's own OPERATION line (`ConsoleActionConfirm`, PL-385) — the body is only a
+      // WARNING.
       if (this.consoleState.confirm === 'pass') {
-        return 'You will take no more actions this generation.';
+        return '';
       }
       // The sentence is a WARNING's — only when the step is empty (PL-067: the reacting-table stage has none).
       const found = findConvertHeatOption(this.playerView.waitingFor);
@@ -8963,7 +8936,9 @@ export default defineComponent({
         return this.maFocusItem.name.replace(/[0-9]+$/, '');
       }
       if (this.consoleState.confirm !== undefined) {
-        return 'Confirmation';
+        // The R3 «Эффекты» layer is a level INSIDE the confirm: the context gains «· ЭФФЕКТЫ» (+ the source card at
+        // its detail) — a composed, pre-translated string (PL-394).
+        return forecastStageText('confirm', 'Confirmation') ?? 'Confirmation';
       }
       if (this.journalPanelVisible) {
         return 'Journal';
@@ -9585,8 +9560,19 @@ export default defineComponent({
         return [{control: 'back', label: 'Close'}];
       }
       if (this.consoleState.confirm !== undefined) {
+        // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (PL-394).
+        if (effectForecastOpen('confirm')) {
+          return [...(forecastExplorerUi('confirm').barCommands ?? [])];
+        }
+        // THE VERB NAMES THE OPERATION (PL-385): «Пас» — in the danger ink when the pass leaves something unused —
+        // or «Конвертировать»; R3 only when the table's answer has something behind it.
+        const pass = this.consoleState.confirm === 'pass';
+        const risky = pass && this.confirmWarnings.length > 0;
         return [
-          {control: 'confirm', label: 'Confirm'},
+          pass ?
+            {control: 'confirm', label: 'Pass', ...(risky ? {tone: 'danger' as const} : {highlight: true})} :
+            {control: 'confirm', label: 'Convert', highlight: true},
+          ...(!pass && forecastLayerAvailable(this.confirmForecast) ? [{control: 'stickR' as GlyphControl, label: 'Effects'}] : []),
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -14373,6 +14359,17 @@ export default defineComponent({
          and B's verb comes from the frame's own phase. Forty lines of
          second-copy deleted, including the one that held the soft-lock.) */
       if (this.consoleState.confirm !== undefined) {
+        // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the plate opens it (PL-394) — both resolved BEFORE
+        // the semantic map, the stages' order (no default R3).
+        const confirm = this.$refs.actionConfirm as InstanceType<typeof ConsoleActionConfirm> | undefined;
+        if (effectForecastOpen('confirm')) {
+          confirm?.forecastIntent(intent);
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'stickR') {
+          confirm?.openForecastLayer();
+          return true;
+        }
         if (action === 'primary') {
           this.acceptConfirm();
         } else if (action === 'back') {

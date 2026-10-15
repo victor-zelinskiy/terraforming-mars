@@ -300,7 +300,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 2.2rem;
+        /* The seam's width is a TOKEN the profiles retune (`--vchoice-or-w`) — never a profile `width` rule: one of
+           those (0,2,1) out-specified the stacked seam's `width: auto` (0,2,0) and pinned «ИЛИ» to the left edge of
+           every column on the TV and the Deck (PL-399). */
+        width: var(--vchoice-or-w, 2.2rem);
         &::before {
             .con-vchoice-seam-line(180deg);
             top: 10%;
@@ -454,7 +457,7 @@ html.con-profile-tv .con-vchoice__opt--selected.con-vchoice__opt--focused {
 html.con-profile-tv .con-vchoice__opt--off.con-vchoice__opt--focused {
     box-shadow: inset 0 0 0 var(--con-focus-ring) rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
 }
-html.con-profile-tv .con-vchoice__or { width: 2.6rem; }
+html.con-profile-tv .con-vchoice { --vchoice-or-w: 2.6rem; }
 html.con-profile-tv .con-vchoice__or-medal { font-size: var(--con-t-floor); min-width: 2.4rem; height: 2.4rem; border-radius: 1.2rem; }
 html.con-profile-tv .con-vchoice--column .con-vchoice__or { height: 2rem; }
 html.con-profile-tv .con-vchoice { padding-block: .35rem; }
@@ -473,5 +476,5 @@ html.con-profile-handheld .con-vchoice {
 html.con-profile-handheld .con-vchoice--compare .con-vchoice__opt { padding: .45rem .6rem .45rem; gap: .3rem; }
 html.con-profile-handheld .con-vchoice__print { min-height: 1.9rem; }
 html.con-profile-handheld .con-vchoice--compare .con-vchoice__print + .con-vchoice__text .con-vchoice__head { display: none; }
-html.con-profile-handheld .con-vchoice__or { width: 1.8rem; }
+html.con-profile-handheld .con-vchoice { --vchoice-or-w: 1.8rem; }
 html.con-profile-handheld .con-vchoice__or-medal { min-width: 1.7rem; height: 1.7rem; border-radius: .85rem; font-size: .55rem; }

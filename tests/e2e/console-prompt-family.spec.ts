@@ -156,6 +156,58 @@ async function plateStands(page: Page): Promise<void> {
     {timeout: 10_000}).toBeGreaterThan(0.99);
 }
 
+type HandoffSample = {t: number, from: number, to: number, ask: number};
+
+/**
+ * THE HANDOFF WITNESS (PL-384): from the press on, every sample (a `setInterval` tick and every DOM mutation — never
+ * rAF, which stops on a quiet screen) reads the EFFECTIVE opacity (the ancestor chain, `visibility` included) of the
+ * answered plate, of the arriving one, and of the arriving one's ask line (the compose cascade).
+ */
+async function armHandoffWitness(page: Page, from: string, to: string): Promise<void> {
+  await page.evaluate(([fromSel, toSel]) => {
+    const seen = (el: Element | null): number => {
+      let o = 1;
+      for (let n = el as HTMLElement | null; n !== null; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.visibility === 'hidden' || cs.display === 'none') {
+          return 0;
+        }
+        o *= Number(cs.opacity);
+      }
+      return el === null ? -1 : o;
+    };
+    const samples: Array<{t: number, from: number, to: number, ask: number}> = [];
+    const t0 = performance.now();
+    const sample = () => {
+      const target = document.querySelector(toSel);
+      samples.push({
+        t: Math.round(performance.now() - t0),
+        from: seen(document.querySelector(fromSel)),
+        to: seen(target),
+        ask: seen(target === null ? null : target.querySelector('.con-prompt-head__ask')),
+      });
+    };
+    const timer = window.setInterval(sample, 12);
+    const observer = new MutationObserver(sample);
+    observer.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class']});
+    (window as unknown as {__handoff: {samples: typeof samples, stop: () => void}}).__handoff = {
+      samples,
+      stop: () => {
+        window.clearInterval(timer);
+        observer.disconnect();
+      },
+    };
+  }, [from, to]);
+}
+
+async function readHandoffWitness(page: Page): Promise<Array<HandoffSample>> {
+  return page.evaluate(() => {
+    const w = (window as unknown as {__handoff: {samples: Array<HandoffSample>, stop: () => void}}).__handoff;
+    w.stop();
+    return w.samples;
+  });
+}
+
 /** The plate's identity and geometry, read off the live DOM — what the family promises to keep equal. */
 async function plateReading(page: Page) {
   return page.locator('[data-prompt-panel]').first().evaluate((panel) => {
@@ -218,6 +270,7 @@ for (const profile of PROFILES) {
       const bar = page.locator('.con-cmdbar').first();
       await expect(bar.locator('.con-cmdbar__cmd--hot')).toContainText(/ЗАБРАТЬ/i);
       await shoot('2-reward-placed');
+      await armHandoffWitness(page, '.con-task[data-prompt-panel]', '.con-prodloss [data-prompt-panel], .con-prodloss[data-prompt-panel]');
       await page.keyboard.press('KeyX');
       await expect.poll(() => chain.posts.length, {timeout: 10_000}).toBe(1);
       expect(chain.posts[0].type, 'the reward was answered as a resource distribution').toBe('resources');
@@ -225,6 +278,36 @@ for (const profile of PROFILES) {
       // ── B · THE LOSS, as the answer to that very press ─────────────────────
       const loss = page.locator('.con-prodloss[data-prompt-panel], .con-prodloss [data-prompt-panel]').first();
       await expect(loss).toBeVisible({timeout: 20_000});
+      // THE HANDOFF (PL-384) — one decision gives way to the next as ONE phrase: the two plates are never both legible,
+      // the stage is never empty for longer than a beat, the arriving plate composes from inside (its ask still rising
+      // while the plate already reads), and the phrase is not drawn out.
+      await expect.poll(async () => (await page.evaluate(() =>
+        (window as unknown as {__handoff: {samples: Array<HandoffSample>}}).__handoff.samples.some((x) => x.to >= 0.99))), {timeout: 10_000}).toBe(true);
+      const handoff = await readHandoffWitness(page);
+      // The release begins at the first sample in which the answered plate is no longer whole (fading, or already
+      // gone — a long 4K frame can swallow the whole 130 ms between two samples; the samples are the page's own
+      // clock, so the claim is about what was painted, never about a beat the probe could not see).
+      const released = handoff.find((x) => x.from < 0.99);
+      const arrived = handoff.find((x) => x.to >= 0.99);
+      expect(released, `the answered plate LET GO (samples: ${handoff.length})`).toBeDefined();
+      expect(arrived, 'the next plate arrived').toBeDefined();
+      const sawFade = handoff.some((x) => x.from > 0 && x.from < 0.99);
+      if (profile.tag === 'fhd') {
+        expect(sawFade, 'the answered plate is seen LETTING GO — a release, never a cut').toBe(true);
+      }
+      const both = handoff.filter((x) => x.from >= 0.5 && x.to >= 0.5);
+      expect(both, 'never two legible plates at once').toEqual([]);
+      const startedAt = released!.t;
+      const blank = handoff.filter((x) => x.t > startedAt && x.t < arrived!.t && x.from <= 0.05 && x.to <= 0.05);
+      const blankMs = blank.length === 0 ? 0 : blank[blank.length - 1].t - blank[0].t;
+      const phraseMs = arrived!.t - startedAt;
+      test.info().annotations.push({type: 'handoff', description: `release→legible ${phraseMs} ms, empty stage ${blankMs} ms, fade seen ${sawFade}, ${handoff.length} samples`});
+      expect(blankMs, 'the stage is never empty for longer than a beat').toBeLessThan(profile.tag === 'fhd' ? 120 : 400);
+      expect(phraseMs, 'the phrase is not drawn out').toBeLessThan(profile.tag === 'fhd' ? 900 : 1800);
+      const composing = handoff.some((x) => x.to >= 0.5 && x.ask >= 0 && x.ask < 0.95);
+      if (profile.tag === 'fhd') {
+        expect(composing, 'the arriving plate COMPOSES — its ask rises while the plate already reads').toBe(true);
+      }
       // The settle window is open — and THIS is where a rhythm press lands. A and X arrive at once (before anything
       // slow, a 4K screenshot included, can let the window close under the probe).
       await expect(page.locator('.con-prodloss [data-prompt-settling="1"]')).toHaveCount(1, {timeout: 2000});
@@ -353,6 +436,20 @@ for (const profile of PROFILES) {
           await expect(page.locator('[data-prompt-panel] [data-prompt-tag]')).toContainText(item.tone === 'gain' ? /ВЫГОДА/i : /УБЫТОК/i);
         }
         readings.push({...reading, name: item.name});
+        // THE ANSWERS ARE THE VARIANT GRAMMAR (PL-383): options on a family plate are its tiles, and a stacked group's
+        // «ИЛИ» stands on the seam's CENTRE (PL-399 — a profile width rule once pinned it to the column's left edge).
+        const medals = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(
+          '[data-prompt-panel] .con-vchoice--column .con-vchoice__or-medal')).map((medal) => {
+          const group = medal.closest<HTMLElement>('.con-vchoice')!.getBoundingClientRect();
+          const m = medal.getBoundingClientRect();
+          return Math.round(Math.abs((m.left + m.width / 2) - (group.left + group.width / 2)));
+        }));
+        for (const off of medals) {
+          expect(off, `${item.name}: «ИЛИ» is centred on its seam (off by ${off} px)`).toBeLessThan(4);
+        }
+        if (item.name === 'reward-choice') {
+          expect(await page.locator('[data-prompt-panel] .con-vchoice__opt').count(), 'the reward\'s answers are the grammar\'s tiles').toBe(2);
+        }
         fs.mkdirSync(OUT, {recursive: true});
         await page.screenshot({path: path.join(OUT, `${profile.tag}-gallery-${item.name}.png`)});
       }

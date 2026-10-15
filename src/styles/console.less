@@ -372,6 +372,8 @@ body.con-zoom-open .con-journal {
 .con-cardactions,
 .con-reveal,
 .con-govsupport,
+.con-decision,
+.con-confirm,
 .con-colfocus,
 .con-prodloss,
 .con-stdp,
@@ -15788,94 +15790,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     margin-bottom: .2rem;
 }
 
-/* ── Confirm panel ───────────────────────────────────────────────── */
-.con-confirm {
-    /* THE MODAL BAND: compact card, centres between the bars (visually
-       unchanged — the band only guarantees it can never touch them). */
-    .con-ws-band();
-    z-index: 11520;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    /* NO own __backdrop / entry animation: rides the shared `.con-shade`
-       dim + the surface-motion director (a wheel's Пас slot hands off
-       directionally into this card). */
-    &__card {
-        position: relative;
-        min-width: 21rem;
-        max-width: 31rem;
-        padding: 1.4rem 1.7rem 1.1rem;
-        border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.65);
-        text-align: center;
-    }
-    &__title {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: .55rem;
-        font-size: 1.3rem;
-        font-weight: 700;
-        letter-spacing: .05rem;
-        margin-bottom: .5rem;
-    }
-    /* The wheel-flight landing emblem (data-wheel-anchor="confirm"): a pass /
-       max-temp heat commit carries its tile icon into this card. */
-    &__emblem {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 1.35rem;
-        height: 1.35rem;
-        color: fade(@con-amber, 95%);
-
-        .bar-btn-icon { width: 100%; height: 100%; }
-        .resource_icon {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-    }
-    &__body {
-        font-size: 1.05rem;
-        line-height: 1.45;
-        color: @con-text-dim;
-        margin-bottom: 1.1rem;
-    }
-    /* THE MINI-STAGE's formula (PL-067): the one chip row every door prints, centred; the «Сработает» row under
-       it is the shared forecast row (its own chassis), centred like the formula. */
-    &__formula {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: center;
-        gap: .45rem;
-        margin: .25rem 0 .75rem;
-    }
-    &__forecast {
-        justify-content: center;
-        margin: 0 auto .95rem;
-    }
-    &__actions {
-        display: flex;
-        justify-content: center;
-        gap: 1.7rem;
-    }
-    &__action {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        font-size: 1.05rem;
-        font-weight: 700;
-
-        &--yes { color: @con-mint; }
-    }
-}
+/* ── Confirm panel — the quick wheel's confirm is a plate of the PROMPT-MODAL FAMILY now (`ConsoleActionConfirm`,
+   PL-385): its band, stage, operation, «Сработает» door and the pass's list live in `console_prompt.less`. ── */
 
 /* ── Transient notice ────────────────────────────────────────────── */
 .con-notice {
@@ -22555,7 +22471,10 @@ html.console-mode {
         flex-wrap: wrap;
         gap: .4rem;
         margin-top: .4rem;
-        zoom: calc(1.15 * var(--con-ui-scale, 1));
+        /* A step above the row's reading — and NEVER × `--con-ui-scale`: `.con-task-host` is a chip-token root, the
+           chips are rem already, and the old `calc(1.15 * var(--con-ui-scale))` doubled them on the couch (97 px type
+           at 4K — PL-396). */
+        zoom: 1.15;
     }
     &__opt-desc {
         margin-top: .3rem;
@@ -26612,30 +26531,6 @@ html.console-native :is(.con-res, .con-res-aux, .con-status, .con-hand, .con-han
         margin-top: .5rem;
         font-size: .85rem;
         color: @con-mint;
-    }
-}
-
-/* Pass-confirm parity warnings (desktop PassConfirmContent carry-over). */
-.con-confirm__warns {
-    display: flex;
-    flex-direction: column;
-    gap: .4rem;
-    margin-top: .6rem;
-}
-.con-confirm__warn {
-    display: flex;
-    align-items: baseline;
-    gap: .5rem;
-    padding: .4rem .6rem;
-    border-radius: .4rem;
-    background: fade(@con-amber, 10%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
-    color: #ffe3b0;
-    font-size: .9rem;
-
-    > span:first-child {
-        font-weight: 700;
-        color: @con-amber;
     }
 }
 
@@ -36764,7 +36659,6 @@ html.con-profile-handheld {
     .con-quit__card { min-width: 20rem; padding: 1rem 1.1rem .7rem; }
     .con-quit__body { font-size: .8rem; margin: .4rem 0 .7rem; }
     .con-quit__btn { font-size: .75rem; padding: .5rem .8rem; }
-    .con-confirm__card { zoom: 0.92; }
     .con-stranded { zoom: 0.92; }
     .con-alert { zoom: 0.92; }
 }

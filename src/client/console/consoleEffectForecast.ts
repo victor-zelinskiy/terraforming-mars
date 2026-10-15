@@ -14,9 +14,10 @@
  * the same door, its layer the same level inside the stage (the colonies
  * section's crumb reads `forecastStageText('dock', …)`, the shell's dock bar
  * reads `forecastExplorerUi('dock').barCommands`), the COLONY STAGE (`'colony'` —
- * a trade's income, a build's bonus; PL-066) and the STANDARD PROJECTS
- * (`'stdp'`). Their shared phrase: `consoleForecastHost.ts` +
- * `ConsoleForecastDoor` / `ConsoleForecastLayer`.
+ * a trade's income, a build's bonus; PL-066), the STANDARD PROJECTS
+ * (`'stdp'`) and the ACTION CONFIRM (`'confirm'` — the basic-actions wheel's
+ * heat conversion when the table answers it, PL-394). Their shared phrase:
+ * `consoleForecastHost.ts` + `ConsoleForecastDoor` / `ConsoleForecastLayer`.
  *
  * This module holds the ONE fact everybody reads — «which composer has the
  * layer open» — so the crumb (the hand section / the card-actions head), the
@@ -28,7 +29,7 @@ import {reactive} from 'vue';
 import {translateText} from '@/client/directives/i18n';
 import {EffectsExplorerUi, createEffectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 
-export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp';
+export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp' | 'confirm';
 
 export const consoleEffectForecastUi = reactive({
   /** The composer whose layer is OPEN (undefined = closed everywhere). */
@@ -43,6 +44,7 @@ const explorerUis: Record<EffectForecastHost, EffectsExplorerUi> = {
   dock: createEffectsExplorerUi(),
   colony: createEffectsExplorerUi(),
   stdp: createEffectsExplorerUi(),
+  confirm: createEffectsExplorerUi(),
 };
 
 export function forecastExplorerUi(host: EffectForecastHost): EffectsExplorerUi {
