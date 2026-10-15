@@ -98,6 +98,8 @@ type MuseumProbe = {
   /** The satellite's ANIMAL cell (Pets — the class's neighbour). */
   auxAnimal: Array<[number, string]>;
   vp: Array<[number, string]>;
+  /** The rail's TR cell — the VP cell carries the TR too, so a VP claim is read net of the rating's own ticks. */
+  tr: Array<[number, string]>;
   mc: Array<[number, string]>;
   /** The highest any transfer chip was painted (a token over the top edge is a defect). */
   chipMinY: number;
@@ -128,7 +130,7 @@ async function armProbe(page: Page, cell: string, dataKey = 'data'): Promise<voi
     const p: MuseumProbe = {
       samples: 0, ticks: 0, hex: boxOf(document.querySelector(`.board-space[data_space_id="${cellId}"]`))!,
       aux: boxOf(document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)),
-      tokens: [], tokenMax: 0, cardSeen: 0, counts: [], aux_: [], auxAnimal: [], vp: [], mc: [], chipMinY: Infinity, chips: [],
+      tokens: [], tokenMax: 0, cardSeen: 0, counts: [], aux_: [], auxAnimal: [], vp: [], tr: [], mc: [], chipMinY: Infinity, chips: [],
       modes: [], phases: [], degraded: false, stranded: false,
     };
     w.__tr30 = p;
@@ -206,6 +208,7 @@ async function armProbe(page: Page, cell: string, dataKey = 'data'): Promise<voi
       push(p.aux_, now, (document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)?.textContent ?? '').replace(/\D/g, ''));
       push(p.auxAnimal, now, (document.querySelector('.con-res-aux__cell[data-aux-resource="animal"]')?.textContent ?? '').replace(/\D/g, ''));
       push(p.vp, now, (document.querySelector('.con-res .con-score__cell--vp .con-score__value')?.textContent ?? '').replace(/\D/g, ''));
+      push(p.tr, now, (document.querySelector('.con-res .con-score__cell--tr .con-score__value')?.textContent ?? '').replace(/\D/g, ''));
       const mcDigits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
       push(p.mc, now, (mcDigits?.childNodes[0]?.textContent ?? '').trim());
       document.querySelectorAll('.con-transfer__chip').forEach((el) => {
@@ -311,6 +314,26 @@ const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 const inside = (p: Pt, b: Box, slack: number) => p.x >= b.x - slack && p.x <= b.x + b.w + slack && p.y >= b.y - slack && p.y <= b.y + b.h + slack;
 const firstAt = (list: Array<[number, string]>, value: string) => list.find(([, v]) => v === value)?.[0];
 
+/**
+ * The VP cell NET of the rating cell's own ticks, on the samples' clock. The VP cell carries the TR, and both cells read
+ * the ONE rating hold (`docs/claude/console/score-cell.md` § the seeder — «the TR is the rating cell's own»), so a TR
+ * tick moves both in the same sample and nets out; a VP tick a frame apart from its TR tick would surface here as a value
+ * the net never had.
+ */
+function vpNetOfRating(probe: MuseumProbe): Array<[number, number]> {
+  const valueAt = (list: Array<[number, string]>, t: number): number => Number([...list].reverse().find(([at]) => at <= t)?.[1]);
+  const tr0 = Number(probe.tr[0]?.[1]);
+  const times = [...new Set([...probe.vp, ...probe.tr].map(([t]) => t))].sort((a, b) => a - b);
+  const net: Array<[number, number]> = [];
+  for (const t of times) {
+    const value = valueAt(probe.vp, t) - (valueAt(probe.tr, t) - tr0);
+    if (!Number.isNaN(value) && net[net.length - 1]?.[1] !== value) {
+      net.push([t, value]);
+    }
+  }
+  return net;
+}
+
 /** The own scene's order, read off the probe — every claim the contract makes. */
 /**
  * `cardVp`: the PRINTED points of the card a staged play laid down with this tile (Nuclear Zone's −2) — TR55, the
@@ -344,19 +367,22 @@ function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp 
   expect(probe.counts.map(([, v]) => v), `${label}: the capsule counts on the touchdowns: ${JSON.stringify(probe.counts)}`)
     .toEqual([String(from), String(from + 1), String(to)]);
   const second = firstAt(probe.counts, String(to))!;
-  // The rail's VP cell (+1 for 2 data — derived): never before the second touchdown. A staged card's own printed points
-  // come first, on their own token (TR55) — the museum's point is read relative to them.
-  const vp0 = Number(probe.vp[0]?.[1]);
+  // The rail's VP cell (+1 for 2 data — derived): never before the second touchdown. It is read NET of the TR cell's own
+  // ticks (`vpNetOfRating`): a staged tile's TR (Nuclear Zone's two temperature steps) lands with the board's own scale
+  // beat, before anything else, and the VP cell carries it in the same frame — the rating is the rating cell's own
+  // cause. What is left must move by the card's printed points on their own token (TR55 — after the tile sat, before the
+  // museum rose) and then by the museum's point, and by nothing else.
+  const why = `vp ${JSON.stringify(probe.vp)} · tr ${JSON.stringify(probe.tr)} · counts ${JSON.stringify(probe.counts)} · tile ${probe.tileAt}`;
+  const net = vpNetOfRating(probe);
+  const vp0 = net[0][1];
+  expect(net.map(([, v]) => v), `${label}: the VP cell, net of the TR's own ticks, moves only by the card's ${cardVp} and then the museum's +1 — ${why}`)
+    .toEqual(cardVp === 0 ? [vp0, vp0 + 1] : [vp0, vp0 + cardVp, vp0 + cardVp + 1]);
   if (cardVp !== 0) {
-    const sealed = probe.vp.find(([, v]) => Number(v) !== vp0);
-    expect(sealed, `${label}: the card's printed VP ticked on their token: ${JSON.stringify(probe.vp)}`).toBeDefined();
-    expect(Number(sealed![1]), `${label}: first the card's own ${cardVp} — ${JSON.stringify(probe.vp)}`).toBe(vp0 + cardVp);
+    const sealed = net[1][0];
+    expect(sealed, `${label}: the card's printed points left the tile only after it sat — ${why}`).toBeGreaterThan(probe.tileAt!);
+    expect(sealed, `${label}: …and before the museum rose (${probe.cardFirst!.t} ms) — ${why}`).toBeLessThan(probe.cardFirst!.t);
   }
-  const museum = vp0 + cardVp + 1;
-  const vpUp = probe.vp.find(([, v]) => Number(v) === museum);
-  expect(vpUp, `${label}: the VP cell reached the museum's point: ${JSON.stringify(probe.vp)}`).toBeDefined();
-  expect(probe.vp.filter(([t]) => t < vpUp![0]).every(([, v]) => Number(v) !== museum), `${label}: the museum's point never earlier`).toBe(true);
-  expect(vpUp![0], `${label}: the VP cell ticks with the second touchdown, never before (${JSON.stringify(probe.vp)} · counts ${JSON.stringify(probe.counts)})`)
+  expect(net[net.length - 1][0], `${label}: the museum's point ticks with the second touchdown, never before — ${why}`)
     .toBeGreaterThanOrEqual(second);
   // The satellite's data cell: on the card's return, never before the last touchdown.
   const auxUp = probe.aux_.find(([, v]) => Number(v) >= to);
