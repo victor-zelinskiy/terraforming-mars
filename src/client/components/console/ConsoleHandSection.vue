@@ -324,7 +324,7 @@
                 </template>
                 <span v-for="(item, k) in forecastPlates.get(cell.e.card.name)?.items ?? []" :key="k" class="con-hand__plate-item">
                   <span class="con-hand__plate-icon" :class="[item.iconClass, {'con-hand__plate-icon--prod': item.production}]"></span>
-                  <span class="con-hand__plate-n">{{ item.signed ? signedAmount(item.amount) : item.amount }}</span>
+                  <span class="con-hand__plate-n">{{ item.upTo ? plateUpToText(item.amount) : item.signed ? signedAmount(item.amount) : item.amount }}</span>
                 </span>
                 <!-- More counted goods than a tile holds (Productive Outpost's colony bonuses): NAMED in words («ещё 1»),
                      never dropped and never a «+1» that reads as one more amount — the composer reads every one. -->
@@ -1556,6 +1556,10 @@ export default defineComponent({
       return signedAmount(n);
     },
     /** «ещё N» — the counted goods past the plate's two, in WORDS: a «+N» beside «+1» amounts read as one more amount. */
+    /** A chosen count's ceiling (TR54): «до +4» — one reading renderer (PL-160). */
+    plateUpToText(n: number): string {
+      return readingText({label: 'up to ${0}', params: [signedAmount(n)]});
+    },
     plateMoreText(n: number): string {
       return readingText({label: 'and ${0} more', params: [String(n)]});
     },

@@ -170,6 +170,13 @@ export function cardsToModel(
         model.countedPlay = counted;
       }
     }
+    // A play whose count is a CHOICE (TR54) — the plate's ceiling, the OWN hand only (the same opt-in).
+    if (options.unplayableReasons === true && card.countedChoiceForecast !== undefined) {
+      const choice = card.countedChoiceForecast(player);
+      if (choice !== undefined) {
+        model.countedChoice = choice;
+      }
+    }
     // The requirement under a modifier (TR49 class) — the OWN hand only (the same opt-in): one reading, every
     // surface that prints the card's requirement.
     if (options.unplayableReasons === true && isIProjectCard(card)) {

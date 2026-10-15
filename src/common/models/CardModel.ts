@@ -115,6 +115,8 @@ export interface CardModel {
      * [microbe]») and the inspector's «ДЛЯ ВАС» read it; the client counts nothing.
      */
     countedPlay?: ReadonlyArray<ActionEffect>;
+    /** A play whose count the player CHOOSES (TR54): the hand plate's ceiling «[?] up to +max» (`ICard.countedChoiceForecast`). */
+    countedChoice?: {max: number};
     /**
      * THE REQUIREMENT UNDER A MODIFIER (TR49 class): for each printed GLOBAL
      * requirement this player's modifiers touch — an armed Special Design (±2),

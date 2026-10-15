@@ -89,8 +89,9 @@ export function overclockedAmount(player: IPlayer, resource: Resource): number {
  *     `or` answer is addressed `{role: 'or', source: this card}` and replays in
  *     the batch `[play, or]`.
  *  7. A COUNTED play: every gain chip carries its basis (the production it
- *     reads) — the composer's «ПОЧЕМУ». No hand plate: the six counts are a
- *     CHOICE, and the plate never shows six gains as if all landed.
+ *     reads) — the composer's «ПОЧЕМУ». The six counts are a CHOICE, so the
+ *     hand plate reads their CEILING on the printed «?» — «[?] up to +N»
+ *     (`countedChoiceForecast`) — never six gains as if all landed.
  *  8. THE POWER TAG: Thorgate −3 M€, other cards' Power-tag requirements, RX04
  *     Central Power Grid (`raw`) and its chairman quest «2 Power tags».
  *  9. THE JOURNAL: «paid 3 energy for …» (the price) → «gained N <res>» (the
@@ -182,6 +183,11 @@ export class OverclockedEquipment extends Card implements IProjectCard {
         return futile !== undefined ? {...branch, futile} : branch;
       }),
     };
+  }
+
+  /** Rule 7 — the hand plate's ceiling: the most the choice can give right now («[?] up to +N»). */
+  public countedChoiceForecast(player: IPlayer): {max: number} {
+    return {max: Math.max(...OVERCLOCKED_RESOURCES.map((resource) => overclockedAmount(player, resource)))};
   }
 
   /** The option's `gainStock` — the energy row read after the price when the price is still to be paid (rule 5). */

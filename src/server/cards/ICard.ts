@@ -143,6 +143,12 @@ export interface ICard {
    */
   countedPlayForecast?(player: IPlayer): ReadonlyArray<ActionEffect>;
   /**
+   * A play whose count the player CHOOSES among several (TR54 Overclocked Equipment — «a standard resource, as many as
+   * your production of it»): the hand plate reads the CEILING — «[?] up to +N» — never six gains as if all landed (that
+   * is `countedPlayForecast`'s reading). The largest of the counts the play offers right now. MUST NOT mutate game state.
+   */
+  countedChoiceForecast?(player: IPlayer): {max: number} | undefined;
+  /**
    * The card GRANTS N bonus actions when played (Head Start's «immediately
    * take 2 actions»). Co-located on the card class; exported to `ClientCard`
    * so the console start flow declares its bonus chapter before the play.

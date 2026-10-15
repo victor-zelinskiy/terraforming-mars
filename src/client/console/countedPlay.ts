@@ -26,7 +26,7 @@ import type {SpaceId} from '@/common/Types';
 // ── THE HAND'S FORECAST PLATE ────────────────────────────────────────────────
 
 /** One unit of the plate: an icon (on the production plate when it is a production step) and its number. */
-export type HandPlateItem = {iconClass: string, production: boolean, amount: number, signed: boolean};
+export type HandPlateItem = {iconClass: string, production: boolean, amount: number, signed: boolean, upTo?: boolean};
 
 /**
  * THE PLATE — «[★] 2» for a walk (TR42), «[microbe] +14» for a counted play.
@@ -53,6 +53,17 @@ export function handForecastPlate(card: CardModel): HandForecastPlate | undefine
       items: [{iconClass: 'resource_icon resource_icon--agenda-step', production: false, amount: walk.walked, signed: false}],
       value: walk.walked,
       zero: walk.walked === 0,
+      more: 0,
+    };
+  }
+  // A count the player CHOOSES (TR54): the ceiling on the printed «?» — «[?] up to +N», never six gains at once.
+  const choice = card.countedChoice;
+  if (choice !== undefined) {
+    return {
+      kind: 'count',
+      items: [{iconClass: iconClassFor('wild'), production: false, amount: choice.max, signed: true, upTo: true}],
+      value: choice.max,
+      zero: choice.max === 0,
       more: 0,
     };
   }

@@ -19,6 +19,7 @@ import {Payment} from '../../../src/common/inputs/Payment';
 import {OrOptionsModel, SelectOptionModel} from '../../../src/common/models/PlayerInputModel';
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
+import {cardsToModel} from '../../../src/server/models/ModelUtils';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {requiredPartyOf} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {resolutionCount} from '../../../src/server/parliament/resolutions/ResolutionCounts';
@@ -230,6 +231,16 @@ describe('OverclockedEquipment', () => {
       const lines = t.game.gameLog.slice(at).map((m) => formatMessage(m));
       expect(lines.some((l) => /gained 0 titanium/.test(l)), lines.join('\n')).is.true;
       expect(t.game.events.events.filter((e) => e.type === 'effect-skipped')).has.length(skipsBefore);
+    });
+  });
+
+  describe('rule 7 — the hand plate reads the CEILING of the choice', () => {
+    it('the own hand\'s model carries «up to» the largest count (heat 4) — and no six gains as if all landed', () => {
+      const [model] = cardsToModel(t.player, [t.card], {showCalculatedCost: true, unplayableReasons: true});
+      expect(model.countedChoice).deep.eq({max: 4});
+      expect(model.countedPlay, 'never the six counted chips on the plate').is.undefined;
+      const [rival] = cardsToModel(t.player, [t.card], {showCalculatedCost: true});
+      expect(rival.countedChoice, 'only the own hand').is.undefined;
     });
   });
 

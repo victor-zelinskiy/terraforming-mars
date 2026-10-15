@@ -45,6 +45,13 @@ describe('countedPlay', () => {
       expect(plate.items).deep.eq([{iconClass: 'card-resource card-resource-microbe', production: false, amount: 14, signed: true}]);
     });
 
+    it('a CHOSEN count (TR54) reads its ceiling on the printed «?» — «up to +4», never six gains at once', () => {
+      const plate = handForecastPlate(card({countedChoice: {max: 4}}))!;
+      expect(plate).deep.include({kind: 'count', value: 4, zero: false, more: 0});
+      expect(plate.items).deep.eq([{iconClass: 'resource_icon resource_icon--wild', production: false, amount: 4, signed: true, upTo: true}]);
+      expect(handForecastPlate(card({countedChoice: {max: 0}}))!.zero, 'nothing to gain: muted, never hidden').is.true;
+    });
+
     it('a zero is a plate too — muted, never hidden', () => {
       const plate = handForecastPlate(card({countedPlay: [zero]}))!;
       expect(plate).deep.include({kind: 'count', value: 0, zero: true});
