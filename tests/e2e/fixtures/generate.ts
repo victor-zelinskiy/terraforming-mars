@@ -41,6 +41,7 @@ import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards'
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../../src/common/constants';
 import {toName} from '../../../src/common/utils/utils';
 import {CardName} from '../../../src/common/cards/CardName';
+import {GlobalParameter} from '../../../src/common/GlobalParameter';
 import {AdaptedLichen} from '../../../src/server/cards/base/AdaptedLichen';
 import {NuclearZone} from '../../../src/server/cards/base/NuclearZone';
 import {AresHazards} from '../../../src/server/ares/AresHazards';
@@ -2879,6 +2880,45 @@ function cuttingEdgeFixture(name: string, variant: 'journey' | 'special-design' 
 cuttingEdgeFixture('cutting-edge-design', 'journey');
 cuttingEdgeFixture('special-design-armed', 'special-design');
 cuttingEdgeFixture('indentured-workers-armed', 'indentured');
+// The one-play class's STANDING half (the owner's question of 2026-10-15): SEVERAL modifiers at once — Inventrix (±2,
+// the corporation) + Adaptation Technology (±2, on the table) + Special Design ARMED (±2, one play) = ±6 at −20 °C. Grass
+// (≥ −16) is met ONLY thanks to them (≥ −28), Lake Marineris (≥ 0 → ≥ −12) is still short, Archaebacteria (≤ −18) is met
+// ANYWAY (its cassette stays printed — quiet), Comet prints no requirement.
+parliamentFixture('standing-modifiers', {
+  stopAt: 'vote',
+  megacredits: [60, 30],
+  options: {customCorporationsList: [CardName.INVENTRIX, CardName.THORGATE]},
+  arrange: ({game, p1}) => {
+    seatEnacted(game.parliament!, quietResolutionOf(PartyName.SCIENTISTS));
+    p1.megaCredits = 60;
+    setTemperature(game, -20);
+    setOxygenLevel(game, 2);
+    const take = (card: CardName): IProjectCard => {
+      moveToDeckTop(game, card);
+      return game.projectDeck.drawOrThrow(game);
+    };
+    p1.cardsInHand = [CardName.GRASS, CardName.LAKE_MARINERIS, CardName.ARCHAEBACTERIA, CardName.COMET].map(take);
+    p1.playedCards.push(take(CardName.ADAPTATION_TECHNOLOGY));
+    const armer = take(CardName.SPECIAL_DESIGN);
+    p1.playedCards.push(armer);
+    p1.lastCardPlayed = armer.name;
+  },
+  expect: ({p1}) => {
+    const can = (n: CardName) => {
+      const card = p1.cardsInHand.find((c) => c.name === n);
+      return card !== undefined && p1.canPlay(card);
+    };
+    const facts = {
+      inventrix: p1.playedCards.corporations().some((c) => c.name === CardName.INVENTRIX),
+      steps: p1.getGlobalParameterRequirementBonus(GlobalParameter.TEMPERATURE),
+      grass: can(CardName.GRASS), lake: can(CardName.LAKE_MARINERIS), archae: can(CardName.ARCHAEBACTERIA),
+      armed: armedPlayEffectsOf(p1).map((e) => e.effect.kind).join(','),
+    };
+    if (!facts.inventrix || facts.steps !== 6 || !facts.grass || facts.lake || !facts.archae || facts.armed !== 'requirementShift') {
+      throw new Error(`the standing-modifiers fixture expected Inventrix + AT + an armed Special Design (±6) — got ${JSON.stringify(facts)}`);
+    }
+  },
+});
 // ── SPONSORED ACADEMIES — the owner's report of 2026-10-11 («the discard picked in the composer comes back as a separate
 //    prompt»), the pre-select law's regression stand. Blue's action phase with Sponsored Academies + three cards in hand
 //    (Algae, Lichen, Kelp Farming — none playable for less than the hand's 20 M€ matters: the hand is the DISCARD's

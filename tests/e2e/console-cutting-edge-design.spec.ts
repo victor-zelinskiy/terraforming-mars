@@ -14,7 +14,10 @@
  *      effect on the rival's Information zone while it stands;
  *  (B) Special Design armed (fhd): Grass met ONLY thanks to ±2 (`decisive`); Comet spends it FOR NOTHING — the info-tone
  *      consume note, the muted chip;
- *  (C) Indentured Workers armed (fhd): Comet 21 → 13 — the payment head names the one-play discount it spends.
+ *  (C) Indentured Workers armed (fhd): Comet 21 → 13 — the payment head names the one-play discount it spends;
+ *  (D) SEVERAL modifiers at once (fhd + tv4k — Inventrix + Adaptation Technology + an armed Special Design, ±6): the
+ *      cassette prints the FINAL bound with one coin per source and the total; the composer row names each share; a
+ *      requirement met ANYWAY stays printed (quiet) — no seal, no plate, no row.
  * Storyboards of both presses: `TM_E2E_STORYBOARD=1` → `screenshots/cutting-edge-design/<profile>/story-{arm,spend}/`; the 4K
  * claim is taken on the GPU (`TM_E2E_GPU=1`), `--repeat-each=4`.
  */
@@ -28,6 +31,7 @@ const CED = 'Cutting-Edge Design';
 const LAKE = 'Lake Marineris';
 const GRASS = 'Grass';
 const COMET = 'Comet';
+const ARCHAE = 'ArchaeBacteria';
 const COMPOSER = '.con-hand__stage .con-composer--play';
 const dockChip = (source: string) => `[data-armed-strip][data-armed-variant="chip"][data-armed-source="${source}"]`;
 const PRESETS = [
@@ -314,4 +318,78 @@ test.describe('TR49 — the one-play class', () => {
     await expect(page.locator(`${COMPOSER} [data-pay-armed]`), 'the head names whose discount the play spends').toContainText('Законтрактованные рабочие');
     await shoot(page, 'fhd', 'C1-comet-discount');
   });
+
+  for (const preset of PRESETS) {
+    test(`(D) several modifiers at once: the FINAL bound, one coin per source, met-anyway stays quiet · ${preset.id}`, async ({page, request}) => {
+      await page.setViewportSize(preset.viewport);
+      await bootFixture(page, request, 'standing-modifiers', {query: preset.query});
+      await openHand(page, GRASS);
+      const slot = (name: string) => `.con-hand__slot[data-zoom-slot="${name}"]`;
+
+      // ── Grass (≥ −16 at −20 °C): met ONLY thanks to Inventrix + Adaptation Technology + the armed Special Design. The
+      //    cassette prints the FINAL bound, the seal three coins (the armed one wears the ⚡ pip) and the TOTAL ±6.
+      const grassMod = page.locator(`${slot(GRASS)} [data-req-state="eased"] [data-req-mod]`).first();
+      await expect(grassMod, 'Grass\'s cassette carries the modifier seal').toBeVisible();
+      await expect(grassMod).toHaveAttribute('data-req-mod-steps', '6');
+      await expect(grassMod.locator('[data-req-coins="3"]'), 'one coin per source').toHaveCount(1);
+      await expect(grassMod.locator('.pcard-mod--once'), 'the armed source wears the one-play pip').toHaveCount(1);
+      await expect(page.locator(`${slot(GRASS)} [data-req-decisive]`).first(), 'met THANKS TO the modifiers').toBeVisible();
+      const seal = await page.evaluate((sel) => {
+        const mods = document.querySelector(sel);
+        const face = mods?.closest('.pcard');
+        if (mods === null || mods === undefined || face === null || face === undefined) {
+          return undefined;
+        }
+        const coins = [...mods.querySelectorAll<HTMLElement>('[data-req-coin]')];
+        const r = mods.getBoundingClientRect();
+        const f = face.getBoundingClientRect();
+        return {
+          art: coins.filter((c) => getComputedStyle(c).backgroundImage.includes('card-images')).length,
+          inside: r.left >= f.left - 1 && r.right <= f.right + 1 && r.top >= f.top - 1 && r.bottom <= f.bottom + 1,
+        };
+      }, `${slot(GRASS)} [data-req-state="eased"] [data-req-coins]`);
+      expect(seal?.art, 'every coin is the source card\'s own art').toBe(3);
+      expect(seal?.inside, 'the seal stays inside the card face').toBe(true);
+      await expect(page.locator(`${slot(GRASS)} [data-hand-ease] [data-req-coins="3"]`), 'the tile\'s plate names the three sources').toHaveCount(1);
+
+      // ── Lake Marineris (≥ 0 → ≥ −12): bent but still short — eased, never decisive.
+      await expect(page.locator(`${slot(LAKE)} [data-req-state="eased"]`).first()).toBeVisible();
+      await expect(page.locator(`${slot(LAKE)} [data-req-decisive]`)).toHaveCount(0);
+      // ── Archaebacteria (≤ −18 at −20 °C): met ANYWAY — its cassette is printed-quiet, no seal, no plate.
+      await expect(page.locator(`${slot(ARCHAE)} [data-req-state="quiet"]`).first(), 'met anyway reads as printed').toBeVisible();
+      await expect(page.locator(`${slot(ARCHAE)} [data-req-coins]`), 'no seal on a requirement the modifiers do not decide').toHaveCount(0);
+      await expect(page.locator(`${slot(ARCHAE)} [data-hand-ease]`), 'no plate either').toHaveCount(0);
+      await shoot(page, preset.id, 'D1-hand-several');
+
+      // ── Grass's composer: the row reads the FINAL bound, then each source with its own coin and share.
+      await openComposer(page, GRASS);
+      const req = page.locator(`${COMPOSER} [data-composer-req]`);
+      await expect(req).toHaveAttribute('data-req-state', 'decisive');
+      await expect(req.locator('[data-composer-req-share]'), 'one share per source').toHaveCount(3);
+      await expect(req.locator('[data-req-coin]'), 'each share leads with its coin').toHaveCount(3);
+      await expect(req).toContainText('Inventrix');
+      await expect(req.locator('[data-composer-req-total]'), 'the composition ends on the sum').toHaveText('= ±6');
+      const clipped = await req.evaluate((row) => {
+        const box = row.getBoundingClientRect();
+        return [...row.querySelectorAll('[data-composer-req-share], [data-composer-req-total]')]
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width === 0 || r.right > box.right + 1 || r.bottom > box.bottom + 1;
+          }).map((el) => el.textContent?.trim());
+      });
+      expect(clipped, 'every share stands whole inside the row — nothing cut').toEqual([]);
+      await expect(page.locator(`${COMPOSER} [data-forecast-chip="modifier"] [data-req-coin]`), 'every «Сработает» modifier chip names its source by coin').toHaveCount(3);
+      await shoot(page, preset.id, 'D2-grass-composer');
+      await press(page, 'Escape', 900);
+      await settle(page);
+
+      // ── Archaebacteria's composer: no requirement row and no standing chips (nothing decided) — only the armed effect
+      //    it would spend FOR NOTHING says so (decision 7).
+      await openComposer(page, ARCHAE);
+      await expect(page.locator(`${COMPOSER} [data-composer-req]`), 'a met-anyway requirement has no row').toHaveCount(0);
+      await expect(page.locator(`${COMPOSER} [data-forecast-chip="modifier"]`), 'only the armed effect it spends').toHaveCount(1);
+      await expect(page.locator(`${COMPOSER} [data-composer-consume]`)).toContainText('впустую');
+      await shoot(page, preset.id, 'D3-archae-composer');
+    });
+  }
 });

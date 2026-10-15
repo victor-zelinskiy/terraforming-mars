@@ -2478,6 +2478,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'cutting-edge-design' |
   'special-design-armed' |
   'indentured-workers-armed' |
+  'standing-modifiers' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.
   'sponsored-academies' |
