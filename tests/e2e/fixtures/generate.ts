@@ -5866,6 +5866,75 @@ parliamentFixture('nuclear-warhead-locked', {
   },
 });
 
+// ── TR54 · OVERCLOCKED EQUIPMENT («Разогнанное оборудование») and the iteration «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА»
+//    (docs/claude/prompts/project-tr54-overclocked-equipment.md, docs/TURMOIL_REDUX_OVERCLOCKED_EQUIPMENT.md). Blue's
+//    action phase, the Industrialists RULING, TR54 in hand with 20 M€ and 5 energy, six different productions (M€ −1 —
+//    a named zero, steel 2, titanium 0 — a zero, plants 3, energy 1, heat 4): the play's composer asks «which
+//    resource» as ONE palette of six tiles, the «−3 [energy]» leaves the rail before the lift, the chosen resource is
+//    born on the face's printed «?». ──
+const OVERCLOCKED_PRODUCTION = {megacredits: -1, steel: 2, titanium: 0, plants: 3, energy: 1, heat: 4};
+function overclockedHand(game: IGame, p1: IPlayer, energy: number): void {
+  moveToDeckTop(game, CardName.OVERCLOCKED_EQUIPMENT);
+  p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  p1.energy = energy;
+  p1.production.override(OVERCLOCKED_PRODUCTION);
+}
+parliamentFixture('overclocked-equipment', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    overclockedHand(game, p1, 5);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.OVERCLOCKED_EQUIPMENT);
+    if (card === undefined || !p1.canPlay(card) || p1.megaCredits !== 20 || p1.energy !== 5 || p1.production.plants !== 3 ||
+        parliament.rulingParty() !== PartyName.INDUSTRIALISTS || game.activePlayer.id !== p1.id) {
+      throw new Error(`the overclocked-equipment fixture expected TR54 playable on 20 M€ / 5 energy with the Industrialists ruling and blue on the move — got card=${card !== undefined} canPlay=${card === undefined ? '-' : p1.canPlay(card)} mc=${p1.megaCredits} energy=${p1.energy} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR54 · the same hand with the Reds RULING and the Industrialists' resolution on the vote with no delegate of blue's:
+//    «✕ Нельзя разыграть», the party and both roads (the TR15 class). ──
+parliamentFixture('overclocked-equipment-locked', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+    if (parliament.slotOf(PartyName.INDUSTRIALISTS) === undefined) {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    }
+    overclockedHand(game, p1, 5);
+  },
+  expect: ({p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.OVERCLOCKED_EQUIPMENT);
+    if (card === undefined || p1.canPlay(card) || parliament.rulingParty() !== PartyName.REDS) {
+      throw new Error(`the overclocked-equipment-locked fixture expected TR54 UNplayable under the Reds — got card=${card !== undefined} ruling=${parliament.rulingParty()}`);
+    }
+  },
+});
+
+// ── TR54 · the Industrialists RULING, 2 energy: the ONE blocker is the price — «✕ Недостаточно энергии». ──
+parliamentFixture('overclocked-equipment-energy', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    overclockedHand(game, p1, 2);
+  },
+  expect: ({p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.OVERCLOCKED_EQUIPMENT);
+    if (card === undefined || p1.canPlay(card) || p1.energy !== 2 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the overclocked-equipment-energy fixture expected TR54 UNplayable on 2 energy — got card=${card !== undefined} energy=${p1.energy}`);
+    }
+  },
+});
+
 // ── THE SCORE CELL'S SOURCES, blue on the move (TR55): Terraformer claimable (TR 35, 30 M€ — the milestone's +5 flies
 //    from its ceremony), Security Fleet on the table with no fighter and 2 titanium (the ACTION's fighter brings its
 //    point on its touchdown — К-V2: the preview carries no `vpBox` for the card's own capsule). A quiet government. ──
