@@ -3,6 +3,7 @@ import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {isICardRenderItem, isICardRenderSymbol, ItemType} from '@/common/cards/render/Types';
 import {buildMechanics, MechGroup} from '@/client/components/premiumCard/mechanicsModel';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
 
 /*
  * THE VARIANT CHOICE — ONE grammar for every «choose one of these» in the console (TR51 Influential Discovery, the
@@ -31,6 +32,22 @@ export type VariantChoiceState = {
   off: boolean;
 };
 
+/**
+ * A PALETTE tile's HERO (TR54, «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА») — when an option has no printed graphic of its own but
+ * IS a kind of resource («which standard resource?», «which production?»), the tile leads with that resource's own
+ * sprite at the scene's scale (a production on its bronze plate), then the number it moves, the loudest text of the
+ * tile. The number is the SERVER's (the option's chip); the client formats it and computes nothing.
+ */
+export type VariantHero = {
+  kind: 'resource' | 'production';
+  /** The icon key every chip of this console resolves (`iconClassFor`) — a standard resource. */
+  icon: string;
+  /** How many the option moves — absent when the server states no number (a live prompt without its marker). */
+  amount?: number;
+  /** A gain reads «+N», a loss «−N». */
+  direction: 'gain' | 'loss';
+};
+
 export type VariantChoiceOption = {
   key: string;
   state: VariantChoiceState;
@@ -46,6 +63,8 @@ export type VariantChoiceOption = {
   quiet?: string;
   /** The card's printed graphic of THIS option (face node references) — the tile's headline. */
   printed?: ReadonlyArray<ItemType>;
+  /** The palette tile's hero — the kind of resource the option IS, when no print of its own speaks for it. */
+  hero?: VariantHero;
   /** The option OPENS a pick of its own (a door, not an answer) — the ›. */
   door?: boolean;
   /** A player row's colour (the owner dot). */
@@ -80,6 +99,49 @@ export function variantOptionClasses(state: VariantChoiceState, decided: boolean
 /** A live option the server proved changes nothing — the quiet paint and its line (never on a refused one). */
 export function variantQuiet(opt: {state: VariantChoiceState, quiet?: string}): boolean {
   return !opt.state.off && opt.quiet !== undefined && opt.quiet !== '';
+}
+
+/** The six standard resources — the only kinds a palette hero is (their sprites are the rail's own). */
+const STANDARD_HEROES: ReadonlySet<string> = new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+
+/**
+ * The hero an option's OWN chip makes — a standard resource gained into (or taken from) the stock, or a production
+ * of one; anything else (a card resource, a tile, a TR, a chip with a note of its own) is no palette hero.
+ */
+export function heroOfEffect(effect: ActionEffect | undefined): VariantHero | undefined {
+  if (effect === undefined || effect.icon === undefined || !STANDARD_HEROES.has(effect.icon)) {
+    return undefined;
+  }
+  const kind = effect.note === undefined ? 'resource' : effect.note === 'production' ? 'production' : undefined;
+  if (kind === undefined) {
+    return undefined;
+  }
+  return {kind, icon: effect.icon, amount: effect.amount, direction: effect.direction === 'gain' ? 'gain' : 'loss'};
+}
+
+/**
+ * Is this group a PALETTE — N comparable options of ONE kind of thing («which of the six standard resources»)? Every
+ * option carries a hero, all of one kind, and there are at least `min` of them (a host whose row is a palette by
+ * construction — the Industrialists' «+1 production» of two — passes its own floor). A palette is one object: one row
+ * of equal tiles, no «ИЛИ» medallions (the group's kicker carries the exclusion).
+ */
+export function paletteOf(options: ReadonlyArray<{hero?: VariantHero}>, min = 3): boolean {
+  if (options.length < min || options.length === 0) {
+    return false;
+  }
+  const kind = options[0].hero?.kind;
+  return kind !== undefined && options.every((o) => o.hero !== undefined && o.hero.kind === kind);
+}
+
+/** The palette tile's number as it reads — «+3», «−1», a zero bare. */
+export function heroFigure(hero: VariantHero): string {
+  if (hero.amount === undefined) {
+    return '';
+  }
+  if (hero.amount === 0) {
+    return '0';
+  }
+  return (hero.direction === 'gain' ? '+' : '−') + String(hero.amount);
 }
 
 function isOrNode(node: ItemType): boolean {

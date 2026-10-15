@@ -295,6 +295,12 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     expect(controls(playComposerFootHints(ctx({focusedKind: 'none', variantAxis: 'row'})))).to.not.include('dpadH');
   });
 
+  it('a PALETTE of one kind of resource (TR54) reads «◄► Ресурс» — the row switches resources, not variants', () => {
+    const palette = playComposerFootHints(ctx({focusedKind: 'variant', variantAxis: 'row', variantPalette: true}));
+    expect(palette.find((h) => h.control === 'dpadH')?.label).to.equal('Resource');
+    expect(playComposerFootHints(ctx({focusedKind: 'variant', variantAxis: 'row', variantPalette: false})).find((h) => h.control === 'dpadH')?.label).to.equal('Option');
+  });
+
   it('NEVER emits a Y (inspect) control — Y is globally reserved for the info panel', () => {
     const scenarios = [
       ctx({}), ctx({sub: 'list', subIsCardList: true}), ctx({sub: 'payment'}),
@@ -334,6 +340,18 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
 describe('consolePlayCardComposer.variantGroupNav', () => {
   // Rows: [variant#0, variant#1, step, cta] — the commit rail is reachable.
   const row = {axis: 'row' as const, variantIdx: [0, 1], returnIdx: 0, navMaxIndex: 3};
+
+  it('grid (a palette folded 3 + 3 — TR54): ←→ inside the row, ↑↓ between the rows at the same column, the edges leave', () => {
+    // Nav rows: [six palette tiles at 1..6, cta at 7]; the tiles fold [1 2 3] / [4 5 6].
+    const grid = {axis: 'grid' as const, variantIdx: [1, 2, 3, 4, 5, 6], rows: [0, 0, 0, 1, 1, 1], returnIdx: 1, navMaxIndex: 7};
+    expect(variantGroupNav({...grid, dir: 'right', focusIdx: 3}), '→ wraps inside the first row').to.equal(1);
+    expect(variantGroupNav({...grid, dir: 'left', focusIdx: 4}), '← wraps inside the second row').to.equal(6);
+    expect(variantGroupNav({...grid, dir: 'down', focusIdx: 2}), '↓ to the same column below').to.equal(5);
+    expect(variantGroupNav({...grid, dir: 'up', focusIdx: 6}), '↑ to the same column above').to.equal(3);
+    expect(variantGroupNav({...grid, dir: 'down', focusIdx: 5}), '↓ from the last row leaves for the commit row').to.equal(7);
+    expect(variantGroupNav({...grid, dir: 'up', focusIdx: 1}), '↑ from the first row leaves upward').to.equal(0);
+    expect(variantGroupNav({...grid, dir: 'down', focusIdx: 5, navMaxIndex: 6}), 'an unmade choice keeps the cursor in').to.equal(5);
+  });
 
   it('row: ←→ switch the options with wrap; nothing is selected by it', () => {
     expect(variantGroupNav({...row, dir: 'right', focusIdx: 0})).to.equal(1);

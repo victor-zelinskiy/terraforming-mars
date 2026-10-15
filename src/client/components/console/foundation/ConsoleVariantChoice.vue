@@ -12,9 +12,16 @@
          kant — it stays while the cursor walks away; the unchosen options RECEDE, never hide) and the RULES (a faded
          print and the reason INSIDE the tile — opacity and colour only, never a `filter`: the console strips it).
          The seal's slot is absolute (zero layout) — choosing re-flows nothing. «ИЛИ» is a medallion on the seam,
-         the printed OR-connector of the card's own face. -->
+         the printed OR-connector of the card's own face.
+         THE PALETTE (TR54, 2026-10-16) — N options of ONE kind («which of the six standard resources»): one row of equal
+         tiles, each led by its resource's own sprite (the HERO) and the number it moves; no medallions — the group's
+         kicker, with the printed «?» at its start, carries the exclusion. -->
+    <div v-if="layout === 'palette' && kicker !== ''" class="con-vchoice__kicker" data-vchoice-kicker>
+      <img v-if="emblem === 'wild'" class="con-vchoice__emblem" :src="wildUrl" alt="" aria-hidden="true" data-vchoice-emblem="wild">
+      <span class="con-vchoice__kicker-text">{{ kicker }}</span>
+    </div>
     <template v-for="(opt, i) in options" :key="opt.key">
-      <div v-if="exclusive && i > 0" class="con-vchoice__or" aria-hidden="true">
+      <div v-if="exclusive && layout !== 'palette' && i > 0" class="con-vchoice__or" aria-hidden="true">
         <span class="con-vchoice__or-medal">{{ $t('or') }}</span>
       </div>
       <div class="con-vchoice__opt"
@@ -28,7 +35,16 @@
            @click="$emit('pick', i)">
         <!-- The seal's ✓ is painted (`::after`), never text: an option's words are its own, a probe reading them reads no mark. -->
         <span class="con-vchoice__seal" :class="{'con-vchoice__seal--on': opt.state.selected}" aria-hidden="true"></span>
-        <div v-if="opt.printed !== undefined && opt.printed.length > 0" class="con-vchoice__print" data-vchoice-print>
+        <!-- THE PALETTE's HERO: the resource's own sprite at the scene's scale (a production on its bronze plate), then
+             the number — the tile's loudest text. -->
+        <div v-if="opt.hero !== undefined" class="con-vchoice__hero" data-vchoice-hero
+             :data-vchoice-hero-icon="opt.hero.icon" :data-vchoice-hero-kind="opt.hero.kind">
+          <span class="con-vchoice__heroplate" :class="{'con-vchoice__heroplate--prod': opt.hero.kind === 'production'}">
+            <i class="con-vchoice__heroicon" :class="heroIconClass(opt.hero.icon)" aria-hidden="true"></i>
+          </span>
+          <span v-if="opt.hero.amount !== undefined" class="con-vchoice__figure" :class="'con-vchoice__figure--' + figureTone(opt.hero)" data-vchoice-figure>{{ figure(opt.hero) }}</span>
+        </div>
+        <div v-else-if="opt.printed !== undefined && opt.printed.length > 0" class="con-vchoice__print" data-vchoice-print>
           <!-- The face's own px-authored nodes at the face's own scale, zoomed as ONE object (the asterisk's spark, a
                digit, a production plate's rivets keep their proportions — rem would size only the icons). -->
           <span class="con-vchoice__ink">
@@ -61,7 +77,9 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
-import {groupDecided, variantOptionClasses, variantQuiet, VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {groupDecided, heroFigure, variantOptionClasses, variantQuiet, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {wildIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 export default defineComponent({
   name: 'ConsoleVariantChoice',
@@ -71,9 +89,14 @@ export default defineComponent({
     /**
      * `compare` — tiles side by side (a column when the cluster is narrow; the host measures the axis off
      * `.con-vchoice__opt` and walks ←→ in a row); `column` — the same tiles always stacked, each a row with the print
-     * leading (a host whose cursor walks rows with ↑↓); `list` — one row per option (a pick list).
+     * leading (a host whose cursor walks rows with ↑↓); `list` — one row per option (a pick list); `palette` — N
+     * equal tiles of ONE kind in one row, each led by its hero (`VariantChoiceOption.hero`), no medallions (TR54).
      */
-    layout: {type: String as PropType<'compare' | 'column' | 'list'>, default: 'compare'},
+    layout: {type: String as PropType<'compare' | 'column' | 'list' | 'palette'>, default: 'compare'},
+    /** The palette's own line above its tiles (already translated) — what is asked; empty = none. */
+    kicker: {type: String, default: ''},
+    /** The printed glyph at the kicker's start — `wild`: the face's «?» (`wild.png`), «any one standard resource». */
+    emblem: {type: String as PropType<'wild' | 'none'>, default: 'none'},
     /** Mutually exclusive results — the «ИЛИ» medallion between the options. */
     exclusive: {type: Boolean, default: true},
     /** The radiogroup's accessible name (already translated). */
@@ -84,6 +107,9 @@ export default defineComponent({
     decided(): boolean {
       return groupDecided(this.options);
     },
+    wildUrl(): string {
+      return wildIconUrl();
+    },
   },
   methods: {
     optionClasses(opt: VariantChoiceOption): Record<string, boolean> {
@@ -91,6 +117,15 @@ export default defineComponent({
     },
     quiet(opt: VariantChoiceOption): boolean {
       return variantQuiet(opt);
+    },
+    heroIconClass(icon: string): string {
+      return iconClassFor(icon);
+    },
+    figure(hero: VariantHero): string {
+      return heroFigure(hero);
+    },
+    figureTone(hero: VariantHero): string {
+      return hero.amount === 0 ? 'zero' : hero.direction;
     },
     /** Anything beside the print — words, the host's body, a refusal. */
     hasText(opt: VariantChoiceOption): boolean {

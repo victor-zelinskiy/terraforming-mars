@@ -650,7 +650,7 @@ export {initialVariantSelection} from '@/client/console/consoleActionComposer';
  * Deck). MEASURED by the component, never derived from a duplicated
  * breakpoint; passed in here so the rule stays pure.
  */
-export type VariantAxis = 'row' | 'column';
+export type VariantAxis = 'row' | 'column' | 'grid';
 
 /**
  * THE D-PAD OVER THE «ИЛИ» GROUP. Players compared options that stand BESIDE
@@ -664,7 +664,12 @@ export type VariantAxis = 'row' | 'column';
  *              `returnIdx`, the option the cursor left (↓ from just above
  *              likewise); everything else is not the group's business;
  *  · `column`— the group declines every press: the ordinary ±1 walk already
- *              moves ↑↓ through the stacked options, and ←→ stay inert.
+ *              moves ↑↓ through the stacked options, and ←→ stay inert;
+ *  · `grid`  — a PALETTE folded into rows (TR54's six as 3 + 3 on a narrow
+ *              column): ←→ walk the tile's own row (wrapping inside it), ↑↓
+ *              step to the row above / below at the same column (clamped),
+ *              and leave the group from its first / last row as `row` does.
+ *              `rows` gives each option's row (measured, `offsetTop`).
  * Returns the new cursor index, or `undefined` when the caller's ordinary
  * walk applies. Selection is never touched — a choice is a PRESS.
  */
@@ -678,14 +683,46 @@ export function variantGroupNav(args: {
   returnIdx: number,
   /** The last cursor stop the commit gate allows right now. */
   navMaxIndex: number,
+  /** `grid` only — each option's row (0-based, in `variantIdx` order). */
+  rows?: ReadonlyArray<number>,
 }): number | undefined {
   const {dir, axis, focusIdx, variantIdx, returnIdx, navMaxIndex} = args;
-  if (axis !== 'row' || variantIdx.length === 0) {
+  if ((axis !== 'row' && axis !== 'grid') || variantIdx.length === 0) {
     return undefined;
   }
   const first = variantIdx[0];
   const last = variantIdx[variantIdx.length - 1];
   const at = variantIdx.indexOf(focusIdx);
+  const rows = args.rows;
+  if (axis === 'grid' && rows !== undefined && rows.length === variantIdx.length && at >= 0) {
+    const row = rows[at];
+    const lastRow = Math.max(...rows);
+    const members = (r: number) => variantIdx.filter((_i, k) => rows[k] === r);
+    const mine = members(row);
+    const col = mine.indexOf(focusIdx);
+    switch (dir) {
+    case 'left':
+      return mine[(col - 1 + mine.length) % mine.length];
+    case 'right':
+      return mine[(col + 1) % mine.length];
+    case 'up': {
+      if (row > 0) {
+        const above = members(row - 1);
+        return above[Math.min(col, above.length - 1)];
+      }
+      return first - 1 >= 0 ? first - 1 : focusIdx;
+    }
+    case 'down': {
+      if (row < lastRow) {
+        const below = members(row + 1);
+        return below[Math.min(col, below.length - 1)];
+      }
+      return last + 1 <= navMaxIndex ? last + 1 : focusIdx;
+    }
+    default:
+      return undefined;
+    }
+  }
   if (at >= 0) {
     switch (dir) {
     case 'left':
@@ -873,6 +910,8 @@ export type PlayFootContext = {
    * nothing extra (the ordinary d-pad walk).
    */
   variantAxis?: VariantAxis;
+  /** The «ИЛИ» group is a PALETTE of one kind of resource (TR54) — the row switch reads «Ресурс», not «Вариант». */
+  variantPalette?: boolean;
   /**
    * The open sub-surface is an OPTIONAL CHOICE (`optionalChoice.ts`): RT is its DECLINE — the console's «finish this choice
    * with nothing», published with the refusal's own words (already translated). Never B: B stays one level back.
@@ -951,8 +990,8 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   // The side-by-side «ИЛИ» group: ←→ are the option switch — said in the bar
   // while the cursor stands in the group (the player who complained «they
   // stand beside each other but switch up and down» reads it here).
-  if (ctx.focusedKind === 'variant' && ctx.variantAxis === 'row') {
-    hints.push({control: 'dpadH', label: 'Option'});
+  if (ctx.focusedKind === 'variant' && (ctx.variantAxis === 'row' || ctx.variantAxis === 'grid')) {
+    hints.push({control: 'dpadH', label: ctx.variantPalette === true ? 'Resource' : 'Option'});
   }
   if (ctx.focusedKind === 'amount') {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'}, {control: 'triggerR', label: 'MAX'});

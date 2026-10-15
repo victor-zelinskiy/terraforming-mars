@@ -1,5 +1,11 @@
 import {expect} from 'chai';
-import {groupDecided, printedVariantRows, variantOptionClasses, variantRecedes, VariantChoiceState} from '../../src/client/console/variantChoiceModel';
+import {groupDecided, heroFigure, heroOfEffect, paletteOf, printedVariantRows, variantOptionClasses, variantRecedes, VariantChoiceState} from '../../src/client/console/variantChoiceModel';
+import {OverclockedEquipment} from '../../src/server/cards/turmoilRedux/OverclockedEquipment';
+import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {sharedLeadingEffects} from '../../src/client/console/consolePlayCardComposer';
+import {testGame} from '../TestGame';
+import {Phase} from '../../src/common/Phase';
+import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
 import {InfluentialDiscovery} from '../../src/server/cards/turmoilRedux/InfluentialDiscovery';
 import {IchtiologyGrant} from '../../src/server/cards/turmoilRedux/IchtiologyGrant';
 import {ExpeditionMechs} from '../../src/server/cards/turmoilRedux/ExpeditionMechs';
@@ -77,6 +83,52 @@ describe('variantChoiceModel', () => {
       expect(printedVariantRows(render(new InfluentialDiscovery()), 3)).is.undefined;
       expect(printedVariantRows(render(new InfluentialDiscovery()), 1)).is.undefined;
       expect(printedVariantRows(undefined, 2)).is.undefined;
+    });
+  });
+
+  describe('THE PALETTE (TR54) — N options of one kind, each led by its hero', () => {
+    const gain = (icon: string, amount: number, note?: string): ActionEffect => ({direction: 'gain', icon, amount, current: 1, resulting: 1 + amount, ...(note !== undefined ? {note} : {})});
+
+    it('a hero is a standard resource gained into the stock, or a production of one — nothing else', () => {
+      expect(heroOfEffect(gain('plants', 3))).deep.eq({kind: 'resource', icon: 'plants', amount: 3, direction: 'gain'});
+      expect(heroOfEffect(gain('steel', 1, 'production'))).deep.eq({kind: 'production', icon: 'steel', amount: 1, direction: 'gain'});
+      expect(heroOfEffect({direction: 'cost', icon: 'heat', amount: 1, note: 'production'})).deep.include({kind: 'production', direction: 'loss'});
+      expect(heroOfEffect(gain('microbe', 2)), 'a card resource has its own grammar').is.undefined;
+      expect(heroOfEffect(gain('plants', 2, 'to a card')), 'a note of its own is not a stock gain').is.undefined;
+      expect(heroOfEffect(gain('tr', 1))).is.undefined;
+      expect(heroOfEffect(undefined)).is.undefined;
+    });
+
+    it('a palette: every option a hero, all of ONE kind, at least three (or the floor of the host)', () => {
+      const r = (icon: string) => ({hero: heroOfEffect(gain(icon, 1))});
+      const p = (icon: string) => ({hero: heroOfEffect(gain(icon, 1, 'production'))});
+      expect(paletteOf([r('steel'), r('titanium'), r('plants')])).is.true;
+      expect(paletteOf([r('steel'), r('titanium')]), 'two are a comparison, not a palette').is.false;
+      expect(paletteOf([p('steel'), p('titanium')], 2), 'the «+1 production» row of the Industrialists').is.true;
+      expect(paletteOf([r('steel'), p('titanium'), r('plants')]), 'two kinds').is.false;
+      expect(paletteOf([r('steel'), {hero: undefined}, r('plants')]), 'an option without a hero').is.false;
+      expect(paletteOf([])).is.false;
+    });
+
+    it('the number reads «+N», «−N», a zero bare', () => {
+      expect(heroFigure({kind: 'resource', icon: 'plants', amount: 3, direction: 'gain'})).eq('+3');
+      expect(heroFigure({kind: 'production', icon: 'heat', amount: 1, direction: 'loss'})).eq('−1');
+      expect(heroFigure({kind: 'resource', icon: 'titanium', amount: 0, direction: 'gain'})).eq('0');
+    });
+
+    it('the play of TR54 is a palette of six: the price shared above the row, the own chip of every option a resource hero, no printed slice', () => {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      player.energy = 5;
+      player.production.override({megacredits: -1, steel: 2, titanium: 0, plants: 3, energy: 1, heat: 4});
+      const card = new OverclockedEquipment();
+      const branches = cardPlayPreview(player, card).branches;
+      const shared = sharedLeadingEffects(branches);
+      expect(shared.map((e) => [e.direction, e.icon, e.amount])).deep.eq([['cost', 'energy', 3]]);
+      const heroes = branches.map((b) => heroOfEffect(b.effects[shared.length]));
+      expect(heroes.map((h) => [h?.icon, h?.amount])).deep.eq([['megacredits', 0], ['steel', 2], ['titanium', 0], ['plants', 3], ['energy', 1], ['heat', 4]]);
+      expect(paletteOf(heroes.map((hero) => ({hero})))).is.true;
+      expect(printedVariantRows(render(card), 6), 'the printed «?» row has no OR to slice').is.undefined;
     });
   });
 });

@@ -177,6 +177,9 @@
               <!-- THE KEYS BESIDE THE CHOICE (TR43 — the production every branch states first): ONCE, above the row, so each
                    option tile says only what differs (`sharedLeadingEffects`). -->
               <div v-if="hasVariants && sharedVariantEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips" data-variants-shared>
+                <!-- A shared head that is all PRICE (TR54's «also pay 3 energy») says so — the action composer's own word
+                     for its price (PL-074), never a bare «5 → 2» the eye has to decode. -->
+                <span v-if="sharedVariantIsPrice" class="con-composer__shared-label" data-variants-price>{{ $t('Will be spent') }}</span>
                 <ActionEffectChip v-for="(eff, k) in sharedVariantEffects" :key="k" :effect="eff" :basisInStrip="basisReadByStrip(eff)" />
               </div>
               <!-- PL-196: the shared keys' «why» stands right under them — read off the SHARED chips, so it is there before
@@ -185,16 +188,21 @@
               <!-- THE ИЛИ CHOICE — the ONE variant grammar (`ConsoleVariantChoice`, TR51): each option leads with the card's
                    OWN printed row of that branch, then its own chips and the table's answer to it; the seal marks the
                    answer, the cursor is a cold lift, a refused option is a faded print with its reason. -->
+              <!-- A PALETTE (TR54): every option a gain of a different standard resource — one row of equal tiles, the
+                   resource's own sprite and number leading each, the printed «?» on the group's kicker. -->
               <ConsoleVariantChoice v-if="hasVariants"
                                     ref="variantsEl"
                                     class="con-composer__variants"
                                     :data-variant-axis="variantAxis"
+                                    :layout="variantPalette ? 'palette' : 'compare'"
+                                    :kicker="variantPalette ? paletteKicker : ''"
+                                    :emblem="variantPalette ? 'wild' : 'none'"
                                     :options="variantOptions"
                                     :label="$t(resultHeading)"
                                     @pick="clickVariantAt($event)">
                 <template #body="{index}">
                   <div class="con-composer__variant-chips">
-                    <ActionEffectChip v-for="(eff, k2) in variantOwnEffects(variantRows[index].pos)" :key="k2" :effect="eff" />
+                    <ActionEffectChip v-for="(eff, k2) in variantTileEffects(variantRows[index].pos)" :key="k2" :effect="eff" :basisInStrip="variantPalette" />
                     <!-- «⚡ сработает» — the reactions tied to THIS branch (the forecast's `byBranch`): what the TABLE adds if
                          the player picks this option, on the option's own chip line past a thin seam. -->
                     <ConsoleForecastReactions :reaction="variantReactions(variantRows[index].pos)" />
@@ -717,7 +725,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
-import {printedVariantRows, VariantChoiceOption} from '@/client/console/variantChoiceModel';
+import {heroOfEffect, paletteOf, printedVariantRows, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
 import {reactionDeferral, ReactionDeferral} from '@/common/models/tableQuestionDeferral';
 import {
   TableQuestionRowState, cardsHeldByOtherDiscards, deferPlateOf, tableQuestionCanWait, tableQuestionNote, tableQuestionRowFocusable,
@@ -1093,6 +1101,8 @@ export default defineComponent({
        * container-query threshold.
        */
       variantAxis: 'row' as VariantAxis,
+      /** A folded palette's row per option (`grid` only — measured with the axis). */
+      variantGridRows: [] as Array<number>,
       /** The last option the cursor stood on — where ↑ from the payment /
        *  rail re-enters the group. */
       variantReturnIdx: 0,
@@ -1347,6 +1357,10 @@ export default defineComponent({
     sharedVariantEffects(): ReadonlyArray<ActionEffect> {
       return sharedLeadingEffects(this.branches);
     },
+    /** The shared head is the play's PRICE — every chip of it a cost. */
+    sharedVariantIsPrice(): boolean {
+      return this.sharedVariantEffects.length > 0 && this.sharedVariantEffects.every((e) => e.direction === 'cost');
+    },
     /**
      * THE CARD ASKS A REAL «ИЛИ» QUESTION — two or more branches the rules
      * actually allow. One playable branch among several is NOT a question (the
@@ -1405,7 +1419,30 @@ export default defineComponent({
       return translateTextWithParams(why.zero ? '${0} more TR to the first set' : '${0} more TR to the next set', [String(why.toNext)]);
     },
     resultHeading(): string {
+      if (this.variantPalette) {
+        return 'Choose a resource';
+      }
       return this.hasVariantChoice ? 'Choose the result' : 'Result';
+    },
+    /**
+     * Each option's HERO — the standard resource its own first chip gains (`heroOfEffect`, the server's number); a
+     * group whose every option has one, all of one kind, is a PALETTE (TR54 — «which standard resource»).
+     */
+    variantHeroes(): ReadonlyArray<VariantHero | undefined> {
+      return this.variantRows.map((row) => heroOfEffect(this.variantOwnEffects(row.pos)[0]));
+    },
+    variantPalette(): boolean {
+      return this.variantPrinted === undefined && paletteOf(this.variantHeroes.map((hero) => ({hero})));
+    },
+    /**
+     * The palette's kicker — the exclusion («one of six») and, when every option counts the same thing, WHAT it counts
+     * (TR54: «your production») — the one «why» of the row, never six repeats of it under the tiles.
+     */
+    paletteKicker(): string {
+      const one = translateTextWithParams('One of ${0}', [String(this.variantRows.length)]);
+      const labels = new Set(this.variantRows.map((row) => this.variantOwnEffects(row.pos)[0]?.basis?.[0]?.label));
+      const label = labels.size === 1 ? [...labels][0] : undefined;
+      return label === undefined ? one : one + ' · ' + translateText(label);
     },
     /**
      * THE PLAY WILL HOST A PARLIAMENT STEP (PL-127): the chosen branch's SHOW step — a walk of the Agenda track
@@ -1907,13 +1944,19 @@ export default defineComponent({
       const printed = this.variantPrinted;
       return this.variantRows.map((row, k): VariantChoiceOption => {
         const branch = this.branches[row.pos];
+        const hero = this.variantPalette ? this.variantHeroes[k] : undefined;
         return {
           key: row.id,
           state: {focused: this.focusIdx === row.i, selected: this.selectedPos === row.pos, off: !branch.available},
-          title: this.branchTitle(branch),
+          // A palette tile speaks with its hero and its number — the words would only repeat them.
+          title: hero !== undefined ? '' : this.branchTitle(branch),
           // ONE LOSS, ONE VOICE (PL-171): with the strip naming every option's loss, the tile carries no second reason.
           reason: !branch.available && !this.variantLossesInStrip ? this.branchReasonText(branch) : undefined,
+          // NO EFFECT (the server's verdict — TR54's «production 0»): the tile quiets and names it, never hidden.
+          quiet: branch.available && branch.futile !== undefined ? translateTextWithParams(branch.futile.reason, [...(branch.futile.reasonParams ?? [])]) : undefined,
           printed: printed?.[k],
+          hero,
+          attrs: hero !== undefined ? {'data-palette-resource': hero.icon} : undefined,
         };
       });
     },
@@ -2316,6 +2359,7 @@ export default defineComponent({
         // The radiogroup's live axis — «◄► Вариант» while the cursor stands in
         // a side-by-side group.
         variantAxis: this.focusedKind === 'variant' ? this.variantAxis : undefined,
+        variantPalette: this.variantPalette,
       });
     },
     // ── sub-state derived views ─────────────────────────────────────────
@@ -2655,11 +2699,11 @@ export default defineComponent({
         this.variantAxis = 'row';
         return;
       }
-      const tops = new Set<number>();
-      for (const card of Array.from(el.querySelectorAll<HTMLElement>('.con-vchoice__opt'))) {
-        tops.add(Math.round(card.offsetTop));
-      }
-      this.variantAxis = tops.size <= 1 ? 'row' : 'column';
+      const cards = Array.from(el.querySelectorAll<HTMLElement>('.con-vchoice__opt'));
+      const tops = [...new Set(cards.map((card) => Math.round(card.offsetTop)))].sort((a, b) => a - b);
+      // A PALETTE folded into rows (3 + 3) is a GRID — ←→ in a row, ↑↓ between rows; any other stacked group a column.
+      this.variantGridRows = this.variantPalette && tops.length > 1 ? cards.map((card) => tops.indexOf(Math.round(card.offsetTop))) : [];
+      this.variantAxis = tops.length <= 1 ? 'row' : this.variantGridRows.length > 0 ? 'grid' : 'column';
     },
     /** Re-measure on every resize of the group's box (a profile switch, the
      *  rail lifting, a font settling) — the responsive path, never a window
@@ -3365,6 +3409,16 @@ export default defineComponent({
     variantOwnEffects(pos: number): ReadonlyArray<ActionEffect> {
       return (this.branches[pos]?.effects ?? []).slice(this.sharedVariantEffects.length);
     },
+    /**
+     * The chips a tile READS under its print / hero. A palette tile whose branch changes nothing (`futile`) reads its
+     * quiet line instead — «20 → 20 · нет эффекта» under a «0» would say the same thing a third time.
+     */
+    variantTileEffects(pos: number): ReadonlyArray<ActionEffect> {
+      if (this.variantPalette && this.branches[pos]?.futile !== undefined) {
+        return [];
+      }
+      return this.variantOwnEffects(pos);
+    },
     branchTitle(b: ActionPreviewBranch): string {
       const t = textOf(b.title);
       return t !== '' ? t : translateText('Play card');
@@ -3458,6 +3512,7 @@ export default defineComponent({
         variantIdx: this.variantRows.map((r) => r.i),
         returnIdx: this.variantReturnIdx,
         navMaxIndex: this.navMaxIndex,
+        rows: this.variantGridRows,
       });
       if (grouped !== undefined) {
         this.focusIdx = grouped;

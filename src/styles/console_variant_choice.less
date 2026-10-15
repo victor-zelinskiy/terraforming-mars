@@ -421,8 +421,132 @@
     &--column &__opt { padding-right: 2.6rem; }
     &--list &__ink { --vchoice-print-zoom: 1; }
 
+    /* ── THE PALETTE (TR54, «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА») — N options of ONE kind: equal tiles sharing ONE row, each
+       led by its HERO (the resource's own sprite at the scene's scale) and its NUMBER (the tile's loudest text), the
+       reading a step quieter under them. One object: no medallions — the KICKER above the row (the printed «?» at its
+       start) carries the exclusion. The tiles share the row (`flex: 1 1 0`) up to a cap, so six never stretch across a
+       4K column and two never shrink below a readable tile; the cluster's own width folds them 3 + 3. ── */
+    &--palette {
+        justify-content: center;
+        gap: .5rem;
+        --vchoice-hero: calc(1.35rem * var(--vchoice-print-zoom));
+    }
+    &__kicker {
+        flex: 0 0 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        min-height: 1.5rem;
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(@con-text, 72%);
+    }
+    &__emblem {
+        flex: 0 0 auto;
+        width: 1.4rem;
+        height: 1.4rem;
+        object-fit: contain;
+    }
+    &--palette &__opt {
+        flex: 1 1 0;
+        min-width: 4.6rem;
+        max-width: 7.5rem;
+        justify-content: flex-start;
+        gap: .3rem;
+        padding: .7rem .4rem .6rem;
+    }
+    &__hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .2rem;
+        transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
+    }
+    &__heroplate {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* A PRODUCTION hero stands on the face's own riveted bronze plate — the same frame `.pcard-prod` prints. */
+    &__heroplate--prod {
+        padding: .22rem .34rem;
+        border-radius: .3rem;
+        background:
+            radial-gradient(circle at .2rem .2rem, rgba(255, 235, 200, 0.5) 0 .06rem, transparent .08rem),
+            radial-gradient(circle at calc(100% - .2rem) .2rem, rgba(255, 235, 200, 0.5) 0 .06rem, transparent .08rem),
+            radial-gradient(circle at .2rem calc(100% - .2rem), rgba(255, 235, 200, 0.5) 0 .06rem, transparent .08rem),
+            radial-gradient(circle at calc(100% - .2rem) calc(100% - .2rem), rgba(255, 235, 200, 0.5) 0 .06rem, transparent .08rem),
+            linear-gradient(180deg, #7c5c3b 0%, #5d4128 55%, #47301c 100%);
+        box-shadow:
+            inset 0 0 0 .05rem #2e1e10,
+            inset 0 .05rem 0 rgba(255, 235, 200, 0.28),
+            inset 0 -.1rem .2rem rgba(20, 12, 5, 0.6),
+            0 .05rem .1rem rgba(0, 0, 0, 0.5);
+    }
+    &__heroicon {
+        display: block;
+        width: var(--vchoice-hero);
+        height: var(--vchoice-hero);
+        margin: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__heroplate--prod &__heroicon {
+        width: calc(var(--vchoice-hero) * .82);
+        height: calc(var(--vchoice-hero) * .82);
+    }
+    &__figure {
+        font-size: var(--con-t-body, .9rem);
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        color: #8ff0c6;
+        transition: opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
+    }
+    &__figure--loss { color: #ffb58f; }
+    &__figure--zero { color: fade(@con-text, 62%); }
+    /* A quiet tile (the server's «no effect» — production 0): the hero and its zero a step back, its line inside. */
+    &__opt--quiet &__hero { opacity: .5; }
+    &__opt--quiet&__opt--focused &__hero,
+    &__opt--quiet&__opt--selected &__hero { opacity: .85; }
+    &__opt--off &__hero { opacity: .34; }
+    &--palette &__text { gap: .3rem; max-width: 100%; }
+    &--palette &__body { gap: .25rem; max-width: 100%; }
+    /* The palette's READING is the pool alone, compact — the hero above IS the resource, so the chip's own icon would
+       be its third picture (and on a narrow host plate «[M€] 500 → 502» ran out of the tile on the TV). */
+    &--palette &__body .action-effect-chip.action-effect-chip {
+        font-size: var(--con-chip-c-fs, .82rem);
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        padding-left: .42rem;
+        gap: var(--con-chip-c-gap, .22rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+        max-width: 100%;
+    }
+    &--palette &__body .action-effect-chip__icon.action-effect-chip__icon { display: none; }
+    &--palette &__reason {
+        padding: .15rem .4rem .17rem .32rem;
+        font-size: .62rem;
+        text-align: center;
+    }
+    /* The seal keeps clear of the hero on the narrowest tile. */
+    &--palette &__seal {
+        top: .3rem;
+        right: .3rem;
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+    &--palette &__seal::after { font-size: .66rem; }
+    /* …and once the cluster cannot hold six readable tiles in one line, it folds them 3 + 3 (never 5 + 1). */
+    @container (max-width: 31rem) {
+        &--palette &__opt { flex: 0 1 calc((100% - 1rem) / 3); }
+    }
+
     @media (prefers-reduced-motion: reduce) {
-        &__opt, &__seal, &__print, &__body { transition: none; }
+        &__opt, &__seal, &__print, &__body, &__hero, &__figure { transition: none; }
     }
 }
 
@@ -478,6 +602,17 @@ html.con-profile-tv .con-vchoice--list .con-vchoice__seal,
 html.con-profile-tv .con-vchoice--column .con-vchoice__seal { top: 50%; right: .7rem; margin-top: -.85rem; }
 html.con-profile-tv .con-vchoice--column .con-vchoice__opt { padding-right: 3rem; }
 html.con-profile-tv .con-vchoice__seal::after { font-size: 1.05rem; }
+/* The palette on the couch: the hero at the scene's ×1.7 (`--vchoice-print-zoom`), the number on the title step, a
+   wider cap (six tiles of 8.5rem fill a 4K decision column's middle, never its whole width). Every rule names the
+   palette — the generic TV tile rules above out-rank a bare `.con-vchoice--palette` one. */
+html.con-profile-tv .con-vchoice--palette { gap: .6rem; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__opt { max-width: 8.5rem; gap: .35rem; padding: .85rem .35rem .75rem; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__figure { font-size: var(--con-t-title); }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__kicker { font-size: var(--con-t-caption); min-height: 1.8rem; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__emblem { width: 1.75rem; height: 1.75rem; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__reason { font-size: var(--con-t-floor); gap: .2rem; padding: .12rem .3rem .14rem .25rem; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__seal { width: 1.3rem; height: 1.3rem; top: .35rem; right: .35rem; margin-top: 0; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__seal::after { font-size: .8rem; }
 
 /* THE HANDHELD — the Deck's 800-tall band holds the same composition: a smaller print, tighter tiles, and the caption
    under a printed graphic yields (the print and the option's own chips still say everything). Regression only (PL-105). */
@@ -490,3 +625,5 @@ html.con-profile-handheld .con-vchoice__print { min-height: 1.9rem; }
 html.con-profile-handheld .con-vchoice--compare .con-vchoice__print + .con-vchoice__text .con-vchoice__head { display: none; }
 html.con-profile-handheld .con-vchoice { --vchoice-or-w: 1.8rem; }
 html.con-profile-handheld .con-vchoice__or-medal { min-width: 1.7rem; height: 1.7rem; border-radius: .85rem; font-size: .55rem; }
+html.con-profile-handheld .con-vchoice--palette .con-vchoice__opt { padding: .45rem .3rem .4rem; gap: .2rem; }
+html.con-profile-handheld .con-vchoice--palette .con-vchoice__kicker { min-height: 1.2rem; }

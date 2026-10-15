@@ -225,6 +225,14 @@ export function standardResourceIconUrl(resource: Resource): string {
 }
 
 /**
+ * The printed «?» — «any one standard resource» (`CardRenderItemType.WILD`, the face's own `wild.png`). ONE file, ONE
+ * meaning: the face prints it, and the console's palette of the six resources wears it as its group's emblem.
+ */
+export function wildIconUrl(): string {
+  return `${RES}/wild.png`;
+}
+
+/**
  * Direct item-type → asset table. Covers the full vocabulary of the premium
  * scope (project + prelude cards of the in-scope modules) plus every exotic
  * type that has a clean shipped asset — an entry missing here degrades to

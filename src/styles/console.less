@@ -34770,6 +34770,11 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
        so their chips take the COMPACT family — one decision for the whole
        inline-chip hierarchy (see `--con-chip-c-*`). */
     &__result-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+    /* The shared PRICE above an «ИЛИ» row (TR54) — the price's word at the chips' scale, quiet tracked caps. */
+    &__shared-label {
+        font-size: calc(var(--con-chip-c-fs, .82rem) * .82); font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+        color: @con-text-dim; white-space: nowrap;
+    }
     /* A PHASE divider inside the result strip (TR47 «UP AND BACK»: the face's printed «THEN» between the raise and
        the fall, «Net» before the rating the swing leaves) — the card's own word, a quiet tracked-caps marker at the
        chips' scale with a hairline on each side, never a chip and never a second strip. */

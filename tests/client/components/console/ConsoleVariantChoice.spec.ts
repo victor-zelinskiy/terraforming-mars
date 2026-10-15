@@ -79,4 +79,62 @@ describe('ConsoleVariantChoice', () => {
     expect(make([option('a', false, false, false)], {layout: 'list'}).classes()).to.include('con-vchoice--list');
     expect(make([option('a', false, false, false)]).classes()).to.include('con-vchoice--compare');
   });
+
+  describe('THE PALETTE (TR54) — the hero, the number, the quiet zero, one kicker, no medallion', () => {
+    const hero = (icon: string, amount: number): Partial<VariantChoiceOption> => ({title: '', hero: {kind: 'resource', icon, amount, direction: 'gain'}});
+    const six = () => [
+      option('m', false, false, false, {...hero('megacredits', 0), quiet: 'production 0'}),
+      option('s', true, false, false, hero('steel', 2)),
+      option('t', false, false, false, {...hero('titanium', 0), quiet: 'production 0'}),
+      option('p', false, true, false, hero('plants', 3)),
+      option('e', false, false, false, hero('energy', 1)),
+      option('h', false, false, false, hero('heat', 4)),
+    ];
+
+    it('every tile leads with the own sprite of its resource and its number — no print, no words', () => {
+      const w = make(six(), {layout: 'palette', kicker: 'One of 6', emblem: 'wild'});
+      expect(w.classes()).to.include('con-vchoice--palette');
+      const heroes = w.findAll('[data-vchoice-hero]');
+      expect(heroes.map((h) => h.attributes('data-vchoice-hero-icon'))).deep.eq(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+      expect(heroes[1].find('.con-vchoice__heroicon').classes()).to.include.members(['resource_icon', 'resource_icon--steel']);
+      expect(w.findAll('[data-vchoice-figure]').map((f) => f.text())).deep.eq(['0', '+2', '0', '+3', '+1', '+4']);
+      expect(w.findAll('[data-vchoice-print]')).has.length(0);
+      expect(w.findAll('.con-vchoice__title')).has.length(0);
+    });
+
+    it('a zero stays a full answer: quiet (its line inside), never refused, never hidden — six radios', () => {
+      const w = make(six(), {layout: 'palette'});
+      expect(w.findAll('[role="radio"]')).has.length(6);
+      const tiles = w.findAll('.con-vchoice__opt');
+      expect(tiles.map((t) => t.classes().includes('con-vchoice__opt--quiet'))).deep.eq([true, false, true, false, false, false]);
+      expect(tiles.some((t) => t.classes().includes('con-vchoice__opt--off'))).is.false;
+      expect(tiles[2].find('[data-vchoice-quiet]').text()).to.contain('production 0');
+      expect(tiles[0].find('.con-vchoice__figure').classes()).to.include('con-vchoice__figure--zero');
+    });
+
+    it('ONE kicker with the printed «?» at its start, and no «ИЛИ» medallion between the tiles', () => {
+      const w = make(six(), {layout: 'palette', kicker: 'One of 6', emblem: 'wild'});
+      expect(w.findAll('[data-vchoice-kicker]')).has.length(1);
+      expect(w.find('[data-vchoice-emblem="wild"]').attributes('src')).eq('assets/resources/wild.png');
+      expect(w.find('[data-vchoice-kicker]').text()).eq('One of 6');
+      expect(w.findAll('.con-vchoice__or')).has.length(0);
+      expect(w.findAll('.con-vchoice__seal--on')).has.length(1);
+    });
+
+    it('the kicker belongs to the palette — a comparison draws none, and keeps its medallions', () => {
+      const w = make([option('a', false, false, false), option('b', false, false, false)], {kicker: 'One of 2', emblem: 'wild'});
+      expect(w.findAll('[data-vchoice-kicker]')).has.length(0);
+      expect(w.findAll('.con-vchoice__or')).has.length(1);
+    });
+
+    it('a production hero stands on its bronze plate; a loss reads «−N»', () => {
+      const w = make([
+        option('a', false, false, false, {title: '', hero: {kind: 'production', icon: 'heat', amount: 1, direction: 'loss'}}),
+        option('b', false, false, false, {title: '', hero: {kind: 'production', icon: 'steel', amount: 1, direction: 'loss'}}),
+      ], {layout: 'palette'});
+      expect(w.findAll('.con-vchoice__heroplate--prod')).has.length(2);
+      expect(w.findAll('[data-vchoice-figure]').map((f) => f.text())).deep.eq(['−1', '−1']);
+      expect(w.find('.con-vchoice__figure').classes()).to.include('con-vchoice__figure--loss');
+    });
+  });
 });
