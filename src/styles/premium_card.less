@@ -931,10 +931,15 @@
   text-shadow: 0 1px 1px rgba(8, 36, 26, 0.92), 0 0 6px rgba(92, 232, 190, 0.5);
 }
 .pcard-req__mod {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   flex: 0 0 auto;
   margin-left: 1px;
-  padding: 2px 4px 1.5px;
-  border-radius: 6px;
+  padding: 1.5px 4px 1.5px 1.5px;
+  border-radius: 9px;
   font-size: 10.5px;
   font-weight: 800;
   line-height: 1;
@@ -945,9 +950,18 @@
   background: linear-gradient(180deg, #c3f9e8 0%, #74dbba 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 1px rgba(20, 8, 2, 0.55);
 }
+/* The SEAL's coins at the verdict's own size (a ✓ and a coin are one family of round marks on the plate). A crowded
+   plate — several requirements — keeps the coins and drops the pill and the number. */
+.pcard-req__mod .pcard-mods { font-size: 12.6px; }
+.pcard-req__mod--coins {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.pcard-req__mod-steps { padding-top: .5px; }
 /* a waived segment: the scale and its operator step back, the printed bound stays LEGIBLE (the player reads what
-   is set aside), the diagonal crosses them all (the verdict stays bright) */
-.pcard-req--waived > :not(.pcard-req__verdict) { opacity: 0.55; }
+   is set aside), the diagonal crosses them all (the verdict and the seal of who lifted it stay bright) */
+.pcard-req--waived > :not(.pcard-req__verdict):not(.pcard-req__mod) { opacity: 0.55; }
 .pcard-req--waived > .pcard-req__value { opacity: 0.86; }
 .pcard-req--waived::after {
   content: '';
@@ -2539,4 +2553,77 @@
    peeks its header + requirements band (~112px). */
 .cards-stack:has(.pcard) {
   margin-top: -370px;
+}
+
+
+/* ══ THE MODIFIER COINS (`PremiumModifierCoins` — TR49 class) ════════════════
+ * WHO bends a requirement, as coins: the source card's own art (thumb tier) in the class's mint ring, a dark kerf
+ * between overlapping coins so each reads as its own object, a one-play effect with the ⚡ pip at its lower right.
+ * Sized in em — the coin takes the type size of the line it stands in (the face's seal pins it to the verdict's size).
+ * No filter, no animation: rings and the kerf are box-shadows, the art a background. */
+.pcard-mods {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.pcard-mod {
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.18em;
+  height: 1.18em;
+  border-radius: 50%;
+  background-color: #24423b;
+  background-size: cover;
+  background-position: 50% 38%;
+  background-repeat: no-repeat;
+  box-shadow:
+    inset 0 0 0 .09em rgba(160, 244, 214, 0.95),
+    inset 0 0 0 .15em rgba(6, 30, 22, 0.55),
+    0 0 0 .07em rgba(6, 20, 16, 0.92),
+    0 .06em .12em rgba(0, 0, 0, 0.5);
+
+  & + & { margin-left: -.4em; }
+
+  /* a source with no art of its own (a party policy): the class's mark on the coin */
+  &--plain::before {
+    content: '±';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .72em;
+    font-weight: 800;
+    color: #d2fff1;
+  }
+  /* the ONE-PLAY pip: the class's bolt on a dark bead at the coin's lower right */
+  &--once::after {
+    content: '⚡';
+    position: absolute;
+    right: -.22em;
+    bottom: -.2em;
+    width: 1.3em;
+    height: 1.3em;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .46em;
+    line-height: 1;
+    color: #ffd76a;
+    background: #0b1715;
+    box-shadow: 0 0 0 .14em rgba(160, 244, 214, 0.9);
+  }
+  &--more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .62em;
+    width: 1.9em;
+    height: 1.9em;
+    font-weight: 800;
+    color: #d2fff1;
+    background: #123029;
+  }
 }

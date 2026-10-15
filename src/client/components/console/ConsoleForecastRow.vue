@@ -62,6 +62,8 @@
         <!-- A REQUIREMENT MODIFIER this play spends or reads (TR49 class): the armed effect's own badge —
              the waiver's struck plate, «±2», «−8» — muted when this play spends it for nothing. -->
         <template v-else-if="chip.kind === 'modifier'">
+          <!-- WHO — the source's coin (the ⚡ pip on an armed effect), then what it does -->
+          <PremiumModifierCoins :sources="[chip.coin]" />
           <span v-if="chip.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
           <span v-else class="con-armed__badge" aria-hidden="true">{{ chip.badge }}</span>
           <span v-if="chip.oneShot" class="con-forecast__oneshot" aria-hidden="true">1×</span>
@@ -84,10 +86,11 @@ import {ForecastChip, ForecastRow, compactForecastChips, forecastChipRailRow} fr
 import {translateText} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
 
 export default defineComponent({
   name: 'ConsoleForecastRow',
-  components: {ActionEffectChip, GamepadGlyph},
+  components: {ActionEffectChip, GamepadGlyph, PremiumModifierCoins},
   props: {
     forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
     /**

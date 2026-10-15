@@ -315,6 +315,8 @@
                   <span v-for="(item, k) in easingPlates.get(cell.e.card.name)?.items ?? []" :key="'ease-' + k"
                         class="con-hand__plate-item con-hand__plate-item--ease" :class="'con-hand__plate-item--' + item.kind">
                     <span class="con-hand__plate-icon" :class="item.iconClass"></span>
+                    <!-- WHO bends it — the source's coin(s), the one-play ⚡ pip on an armed effect's -->
+                    <PremiumModifierCoins class="con-hand__plate-coins" :sources="item.sources" />
                     <span v-if="item.kind === 'shift'" class="con-hand__plate-n">±{{ item.steps }}</span>
                   </span>
                   <span v-if="easingPlates.get(cell.e.card.name)?.decisive" class="con-hand__plate-check" aria-hidden="true"></span>
@@ -593,6 +595,7 @@ import {HandEasingPlate, handEasingPlate} from '@/client/console/handEasingPlate
 import {armedEffectsOf} from '@/client/console/armedEffects';
 import {PresentedArmedEffect, presentedArmedEffects} from '@/client/console/armedEffectFlight';
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
+import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
 import {paymentUnitIcon} from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
@@ -717,7 +720,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip},
+  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip, PremiumModifierCoins},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},

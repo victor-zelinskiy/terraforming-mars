@@ -14,6 +14,8 @@ import {easingCompact, easingLine, easingSourcesText} from '@/client/console/req
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
 import PremiumRequirementsBar from '@/client/components/premiumCard/PremiumRequirementsBar.vue';
 import {normalizeRequirement} from '@/client/components/premiumCard/premiumCardViewModel';
+import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
+import {easingIsQuiet, modifierSourcesOf} from '@/client/components/premiumCard/premiumModifierSources';
 import {globalConfig} from '../components/getLocalVue';
 
 /**
@@ -35,6 +37,22 @@ const waived: RequirementEasingModel = {
   sources: [{source: {kind: 'card', card: CED}, kind: 'waive', oneShot: true}],
 };
 const decisiveShift: RequirementEasingModel = {...shifted, printed: 2, effective: -2, current: -2, met: true, decisive: true};
+/** SEVERAL modifiers at once — Inventrix + Adaptation Technology + an armed Special Design: ±6, Grass at −20 °C. */
+const several: RequirementEasingModel = {
+  key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
+  printed: -16, effective: -28, current: -20, met: true, decisive: true,
+  sources: [
+    {source: {kind: 'corporation', card: CardName.INVENTRIX}, kind: 'shift', steps: 2, oneShot: false},
+    {source: {kind: 'card', card: CardName.ADAPTATION_TECHNOLOGY}, kind: 'shift', steps: 2, oneShot: false},
+    {source: {kind: 'card', card: SD}, kind: 'shift', steps: 2, oneShot: true},
+  ],
+};
+/** Met ANYWAY under a shift — Archaebacteria (≤ −18) at −20 °C with ±2. */
+const quiet: RequirementEasingModel = {
+  key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: true,
+  printed: -18, effective: -14, current: -20, met: true, decisive: false,
+  sources: [{source: {kind: 'corporation', card: CardName.INVENTRIX}, kind: 'shift', steps: 2, oneShot: false}],
+};
 
 describe('the ONE-PLAY class on the client (TR49)', () => {
   describe('armedEffectsOf — the «ВЗВЕДЕНО» reading', () => {
@@ -88,10 +106,54 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
     });
     it('a shift reads «±2», a waiver is struck, decisive and one-shot are the card\'s', () => {
       expect(handEasingPlate({name: CardName.LAKE_MARINERIS, requirementEasing: [shifted]} as CardModel)).deep.eq({
-        items: [{iconClass: 'wgt-icon wgt-icon--temperature', kind: 'shift', steps: 2}], decisive: false, oneShot: true,
+        items: [{iconClass: 'wgt-icon wgt-icon--temperature', kind: 'shift', steps: 2,
+          sources: [{key: 'card:' + SD, card: SD, kind: 'shift', steps: 2, oneShot: true}]}], decisive: false, oneShot: true,
       });
       expect(handEasingPlate({name: CardName.LAKE_MARINERIS, requirementEasing: [waived]} as CardModel)?.items[0].kind).eq('waive');
       expect(handEasingPlate({name: CardName.LAKE_MARINERIS, requirementEasing: [waived]} as CardModel)?.decisive).is.true;
+    });
+    it('several sources: ONE item with the TOTAL and every coin, in the server\'s order', () => {
+      const plate = handEasingPlate({name: CardName.GRASS, requirementEasing: [several]} as CardModel)!;
+      expect(plate.items.map((i) => [i.steps, i.sources.map((s) => s.card)])).deep.eq([[6, [CardName.INVENTRIX, CardName.ADAPTATION_TECHNOLOGY, SD]]]);
+      expect(plate.decisive).is.true;
+    });
+    it('met ANYWAY says nothing on the tile — a standing ±2 never marks the whole hand', () => {
+      expect(handEasingPlate({name: CardName.ARCHAEBACTERIA, requirementEasing: [quiet]} as CardModel)).is.undefined;
+    });
+  });
+
+  describe('who bends it — the source model and its coins', () => {
+    it('quiet = met anyway under a SHIFT; a waiver, a decisive or a still-short bend is never quiet', () => {
+      expect(easingIsQuiet(quiet)).is.true;
+      expect(easingIsQuiet(several)).is.false;
+      expect(easingIsQuiet(shifted)).is.false;
+      expect(easingIsQuiet(waived)).is.false;
+    });
+    it('one source per share, the card behind a corporation too, the one-play flag kept', () => {
+      expect(modifierSourcesOf(several).map((s) => [s.key, s.card, s.steps, s.oneShot])).deep.eq([
+        ['card:' + CardName.INVENTRIX, CardName.INVENTRIX, 2, false],
+        ['card:' + CardName.ADAPTATION_TECHNOLOGY, CardName.ADAPTATION_TECHNOLOGY, 2, false],
+        ['card:' + SD, SD, 2, true],
+      ]);
+      const party = modifierSourcesOf({sources: [{source: {kind: 'party', party: 'Reds'} as never, kind: 'shift', steps: 1, oneShot: false}]});
+      expect(party[0].card, 'a non-card source has no art to show').is.undefined;
+    });
+    it('the stack: the first source on top, the one-play pip, the source\'s own art', () => {
+      const w = mount(PremiumModifierCoins, {...globalConfig, props: {sources: modifierSourcesOf(several)}});
+      const coins = w.findAll('[data-req-coin]');
+      expect(w.find('[data-req-coins]').attributes('data-req-coins')).eq('3');
+      expect(coins.map((c) => c.attributes('data-req-coin'))).deep.eq([CardName.INVENTRIX, CardName.ADAPTATION_TECHNOLOGY, SD]);
+      expect(coins.map((c) => Number((c.element as HTMLElement).style.zIndex))).deep.eq([3, 2, 1]);
+      expect(coins.map((c) => c.classes('pcard-mod--once'))).deep.eq([false, false, true]);
+      expect(w.find('[data-req-coins]').attributes('aria-label')).contains(CardName.INVENTRIX);
+    });
+    it('past max a «+N» coin takes the rest; no source → no seal at all; no art → the plain coin', () => {
+      const many = mount(PremiumModifierCoins, {...globalConfig, props: {sources: modifierSourcesOf(several), max: 2}});
+      expect(many.findAll('[data-req-coin]')).has.length(1);
+      expect(many.find('.pcard-mod--more').text()).eq('+2');
+      expect(mount(PremiumModifierCoins, {...globalConfig, props: {sources: []}}).find('.pcard-mods').exists()).is.false;
+      const plain = mount(PremiumModifierCoins, {...globalConfig, props: {sources: [{key: 'party:0', kind: 'shift', steps: 1, oneShot: false}]}});
+      expect(plain.find('.pcard-mod--plain').exists()).is.true;
     });
   });
 
@@ -137,14 +199,16 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
 
   describe('the cassette — three states on ONE plate, the printed value always stands', () => {
     function bar(easing: RequirementEasingModel | undefined) {
-      const req = {...normalizeRequirement({temperature: 0}), ...(easing === undefined ? {} : {easing: {
-        effective: easing.effective, met: easing.met, decisive: easing.decisive,
-        steps: easing.sources.reduce((s, x) => s + (x.steps ?? 0), 0), oneShot: true,
-      }})};
+      const req = {...normalizeRequirement(easing?.max === true ? {temperature: easing.printed, max: true} : {temperature: easing?.printed ?? 0}),
+        ...(easing === undefined ? {} : {easing: {
+          effective: easing.effective, met: easing.met, decisive: easing.decisive,
+          steps: easing.sources.reduce((s, x) => s + (x.steps ?? 0), 0), oneShot: easing.sources.some((x) => x.oneShot),
+          sources: modifierSourcesOf(easing), quiet: easingIsQuiet(easing),
+        }})};
       return mount(PremiumRequirementsBar, {...globalConfig, props: {requirements: [req]}});
     }
     it('a negative bound prints the typographic minus, printed and effective alike', () => {
-      const req = {...normalizeRequirement({temperature: -16}), easing: {effective: -20, met: true, decisive: true, steps: 2, oneShot: true}};
+      const req = {...normalizeRequirement({temperature: -16}), easing: {effective: -20, met: true, decisive: true, steps: 2, oneShot: true, sources: [], quiet: false}};
       const w = mount(PremiumRequirementsBar, {...globalConfig, props: {requirements: [req]}});
       expect(w.find('.pcard-req__value--printed').text()).eq('−16');
       expect(w.find('[data-req-effective]').text()).eq('−20°C');
@@ -160,8 +224,25 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(w.find('.pcard-req__value--printed').text()).eq('0');
       expect(w.find('[data-req-effective]').text()).eq('−4°C');
       expect(w.find('[data-req-mod]').text()).eq('±2');
+      expect(w.find('[data-req-mod] [data-req-coin]').attributes('data-req-coin'), 'the seal names its source').eq(SD);
       expect(w.find('[data-req-decisive]').exists()).is.false;
       expect(w.find('.pcard__reqs--eased').exists()).is.true;
+    });
+    it('several modifiers: the FINAL bound, one coin per source, the TOTAL bend', () => {
+      const w = bar(several);
+      expect(w.find('[data-req-state]').attributes('data-req-state')).eq('eased');
+      expect(w.find('[data-req-effective]').text()).eq('−28°C');
+      expect(w.find('[data-req-mod]').attributes('data-req-mod-steps')).eq('6');
+      expect(w.findAll('[data-req-mod] [data-req-coin]')).has.length(3);
+      expect(w.find('[data-req-mod]').text()).eq('±6');
+      expect(w.find('[data-req-decisive]').exists()).is.true;
+    });
+    it('met anyway: QUIET — printed as printed, no seal, no effective bound', () => {
+      const w = bar(quiet);
+      expect(w.find('[data-req-state]').attributes('data-req-state')).eq('quiet');
+      expect(w.find('[data-req-mod]').exists()).is.false;
+      expect(w.find('[data-req-effective]').exists()).is.false;
+      expect(w.find('.pcard__reqs--eased').exists()).is.false;
     });
     it('waived + decisive: the segment is struck, the printed value stays, the check is a form', () => {
       const w = bar(waived);
@@ -170,6 +251,7 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(w.find('.pcard-req__value').text()).eq('0°C');
       expect(w.find('[data-req-decisive]').exists()).is.true;
       expect(w.find('.pcard__reqs--waived').exists()).is.true;
+      expect(w.find('[data-req-mod] [data-req-coin]').attributes('data-req-coin'), 'the seal names who lifted it').eq(CED);
     });
   });
 });

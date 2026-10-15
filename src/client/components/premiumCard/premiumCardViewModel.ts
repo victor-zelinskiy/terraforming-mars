@@ -26,6 +26,7 @@ import {buildMechanics, collectDroppedProse, MechanicsVM} from './mechanicsModel
 import {tagClusterPlan, TagClusterPlan} from './tagLayout';
 import {standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 import {requirementPartyEmblem} from './partyEmblems';
+import {ModifierSourceVM, easingIsQuiet, modifierSourcesOf} from './premiumModifierSources';
 
 export type PremiumCostVM = {
   printed: number;
@@ -74,8 +75,13 @@ export type RequirementEasingVM = {
   effective: number | 'waived';
   met: boolean;
   decisive: boolean;
+  /** The TOTAL bend in steps — every source summed (the cassette's «±N» beside the coins). */
   steps: number;
   oneShot: boolean;
+  /** WHO bends it — one coin per source, in the server's order (`premiumModifierSources`). */
+  sources: ReadonlyArray<ModifierSourceVM>;
+  /** Met anyway under a shift — the cassette stays printed (`easingIsQuiet`). */
+  quiet: boolean;
 };
 
 /**
@@ -436,6 +442,8 @@ function withEasing(requirements: Array<NormalizedRequirement>, model: CardModel
         decisive: easing.decisive,
         steps: easing.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0),
         oneShot: easing.sources.some((s) => s.oneShot),
+        sources: modifierSourcesOf(easing),
+        quiet: easingIsQuiet(easing),
       },
     };
   });

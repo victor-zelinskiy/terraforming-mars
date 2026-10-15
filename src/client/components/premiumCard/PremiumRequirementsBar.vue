@@ -33,8 +33,18 @@
               <span class="pcard-req__shift" aria-hidden="true"></span>
               <span class="pcard-req__value pcard-req__value--effective" data-req-effective>{{ effectiveText(req)
                 }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
-              <span v-if="showsModBadge(req)" class="pcard-req__mod" data-req-mod>±{{ req.easing?.steps }}</span>
+              <!-- THE MODIFIER SEAL: who bends it (one coin per source, stacked) and the TOTAL bend; the bound before it
+                   is already the FINAL one. A crowded plate keeps the coins and drops the number. -->
+              <span class="pcard-req__mod" :class="{'pcard-req__mod--coins': !showsModBadge(req)}" data-req-mod
+                    :data-req-mod-steps="req.easing?.steps">
+                <PremiumModifierCoins :sources="req.easing?.sources ?? []" />
+                <span v-if="showsModBadge(req)" class="pcard-req__mod-steps">±{{ req.easing?.steps }}</span>
+              </span>
             </template>
+            <!-- LIFTED: the struck value stays readable, and the seal names who lifted it. -->
+            <span v-else-if="stateOf(req) === 'waived'" class="pcard-req__mod pcard-req__mod--coins" data-req-mod>
+              <PremiumModifierCoins :sources="req.easing?.sources ?? []" />
+            </span>
           </template>
           <!-- MET ONLY THANKS TO the modifier — the state is a FORM (a check), never colour alone -->
           <span v-if="req.easing?.decisive === true" class="pcard-req__verdict" data-req-decisive aria-hidden="true"></span>
@@ -50,6 +60,7 @@ import {RequirementType} from '@/common/cards/RequirementType';
 import {translateText} from '@/client/directives/i18n';
 import {NormalizedRequirement} from './premiumCardViewModel';
 import PremiumRequirementOperator from './PremiumRequirementOperator.vue';
+import PremiumModifierCoins from './PremiumModifierCoins.vue';
 import {tagIconStyle} from './premiumCardIcons';
 
 /**
@@ -78,7 +89,7 @@ import {tagIconStyle} from './premiumCardIcons';
  */
 export default defineComponent({
   name: 'PremiumRequirementsBar',
-  components: {PremiumRequirementOperator},
+  components: {PremiumRequirementOperator, PremiumModifierCoins},
   props: {
     requirements: {
       type: Array as () => ReadonlyArray<NormalizedRequirement>,
@@ -98,7 +109,7 @@ export default defineComponent({
         'pcard__reqs--all': this.hasAll,
         'pcard__reqs--multi': n > 1,
         'pcard__reqs--dense': n > 2,
-        'pcard__reqs--eased': this.requirements.some((r) => r.easing !== undefined),
+        'pcard__reqs--eased': this.requirements.some((r) => r.easing !== undefined && !r.easing.quiet),
         'pcard__reqs--waived': this.requirements.some((r) => r.easing?.effective === 'waived'),
         'pcard__reqs--decisive': this.requirements.some((r) => r.easing?.decisive === true),
       };
@@ -106,14 +117,21 @@ export default defineComponent({
   },
   methods: {
     /** The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class). */
-    stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' {
+    /**
+     * The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class), or QUIET: met anyway
+     * under a shift, drawn exactly as printed (a standing ±2 would otherwise mark every card it does not decide).
+     */
+    stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' | 'quiet' {
       if (req.easing === undefined) {
         return 'printed';
       }
-      return req.easing.effective === 'waived' ? 'waived' : 'eased';
+      if (req.easing.effective === 'waived') {
+        return 'waived';
+      }
+      return req.easing.quiet ? 'quiet' : 'eased';
     },
     isShifted(req: NormalizedRequirement): boolean {
-      return req.easing !== undefined && req.easing.effective !== 'waived';
+      return this.stateOf(req) === 'eased';
     },
     segmentClass(req: NormalizedRequirement): Record<string, boolean> {
       const state = this.stateOf(req);

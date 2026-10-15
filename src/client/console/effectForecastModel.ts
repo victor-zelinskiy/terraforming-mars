@@ -26,6 +26,7 @@ import {
 } from '@/common/models/EffectForecastModel';
 import {EventSource} from '@/common/events/EventSource';
 import {ArmedPlayEffectModel, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
+import {ModifierSourceVM} from '@/client/components/premiumCard/premiumModifierSources';
 import {EventTrigger} from '@/common/events/GameEvent';
 import {EffectSignature} from '@/client/components/effects/effectSummary';
 import {expectedChannelsFor} from '@/client/components/effects/effectChannels';
@@ -66,7 +67,7 @@ export type ForecastChip =
    * spent for nothing — or a standing modifier (Inventrix) bending one of the
    * card's printed requirements. `used: false` = spent for nothing (muted).
    */
-  | {kind: 'modifier', key: string, badge: string, waive: boolean, used: boolean, oneShot: boolean, facts: number}
+  | {kind: 'modifier', key: string, badge: string, waive: boolean, used: boolean, oneShot: boolean, coin: ModifierSourceVM, facts: number}
   | {kind: 'more', key: string, count: number, facts: number};
 
 /** Which operation the forecast describes — the WHEN vocabulary differs. */
@@ -182,7 +183,7 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
   }
   // THE PLAY'S MODIFIERS lead (TR49 class): they concern the card's own legality and price, before the table answers.
   const modifierChips: Array<ForecastChip> = modifierItemsOf(forecast).map((m) => ({
-    kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, used: m.used, oneShot: m.oneShot, facts: 1,
+    kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, used: m.used, oneShot: m.oneShot, coin: modifierCoinOf(m), facts: 1,
   }));
   const own = new Map<string, ChipSlot>();
   const asks = new Map<string, ChipSlot>();
@@ -484,6 +485,12 @@ function sourceCardOf(source: EventSource): CardName | undefined {
   return source.kind === 'card' || source.kind === 'corporation' ? source.card : undefined;
 }
 
+/** The coin a modifier item wears — its source card, its kind, the one-play pip (`PremiumModifierCoins`). */
+export function modifierCoinOf(item: Pick<ForecastModifierItem, 'key' | 'source' | 'waive' | 'oneShot'>): ModifierSourceVM {
+  const card = sourceCardOf(item.source);
+  return {key: item.key, ...(card !== undefined ? {card} : {}), kind: item.waive ? 'waive' : 'shift', oneShot: item.oneShot};
+}
+
 /** The play's modifier items, in the server's order: the armed one first, then the standing ones. */
 export function modifierItemsOf(forecast: EffectForecast | undefined): Array<ForecastModifierItem> {
   const modifiers = forecast?.modifiers;
@@ -508,7 +515,9 @@ export function modifierItemsOf(forecast: EffectForecast | undefined): Array<For
     });
   }
   const standing = new Map<string, ForecastModifierItem>();
-  for (const easing of modifiers.easings) {
+  // A STANDING modifier is a fact of this play only where it DECIDES a requirement — met anyway, it changes nothing
+  // here (`easingIsQuiet`), and a standing ±2 would otherwise sit in the row of every card with a global requirement.
+  for (const easing of modifiers.easings.filter((e) => e.decisive || e.effective === 'waived')) {
     for (const share of easing.sources) {
       const card = sourceCardOf(share.source);
       const key = card ?? share.source.kind;

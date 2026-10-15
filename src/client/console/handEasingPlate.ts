@@ -10,6 +10,7 @@
 import {CardModel} from '@/common/models/CardModel';
 import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {ModifierSourceVM, easingIsQuiet, modifierSourcesOf} from '@/client/components/premiumCard/premiumModifierSources';
 
 /** One bent requirement on the plate: its scale's icon and the bend — «±2» or the strike of a waiver. */
 export type HandEasingItem = {
@@ -17,7 +18,10 @@ export type HandEasingItem = {
   iconClass: string;
   /** `waived` draws the icon struck through (the scan's red diagonal); `shift` prints «±N». */
   kind: 'shift' | 'waive';
+  /** The TOTAL bend (every source summed). */
   steps: number;
+  /** WHO bends it — the coins (the plate names the source on the tile, before the player focuses it). */
+  sources: ReadonlyArray<ModifierSourceVM>;
 };
 
 export type HandEasingPlate = {
@@ -37,6 +41,7 @@ function itemOf(easing: RequirementEasingModel): HandEasingItem {
     iconClass: iconClassFor(easing.parameter),
     kind: easing.effective === 'waived' ? 'waive' : 'shift',
     steps,
+    sources: modifierSourcesOf(easing),
   };
 }
 
@@ -46,8 +51,10 @@ function itemOf(easing: RequirementEasingModel): HandEasingItem {
  * под эффектом» is one language), the decisive state is the card's.
  */
 export function handEasingPlate(card: CardModel): HandEasingPlate | undefined {
-  const easings = card.requirementEasing;
-  if (easings === undefined || easings.length === 0) {
+  // A requirement met ANYWAY under a shift says nothing on the tile (`easingIsQuiet`): a standing ±2 would mark the
+  // whole hand and drown the cards it actually opens.
+  const easings = (card.requirementEasing ?? []).filter((e) => !easingIsQuiet(e));
+  if (easings.length === 0) {
     return undefined;
   }
   return {

@@ -13,7 +13,8 @@ import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotat
 import {ArmedPlayForecast, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {armedEffectFormula, easingBound, easingParameterLabel, easingSourcesText, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
+import {armedEffectFormula, easingBound, easingParameterLabel, easingShareText, easingSourcesText, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
+import {ModifierSourceVM, easingIsQuiet, modifierSourceOf} from '@/client/components/premiumCard/premiumModifierSources';
 
 export type ComposerRequirementView = {
   key: string;
@@ -31,10 +32,24 @@ export type ComposerRequirementView = {
   decisive: boolean;
   /** «±2 Особая разработка · один розыгрыш». */
   sources: string;
+  /**
+   * EACH source with its own share — the coin and «±2 Inventrix» / «Новаторская разработка · один розыгрыш»: with
+   * several modifiers the row reads the FINAL bound (`effective`) and then who contributed what.
+   */
+  shares: ReadonlyArray<{source: ModifierSourceVM, text: string}>;
+  /**
+   * SEVERAL sources: the row stands on TWO lines — the FINAL bound and the verdict on the first, the composition on
+   * the second as a SUM («[coin] ±2 Inventrix + [coin] ±2 Adaptation Technology + … = ±6»), so the arithmetic that
+   * moved the bound is read, never inferred. One source keeps the one line.
+   */
+  stacked: boolean;
+  /** «±6» — the sum the composition ends on (stacked shifts only). */
+  total?: string;
 };
 
 export function composerRequirementViews(easings: ReadonlyArray<RequirementEasingModel> | undefined): ReadonlyArray<ComposerRequirementView> {
-  return (easings ?? []).map((e) => {
+  // A requirement met ANYWAY under a shift is no decision of this play — the row stays for the ones a modifier decides.
+  return (easings ?? []).filter((e) => !easingIsQuiet(e)).map((e) => {
     const view: ComposerRequirementView = {
       key: e.key,
       iconClass: iconClassFor(e.parameter),
@@ -45,7 +60,12 @@ export function composerRequirementViews(easings: ReadonlyArray<RequirementEasin
       met: e.met,
       decisive: e.decisive,
       sources: easingSourcesText(e),
+      shares: e.sources.map((share, i) => ({source: modifierSourceOf(share, i), text: easingShareText(share)})),
+      stacked: e.sources.length > 1,
     };
+    if (view.stacked && e.sources.every((s) => s.kind === 'shift')) {
+      view.total = `±${e.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0)}`;
+    }
     if (e.effective !== 'waived') {
       view.effective = easingBound(e, e.effective);
     }
@@ -79,12 +99,14 @@ export function requirementStateText(view: ComposerRequirementView): string {
   if (view.waived) {
     return translateText(EASING_KEYS.requirementIgnored);
   }
-  return view.met ? (view.decisive ? translateText(REQUIREMENT_STATE_KEYS.metThanks) : translateText(REQUIREMENT_STATE_KEYS.met)) :
+  const thanks = view.stacked ? REQUIREMENT_STATE_KEYS.metThanksMany : REQUIREMENT_STATE_KEYS.metThanks;
+  return view.met ? (view.decisive ? translateText(thanks) : translateText(REQUIREMENT_STATE_KEYS.met)) :
     translateText(REQUIREMENT_STATE_KEYS.short);
 }
 
 export const REQUIREMENT_STATE_KEYS = {
   metThanks: 'Met thanks to the modifier',
+  metThanksMany: 'Met thanks to the modifiers',
   met: 'Met',
   short: 'Still short',
 } as const;
@@ -130,7 +152,7 @@ export function withRequirementEasing(groups: ReadonlyArray<CardAnnotation>, eas
     const rows: Array<CardAnnotationRow> = [];
     for (const row of group.rows) {
       rows.push(row);
-      const easing = easings.find((e) => e.key === row.id);
+      const easing = easings.find((e) => e.key === row.id && !easingIsQuiet(e));
       if (easing !== undefined) {
         rows.push({id: `${row.id}:eased`, text: '${0}', params: [ruleEasingLine(easing, t)], special: false, anyPlayer: false});
       }

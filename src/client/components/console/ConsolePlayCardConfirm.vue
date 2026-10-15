@@ -240,7 +240,7 @@
                    printed bound (struck when ignored), the effective one, the scale now, the verdict and who bends it.
                    Every number is the server's reading (`ArmedPlayForecast.easings`); one fixed line per requirement. -->
               <div v-for="r in requirementViews" :key="'req' + r.key" class="con-composer__reqrow"
-                   :class="{'con-composer__reqrow--waived': r.waived, 'con-composer__reqrow--decisive': r.decisive, 'con-composer__reqrow--short': !r.met}"
+                   :class="{'con-composer__reqrow--waived': r.waived, 'con-composer__reqrow--decisive': r.decisive, 'con-composer__reqrow--short': !r.met, 'con-composer__reqrow--stacked': r.stacked}"
                    data-composer-req :data-req-state="r.waived ? 'waived' : (r.decisive ? 'decisive' : (r.met ? 'eased' : 'short'))">
                 <span class="con-composer__reqrow-kicker">{{ $t('Requirement') }}</span>
                 <i class="con-composer__reqrow-ico" :class="r.iconClass" aria-hidden="true"></i>
@@ -251,7 +251,14 @@
                 </template>
                 <span class="con-composer__reqrow-now">{{ $t('now') }} {{ r.now }}</span>
                 <span class="con-composer__reqrow-state">{{ requirementStateText(r) }}</span>
-                <span class="con-composer__reqrow-src">{{ r.sources }}</span>
+                <!-- WHO bent it, each with its share. Several modifiers: the composition takes a line of its own and
+                     reads as the SUM that moved the bound above («… + … = ±6»). -->
+                <span class="con-composer__reqrow-src">
+                  <span v-for="sh in r.shares" :key="sh.source.key" class="con-composer__reqrow-share" data-composer-req-share>
+                    <PremiumModifierCoins :sources="[sh.source]" />{{ sh.text }}
+                  </span>
+                  <span v-if="r.total !== undefined" class="con-composer__reqrow-total" data-composer-req-total>= {{ r.total }}</span>
+                </span>
               </div>
 
               <!-- ── THE SECOND LEVEL — what the card IS once it is on the
@@ -850,6 +857,7 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
+import PremiumModifierCoins from '@/client/components/premiumCard/PremiumModifierCoins.vue';
 import {ComposerConsumeNote, ComposerRequirementView, composerConsumeNotes, composerRequirementViews, requirementStateText} from '@/client/console/composerRequirementRow';
 import {armedEffectBadge, armedEffectFormula} from '@/client/console/requirementEasingText';
 import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
@@ -991,7 +999,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierCoins},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

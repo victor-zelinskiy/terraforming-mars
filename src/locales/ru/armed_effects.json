@@ -14,6 +14,7 @@
     "This play spends ${0}: ${1}": "Этот розыгрыш расходует «${0}»: ${1}",
     "This play spends ${0} for nothing — this card does not need it": "Этот розыгрыш израсходует «${0}» впустую — этой карте эффект не нужен",
     "Met thanks to the modifier": "выполнено благодаря модификатору",
+    "Met thanks to the modifiers": "выполнено благодаря модификаторам",
     "Met": "выполнено",
     "Still short": "пока не выполнено",
     "Under an effect: ${0}": "Под эффектом: ${0}",

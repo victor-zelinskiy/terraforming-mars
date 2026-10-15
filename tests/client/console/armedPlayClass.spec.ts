@@ -54,6 +54,23 @@ const standing: RequirementEasingModel = {
   sources: [{source: {kind: 'card', card: CardName.ADAPTATION_TECHNOLOGY}, kind: 'shift', steps: 2, oneShot: false}],
 };
 
+/** SEVERAL modifiers at once — Inventrix + Adaptation Technology + an armed Special Design: ±6, Grass at −20 °C. */
+const several: RequirementEasingModel = {
+  key: 'req:temperature', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
+  printed: -16, effective: -28, current: -20, met: true, decisive: true,
+  sources: [
+    {source: {kind: 'corporation', card: CardName.INVENTRIX}, kind: 'shift', steps: 2, oneShot: false},
+    {source: {kind: 'card', card: CardName.ADAPTATION_TECHNOLOGY}, kind: 'shift', steps: 2, oneShot: false},
+    {source: {kind: 'card', card: SD}, kind: 'shift', steps: 2, oneShot: true},
+  ],
+};
+/** Met ANYWAY under a shift — the standing ±2 changes nothing for this card. */
+const quiet: RequirementEasingModel = {
+  key: 'req:temperature', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: true,
+  printed: -18, effective: -14, current: -20, met: true, decisive: false,
+  sources: [{source: {kind: 'corporation', card: CardName.INVENTRIX}, kind: 'shift', steps: 2, oneShot: false}],
+};
+
 function withModifiers(modifiers: EffectForecast['modifiers'], base = 20): EffectForecast {
   return {...emptyEffectForecast(base), modifiers};
 }
@@ -85,6 +102,24 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
     it('a STANDING modifier (Adaptation Technology) is one item per source, not one-shot', () => {
       const items = modifierItemsOf(withModifiers({consumes: [], easings: [standing]}));
       expect(items.map((i) => [i.oneShot, i.badge, i.armed === undefined])).deep.eq([[false, '±2', true]]);
+    });
+
+    it('several sources: the armed one first, then every standing source — each chip wears its coin', () => {
+      const forecast = withModifiers({consumes: [{armed: shift, used: true}], easings: [several]});
+      const items = modifierItemsOf(forecast);
+      expect(items.map((i) => [forecastItemCard(i), i.oneShot, i.badge])).deep.eq([
+        [SD, true, '±2'], [CardName.INVENTRIX, false, '±2'], [CardName.ADAPTATION_TECHNOLOGY, false, '±2'],
+      ]);
+      const chips = compactForecastChips(forecast).chips.filter((c) => c.kind === 'modifier');
+      expect(chips.map((c) => c.kind === 'modifier' ? [c.coin.card, c.coin.oneShot] : [])).deep.eq([
+        [SD, true], [CardName.INVENTRIX, false], [CardName.ADAPTATION_TECHNOLOGY, false],
+      ]);
+    });
+
+    it('a standing modifier on a requirement met ANYWAY is no fact of this play — only the armed one it spends stays', () => {
+      expect(modifierItemsOf(withModifiers({consumes: [], easings: [quiet]}))).deep.eq([]);
+      const spent = modifierItemsOf(withModifiers({consumes: [{armed: shift, used: false}], easings: [quiet]}));
+      expect(spent.map((i) => [forecastItemCard(i), i.used])).deep.eq([[SD, false]]);
     });
 
     it('the row leads with the modifier chips; the layer opens on a modifiers-only forecast', () => {
@@ -122,6 +157,29 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
       expect(s.effective).is.not.undefined;
       expect(requirementStateText(w)).eq('Requirement ignored');
       expect(requirementStateText(s)).eq('Met thanks to the modifier');
+    });
+
+    it('several modifiers: the row reads the FINAL bound, then each source with its own coin and share', () => {
+      const [row] = composerRequirementViews([several]);
+      expect(row).to.include({waived: false, met: true, decisive: true});
+      expect(row.shares.map((s) => [s.source.card, s.source.oneShot, s.text])).deep.eq([
+        [CardName.INVENTRIX, false, '±2 ' + CardName.INVENTRIX],
+        [CardName.ADAPTATION_TECHNOLOGY, false, '±2 ' + CardName.ADAPTATION_TECHNOLOGY],
+        [SD, true, '±2 ' + SD + ' · One play'],
+      ]);
+      expect([row.stacked, row.total], 'the composition is its own line, ending on the sum').deep.eq([true, '±6']);
+      expect(requirementStateText(row)).eq('Met thanks to the modifiers');
+      const [one] = composerRequirementViews([standing]);
+      expect([one.stacked, one.total], 'one source keeps the one line').deep.eq([false, undefined]);
+    });
+
+    it('a requirement met ANYWAY has no row and no rules line — it is no decision of this play', () => {
+      expect(composerRequirementViews([quiet])).deep.eq([]);
+      const t = {text: (k: string) => k, params: (k: string, p: Array<string>) => `${k}|${p.join('|')}`};
+      const groups = withRequirementEasing([{kind: 'requirement', rows: [
+        {id: 'req:temperature', text: 'x', params: [], special: false, anyPlayer: false},
+      ]} as never], [quiet], t);
+      expect((groups[0] as unknown as {rows: Array<{id: string}>}).rows.map((r) => r.id)).deep.eq(['req:temperature']);
     });
 
     it('the consume note says USED or FOR NOTHING, naming the source', () => {
