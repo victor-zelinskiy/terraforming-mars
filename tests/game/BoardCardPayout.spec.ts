@@ -115,7 +115,8 @@ describe('BoardCardPayout — one record for every card resource the field pays'
   describe('an Ares tile\'s card-resource ADJACENCY bonus (`ares-adjacency`)', () => {
     it('the pick names the PAYING tile as the token\'s source; the answer records it as the one neighbour', () => {
       const host = holder('AnimalHost', CardResource.ANIMAL);
-      player.playedCards.push(host);
+      // Two holders — ONE is no question (decision 5: `AresAdjacencyGrants.spec`).
+      player.playedCards.push(host, holder('AnimalHostB', CardResource.ANIMAL));
       const greenerySpace = game.board.getAvailableSpacesForGreenery(player)[0];
       const [paying] = game.board.getAdjacentSpaces(greenerySpace);
       paying.adjacency = {bonus: [SpaceBonus.ANIMAL]};

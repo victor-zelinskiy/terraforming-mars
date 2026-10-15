@@ -89,7 +89,7 @@ export class AresHandler {
     }
 
     const addResourceToCard = function(player: IPlayer, resourceType: CardResource, resourceAsText: string):
-      {delivery: AresAdjacencyDelivery, targetCard?: CardName} {
+      {delivery: AresAdjacencyDelivery, targetCard?: CardName, boardScene?: true} {
       const availableCards = player.getResourceCards(resourceType);
       if (availableCards.length === 0) {
         // No silent loss: the adjacency bonus names itself — the text line AND the
@@ -112,6 +112,20 @@ export class AresHandler {
       // the cell (`fromSpace` — the console lights it while the player chooses), and the answer's addition writes the
       // board scene's ONE record (`boardPayout` → `cards/tilePayout.ts`): the chosen card is carried to the field and
       // the unit flies to it out of THIS tile. Before, the answer flew nothing — the card «fell» off the bottom.
+      const step = new AddResourcesToCard(player, resourceType, {
+        cause,
+        fromSpace: adjacentSpace.id,
+        boardPayout: {space: newTileSpace, sender: adjacentSpace, cause: 'ares-adjacency', source: adjacentSpace.tile?.card},
+      });
+      // ONE HOLDER IS NO QUESTION (the owner's decision 5 of the TR53 iteration, 2026-10-15 — the printed cell bonus
+      // and the colony already worked so): the unit lands on it at once and the BOARD SCENE names the card (it rises
+      // by the field, the unit flies to it out of this tile, it goes home) — «no hidden target» is kept by the scene,
+      // and nothing is chosen. Several holders keep the pick.
+      const holders = step.getCards();
+      if (holders.length === 1) {
+        player.game.defer(step);
+        return {delivery: 'card-resource', targetCard: holders[0].name, boardScene: true};
+      }
       player.game.defer(new AddResourcesToCard(player, resourceType, {
         autoSelect: false,
         cause,
@@ -192,7 +206,7 @@ export class AresHandler {
     newTileSpace: Space,
     adjacentSpace: Space,
     bonuses: MultiSet<SpaceBonus>,
-    addResourceToCard: (player: IPlayer, resourceType: CardResource, resourceAsText: string) => {delivery: AresAdjacencyDelivery, targetCard?: CardName},
+    addResourceToCard: (player: IPlayer, resourceType: CardResource, resourceAsText: string) => {delivery: AresAdjacencyDelivery, targetCard?: CardName, boardScene?: true},
     grants?: Array<AresAdjacencyGrantEntry>): void {
     const record = (entry: Omit<AresAdjacencyGrantEntry, 'sourceSpaceId' | 'bonus'>, bonus: SpaceBonus) => {
       grants?.push({sourceSpaceId: adjacentSpace.id, bonus, ...entry});
@@ -202,7 +216,7 @@ export class AresHandler {
         switch (bonus) {
         case SpaceBonus.ANIMAL: {
           const r = addResourceToCard(player, CardResource.ANIMAL, 'animal');
-          record({delivery: r.delivery, cardResource: CardResource.ANIMAL, targetCard: r.targetCard}, bonus);
+          record({delivery: r.delivery, cardResource: CardResource.ANIMAL, targetCard: r.targetCard, ...(r.boardScene ? {boardScene: true} : {})}, bonus);
           break;
         }
 
@@ -221,7 +235,7 @@ export class AresHandler {
 
         case SpaceBonus.MICROBE: {
           const r = addResourceToCard(player, CardResource.MICROBE, 'microbe');
-          record({delivery: r.delivery, cardResource: CardResource.MICROBE, targetCard: r.targetCard}, bonus);
+          record({delivery: r.delivery, cardResource: CardResource.MICROBE, targetCard: r.targetCard, ...(r.boardScene ? {boardScene: true} : {})}, bonus);
           break;
         }
 

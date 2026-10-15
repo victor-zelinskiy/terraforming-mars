@@ -46,7 +46,8 @@ export function viewerAresAdjacencyFlights(
           sourceSpaceId: e.sourceSpaceId,
           spec: {channel: 'stock', resource: e.resource, amount: 1},
         });
-      } else if (e.delivery === 'card-resource' && e.cardResource !== undefined && e.targetCard !== undefined) {
+      } else if (e.delivery === 'card-resource' && e.cardResource !== undefined && e.targetCard !== undefined && e.boardScene !== true) {
+        // (A unit the BOARD SCENE tells — `boardScene` — flies there, out of the same tile, onto the risen card.)
         out.push({
           sourceSpaceId: e.sourceSpaceId,
           spec: {channel: 'card-resource', resource: cardResourceKey(e.cardResource), amount: 1, targetCard: e.targetCard},

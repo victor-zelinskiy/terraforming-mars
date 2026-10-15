@@ -49,6 +49,18 @@ describe('aresAdjacencyFlights', () => {
     ]);
   });
 
+  // TR53 iteration, decision 5: the server's single-holder unit is told by the BOARD SCENE (the card rises by the field,
+  // the unit flies out of the paying tile onto it) — the adjacency wave must not fly a second token into the satellite.
+  it('a unit the board scene tells (`boardScene`) flies nothing here', () => {
+    const flights = viewerAresAdjacencyFlights(grant({
+      grants: [{
+        sourceSpaceId: '08', bonus: SpaceBonus.ANIMAL, delivery: 'card-resource',
+        cardResource: CardResource.ANIMAL, targetCard: 'Predators' as CardName, boardScene: true,
+      }],
+    }), 'red');
+    expect(flights).is.empty;
+  });
+
   it('draws, prompts and lost bonuses fly nothing (they have their own surfaces)', () => {
     const flights = viewerAresAdjacencyFlights(grant({
       grants: [

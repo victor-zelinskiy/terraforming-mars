@@ -35,6 +35,12 @@ export type AresAdjacencyGrantEntry = {
   readonly cardResource?: CardResource;
   /** `delivery === 'card-resource'`: the single card it landed on. */
   readonly targetCard?: CardName;
+  /**
+   * The unit is told by the BOARD'S card-receiving scene (TR53 iteration — its record rides `cardAdjacencyPayouts`,
+   * `cause: 'ares-adjacency'`): the card rises by the field and the unit flies to it out of the paying tile. The
+   * adjacency wave flies NO chip of its own for it — a second token into the satellite would be a double.
+   */
+  readonly boardScene?: true;
 };
 
 /** The Ares rule's OTHER half: the paying tile's OWNER earns M€. */
