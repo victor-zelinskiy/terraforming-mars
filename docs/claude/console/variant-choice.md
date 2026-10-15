@@ -106,3 +106,32 @@ hero, the caption under it).
   alternative (the DSL never writes one).
 - The slice is cosmetic by construction: the submitted branch is `branch.index`, the mapping only decides the
   graphic — but a wrong graphic is a lie, so the matcher refuses rather than guesses.
+
+## 6 · The FOURTH layout — the PALETTE (TR54, 2026-10-16)
+
+`layout: 'palette'` — N options of ONE kind («which of the six standard resources», «which production»). Before it the
+question had four dialects: six SENTENCES in the action composer's list (Astrodrill — «Получите 1 титан … [Ti] 500 → 501»
+across a 2000 px column, the icon in a chip at the row's end), six BARE ICONS in the live task host (no number, no
+`current → resulting`), production chips with no hero in the Industrialists' action, and nothing for a play.
+
+- **The tile**: the HERO is the resource's own sprite at the scene's scale (`VariantChoiceOption.hero` — `{kind:
+  'resource' | 'production', icon, amount?, direction}`; a production on the face's riveted bronze plate), the NUMBER
+  («+3», «−1», a zero bare — `heroFigure`) the tile's loudest text, the READING (the host's chip) a step quieter; no
+  words (the title is the aria name only). A quiet tile (the server's «no effect» — TR54's «production 0») keeps its
+  place: the hero and the number a step back, the line inside.
+- **The row**: equal tiles sharing ONE line (`flex: 1 1 0`, `min-width 4.6rem`, `max-width 7.5rem` / TV `8.5rem`),
+  centred; the cluster's own width folds them 3 + 3 (`@container (max-width: 31rem)`), never 5 + 1.
+- **No medallions** — the group is one object; its KICKER (`kicker` + `emblem: 'wild'` — the face's own `wild.png`,
+  «any one standard resource») carries the exclusion, plus the «why» when every option counts the same thing.
+- **Read, never declared**: `paletteOf(options, min = 3)` over `heroOfEffect(the option's own first chip)` — a stock
+  gain / a production of a standard resource; the hosts are the play composer (TR54's six branches), the action
+  composer's or-pick (Astrodrill), the Industrialists' two rows (`min = 2`), the live `resource` prompt (the server's
+  `SelectResourceModel.amount`).
+- **The token is born on the printed «?»** — `consoleActionCommitMotion`'s `wild` needle + the rung «a standard resource
+  the row prints nowhere → the k-th bare «?»» (`bareWildIcons`, `wildChosen`), and the play scene's `heroWildOrigin`.
+
+Measured (4K): the play composer's palette 2018 × 479 px in a 2106 px column, the hero 92 px against the reading chip's
+52 px icon; fhd 1231 × 189, the hero 38 px against 21. Guards: `variantChoiceModel.spec` § THE PALETTE,
+`ConsoleVariantChoice.spec` § THE PALETTE, `consoleActionCommitOrigins.spec` § the printed «?», `taskHostResourcePalette.spec`;
+e2e `console-overclocked-equipment` (fhd + tv4k), the translated `console-action-resource-pick`, `console-parliament-actions`
+§ Industrialists palette · tv4k, `console-prompt-family` § resource-palette. Contract: `docs/TURMOIL_REDUX_OVERCLOCKED_EQUIPMENT.md`.
