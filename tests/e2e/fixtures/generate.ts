@@ -148,6 +148,7 @@ import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/Compo
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
 import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
+import {FrontierLabs} from '../../../src/server/cards/turmoilRedux/FrontierLabs';
 import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/ExpeditionMechs';
 import {InfluentialDiscovery} from '../../../src/server/cards/turmoilRedux/InfluentialDiscovery';
 import {ScientificBreakthrough} from '../../../src/server/cards/turmoilRedux/ScientificBreakthrough';
@@ -5646,3 +5647,150 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   }
   write(name, game);
 }
+
+// ── TR53 · FRONTIER LABS — «pay 5 M€: +1 resource to a card that ALREADY has one; draw unless it is science» and the
+//    iteration «ресурс на карту — один стандарт» (docs/claude/prompts/project-tr53-frontier-labs.md). Blue's action
+//    phase, the Scientists RULING, the card IN THE TABLEAU (the action live) with 20 M€ and four holders of four kinds:
+//    Tardigrades (1 microbe → «+1 microbe · +1 card»), Olympus Conference (1 science → «+1 science · no draw»), Martian
+//    Census (1 data → a delegate within reach + a card), Pets (0 animals — a NEAR MISS: shown, disabled, «На карте ещё
+//    нет ресурса»). Red sits at a pinned corporation with no first action (its wheel must open). The deck's own copies. ──
+parliamentFixture('frontier-labs', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+    const take = (name: CardName, resources: number) => {
+      moveToDeckTop(game, name);
+      const card = game.projectDeck.drawOrThrow(game);
+      card.resourceCount = resources;
+      p1.playedCards.push(card);
+      return card;
+    };
+    take(CardName.FRONTIER_LABS, 0);
+    take(CardName.TARDIGRADES, 1);
+    take(CardName.OLYMPUS_CONFERENCE, 1);
+    take(CardName.MARTIAN_CENSUS, 1);
+    take(CardName.PETS, 0);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.playedCards.get(CardName.FRONTIER_LABS) as FrontierLabs | undefined;
+    const candidates = card === undefined ? [] : card.target(p1).getCards().map((c) => c.name);
+    if (card === undefined || !card.canAct(p1) || p1.megaCredits !== 20 || parliament.rulingParty() !== PartyName.SCIENTISTS ||
+        candidates.length !== 3 || candidates.includes(CardName.PETS)) {
+      throw new Error(`the frontier-labs fixture expected TR53 live on 20 M€, the Scientists ruling and three candidates (Pets a near miss) — got canAct=${card?.canAct(p1)} mc=${p1.megaCredits} ruling=${parliament.rulingParty()} candidates=${candidates.join(', ')}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── RECEIVE · THE FIELD — the live «on which card» pick the BOARD raises, and the silent arrival beside it (the TR53
+//    iteration, cases 3 and 4). An Ares table (hazards off) in blue's action phase, 24 plants (three greeneries) and ONE
+//    blue city C on Mars, so every greenery of the stand goes into C's ring; around C:
+//      · X — a printed MICROBE bonus; blue holds TWO microbe holders (Tardigrades 1, Decomposers 0) → the live pick,
+//            named by the CELL (`{kind: 'space'}` · `fromSpace` X);
+//      · Y — a free cell beside red's Ecological Zone (Ares) whose ADJACENCY bonus is an animal; blue holds TWO animal
+//            holders (Pets 1, Small Animals 0) → the live pick, named by the Ares card, its unit leaving that tile;
+//      · Z — a printed DATA bonus; blue holds ONE data holder (Martian Census 1) → no question: the field pays and the
+//            board's own scene plays (case 4).
+//    The Ares tile T stands next to Y only (never next to X or Z — a second adjacency payout would muddy the stand).
+//    A quiet government (the Industrialists by Central Power Grid). Red sits at a pinned corporation with no first
+//    action. The cell ids are printed by the generator. ──
+parliamentFixture('receive-board', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {aresExtension: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const board = game.board;
+    // A cell the stand may DRESS: land, no tile, not a named/reserved cell (its printed bonus is set below where it matters).
+    const free = (s: Space) => s.spaceType === SpaceType.LAND && s.tile === undefined && !s.bonus.includes(SpaceBonus.OCEAN);
+    let chosen: {c: Space, x: Space, y: Space, z: Space, t: Space} | undefined;
+    for (const c of board.spaces.filter((s) => free(s) && board.getAdjacentSpaces(s).every((a) => a.spaceType === SpaceType.LAND))) {
+      const ring = board.getAdjacentSpaces(c).filter(free);
+      if (ring.length < 6) {
+        continue;
+      }
+      const [x, , y, , z] = ring;
+      const t = board.getAdjacentSpaces(y).find((s) => free(s) && s.id !== c.id && !ring.includes(s) &&
+        !board.getAdjacentSpaces(s).some((n) => n.id === x.id || n.id === z.id));
+      if (t !== undefined) {
+        chosen = {c, x, y, z, t};
+        break;
+      }
+    }
+    if (chosen === undefined) {
+      throw new Error('receive-board: no cell with a free ring of six and a lone neighbour for the Ares tile');
+    }
+    const {c, x, y, z, t} = chosen;
+    game.simpleAddTile(p1, c, {tileType: TileType.CITY});
+    x.bonus = [SpaceBonus.MICROBE];
+    y.bonus = [];
+    z.bonus = [SpaceBonus.DATA];
+    game.simpleAddTile(p2, t, {tileType: TileType.ECOLOGICAL_ZONE, card: CardName.ECOLOGICAL_ZONE_ARES});
+    t.adjacency = {bonus: [SpaceBonus.ANIMAL]};
+    const take = (name: CardName, resources: number) => {
+      moveToDeckTop(game, name);
+      const card = game.projectDeck.drawOrThrow(game);
+      card.resourceCount = resources;
+      p1.playedCards.push(card);
+    };
+    take(CardName.TARDIGRADES, 1);
+    take(CardName.DECOMPOSERS, 0);
+    take(CardName.PETS, 1);
+    take(CardName.SMALL_ANIMALS, 0);
+    take(CardName.MARTIAN_CENSUS, 1);
+    p1.plants = 24;
+    console.log(`receive-board cells: city ${c.id} · microbe X ${x.id} · ares Y ${y.id} (tile ${t.id}) · data Z ${z.id}`);
+  },
+  expect: ({game, p1, parliament}) => {
+    const microbeX = game.board.spaces.find((s) => s.bonus.includes(SpaceBonus.MICROBE) && s.tile === undefined);
+    const dataZ = game.board.spaces.find((s) => s.bonus.includes(SpaceBonus.DATA) && s.tile === undefined);
+    const ares = game.board.spaces.find((s) => s.adjacency?.bonus.includes(SpaceBonus.ANIMAL));
+    if (p1.plants !== 24 || microbeX === undefined || dataZ === undefined || ares?.tile?.tileType !== TileType.ECOLOGICAL_ZONE ||
+        game.gameOptions.aresExtension !== true || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the receive-board fixture expected 24 plants, a microbe cell, a data cell and the Ares zone with its animal — got plants=${p1.plants} x=${microbeX?.id} z=${dataZ?.id} ares=${ares?.id}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── RECEIVE · THE COLONY — «somebody traded on my colony: which card takes the floater?» (the TR53 iteration, case 3,
+//    decision 3). A Venus table: blue owns a cube on Titan and TWO floater holders (Dirigibles 1, Aerial Mappers 0);
+//    RED IS ON THE MOVE with 3 energy and a free fleet — red's trade with Titan pays blue's owner bonus (one floater)
+//    as a DETACHED live pick on blue's screen. Luna beside it. A quiet government. The Venus tables' pinned
+//    corporations (red's first move is its own). ──
+parliamentFixture('receive-colony', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {venusNextExtension: true, customCorporationsList: [...VENUS_TABLE_CORPORATIONS]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const luna = new Luna();
+    const titan = new Titan();
+    for (const colony of [luna, titan]) {
+      colony.isActive = true;
+    }
+    game.colonies = [luna, titan];
+    titan.colonies.push(p1.id);
+    const take = (name: CardName, resources: number) => {
+      moveToDeckTop(game, name);
+      const card = game.projectDeck.drawOrThrow(game);
+      card.resourceCount = resources;
+      p1.playedCards.push(card);
+    };
+    take(CardName.DIRIGIBLES, 1);
+    take(CardName.AERIAL_MAPPERS, 0);
+    p2.energy = 3;
+    p1.clearWaitingFor();
+    game.playerIsFinishedTakingActions();
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const titan = game.colonies.find((c) => c.name === ColonyName.TITAN);
+    if (titan === undefined || !titan.colonies.includes(p1.id) || game.activePlayer.id !== p2.id || !(p2.getWaitingFor() instanceof OrOptions) ||
+        p2.energy !== 3 || p1.playedCards.get(CardName.DIRIGIBLES)?.resourceCount !== 1 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the receive-colony fixture expected blue's cube on Titan, red on the move with 3 energy and the action menu, Dirigibles ×1 — got active=${game.activePlayer.color} energy=${p2.energy}`);
+    }
+    parliament.assertLedger(game);
+  },
+});

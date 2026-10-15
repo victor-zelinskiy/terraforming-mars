@@ -565,7 +565,10 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '08-rival-blue-after');
       // BLUE: the city lands FIRST, then each card's unit leaves it — never a count ahead of the landing (PL-034).
       expect(blue.tileAt, 'red\'s city painted on blue\'s board').toBeDefined();
-      expect(blue.modes, 'blue plays the remote stage').toEqual(['remote']);
+      // TR53 iteration (К-R5, PL-413): a rival's city that pays the VIEWER's cards is the viewer's OWN scene — each
+      // card rises by red's city and its unit flies out of the tile onto it (never a token into the satellite).
+      expect(blue.modes, 'blue plays its OWN scene for its own cards').toEqual(['own']);
+      expect(blue.cardSeen, 'blue\'s cards rise by the field').toBeGreaterThan(0);
       expect(blue.degraded, 'nothing degraded').toBe(false);
       expect(blue.tokens.map((t) => t.kind).sort(), `one data and one animal token: ${JSON.stringify(blue.tokens)}`).toEqual(['animal', 'data']);
       for (const token of blue.tokens) {

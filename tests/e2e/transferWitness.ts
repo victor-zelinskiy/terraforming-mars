@@ -79,6 +79,7 @@ export type TransferEnd = {
   y: number;
   /**
    * The anchor under the chip's centre: `hero` · `composer-card:<name>` · `recv:<card|front>` · `played:<card>` ·
+   * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
    * `rail:<row>` · `aux:<key>` · `payrow:<unit>` · `forecast:<row|bolt>` (a «Сработает» chip — the table's answer is
    * born there, PL-220) · `cell:<id>` (a board cell — PL-306's price into the cell) — or, with no anchor there,
    * `glass:<surface>` · `board` · `other:<tag>`;
@@ -135,6 +136,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['composer-card', '[data-composer-card]'],
       ['recv', '.con-recv [data-recv-front], .con-recv [data-played-key], .con-sale-hero [data-played-key], .con-citypay [data-played-key], .con-colfocus [data-played-key], .con-fleetdock [data-played-key], .con-hydro [data-played-key]'],
       ['played', '.con-played [data-played-key], .con-start__played [data-played-key]'],
+      // A LIVE PICK's own objects (TR53 iteration): the candidate a plate's answer lands on, and the source dock the
+      // token is born on (a colony's plate, a card's) — the plate's own glass is not a foreign surface to them.
+      ['slot', '.con-cards__slot[data-zoom-slot]'],
+      ['source', '.con-src'],
       ['payrow', '.con-payrow'],
       ['rail', '.con-res__row, .con-score__cell'],
       ['aux', '.con-res-aux__cell'],
@@ -148,6 +153,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'composer-card': return `composer-card:${name(el, 'data-composer-card')}`;
       case 'recv': return `recv:${el.hasAttribute('data-recv-front') ? 'front' : name(el, 'data-played-key')}`;
       case 'played': return `played:${name(el, 'data-played-key')}`;
+      case 'slot': return `slot:${name(el, 'data-zoom-slot')}`;
+      case 'source': return 'source';
       case 'payrow': return `payrow:${name(el, 'data-pay-unit')}`;
       case 'forecast': return `forecast:${name(el, 'data-forecast-rail') || 'bolt'}`;
       case 'rail': {
