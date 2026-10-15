@@ -312,7 +312,12 @@ const inside = (p: Pt, b: Box, slack: number) => p.x >= b.x - slack && p.x <= b.
 const firstAt = (list: Array<[number, string]>, value: string) => list.find(([, v]) => v === value)?.[0];
 
 /** The own scene's order, read off the probe — every claim the contract makes. */
-function expectOwnScene(probe: MuseumProbe, from: number, label: string): void {
+/**
+ * `cardVp`: the PRINTED points of the card a staged play laid down with this tile (Nuclear Zone's −2) — TR55, the
+ * score cell: they leave as their own token from the sealed tile after the card's gains, BEFORE the museum's scene, and
+ * the cell ticks on that token (a loss on its departure); the museum's point then ticks on its second data touchdown.
+ */
+function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp = 0): void {
   const to = from + 2;
   expect(probe.ticks, `${label}: the probe sampled`).toBeGreaterThan(10);
   expect(probe.degraded, `${label}: the scene never degraded`).toBe(false);
@@ -339,11 +344,18 @@ function expectOwnScene(probe: MuseumProbe, from: number, label: string): void {
   expect(probe.counts.map(([, v]) => v), `${label}: the capsule counts on the touchdowns: ${JSON.stringify(probe.counts)}`)
     .toEqual([String(from), String(from + 1), String(to)]);
   const second = firstAt(probe.counts, String(to))!;
-  // The rail's VP cell (+1 for 2 data — derived): never before the second touchdown.
-  const vp0 = probe.vp[0]?.[1];
-  const vpUp = probe.vp.find(([, v]) => v !== vp0);
-  expect(vpUp, `${label}: the VP cell ticked: ${JSON.stringify(probe.vp)}`).toBeDefined();
-  expect(Number(vpUp![1]), `${label}: by the museum's point`).toBe(Number(vp0) + 1);
+  // The rail's VP cell (+1 for 2 data — derived): never before the second touchdown. A staged card's own printed points
+  // come first, on their own token (TR55) — the museum's point is read relative to them.
+  const vp0 = Number(probe.vp[0]?.[1]);
+  if (cardVp !== 0) {
+    const sealed = probe.vp.find(([, v]) => Number(v) !== vp0);
+    expect(sealed, `${label}: the card's printed VP ticked on their token: ${JSON.stringify(probe.vp)}`).toBeDefined();
+    expect(Number(sealed![1]), `${label}: first the card's own ${cardVp} — ${JSON.stringify(probe.vp)}`).toBe(vp0 + cardVp);
+  }
+  const museum = vp0 + cardVp + 1;
+  const vpUp = probe.vp.find(([, v]) => Number(v) === museum);
+  expect(vpUp, `${label}: the VP cell reached the museum's point: ${JSON.stringify(probe.vp)}`).toBeDefined();
+  expect(probe.vp.filter(([t]) => t < vpUp![0]).every(([, v]) => Number(v) !== museum), `${label}: the museum's point never earlier`).toBe(true);
   expect(vpUp![0], `${label}: the VP cell ticks with the second touchdown, never before (${JSON.stringify(probe.vp)} · counts ${JSON.stringify(probe.counts)})`)
     .toBeGreaterThanOrEqual(second);
   // The satellite's data cell: on the card's return, never before the last touchdown.
@@ -501,7 +513,7 @@ for (const preset of PRESETS) {
       await stopNz();
       const special = await readProbe(page);
       await shoot(page, preset.id, '06-after-special');
-      expectOwnScene(special, 2, 'Nuclear Zone');
+      expectOwnScene(special, 2, 'Nuclear Zone', -2);
       expect(dataOn(await wireOf(request, playerId), CARD), '2 → 4 data').toBe(4);
 
       expect(overflow, 'no [console-overflow]').toEqual([]);

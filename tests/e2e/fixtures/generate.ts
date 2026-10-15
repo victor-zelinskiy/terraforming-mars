@@ -5818,3 +5818,119 @@ parliamentFixture('receive-colony', {
     parliament.assertLedger(game);
   },
 });
+
+// ── TR55 · NUCLEAR WARHEAD UTILIZATION («Утилизация ядерных боеголовок») and the iteration «ЯЧЕЙКА ПО — КАЖДОЕ ОЧКО ИЗ
+//    СВОЕЙ ПРИЧИНЫ» (docs/claude/prompts/project-tr55-nuclear-warhead-utilization.md, docs/claude/console/score-cell.md).
+//    Blue's action phase, the Industrialists RULING (Central Power Grid enacted), TR55 in hand with 20 M€: the play's
+//    «+9 energy» lands on the rail, its printed «2 VP» flies from the landed card's badge into the score cell. Red sits
+//    at a pinned corporation with no first action. ──
+parliamentFixture('nuclear-warhead-utilization', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    moveToDeckTop(game, CardName.NUCLEAR_WARHEAD_UTILIZATION);
+    p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.NUCLEAR_WARHEAD_UTILIZATION);
+    if (card === undefined || !p1.canPlay(card) || p1.megaCredits !== 20 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS ||
+        game.activePlayer.id !== p1.id) {
+      throw new Error(`the nuclear-warhead-utilization fixture expected TR55 playable on 20 M€ with the Industrialists ruling and blue on the move — got card=${card !== undefined} canPlay=${card === undefined ? '-' : p1.canPlay(card)} mc=${p1.megaCredits} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── TR55 · the same hand with the Reds RULING and the Industrialists' resolution on the vote with no delegate of blue's:
+//    the card stands «✕ Нельзя разыграть» and names the party and both roads (the TR15 class). ──
+parliamentFixture('nuclear-warhead-locked', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+    if (parliament.slotOf(PartyName.INDUSTRIALISTS) === undefined) {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    }
+    moveToDeckTop(game, CardName.NUCLEAR_WARHEAD_UTILIZATION);
+    p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.NUCLEAR_WARHEAD_UTILIZATION);
+    if (card === undefined || p1.canPlay(card) || parliament.rulingParty() !== PartyName.REDS || parliament.slotOf(PartyName.INDUSTRIALISTS) === undefined) {
+      throw new Error(`the nuclear-warhead-locked fixture expected TR55 UNplayable under the Reds with the Industrialists' resolution on the vote — got card=${card !== undefined} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── THE SCORE CELL'S SOURCES, blue on the move (TR55): Terraformer claimable (TR 35, 30 M€ — the milestone's +5 flies
+//    from its ceremony), Security Fleet on the table with no fighter and 2 titanium (the ACTION's fighter brings its
+//    point on its touchdown — К-V2: the preview carries no `vpBox` for the card's own capsule). A quiet government. ──
+parliamentFixture('vp-cell-sources', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    p1.setTerraformRating(35);
+    moveToDeckTop(game, CardName.SECURITY_FLEET);
+    p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+    p1.titanium = 2;
+  },
+  expect: ({game, p1, parliament}) => {
+    const terraformer = game.milestones.find((m) => m.name.startsWith('Terraformer'));
+    const fleetActs = p1.getPlayableActionCards().some((c) => c.name === CardName.SECURITY_FLEET);
+    if (terraformer === undefined || !terraformer.canClaim(p1) || !fleetActs || p1.megaCredits !== 30 ||
+        game.activePlayer.id !== p1.id) {
+      throw new Error(`the vp-cell-sources fixture expected Terraformer claimable, Security Fleet able to act and blue on the move with 30 M€ — got milestones=${game.milestones.map((m) => m.name).join(',')} claim=${terraformer?.canClaim(p1)} act=${fleetActs} mc=${p1.megaCredits}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── THE SCORE CELL AND A FOREIGN TILE (TR55, the owner's decision 5): blue's city C stands alone on a clean cell; red is
+//    on the move with 8 plants and a clean cell G beside C is legal for red's greenery — red's greenery raises BLUE's
+//    score by the city's adjacency, and blue's cell waits for that tile to land on blue's screen. The cells are read off
+//    the board by the spec (blue's only city; the clean free neighbour). ──
+parliamentFixture('vp-cell-rival', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    const board = game.board;
+    const clean = (s: Space) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.length === 0;
+    const city = board.spaces.find((s) => clean(s) && board.getAdjacentSpaces(s).filter(clean).length >= 4);
+    if (city === undefined) {
+      throw new Error('vp-cell-rival: no clean cell with four clean neighbours');
+    }
+    game.simpleAddTile(p1, city, {tileType: TileType.CITY});
+    p2.plants = 8;
+    p1.clearWaitingFor();
+    game.playerIsFinishedTakingActions();
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const city = game.board.spaces.find((s) => s.tile?.tileType === TileType.CITY && s.player?.id === p1.id);
+    const greenery = city === undefined ? undefined :
+      game.board.getAdjacentSpaces(city).find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.length === 0 &&
+        game.board.getAvailableSpacesForGreenery(p2).some((g) => g.id === s.id));
+    // THE DRY RUN — red's greenery beside C, for real, on a copy: blue's score moves by the city's adjacency.
+    let delta: number | undefined;
+    if (greenery !== undefined) {
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      const before = blue.getVictoryPoints().total;
+      copy.addGreenery(copy.getPlayerById(p2.id), copy.board.getSpaceOrThrow(greenery.id));
+      runAllActions(copy);
+      delta = blue.getVictoryPoints().total - before;
+    }
+    if (city === undefined || greenery === undefined || delta !== 1 || game.activePlayer.id !== p2.id || !(p2.getWaitingFor() instanceof OrOptions) || p2.plants !== 8) {
+      throw new Error(`the vp-cell-rival fixture expected blue's lone city, a clean legal greenery cell beside it for red, red on the move with 8 plants, and red's greenery adding 1 to blue's score — got city=${city?.id} greenery=${greenery?.id} delta=${delta} active=${game.activePlayer.color}`);
+    }
+    console.log(`vp-cell-rival: blue's city ${city.id}, red's greenery cell ${greenery.id}`);
+    parliament.assertLedger(game);
+  },
+});

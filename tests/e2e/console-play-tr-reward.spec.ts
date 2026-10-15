@@ -36,9 +36,11 @@ const PRESETS = [
 ] as const;
 
 const CASES = [
-  {card: 'Bribed Committee', key: 'bribed', tr: 2, event: true, wave: false},
-  {card: 'Terraforming Ganymede', key: 'ganymede', tr: 1, event: false, wave: false},
-  {card: 'Magnetic Field Dome', key: 'dome', tr: 1, event: false, wave: true},
+  // `vp`: the card's PRINTED points (TR55 — the score cell): they fly from the landed card (an event's pile) as their
+  // own token, after the card's gains and BEFORE its TR; a penalty walks the same token back (the cell ticks on its departure).
+  {card: 'Bribed Committee', key: 'bribed', tr: 2, event: true, wave: false, vp: -2},
+  {card: 'Terraforming Ganymede', key: 'ganymede', tr: 1, event: false, wave: false, vp: 2},
+  {card: 'Magnetic Field Dome', key: 'dome', tr: 1, event: false, wave: true, vp: 0},
 ] as const;
 
 type Wire = {
@@ -120,6 +122,10 @@ async function armProbe(page: Page): Promise<void> {
       const res = (icon.match(/resource_icon--([a-z]+)/) ?? ['', ''])[1];
       if (el.classList.contains('con-transfer__chip--mc')) {
         return 'mc';
+      }
+      // The score cell's own token (TR55): the VP shield with its «±N» seat.
+      if (el.classList.contains('con-transfer__chip--vp')) {
+        return 'vp';
       }
       if (res === 'rating') {
         return 'tr';
@@ -315,12 +321,24 @@ for (const preset of PRESETS) {
         const lastFlown = [...samples.slice(0, trUp + 1)].reverse().find((s) => s.chips.some((ch) => ch.v === token!.chip.v))!.chips.find((ch) => ch.v === token!.chip.v)!;
         expect(inside(lastFlown, ratingCell!, Math.max(lastFlown.w, lastFlown.h)), `the tick is the token's TOUCHDOWN on the rating's cell — ${JSON.stringify(lastFlown)} vs ${JSON.stringify(ratingCell)}`).toBe(true);
         // The VP cell is the score INCLUDING the rating: between the landing (the price ticks) and the TR's touchdown it
-        // reads the final score minus the TR's points — the card's own VP lands with the card, the TR's with its token.
+        // reads the final score minus the TR's points. The card's OWN printed VP (TR55 — the score cell) are no longer
+        // a part of the landing: they fly as their own token from the landed card BEFORE the TR, and until that token is
+        // born the cell reads the score without them too.
         const vpEnd = Number(samples[samples.length - 1].vp);
         const landed = samples.findIndex((s) => s.mc === String(mc0 - cost));
         expect(landed, 'the price ticked with the landing').toBeGreaterThanOrEqual(0);
-        const early = samples.slice(landed, trUp).filter((s) => s.vp !== '' && Number(s.vp) !== vpEnd - c.tr).map((s) => `${s.t}:${s.vp}`);
-        expect(early, `the VP cell read ${vpEnd - c.tr} from the landing to the TR's touchdown (the TR's points no earlier)`).toEqual([]);
+        let vpSettled = landed;
+        if (c.vp !== 0) {
+          const vpToken = born.find((b) => b.chip.v === `vp${c.vp > 0 ? '+' : '−'}${Math.abs(c.vp)}`);
+          expect(vpToken, `the card's printed VP flew as its own token — births: ${born.map((b) => b.chip.v).join(', ')}`).toBeDefined();
+          expect(vpToken!.at, 'the printed VP of the card fly BEFORE its TR').toBeLessThan(token!.at);
+          const beforeIt = samples.slice(landed, vpToken!.at).filter((s) => s.vp !== '' && Number(s.vp) !== vpEnd - c.tr - c.vp).map((s) => `${s.t}:${s.vp}`);
+          expect(beforeIt, `the VP cell read ${vpEnd - c.tr - c.vp} from the landing until the card's VP token (its points no earlier)`).toEqual([]);
+          vpSettled = samples.findIndex((s, i) => i >= vpToken!.at && Number(s.vp) === vpEnd - c.tr);
+          expect(vpSettled, 'the VP of the card reached the cell on their token').toBeGreaterThanOrEqual(vpToken!.at);
+        }
+        const early = samples.slice(vpSettled, trUp).filter((s) => s.vp !== '' && Number(s.vp) !== vpEnd - c.tr).map((s) => `${s.t}:${s.vp}`);
+        expect(early, `the VP cell read ${vpEnd - c.tr} until the TR's touchdown (the TR's points no earlier)`).toEqual([]);
         // The M€ row: the price ticks with the landing, the Greens' answer after the TR — two changes, never one.
         const mcValues = samples.map((s) => s.mc).filter((v, i, a) => v !== '' && (i === 0 || v !== a[i - 1]));
         const priced = String(mc0 - cost);

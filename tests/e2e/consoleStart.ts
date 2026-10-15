@@ -2332,6 +2332,10 @@ export type BootOptions = {
  * lives in the late game stops replaying the game to reach it.
  */
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
+  // TR55 Nuclear Warhead Utilization and the iteration «ЯЧЕЙКА ПО — КАЖДОЕ ОЧКО ИЗ СВОЕЙ ПРИЧИНЫ»: the card playable
+  // (the Industrialists rule) / locked (the Reds rule); the score cell's other sources with blue on the move (a
+  // milestone, an action's fighter); a foreign greenery beside blue's city (red on the move) — docs/claude/console/score-cell.md.
+  'nuclear-warhead-utilization' | 'nuclear-warhead-locked' | 'vp-cell-sources' | 'vp-cell-rival' |
   // TR53 Frontier Labs and the iteration «ресурс на карту — один стандарт»: the card with four holders (one a near
   // miss); the FIELD's live pick and silent arrival (a printed microbe / an Ares animal with two holders each, a printed
   // data with one); a foreign trade on blue's Titan (red on the move) — docs/claude/prompts/project-tr53-frontier-labs.md.
