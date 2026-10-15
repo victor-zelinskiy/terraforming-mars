@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {resolveGainIconOrigins, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
+import {bareWildIcons, resolveGainIconOrigins, resolveSpendIconOrigins, wildChosen} from '@/client/console/consoleActionCommitMotion';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /*
@@ -70,5 +70,50 @@ describe('resolveSpendIconOrigins — a price is absorbed at the printed icon of
     group.append(cost);
     expect(resolveSpendIconOrigins({cardEl: group, groupEl: group, resultEl: group, costEl: cost}, [price('megacredits', 7)])).deep.eq([{x: 20, y: 110}]);
     expect(resolveSpendIconOrigins({cardEl: group, groupEl: group, resultEl: group}, [price('megacredits', 7)])).deep.eq([{x: 20, y: 110}]);
+  });
+});
+
+/*
+ * THE PRINTED «?» (TR54, «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА») — a standard resource the row prints NOWHERE was chosen from
+ * the row's «?» (`wild.png`): its token is born on that «?», never «out of the plate». Only a STOCK gain of one of the
+ * six standard resources reads it (a rating, a point, a production, a loss never do), and never the «?» inside a
+ * production frame — that one is a production.
+ */
+describe('resolveGainIconOrigins — a resource chosen from the printed «?» is born on it', () => {
+  const gain = (resource: string, channel: 'stock' | 'production' = 'stock'): ResourceTransferSpec => ({channel, resource, amount: 1});
+
+  it('steel, unprinted, is born on the bare «?»; titanium, printed, on its own icon', () => {
+    const result = document.createElement('div');
+    result.append(icon('titanium', 10), icon('wild', 50));
+    const origins = resolveGainIconOrigins({cardEl: result, resultEl: result}, [gain('steel'), gain('titanium')]);
+    expect(origins).deep.eq([{x: 60, y: 110}, {x: 20, y: 110}]);
+  });
+
+  it('a M€ gain with no printed M€ tile is born on the «?» too', () => {
+    const result = document.createElement('div');
+    result.append(icon('wild', 30));
+    expect(resolveGainIconOrigins({cardEl: result, resultEl: result}, [gain('megacredits')])).deep.eq([{x: 40, y: 110}]);
+  });
+
+  it('never the «?» inside a production frame, never for a rating / a production / a loss', () => {
+    const result = document.createElement('div');
+    const prod = document.createElement('div');
+    prod.className = 'pcard-prod';
+    prod.append(icon('wild', 90));
+    result.append(prod);
+    expect(resolveGainIconOrigins({cardEl: result, resultEl: result}, [gain('plants')]), 'only a framed «?» — no bare one').deep.eq([undefined]);
+    result.append(icon('wild', 10));
+    expect(resolveGainIconOrigins({cardEl: result, resultEl: result}, [gain('plants')])).deep.eq([{x: 20, y: 110}]);
+    expect(bareWildIcons(result)).has.length(1);
+    expect(resolveGainIconOrigins({cardEl: result, resultEl: result}, [gain('rating')]), 'the rating is not a standard resource').deep.eq([undefined]);
+    expect(wildChosen({channel: 'stock', resource: 'heat', amount: 3, direction: 'loss'}), 'a price is never «chosen from the «?»»').is.false;
+    expect(wildChosen(gain('steel', 'production'))).is.false;
+  });
+
+  it('two unprinted resources take the bare «?» icons in print order (the last one shared)', () => {
+    const result = document.createElement('div');
+    result.append(icon('wild', 10), icon('wild', 50));
+    expect(resolveGainIconOrigins({cardEl: result, resultEl: result}, [gain('steel'), gain('heat'), gain('plants')]))
+      .deep.eq([{x: 20, y: 110}, {x: 60, y: 110}, {x: 60, y: 110}]);
   });
 });

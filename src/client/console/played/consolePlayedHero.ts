@@ -72,7 +72,7 @@ import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console
 import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
+import {bareWildIcons, iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins, wildChosen} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
@@ -1874,6 +1874,30 @@ function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint
 }
 
 /**
+ * WHERE A STANDARD RESOURCE CHOSEN FROM THE FACE'S «?» IS BORN (TR54 — «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА»): on the landed
+ * card, its bare printed «?» outside every action / effect frame (never the «?» inside a production frame — that one
+ * is the production it reads). The first measurable place of the reward ladder; undefined when that place prints no
+ * bare «?» (the shared spawn point stands — the card).
+ */
+function heroWildOrigin(card: string): TransferPoint | undefined {
+  if (typeof document === 'undefined' || card === '') {
+    return undefined;
+  }
+  for (const selector of heroRewardSourceSelectors(card)) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 4 || r.height <= 4) {
+        continue;
+      }
+      const printed = bareWildIcons(el).find((icon) => icon.closest('.pcard-effect') === null);
+      const ir = printed?.getBoundingClientRect();
+      return ir !== undefined && ir.width > 4 ? {x: ir.left + ir.width / 2, y: ir.top + ir.height / 2} : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
  * A card the play FEEDS (a resource onto another card of the tableau) or WAKES (a reaction) scores its points on
  * the touchdown of ITS LAST token — the counter and the score are one event (TR27's law; TR55 — the ledger holds the
  * share, this releases it). The played card itself is not here: its share flies from its own printed badge.
@@ -1911,7 +1935,11 @@ async function railWaveWithPrintedVp(
   release: (spec: ResourceTransferSpec) => void,
 ): Promise<void> {
   const card = playedHeroState.card ?? '';
-  const wave = specs.length === 0 ? Promise.resolve() : runResourceTransfers({specs, source, arrival: 'auto', onArrive: release});
+  // A standard resource CHOSEN from the face's printed «?» (TR54) is born on that «?», never out of the plate.
+  const wildAt = specs.some(wildChosen) ? heroWildOrigin(card) : undefined;
+  const origins = wildAt !== undefined ? specs.map((spec) => (wildChosen(spec) ? wildAt : undefined)) : undefined;
+  const wave = specs.length === 0 ? Promise.resolve() :
+    runResourceTransfers({specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release});
   const vp = (specs.length === 0 ? Promise.resolve() : wait(motionMs(transferWaveDelayMs(1, 2))))
     .then(() => (playedHeroState.active ? flyHeroCardVp(card) : undefined));
   await Promise.all([wave, vp]);

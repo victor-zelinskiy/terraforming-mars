@@ -78,7 +78,7 @@ export type TransferEnd = {
   x: number;
   y: number;
   /**
-   * The anchor under the chip's centre: `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») · `hero` ·
+   * The anchor under the chip's centre: `wild` (a card's printed «?» — TR54) · `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») · `hero` ·
    * `composer-card:<name>` ·
    * `recv:<card|front>` · `played:<card>` ·
    * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
@@ -132,6 +132,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
     };
     /** The known places a token is born on or lands on, in priority order (the most specific first). */
     const ANCHORS: Array<[string, string]> = [
+      // A card's PRINTED «?» — a standard resource chosen from it is born there (TR54); the most specific of all.
+      ['wild', '.pcard-ic[style*="wild.png"]'],
       // A card's PRINTED VP badge — the score cell's token is born there (TR55); more specific than the card it is on.
       ['vp-badge', '.pcard__vp'],
       // …and a milestone's / an award's ceremony line — the +5's printed source (the MA workspace's stage, the global shell).

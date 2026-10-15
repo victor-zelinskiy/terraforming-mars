@@ -93,6 +93,9 @@ const ICON_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = {
   // Security Fleet / Formula Zero (TR08) and Carbon Nanosystems — the same hole.
   'fighter': ['fighter'],
   'graphene': ['graphene'],
+  // The printed «?» — «any one standard resource» (the face's own `wild.png`; never the dead desktop's `wild-std`).
+  // A stock gain of a resource the row does not print is born on it (TR54 Overclocked Equipment, Astrodrill).
+  'wild': ['wild.'],
 };
 
 /**
@@ -200,10 +203,11 @@ export function resolveResultIcon(
     // The printed TR icon — the token the handoff flies is born on it.
     return measurable(byKey('tr'));
   case 'resources': {
-    if (firstResource === 'megacredits') {
-      return measurable(scope.querySelector<HTMLElement>('.pcard-mi--mc'));
-    }
-    return firstResource !== undefined ? measurable(byKey(firstResource)) : undefined;
+    const printed = firstResource === 'megacredits' ?
+      measurable(scope.querySelector<HTMLElement>('.pcard-mi--mc')) :
+      (firstResource !== undefined ? measurable(byKey(firstResource)) : undefined);
+    // A resource the row does not print, chosen from its printed «?», lands on that «?» (the bare one).
+    return printed ?? measurable(bareWildIcons(scope)[0]);
   }
   default:
     return undefined;
@@ -235,6 +239,21 @@ export function resolveSpendIconOrigins(
   return resolveIconPoints(anchors.costEl ?? anchors.groupEl ?? anchors.cardEl, specs);
 }
 
+/** A STOCK gain of one of the six standard resources — what a printed «?» stands for (never the rating, never a point). */
+const WILD_RESOURCES: ReadonlySet<string> = new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+export function wildChosen(spec: ResourceTransferSpec): boolean {
+  return spec.channel === 'stock' && spec.direction !== 'loss' && WILD_RESOURCES.has(spec.resource);
+}
+
+/**
+ * The printed «?» icons of a scope that stand BARE — never one inside a production frame (that one is «?-production»,
+ * a production's own icon) — in print order. A stock resource the row does not print, chosen from its «?», is born on
+ * (or absorbed into) one of these.
+ */
+export function bareWildIcons(scope: Element): Array<HTMLElement> {
+  return Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic')).filter((el) => iconMatches(el, 'wild') && el.closest('.pcard-prod') === null);
+}
+
 function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
   const icons = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic'));
   const prod = scope.querySelector<HTMLElement>('.pcard-prod');
@@ -253,6 +272,18 @@ function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTran
   // TWO PRINTED ICONS ARE TWO SOURCES: the k-th token of one resource is born on the k-th icon that prints it
   // (TR27's «[floater·V] [floater·V]» — each token from its own icon), the first icon when the row prints fewer.
   const seen = new Map<string, number>();
+  // THE PRINTED «?» (TR54): a stock resource the scope prints NOWHERE was chosen from the row's «?» — its token is born
+  // there (the k-th such resource on the k-th bare «?»), never «out of the plate».
+  const wilds = bareWildIcons(scope);
+  let wildsTaken = 0;
+  const fromWild = (): TransferPoint | undefined => {
+    if (wilds.length === 0) {
+      return undefined;
+    }
+    const at = wilds[Math.min(wildsTaken, wilds.length - 1)];
+    wildsTaken++;
+    return centerOf(at);
+  };
   return specs.map((spec) => {
     if (spec.channel === 'production') {
       const inProd = prod !== null && prod !== undefined ?
@@ -263,9 +294,12 @@ function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTran
     if (spec.resource === 'megacredits') {
       const wantNegative = spec.direction === 'loss';
       const mc = mcTiles.find((el) => printsNegative(el) === wantNegative) ?? mcTiles[0];
-      return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits')));
+      return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits'))) ?? (wildChosen(spec) ? fromWild() : undefined);
     }
     const matching = icons.filter((el) => iconMatches(el, spec.resource));
+    if (matching.length === 0 && wildChosen(spec)) {
+      return fromWild();
+    }
     const k = seen.get(spec.resource) ?? 0;
     seen.set(spec.resource, k + 1);
     return centerOf(matching[k] ?? matching[0]);
