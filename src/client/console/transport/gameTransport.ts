@@ -88,6 +88,7 @@ import {
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {fleetDockOwedCard, seedFleetDockHold} from '@/client/console/colonyTrade/fleetDockScene';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
+import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {
   abortColonyTrade,
   detectColonyTrade,
@@ -708,6 +709,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // is presented from this very block, and a raise that arrived together with its fall flies its rating itself.
   seedParameterSwings(currentView(), newView);
   seedScaleStepRatingHold(currentView(), newView, heldRailStock(RATING_RAIL_KEY) - ratingHeldBefore);
+  // …and THE SCORE CELL (TR55 — «every point comes from its own cause»), the very LAST: the server's two breakdowns are
+  // attributed, what every writer above holds in this block is netted out, a share a host claimed is held for its own
+  // token, every other share ticks now with its cause named beside the cell (docs/claude/console/score-cell.md).
+  seedVpShares(currentView(), newView);
 }
 
 function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {

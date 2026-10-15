@@ -136,6 +136,52 @@
         height: 2.6rem;
     }
 
+    /* THE VP TOKEN (TR55 — docs/claude/console/score-cell.md): the score
+       cell's own gold shield (the SVG `ConsoleVpBadge` — lossless at 4K) with
+       the amount seated in GOLD, so the token reads as «points» before the
+       eye reaches the digits and can never be taken for a resource. NO
+       `filter` and NO `text-shadow` on this token (a filter re-rasterizes the
+       SVG every frame of the arc): its depth is a painted contact shadow
+       under the shield (a radial plate on `::before`), the seat's contrast is
+       its own dark metal. */
+    &__chip--vp {
+        width: 2.6rem;
+        height: 2.85rem;
+        filter: none;
+
+        &::before {
+            content: '';
+            position: absolute;
+            left: 8%;
+            right: 8%;
+            bottom: -.35rem;
+            height: .9rem;
+            border-radius: 50%;
+            background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55), transparent 72%);
+        }
+    }
+    &__vpface {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+    &__chip--vp &__amt {
+        color: #ffe3a0;
+        box-shadow:
+            inset 0 0 0 .07rem rgba(232, 192, 108, 0.75),
+            0 .12rem .3rem rgba(0, 0, 0, 0.65);
+    }
+    /* A VP LOSS (a penalty card, a place lost in an award): the same shield,
+       the loss ink — quiet, never a flash. */
+    &__chip--vp&__chip--loss {
+        filter: none;
+        opacity: .94;
+    }
+    &__chip--vp&__chip--loss &__amt {
+        color: @con-amber;
+    }
+
     /* ── the contact beat — a pointed, material halo on the destination ──
        Short, local, tied to the zone it wakes; no bloom, no bounce. */
     &__beat {
@@ -153,6 +199,10 @@
         /* Production arrival glows bronze — the zone's own material. */
         &--production {
             background: radial-gradient(50% 50% at 50% 50%, rgba(222, 168, 106, 0.55), transparent 72%);
+        }
+        /* …and a VP arrival wakes the score cell in its own gold. */
+        &--vp {
+            background: radial-gradient(50% 50% at 50% 50%, rgba(240, 200, 112, 0.5), transparent 72%);
         }
     }
 }

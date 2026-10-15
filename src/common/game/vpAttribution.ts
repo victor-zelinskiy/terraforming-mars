@@ -168,6 +168,25 @@ export function vpAttribution(before: VictoryPointsBreakdown, after: VictoryPoin
   return shares;
 }
 
+/**
+ * Does the card's row in `breakdown` READ THE BOARD — the server's own mechanics say what its points count: cities,
+ * oceans, Moon tiles, units adjacent to the card's tile, a bespoke rule, or a per-tile penalty row with no formula
+ * (Vermin). A board scene (a tile landing) may show such a card's share; a card that counts its own resources or its
+ * tags is never a tile's doing. Pure — a read of the server's breakdown, never a rule.
+ */
+export function vpCardReadsBoard(breakdown: VictoryPointsBreakdown, card: string): boolean {
+  const row = breakdown.detailsCards.find((r) => r.cardName === card);
+  if (row === undefined) {
+    return false;
+  }
+  const m = row.mechanics;
+  if (m === undefined) {
+    return row.kind === 'penalty';
+  }
+  return m.adjacent === true || m.shape === 'special' ||
+    m.unit === 'cities' || m.unit === 'oceans' || m.unit === 'moon-mine' || m.unit === 'moon-road';
+}
+
 /** Σ points of a share list — equals `after.total − before.total` for `vpAttribution`'s output by construction. */
 export function vpSharesTotal(shares: ReadonlyArray<VpShare>): number {
   return shares.reduce((sum, s) => sum + s.points, 0);

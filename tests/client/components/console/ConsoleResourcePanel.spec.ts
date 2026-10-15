@@ -12,6 +12,7 @@ import {infoModeState} from '@/client/console/infoModeState';
 import {extrasExplorerUi, resetExtrasExplorer} from '@/client/console/consoleExtrasExplorer';
 import {beginPanelRewardHold, beginPanelVpHold, clearPanelRewardHold, releasePanelRewardHold, releasePanelVpHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {claimVpShares, releaseVpShares, resetVpShareLedgerForTests, seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
 
 const BASE_GAME_TAGS: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
@@ -284,6 +285,53 @@ describe('ConsoleResourcePanel — the VP cell is derived from the rating, and i
     beginPanelRewardHold([step]);
     await w.vm.$nextTick();
     expect(cells(w)).deep.eq({tr: '21', vp: '23'});
+  });
+});
+
+/*
+ * THE SCORE CELL'S SHARES (TR55 — docs/claude/console/score-cell.md): a share the ledger holds for its host's token
+ * keeps the cell at «total − held» until the touchdown; a share with no body ticks with the view and is NAMED in the
+ * ticket under the cap — never while the own score is masked.
+ */
+describe('ConsoleResourcePanel — the VP cell ticks on its own tokens, and names a cause with no body', () => {
+  const before = {terraformRating: 21, victoryPointsBreakdown: {total: 23, terraformRating: 21, victoryPoints: 2, detailsCards: [], detailsMilestones: [], detailsAwards: [], detailsCities: []}};
+  const vpOf = (w: ReturnType<typeof mount>) => w.find('.con-score__cell--vp .con-score__value').text();
+  const seat = () => mount(ConsoleResourcePanel, {
+    global: globalConfig.global,
+    props: {player: fakePlayer({}, {terraformRating: 21, victoryPointsBreakdown: {total: 25}}), gameTags: BASE_GAME_TAGS as Array<Tag>},
+  });
+
+  afterEach(() => {
+    resetVpShareLedgerForTests();
+    clearPanelRewardHold();
+    privateScoreState.enabled = false;
+  });
+
+  it('a share held for its token: the cell reads «total − held», then the touchdown ticks it', async () => {
+    const w = seat();
+    claimVpShares('host', () => true, 10);
+    const after = {...before, victoryPointsBreakdown: {...before.victoryPointsBreakdown, total: 25, victoryPoints: 4,
+      detailsCards: [{cardName: 'Nuclear Warhead Utilization', victoryPoint: 2, kind: 'fixed'}]}};
+    seedVpShares({id: 'p', thisPlayer: before} as never, {id: 'p', game: {phase: 'action'}, thisPlayer: after} as never);
+    await w.vm.$nextTick();
+    expect(vpOf(w), 'the printed points wait for their token').eq('23');
+    releaseVpShares('host', {named: false});
+    await w.vm.$nextTick();
+    expect(vpOf(w)).eq('25');
+  });
+
+  it('a share with no body is NAMED in the ticket under the cap — and the masked score names nothing', async () => {
+    const w = seat();
+    const after = {...before, victoryPointsBreakdown: {...before.victoryPointsBreakdown, total: 24, victoryPoints: 3,
+      detailsCards: [{cardName: 'Capital', victoryPoint: 1, kind: 'conditional'}]}};
+    seedVpShares({id: 'p', thisPlayer: before} as never, {id: 'p', game: {phase: 'action'}, thisPlayer: after} as never);
+    await w.vm.$nextTick();
+    const ticket = w.find('[data-vp-reason]');
+    expect(ticket.exists()).is.true;
+    expect(ticket.find('.con-score__reason-pts').text()).eq('+1');
+    privateScoreState.enabled = true;
+    await w.vm.$nextTick();
+    expect(w.find('[data-vp-reason]').exists(), 'a masked cell tells nothing').is.false;
   });
 });
 

@@ -61,6 +61,7 @@ import {
 import {
   TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {noteVpHeldElsewhere} from '@/client/console/scoreCell/vpShareLedger';
 
 /** What an owner promises the rail: the gains it will FLY, and the table's answer to them. */
 export type RailReward = {
@@ -350,6 +351,10 @@ export function seedRailReward(key: string, reward: RailReward, before: PlayerVi
     if (points !== 0) {
       vp.set(spec, points);
       beginPanelVpHold(points);
+      // The score cell's ledger nets these points out of the card's share — this token brings them (TR55).
+      if (spec.targetCard !== undefined) {
+        noteVpHeldElsewhere({kind: 'card', card: spec.targetCard}, points);
+      }
     }
   });
   railRewardState.entries.push({key, cause: verdict.cause, reactions: verdict.reactions, vp, phase: 'held'});

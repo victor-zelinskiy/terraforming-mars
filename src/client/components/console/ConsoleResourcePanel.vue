@@ -44,6 +44,20 @@
             <PrivateScoreMask v-else compact />
           </span>
         </div>
+        <!-- THE NAMED CAUSE (TR55 — docs/claude/console/score-cell.md): a share of the score that had no body on this
+             screen to fly from ticks with the view, and says WHY here — «+1 ПО · Капитолий», «−3 ПО · Награда
+             «Землевладелец»: место 1 → 2». A ticket under the cap, over the rows, out of the flow (zero layout);
+             never while the own score is masked. -->
+        <transition name="con-score-reason">
+          <div v-if="vpReason !== undefined" :key="vpReason.seq" class="con-score__reason" data-vp-reason role="status">
+            <span v-for="(line, i) in vpReason.lines" :key="i" class="con-score__reason-line"
+                  :class="{'con-score__reason-line--loss': line.loss}">
+              <b class="con-score__reason-pts">{{ line.points }}</b>
+              <span class="con-score__reason-label">{{ line.label }}</span>
+            </span>
+            <span v-if="vpReason.more > 0" class="con-score__reason-more">{{ vpReasonMore }}</span>
+          </div>
+        </transition>
       </div>
 
       <!-- THE SIX STANDARD ROWS — ONE skeleton for EVERY seat. The bot fills
@@ -394,6 +408,11 @@ import {tagLabel} from '@/client/cards/tagLabel';
 import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
+import {vpShareState} from '@/client/console/scoreCell/vpShareLedger';
+import {VpReasonView, vpReasonViews} from '@/client/console/scoreCell/vpReasonText';
+
+/** How long the VP cell's named cause stands — one read (a reading time, never motion-scaled). */
+const VP_REASON_READ_MS = 2800;
 
 type ResourceRow = {
   key: string,
@@ -540,9 +559,27 @@ export default defineComponent({
        *  re-arm it (coalesce). */
       auxSwapMode: false,
       auxSwapTimer: undefined as number | undefined,
+      /** The named cause standing beside the VP cell (its ledger `seq`) — shown for one read, then gone. */
+      vpReasonSeq: 0,
+      vpReasonTimer: undefined as number | undefined,
+      vpShareState,
     };
   },
   watch: {
+    /** A new named cause from the ledger: shown for one read (the reading time is not motion — never scaled). */
+    'vpShareState.reason.seq'(seq: number | undefined): void {
+      if (seq === undefined || !this.own) {
+        return;
+      }
+      this.vpReasonSeq = seq;
+      if (this.vpReasonTimer !== undefined) {
+        window.clearTimeout(this.vpReasonTimer);
+      }
+      this.vpReasonTimer = window.setTimeout(() => {
+        this.vpReasonSeq = 0;
+        this.vpReasonTimer = undefined;
+      }, VP_REASON_READ_MS);
+    },
     'player.color'(): void {
       this.auxSwapMode = true;
       if (this.auxSwapTimer !== undefined) {
@@ -558,6 +595,10 @@ export default defineComponent({
     if (this.auxSwapTimer !== undefined) {
       window.clearTimeout(this.auxSwapTimer);
       this.auxSwapTimer = undefined;
+    }
+    if (this.vpReasonTimer !== undefined) {
+      window.clearTimeout(this.vpReasonTimer);
+      this.vpReasonTimer = undefined;
     }
   },
   computed: {
@@ -601,7 +642,22 @@ export default defineComponent({
      */
     vp(): number {
       const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) + heldVictoryPoints() : 0;
-      return this.player.victoryPointsBreakdown.total - held;
+      // THE START REVEAL (К-V6, TR55): the rating cell beside this one shows the STAGED rating while the corporation's
+      // bonus is applied step by step — the score includes the rating point for point, so it is staged with it and
+      // never announces a corp's starting TR before the TR cell's own step does.
+      const staged = this.effectivePlayer.terraformRating - this.player.terraformRating;
+      return this.player.victoryPointsBreakdown.total + staged - held;
+    },
+    /** The named cause beside the VP cell (the ledger's latest), while it is being read — the own seat only, never masked. */
+    vpReason(): {seq: number, lines: Array<VpReasonView>, more: number} | undefined {
+      const reason = this.vpShareState.reason;
+      if (!this.own || this.vpMasked || reason === undefined || reason.seq !== this.vpReasonSeq) {
+        return undefined;
+      }
+      return {seq: reason.seq, ...vpReasonViews(reason.lines)};
+    },
+    vpReasonMore(): string {
+      return translateTextWithParams('and ${0} more', [String(this.vpReason?.more ?? 0)]);
     },
     /**
      * The VP mask, by seat:

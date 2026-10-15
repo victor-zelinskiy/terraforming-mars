@@ -61,6 +61,8 @@ const CONSUMERS: ReadonlyArray<Consumer> = [
   {id: 'rail-production', variant: 'resource-production', host: '.con-res__row:nth-of-type(2)', number: '.con-res__prod', frame: '.con-res__row', instrument: '.con-res', lane: 'inside', pose: 'corner'},
   {id: 'rail-tag', variant: 'tag', host: '.con-tagmx__cell:nth-child(2)', number: '.con-tagmx__num', frame: '.con-tagmx__cell', instrument: '.con-res', lane: 'inside', pose: 'corner'},
   {id: 'score-tr', variant: 'score', host: '.con-score__cell--tr .con-score__valwrap', number: '.con-score__value', frame: '.con-score__cell', instrument: '.con-res', lane: 'inside', pose: 'line'},
+  // The VP cell (TR55 — the score cell's own tokens land on its ink, its chip sits in the same pose as the TR's).
+  {id: 'score-vp', variant: 'score', host: '.con-score__cell--vp .con-score__valwrap', number: '.con-score__value', frame: '.con-score__cell', instrument: '.con-res', lane: 'inside', pose: 'line'},
   {id: 'status-param', variant: 'global-parameter', host: '.con-status__param:nth-of-type(2)', number: '.con-status__value', frame: '.con-status__param', instrument: '.con-status', lane: 'below', pose: 'chip-line'},
   {id: 'deck', variant: 'misc', host: '.con-deckstack__count', number: '.con-deckstack__count .con-flipval', frame: '.con-deckstack', instrument: '.con-status', lane: 'below', pose: 'chip-line'},
   {id: 'hand-dock', variant: 'misc', host: '.con-handdock__ratio', number: '.con-handdock__num--total', frame: '.con-handdock__ratio', instrument: '.con-handdock', lane: 'inside', pose: 'line'},

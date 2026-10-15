@@ -357,6 +357,7 @@ import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
+import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
@@ -824,6 +825,10 @@ export default defineComponent({
             // …and the DECK COUNTER (PL-088): a draw that arrived through this frame keeps its cards on the counter
             // until the flight that deals them (the same block as the apply).
             seedDeckDrawHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and THE SCORE CELL (TR55), the very LAST: what another seat's move did to the viewer's score is
+            // attributed off the server's two breakdowns — a share whose cause a scene will show (a rival's tile
+            // beside the viewer's city) waits for its token, every other one ticks now with its cause named.
+            seedVpShares(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
             setTranslationContext(app.playerView);
             if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {

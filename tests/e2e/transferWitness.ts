@@ -78,7 +78,9 @@ export type TransferEnd = {
   x: number;
   y: number;
   /**
-   * The anchor under the chip's centre: `hero` · `composer-card:<name>` · `recv:<card|front>` · `played:<card>` ·
+   * The anchor under the chip's centre: `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») · `hero` ·
+   * `composer-card:<name>` ·
+   * `recv:<card|front>` · `played:<card>` ·
    * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
    * `rail:<row>` · `aux:<key>` · `payrow:<unit>` · `forecast:<row|bolt>` (a «Сработает» chip — the table's answer is
    * born there, PL-220) · `cell:<id>` (a board cell — PL-306's price into the cell) — or, with no anchor there,
@@ -130,6 +132,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
     };
     /** The known places a token is born on or lands on, in priority order (the most specific first). */
     const ANCHORS: Array<[string, string]> = [
+      // A card's PRINTED VP badge — the score cell's token is born there (TR55); more specific than the card it is on.
+      ['vp-badge', '.pcard__vp'],
+      // …and a milestone's / an award's ceremony line — the +5's printed source (the MA workspace's stage, the global shell).
+      ['ma-vp', '.con-mafocus__cere-vp, .con-macere__vp, [data-ma-cere-seat], .con-macere__stage'],
       ['forecast', '[data-forecast-rail], [data-forecast-row] .con-forecast__bolt'],
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],

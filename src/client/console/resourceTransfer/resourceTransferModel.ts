@@ -131,6 +131,23 @@ export function isStandardResource(key: string): boolean {
 export const RATING_RAIL_KEY = 'rating';
 
 /**
+ * The rail's key for the VICTORY POINTS — the score cell's own token (TR55, docs/claude/console/score-cell.md). It
+ * rides the `stock` channel like the rating, but its hold is the panel's ONE victory-point hold
+ * (`panelRewardHold.vp` / `vpLoss`, signed by `direction`) — never a second map — and it lands on the VP cell's ink.
+ */
+export const VP_RAIL_KEY = 'vp';
+
+/** Is this spec the score cell's VP token? */
+export function isVpTransfer(spec: Pick<ResourceTransferSpec, 'channel' | 'resource'>): boolean {
+  return spec.channel === 'stock' && spec.resource === VP_RAIL_KEY;
+}
+
+/** The VP token for a signed number of points (a loss walks the same token backwards). */
+export function vpTransferSpec(points: number): ResourceTransferSpec {
+  return {channel: 'stock', resource: VP_RAIL_KEY, amount: Math.abs(points), ...(points < 0 ? {direction: 'loss' as const} : {})};
+}
+
+/**
  * THE RAIL-BOUND GAINS OF A REWARD'S CHIPS — what a «reward on the rail» flies
  * (`railReward.ts`): a standard resource's stock / production gain on its own
  * row, and a TERRAFORM RATING gain on the score cell. Read off the server's

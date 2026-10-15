@@ -42,7 +42,8 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
-  TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, transferLaunchFor,
+  TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
+  transferSignedAmount,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
@@ -214,6 +215,11 @@ export function beginPanelRewardHold(specs: ReadonlyArray<ResourceTransferSpec>)
     if (spec.amount <= 0) {
       continue;
     }
+    // THE VP TOKEN (TR55) is held in the ONE victory-point hold, signed by its way — never a second map.
+    if (isVpTransfer(spec)) {
+      beginPanelVpHold(transferSignedAmount(spec));
+      continue;
+    }
     addHeld(holdMapFor(spec), spec.resource, spec.amount);
     if (spec.channel === 'card-resource' && spec.targetCard !== undefined) {
       addHeld(spec.direction === 'loss' ? panelRewardHold.capsuleLoss : panelRewardHold.capsule, spec.targetCard, spec.amount);
@@ -225,6 +231,10 @@ export function beginPanelRewardHold(specs: ReadonlyArray<ResourceTransferSpec>)
 /** Release ONE transfer's metric — the displayed value jumps by exactly the
  *  transferred amount and its delta chip fires from that transition. */
 export function releasePanelRewardHold(spec: ResourceTransferSpec): void {
+  if (isVpTransfer(spec)) {
+    releasePanelVpHold(transferSignedAmount(spec));
+    return;
+  }
   takeHeld(holdMapFor(spec), spec.resource, spec.amount);
   if (spec.channel === 'card-resource' && spec.targetCard !== undefined) {
     takeHeld(spec.direction === 'loss' ? panelRewardHold.capsuleLoss : panelRewardHold.capsule, spec.targetCard, spec.amount);
@@ -261,6 +271,18 @@ export function noteCardResourceLanding(spec: ResourceTransferSpec): void {
   }
   const prior = cardResourceLandings.by[spec.targetCard] ?? 0;
   cardResourceLandings.by = {...cardResourceLandings.by, [spec.targetCard]: prior + spec.amount};
+  for (const listener of landingListeners) {
+    listener(spec);
+  }
+}
+
+/** Who wants to know a card-resource token has LANDED on its card (the score cell's ledger — TR55). */
+const landingListeners = new Set<(spec: ResourceTransferSpec) => void>();
+
+/** Listen to every card-resource touchdown (the contact beat, a degraded landing included); returns the unregister. */
+export function onCardResourceLanded(listener: (spec: ResourceTransferSpec) => void): () => void {
+  landingListeners.add(listener);
+  return () => landingListeners.delete(listener);
 }
 
 /** Drop every pending hold at once (abort / safety) — the panel snaps to the
@@ -274,9 +296,25 @@ export function clearPanelRewardHold(): void {
   panelRewardHold.cardResLoss = {};
   panelRewardHold.capsule = {};
   panelRewardHold.capsuleLoss = {};
-  panelRewardHold.vp = 0;
-  panelRewardHold.vpLoss = 0;
-  panelRewardHold.active = false;
+  // The score cell's LEDGER keeps what it holds across a scene's belt-and-braces clear (TR55): its shares are released
+  // by their own tokens (or its bounded ceiling) — a tile scene's end must not tick a card's printed points early.
+  const kept = vpHoldKeeper?.() ?? {gain: 0, loss: 0};
+  panelRewardHold.vp = Math.max(0, kept.gain);
+  panelRewardHold.vpLoss = Math.max(0, kept.loss);
+  syncHoldActive();
+}
+
+/** What the score cell's share ledger holds right now (gain · loss, both ≥ 0) — survives `clearPanelRewardHold`. */
+let vpHoldKeeper: (() => {gain: number, loss: number}) | undefined;
+
+/** The share ledger plugs in (`scoreCell/vpShareLedger.ts`) — one keeper; returns the unregister. */
+export function registerPanelVpKeeper(keeper: () => {gain: number, loss: number}): () => void {
+  vpHoldKeeper = keeper;
+  return () => {
+    if (vpHoldKeeper === keeper) {
+      vpHoldKeeper = undefined;
+    }
+  };
 }
 
 function syncHoldActive(): void {
@@ -956,6 +994,12 @@ function targetPointFor(spec: ResourceTransferSpec, skipped?: Array<SkippedEnd>,
       const cell = measure('.con-res .con-score__cell--tr .con-score__value') ??
         measure('.con-res .con-score__cell--tr .con-score__valwrap') ??
         measure('.con-res .con-score__cell--tr');
+      return cell !== undefined ? centerOf(cell) : undefined;
+    }
+    // …and the VICTORY POINTS (TR55) — the VP cell's own ink. A masked cell (the private score) paints no
+    // `.con-score__value`, so there is no landing at all: a token never lands on the mask (the ledger flies none).
+    if (spec.resource === VP_RAIL_KEY) {
+      const cell = measure('.con-res .con-score__cell--vp .con-score__value');
       return cell !== undefined ? centerOf(cell) : undefined;
     }
     const r = measure(`.con-res__row--${spec.resource} .con-res__digits`) ??

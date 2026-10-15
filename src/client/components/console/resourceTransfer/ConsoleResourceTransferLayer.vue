@@ -30,12 +30,14 @@
            :data-transfer-id="f.id"
            :data-transfer-direction="f.spec.direction ?? 'gain'"
            :ref="(el) => setChipRef(f.id, el as HTMLElement | null)">
-        <i v-if="!isMegacredits(f.spec)" class="con-transfer__icon" :class="iconClass(f.spec)"></i>
+        <!-- THE VP TOKEN (TR55): the score cell's own emblem — the gold shield the cell wears — with its «±N» seat. -->
+        <ConsoleVpBadge v-if="isVp(f.spec)" class="con-transfer__vpface" :label="$t('VP')" />
+        <i v-else-if="!isMegacredits(f.spec)" class="con-transfer__icon" :class="iconClass(f.spec)"></i>
         <!-- A LOSS reads «−N»: the same token, the same seat, the sign of what actually happened. -->
         <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">{{ f.spec.direction === 'loss' ? '−' : '+' }}{{ f.spec.amount }}</span>
       </div>
       <div class="con-transfer__beat"
-           :class="{'con-transfer__beat--production': f.spec.channel === 'production'}"
+           :class="{'con-transfer__beat--production': f.spec.channel === 'production', 'con-transfer__beat--vp': isVp(f.spec)}"
            :ref="(el) => setBeatRef(f.id, el as HTMLElement | null)"></div>
     </template>
   </div>
@@ -47,9 +49,12 @@ import {resourceTransferState, registerResourceTransferStage} from '@/client/con
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {TransferStagePiece} from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {isVpTransfer} from '@/client/console/resourceTransfer/resourceTransferModel';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 
 export default defineComponent({
   name: 'ConsoleResourceTransferLayer',
+  components: {ConsoleVpBadge},
   data() {
     return {
       resourceTransferState,
@@ -66,6 +71,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The score cell's VP token (TR55). */
+    isVp(spec: ResourceTransferSpec): boolean {
+      return isVpTransfer(spec);
+    },
     isMegacredits(spec: ResourceTransferSpec): boolean {
       return spec.channel === 'stock' && spec.resource === 'megacredits';
     },
@@ -74,6 +83,8 @@ export default defineComponent({
         'con-transfer__chip--mc': this.isMegacredits(spec),
         'con-transfer__chip--production': spec.channel === 'production',
         'con-transfer__chip--cardres': spec.channel === 'card-resource',
+        // THE VP TOKEN (TR55) — the score cell's emblem, its own geometry.
+        'con-transfer__chip--vp': isVpTransfer(spec),
         // A LOSS leaves the panel for the source — the same token in the loss tone (quiet, never celebrated).
         'con-transfer__chip--loss': spec.direction === 'loss',
       };

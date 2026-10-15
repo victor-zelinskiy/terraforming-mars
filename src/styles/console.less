@@ -4619,6 +4619,75 @@ each(@players, {
     }
     /* Masked own score — the shared eye-off, sized to the console cap. */
     .vp-private__eye { width: 1rem; height: .7rem; }
+
+    /* THE NAMED CAUSE (TR55 — docs/claude/console/score-cell.md): a share of
+       the score that had no body on screen to fly from says WHY beside the
+       cell — a ticket hanging under the cap, over the first rows, OUT OF THE
+       FLOW (the cap's fixed height is the satellite's alignment contract).
+       Dark glass like the rail's own plates, the points in the cell's gold
+       (a loss in the quiet amber — a business fact, never a flash), one read
+       long, transform/opacity only. */
+    position: relative;
+    &__reason {
+        position: absolute;
+        top: calc(100% + .2rem);
+        left: calc(.3rem + var(--con-pad-x, 0vw));
+        right: .3rem;
+        z-index: 4;
+        display: flex;
+        flex-direction: column;
+        gap: .12rem;
+        padding: .3rem .45rem;
+        border-radius: .3rem;
+        background: linear-gradient(180deg, rgba(28, 36, 50, 0.97), rgba(12, 18, 27, 0.97));
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-action-gold, 34%),
+            0 .25rem .7rem rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+    }
+    &__reason-line {
+        display: flex;
+        align-items: baseline;
+        gap: .35rem;
+        min-width: 0;
+        font-size: .8rem;
+        line-height: 1.2;
+        color: @con-text;
+    }
+    &__reason-pts {
+        flex: 0 0 auto;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: #ffd98a;
+    }
+    &__reason-line--loss &__reason-pts { color: @con-amber; }
+    /* The cause is read WHOLE — it wraps (the ticket is out of the flow, it
+       grows down over the rows), never an ellipsis that cuts the award's
+       name in half on the narrow rail (the 4K stand: «Награда «Собств…»). */
+    &__reason-label {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow-wrap: break-word;
+    }
+    &__reason-more {
+        font-size: .8rem;
+        color: fade(@con-text, 62%);
+    }
+}
+.con-score-reason-enter-active {
+    transition:
+        opacity calc(180ms * var(--motion-scale, 1)) ease-out,
+        transform calc(180ms * var(--motion-scale, 1)) ease-out;
+}
+.con-score-reason-leave-active {
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease-in;
+}
+.con-score-reason-enter-from {
+    opacity: 0;
+    transform: translateY(-.25rem);
+}
+.con-score-reason-leave-to {
+    opacity: 0;
 }
 
 /* The emblem's engraved label — console font stack (inline SVG inherits the
