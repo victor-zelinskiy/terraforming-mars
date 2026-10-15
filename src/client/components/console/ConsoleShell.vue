@@ -49,7 +49,8 @@
                                 :ask="mandatoryAnnounceView.ask"
                                 :sourceCard="mandatoryAnnounceView.sourceCard"
                                 :sourceResolution="mandatoryAnnounceView.sourceResolution"
-                                :openLabel="mandatoryAnnounceView.openLabel" />
+                                :openLabel="mandatoryAnnounceView.openLabel"
+                                :tone="mandatoryAnnounceView.tone" />
     </transition>
 
     <!-- THE DRAFT TRAY — the ONE persistent "selected cards area" of the
@@ -1801,6 +1802,8 @@ import {collapseFinaleSession, endFinaleSession, enterFinaleSession, finaleSessi
 import {TileType} from '@/common/TileType';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
+import {promptSettleAbsorbs} from '@/client/console/promptSequence';
+import {PromptTone, promptToneOf} from '@/client/console/promptTone';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
 import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDeckPickLayer.vue';
 import {deckPickHolding, deckPickState, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
@@ -5888,7 +5891,7 @@ export default defineComponent({
     /** The prompt card's copy (one consoleTaskSummary source, so nothing can
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
      *  decision, «Вернуться к решению» for a deferred one. */
-    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string} {
+    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, sourceResolution: string | undefined, openLabel: string, tone: PromptTone} {
       // THE SITTING'S ONE PLATE (Turmoil Redux): whatever prompt of the phase
       // is standing (a gate, the resolution's pick / take), the beat announces
       // the SITTING — kicker «ПАРЛАМЕНТ», ask «Заседание» — and A opens it; a
@@ -5905,6 +5908,7 @@ export default defineComponent({
           sourceCard: undefined,
           sourceResolution: this.activeTaskSummary?.sourceResolution,
           openLabel: 'Open',
+          tone: 'neutral',
         };
       }
       // THE MINIMIZED FINALE (no live task of its own — another seat decides, or the seat's next prompt is on
@@ -5916,6 +5920,7 @@ export default defineComponent({
           sourceCard: undefined,
           sourceResolution: undefined,
           openLabel: FINALE_RETURN,
+          tone: 'neutral',
         };
       }
       return {
@@ -5930,6 +5935,9 @@ export default defineComponent({
         openLabel: this.mandatoryGateHeld ?
           (this.activeTaskSummary?.openKey ?? 'Open') :
           this.deferReturnLabel,
+        // The decision's CHARACTER is told BEFORE it is opened (`promptTone.ts`): an attack or a forced loss announced
+        // off-turn reads as one on the plate, never as one more neutral «Открыть».
+        tone: promptToneOf(this.playerView.waitingFor).tone,
       };
     },
     /**
@@ -14181,6 +14189,16 @@ export default defineComponent({
       if (this.startSceneOwnsPad) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
+        return true;
+      }
+      // THE DECISION SETTLE (`promptSequence.ts`): a decision modal that has just
+      // appeared does not take a DECIDING press (A / X / the bumpers / the
+      // triggers) for a short window — longest when its character FLIPPED (a
+      // loss right after a reward: Philares, then the Ares hazard). ONE gate in
+      // front of every prompt surface below, so none of them can be answered
+      // by the rhythm of the decision before it; navigation, B, Y and the
+      // stick presses always pass, and the absorbed press pulses the tone tag.
+      if (promptSettleAbsorbs(intent)) {
         return true;
       }
       // Government Support (WGT) — the dedicated briefing panel owns input

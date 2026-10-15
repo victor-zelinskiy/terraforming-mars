@@ -165,7 +165,7 @@ test('one resource is a RADIO — A places and takes back, X commits, no stock c
 
   // The RADIO shape: no meter, no stepper verbs, an A verb on the bar; every
   // lane shows its stock as a READING (no «/ max» denominator anywhere).
-  await expect(page.locator('.con-task__dist-target')).toHaveCount(0);
+  await expect(page.locator('.con-task [data-prompt-meter]')).toHaveCount(0);
   await expect(page.locator('.con-task__lane-max')).toHaveCount(0);
   await expect(page.locator('.con-task__lane-stock')).toHaveCount(6);
   const bar = page.locator('.con-cmdbar').first();
@@ -216,7 +216,7 @@ test('a real budget keeps the dials — and an EMPTY pool still takes both units
   await shoot(page, '4-dials-open');
 
   // The BUDGET shape: the meter and the stepper verbs stay.
-  await expect(page.locator('.con-task__dist-target')).toHaveCount(1);
+  await expect(page.locator('.con-task [data-prompt-meter]')).toHaveCount(1);
   const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText('−1');
   await expect(bar).not.toContainText(/Добавить/i);
@@ -229,7 +229,7 @@ test('a real budget keeps the dials — and an EMPTY pool still takes both units
   const lane = page.locator('.con-task__lane').first();
   await expect(lane.locator('.con-task__lane-delta')).toHaveText('+2');
   await expect(lane.locator('.con-task__lane-next')).toHaveText('2');
-  await expect(page.locator('.con-task__dist-target')).toHaveClass(/--ready/);
+  await expect(page.locator('.con-task [data-prompt-meter]')).toHaveClass(/con-prompt-outcome__meter--ready/);
 
   // LB steps back down — the dial is still a dial.
   await key(page, 'KeyQ');

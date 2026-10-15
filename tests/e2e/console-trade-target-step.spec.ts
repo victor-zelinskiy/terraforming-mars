@@ -528,8 +528,8 @@ async function buildOnTitan(page: Page): Promise<void> {
   const sawLanded = timeline.some((s) => s.landed);
   console.log('build sawScene', sawScene, 'sawLanded', sawLanded);
   const strayPrompt = await page.evaluate(() =>
-    document.querySelectorAll('.con-task__option').length > 0 &&
-    (document.querySelector('.con-task__title')?.textContent ?? '').toLowerCase().includes('карт'));
+    document.querySelector('.con-task-host') !== null &&
+    (document.querySelector('.con-task .con-prompt-head__title')?.textContent ?? '').toLowerCase().includes('карт'));
   expect(strayPrompt, 'the floater target must NEVER be asked again after the cube').toBe(false);
   expect(sawScene, 'the chosen card stands while the bonus lands').toBe(true);
   expect(sawLanded, 'the floaters physically landed on it').toBe(true);

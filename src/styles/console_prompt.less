@@ -1,0 +1,534 @@
+/*
+ * THE PROMPT-MODAL FAMILY — one chassis for every console modal that asks the
+ * player a game decision (the task host standalone, the production loss, the
+ * effect decision, the MarsBot attack, the spend-heat / Venus-bonus lanes, the
+ * planetary events, the Government Support briefing).
+ *
+ * WHY: those surfaces grew one at a time and drifted into seven paddings, three
+ * radii, three frames, two title families (a 1.3rem sentence vs a 1.7rem
+ * uppercase gradient) and seven focus dialects — while the one thing two of
+ * them NEEDED to differ in was not drawn anywhere: whether the decision is a
+ * GAIN or a LOSS. «Philares» beside an Ares hazard asks a reward and then a
+ * penalty; both were cyan, both were six resource rows, both were A → X. The
+ * family states a decision's CHARACTER in five places, none of them colour
+ * alone (`promptTone.ts` decides it, structurally):
+ *
+ *   1. THE CREST     — the plate's top edge: a mint band (gain), hazard-tape
+ *                      HATCHING (loss), a quiet hairline (neutral);
+ *   2. THE EMBLEM    — circle + plus / warning triangle + minus / the ◈ diamond;
+ *   3. THE TAG       — «▲ ВЫГОДА» (a pill) / «▼ УБЫТОК» (a squared tag), always
+ *                      the same corner of the kicker row;
+ *   4. THE FOOTER    — «ВЫ ПОЛУЧИТЕ / ВЫ ПОТЕРЯЕТЕ / ИТОГ» with signed deltas
+ *                      and `current → resulting`, at the plate's foot;
+ *   5. THE VERB      — a loss is «Принять убыток» in the bar's danger ink.
+ * The PLATE itself is never tinted (the bot-attack iteration's law: a modal that
+ * repaints itself for one event reads as a borrowed combat UI) and the frame is
+ * a neutral steel rim — cyan is the FOCUS colour and nothing else.
+ *
+ * A NEW DECISION IS SEEN AS NEW (`promptSequence.ts`): a follow-up wears
+ * «РЕШЕНИЕ N», a character flip plays the crest wipe + emblem + tag beat, and
+ * the settle meter runs along the crest while the shell holds the deciding
+ * presses (the command bar greys them in the same window).
+ *
+ * SIZE RULES — content decides the TIER, never a per-surface number:
+ *   s  — a binary confirm, a dial or ≤ 3 rows with no source;
+ *   m  — rows / lanes / a short list beside a COMPACT source;
+ *   l  — a FULL source card beside options, a 2×2 briefing, a wide list;
+ *   xl — a card browser / a pick-then-pay with a card;
+ *   fit — content-sized up to its own cap (a causal row that centres itself).
+ * Height is always content-sized up to the band (max-height 100%).
+ *
+ * Authored in rem (1rem = 20px logical); every size is a token, and the
+ * profiles override TOKENS only. Functional state is colour + box-shadow (the
+ * console paint baseline strips filter / text-shadow); motion is transform /
+ * opacity, one-shot, through `--motion-scale`.
+ */
+
+@prompt-gain: @con-mint;
+@prompt-gain-ink: #9ff0cd;
+@prompt-loss: @con-red;
+@prompt-loss-ink: #ffb4a8;
+@prompt-neutral-ink: fade(#cfe6fb, 92%);
+@con-prompt-plate: linear-gradient(180deg, rgba(17, 27, 40, 0.97) 0%, rgba(9, 15, 23, 0.98) 100%);
+@con-prompt-rim: rgba(128, 162, 200, 0.24);
+@con-prompt-row-bg: linear-gradient(180deg, rgba(20, 30, 44, 0.7) 0%, rgba(12, 19, 29, 0.74) 100%);
+@con-prompt-row-rim: rgba(120, 150, 180, 0.16);
+@con-prompt-prod-plate: linear-gradient(180deg, rgba(138, 90, 43, 0.55), rgba(107, 69, 32, 0.55));
+
+html.console-native {
+    --con-prompt-w-s: 34rem;
+    --con-prompt-w-m: 44rem;
+    --con-prompt-w-l: 54rem;
+    --con-prompt-w-xl: 78rem;
+    /* The CONTENT-SIZED plate's cap (a causal row that centres itself — the bot attack): a dialog with board on both
+       sides, never the width of a workspace, on every profile. */
+    --con-prompt-w-fit: 56rem;
+    --con-prompt-pad-t: 1.3rem;
+    --con-prompt-pad-x: 1.4rem;
+    --con-prompt-pad-b: 1.05rem;
+    --con-prompt-radius: .75rem;
+    --con-prompt-gap: .85rem;
+    --con-prompt-crest-h: .26rem;
+    --con-prompt-kicker-fs: .76rem;
+    --con-prompt-tag-fs: .68rem;
+    --con-prompt-title-fs: 1.3rem;
+    --con-prompt-trigger-fs: .92rem;
+    --con-prompt-foot-h: 2.7rem;
+    --con-prompt-foot-fs: 1.05rem;
+}
+html.con-profile-large {
+    --con-prompt-w-m: 50rem;
+    --con-prompt-w-l: 60rem;
+    --con-prompt-title-fs: 1.5rem;
+}
+html.con-profile-tv {
+    --con-prompt-w-s: 42rem;
+    --con-prompt-w-m: 54rem;
+    --con-prompt-w-l: 66rem;
+    --con-prompt-w-xl: 92rem;
+    --con-prompt-w-fit: 58rem;
+    --con-prompt-pad-t: 1.5rem;
+    --con-prompt-pad-x: 1.7rem;
+    --con-prompt-pad-b: 1.2rem;
+    --con-prompt-gap: 1rem;
+    --con-prompt-crest-h: .3rem;
+    --con-prompt-kicker-fs: var(--con-t-caption);
+    --con-prompt-tag-fs: var(--con-t-floor);
+    --con-prompt-title-fs: var(--con-t-title);
+    --con-prompt-trigger-fs: var(--con-t-read-sm);
+    --con-prompt-foot-h: 3.2rem;
+    --con-prompt-foot-fs: 1.2rem;
+}
+html.con-profile-handheld {
+    --con-prompt-w-s: 30rem;
+    --con-prompt-w-m: 38rem;
+    --con-prompt-w-l: 46rem;
+    --con-prompt-w-xl: 100%;
+    --con-prompt-w-fit: 46rem;
+    --con-prompt-pad-t: .85rem;
+    --con-prompt-pad-x: .95rem;
+    --con-prompt-pad-b: .6rem;
+    --con-prompt-gap: .55rem;
+    --con-prompt-kicker-fs: .62rem;
+    --con-prompt-tag-fs: .58rem;
+    --con-prompt-title-fs: 1.1rem;
+    --con-prompt-trigger-fs: .82rem;
+    --con-prompt-foot-h: 2.2rem;
+    --con-prompt-foot-fs: .92rem;
+}
+
+/* ── THE PLATE ─────────────────────────────────────────────────────────── */
+.con-prompt-panel() {
+    position: relative;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    /* ONE vertical rhythm: the head's margin and the footer's are the family's gap token — a host's own flex `gap`
+       would add a second, different one. */
+    gap: 0;
+    box-sizing: border-box;
+    padding: var(--con-prompt-pad-t) var(--con-prompt-pad-x) var(--con-prompt-pad-b);
+    border-radius: var(--con-prompt-radius);
+    background: @con-prompt-plate;
+    box-shadow: inset 0 0 0 .05rem @con-prompt-rim, 0 1.2rem 3.4rem rgba(0, 0, 0, 0.62);
+    color: @con-text;
+    font-family: @con-font;
+}
+
+.con-prompt {
+    .con-prompt-panel();
+
+    &--s { width: min(var(--con-prompt-w-s), 100%); }
+    &--m { width: min(var(--con-prompt-w-m), 100%); }
+    &--l { width: min(var(--con-prompt-w-l), 100%); }
+    &--xl { width: min(var(--con-prompt-w-xl), 100%); }
+    &--fit {
+        width: auto;
+        max-width: min(var(--con-prompt-w-fit), 100%);
+    }
+}
+
+/* ── THE ROWS — one plate, one cursor, one «chosen» paint, one refusal ─────
+   Shared by every row-shaped answer (a production to lose, a lane of a
+   distribution, a parameter to shift). The cursor is the ONE cyan ring
+   (`.con-focus()` — its TV/handheld weight rides the ring tokens); a row that
+   holds part of the answer wears the DECISION's tone; a refused row dims its
+   CONTENT and keeps an opaque plate (a see-through row over the board reads as
+   a hole, and `filter` never renders here). */
+.con-prompt-row() {
+    position: relative;
+    border-radius: .55rem;
+    background: @con-prompt-row-bg;
+    box-shadow: inset 0 0 0 .05rem @con-prompt-row-rim;
+}
+.con-prompt-row-focused() {
+    background: linear-gradient(180deg, fade(@con-cyan, 13%) 0%, fade(@con-cyan, 5%) 100%);
+    .con-focus();
+}
+.con-prompt-row-picked(@c) {
+    background: linear-gradient(160deg, fade(@c, 13%) 0%, rgba(12, 19, 29, 0.76) 70%);
+    box-shadow: inset 0 0 0 .07rem fade(@c, 62%);
+}
+.con-prompt-row-picked-focused(@c) {
+    background: linear-gradient(160deg, fade(@c, 16%) 0%, rgba(12, 19, 29, 0.76) 70%);
+    box-shadow: inset 0 0 0 .08rem fade(@c, 88%), 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .9rem) fade(@con-cyan, 24%);
+}
+.con-prompt-row-off() {
+    background: rgba(12, 18, 28, 0.55);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.08);
+    > * { opacity: .5; }
+}
+
+/* ── THE HEAD (`ConsolePromptHead.vue`) ───────────────────────────────── */
+.con-prompt-head {
+    flex: 0 0 auto;
+    margin-bottom: var(--con-prompt-gap);
+    min-width: 0;
+
+    /* THE CREST — positioned against the PANEL (the head is not a positioned
+       box), across the plate's top edge inside its radius. */
+    &__crest {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: var(--con-prompt-crest-h);
+        border-radius: var(--con-prompt-radius) var(--con-prompt-radius) 0 0;
+        overflow: hidden;
+        pointer-events: none;
+        transform-origin: left center;
+    }
+    &--neutral &__crest {
+        height: .1rem;
+        background: linear-gradient(90deg, transparent 0%, fade(@con-cyan, 42%) 22%, fade(@con-cyan, 42%) 78%, transparent 100%);
+    }
+    &--gain &__crest {
+        background: linear-gradient(90deg, fade(@prompt-gain, 35%) 0%, @prompt-gain 18%, @prompt-gain 82%, fade(@prompt-gain, 35%) 100%);
+        box-shadow: 0 .15rem 1.3rem fade(@prompt-gain, 26%);
+    }
+    /* A LOSS is hazard tape — the pattern itself says «careful», in greyscale too. */
+    &--loss &__crest {
+        background: repeating-linear-gradient(-55deg, @prompt-loss 0 .42rem, #2a0d0a .42rem .84rem);
+        box-shadow: 0 .15rem 1.3rem fade(@prompt-loss, 30%);
+    }
+    /* THE SETTLE METER — fills across the crest while the shell holds the deciding presses. */
+    &__settle {
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.62);
+        transform-origin: left center;
+        transform: scaleX(0);
+        animation-name: con-prompt-settle;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
+    }
+
+    &__kicker {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        font-size: var(--con-prompt-kicker-fs);
+        letter-spacing: .12rem;
+        line-height: 1.25;
+        text-transform: uppercase;
+        color: @prompt-neutral-ink;
+    }
+    &__emblem {
+        flex: 0 0 auto;
+        width: 1.45em;
+        height: 1.45em;
+        color: @con-cyan;
+    }
+    &--gain &__emblem { color: @prompt-gain; }
+    &--loss &__emblem { color: @prompt-loss; }
+    &--gain &__category { color: @prompt-gain-ink; }
+    &--loss &__category { color: @prompt-loss-ink; }
+    &__category {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    /* «РЕШЕНИЕ 2» — a follow-up of the same press. Quiet, but in the corner the
+       eye checks first; the tone tag stands right after it. */
+    &__seq {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: .14rem .5rem .12rem;
+        border-radius: .25rem;
+        letter-spacing: .1rem;
+        color: @con-text;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: inset 0 0 0 .05rem rgba(200, 220, 240, 0.3);
+    }
+    &__tag {
+        position: relative;
+        flex: 0 0 auto;
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .32rem;
+        padding: .16rem .6rem .14rem .48rem;
+        font-size: var(--con-prompt-tag-fs);
+        letter-spacing: .12rem;
+
+        /* The one-shot ring of a tone flip / an absorbed press — an overlay, so
+           the tag's own ring and box never move. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: -.22rem;
+            border-radius: inherit;
+            box-shadow: 0 0 0 .12rem currentColor;
+            opacity: 0;
+            pointer-events: none;
+        }
+        /* GAIN: a pill. */
+        &--gain {
+            border-radius: 49.95rem;
+            color: @prompt-gain-ink;
+            background: fade(@prompt-gain, 14%);
+            box-shadow: inset 0 0 0 .06rem fade(@prompt-gain, 62%);
+        }
+        /* LOSS: a squared TAG with a hatched lead — a different SHAPE, not only a different hue. */
+        &--loss {
+            border-radius: .18rem;
+            padding-left: .7rem;
+            color: @prompt-loss-ink;
+            background:
+                repeating-linear-gradient(-55deg, fade(@prompt-loss, 85%) 0 .2rem, transparent .2rem .4rem) left / .3rem 100% no-repeat,
+                fade(@prompt-loss, 20%);
+            box-shadow: inset 0 0 0 .06rem fade(@prompt-loss, 75%);
+        }
+    }
+    &__seq + &__tag { margin-left: 0; }
+    &__tag-sign { font-size: .78em; }
+
+    /* THE ASK — the server's sentence in the READING voice (a string with a verb). */
+    &__ask {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: .4rem 1rem;
+        min-width: 0;
+        margin-top: .55rem;
+    }
+    &__title {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        .con-read-text(640);
+        font-size: calc(var(--con-prompt-title-fs) * var(--con-read-scale, 1));
+        line-height: 1.25;
+        color: @con-text;
+    }
+    &__trigger {
+        margin: .3rem 0 0;
+        .con-read-text(450);
+        font-size: calc(var(--con-prompt-trigger-fs) * var(--con-read-scale, 1));
+        line-height: 1.4;
+        color: @con-text-dim;
+    }
+
+    /* ── A TONE FLIP: the head plays one beat — the crest wipes in, the emblem
+       lands, the tag rings once. One-shot, transform/opacity only, and each
+       part starts once the plate has MATERIALIZED (the band surface's own
+       ~210 ms entrance): a beat played under a fading plate is a beat unseen. */
+    &--shift &__crest {
+        animation: con-prompt-crest-wipe calc(520ms * var(--motion-scale, 1)) @con-ease-enter calc(140ms * var(--motion-scale, 1)) both;
+    }
+    &--shift &__emblem {
+        animation: con-prompt-emblem-land calc(560ms * var(--motion-scale, 1)) @con-ease-settle calc(180ms * var(--motion-scale, 1)) both;
+    }
+    &--shift &__tag::after {
+        animation: con-prompt-ring calc(900ms * var(--motion-scale, 1)) @con-ease-standard calc(320ms * var(--motion-scale, 1)) both;
+    }
+    /* An ABSORBED press (inside the settle) — the tag rings once: «read this first». */
+    &--nudge-a &__tag::after { animation: con-prompt-ring-a calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    &--nudge-b &__tag::after { animation: con-prompt-ring-b calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
+}
+
+@keyframes con-prompt-settle {
+    0% { transform: scaleX(0); opacity: .9; }
+    94% { transform: scaleX(1); opacity: .9; }
+    100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes con-prompt-crest-wipe {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+@keyframes con-prompt-emblem-land {
+    0% { transform: scale(.5); opacity: 0; }
+    60% { transform: scale(1.14); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes con-prompt-ring {
+    0% { opacity: 0; transform: scale(.92); }
+    35% { opacity: .85; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.12); }
+}
+@keyframes con-prompt-ring-a {
+    0% { opacity: .8; transform: scale(.96); }
+    100% { opacity: 0; transform: scale(1.1); }
+}
+@keyframes con-prompt-ring-b {
+    0% { opacity: .8; transform: scale(.96); }
+    100% { opacity: 0; transform: scale(1.1); }
+}
+
+/* ── THE CONSEQUENCE FOOTER (`ConsolePromptOutcome.vue`) ──────────────── */
+.con-prompt-outcome {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    height: var(--con-prompt-foot-h);
+    box-sizing: border-box;
+    margin-top: var(--con-prompt-gap);
+    padding: 0 .95rem 0 .9rem;
+    border-radius: .55rem;
+    overflow: hidden;
+    white-space: nowrap;
+    background: rgba(10, 17, 26, 0.72);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18), inset .2rem 0 0 0 fade(@con-cyan, 55%);
+    font-size: var(--con-prompt-foot-fs);
+
+    &--gain {
+        background: linear-gradient(90deg, fade(@prompt-gain, 14%) 0%, rgba(10, 17, 26, 0.72) 62%);
+        box-shadow: inset 0 0 0 .05rem fade(@prompt-gain, 42%), inset .22rem 0 0 0 @prompt-gain;
+    }
+    &--loss {
+        background: linear-gradient(90deg, fade(@prompt-loss, 17%) 0%, rgba(10, 17, 26, 0.72) 62%);
+        box-shadow: inset 0 0 0 .05rem fade(@prompt-loss, 48%), inset .22rem 0 0 0 @prompt-loss;
+    }
+
+    &__label {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .42rem;
+        font-size: var(--con-prompt-kicker-fs);
+        letter-spacing: .11rem;
+        text-transform: uppercase;
+        color: @prompt-neutral-ink;
+    }
+    &__emblem {
+        width: 1.35em;
+        height: 1.35em;
+        color: @con-cyan;
+    }
+    &--gain &__label { color: @prompt-gain-ink; }
+    &--gain &__emblem { color: @prompt-gain; }
+    &--loss &__label { color: @prompt-loss-ink; }
+    &--loss &__emblem { color: @prompt-loss; }
+
+    &__items {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        overflow: hidden;
+    }
+    &__item {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    &__icon {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.6em;
+        height: 1.6em;
+        border-radius: .3rem;
+
+        i {
+            display: inline-block;
+            width: 1.3em;
+            height: 1.3em;
+            background-size: contain !important;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        &--prod {
+            background: @con-prompt-prod-plate;
+            box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.4);
+        }
+    }
+    &__delta {
+        font-weight: 400;
+        font-size: 1.12em;
+        &--plus { color: @prompt-gain-ink; }
+        &--minus { color: @prompt-loss-ink; }
+    }
+    &__fromto {
+        display: inline-flex;
+        align-items: baseline;
+        font-size: .9em;
+        color: @con-text-dim;
+    }
+    &__arrow { margin: 0 .28rem; opacity: .8; }
+    &__pending {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        .con-read-text(450);
+        font-size: .88em;
+        color: @con-text-dim;
+    }
+    &__meter {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .3rem;
+        color: @con-text-dim;
+        b { font-weight: 400; font-size: 1.15em; color: @con-text; }
+        &--ready b { color: @con-cyan; }
+    }
+    &--gain &__meter--ready b { color: @prompt-gain-ink; }
+    &--loss &__meter--ready b { color: @prompt-loss-ink; }
+    &__meter-of { font-size: .9em; }
+}
+
+/* ── THE MANDATORY ANNOUNCEMENT speaks the same tone (`ConsoleMandatoryAnnounce.vue`) ──────────────────────
+   A decision announced before it is opened (off-turn — an attack, an opponent's tile waking the player's reward)
+   wears the emblem the modal will open with in place of the plate's ⚑, and the tag beside its kicker. */
+.con-mandatory {
+    &__emblem {
+        flex: 0 0 auto;
+        width: 1.5rem;
+        height: 1.5rem;
+        &--gain { color: @prompt-gain; }
+        &--loss { color: @prompt-loss; }
+    }
+    &__kicker {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__tone {
+        flex: 0 0 auto;
+        padding: .08rem .48rem .06rem;
+        font-size: .68rem;
+        letter-spacing: .1rem;
+        &--gain {
+            border-radius: 49.95rem;
+            color: @prompt-gain-ink;
+            background: fade(@prompt-gain, 14%);
+            box-shadow: inset 0 0 0 .06rem fade(@prompt-gain, 62%);
+        }
+        &--loss {
+            border-radius: .18rem;
+            color: @prompt-loss-ink;
+            background: fade(@prompt-loss, 20%);
+            box-shadow: inset 0 0 0 .06rem fade(@prompt-loss, 75%);
+        }
+    }
+}

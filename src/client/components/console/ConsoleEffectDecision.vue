@@ -29,19 +29,26 @@
        :role="embedded ? 'group' : 'dialog'" :aria-label="$t(vm.headlineKey)"
        :data-motion-surface="embedded ? undefined : 'effect-decision'">
     <transition name="con-task-swap" mode="out-in">
-      <div class="con-decision__panel" :key="panelKey" data-motion-panel>
-        <header class="con-decision__head">
-          <!-- EMBEDDED: the kicker is the WORKSPACE'S crumb tail, published by
-               `stagePhase` below — a surface that announces itself inside
-               another's frame reads as a modal that arrived. -->
-          <div v-if="!embedded" class="con-decision__kicker">
-            <span class="con-decision__kicker-mark" aria-hidden="true">◈</span>
-            <span>{{ $t(vm.eyebrowKey) }}</span>
-          </div>
+      <!-- STANDALONE, the panel is a plate of the PROMPT-MODAL FAMILY (`console_prompt.less`) — its tone read off the
+           prompt's structural markers, its size off the content (a FULL source card beside the actions is `l`). -->
+      <div class="con-decision__panel" :key="panelKey" data-motion-panel
+           :class="embedded ? '' : 'con-prompt con-prompt--' + promptSize + ' con-prompt--' + tone"
+           :data-prompt-panel="embedded ? undefined : ''">
+        <!-- STANDALONE: the family's ONE head — the tone's crest, emblem and tag, the eyebrow, «РЕШЕНИЕ N» for a
+             follow-up of the same press, the headline with its decline plate, and why the decision appeared. -->
+        <ConsolePromptHead v-if="!embedded" class="con-decision__head" :tone="tone" :kicker="$t(vm.eyebrowKey)"
+                           :title="$t(vm.headlineKey)" :trigger="triggerText" :prompt-key="sequenceKey">
+          <template v-if="vm.decline !== undefined" #decline>
+            <ConsoleDeclinePlate class="con-decision__decline" :label="vm.decline.title" :forgone="vm.decline.forgone" />
+          </template>
+        </ConsolePromptHead>
+        <!-- EMBEDDED: the kicker is the WORKSPACE'S crumb tail, published by `stagePhase` below — a surface that
+             announces itself inside another's frame reads as a modal that arrived. -->
+        <header v-else class="con-decision__head">
           <!-- THE QUESTION LINE: the headline, and a decline that is a BUTTON (RT) repeated as a plate where the eye
                already is — never one more card among the answers (a YES / NO keeps its two cards). -->
           <div class="con-decision__ask">
-            <h2 class="con-decision__title" :class="{'con-ws-stage-title': embedded}">{{ $t(vm.headlineKey) }}</h2>
+            <h2 class="con-decision__title con-ws-stage-title">{{ $t(vm.headlineKey) }}</h2>
             <ConsoleDeclinePlate v-if="vm.decline !== undefined" class="con-decision__decline"
                                  :label="vm.decline.title" :forgone="vm.decline.forgone" />
           </div>
@@ -133,6 +140,10 @@ import {
 } from '@/client/console/effectDecision/effectDecisionModel';
 import {effectDecisionState, rememberDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
 import {setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import {PromptTone, promptCommitLabelKey, promptToneOf} from '@/client/console/promptTone';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 
 function textOf(value: string | Message | undefined): string {
   if (value === undefined) {
@@ -144,7 +155,7 @@ function textOf(value: string | Message | undefined): string {
 export default defineComponent({
   name: 'ConsoleEffectDecision',
   // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {GamepadGlyph, ActionEffectChip, ConsoleDeclinePlate},
+  components: {GamepadGlyph, ActionEffectChip, ConsoleDeclinePlate, ConsolePromptHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
@@ -183,10 +194,35 @@ export default defineComponent({
     stagePhase(): string {
       return this.embedded ? this.vm.stageKey : '';
     },
+    /** The decision's character (`promptTone.ts` — structural markers of the prompt this screen answers). */
+    tone(): PromptTone {
+      return promptToneOf(this.playerView.waitingFor).tone;
+    },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
+    sequenceKey(): string {
+      const wf = this.playerView.waitingFor;
+      return this.embedded || wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+    },
+    /** The plate's SIZE tier: a FULL source card beside the actions is `l`; actions alone are `m`. */
+    promptSize(): 'm' | 'l' {
+      return this.sourceView !== undefined ? 'l' : 'm';
+    },
     /** The pad contract this screen publishes to the shared command bar. The
-     *  KEYS are derived in the pure model — this only picks the glyphs. */
+     *  KEYS are derived in the pure model — this only picks the glyphs; the
+     *  COMMIT (A on a leaf — «Подтвердить») speaks the decision's tone. */
     footCommands(): Array<ConsoleCommand> {
-      return decisionCommands(this.vm, this.focusIdx);
+      const cmds = decisionCommands(this.vm, this.focusIdx);
+      if (this.embedded || this.tone === 'neutral') {
+        return cmds;
+      }
+      return cmds.map((cmd): ConsoleCommand => {
+        if (cmd.control !== 'confirm' || cmd.label !== 'Confirm') {
+          return cmd;
+        }
+        return this.tone === 'loss' ?
+          {...cmd, label: promptCommitLabelKey('loss', cmd.label), tone: 'danger'} :
+          {...cmd, highlight: cmd.enabled !== false};
+      });
     },
   },
   watch: {

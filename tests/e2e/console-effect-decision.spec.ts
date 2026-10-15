@@ -243,11 +243,11 @@ test('an attack: the targets stay cards, the decline is the button in the questi
   await settle(page);
   await shoot(page, '3-attack');
 
-  await expect(page.locator('.con-decision__title')).toHaveText(/Атаковать соперника\?/i);
+  await expect(page.locator('.con-decision .con-prompt-head__title')).toHaveText(/Атаковать соперника\?/i);
   const actions = page.locator('.con-decision__action');
   await expect(actions, 'the target is a card — the refusal is not').toHaveCount(1);
   await expect(page.locator('.con-decision__action--decline')).toHaveCount(0);
-  const plate = page.locator('.con-decision__ask [data-decline-plate]');
+  const plate = page.locator('.con-decision .con-prompt-head__ask [data-decline-plate]');
   await expect(plate).toBeVisible();
   await expect(plate).toContainText(/Не атаковать/i);
   await expect(page.locator('.con-cmdbar')).toContainText(/Не атаковать/i);
@@ -290,8 +290,8 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   await page.waitForTimeout(1200);
   await shoot(page, '4-decision-buy');
 
-  await expect(page.locator('.con-decision__title')).toHaveText(/Купить карту\?/i);
-  await expect(page.locator('.con-decision__trigger')).toContainText(/собор/i);
+  await expect(page.locator('.con-decision .con-prompt-head__title')).toHaveText(/Купить карту\?/i);
+  await expect(page.locator('.con-decision .con-prompt-head__trigger')).toContainText(/собор/i);
   // The price is a preview, not a surprise.
   await expect(page.locator('.con-decision__action').nth(0)).toContainText('144');
   await expect(page.locator('.con-decision__action').nth(0)).toContainText('142');

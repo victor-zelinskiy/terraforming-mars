@@ -19,9 +19,14 @@
            / card row / status line). The drawn reveal wears the same three, so
            both stages spend the SAME chrome and the shared fit returns the same
            hero — see .con-ws-stage-frame in console.less. -->
+      <!-- STANDALONE, the panel is a plate of the PROMPT-MODAL FAMILY (`console_prompt.less`): its SIZE tier is read
+           off the content (`promptSize`), its TONE (gain / loss / neutral) off the prompt's structural markers. -->
       <div class="con-task"
-           :class="{'con-task--wide': activeTask.kind === 'cardSelect', 'con-ws-stage-frame': embedded}"
-           :key="panelKey" data-motion-panel>
+           :class="[
+             {'con-task--wide': activeTask.kind === 'cardSelect', 'con-ws-stage-frame': embedded},
+             embedded ? '' : 'con-prompt con-prompt--' + promptSize + ' con-prompt--' + tone,
+           ]"
+           :key="panelKey" data-motion-panel :data-prompt-panel="embedded ? undefined : ''">
         <!-- ── Frame header ──────────────────────────────────────────
              EMBEDDED: the KICKER is handed UP to the workspace's breadcrumb
              (setWorkspaceOutcomePhase) instead of being drawn here. Rendering
@@ -47,21 +52,16 @@
                                  :label="taskDecline.label" :forgone="taskDecline.forgone" />
           </template>
         </ConsoleWsStageHead>
-        <header v-else class="con-task__head">
-          <div class="con-task__kicker">
-            <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
-            <span>{{ $t(kickerText) }}</span>
-          </div>
-          <!-- THE QUESTION LINE — the ask, and an optional choice's DECLINE as a plate: the refusal is RT, never one
-               more option among the answers (2026-10-13). -->
-          <div class="con-task__ask">
-            <div class="con-task__title">{{ titleText }}</div>
-            <ConsoleDeclinePlate v-if="taskDecline !== undefined" class="con-task__decline"
-                                 :label="taskDecline.label" :forgone="taskDecline.forgone" />
-          </div>
+        <!-- STANDALONE: the family's ONE head — the tone's crest and emblem, the category, «РЕШЕНИЕ N» for a follow-up
+             of the same press, the tone tag, the ask and why it appeared. THE QUESTION LINE carries an optional
+             choice's DECLINE as a plate: the refusal is RT, never one more option among the answers (2026-10-13). -->
+        <ConsolePromptHead v-else class="con-task__head" :tone="tone" :kicker="kickerText" :title="titleText"
+                           :trigger="triggerText" :prompt-key="sequenceKey">
+          <template v-if="taskDecline !== undefined" #decline>
+            <ConsoleDeclinePlate class="con-task__decline" :label="taskDecline.label" :forgone="taskDecline.forgone" />
+          </template>
           <!-- Phase note (draft: what happens to the cards you don't keep). -->
           <div v-if="phaseSubtext !== ''" class="con-task__subtext">{{ phaseSubtext }}</div>
-          <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
           <!-- Card browser: the live pick counter (multi only) + BUY economics.
                The buy price is per-card RESEARCH cost (base 3 M€), never the
                card's printed cost — see buyCostPerCard. -->
@@ -102,7 +102,7 @@
           <!-- (The payment price + live coverage are NOT repeated here: the
                shared payment panel below owns both, so there is exactly one
                place in the UI stating what this costs and what is covered.) -->
-        </header>
+        </ConsolePromptHead>
 
         <div class="con-task__main">
           <!-- WHO asked — the SHARED source dock (`console-source-dock`, global
@@ -496,32 +496,37 @@
 
             <!-- ── DISTRIBUTE ─────────────────────────────────────── -->
             <template v-else-if="activeTask.kind === 'distribute'">
-              <!-- The budget meter. The SINGLE-STEP gain drops it («Всего 0/1»
-                   over a radio restates the title's own count — the Venus-bonus
-                   rule); the blocked line below then carries the honest «why
-                   not yet». The production loss keeps it always: there the
-                   meter IS the readout of the server's cost. -->
-              <div v-if="activeTask.mode === 'production' || !distSingleStep"
-                   class="con-task__dist-target" :class="{'con-task__dist-target--ready': distributeReady}">
-                {{ $t('Total') }}: <b>{{ distributedSum }}</b> / {{ distributeTarget }}
-              </div>
-              <div v-if="distBlockedText !== ''" class="con-task__dist-blocked">⚠ {{ distBlockedText }}</div>
+              <!-- The budget meter and the honest «why not yet» live in the CONSEQUENCE FOOTER under the body (the
+                   family's one place for what the confirm does): the SINGLE-STEP gain drops the meter there («0 / 1»
+                   over a radio restates the title's own count — the Venus-bonus rule); the production loss keeps
+                   it always — there the meter IS the readout of the server's cost. -->
               <div v-for="(lane, i) in lanes" :key="lane.key"
                    class="con-task__lane"
                    :class="{
                      'con-task__lane--focused': focusIdx === i,
                      'con-task__lane--active': laneValue(lane.key) > 0,
                      'con-task__lane--gain': activeTask.mode === 'resources',
+                     'con-task__lane--loss': activeTask.mode === 'production',
                    }">
                 <span class="con-task__lane-id" :class="{'con-task__lane-id--prod': activeTask.mode === 'production'}">
                   <i class="con-task__opt-icon" :class="lane.iconClass" aria-hidden="true"></i>
                 </span>
                 <span class="con-task__lane-name">{{ $t(lane.label) }}</span>
 
-                <!-- The production LOSS: picked / the server's own cap. -->
+                <!-- The production LOSS reads like the dedicated loss surface's rows: the income as it stands →
+                     what it becomes, and the chosen −N in the loss ink (one language for one loss, wherever it
+                     arrives — standalone or as a wizard step of a choice). -->
                 <template v-if="activeTask.mode === 'production'">
-                  <span class="con-task__lane-value">{{ laneValue(lane.key) }}</span>
-                  <span class="con-task__lane-max">/ {{ lane.max }}</span>
+                  <span class="con-task__lane-stock">
+                    <span class="con-task__lane-cur" :class="{'con-task__lane-cur--faded': laneValue(lane.key) > 0}">{{ signedProduction(lane.max) }}</span>
+                    <template v-if="laneValue(lane.key) > 0">
+                      <span class="con-task__lane-arrow" aria-hidden="true">→</span>
+                      <span class="con-task__lane-next">{{ signedProduction(lane.max - laneValue(lane.key)) }}</span>
+                    </template>
+                  </span>
+                  <span class="con-task__lane-delta" :class="{'con-task__lane-delta--empty': laneValue(lane.key) === 0}">
+                    <template v-if="laneValue(lane.key) > 0">−{{ laneValue(lane.key) }}</template>
+                  </span>
                 </template>
                 <!-- The GAIN: what you have → what it becomes. The stock CAPS
                      nothing (the budget is the only limit) — it is the reading
@@ -555,6 +560,12 @@
             </template>
           </div>
         </div>
+
+        <!-- THE CONSEQUENCE FOOTER — a DISTRIBUTION's answer is a sum of lanes, so what the confirm does is stated
+             once, at the plate's foot, in the decision's tone («ВЫ ПОЛУЧИТЕ» / «ВЫ ПОТЕРЯЕТЕ» + the budget). A choice
+             between OPTIONS states each option's consequence on the option itself and has no footer. -->
+        <ConsolePromptOutcome v-if="!embedded && activeTask.kind === 'distribute'" class="con-task__outcome"
+                              :tone="tone" :items="distOutcomeItems" :meter="distOutcomeMeter" :pending="distPendingText" />
 
         <!-- The command contract publishes to the shell's ONE bottom command
              bar via consolePanelUi (CONSOLE_TV_PREMIUM_PLAN §3.2) — the
@@ -691,6 +702,13 @@ import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel
 import {isHandCardSelection} from '@/client/console/consoleHandPick';
 import {DeclineModel, declineIsButton, optionalChoiceOf} from '@/client/console/optionalChoice';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
+import {PromptTone, promptCommitLabelKey, promptToneWithin} from '@/client/console/promptTone';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+
+/** The prompt-modal family's SIZE tiers (`console_prompt.less` § SIZE RULES). */
+type PromptSize = 's' | 'm' | 'l' | 'xl';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -791,7 +809,10 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield},
+  components: {
+    ConsoleVariantChoice, ConsoleDeclinePlate, Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel,
+    ConsoleWsStageHead, ConsoleAmountOperation, ConsoleInfluenceYield, ConsolePromptHead, ConsolePromptOutcome,
+  },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -957,6 +978,78 @@ export default defineComponent({
     /** What to publish upward: the stage name while embedded, '' otherwise. */
     embeddedPhase(): string {
       return this.embedded ? this.kickerKey : '';
+    },
+    /**
+     * The decision's CHARACTER (`promptTone.ts` — structural markers only): a
+     * reward, a loss, or a free choice. An open wizard step keeps its own
+     * character when it has one (a production loss behind an `or` is a loss).
+     */
+    tone(): PromptTone {
+      return promptToneWithin(this.parentWf, this.nested?.input);
+    },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
+    sequenceKey(): string {
+      return this.embedded ? '' : promptSequenceKey(this.parentWf, this.baseKey, this.nested?.index);
+    },
+    /**
+     * The plate's SIZE tier, read off the content (never a per-prompt number):
+     * a card browser is `xl`; a choice beside its FULL source card is `l` (the
+     * card is the subject and needs its column); a dial, a resource pick or a
+     * short choice with no source at all is `s`; everything else — rows,
+     * lanes, lists beside a compact source — is `m`.
+     */
+    promptSize(): PromptSize {
+      switch (this.activeTask.kind) {
+      case 'cardSelect':
+        return 'xl';
+      case 'choice':
+        if (this.dockedSource !== undefined && !this.sourceCompact) {
+          return 'l';
+        }
+        return this.dockedSource === undefined && this.choiceEntries.length <= 3 ? 's' : 'm';
+      case 'amount':
+      case 'resource':
+        return this.dockedSource === undefined ? 's' : 'm';
+      default:
+        return 'm';
+      }
+    },
+    /** The consequence footer of a DISTRIBUTION: every lane holding part of the answer, `current → resulting`. */
+    distOutcomeItems(): Array<PromptOutcomeItem> {
+      if (this.activeTask.kind !== 'distribute') {
+        return [];
+      }
+      const production = this.activeTask.mode === 'production';
+      return this.lanes
+        .filter((lane) => this.laneValue(lane.key) > 0)
+        .map((lane): PromptOutcomeItem => {
+          const placed = this.laneValue(lane.key);
+          if (production) {
+            return {
+              key: lane.key, iconClass: lane.iconClass, prod: true, delta: -placed,
+              from: this.signedProduction(lane.max), to: this.signedProduction(lane.max - placed),
+            };
+          }
+          const have = lane.available;
+          return {
+            key: lane.key, iconClass: lane.iconClass, delta: placed,
+            from: have !== undefined ? String(have) : undefined, to: have !== undefined ? String(have + placed) : undefined,
+          };
+        });
+    },
+    /** The budget readout — the SINGLE-STEP gain has none (a radio restating the title's count is noise). */
+    distOutcomeMeter(): {done: number, of: number} | undefined {
+      if (this.activeTask.kind !== 'distribute' || (this.activeTask.mode === 'resources' && this.distSingleStep)) {
+        return undefined;
+      }
+      return {done: this.distributedSum, of: this.distributeTarget};
+    },
+    /** Nothing placed yet: what is still owed, in words (the honest «why not yet» — invariant 5). */
+    distPendingText(): string {
+      if (this.activeTask.kind === 'distribute' && this.activeTask.mode === 'production') {
+        return translateText('Choose the production to lose');
+      }
+      return this.distBlockedText !== '' ? this.distBlockedText : translateText('Distribute resources');
     },
     /** choiceContext trigger sentence (parity with ContextualChoiceContent);
      *  inside a nested step — the PARENT ask as a breadcrumb. */
@@ -1981,7 +2074,9 @@ export default defineComponent({
       if (this.arrivalPending) {
         return [];
       }
-      const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
+      // The COMMIT speaks the decision's character (`tonedCommit`): a loss is ACCEPTED in the danger ink, a gain is
+      // COLLECTED in the claimable glow — never one «Подтвердить» for both (the Philares → hazard chain).
+      const confirm = this.tonedCommit({control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady});
       const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined && !this.nestedIsDirect ? 'Back' : this.deferLabel};
       // The select → confirm contract (A picks, X commits) every arm-then-confirm
       // kind shares — a generic OrOptions / player / resource pick.
@@ -1999,9 +2094,11 @@ export default defineComponent({
         // advertise a second «Выполнить» on X (that read as a required step —
         // and it WAS one: A only armed). X becomes the console-wide INSPECT
         // verb, offered only when there IS a source card to inspect.
+        // A press that OPENS something («Выбрать») is not the commit of the decision — only a leaf is toned.
+        const decide: ConsoleCommand = {control: 'confirm', label: this.choiceCommandLabel, enabled: this.confirmReady};
         const cmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: this.choiceCommandLabel, enabled: this.confirmReady},
+          this.choiceCommandLabel === 'Confirm' ? this.tonedCommit(decide) : decide,
         ];
         if (this.sourceInspectable) {
           cmds.push({control: 'secondary', label: 'Inspect'});
@@ -3178,6 +3275,29 @@ export default defineComponent({
     },
     laneValue(unit: string): number {
       return (this.units as Record<string, number>)[unit] ?? 0;
+    },
+    /** A production is an INCOME rate — signed, so «+3 → +2» and a negative M€ income read alike everywhere. */
+    signedProduction(n: number): string {
+      return n >= 0 ? `+${n}` : `−${Math.abs(n)}`;
+    },
+    /**
+     * The decision's COMMIT in its tone — the bar's half of the family's tone
+     * markers. A LOSS is «Принять убыток» in the danger ink; a GAIN is
+     * «Забрать» with the claimable glow once it is ready; a free choice keeps
+     * its own verb. Embedded stages keep the workspace's verbs untouched.
+     */
+    tonedCommit(cmd: ConsoleCommand): ConsoleCommand {
+      if (this.embedded) {
+        return cmd;
+      }
+      if (this.tone === 'loss') {
+        return {...cmd, label: promptCommitLabelKey('loss', cmd.label), tone: 'danger'};
+      }
+      if (this.tone === 'gain') {
+        const generic = cmd.label === 'Select' || cmd.label === 'Confirm' || cmd.label === 'Save';
+        return {...cmd, label: generic ? 'Collect' : cmd.label, highlight: cmd.enabled !== false};
+      }
+      return cmd;
     },
     /** Units the layout has put on `card` so far (distribute mode). */
     spreadOnCard(card: string): number {

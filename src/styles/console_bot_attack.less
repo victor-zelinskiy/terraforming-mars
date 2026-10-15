@@ -40,57 +40,24 @@
     contain: layout style;
 }
 
+/* THE PLATE is the PROMPT-MODAL FAMILY's (`console_prompt.less`, `.con-prompt--fit`): CONTENT-SIZED — `width: auto`
+   inside the centred band means the panel shrink-wraps its widest row, and the header block caps its own reading
+   measure — so a one-target attack is a narrow card and a three-target one grows only as far as it needs. What stays
+   here: the clip (the scene's proxies never paint past the plate) and the scene's own rhythm. */
 .con-botattack__panel {
-    position: relative;
-    /* CONTENT-SIZED. `width: auto` inside the centred band means the panel
-       shrink-wraps its widest row, and the header block caps its own reading
-       measure — so a one-target attack is a narrow card and a three-target one
-       grows only as far as it needs. A fixed width is what left the first
-       iteration with an empty right half. */
-    width: auto;
-    max-width: min(56rem, 100%);
     height: auto;
-    max-height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: .85rem;
-    padding: 1.1rem 1.25rem 1.2rem;
-    border-radius: .75rem;
-    box-sizing: border-box;
     overflow: hidden;
-    /* THE PROJECT'S GLASS — byte-for-byte `.con-decision__panel`. */
-    background: linear-gradient(180deg, rgba(16, 26, 38, 0.96), rgba(10, 16, 25, 0.97));
-    box-shadow:
-        inset 0 0 0 .05rem rgba(120, 160, 200, 0.22),
-        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
 }
 
-/* ── header: who / what / what now ───────────────────────────────────── */
-.con-botattack__head {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    gap: .3rem;
-    /* THE READING MEASURE. It caps the panel's width from the text side, so a
-       long Russian sentence sets a comfortable column instead of stretching the
-       modal to the band. */
+/* ── header: who / what / what now — the family's ONE head (`ConsolePromptHead`, LOSS tone) ─────────────────── */
+/* THE READING MEASURE. It caps the panel's width from the TEXT side, so a long Russian sentence sets a comfortable
+   column instead of stretching the modal to the band — on the SENTENCES only: the kicker row spans the plate, so the
+   tone tag stands in the same corner as on every other modal of the family. */
+.con-botattack__head .con-prompt-head__ask,
+.con-botattack__ask,
+.con-botattack__limit {
     max-width: 34rem;
-    min-width: 0;
 }
-
-/* THE ONE RED ACCENT OF THE HEADER — the kicker, in the project's own kicker
-   geometry (`.con-decision__kicker`), recoloured and nothing more. */
-.con-botattack__kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    font-size: .68rem;
-    letter-spacing: .11rem;
-    text-transform: uppercase;
-    color: fade(@con-red, 94%);
-}
-.con-botattack__kicker-mark { color: @con-red; }
-.con-botattack__kicker-word { font-weight: 700; }
 .con-botattack__kicker-sep { color: fade(@con-text-dim, 60%); }
 /* …and the ACTOR, in the shell's own «dot + name» vocabulary. The seat colour
    comes from the shared `player_color_*` classes, so the bot reads here exactly
@@ -99,7 +66,7 @@
     display: inline-flex;
     align-items: center;
     gap: .3rem;
-    font-weight: 700;
+    letter-spacing: .06rem;
 }
 .con-botattack__actor-dot {
     width: .42rem;
@@ -108,22 +75,13 @@
     box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.45);
 }
 
-.con-botattack__title {
-    margin: 0;
-    font-size: 1.35rem;
-    font-weight: 700;
-    line-height: 1.2;
-    color: @con-text;
-    min-width: 0;
-    overflow-wrap: break-word;
-}
 /* THE ASK — the console's READING voice at its standard body size (the same
    `--con-t-read × --con-read-scale` every long-form sentence in the shell uses,
    with the couch floor the TV profile sets). It is the instruction the player
    must act on, so it is never a caption. */
 .con-botattack__ask {
     .con-read-text(500);
-    margin: 0;
+    margin: .45rem 0 0;
     font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
     line-height: var(--con-read-lh, 1.45);
     color: fade(@con-text, 94%);
@@ -133,7 +91,7 @@
    explanation. */
 .con-botattack__limit {
     .con-read-text(450);
-    margin: 0;
+    margin: .3rem 0 0;
     font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
     line-height: var(--con-read-lh, 1.45);
     color: fade(@con-text-dim, 92%);
@@ -239,6 +197,8 @@
 /* The commit is the PANEL's foot, aligned to the target side. */
 .con-botattack__foot {
     flex: none;
+    /* One family gap under the scene — the plate's own flex gap is 0 (one rhythm, `console_prompt.less`). */
+    margin-top: var(--con-prompt-gap);
     display: flex;
     justify-content: flex-end;
     min-width: 0;
@@ -335,9 +295,8 @@
 
 /* ── HANDHELD (Steam Deck): the scene stacks rather than shrinks ──────── */
 html.con-profile-handheld {
-    .con-botattack__head { max-width: 26rem; }
+    .con-botattack__head .con-prompt-head__ask, .con-botattack__ask, .con-botattack__limit { max-width: 26rem; }
     .con-botattack__stage { height: 12.5rem; }
-    .con-botattack__title { font-size: 1.15rem; }
 }
 
 /* ── reduced motion: the ORDER survives, the movement does not ───────── */

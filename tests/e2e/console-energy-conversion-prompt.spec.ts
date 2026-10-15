@@ -76,8 +76,8 @@ test('Supercapacitors: premium conversion prompt → rail handoff → next promp
 
   // ── SOURCE CONTEXT + HEADLINE (the caps are CSS text-transform, so the
   //    copy is matched case-insensitively on the translation itself) ──────
-  await expect(page.locator('.con-task__kicker')).toContainText(/эффект производства/i);
-  await expect(page.locator('.con-task__title')).toContainText(/преобразование энергии/i);
+  await expect(page.locator('.con-task .con-prompt-head__category')).toContainText(/эффект производства/i);
+  await expect(page.locator('.con-task .con-prompt-head__title')).toContainText(/преобразование энергии/i);
   await expect(page.locator('.con-task__subtext')).toContainText(/сколько энергии/i);
   expect(await page.locator('.con-task .con-src').count(),
     'the source dock (Supercapacitors) is docked').toBeGreaterThan(0);

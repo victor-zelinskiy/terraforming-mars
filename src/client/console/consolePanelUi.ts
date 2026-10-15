@@ -14,6 +14,7 @@
  */
 import {reactive} from 'vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {promptSequenceState, settleGreysControl} from '@/client/console/promptSequence';
 
 type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'cardActions' | 'actionComposer' | 'effectDecision' |
   // The three dedicated COMPOSITE surfaces (Venus track bonus, Stormcraft's
@@ -46,8 +47,19 @@ export function clearPanelCommands(owner: PanelOwner): void {
 }
 
 /** The shell-side read: the panel's live contract, or undefined when the
- *  expected panel hasn't published (fallback to the static set). */
+ *  expected panel hasn't published (fallback to the static set).
+ *
+ *  While a freshly presented decision SETTLES (`promptSequence.ts` — the
+ *  inertia guard after a chain of prompts), its deciding verbs read greyed:
+ *  the shell swallows those presses in the same window, and a bar that kept
+ *  them lit would promise a press that does nothing. One place for every
+ *  prompt panel — no surface grows its own «not yet» state. */
 export function panelCommands(owner: PanelOwner): ReadonlyArray<ConsoleCommand> | undefined {
-  return consolePanelUi.owner === owner && consolePanelUi.commands.length > 0 ?
-    consolePanelUi.commands : undefined;
+  if (consolePanelUi.owner !== owner || consolePanelUi.commands.length === 0) {
+    return undefined;
+  }
+  if (!promptSequenceState.settling || promptSequenceState.current === undefined) {
+    return consolePanelUi.commands;
+  }
+  return consolePanelUi.commands.map((cmd) => settleGreysControl(cmd.control) ? {...cmd, enabled: false} : cmd);
 }

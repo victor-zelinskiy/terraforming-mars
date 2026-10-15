@@ -109,21 +109,15 @@
 }
 
 /* ── header ──────────────────────────────────────────────────────────── */
-.con-decision__head {
+/* STANDALONE, the panel is a plate of the PROMPT-MODAL FAMILY (`console_prompt.less`: `.con-prompt` wins the plate's
+   width / padding / radius / fill / rim, and the head is `ConsolePromptHead`). The rules below dress the EMBEDDED
+   stage's own head (no kicker — the workspace's crumb names it) — scoped to it, so the family's head keeps the ONE
+   rhythm every other modal has. */
+.con-decision--embedded .con-decision__head {
     display: flex;
     flex-direction: column;
     gap: .3rem;
 }
-.con-decision__kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    font-size: .62rem;
-    letter-spacing: .11rem;
-    text-transform: uppercase;
-    color: fade(@con-cyan, 92%);
-}
-.con-decision__kicker-mark { color: @con-cyan; }
 /* THE QUESTION LINE — the headline and, when the refusal is a button, its plate at the line's far end (wraps under
    the headline before either is cut). */
 .con-decision__ask {
@@ -205,12 +199,10 @@
         background: fade(@con-cyan, 30%);
     }
 }
+/* The cursor is the console's ONE ring (`.con-focus()` — its couch weight rides the ring tokens on the TV). */
 .con-decision__action--focused {
     transform: translateX(.18rem);
-    box-shadow:
-        inset 0 0 0 .075rem fade(@con-cyan, 88%),
-        0 0 1.1rem fade(@con-cyan, 18%),
-        0 .4rem 1.1rem rgba(0, 0, 0, 0.45);
+    .con-focus();
 
     &::before { background: @con-cyan; }
 }

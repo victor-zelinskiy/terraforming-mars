@@ -163,10 +163,10 @@ test('spend heat: a bill, two lanes, and no way to overpay', async ({page, reque
   await shoot(page, '1-spend-heat');
 
   await expectsWorkspaceBand(page, '.con-heat');
-  await expect(page.locator('.con-lanes__kicker')).toContainText(/ПОТРАТИТЬ ТЕПЛО/i);
+  await expect(page.locator('.con-heat .con-prompt-head__kicker')).toContainText(/ПОТРАТИТЬ ТЕПЛО/i);
   // The BILL and its live coverage, in one place.
-  await expect(page.locator('.con-lanes__meter')).toContainText('0');
-  await expect(page.locator('.con-lanes__meter-target')).toHaveText('6');
+  await expect(page.locator('.con-heat [data-prompt-meter]')).toContainText('0');
+  await expect(page.locator('.con-heat [data-prompt-meter]')).toContainText('/ 6');
   await expect(page.locator('.con-lanes__row')).toHaveCount(2);
   // …and WHO offered the floaters, with the real card face.
   expect(await page.locator('.con-heat .con-src .pcard, .con-heat .con-src .card-container').count()).toBeGreaterThan(0);
@@ -180,7 +180,7 @@ test('spend heat: a bill, two lanes, and no way to overpay', async ({page, reque
   // RT pours the whole bill onto the focused lane; the meter says so.
   await key(page, 'Period', 900);
   await shoot(page, '2-spend-heat-max');
-  await expect(page.locator('.con-lanes__meter')).toHaveClass(/con-lanes__meter--ready/);
+  await expect(page.locator('[data-prompt-meter]')).toHaveClass(/con-prompt-outcome__meter--ready/);
 });
 
 test('the Venus bonus: one flow — the wild first, then the placement', async ({page, request}) => {
@@ -209,10 +209,10 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
 
   await expectsWorkspaceBand(page, '.con-venus');
   // STAGE 1: the wild's destination, with a real question.
-  await expect(page.locator('.con-lanes__title')).toContainText(/дополнительный ресурс/i);
+  await expect(page.locator('.con-venus .con-prompt-head__title')).toContainText(/дополнительный ресурс/i);
   await expect(page.locator('.con-venus__opt')).toHaveCount(2);
   // The breadcrumb names the stage, and the root never moves.
-  await expect(page.locator('.con-lanes__kicker')).toContainText(/БОНУС ВЕНЕРЫ/i);
+  await expect(page.locator('.con-venus .con-prompt-head__kicker')).toContainText(/БОНУС ВЕНЕРЫ/i);
   await expect(page.locator('.con-lanes__crumb-stage')).toHaveText(/ДОПОЛНИТЕЛЬНЫЙ РЕСУРС/i);
 
   // A on the SECOND branch («take one more standard resource») folds the wild
@@ -221,7 +221,7 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
   await key(page, 'Enter', 900);
   await shoot(page, '4-venus-place');
   await expect(page.locator('.con-lanes__row')).toHaveCount(6);
-  await expect(page.locator('.con-lanes__meter-target')).toHaveText('3');
+  await expect(page.locator('.con-venus [data-prompt-meter]')).toContainText('/ 3');
   await expect(page.locator('.con-lanes__crumb-stage')).toHaveText(/РАЗМЕЩЕНИЕ/i);
   // …and the decision the player just made stays visible.
   await expect(page.locator('.con-venus__wild-recap')).toHaveCount(1);
@@ -270,8 +270,8 @@ test('a one-step bill is a radio too — the same gesture, the bill kept', async
   // The DIALS go (0 / 1 is not a number worth a stepper) — but the BILL stays:
   // a payment always states what it costs.
   await expect(page.locator('.con-lanes__dial')).toHaveCount(0);
-  await expect(page.locator('.con-lanes__meter-target')).toHaveText('1');
-  await expect(page.locator('.con-lanes__blocked')).toContainText(/выберите, чем оплатить/i);
+  await expect(page.locator('.con-heat [data-prompt-meter]')).toContainText('/ 1');
+  await expect(page.locator('.con-heat [data-prompt-outcome]')).toContainText(/выберите, чем оплатить/i);
 
   const bar = page.locator('.con-cmdbar').first();
   await expect(bar).toContainText(/ДОБАВИТЬ/i);
@@ -280,7 +280,7 @@ test('a one-step bill is a radio too — the same gesture, the bill kept', async
   // Heat covers it exactly; the floater covers it too (wasteful, and legal —
   // dropping it would leave the bill unpaid), so both are whole answers.
   await key(page, 'Enter', 700);
-  await expect(page.locator('.con-lanes__meter')).toHaveClass(/con-lanes__meter--ready/);
+  await expect(page.locator('[data-prompt-meter]')).toHaveClass(/con-prompt-outcome__meter--ready/);
   await expect(bar).toContainText(/СНЯТЬ/i);
   await key(page, 'ArrowDown', 400);
   await key(page, 'Enter', 700);
@@ -319,9 +319,9 @@ test('one resource: the lanes become a radio — A places it, X takes it', async
   await expectsWorkspaceBand(page, '.con-venus');
   await expect(page.locator('.con-lanes__row')).toHaveCount(6);
   // The BUDGET chrome is gone: no meter to read, no «+1» counter to parse.
-  await expect(page.locator('.con-lanes__meter')).toHaveCount(0);
+  await expect(page.locator('.con-venus [data-prompt-meter]')).toHaveCount(0);
   await expect(page.locator('.con-lanes__delta')).toHaveCount(0);
-  await expect(page.locator('.con-lanes__blocked')).toContainText(/выберите, куда положить/i);
+  await expect(page.locator('.con-venus [data-prompt-outcome]')).toContainText(/выберите, куда положить/i);
 
   // ONE verb on the bar, and none of the stepper ones.
   const bar = page.locator('.con-cmdbar').first();
@@ -457,7 +457,7 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     await expect(page.locator('.con-ptsel')).toBeVisible();
     // The panel header states the ask, so the step must not restate it.
     expect(await page.locator('.con-ptsel__contract').count()).toBe(0);
-    await expect(page.locator('.con-lanes__kicker')).toContainText(/БОНУС ВЕНЕРЫ/i);
+    await expect(page.locator('.con-venus .con-prompt-head__kicker')).toContainText(/БОНУС ВЕНЕРЫ/i);
     // The tail names THIS stage, never the one after it.
     await expect(page.locator('.con-lanes__crumb-stage')).toHaveText(/ЦЕЛЬ/i);
 

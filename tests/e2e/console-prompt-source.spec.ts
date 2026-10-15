@@ -150,8 +150,8 @@ test('a resource distribution names the card that caused it', async ({page, requ
   await shoot(page, '1-distribute-with-source');
 
   // 1 · the classification and the ask are unchanged…
-  await expect(page.locator('.con-task__kicker')).toContainText(/РАСПРЕДЕЛЕНИЕ РЕСУРСОВ/i);
-  await expect(page.locator('.con-task__title')).toContainText(/Распределите стандартные ресурсы/i);
+  await expect(page.locator('.con-task .con-prompt-head__category')).toContainText(/РАСПРЕДЕЛЕНИЕ РЕСУРСОВ/i);
+  await expect(page.locator('.con-task .con-prompt-head__title')).toContainText(/Распределите стандартные ресурсы/i);
 
   // 2 · …and the prompt now says WHO asked and WHY — through the SHARED dock
   //     (`.con-src`), the same component every decision surface uses.
@@ -159,7 +159,7 @@ test('a resource distribution names the card that caused it', async ({page, requ
   await expect(source).toHaveCount(1);
   expect(await source.locator('.pcard, .card-container').count(),
     'the source renders with the REAL premium card face').toBeGreaterThan(0);
-  await expect(page.locator('.con-task__trigger')).toContainText(/встал рядом с вашими/i);
+  await expect(page.locator('.con-task .con-prompt-head__trigger')).toContainText(/встал рядом с вашими/i);
 
   // 3 · it is COMPACT — context, never the subject. The six lanes the player is
   //     actually answering must outweigh the card that produced them.

@@ -13,20 +13,18 @@
   -->
   <div class="con-ares con-ws" role="dialog" :aria-label="$t('Shift the planetary event thresholds')"
        data-motion-surface="ares-globals">
-    <div class="con-ares__panel" data-motion-panel>
-      <header class="con-ares__head">
-        <div class="con-ares__kicker">
-          <span class="con-ares__kicker-mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Planetary events') }}</span>
-        </div>
-        <div class="con-ares__title">{{ $t('Shift the planetary event thresholds') }}</div>
-        <div class="con-ares__lead">{{ $t('Move each threshold up to 1 step up or down.') }}</div>
+    <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`): a free choice — the NEUTRAL tone. Each row states
+         its own consequence (the threshold and what it moves), so the plate carries no consequence footer. -->
+    <div class="con-ares__panel con-prompt con-prompt--m con-prompt--neutral" data-motion-panel data-prompt-panel>
+      <ConsolePromptHead class="con-ares__head" tone="neutral" :kicker="$t('Planetary events')"
+                         :title="$t('Shift the planetary event thresholds')"
+                         :trigger="$t('Move each threshold up to 1 step up or down.')" :prompt-key="sequenceKey">
         <!-- Nothing is forced here: standing pat is a real answer, and the
              surface says so rather than letting the player hunt for it. -->
         <div class="con-ares__count" :class="{'con-ares__count--idle': changedCount === 0}">
           {{ changedCount === 0 ? $t('No changes') : shiftedText }}
         </div>
-      </header>
+      </ConsolePromptHead>
 
       <div class="con-ares__rows">
         <div v-for="(row, i) in rows" :key="row.key"
@@ -97,12 +95,15 @@ import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePane
 import {
   AresDelta, AresDeltaKey, AresThresholdRow, aresResponse, aresResulting, aresThresholdRows,
 } from '@/client/console/compositePrompts';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 
 const OPTIONS: ReadonlyArray<AresDelta> = [-1, 0, 1];
 
 export default defineComponent({
   name: 'ConsoleAresGlobals',
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsolePromptHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -128,6 +129,10 @@ export default defineComponent({
     },
     shiftedText(): string {
       return translateTextWithParams('Shifted: ${0}', [String(this.changedCount)]);
+    },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
+    sequenceKey(): string {
+      return this.model === undefined ? '' : promptSequenceKey(this.model, promptIdentityKey(this.model));
     },
     promptKey(): string {
       return this.rows.map((r) => `${r.key}:${r.threshold}`).join('|');

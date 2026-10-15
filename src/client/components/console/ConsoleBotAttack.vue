@@ -21,29 +21,26 @@
        :class="{'con-botattack--committing': committing}"
        role="dialog" :aria-label="ariaLabel"
        data-motion-surface="bot-attack">
-    <div class="con-botattack__panel" data-motion-panel>
-      <header class="con-botattack__head">
-        <!-- WHO. One word plus the SEAT CHIP — the shell's own «dot + name»
-             vocabulary, with the name resolved by the ONE display-name helper
-             (`displayNameForColor` → the 'MarsBot' key → «Бот»). Never a
-             hardcoded name in either language. -->
-        <div class="con-botattack__kicker">
-          <span class="con-botattack__kicker-mark" aria-hidden="true">◈</span>
-          <span class="con-botattack__kicker-word">{{ $t(vm.eyebrowKey) }}</span>
+    <!-- The PROMPT-MODAL FAMILY's plate (`console_prompt.less`), content-sized (`--fit`): with one candidate the
+         causal row centres and the plate shrinks with it. An attack on the player is a LOSS — the hazard-tape crest,
+         the warning emblem, «▼ УБЫТОК»; the plate itself stays the family's cold glass (red is semantic, never paint). -->
+    <div class="con-botattack__panel con-prompt con-prompt--fit con-prompt--loss" data-motion-panel data-prompt-panel>
+      <!-- WHO. One word plus the SEAT CHIP — the shell's own «dot + name» vocabulary, with the name resolved by the
+           ONE display-name helper (`displayNameForColor` → the 'MarsBot' key → «Бот»). WHAT HAPPENED is the head's
+           sentence («Бот применяет карту «Инвазивные виды»»); WHAT IS REQUIRED and — quieter but still readable — WHY
+           only these cards ride under it (the server's own rule key, never a re-derivation). -->
+      <ConsolePromptHead class="con-botattack__head" tone="loss" :kicker="$t(vm.eyebrowKey)" :title="headlineText"
+                         :prompt-key="sequenceKey">
+        <template #kicker-extra>
           <span class="con-botattack__kicker-sep" aria-hidden="true">·</span>
           <span class="con-botattack__actor" :class="'player_color_' + vm.attacker">
             <span class="con-botattack__actor-dot" :class="'player_bg_color_' + vm.attacker" aria-hidden="true"></span>
             {{ actorName }}
           </span>
-        </div>
-        <!-- WHAT HAPPENED — a sentence, not a mechanism («Бот применяет карту
-             «Инвазивные виды»»). -->
-        <h2 class="con-botattack__title">{{ headlineText }}</h2>
-        <!-- WHAT IS REQUIRED, and — quieter but still readable — WHY only these
-             cards. The server's own rule key, never a re-derivation. -->
+        </template>
         <p class="con-botattack__ask">{{ explanationText }}</p>
         <p v-if="restrictionText !== ''" class="con-botattack__limit">{{ restrictionText }}</p>
-      </header>
+      </ConsolePromptHead>
 
       <!-- NO VALID TARGET. The server normally resolves that without ever
            asking, so this is the honest last resort rather than an expected
@@ -161,7 +158,11 @@ import {
 import {
   botAttackCommandKeys, botAttackPreviewFor, botAttackPressIntent, botAttackResourceFor,
   BotAttackPhrase, BotAttackViewModel, BotAttackZone, EMPTY_NO_TARGETS, VERB_CHOOSE_TARGET,
+  VERB_INSPECT_CARD, VERB_MINIMIZE, VERB_NAVIGATE,
 } from '@/client/console/botAttack/botAttackModel';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 
 /** The commit BEAT: the chosen cube visibly leaves before the answer is sent —
  *  short, once, and never a substitute for the server's own confirmation. */
@@ -182,7 +183,7 @@ function phraseText(phrase: BotAttackPhrase): string {
 export default defineComponent({
   name: 'ConsoleBotAttack',
   // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {ConsolePlayedTargetStep, GamepadGlyph},
+  components: {ConsolePlayedTargetStep, GamepadGlyph, ConsolePromptHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     vm: {type: Object as PropType<BotAttackViewModel>, required: true},
@@ -240,6 +241,11 @@ export default defineComponent({
     },
     ariaLabel(): string {
       return `${translateText(this.vm.eyebrowKey)}: ${this.actorName}`;
+    },
+    /** The decision's identity in the sequence (`promptSequence.ts`) — an attack is always a LOSS for its victim. */
+    sequenceKey(): string {
+      const wf = this.playerView.waitingFor;
+      return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
     },
     /** The removed resource's sprite, for the bridge chip. */
     resourceIcon(): string {
@@ -306,12 +312,26 @@ export default defineComponent({
     commitReady(): boolean {
       return commitAllowed(this.gate);
     },
+    /**
+     * The pad contract. A verb's GLYPH follows what the verb IS, never its
+     * position in the list — read by index, the no-target «Продолжить» (an A
+     * press) was drawn on the d-pad. The COMMIT («Удалить 1 ресурс») is the
+     * loss being accepted: it wears the bar's danger ink, the family's tone
+     * verb (`console_prompt.less`).
+     */
     footCommands(): Array<ConsoleCommand> {
-      const controls = ['dpad', 'confirm', 'secondary', 'back'] as const;
-      return botAttackCommandKeys(this.vm, this.zone, this.selected).map((label, i) => ({
-        control: label === 'Minimize' ? 'back' : controls[Math.min(i, controls.length - 1)],
-        label,
-      }));
+      return botAttackCommandKeys(this.vm, this.zone, this.selected).map((label): ConsoleCommand => {
+        switch (label) {
+        case VERB_NAVIGATE:
+          return {control: 'dpad', label};
+        case VERB_INSPECT_CARD:
+          return {control: 'secondary', label};
+        case VERB_MINIMIZE:
+          return {control: 'back', label};
+        default:
+          return label === this.vm.commitVerbKey ? {control: 'confirm', label, tone: 'danger'} : {control: 'confirm', label};
+        }
+      });
     },
   },
   watch: {

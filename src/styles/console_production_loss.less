@@ -1,14 +1,13 @@
 /*
- * CONSOLE PRODUCTION LOSS — the dedicated premium surface for "reduce your
- * production" (the Ares hazard-adjacency penalty). The console-native twin of
- * the desktop ModernProductionToLose; it replaces the generic distribute lanes
- * for this ONE narrow case. Authored in rem (1rem = 20px logical) per the TV
- * profile contract; tokens (@con-*, mixins) inherited from console.less's root
- * scope. No animations of its own — the entrance is the shared con-layer fade,
- * focus is a static ring (Steam-Deck cheap, mirrors ConsoleGovernmentSupport).
+ * CONSOLE PRODUCTION LOSS — the dedicated surface for "reduce your production"
+ * (the Ares hazard-adjacency penalty, a card attack such as Caesar). It stands
+ * on the PROMPT-MODAL FAMILY (`console_prompt.less`): the plate, the head with
+ * its LOSS tone (hazard-tape crest, warning emblem, «▼ УБЫТОК»), the shared
+ * row chassis and the «ВЫ ПОТЕРЯЕТЕ» footer that carries the budget. What is
+ * left here is the surface's own anatomy only: the cause beside the six rows,
+ * and a row's production readout. Authored in rem (1rem = 20px logical); no
+ * animations of its own — the entrance is the surface-motion director's.
  */
-
-@prodloss-loss: #e6a15c; // the warm "reduction" accent (kin to the hazard theme)
 
 /* NO own __backdrop: rides the shared `.con-shade` dim (surface motion). */
 .con-prodloss {
@@ -18,81 +17,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
-
-    &__panel {
-        position: relative;
-        width: min(44rem, 100%);
-        max-height: 100%;
-        display: flex;
-        flex-direction: column;
-        padding: 1.3rem 1.5rem .9rem;
-        border-radius: .8rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
-        color: @con-text;
-        // Safety valve only — the six rows + chrome always fit; no cursor-driven
-        // scroll, so a ConsoleScrollArea wrap would add churn without value.
-        overflow-y: auto;
-        .con-scrollbars();
-    }
-
-    /* ── Header ──────────────────────────────────────────────────────── */
-    &__head { margin-bottom: .8rem; }
-    &__kicker {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .8rem;
-        letter-spacing: .12rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 90%);
-    }
-    &__kicker-mark { color: @con-cyan; }
-    &__title {
-        margin-top: .3rem;
-        font-size: 1.7rem;
-        font-weight: 800;
-        letter-spacing: .05rem;
-        text-transform: uppercase;
-        line-height: 1.1;
-        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
+    padding: .3rem 0;
+    box-sizing: border-box;
 
     /* The cause + the rows, side by side — the SAME two-column shape the task
        host uses (`.con-task__main`), so the source dock sits where the player
-       already expects to find it. The old ◈-chip lived in the header and named
-       the card without ever showing it. */
+       already expects to find it. */
     &__main {
         display: flex;
         gap: 1.1rem;
         min-height: 0;
     }
-
-    /* The distribution indicator (Выбрано: N / M). */
-    &__counter {
-        display: inline-flex;
-        align-items: baseline;
-        gap: .35rem;
-        margin-top: .75rem;
-        padding: .3rem .85rem;
-        border-radius: .5rem;
-        font-size: .95rem;
-        letter-spacing: .03rem;
-        background: rgba(20, 30, 44, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
-        color: @con-text-dim;
-        b { font-size: 1.3rem; font-weight: 800; color: @con-text; }
-
-        &--ready {
-            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 60%);
-            color: #cfe6fb;
-            b { color: @con-cyan; text-shadow: 0 0 .4rem fade(@con-cyan, 42%); }
-        }
-    }
-    &__counter-slash { opacity: 0.55; }
 
     /* ── The six production rows ─────────────────────────────────────── */
     &__rows {
@@ -100,37 +35,24 @@
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: .5rem;
+        gap: .45rem;
     }
 
     /* PERF: no transition / continuous effect — focus is a DISCRETE static ring. */
     &__row {
-        position: relative;
+        .con-prompt-row();
         display: flex;
         flex-direction: column;
         gap: .2rem;
-        padding: .55rem .8rem;
-        border-radius: .6rem;
-        background: linear-gradient(160deg, rgba(20, 30, 44, 0.72) 0%, rgba(11, 18, 28, 0.78) 100%);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        padding: .5rem .8rem;
 
-        &--active {
-            background: linear-gradient(160deg, rgba(46, 34, 20, 0.66) 0%, rgba(22, 16, 10, 0.74) 100%);
-            box-shadow: inset 0 0 0 .06rem fade(@prodloss-loss, 55%);
-        }
-        &--focused {
-            box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 30%);
-        }
-        &--active&--focused {
-            box-shadow: inset 0 0 0 .1rem @prodloss-loss, 0 0 .9rem fade(@prodloss-loss, 34%);
-        }
-        &--disabled {
-            opacity: 0.52;
-            filter: saturate(0.5);
-        }
-        &--disabled&--focused {
-            box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.5);
-        }
+        &--focused { .con-prompt-row-focused(); }
+        /* A row that holds part of the loss wears the DECISION's tone. */
+        &--active { .con-prompt-row-picked(@prompt-loss); }
+        &--active&--focused { .con-prompt-row-picked-focused(@prompt-loss); }
+        /* A production at its floor: readable, never selectable — its content dims, its plate stays opaque. */
+        &--disabled { .con-prompt-row-off(); }
+        &--disabled&--focused { box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.5); }
     }
 
     &__line {
@@ -145,6 +67,7 @@
         align-items: center;
         gap: .6rem;
     }
+    /* The PRODUCTION plate — the same brown frame the rail draws production in. */
     &__frame {
         display: inline-flex;
         align-items: center;
@@ -153,8 +76,8 @@
         width: 2.2rem;
         height: 2.2rem;
         border-radius: .4rem;
-        background: rgba(58, 44, 26, 0.5);
-        box-shadow: inset 0 0 0 .05rem rgba(200, 150, 90, 0.28);
+        background: @con-prompt-prod-plate;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.4);
     }
     &__icon.resource_icon {
         display: inline-block;
@@ -166,7 +89,6 @@
     }
     &__name {
         font-size: 1.05rem;
-        font-weight: 700;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -183,20 +105,16 @@
     }
     &__cur {
         font-size: 1.35rem;
-        font-weight: 800;
         color: @con-text;
         &--faded {
             font-size: 1.05rem;
-            font-weight: 600;
             color: @con-text-dim;
         }
     }
-    &__arrow { color: @prodloss-loss; font-size: 1.05rem; }
+    &__arrow { color: @prompt-loss-ink; font-size: 1.05rem; }
     &__next {
         font-size: 1.45rem;
-        font-weight: 800;
-        color: @prodloss-loss;
-        text-shadow: 0 0 .4rem fade(@prodloss-loss, 32%);
+        color: @prompt-loss-ink;
     }
 
     /* The chosen loss chip (−1 / −2) — a fixed slot so rows never jump. */
@@ -207,14 +125,11 @@
         padding: .18rem .5rem;
         border-radius: .4rem;
         font-size: 1.05rem;
-        font-weight: 800;
-        color: #1a120a;
-        background: linear-gradient(180deg, #f0b878 0%, #e19a52 100%);
-        box-shadow: 0 0 .5rem fade(@prodloss-loss, 40%);
+        color: #2a0b07;
+        background: linear-gradient(180deg, lighten(@prompt-loss, 14%) 0%, @prompt-loss 100%);
 
         &--empty {
             background: none;
-            box-shadow: none;
             padding: .18rem 0;
         }
     }
@@ -224,32 +139,25 @@
         align-items: center;
         justify-content: center;
         width: 1.8rem;
-        opacity: 0.95;
     }
 
     &__note {
         margin-left: 2.8rem; // align under the name (past the icon frame)
         font-size: .78rem;
         letter-spacing: .01rem;
-        color: #ffcf9a;
+        color: @prompt-loss-ink;
     }
     &__row--disabled &__note { color: rgba(220, 202, 182, 0.9); }
+}
 
-    /* ── Command contract ────────────────────────────────────────────── */
-    &__foot {
-        display: flex;
-        align-items: center;
-        gap: 1.1rem;
-        margin-top: .8rem;
-        padding-top: .6rem;
-        border-top: .05rem solid fade(@con-cyan, 16%);
-    }
-    &__foot-item {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .9rem;
-        color: @con-text-dim;
-        &--off { opacity: 0.42; }
-    }
+/* THE COUCH LADDER — the rows read from the sofa (the plate's own sizes are tokens). */
+html.con-profile-tv .con-prodloss {
+    &__row { padding: .6rem 1rem; }
+    &__frame { width: 2.6rem; height: 2.6rem; }
+    &__icon.resource_icon { width: 1.8rem; height: 1.8rem; }
+    &__name { font-size: var(--con-t-body); }
+    &__cur { font-size: var(--con-t-section); &--faded { font-size: var(--con-t-body); } }
+    &__next { font-size: 1.7rem; }
+    &__delta { font-size: var(--con-t-body); min-width: 2.8rem; }
+    &__note { font-size: var(--con-t-caption); margin-left: 3.3rem; }
 }

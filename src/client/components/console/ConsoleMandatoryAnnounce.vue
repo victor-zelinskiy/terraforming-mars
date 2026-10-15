@@ -19,9 +19,18 @@
        :aria-label="kicker + ': ' + ask"
        data-test="con-mandatory-announce">
     <span class="con-mandatory__pulse" aria-hidden="true"></span>
-    <span class="con-mandatory__glyph" aria-hidden="true">⚑</span>
+    <!-- A decision with a CHARACTER (a reward, a loss) is announced with the prompt-modal family's emblem and tag —
+         the same silhouette and words the modal will open with, so an attack on the player never reads as one more
+         neutral «Открыть». A free choice keeps the plate's ⚑. -->
+    <ConsolePromptEmblem v-if="tone !== 'neutral'" class="con-mandatory__emblem" :class="'con-mandatory__emblem--' + tone" :tone="tone" />
+    <span v-else class="con-mandatory__glyph" aria-hidden="true">⚑</span>
     <div class="con-mandatory__body">
-      <div class="con-mandatory__kicker">{{ kicker }}</div>
+      <div class="con-mandatory__kicker">
+        <span>{{ kicker }}</span>
+        <span v-if="toneTagKey !== undefined" class="con-mandatory__tone" :class="'con-mandatory__tone--' + tone" data-prompt-tag>
+          {{ tone === 'gain' ? '▲' : '▼' }} {{ $t(toneTagKey) }}
+        </span>
+      </div>
       <div class="con-mandatory__ask">{{ ask }}</div>
       <div v-if="resolutionSource !== undefined"
            class="con-mandatory__src con-mandatory__src--resolution"
@@ -48,10 +57,12 @@ import {getResolution, resolutionName} from '@/client/parliament/ClientParliamen
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {cardNumberDisplayState} from '@/client/components/premiumCard/cardNumberDisplay';
 import {translateText} from '@/client/directives/i18n';
+import ConsolePromptEmblem from '@/client/components/console/foundation/ConsolePromptEmblem.vue';
+import {PromptTone, promptToneTagKey} from '@/client/console/promptTone';
 
 export default defineComponent({
   name: 'ConsoleMandatoryAnnounce',
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsolePromptEmblem},
   props: {
     /** The decision TYPE, pre-translated by the shell (consoleTaskSummary). */
     kicker: {type: String, required: true},
@@ -63,8 +74,13 @@ export default defineComponent({
     sourceResolution: {type: String as PropType<string | undefined>, default: undefined},
     /** The A-verb i18n key — 'Open' (held) or the return key (deferred). */
     openLabel: {type: String, default: 'Open'},
+    /** The announced decision's CHARACTER (`promptTone.ts`) — gain / loss / neutral. */
+    tone: {type: String as PropType<PromptTone>, default: 'neutral'},
   },
   computed: {
+    toneTagKey(): string | undefined {
+      return promptToneTagKey(this.tone);
+    },
     resolutionSource(): {id: string, name: string, emblem: string | undefined, code: string | undefined} | undefined {
       const id = this.sourceResolution;
       if (id === undefined) {

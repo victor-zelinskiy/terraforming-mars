@@ -35,7 +35,9 @@ import {amountResponse, andResponse, cardsResponse, orWrappedResponse, STANDARD_
 
 /* ── STANDARD-RESOURCE LANES (shared builders) ──────────────────────────── */
 
-const LANE_LABELS: Record<string, string> = {
+/** The six standard resources' display names (English i18n keys) — ONE spelling for every row that names a pool
+ *  (the gain lanes here, the production-loss rows), so a reward and a loss never name the same resource differently. */
+export const LANE_LABELS: Readonly<Record<string, string>> = {
   megacredits: 'M€', steel: 'Steel', titanium: 'Titanium',
   plants: 'Plants', energy: 'Energy', heat: 'Heat',
 };

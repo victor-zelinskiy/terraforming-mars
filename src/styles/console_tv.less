@@ -662,22 +662,21 @@ html.con-profile-tv {
     .con-zoom__prov-ord { font-size: 0.9rem; b { font-size: 1.05rem; } }
 
     /* ═══ 9 · TASK HOST (mandatory prompts) ═══════════════════════ */
+    /* (The plate's width tiers and the head's title / kicker / trigger are the prompt-modal family's TOKENS —
+       `console_prompt.less` § the TV profile: m 54rem, and xl 92rem for the CARD BROWSER, a proper 4K workspace
+       whose row the fit engine fills in both axes.) */
     .con-task {
-        width: min(52rem, 86vw);
-        /* The CARD BROWSER (buy / draft / target pick) is `--wide`: a proper
-           4K workspace, not a compact dialog — big enough that a few cards
-           read LARGE and the row uses the stage (the fit engine fills both
-           axes into this box). */
-        &--wide { width: min(92rem, 95vw); }
-
-        &__title { font-size: var(--con-t-title); }
         &__sub { font-size: var(--con-t-body); }
         &__opt { min-height: var(--con-hit-min); }
         &__opt-title { font-size: 1.3rem; }
         &__opt-sub { font-size: var(--con-t-secondary); }
         &__stepper-value { font-size: var(--con-t-hero); }
-        &__lane-value { font-size: var(--con-t-section); }
-        &__lane-name { font-size: var(--con-t-secondary); }
+        /* A distribution lane reads like the production-loss row (one row language — `console_production_loss.less`). */
+        &__lane { padding: .6rem 1rem; }
+        &__lane-name { font-size: var(--con-t-body); }
+        &__lane-cur { font-size: var(--con-t-section); &--faded { font-size: var(--con-t-body); } }
+        &__lane-next { font-size: 1.7rem; }
+        &__lane-delta { font-size: var(--con-t-body); min-width: 2.8rem; }
     }
     .con-actconfirm {
         &__name { font-size: 1.35rem; }
@@ -685,10 +684,8 @@ html.con-profile-tv {
     }
 
     /* ═══ 10 · GOVERNMENT SUPPORT (WGT briefing) ══════════════════ */
+    /* (The plate's `l` tier — 66rem on the TV — and the head are the prompt-modal family's TOKENS.) */
     .con-govsupport {
-        &__panel { width: min(66rem, 80vw); }
-        &__title { font-size: var(--con-t-hero); }
-        &__subtitle { font-size: var(--con-t-body); }
         &__rule { font-size: var(--con-t-secondary); }
         &__card { min-height: 9.6rem; }
         &__card-name { font-size: 1.4rem; }
@@ -696,7 +693,6 @@ html.con-profile-tv {
         &__pv-next { font-size: 1.9rem; }
         &__card-type { font-size: var(--con-t-caption); }
         &__detail { font-size: var(--con-t-secondary); }
-        &__foot-item { font-size: 1.05rem; }
     }
 
     /* ═══ 11 · SHEETS (generic bottom sheet) ══════════════════════ */
@@ -1958,7 +1954,6 @@ html.con-profile-tv {
     .con-task__opt--focused,
     .con-task__option--focused,
     .con-task__tile--focused,
-    .con-task__lane--focused,
     .con-sheet__row--focused,
     .con-colfocus__payrow--focused,
     .con-colfocus__steprow--focused,
@@ -1971,7 +1966,6 @@ html.con-profile-tv {
     .con-start__mini--focused,
     .con-start__qcard--focused,
     .con-journal__node--focused,
-    .con-prodloss__row--focused,
     .con-played__family--focused,
     .con-hydro__stop--focused {
         box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 var(--con-glow-r) fade(@con-cyan, 32%);

@@ -73,6 +73,7 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
+import {notePromptSubmit, notePromptView} from '@/client/console/promptSequence';
 import {
   detectEnergyConversion,
   endEnergyConversion,
@@ -368,6 +369,10 @@ function currentWaitingFor(): PlayerInputModel | undefined {
 export function startGameTransport(transportRoot: TransportRoot): void {
   root = transportRoot;
   pollStopped = false;
+  // A fresh game (or a game switch) starts with no decision CHAIN — an idle view by definition. Only the chain: a
+  // decision modal may already be standing (its head mounts BEFORE this binder in the shell's template), and wiping
+  // its presentation here once left the next decision with no predecessor to differ from.
+  notePromptView(undefined);
   // Always poll — even when the viewer is mid-prompt — so other players'
   // status (cube spin, status label) stays in sync across simultaneous-
   // action phases (drafting / research / production interrupts). The poll
@@ -477,6 +482,8 @@ function animateTitle(): void {
 
 /** Submit ONE input response (the whole console funnels through here). */
 export function submitInput(out: InputResponse): void {
+  // The decision sequence: this press opens (or continues) a chain — the prompt it raises is its follow-up.
+  notePromptSubmit();
   /*
    * Capture whether the prompt the player is currently submitting is the WGT
    * OrOptions BEFORE we hand off to fetch — by the time the response
@@ -508,6 +515,7 @@ export function submitInput(out: InputResponse): void {
 export function submitBatch(responses: ReadonlyArray<InputResponse>): void {
   // The «re-asked» witness remembers what this batch answered (`preselectWitness.ts`).
   notePreselectBatch(responses);
+  notePromptSubmit();
   fetchPlayerInput(
     apiUrl(paths.PLAYER_INPUT_BATCH) + '?id=' + currentView().id,
     {
@@ -1434,6 +1442,8 @@ function applyPlayerView(playerView: PlayerViewModel | undefined): void {
     // choice the commit should have collected must never be asked after it («strictly pre-select», TR51).
     checkPreselectReask(playerView.waitingFor);
     checkPostCommitChoice(playerView.waitingFor);
+    // A player idle again (no prompt / the action menu) ends the decision chain (`promptSequence.ts`).
+    notePromptView(playerView.waitingFor);
   }
   // The card-pick preserve guards: they gate the playerkey RESET EPOCH
   // (transient console/App state), not a remount.

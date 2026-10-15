@@ -20,38 +20,26 @@
     director — no own backdrop.
   -->
   <div class="con-lanes con-venus con-ws" role="dialog" :aria-label="$t(headlineKey)" data-motion-surface="venus-bonus">
-    <div class="con-lanes__panel" :class="{'con-lanes__panel--wide': stage === 'wildCard'}" data-motion-panel>
-      <header class="con-lanes__head">
-        <div class="con-lanes__kicker">
-          <span class="con-lanes__kicker-mark con-venus__mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Venus bonus') }}</span>
-          <!-- The stage tail. Stable context BEFORE the mutable stage, and only
-               the tail advances — the console's breadcrumb grammar. -->
-          <template v-if="isFinal">
-            <span class="con-lanes__crumb-sep" aria-hidden="true">›</span>
-            <span class="con-lanes__crumb-stage" :class="{'con-lanes__crumb-stage--past': stage === 'place'}">
-              {{ $t(stageKey) }}
-            </span>
-          </template>
-        </div>
-        <div class="con-lanes__title">{{ $t(headlineKey) }}</div>
-
-        <!-- The meter belongs to the PLACEMENT stage only: during the wild
-             question nothing is placed yet and the budget is not even decided
-             (the wild can still fold into it), so a «0 / 2» there states a
-             number that is about to change.
-             …and it is a BUDGET readout, so it goes away entirely when there is
-             no budget to spread: «РАЗМЕЩЕНО 0 / 1» over six radio rows is the
-             same sentence a third time (title, meter, blocker). The chosen row
-             says it — the mark, and the green «500 → 501» beside it. -->
-        <div v-if="stage === 'place' && !singleStep" class="con-lanes__meter" :class="{'con-lanes__meter--ready': ready}">
-          <span class="con-lanes__meter-label">{{ $t('Placed') }}</span>
-          <b class="con-lanes__meter-now">{{ placed }}</b>
-          <span class="con-lanes__meter-slash" aria-hidden="true">/</span>
-          <span class="con-lanes__meter-target">{{ target }}</span>
-        </div>
-        <div v-if="stage === 'place' && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
-      </header>
+    <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`) — a GIFT, so its tone is a GAIN (the mint crest,
+         the plus emblem, «▲ ВЫГОДА», «ВЫ ПОЛУЧИТЕ» at the foot). The wild card's pick is the `xl` tier (a card row). -->
+    <div class="con-lanes__panel con-prompt con-prompt--gain"
+         :class="stage === 'wildCard' ? 'con-lanes__panel--wide con-prompt--xl' : 'con-prompt--m'"
+         data-motion-panel data-prompt-panel>
+      <ConsolePromptHead class="con-lanes__head" tone="gain" :kicker="$t('Venus bonus')" :title="$t(headlineKey)"
+                         :prompt-key="sequenceKey">
+        <!-- The stage tail. Stable context BEFORE the mutable stage, and only the tail advances — the console's
+             breadcrumb grammar. -->
+        <template v-if="isFinal" #kicker-extra>
+          <span class="con-lanes__crumb-sep" aria-hidden="true">›</span>
+          <span class="con-lanes__crumb-stage" :class="{'con-lanes__crumb-stage--past': stage === 'place'}">
+            {{ $t(stageKey) }}
+          </span>
+        </template>
+        <!-- The honest «why not yet» of a PARTIAL placement (nothing placed → the footer says what is owed). The
+             budget itself is the footer's meter — a BUDGET readout, so it goes away entirely when there is no budget
+             to spread: «0 / 1» over six radio rows is the same sentence a third time. -->
+        <div v-if="stage === 'place' && placed > 0 && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
+      </ConsolePromptHead>
 
       <!-- ── STAGE 1 (final step only): where does the WILD go? ──────────── -->
       <div v-if="stage === 'wild'" class="con-venus__wild">
@@ -160,6 +148,10 @@
         <span class="con-venus__wild-recap-label">{{ $t('Wild resource') }}</span>
         <span class="con-venus__wild-recap-value">{{ wildRecapText }}</span>
       </div>
+      <!-- WHAT THE GIFT DOES — where each resource lands (`current → resulting`) and the budget, at the plate's foot. -->
+      <ConsolePromptOutcome v-if="stage === 'place'" tone="gain" :items="outcomeItems"
+                            :meter="singleStep ? undefined : {done: placed, of: target}"
+                            :pending="blockedText !== '' ? blockedText : $t('Venus bonus')" />
     </div>
   </div>
 </template>
@@ -182,6 +174,10 @@ import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {translateText} from '@/client/directives/i18n';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -216,7 +212,7 @@ interface WildOption {
 
 export default defineComponent({
   name: 'ConsoleVenusBonus',
-  components: {ConsolePlayedTargetStep, GamepadGlyph},
+  components: {ConsolePlayedTargetStep, GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -351,6 +347,23 @@ export default defineComponent({
       const lane = this.lanes[this.focusIdx];
       return lane !== undefined && laneValue(this.picks, lane.key) > 0;
     },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`) — one key for both stages of one gift. */
+    sequenceKey(): string {
+      const wf = this.playerView.waitingFor;
+      return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+    },
+    /** The consequence footer: every lane holding part of the gift, the player's stock `current → resulting`. */
+    outcomeItems(): Array<PromptOutcomeItem> {
+      return this.lanes
+        .filter((lane) => this.valueOf(lane) > 0)
+        .map((lane) => ({
+          key: lane.key,
+          iconClass: lane.iconClass,
+          delta: this.valueOf(lane),
+          from: lane.available !== undefined ? String(lane.available) : undefined,
+          to: lane.available !== undefined ? String(lane.available + this.valueOf(lane)) : undefined,
+        }));
+    },
     placed(): number {
       return budgetTotal(this.lanes, this.picks);
     },
@@ -440,7 +453,7 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: this.focusedPicked ? 'Remove here' : 'Add here'},
-          {control: 'secondary', label: 'Collect', enabled: this.ready},
+          {control: 'secondary', label: 'Collect', enabled: this.ready, highlight: this.ready},
           back,
         ];
       }
@@ -449,7 +462,7 @@ export default defineComponent({
         {control: 'bumperL', label: '−1'},
         {control: 'bumperR', label: '+1'},
         {control: 'triggerR', label: 'MAX'},
-        {control: 'secondary', label: 'Collect', enabled: this.ready},
+        {control: 'secondary', label: 'Collect', enabled: this.ready, highlight: this.ready},
         back,
       ];
     },

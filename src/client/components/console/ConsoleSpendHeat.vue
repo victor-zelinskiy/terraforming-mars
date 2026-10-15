@@ -18,30 +18,15 @@
     director — no own backdrop.
   -->
   <div class="con-lanes con-heat con-ws" role="dialog" :aria-label="titleText" data-motion-surface="spend-heat">
-    <div class="con-lanes__panel" data-motion-panel>
-      <header class="con-lanes__head">
-        <div class="con-lanes__kicker">
-          <span class="con-lanes__kicker-mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Spend heat') }}</span>
-        </div>
-        <div class="con-lanes__title">{{ titleText }}</div>
-
-        <!-- THE BILL. One number the player is working against, and its live
-             coverage — the same "what does it cost / what is covered" pair the
-             payment panel states, so the two read as one idea. -->
-        <div class="con-lanes__meter" :class="{
-               'con-lanes__meter--ready': ready,
-               'con-lanes__meter--over': overpaying,
-             }">
-          <span class="con-lanes__meter-label">{{ $t('Covered') }}</span>
-          <b class="con-lanes__meter-now">{{ covered }}</b>
-          <span class="con-lanes__meter-slash" aria-hidden="true">/</span>
-          <span class="con-lanes__meter-target">{{ target }}</span>
-          <i class="resource_icon resource_icon--heat con-lanes__meter-icon" aria-hidden="true"></i>
-        </div>
-        <!-- The honest blocker, never a dead confirm with no explanation. -->
-        <div v-if="blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
-      </header>
+    <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`). A bill the player chose to pay is a free choice —
+         the NEUTRAL tone (the quiet crest, the ◈ emblem); its coverage («ПОКРЫТО N / M») is the footer's meter. -->
+    <div class="con-lanes__panel con-prompt con-prompt--m" :class="'con-prompt--' + tone" data-motion-panel data-prompt-panel>
+      <ConsolePromptHead class="con-lanes__head" :tone="tone" :kicker="$t('Spend heat')" :title="titleText"
+                         :prompt-key="sequenceKey">
+        <!-- The honest blocker of a PARTIAL or over-covered bill, never a dead confirm with no explanation (nothing
+             chosen yet → the footer says what is owed). -->
+        <div v-if="covered > 0 && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
+      </ConsolePromptHead>
 
       <div class="con-lanes__main">
         <console-source-dock v-if="sourceView !== undefined" :view="sourceView" compact ref="sourceDock" />
@@ -93,6 +78,11 @@
           </div>
         </div>
       </div>
+
+      <!-- THE BILL, at the plate's foot: what leaves each source and how much of the bill it covers — the same
+           «what does it cost / what is covered» pair the payment panel states. -->
+      <ConsolePromptOutcome :tone="tone" label-key="Covered" :items="outcomeItems" :meter="{done: covered, of: target}"
+                            :pending="blockedText" />
     </div>
   </div>
 </template>
@@ -118,6 +108,11 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
+import {PromptTone, promptToneOf} from '@/client/console/promptTone';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 import {spendHeatLanes, spendHeatResponse} from '@/client/console/compositePrompts';
 import {
   BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetSingleStep, budgetTotal, budgetValid,
@@ -134,7 +129,7 @@ function textOf(v: string | Message | undefined): string {
 export default defineComponent({
   name: 'ConsoleSpendHeat',
   // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -192,6 +187,26 @@ export default defineComponent({
     },
     titleText(): string {
       return textOf(this.model?.title);
+    },
+    /** The decision's character (`promptTone.ts`) — a bill the player chose to pay reads NEUTRAL. */
+    tone(): PromptTone {
+      return promptToneOf(this.model).tone;
+    },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
+    sequenceKey(): string {
+      return this.model === undefined ? '' : promptSequenceKey(this.model, promptIdentityKey(this.model));
+    },
+    /** The footer: what leaves each chosen source (`owned → left`). */
+    outcomeItems(): Array<PromptOutcomeItem> {
+      return this.lanes
+        .filter((lane) => this.valueOf(lane) > 0)
+        .map((lane) => ({
+          key: lane.key,
+          iconClass: lane.iconClass,
+          delta: -this.valueOf(lane),
+          from: String(lane.max),
+          to: String(lane.max - this.valueOf(lane)),
+        }));
     },
     sourceView(): PromptSourceView | undefined {
       return promptSourceView(this.model);

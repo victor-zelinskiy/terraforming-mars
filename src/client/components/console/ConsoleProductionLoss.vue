@@ -2,23 +2,10 @@
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director — no own backdrop. -->
   <div class="con-prodloss con-ws" role="dialog" :aria-label="titleText" data-motion-surface="production-loss">
-    <div class="con-prodloss__panel" data-motion-panel>
-      <!-- ── Header ──────────────────────────────────────────────────── -->
-      <header class="con-prodloss__head">
-        <div class="con-prodloss__kicker">
-          <span class="con-prodloss__kicker-mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Production loss') }}</span>
-        </div>
-        <div class="con-prodloss__title">{{ titleText }}</div>
-
-        <!-- The distribution indicator (Выбрано: N / M). -->
-        <div class="con-prodloss__counter" :class="{'con-prodloss__counter--ready': ready}">
-          <span>{{ $t('Selected') }}:</span>
-          <b>{{ sum }}</b>
-          <span class="con-prodloss__counter-slash">/</span>
-          <span>{{ cost }}</span>
-        </div>
-      </header>
+    <!-- The prompt-modal family's plate (`console_prompt.less`): a LOSS — the hazard-tape crest, the warning emblem,
+         «▼ УБЫТОК», the «ВЫ ПОТЕРЯЕТЕ» footer and «Принять убыток» on the bar. -->
+    <div class="con-prodloss__panel con-prompt con-prompt--m" :class="'con-prompt--' + tone" data-motion-panel data-prompt-panel>
+      <ConsolePromptHead :tone="tone" :kicker="$t('Production loss')" :title="titleText" :prompt-key="sequenceKey" />
 
       <div class="con-prodloss__main">
         <!-- WHY the reduction is forced — the SHARED source dock, the same one
@@ -71,6 +58,10 @@
         </div>
       </div>
 
+      <!-- WHAT CONFIRMING COSTS — the chosen productions with their `current → resulting`, and the budget. -->
+      <ConsolePromptOutcome :tone="tone" :items="outcomeItems" :meter="{done: sum, of: cost}"
+                            :pending="$t('Choose the production to lose')" />
+
       <!-- The command contract publishes to the shell's ONE bottom command
            bar via consolePanelUi (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
     </div>
@@ -114,6 +105,12 @@ import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {productionToLoseResponse} from '@/client/console/taskResponses';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {buildProductionLossRows, firstSelectableIndex, ProductionLossRow} from '@/client/console/consoleProductionLoss';
+import {LANE_LABELS} from '@/client/console/compositePrompts';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
+import {PromptTone, promptCommitLabelKey, promptToneOf} from '@/client/console/promptTone';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -128,7 +125,7 @@ export default defineComponent({
   // local import: the dock renders the real card face, and that import chain
   // zeroes this file's mochapack spec (the known baseline class, same reason
   // `action-target-card` is global).
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -176,6 +173,27 @@ export default defineComponent({
     ready(): boolean {
       return this.sum === this.cost && this.cost > 0;
     },
+    /** The decision's character (`promptTone.ts`) — a production loss is always a LOSS. */
+    tone(): PromptTone {
+      return promptToneOf(this.model).tone;
+    },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
+    sequenceKey(): string {
+      return this.model === undefined ? '' : promptSequenceKey(this.model, promptIdentityKey(this.model));
+    },
+    /** The consequence footer: every production the player has marked, `current → resulting`. */
+    outcomeItems(): Array<PromptOutcomeItem> {
+      return this.rows
+        .filter((row) => this.lossFor(row.unit) > 0)
+        .map((row) => ({
+          key: row.unit,
+          iconClass: this.iconClass(row.unit),
+          prod: true,
+          delta: -this.lossFor(row.unit),
+          from: this.fmt(row.current),
+          to: this.fmt(this.resultingFor(row)),
+        }));
+    },
     /** Prompt identity — a change is a genuinely new server ask (reset). */
     promptKey(): string {
       return `${textOf(this.model?.title)}|${this.cost}`;
@@ -183,11 +201,14 @@ export default defineComponent({
     /** The live command contract — published to the shell's ONE bottom
      *  command bar through consolePanelUi (the footCommands watch below). */
     footCommands(): Array<ConsoleCommand> {
+      // The COMMIT speaks the decision's character: a loss is ACCEPTED, in the
+      // bar's danger ink — never the same «Подтвердить» that takes a reward.
       const cmds: Array<ConsoleCommand> = [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: '−1'},
-        {control: 'bumperL', label: '+1'},
-        {control: 'secondary', label: 'Confirm', enabled: this.ready},
+        {control: 'bumperL', label: 'Take back'},
+        {control: 'secondary', label: promptCommitLabelKey(this.tone, 'Confirm'), enabled: this.ready,
+          tone: this.tone === 'loss' ? 'danger' : undefined},
       ];
       // L3 = the SOURCE, the console-wide grammar («X = the current object,
       // L3 = the source that produced it»). The subject here is the production
@@ -232,15 +253,16 @@ export default defineComponent({
     resultingFor(row: ProductionLossRow): number {
       return row.current - this.lossFor(row.unit);
     },
-    /** Signed production readout (+3 / +0 / -2) — these are income rates. */
+    /** Signed production readout (+3 / +0 / −2) — these are income rates (a true minus, as every signed figure in the family). */
     fmt(n: number): string {
-      return n >= 0 ? `+${n}` : String(n);
+      return n >= 0 ? `+${n}` : `−${Math.abs(n)}`;
     },
     iconClass(unit: keyof Units): string {
       return 'resource_icon resource_icon--' + unit;
     },
+    /** The resource's ONE display name — the same key the gain lanes speak (`LANE_LABELS`). */
     resourceName(unit: keyof Units): string {
-      return translateText(unit);
+      return translateText(LANE_LABELS[unit] ?? unit);
     },
     /** The honest blocker note (never hidden): at-minimum, or a partial cap. */
     noteFor(row: ProductionLossRow): string {

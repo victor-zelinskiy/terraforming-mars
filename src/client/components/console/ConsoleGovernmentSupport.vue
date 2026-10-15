@@ -3,21 +3,19 @@
        director — no own backdrop. -->
   <div class="con-govsupport con-ws" role="dialog" :aria-label="$t('Government Support')" data-motion-surface="gov-support">
 
-    <div class="con-govsupport__panel" data-motion-panel>
-      <!-- ── Briefing header ─────────────────────────────────────────── -->
-      <header class="con-govsupport__head">
-        <div class="con-govsupport__kicker">
-          <span class="con-govsupport__kicker-mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Awaiting decision') }}</span>
-        </div>
-        <div class="con-govsupport__title">{{ $t('Government Support') }}</div>
-        <div class="con-govsupport__subtitle">{{ $t('A planetary initiative will raise one global parameter.') }}</div>
+    <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`), the `l` tier (a 2×2 briefing): a free choice —
+         the NEUTRAL tone. Each tile states its own `current → resulting`, so there is no consequence footer. -->
+    <div class="con-govsupport__panel con-prompt con-prompt--l con-prompt--neutral" data-motion-panel data-prompt-panel>
+      <!-- ── Briefing header — the family's ONE head. The KICKER is the decision's category (the same key the
+           deferred chip and the command bar read — `consoleTaskSummary`), never the generic «Ожидает решения». ── -->
+      <ConsolePromptHead class="con-govsupport__head" tone="neutral" :kicker="$t('Government Support')"
+                         :title="$t('A planetary initiative will raise one global parameter.')" :prompt-key="sequenceKey">
         <!-- The one calm rule strip — never repeated as a "TR +0" per card. -->
         <div class="con-govsupport__rule">
           <span class="con-govsupport__rule-mark" aria-hidden="true">i</span>
           <span>{{ $t('Government action: TR and track bonuses are not awarded to players.') }}</span>
         </div>
-      </header>
+      </ConsolePromptHead>
 
       <!-- ── 2×2 action grid ─────────────────────────────────────────── -->
       <div class="con-govsupport__grid" ref="grid" :class="{'con-govsupport__grid--wide': cards.length > 4}">
@@ -103,6 +101,9 @@ import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePane
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {buildGovSupportCards, firstAvailableIndex, GovCard, GovParam} from '@/client/console/consoleGovernmentSupport';
 import {SCALE_FOCUS_PARAMS} from '@/client/console/consoleGovScaleFocus';
+import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
+import {promptSequenceKey} from '@/client/console/promptSequence';
+import {promptIdentityKey} from '@/client/console/turnIntents';
 
 /** Two columns → up/down step by a row, left/right by one card. */
 const COLS = 2;
@@ -124,7 +125,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleGovernmentSupport',
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsolePromptHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -150,6 +151,11 @@ export default defineComponent({
         venusScaleLevel: game.venusScaleLevel,
         venusInGame: game.gameOptions.expansions.venus === true,
       });
+    },
+    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
+    sequenceKey(): string {
+      const wf = this.playerView.waitingFor;
+      return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
     },
     /** Prompt identity — a change is a genuinely new server ask (reset focus). */
     promptKey(): string {

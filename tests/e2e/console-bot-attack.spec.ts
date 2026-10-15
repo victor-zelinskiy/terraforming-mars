@@ -305,9 +305,9 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
       };
       const text = (sel: string): string => (document.querySelector(sel)?.textContent ?? '').trim();
       return {
-        kicker: text('.con-botattack__kicker-word'),
+        kicker: text('.con-botattack .con-prompt-head__category'),
         actor: text('.con-botattack__actor'),
-        title: text('.con-botattack__title'),
+        title: text('.con-botattack .con-prompt-head__title'),
         ask: text('.con-botattack__ask'),
         limit: text('.con-botattack__limit'),
         askPx: px('.con-botattack__ask'),
