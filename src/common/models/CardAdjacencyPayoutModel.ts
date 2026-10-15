@@ -5,8 +5,10 @@ import {SpaceId} from '../Types';
 import {Units} from '../Units';
 
 /**
- * A CARD'S REWARD THAT A PLACED TILE PAYS — the record of the board scene «ТАЙЛ
- * ПЛАТИТ КАРТЕ». Two causes share it (one writer, `cards/tilePayout.ts`):
+ * A CARD RESOURCE THE FIELD PAID — the record of the board scene «ТАЙЛ ПЛАТИТ
+ * КАРТЕ» / «ПРИЁМ РЕСУРСА КАРТОЙ». ONE record for EVERY arrival of a resource
+ * onto a card that the BOARD caused (one writer, `cards/tilePayout.ts`), so the
+ * scene is one class whatever the cause:
  *
  *  · `adjacent-cities` — «add 1 data to ANY card for each city adjacent to
  *    this tile» (Turmoil Redux TR21 Arboretum; docs/TURMOIL_REDUX_ARBORETUM.md).
@@ -19,10 +21,22 @@ import {Units} from '../Units';
  *    oceans, add 2 data resources to this card»). The tile itself is the
  *    cause: `neighbours` is the placed cell alone, carrying every unit, and
  *    the units land on the card that answered (`target === card`).
+ *  · `space-bonus` — the cell's PRINTED placement bonus is a card resource
+ *    (Amazonis Planitia's microbes, Arabia Terra's data / science): the placed
+ *    cell sends the units; no card paid (`card` absent).
+ *  · `ares-adjacency` — an Ares tile's ADJACENCY bonus is a card resource (an
+ *    animal / microbe icon on a special tile): the paying tile is the one
+ *    neighbour, `card` its own card when it has one.
+ *  · `survey` — Ecological / Geological Survey's extra unit «for the placement
+ *    bonus»: the cell whose bonus it copied sends it, `card` is the survey.
+ *
+ * TR53 «Лаборатории фронтира», 2026-10-15 — the iteration «ресурс на карту —
+ * один стандарт»: the last three causes were silent (a counter changed with no
+ * cause on screen) or a bare live pick whose answer flew nothing.
  */
 
-/** WHY the tile paid — what the scene reads its token source from. */
-export type TilePayoutCause = 'adjacent-cities' | 'tile-placed';
+/** WHY the field paid — what the scene reads its token source from. */
+export type TilePayoutCause = 'adjacent-cities' | 'tile-placed' | 'space-bonus' | 'ares-adjacency' | 'survey';
 
 /**
  * WHAT a per-neighbour amount counts. `adjacent-city`: each city tile beside
@@ -45,20 +59,24 @@ export type AdjacencyAmountBasis = {per: 'adjacent-city'};
 export type CardAdjacencyPayoutModel = {
   /** Monotonic consumption key (derived from `gameAge`, restart-safe). */
   seq: number;
-  /** Why the tile paid — the scene's token source: the paying neighbours, or the placed tile itself. */
+  /** Why the field paid — the scene's token source: the paying neighbours, or the placed tile itself. */
   cause: TilePayoutCause;
   /** The seat that was paid — the owner of `target`. */
   color: Color;
-  /** The card whose printed effect paid (Arboretum, Red Museum). */
-  card: CardName;
+  /**
+   * The card whose printed effect paid (Arboretum, Red Museum, a survey, the
+   * Ares tile's own card). ABSENT when no card paid — a cell's printed bonus,
+   * an Ares tile with no card behind it.
+   */
+  card?: CardName;
   /** The tile just placed — the centre of the counted neighbourhood, or the cause itself. */
   spaceId: SpaceId;
   /** What one unit counts — only for a per-neighbour amount (`adjacent-cities`). */
   basis?: AdjacencyAmountBasis;
   /**
    * The cells that SENT the units, each with its share, in the board's
-   * adjacency order (a stack: its tiers). For `tile-placed` it is the placed
-   * cell alone, carrying the whole amount.
+   * adjacency order (a stack: its tiers). For `tile-placed` / `space-bonus` it
+   * is the placed cell alone, carrying the whole amount.
    */
   neighbours: ReadonlyArray<{spaceId: SpaceId, units: number}>;
   /** The card the units landed on. */
@@ -75,4 +93,12 @@ export type CardAdjacencyPayoutModel = {
    * nothing answered.
    */
   reactions?: Partial<Units>;
+  /**
+   * The target was the player's ANSWER to a live «on which card» prompt (two
+   * holders or more) — the record arrives with that answer, long after the
+   * placement's own landing, so the client plays it as the ANSWER's scene (the
+   * chosen card carried out of the prompt to the paying cell), never as a beat
+   * of the placement. Absent for a target the engine resolved itself.
+   */
+  asked?: boolean;
 };

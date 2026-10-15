@@ -108,9 +108,15 @@ export class AresHandler {
       const cause: ChoiceContextSource = adjacentSpace.tile?.card !== undefined ?
         namedCardSource(adjacentSpace.tile.card) :
         {kind: 'system'};
+      // THE PAYING TILE IS THE TOKEN'S SOURCE (TR53 iteration «ресурс на карту — один стандарт»): the marker names
+      // the cell (`fromSpace` — the console lights it while the player chooses), and the answer's addition writes the
+      // board scene's ONE record (`boardPayout` → `cards/tilePayout.ts`): the chosen card is carried to the field and
+      // the unit flies to it out of THIS tile. Before, the answer flew nothing — the card «fell» off the bottom.
       player.game.defer(new AddResourcesToCard(player, resourceType, {
         autoSelect: false,
         cause,
+        fromSpace: adjacentSpace.id,
+        boardPayout: {space: newTileSpace, sender: adjacentSpace, cause: 'ares-adjacency', source: adjacentSpace.tile?.card},
       }));
       return {delivery: 'prompt'};
     };
@@ -147,7 +153,7 @@ export class AresHandler {
           b.player(player).number(units));
       }
     } else {
-      AresHandler.grantAdjacencyBonuses(player, adjacentSpace, bonuses, addResourceToCard, out?.grants);
+      AresHandler.grantAdjacencyBonuses(player, newTileSpace, adjacentSpace, bonuses, addResourceToCard, out?.grants);
       const bonusText = Array.from(bonuses.multiplicities())
         .map(([bonus, count]) => `${count} ${SpaceBonus.toString(bonus)}`)
         .join(', ');
@@ -183,6 +189,7 @@ export class AresHandler {
 
   private static grantAdjacencyBonuses(
     player: IPlayer,
+    newTileSpace: Space,
     adjacentSpace: Space,
     bonuses: MultiSet<SpaceBonus>,
     addResourceToCard: (player: IPlayer, resourceType: CardResource, resourceAsText: string) => {delivery: AresAdjacencyDelivery, targetCard?: CardName},
@@ -221,7 +228,7 @@ export class AresHandler {
         default: {
           // The grant itself reports its channel (SpaceBonusGrant) — the
           // manifest mirrors what actually happened, never a second rule.
-          const granted = player.game.grantSpaceBonus(player, bonus, 1, {spaceId: adjacentSpace.id});
+          const granted = player.game.grantSpaceBonus(player, bonus, 1, {spaceId: adjacentSpace.id, placedSpaceId: newTileSpace.id});
           if (granted.kind === 'stock') {
             record({delivery: 'stock', resource: granted.resource}, bonus);
           } else if (granted.kind === 'draw') {

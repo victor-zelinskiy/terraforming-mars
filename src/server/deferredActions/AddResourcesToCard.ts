@@ -17,6 +17,11 @@ import {From} from '../logs/From';
 // at top level, these two are late-bound function reads at prompt-build time).
 import {cardResourceIcon, SKIP_REASON, skippedAddToCard, targetVictoryPoints} from '../cards/actionPreviews';
 import {recordSkippedEffect} from './skippedEffect';
+import {Space} from '../boards/Space';
+import {SpaceId} from '../../common/Types';
+import {TilePayoutCause} from '../../common/models/CardAdjacencyPayoutModel';
+import {ActionEffect} from '../../common/models/ActionPreviewModel';
+import {payTileToCard} from '../cards/tilePayout';
 
 /**
  * THE KINDS a pick spans, as a LIST — one kind is the list of one (every
@@ -119,7 +124,36 @@ export type Options = {
    * pick; with no holder the addition is skipped by name, as always.
    */
   optional?: boolean;
+  /**
+   * THE CELL THE UNITS COME FROM, when the field pays (a cell's printed bonus,
+   * an Ares tile's adjacency bonus, a survey) — carried on the marker
+   * (`ResourceGainPromptMeta.fromSpace`) so the console lights it and plays the
+   * answer's scene from it. The asker stays `cause`.
+   */
+  fromSpace?: SpaceId;
+  /**
+   * THE FIELD PAID THIS — the addition goes through the ONE writer of the
+   * board scene's record (`cards/tilePayout.payTileToCard`), whatever card it
+   * lands on: `space` is the placed cell (the scene's centre), `sender` the
+   * cell that sent the units (default: the placed cell itself), `source` the
+   * card whose effect paid (absent for a printed bonus). A target the player
+   * CHOSE in the live pick is recorded `asked` — the record arrives with the
+   * answer and the client plays it as that answer's scene. TR53 iteration
+   * «ресурс на карту — один стандарт» (2026-10-15).
+   */
+  boardPayout?: {space: Space, cause: TilePayoutCause, sender?: Space, source?: CardName};
+  /**
+   * WHAT ELSE choosing a candidate gives (TR53: a draw when the card's resource
+   * is not science) — read off EACH candidate by the card's own function and
+   * published on the marker (`ResourceGainPromptMeta.extraByCard`), so the
+   * target step, the composer and a live prompt print the same tail. Read-only:
+   * the effect itself stays the caller's `andThen`.
+   */
+  extraByCard?(card: ICard): ReadonlyArray<ActionEffect> | undefined;
 }
+
+/** The near-miss reason of a holder SHORT of `min` («a card that already has a resource» — TR53). */
+export const NO_RESOURCE_YET_REASON = 'No resource on this card yet';
 
 /** The decline of an optional addition — the i18n key the plate and the row print (`${0}` = the resource's name). */
 export const DECLINE_ADDITION_KEY = 'Do not add ${0}';
@@ -153,6 +187,24 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
   }
 
   public getCards(): Array<ICard> {
+    const min = this.options.min;
+    const cards = this.holders();
+    return min ? cards.filter((c) => c.resourceCount >= min) : cards;
+  }
+
+  /**
+   * THE NEAR MISSES of a `min` pick («a card that ALREADY has a resource» —
+   * TR53 Frontier Labs): every holder the step would offer but for `min`,
+   * shown DISABLED with its reason — never hidden (the TR52 law for a taking
+   * step, here for an adding one). Empty without `min`.
+   */
+  public nearMisses(): Array<ICard> {
+    const min = this.options.min;
+    return min ? this.holders().filter((c) => c.resourceCount < min) : [];
+  }
+
+  /** Every holder the step would offer, `min` aside — the candidates and the near misses together. */
+  private holders(): Array<ICard> {
     // The holders of ANY of the kinds, in tableau order, each once — the union
     // of `getResourceCards` over the list (the WARE wildcard included).
     const playedCards = this.player.getResourceCards().filter((card) => holdsOneOf(card, this.resourceTypes));
@@ -185,10 +237,6 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     if (this.options.filter !== undefined) {
       cards = cards.filter(this.options.filter);
     }
-    const min = this.options.min;
-    if (min) {
-      cards = cards.filter((c) => c.resourceCount >= min);
-    }
     return cards;
   }
 
@@ -210,7 +258,7 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     // player ALWAYS confirms WHERE the resource goes — even with one candidate —
     // instead of it being applied silently behind the board.
     if (cards.length === 1 && this.options.autoSelect !== false) {
-      this.addResource(cards[0], qty);
+      this.addResource(cards[0], qty, false);
       return undefined;
     }
 
@@ -221,7 +269,7 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
 
     return this.buildSelectCard(cards)
       .andThen(([card]) => {
-        this.addResource(card, qty);
+        this.addResource(card, qty, true);
         return undefined;
       });
   }
@@ -240,7 +288,7 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
   public buildOptionalChoice(cards: ReadonlyArray<ICard>): OrOptions {
     const qty = this.options.count ?? 1;
     const pick = this.buildSelectCard(cards).andThen(([card]) => {
-      this.addResource(card, qty);
+      this.addResource(card, qty, true);
       return undefined;
     });
     const decline = new SelectOption(message(DECLINE_ADDITION_KEY, (b) => b.string(this.resourceType ?? 'resources')))
@@ -278,7 +326,12 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
       // cannot decline (RU printed «добавить 2 Данные» — the TR48 walk), a label after a dash needs no case.
       message('Select a card — ${1}: +${0}', (b) => b.number(qty).string(this.resourceType || 'resources')));
     const kinds = this.resourceTypes;
-    const select = new SelectCard(title, buttonLabel, cards)
+    // THE NEAR MISSES (a `min` pick): every holder short of it stands beside the candidates, DISABLED with its reason —
+    // never hidden; the server never accepts one (they ride `disabledCards`, outside `cards`).
+    const nearMisses = this.nearMisses();
+    const disabled = nearMisses.length > 0 ? nearMisses.map((card) => ({card, reason: NO_RESOURCE_YET_REASON})) : undefined;
+    const extraByCard = this.extraByCardOf(cards);
+    const select = new SelectCard(title, buttonLabel, cards, disabled !== undefined ? {disabled} : undefined)
       // The premium target reading a LIVE pick otherwise has no channel for:
       // amount + resource icon + the per-candidate VP delta (the same producer
       // the composers' pre-collected steps use), so a deferred arrival — an
@@ -297,6 +350,10 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
         // The title is the step's OWN generic one (no caller's constraint) — a composer that already printed the rule
         // and the «+N on a card» chip must not print it a third time (`ConsolePlayedTargetStep`'s ask line).
         ...(this.options.title === undefined ? {genericTitle: true} : {}),
+        // The cell the units come from, when the field pays — the console lights it and plays the answer from it.
+        ...(this.options.fromSpace !== undefined ? {fromSpace: this.options.fromSpace} : {}),
+        // What else each candidate gives (TR53's draw for a non-science card) — the card's own chips, read by every host.
+        ...(extraByCard !== undefined ? {extraByCard} : {}),
       });
     return this.options.cause === undefined ?
       select :
@@ -320,9 +377,44 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
     return this.buildSelectCard(cards).toModel(this.player);
   }
 
-  private addResource(card: ICard, qty: number) {
+  /** The per-candidate tail of the pick (`Options.extraByCard`), only the candidates it names; undefined when none. */
+  private extraByCardOf(cards: ReadonlyArray<ICard>): Partial<Record<CardName, ReadonlyArray<ActionEffect>>> | undefined {
+    const read = this.options.extraByCard;
+    if (read === undefined) {
+      return undefined;
+    }
+    const out: Partial<Record<CardName, ReadonlyArray<ActionEffect>>> = {};
+    let any = false;
+    for (const card of cards) {
+      const extra = read(card);
+      if (extra !== undefined && extra.length > 0) {
+        out[card.name] = extra;
+        any = true;
+      }
+    }
+    return any ? out : undefined;
+  }
+
+  /**
+   * THE ONE ADDITION — `asked` when the card is the player's answer to the
+   * live pick. A FIELD payout (`Options.boardPayout`) goes through the board
+   * scene's one writer, so the record names the cell that sent the units and
+   * the client plays it; everything else is the plain addition it always was.
+   */
+  private addResource(card: ICard, qty: number, asked: boolean) {
     const autoLog = this.options.log !== false;
-    this.player.addResourceTo(card, {qty, log: autoLog, from: this.options.from});
+    const board = this.options.boardPayout;
+    const resource = holderResourceOf(card);
+    if (board !== undefined && resource !== undefined) {
+      const sender = board.sender;
+      payTileToCard(this.player, board.source, board.space, card, resource, qty, {
+        cause: board.cause,
+        ...(sender !== undefined && sender.id !== board.space.id ? {neighbours: [{spaceId: sender.id, units: qty}]} : {}),
+        ...(asked ? {asked: true} : {}),
+      }, {log: autoLog, from: this.options.from});
+    } else {
+      this.player.addResourceTo(card, {qty, log: autoLog, from: this.options.from});
+    }
     this.cb(card);
   }
 }

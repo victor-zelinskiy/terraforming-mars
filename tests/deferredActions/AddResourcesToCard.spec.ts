@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {Ants} from '../../src/server/cards/base/Ants';
 import {GHGProducingBacteria} from '../../src/server/cards/base/GHGProducingBacteria';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
-import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
+import {AddResourcesToCard, NO_RESOURCE_YET_REASON} from '../../src/server/deferredActions/AddResourcesToCard';
+import {SpaceId} from '../../src/common/Types';
 import {TestPlayer} from '../TestPlayer';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardResource} from '../../src/common/CardResource';
@@ -158,5 +159,44 @@ describe('AddResourcesToCard', () => {
     const any = cast(new AddResourcesToCard(player, undefined, {count: 1, autoSelect: false}).execute(), SelectCard);
     expect(any.resourceGainPrompt?.cardResource).is.undefined;
     expect(any.resourceGainPrompt?.cardResourceByCard).deep.eq({[CardName.GHG_PRODUCING_BACTERIA]: 'microbe', 'Data Vault': 'data', [CardName.ANTS]: 'microbe'});
+  });
+  // A `min` PICK («a card that ALREADY has a resource» — TR53 Frontier Labs): a holder short of it is no candidate, but
+  // it is SHOWN — disabled, with its reason — never hidden (the TR52 near-miss law, for an adding step).
+  it('a min pick lists the holders short of it as near misses, disabled with their reason', () => {
+    const vault = fakeCard({name: 'Data Vault' as CardName, type: CardType.ACTIVE, resourceType: CardResource.DATA});
+    tardigrades.resourceCount = 2;
+    player.playedCards.push(ghgProducingBacteria, tardigrades, vault);
+    const step = new AddResourcesToCard(player, undefined, {min: 1, autoSelect: false});
+    expect(step.getCards()).deep.eq([tardigrades]);
+    expect(step.nearMisses()).deep.eq([ghgProducingBacteria, vault]);
+    const pick = cast(step.execute(), SelectCard);
+    expect(pick.cards).deep.eq([tardigrades]);
+    const model = pick.toModel(player);
+    expect(model.disabledCards?.map((c) => c.name)).deep.eq([CardName.GHG_PRODUCING_BACTERIA, 'Data Vault']);
+    expect(model.disabledCards?.every((c) => c.disabledReason === NO_RESOURCE_YET_REASON)).is.true;
+    // Without `min` there is nothing near — the ordinary pick is untouched.
+    expect(new AddResourcesToCard(player, undefined, {autoSelect: false}).nearMisses()).is.empty;
+    // The preview twin carries the same near misses (one builder).
+    expect(step.previewSelectCard()?.disabledCards?.length).eq(2);
+  });
+
+  // WHAT ELSE A CANDIDATE GIVES (TR53: a draw when the card's resource is not science) — the card's own chips, stamped
+  // per candidate on the marker; a candidate the function returns nothing for is absent.
+  it('extraByCard stamps the per-candidate tail; fromSpace names the cell the units come from', () => {
+    const vault = fakeCard({name: 'Data Vault' as CardName, type: CardType.ACTIVE, resourceType: CardResource.DATA});
+    player.playedCards.push(ghgProducingBacteria, vault);
+    const draw = {direction: 'gain' as const, icon: 'cards', amount: 1};
+    const pick = cast(new AddResourcesToCard(player, undefined, {
+      autoSelect: false,
+      fromSpace: '05' as SpaceId,
+      extraByCard: (card) => card.resourceType === CardResource.MICROBE ? [draw] : undefined,
+    }).execute(), SelectCard);
+    const meta = pick.toModel(player).resourceGainPrompt;
+    expect(meta?.extraByCard).deep.eq({[CardName.GHG_PRODUCING_BACTERIA]: [draw]});
+    expect(meta?.fromSpace).eq('05');
+    // No function, no member — the marker stays as it was.
+    const plain = cast(new AddResourcesToCard(player, undefined, {autoSelect: false}).execute(), SelectCard);
+    expect(plain.resourceGainPrompt?.extraByCard).is.undefined;
+    expect(plain.resourceGainPrompt?.fromSpace).is.undefined;
   });
 });

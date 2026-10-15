@@ -2,6 +2,7 @@ import {ChoiceContext, ChoiceContextSource} from '../../common/models/PlayerInpu
 import {CardType} from '../../common/cards/CardType';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
+import {SpaceId} from '../../common/Types';
 import {ICard} from '../cards/ICard';
 
 /**
@@ -90,4 +91,19 @@ export function namedCardSource(card: CardName, isCorporation = false): ChoiceCo
  *  is still the colony's, and the workspace the card was pressed in owns it. */
 export function colonySource(name: string | Message, via?: CardName): ChoiceContextSource {
   return via === undefined ? {kind: 'colony', name} : {kind: 'colony', name, via};
+}
+
+/**
+ * A BOARD CELL's printed placement bonus that caused a prompt («the microbe of
+ * this cell — on which card?»): no card to show, so it names the cell and the
+ * bonus it prints (`name` — an i18n key) — the dock reads «КЛЕТКА · ‹бонус›»
+ * and the console lights the cell. TR53 iteration, 2026-10-15: the printed
+ * card-resource bonuses of Amazonis Planitia / Arabia Terra asked with NO
+ * source at all.
+ */
+/** The name a cell's PRINTED placement bonus gives its own prompt (the dock: «КЛЕТКА · Бонус размещения»). */
+export const PLACEMENT_BONUS_SOURCE_NAME = 'Placement bonus';
+
+export function spaceSource(space: SpaceId, name?: string | Message): ChoiceContextSource {
+  return name === undefined ? {kind: 'space', space} : {kind: 'space', space, name};
 }

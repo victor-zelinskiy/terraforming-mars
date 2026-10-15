@@ -191,10 +191,14 @@ export abstract class SurveyCard extends Card implements IProjectCard {
     const board = cardOwner.game.board;
     if (cardOwner.playedCards.some((card) => card.resourceType === resource) &&
         (this.grantsBonusNow(space, bonus) || AresHandler.anyAdjacentSpaceGivesBonus(board, space, bonus))) {
+      // THE CELL WHOSE BONUS IT COPIES sends the unit (TR53 iteration): the placed cell when it prints the bonus, else
+      // the first neighbour whose adjacency bonus does — named on the marker and played from by the board scene.
+      const sender = this.grantsBonusNow(space, bonus) ? space :
+        board.getAdjacentSpaces(space).find((adj) => adj.adjacency?.bonus.includes(bonus)) ?? space;
       cardOwner.game.defer(new AddResourcesToCard(
         cardOwner,
         resource,
-        {log: true, cause: cardSource(this)}))
+        {log: true, cause: cardSource(this), fromSpace: sender.id, boardPayout: {space, sender, cause: 'survey', source: this.name}}))
         .andThen(() => this.log(cardOwner, resource));
     }
   }

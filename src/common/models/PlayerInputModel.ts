@@ -141,8 +141,15 @@ export type AwardFundingPromptMeta = {
  *  asks the player to decide. Drives the premium modal's source-card preview +
  *  kicker chip. `card` is the source card's name (undefined for system choices). */
 export type ChoiceContextSource = {
-  kind: 'card' | 'corporation' | 'standardProject' | 'colony' | 'system' | 'party' | 'resolution';
+  kind: 'card' | 'corporation' | 'standardProject' | 'colony' | 'system' | 'party' | 'resolution' | 'space';
   card?: CardName;
+  /**
+   * `kind: 'space'` — the BOARD CELL whose printed placement bonus asks
+   * («place the microbe of this cell's bonus on which card?» — Amazonis
+   * Planitia, Arabia Terra). The dock names the cell's bonus; the console
+   * lights the cell itself while the player chooses.
+   */
+  space?: SpaceId;
   /** `kind: 'party'` — WHICH political party's effect asks (Turmoil Redux). */
   party?: PartyName;
   /** `kind: 'resolution'` — WHICH enacted resolution asks (catalog id). */
@@ -921,6 +928,27 @@ export type ResourceGainPromptMeta = {
    * statement of one effect is the noise the played-target step's ask line exists to avoid (TR48 walk).
    */
   genericTitle?: boolean;
+  /**
+   * THE CELL THE UNITS PHYSICALLY COME FROM, when the field pays (TR53 iteration
+   * «ресурс на карту — один стандарт»): a cell's printed bonus (the placed
+   * cell), an Ares tile's adjacency bonus (the paying tile), a survey's extra
+   * unit (the cell whose bonus it copies). The asker (`choiceContext.source`)
+   * stays the AUTHOR — this is the token's SOURCE: the console lights that cell
+   * while the player chooses and plays the answer's scene from it. Absent for
+   * a card's, a colony's or a law's own gift.
+   */
+  fromSpace?: SpaceId;
+  /**
+   * WHAT ELSE CHOOSING THIS CANDIDATE GIVES — a per-candidate tail of the
+   * pick's own result, read off the candidate (TR53 Frontier Labs: «+1 of this
+   * card's resource; if it is not science, also draw a card» — the draw is
+   * owed by SOME candidates only). The SERVER's own chips, built in the card's
+   * file (`AddResourcesToCard.Options.extraByCard`); every reader (the played-
+   * target step's tag, the composer's answer chip, a live prompt's reading)
+   * prints them and decides nothing. A candidate absent from the map gives
+   * nothing more.
+   */
+  extraByCard?: Partial<Record<CardName, ReadonlyArray<ActionEffect>>>;
 }
 
 /**

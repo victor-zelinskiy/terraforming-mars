@@ -109,6 +109,10 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
     return {kindKey: 'Colony', name: source.name, inspectable: false};
   case 'standardProject':
     return {kindKey: 'Standard project', name: source.name, inspectable: false};
+  // A BOARD CELL's printed placement bonus asks (TR53 iteration): «КЛЕТКА ПОЛЯ · Бонус размещения» — the cell itself
+  // is lit on the field while the player chooses; there is nothing to open fullscreen.
+  case 'space':
+    return {kindKey: 'Board cell', name: source.name, inspectable: false};
   // Turmoil Redux: a PARTY's action or effect asks (the Reds' recycle discard).
   case 'party':
     return {kindKey: 'Party action', name: source.party ?? source.name, inspectable: false};

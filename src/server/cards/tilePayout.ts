@@ -2,6 +2,7 @@ import {IPlayer} from '../IPlayer';
 import {ICard} from './ICard';
 import {Space} from '../boards/Space';
 import {CardResource} from '../../common/CardResource';
+import {CardName} from '../../common/cards/CardName';
 import {AdjacencyAmountBasis, TilePayoutCause} from '../../common/models/CardAdjacencyPayoutModel';
 import {CardResourceBasis} from '../../common/events/EventImpact';
 import {SpaceId} from '../../common/Types';
@@ -10,13 +11,18 @@ import {From} from '../logs/From';
 
 /**
  * «A TILE PAYS A CARD» — the ONE writer of the board scene's record
- * (`IGame.cardAdjacencyPayouts`): a card resource paid BECAUSE OF A PLACED
- * TILE, by the cells that caused it. Two causes today:
+ * (`IGame.cardAdjacencyPayouts`): a card resource paid BECAUSE OF THE FIELD,
+ * by the cells that caused it. The causes (`TilePayoutCause`):
  *
  *  · `adjacent-cities` — TR21 Arboretum: every city beside the greenery sends
  *    its units onto the card the player chose (`cards/adjacentCityPayout.ts`);
- *  · `tile-placed` — TR30 Red Museum: the placed tile itself pays its owner's
- *    card (`turmoilRedux/RedMuseum.ts`).
+ *  · `tile-placed` — TR30 Red Museum, Pets, Martian Census: the placed tile
+ *    itself pays its owner's card;
+ *  · `space-bonus` — the cell's PRINTED card-resource bonus
+ *    (`Game.grantSpaceBonus`, through `AddResourcesToCard.boardPayout`);
+ *  · `ares-adjacency` — an Ares tile's card-resource ADJACENCY bonus
+ *    (`AresHandler`, the same door);
+ *  · `survey` — Ecological / Geological Survey's extra unit.
  *
  * A card pays through {@link payTileToCard} and nothing else: ONE
  * `addResourceTo` (logged, attributed, its reactions — Martian Fiber's +1 M€
@@ -32,12 +38,14 @@ export type TilePayoutScript = {
   cause: TilePayoutCause;
   /**
    * The cells that SENT the units, each with its share — the paying
-   * neighbours. Omitted for `tile-placed`: the placed cell carries the whole
-   * amount.
+   * neighbours. Omitted when the placed cell carries the whole amount
+   * (`tile-placed`, `space-bonus`).
    */
   neighbours?: ReadonlyArray<{spaceId: SpaceId, units: number}>;
   /** What one unit counts (a per-neighbour amount only). */
   basis?: AdjacencyAmountBasis;
+  /** The target was the player's answer to a live pick (see `CardAdjacencyPayoutModel.asked`). */
+  asked?: boolean;
 };
 
 /** How the ONE addition is logged and attributed (`Player.addResourceTo`'s own options). */
@@ -47,11 +55,12 @@ export type TilePayoutAddition = {log: boolean, from?: From, basis?: CardResourc
  * PAY `amount` units of `resource` onto `target` because of the tile on
  * `space`, and publish the scene's record. `source` is the card whose printed
  * effect paid (the museum pays itself; the Arboretum pays the card the player
- * chose). Synchronous — the caller is the effect's own scope.
+ * chose; a survey; an Ares tile's own card) — `undefined` when no card paid
+ * (a cell's printed bonus). Synchronous — the caller is the effect's own scope.
  */
 export function payTileToCard(
   owner: IPlayer,
-  source: ICard,
+  source: ICard | CardName | undefined,
   space: Space,
   target: ICard,
   resource: CardResource,
@@ -74,7 +83,7 @@ export function payTileToCard(
       reactions[key] = delta;
     }
   }
-  recordTilePayout(owner, source, space, {
+  recordTilePayout(owner, typeof source === 'object' ? source.name : source, space, {
     script,
     target: target.name,
     resource,
@@ -87,7 +96,7 @@ export function payTileToCard(
 /** THE WRITER — the only caller of `IGame.publishCardAdjacencyPayout`. */
 function recordTilePayout(
   owner: IPlayer,
-  source: ICard,
+  source: CardName | undefined,
   space: Space,
   paid: {script: TilePayoutScript, target: ICard['name'], resource: CardResource, amount: number, before: number, reactions: Partial<Units>},
 ): void {
@@ -95,7 +104,7 @@ function recordTilePayout(
   owner.game.publishCardAdjacencyPayout({
     cause: script.cause,
     color: owner.color,
-    card: source.name,
+    ...(source !== undefined ? {card: source} : {}),
     spaceId: space.id,
     ...(script.basis !== undefined ? {basis: script.basis} : {}),
     neighbours: script.neighbours ?? [{spaceId: space.id, units: paid.amount}],
@@ -104,5 +113,6 @@ function recordTilePayout(
     amount: paid.amount,
     before: paid.before,
     ...(Object.keys(paid.reactions).length > 0 ? {reactions: paid.reactions} : {}),
+    ...(script.asked === true ? {asked: true} : {}),
   });
 }

@@ -420,7 +420,7 @@ export interface IGame extends Logger {
    * bonus was delivered — presentation metadata for the Ares adjacency
    * manifest (co-located with the branches so it can never drift).
    */
-  grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count?: number, source?: {spaceId?: SpaceId}): SpaceBonusGrant;
+  grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count?: number, source?: {spaceId?: SpaceId, placedSpaceId?: SpaceId}): SpaceBonusGrant;
   addGreenery(player: IPlayer, space: Space, shouldRaiseOxygen?: boolean): void;
   addCity(player: IPlayer, space: Space, cardName?: CardName | undefined): void;
   canAddOcean(): boolean;

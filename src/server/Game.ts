@@ -90,6 +90,7 @@ import {GrantVenusAltTrackBonusDeferred} from './venusNext/GrantVenusAltTrackBon
 import {PathfindersExpansion} from './pathfinders/PathfindersExpansion';
 import {PathfindersData} from './pathfinders/PathfindersData';
 import {AddResourcesToCard} from './deferredActions/AddResourcesToCard';
+import {PLACEMENT_BONUS_SOURCE_NAME, spaceSource} from './inputs/choiceContext';
 import {ColonyDeserializer} from './colonies/ColonyDeserializer';
 import {GameLoader} from './database/GameLoader';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from './game/GameOptions';
@@ -2754,7 +2755,24 @@ export class Game implements IGame, Logger {
    * it protects the REPEATED grants (Frontier Town, Jansson, the enacted
    * Development Craze), whose second bill nobody vetted.
    */
-  public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1, source?: {spaceId?: SpaceId}): SpaceBonusGrant {
+  public grantSpaceBonus(player: IPlayer, spaceBonus: SpaceBonus, count: number = 1, source?: {spaceId?: SpaceId, placedSpaceId?: SpaceId}): SpaceBonusGrant {
+    // A CARD-RESOURCE bonus the field pays (a printed cell, an Ares neighbour's default branch): the cell that sends
+    // the units NAMES the prompt (`spaceSource` — the dock reads «КЛЕТКА · бонус размещения», the console lights the
+    // cell) and the addition writes the board scene's ONE record (`AddResourcesToCard.boardPayout`), so a silent single
+    // holder and an answered pick are both played from the cell, never a bare counter change (TR53 iteration).
+    const cardBonus = (resource: CardResource): AddResourcesToCard => {
+      const cellOf = (id: SpaceId | undefined) => id === undefined ? undefined : this.board.spaces.find((s) => s.id === id);
+      const sender = cellOf(source?.spaceId);
+      const placed = source?.placedSpaceId !== undefined ? cellOf(source.placedSpaceId) : sender;
+      return new AddResourcesToCard(player, resource, {
+        count,
+        ...(sender !== undefined ? {
+          cause: spaceSource(sender.id, PLACEMENT_BONUS_SOURCE_NAME),
+          fromSpace: sender.id,
+          ...(placed !== undefined ? {boardPayout: {space: placed, sender, cause: 'space-bonus' as const}} : {}),
+        } : {}),
+      });
+    };
     switch (spaceBonus) {
     case SpaceBonus.DRAW_CARD:
       player.drawCard(count, {source: {type: 'tile', spaceId: source?.spaceId}});
@@ -2785,19 +2803,19 @@ export class Game implements IGame, Logger {
       }
       return {kind: 'other'};
     case SpaceBonus.MICROBE:
-      this.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: count}));
+      this.defer(cardBonus(CardResource.MICROBE));
       return {kind: 'other'};
     case SpaceBonus.ANIMAL:
-      this.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: count}));
+      this.defer(cardBonus(CardResource.ANIMAL));
       return {kind: 'other'};
     case SpaceBonus.DATA:
-      this.defer(new AddResourcesToCard(player, CardResource.DATA, {count: count}));
+      this.defer(cardBonus(CardResource.DATA));
       return {kind: 'other'};
     case SpaceBonus.ENERGY_PRODUCTION:
       player.production.add(Resource.ENERGY, count, {log: true});
       return {kind: 'other'};
     case SpaceBonus.SCIENCE:
-      this.defer(new AddResourcesToCard(player, CardResource.SCIENCE, {count: count}));
+      this.defer(cardBonus(CardResource.SCIENCE));
       return {kind: 'other'};
     case SpaceBonus.TEMPERATURE_4MC:
       if (this.getTemperature() < constants.MAX_TEMPERATURE) {
@@ -2815,7 +2833,7 @@ export class Game implements IGame, Logger {
       player.stock.add(Resource.ENERGY, count, {log: true});
       return {kind: 'stock', resource: Resource.ENERGY};
     case SpaceBonus.ASTEROID:
-      this.defer(new AddResourcesToCard(player, CardResource.ASTEROID, {count: count}));
+      this.defer(cardBonus(CardResource.ASTEROID));
       return {kind: 'other'};
     case SpaceBonus.DELEGATE:
       Turmoil.ifTurmoil(this, () => this.defer(new SendDelegateToArea(player)));
