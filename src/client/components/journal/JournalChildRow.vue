@@ -58,6 +58,27 @@
       </span>
     </template>
 
+    <!-- A REQUIREMENT MET THANKS TO A MODIFIER (TR49 class): "<modifier> [Требование] [t°] 2 → −2 · один розыгрыш"
+         — or the scale struck for a waiver. No arrow, no summed chip: nothing moved; the row says WHO let the play
+         through. -->
+    <template v-else-if="vm.eased !== undefined">
+      <span class="journal-child-row__lead">
+        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
+        <span class="journal-child-row__eased-badge" v-i18n>Requirement</span>
+      </span>
+      <span class="journal-child-row__impacts" data-journal-eased :data-eased-kind="vm.eased.kind">
+        <span v-for="(r, i) in vm.eased.requirements" :key="i"
+              class="journal-child-row__chip journal-child-row__chip--eased"
+              :class="{'journal-child-row__chip--waived': r.effective === 'waived'}">
+          <span class="journal-child-row__chip-icon" :class="iconClass(r.parameter)" aria-hidden="true"></span>
+          <span v-if="r.effective === 'waived'" class="journal-child-row__chip-amt">{{ $t('Ignored') }}</span>
+          <span v-else class="journal-child-row__chip-amt">{{ r.printed }} → {{ r.effective }}</span>
+        </span>
+        <span v-if="vm.eased.oneShot" class="journal-child-row__tile">· {{ $t('One play') }}</span>
+      </span>
+    </template>
+
     <!-- A CONDITIONAL DRAW SEARCH (PL-033): "<source> Вскрыто 6 · получено 3 ·
          сброшено 3 [card] [card] [card] — <the rule> · колода вскрыта до
          конца". The counts are one reading, the thrown-away cards the

@@ -10,7 +10,7 @@ import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip, skippedRowOf} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
 import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
-import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NotificationSkippedLine, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
+import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NotificationSkippedLine, NotificationEasedLine, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 import {LogMessageType} from '@/common/logs/LogMessageType';
 
 /**
@@ -505,6 +505,27 @@ export function skippedLinesOf(chain: ReadonlyArray<GameEvent>, actor: Color | u
   return lines;
 }
 
+/**
+ * WHO LET THE PLAY THROUGH (TR49 class): every `requirement-eased` record of this chain whose modifier is a card,
+ * in chain order — the rival's line «требование снято / ±2 ‹card›».
+ */
+export function easedLinesOf(chain: ReadonlyArray<GameEvent>): Array<NotificationEasedLine> {
+  const lines: Array<NotificationEasedLine> = [];
+  for (const e of chain) {
+    const fact = e.type === 'requirement-eased' ? e.impact.requirementEased : undefined;
+    if (fact === undefined || (e.source?.kind !== 'card' && e.source?.kind !== 'corporation')) {
+      continue;
+    }
+    lines.push({source: e.source.card, kind: fact.kind, oneShot: fact.oneShot, ...(fact.steps !== undefined ? {steps: fact.steps} : {})});
+  }
+  return lines;
+}
+
+/** The optional field, absent when nobody helped the play through. */
+function easedField(lines: Array<NotificationEasedLine>): {eased?: ReadonlyArray<NotificationEasedLine>} {
+  return lines.length > 0 ? {eased: lines} : {};
+}
+
 /** The optional model field, absent (not an empty list) when nothing was skipped. */
 function skippedField(lines: Array<NotificationSkippedLine>): {skipped?: ReadonlyArray<NotificationSkippedLine>} {
   return lines.length > 0 ? {skipped: lines} : {};
@@ -638,6 +659,7 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     pillGroups: pillGroups.length > 0 ? pillGroups : undefined,
     detailCount: vms.length,
     ...skippedField(skippedLinesOf(chain, actor)),
+    ...easedField(easedLinesOf(chain)),
     correlationId: input.correlationId,
     generation: input.generation,
     ttl: NOTIFICATION_TTL[kind],

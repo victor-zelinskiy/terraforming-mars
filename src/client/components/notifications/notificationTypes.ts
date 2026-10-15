@@ -172,6 +172,12 @@ export type NotificationCta = {
 /** One skipped effect on a notification card — see `NotificationModel.skipped`. */
 export type NotificationSkippedLine = {label: string; reason: string; chip?: JournalImpactChip; owner?: Color};
 
+/**
+ * One requirement a MODIFIER let a play through (`requirement-eased`, TR49 class) — see
+ * `NotificationModel.eased`: the modifier card, and how — waived («требование снято») or shifted («±2»).
+ */
+export type NotificationEasedLine = {source: CardName; kind: 'shift' | 'waive'; steps?: number; oneShot: boolean};
+
 export type NotificationModel = {
   /** Stable de-dup key. Root events → `g<correlationId>`; turn → `turn:<kind>`. */
   id: string;
@@ -262,6 +268,12 @@ export type NotificationModel = {
    * bonus an opponent's trade owed the viewer).
    */
   skipped?: ReadonlyArray<NotificationSkippedLine>;
+  /**
+   * THE PLAY WENT THROUGH THANKS TO A MODIFIER (TR49 class, rule 10): a rival reads «‹player› played ‹card› —
+   * requirement waived by Cutting-Edge Design» under the card's head. One line per modifier, from the chain's own
+   * `requirement-eased` records; absent when the card needed no help.
+   */
+  eased?: ReadonlyArray<NotificationEasedLine>;
   /** The journal root-event id, for "open in journal" + highlight. */
   correlationId?: number;
 

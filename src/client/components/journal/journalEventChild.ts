@@ -85,7 +85,9 @@ export type JournalChildBucket =
   /** An effect that could NOT apply (`effect-skipped`) — named, never summed. */
   | 'skipped'
   /** A conditional draw search (`deck-searched`, PL-033) — what the deck turned over, never summed. */
-  | 'search';
+  | 'search'
+  /** A requirement met ONLY thanks to a modifier (`requirement-eased`, TR49 class) — named, never summed. */
+  | 'requirement';
 
 /**
  * A CONDITIONAL DRAW SEARCH, read for its row (`deck-searched`, PL-033): the
@@ -164,6 +166,20 @@ export type JournalChildVM = {
    * said «Суперкомпьютер +2» about data that lay on the census (the TR48 walk). Its own row per target, never merged.
    */
   onCard?: CardName;
+  /**
+   * A REQUIREMENT MET ONLY THANKS TO A MODIFIER (`requirement-eased`, TR49 class): the modifier is the row's
+   * source, the requirements it let through ride here — «[t°] 2 → −2» for a shift, the scale struck for a waiver —
+   * with `oneShot` when the play spent it. Deliberately OUTSIDE `chips`: nothing moved, so no pill may sum it.
+   */
+  eased?: JournalEasedRow;
+};
+
+/** One requirement a modifier let through, as the journal's row reads it. */
+export type JournalEasedRow = {
+  kind: 'shift' | 'waive';
+  steps?: number;
+  oneShot: boolean;
+  requirements: ReadonlyArray<{parameter: GlobalParameter; printed: number; effective: number | 'waived'; max: boolean}>;
 };
 
 /** The colony TILE's own glyph as a chip icon (`iconClassFor` → the printed pill). */
@@ -363,6 +379,9 @@ function bucketFor(e: GameEvent): JournalChildBucket {
   if (e.type === 'discount-applied') {
     return 'discount';
   }
+  if (e.type === 'requirement-eased') {
+    return 'requirement';
+  }
   switch (e.source?.kind) {
   case 'payment': return 'payment';
   case 'spaceBonus': return 'spaceBonus';
@@ -561,6 +580,18 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       // Each skipped effect is its OWN row (never merged — two lost effects are
       // two statements), keyed by event id; its magnitude rides `skipped.chip`.
       push(`skipped|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], skipped: skippedRowOf(e.impact.skipped)}, []);
+      continue;
+    }
+    if (e.type === 'requirement-eased' && e.impact.requirementEased !== undefined) {
+      // A REQUIREMENT MET THANKS TO A MODIFIER (TR49 class) is its OWN row under the play, the modifier as its source:
+      // «Особая разработка · ТРЕБОВАНИЕ [t°] 2 → −2 · один розыгрыш». Never summed (nothing moved).
+      const fact = e.impact.requirementEased;
+      push(`eased|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], eased: {
+        kind: fact.kind,
+        ...(fact.steps !== undefined ? {steps: fact.steps} : {}),
+        oneShot: fact.oneShot,
+        requirements: fact.requirements.map((r) => ({parameter: r.parameter, printed: r.printed, effective: r.effective, max: r.max})),
+      }}, []);
       continue;
     }
     if (e.type === 'deck-searched' && e.impact.deckSearch !== undefined) {

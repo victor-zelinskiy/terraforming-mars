@@ -1075,3 +1075,34 @@
         background-color: rgba(106, 176, 230, 0.4);
     }
 }
+/* A REQUIREMENT MET THANKS TO A MODIFIER (`requirement-eased`, TR49 class): the «ТРЕБОВАНИЕ» word in the modifier's
+   mint, the scale with its printed → effective bound — or struck through for a waiver (the scan's own language). */
+.journal-child-row__eased-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 4px;
+    background: rgba(88, 214, 166, 0.12);
+    border: 1px solid rgba(116, 219, 186, 0.5);
+    color: #b9f3dc;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.journal-child-row__chip--waived .journal-child-row__chip-icon {
+    position: relative;
+}
+.journal-child-row__chip--waived .journal-child-row__chip-icon::after {
+    content: '';
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: calc(50% - 1px);
+    height: 2px;
+    background: #e5322a;
+    transform: rotate(-20deg);
+}

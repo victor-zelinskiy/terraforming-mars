@@ -239,6 +239,14 @@
         <span class="con-notif__skip-reason" v-i18n>{{ line.reason }}</span>
       </li>
     </ul>
+    <!-- THE PLAY WENT THROUGH THANKS TO A MODIFIER (TR49 class): «требование снято · ‹card›» / «требование ±2 ·
+         ‹card›» — the rival learns WHY a card the table did not allow was played. -->
+    <ul v-if="easedLines.length > 0" class="con-notif__skips con-notif__eased" data-notif-eased>
+      <li v-for="(line, i) in easedLines" :key="i" class="con-notif__skip">
+        <span class="con-notif__skip-tag con-notif__eased-tag" v-i18n>Requirement</span>
+        <span class="con-notif__skip-label">{{ easedLineText(line) }}</span>
+      </li>
+    </ul>
     <!-- Pad contract ON the card (its own hints — the command bar keeps the
          CURRENT screen's contract, a toast never re-labels it): the DETAIL
          action first, when the card has one (press-and-HOLD X — a single tap
@@ -323,7 +331,8 @@ import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
 import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
-import {LiveNotification, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
+import {LiveNotification, NotificationEasedLine, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
+import {EASING_KEYS} from '@/client/console/requirementEasingText';
 
 // icon-key → PublicPlayerModel field (the viewer's before → after readout
 // for a single-resource loss).
@@ -386,6 +395,10 @@ export default defineComponent({
         return '';
       }
       return displayNameForColor(this.players, a);
+    },
+    /** The requirement-eased lines (TR49 class) — two at most, like the skips. */
+    easedLines(): ReadonlyArray<NotificationEasedLine> {
+      return (this.notification.eased ?? []).slice(0, 2);
     },
     /** The skipped-effect lines — two at most: the card is a toast, the journal holds the rest. */
     skippedLines(): ReadonlyArray<NotificationSkippedLine> {
@@ -633,6 +646,15 @@ export default defineComponent({
     }
   },
   methods: {
+    /** «Требования игнорируются · Новаторская разработка» / «±2 · Особая разработка» (+ «один розыгрыш»). */
+    easedLineText(line: NotificationEasedLine): string {
+      const what = line.kind === 'waive' ? translateText(EASING_KEYS.requirementIgnored) : `±${line.steps ?? 0}`;
+      const parts = [what, translateText(line.source)];
+      if (line.oneShot) {
+        parts.push(translateText(EASING_KEYS.oneShot));
+      }
+      return parts.join(' · ');
+    },
     /** «за 14 тайлов на Марсе» — the journal's own reading of a counted gain's basis (JournalChildRow.basisLabel). */
     basisLabel(basis: {count: number, unitKey: string}): string {
       return translateTextWithParams('for ${0} ${1}', [String(basis.count), translateText(basis.unitKey)]);

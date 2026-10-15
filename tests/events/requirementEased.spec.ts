@@ -13,6 +13,8 @@ import {EcologyExperts} from '@/server/cards/prelude/EcologyExperts';
 import {GameEvent} from '@/common/events/GameEvent';
 import {IGame} from '@/server/IGame';
 import {Message} from '@/common/logs/Message';
+import {buildEventChildren} from '@/client/components/journal/journalEventChild';
+import {easedLinesOf, recomputeRootImpact} from '@/client/components/notifications/notificationModel';
 
 function eased(game: IGame): Array<GameEvent> {
   return game.events.events.filter((e) => e.type === 'requirement-eased');
@@ -48,6 +50,26 @@ describe('requirement-eased', () => {
     const stat = effectOverlayStats(game.events.events, player.color).find((s) => s.sourceKey === sourceKey({kind: 'card', card: CardName.SPECIAL_DESIGN}));
     expect(stat?.triggerCount).eq(1);
     expect(stat?.byChannel?.requirement?.triggerCount).eq(1);
+  });
+
+  it('the JOURNAL draws its own row under the play, and the card of a RIVAL names the modifier', () => {
+    const [game, player, rival] = testGame(2);
+    setTemperature(game, -2);
+    player.playCard(new SpecialDesign());
+    player.playCard(new Fish());
+    const [event] = eased(game);
+    const root = event.correlationId!;
+    const chain = game.events.events.filter((e) => e.correlationId === root);
+    const rows = buildEventChildren(chain, root, player.color);
+    const row = rows.find((r) => r.eased !== undefined);
+    expect(row?.source).deep.eq({kind: 'card', card: CardName.SPECIAL_DESIGN});
+    expect(row?.bucket).eq('requirement');
+    expect(row?.chips, 'nothing moved — no pill sums it').deep.eq([]);
+    expect(row?.eased).deep.eq({kind: 'shift', steps: 2, oneShot: true,
+      requirements: [{parameter: GlobalParameter.TEMPERATURE, printed: 2, effective: -2, max: false}]});
+    expect(easedLinesOf(chain)).deep.eq([{source: CardName.SPECIAL_DESIGN, kind: 'shift', steps: 2, oneShot: true}]);
+    // The rival's refresh path reads the same chain.
+    expect(recomputeRootImpact(game.events.events, root, player.color, rival.color).childVMs.some((r) => r.eased !== undefined)).is.true;
   });
 
   it('a card that needed no help records nothing (the effect is still spent)', () => {
