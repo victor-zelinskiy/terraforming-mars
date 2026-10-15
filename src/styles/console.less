@@ -297,6 +297,10 @@ html.console-native {
     &--on&--veil {
         opacity: 0.28; /* the table beat: tray focal, board readable */
     }
+    /* A live pick's answer on the FIELD (TR53 iteration): the board IS the stage — no dim at all. */
+    &--on&--clear {
+        opacity: 0;
+    }
 
     /* THE ONE EXCEPTION — a FULL-BLEED owner (the card-reveal cinematic) covers
        the whole shell by design, so its dim must too: a cinematic painting over
@@ -22329,6 +22333,40 @@ html.console-mode {
             pointer-events: none;
         }
     }
+
+    /* THE LIVE PICK'S ANSWER IS A SCENE (TR53 iteration «ресурс на карту — один стандарт»; `cardReceive/promptReceive.ts`).
+       The chosen candidate stays IN PLACE — its focus lift + the mint pick ring + «✓ Карта выбрана» are the seal — while
+       every other candidate RECEDES: opacity and a hair of scale, never a drift, never a tilt, never `filter` (the
+       console strips it). The draft's dive and the rejects' tumble are gone from a target pick. */
+    /* …and the status line keeps its READING («1 → 2 · ПО»), never its verbs: the answer is given. */
+    &.con-task-host--receiving .con-cards__verdict:is(.con-cards__verdict--ok, .con-cards__verdict--zoom, .con-cards__verdict--go) {
+        display: none;
+    }
+    &.con-task-host--receiving .con-cards__strip > .con-cards__slot.con-cards__slot--receded {
+        opacity: 0.28;
+        transform: scale(0.975);
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease,
+            transform calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    /* …the FIELD takes the screen (the field family): the card has stepped out of the plate onto the board, the
+       plate lets go UNDER it — `!important` beats the director's inline entry styles (the table-beat's trick). */
+    &--receiving-board {
+        /* The whole band lets go of the hit test too: the law of visible ends asks «what is painted over the
+           capsule» and a transparent band surface must not answer «I am». */
+        pointer-events: none;
+        .con-task {
+            opacity: 0 !important;
+            pointer-events: none;
+            transition: opacity calc(220ms * var(--motion-scale, 1)) ease !important;
+        }
+    }
+    /* …HOME (the in-surface families): the plate dissolves under the card being carried home — the result outlives
+       its surface. */
+    &--receiving-home .con-task {
+        opacity: 0 !important;
+        pointer-events: none;
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease !important;
+    }
 }
 
 .con-task {
@@ -33872,6 +33910,22 @@ html.console-mode {
     &__tag-word { letter-spacing: .03rem; }
     &__tag-num { font-weight: 800; }
     &__tag-check { color: @con-mint; font-weight: 900; }
+    /* WHAT ELSE this candidate gives (TR53 — `extraByCard`): a tail after a dot, in the gain's own voice; a zero the
+       server names (science draws nothing) is the glyph STRUCK, quiet — told by its stroke, never by colour alone. */
+    &__tag-extra { display: inline-flex; align-items: center; gap: .2rem; color: @con-text; }
+    &__tag-sep { opacity: .6; font-weight: 900; }
+    &__tag-extra--none { opacity: .55; }
+    &__tag-extra--none &__tag-icon { position: relative; }
+    &__tag-extra--none &__tag-icon::after {
+        content: '';
+        position: absolute;
+        left: -10%;
+        right: -10%;
+        top: 50%;
+        height: .12rem;
+        background: @con-text-dim;
+        transform: rotate(-35deg);
+    }
     /* The tag a tender pays for — a medal the height of the line. */
     &__tag-pay { flex: 0 0 auto; width: 1.05rem; height: 1.05rem; border-radius: 50%; box-shadow: 0 0 0 .05rem rgba(255, 255, 255, .18); }
     /* A CANDIDATE. It stays in its owner's group at all times — the focused
@@ -34377,7 +34431,16 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     flex-shrink: 0;
     /* A px-authored face inside the rem layout: the zoom rides the TV scale (a bare .3 was a 96 px stamp at 4K). */
     zoom: ~"calc(.24 * var(--con-ui-scale, 1))";
-    > :is(.card-container, .pcard) { margin: 0; border-radius: .5rem; }
+    > :is(.card-container, .pcard) { margin: 0; border-radius: .5rem; transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease; }
+    /* THE MINIATURE RECEIVES (TR53 iteration, case 2 — `consoleActionCommitRail.presentComposerCard`): presented while
+       its token flies — grown around its own CAPSULE (the face's lower left), so the token's measured landing stays
+       true, and ringed in the gain's mint; it settles back after the read. Transform + box-shadow only. */
+    transform-origin: 16% 90%;
+    transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+    &[data-receiving] {
+        transform: scale(1.14);
+        > :is(.card-container, .pcard) { box-shadow: 0 0 0 .5rem fade(@con-mint, 85%), 0 0 3.2rem fade(@con-mint, 38%); }
+    }
 }
 .con-composer__target-body {
     display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .5rem; min-width: 0; flex: 1;

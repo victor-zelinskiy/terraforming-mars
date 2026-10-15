@@ -8,7 +8,7 @@ import {
   ActionCommitPlan, armActionCommit, commitRailPlan, releaseActionCommit, resetActionCommit,
 } from '@/client/console/consoleActionCommit';
 import {
-  actionCommitRailHoldsCapsule, actionCommitRailState, flyActionCommitRail, resetActionCommitRail, seedActionCommitRail,
+  actionCommitRailHoldsCapsule, actionCommitRailState, armedRailLandsOnRow, flyActionCommitRail, resetActionCommitRail, seedActionCommitRail,
 } from '@/client/console/consoleActionCommitRail';
 import {clearPanelRewardHold, heldCardCapsule, heldCardResource, heldStock, heldVictoryPoints} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, TRANSFER_BEAT_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -85,6 +85,41 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
     resetActionCommit();
     resetRailRewards();
     clearPanelRewardHold();
+  });
+
+  // TR53 iteration: a unit onto the card a composer ROW shows (the card the player CHOSE) — that row must stand for
+  // the landing, so a draw's pending stage waits for the half's END (`ended` — every way out, a half that never began
+  // included).
+  describe('a landing on a composer row — the stage that would replace the row waits for the half', () => {
+    const frontierBranch = (): ActionPreviewBranch => ({
+      index: -1, title: '', available: true, renderKeys: [],
+      effects: [{direction: 'cost', icon: 'megacredits', amount: 5, current: 20, resulting: 15}, {direction: 'gain', icon: 'resources', amount: 1, note: 'to a card'}],
+      steps: [{kind: 'input', amount: 1, input: {type: 'card', cards: [{name: CardName.TARDIGRADES}], resourceGainPrompt: {amount: 1, cardResourceByCard: {[CardName.TARDIGRADES]: 'microbe'}}} as never}],
+    } as ActionPreviewBranch);
+
+    it('the last link lands on the CHOSEN card — not the hero — and the half says so', () => {
+      const rail = commitRailPlan(CardName.FRONTIER_LABS, frontierBranch(), {0: {type: 'card', cards: [CardName.TARDIGRADES]}}, [])!;
+      expect(rail.reward.cause.map((spec) => [spec.resource, spec.targetCard ?? '', spec.direction ?? 'gain'])).deep.eq([
+        ['megacredits', '', 'loss'], ['microbe', CardName.TARDIGRADES, 'gain'],
+      ]);
+      armActionCommit({sourceCard: CardName.FRONTIER_LABS, kind: 'resources', specs: [], origins: [], rail: {...rail, origins: rail.reward.cause.map(() => ({x: 10, y: 10}))}});
+      expect(armedRailLandsOnRow()).is.true;
+    });
+
+    it('a landing on the hero itself is no row; nothing armed is no row', () => {
+      expect(armedRailLandsOnRow()).is.false;
+      arm(EAC, eacBranch(1));
+      expect(armedRailLandsOnRow()).is.false;
+    });
+
+    it('a half that never began ENDS all the same (a stage waiting on it opens)', () => {
+      arm(UNMI, unmiBranch());
+      const before = actionCommitRailState.ended;
+      // The views do not bear the promise out (no TR moved): the seed refuses — and counts the end.
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 20, mc: 20}));
+      expect(actionCommitRailState.phase).eq('idle');
+      expect(actionCommitRailState.ended).eq(before + 1);
+    });
   });
 
   describe('SEED — the promise against the views, once', () => {

@@ -279,6 +279,14 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(playedTargetShortfalls(undefined, -2, () => '')).to.deep.eq([]);
     });
 
+    it('an ADDING step with a floor (TR53 «a card that already has one») shows every holder below it, empty ones included', () => {
+      const disabled = [data('Data Vault', 0), data('Supercomputer', 0)];
+      const got = playedTargetShortfalls(disabled, 1, (c) => String(c.disabledReason), 1);
+      expect(got.map((b) => [b.model.name, b.have, b.need])).to.deep.eq([['Data Vault', 0, 1], ['Supercomputer', 0, 1]]);
+      expect(playedTargetShortfalls(disabled, 1, () => ''), 'no floor — an ordinary gain has no near miss').to.deep.eq([]);
+      expect(playedTargetShortfalls(disabled, 1, () => '', 0)).to.deep.eq([]);
+    });
+
     it('a near miss stands in its owner\'s group, after the takeable ones, never counted as a target', () => {
       const m = buildPlayedTargetModel({
         candidates: [card('Predators')],

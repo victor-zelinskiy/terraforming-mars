@@ -319,6 +319,28 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
       ]);
     });
 
+    // TR53 Frontier Labs: «+1 resource TO A CARD» of ANY kind — the chip is the untyped `resources` (never flown by
+    // the chip loop), the card models carry no `resourceType`; the kind is the SERVER's per-candidate marker.
+    it('an «any resource» step reads the chosen card\'s kind off the server marker (`cardResourceByCard`)', () => {
+      const steps: Array<ActionPreviewStep> = [{
+        kind: 'input',
+        amount: 1,
+        input: {
+          cards: [{name: CardName.TARDIGRADES}, {name: CardName.OLYMPUS_CONFERENCE}],
+          resourceGainPrompt: {amount: 1, cardResourceByCard: {[CardName.TARDIGRADES]: 'microbe', [CardName.OLYMPUS_CONFERENCE]: 'science'}},
+        } as never,
+      }];
+      const specs = extractPlayRewards({
+        cardName: CardName.FRONTIER_LABS,
+        effects: [{direction: 'gain', icon: 'resources', amount: 1, note: 'to a card'}],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.TARDIGRADES]}},
+      });
+      expect(specs).to.deep.eq([
+        {channel: 'card-resource', resource: 'microbe', amount: 1, targetCard: CardName.TARDIGRADES},
+      ]);
+    });
+
     it('a REPEAT-ACTION pick never flies — its candidates are actions, not targets', () => {
       const steps: Array<ActionPreviewStep> = [{
         kind: 'input',

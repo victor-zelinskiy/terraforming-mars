@@ -80,6 +80,32 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
       expect(impacts[1]).to.include({label: 'VP', from: 2, to: 3});
     });
 
+    /** WHAT ELSE A CANDIDATE GIVES (TR53 Frontier Labs — the server's `extraByCard`): the rail names the draw in
+     *  words, the tag under the card carries it as a glyph and a digit; a zero the server names (science draws
+     *  nothing) is a STATIC line and a struck glyph — never silence, never a number the client decided. */
+    it('reads the server per-candidate tail: a draw on one holder, the named «no draw» on another', () => {
+      const model = {
+        ...input([{name: 'Tardigrades', resources: 1}, {name: 'Olympus Conference', resources: 1}]),
+        resourceGainPrompt: {
+          amount: 1,
+          extraByCard: {
+            ['Tardigrades' as CardName]: [{direction: 'gain', icon: 'cards', amount: 1}],
+            ['Olympus Conference' as CardName]: [{direction: 'gain', icon: 'cards', amount: 0, note: 'No draw: science'}],
+          },
+        },
+      } as SelectCardModel;
+      const drawn = playedTargetPreviewFor(undefined, model, 'Tardigrades' as CardName)[0];
+      expect(drawn.impacts.map((i) => i.label)).to.include('Also draws a card');
+      expect(drawn.tag?.extra).to.deep.eq([{icon: 'cards', text: '+1'}]);
+      const science = playedTargetPreviewFor(undefined, model, 'Olympus Conference' as CardName)[0];
+      const none = science.impacts.find((i) => i.label === 'No draw: science');
+      expect(none).to.include({static: true, value: true});
+      expect(science.tag?.extra).to.deep.eq([{icon: 'cards', text: '', none: true}]);
+      // A pick with no tail is untouched.
+      const plain = playedTargetPreviewFor(undefined, {...model, resourceGainPrompt: {amount: 1}} as SelectCardModel, 'Tardigrades' as CardName)[0];
+      expect(plain.tag?.extra).to.be.undefined;
+    });
+
     /** A STEP's own amount still wins where it exists (Predators and the whole
      *  add-to-card family) — the branch reading is an addition, not a swap. */
     it('keeps the step\'s own amount as the primary source', () => {

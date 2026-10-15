@@ -149,6 +149,12 @@ export type PlayedTargetTag = {
   reached?: boolean;
   /** `opens` — the loud one; `gain` — plain; `short` / `already` / `static` — the quiet voice. */
   tone: 'opens' | 'gain' | 'short' | 'already' | 'static';
+  /**
+   * WHAT ELSE choosing this candidate gives (the server's `resourceGainPrompt.extraByCard` — TR53: a draw when the
+   * card's resource is not science): one glyph-and-digit tail after the tag («· [карта] +1»), or the same glyph
+   * STRUCK when the server names a zero («· [карта] ✕» — science draws nothing). Never a sentence: the rail says it.
+   */
+  extra?: ReadonlyArray<{icon: string, text: string, none?: true}>;
 };
 
 /**
@@ -1230,7 +1236,20 @@ export function playedTargetShortfalls(
   disabled: ReadonlyArray<CardModel> | undefined,
   amount: number | undefined,
   reasonOf: (card: CardModel) => string,
+  /**
+   * An ADDING step's FLOOR (`resourceGainPrompt.holdsAtLeast` — TR53 «a card that ALREADY has a resource»): every
+   * holder the server lists below it is a near miss — shown, disabled, «✕ 0 / 1», never hidden.
+   */
+  holdsAtLeast?: number,
 ): Array<{model: CardModel, reason: string, have: number, need: number}> {
+  if (amount !== undefined && amount > 0) {
+    if (holdsAtLeast === undefined || holdsAtLeast <= 0) {
+      return [];
+    }
+    return (disabled ?? [])
+      .filter((c) => (c.resources ?? 0) < holdsAtLeast)
+      .map((c) => ({model: c, reason: reasonOf(c), have: c.resources ?? 0, need: holdsAtLeast}));
+  }
   const need = amount === undefined ? 0 : -amount;
   if (need <= 1) {
     return [];

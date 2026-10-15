@@ -571,6 +571,7 @@ import {CardResource} from '@/common/CardResource';
 import {ActionPreview, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, previewBranchByIndex} from '@/client/console/actionPreviewStore';
+import {actionCommitRailState, armedRailLandsOnRow} from '@/client/console/consoleActionCommitRail';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -820,6 +821,12 @@ export default defineComponent({
        */
       outcomeFlow: undefined as ComposerOutcome | undefined,
       /**
+       * A PENDING OUTCOME THAT WAITS FOR THE RAIL (TR53 iteration): the draw the CHOICE decided opens its stage only
+       * once the unit has landed on the chosen row's card — the stage replaces the decision column, and the row is
+       * the token's destination. The rail half's `ended` count at the confirm (undefined = nothing waits).
+       */
+      pendingAfterRail: undefined as number | undefined,
+      /**
        * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
        * submit, keyed by the variant it belongs to, released when the stage
        * lets go of that variant.
@@ -869,6 +876,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The rail half's end count (every way out) — what a pending outcome waiting for a row's landing watches. */
+    railHalvesEnded(): number {
+      return actionCommitRailState.ended;
+    },
     thisPlayer() {
       return this.playerView.thisPlayer;
     },
@@ -1522,6 +1533,25 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The rail half ended (every way out): a pending outcome that waited for the row's landing opens now. */
+    railHalvesEnded(n: number): void {
+      if (this.pendingAfterRail !== undefined && n > this.pendingAfterRail) {
+        this.pendingAfterRail = undefined;
+        // Only while THIS workspace's draw claim still stands — a refused commit released it, and an ended half then
+        // opens nothing (the composer is back in its configuration).
+        if (this.outcomeFlow === undefined && workspaceOutcomeState.host === 'card-actions' &&
+            workspaceOutcomeState.kinds.includes('draw')) {
+          this.outcomeFlow = {kind: 'pending'};
+          // The batch may already be here (the answer beat the rail): the draw stage opens the way `drawSignal` would.
+          if (this.drawSignal !== 0 && this.composer !== undefined && this.composer.party === undefined) {
+            this.outcomeFlow = {kind: 'draw'};
+            if (!workspaceOutcomeBeatPending()) {
+              markWorkspaceOutcomePresenting();
+            }
+          }
+        }
+      }
+    },
     /** The command bar names the stage from the same fact as the crumb (PL-062) — published, never re-derived there. */
     executingStage(on: boolean) {
       setConsoleActionComposerExecuting(on);
@@ -1806,7 +1836,9 @@ export default defineComponent({
         // the shell holds the workspace on one tick before the mandatory
         // discard was handed in (the workspace left, the discard was
         // announced over the board).
-        if (id !== 0 && this.composer !== undefined && this.composer.party === undefined &&
+        // (A batch that arrives while the unit still flies to the chosen ROW's card — TR53 — waits for the rail
+        // half's end: the stage would replace the row the token lands on. `railHalvesEnded` opens it.)
+        if (id !== 0 && this.pendingAfterRail === undefined && this.composer !== undefined && this.composer.party === undefined &&
             (this.outcomeFlow === undefined || this.outcomeFlow.kind === 'pending')) {
           this.outcomeFlow = {kind: 'draw'};
           // The EXECUTION BEAT owes its minimum time from the CONFIRM.
@@ -2499,6 +2531,7 @@ export default defineComponent({
         consoleCardActionsUi.draft = undefined;
         setWorkspaceFrameSubject('card-actions', '');
       }
+      this.pendingAfterRail = undefined;
       if (this.outcomeFlow !== undefined) {
         this.outcomeFlow = undefined;
         resetConsoleActionRevealClaim();
@@ -2894,7 +2927,11 @@ export default defineComponent({
         // the preview's server-computed `cards` amount is the only honest
         // source at submit time. When the answer does beat the launch (the
         // usual case) the real batch overrides it.
-        const plan = branchOutcomeClaimPlan(this.composerPreview, payload.branchIndex);
+        // The cards the composer's steps chose — a draw the CHOICE decides (TR53's tail) is the choice's.
+        const answeredCards = payload.stepResponses
+          .filter((r): r is {type: 'card', cards: ReadonlyArray<CardName>} => (r as {type?: string} | undefined)?.type === 'card')
+          .flatMap((r) => r.cards);
+        const plan = branchOutcomeClaimPlan(this.composerPreview, payload.branchIndex, answeredCards);
         const kinds: Array<WorkspaceOutcomeKind> = [...plan.kinds];
         let expectedCards = plan.expectedCards;
         // A CLAIMED HYDRONETWORK STAGE REWARD (Dutch Mountains) sends back
@@ -2923,6 +2960,13 @@ export default defineComponent({
         if (branch?.reveal !== undefined) {
           this.outcomeFlow = {kind: 'deck-check'};
           setConsoleActionRevealClaim(comp.cardName);
+        } else if (kinds.length > 0 && armedRailLandsOnRow()) {
+          // …BUT a unit that lands on the card a ROW of this composer shows (TR53 — «+1 to the chosen card, then
+          // draw»): the row is that token's destination, and the pending stage would replace it at the submit. The
+          // grammar's order is price → +1 → read → the draw: the stage opens when the rail half ends (the watcher on
+          // `railHalvesEnded`); the claim stands meanwhile, so the batch waits claimed-but-not-ready (it renders
+          // nowhere for the gap — never in a band of its own).
+          this.pendingAfterRail = actionCommitRailState.ended;
         } else if (kinds.length > 0) {
           // Cards are promised but nothing is back yet: open the PENDING
           // stage now, not when the batch lands. It holds the column's

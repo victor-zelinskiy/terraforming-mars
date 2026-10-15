@@ -945,6 +945,12 @@ export type ResourceGainPromptMeta = {
    */
   fromSpace?: SpaceId;
   /**
+   * THE FLOOR a candidate must already hold (`AddResourcesToCard.min` — TR53: «a card that ALREADY has a resource»):
+   * the holders below it ride `disabledCards` with their reason, and the target step shows them as NEAR MISSES
+   * («✕ 0 / 1»). Absent for a pick with no floor.
+   */
+  holdsAtLeast?: number;
+  /**
    * WHAT ELSE CHOOSING THIS CANDIDATE GIVES — a per-candidate tail of the
    * pick's own result, read off the candidate (TR53 Frontier Labs: «+1 of this
    * card's resource; if it is not science, also draw a card» — the draw is

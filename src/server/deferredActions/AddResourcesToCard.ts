@@ -352,6 +352,8 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
         ...(this.options.title === undefined ? {genericTitle: true} : {}),
         // The cell the units come from, when the field pays — the console lights it and plays the answer from it.
         ...(this.options.fromSpace !== undefined ? {fromSpace: this.options.fromSpace} : {}),
+        // The floor of a `min` pick — the near misses' «have / need» (TR53).
+        ...(this.options.min ? {holdsAtLeast: this.options.min} : {}),
         // What else each candidate gives (TR53's draw for a non-science card) — the card's own chips, read by every host.
         ...(extraByCard !== undefined ? {extraByCard} : {}),
       });

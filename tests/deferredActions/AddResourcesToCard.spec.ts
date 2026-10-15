@@ -174,6 +174,8 @@ describe('AddResourcesToCard', () => {
     const model = pick.toModel(player);
     expect(model.disabledCards?.map((c) => c.name)).deep.eq([CardName.GHG_PRODUCING_BACTERIA, 'Data Vault']);
     expect(model.disabledCards?.every((c) => c.disabledReason === NO_RESOURCE_YET_REASON)).is.true;
+    // The floor rides the marker — the client reads «have / need» off it, never off a reason string.
+    expect(model.resourceGainPrompt?.holdsAtLeast).eq(1);
     // Without `min` there is nothing near — the ordinary pick is untouched.
     expect(new AddResourcesToCard(player, undefined, {autoSelect: false}).nearMisses()).is.empty;
     // The preview twin carries the same near misses (one builder).

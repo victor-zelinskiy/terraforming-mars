@@ -568,6 +568,7 @@
          :class="{
            'con-shade--on': surfaceShadeVisible,
            'con-shade--veil': surfaceShadeVeil,
+           'con-shade--clear': surfaceShadeClear,
            'con-shade--focus': wheelInput.arm !== undefined,
            'con-shade--fullbleed': surfaceShadeFullBleed,
          }" aria-hidden="true"></div>
@@ -1631,6 +1632,7 @@ import type {PreselectAddress} from '@/common/inputs/preselectAddress';
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
 import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWatch} from 'vue';
+import {promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
@@ -3344,6 +3346,13 @@ export default defineComponent({
      *  readable) — mirrors the retired per-surface backdrop rules. */
     surfaceShadeVeil(): boolean {
       return draftTrayState.tableView || isTradeFleetActive();
+    },
+    /**
+     * The FIELD owns the screen for a live pick's answer (TR53 iteration — the card the player chose is carried out
+     * of the plate onto the board, beside the cell that pays it): the dim lets go entirely, the board is the stage.
+     */
+    surfaceShadeClear(): boolean {
+      return promptReceiveState.board;
     },
     /** The currently VISIBLE transient notification — the topmost (the feed is
      *  serial, so at most one). GLOBAL rule: any console toast is dismissable

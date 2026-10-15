@@ -279,6 +279,8 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     expect(tagOf(CardName.EVA_MECHS, 2), 'tender: the money and the tag it pays for').to.deep.eq({icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'space'});
     expect(tagOf(CardName.CONSTRUCTION_MECHS, 1)).to.deep.eq({icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'building'});
     expect(tagOf(CardName.MECH_SPORTS, 3, {[CardName.MECH_SPORTS]: {from: 3, to: 4}}), 'a VP holder: its points').to.deep.eq({word: 'VP', text: '3 → 4', tone: 'gain'});
+    // Points that do not move are no answer — the count is (TR53 iteration: «ПО 0 → 0» under a 1-of-4 holder).
+    expect(tagOf(CardName.MECH_SPORTS, 3, {[CardName.MECH_SPORTS]: {from: 3, to: 3}})?.word, 'still points: the count instead').to.eq(undefined);
     expect(tagOf(CardName.MARS_ARMY_MECHS, 1), 'a delegate already within reach: a quiet ✓ (the rail keeps the value line)').to.deep.eq({icon: 'delegate', text: '', reached: true, tone: 'already'});
     expect(tagOf(CardName.MARS_ARMY_MECHS, 0), 'the gain brings it within reach: the fraction and the ✓').to.deep.eq({icon: 'delegate', text: '1/1', reached: true, tone: 'opens'});
     expect(tagOf(CardName.FORESTRY_MECHS, 2), 'the action\'s good on its production plate').to.deep.include({icon: 'plants', plate: 'production', reached: true, tone: 'already'});

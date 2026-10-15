@@ -4537,7 +4537,7 @@ export default defineComponent({
         // what makes «your own card» a warning rather than the ordinary target.
         takesFromTarget: (choice.amount ?? 0) < 0,
         // The near misses of a step taking more than one — shown with the server's reason, never chosen.
-        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason)),
+        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason), model.resourceGainPrompt?.holdsAtLeast),
         preview: (name) => this.playedTargetPreview(choice, model, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });
@@ -4694,8 +4694,11 @@ export default defineComponent({
       const result = this.playedTargetResults[c.id];
       // PAST THE PRESS an answer is a RECEIPT, not a live pick: it is what the batch SENT. The response moves the
       // game version (and the chosen card's own count) while the commit's phrase still plays on this very screen —
-      // judged «stale» there, the row painted the amber «выберите…» over a card already chosen and sent.
-      if (result !== undefined && this.submitting) {
+      // judged «stale» there, the row painted the amber «выберите…» over a card already chosen and sent. …and it
+      // stays a receipt while THIS commit's rail half is still in the air (PL-430, TR53): the answer clears
+      // `submitting`, and the row whose miniature the unit lands on vanished one link before the landing.
+      if (result !== undefined && (this.submitting ||
+          (actionCommitRailState.card === this.entry.cardName && actionCommitRailState.phase !== 'idle'))) {
         return result;
       }
       // Judged against ITS OWN choice's candidates — a second played-card pick of the same composer has others.

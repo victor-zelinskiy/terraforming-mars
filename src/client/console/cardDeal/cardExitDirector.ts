@@ -273,6 +273,75 @@ export async function runHeroPick(source: ExitSource, onLift: () => void): Promi
   cleanup(spawned);
 }
 
+/**
+ * CARD HOME — a card that has RECEIVED a resource goes back to where it lives
+ * (the iteration «ресурс на карту — один стандарт», TR53): the chosen
+ * candidate of a live «on which card» pick, its tokens landed and read, is
+ * carried from its slot to its HOME — the ДОП. РЕСУРСЫ satellite's cell of
+ * its resource, «your cards with microbes» — on the ONE carry clock, shrinking
+ * to the cell's box, and dissolves INTO it on the contact. Never the draft's
+ * dive off the bottom of the screen (the owner's photo: «криво наклоняется
+ * набок и просто падает внизу»): the card returns to a PLACE the player can
+ * see. `home` is read live (the carry retargets on its final stretch); no home
+ * on screen → a short settle in place and a quiet dissolve (honest, never a
+ * fake destination). `onLift` fires the frame the proxy stands over the slot
+ * (the host lets its surface go under it — the result outlives its surface).
+ */
+export async function runCardHome(source: ExitSource, home: () => DOMRect | undefined, onLift: () => void): Promise<void> {
+  if (consoleReducedMotionActive()) {
+    onLift();
+    return;
+  }
+  const spawned = await spawnProxies([source], true, true);
+  onLift();
+  if (spawned.length === 0) {
+    return;
+  }
+  const s = spawned[0];
+  const ui = conUiScale();
+  const target = home();
+  await guarded((done) => {
+    const tl = gsap.timeline({onComplete: done, onInterrupt: done});
+    const naturalH = s.rect.height / (s.rect.width / CARD_NATURAL_W);
+    const fromScale = s.rect.width / CARD_NATURAL_W;
+    // The pick-up: a hair off the table, level — the card is taken, not thrown.
+    const lift = 10 * ui;
+    tl.to(s.el, {y: s.rect.top - lift, scale: fromScale * 1.03, duration: motionMs(110) / 1000, ease: 'power2.out'});
+    if (target === undefined || target.width < 4 || target.height < 4) {
+      tl.to(s.el, {y: `+=${14 * ui}`, scale: fromScale * 0.94, autoAlpha: 0, duration: motionMs(220) / 1000, ease: 'power2.in'});
+      return;
+    }
+    // Into the cell: the card's box shrinks onto the cell's (fit by height — the cell is a squat chip), centred.
+    const toScale = Math.max(0.06, Math.min(target.width / CARD_NATURAL_W, target.height / naturalH));
+    const toX = target.left + target.width / 2 - (CARD_NATURAL_W * toScale) / 2;
+    const toY = target.top + target.height / 2 - (naturalH * toScale) / 2;
+    const dist = Math.hypot(toX - s.rect.left, toY - s.rect.top);
+    const carry = motionMs(420 * Math.max(0.75, Math.min(1.2, 0.6 + dist / (1400 * ui)))) / 1000;
+    addCardCarry(tl, tl.duration(), s.el, {
+      naturalH,
+      from: {x: s.rect.left, y: s.rect.top - lift, scale: fromScale * 1.03},
+      to: {x: toX, y: toY, scale: toScale},
+      duration: carry,
+      sag: Math.min(dist * 0.08, 60 * ui),
+      ease: 'power2.inOut',
+      retarget: () => {
+        const live = home();
+        if (live === undefined || live.width < 4) {
+          return undefined;
+        }
+        return {
+          left: live.left + live.width / 2 - (CARD_NATURAL_W * toScale) / 2,
+          top: live.top + live.height / 2 - (naturalH * toScale) / 2,
+          width: CARD_NATURAL_W * toScale,
+        };
+      },
+    });
+    // The contact: the card goes INTO its cell — a short dissolve on the cell, never a fall past it.
+    tl.to(s.el, {autoAlpha: 0, duration: motionMs(120) / 1000, ease: 'power1.in'}, `>-${motionMs(60) / 1000}`);
+  }, motionMs(110 + 520 + 120) + 600);
+  cleanup(spawned);
+}
+
 export type DraftPickHandle = {
   /** Jump to the final state (all landings revealed, onDone fired). */
   skip: () => void,

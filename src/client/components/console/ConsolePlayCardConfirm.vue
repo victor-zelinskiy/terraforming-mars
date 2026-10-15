@@ -1647,7 +1647,7 @@ export default defineComponent({
         // what makes «your own card» a warning rather than the ordinary target.
         takesFromTarget: (choice.amount ?? 0) < 0,
         // The near misses of a step taking more than one (TR52: a card with 1 data) — shown with the server's reason.
-        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason)),
+        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason), model.resourceGainPrompt?.holdsAtLeast),
         preview: (name) => this.playedTargetPreview(choice, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });

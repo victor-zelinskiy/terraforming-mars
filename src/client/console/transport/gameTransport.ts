@@ -144,6 +144,9 @@ import {
   runResolutionPayout,
 } from '@/client/console/parliament/consoleResolutionPayout';
 import {
+  detectPromptReceive, disarmPromptReceive, endPromptReceive, runPromptReceive,
+} from '@/client/console/cardReceive/promptReceive';
+import {
   abortStdProjectCommit,
   detectStdProjectCommit,
   runStdProjectCommit,
@@ -281,6 +284,8 @@ export const transportHolds = reactive({
   colonyCity: false,
   nomadMove: false,
   resolutionPayout: false,
+  /** The answer of a live «on which card» pick is played as a scene (TR53 iteration — `cardReceive/promptReceive.ts`). */
+  promptReceive: false,
 });
 
 /** Every transport cinematic gate — the disjunction the board binder (and any
@@ -292,7 +297,7 @@ export function transportHolding(): boolean {
   return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
     h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild || h.colonyRoster || h.colonyCity ||
-    h.nomadMove || h.resolutionPayout;
+    h.nomadMove || h.resolutionPayout || h.promptReceive;
 }
 
 /**
@@ -777,6 +782,23 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             transportHolds.resolutionPayout = false;
           }
         }
+        /*
+         * Console LIVE-PICK RECEIVE gate (TR53 iteration «ресурс на карту — один стандарт»). The viewer answered a
+         * live «on which card» pick (`resourceGainPrompt` — an Ares adjacency, a cell's printed bonus, a foreign
+         * trade's colony bonus, a card's gift) and the card really took it: HOLD the commit while the answer plays
+         * as a SCENE — the chosen card presented, the token out of its real source (the paying cell, the planet, the
+         * source card's printed icon) onto its capsule, the read, the card home — instead of the draft's dive. The
+         * field family plays the SERVER's record (`cardAdjacencyPayouts`, `asked`).
+         */
+        const promptReceiveEvent = detectPromptReceive(currentView(), newView);
+        if (promptReceiveEvent !== undefined) {
+          transportHolds.promptReceive = true;
+          try {
+            await runPromptReceive(promptReceiveEvent);
+          } finally {
+            transportHolds.promptReceive = false;
+          }
+        }
         const patentSaleEvent = detectPatentSale(newView);
         if (patentSaleEvent !== undefined) {
           transportHolds.patentSale = true;
@@ -938,6 +960,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               tileMoves: newView.game?.tileMoves,
               cardPayouts: newView.game?.cardAdjacencyPayouts,
               prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
+              viewerCards: newView.thisPlayer?.tableau,
             });
             // …and a nomad camp that moved in the batch (a concurrent human's
             // move riding the bot's turns): commit hidden, hop at reveal.
@@ -966,6 +989,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           }
           if (resolutionPayoutEvent !== undefined) {
             void nextTick(() => endResolutionPayout());
+          }
+          if (promptReceiveEvent !== undefined) {
+            void nextTick(() => endPromptReceive());
           }
           if (discardEvent !== undefined) {
             void nextTick(() => {
@@ -1013,6 +1039,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           // …and the server's per-neighbour card payouts (TR21 — another seat's cities paying their card).
           cardPayouts: newView.game?.cardAdjacencyPayouts,
           prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
+          viewerCards: newView.thisPlayer?.tableau,
         });
         // …and a REMOTE nomad hop riding the viewer's own submit response (a
         // concurrent human's move that resolved while the POST was in
@@ -1213,6 +1240,13 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           // taken the picker away) — the landing tick's scope may close now.
           void nextTick(() => endResolutionPayout());
         }
+        if (promptReceiveEvent !== undefined) {
+          // Post-commit: the pick is gone and the card is home — its seal, its recede and its ticks let go.
+          void nextTick(() => endPromptReceive());
+        } else {
+          // An armed press whose answer did not verify (or did not come with this response) leaves no pose behind.
+          disarmPromptReceive();
+        }
         if (hazardCleanups.length > 0) {
           transportHolds.hazardCleanup = false;
           void nextTick(() => endHazardCleanup());
@@ -1385,6 +1419,9 @@ function abortAllConsoleTransactions(): void {
   // …and the resolution payout: nothing was recorded, nothing flies.
   transportHolds.resolutionPayout = false;
   endResolutionPayout();
+  // …and a live pick's answer: the server refused it — the candidates stand as they were (no seal, no recede).
+  transportHolds.promptReceive = false;
+  disarmPromptReceive();
   // …and the patent sale: the terminal swallows nothing — the cards return
   // to the hand (un-blanked) and no chip is ever dispensed.
   transportHolds.patentSale = false;

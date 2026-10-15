@@ -254,7 +254,22 @@ export function playedTargetPreviewFor(
         ...(plate === undefined ? {} : {plate}),
       });
     }
-    const tag = playedTargetTagOf({reached, vp, icon: impacts[0].icon, from, to: Math.max(0, from + amount)});
+    /**
+     * …and WHAT ELSE THIS CANDIDATE GIVES (TR53 — the server's per-candidate tail, `resourceGainPrompt.extraByCard`):
+     * «also draws a card» on a microbe holder, the named «no draw: science» on a science one. The server decided it;
+     * the rail says it in words, the tag under the card in a glyph and a digit.
+     */
+    const extra = input.resourceGainPrompt?.extraByCard?.[name] ?? [];
+    for (const e of extra) {
+      impacts.push(e.amount > 0 ?
+        {label: e.icon === 'cards' ? 'Also draws a card' : 'Also gives', icon: e.icon, amount: e.amount, value: true, params: []} :
+        {label: e.note ?? 'Nothing more', icon: e.icon, value: true, static: true, params: []});
+    }
+    const base = playedTargetTagOf({reached, vp, icon: impacts[0].icon, from, to: Math.max(0, from + amount)});
+    const tag = base === undefined || extra.length === 0 ? base : {
+      ...base,
+      extra: extra.map((e) => e.amount > 0 ? {icon: e.icon, text: `+${e.amount}`} : {icon: e.icon, text: '', none: true as const}),
+    };
     out.push({key: 'res', title: 'Target card', entity: 'target', impacts, ...(tag === undefined ? {} : {tag})});
   } else if (amount === undefined && input.resourceGainPrompt?.amountBasis !== undefined && model !== undefined) {
     // NO NUMBER YET — the cell chosen after this pick decides it (Arboretum).
@@ -306,8 +321,10 @@ export function playedTargetTagOf(o: {
   if (r?.kind === 'look') {
     return {icon: 'cards', text: `${r.from} → ${r.to}`, tone: 'gain'};
   }
-  if (o.vp !== undefined) {
-    return {word: 'VP', text: `${o.vp.from} → ${o.vp.to}`, tone: o.vp.from === o.vp.to ? 'static' : 'gain'};
+  // A VP holder's POINTS are its answer only when they MOVE: «ПО 0 → 0» under Tardigrades (1 → 2 of 4) said nothing
+  // the count does not say better — the count is what changes, so the tag reads it like any storage (TR53 iteration).
+  if (o.vp !== undefined && o.vp.from !== o.vp.to) {
+    return {word: 'VP', text: `${o.vp.from} → ${o.vp.to}`, tone: 'gain'};
   }
   return {...(o.icon === undefined ? {} : {icon: o.icon}), text: `${o.from} → ${o.to}`, tone: 'static'};
 }

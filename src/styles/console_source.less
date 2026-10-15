@@ -102,11 +102,17 @@
         color: fade(#cfe6fb, 88%);
     }
     &__plate-sep { color: fade(@con-cyan, 60%); }
+    /* The NAME is decision context and is never clamped — in the dock too, not only in the chip (TR53 walk: on 4K the
+       printed bonus's plate read «КЛЕТКА ПОЛЯ · Бонус размещ…»). A long name wraps under the kind; the dock is constant
+       for the whole prompt, so a second line moves nothing while the player points. */
+    &__plate { flex-wrap: wrap; row-gap: .12rem; }
     &__plate-name {
         color: @con-text;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.2;
+        min-width: 0;
     }
     /* The printed CATALOG CODE («RX01») — the same engraved micro-stamp the
        face wears in its corner, pressed into the plate after the name. It

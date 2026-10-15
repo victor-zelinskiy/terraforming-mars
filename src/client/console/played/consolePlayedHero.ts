@@ -69,6 +69,7 @@ import {
   abortPlayedCardReturns, capturePlayedCardReturnSource, hasPendingPlayedReturns, runPlayedCardReturns,
 } from '@/client/console/played/playedCardReturn';
 import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
+import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins} from '@/client/console/consoleActionCommitMotion';
@@ -1305,18 +1306,13 @@ export async function endPlayedHero(): Promise<void> {
         if (!playedHeroState.active) {
           return;
         }
-        if (!group.self) {
-          await hooks.emergeTarget(group.target);
-        }
         // The card's OWN «+N on this card» (TR45's «+14 microbes») is born on the PRINTED icon of its on-play row —
         // the icon the player read the rule on (PL-190); a card that prints none keeps the shared spawn point.
         const origins = group.self ? group.specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec)) : undefined;
-        await runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release});
+        await receiveOnStage(group, hooks, () =>
+          runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release}));
         if (!playedHeroState.active) {
           return;
-        }
-        if (!group.self) {
-          await hooks.settleTarget(group.target);
         }
       }
       if (railSpecs.length > 0 && playedHeroState.active) {
@@ -1707,6 +1703,41 @@ function seedReactions(before?: PlayerViewModel, after?: PlayerViewModel): void 
  * on screen), lands on the holder's capsule, the holder settles back. The
  * overlay host (no hooks) flies the same chips as one wave.
  */
+/**
+ * ONE CARD-TARGET GROUP of the receiving stage, in the ONE grammar of «a
+ * resource lands on a card» (`cardReceive/cardReceiveDirector.ts` — TR53
+ * iteration): PRESENT = the target EMERGES out of its strip (the played card
+ * itself needs none — it IS the front), PAY = the chips land on its capsule,
+ * READ = the settle's confirmation press, RETURN = the settle back into its
+ * band. The stage's own moves, unchanged — the director owns the order.
+ */
+async function receiveOnStage(
+  group: {target: CardName, self: boolean},
+  hooks: ReceivingEffectHooks,
+  pay: () => Promise<void>,
+): Promise<void> {
+  await runCardReceive({
+    host: 'played',
+    card: group.target,
+    alive: () => playedHeroState.active,
+    present: async () => {
+      if (!group.self) {
+        await hooks.emergeTarget(group.target);
+      }
+      return true;
+    },
+    pay: async () => {
+      await pay();
+      return true;
+    },
+    ret: async () => {
+      if (!group.self) {
+        await hooks.settleTarget(group.target);
+      }
+    },
+  });
+}
+
 async function flyHeroReactions(
   source: {selectors: Array<string>},
   release: (spec: ResourceTransferSpec) => void,
@@ -1729,15 +1760,10 @@ async function flyHeroReactions(
       if (!playedHeroState.active) {
         return;
       }
-      if (!group.self) {
-        await hooks.emergeTarget(group.target);
-      }
-      await runResourceTransfers({specs: group.specs, source, origins: originsOf(group.specs), arrival: 'auto', onArrive: release});
+      await receiveOnStage(group, hooks, () =>
+        runResourceTransfers({specs: group.specs, source, origins: originsOf(group.specs), arrival: 'auto', onArrive: release}));
       if (!playedHeroState.active) {
         return;
-      }
-      if (!group.self) {
-        await hooks.settleTarget(group.target);
       }
     }
     playedHeroState.reactions = 'flown';

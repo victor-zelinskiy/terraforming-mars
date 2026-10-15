@@ -2,5 +2,8 @@
     "Placement bonus": "Бонус размещения",
     "No resource on this card yet": "На карте ещё нет ресурса",
     "No card of yours holds a resource yet": "Ни на одной вашей карте ещё нет ресурса",
-    "No draw: science": "Без добора: наука"
+    "No draw: science": "Без добора: наука",
+    "Also draws a card": "Добор карты",
+    "Also gives": "Ещё даёт",
+    "Nothing more": "Больше ничего"
 }

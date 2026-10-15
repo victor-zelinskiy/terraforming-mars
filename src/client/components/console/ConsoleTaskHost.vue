@@ -9,6 +9,9 @@
          'con-ws': !embedded,
          'con-task-host--embedded': embedded,
          'con-task-host--table-beat': trayTableBeat,
+         'con-task-host--receiving': receivingPick !== undefined,
+         'con-task-host--receiving-board': receive.board,
+         'con-task-host--receiving-home': receive.homing,
        }"
        :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'task-host'">
@@ -311,8 +314,11 @@
                          'con-cards__slot--spread': isSpreadMode && spreadOnCard(entry.card.name) > 0,
                          'con-cards__slot--disabled': entry.disabled,
                          'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
+                         'con-cards__slot--receiving': receivingPick === entry.card.name,
+                         'con-cards__slot--receded': receivingPick !== undefined && receivingPick !== entry.card.name,
                          'con-deal-hold': deal.isHeld(entry.card.name + '#' + i),
                        }"
+                       :data-receive-pick="receivingPick === entry.card.name ? '1' : undefined"
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                     <Card :card="landedCardOf(entry.card)" :key="entry.card.name" lightweight />
                     <!-- THE LAYOUT COUNTER (distribute mode): what the player has put on THIS card so far —
@@ -362,9 +368,12 @@
                       <!-- iconClassFor resolves the icon's CSS FAMILY (a card
                            resource is `card-resource-*`, never `resource_icon--*`). -->
                       <i v-if="imp.iconClass !== ''" class="con-cards__impact-icon" :class="imp.iconClass" aria-hidden="true"></i>
-                      <!-- ONE renderer for a reading with params (PL-160) — never `$t(imp.label)`. -->
-                      <span v-else class="con-cards__impact-label">{{ impactText(imp) }}</span>
-                      <span class="con-cards__impact-nums">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</span>
+                      <!-- ONE renderer for a reading with params (PL-160) — never `$t(imp.label)`. A VALUE reading
+                           (PL-075 — what one unit is worth here; TR53's «also draws a card») is WORDS beside its icon:
+                           it has no «before → after», and a bare «[M€] →» stood on the 4K colony stand. -->
+                      <span v-if="imp.iconClass === '' || imp.value === true" class="con-cards__impact-label">{{ impactText(imp) }}</span>
+                      <span v-if="imp.from !== undefined && imp.to !== undefined" class="con-cards__impact-nums">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</span>
+                      <span v-else-if="imp.amount !== undefined && imp.value !== true" class="con-cards__impact-nums">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</span>
                     </span>
                     <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
                       <span aria-hidden="true">✕</span>
@@ -635,7 +644,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {readingText} from '@/client/console/readingText';
+import {readingText, readingLineText} from '@/client/console/readingText';
 import {conversionPromptVm, conversionCommitLabel, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import {setConversionPromptWatch, clearConversionPromptWatch} from '@/client/console/conversionPromptUi';
 import {Warning} from '@/common/cards/Warning';
@@ -687,6 +696,7 @@ import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {resolvingYieldOf, scaledEffectForCardResource} from '@/client/console/parliament/influenceYieldModel';
 import {payoutPickLandsInPlace, pickPayoutLandedOn} from '@/client/console/parliament/consoleResolutionPayout';
+import {armPromptReceive, promptReceiveLandedOn, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {availabilityContextFor} from '@/client/console/cardAvailability';
@@ -874,6 +884,8 @@ export default defineComponent({
       settleFitTimer: undefined as number | undefined,
       /** The draft-tray brain (pick beats / research rise) — module state. */
       draftTrayState,
+      /** A live pick's answer playing as a scene (TR53 iteration) — module state: the seal, the board hand-off, the home. */
+      receive: promptReceiveState,
       /** Single-row card fit (sets --con-cards-zoom so the row always fits →
        *  never scrolls on focus). Observers run it on resize; NEVER per focus.
        *  VueUse stop-handles (auto-managed; no raw addEventListener). */
@@ -2080,6 +2092,11 @@ export default defineComponent({
       if (this.arrivalPending) {
         return [];
       }
+      // A live pick's ANSWER is playing as a scene (TR53 iteration): nothing on this surface accepts a press any more —
+      // the bar is a STATUS («Выполняется…»), never a verb nothing accepts (the composers' own grammar past the press).
+      if (this.receivingPick !== undefined) {
+        return [{control: 'confirm', label: 'Performing…', enabled: false}];
+      }
       // The COMMIT speaks the decision's character (`tonedCommit`): a loss is ACCEPTED in the danger ink, a gain is
       // COLLECTED in the claimable glow — never one «Подтвердить» for both (the Philares → hazard chain).
       const confirm = this.tonedCommit({control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady});
@@ -2252,6 +2269,14 @@ export default defineComponent({
         return this.pcStage === 'pay' ? this.pcLanes.length : this.pcEntries.length;
       default: return 0;
       }
+    },
+    /**
+     * The candidate a LIVE pick's answer is landing on (TR53 iteration): sealed in place while its scene is owed or
+     * playing; every other candidate recedes. Only a candidate of THIS host's strip (a stale name never poses).
+     */
+    receivingPick(): CardName | undefined {
+      const card = this.receive.card;
+      return card !== undefined && this.cardEntries.some((e) => e.card.name === card) ? card : undefined;
     },
     /** The table owns the screen (pick landing / rise) — chrome dissolved. */
     trayTableBeat(): boolean {
@@ -2461,7 +2486,8 @@ export default defineComponent({
     promptSwapLeaveCancelledHook,
     /** A target impact's label — the ONE renderer of a reading with params (PL-160). */
     impactText(imp: PlayedTargetImpact): string {
-      return readingText(imp);
+      // A value reading carries its «where» as a tail («Оплата: 3 M€ · за карты с меткой Венеры») — the whole line.
+      return imp.value === true ? readingLineText(imp) : readingText(imp);
     },
     // Render-ready row for a server-computed target change (resource/M€ stock, or
     // a MarsBot track regression shown as the track's Tag + step count).
@@ -2744,7 +2770,8 @@ export default defineComponent({
      * Every other candidate is the server's model, untouched.
      */
     landedCardOf(card: CardModel): CardModel {
-      const landed = pickPayoutLandedOn(card.name);
+      // A resolution's payout, or a live pick's own answer landing on the card just chosen (TR53 iteration).
+      const landed = pickPayoutLandedOn(card.name) + promptReceiveLandedOn(card.name);
       return landed === 0 ? card : {...card, resources: (card.resources ?? 0) + landed};
     },
     zoomSourceCard(): void {
@@ -3182,6 +3209,17 @@ export default defineComponent({
       // stays where it is, picked, while the chip lands on its capsule; the
       // hero departure below would carry it away before its payout arrives.
       if (payoutPickLandsInPlace(this.wf)) {
+        commit();
+        return;
+      }
+      // THE LIVE «ON WHICH CARD» PICK (`resourceGainPrompt` — an Ares adjacency, a cell's printed bonus, a foreign
+      // trade's colony bonus, a card's gift): its answer is a SCENE, never a draft departure (TR53 iteration — the
+      // owner's photo: the chosen card «tilts and falls off the bottom» and no resource ever flies). The chosen
+      // candidate is SEALED IN PLACE, the others RECEDE, and the transport plays the resource landing on it and the
+      // card going home (`cardReceive/promptReceive.ts`). `runHeroPick` / `con-exit-reject` are for a card that goes
+      // INTO THE HAND (a draft, a buy) — never for a target.
+      if (this.cardModel?.resourceGainPrompt !== undefined) {
+        armPromptReceive(this.wf, name);
         commit();
         return;
       }

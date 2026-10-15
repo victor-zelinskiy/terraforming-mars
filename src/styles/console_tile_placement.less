@@ -539,6 +539,13 @@
         /* The premium face is a px design box; the profile scale rides the zoom by contract. */
         zoom: calc(.46 * var(--con-ui-scale, 1));
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
+        /* THE ART IS NOT RE-FADED IN (the `.con-discard-proxy` precedent): the card is warmed at the press / the scene's
+           arm and, for a live pick's answer, was painting in the plate a moment ago — the face's first-load fade showed
+           an EMPTY art box for the rise out of the plate (the 4K stand, TR53 iteration). */
+        .pcard__art img {
+            opacity: 1;
+            transition: none;
+        }
     }
     /* THE READING — «before → now» under the card, the same number the capsule shows, legible from the couch. */
     &__read {

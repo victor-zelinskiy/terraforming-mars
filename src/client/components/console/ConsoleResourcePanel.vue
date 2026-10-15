@@ -274,6 +274,7 @@
         <div v-for="(c, i) in auxCells" :key="c.key" class="con-res-aux__cell"
              :class="auxCellClasses(c, i)"
              :data-aux-resource="own && !botMode ? c.key : undefined"
+             :data-aux-cards="own && !botMode && c.cards !== undefined ? c.cards.join('|') : undefined"
              :data-exr-type="c.key"
              @click="auxCellPressed(c, i)">
           <span class="con-res-aux__iconwrap">
@@ -421,6 +422,12 @@ type AuxCell = {
    *  explorer navigates by (and, for the OWN human seat, the resource-flight
    *  landing anchor `data-aux-resource`). */
   key: string,
+  /**
+   * The cards whose resources this chip counts (the OWN seat) — `data-aux-cards`, what tells a receiving card WHICH
+   * cell is its home when the resource splits by role (TR53 iteration: Dirigibles' floaters live in the tender cell,
+   * Aerial Mappers' in the plain one).
+   */
+  cards?: ReadonlyArray<string>,
   iconClass: string,
   value: number,
   metricKey: string,
@@ -765,6 +772,7 @@ export default defineComponent({
         const contextTag = g.unitSplit && g.role.kind === 'payment' ? CONTEXT_TAG[g.role.context] : undefined;
         return {
           key: g.key,
+          cards: g.cards.map((c) => c.name),
           iconClass: `card-resource ${cardResourceCSS[g.resource]}`,
           value: g.total,
           metricKey: additionalResourceMetricKey(g.resource),

@@ -281,6 +281,12 @@ export function previewBranchByIndex(
  */
 export function branchOutcomeClaimPlan(
   preview: ActionPreview | undefined, branchIndex: number,
+  /**
+   * The cards the composer's own steps ANSWERED (its `card` responses): a candidate's own tail is the SERVER's
+   * (`resourceGainPrompt.extraByCard` — TR53 Frontier Labs draws a card unless the chosen card's resource is
+   * science), so a draw the CHOICE decides is claimed by the choice — never by a client «is it science».
+   */
+  answered: ReadonlyArray<CardName> = [],
 ): {kinds: Array<'deck-check' | 'draw' | 'pick'>, expectedCards: number} {
   const branch = previewBranchByIndex(preview, branchIndex);
   const kinds: Array<'deck-check' | 'draw' | 'pick'> = [];
@@ -292,6 +298,16 @@ export function branchOutcomeClaimPlan(
       // dealt ONE slot, «Вскрываем карту», and — on an answer slower than the launch — flew one card before the
       // pick laid out five.
       expectedCards += Math.max(1, Math.round(e.look?.revealed ?? e.amount));
+    }
+  }
+  for (const step of branch?.steps ?? []) {
+    const extra = step.kind === 'input' && step.input.type === 'card' ? step.input.resourceGainPrompt?.extraByCard : undefined;
+    for (const card of answered) {
+      for (const e of extra?.[card] ?? []) {
+        if (e.direction === 'gain' && e.icon === 'cards' && e.amount > 0) {
+          expectedCards += Math.round(e.amount);
+        }
+      }
     }
   }
   if (branch?.reveal !== undefined) {

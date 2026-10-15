@@ -68,6 +68,7 @@ import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_POP_MS, TRANSFER_QUICK_
 import {RailAnswerFlight, flyRailReward, flyRailRewardLink, railRewardHoldsAnswer, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {RECEIVE_READ_MS, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 
 export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
 
@@ -85,7 +86,29 @@ export const actionCommitRailState = reactive({
   fallback: '',
   /** Why the last half ended early ('' after a full flight) — diagnostics. */
   lastEnd: '',
+  /** Halves ended since load — EVERY way out (a full flight, «not flown», superseded): what a stage waiting on the half watches. */
+  ended: 0,
 });
+
+/**
+ * THE ARMED PLAN'S LAST LINK LANDS ON A COMPOSER ROW's card (TR53 iteration — a unit onto the card the player CHOSE in
+ * the composer's own step): that row must STAND for the landing, so a stage that would replace the decision column
+ * (a draw the choice decided — the pending reveal zone) waits for the half to end (`ended`). Read at the confirm:
+ * the composer arms the plan before it emits.
+ */
+export function armedRailLandsOnRow(): boolean {
+  const plan = toRaw(actionCommitState.plan);
+  const rail = plan === undefined ? undefined : toRaw(plan.rail);
+  if (plan === undefined || rail === undefined || rail.links.length === 0) {
+    return false;
+  }
+  const last = rail.links[rail.links.length - 1];
+  return last.some((i) => {
+    const spec = rail.reward.cause[i];
+    return spec !== undefined && spec.channel === 'card-resource' && spec.direction !== 'loss' &&
+      spec.targetCard !== undefined && spec.targetCard !== plan.sourceCard;
+  });
+}
 
 /** The armed plan the half was seeded from — a plan is seeded ONCE (a later frame re-seeding would release the rows early). */
 let seededPlan: ActionCommitPlan | undefined;
@@ -109,6 +132,7 @@ function clearOwedFly(): void {
 
 function resetHalf(why: string): void {
   clearOwedFly();
+  actionCommitRailState.ended++;
   actionCommitRailState.card = '';
   actionCommitRailState.phase = 'idle';
   actionCommitRailState.link = -1;
@@ -145,6 +169,9 @@ export function seedActionCommitRail(before: PlayerViewModel | undefined, after:
     endHalf('superseded');
   }
   if (!seedRailReward(rail.key, rail.reward, before, after)) {
+    // The half never began (the views did not bear the promise out): it is OVER all the same — a stage waiting on
+    // the half (`ended`) must not wait for a flight that will never come.
+    actionCommitRailState.ended++;
     return;
   }
   seededRail = rail;
@@ -193,6 +220,28 @@ function composerCardPoint(card: CardName): TransferPoint | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * THE MINIATURE RECEIVES (TR53 iteration — the action composer's half of «ПРИЁМ РЕСУРСА КАРТОЙ», case 2): the card the
+ * player chose in a composer row is PRESENTED while its token flies — lifted a hair and ringed (an ATTRIBUTE, never a
+ * class: the row's reactive `:class` rewrites `className` whole on any re-render) — and SETTLES back after the read.
+ * The rail module's own beat, the director's order; the hero's own capsule needs no lift (it IS the hero).
+ */
+function presentComposerCard(card: CardName, on: boolean): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
+  const el = document.querySelector<HTMLElement>(`.con-cardactions .con-composer [data-composer-card="${esc}"]`);
+  if (el === null) {
+    return;
+  }
+  if (on) {
+    el.setAttribute('data-receiving', '1');
+  } else {
+    el.removeAttribute('data-receiving');
+  }
 }
 
 /** The centre of an element as painted, or undefined for a box with nothing in it. */
@@ -315,11 +364,43 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           // EACH token lands on ITS card (TR44's action: the animal into the hero's capsule, the data onto the Census's
           // miniature — one link, two touchdowns; one destination for all sent the data into the hero's capsule).
           const landingOf = (spec: ResourceTransferSpec): TransferPoint | undefined => points[specs.indexOf(spec)] ?? points[landing];
-          await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing], destinationOf: landingOf, absorb: 'quick'});
-          // The run resolves on the touchdown; the token is ABSORBED into the card over the quick beat — the card it
-          // lands on must still be there for that (folded on the touchdown, the chip hung over the board where its
-          // card had been). One beat of the animation clock, never a timer.
-          await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_QUICK_ABSORB_MS) / 1000, resolve));
+          const land = async (): Promise<void> => {
+            await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing], destinationOf: landingOf, absorb: 'quick'});
+            // The run resolves on the touchdown; the token is ABSORBED into the card over the quick beat — the card it
+            // lands on must still be there for that (folded on the touchdown, the chip hung over the board where its
+            // card had been). One beat of the animation clock, never a timer.
+            await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_QUICK_ABSORB_MS) / 1000, resolve));
+          };
+          // A card the player CHOSE in a composer row receives in the ONE grammar (TR53 iteration, case 2 — the parity
+          // with the «Разыграно» stage): PRESENT (the miniature lifts as the token is born — never a wait before it),
+          // PAY (the link), READ (a short beat over «1 → 2»), RETURN (the miniature settles). The hero's own capsule
+          // keeps the plain link.
+          const rowCard = onSurface.find((spec) => spec.targetCard !== undefined && spec.targetCard !== card)?.targetCard;
+          if (rowCard === undefined) {
+            await land();
+          } else {
+            await runCardReceive({
+              host: 'composer',
+              card: rowCard,
+              readMs: RECEIVE_READ_MS.composer,
+              alive: () => actionCommitRailState.phase === 'flying',
+              present: () => {
+                presentComposerCard(rowCard, true);
+                return Promise.resolve(true);
+              },
+              pay: async () => {
+                await land();
+                return true;
+              },
+              // RETURN: the miniature settles back (its CSS transition) WHILE the flow goes on — the workspace's own
+              // fold (or the draw's door) carries it; the A/B budget of the parity is the READ alone (≤ +0.3 s).
+              ret: () => {
+                presentComposerCard(rowCard, false);
+                return Promise.resolve();
+              },
+              release: () => presentComposerCard(rowCard, false),
+            });
+          }
           foldUnlessAnswering();
           await flyRailReward(rail.key, originOf, answer);
         } else if (specs.every((spec) => spec.direction === 'loss')) {

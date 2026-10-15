@@ -16,10 +16,14 @@
        per token.
 
     `con-flight-to-board`: every piece here lands on the board's own story (the
-    card stands by the field); a workspace over the board covers it.
+    card stands by the field); a workspace over the board covers it. EXCEPT the
+    answer of a live «on which card» pick (`inPrompt` — TR53 iteration): the
+    card the player chose steps OUT OF the plate it was chosen on, so it flies
+    over that plate while the plate dissolves under it — demoted, it rose
+    hidden behind the very glass it was leaving (an empty slot frame on 4K).
   -->
   <div v-if="cityPayoutState.phase !== 'idle' || cityPayoutState.degraded"
-       class="con-citypay con-flight-to-board" aria-hidden="true"
+       class="con-citypay" :class="{'con-flight-to-board': !cityPayoutState.inPrompt}" aria-hidden="true"
        :data-city-payout="cityPayoutState.phase"
        :data-city-payout-mode="cityPayoutState.mode"
        :data-city-payout-seq="cityPayoutState.seq"

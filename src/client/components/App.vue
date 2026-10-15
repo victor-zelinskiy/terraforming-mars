@@ -746,6 +746,7 @@ export default defineComponent({
               // …and its per-neighbour card payouts (TR21 — another seat's cities paying their card).
               cardPayouts: model.game.cardAdjacencyPayouts,
               prevCardPayouts: prevView?.game.cardAdjacencyPayouts,
+              viewerCards: (model as PlayerViewModel).thisPlayer?.tableau,
             });
             // …and a REMOTE nomad hop (another player moved the camp — this
             // poll path is how it arrives; an undo restore lands here too and

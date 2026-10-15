@@ -47,9 +47,11 @@ import {
   playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff, killOceanTweens,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
 import {ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {
   CITY_PAYOUT_BREATH_MS, CITY_PAYOUT_READ_MS, CITY_PAYOUT_RETURN_MS, CITY_PAYOUT_RISE_MS, CITY_PAYOUT_TICK_GAP_MS,
   Rect, SELF_TOKEN_REACH, SELF_WAKE_REACH, cityPayoutPlate, cityPayoutTickAt, cityTokenPlan, directionToward, pointToward,
@@ -79,6 +81,13 @@ export const cityPayoutState = reactive({
   degraded: false,
   /** The record being played (a probe reads which). */
   seq: undefined as number | undefined,
+  /**
+   * The scene plays a live pick's ANSWER (TR53 iteration — the card carried out of the plate): the transport's gate
+   * already holds the commit and the plate stands under the scene, so the scene's hold is NOT a blocking one — a
+   * blocking hold retracts every mandatory surface, and the plate unmounted under its own answer (then flashed back
+   * for a frame before the commit). The director's notification-only `card-receive` hold carries the feed.
+   */
+  inPrompt: false,
 });
 
 /** The scene is ON STAGE (a blocking presentation — prompts and surfaces wait for it). */
@@ -108,7 +117,7 @@ function payOwed(): void {
 /** Bumped by abort — a scene mid-await sees the change and stops. */
 let epoch = 0;
 
-registerAnimationHoldSupplier('city-data-payout', cityPayoutActive, {
+registerAnimationHoldSupplier('city-data-payout', () => cityPayoutActive() && !cityPayoutState.inPrompt, {
   diagnose: () => ({phase: cityPayoutState.phase, mode: cityPayoutState.mode, tokens: cityPayoutState.tokens.length, landed: cityPayoutState.landed}),
   expire: () => abortCityPayoutBeat(),
 });
@@ -188,9 +197,29 @@ export function seatChipPoint(color: Color | undefined, ui: number): TransferPoi
   return {x: window.innerWidth / 2, y: Math.round(72 * ui)};
 }
 
-/** The satellite's cell of a card resource — «your cards with data / animals», the receiving card's home. */
-export function auxCellRect(resource: string): Rect | undefined {
-  return measure(`.con-res-aux__cell[data-aux-resource="${cardResourceKey(resource)}"]`);
+/**
+ * The satellite's cell of a card resource — «your cards with data / animals», the receiving card's home. A resource
+ * whose holders SPLIT by role keys its cells `<resource>:<role>[:…]` (`holderRoles.holderGroupKey` — Dirigibles'
+ * floaters are tender, `floater:payment`); the bare key is tried first, then the first cell of that resource
+ * (TR53 iteration: the home was looked up by the bare key only, so a split resource had NO home — the board scene
+ * degraded and the live pick's card had nowhere to go).
+ */
+export function auxCellRect(resource: string, card?: string): Rect | undefined {
+  const key = cardResourceKey(resource);
+  // THE CARD'S OWN CELL first — the chip that counts it (`data-aux-cards`): a resource split by role has a cell per
+  // role, and a card goes home to the one it lives in, never to its neighbour's.
+  if (card !== undefined && typeof document !== 'undefined') {
+    for (const el of document.querySelectorAll<HTMLElement>(`.con-res-aux__cell[data-aux-resource^="${key}"]`)) {
+      if ((el.dataset.auxCards ?? '').split('|').includes(card)) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 2 && r.height > 2) {
+          return {x: r.left, y: r.top, w: r.width, h: r.height};
+        }
+      }
+    }
+  }
+  return measure(`.con-res-aux__cell[data-aux-resource="${key}"]`) ??
+    measure(`.con-res-aux__cell[data-aux-resource^="${key}:"]`);
 }
 
 function centre(r: Rect): TransferPoint {
@@ -317,6 +346,10 @@ async function payTokens(
     arrival: 'auto',
     pace,
     fromBoard: true,
+    // A live pick's answer plays under the transport's own gate (the commit is held): its tokens hold the FEED only.
+    // A BLOCKING transfer hold retracted the task host mid-scene and mounted it again after the touchdown (a blink of
+    // the plate it had stepped out of — the field-microbe probe, host 1 → 0 → 1).
+    ...(cityPayoutState.inPrompt ? {inSurface: true} : {}),
     ...(destination !== undefined ? {destination} : {}),
     onArrive: () => {
       if (epoch === myEpoch) {
@@ -351,6 +384,18 @@ export type OwnCityPayoutOpts = {
    */
   vpSteps?: ReadonlyArray<number>,
   releaseVp?: (points: number) => void,
+  /**
+   * WHERE THE CARD RISES FROM when the player has just CHOSEN it (the live «on which card» pick the field raised —
+   * TR53 iteration, case 3): the card's box in the standing plate. Absent → its satellite cell (the engine chose).
+   * The card still goes HOME to its satellite cell either way.
+   */
+  riseFrom?: Rect,
+  /** The frame the card stands over its rise origin, at full opacity (the host lets its own copy go under it). */
+  onRise?: () => void,
+  /** The scene's verdict, once (the caller's probe). */
+  onEnd?: (outcome: CardReceiveOutcome) => void,
+  /** It plays a live pick's answer under the transport's gate (see `cityPayoutState.inPrompt`). */
+  inPrompt?: boolean,
 };
 
 /** The reactions of a record as stock specs (what the table paid, the server's measure). */
@@ -370,6 +415,9 @@ export function cityPayoutReactionSpecs(payout: CardAdjacencyPayoutModel): Array
  */
 export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> {
   const myEpoch = ++epoch;
+  // The receiving card's face is LITE (the thumb): decode it now — the breath and the measure come first, and a face
+  // mounted on bytes still on the wire rises with a black art box (a door that knew the card earlier warmed it then).
+  preloadPremiumCardArt([opts.payout.target], ['thumb']);
   const reactions = cityPayoutReactionSpecs(opts.payout);
   let cardReleased = false;
   const releaseCard = () => {
@@ -404,6 +452,14 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
     }
   };
   owed = [releaseAll];
+  let verdict: CardReceiveOutcome | undefined;
+  let told = false;
+  const tell = () => {
+    if (!told) {
+      told = true;
+      opts.onEnd?.(verdict ?? 'aborted');
+    }
+  };
   const end = () => {
     if (epoch === myEpoch) {
       cityPayoutState.phase = 'idle';
@@ -412,11 +468,14 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
       cityPayoutState.tokens = [];
       cityPayoutState.card = undefined;
       cityPayoutState.seq = undefined;
+      cityPayoutState.inPrompt = false;
       payOwed();
     }
+    tell();
   };
   const degrade = () => {
     cityPayoutState.degraded = true;
+    verdict = 'degraded';
     end();
   };
   cityPayoutState.degraded = false;
@@ -428,116 +487,144 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
     return;
   }
   cityPayoutState.mode = 'own';
+  cityPayoutState.inPrompt = opts.inPrompt === true;
   cityPayoutState.phase = 'waiting';
   await waitForTheScales(myEpoch);
   if (epoch !== myEpoch) {
-    return;
-  }
-  cityPayoutState.phase = 'rising';
-  await wait(motionMs(CITY_PAYOUT_BREATH_MS));
-  if (epoch !== myEpoch || !opts.alive()) {
-    end();
-    return;
-  }
-  const home = auxCellRect(opts.payout.resource);
-  const senders = senderRects(opts.payout);
-  if (home === undefined || senders === undefined) {
-    degrade();
+    tell();
     return;
   }
 
-  // 1. RISE — mount the card invisible, measure its box, stand it by the field.
-  cityPayoutState.card = {name: opts.payout.target, model: opts.cardModel, before: opts.payout.before, plate: {x: 0, y: 0, w: 0, h: 0}};
-  await nextTick();
-  const cardEl = stage?.els()?.card;
-  if (epoch !== myEpoch || cardEl === undefined) {
-    degrade();
-    return;
-  }
-  const box = cardEl.getBoundingClientRect();
-  if (box.width < 4 || box.height < 4) {
-    degrade();
-    return;
-  }
-  const board = measure('.con-board') ?? measure('.board-cont') ?? {x: 0, y: 0, w: window.innerWidth, h: window.innerHeight};
-  // The card's place on the field includes its reading under it («2 → 6») — neither may cover the tile or a payer.
-  const read = cardEl.querySelector('[data-city-payout-read]')?.getBoundingClientRect();
-  const height = read !== undefined && read.height > 0 ? Math.max(box.height, read.bottom - box.top) : box.height;
-  const plate = cityPayoutPlate(opts.tileRect, senders, {w: box.width, h: height}, board, Math.round(14 * opts.uiScale));
-  // The tokens are placed once the card's stand is known: a tile that pays its own card sends them out by the edge facing it.
-  const geometry = tokenGeometry(opts.payout, senders, opts.tileRect, opts.uiScale, centre(plate));
-  cityPayoutState.card = {...cityPayoutState.card, plate};
-  await nextTick(); // the plate's own left/top are in the DOM
-  if (epoch !== myEpoch) {
-    end();
-    return;
-  }
-  const fromScale = Math.max(0.12, Math.min(home.w / plate.w, home.h / plate.h));
-  const fromX = centre(home).x - centre(plate).x;
-  const fromY = centre(home).y - centre(plate).y;
-  // The card COMES OUT of its cell: its first painted frame is the cell's own box, at full opacity — the source
-  // is seen before anything moves; only then does it grow toward the field.
-  gsap.set(cardEl, {x: fromX, y: fromY, scale: fromScale, autoAlpha: 1, transformOrigin: '50% 50%'});
-  await tweenTo(cardEl, {x: 0, y: 0, scale: 1, duration: motionMs(CITY_PAYOUT_RISE_MS) / 1000, ease: 'power2.inOut'});
-  if (epoch !== myEpoch || !opts.alive()) {
-    end();
-    return;
-  }
-
-  // 2. PAY — every token born at its own city, landing in the capsule; each touchdown is its own tick.
-  cityPayoutState.phase = 'paying';
-  const tickGap = motionMs(CITY_PAYOUT_TICK_GAP_MS);
-  let lastTick = -Infinity;
-  let ticks: Promise<unknown> = Promise.resolve();
-  const tick = () => {
-    if (epoch === myEpoch) {
-      cityPayoutState.landed = Math.min(opts.payout.amount, cityPayoutState.landed + 1);
-      releaseVpThrough(cityPayoutState.landed);
-    }
-  };
-  const paid = await payTokens(geometry, opts.tileRect, opts.uiScale, opts.pace,
-    () => ({channel: 'card-resource', resource: cardResourceKey(opts.payout.resource), amount: 1, targetCard: opts.payout.target}),
-    undefined,
-    () => {
-      const now = performance.now();
-      lastTick = cityPayoutTickAt(now, lastTick, tickGap);
-      if (lastTick <= now) {
-        tick();
-      } else {
-        ticks = Promise.all([ticks, wait(lastTick - now).then(tick)]);
+  // THE ONE GRAMMAR (`cardReceive/cardReceiveDirector.ts`): RISE (present) · PAY · READ · RETURN — the director owns
+  // the order and the read beat; the moves below are the board host's own (unchanged frames — A/B).
+  let cardEl: HTMLElement | undefined;
+  let fromX = 0;
+  let fromY = 0;
+  let fromScale = 1;
+  let geometry: {wakes: Array<CityWake>, tokens: Array<CityTokenProxy>} | undefined;
+  const live = () => epoch === myEpoch && opts.alive();
+  verdict = await runCardReceive({
+    host: 'board',
+    card: opts.payout.target,
+    readMs: CITY_PAYOUT_READ_MS,
+    alive: live,
+    // 1. RISE — mount the card invisible, measure its box, stand it by the field.
+    present: async () => {
+      cityPayoutState.phase = 'rising';
+      await wait(motionMs(CITY_PAYOUT_BREATH_MS));
+      if (!live()) {
+        return false;
       }
+      const home = auxCellRect(opts.payout.resource, opts.payout.target);
+      const senders = senderRects(opts.payout);
+      if (home === undefined || senders === undefined) {
+        return false;
+      }
+      cityPayoutState.card = {name: opts.payout.target, model: opts.cardModel, before: opts.payout.before, plate: {x: 0, y: 0, w: 0, h: 0}};
+      await nextTick();
+      cardEl = stage?.els()?.card;
+      if (epoch !== myEpoch || cardEl === undefined) {
+        return false;
+      }
+      const box = cardEl.getBoundingClientRect();
+      if (box.width < 4 || box.height < 4) {
+        return false;
+      }
+      const board = measure('.con-board') ?? measure('.board-cont') ?? {x: 0, y: 0, w: window.innerWidth, h: window.innerHeight};
+      // The card's place on the field includes its reading under it («2 → 6») — neither may cover the tile or a payer.
+      const read = cardEl.querySelector('[data-city-payout-read]')?.getBoundingClientRect();
+      const height = read !== undefined && read.height > 0 ? Math.max(box.height, read.bottom - box.top) : box.height;
+      const plate = cityPayoutPlate(opts.tileRect, senders, {w: box.width, h: height}, board, Math.round(14 * opts.uiScale));
+      // The tokens are placed once the card's stand is known: a tile that pays its own card sends them out by the edge facing it.
+      geometry = tokenGeometry(opts.payout, senders, opts.tileRect, opts.uiScale, centre(plate));
+      cityPayoutState.card = {...cityPayoutState.card, plate};
+      await nextTick(); // the plate's own left/top are in the DOM
+      if (epoch !== myEpoch) {
+        return false;
+      }
+      fromScale = Math.max(0.12, Math.min(home.w / plate.w, home.h / plate.h));
+      fromX = centre(home).x - centre(plate).x;
+      fromY = centre(home).y - centre(plate).y;
+      // WHERE IT COMES FROM: its satellite cell (the engine chose), or — the player CHOSE it on a plate — that card's
+      // own box in the plate: the card the player picked is the card that travels, never a copy out of nowhere.
+      const origin = opts.riseFrom;
+      const riseScale = origin === undefined ? fromScale : Math.max(0.12, origin.w / plate.w);
+      const riseX = origin === undefined ? fromX : origin.x + origin.w / 2 - centre(plate).x;
+      const riseY = origin === undefined ? fromY : origin.y + origin.h / 2 - centre(plate).y;
+      // The card COMES OUT of its place: its first painted frame is the origin's own box, at full opacity — the
+      // source is seen before anything moves; only then does it grow (or settle) toward the field.
+      gsap.set(cardEl, {x: riseX, y: riseY, scale: riseScale, autoAlpha: 1, transformOrigin: '50% 50%'});
+      opts.onRise?.();
+      await tweenTo(cardEl, {x: 0, y: 0, scale: 1, duration: motionMs(CITY_PAYOUT_RISE_MS) / 1000, ease: 'power2.inOut'});
+      return live();
     },
-    myEpoch);
-  await ticks;
-  if (!paid) {
-    if (epoch === myEpoch) {
-      degrade();
-    }
+    // 2. PAY — every token born at its own city, landing in the capsule; each touchdown is its own tick.
+    pay: async () => {
+      if (geometry === undefined) {
+        return false;
+      }
+      cityPayoutState.phase = 'paying';
+      const tickGap = motionMs(CITY_PAYOUT_TICK_GAP_MS);
+      let lastTick = -Infinity;
+      let ticks: Promise<unknown> = Promise.resolve();
+      const tick = () => {
+        if (epoch === myEpoch) {
+          cityPayoutState.landed = Math.min(opts.payout.amount, cityPayoutState.landed + 1);
+          releaseVpThrough(cityPayoutState.landed);
+        }
+      };
+      const paid = await payTokens(geometry, opts.tileRect, opts.uiScale, opts.pace,
+        () => ({channel: 'card-resource', resource: cardResourceKey(opts.payout.resource), amount: 1, targetCard: opts.payout.target}),
+        undefined,
+        () => {
+          const now = performance.now();
+          lastTick = cityPayoutTickAt(now, lastTick, tickGap);
+          if (lastTick <= now) {
+            tick();
+          } else {
+            ticks = Promise.all([ticks, wait(lastTick - now).then(tick)]);
+          }
+        },
+        myEpoch);
+      await ticks;
+      if (!paid) {
+        return false;
+      }
+      cityPayoutState.landed = opts.payout.amount;
+      releaseVpThrough(opts.payout.amount);
+      // 3. READ — «before → after» stands (the director's beat).
+      cityPayoutState.phase = 'reading';
+      return true;
+    },
+    // 4. RETURN — the card goes home, and the satellite's counter ticks on its landing.
+    ret: async () => {
+      if (cardEl === undefined) {
+        return;
+      }
+      cityPayoutState.phase = 'returning';
+      // …and it goes back INTO it: it lands on the cell's box, and only there leaves the screen.
+      await tweenTo(cardEl, {x: fromX, y: fromY, scale: fromScale, duration: motionMs(CITY_PAYOUT_RETURN_MS) / 1000, ease: 'power2.in'});
+      gsap.set(cardEl, {autoAlpha: 0});
+      releaseCard();
+    },
+  });
+  if (epoch !== myEpoch) {
+    tell();
     return;
   }
-  cityPayoutState.landed = opts.payout.amount;
-  releaseVpThrough(opts.payout.amount);
-
-  // 3. READ — «before → after» stands.
-  cityPayoutState.phase = 'reading';
-  await wait(motionMs(CITY_PAYOUT_READ_MS));
-  if (epoch !== myEpoch) {
+  if (verdict === 'reduced') {
+    end(); // reduced motion: nothing flew by design — every hold released, the numbers tick (never a degrade)
     return;
   }
-
-  // 4. RETURN — the card goes home, and the satellite's counter ticks on its landing.
-  cityPayoutState.phase = 'returning';
-  // …and it goes back INTO it: it lands on the cell's box, and only there leaves the screen.
-  await tweenTo(cardEl, {x: fromX, y: fromY, scale: fromScale, duration: motionMs(CITY_PAYOUT_RETURN_MS) / 1000, ease: 'power2.in'});
-  gsap.set(cardEl, {autoAlpha: 0});
-  releaseCard();
-  if (epoch !== myEpoch) {
+  if (verdict !== 'done') {
+    degrade();
     return;
   }
   cityPayoutState.card = undefined;
 
   // 5. What the TABLE answered — from the cell the card went home to, to the rail.
-  if (reactions.length > 0) {
+  const home = auxCellRect(opts.payout.resource, opts.payout.target);
+  if (reactions.length > 0 && home !== undefined) {
     cityPayoutState.phase = 'answering';
     await runResourceTransfers({
       specs: reactions,
@@ -599,7 +686,7 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
   await wait(motionMs(CITY_PAYOUT_BREATH_MS));
   const senders = epoch === myEpoch ? senderRects(opts.payout) : undefined;
   // Where the units are going: the seat's chip, or — the viewer's own payout — their satellite cell.
-  const home = opts.destination === undefined ? auxCellRect(opts.payout.resource) : undefined;
+  const home = opts.destination === undefined ? auxCellRect(opts.payout.resource, opts.payout.target) : undefined;
   const toward = opts.destination ?? (home !== undefined ? centre(home) : undefined);
   const geometry = senders !== undefined ? tokenGeometry(opts.payout, senders, opts.tileRect, opts.uiScale, toward) : undefined;
   if (geometry === undefined) {
@@ -661,5 +748,6 @@ export function abortCityPayoutBeat(): void {
   cityPayoutState.tokens = [];
   cityPayoutState.card = undefined;
   cityPayoutState.seq = undefined;
+  cityPayoutState.inPrompt = false;
   payOwed();
 }

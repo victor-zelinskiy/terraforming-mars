@@ -436,8 +436,15 @@ function stepCardResource(step: ActionPreviewStep, picked: CardName): string | u
   if (step.cardResource !== undefined) {
     return step.cardResource;
   }
-  const input = step.input as {cards?: ReadonlyArray<{name: CardName, resourceType?: string}>};
-  return input.cards?.find((c) => c.name === picked)?.resourceType;
+  // THE SERVER'S PER-CANDIDATE KIND (`resourceGainPrompt.cardResourceByCard` — an «any resource» step, TR53 Frontier
+  // Labs: the unit is the CHOSEN card's own kind). A card model carries no `resourceType`, so without the marker the
+  // pick's unit flew nowhere: the action's commit carried the price alone (the TR53 e2e witness).
+  const input = step.input as {
+    cards?: ReadonlyArray<{name: CardName, resourceType?: string}>,
+    resourceGainPrompt?: {cardResource?: string, cardResourceByCard?: Partial<Record<CardName, string>>},
+  };
+  return input.resourceGainPrompt?.cardResourceByCard?.[picked] ?? input.resourceGainPrompt?.cardResource ??
+    input.cards?.find((c) => c.name === picked)?.resourceType;
 }
 
 /**

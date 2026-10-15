@@ -82,9 +82,10 @@ import {
 } from '@/client/console/tilePlacement/aresAdjacencyFlights';
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel';
+import {CardModel} from '@/common/models/CardModel';
 import {claimCityPayout, cityPayoutVpSteps, cityPayoutsFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
-import {cityPayoutReactionSpecs, runCityPayoutSequence, runRemoteCityPayoutBeat, seatChipPoint} from '@/client/console/tilePlacement/cityDataPayoutBeat';
+import {cityPayoutReactionSpecs, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat, seatChipPoint} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {ResourceTransferSpec, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
@@ -187,7 +188,7 @@ type RemoteMove = VerifiedMove & {
   seq: number,
 };
 
-type RemoteEvent = FreshPlacement & {
+export type RemoteEvent = FreshPlacement & {
   /**
    * Every CARD this placement paid («ТАЙЛ ПЛАТИТ КАРТЕ», `cards/tilePayout.ts` —
    * TR21 Arboretum's cities, TR30 Red Museum / Pets / Martian Census answering
@@ -197,7 +198,7 @@ type RemoteEvent = FreshPlacement & {
    * a parked pin landing here), into their satellite cell, the holds seeded at
    * staging.
    */
-  cityPayouts?: Array<{payout: CardAdjacencyPayoutModel, own: boolean}>,
+  cityPayouts?: Array<{payout: CardAdjacencyPayoutModel, own: boolean, cardModel?: CardModel}>,
   /**
    * The tile on `spaceId` did not come from the supply: it TRAVELLED from
    * `move.from` (TR14 Re-settlement). ONE event, ONE proxy — `moveRemote`.
@@ -288,6 +289,12 @@ export type RemoteStageOpts = {
   cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
   /** The PREVIOUS view's ring — a record of THIS placement is one it did not carry. */
   prevCardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
+  /**
+   * The VIEWER's own tableau (their card's face): a payout onto the VIEWER's card that somebody else's placement
+   * caused (Pets on a rival's city — TR53 iteration, case 4) rises THAT card by the field, the own scene, never a
+   * token into the satellite.
+   */
+  viewerCards?: ReadonlyArray<CardModel>,
 };
 
 export function stageRemotePlacements(
@@ -469,10 +476,14 @@ function cityPayoutHoldSpecs(payout: CardAdjacencyPayoutModel): Array<ResourceTr
  * pin). The viewer's own holds are seeded here, in the commit's synchronous
  * block (the phantom-chip contract).
  */
-function claimCityPayoutsOf(spaceId: string, opts: RemoteStageOpts | undefined): RemoteEvent['cityPayouts'] {
+export function claimCityPayoutsOf(spaceId: string, opts: RemoteStageOpts | undefined): RemoteEvent['cityPayouts'] {
   const out = cityPayoutsFor(opts?.cardPayouts, spaceId, undefined, opts?.prevCardPayouts)
     .filter((payout) => claimCityPayout(payout.seq))
-    .map((payout) => ({payout, own: payout.color === opts?.viewerColor}));
+    .map((payout) => {
+      const own = payout.color === opts?.viewerColor;
+      const cardModel = own ? opts?.viewerCards?.find((c) => c.name === payout.target) : undefined;
+      return {payout, own, ...(cardModel !== undefined ? {cardModel} : {})};
+    });
   for (const item of out) {
     if (item.own) {
       beginPanelRewardHold(cityPayoutHoldSpecs(item.payout));
@@ -488,7 +499,7 @@ function cityPayoutVp(payout: CardAdjacencyPayoutModel): number {
 }
 
 /** Release the viewer's own holds of ONE card payout of the event, once (the hold map is additive). */
-function releaseCityPayoutHold(item: {payout: CardAdjacencyPayoutModel, own: boolean}): void {
+function releaseCityPayoutHold(item: {payout: CardAdjacencyPayoutModel, own: boolean, cardModel?: CardModel}): void {
   if (item.own) {
     cityPayoutHoldSpecs(item.payout).forEach((spec) => releasePanelRewardHold(spec));
     releasePanelVpHold(cityPayoutVp(item.payout));
@@ -927,7 +938,10 @@ function playCityPayouts(ev: RemoteEvent, hex: TileRect, ui: number, myEpoch: nu
     return;
   }
   void runCityPayoutSequence(ev.cityPayouts.map((item) => ({
-    play: () => runRemoteCityPayoutBeat({
+    // THE VIEWER'S OWN CARD answers a placement somebody else made (Pets on a rival's city — TR53 iteration, case 4):
+    // the card RISES by the field and receives, exactly as for the viewer's own placement — never a token into the
+    // satellite. Another seat's card is not on this screen: its units fly to that seat's chip.
+    play: () => item.own && item.cardModel !== undefined ? runOwnPayoutOnRemoteStage(item, hex, ui) : runRemoteCityPayoutBeat({
       payout: item.payout,
       tileRect: hex,
       uiScale: ui,
@@ -936,6 +950,48 @@ function playCityPayouts(ev: RemoteEvent, hex: TileRect, ui: number, myEpoch: nu
     }),
     release: () => releaseCityPayoutHold(item),
   })));
+}
+
+/**
+ * The OWN scene of a payout onto the viewer's card on the remote stage: the holds seeded at staging (the satellite
+ * cell, the table's answer, the points) are released by the scene, each at its own touchdown / landing.
+ */
+function runOwnPayoutOnRemoteStage(item: {payout: CardAdjacencyPayoutModel, own: boolean, cardModel?: CardModel}, hex: TileRect, ui: number): Promise<void> {
+  // The scene owns every hold of this record from here on — the event-wide release (an abort mid-stage) skips it.
+  item.own = false;
+  const holds = cityPayoutHoldSpecs(item.payout);
+  const card = holds[0];
+  const reactions = holds.slice(1);
+  let points = cityPayoutVp(item.payout);
+  return runCityPayoutBeat({
+    payout: item.payout,
+    tileRect: hex,
+    cardModel: item.cardModel,
+    uiScale: ui,
+    pace: 1,
+    alive: () => true,
+    releaseCard: () => releasePanelRewardHold(card),
+    releaseReaction: (spec) => {
+      const held = reactions.find((r) => r.channel === spec.channel && r.resource === spec.resource);
+      if (held !== undefined) {
+        reactions.splice(reactions.indexOf(held), 1);
+        releasePanelRewardHold(held);
+      }
+    },
+    vpSteps: cityPayoutVpSteps(item.payout.before, item.payout.amount, (count) => accumulatedVp(item.payout.target, count)),
+    releaseVp: (released) => {
+      points -= released;
+      releasePanelVpHold(released);
+    },
+    onEnd: () => {
+      // Whatever the scene did not release (a degrade, an abort) lets go here — the hold map is additive.
+      reactions.splice(0).forEach((spec) => releasePanelRewardHold(spec));
+      if (points !== 0) {
+        releasePanelVpHold(points);
+        points = 0;
+      }
+    },
+  });
 }
 
 /**

@@ -212,6 +212,14 @@
                     <b v-if="tagOf(cand)?.text !== ''" class="con-ptsel__tag-num">{{ tagOf(cand)?.text }}</b>
                     <TagGlyph v-for="pt in tagPayGlyphs(cand)" :key="pt" class="con-ptsel__tag-pay" :tag="pt" size="big" type="secondary" />
                     <span v-if="tagOf(cand)?.reached === true" class="con-ptsel__tag-check" aria-hidden="true">✓</span>
+                    <!-- WHAT ELSE this candidate gives (TR53 — the server's `extraByCard`): «· [card] +1», or the glyph
+                         struck when the server names a zero (science draws nothing). -->
+                    <span v-for="(x, k) in tagOf(cand)?.extra ?? []" :key="'x' + k" class="con-ptsel__tag-extra"
+                          :class="{'con-ptsel__tag-extra--none': x.none === true}" :data-ptsel-extra="x.none === true ? 'none' : x.icon">
+                      <span class="con-ptsel__tag-sep" aria-hidden="true">·</span>
+                      <i class="con-ptsel__tag-icon" :class="iconClass(x.icon)" aria-hidden="true"></i>
+                      <b v-if="x.text !== ''" class="con-ptsel__tag-num">{{ x.text }}</b>
+                    </span>
                   </template>
                 </div>
               </div>
