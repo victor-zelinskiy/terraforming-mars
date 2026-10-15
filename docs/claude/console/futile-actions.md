@@ -44,6 +44,17 @@ preview's exit pass, available branches only), `OptionMetadata.futile` (the heat
 Kelvinists option), `StandardProjectPreviewModel.futile` (only a target-less project whose every `tr` key is a maxed
 parameter — a greenery still places a tile), `PotentialActionsModel.futileCardActions` (counted apart, still counted).
 
+### 1.1 A threshold not reached is NOT futile (the owner's check, 2026-10-15)
+
+A resource that lands SHORT of the card's next point (Ants 0 → 1 microbe at 1 VP per 2, Tardigrades 1 → 2 at 1 VP per
+4) is a valid action: the resource is on the card. The server never claims it (`addResources` > 0 yields; the bespoke
+movers have no hook; only Search For Life's single capped 3 VP is `vp-capped`). Its VP chip is a NEUTRAL fact, never
+«no effect» and never a warning: `victoryPointsReading` (`server/cards/actionPreviews.ts`) adds the note
+«пока без изменений · до следующего ещё N» (`resourcesToNextVictoryPoint` — the same `resourceVictoryPoints` reading),
+`ActionEffectChip` paints it `--steady` (steel), and «already at maximum» is said only of a parameter
+(`actionEffectReading.ts`: `victoryPointsSteady` · `gainAtParameterLimit` · `gainHasNoEffect`). The chip's VP badge rides
+the chip's font-size (em) in every chip-token root — it was a 10 px speck on the 4K couch.
+
 ## 2. The surfaces
 
 | Surface | What it does | Where |
@@ -71,8 +82,11 @@ the first render).
 - `tests/console/passWarnings.spec.ts`, `tests/console/consoleCardActionsFutile.spec.ts` (the band, the per-variant
   verdict, blocked never futile, the repeat pick, the grid filler, `countTone`, `variantQuiet`),
   `consoleQuickModel.spec` / `potentialAvailability.spec` / `turnIntents.spec`.
-- e2e `console-futile-actions.spec.ts` (fhd + tv4k; fixtures `futile-only` / `futile-mixed`): the white badges, the
-  quiet heat tile, ONE quiet pass line and no list, the band under the blocked card, the cursor on a useful tile, the
-  composer's verdict, the quiet std-project rows — nothing sent.
+- e2e `console-futile-actions.spec.ts` (fhd + tv4k; fixtures `futile-only` / `futile-mixed` / `vp-threshold`): the
+  white badges, the quiet heat tile, ONE quiet pass line and no list, the band under the blocked card, the cursor on a
+  useful tile, the composer's verdict, the quiet std-project rows, and (C) Ants short of its next point — useful, a
+  neutral VP chip, no «no effect», no amber warning — nothing sent.
+- `actionEffectReading.spec` (the two readings of «N → N»), `ActionEffectChipVp.spec` (the neutral register, the
+  server note over the fallback, a maxed parameter still muted).
 
 Ledger: section AQ (PL-400…).

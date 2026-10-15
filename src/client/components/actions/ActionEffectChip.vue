@@ -10,6 +10,7 @@
         :class="['action-effect-chip--' + effect.direction, {
           'action-effect-chip--insufficient': shortfall,
           'action-effect-chip--noeffect': noEffect,
+          'action-effect-chip--steady': vpSteady,
           'action-effect-chip--skipped': skipped,
           'action-effect-chip--danger': danger && !shortfall,
           'action-effect-chip--bare': iconClass === '' && !isVictoryPoints,
@@ -61,6 +62,9 @@
          Agenda chip — why the walk is this long); a plain note is vocabulary («на эту карту»). -->
     <span v-if="effect.note" class="action-effect-chip__note" :class="{'action-effect-chip__note--sentence': effect.noteParams !== undefined}" v-i18n="effect.noteParams">{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
+    <!-- A VP reading short of the next threshold: the resource still lands — a neutral fact, never «no effect». The
+         server's note says how many more buy the point; a reading without one still names itself. -->
+    <span v-else-if="vpSteady && !effect.note" class="action-effect-chip__note action-effect-chip__note--sentence" data-chip-vp-steady v-i18n>VP unchanged</span>
 
     <!-- A FILTERED DRAW's RULE (PL-021) — «+3 взять | без меток [P̸][M̸][A̸]»: the
          server's search descriptor, behind its own hairline like the basis.
@@ -100,6 +104,7 @@
 import {defineComponent, PropType} from 'vue';
 import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {gainHasNoEffect, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 
 export default defineComponent({
@@ -166,15 +171,14 @@ export default defineComponent({
     // maxed global parameter) or because the amount itself counted to zero (a
     // "per X" reward on a board with no X). Shown muted with a "no effect" note.
     // The POOL-LESS form ("+N to a card", "draw N") has no `current` to compare,
-    // so a zero amount is the only signal it has.
+    // so a zero amount is the only signal it has. A VP reading is never «no
+    // effect» (`actionEffectReading.ts`): the resource still lands.
     noEffect(): boolean {
-      if (this.effect.direction !== 'gain' || this.moves !== undefined) {
-        return false;
-      }
-      if (this.effect.current === undefined || this.effect.resulting === undefined) {
-        return this.effect.amount === 0;
-      }
-      return this.effect.current === this.effect.resulting;
+      return this.moves === undefined && gainHasNoEffect(this.effect);
+    },
+    // A VP reading short of the next threshold — the neutral register.
+    vpSteady(): boolean {
+      return this.moves === undefined && victoryPointsSteady(this.effect);
     },
     unit(): string {
       return this.effect.unit ?? '';
@@ -244,6 +248,13 @@ export default defineComponent({
     --chip-rim: rgba(110, 235, 180, 0.24);
     --chip-bg: rgba(20, 54, 44, 0.3);
     --chip-accent: #9fdcc0;
+  }
+  // A VP reading that waits for the next threshold (VP 2 → 2): NEUTRAL steel — neither the mint of a gain (nothing
+  // is scored yet) nor the muted «no effect» (the resource still lands). Its note says how many more buy the point.
+  &--steady {
+    --chip-rim: rgba(190, 210, 230, 0.36);
+    --chip-bg: rgba(26, 36, 48, 0.55);
+    --chip-accent: #dfe7f0;
   }
   // No-op gain (capped at max) — muted, so it reads as "this won't do anything".
   &--noeffect {

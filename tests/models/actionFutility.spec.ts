@@ -35,6 +35,9 @@ import {SymbioticFungus} from '../../src/server/cards/base/SymbioticFungus';
 import {AsteroidStandardProject} from '../../src/server/cards/base/standardProjects/AsteroidStandardProject';
 import {AquiferStandardProject} from '../../src/server/cards/base/standardProjects/AquiferStandardProject';
 import {CrediCor} from '../../src/server/cards/corporation/CrediCor';
+import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
+import {Ants} from '../../src/server/cards/base/Ants';
+import {VP_NOT_YET_NOTE} from '../../src/server/cards/actionPreviews';
 
 /**
  * THE «NO EFFECT» VERDICT (the owner's iteration of 2026-10-15) — PROVEN or nothing: an action the rules allow is
@@ -180,6 +183,28 @@ describe('actionFutility — the «no effect» verdict', () => {
       seat(player, new MeatIndustry());
       expect(actionFutility(player, card), 'a reactor answers the addition').to.be.undefined;
     });
+
+    // The owner's case (2026-10-15): a resource that lands SHORT of the card's next point is still a resource on the
+    // card — never «no effect». The VP chip states the score in a NEUTRAL note: how many more buy the next point.
+    it('a resource short of the next point is NEVER futile; the VP chip says how many more in a neutral note', () => {
+      // Tardigrades — 1 VP per 4 microbes, a declarative «+1 microbe here»: 1 → 2 moves no point.
+      const tardigrades = new Tardigrades();
+      seat(player, tardigrades, 1);
+      expect(actionFutility(player, tardigrades), 'Tardigrades 1 → 2').to.be.undefined;
+      // Ants — 1 VP per 2 microbes, a bespoke «take a microbe from any card»: 0 → 1 moves no point.
+      const ants = new Ants();
+      seat(player, ants);
+      expect(ants.canAct(player), 'a donor stands (the Tardigrades)').to.be.true;
+      expect(actionFutility(player, ants), 'Ants 0 → 1').to.be.undefined;
+      const steady = actionPreview(player, ants).branches[0].effects.find((e) => e.icon === 'vp');
+      expect(steady).to.deep.include({current: 0, resulting: 0, note: VP_NOT_YET_NOTE});
+      expect(steady?.noteParams, 'one more microbe buys the point').to.deep.eq(['1']);
+      // A reading that DOES move speaks for itself — no note.
+      ants.resourceCount = 1;
+      const moving = actionPreview(player, ants).branches[0].effects.find((e) => e.icon === 'vp');
+      expect(moving).to.deep.include({current: 0, resulting: 1});
+      expect(moving?.note).to.be.undefined;
+    });
   });
 
   describe('the standard actions and projects', () => {
@@ -217,7 +242,12 @@ describe('actionFutility — the «no effect» verdict', () => {
     expect(potential.futileCardActions).to.eq(1);
   });
 
-  describe('the corpus — every in-scope action card, a rich seat, two tables', () => {
+  describe('the corpus — every in-scope action card, a rich seat, two tables', function() {
+    // Two fresh tables per in-scope action card: seconds, and it grows with every card shipped. Set HERE, before the
+    // `before` hook exists — mocha copies a suite's timeout into a hook when the hook is created, so a `.timeout()`
+    // chained on the finished suite never reached it.
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(60_000);
     function forEachActionCard(fn: (name: CardName, make: () => ICard & IActionCard) => void): void {
       for (const manifest of ALL_MODULE_MANIFESTS) {
         if (!SCOPE.has(manifest.module)) {
@@ -323,7 +353,7 @@ describe('actionFutility — the «no effect» verdict', () => {
       const offenders = [...readings.entries()].filter(([, r]) => r.low.kinds.includes('parameter-maxed')).map(([n]) => n);
       expect(offenders).to.deep.eq([]);
     });
-  }).timeout(60_000); // two fresh tables per in-scope action card — seconds, and it grows with every card shipped
+  });
 
   it('every award / milestone that reads a resource AMOUNT declares it (`cardResourceCount`)', () => {
     const offenders: Array<string> = [];

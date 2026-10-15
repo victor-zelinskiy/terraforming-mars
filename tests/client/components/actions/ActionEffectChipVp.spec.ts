@@ -27,16 +27,33 @@ describe('ActionEffectChip — the VP reading', () => {
   });
 
   /**
-   * THE COLLISION THIS EXISTS FOR. A capped gain renders `noEffect`, which
-   * REPLACES the chip's note with «нет эффекта». Had the VP identity ridden the
-   * note — the obvious first implementation — a card scoring 1 VP per TWO
-   * microbes at an even count would render as a bare «1 → 1 · нет эффекта» with
-   * no word about WHAT did not change, on the very screen built to explain it.
+   * A READING SHORT OF THE NEXT POINT IS NOT «NO EFFECT» (the owner's decision of 2026-10-15). A card scoring 1 VP
+   * per TWO microbes at an even count reads «1 → 1» — and the microbe still lands on the card. It used to take the
+   * muted no-op paint («нет эффекта»), which read as a wasted action; it is the NEUTRAL register now, the badge names
+   * WHAT did not move, and the server's note says how many more buy the point.
    */
-  it('keeps the badge when the gain pays nothing this time', () => {
+  it('a reading short of the next point is NEUTRAL — never the muted «no effect»', () => {
     const w = chip({direction: 'gain', icon: 'vp', amount: 0, current: 1, resulting: 1});
-    expect(w.find('.action-effect-chip--noeffect').exists(), 'the muted no-op treatment still applies').to.eq(true);
-    expect(w.find('.action-effect-chip__vp').exists(), 'and the reading still names itself').to.eq(true);
+    expect(w.find('.action-effect-chip--noeffect').exists(), 'no «no effect» paint').to.eq(false);
+    expect(w.find('.action-effect-chip--steady').exists(), 'the neutral register').to.eq(true);
+    expect(w.find('.action-effect-chip__vp').exists(), 'the reading still names itself').to.eq(true);
+    expect(w.find('[data-chip-vp-steady]').exists(), 'with no server note it still says «VP unchanged»').to.eq(true);
+    w.unmount();
+  });
+
+  it('the server note (how many more buy the point) replaces the bare fallback', () => {
+    const w = chip({direction: 'gain', icon: 'vp', amount: 0, current: 0, resulting: 0,
+      note: 'No new VP yet · ${0} more for the next', noteParams: ['1']});
+    expect(w.find('.action-effect-chip--steady').exists()).to.eq(true);
+    expect(w.find('[data-chip-vp-steady]').exists(), 'one note, never two').to.eq(false);
+    expect(w.find('.action-effect-chip__note--sentence').exists(), 'the note is a sentence').to.eq(true);
+    w.unmount();
+  });
+
+  it('a parameter at its limit keeps the muted «no effect»', () => {
+    const w = chip({direction: 'gain', icon: 'oxygen', amount: 1, current: 14, resulting: 14, unit: '%'});
+    expect(w.find('.action-effect-chip--noeffect').exists()).to.eq(true);
+    expect(w.find('.action-effect-chip--steady').exists()).to.eq(false);
     w.unmount();
   });
 

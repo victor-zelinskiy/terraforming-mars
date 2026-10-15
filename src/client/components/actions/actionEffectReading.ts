@@ -1,0 +1,45 @@
+/**
+ * @console-shared LIVE — how ONE action chip's `current → resulting` reads when the number does not move.
+ *
+ * Two different facts look alike as «N → N», and only one of them is a loss:
+ *  - a GLOBAL PARAMETER at its limit (14 % → 14 %) — the step is wasted: the chip reads «no effect» and the composer may
+ *    say «the value is already at maximum»;
+ *  - a VICTORY-POINT reading that does not reach the next threshold (VP 2 → 2) — the resource still lands on the card,
+ *    only the score waits for more: a NEUTRAL fact («VP unchanged yet»), never «no effect» and never a warning (the
+ *    owner's decision of 2026-10-15).
+ * Pure; spec'd in `tests/console/actionEffectReading.spec.ts`.
+ */
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
+
+/** The icons of a parameter that HAS a maximum — the only pools «already at maximum» can be said of. */
+const LIMITED_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'oxygen', 'venus', 'oceans', 'ocean']);
+
+/** A gain whose pool does not move. */
+function steady(effect: ActionEffect): boolean {
+  return effect.direction === 'gain' && effect.current !== undefined && effect.resulting !== undefined &&
+    effect.current === effect.resulting;
+}
+
+/** A VP reading that does not move — neutral: the resource still lands, the next point needs more. */
+export function victoryPointsSteady(effect: ActionEffect): boolean {
+  return effect.icon === 'vp' && steady(effect);
+}
+
+/** A gain wasted on a parameter at its limit — the one «already at maximum» the composer may warn about. */
+export function gainAtParameterLimit(effect: ActionEffect): boolean {
+  return LIMITED_PARAMETER_ICONS.has(effect.icon) && steady(effect);
+}
+
+/**
+ * The chip's «no effect» paint: a gain that changes nothing — a capped pool, or a pool-less amount that counted to
+ * zero. A VP reading is never «no effect» (see the module note).
+ */
+export function gainHasNoEffect(effect: ActionEffect): boolean {
+  if (effect.direction !== 'gain' || effect.icon === 'vp') {
+    return false;
+  }
+  if (effect.current === undefined || effect.resulting === undefined) {
+    return effect.amount === 0;
+  }
+  return effect.current === effect.resulting;
+}

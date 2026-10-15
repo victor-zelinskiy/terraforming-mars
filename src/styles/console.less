@@ -393,6 +393,15 @@ body.con-zoom-open .con-journal {
         width: var(--con-chip-icon, 1.3rem);
         height: var(--con-chip-icon, 1.3rem);
     }
+    /* The VP badge (VP has no sprite — it is TYPE) rides the chip's own font-size, so every host that scales its chips
+       scales it too: authored in px it stayed a 10 px speck beside 1.3 rem icons on the 4K couch. ≈ the icon box. */
+    .action-effect-chip__vp.action-effect-chip__vp {
+        font-size: .66em;
+        min-width: 2.3em;
+        height: 2.3em;
+        padding: 0 .35em;
+        border-radius: .45em;
+    }
     .action-effect-chip__note.action-effect-chip__note,
     .action-effect-chip__basis.action-effect-chip__basis,
     .action-effect-chip__search.action-effect-chip__search {

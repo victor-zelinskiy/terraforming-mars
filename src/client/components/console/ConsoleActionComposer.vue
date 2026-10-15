@@ -876,6 +876,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {ActionFutilityVerdict} from '@/common/models/ActionFutilityModel';
+import {gainAtParameterLimit} from '@/client/components/actions/actionEffectReading';
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
 import {playCommitVerb, playDoorNextStepKey, playDoorOf, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
 import {useResizeObserver} from '@vueuse/core';
@@ -2201,8 +2202,9 @@ export default defineComponent({
     warnings(): Array<string> {
       // A gain that lands at its cap is the client's reading of ONE chip; the server's verdict on the whole action
       // supersedes it (it says more, and the two must never stand together).
-      const out: Array<string> = this.futileVerdict === undefined &&
-        this.heroGain.some((e) => e.current !== undefined && e.current === e.resulting) ?
+      // Only a PARAMETER can be «already at maximum»: a VP reading short of its next point (the resource still lands)
+      // and a zero count are not maxima, and saying so in amber was a false alarm (`actionEffectReading.ts`).
+      const out: Array<string> = this.futileVerdict === undefined && this.heroGain.some((e) => gainAtParameterLimit(e)) ?
         ['One of the gains has no effect — the value is already at maximum.'] : [];
       // The check is unwinnable in THIS game (no card of its kind exists) — said
       // before the press, in the amber register; the action itself stays legal.

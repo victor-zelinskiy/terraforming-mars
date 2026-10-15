@@ -8,5 +8,7 @@
     "Only actions with no effect remain": "Остались только действия без эффекта",
     "No effect now": "Без эффекта",
     "Available, but changes nothing now": "Доступно, но сейчас ничего не изменит",
-    "the action will change nothing": "действие ничего не изменит"
+    "the action will change nothing": "действие ничего не изменит",
+    "VP unchanged": "без изменений",
+    "No new VP yet · ${0} more for the next": "пока без изменений · до следующего ещё ${0}"
 }

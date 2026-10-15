@@ -57,6 +57,7 @@ import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
 import {WaterSplittingPlant} from '../../../src/server/cards/base/WaterSplittingPlant';
 import {AquiferPumping} from '../../../src/server/cards/base/AquiferPumping';
 import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
+import {Ants} from '../../../src/server/cards/base/Ants';
 import {actionFutility} from '../../../src/server/models/actionFutility';
 import {IActionCard, ICard} from '../../../src/server/cards/ICard';
 import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
@@ -532,6 +533,29 @@ function futileFixture(name: string, mixed: boolean): void {
 }
 futileFixture('futile-only', false);
 futileFixture('futile-mixed', true);
+
+// ── vp-threshold: A RESOURCE SHORT OF THE NEXT POINT IS NOT «NO EFFECT» (the owner's check of 2026-10-15). A solo
+//    action phase, Teractor, an empty hand: Ants (1 VP per 2 microbes) with NO microbe, placed first so the cursor
+//    opens on it, and GHG Producing Bacteria with 2 microbes — the donor Ants takes from. Ants' action lands a microbe
+//    and moves no point (0 → 0): the composer reads a NEUTRAL VP chip «до следующего ещё 1», never «no effect» and
+//    never the amber «value already at maximum». ──
+{
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.TERACTOR], startingCorporations: 1});
+  player.cardsInHand.length = 0;
+  const ants = new Ants();
+  const donor = new GHGProducingBacteria();
+  donor.resourceCount = 2;
+  player.playedCards.push(ants, donor);
+  player.megaCredits = 30;
+  runAllActions(game);
+  const acting = (n: CardName) => player.playedCards.get(n) as (ICard & IActionCard) | undefined;
+  const antsCard = acting(CardName.ANTS);
+  if (antsCard === undefined || !antsCard.canAct(player) || antsCard.resourceCount !== 0 ||
+      actionFutility(player, antsCard) !== undefined || player.cardsInHand.length !== 0) {
+    throw new Error(`the vp-threshold fixture expected Ants with no microbe, able to act and NOT futile, an empty hand — got ants=${antsCard?.resourceCount} act=${antsCard?.canAct(player)} hand=${player.cardsInHand.length}`);
+  }
+  write('vp-threshold', game);
+}
 
 // ── shipment-to-earth: X87 SHIPMENT TO EARTH — the first EVENT whose effect takes TWO resources OFF THE RAIL
 //    (docs/claude/prompts/promo-x87-shipment-to-earth.md § 2 B3 — the shipment beat before the lift). A solo

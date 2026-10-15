@@ -744,6 +744,25 @@ export function resourceVictoryPoints(
 }
 
 /**
+ * How many MORE of the card's resource, past `delta`, buy its next victory point — through the same reading
+ * (`resourceVictoryPoints`), never a second formula. `undefined` when no count up to a generous ceiling moves it (a
+ * capped score: Search For Life's single 3) or the card's points do not read its resources at all.
+ */
+export function resourcesToNextVictoryPoint(player: IPlayer, card: ICard, delta: number): number | undefined {
+  const base = resourceVictoryPoints(player, card, delta);
+  if (base === undefined) {
+    return undefined;
+  }
+  for (let more = 1; more <= 64; more++) {
+    const next = resourceVictoryPoints(player, card, delta + more);
+    if (next !== undefined && next.to > base.to) {
+      return more;
+    }
+  }
+  return undefined;
+}
+
+/**
  * The ordered choice steps a (sub-)behavior needs, built by constructing the
  * SAME input the live path constructs (read-only) and serializing it. A behavior
  * key that resolves automatically (addResources to self, global, tr, drawCard)

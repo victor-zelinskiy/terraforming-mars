@@ -20,6 +20,8 @@ import {bootFixtureSeats, openActionFocus, openCardActions, press, pressUntil, s
  *       · the standard projects: the asteroid and the aquifer rows are quiet with their reason, still live.
  *   (B) `futile-mixed` — beside them a useful pair and a blocked card: the futile cards sink BELOW the blocked one,
  *       the cursor opens on a useful tile, GHG keeps its useful band with ONE futile variant, the badges stay mint.
+ *   (C) `vp-threshold` — Ants' microbe lands short of the next point (0 → 1 microbe, 1 VP per 2): a USEFUL action, a
+ *       neutral VP chip «ПО 0 → 0 · пока без изменений · до следующего ещё 1», never «no effect», never an amber warning.
  *
  * Two profiles (fhd + tv4k). Heavy 4K: `--workers=1`.
  */
@@ -188,6 +190,40 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-cardactions__tile--focused'), 'the cursor opens on a useful tile').not.toHaveAttribute('data-action-futile', /.*/);
       await expect(page.locator('.con-cardactions__tile--focused')).not.toHaveClass(/con-cardactions__tile--rules/);
       await shoot(page, preset.id, 'B1-card-actions');
+      expect(errors).toEqual([]);
+    });
+
+    // The owner's check (2026-10-15): a resource that lands SHORT of the card's next point is a valid action — the
+    // microbe lands. Never «no effect», never the amber «value already at maximum»: a neutral VP chip saying how many
+    // more buy the point.
+    test('(C) a resource short of the next point: a useful action, a NEUTRAL VP chip «до следующего ещё 1», no warning', async ({page, request}) => {
+      test.setTimeout(180_000);
+      const errors: Array<string> = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      const posts = watchPosts(page);
+      await bootFixtureSeats(page, request, 'vp-threshold', {query: preset.query});
+      await settle(page);
+      await toBoard(page);
+      await expect(page.locator('.con-cmdbar__badge[data-badge-tone="neutral"]'), 'a useful action — the badge stays mint').toHaveCount(0);
+
+      await openCardActions(page);
+      await settle(page);
+      const ants = page.locator('.con-cardactions__tile[data-action-card="Ants"]');
+      await expect(ants, 'Ants is listed').toHaveCount(1);
+      await expect(ants, 'and is NOT «no effect»').not.toHaveAttribute('data-action-futile', /.*/);
+      await expect(page.locator('.con-cardactions__tile--focused'), 'the cursor opens on Ants').toHaveAttribute('data-action-card', 'Ants');
+
+      await openActionFocus(page);
+      await settle(page);
+      const composer = page.locator('.con-composer--stage');
+      const vp = composer.locator('.action-effect-chip--steady');
+      await expect(vp.first(), 'the VP reading is in the neutral register').toBeVisible();
+      await expect(vp.first()).toContainText('пока без изменений · до следующего ещё 1');
+      await expect(composer.locator('.action-effect-chip--noeffect'), 'nothing reads «no effect»').toHaveCount(0);
+      await expect(composer.locator('[data-composer-futile]'), 'no «the action will change nothing»').toHaveCount(0);
+      await expect(composer.locator('.con-composer__warn').filter({hasText: 'максимуме'}), 'no amber «already at maximum»').toHaveCount(0);
+      await shoot(page, preset.id, 'C1-vp-threshold-composer');
+      expect(posts, 'nothing was sent').toEqual([]);
       expect(errors).toEqual([]);
     });
   });

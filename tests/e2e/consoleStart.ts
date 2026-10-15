@@ -2406,6 +2406,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // ACTIONS THAT CHANGE NOTHING (2026-10-15): a finished planet, three card actions the server proves futile and a
   // futile heat conversion (`-only`), plus a useful pair and a blocked card beside them (`-mixed`).
   'futile-only' | 'futile-mixed' |
+  // A resource short of the next point (Ants 0 → 1 microbe, 1 VP per 2): a neutral VP chip, never «no effect».
+  'vp-threshold' |
   // TR15 Martian Census: blue's action phase with the card in its tableau holding 3 data (branch B live, unused), the
   // free delegate in the lobby, a full reserve; the voting area pinned [Industrialists · Mars First · Greens]
   // (docs/TURMOIL_REDUX_MARTIAN_CENSUS.md).

@@ -23,7 +23,7 @@ import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, Act
 import {AllColonyBonusesModel} from '../../common/models/ColonyBonusLedgerModel';
 import {DeltaAdvanceOffer} from '../../common/models/DeltaBonusPromptModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, DiscardPromptMeta, PlacementEffect, PlayerInputModel, SelectColonyModel} from '../../common/models/PlayerInputModel';
-import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
+import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints, resourcesToNextVictoryPoint} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
@@ -1651,15 +1651,34 @@ export function removeAddCardResource(player: IPlayer, card: ActionCard, resourc
   // — a value that never changes, restated on every focus move, is what stops a
   // status line being glanceable. Stated even when it does not move: Ants score
   // 1 VP per TWO microbes, so whether this particular one pays is exactly the
-  // thing the player cannot read off the card, and the chip's own «no effect»
-  // treatment says so without a second vocabulary.
-  const selfVp = resourceVictoryPoints(player, card, 1);
-  const effects: ReadonlyArray<ActionEffect> = selfVp === undefined ? [gain] : [gain, {
-    direction: 'gain',
-    icon: 'vp',
-    amount: selfVp.to - selfVp.from,
-    current: selfVp.from,
-    resulting: selfVp.to,
-  }];
+  // thing the player cannot read off the card — and a resource that lands short of the next point is still a
+  // resource on the card (never «no effect»): the chip says so in a neutral note (`victoryPointsReading`).
+  const selfVp = victoryPointsReading(player, card, 1);
+  const effects: ReadonlyArray<ActionEffect> = selfVp === undefined ? [gain] : [gain, selfVp];
   return singleBranch(card, player, steps, effects);
 }
+
+/**
+ * What `delta` resources on `card` do to its points, as a chip: `from → to`, and — when the count lands SHORT of the
+ * next point — a NEUTRAL note saying so and how many more buy it («ПО пока не изменятся · до следующего ещё 1»).
+ * The resource still lands: a threshold not reached is a fact about the score, never a wasted action (the owner's
+ * decision of 2026-10-15). `undefined` when the card's points do not read its resources.
+ */
+export function victoryPointsReading(player: IPlayer, card: ICard, delta: number): ActionEffect | undefined {
+  const vp = resourceVictoryPoints(player, card, delta);
+  if (vp === undefined) {
+    return undefined;
+  }
+  const effect: ActionEffect = {direction: 'gain', icon: 'vp', amount: vp.to - vp.from, current: vp.from, resulting: vp.to};
+  if (vp.to !== vp.from || delta <= 0) {
+    return effect;
+  }
+  const toNext = resourcesToNextVictoryPoint(player, card, delta);
+  return toNext !== undefined ?
+    {...effect, note: VP_NOT_YET_NOTE, noteParams: [String(toNext)]} :
+    {...effect, note: VP_UNCHANGED_NOTE, noteParams: []};
+}
+
+/** The neutral notes of a VP reading that does not move (English is the i18n key). */
+export const VP_NOT_YET_NOTE = 'No new VP yet · ${0} more for the next';
+export const VP_UNCHANGED_NOTE = 'VP unchanged';
