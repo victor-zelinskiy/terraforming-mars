@@ -414,5 +414,6 @@
     "Oceans are at their maximum — not lowered": "Океаны на максимуме — не понижаются",
     "Lower the temperature 1 step": "Опустить температуру на 1 шаг",
     "Lower the oxygen level 1 step": "Опустить кислород на 1 шаг",
-    "Remove an ocean tile": "Снять тайл океана"
+    "Remove an ocean tile": "Снять тайл океана",
+    "${0} paid ${1} ${2} for ${3}": "${0} платит ${1} ${2} за ${3}"
 }

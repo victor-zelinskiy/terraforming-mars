@@ -92,24 +92,7 @@ export function collectActionBehaviorReasons(
       const deficit = Math.max(1, spend.megacredits - player.spendableMegacredits());
       out.push({type: 'megacredits', message: 'Need ${0} more M€', params: [String(deficit)]});
     }
-    // Steel stored on Modular Floodgates «counts as on your player board»
-    // (DP11) — a unit-steel cost can draw on it, so both the gate and the
-    // reported `current` count it (mirrors `Executor.canExecute`).
-    if (spend.steel && player.steel + player.getSpendable('floodgateSteel') < spend.steel) {
-      out.push({type: 'resource', message: 'Not enough steel', resource: Resource.STEEL, current: player.steel + player.getSpendable('floodgateSteel')});
-    }
-    if (spend.titanium && player.titanium < spend.titanium) {
-      out.push({type: 'resource', message: 'Not enough titanium', resource: Resource.TITANIUM, current: player.titanium});
-    }
-    if (spend.plants && player.plants < spend.plants) {
-      out.push({type: 'resource', message: 'Not enough plants', resource: Resource.PLANTS, current: player.plants});
-    }
-    if (spend.energy && player.energy < spend.energy) {
-      out.push({type: 'resource', message: 'Not enough energy', resource: Resource.ENERGY, current: player.energy});
-    }
-    if (spend.heat && player.availableHeat() < spend.heat) {
-      out.push({type: 'resource', message: 'Not enough heat', resource: Resource.HEAT, current: player.availableHeat()});
-    }
+    out.push(...spendStockReasons(player, spend));
     if (spend.resourcesHere && card.resourceCount < spend.resourcesHere) {
       out.push({type: 'count', message: 'Not enough resources on this card', current: card.resourceCount});
     }
@@ -192,6 +175,35 @@ function dedupe(reasons: ReadonlyArray<UnplayableReason>): Array<UnplayableReaso
       seen.add(key);
       out.push(r);
     }
+  }
+  return out;
+}
+
+/**
+ * A declared STOCK price (`Behavior.spend` — steel, titanium, plants, energy, heat) the player cannot pay: one reason
+ * per short unit, its icon and the player's `current`. ONE rung for both doors that declare a price — an action
+ * (`actionUnavailableReasons`) and a PLAY (`unplayableReasons` — TR54 Overclocked Equipment's «also pay 3 energy»);
+ * the gates themselves are `Executor.canExecute`'s, mirrored here.
+ */
+export function spendStockReasons(player: IPlayer, spend: NonNullable<Behavior['spend']>): Array<UnplayableReason> {
+  const out: Array<UnplayableReason> = [];
+  // Steel stored on Modular Floodgates «counts as on your player board»
+  // (DP11) — a unit-steel cost can draw on it, so both the gate and the
+  // reported `current` count it (mirrors `Executor.canExecute`).
+  if (spend.steel && player.steel + player.getSpendable('floodgateSteel') < spend.steel) {
+    out.push({type: 'resource', message: 'Not enough steel', resource: Resource.STEEL, current: player.steel + player.getSpendable('floodgateSteel')});
+  }
+  if (spend.titanium && player.titanium < spend.titanium) {
+    out.push({type: 'resource', message: 'Not enough titanium', resource: Resource.TITANIUM, current: player.titanium});
+  }
+  if (spend.plants && player.plants < spend.plants) {
+    out.push({type: 'resource', message: 'Not enough plants', resource: Resource.PLANTS, current: player.plants});
+  }
+  if (spend.energy && player.energy < spend.energy) {
+    out.push({type: 'resource', message: 'Not enough energy', resource: Resource.ENERGY, current: player.energy});
+  }
+  if (spend.heat && player.availableHeat() < spend.heat) {
+    out.push({type: 'resource', message: 'Not enough heat', resource: Resource.HEAT, current: player.availableHeat()});
   }
   return out;
 }

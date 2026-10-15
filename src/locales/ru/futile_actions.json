@@ -10,5 +10,7 @@
     "Available, but changes nothing now": "Доступно, но сейчас ничего не изменит",
     "the action will change nothing": "действие ничего не изменит",
     "VP unchanged": "без изменений",
-    "No new VP yet · ${0} more for the next": "пока без изменений · до следующего ещё ${0}"
+    "No new VP yet · ${0} more for the next": "пока без изменений · до следующего ещё ${0}",
+    "Production 0": "производство 0",
+    "Production ${0} → gain 0": "производство ${0} → 0"
 }

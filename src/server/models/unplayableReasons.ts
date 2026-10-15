@@ -19,6 +19,7 @@ import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {Turmoil} from '../turmoil/Turmoil';
 import type {PlacementType} from '../boards/PlacementType';
+import {spendStockReasons} from './actionUnavailableReasons';
 
 /**
  * Authoritative, structured explanation of why `card` (a project card in the
@@ -404,6 +405,11 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
   }
   const game = player.game;
   const opts = player.affordOptionsForCard(card);
+
+  // A declared STOCK price paid with the play (TR54: «also pay 3 energy») — the action ladder's own rung.
+  if (b.spend !== undefined) {
+    out.push(...spendStockReasons(player, b.spend));
+  }
 
   if (b.city !== undefined && b.city.space === undefined) {
     if (game.board.getAvailableSpacesForType(player, b.city.on ?? 'city', opts).length === 0) {

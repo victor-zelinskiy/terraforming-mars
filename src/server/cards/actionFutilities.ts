@@ -44,6 +44,16 @@ export function zeroYield(): ActionFutilityVerdict {
   return {kind: 'zero-yield', reason: 'Gives nothing right now'};
 }
 
+/**
+ * A gain «as many as your production of it» counted off a production that stands at 0 or below (TR54 Overclocked
+ * Equipment's option): nothing to gain. The production rides as a param — a negative M€ production reads «−1 → 0».
+ */
+export function noProduction(production: number): ActionFutilityVerdict {
+  return production < 0 ?
+    {kind: 'zero-yield', reason: 'Production ${0} → gain 0', reasonParams: [String(production)]} :
+    {kind: 'zero-yield', reason: 'Production 0'};
+}
+
 /** «Add to any card» with no card to take it. */
 export function noTarget(): ActionFutilityVerdict {
   return {kind: 'no-target', reason: 'No card to receive the resource'};

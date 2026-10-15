@@ -208,5 +208,7 @@
     "Requires the Scientists to be ruling or that you have 2 delegates there.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции.",
     "Action: Pay 5 M€ to add a resource to a card that already has a resource. If it is not a science resource, also draw a card.": "Действие: заплатите 5 M€, чтобы положить ресурс на карту, где уже есть ресурс. Если это не ресурс науки, также возьмите карту.",
     "Nuclear Warhead Utilization": "Утилизация ядерных боеголовок",
-    "Requires the Industrialists to be ruling or that you have 2 delegates there. Gain 9 energy resources.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Получите 9 энергии."
+    "Requires the Industrialists to be ruling or that you have 2 delegates there. Gain 9 energy resources.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Получите 9 энергии.",
+    "Overclocked Equipment": "Разогнанное оборудование",
+    "Requires the Industrialists to be ruling or that you have 2 delegates there. Also pay 3 energy. Pick a basic resource type. Gain an amount of that resource equal to your production of it.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Также заплатите 3 энергии. Выберите вид стандартного ресурса. Получите столько этого ресурса, сколько у вас его производства."
 }
