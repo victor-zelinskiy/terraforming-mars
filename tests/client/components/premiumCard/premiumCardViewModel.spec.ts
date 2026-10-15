@@ -736,9 +736,6 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
     CardName.AIR_SCRAPPING_STANDARD_PROJECT,
     CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT,
     CardName.BUILD_COLONY_STANDARD_PROJECT,
-    // TEMPORARY — TR55 «Утилизация ядерных боеголовок»: the owner's art (`Mars Arts/TR55.png`) was not delivered
-    // with the card (requested 2026-10-15). The import (`scripts/import-card-art.mjs … TR55`) REMOVES this row.
-    CardName.NUCLEAR_WARHEAD_UTILIZATION,
   ]);
 
   it('every in-scope premium card resolves real art', () => {
