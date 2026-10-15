@@ -7,6 +7,12 @@ import {InputError} from './InputError';
 
 export class SelectResource extends BasePlayerInput<keyof Units> {
   public selected: keyof Units = 'megacredits';
+  /**
+   * How many of the chosen resource the player GAINS — the console's palette prints it on every tile («+N») with the
+   * viewer's own `current → resulting`; the title states it in words only, and a title is never parsed. Absent for a
+   * prompt whose number is not one gain (a discard, a steal).
+   */
+  public gainAmount: number | undefined = undefined;
 
   constructor(
     public override title: string | Message,
@@ -16,12 +22,19 @@ export class SelectResource extends BasePlayerInput<keyof Units> {
     super('resource', title);
   }
 
+  /** Mark the prompt as a GAIN of `amount` of the chosen resource (serialized here — nesting-safe). */
+  public withGainAmount(amount: number): this {
+    this.gainAmount = amount;
+    return this;
+  }
+
   public override toModel(): SelectResourceModel {
     return {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'resource',
       include: this.include,
+      ...(this.gainAmount !== undefined ? {amount: this.gainAmount} : {}),
     };
   }
 

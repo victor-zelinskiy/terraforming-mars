@@ -37,6 +37,12 @@ describe('promptTone', () => {
     expect(promptToneOf(as({type: 'resources', title: 'x', buttonLabel: 'Select', count: 2}))).to.deep.eq({tone: 'gain', basis: 'resource-gain'});
   });
 
+  it('a single resource pick is a gain by its GAIN marker (TR54 — `amount`), never by its title; unmarked it stays neutral', () => {
+    const include = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
+    expect(promptToneOf(as({type: 'resource', title: 'x', buttonLabel: 'Select', include, amount: 2}))).to.deep.eq({tone: 'gain', basis: 'resource-gain'});
+    expect(promptToneOf(as({type: 'resource', title: 'Select resource to discard', buttonLabel: 'Select', include})).tone).to.eq('neutral');
+  });
+
   it('a card attack on the viewer\'s production is a loss — Caesar as the hazard', () => {
     expect(promptToneOf(as({...(hazard as object), source: {type: 'card', card: 'Caesar'}})).tone).to.eq('loss');
   });

@@ -27,7 +27,7 @@
  */
 
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {OptionMetadata, OrOptionsModel, PlayerInputModel, SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {OptionMetadata, OrOptionsModel, PlayerInputModel, SelectCardModel, SelectOptionModel, SelectResourceModel} from '@/common/models/PlayerInputModel';
 
 export type PromptTone = 'gain' | 'loss' | 'neutral';
 
@@ -126,6 +126,11 @@ export function promptToneOf(wf: PlayerInputModel | undefined): PromptToneReadin
   // `SelectResources` is only ever built as «gain N standard resources»
   // (Philares, the behavior DSL's `standardResource`).
   if (wf.type === 'resources') {
+    return {tone: 'gain', basis: 'resource-gain'};
+  }
+  // …and `SelectResource` says so by its GAIN marker (`amount` — TR54's palette prints it): a pick of the resource
+  // that is GIVEN. An unmarked one (a discard, a steal) stays what its other markers make it.
+  if (wf.type === 'resource' && (wf as SelectResourceModel).amount !== undefined) {
     return {tone: 'gain', basis: 'resource-gain'};
   }
   if (wf.type === 'card' && (wf as SelectCardModel).resourceGainPrompt !== undefined) {

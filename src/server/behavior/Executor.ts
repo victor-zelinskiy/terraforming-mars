@@ -499,6 +499,7 @@ export class Executor implements BehaviorExecutor {
       } else {
         player.defer(
           new SelectResource(message('Gain ${0} units of a standard resource', (b) => b.number(count)))
+            .withGainAmount(count)
             .markChoiceContext(reward)
             .andThen((unit) => {
               player.stock.add(unit, count, {log: true});

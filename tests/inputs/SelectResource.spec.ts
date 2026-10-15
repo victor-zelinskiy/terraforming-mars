@@ -40,4 +40,10 @@ describe('SelectResource', () => {
     expect(() => selectResource.process({type: 'resource', resource: 'steel'})).to.throw(/Not a valid unit/);
     expect(selected).is.undefined;
   });
+
+  it('the GAIN marker rides its own toModel (the number of the palette — never parsed from the title)', () => {
+    expect(new SelectResource('Gain 3 units').toModel().amount, 'unmarked: no number').is.undefined;
+    const marked = new SelectResource('Gain 3 units').withGainAmount(3);
+    expect(marked.toModel()).deep.include({type: 'resource', amount: 3});
+  });
 });

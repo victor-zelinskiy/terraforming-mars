@@ -275,14 +275,17 @@
 
             <!-- ── RESOURCE ───────────────────────────────────────── -->
             <template v-else-if="activeTask.kind === 'resource'">
-              <div class="con-task__tiles">
-                <div v-for="(unit, i) in resourceUnits" :key="unit"
-                     class="con-task__tile"
-                     :class="{'con-task__tile--focused': focusIdx === i, 'con-task__tile--armed': focusIdx === i && armed}">
-                  <i class="con-task__tile-icon" :class="'resource_icon resource_icon--' + unit" aria-hidden="true"></i>
-                  <GamepadGlyph v-if="focusIdx === i" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
-                </div>
-              </div>
+              <!-- THE PALETTE (TR54, «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА») — the variant grammar's palette, never six bare icons:
+                   each tile the resource's own sprite, the number the server states (`SelectResourceModel.amount`) and
+                   the viewer's own `current → resulting`; the cursor a cold lift, the ARMED tile the seal; the printed
+                   «?» on the kicker. The input path is the host's own (the focus index, A arms, X confirms). -->
+              <ConsoleVariantChoice class="con-task__palette" layout="palette" :exclusive="false"
+                                    :kicker="resourcePaletteKicker" emblem="wild" data-variant-axis="row"
+                                    :options="resourcePaletteOptions" :label="resourcePaletteKicker">
+                <template #body="{index}">
+                  <ActionEffectChip v-if="resourceReadings[index] !== undefined" :effect="resourceReadings[index]!" />
+                </template>
+              </ConsoleVariantChoice>
             </template>
 
             <!-- ── CARD BROWSER (T2 · P13 rework): ONE clean composition —
@@ -1345,6 +1348,35 @@ export default defineComponent({
         color: entry.playerColor,
         attrs: {'data-choice-skip': entry.isSkip ? '1' : undefined},
       }));
+    },
+    /** The live «which standard resource» prompt as a palette — the hero, the server's number (when marked). */
+    resourcePaletteOptions(): ReadonlyArray<VariantChoiceOption> {
+      const amount = this.resourceGainAmount;
+      return this.resourceUnits.map((unit, i): VariantChoiceOption => ({
+        key: unit,
+        state: {focused: this.focusIdx === i, selected: this.focusIdx === i && this.armed, off: false},
+        title: '',
+        hero: {kind: 'resource', icon: unit, ...(amount !== undefined ? {amount} : {}), direction: 'gain'},
+        attrs: {'data-palette-resource': unit},
+      }));
+    },
+    /** How many of the chosen resource the prompt gives — the server's marker; absent for a prompt that states none. */
+    resourceGainAmount(): number | undefined {
+      return this.wf?.type === 'resource' ? (this.wf as PlayerInputModel & {type: 'resource'}).amount : undefined;
+    },
+    /** Each tile's reading — the viewer's own pool, `current → current + amount` (the number is the server's). */
+    resourceReadings(): ReadonlyArray<ActionEffect | undefined> {
+      const amount = this.resourceGainAmount;
+      return this.resourceUnits.map((unit) => {
+        if (amount === undefined) {
+          return undefined;
+        }
+        const current = playerResourceValue(this.playerView.thisPlayer, unit, 'stock');
+        return current === undefined ? undefined : {direction: 'gain', icon: unit, amount, current, resulting: current + amount};
+      });
+    },
+    resourcePaletteKicker(): string {
+      return translateTextWithParams('One of ${0}', [String(this.resourceUnits.length)]);
     },
     disabledChoiceOptions(): ReadonlyArray<VariantChoiceOption> {
       return this.disabledChoiceEntries.map((d, i): VariantChoiceOption => ({
@@ -2935,7 +2967,7 @@ export default defineComponent({
         }
         return;
       }
-      const focused = body?.querySelector('.con-task__option--focused, .con-task__tile--focused, .con-task__lane--focused, .con-payrow--focused');
+      const focused = body?.querySelector('.con-task__option--focused, .con-task__palette .con-vchoice__opt--focused, .con-task__lane--focused, .con-payrow--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */

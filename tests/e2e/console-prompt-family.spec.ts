@@ -392,6 +392,13 @@ for (const profile of PROFILES) {
               metadata: {kind: 'resourceGain', effects: [{direction: 'gain', icon: 'steel', amount: 1, current: 500, resulting: 501}]}},
           ],
         }},
+        // THE LIVE «WHICH STANDARD RESOURCE» (TR54, H4) — the variant grammar's PALETTE on the family's plate: six
+        // tiles, each the resource's own sprite + the server's number (`amount`) + the viewer's `current → resulting`.
+        {name: 'resource-palette', root: '', tone: 'gain', prompt: {
+          type: 'resource', promptId: 9207, title: {message: 'Gain ${0} units of a standard resource', data: [{type: 1, value: '2'}]},
+          buttonLabel: 'Select', include: ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'], amount: 2,
+          choiceContext: {source: {kind: 'card', card: 'Applied Science'}, mode: 'reward'},
+        }},
         {name: 'planetary-thresholds', root: '.con-ares', tone: 'neutral', prompt: {
           type: 'aresGlobalParameters', promptId: 9205, title: 'Adjust Ares global parameters up to 1 step.', buttonLabel: 'Save',
           aresData: {
@@ -446,6 +453,34 @@ for (const profile of PROFILES) {
         }));
         for (const off of medals) {
           expect(off, `${item.name}: «ИЛИ» is centred on its seam (off by ${off} px)`).toBeLessThan(4);
+        }
+        if (item.name === 'resource-palette') {
+          const palette = await page.evaluate(() => {
+            const group = document.querySelector('[data-prompt-panel] .con-vchoice--palette');
+            const tiles = Array.from(group?.querySelectorAll<HTMLElement>('.con-vchoice__opt') ?? []);
+            return {
+              tiles: tiles.length,
+              perRow: [...tiles.reduce((m, t) => m.set(t.offsetTop, (m.get(t.offsetTop) ?? 0) + 1), new Map<number, number>()).values()],
+              figures: tiles.map((t) => t.querySelector('[data-vchoice-figure]')?.textContent?.trim() ?? ''),
+              readings: group?.querySelectorAll('.action-effect-chip').length ?? 0,
+              emblem: group?.querySelector('[data-vchoice-emblem="wild"]') !== null,
+              // Every reading inside its own tile — the narrow 4K plate once ran «500 → 502» over the neighbours.
+              inside: tiles.every((tile) => {
+                const t = tile.getBoundingClientRect();
+                return Array.from(tile.querySelectorAll('.action-effect-chip')).every((c) => {
+                  const r = c.getBoundingClientRect();
+                  return r.left >= t.left - 1 && r.right <= t.right + 1;
+                });
+              }),
+            };
+          });
+          expect(palette.tiles, 'the live prompt is the palette of six').toBe(6);
+          // One row where the plate is wide (4K); the narrow fhd plate folds it 3 + 3 — the cluster's own width, never 5 + 1.
+          expect([[6], [3, 3]], `one row or 3 + 3: ${JSON.stringify(palette.perRow)}`).toContainEqual(palette.perRow);
+          expect(palette.figures, 'the server\'s number on every tile').toEqual(['+2', '+2', '+2', '+2', '+2', '+2']);
+          expect(palette.readings, 'every tile reads the viewer\'s own pool').toBe(6);
+          expect(palette.emblem, 'the printed «?» on the kicker').toBe(true);
+          expect(palette.inside, 'every reading stands inside its tile').toBe(true);
         }
         if (item.name === 'reward-choice') {
           expect(await page.locator('[data-prompt-panel] .con-vchoice__opt').count(), 'the reward\'s answers are the grammar\'s tiles').toBe(2);

@@ -35,7 +35,7 @@ export class GainAnyResourceButScienceDeferred extends DeferredAction {
           return undefined;
         }));
     }
-    orOptions.options.push(new SelectResource('Gain 1 standard resource')
+    orOptions.options.push(new SelectResource('Gain 1 standard resource').withGainAmount(1)
       .andThen((resource) => {
         this.player.stock.add(resource, 1, {log: true});
         return undefined;

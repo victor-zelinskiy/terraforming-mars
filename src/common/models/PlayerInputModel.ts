@@ -1420,6 +1420,8 @@ export type SelectGlobalEventModel = BaseInputModel & {
 export type SelectResourceModel = BaseInputModel & {
   type: 'resource';
   include: ReadonlyArray<keyof Units>;
+  /** How many of the chosen resource the player GAINS (`SelectResource.withGainAmount`) — absent for a non-gain. */
+  amount?: number;
 }
 
 export type SelectResourcesModel = BaseInputModel & {
