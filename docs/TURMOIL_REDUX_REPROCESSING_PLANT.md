@@ -3,7 +3,8 @@
 **Status.** Shipped 2026-10-16. The prompt: `docs/claude/prompts/project-tr58-reprocessing-plant.md`. The cursor's
 contract: `docs/claude/console/cursor.md`; the rule: `.claude/rules/console-ui.md` § THE CURSOR IS ONE LIVING OBJECT
 (+ a line in `animations.md`). Ledger: section AW (`docs/claude/gameplay-polish-ledger.md`, PL-490…). Decisions 1–7 were
-taken at their defaults; 4, 5, 6, 7 went to the owner in one batch.
+taken at their defaults; **the owner confirmed 4a · 5a · 6a · 7a on 2026-10-16** and chose ALL FOUR open smoothness findings
+(PL-473, PL-508, PL-509, PL-510) as the next, separate iteration.
 
 ## 1 · The card
 
