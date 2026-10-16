@@ -563,8 +563,7 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   for (const s of STANDARD) {
     const v = behavior.spend?.[s.key];
     if (typeof v === 'number' && v > 0) {
-      const cur = player.stock.get(s.resource);
-      out.push({direction: 'cost', icon: s.resource, amount: v, current: cur, resulting: Math.max(0, cur - v)});
+      out.push(actionPreviews.stockCost(player, s.resource, v));
     }
   }
 

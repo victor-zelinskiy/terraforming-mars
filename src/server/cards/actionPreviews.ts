@@ -85,7 +85,18 @@ export function cardGain(card: ICard, amount: number): ActionEffect {
 /** Spend N of a standard resource from the player's stock (M€/steel/Ti/…). */
 export function stockCost(player: IPlayer, resource: Resource, amount: number): ActionEffect {
   const cur = player.stock.get(resource);
+  if (heatPaidBeyondStock(player, resource, amount)) {
+    return {direction: 'cost', icon: resource, amount};
+  }
   return {direction: 'cost', icon: resource, amount, current: cur, resulting: Math.max(0, cur - amount)};
+}
+/**
+ * A HEAT price the stock alone cannot cover but Stormcraft's floaters can (TR58): the chip is the price, POOL-LESS
+ * («−5») — never «1 / 5», which reads as a shortfall of an action the server offers. The sources (`1 → 0` heat, `−2`
+ * floaters) are the heat-split step's own statement (`spendHeatStep`, asked before the commit).
+ */
+export function heatPaidBeyondStock(player: IPlayer, resource: Resource, amount: number): boolean {
+  return resource === Resource.HEAT && player.heat < amount && player.availableHeat() >= amount;
 }
 /** Gain N of a standard resource into the player's stock. */
 export function stockGain(player: IPlayer, resource: Resource, amount: number): ActionEffect {

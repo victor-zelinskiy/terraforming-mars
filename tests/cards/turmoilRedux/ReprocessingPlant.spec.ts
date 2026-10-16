@@ -374,6 +374,12 @@ describe('ReprocessingPlant', () => {
       expect(split.kind === 'spendHeat' && split.input.spendHeatPrompt).deep.eq({amount: 5});
       expect(split.kind === 'spendHeat' && split.for, 'addressed to Stormcraft, the asker').deep.include({source: {kind: 'corporation', card: CardName.STORMCRAFT_INCORPORATED}});
       expect(a.steps.map((s) => s.kind)).deep.eq(['input']);
+      // The heat price the stock (1) cannot cover but the floaters can is a POOL-LESS «−5» — never «1 / 5», a shortfall
+      // of a variant the server offers; the split's own step states the sources.
+      const heat = b.effects.find((e) => e.direction === 'cost' && e.icon === 'heat');
+      expect(heat, 'the price, without a pool').deep.eq({direction: 'cost', icon: 'heat', amount: 5});
+      const plants = a.effects.find((e) => e.direction === 'cost' && e.icon === 'plants');
+      expect(plants, 'a stock the price fits keeps its current → resulting').deep.include({amount: 3, current: 4, resulting: 1});
     });
 
     it('the live order is the preview\'s: variant → split → target', () => {
