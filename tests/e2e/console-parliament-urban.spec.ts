@@ -145,10 +145,10 @@ test.describe(`Urban Development · ${PRESET.id}`, () => {
     const arrived = handOf(after).filter((name) => !handOf(before).includes(name));
     expect(arrived.length, `a card the hand did not hold arrived (${arrived.join(', ')})`).toBeGreaterThanOrEqual(1);
 
-    // ── ④ …and the presentation NAMES the law that sent it. ONE card takes the
-    // fullscreen route («ИСТОЧНИК · Городское развитие» on the viewer bar), a
-    // batch the reveal's own source chip — either is the same statement.
-    const named = page.locator('.con-zoom__swap--static .con-zoom__swap-name, .con-reveal__source-chip-name');
+    // ── ④ …and the presentation NAMES the law that sent it: the received-cards
+    // scene's source badge («ИСТОЧНИК · Городское развитие» — TR57: a lone card is
+    // the same scene as a batch, never the fullscreen viewer).
+    const named = page.locator('.con-reveal [data-reveal-source] .con-reveal__sourcebadge-name');
     await expect.poll(async () => await named.count() > 0 ? (await named.first().textContent() ?? '').trim() : '',
       {timeout: 60_000, message: 'the arriving card names «Городское развитие»'}).toMatch(/Городское развитие|Urban Development/i);
     await shoot(page, '03-reveal-names-the-law');

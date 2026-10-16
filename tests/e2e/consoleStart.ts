@@ -2340,6 +2340,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // TR56 Robotics Factory and the iteration «КУДА ЛЯЖЕТ»: three kinds of holders (mechs · fighters · floaters ×2); the
   // floaters only; no holder of any kind; Construction Mechs paying for the Building tag; the Reds ruling.
   'robotics-factory' | 'robotics-factory-one' | 'robotics-factory-none' | 'robotics-factory-mechpay' | 'robotics-factory-locked' |
+  // TR57 Mining Mechs: the play · the action's two tiles behind one price · «1 из 2 мехов» (PL-197) · the Reds' refusal.
+  'mining-mechs' | 'mining-mechs-action' | 'mining-mechs-short' | 'mining-mechs-locked' |
   // TR53 Frontier Labs and the iteration «ресурс на карту — один стандарт»: the card with four holders (one a near
   // miss); the FIELD's live pick and silent arrival (a printed microbe / an Ares animal with two holders each, a printed
   // data with one); a foreign trade on blue's Titan (red on the move) — docs/claude/prompts/project-tr53-frontier-labs.md.

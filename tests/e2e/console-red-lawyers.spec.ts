@@ -263,7 +263,9 @@ async function armProbe(page: Page, viewer: string, cardStep: number, endStep: n
         }
         note(p.cover, 'up');
       }
-      note(p.viewer, document.querySelector('dialog.con-zoom[open]') !== null ? 'zoom' : (document.querySelector('.con-reveal') !== null ? 'reveal' : undefined));
+      // «The card opened»: it stands in the scene's slot (TR57 — the lone reward card is the scene), or a viewer the player opened.
+      note(p.viewer, document.querySelector('dialog.con-zoom[open]') !== null ? 'zoom' :
+        (document.querySelector('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]') !== null ? 'scene' : undefined));
       note(p.hand, document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? undefined);
       note(p.tr, text(document.querySelector('.con-res .con-score__value--tr')));
       // The digits ONLY — a delta chip inside the row («7−3») is the move's story, not the count.
@@ -451,10 +453,14 @@ async function pressA(page: Page, run: Run): Promise<void> {
   expect(responses.some((r) => JSON.stringify(r).includes(CARD)), 'the POST is the card\'s play').toBe(true);
 }
 
-/** The card step's viewer OPENS (the overlay mounts veiled first — the press waits for the card itself) → A takes the card → the dock counts it. */
+/**
+ * The card step's card STANDS in the received-cards scene (TR57: a lone reward card is the scene, never the fullscreen
+ * viewer — the overlay mounts veiled first, the press waits for the card itself) → A takes the card → the dock counts it.
+ */
 async function takeTheCard(page: Page, preset: string, label: string): Promise<void> {
-  await expect(page.locator('dialog.con-zoom[open]'), 'the step\'s card opens in the viewer after the cover\'s flight').toHaveCount(1, {timeout: 40_000});
-  await shoot(page, preset, `${label}-viewer`);
+  await expect(page.locator('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
+    'the step\'s card stands in the scene after the cover\'s flight').toHaveCount(1, {timeout: 40_000});
+  await shoot(page, preset, `${label}-scene`);
   expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open], .con-reveal').count() === 0, {tries: 6, settleMs: 1500}), 'A takes the card').toBe(true);
 }
 

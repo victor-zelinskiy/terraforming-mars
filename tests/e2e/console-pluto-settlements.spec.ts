@@ -348,8 +348,9 @@ for (const preset of PRESETS) {
             // К-5 · AN EMPTY HAND: «discard 1» meets a hand holding only the card just drawn, so the RULES discard it
             // with no question — nothing is announced. Each settlement's card is still SHOWN (no silent loss), named
             // as discarded by the rule, and sent «В сброс» — never offered to be taken (it is not in the hand).
+            // TR57: the lone card stands in the received-cards SCENE, whose head names the rule (never «Получена карта»).
             for (let cycle = 1; cycle <= scenario.cubes; cycle++) {
-              const pill = page.locator('.con-zoom__status--discarded');
+              const pill = page.locator('.con-reveal [data-reveal-discarded]');
               await expect(pill, `settlement ${cycle}: its card is shown, named as discarded by the rule`).toBeVisible({timeout: 45_000});
               await expect(pill).toContainText(/Сброшена/i);
               await expect(page.locator('.con-cmdbar'), 'the verb sends it to the discard').toContainText(/В сброс/i);
@@ -357,7 +358,7 @@ for (const preset of PRESETS) {
               await shoot(page, dir, `c${cycle}-auto-discard`);
               await press(page, 'Enter', 1800);
             }
-            await expect(page.locator('.con-zoom__status--discarded'), 'both cards were sent away').toHaveCount(0, {timeout: 15_000});
+            await expect(page.locator('.con-reveal [data-reveal-discarded]'), 'both cards were sent away').toHaveCount(0, {timeout: 15_000});
             await stop();
             const viewer = await (await request.get(`/api/player?id=${seats[0]}`)).json() as {cardsInHand?: Array<unknown>};
             expect(viewer.cardsInHand ?? [], 'the server holds the viewer\'s hand empty — the cards were discarded').toHaveLength(0);

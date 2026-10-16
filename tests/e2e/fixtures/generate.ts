@@ -146,6 +146,7 @@ import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
 import {RoboticsFactory} from '../../../src/server/cards/turmoilRedux/RoboticsFactory';
+import {MiningMechs} from '../../../src/server/cards/turmoilRedux/MiningMechs';
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
@@ -6069,3 +6070,56 @@ roboticsFixture('robotics-factory-one', {holders: 'floaters'});
 roboticsFixture('robotics-factory-none', {holders: 'none'});
 roboticsFixture('robotics-factory-mechpay', {holders: 'mechpay', megacredits: 2});
 roboticsFixture('robotics-factory-locked', {holders: 'all', ruling: PartyName.REDS});
+
+// ── TR57 · MINING MECHS («Горные мехи») — docs/TURMOIL_REDUX_MINING_MECHS.md. Blue's action phase, the
+//    Industrialists RULING (or the Reds, for the plate's refusal), 20 M€:
+//      · `mining-mechs`        — TR57 in hand: the play and its «+4» into the card's capsule;
+//      · `mining-mechs-action` — TR57 on the table with 3 mechs: the action's two tiles behind ONE price;
+//      · `mining-mechs-short`  — on the table with 1 mech: the action refused «1 из 2 мехов на этой карте» (PL-197);
+//      · `mining-mechs-locked` — the Reds ruling, TR57 in hand: the plate's two roads named.
+//    Red sits at a pinned corporation with no first action. ──
+function miningMechsFixture(name: string, spec: {placed?: number, ruling?: PartyName.REDS | PartyName.INDUSTRIALISTS}): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      const ruling = spec.ruling ?? PartyName.INDUSTRIALISTS;
+      seatEnacted(parliament, quietResolutionOf(ruling));
+      if (ruling !== PartyName.INDUSTRIALISTS && parliament.slotOf(PartyName.INDUSTRIALISTS) === undefined) {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.INDUSTRIALISTS));
+      }
+      p1.megaCredits = 20;
+      const card = new MiningMechs();
+      if (spec.placed === undefined) {
+        p1.cardsInHand.push(card);
+      } else {
+        card.resourceCount = spec.placed;
+        p1.playedCards.push(card);
+      }
+    },
+    expect: ({game, p1, parliament}) => {
+      if (game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected blue on the move — got ${game.activePlayer.color}`);
+      }
+      if (spec.placed === undefined) {
+        const card = p1.cardsInHand.find((c) => c.name === CardName.MINING_MECHS);
+        const want = (spec.ruling ?? PartyName.INDUSTRIALISTS) === PartyName.INDUSTRIALISTS;
+        if (card === undefined || p1.canPlay(card) !== want) {
+          throw new Error(`the ${name} fixture expected TR57 ${want ? 'playable' : 'UNplayable'} in hand — got card=${card !== undefined} ruling=${parliament.rulingParty()}`);
+        }
+      } else {
+        const card = p1.playedCards.get(CardName.MINING_MECHS) as MiningMechs | undefined;
+        const want = spec.placed >= 2;
+        if (card === undefined || card.resourceCount !== spec.placed || card.canAct(p1) !== want) {
+          throw new Error(`the ${name} fixture expected TR57 on the table with ${spec.placed} mechs, canAct=${want} — got ${card?.resourceCount} / ${card?.canAct(p1)}`);
+        }
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+miningMechsFixture('mining-mechs', {});
+miningMechsFixture('mining-mechs-action', {placed: 3});
+miningMechsFixture('mining-mechs-short', {placed: 1});
+miningMechsFixture('mining-mechs-locked', {ruling: PartyName.REDS});
