@@ -193,8 +193,8 @@ for (const preset of PRESETS) {
 
       await openComposer(page, CARD);
       // The `or` is autoSelect: the composer opens on the add-to-ANY-card variant («1/2 ВАРИАНТ»), its target row first.
-      await expect(page.locator(`${composer} .con-composer__row--focused`), 'the target row stands').toContainText(/получател/i);
-      await openPick(page, /получател/i, 'self');
+      await expect(page.locator(`${composer} .con-composer__row--focused`), 'the target row stands').toContainText(/получател|Куда/i);
+      await openPick(page, /получател|Куда/i, 'self');
       const rail = await text(page, '.con-ptsel__rail');
       // SOFT: the scene after these readings must still play (the BEFORE run of the iteration needs its trail too).
       expect.soft(rail, 'the step\'s rail prints the value line WITH its params').toMatch(VALUE_LINE);
@@ -202,12 +202,14 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a1-step-self');
       await answerPick(page);
       const row = await text(page, `${composer} .con-composer__target`);
-      expect.soft(row, 'the composer\'s answered row prints the SAME value line (the owner\'s photo printed «${0}»)').toMatch(VALUE_LINE);
+      // TR56 (П2): the answered row reads the step's own TAG beside the miniature («[аэростат] 1 → 2 · [карта] ✓») — the
+      // value line's words stay on the step's rail (asserted above); no raw template either way (PL-160).
+      expect.soft(row, 'the composer\'s answered row reads the step\'s tag — the count first').toMatch(/1\s*→\s*2/);
       expect.soft(row, 'no raw template in the answered row (PL-160)').not.toMatch(RAW);
       await shoot(page, preset.id, 'a2-composer-self');
 
       // Change the target to Dirigibles — a card the composer draws as a miniature in its row.
-      await openPick(page, /получател/i, DIRIGIBLES);
+      await openPick(page, /получател|Куда/i, DIRIGIBLES);
       await answerPick(page);
       await expect(page.locator(`${composer} [data-composer-card="${DIRIGIBLES}"]`), 'Dirigibles stands in the target row').toHaveCount(1);
       await toCommitRow(page);

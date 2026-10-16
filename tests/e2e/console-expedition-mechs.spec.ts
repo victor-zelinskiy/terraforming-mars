@@ -208,8 +208,10 @@ const focusedCandidate = (page: Page) => page.evaluate(() => {
 async function railReading(page: Page): Promise<{text: string, outcomes: Array<string>}> {
   return page.evaluate(() => {
     const rail = document.querySelector('.con-ptsel__rail');
+    // TR56 (П4): the digits the tag under the focused card prints (its count, its VP) are the TAG's — read with the rail.
+    const tag = document.querySelector('.con-ptsel__cell[data-focused="1"] .con-ptsel__tag');
     return {
-      text: (rail?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      text: `${rail?.textContent ?? ''} | ${tag?.textContent ?? ''}`.replace(/\s+/g, ' ').trim(),
       outcomes: Array.from(rail?.querySelectorAll('[data-impact-outcome]') ?? []).map((el) => el.getAttribute('data-impact-outcome') ?? ''),
     };
   });
@@ -473,7 +475,7 @@ for (const preset of PRESETS) {
       const branchAt = () => page.evaluate(() => Number(document.querySelector('.con-composer__branches .con-vchoice__opt--focused')?.getAttribute('data-branch-pos') ?? -1));
       await walkComposer(page, async () => (await branchAt()) === 1, 'variant B');
       await press(page, 'Enter', 400);
-      await walkComposer(page, async () => /Выберите карту-получатель/.test(await focusedRow(page)), 'the target row');
+      await walkComposer(page, async () => /Куда/.test(await focusedRow(page)), 'the target row');
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-ptsel'), 'the target step opened').toBeVisible();
       await expect(page.locator('.con-ptsel__cell'), 'seven mech holders').toHaveCount(7);
@@ -504,9 +506,24 @@ for (const preset of PRESETS) {
       console.log(`[${preset.id} c tags] ${JSON.stringify(tags)}`);
       expect(tags.filter((t) => t[1] === 'missing' || t[1] === 'none'), 'every candidate wears a tag').toEqual([]);
       const tagText = (card: string) => tags.find((t) => t[0] === card)?.[2] ?? '';
-      expect([tagText('EVA Mechs'), tagText('Construction Mechs')], 'tender: +5 each').toEqual(['+5', '+5']);
+      // TR56 (П4): every tag LEADS with the count the mech makes, its consequence after it (under it, in the step — a
+      // tag that says two things stacks on two lines, `data-tag-lines="2"`).
+      expect([tagText('EVA Mechs'), tagText('Construction Mechs')].every((t) => /→.*\+5$/.test(t)), 'tender: the count, then +5 each').toBe(true);
+      await expect(page.locator('.con-ptsel'), 'the step reserves two tag lines').toHaveAttribute('data-tag-lines', '2');
+      // Nothing of any tag is cut: its line fits the cell it stands under (seven at 4K cut «2 → 3 · [M€] +5» to «+:»).
+      const cut = await page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell .con-ptsel__tag')).flatMap((tag) => {
+        const box = tag.getBoundingClientRect();
+        const line = tag.querySelector('.con-ptsel__tag-line');
+        if (line === null) {
+          return [];
+        }
+        const r = line.getBoundingClientRect();
+        return r.left < box.left - 1 || r.right > box.right + 1 || r.bottom > box.bottom + 1 || (tag as HTMLElement).scrollWidth > (tag as HTMLElement).clientWidth + 1 ?
+          [`${(tag.textContent ?? '').replace(/\s+/g, ' ').trim()} [${Math.round(r.width)}×${Math.round(r.height)} in ${Math.round(box.width)}×${Math.round(box.height)}]`] : [];
+      }));
+      expect(cut, 'every tag stands whole inside its row').toEqual([]);
       expect(tagText('Mech Sports'), 'Mech Sports: its VP').toMatch(/ПО\s*3\s*→\s*4/);
-      expect(tags.filter((t) => t[2] === '✓').map((t) => t[0]).sort(), 'already within reach: a quiet ✓')
+      expect(tags.filter((t) => t[1] === 'already').map((t) => t[0]).sort(), 'already within reach: a quiet ✓')
         .toEqual(['Automated Convoys', 'Expedition Mechs', 'Forestry Mechs', 'Mars Army Mechs'].sort());
       const resting = await cellTexts(page);
       console.log(`[${preset.id} c cells at rest] ${JSON.stringify(resting, null, 1)}`);

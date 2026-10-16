@@ -493,19 +493,22 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     // …and the cards stay READABLE on a TV rather than shrinking to fit.
     expect(fit!.cardW, 'a candidate is still a card, not a chip').toBeGreaterThan(180);
 
-    // THE STATUS RAIL — the reading the old strip never had.
+    // THE READING of the focused candidate — the status rail's words and the TAG under the card, whose digits (the
+    // count, moving VP) the rail no longer repeats (TR56, П4).
     const rail = page.locator('.con-ptsel__rail');
     await expect(rail).toBeVisible();
-    await expect(rail).toContainText(/0\s*→\s*1/);
+    const reading = () => page.evaluate(() => `${document.querySelector('.con-ptsel__rail')?.textContent ?? ''} | ${
+      document.querySelector('.con-ptsel__cell[data-focused="1"] .con-ptsel__tag')?.textContent ?? ''}`);
+    await expect.poll(reading).toMatch(/0\s*→\s*1/);
 
-    // Walk to the candidate whose ПО the wild actually moves: the rail states
+    // Walk to the candidate whose ПО the wild actually moves: its tag states
     // it, and the one whose points do NOT move states no ПО at all.
     await key(page, 'ArrowRight', 700);
     await shoot(page, '10-venus-wild-focus');
-    await expect(rail).toContainText(/2\s*→\s*3/);
-    await expect(rail).toContainText(/ПО/);
+    await expect.poll(reading).toMatch(/2\s*→\s*3/);
+    await expect.poll(reading).toMatch(/ПО/);
     await key(page, 'ArrowLeft', 700);
-    expect((await rail.textContent() ?? '').includes('ПО'),
+    expect((await reading()).includes('ПО'),
       'a ПО reading that does not move is not printed').toBe(false);
 
     // A locks the focused card and the flow advances to the placement — the

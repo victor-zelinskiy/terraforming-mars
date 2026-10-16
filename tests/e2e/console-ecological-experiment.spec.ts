@@ -109,11 +109,11 @@ async function answerDataTarget(page: Page): Promise<void> {
     return;
   }
   for (const key of ['ArrowUp', 'ArrowDown']) {
-    for (let i = 0; i < 8 && !/получател|данн|data/i.test(await focusedRow(page)); i++) {
+    for (let i = 0; i < 8 && !/получател|данн|data|Куда/i.test(await focusedRow(page)); i++) {
       await press(page, key, 220);
     }
   }
-  expect(await focusedRow(page), 'the data\'s target row is focused').toMatch(/получател|данн|data/i);
+  expect(await focusedRow(page), 'the data\'s target row is focused').toMatch(/получател|данн|data|Куда/i);
   await press(page, 'Enter', 600);
   await expect(page.locator('.con-ptsel'), 'the played-target step opened').toBeVisible();
   await press(page, 'Enter', 600);

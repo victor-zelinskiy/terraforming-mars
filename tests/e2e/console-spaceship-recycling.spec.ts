@@ -528,7 +528,7 @@ for (const preset of PRESETS) {
       expect(await text(page, `${composer} .con-composer__row`), 'the source row: Formula Zero 1 → 0 · ПО 1 → 0').toMatch(/Карта-источник[\s\S]*1\s*→\s*0[\s\S]*ПО\s*1\s*→\s*0/);
       await pickVariant(page, 1);
       // The target row: both holders read before the press — EVA Mechs 1 → 2, Mech Sports 0 → 1 · ПО 0 → 1.
-      await walkComposer(page, async () => /Выберите карту-получатель/.test(await focusedRow(page)), 'the target row');
+      await walkComposer(page, async () => /Куда/.test(await focusedRow(page)), 'the target row');
       await press(page, 'Enter', 500);
       await expect(page.locator('.con-ptsel'), 'the target step').toBeVisible();
       for (let i = 0; i < 4 && !(await focusedCandidate(page)).includes(EVA); i++) {
@@ -543,7 +543,7 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 500);
       await expect(page.locator('.con-ptsel'), 'answered').toHaveCount(0);
       const rows = await page.locator(`${composer} .con-composer__row`).allTextContents();
-      expect(rows.map((r) => r.replace(/\s+/g, ' ')).join(' | '), 'the two answered rows name their roles').toMatch(/Карта-источник.*Формула-0.*\|.*Карта-получатель.*Мех-спорт/);
+      expect(rows.map((r) => r.replace(/\s+/g, ' ')).join(' | '), 'the two answered rows name their roles').toMatch(/Карта-источник.*Формула-0.*\|.*Куда.*Мех-спорт/);
       await toCommitRow(page);
       expect(seen.posts, 'nothing sent before A').toEqual([]);
       const source = await rectOf(page, miniature(FZ));

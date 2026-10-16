@@ -78,7 +78,8 @@ export type TransferEnd = {
   x: number;
   y: number;
   /**
-   * The anchor under the chip's centre: `wild` (a card's printed «?» — TR54) · `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») · `hero` ·
+   * The anchor under the chip's centre: `wild` (a card's printed «?» — TR54) · `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») ·
+   * `printed:<sprite>` (a printed icon on the play scene's landed card — the play's «+N» is born there, TR56) · `hero` ·
    * `composer-card:<name>` ·
    * `recv:<card|front>` · `played:<card>` ·
    * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
@@ -139,6 +140,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // …and a milestone's / an award's ceremony line — the +5's printed source (the MA workspace's stage, the global shell).
       ['ma-vp', '.con-mafocus__cere-vp, .con-macere__vp, [data-ma-cere-seat], .con-macere__stage'],
       ['forecast', '[data-forecast-rail], [data-forecast-row] .con-forecast__bolt'],
+      // A PRINTED icon on the landed card of the play's scene — the play's «+N» is born on the icon of its resource in
+      // the on-play row (PL-190; TR56 — the chosen branch's own icon of a row of alternatives). `printed:<sprite>`.
+      ['printed', '.con-recv [data-recv-front] .pcard-ic'],
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],
@@ -171,6 +175,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       }
       case 'aux': return `aux:${name(el, 'data-aux-resource')}`;
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
+      case 'printed': {
+        const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
+        return `printed:${sprite}`;
+      }
       default: return kind;
       }
     };

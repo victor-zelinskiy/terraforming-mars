@@ -431,13 +431,18 @@ test.describe('Vesta at 1080', () => {
       await press(page, 'ArrowRight', 450);
     }
     expect(await focusedCandidate(page), 'the cursor reached the asteroid holder').toBe(TARGET);
-    // Each candidate's reading names ITS OWN kind — the selector's status rail (the ONE line under the
-    // cards: «ПОЛОСТИ В АСТЕРОИДАХ → [icon] Ресурсы на этой карте 0 → 2») wears the asteroid for this card.
+    // Each candidate's reading names ITS OWN kind — the selector's status rail («ПОЛОСТИ В АСТЕРОИДАХ → [icon] Ресурсы на
+    // этой карте 0 → 2») wears the asteroid for this card. The colony's target step draws no PL-219 tag under its cards
+    // (PL-058), so the rail keeps the count; where a host draws the tag, the count is the TAG's (TR56 П4) — read both.
     const focusedIcon = await page.evaluate((kinds) => {
-      const icons = Array.from(document.querySelectorAll('.con-ptsel__rail .con-ptsel__imp-icon'));
+      const tag = document.querySelector('.con-ptsel__cell[data-focused="1"] .con-ptsel__tag');
+      const icons = [
+        ...Array.from(document.querySelectorAll('.con-ptsel__rail .con-ptsel__imp-icon')),
+        ...Array.from(tag?.querySelectorAll('.con-ptsel__tag-icon') ?? []),
+      ];
       return {
         kinds: kinds.filter((k) => icons.some((i) => i.classList.contains('card-resource-' + k))),
-        rail: (document.querySelector('.con-ptsel__rail')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        rail: `${document.querySelector('.con-ptsel__rail')?.textContent ?? ''} | ${tag?.textContent ?? ''}`.replace(/\s+/g, ' ').trim(),
       };
     }, KINDS);
     console.log('── focused candidate reading ──', JSON.stringify(focusedIcon));

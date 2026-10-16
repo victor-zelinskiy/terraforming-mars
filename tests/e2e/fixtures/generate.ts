@@ -145,6 +145,7 @@ import {ColonyName} from '../../../src/common/colonies/ColonyName';
 import {AndOptions} from '../../../src/server/inputs/AndOptions';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
+import {RoboticsFactory} from '../../../src/server/cards/turmoilRedux/RoboticsFactory';
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
@@ -6003,3 +6004,68 @@ parliamentFixture('vp-cell-rival', {
     parliament.assertLedger(game);
   },
 });
+
+// ── TR56 · ROBOTICS FACTORY («Фабрика роботов») and the iteration «КУДА ЛЯЖЕТ» (docs/claude/prompts/project-tr56-robotics-
+//    factory.md, docs/TURMOIL_REDUX_ROBOTICS_FACTORY.md). Blue's action phase, the Industrialists RULING, TR56 in hand
+//    with 20 M€; the holder sets the fixtures differ by:
+//      · `robotics-factory`         — Construction Mechs (2 mechs — the Building tender), Security Fleet (1 fighter — VP),
+//                                     Dirigibles + Aerial Mappers (floaters): three tiles, three address sets;
+//      · `robotics-factory-one`     — Dirigibles only: the mech and fighter tiles greyed with their reason;
+//      · `robotics-factory-none`    — no holder of any kind: the card STILL plays, the three skips named;
+//      · `robotics-factory-mechpay` — Construction Mechs with 3 mechs and 2 M€: the mechs pay for the Building tag, the
+//                                     factory puts 3 back (the price leaves the capsule before the gain lands);
+//      · `robotics-factory-locked`  — the Reds ruling, the Industrialists' resolution on the vote with no delegate of blue's.
+//    Red sits at a pinned corporation with no first action. ──
+function roboticsFixture(name: string, spec: {
+  holders: 'all' | 'floaters' | 'none' | 'mechpay',
+  ruling?: PartyName.REDS | PartyName.INDUSTRIALISTS,
+  megacredits?: number,
+}): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [spec.megacredits ?? 20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      const ruling = spec.ruling ?? PartyName.INDUSTRIALISTS;
+      seatEnacted(parliament, quietResolutionOf(ruling));
+      if (ruling !== PartyName.INDUSTRIALISTS && parliament.slotOf(PartyName.INDUSTRIALISTS) === undefined) {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.INDUSTRIALISTS));
+      }
+      p1.megaCredits = spec.megacredits ?? 20;
+      if (spec.holders === 'all' || spec.holders === 'mechpay') {
+        const mechs = new ConstructionMechs();
+        mechs.resourceCount = spec.holders === 'mechpay' ? 3 : 2;
+        p1.playedCards.push(mechs);
+      }
+      if (spec.holders === 'all') {
+        const fleet = new SecurityFleet();
+        fleet.resourceCount = 1;
+        p1.playedCards.push(fleet);
+      }
+      if (spec.holders === 'all' || spec.holders === 'floaters') {
+        p1.playedCards.push(new Dirigibles());
+      }
+      if (spec.holders === 'all') {
+        p1.playedCards.push(new AerialMappers());
+      }
+      p1.cardsInHand.push(new RoboticsFactory());
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.ROBOTICS_FACTORY);
+      const playable = card !== undefined && p1.canPlay(card);
+      const wantPlayable = (spec.ruling ?? PartyName.INDUSTRIALISTS) === PartyName.INDUSTRIALISTS;
+      if (card === undefined || playable !== wantPlayable || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected TR56 ${wantPlayable ? 'playable' : 'UNplayable'} with blue on the move — got card=${card !== undefined} playable=${playable} ruling=${parliament.rulingParty()} active=${game.activePlayer.color}`);
+      }
+      if (spec.holders === 'mechpay' && (p1.getSpendable('constructionMechs') !== 3 || p1.megaCredits !== 2)) {
+        throw new Error(`the ${name} fixture expected 3 spendable mechs and 2 M€ — got mechs=${p1.getSpendable('constructionMechs')} mc=${p1.megaCredits}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+roboticsFixture('robotics-factory', {holders: 'all'});
+roboticsFixture('robotics-factory-one', {holders: 'floaters'});
+roboticsFixture('robotics-factory-none', {holders: 'none'});
+roboticsFixture('robotics-factory-mechpay', {holders: 'mechpay', megacredits: 2});
+roboticsFixture('robotics-factory-locked', {holders: 'all', ruling: PartyName.REDS});

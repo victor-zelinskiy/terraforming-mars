@@ -145,8 +145,10 @@ const focusedCandidate = (page: Page) => page.evaluate(() => {
 async function railReading(page: Page): Promise<{text: string, outcomes: Array<string>}> {
   return page.evaluate(() => {
     const rail = document.querySelector('.con-ptsel__rail');
+    // TR56 (П4): the digits the tag under the focused card prints (its count, its VP) are the TAG's — read with the rail.
+    const tag = document.querySelector('.con-ptsel__cell[data-focused="1"] .con-ptsel__tag');
     return {
-      text: (rail?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      text: `${rail?.textContent ?? ''} | ${tag?.textContent ?? ''}`.replace(/\s+/g, ' ').trim(),
       outcomes: Array.from(rail?.querySelectorAll('[data-impact-outcome]') ?? []).map((el) => el.getAttribute('data-impact-outcome') ?? ''),
     };
   });
@@ -286,11 +288,11 @@ for (const preset of PRESETS) {
 
       // ── The target step: every candidate's reading of what the 2 do there.
       for (const key of ['ArrowUp', 'ArrowDown']) {
-        for (let i = 0; i < 8 && !/получател/i.test(await focusedRow(page)); i++) {
+        for (let i = 0; i < 8 && !/получател|Куда/i.test(await focusedRow(page)); i++) {
           await press(page, key, 220);
         }
       }
-      expect(await focusedRow(page), 'the target row is focused').toMatch(/получател/i);
+      expect(await focusedRow(page), 'the target row is focused').toMatch(/получател|Куда/i);
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-ptsel'), 'the played-target step opened').toBeVisible();
       const cells = await page.locator('.con-ptsel__cell').count();
