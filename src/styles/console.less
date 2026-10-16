@@ -5025,16 +5025,20 @@ each(@players, {
     }
     /* AN EMPTY HOLDER STEPS BACK (PL-480, TR57's 4K walk): a floater holder with «0» stood in the full voice of the
        mech holder with 4 beside it, so the eye weighed nothing the same as something. The box stays (the holder IS
-       on the table, and the cell is a landing anchor); its icon and count go quiet — opacity on the children, never a
-       `filter` (the console strips it). An ATTRIBUTE, never a class: the cell's own `:class` binding would rewrite
-       the className under an imperative landing accent. */
+       on the table, and the cell is a landing anchor); its icon and badges go quiet by opacity, never a `filter` (the
+       console strips it) — and the COUNT by colour only: the satellite's pixel contract (`console-extras-explorer`)
+       lets no fade touch a value, and a «0» that lights up as a resource lands must not read as a fade-in. An
+       ATTRIBUTE, never a class: the cell's own `:class` binding would rewrite the className under an imperative
+       landing accent. */
     &__cell[data-aux-empty] {
         .con-res-aux__icon,
-        .con-res-aux__value,
         .con-res-aux__mcbadge,
         .con-res-aux__rolebadge {
             opacity: .45;
             transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        }
+        .con-res-aux__value {
+            color: fade(@con-text-dim, 55%);
         }
     }
 }
