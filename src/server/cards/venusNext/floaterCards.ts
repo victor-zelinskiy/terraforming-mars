@@ -36,5 +36,7 @@ export const floaterCards: ReadonlySet<CardName> = new Set([
 
   // Turmoil Redux — TR56 prints «6 floaters to ANY card» (Celestic reveals it as a floater card)
   CardName.ROBOTICS_FACTORY,
+  // TR58 prints «3 floaters to ANY card» as its action's one result
+  CardName.REPROCESSING_PLANT,
 ]);
 

@@ -12,6 +12,9 @@ import {SelectAmount} from '../../src/server/inputs/SelectAmount';
 import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
 import {SelectPayment} from '../../src/server/inputs/SelectPayment';
 import {SelectPaymentDeferred} from '../../src/server/deferredActions/SelectPaymentDeferred';
+import {AndOptions} from '../../src/server/inputs/AndOptions';
+import {StormCraftIncorporated} from '../../src/server/cards/colonies/StormCraftIncorporated';
+import {AddressableInput, PreselectAddress, addressVerdict} from '../../src/common/inputs/preselectAddress';
 import {Payment} from '../../src/common/inputs/Payment';
 import {ActionPreviewBranch, ActionPreviewStep} from '../../src/common/models/ActionPreviewModel';
 import {actionPreview} from '../../src/server/models/actionPreview';
@@ -158,6 +161,20 @@ const PROFILES: ReadonlyArray<Profile> = [
       player.canUseHeatAsMegaCredits = false;
     },
   },
+  {
+    // Stormcraft with floaters turns EVERY heat price into a QUESTION (stock heat or floaters, 2 heat each) — on a
+    // top-level `spend.heat` (Meltworks, Plasma Fans) and on a branch's own (TR58, Directed Heat Usage), where it is
+    // asked AFTER the variant pick. 1 heat in stock: the split is a real one.
+    label: 'stormcraft',
+    apply: (_game, player, card) => {
+      player.heat = 1;
+      if (card.name !== CardName.STORMCRAFT_INCORPORATED) {
+        const corp = new StormCraftIncorporated();
+        corp.resourceCount = 4;
+        player.playedCards.push(corp);
+      }
+    },
+  },
   /*
    * DELIBERATELY ABSENT — «Reds in power, nothing that can pay the tax»:
    *
@@ -245,6 +262,13 @@ function answerLive(input: PlayerInput, player: TestPlayer): PlayerInput | undef
   if (input instanceof SelectPlayer) {
     return churn(() => input.cb(input.players[0]), player);
   }
+  if (input instanceof AndOptions && input.spendHeatPrompt !== undefined) {
+    // Stormcraft's split: as many floaters as the stock heat leaves short, the rest heat — never an overspend.
+    const target = input.spendHeatPrompt.amount;
+    const floaters = Math.ceil((target - Math.min(player.heat, target)) / 2);
+    const heat = Math.max(0, target - floaters * 2);
+    return churn(() => input.process({type: 'and', responses: [{type: 'amount', amount: heat}, {type: 'amount', amount: floaters}]}, player), player);
+  }
   if (input instanceof SelectPayment) {
     // The setup player is a Helion (heat counts toward affordability), so a
     // dial-derived bill can exceed the raw M€ stock — top up with heat.
@@ -271,6 +295,24 @@ function workspaceClaims(branch: ActionPreviewBranch, live: PlayerInput): boolea
     return true;
   }
   return branch.effects.some((e) => e.direction === 'gain' && e.icon === 'cards');
+}
+
+/**
+ * The PRE-SELECT ADDRESS against the live prompt it is meant for (`addressVerdict`, the replay's own reader): a step
+ * the composer answers is stamped `for` its asker, and an answer whose asker the live prompt does not name is PARKED
+ * untried — the player is asked again after the press. The shape matched; the address must too (TR58: Stormcraft's
+ * heat split was stamped with the previewed card, its live prompt names Stormcraft). `undefined` — lands.
+ */
+function foreignAddress(address: PreselectAddress | undefined, live: PlayerInput): string | undefined {
+  if (address === undefined) {
+    return undefined;
+  }
+  const model = live as unknown as AddressableInput;
+  if (addressVerdict(address, model) !== 'foreign') {
+    return undefined;
+  }
+  const said = (s: {kind: string, card?: string} | undefined) => s === undefined ? '<none>' : `${s.kind}:${s.card ?? ''}`;
+  return `the '${address.role}' step is addressed to ${said(address.source)} but the live prompt names ${said(live.choiceContext?.source)} — the answer parks and the question is asked again after the press`;
 }
 
 /** Does a NAMED (display-only) step honestly announce this live leftover? A
@@ -618,6 +660,12 @@ describe('action prompt coverage (the pre-collect contract)', () => {
               preWalked = false;
               break;
             }
+            const preForeign = foreignAddress(pre.for, current);
+            if (preForeign !== undefined) {
+              leaking.set(a.card.name, `${where} :: ${preForeign}`);
+              preWalked = false;
+              break;
+            }
             try {
               current = answerLive(current, b.player);
             } catch {
@@ -674,6 +722,11 @@ describe('action prompt coverage (the pre-collect contract)', () => {
             const expected = step.kind === 'tabbedTargets' ? 'or' : step.input.type;
             if (current.type !== expected) {
               leaking.set(a.card.name, `${where} :: declared a '${expected}' step but the server asks ${shapeOf(current)} — order/shape drift`);
+              break;
+            }
+            const foreign = foreignAddress(step.for, current);
+            if (foreign !== undefined) {
+              leaking.set(a.card.name, `${where} :: ${foreign}`);
               break;
             }
             try {

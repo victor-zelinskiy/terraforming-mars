@@ -219,5 +219,10 @@
     "Add 6 floaters to ANY card": "Добавить 6 аэростатов на любую карту",
     "Mining Mechs": "Горные мехи",
     "Requires the Industrialists to be ruling or that you have 2 delegates there. Add 4 mech resources to this card.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Добавьте 4 меха на эту карту.",
-    "Action: Spend 2 mechs from here to increase your steel or titanium production 1 step.": "Действие: потратьте 2 меха с этой карты, чтобы повысить своё производство стали или титана на 1."
+    "Action: Spend 2 mechs from here to increase your steel or titanium production 1 step.": "Действие: потратьте 2 меха с этой карты, чтобы повысить своё производство стали или титана на 1.",
+    "Reprocessing Plant": "Перерабатывающий завод",
+    "Requires the Industrialists to be ruling or that you have 2 delegates there.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции.",
+    "Action: Pay 3 plants or 5 heat to add 3 floater resources to ANY card.": "Действие: заплатите 3 растения или 5 тепла, чтобы добавить 3 аэростата на ЛЮБУЮ карту.",
+    "Spend 3 plants to add 3 floaters to ANY card": "Потратить 3 растения: 3 аэростата на любую карту",
+    "Spend 5 heat to add 3 floaters to ANY card": "Потратить 5 тепла: 3 аэростата на любую карту"
 }

@@ -126,6 +126,9 @@ describe('actionBranchView · the printed row of ONE branch', () => {
   const KNOWN_UNSLICED: ReadonlyArray<string> = [
     // ONE printed row («→ +1 production of your lowest») over six branches — no seam to cut: words and chips.
     'Robinson Industries [prelude]',
+    // TR58 «3 [plant] OR 5 [heat] → 3 [floater]*» — the seam on the PRICE side; the price slice lands with the
+    // composer's price plates (TR58 §2.Е) and removes this row in the same diff.
+    'Reprocessing Plant [turmoilRedux]',
   ];
 
   it('corpus: a shared printed row is sliced WHOLE or not at all, every segment a face reference, no two branches the same', () => {

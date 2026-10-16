@@ -181,14 +181,21 @@ export class FrontierLabs extends Card implements IProjectCard, IActionCard {
    * target step whose candidates carry their own tail (+1 card / no draw).
    */
   public actionPreview(player: IPlayer): ActionPreview {
+    // The 5 M€ is a CHOICE the moment anything but M€ can pay it (Helion's heat, Stormcraft's floaters as heat): the
+    // live `SelectPaymentDeferred` asks FIRST, so it is pre-collected in the live order — never asked after the press
+    // (TR58's Stormcraft profile of `actionPromptCoverage` found it). The widget states the price; no flat chip beside.
+    const pay = actionPreviews.paymentStep(player, FRONTIER_LABS_PRICE, {
+      title: TITLES.payForCardAction(this.name),
+      cause: cardSource(this),
+    });
     const step = actionPreviews.addToCardStep(player, undefined, {
       count: FRONTIER_LABS_ADDED,
       min: 1,
       cause: cardSource(this),
       extraByCard: (card) => FrontierLabs.extraFor(card),
     });
-    return actionPreviews.singleBranch(this, player, step !== undefined ? [step] : [], [
-      actionPreviews.stockCost(player, Resource.MEGACREDITS, FRONTIER_LABS_PRICE),
+    return actionPreviews.singleBranch(this, player, [...(pay !== undefined ? [pay] : []), ...(step !== undefined ? [step] : [])], [
+      ...(pay === undefined ? [actionPreviews.stockCost(player, Resource.MEGACREDITS, FRONTIER_LABS_PRICE)] : []),
       // «+1 to a card» in the declarative vocabulary of an addition of ANY kind (the kind is the chosen card's own).
       {direction: 'gain', icon: 'resources', amount: FRONTIER_LABS_ADDED, note: 'to a card'},
     ]);

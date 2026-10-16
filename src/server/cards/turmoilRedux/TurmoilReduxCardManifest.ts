@@ -58,6 +58,7 @@ import {NuclearWarheadUtilization} from './NuclearWarheadUtilization';
 import {OverclockedEquipment} from './OverclockedEquipment';
 import {RoboticsFactory} from './RoboticsFactory';
 import {MiningMechs} from './MiningMechs';
+import {ReprocessingPlant} from './ReprocessingPlant';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -287,5 +288,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the Industrialists' plate; the EIGHTH mech holder — TR40's `or` with ONE
     // price (2 mechs here) and two goods (steel · titanium production).
     [CardName.MINING_MECHS]: {Factory: MiningMechs},
+    // Only the module's icon at the bottom left: the Industrialists' plate; the set's first `or` on the PRICE side — two
+    // prices (3 plants · 5 heat), ONE result (3 floaters onto ANY card).
+    [CardName.REPROCESSING_PLANT]: {Factory: ReprocessingPlant},
   },
 });

@@ -193,6 +193,15 @@ export function subAvailability(player: IPlayer, card: ICard, behavior: Behavior
  * record from one writer), and the variants stay after it, greyed with their
  * reasons — shown, never hidden. Returns `undefined` for a behavior without
  * an `or`.
+ *
+ * A BRANCH'S OWN HEAT PRICE (TR58 «3 plants OR 5 heat», Directed Heat Usage)
+ * is that branch's first own step: the Executor runs the chosen sub in the
+ * option's callback, so Stormcraft's split («heat or floaters») is asked
+ * AFTER the variant pick and BEFORE the rest of the branch — never a card-
+ * level `preSteps` (those precede the pick: the top-level `spend.heat` of
+ * Meltworks / Plasma Fans), never a question after the press (the law
+ * «every choice is made before the commit»). `undefined` without Stormcraft
+ * floaters — no prompt live, no step here.
  */
 export function deriveOrBranches(
   player: IPlayer,
@@ -229,7 +238,7 @@ export function deriveOrBranches(
       unavailableReasonParams: a.reason?.params,
       renderKeys: [String(i)],
       effects: [...outerEffects, ...effectsForBehavior(player, card, sub)],
-      steps: a.available ? [...outerSteps, ...stepsFor(sub)] : [],
+      steps: a.available ? [...outerSteps, ...branchHeatSteps(player, sub), ...stepsFor(sub)] : [],
     };
   });
   if (availableCount === 0 && or.optional === true) {
@@ -244,6 +253,13 @@ export function deriveOrBranches(
     ];
   }
   return branches;
+}
+
+/** The heat-source step a branch's own `spend.heat` raises (Stormcraft's split) — `[]` when the live path asks nothing. */
+function branchHeatSteps(player: IPlayer, sub: Behavior): ReadonlyArray<ActionPreviewStep> {
+  const heat = sub.spend?.heat;
+  const step = typeof heat === 'number' && heat > 0 ? actionPreviews.spendHeatStep(player, heat) : undefined;
+  return step !== undefined ? [step] : [];
 }
 
 function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {

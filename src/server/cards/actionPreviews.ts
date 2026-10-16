@@ -440,6 +440,12 @@ export function spendHeatStep(player: IPlayer, amount: number): ActionPreviewSte
   }
   const model = input.toModel(player);
   model.spendHeatPrompt = input.spendHeatPrompt;
+  // …and its ASKER: the split is Stormcraft's question (`markChoiceContext` on the live prompt), so the pre-select
+  // address must name Stormcraft — stamped with the previewed card instead, the answer met the live prompt as
+  // `foreign` and parked untried, and the split was asked again after the press (TR58).
+  if (input.choiceContext !== undefined) {
+    model.choiceContext = input.choiceContext;
+  }
   return {kind: 'spendHeat', input: model};
 }
 

@@ -77,10 +77,18 @@ export function collectActionBehaviorReasons(
   // executable branch the card still plays and the choice is skipped by name,
   // so its branches' reasons are the BRANCHES' (the preview greys each with
   // its own), not the card's.
+  //
+  // A reason EVERY variant shares closes the whole action, so it leads (TR58: no floater holder refuses «3 plants» and
+  // «5 heat» alike — «too few plants» is one variant's, and a card-level line that led with it would name a shortfall
+  // whose cure opens nothing). Then each variant's own, in the printed order; the caller dedupes.
   if (behavior.or !== undefined && behavior.or.optional !== true) {
-    for (const sub of behavior.or.behaviors) {
-      collectActionBehaviorReasons(player, card, sub, out);
-    }
+    const perSub = behavior.or.behaviors.map((sub) => {
+      const own: Array<UnplayableReason> = [];
+      collectActionBehaviorReasons(player, card, sub, own);
+      return own;
+    });
+    const shared = (perSub[0] ?? []).filter((r) => perSub.every((own) => own.some((o) => reasonKey(o) === reasonKey(r))));
+    out.push(...shared, ...perSub.flat());
   }
 
   if (behavior.production !== undefined && !player.production.canAdjust(ctx.countUnits(behavior.production))) {
@@ -168,13 +176,19 @@ export function collectActionBehaviorReasons(
   }
 }
 
+/**
+ * One reason's identity. The params are part of it: two variants sharing ONE price (TR57 — «2 mechs → steel OR
+ * titanium») say the same «1 of 2» once, while two different needs of one template stay two.
+ */
+function reasonKey(r: UnplayableReason): string {
+  return `${r.type}|${r.message}|${(r.params ?? []).join(',')}|${r.resource ?? ''}`;
+}
+
 function dedupe(reasons: ReadonlyArray<UnplayableReason>): Array<UnplayableReason> {
   const seen = new Set<string>();
   const out: Array<UnplayableReason> = [];
   for (const r of reasons) {
-    // The params are part of the reason: two variants sharing ONE price (TR57 — «2 mechs → steel OR titanium») say the
-    // same «1 of 2» once, while two different needs of one template stay two.
-    const key = `${r.type}|${r.message}|${(r.params ?? []).join(',')}|${r.resource ?? ''}`;
+    const key = reasonKey(r);
     if (!seen.has(key)) {
       seen.add(key);
       out.push(r);
