@@ -230,10 +230,10 @@ describe('VectorComputations', () => {
       player.playedCards.push(card);
     });
 
-    it('below 4 data the automatic reason names the resources on this card', () => {
+    it('below 4 data the automatic reason counts the data on this card — «3 of 4» (PL-197)', () => {
       card.resourceCount = 3;
       expect(card.canAct(player)).is.false;
-      expect(actionUnavailableReasons(player, card)).deep.eq([{type: 'count', message: 'Not enough resources on this card', current: 3}]);
+      expect(actionUnavailableReasons(player, card)).deep.eq([{type: 'count', message: '${0} of ${1} data on this card', params: ['3', '4'], current: 3}]);
     });
 
     it('with 4 data: the deck is discarded down to the first Space card — it alone lands in hand, the search is logged and replayable', () => {

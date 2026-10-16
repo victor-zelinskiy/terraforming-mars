@@ -57,6 +57,7 @@ import {ScientificBreakthrough} from './ScientificBreakthrough';
 import {NuclearWarheadUtilization} from './NuclearWarheadUtilization';
 import {OverclockedEquipment} from './OverclockedEquipment';
 import {RoboticsFactory} from './RoboticsFactory';
+import {MiningMechs} from './MiningMechs';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -283,5 +284,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the Industrialists' plate again; TR43's OPTIONAL `or` with THREE «add to
     // ANY card» branches (mechs · fighters · floaters) as the whole card — three holder sets behind one variant row.
     [CardName.ROBOTICS_FACTORY]: {Factory: RoboticsFactory},
+    // Only the module's icon at the bottom left: the Industrialists' plate; the EIGHTH mech holder — TR40's `or` with ONE
+    // price (2 mechs here) and two goods (steel · titanium production).
+    [CardName.MINING_MECHS]: {Factory: MiningMechs},
   },
 });

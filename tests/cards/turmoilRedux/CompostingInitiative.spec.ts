@@ -303,11 +303,11 @@ describe('CompostingInitiative', () => {
       expect(t.player.heat).eq(6);
     });
 
-    it('1 microbe: refused with «Not enough resources on this card» and the count', () => {
+    it('1 microbe: refused with «1 of 2 microbes on this card» — the count, the need, the resource (PL-197)', () => {
       t.player.playedCards.push(t.card);
       t.card.resourceCount = 1;
       expect(t.card.canAct(t.player)).is.false;
-      expect(actionUnavailableReasons(t.player, t.card)[0]).deep.include({type: 'count', message: 'Not enough resources on this card', current: 1});
+      expect(actionUnavailableReasons(t.player, t.card)[0]).deep.include({type: 'count', message: '${0} of ${1} {microbe|microbes} on this card', params: ['1', '2'], current: 1});
     });
 
     it('rule 5 — ordinary microbes: «microbes to ANY card» can land here', () => {

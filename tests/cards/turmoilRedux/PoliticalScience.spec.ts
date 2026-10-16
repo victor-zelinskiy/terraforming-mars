@@ -321,10 +321,10 @@ describe('PoliticalScience', () => {
       p1.playedCards.push(card);
     });
 
-    it('below 3 data the automatic reason names the resources on this card', () => {
+    it('below 3 data the automatic reason counts the data on this card — «2 of 3» (PL-197)', () => {
       card.resourceCount = 2;
       expect(card.canAct(p1)).is.false;
-      expect(actionUnavailableReasons(p1, card)).deep.eq([{type: 'count', message: 'Not enough resources on this card', current: 2}]);
+      expect(actionUnavailableReasons(p1, card)).deep.eq([{type: 'count', message: '${0} of ${1} data on this card', params: ['2', '3'], current: 2}]);
     });
 
     it('with 3 data: the data leave, a card arrives, nothing is asked', () => {

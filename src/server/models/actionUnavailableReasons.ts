@@ -6,6 +6,7 @@ import {Resource} from '../../common/Resource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {Turmoil} from '../turmoil/Turmoil';
+import {resourcesHereShort} from '../cards/actionReasons';
 
 /**
  * Authoritative, structured explanation of why an action card's ACTIVATABLE
@@ -94,7 +95,8 @@ export function collectActionBehaviorReasons(
     }
     out.push(...spendStockReasons(player, spend));
     if (spend.resourcesHere && card.resourceCount < spend.resourcesHere) {
-      out.push({type: 'count', message: 'Not enough resources on this card', current: card.resourceCount});
+      // «1 of 2 mechs on this card» — the count, the need and the resource (PL-197), never a bare «not enough».
+      out.push(resourcesHereShort(card.resourceType, card.resourceCount, spend.resourcesHere));
     }
     if (spend.resourceFromAnyCard && player.getCardsWithResources(spend.resourceFromAnyCard.type).length === 0) {
       out.push({type: 'target', message: 'No card has the right resource to remove'});
@@ -170,7 +172,9 @@ function dedupe(reasons: ReadonlyArray<UnplayableReason>): Array<UnplayableReaso
   const seen = new Set<string>();
   const out: Array<UnplayableReason> = [];
   for (const r of reasons) {
-    const key = `${r.type}|${r.message}|${r.resource ?? ''}`;
+    // The params are part of the reason: two variants sharing ONE price (TR57 — «2 mechs → steel OR titanium») say the
+    // same «1 of 2» once, while two different needs of one template stay two.
+    const key = `${r.type}|${r.message}|${(r.params ?? []).join(',')}|${r.resource ?? ''}`;
     if (!seen.has(key)) {
       seen.add(key);
       out.push(r);

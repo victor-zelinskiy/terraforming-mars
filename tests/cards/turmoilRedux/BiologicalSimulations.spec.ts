@@ -319,10 +319,10 @@ describe('BiologicalSimulations', () => {
       t.player.playedCards.push(t.card);
     });
 
-    it('below 2 data the automatic reason names the resources on this card', () => {
+    it('below 2 data the automatic reason counts the data on this card — «1 of 2» (PL-197)', () => {
       t.card.resourceCount = 1;
       expect(t.card.canAct(t.player)).is.false;
-      expect(actionUnavailableReasons(t.player, t.card)).deep.eq([{type: 'count', message: 'Not enough resources on this card', current: 1}]);
+      expect(actionUnavailableReasons(t.player, t.card)).deep.eq([{type: 'count', message: '${0} of ${1} data on this card', params: ['1', '2'], current: 1}]);
     });
 
     it('the Greens ruling (the starting rule): 2 → 0 data, +1 plant production, +1 M€ production from the Greens; the use is spent for the generation; the journal reads spend · step · answer', () => {

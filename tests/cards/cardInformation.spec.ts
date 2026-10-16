@@ -376,6 +376,7 @@ describe('card information model', function() {
       ['Biological Simulations', '"2 data resources" = "Add 2 data to this card." — the play\'s card resources (TR38, the Spaceship Recycling class), only the noun differs'],
       ['Research Startups', '"3 data resources" = "Add 3 data to this card." — the play\'s card resources (TR46, the TR38 class), only the noun differs'],
       ['Nuclear Warhead Utilization', '"9 energy resources" = "Gain 9 energy." — the printed noun of a stock gain (TR55), only the wording differs'],
+      ['Mining Mechs', '"4 mech resources" = "Add 4 mechs to this card." — the play\'s card resources (TR57, the TR38 class), only the noun differs'],
       ['PolderTECH Dutch', '"next to each other" = "an adjacent greenery tile", shown; only the wording differs'],
       ['Aqueduct Systems', 'the printed "draw 3 cards with a building tag" IS a search (the engine reveals until 3 match — `DrawCards`), and the generated text says so from the ONE search descriptor: "Reveal … until you reveal 3 cards with a building tag. Take them into your hand"; only the verb differs'],
     ]);

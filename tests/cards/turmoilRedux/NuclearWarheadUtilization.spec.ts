@@ -121,7 +121,7 @@ describe('NuclearWarheadUtilization', () => {
       const at = t.parliament.slots.findIndex((slot) => t.parliament.resolutionOf(slot.instance).party === I);
       if (at >= 0) {
         const onTable = t.parliament.slots.map((slot) => t.parliament.resolutionOf(slot.instance).party);
-        const free = [PartyName.MARS, PartyName.UNITY, PartyName.GREENS].find((p) => !onTable.includes(p));
+        const free = ([PartyName.MARS, PartyName.UNITY, PartyName.GREENS] as const).find((p) => !(onTable as ReadonlyArray<PartyName>).includes(p));
         seatResolution(t.parliament, at, quietResolutionOf(free!));
       }
       expect(t.parliament.slotOf(I), 'the Industrialists off the vote').is.undefined;

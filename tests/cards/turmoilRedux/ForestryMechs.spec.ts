@@ -292,7 +292,8 @@ describe('ForestryMechs', () => {
       const u = owned(table(), 0, 1);
       const b = actionPreview(u.player, u.card).branches[1];
       expect(b.available).is.false;
-      expect(b.unavailableReason).eq('Not enough resources on this card');
+      expect(b.unavailableReason).eq('${0} of ${1} {mech|mechs} on this card');
+      expect(b.unavailableReasonParams, '«0 of 1 mech» (PL-197)').deep.eq(['0', '1']);
       expect(b.effects.map((e) => e.icon)).deep.eq(['mech', Resource.PLANTS]);
     });
 
@@ -314,9 +315,9 @@ describe('ForestryMechs', () => {
       it('no mech and no energy: the energy first, the mech count second — both named, nothing invented', () => {
         owned(t, 0, 0);
         const reasons = actionUnavailableReasons(t.player, t.card);
-        expect(reasons.map((r) => r.message)).deep.eq(['Not enough energy', 'Not enough resources on this card']);
+        expect(reasons.map((r) => r.message)).deep.eq(['Not enough energy', '${0} of ${1} {mech|mechs} on this card']);
         expect(reasons[0]).deep.include({type: 'resource', resource: Resource.ENERGY, current: 0});
-        expect(reasons[1]).deep.include({type: 'count', current: 0});
+        expect(reasons[1]).deep.include({type: 'count', params: ['0', '1'], current: 0});
         expect(actionPreview(t.player, t.card).branches.map((b) => b.available), 'two branches, both shown').deep.eq([false, false]);
       });
     });

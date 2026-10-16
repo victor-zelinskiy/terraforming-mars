@@ -736,9 +736,6 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
     CardName.AIR_SCRAPPING_STANDARD_PROJECT,
     CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT,
     CardName.BUILD_COLONY_STANDARD_PROJECT,
-    // TEMPORARY — TR56 «Фабрика роботов»: the owner's art (`Mars Arts/TR56.png`) was not delivered with the card
-    // (requested 2026-10-16). The import (`scripts/import-card-art.mjs … TR56`) REMOVES this row.
-    CardName.ROBOTICS_FACTORY,
   ]);
 
   it('every in-scope premium card resolves real art', () => {
