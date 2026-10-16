@@ -38,6 +38,11 @@ describe('hand-dock anchor contract (chassis-only dock, top-left bodies)', () =>
   const less = fs.readFileSync(LESS, 'utf8');
   const dealLess = fs.readFileSync(DEAL_LESS, 'utf8');
   const dock = fs.readFileSync(DOCK, 'utf8');
+  // EVERY bare `.con-handbody { … }` rule, joined — the selector is legitimately split (TR58 stamps
+  // `--con-hand-fx` in its own rule beside the copy's face rules), so «the first match» reads the wrong block.
+  const bodyRules = [...dealLess.matchAll(/(?:^|\n)\.con-handbody\s*\{([^}]*)\}/g)]
+    .map((m) => m[1].replace(/\s+/g, ' '))
+    .join(' ');
 
   it('the dock renders no card elements — bodies live on the reveal layer', () => {
     const template = /<template>([\s\S]*)<\/template>/.exec(dock);
@@ -55,15 +60,13 @@ describe('hand-dock anchor contract (chassis-only dock, top-left bodies)', () =>
   });
 
   it('bodies pin the top-left transform origin (the BodyPose grammar)', () => {
-    const body = /\.con-handbody\s*\{([^}]*)\}/.exec(dealLess);
-    expect(body, '.con-handbody rule in console_card_deal.less').to.not.be.null;
-    expect(body![1].replace(/\s+/g, ' '), 'transform-origin: 0 0 — the analytic pose and every flight target assume it')
+    expect(bodyRules, '.con-handbody rule in console_card_deal.less').to.not.equal('');
+    expect(bodyRules, 'transform-origin: 0 0 — the analytic pose and every flight target assume it')
       .to.match(/transform-origin:\s*0\s+0/);
   });
 
   it('an unseated body never paints (visibility boots hidden)', () => {
-    const body = /\.con-handbody\s*\{([^}]*)\}/.exec(dealLess);
-    expect(body![1].replace(/\s+/g, ' ')).to.match(/visibility:\s*hidden/);
+    expect(bodyRules).to.match(/visibility:\s*hidden/);
   });
 
   it('an embedded surface can never join the root column', () => {
