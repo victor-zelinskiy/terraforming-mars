@@ -1,6 +1,49 @@
 <!-- Reference material moved out of the root CLAUDE.md (2026-07-27 context-budget reorg).
      NOT auto-loaded. Read on demand when working on this subsystem. -->
 
+## ⭐⭐⭐ ONE GLANCE (TR59, 2026-10-16) — a toast answers THREE questions; the rest is the journal
+
+**The owner's accent:** «нотификации видны недолго — игрок должен буквально одним взглядом получить ответы на все свои
+вопросы»: WHAT changed for ME, WHY (which of MY cards / tiles / colonies), on WHOSE turn. What the actor got is a short
+summary at most. Full write-up, frames before / after and the family table: `docs/TURMOIL_REDUX_SPONSORED_POWER_PLANT.md`.
+
+**The hierarchy** (`ConsoleNotificationCard.vue`): (1) the HERO band — the viewer's own deltas, a tinted stripe across the
+card, the numbers bare and the card's largest, the sign in three channels; (2) WHY — one line per cause under the band: the
+anchor naming WHAT OF YOURS paid (`Your tile` / `Your card` / `Your corporation` / `Your colony`) or `Source` for what is not
+yours (an attack, a law, a party), the name, then the tails on their own line — the detail, the trigger, the actor's MOVE
+(`via` — «ход: …»); (3) WHOSE TURN — the head's actor chip, the ONLY place the actor is named (a cluster wears the actor's
+dot, a transfer arrow to the actor its dot); (4) what the others got — one quiet line each under a hairline. A play / an action
+/ a standard project that touched nothing of the viewer's: the type label + the CARD alone (the log's verb said the type
+twice); the kicker names a card action's card only when the headline is NOT on screen. Gone: the scope / before → after line,
+the «Марс» cluster (the HUD), the pass card in the console, the footer's words.
+
+**The pad contract** is glyphs on the lifetime's own row: `[X] → Журнал / Осмотреть ход / Осмотреть / Открыть Парламент`, the
+hold shown as a RING filling around the X glyph on `NOTIF_HOLD_MS`, the lifetime as the row's track, `[B]`.
+
+**Where it stands:** the corner of the CENTRAL OPENING (`right: var(--con-stage-r) + .6rem`, `top: var(--con-stage-t) +
+.6rem` — the live edges `useWorkspaceBandGeometry` publishes on <html>): a toast never covers the strategy rail.
+
+**The content policy** — ONE pure module, `notificationContentPolicy.ts` (`presentedContent(model, mode, viewer)`), applied
+at the ONE moment a model becomes visible (`notificationState.presentable` in `pushTransient` / `promoteFromQueue`): a queued
+model keeps its whole content (a mode change reaches the next card); a visible card is never re-rendered (ITERATION 3). The
+second setting, «Содержание уведомлений» (`notificationContentMode.ts`, `tm_notification_content`, category «УВЕДОМЛЕНИЯ»
+beside «Быстрые уведомления»): **Кратко** (default) / **Только моё**.
+
+⛔ **NEVER FILTERED by any mode** (pinned in `notificationContentPolicy.spec`): the viewer's band — gains AND losses — and its
+causes; the actor chip; the viewer's own skipped effect («no silent loss»); an attack on the viewer (a zero outcome included);
+warnings, the turn prompts, terraforming complete; a reveal line, a passive source / law line, a burst's count.
+
+**Both modes cut** the «Марс» cluster, the TR49 requirement-eased line and the actor's own skipped effect (both about the
+actor's play — the journal row), and a bot card's bookkeeping under a viewer band. **Кратко** keeps the actor's line (≤ 2
+chips), one third player's line and one third player's skipped line, a band-less bot card's ≤ 2 outcome lines (+ «ещё N»).
+**Только моё** keeps the answer alone. The bot's outcome lines are TYPED by their producer (`NotificationSummaryLine` —
+`kind` / `target` / `fate`; the server stamps the `bonus-fate` role), so the policy never reads text.
+
+**Guards:** `notificationContentPolicy.spec`, `notificationCauseView.spec` § TR59, the e2e stand
+`console-notification-source.spec.ts` (fhd + tv4k: the anchor, the via, one actor statement, no «Марс», no bookkeeping under the
+band, clear of the strategy rail, every text zone ≥ `--con-t-floor` on 4K by COMPUTED style — the static
+`consoleTvTypeFloor` sees only what the TV sheet declares — and the card's text frozen from its first frame).
+
 ## ⭐⭐ CONSUMER UPDATE BOUNDARIES (2026-09-03) — the ingest module, and why «the server half is green» proved nothing
 
 **The Research Outpost forensic audit.** Report: two humans; B plays «Исследовательская станция» (Research Outpost, base #020, `city: {on:'isolated'}`); the city lands, A's Tharsis Republic correctly defers +1 M€ production — and A's console never presents the band. The SERVER half was provably intact (event recorded in B's correlation, attributed to Tharsis, `diffRootNotifications` builds the right positive model — the S8 corpus was genuinely green). The loss lived in the one link no audit had ever executed: **the NotificationLayer's multi-pass orchestration**, where the diff-signature skip, the PREPARING gate, the seen-sets and `firstSeed` interact across fetches.
@@ -93,12 +136,29 @@ renders ≥1 nameable line; `notificationCauseView.spec.ts` is the render-side
 worklist (every origin family → a real i18n key). Grep-verified RU keys for
 every label/trigger phrase live in `ru/ui.json`.
 
-**Known attribution shapes (correct, documented):** the Ares owner benefit
-inherits the PLACER's card as its source (the cause names the card whose
-placement paid you); a WGT payout answers with the root category («Солнечная
-фаза»); colony income splits by `benefit` («Торговый доход» / «Бонус
-колонии» · colony name). The production phase records no events and shows no
-notifications (pre-existing frontier — nothing causeless is shown).
+**THE SOURCE IS WHAT PAID THE RECIPIENT (TR59, the owner's decision 4a — this
+replaces the old «the Ares owner benefit inherits the PLACER's card», which the
+owner retired as the very defect he reported).** The source of a payout to a
+player who is NOT the actor is what belongs to that player and paid them: their
+TILE (the card that put it on Mars — «ВАШ ТАЙЛ Закрытая зона», else the tile
+itself, `EventSource {kind: 'tile'}`), their card, their corporation, their
+COLONY («ВАША КОЛОНИЯ Луна · Бонус колонии»). The actor's move is the TRIGGER:
+it rides the cause as the quiet `via` tail («· ход: Купольный кратер» —
+`ViewerImpactCause.via`, `viaOfRoot`), never as its name, and never names the
+actor (the head's chip does). An ATTACK and a payout the actor's card itself
+decided (a printed table payout) keep the actor's card — that card decided it.
+Server: a payout to a non-actor opens its OWN scope (`AresHandler.payTileOwner`
+→ `withEffectSource(owner, <the tile's card>, 'tile-adjacency')`; Marketing
+Experts its own `tile-placed` effect; Mons Insurance's compensation
+`withEffectSource(claimant, {Mons, owner: insurer}, 'insurance-claim')` with the
+aggregates folding only the source owner's own events — `aggregate.ts`
+`ownersOwn`; Detective TV `from: {card: this}`). Guard:
+`tests/notifications/foreignGainSourceGuard.spec.ts` — every foreign GAIN's
+source is not the actor's root source, allow-list with reasons; proven red on
+the pre-TR59 `AresHandler`. A WGT tile in the SOLAR phase grants no placement
+bonus at all — no payout (S5). The production phase records no events and
+shows no notifications (pre-existing frontier — nothing causeless is shown).
+Full table of classes before / after: `docs/TURMOIL_REDUX_SPONSORED_POWER_PLANT.md` § 2.
 
 ## ⭐⭐ ITERATION 3 (2026-09-01) — ATOMIC DELIVERY: the lifecycle is monotonic
 
@@ -301,10 +361,11 @@ holes fixed by this audit.
 **Documented frontier (no premium-scope card hits these today):**
 `discardCardFromHand` emits no event (cross-player only via community's
 Hygiea); `Player.ts` defer-outside-withEffect for hooks that RETURN an input;
-the Ares owner payout inherits the placer's card as `source` (attribution,
-not delivery — the band and cause line are correct); the MOON `onTilePlaced`
-fan-out and all `onIdentificationByAnyPlayer` sites are BARE (moon/underworld
-— out of premium scope, widen with the expansion checklist); Law Suit's
+(the Ares owner payout's borrowed `source` is FIXED by TR59 — see § THE «ПОЧЕМУ»-LAYER);
+the MOON `onTilePlaced` fan-out (`MoonExpansion` — a moon tile's «by any player»
+payouts) and all `onIdentificationByAnyPlayer` sites (`UnderworldExpansion`) are
+BARE (moon/underworld — out of premium scope, widen with the expansion checklist:
+a payout there inherits the actor's source exactly as the Ares one did); Law Suit's
 tableau transfer (`suedPlayer.playedCards.push`) is not evented — the victim's
 notification rides the recorded M€ steal of the same chain.
 (2026-09-02: the delta `onNonCardTagAddedByAnyPlayer` fan-out is now WRAPPED;
@@ -336,10 +397,10 @@ sourceCard (+`ownSource` when it is the VIEWER's card that paid them), transfer,
 1. the **VIEWER BAND** (`.con-notif__you--<sign>`) — «▲ ВЫ ПОЛУЧИЛИ / ▼ ВЫ ПОТЕРЯЛИ / ⇄ ДЛЯ
    ВАС» label + glyph + tone (three channels — never colour alone), big delta chips (losses
    first), the transfer «→ attacker» tail, the honest scope + `before → after` line;
-2. the **cause line** — «Из-за <actor> <card>» (the initiator is the reason, not the story);
+2. the **cause line** — since the «ПОЧЕМУ»-layer the `.con-notif__why` zone (TR59: «ВАШ ТАЙЛ / ВАША КАРТА / ИСТОЧНИК ‹name› · trigger · ход: ‹the actor's move›» — the old «Из-за <actor> <card>» line is gone; the actor is the head's chip);
 3. the event's own voice (headline tokens / reveal line / bot outcome lines) — PRIMARY only
    when nothing personal happened (sign neutral ⇒ the old event-first layout);
-4. context pills = the action's own outcome EXCLUDING the viewer's rows (they live in the
+4. context pills = the action's own outcome EXCLUDING the viewer's rows (TR59: one quiet line per owner, ≤ 2 chips, the actor's DOT only — `notificationContentPolicy`; they live in the
    band; shown for neutral/positive cards, dropped for a loss — the band + journal carry it).
 The card also carries `.con-notif--sign-<sign>` + `.con-notif--imp-<importance>` (chrome
 grades: ambient calm → notable rim → critical wide rail + one-shot opacity-only arrival wash
@@ -366,7 +427,7 @@ card is never swallowed into «События: N» (the summary restates sign ne
 opens the journal AT that event (`ConsoleShell.openJournalToNotification` — same guards as
 the View toggle: board home only, never over a placement, refusals speak) and dismisses the
 toast; the bot-turn card keeps its «Осмотреть ход» hold. The card's footer advertises
-whichever it has («Зажать X Журнал» / «Осмотреть ход» + «B Закрыть»).
+whichever it has — since TR59 in GLYPHS on the lifetime's row: «[X] → Журнал» / «[X] → Осмотреть ход» (a ring fills around X while held) and «[B]» (§ ONE GLANCE).
 
 **Feed-mode semantics unchanged**: the hostile-upgraded root card is exempt via kind
 `negative` (like the old standalone card), shows even with the journal open, and the
@@ -475,9 +536,9 @@ MutationObserver audit that no `neg…` twin ever appeared. Screenshots land in
 The bottom-bar journal can be collapsed — so the fork has a **NotificationCenter** that surfaces important game events as floating sci-fi cards (top-right, where the journal opens) even when the journal is closed: opponents' card plays, your turn, mandatory decisions, milestones/awards, new generations, passes. It is a SEPARATE layer (`src/client/components/notifications/`), NOT bolted into the journal — they REUSE data + renderers but aren't coupled. **100% client-side, NO server change** — the journal's own per-generation streams already carry everything (root events keyed by `correlationId`, the universal stable id).
 
 **Architecture (mirrors the journal's module-state + App-level mounting):**
-- `notificationTypes.ts` — the pure vocabulary: `NotificationKind` (`action-required` › `your-turn` › `warning` › `important` › `normal`, also the priority order), `NotificationModel` (render-agnostic: carries the journal `LogMessage` header + `JournalChildVM` children + headline pills + a CTA), `NOTIFICATION_TTL` (0 = persistent for turn cards), `MAX_VISIBLE_TRANSIENT` (3), `COALESCE_THRESHOLD` (3).
-- `notificationModel.ts` — PURE mappers (unit-tested under the server runner, like `journalView.ts`): `diffRootNotifications` (diff the current generation's `buildJournalView` nodes against a seen `correlationId` set → new cards; SUPPRESSES the viewer's OWN ordinary actions, shows milestone/award highlights regardless of actor; returns ALL encountered ids so suppressed ones are still seeded), `buildEventChildren`-driven `summarizeImpact` (merged net pills + "+N details"), `coalesceBurst` (a >3 same-actor burst → ONE "Events: N" summary so an opponent's whole turn doesn't spam), `buildTurnNotification` (waitingFor → your-turn for the inline action menu [`ACTION_MENU_TITLES`, kept in sync with `WaitingFor.vue`], else action-required with the prompt text), `buildGenerationNotification` / `buildPassNotification`. **"Your turn" announces ONLY at the START of a fresh turn** — the `freshTurn` flag is a STRUCTURAL signal computed in the layer: the action menu titled `'Take your first action'` (NOT `'Take your next action'`, the continuation after a sub-prompt / a 2nd action) AND the viewer is NOT the lone non-passed player (`isLonePlayer()` via `game.passedPlayers`). It is NOT re-announced mid-turn (the menu returns as 'next action') nor for the lone player repeating turns. (An earlier transition-tracking impl — `viewerWasWaiting`, NOT-waiting→waiting — showed it only EVERY OTHER turn because the server doesn't always emit a waitingFor-cleared update between turns; the title+passed-players signal is robust to that.) action-required (sub-prompts) is unaffected — it always shows. **Both the pills (`chipRank`) AND the journal's own child rows (`buildEventChildren`'s final `childTier` sort) order GAINS first → the action's own result, then indirect gains, then discounts, then the cost/losses last** — "what I GOT before what I paid" (the colony test asserts this; gains-first applies to the JOURNAL too, not just the cards). **A still-visible root card is REFRESHED when its chain grows** — `recomputeRootImpact(events, correlationId, actor)` re-derives the pills + breakdown, and the layer's `refreshVisibleImpacts` updates header-bearing transient cards in place (no re-animate). This fixes a poll-timing race: an opponent's colony trade whose reward is a DEFERRED "add floaters to a card" pick (Titan, 2+ candidate cards → the trade PAUSES for the opponent's pick) could be diffed between the fee and the reward, so the first build saw only the spent energy — the refresh adds the gained floaters once they record. The CTA «В ЖУРНАЛ» (`labelKey: 'To journal'`, action `open-journal`) is a SECONDARY ghost button (`notification-card__cta--ghost`: no fill / no glow / smaller) — the card is the info, the journal is a peek; the primary CTAs (Посмотреть / Перейти) keep the bright plate.
-- `notificationState.ts` — the module-level reactive store (survives the playerkey remount): a SINGLETON `turn` channel (your-turn/action-required) + a `transient` feed (cap 3 + `queue` overflow, promoted on dismiss) + the `seenRootIds` / `lastGeneration` / `passedSeen` / `seeded` lifecycle + a `settings` block (future on/off toggles). `dismiss` of a turn card records `dismissedTurnId` so an acknowledged prompt stays hidden until the prompt id CHANGES.
+- `notificationTypes.ts` — the pure vocabulary: `NotificationKind` (`action-required` › `your-turn` › `warning` › `important` › `normal`, also the priority order), `NotificationModel` (render-agnostic: carries the journal `LogMessage` header + `JournalChildVM` children + headline pills + a CTA), `NOTIFICATION_TTL` (0 = persistent for turn cards), `MAX_VISIBLE_TRANSIENT` (**1** since the presentation-flow rework — the feed is serialized; the old «three cards» is gone), `COALESCE_THRESHOLD` (3).
+- `notificationModel.ts` — PURE mappers (unit-tested under the server runner, like `journalView.ts`): `diffRootNotifications` (diff the current generation's `buildJournalView` nodes against a seen `correlationId` set → new cards; SUPPRESSES the viewer's OWN ordinary actions, shows milestone/award highlights regardless of actor; returns ALL encountered ids so suppressed ones are still seeded), `buildEventChildren`-driven `summarizeImpact` (merged net pills + "+N details"), `coalesceBurst` (a >3 same-actor burst → ONE "Events: N" summary so an opponent's whole turn doesn't spam), `buildTurnNotification` (waitingFor → your-turn for the inline action menu [`ACTION_MENU_TITLES`, kept in sync with `WaitingFor.vue`], else action-required with the prompt text), `buildGenerationNotification` / `buildPassNotification`. **"Your turn" announces ONLY at the START of a fresh turn** — the `freshTurn` flag is a STRUCTURAL signal computed in the layer: the action menu titled `'Take your first action'` (NOT `'Take your next action'`, the continuation after a sub-prompt / a 2nd action) AND the viewer is NOT the lone non-passed player (`isLonePlayer()` via `game.passedPlayers`). It is NOT re-announced mid-turn (the menu returns as 'next action') nor for the lone player repeating turns. (An earlier transition-tracking impl — `viewerWasWaiting`, NOT-waiting→waiting — showed it only EVERY OTHER turn because the server doesn't always emit a waitingFor-cleared update between turns; the title+passed-players signal is robust to that.) action-required (sub-prompts) is unaffected — it always shows. **Both the pills (`chipRank`) AND the journal's own child rows (`buildEventChildren`'s final `childTier` sort) order GAINS first → the action's own result, then indirect gains, then discounts, then the cost/losses last** — "what I GOT before what I paid" (the colony test asserts this; gains-first applies to the JOURNAL too, not just the cards). **(HISTORY — superseded by ITERATION 3: a VISIBLE card never changes; `refreshVisibleImpacts` is deleted, an open chain waits in PREPARING, only QUEUED models may enrich via `refreshQueuedImpacts`.)** The original refresh fixed a poll-timing race: an opponent's colony trade whose reward is a DEFERRED "add floaters to a card" pick (Titan, 2+ candidate cards → the trade PAUSES for the opponent's pick) could be diffed between the fee and the reward, so the first build saw only the spent energy — the refresh adds the gained floaters once they record. The CTA «В ЖУРНАЛ» (`labelKey: 'To journal'`, action `open-journal`) is a SECONDARY ghost button (`notification-card__cta--ghost`: no fill / no glow / smaller) — the card is the info, the journal is a peek; the primary CTAs (Посмотреть / Перейти) keep the bright plate.
+- `notificationState.ts` — the module-level reactive store (survives the playerkey remount): a SINGLETON `turn` channel (your-turn/action-required) + a `transient` feed (cap `MAX_VISIBLE_TRANSIENT` = 1 + `queue` overflow, promoted on dismiss; TR59: the content policy is applied at that promotion) + the `seenRootIds` / `lastGeneration` / `passedSeen` / `seeded` lifecycle + a `settings` block (future on/off toggles). `dismiss` of a turn card records `dismissedTurnId` so an acknowledged prompt stays hidden until the prompt id CHANGES.
 - `NotificationLayer.vue` — App-level (sibling of `<player-home>`, like the journal), Teleport to body. Fetches `/api/game/logs` + `/api/game/journal-events` for the current generation on every `playerView` change + a light 2.2 s poll (catches opponent actions during simultaneous research/draft, mirroring the journal). FIRST fetch seeds silently (no spam on load/reconnect). When the journal is OPEN, normal/important toasts are SUPPRESSED (the feed shows everything) but still marked seen; turn cards always show. END phase silences everything (the endgame experience owns the screen). Generation-went-backwards → `resetNotifications` (a different game opened in-session).
 - `NotificationCard.vue` — compact (type label + glyph + headline + headline pills + CTA) → click (or the explicit «Подробнее» button — a chevron + accent count BADGE, unmistakably interactive) to EXPAND the breakdown, which REUSES `JournalChildRow` so the card and the journal never diverge. Lifetime indicator is a CSS-driven `scaleX` shrink (paused on `:hover` / `--expanded` via CSS — no per-frame JS), `animationend` → auto-dismiss. The generation shows as a CLEAR «Поколение N» line (`metaLine`), never a cryptic chip. **The YOUR-TURN card is persistent ONLY while the player is AFK: on the FIRST real activity (pointer move past a threshold / key / click / wheel — window listeners armed in `mounted`) it ARMS a ~5 s countdown** (`activityArmed` → `showProgress`/`effectiveTtl`), so it fades once the player is clearly playing but stays put if they stepped away. action-required stays persistent until resolved.
 
@@ -508,7 +569,7 @@ A persisted presentation preference (`notificationFeedMode.ts`, localStorage `tm
 
 **FIFO stays intact when a toast is suppressed.** A filtered model never enters transient/queue: no 5 s auto-close lifetime, no `holdsFlow`, `notificationsSettled()` reads true immediately (a mandatory prompt never waits behind a phantom toast); the journal/event stream is untouched (seen-sets are marked at diff time regardless, so flipping the mode back replays nothing). The bot staged-commit pipeline advances via the generalized **`ensureBotPresentationLiveness` front-walk**: leading pending turns with NO card in the presentation deliver their visuals immediately in order (a fully-filtered batch walks to the end = the authoritative commit), and the walk STOPS at the first pending turn whose card is still visible/queued — a later turn can never commit ahead of an earlier card's presentation. Filtered bot turns are soft-ACKED at push time (`presentFreshBotTurns` ack loop — no card will ever finish to ack them). A mode switch re-checks the QUEUE only (`reconcileQueueWithFeedMode`, wired by a module watch): visible toasts finish their own lifecycle; dropped queued bot cards are acked and the staging module's own liveness watcher drains their timeline in order (delivering from the reconcile would commit a batch out of order — deliberately NOT done).
 
-**The setting** is a ring row (`notifications`) in `consoleSettingsModel.ts`'s ИНТЕРФЕЙС category (both hosts: main menu + in-game system menu). `.con-set` heights were re-calibrated for the five-row category (base 20.4rem / TV 25.4rem) — «no category ever needs to scroll» is guarded by the `console-options-settings` e2e. i18n keys in `ru/console.json` («Быстрые уведомления», «Все события», «Только связанные со мной» + the description). Guards: `tests/notifications/notificationFeedPolicy.spec.ts` (exhaustive classification worklist + fail-open + locale independence), `notificationFeedMode.spec.ts`, feed-mode blocks in `notificationState.spec.ts` / `marsBotStagedCommits.spec.ts` (full/partial-filter FIFO) / `consoleOptionsPanel.spec.ts`.
+**The setting** is a ring row (`notifications`) in `consoleSettingsModel.ts`'s УВЕДОМЛЕНИЯ category since TR59 (moved out of ИНТЕРФЕЙС, beside «Содержание уведомлений»; both hosts: main menu + in-game system menu). `.con-set` heights were re-calibrated for the five-row category (base 20.4rem / TV 25.4rem) — «no category ever needs to scroll» is guarded by the `console-options-settings` e2e. i18n keys in `ru/console.json` («Быстрые уведомления», «Все события», «Только связанные со мной» + the description). Guards: `tests/notifications/notificationFeedPolicy.spec.ts` (exhaustive classification worklist + fail-open + locale independence), `notificationFeedMode.spec.ts`, feed-mode blocks in `notificationState.spec.ts` / `marsBotStagedCommits.spec.ts` (full/partial-filter FIFO) / `consoleOptionsPanel.spec.ts`.
 
 ## «ПРОПУЩЕНО» on the card — a skipped effect is a LINE, never a pill (2026-09-30)
 
