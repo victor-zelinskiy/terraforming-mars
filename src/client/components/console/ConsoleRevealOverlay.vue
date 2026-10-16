@@ -61,6 +61,7 @@
           <ConsoleWsStageHead v-if="stageChassis && mode !== 'result'"
                               class="con-reveal__head"
                               :class="{'con-reveal__head--embedded': embedded}"
+                              :data-reveal-discarded="batchDiscarded ? '' : undefined"
                               :title="titleText">
             <template v-if="stageHead.badges.length > 0" #badges>
               <template v-for="badge in stageHead.badges" :key="badge.kind">
@@ -1021,6 +1022,11 @@ export default defineComponent({
       }
       return this.playerView.game.spaces.find((sp) => sp.id === s.spaceId)?.bonus;
     },
+    /** EVERY card of the batch was discarded by the RULES (К-5): nothing was received, and the head says so. */
+    batchDiscarded(): boolean {
+      const e = this.drawnEvent;
+      return e !== undefined && e.cards.length > 0 && e.cards.every((card) => e.autoDiscarded?.includes(card.name) === true);
+    },
     /** THE ONE READING of the received-cards head, for this host (`revealStageHead` — pure, spec'd). */
     stageHead(): RevealStageHead {
       const e = this.drawnEvent;
@@ -1033,6 +1039,7 @@ export default defineComponent({
         cellBonuses: this.sourceCellBonuses,
         sourceOnStage: this.sourceSeat,
         fallbackName: this.sourceFallbackName,
+        discarded: this.batchDiscarded,
       });
     },
     /**
@@ -1512,7 +1519,8 @@ export default defineComponent({
     drawnAvailability(): CardAvailabilityView | undefined {
       const ctx = availabilityContextFor('draw-take');
       const entry = this.drawnUntaken[this.focusIdx];
-      if (ctx === undefined || this.mode !== 'drawn' || entry === undefined) {
+      // A card the RULES discarded (К-5) is not going into the hand — «can be played later» would read as a promise.
+      if (ctx === undefined || this.mode !== 'drawn' || entry === undefined || this.drawnEvent?.autoDiscarded?.includes(entry.card.name) === true) {
         return undefined;
       }
       return buildCardAvailability({reasons: entry.card.unplayableReasons, easing: entry.card.requirementEasing}, ctx);

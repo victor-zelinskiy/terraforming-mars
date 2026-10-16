@@ -47,6 +47,12 @@ describe('revealStageHead — the words of «вы получили карты»,
     expect(revealStageHead(input({source: {type: 'card', cardName: CardName.BIRDS}, sourceOnStage: true})).badges.map((b) => b.kind)).deep.eq(['received']);
   });
 
+  it('a batch the RULES discarded (К-5) says so — never «Получена карта», no count; the source stays', () => {
+    const head = revealStageHead(input({cards: 1, discarded: true, source: {type: 'colony', colonyName: ColonyName.PLUTO}}));
+    expect(head.titleKey).eq('Discarded: no other card in hand');
+    expect(head.badges.map((b) => b.kind)).deep.eq(['source']);
+  });
+
   it('a filtered search states its tally instead of the count; a settlement table its places and its own title', () => {
     expect(revealStageHead(input({search: true})).badges.map((b) => b.kind)).deep.eq(['source', 'search']);
     const table = revealStageHead(input({host: 'embedded', table: {income: 1, total: 2}}));

@@ -61,6 +61,11 @@ export type RevealStageHeadInput = {
   sourceOnStage: boolean;
   /** A translated name for a source this module has no words of its own for (a party's action, a law). */
   fallbackName?: string;
+  /**
+   * EVERY card of the batch was already discarded by the RULES (К-5 — Pluto's «discard 1» met a hand with no other card,
+   * `CardDrawRevealModel.autoDiscarded`): nothing was received, so the head says so instead of «Получена карта».
+   */
+  discarded?: boolean;
 };
 
 /** A cell's printed bonus as the resource icon the rail and the chips already draw (none for what has no icon). */
@@ -129,6 +134,9 @@ export function revealStageHead(o: RevealStageHeadInput): RevealStageHead {
     if (reading !== undefined) {
       badges.push({kind: 'source', reading});
     }
+  }
+  if (o.discarded === true) {
+    return {titleKey: 'Discarded: no other card in hand', badges};
   }
   if (o.search) {
     badges.push({kind: 'search'});
