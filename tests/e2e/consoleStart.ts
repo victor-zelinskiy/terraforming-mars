@@ -2341,7 +2341,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // floaters only; no holder of any kind; Construction Mechs paying for the Building tag; the Reds ruling.
   'robotics-factory' | 'robotics-factory-one' | 'robotics-factory-none' | 'robotics-factory-mechpay' | 'robotics-factory-locked' |
   // TR57 Mining Mechs: the play · the action's two tiles behind one price · «1 из 2 мехов» (PL-197) · the Reds' refusal.
-  'mining-mechs' | 'mining-mechs-action' | 'mining-mechs-short' | 'mining-mechs-locked' |
+  'mining-mechs' | 'mining-mechs-action' | 'mining-mechs-short' | 'mining-mechs-locked' | 'mining-mechs-split' |
+  // TR58 Reprocessing Plant: the action's two PRICE tiles and one result · Stormcraft's heat split asked before the commit ·
+  // no floater holder (both variants closed, «no holder» first) · the Reds' refusal.
+  'reprocessing-plant' | 'reprocessing-plant-stormcraft' | 'reprocessing-plant-none' | 'reprocessing-plant-locked' |
   // TR53 Frontier Labs and the iteration «ресурс на карту — один стандарт»: the card with four holders (one a near
   // miss); the FIELD's live pick and silent arrival (a printed microbe / an Ares animal with two holders each, a printed
   // data with one); a foreign trade on blue's Titan (red on the move) — docs/claude/prompts/project-tr53-frontier-labs.md.

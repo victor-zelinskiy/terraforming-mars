@@ -18,6 +18,8 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *   (C) TOO FEW MECHS (`mining-mechs-short`, 1 mech): the tile refused with ONE counted reason — «1 из 2 мехов на
  *       этой карте» (PL-197), never the bare «недостаточно ресурсов».
  *   (D) THE REDS RULE (`mining-mechs-locked`): «✕ Нельзя разыграть» with the Industrialists' count.
+ *   (E) THE SATELLITE (`mining-mechs-split`, TR57 beside TR40 — PL-484): the mechs split by meaning, TR57's lane wears
+ *       its CHOICE — steel / titanium production on one plate — and TR40's lane its one good.
  */
 
 const CARD = 'Mining Mechs';
@@ -166,6 +168,41 @@ for (const preset of PRESETS) {
       await expect(verdict, 'the verdict refuses the play').toContainText(/Нельзя разыграть/);
       await expect(verdict, 'the count of your delegates on the party').toContainText('0/2');
       await shoot(page, preset.id, 'd-01-locked');
+    });
+
+    test(`(E) the satellite: ONE PRICE, A CHOICE — TR57's mechs wear steel / titanium production beside TR40's plants (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(180_000);
+      await bootFixtureSeats(page, request, 'mining-mechs-split', {query: preset.query});
+      await settle(page);
+      const satellite = page.locator('.con-res-aux');
+      await expect(satellite).toBeVisible();
+      // Two mech lanes by MEANING (PL-484): the choice is its own lane, never the plain count beside TR40's good.
+      const choice = satellite.locator('[data-exr-type="mech:action:production-steel|production-titanium"]');
+      const forestry = satellite.locator('[data-exr-type="mech:action:production-plants"]');
+      await expect(choice.locator('.con-res-aux__value')).toHaveText('3');
+      await expect(forestry.locator('.con-res-aux__value')).toHaveText('2');
+      const badge = choice.locator('[data-role-badge="action"]');
+      await expect(badge, 'the choice badge holds two goods').toHaveAttribute('data-role-choice', '2');
+      await expect(badge).toHaveAttribute('data-role-plate', 'production');
+      await expect(badge.locator('.resource_icon--steel')).toHaveCount(1);
+      await expect(badge.locator('.resource_icon--titanium')).toHaveCount(1);
+      await expect(badge, 'the reading names the choice').toHaveAttribute('aria-label', /на выбор/);
+      await expect(forestry.locator('[data-role-badge="action"] .con-res-aux__roleicon'), 'TR40 keeps its one good').toHaveCount(1);
+      // Both goods are PAINTED inside the plate, side by side, at the single badge's height — never clipped by it.
+      const geometry = await badge.evaluate((el) => {
+        const plate = el.getBoundingClientRect();
+        const single = document.querySelector('[data-exr-type="mech:action:production-plants"] [data-role-badge="action"]')?.getBoundingClientRect();
+        const icons = Array.from(el.querySelectorAll('.con-res-aux__roleicon')).map((i) => i.getBoundingClientRect());
+        return {
+          plateH: plate.height, singleH: single?.height ?? 0,
+          inside: icons.every((r) => r.width > 0 && r.left >= plate.left - 0.5 && r.right <= plate.right + 0.5 && r.top >= plate.top - 0.5 && r.bottom <= plate.bottom + 0.5),
+          apart: icons.length === 2 && icons[0].right <= icons[1].left + 0.5,
+        };
+      });
+      expect(Math.abs(geometry.plateH - geometry.singleH), `the choice plate keeps the single badge's height (${JSON.stringify(geometry)})`).toBeLessThanOrEqual(1);
+      expect(geometry.inside, `both goods inside the plate (${JSON.stringify(geometry)})`).toBe(true);
+      expect(geometry.apart, `the goods stand side by side (${JSON.stringify(geometry)})`).toBe(true);
+      await shoot(page, preset.id, 'e-01-satellite-choice');
     });
   });
 }

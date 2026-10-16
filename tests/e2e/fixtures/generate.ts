@@ -147,6 +147,7 @@ import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
 import {RoboticsFactory} from '../../../src/server/cards/turmoilRedux/RoboticsFactory';
 import {MiningMechs} from '../../../src/server/cards/turmoilRedux/MiningMechs';
+import {ReprocessingPlant} from '../../../src/server/cards/turmoilRedux/ReprocessingPlant';
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
@@ -6076,9 +6077,11 @@ roboticsFixture('robotics-factory-locked', {holders: 'all', ruling: PartyName.RE
 //      · `mining-mechs`        — TR57 in hand: the play and its «+4» into the card's capsule;
 //      · `mining-mechs-action` — TR57 on the table with 3 mechs: the action's two tiles behind ONE price;
 //      · `mining-mechs-short`  — on the table with 1 mech: the action refused «1 из 2 мехов на этой карте» (PL-197);
-//      · `mining-mechs-locked` — the Reds ruling, TR57 in hand: the plate's two roads named.
+//      · `mining-mechs-locked` — the Reds ruling, TR57 in hand: the plate's two roads named;
+//      · `mining-mechs-split`  — TR57 with 3 mechs BESIDE Forestry Mechs with 2: the satellite splits the mechs by role,
+//                                TR57's lane wears its CHOICE of goods (PL-484 — one price, steel OR titanium production).
 //    Red sits at a pinned corporation with no first action. ──
-function miningMechsFixture(name: string, spec: {placed?: number, ruling?: PartyName.REDS | PartyName.INDUSTRIALISTS}): void {
+function miningMechsFixture(name: string, spec: {placed?: number, ruling?: PartyName.REDS | PartyName.INDUSTRIALISTS, forestry?: number}): void {
   parliamentFixture(name, {
     stopAt: 'vote',
     megacredits: [20, 30],
@@ -6096,6 +6099,11 @@ function miningMechsFixture(name: string, spec: {placed?: number, ruling?: Party
       } else {
         card.resourceCount = spec.placed;
         p1.playedCards.push(card);
+      }
+      if (spec.forestry !== undefined) {
+        const forestry = new ForestryMechs();
+        forestry.resourceCount = spec.forestry;
+        p1.playedCards.push(forestry);
       }
     },
     expect: ({game, p1, parliament}) => {
@@ -6123,3 +6131,86 @@ miningMechsFixture('mining-mechs', {});
 miningMechsFixture('mining-mechs-action', {placed: 3});
 miningMechsFixture('mining-mechs-short', {placed: 1});
 miningMechsFixture('mining-mechs-locked', {ruling: PartyName.REDS});
+miningMechsFixture('mining-mechs-split', {placed: 3, forestry: 2});
+
+// ── TR58 · REPROCESSING PLANT («Перерабатывающий завод») — docs/TURMOIL_REDUX_REPROCESSING_PLANT.md. Blue's action
+//    phase, the Industrialists RULING (or the Reds, for the plate's refusal), 20 M€:
+//      · `reprocessing-plant`            — TR58 on the table, 4 plants / 6 heat, Dirigibles (1 floater) + Aerial
+//                                          Mappers: the action's two PRICE tiles and ONE result, its addresses once;
+//      · `reprocessing-plant-stormcraft` — blue IS Stormcraft (4 floaters) with 1 heat and 4 plants: the heat tile's
+//                                          split («1 heat + 2 floaters») asked INSIDE the composer, before A — and
+//                                          the floaters may come back to Stormcraft;
+//      · `reprocessing-plant-none`       — TR58 on the table with plants and heat enough and NO floater holder: both
+//                                          variants closed, «no holder» the reason first;
+//      · `reprocessing-plant-locked`     — the Reds ruling, TR58 in hand.
+//    Red sits at a pinned corporation with no first action. ──
+function reprocessingPlantFixture(name: string, spec: {
+  placed?: boolean,
+  holders?: boolean,
+  stormcraft?: boolean,
+  ruling?: PartyName.REDS | PartyName.INDUSTRIALISTS,
+}): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [spec.stormcraft === true ? CardName.STORMCRAFT_INCORPORATED : CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({p1, parliament}) => {
+      const ruling = spec.ruling ?? PartyName.INDUSTRIALISTS;
+      seatEnacted(parliament, quietResolutionOf(ruling));
+      if (ruling !== PartyName.INDUSTRIALISTS && parliament.slotOf(PartyName.INDUSTRIALISTS) === undefined) {
+        seatResolution(parliament, 0, quietResolutionOf(PartyName.INDUSTRIALISTS));
+      }
+      p1.megaCredits = 20;
+      const card = new ReprocessingPlant();
+      if (spec.placed === true) {
+        p1.playedCards.push(card);
+      } else {
+        p1.cardsInHand.push(card);
+      }
+      if (spec.stormcraft === true) {
+        const corp = p1.playedCards.corporations().find((c) => c.name === CardName.STORMCRAFT_INCORPORATED);
+        if (corp === undefined) {
+          throw new Error(`${name}: blue was not seated at Stormcraft`);
+        }
+        corp.resourceCount = 4;
+        p1.heat = 1;
+        p1.plants = 4;
+      } else {
+        p1.plants = 4;
+        p1.heat = 6;
+      }
+      if (spec.holders === true) {
+        const dirigibles = new Dirigibles();
+        dirigibles.resourceCount = 1;
+        p1.playedCards.push(dirigibles);
+        p1.playedCards.push(new AerialMappers());
+      }
+    },
+    expect: ({game, p1, parliament}) => {
+      if (game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected blue on the move — got ${game.activePlayer.color}`);
+      }
+      if (spec.placed !== true) {
+        const card = p1.cardsInHand.find((c) => c.name === CardName.REPROCESSING_PLANT);
+        const want = (spec.ruling ?? PartyName.INDUSTRIALISTS) === PartyName.INDUSTRIALISTS;
+        if (card === undefined || p1.canPlay(card) !== want) {
+          throw new Error(`the ${name} fixture expected TR58 ${want ? 'playable' : 'UNplayable'} in hand — got card=${card !== undefined} ruling=${parliament.rulingParty()}`);
+        }
+      } else {
+        const card = p1.playedCards.get(CardName.REPROCESSING_PLANT) as ReprocessingPlant | undefined;
+        const want = spec.holders === true || spec.stormcraft === true;
+        if (card === undefined || card.canAct(p1) !== want) {
+          throw new Error(`the ${name} fixture expected TR58 on the table, canAct=${want} — got ${card !== undefined} / ${card?.canAct(p1)} plants=${p1.plants} heat=${p1.heat}`);
+        }
+        if (spec.stormcraft === true && (p1.availableHeat() !== 9 || p1.heat !== 1)) {
+          throw new Error(`the ${name} fixture expected 1 heat + Stormcraft's 4 floaters (9 available) — got heat=${p1.heat} available=${p1.availableHeat()}`);
+        }
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+reprocessingPlantFixture('reprocessing-plant', {placed: true, holders: true});
+reprocessingPlantFixture('reprocessing-plant-stormcraft', {placed: true, holders: true, stormcraft: true});
+reprocessingPlantFixture('reprocessing-plant-none', {placed: true});
+reprocessingPlantFixture('reprocessing-plant-locked', {ruling: PartyName.REDS});
