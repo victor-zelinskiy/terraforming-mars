@@ -283,9 +283,13 @@ describe('parliament glossary — one word per concept (static guard)', () => {
   });
 
   it('a party is named through `partyNameKey` wherever a party is printed OUTSIDE the parliament trees too — the action centre\'s plate and detail (PL-110), the message renderer\'s PARTY token (PL-109), the effects strip and a party-drawn reveal\'s source (PL-122)', () => {
+    // The plate lives in the host-agnostic group (TR60 — the Information gallery renders the same one); the detail stays in the centre.
     const actions = fs.readFileSync(path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsoleCardActions.vue'), 'utf8');
-    expect(/\$t\((?:group|focusedTile|tile)\.party\b/.test(actions), 'the action centre prints a party by its bare upstream key').to.equal(false);
-    expect(actions.includes('partyNameKeyOf(group.party)') && actions.includes('partyNameKeyOf(focusedTile.party)'), 'the plate and the detail go through the glossary key').to.equal(true);
+    const group = fs.readFileSync(path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsoleActionGroupView.vue'), 'utf8');
+    for (const text of [actions, group]) {
+      expect(/\$t\((?:group|focusedTile|tile)\.party\b/.test(text), 'the action centre prints a party by its bare upstream key').to.equal(false);
+    }
+    expect(group.includes('partyNameKeyOf(group.party)') && actions.includes('partyNameKeyOf(focusedTile.party)'), 'the plate and the detail go through the glossary key').to.equal(true);
     const i18n = fs.readFileSync(path.join(ROOT, 'src', 'client', 'directives', 'i18n.ts'), 'utf8');
     expect(/case LogMessageDataType\.PARTY:[\s\S]{0,900}partyNameKey\(/.test(i18n), 'a PARTY token of a rendered message speaks the glossary key').to.equal(true);
     // The «ЭФФЕКТЫ ПАРТИЙ» strip titles a row by the party (PL-122 — it printed «Ученые» while the Parliament says «Учёные»).

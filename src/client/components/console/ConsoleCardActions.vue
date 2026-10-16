@@ -308,165 +308,11 @@
                anatomy (service row · action canvas · diagnostics), so every
                canvas across the screen sits at the same height and the
                «или» joint can anchor to the canvas' true centre. ────────── -->
-          <div v-for="group in model.groups" :key="group.key"
-               class="con-cardactions__group"
-               :class="[
-                 'con-cardactions__group--' + group.status,
-                 {
-                   'con-cardactions__group--wide': group.tiles.length > 1,
-                   'con-cardactions__group--live': groupHasFocus(group),
-                   'con-cardactions__group--futile': group.futile !== undefined,
-                 },
-               ]">
-            <!-- The CARD PLATE — the group's identity header: reading order
-                 is source first, action second. For an «или» card it spans
-                 BOTH slots, visibly uniting the alternatives. -->
-            <div class="con-cardactions__plate" :class="{'con-cardactions__plate--party': group.party !== undefined || group.resolutionAction !== undefined}">
-              <img v-if="group.party !== undefined" class="con-cardactions__plate-emblem" :src="partyEmblemOf(group.party)" alt="" />
-              <!-- THE LAW's plate (Turmoil Redux): its author's seal, its own kicker, its printed name. -->
-              <img v-else-if="group.resolutionParty !== undefined" class="con-cardactions__plate-emblem" :src="partyEmblemOf(group.resolutionParty)" alt="" />
-              <span v-if="group.party !== undefined" class="con-cardactions__plate-kicker">{{ $t('Party action') }}</span>
-              <span v-else-if="group.resolutionAction !== undefined" class="con-cardactions__plate-kicker">{{ $t('Resolution action') }}</span>
-              <!-- A party is named by the parliament's ONE glossary key («Учёные», never the upstream «Ученые» — PL-110). -->
-              <span class="con-cardactions__plate-name">{{ $t(partyNameKeyOf(group.party) ?? resolutionNameOf(group.resolutionAction) ?? group.cardName) }}</span>
-              <span v-if="(group.party !== undefined || group.resolutionAction !== undefined) && group.tiles[0] !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--uses">
-                <b>{{ sourceUsesText(group.tiles[0]) }}</b>
-              </span>
-              <span v-if="group.cardResource !== undefined" class="con-cardactions__plate-chip">
-                <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
-                <b>{{ group.cardResource.count }}</b>
-              </span>
-              <span v-if="group.vp !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--vp">
-                <b>{{ group.vp.points }}</b>
-                <span class="con-cardactions__plate-vp-unit">{{ $t('VP') }}</span>
-                <em v-if="group.vp.toNext > 0">+1 · {{ group.vp.toNext }}</em>
-              </span>
-            </div>
-
-            <div class="con-cardactions__acts"
-                 :class="{'con-cardactions__acts--pair': group.tiles.length > 1}">
-              <div v-for="tile in group.tiles" :key="tile.key"
-                   class="con-cardactions__tile"
-                   :class="[
-                     'con-cardactions__tile--' + tile.status,
-                     {
-                       'con-cardactions__tile--party': tile.party !== undefined,
-                       'con-cardactions__tile--focused': focusKey === tile.key,
-                       'con-cardactions__tile--shake': shakeKey === tile.key,
-                       'con-cardactions__tile--descend': descendKey === tile.key,
-                       'con-cardactions__tile--futile': tileFutile(tile),
-                     },
-                   ]"
-                   :ref="focusKey === tile.key ? 'focused' : undefined"
-                   :data-action-futile="tileFutile(tile) ? tile.futile?.kind : undefined"
-                   :data-action-card="tile.cardName"
-                   :data-action-party="tile.party"
-                   :data-action-resolution="tile.resolutionAction">
-                <!-- The «или» joint rides the shared edge with the sibling
-                     button to the left, anchored to the CANVAS centre. -->
-                <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
-
-                <!-- SERVICE ROW — always laid out (the fixed anatomy): the
-                     quiet «Вариант N» way-finder on the left, the verdict
-                     chip on the right ONLY when it is news (a blocked /
-                     not-now / used state; «available» is the norm and says
-                     nothing). -->
-                <div class="con-cardactions__tile-head">
-                  <!-- One column (the Deck) stacks a card's slots, so the
-                       joint has no shared edge — the alternative says «или»
-                       in words instead. Never both. -->
-                  <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
-                  <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ $t('Option') }} {{ tile.nodeIndex + 1 }}</span>
-                  <span v-if="tileVerdict(tile) !== 'available'" class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tileVerdict(tile)">
-                    {{ $t(statusLabel(tileVerdict(tile))) }}
-                  </span>
-                </div>
-
-                <!-- ── THE ACTION BODY — zone 2 of the slot anatomy, and the
-                     slot's whole interactive statement: the FIXED graphic
-                     canvas on the left, the action's own sentence in the
-                     space beside it. The row's height is the canvas' height,
-                     so the «или» seam badge keeps one anchor for every slot
-                     on the screen whatever either side draws. ────────────── -->
-                <div class="con-cardactions__actbody">
-                  <!-- ACTION CANVAS — ONE stage for every formula: fixed
-                       width AND height, content centred, the printed art
-                       straight from the manifest (instant, no fetch). The
-                       canvas NEVER takes its size from what it holds — a
-                       formula that draws wide would otherwise own a bigger
-                       button than its own alternative. Formulas of genuinely
-                       different natural widths are fitted INTO the stage
-                       (useActionCanvasFit → `--act-fit`). -->
-                  <div class="con-cardactions__canvas">
-                    <div v-if="tile.party !== undefined" class="con-cardactions__graphic con-cardactions__graphic--party">
-                      <ConsolePartyFormula :party="tile.party" :renderRoot="tile.node.renderRoot" size="compact" />
-                    </div>
-                    <!-- THE LAW's action row — the printed formula off the face, the action row alone
-                         (the enactment's row is not this tile's business). -->
-                    <div v-else-if="tile.resolutionAction !== undefined" class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-                      <CardRenderData v-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-                      <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
-                    </div>
-                    <div v-else class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-                      <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
-                      <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-                      <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
-                    </div>
-                  </div>
-
-                  <!-- ACTION DESCRIPTION — what the action does, in the
-                       card's own words, in the width the wide button already
-                       has. It reserves its own column, so no wording can move
-                       the canvas or the diagnostics under it. A text-drawn
-                       action is already its own sentence on the canvas —
-                       never doubled.
-                       SIZE FOLLOWS LENGTH (`descTier`): the profile declares
-                       three (size, lines) pairs, all of which fit the fixed
-                       body row, and a short rule — most of them — gets to
-                       speak at reading size instead of at the size the
-                       longest rule needs. -->
-                  <!-- The clamp lives on the INNER block: a flex item is
-                       blockified by the engine, which quietly disables the
-                       line clamp on it. The slot around it owns the width. -->
-                  <div v-if="slotRuleText(tile) !== ''" class="con-cardactions__desc-slot">
-                    <p class="con-cardactions__desc"
-                       :class="'con-cardactions__desc--' + descTier(slotRuleText(tile))">{{ slotRuleText(tile) }}</p>
-                  </div>
-                </div>
-
-                <!-- ── DIAGNOSTICS / CONTINUATION — zone 3, reserved and
-                     SINGLE-PURPOSE: it speaks about the slot's STATE, never
-                     about what the action does. Exactly one of two semantic
-                     kinds, taken from two different model fields (a blocked
-                     verdict's `reason` vs the branch's named `choiceKinds`) —
-                     the distinction is data, not colour. ────────────────── -->
-                <div class="con-cardactions__tile-meta">
-                  <!-- The TONE is data, never a colour choice made here: a
-                       turn/phase gate is `warning` («не сейчас», ⏳), a rules
-                       verdict is `danger` (✕). Same distinction the «НЕ СЕЙЧАС»
-                       badge above already draws — the diagnostics line used to
-                       contradict it in salmon. -->
-                  <div v-if="slotMeta(tile).kind === 'validation'"
-                       class="con-cardactions__tile-reason"
-                       :class="'con-cardactions__tile-reason--' + slotMeta(tile).tone">
-                    <span aria-hidden="true">{{ slotMeta(tile).tone === 'warning' ? '⏳' : '✕' }}</span>
-                    <span>{{ slotMeta(tile).text }}</span>
-                  </div>
-                  <!-- AVAILABLE and changing nothing: the server's reason, in the quiet register — a fact, not a
-                       refusal (the slot stays a live verb). -->
-                  <div v-else-if="slotMeta(tile).kind === 'futile'"
-                       class="con-cardactions__tile-reason con-cardactions__tile-reason--futile" data-tile-futile>
-                    <span aria-hidden="true">○</span>
-                    <span>{{ slotMeta(tile).text }}</span>
-                  </div>
-                  <div v-else-if="slotMeta(tile).kind === 'continuation'" class="con-cardactions__tile-choices">
-                    <span aria-hidden="true">◈</span>
-                    <span>{{ slotMeta(tile).text }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- ONE CARD'S ACTIONS — the plate and its slots, ONE component in two hosts (TR60, decision 6a): this
+               workspace drives the cursor / shake / descent; the Information zone hosts it read-only. -->
+          <ConsoleActionGroupView v-for="group in model.groups" :key="group.key"
+                                  :group="group" :focusKey="focusKey" :shakeKey="shakeKey" :descendKey="descendKey"
+                                  :parliamentActionSources="parliamentActionSources" />
         </ConsoleScrollArea>
       </div>
       </div><!-- /__browse -->
@@ -581,10 +427,8 @@ import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePane
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildActionEntries, ActionEntry, ActionFilterState} from '@/client/components/actions/actionModel';
-import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {buildActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {
-  actionDescTier,
   actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
   buildParliamentTile,
@@ -599,7 +443,6 @@ import {
   defaultCardActionsFilter,
   defaultRepeatFilter,
   stepActionRows,
-  ActionDescTier,
   ConsoleActionsModel,
   ConsoleActionTile,
   ConsoleActionGroup,
@@ -612,7 +455,7 @@ import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {fitDescTiers} from '@/client/console/descTier';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
-import {buildActionBatch, cardPickAskKey, repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -633,7 +476,6 @@ import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDire
 import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
-import {reasonParams} from '@/client/cards/tagLabel';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
 import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
@@ -656,6 +498,8 @@ import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsolePartyActionComposer, {PartyActionResult, PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import ConsoleActionGroupView from '@/client/components/console/ConsoleActionGroupView.vue';
+import {actionReasonText, sourceUsesText, TILE_STATUS_HEADING, TILE_VERDICT_MARK, TileVerdict, tileVerdict} from '@/client/console/actionTileView';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {partyActionOf, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -673,48 +517,23 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
-import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
-import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {findPerformActionCard, findTradeColonyContext} from '@/client/console/turnIntents';
 import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
-import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
+import {translateText} from '@/client/directives/i18n';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 /**
  * A slot's VERDICT: its status, or `futile` — AVAILABLE and changing nothing right now (the server's proven verdict).
  * Only an `available` slot reads `futile`: a not-now / blocked / used one already says why, and one visible key wins.
  */
-type TileVerdict = ActionStatus | 'futile';
-
-const STATUS_HEADING: Record<TileVerdict, string> = {
-  available: 'Can perform',
-  rules: 'Action unavailable',
-  soft: 'Not available right now',
-  activated: 'Already activated this generation',
-  futile: 'Available, but changes nothing now',
-};
-const STATUS_LABEL: Record<TileVerdict, string> = {
-  available: 'Available',
-  rules: 'Unavailable',
-  soft: 'Not now',
-  activated: 'Activated',
-  futile: 'No effect now',
-};
-const VERDICT_MARK: Record<TileVerdict, string> = {available: '✦', rules: '✕', soft: '⏳', activated: '✓', futile: '○'};
-
-const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHeat', string> = {
-  card: 'Choose a card',
-  player: 'Choose a player',
-  or: 'Choose an option',
-  payment: 'Payment',
-  spendHeat: 'Heat sources',
-};
+/** The tile's words are `actionTileView`'s — the ONE reading this workspace and the Information zone share (TR60). */
+const STATUS_HEADING = TILE_STATUS_HEADING;
+const VERDICT_MARK = TILE_VERDICT_MARK;
 
 /** Scroll step for the right-stick list scroll (mirrors the shell). */
 const SCROLL_STEP_PX = 40;
@@ -738,8 +557,7 @@ const PARTY_RESULT_AWAIT_MS = 4000;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsolePartyActionComposer, ConsolePartyFormula, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
-  directives: {stripActionPrefix},
+  components: {ConsoleActionComposer, ConsolePartyActionComposer, ConsolePartyFormula, ConsoleActionGroupView, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /**
@@ -2163,85 +1981,24 @@ export default defineComponent({
     resIconClass(icon: string | CardResource): string {
       return iconClassFor(String(icon).toLowerCase().replace(/\s+/g, '-'));
     },
-    statusLabel(status: TileVerdict): string {
-      return STATUS_LABEL[status];
-    },
     statusHeading(status: TileVerdict): string {
       return STATUS_HEADING[status];
     },
     verdictMark(status: TileVerdict): string {
       return VERDICT_MARK[status];
     },
-    /** The slot is a LIVE verb that would change nothing right now (the quiet paint, the bottom band). */
-    tileFutile(tile: ConsoleActionTile): boolean {
-      return tile.futile !== undefined && (tile.status === 'available' || tile.status === 'soft');
-    },
     tileVerdict(tile: ConsoleActionTile): TileVerdict {
-      return tile.status === 'available' && tile.futile !== undefined ? 'futile' : tile.status;
+      return tileVerdict(tile);
     },
     tileReason(tile: ConsoleActionTile): string {
       return this.reasonText(tile.reason);
     },
-    /**
-     * The slot's DESCRIPTION — what the action does, beside its canvas.
-     * Silent only for a TEXT-drawn action: its canvas already IS that
-     * sentence. (It no longer competes with the diagnostics: they are
-     * separate zones now, so a blocked action can show BOTH its rule and
-     * why it is blocked.) The profile owns the line budget.
-     */
-    slotRuleText(tile: ConsoleActionTile): string {
-      if (tile.rules === undefined || (tile.node.actionNode === undefined && tile.node.renderRoot === undefined)) {
-        return '';
-      }
-      return actionRuleText(tile.rules.summary);
-    },
-    /** The caption's reading tier — pure + spec'd in `consoleCardActions`. */
-    descTier(text: string): ActionDescTier {
-      return actionDescTier(text);
-    },
-    /**
-     * The slot's STATE line — one of two semantic kinds, resolved from two
-     * DIFFERENT model fields, never from styling:
-     *  · `validation`   — the rules block this variant (`reason`), the
-     *                     decision-critical line, so it outranks;
-     *  · `continuation` — the branch names a next step the graphic cannot
-     *                     draw (`choiceKinds`: payment, a card pick, …).
-     * Nothing else may enter this zone.
-     */
-    slotMeta(tile: ConsoleActionTile): {kind: 'validation' | 'futile' | 'continuation' | 'none', text: string, tone: 'warning' | 'danger'} {
-      if (tile.status !== 'available') {
-        const reason = this.tileReason(tile);
-        if (reason !== '') {
-          return {kind: 'validation', text: reason, tone: tile.blocker?.tone ?? 'danger'};
-        }
-      }
-      // AVAILABLE and changing nothing: what the press would do is the slot's news, before the steps it would ask.
-      if (tile.futile !== undefined) {
-        return {kind: 'futile', text: translateText(tile.futile.reason), tone: 'warning'};
-      }
-      if (tile.choiceKinds.length > 0) {
-        return {kind: 'continuation', text: this.choiceKindsLabel(tile), tone: 'danger'};
-      }
-      return {kind: 'none', text: '', tone: 'danger'};
-    },
     reasonText(reason: ConsoleActionReason | undefined): string {
-      if (reason === undefined) {
-        return '';
-      }
-      return typeof reason.message === 'string' ?
-        translateTextWithParams(reason.message, reasonParams(reason.params, reason.tag)) :
-        translateMessage(reason.message);
+      return actionReasonText(reason);
     },
     rangeText(vc: ConsoleVariableChip): string {
       const unit = vc.unit ?? '';
       return vc.min === vc.max ? `${vc.min}${unit}` : `${vc.min}–${vc.max}${unit}`;
-    },
-    /** The focused action belongs to THIS card — the group lifts as a whole. */
-    groupHasFocus(group: ConsoleActionGroup): boolean {
-      return group.tiles.some((t) => t.key === this.focusKey);
-    },
-    choiceKindsLabel(tile: ConsoleActionTile): string {
-      return tile.choiceKinds.map((k) => translateText(k === 'card' ? cardPickAskKey(tile.cardPickAmount) : CHOICE_KIND_LABEL[k])).join(' · ');
     },
     /** Only what GENUINELY stays post-submit (placement / reveal / notes). */
     stepNoteFor(tile: ConsoleActionTile): string {
@@ -2513,8 +2270,8 @@ export default defineComponent({
     },
     /** The DOM element of the focused action slot (the ref list is keyed). */
     focusedSlotEl(): HTMLElement | undefined {
-      const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;
-      return Array.isArray(el) ? el[0] : el;
+      // The slot is ConsoleActionGroupView's DOM (TR60): the cursor's tile is the one wearing the focused class.
+      return (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-cardactions__tile--focused') ?? undefined;
     },
     closeComposer(): void {
       this.composer = undefined;
@@ -3139,12 +2896,7 @@ export default defineComponent({
       return party === undefined ? undefined : partyNameKey(party);
     },
     sourceUsesText(tile: ConsoleActionTile): string {
-      const source = this.parliamentActionSources.find((s) => isResolutionActionSource(s) ?
-        s.resolution === tile.resolutionAction : (tile.resolutionAction === undefined && s.party === tile.party));
-      if (source === undefined) {
-        return '';
-      }
-      return translateTextWithParams('${0} of ${1} this generation', [String(source.usesLeft), String(source.usesPerGeneration)]);
+      return sourceUsesText(tile, this.parliamentActionSources);
     },
     /**
      * A PARTY ACTION opens as this workspace's stage: the shared party composer
@@ -3439,8 +3191,7 @@ export default defineComponent({
         list?.scrollToStart?.();
         return;
       }
-      const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;
-      const node = Array.isArray(el) ? el[0] : el;
+      const node = this.focusedSlotEl();
       // Foundation: bounded to the ConsoleScrollArea viewport (never
       // scrollIntoView). The generous margin keeps a breath of NEXT-row
       // context visible past the cursor, so fast d-pad runs read as motion
