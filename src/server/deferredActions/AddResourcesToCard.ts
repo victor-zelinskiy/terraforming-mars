@@ -310,15 +310,19 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
 
   /**
    * Build the `SelectCard` the live path presents (shared with the read-only
-   * preview so the two never drift). A forced single pick (one candidate, but
-   * autoSelect disabled) reads as a CONFIRMATION ("add here"), not a choice
-   * ("select a card …"). Plain string keys (no resource/number token) so the
-   * Russian text stays correct — the resource type + count are clear from the
-   * shown card + the button.
+   * preview so the two never drift). A forced single pick whose candidate is
+   * the ASKING card itself reads as a CONFIRMATION ("add here"); any other
+   * pick — one foreign holder included — names its payload («Select a card —
+   * mech: +3»). The resource NAMES itself after a dash so the Russian text
+   * needs no case.
    */
   private buildSelectCard(cards: ReadonlyArray<ICard>): SelectCard<ICard> {
     const qty = this.options.count ?? 1;
-    const single = cards.length === 1;
+    // «THIS card» is true only of a SELF-target — the lone candidate IS the card whose effect asks (Atmo Collectors'
+    // own floaters). A lone FOREIGN holder is a target like any other and the payload names itself: «добавить ресурсы
+    // на ЭТУ карту» in a play composer reads as the card being PLAYED — a lie about the rule (TR56, diagnosis 2).
+    const cause = this.options.cause;
+    const single = cards.length === 1 && cause !== undefined && cause.card !== undefined && cause.card === cards[0].name;
     const buttonLabel = qty === 1 ? 'Add resource' : 'Add resources';
     const title: string | Message = this.options.title ?? (single ?
       (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :

@@ -23,7 +23,7 @@ import {ICard} from '../../../src/server/cards/ICard';
 import {cast} from '../../../src/common/utils/utils';
 import {normalizeRequirement} from '../../../src/client/components/premiumCard/premiumCardViewModel';
 import {seatEnacted, seatResolution} from '../../parliament/parliamentArrange';
-import {fakeCard, runAllActions} from '../../TestingUtils';
+import {fakeCard, formatMessage, runAllActions} from '../../TestingUtils';
 
 /**
  * TR01 — SUPREME EXPERTISE: the first card to print «N tags of any one type»,
@@ -179,7 +179,8 @@ describe('SupremeExpertise', () => {
       runAllActions(game);
       const pick = cast(player.popWaitingFor(), SelectCard<ICard>);
       expect(pick.cards.map((c) => c.name)).deep.eq([CardName.POLITICAL_SCIENCE]);
-      expect(pick.title, 'one candidate reads as a confirmation').eq('Add resources to this card');
+      // One FOREIGN holder is still a target: the payload names itself — «this card» is a self-target's word only (TR56).
+      expect(formatMessage(pick.title), 'one foreign candidate names the payload, never «this card»').eq('Select a card — Data: +4');
       expect(politicalScience.resourceCount, 'nothing lands before the answer').eq(0);
       pick.cb([politicalScience]);
       expect(politicalScience.resourceCount).eq(4);

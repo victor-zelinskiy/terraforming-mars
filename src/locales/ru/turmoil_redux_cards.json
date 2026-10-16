@@ -210,5 +210,11 @@
     "Nuclear Warhead Utilization": "Утилизация ядерных боеголовок",
     "Requires the Industrialists to be ruling or that you have 2 delegates there. Gain 9 energy resources.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Получите 9 энергии.",
     "Overclocked Equipment": "Разогнанное оборудование",
-    "Requires the Industrialists to be ruling or that you have 2 delegates there. Also pay 3 energy. Pick a basic resource type. Gain an amount of that resource equal to your production of it.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Также заплатите 3 энергии. Выберите вид стандартного ресурса. Получите столько этого ресурса, сколько у вас его производства."
+    "Requires the Industrialists to be ruling or that you have 2 delegates there. Also pay 3 energy. Pick a basic resource type. Gain an amount of that resource equal to your production of it.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Также заплатите 3 энергии. Выберите вид стандартного ресурса. Получите столько этого ресурса, сколько у вас его производства.",
+    "Robotics Factory": "Фабрика роботов",
+    "Requires the Industrialists to be ruling or that you have 2 delegates there. Add 3 mech resources to ANY card, OR 3 fighter resources to ANY card, OR 6 floater resources to ANY card.": "Требует, чтобы «Индустриалисты» были у власти или у вас было 2 делегата на их резолюции. Добавьте 3 меха на ЛЮБУЮ карту, ИЛИ 3 истребителя на ЛЮБУЮ карту, ИЛИ 6 аэростатов на ЛЮБУЮ карту.",
+    "Add 3 mechs, 3 fighters or 6 floaters to ANY card.": "Добавьте 3 меха, 3 истребителя или 6 аэростатов на ЛЮБУЮ карту.",
+    "Add 3 mechs to ANY card": "Добавить 3 меха на любую карту",
+    "Add 3 fighters to ANY card": "Добавить 3 истребителя на любую карту",
+    "Add 6 floaters to ANY card": "Добавить 6 аэростатов на любую карту"
 }

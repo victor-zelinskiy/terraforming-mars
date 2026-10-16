@@ -56,6 +56,7 @@ import {InfluentialDiscovery} from './InfluentialDiscovery';
 import {ScientificBreakthrough} from './ScientificBreakthrough';
 import {NuclearWarheadUtilization} from './NuclearWarheadUtilization';
 import {OverclockedEquipment} from './OverclockedEquipment';
+import {RoboticsFactory} from './RoboticsFactory';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -279,5 +280,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // declaration, whose printed VP are the score cell's first source with a body (docs/claude/console/score-cell.md).
     [CardName.NUCLEAR_WARHEAD_UTILIZATION]: {Factory: NuclearWarheadUtilization},
     [CardName.OVERCLOCKED_EQUIPMENT]: {Factory: OverclockedEquipment},
+    // Only the module's icon at the bottom left: the Industrialists' plate again; TR43's OPTIONAL `or` with THREE «add to
+    // ANY card» branches (mechs · fighters · floaters) as the whole card — three holder sets behind one variant row.
+    [CardName.ROBOTICS_FACTORY]: {Factory: RoboticsFactory},
   },
 });
