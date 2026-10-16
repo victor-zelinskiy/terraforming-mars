@@ -48,6 +48,11 @@ the card actions' steel `--rules` / `--soft` / `--activated`) is another paint o
 focused swaps the paint, the cursor never re-arrives. **`.con-cursor-shadow()`** — the same grammar for a host that
 CLIPS its children (`overflow: hidden` — the colony tile): its own box-shadow written as a function of
 `--con-cursor-on` (one list, the same shape at rest and on the cursor), on the cursor's clock.
+**`.con-cursor-glow()`** — the same as `-shadow` with NO lift and NO z, for a host something ELSE moves or a host
+whose contract forbids a lift (the Parliament's plates are tweened by GSAP; the vote mode's cards stand still while the
+player points): one box-shadow list scaled by `--con-cursor-on`. **`.con-cursor-ring(@shadow; …)`** — the LAYER of
+`.con-cursor()` alone (no host transform, no z), for a host whose transform belongs to someone else (the composers'
+commit row: the ACTION COMMIT presses it with a GSAP scale — a CSS transform transition would chase every frame).
 
 **Rings speak the profile tokens** (`--con-focus-ring`, `--con-glow-r`): the TV widens them by its tokens. The old TV
 ring LIST (`console_tv.less`) — a later rule that out-painted every state colour (a refused tile got the full cyan ring
@@ -75,6 +80,22 @@ Three rules: **input is never delayed** (a nav / press during an ARRIVING window
 `installCursorArrivalInput` → `releaseCursorsOnInput`; the step IS the arrival); **no timer stands for a signal** (the
 one clock is the painted frame; `CURSOR_PENDING_MAX_MS` = 4 s is a named backstop with a dev warn, never the
 mechanism); **reduced motion has no gate** (the cursor simply stands).
+
+**A host's ENTRY gate (`[data-cursor-pending="entry"]`) zeroes the POSE's own clock** (`--con-cursor-ring-ms` /
+`--con-cursor-lift-ms`, never the shared `--con-cursor-ms`): the enter hook runs after the inserted element's style was
+resolved, so a pose lit at that moment must DROP before the first paint, and lifting the gate restores the clock in the
+same style change — the arrival runs the ordinary transition.
+
+### After TR58 — the four routes it left open (the smoothness iteration, PL-473 / 508 / 509 / 510)
+
+**A warmed picture shows WITH its card (PL-517).** Decoding the art ahead (`preloadPremiumCardArt`) is half of it: the face still waited for the async `load` and faded its picture 240 ms from black, so a step entered as lit frames with black bodies. `PremiumCardArt` reads `img.complete && naturalWidth` at MOUNT and shows a picture the browser already holds at once (`pcard__art--ready` — no transition); a face re-pointed in place and a picture still on the wire keep the fade. The beat witness measures the card's opacity, not its picture — only the 4K storyboard sees this.
+
+| Route | Was (witness, GPU, `.e2e-tr58`) | Is |
+| --- | --- | --- |
+| The hand's CHROME (PL-508) | the header, the status rail, the page edges and the dock spine rose in the handoff's own flush, the cursor a frame later — three events in one beat | `handRevealState.chrome` `held → frame → all`: the FRAME (header, page edges) rises as the copies take off — it is never on their path; the handoff; the READING (the rail, the spine) comes with the cursor, after the copies have gone (`--frame-wait` / `--chrome-wait`); a cancelled open never raises the rail |
+| The target step's entry (PL-473) | the step (its cards decoded at the FULL art tier in the press's own frames) appeared in one frame after a 64–111 ms long task; the action composer had no entry at all | the step's full-tier art is decoded while the cursor stands on its row (`targetWarmNames` → `preloadPremiumCardArt`); BOTH composers play the carry (`payloadCarry` — the price-side «ИЛИ»'s shared result is the carried print, TR58); a step with nothing to carry still ENTERS (its groups surface), and so does the review coming back |
+| The Parliament (PL-509) | hand-painted `--focus` / `--selected` box-shadow swaps; the default cursor (the voting plate) born WITH the frame; the ruler zone ringed the block AND the plaque; the retired government zone ringed after a sitting | `.con-cursor-glow()` on the plaques, the voting plate, the vote cards (the seat pick's mint lists share their four-layer shape); the ruler's TILE carries the one ring; `closeStage` maps `government` → `ruler`; the entry gate holds the plate's ring |
+| A late preview (PL-510) | on a cache miss the review, its rows and the commit row appeared in ONE flush with the cursor posed on them; the commit row's ring was hand-painted | the late content enters as a cascade (`arriveLateContent` → `descendCascade`) and the cursor ARRIVES after it (`lateCursor`, a press releases it at once); the hand stage's own entry gates the cursor too (`handStageEnterHook` → `gateCursorDuringEntry`); the commit row is `.con-cursor-ring()` |
 
 ## The hand handoff — show, then remove
 
@@ -115,8 +136,15 @@ index followed by a re-seat.
   with alpha ≥ 0.4), the visibility chain, the copy's box, the scroller's offset, long tasks. Report: `snaps` (ring
   0 → ≥ 80 % in one sample on a visible card), `bornHidden` (a focus pose on an invisible card revealed with it),
   `jumps` (> 1.5 px between samples with no running animation), `handoffDelta` + `coexistMs`, `scrollJumps`, `zFlips`.
-* `tests/e2e/console-cursor.spec.ts` (fhd + tv4k, `--workers=1`, GPU): the hand (open + step), «Действия карт»,
-  the colonies, the standard projects — every surface living (no born-hidden / snaps / jumps / z flips / scroll jumps).
+* `tests/e2e/console-cursor.spec.ts` (fhd + tv4k, `--workers=1`, GPU): the hand (open + step — and the chrome's three
+  beats, PL-508), «Действия карт», the colonies, the standard projects — every surface living (no born-hidden / snaps /
+  jumps / z flips / scroll jumps).
+* `tests/e2e/beatWitness.ts` — the CHROME's witness: named parts (a header, a rail, a step, a block of rows), each one's
+  effective opacity per sample and whether an opacity animation / transition was RUNNING on it; `t05` / `t95` (the
+  order of beats), `snapped` (≤ 5 % → ≥ 95 % with nothing running — a cut). Sample density proves nothing in this
+  harness (timers are coarse, compositor fades progress while the main thread starves): what ran is what tells a fade
+  from a cut. `tests/e2e/console-smoothness.spec.ts` (fhd + tv4k): the target step's entry in both composers (PL-473),
+  the Parliament's entry + walk + the ruler's one ring (PL-509), a late preview's content (PL-510).
 
 ## Adding a surface
 

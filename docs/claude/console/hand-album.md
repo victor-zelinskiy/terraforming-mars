@@ -575,3 +575,10 @@ outcome zones and their teleport-slot watchers, the verdict bar,
   corner and fx scale on the face (`.con-handbody` — `console_card_deal.less`);
   the targets are measured on RESTING slots because the focus pose is gated.
   `flightVisuals` (the blocker chip) are cleared only once the copies are gone.
+- **The chrome comes in THREE beats, never in the handoff's flush** (PL-508): `handRevealState.chrome` is `held` from
+  the pre-arm, `frame` when the copies take off (the header and the page edges rise AROUND the flight — the cards land
+  below the header, it is never on their path: `--frame-wait`), `all` once the copies have gone (the status rail —
+  it names the card under the cursor — and the dock spine come WITH the cursor: `--chrome-wait`, the shell's
+  `handRevealTransit`). Every other path (a plain open, reduced motion, a close) is `all`; a cancelled open (B
+  mid-flight) never raises the rail. Witness: `console-cursor.spec` § the hand (`beatWitness`: the header whole before
+  the first slot shows, the rail after it).
