@@ -872,9 +872,14 @@ describe('ConsoleActionComposer — premium render', () => {
     const vm = w.vm as any;
     expect(vm.focusFreeDialId).to.eq(undefined);
     expect(vm.navItems.length).to.eq(2);
-    expect(vm.focusedRowKind).to.eq('amount');
     expect(w.find('.con-composer__dial-pills').exists()).to.eq(false);
-    // A still ADVANCES off a focused stepper (it never silently confirms).
+    // Both dials stand answered at their minimum, so the gate is READY and the cursor
+    // opens on the CTA — decided before the first render since TR58 (it used to land
+    // there a tick later, after one frame on the first stepper).
+    expect(vm.focusedRowKind).to.eq('cta');
+    // Walk up onto a stepper: it is a focus row, and A ADVANCES off it (never confirms).
+    vm.handleIntent({kind: 'nav', dir: 'up', repeat: false});
+    expect(vm.focusedRowKind).to.eq('amount');
     vm.handleIntent({kind: 'press', button: 'confirm'});
     expect(w.emitted('confirm')).to.eq(undefined);
     w.unmount();
