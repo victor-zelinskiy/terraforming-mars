@@ -3,7 +3,7 @@
 **Status.** Shipped 2026-10-16. The prompt: `docs/claude/prompts/project-tr59-sponsored-power-plant.md`. The notification
 contract: `docs/claude/notifications.md` § ONE GLANCE and § «ИСТОЧНИК»; the rule: `.claude/rules/console-ui.md` §
 A NOTIFICATION ANSWERS THREE QUESTIONS. Ledger: section AY (`docs/claude/gameplay-polish-ledger.md`, PL-540…). Decisions
-1–9 were taken at their defaults (see § 6); 4 · 5 · 6 · 7 go to the owner as one batch.
+1–9 were taken at their defaults (see § 6); the owner confirmed 4a · 5a · 6a · 7a (2026-10-16).
 
 ## 1 · The card
 
@@ -135,7 +135,7 @@ bot, A2 «Только моё» — the after contract: the anchor, the via, one
 strategy rail, the 4K floor, the card never changes in place), the translated `console-notification-semantics` (the headline is
 the card) and `-premium-bot` (no actor name on a cluster, no «Марс»).
 
-## 6 · Decisions (defaults taken)
+## 6 · Decisions (defaults taken; **the owner confirmed 4a · 5a · 6a · 7a on 2026-10-16**)
 
 1. RU name «Спонсируемая электростанция». 2. Lore EN verbatim + the RU above. 3. Art — arrived, imported. 4a. The source is
 what belongs to the recipient; the actor's move is the trigger tail. 5a. One quiet actor line ≤ 2 chips; no «Марс»; no bot
