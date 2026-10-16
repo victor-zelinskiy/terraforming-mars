@@ -293,7 +293,14 @@
               <span v-else-if="selectActive && !isSelectable(cell.e.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
               <span v-else-if="selectActive && isBonusFresh(cell.e.card.name)" class="con-hand__fresh" data-hand-fresh aria-hidden="true">{{ freshBonusText }}</span>
               <span v-else-if="selectActive && isDrawFresh(cell.e.card.name)" class="con-hand__fresh" data-hand-fresh="draw" aria-hidden="true">{{ $t('New card') }}</span>
-              <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(cell.e) || '') }}</span>
+              <!-- A NAMED reason (a party, the chairman) says what the verdict bar says — the emblem and «0/2» (PL-479). -->
+              <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip"
+                    :class="{'con-hand__chip--emblem': chipEmblem(cell.e) !== undefined}" aria-hidden="true">
+                <template v-if="chipEmblem(cell.e) !== undefined">
+                  <img class="con-hand__chip-emblem" :src="chipEmblem(cell.e)!.emblem" alt="" />{{ chipEmblem(cell.e)!.text }}
+                </template>
+                <template v-else>{{ $t(chipLabel(cell.e) || '') }}</template>
+              </span>
               <!-- THE FORECAST PLATE — one grammar, two readers (`countedPlay.handForecastPlate`): a card that
                    advances the Agenda marker says HOW FAR (К-H1, TR42 — «[★] 2», `CardModel.agendaWalk`), a play
                    COUNTED off the table says HOW MANY (the owner's decision 2026-10-12, TR45 — «[microbe] +14», the
@@ -576,6 +583,7 @@ import {availabilityContextFor, buildCardAvailability, CardAvailabilityView, Car
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {consoleState} from '@/client/console/consoleRouter';
 import {shortBlockerLabel, HandNavDir} from '@/client/components/console/consoleHandGrid';
+import {unplayableReasonChip} from '@/client/components/handCards/unplayableReasonFormat';
 import {
   albumSpecFor, planHandAlbum, planAlbumPage, pageRowsFor, pageOfIndex, pageSlotOfIndex,
   stepHandAlbum, pageJumpIndex, packetRect, HandAlbumPlan, AlbumPagePlan, PacketSide,
@@ -1587,6 +1595,9 @@ export default defineComponent({
     },
     chipLabel(entry: ConsoleHandEntry): string | undefined {
       return shortBlockerLabel(entry.card.unplayableReasons ?? []);
+    },
+    chipEmblem(entry: ConsoleHandEntry): {emblem: string, text: string} | undefined {
+      return unplayableReasonChip(entry.card.unplayableReasons ?? []);
     },
     // ── navigation (called by the shell, mirrors ConsoleBoardSection) ──────
     /**

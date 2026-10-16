@@ -77,6 +77,19 @@ export function unplayableReasonEmblem(r: UnplayableReason): string | undefined 
   return r.party === undefined ? undefined : requirementPartyEmblem(r.party);
 }
 
+/**
+ * THE BLOCKER CHIP OF A NAMED REASON (TR57's 4K walk, PL-479): an unplayable card in the hand wears a compact chip over
+ * its art, and a party / chairman requirement read «Политика» there — a word that named neither the party nor how far
+ * the player is, while the verdict bar under the same card said «[emblem] 0/2». The chip now says what the bar says —
+ * the emblem and the compact counter of the PRIMARY reason — whenever that reason carries one; `undefined` keeps the
+ * chip's plain label (every other reason).
+ */
+export function unplayableReasonChip(reasons: ReadonlyArray<UnplayableReason>): {emblem: string, text: string} | undefined {
+  const r = reasons[0];
+  const emblem = r === undefined ? undefined : unplayableReasonEmblem(r);
+  return r === undefined || emblem === undefined ? undefined : {emblem, text: unplayableReasonCompact(r)};
+}
+
 /** The translated "Сейчас: N" badge, WITH the implied unit (e.g. "Сейчас: -18°C"). */
 export function unplayableReasonNow(r: UnplayableReason): string {
   return translateTextWithParams('Now: ${0}', [`${r.current}${reasonUnit(r)}`]);

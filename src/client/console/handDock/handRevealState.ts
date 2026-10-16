@@ -43,6 +43,8 @@ export type RevealVisual = {
   card?: CardModel,
   dim?: 'soft' | 'strong',
   chip?: string,
+  /** The chip of a NAMED reason — the emblem and its compact counter (the slot's own, PL-479). */
+  chipEmblem?: {emblem: string, text: string},
 };
 
 export const handRevealState = reactive({

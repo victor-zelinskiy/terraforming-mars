@@ -5023,6 +5023,20 @@ each(@players, {
         font-variant-numeric: tabular-nums;
         color: @con-text;
     }
+    /* AN EMPTY HOLDER STEPS BACK (PL-480, TR57's 4K walk): a floater holder with «0» stood in the full voice of the
+       mech holder with 4 beside it, so the eye weighed nothing the same as something. The box stays (the holder IS
+       on the table, and the cell is a landing anchor); its icon and count go quiet — opacity on the children, never a
+       `filter` (the console strips it). An ATTRIBUTE, never a class: the cell's own `:class` binding would rewrite
+       the className under an imperative landing accent. */
+    &__cell[data-aux-empty] {
+        .con-res-aux__icon,
+        .con-res-aux__value,
+        .con-res-aux__mcbadge,
+        .con-res-aux__rolebadge {
+            opacity: .45;
+            transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        }
+    }
 }
 
 /* ── VALUE BADGES — the rail's passive information layer ─────────────
@@ -9714,6 +9728,21 @@ html.console-mode {
            hand zoom). */
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
+    }
+    /* A NAMED reason's chip (PL-479): the party's emblem, then its counter — the verdict bar's own «[emblem] 0/2». */
+    &__chip--emblem {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        white-space: nowrap;
+        font-size: .85rem;
+        font-variant-numeric: tabular-nums;
+    }
+    &__chip-emblem {
+        width: 1.25rem;
+        height: 1.25rem;
+        object-fit: contain;
+        flex: 0 0 auto;
     }
     /* THE FORECAST PLATE — one grammar, two readers (`countedPlay.handForecastPlate`): «[★] 2» on a card that
        advances the Agenda marker (К-H1, TR42 — how far), «[microbe] +14» on a play counted off the table (TR45 — how

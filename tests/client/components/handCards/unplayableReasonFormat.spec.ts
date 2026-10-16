@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {unplayableReasonCompact, unplayableReasonEmblem, unplayableReasonLine, unplayableReasonText} from '@/client/components/handCards/unplayableReasonFormat';
+import {unplayableReasonChip, unplayableReasonCompact, unplayableReasonEmblem, unplayableReasonLine, unplayableReasonText} from '@/client/components/handCards/unplayableReasonFormat';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 
@@ -102,5 +102,23 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonCompact({type: 'count', message: 'Requires ${0} step(s) advanced on the Hydronetwork', params: ['4'], current: 3})).eq('Hydronetwork 3/4');
     const unknown: UnplayableReason = {type: 'count', message: 'Not enough resources on this card', current: 2};
     expect(unplayableReasonCompact(unknown)).eq(unplayableReasonLine(unknown));
+  });
+});
+
+describe('unplayableReasonFormat — the hand blocker chip of a NAMED reason (PL-479)', () => {
+  const party: UnplayableReason = {
+    type: 'party', message: 'Requires ${0} to be ruling or that you have ${1} delegates there',
+    params: [PartyName.INDUSTRIALISTS, '2'], party: PartyName.INDUSTRIALISTS, current: 0, requirement: true,
+  };
+
+  it('a party reason first: the chip says what the verdict bar says — the emblem and «0/2», never «Политика»', () => {
+    const chip = unplayableReasonChip([party]);
+    expect(chip?.emblem).eq(unplayableReasonEmblem(party));
+    expect(chip?.text).eq('0/2');
+  });
+
+  it('any other primary reason keeps the plain label (undefined) — even with a party reason behind it', () => {
+    expect(unplayableReasonChip([{type: 'megacredits', message: 'Not enough M€'}, party])).is.undefined;
+    expect(unplayableReasonChip([])).is.undefined;
   });
 });

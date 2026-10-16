@@ -290,6 +290,7 @@
              :data-aux-resource="own && !botMode ? c.key : undefined"
              :data-aux-cards="own && !botMode && c.cards !== undefined ? c.cards.join('|') : undefined"
              :data-exr-type="c.key"
+             :data-aux-empty="c.value === 0 ? '' : undefined"
              @click="auxCellPressed(c, i)">
           <span class="con-res-aux__iconwrap">
             <!-- The card-resource half: a blanket type shield (Protected

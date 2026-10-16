@@ -1731,6 +1731,7 @@ import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry, ConsoleHandSelectMode} from '@/client/components/console/ConsoleHandSection.vue';
 import {shortBlockerLabel} from '@/client/components/console/consoleHandGrid';
+import {unplayableReasonChip} from '@/client/components/handCards/unplayableReasonFormat';
 import {deriveHandSelect, handSelectPicksValid, HandSelectDerivation} from '@/client/components/console/consoleHandSelectModel';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
@@ -22663,7 +22664,8 @@ export default defineComponent({
       if (entry === undefined || entry.potential) {
         return {card};
       }
-      return {card, dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? [])};
+      return {card, dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? []),
+        chipEmblem: unplayableReasonChip(entry.card.unplayableReasons ?? [])};
     },
     refocusAfterFilter(selectedName: CardName | undefined): void {
       const list = this.handEntries; // recomputed for the new filter

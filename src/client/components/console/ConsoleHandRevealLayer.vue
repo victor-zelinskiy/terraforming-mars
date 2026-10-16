@@ -40,7 +40,13 @@
                'con-deal-proxy__face--dim-strong': visualOf(c.name)?.dim === 'strong',
              }">
           <ConsoleCardFaceLite :name="c.name" :card="visualOf(c.name)?.card ?? c" :artTier="handRevealState.artTier" lightweight />
-          <span v-if="visualOf(c.name)?.chip !== undefined" class="con-deal-proxy__chip">{{ $t(visualOf(c.name)!.chip!) }}</span>
+          <span v-if="visualOf(c.name)?.chip !== undefined" class="con-deal-proxy__chip"
+                :class="{'con-hand__chip--emblem': visualOf(c.name)?.chipEmblem !== undefined}">
+            <template v-if="visualOf(c.name)?.chipEmblem !== undefined">
+              <img class="con-hand__chip-emblem" :src="visualOf(c.name)!.chipEmblem!.emblem" alt="" />{{ visualOf(c.name)!.chipEmblem!.text }}
+            </template>
+            <template v-else>{{ $t(visualOf(c.name)!.chip!) }}</template>
+          </span>
         </div>
         <div class="con-deal-proxy__back">
           <div class="con-card-back con-card-back--flyer"></div>
