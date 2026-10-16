@@ -2759,6 +2759,9 @@ export default defineComponent({
        *  server response removes it from the hand (never a fake return). */
       departingPlayCard: undefined as CardName | undefined,
       departingTimer: undefined as number | undefined,
+      /** A B pressed in the STAGED landing's tail (the board already holds the staged placement while the landed
+       *  card's proxy dissolves) — OWED, not swallowed: it cancels the staged play the moment the scene is idle (PL-581). */
+      stagedBackOwed: false,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** The hydro workspace flow — module reactive, mirrored here for path
        *  watchers (vue-path-watcher rule). */
@@ -11276,6 +11279,13 @@ export default defineComponent({
      *    for a manually-open table (suppressed mid-scene above).
      */
     'playedHeroState.phase'(phase: string) {
+      if (phase === 'idle' && this.stagedBackOwed) {
+        // The owed B of the staged hand-off's tail (PL-581): the scene is over — the board's back verb runs now.
+        this.stagedBackOwed = false;
+        if (stagedPlayActive() && !stagedPlayState.committing) {
+          this.cancelStagedPlay();
+        }
+      }
       if (phase === 'lifting' && playedHeroState.host !== 'workspace') {
         const pending = this.pendingPlayCard;
         if (pending !== undefined) {
@@ -13843,6 +13853,13 @@ export default defineComponent({
           if (action === 'back') {
             return true;
           }
+        } else if (action === 'back' && stagedPlayActive() && !stagedPlayState.committing) {
+          // THE STAGED HAND-OFF's TAIL (PL-581): the board already holds the staged placement (its bar reads
+          // «B Отменить размещение») while the landed card's proxy dissolves with the leaving workspace. Nothing
+          // was sent, so B here is the board's own «one level back» — OWED to the scene's end, never swallowed
+          // (a B in that window used to vanish and leave the player on the board with the composer gone).
+          this.stagedBackOwed = true;
+          return true;
         } else {
           if (intent.kind === 'press' && this.playedHeroState.phase === 'showing-result') {
             skipPlayedHeroResult();
