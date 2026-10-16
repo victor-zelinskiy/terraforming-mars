@@ -61,6 +61,7 @@ import {MiningMechs} from './MiningMechs';
 import {ReprocessingPlant} from './ReprocessingPlant';
 import {SponsoredPowerPlant} from './SponsoredPowerPlant';
 import {CivilianSpacefighters} from './CivilianSpacefighters';
+import {EnceladeanIncubator} from './EnceladeanIncubator';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -299,5 +300,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the Industrialists' plate; TR40's `or` in fighters — 1 titanium buys 2
     // here, OR 1 fighter off here pays TWO goods at once (3 M€ AND +1 M€ production).
     [CardName.CIVILIAN_SPACEFIGHTERS]: {Factory: CivilianSpacefighters},
+    // Only the module's icon at the bottom left, an EMPTY MIN plate (no requirement): an ocean + 4 microbes onto ANY
+    // own card as ONE declaration, Jovian + Space tags, a fixed 2 VP.
+    [CardName.ENCELADEAN_INCUBATOR]: {Factory: EnceladeanIncubator},
   },
 });
