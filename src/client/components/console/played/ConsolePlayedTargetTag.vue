@@ -12,7 +12,15 @@
       <span v-if="!stacked" class="con-ptsel__tag-sep" aria-hidden="true">·</span>
     </span>
     <span class="con-ptsel__tag-out">
-      <i v-if="tag.icon !== undefined" class="con-ptsel__tag-icon"
+      <!-- A CHOICE of goods at one price (PL-484): every good, in the printed order, joined by the choice's «/». -->
+      <template v-if="tag.icons !== undefined">
+        <template v-for="(icon, i) in tag.icons" :key="'c' + i">
+          <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">/</span>
+          <i class="con-ptsel__tag-icon" :class="[iconClass(icon), {'con-ptsel__tag-icon--production': tag.plate === 'production'}]"
+             :data-ptsel-choice-icon="icon" aria-hidden="true"></i>
+        </template>
+      </template>
+      <i v-else-if="tag.icon !== undefined" class="con-ptsel__tag-icon"
          :class="[iconClass(tag.icon), {'con-ptsel__tag-icon--production': tag.plate === 'production'}]"
          aria-hidden="true"></i>
       <span v-if="tag.word !== undefined" class="con-ptsel__tag-word">{{ $t(tag.word) }}</span>

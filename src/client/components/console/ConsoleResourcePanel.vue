@@ -331,10 +331,19 @@
               :text="c.roleBadge.kind === 'vp' ? $t(c.roleBadge.text) : c.roleBadge.text"
               :label="c.roleAria ?? ''"
               :scopeKey="player.color" />
+            <!-- …and a CHOICE at one price (PL-484 — TR57's steel OR titanium production) wears every good on ONE plate,
+                 joined by the choice's slant: one price, one badge, the whole set — never the first good for the lot. -->
             <span v-else-if="c.roleBadge !== undefined" class="con-res-aux__rolebadge con-res-aux__rolebadge--icon"
-                  :class="{'con-res-aux__rolebadge--production': c.roleBadge.plate === 'production'}"
-                  :data-role-badge="c.roleBadge.kind" :data-role-plate="c.roleBadge.plate" role="img" :aria-label="c.roleAria ?? ''">
-              <i class="con-res-aux__roleicon" :class="roleIconClass(c.roleBadge.icon)" aria-hidden="true"></i>
+                  :class="{'con-res-aux__rolebadge--production': c.roleBadge.plate === 'production', 'con-res-aux__rolebadge--choice': c.roleBadge.icons !== undefined}"
+                  :data-role-badge="c.roleBadge.kind" :data-role-plate="c.roleBadge.plate"
+                  :data-role-choice="c.roleBadge.icons?.length" role="img" :aria-label="c.roleAria ?? ''">
+              <template v-if="c.roleBadge.icons !== undefined">
+                <template v-for="(icon, i) in c.roleBadge.icons" :key="`${icon}-${i}`">
+                  <span v-if="i > 0" class="con-res-aux__roleor" aria-hidden="true"></span>
+                  <i class="con-res-aux__roleicon" :class="roleIconClass(icon)" aria-hidden="true"></i>
+                </template>
+              </template>
+              <i v-else class="con-res-aux__roleicon" :class="roleIconClass(c.roleBadge.icon)" aria-hidden="true"></i>
             </span>
             <!-- The tender coin's CONTEXT (PL-136): two tender pools of one resource on the table — the Space mechs of
                  EVA beside the Building mechs of Construction Mechs — each wear the tag their coin pays for, so two
@@ -400,7 +409,7 @@ import {marsBotExtraGroups} from '@/client/components/console/marsBotRailModel';
 import ConsoleValueBadge from '@/client/components/console/ConsoleValueBadge.vue';
 import ConsoleProtectionMark from '@/client/components/console/ConsoleProtectionMark.vue';
 import {railProtections, RailProtectionMark, RailProtections} from '@/client/console/railProtectionModel';
-import {actionGoodIcon, HOLDER_ROLE_ICON, HolderRole, holderRoleCaption, holderRolePlate, holderRoleReading} from '@/client/console/holderRoles';
+import {HOLDER_ROLE_ICON, HolderRole, holderRoleCaption, holderRoleIcons, holderRolePlate, holderRoleReading} from '@/client/console/holderRoles';
 import {readingLineText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {badgeForUnit, MC_CONTEXT_KEYS, RAIL_CONTEXT_TAG, railMcBadges, tagVpBadges, RailMcBadge, RailMcBadges, TagVpBadge} from '@/client/console/railValueModel';
@@ -460,7 +469,7 @@ type AuxCell = {
    * the delegate's own sprite, or the ACTION's good (PL-135: the resource the action buys, on the production plate
    * when it is a production step).
    */
-  roleBadge?: {kind: 'vp' | 'delegate' | 'trade' | 'action', text?: string, icon?: string, plate?: 'production'},
+  roleBadge?: {kind: 'vp' | 'delegate' | 'trade' | 'action', text?: string, icon?: string, icons?: ReadonlyArray<string>, plate?: 'production'},
   roleAria?: string,
   /**
    * The tender coin's CONTEXT glyph (PL-136) — only when two tender pools of one resource stand on the table: the
@@ -481,8 +490,10 @@ function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
   case 'delegate':
     return {kind: 'delegate', icon: HOLDER_ROLE_ICON.delegate};
   case 'action': {
+    // A CHOICE at one price (PL-484) wears EVERY good, in the printed order — «[steel-pr] / [titanium-pr]».
+    const icons = holderRoleIcons(role);
     const plate = holderRolePlate(role);
-    return plate === undefined ? {kind: 'action', icon: actionGoodIcon(role.good)} : {kind: 'action', icon: actionGoodIcon(role.good), plate};
+    return {kind: 'action', icon: icons[0], ...(icons.length > 1 ? {icons} : {}), ...(plate === undefined ? {} : {plate})};
   }
   default:
     return undefined;

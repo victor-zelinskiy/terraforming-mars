@@ -4,14 +4,15 @@ import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
 import {ICard} from '../../src/server/cards/ICard';
-import {HolderActionGood} from '../../src/common/cards/holderRole';
+import {actionGoodsOf, HolderActionGood} from '../../src/common/cards/holderRole';
 
 /**
  * THE ACTION ROLE OF A HOLDER (PL-135) — what a card's stored resource buys
  * through its own declarative action, read off `action` at export time and
  * never declared. The table below is the whole reading, card by card: every
- * holder the console names a good for, and every holder it deliberately
- * leaves plain storage — a bespoke action, a choice of goods, a target to pick,
+ * holder the console names a good (or a CHOICE of goods at one price — PL-484)
+ * for, and every holder it deliberately leaves plain storage — a bespoke
+ * action, two prices, a target to pick,
  * a draw-and-keep, a payment unit whose action buys the resource rather than
  * spending it. A new holder that spends `resourcesHere` for one plain good
  * joins the first list by itself; one that the reading cannot name fails
@@ -47,6 +48,10 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     [CardName.THERMOPHILES, {spend: 2, good: {kind: 'global', parameter: 'venus', steps: 1}}],
     // К-R1 (TR46): a BESPOKE action's good, declared once in the card file — ALL the data → as many cards, keep 1.
     [CardName.RESEARCH_STARTUPS, {spend: 'all', good: {kind: 'look', keep: 1}}],
+    // PL-484 (K-§6.1): ONE PRICE, A CHOICE OF GOODS — every good in the printed order, the first as `good`.
+    [CardName.MINING_MECHS, {spend: 2, good: {kind: 'production', resource: 'steel' as never, amount: 1}, or: [{kind: 'production', resource: 'titanium' as never, amount: 1}]}],
+    [CardName.ATMO_COLLECTORS, {spend: 1, good: {kind: 'stock', resource: 'titanium' as never, amount: 2}, or: [
+      {kind: 'stock', resource: 'energy' as never, amount: 3}, {kind: 'stock', resource: 'heat' as never, amount: 4}]}],
   ];
 
   for (const [name, expected] of NAMED) {
@@ -56,7 +61,6 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
   }
 
   const PLAIN: ReadonlyArray<[CardName, string]> = [
-    [CardName.ATMO_COLLECTORS, 'one floater buys a CHOICE of three goods — not one good'],
     [CardName.EXTRACTOR_BALLOONS, 'a bespoke action (its declarative form is commented out) — nothing to read'],
     [CardName.WEATHER_BALLOONS, 'a VARIABLE good (1 M€ per city on Mars — a countable, not a number) — not one plain good'],
     [CardName.HABITAT_SCIENCE, 'a bespoke action (all your colony bonuses) — nothing declarative to read'],
@@ -78,6 +82,30 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     const action = (card as ICard & {actionBehavior?: {or?: {behaviors: ReadonlyArray<unknown>}}}).actionBehavior;
     expect(action?.or?.behaviors).has.length(2);
     expect(holderActionGoodOf(card)?.spend).eq(1);
+  });
+
+  it('PL-484: a choice is read only at ONE price — two variants spending DIFFERENT amounts here are storage', () => {
+    // A synthetic holder: «1 here → 2 titanium» OR «2 here → 1 steel production» — no one reading of «spend N».
+    const twoPrices = {
+      name: 'Two Prices' as CardName,
+      resourceType: 'Floater',
+      action: () => undefined,
+      canAct: () => true,
+      actionBehavior: {or: {behaviors: [
+        {spend: {resourcesHere: 1}, stock: {titanium: 2}, title: 'a'},
+        {spend: {resourcesHere: 2}, production: {steel: 1}, title: 'b'},
+      ]}},
+    } as unknown as ICard;
+    expect(holderActionGoodOf(twoPrices)).is.undefined;
+    // …and the same two goods at ONE price are the choice, in the printed order.
+    const onePrice = {
+      ...twoPrices,
+      actionBehavior: {or: {behaviors: [
+        {spend: {resourcesHere: 2}, stock: {titanium: 2}, title: 'a'},
+        {spend: {resourcesHere: 2}, production: {steel: 1}, title: 'b'},
+      ]}},
+    } as unknown as ICard;
+    expect(holderActionGoodOf(onePrice)).deep.eq({spend: 2, good: {kind: 'stock', resource: 'titanium', amount: 2}, or: [{kind: 'production', resource: 'steel', amount: 1}]});
   });
 
   it('a DECLARED good is a bespoke action\'s only: a card with a declarative action never declares one (it is derived)', () => {
@@ -103,8 +131,11 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
         if (good.spend !== 'all') {
           expect(good.spend, name).is.greaterThan(0);
         }
-        const amount = good.good.kind === 'global' ? good.good.steps : good.good.kind === 'look' ? good.good.keep : good.good.amount;
-        expect(amount, name).is.greaterThan(0);
+        // Every good of a CHOICE too (PL-484) — a set with one empty good would promise nothing on its plate.
+        for (const g of actionGoodsOf(good)) {
+          const amount = g.kind === 'global' ? g.steps : g.kind === 'look' ? g.keep : g.amount;
+          expect(amount, name).is.greaterThan(0);
+        }
       }
     }
     expect(named, 'the reading names at least the table above').is.gte(NAMED.length);

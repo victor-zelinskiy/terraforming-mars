@@ -89,6 +89,11 @@ export type PlayedTargetImpact = {
   tailParams?: ReadonlyArray<string>;
   /** Resource icon key (`optionIcons.iconClassFor` vocabulary). */
   icon?: string;
+  /**
+   * A CHOICE of goods at one price (PL-484 — TR57's steel OR titanium production): EVERY good's icon, in the printed
+   * order, drawn joined by «/» instead of `icon` (which stays the first, for a reader that names one). Absent otherwise.
+   */
+  icons?: ReadonlyArray<string>;
   from?: number;
   to?: number;
   /** A standalone delta when there is no before/after to show. */
@@ -186,6 +191,8 @@ export function playedTargetPayloadOf(
 export type PlayedTargetTag = {
   /** Icon key (`optionIcons.iconClassFor` vocabulary). */
   icon?: string;
+  /** A CHOICE of goods at one price (PL-484): every good's icon, drawn joined by «/» instead of `icon`. */
+  icons?: ReadonlyArray<string>;
   /** The icon rides the production plate (an action good that is a production step). */
   plate?: 'production';
   /** A short word before the numbers — an i18n key («VP»). */

@@ -20,9 +20,11 @@
  * «4 data → a Space card» (TR05), «1 floater → +1 M€ production» (Local
  * Shading). It is DERIVED from `action` at manifest-export time
  * (`server/cards/holderActionGood.ts`) and never declared by a card: a spend
- * of `resourcesHere` beside exactly ONE plain good is the role; anything the
- * console cannot name as one good (a bespoke action, a choice of goods, a
- * target to pick) leaves the holder plain storage — generically or not at all.
+ * of `resourcesHere` beside exactly ONE plain good is the role; several such
+ * variants at ONE price are a CHOICE of goods, the same role with its `or`
+ * (PL-484 — TR57, Atmo Collectors); anything the console cannot name as plain
+ * goods (a bespoke action, two prices, a target to pick) leaves the holder
+ * plain storage — generically or not at all.
  *
  * …with ONE door for a BESPOKE action (К-R1, the owner's decision 2026-10-12,
  * TR46): the card file DECLARES its good once (`ICard.holderActionGood`),
@@ -56,5 +58,15 @@ export type ActionGood =
 /**
  * `spend` units off this card → `good` — the holder's action role, as exported to the client card. `'all'`:
  * the action spends EVERY unit here at once (TR46 — the good then grows with the count).
+ *
+ * `or` — ONE PRICE, A CHOICE OF GOODS (PL-484, K-§6.1 — TR57 Mining Mechs «2 mechs → +1 steel OR titanium
+ * production», Atmo Collectors «1 floater → 2 titanium OR 3 energy OR 4 heat»): the SAME `spend` buys any ONE of
+ * `good` and these instead, in the printed order (`good` is the first printed). Absent for a single good. Every
+ * reader of a good reads the whole set through `actionGoodsOf` — the first good alone is half a truth on a chip.
  */
-export type HolderActionGood = {spend: number | 'all', good: ActionGood};
+export type HolderActionGood = {spend: number | 'all', good: ActionGood, or?: ReadonlyArray<ActionGood>};
+
+/** Every good a holder's action role buys, in the printed order — one for a single good, all of them for a choice. */
+export function actionGoodsOf(role: {good: ActionGood, or?: ReadonlyArray<ActionGood>}): ReadonlyArray<ActionGood> {
+  return role.or === undefined || role.or.length === 0 ? [role.good] : [role.good, ...role.or];
+}

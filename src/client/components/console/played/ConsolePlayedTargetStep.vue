@@ -272,7 +272,15 @@
                   :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static, 'con-ptsel__imp--value': imp.value},
                            imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : '', {'con-ptsel__imp--down': imp.from !== undefined && imp.to !== undefined && imp.to < imp.from && imp.static !== true}]"
                   :data-impact-outcome="imp.outcome">
-              <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="[iconClass(imp.icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
+              <!-- A CHOICE of goods at one price (PL-484): every good's icon, joined by the choice's «/». -->
+              <template v-if="imp.icons !== undefined">
+                <template v-for="(icon, i) in imp.icons" :key="'c' + i">
+                  <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">/</span>
+                  <i class="con-ptsel__imp-icon" :class="[iconClass(icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
+                     :data-impact-plate="imp.plate" :data-impact-choice-icon="icon" aria-hidden="true"></i>
+                </template>
+              </template>
+              <i v-else-if="imp.icon" class="con-ptsel__imp-icon" :class="[iconClass(imp.icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
                  :data-impact-plate="imp.plate" aria-hidden="true"></i>
               <span class="con-ptsel__imp-label">{{ impactLabel(imp) }}</span>
               <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ impactTail(imp) }}</span>

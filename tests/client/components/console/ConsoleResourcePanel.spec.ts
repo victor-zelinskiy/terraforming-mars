@@ -564,6 +564,29 @@ describe('ConsoleResourcePanel — value badges', () => {
     expect(cells[1].find('[data-mc-badge]').exists(), 'no coin on the delegates chip').to.be.false;
   });
 
+  it('PL-484: TR57 beside TR40 — the CHOICE chip wears BOTH goods on one production plate, joined by the slant; TR40 keeps its one good', () => {
+    const w = mountPlayer(
+      fakePlayer({}, {tableau: [
+        {name: CardName.MINING_MECHS, resources: 3},
+        {name: CardName.FORESTRY_MECHS, resources: 2},
+      ]}),
+      {boardVisible: true});
+    const cells = w.findAll('[data-aux-resource]');
+    expect(cells.map((c) => c.attributes('data-aux-resource'))).to.deep.eq(['mech:action:production-steel|production-titanium', 'mech:action:production-plants']);
+    const choice = cells[0].find('[data-role-badge="action"]');
+    expect(choice.attributes('data-role-choice')).to.eq('2');
+    expect(choice.attributes('data-role-plate')).to.eq('production');
+    expect(choice.classes()).to.include('con-res-aux__rolebadge--choice');
+    expect(choice.findAll('.con-res-aux__roleicon').map((i) => i.classes().find((c) => c.startsWith('resource_icon--')))).to.deep.eq(['resource_icon--steel', 'resource_icon--titanium']);
+    expect(choice.findAll('.con-res-aux__roleor')).to.have.length(1);
+    // The aria is the whole reading: the family word and «+1 production of your choice».
+    expect(choice.attributes('aria-label') ?? '').to.contain('production of your choice');
+    const single = cells[1].find('[data-role-badge="action"]');
+    expect(single.attributes('data-role-choice')).to.eq(undefined);
+    expect(single.classes()).not.to.include('con-res-aux__rolebadge--choice');
+    expect(single.findAll('.con-res-aux__roleicon')).to.have.length(1);
+  });
+
   it('a scoring tag carries the VP shield — zero-count cell included', () => {
     const w = mountPlayer(fakePlayer(
       {[Tag.JOVIAN]: 0} as Partial<Record<Tag, number>>,

@@ -3,7 +3,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {actionGoodKey, holderGroupKey, HolderRole, holderRoleClaims, holderRoleOf} from '@/client/console/holderRoles';
+import {actionRoleGoodKey, holderGroupKey, HolderRole, holderRoleClaims, holderRoleOf} from '@/client/console/holderRoles';
 
 /**
  * Additional (card) resources — the aggregation layer behind the
@@ -215,7 +215,7 @@ export function additionalResourceRoleGroups(tableau: ReadonlyArray<CardModel>):
     // payment role's lane is its UNIT (PL-136): two tender pools of one resource are two lanes, merged back into one
     // chip only when a single pool stands (the key then stays the resource's own — see `unitSplit`).
     const lane = role.kind === 'payment' ? `payment:${role.unit}` :
-      role.kind === 'action' ? `action:${actionGoodKey(role.good)}` :
+      role.kind === 'action' ? `action:${actionRoleGoodKey(role)}` :
         holderRoleClaims(role.kind) ? role.kind : 'plain';
     const key = `${resource}#${lane}`;
     let draft = byKey.get(key);

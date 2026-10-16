@@ -5041,6 +5041,33 @@ each(@players, {
             color: fade(@con-text-dim, 55%);
         }
     }
+    /* ONE PRICE, A CHOICE OF GOODS (PL-484, K-§6.1 — TR57 «2 mechs → +1 steel OR titanium production», Atmo Collectors
+       «1 floater → 2 titanium OR 3 energy OR 4 heat»): every good on ONE plate, in the printed order, joined by a slant
+       — one price is one badge, and the first good never stands for the set. The plate keeps the single badge's height
+       and corner anchor and grows LEFT over the emblem; the production plate keeps its rounded square. */
+    &__rolebadge--icon&__rolebadge--choice {
+        width: auto;
+        padding: 0 calc(var(--valbadge-size, .92rem) * .1);
+        gap: calc(var(--valbadge-size, .92rem) * .06);
+        border-radius: calc(var(--valbadge-size, .92rem) * .5);
+    }
+    &__rolebadge--production&__rolebadge--choice {
+        border-radius: .2rem;
+    }
+    &__rolebadge--choice > &__roleicon {
+        flex: none;
+        width: calc(var(--valbadge-size, .92rem) * .66);
+        height: calc(var(--valbadge-size, .92rem) * .66);
+    }
+    /* The choice's slant between two goods — a hairline, never a word (it reads in every language). */
+    &__roleor {
+        flex: none;
+        width: .07rem;
+        height: 58%;
+        border-radius: .04rem;
+        background: rgba(255, 236, 214, .72);
+        transform: skewX(-20deg);
+    }
 }
 
 /* ── VALUE BADGES — the rail's passive information layer ─────────────

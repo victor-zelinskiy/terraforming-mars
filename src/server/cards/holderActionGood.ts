@@ -16,11 +16,14 @@ import {Resource} from '../../common/Resource';
  *    plain good: one production step, one stock gain, a draw (with its tag
  *    filter at most), a TR step or one global-parameter step;
  *  · a variant that spends this card's resource for anything the console
- *    cannot name as one good (a target to pick, a placement, a choice of goods,
- *    several goods at once, a draw-and-keep) makes the WHOLE card plain storage
- *    — half a truth on a chip is a lie;
- *  · two variants spending this card's resource (Atmo Collectors' «1 floater →
- *    2 titanium OR 2 energy OR 3 heat») is a CHOICE, not one good: storage;
+ *    cannot name as one good (a target to pick, a placement, several goods at
+ *    once, a draw-and-keep) makes the WHOLE card plain storage — half a truth
+ *    on a chip is a lie;
+ *  · several variants spending this card's resource at ONE price (Atmo
+ *    Collectors' «1 floater → 2 titanium OR 3 energy OR 4 heat», TR57's «2 mechs
+ *    → +1 steel OR titanium production») are a CHOICE of goods — the same role,
+ *    every good in the printed order (`good` + `or`, PL-484); at two DIFFERENT
+ *    prices there is no one reading of «spend N»: storage;
  *  · a variant that spends something else (TR40's A: energy → a mech) is
  *    ignored — it buys the resource, it does not spend it.
  *
@@ -51,7 +54,15 @@ export function holderActionGoodOf(card: ICard): HolderActionGood | undefined {
     }
     found.push({spend, good});
   }
-  return found.length === 1 ? found[0] : undefined;
+  if (found.length <= 1) {
+    return found[0];
+  }
+  // A CHOICE of goods — only at ONE price: «spend 2 → this OR that» reads as one role, two prices do not.
+  const spend = found[0].spend;
+  if (found.some((f) => f.spend !== spend)) {
+    return undefined;
+  }
+  return {spend, good: found[0].good, or: found.slice(1).map((f) => f.good)};
 }
 
 /** The ONE plain good a variant pays beside its `spend`, or undefined when it pays anything else. */

@@ -16,7 +16,7 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
-import {ActionGood} from '@/common/cards/holderRole';
+import {ActionGood, actionGoodsOf} from '@/common/cards/holderRole';
 import {DEFAULT_PAYMENT_VALUES} from '@/common/inputs/Payment';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -32,8 +32,11 @@ export type HolderRole =
   | {kind: 'delegate', price: number}
   /** The card's declaration: `price` units of the resource buy a free trade. */
   | {kind: 'trade', price: number}
-  /** The card's own action: `spend` units off this card buy `good` (PL-135). */
-  | {kind: 'action', spend: number | 'all', good: ActionGood}
+  /**
+   * The card's own action: `spend` units off this card buy `good` (PL-135) — or, a CHOICE at one price (PL-484), any
+   * ONE of `good` and `or`. Read the set through `actionGoodsOf`, never `good` alone.
+   */
+  | {kind: 'action', spend: number | 'all', good: ActionGood, or?: ReadonlyArray<ActionGood>}
   /** Storage with no role the console can name. */
   | {kind: 'store'};
 
@@ -61,7 +64,8 @@ export function holderRoleOf(name: CardName): HolderRole {
     return {kind: 'vp', per: vp.per ?? 1, each: vp.each ?? 1};
   }
   if (card.actionGood !== undefined) {
-    return {kind: 'action', spend: card.actionGood.spend, good: card.actionGood.good};
+    const {spend, good, or} = card.actionGood;
+    return or === undefined || or.length === 0 ? {kind: 'action', spend, good} : {kind: 'action', spend, good, or};
   }
   return {kind: 'store'};
 }
@@ -94,7 +98,7 @@ export function holderGroupKey(resource: CardResource, role: HolderRole | undefi
     return `${base}:${role.kind}:${role.unit}`;
   }
   if (role.kind === 'action' && goodSplit) {
-    return `${base}:${role.kind}:${actionGoodKey(role.good)}`;
+    return `${base}:${role.kind}:${actionRoleGoodKey(role)}`;
   }
   return `${base}:${role.kind}`;
 }
@@ -117,6 +121,19 @@ export function actionGoodKey(good: ActionGood): string {
   default:
     return good.kind;
   }
+}
+
+/**
+ * The identity of an action role's WHOLE set of goods (PL-484) — a choice is its own lane: TR57's «steel OR titanium
+ * production» beside a holder that buys steel production alone are two different promises, never one chip.
+ */
+export function actionRoleGoodKey(role: {good: ActionGood, or?: ReadonlyArray<ActionGood>}): string {
+  return actionGoodsOf(role).map(actionGoodKey).join('|');
+}
+
+/** A CHOICE of goods at one price (PL-484): more than one good. */
+export function holderRoleIsChoice(role: HolderRole): boolean {
+  return role.kind === 'action' && actionGoodsOf(role).length > 1;
 }
 
 /** The chip's one-word caption of a role (an i18n key) — only the roles the console names; `store` has none. */
@@ -142,8 +159,12 @@ export function holderRoleCaption(role: HolderRole): string | undefined {
   switch (role.kind) {
   case 'store':
     return undefined;
-  case 'action':
-    return ACTION_GOOD_CAPTION[role.good.kind];
+  case 'action': {
+    // A choice of one family speaks the family's word («production» for steel OR titanium production); a choice
+    // across families has no one word but the action's own.
+    const kinds = new Set(actionGoodsOf(role).map((g) => g.kind));
+    return kinds.size === 1 ? ACTION_GOOD_CAPTION[role.good.kind] : 'Action';
+  }
   default:
     return HOLDER_ROLE_CAPTION[role.kind];
   }
@@ -172,14 +193,26 @@ export function actionGoodIcon(good: ActionGood): string {
   }
 }
 
-/** The icon of a role — the good's own for an action role, the vocabulary's for the rest. */
+/** The icon of a role — the (first) good's own for an action role, the vocabulary's for the rest. */
 export function holderRoleIcon(role: HolderRole): string | undefined {
   return role.kind === 'action' ? actionGoodIcon(role.good) : HOLDER_ROLE_ICON[role.kind];
 }
 
-/** A production good rides the PRODUCTION PLATE (the card art's brown box) wherever its icon is drawn. */
+/**
+ * EVERY icon a role shows (PL-484): one for every role but a CHOICE, whose goods are ALL drawn, in the printed order,
+ * joined by the choice's «/» — «[steel-pr] / [titanium-pr]», never the first good standing for the set.
+ */
+export function holderRoleIcons(role: HolderRole): ReadonlyArray<string> {
+  if (role.kind === 'action') {
+    return actionGoodsOf(role).map(actionGoodIcon);
+  }
+  const icon = HOLDER_ROLE_ICON[role.kind];
+  return icon === undefined ? [] : [icon];
+}
+
+/** A production good rides the PRODUCTION PLATE (the card art's brown box) wherever its icon is drawn — a choice only when EVERY good does. */
 export function holderRolePlate(role: HolderRole): 'production' | undefined {
-  return role.kind === 'action' && role.good.kind === 'production' ? 'production' : undefined;
+  return role.kind === 'action' && actionGoodsOf(role).every((g) => g.kind === 'production') ? 'production' : undefined;
 }
 
 /** The amount an action's good moves — the label's second number. */
@@ -242,6 +275,19 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
     if (role.good.kind === 'look') {
       // TR46: every unit here is one more card turned over; the action keeps `keep` of them.
       return {label: 'All from here: as many cards off the deck, ${0} to the hand', params: [String(role.good.keep)]};
+    }
+    const goods = actionGoodsOf(role);
+    if (goods.length > 1) {
+      // A CHOICE at one price (PL-484): «Spend 2 from here: +1 production of your choice» beside the goods' icons, or
+      // «+2 / 3 / 4 of your choice» when the amounts differ (in the icons' order) — the numbers are digits, the words
+      // one tail, nothing translated inside a param.
+      const amounts = goods.map((g) => String(actionGoodAmount(g)));
+      const same = amounts.every((a) => a === amounts[0]);
+      return {
+        label: 'Spend ${0} from here: +${1}',
+        params: [String(role.spend), same ? amounts[0] : amounts.join(' / ')],
+        tail: goods.every((g) => g.kind === 'production') ? 'production of your choice' : 'of your choice',
+      };
     }
     const tail = actionGoodTail(role.good);
     const tag = role.good.kind === 'cards' ? role.good.tag : undefined;
@@ -420,4 +466,13 @@ export function holderGainOutcomeIcon(outcome: HolderGainOutcome | HolderLossOut
   case 'look':
     return 'cards';
   }
+}
+
+/** EVERY icon an outcome reading wears — a CHOICE role's whole set (PL-484); one icon for the rest. */
+export function holderGainOutcomeIcons(outcome: HolderGainOutcome | HolderLossOutcome): ReadonlyArray<string> {
+  if (outcome.kind === 'reach') {
+    return holderRoleIcons(outcome.role);
+  }
+  const icon = holderGainOutcomeIcon(outcome);
+  return icon === undefined ? [] : [icon];
 }

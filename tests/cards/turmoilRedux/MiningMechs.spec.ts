@@ -385,8 +385,12 @@ describe('MiningMechs', () => {
       }
     });
 
-    it('the satellite reads NO single good — one price, two goods is a CHOICE (plain storage until the owner decides К-§6.1)', () => {
-      expect(holderActionGoodOf(t.card)).is.undefined;
+    it('the satellite reads ONE PRICE, A CHOICE OF GOODS — 2 mechs → +1 steel OR titanium production (PL-484, the owner\'s К-§6.1)', () => {
+      expect(holderActionGoodOf(t.card)).deep.eq({
+        spend: 2,
+        good: {kind: 'production', resource: 'steel', amount: 1},
+        or: [{kind: 'production', resource: 'titanium', amount: 1}],
+      });
     });
 
     it('the previews are pure: building them moves nothing', () => {

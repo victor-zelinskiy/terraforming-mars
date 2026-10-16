@@ -3,7 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {actionGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderGroupKey, holderLossOutcome, holderLossOutcomeReading, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
+import {actionGoodKey, actionRoleGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeIcons, holderGainOutcomeReading, holderGroupKey, holderLossOutcome, holderLossOutcomeReading, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleIcons, holderRoleIsChoice, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
 import {additionalResourceRoleGroups} from '@/client/components/additionalResources/additionalResources';
 import {buildExtrasTypes} from '@/client/console/extrasExplorerModel';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -51,8 +51,7 @@ describe('holderRoles — what a stored resource is for', () => {
     expect(holderRoleOf(CardName.POLITICAL_SCIENCE)).to.deep.eq({kind: 'action', spend: 3, good: {kind: 'cards', amount: 1}});
     expect(holderRoleOf(CardName.VECTOR_COMPUTATIONS)).to.deep.eq({kind: 'action', spend: 4, good: {kind: 'cards', amount: 1, tag: 'space'}});
     expect(holderRoleOf(CardName.LOCAL_SHADING)).to.deep.eq({kind: 'action', spend: 1, good: {kind: 'production', resource: 'megacredits', amount: 1}});
-    // Generically or not at all: a choice of goods, a bespoke action — storage.
-    expect(holderRoleOf(CardName.ATMO_COLLECTORS), 'one floater buys a CHOICE of three goods').to.deep.eq({kind: 'store'});
+    // Generically or not at all: a bespoke action — storage.
     expect(holderRoleOf(CardName.HABITAT_SCIENCE), 'a bespoke action').to.deep.eq({kind: 'store'});
     // Precedence: a payment unit and a printed VP rule outrank the action's good.
     expect(holderRoleOf(CardName.EVA_MECHS).kind).to.eq('payment');
@@ -88,6 +87,46 @@ describe('holderRoles — what a stored resource is for', () => {
     expect(holderRoleReading({kind: 'action', spend: 1, good: {kind: 'stock', resource: 'titanium' as never, amount: 2}})).to.deep.eq({label: 'Spend ${0} from here: +${1}', params: ['1', '2']});
     expect(holderRoleCaption({kind: 'store'})).to.eq(undefined);
     expect(holderRoleCaption(holderRoleOf(CardName.EVA_MECHS))).to.eq('money');
+  });
+
+  it('PL-484 (К-§6.1): ONE PRICE, A CHOICE OF GOODS is an action role with its whole set — every icon, the plate only when every good is production, the family word, «+N production of your choice»', () => {
+    const mining = holderRoleOf(CardName.MINING_MECHS);
+    expect(mining).to.deep.eq({kind: 'action', spend: 2, good: {kind: 'production', resource: 'steel', amount: 1}, or: [{kind: 'production', resource: 'titanium', amount: 1}]});
+    expect(holderRoleIsChoice(mining)).to.eq(true);
+    expect(holderRoleIcons(mining)).to.deep.eq(['steel', 'titanium']);
+    expect(holderRolePlate(mining)).to.eq('production');
+    expect(holderRoleCaption(mining)).to.eq('production');
+    // One amount for both goods — said once; the words in the TAIL, never translated inside a param.
+    expect(holderRoleReading(mining)).to.deep.eq({label: 'Spend ${0} from here: +${1}', params: ['2', '1'], tail: 'production of your choice'});
+    const atmo = holderRoleOf(CardName.ATMO_COLLECTORS);
+    expect(holderRoleIcons(atmo)).to.deep.eq(['titanium', 'energy', 'heat']);
+    expect(holderRolePlate(atmo), 'stock goods ride no plate').to.eq(undefined);
+    expect(holderRoleCaption(atmo)).to.eq('resources');
+    // Different amounts — in the icons' order.
+    expect(holderRoleReading(atmo)).to.deep.eq({label: 'Spend ${0} from here: +${1}', params: ['1', '2 / 3 / 4'], tail: 'of your choice'});
+    // A choice ACROSS families has no family word but the action's own; a mixed set rides no plate.
+    const mixed = {kind: 'action', spend: 1, good: {kind: 'production', resource: 'megacredits', amount: 1}, or: [{kind: 'stock', resource: 'titanium', amount: 2}]} as const;
+    expect(holderRoleCaption(mixed as never)).to.eq('Action');
+    expect(holderRolePlate(mixed as never)).to.eq(undefined);
+    // A single good is no choice: one icon, as before.
+    expect(holderRoleIsChoice(holderRoleOf(CardName.FORESTRY_MECHS))).to.eq(false);
+    expect(holderRoleIcons(holderRoleOf(CardName.FORESTRY_MECHS))).to.deep.eq(['plants']);
+    expect(holderRoleIcons({kind: 'delegate', price: 1})).to.deep.eq(['delegate']);
+    expect(holderRoleIcons({kind: 'store'})).to.deep.eq([]);
+    // The lane of a choice is its whole set: steel OR titanium production is not steel production alone.
+    expect(mining.kind === 'action' ? actionRoleGoodKey(mining) : '').to.eq('production-steel|production-titanium');
+    expect(holderGroupKey('Mech' as never, mining, true, false, true)).to.eq('mech:action:production-steel|production-titanium');
+  });
+
+  it('PL-484: a choice\'s gain / loss outcomes wear the whole set too — «The action opens: 2 / 2» under [steel] / [titanium]', () => {
+    const mining = holderRoleOf(CardName.MINING_MECHS);
+    const opens = holderGainOutcome(mining, 1, 3);
+    expect(opens).to.deep.include({kind: 'reach', good: 'action', have: 3, need: 2, state: 'opens'});
+    expect(holderGainOutcomeIcons(opens!)).to.deep.eq(['steel', 'titanium']);
+    expect(holderGainOutcomeIcon(opens!), 'the single-icon reader keeps the first good').to.eq('steel');
+    const lost = holderLossOutcome(mining, 2, 1);
+    expect(holderGainOutcomeIcons(lost!)).to.deep.eq(['steel', 'titanium']);
+    expect(holderGainOutcomeIcons({kind: 'money', amount: 4, context: 'any'} as never)).to.deep.eq(['megacredits']);
   });
 
   it('К-R1 (TR46): a BESPOKE action\'s declared good — «All from here: as many cards off the deck, 1 to the hand», the card icon', () => {
@@ -150,6 +189,16 @@ describe('additionalResourceRoleGroups — a chip per MEANING, never one number 
     // One tender pool beside the action's: the coin keeps its old address, the action keeps its own.
     const two = additionalResourceRoleGroups([card(CardName.FORESTRY_MECHS, 2), card(CardName.EVA_MECHS, 1)]);
     expect(two.map((g) => [g.key, g.unitSplit])).to.deep.eq([['mech:action', false], ['mech:payment', false]]);
+  });
+
+  it('PL-484: TR57 beside TR40 — a CHOICE of goods is its own lane: «[mech] 3 · steel / titanium production» and «[mech] 2 · plant production», never one chip', () => {
+    const groups = additionalResourceRoleGroups([card(CardName.MINING_MECHS, 3), card(CardName.FORESTRY_MECHS, 2)]);
+    expect(groups.map((g) => [g.key, g.total, g.role.kind, g.goodSplit])).to.deep.eq([
+      ['mech:action:production-steel|production-titanium', 3, 'action', true],
+      ['mech:action:production-plants', 2, 'action', true],
+    ]);
+    // Alone on the table it is the resource's own chip, as every unsplit holder is.
+    expect(additionalResourceRoleGroups([card(CardName.MINING_MECHS, 3)]).map((g) => [g.key, g.split])).to.deep.eq([['mech', false]]);
   });
 
   it('SEVEN mech holders, SIX meanings (TR50, PL-223): two action GOODS are two chips — Forestry\'s plant production never speaks for Expedition Mechs\' card', () => {
@@ -244,6 +293,24 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
     const empty = playedTargetQuickImpacts(playedTargetPreviewFor(undefined, input([{name: CardName.MARS_ARMY_MECHS, resources: 0}]), CardName.MARS_ARMY_MECHS, [onCardGain('mech', 1)]));
     expect(empty.map((i) => i.label)).to.deep.eq(['Resources on this card', 'A delegate within reach: ${0} / ${1}']);
     expect(empty[1].params).to.deep.eq(['1', '1']);
+  });
+
+  it('PL-484: mechs onto Mining Mechs — the value line, the outcome and the tag wear BOTH goods on the plate («[steel] / [titanium]»), never the first for the set', () => {
+    const preview = playedTargetPreviewFor(undefined, input([{name: CardName.MINING_MECHS, resources: 1}]), CardName.MINING_MECHS, [onCardGain('mech', 3)]);
+    const impacts = preview.flatMap((s) => s.impacts);
+    const value = impacts.find((i) => i.value === true && i.label === 'Spend ${0} from here: +${1}');
+    expect(value).to.include({tail: 'production of your choice', plate: 'production', icon: 'steel'});
+    expect(value?.icons).to.deep.eq(['steel', 'titanium']);
+    // 1 → 4 of 2: the gain opens the action — the outcome wears the set too.
+    const opens = impacts.find((i) => i.outcome === 'opens');
+    expect(opens?.icons).to.deep.eq(['steel', 'titanium']);
+    const tag = preview.find((s) => s.tag !== undefined)?.tag;
+    expect(tag).to.deep.include({icon: 'steel', plate: 'production', reached: true, tone: 'opens'});
+    expect(tag?.icons).to.deep.eq(['steel', 'titanium']);
+    // A single good carries no `icons` — the renderers' old path, untouched.
+    const forestry = playedTargetPreviewFor(undefined, input([{name: CardName.FORESTRY_MECHS, resources: 0}]), CardName.FORESTRY_MECHS, [onCardGain('mech', 1)]);
+    expect(forestry.flatMap((s) => s.impacts).some((i) => i.icons !== undefined)).to.eq(false);
+    expect(forestry.find((s) => s.tag !== undefined)?.tag?.icons).to.eq(undefined);
   });
 
   it('a mech onto Forestry Mechs (PL-135): «spend 1 from here: +1 · production» with the plants icon ON THE PLATE; data onto Biological Simulations: «spend 2 from here: +1 · production»', () => {
