@@ -169,6 +169,20 @@ export type NotificationCta = {
  * `JournalChildVM` children so the card can reuse the journal's renderers, and
  * a parsed prompt for the turn notifications.
  */
+/**
+ * One compact OUTCOME line of a bot-turn card, TYPED by its producer (TR59): the content policy must decide which
+ * lines a mode may cut without ever reading their text (i18n rewrites `Message.message` in place). `kind` is the
+ * turn step the line came from; `target` the participant an attack step aimed at (an attack on the viewer is never
+ * cut); `fate` marks the bonus card's own fate line («… уничтожена»), which says nothing a cause line naming that
+ * card has not.
+ */
+export type NotificationSummaryLine = {
+  message: LogMessage;
+  kind: 'log' | 'attack' | 'failed' | 'pass' | 'hazard';
+  target?: Color;
+  fate?: true;
+};
+
 /** One skipped effect on a notification card — see `NotificationModel.skipped`. */
 export type NotificationSkippedLine = {label: string; reason: string; chip?: JournalImpactChip; owner?: Color};
 
@@ -241,7 +255,7 @@ export type NotificationModel = {
    * «показать на карте» affordance. Capped; the full script lives in the
    * detailed inspect.
    */
-  summaryLines?: ReadonlyArray<LogMessage>;
+  summaryLines?: ReadonlyArray<NotificationSummaryLine>;
   /** How many outcome lines were cut by the cap (honest "+N" marker). */
   summaryOverflow?: number;
   /** The expanded breakdown rows (source → impact), reusing `JournalChildRow`. */

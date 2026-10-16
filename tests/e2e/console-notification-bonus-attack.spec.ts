@@ -287,12 +287,14 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     const text = hostile!.text;
     // The hero leads («ВЫ ПОТЕРЯЛИ» — CSS uppercases the band label)…
     expect(text).toContain('ВЫ ПОТЕРЯЛИ');
-    // …the before → after readout is present…
-    expect(text).toMatch(/\d+\s*→\s*\d+/);
-    // …the CAUSE names the bonus card (the headline survives the band)…
+    // …the hero's number is the ONE statement of the loss — the «из запаса A → B» readout is the journal's (TR59:
+    //    the same number twice)…
+    expect(text).not.toMatch(/из запаса/);
+    // …the CAUSE names the bonus card…
     expect(text).toContain('Метеоритный дождь');
-    // …the card's fate is stated…
-    expect(text).toContain('уничтожена');
+    // …and says it ONCE: the card's fate line («… уничтожена») restated a card the cause already names, and the
+    //    bot's bookkeeping under the band is gone (TR59 «ОДИН ВЗГЛЯД» — the turn review is X).
+    expect(text).not.toContain('уничтожена');
     // …and the victim's own summary line is NOT duplicated below the band
     // (lowercase «потерял…» — the band's own label is uppercase).
     expect(text).not.toMatch(/потерял /);

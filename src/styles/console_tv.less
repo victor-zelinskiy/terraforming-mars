@@ -1139,42 +1139,68 @@ html.con-profile-tv {
     .con-journal__placeholder { font-size: var(--con-t-secondary); }
 
     /* ═══ 16 · NOTIFICATIONS ══════════════════════════════════════ */
+    /* TR59 «ОДИН ВЗГЛЯД»: every zone of the card at or above the couch's type floor (the base card had seven
+       below it — the cause label, the trigger, the mini chips, «Пропущено», the hold hint, the kicker's card,
+       the bot headline under a band), the hero band's numbers the card's largest by a clear step. */
     .con-notif {
         width: 24rem;
+        --notif-pad-l: 1.15rem;
+        --notif-pad-r: .9rem;
 
+        &__glyph { font-size: 1.05rem; }
         &__type { font-size: var(--con-t-floor); }
+        &__type-card { font-size: 1rem; }
         &__actor { font-size: 0.95rem; }
+        &__dot { width: .65rem; height: .65rem; }
         &__body { font-size: 1.05rem; }
         &__tokens .journal-text { font-size: 0.95rem; }
-        /* The VIEWER BAND is the card's loudest zone — its sign label and the
-           big delta chips must read from the couch before anything else. */
-        &__you-sign { font-size: var(--con-t-floor); }
-        &__you-glyph { font-size: 0.8rem; }
+        /* THE HERO BAND — the card's loudest zone, read from the couch before anything else. */
+        &__you-sign { font-size: var(--con-t-caption); }
+        &__you-glyph { font-size: 0.9rem; }
         &__chip--big {
             font-size: 1.15rem;
 
-            .con-notif__chip-icon { width: 1.45rem; height: 1.45rem; }
+            .con-notif__chip-icon { width: 1.75rem; height: 1.75rem; }
         }
-        &__chip-unit { font-size: 0.8rem; }
-        &__chip-basis { font-size: 0.8rem; }
-        &__chip-value { font-size: 1.3rem; }
-        /* The event-first primary line + the ownership scope tags. */
+        &__chip-unit { font-size: var(--con-t-caption); }
+        &__chip-basis { font-size: var(--con-t-caption); }
+        &__chip-value { font-size: 1.75rem; }
+        /* WHY — the second voice. */
+        &__cause { font-size: 1.02rem; }
+        &__cause-label { font-size: var(--con-t-floor); }
+        &__cause-tail { font-size: 0.92rem; }
+        &__chip--mini {
+            font-size: var(--con-t-caption);
+
+            .con-notif__chip-icon { width: 1rem; height: 1rem; }
+        }
+        /* The event-first primary line. */
         &__headline {
             .journal-text, .journal-em { font-size: 1.1rem; }
             .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 1.05rem; }
         }
+        &__headline--cause {
+            .journal-text, .journal-em, .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 0.95rem; }
+        }
         &__cluster-tag { font-size: var(--con-t-floor); }
-        /* The bot-turn card carries the turn's outcome — the summary lines,
-           impact chips and the on-card X/B contract read from the couch. */
         &__summary-line { font-size: 0.95rem; }
         &__summary-line--more { font-size: var(--con-t-floor); }
         &__chip { font-size: 0.95rem; }
         &__chip-icon { width: 1.2rem; height: 1.2rem; }
         &__meta, &__result { font-size: var(--con-t-floor); }
         &__dim { font-size: var(--con-t-caption); }
-        &__action { font-size: var(--con-t-caption); }
-        &__ba { font-size: 0.95rem; }
+        &__skip-tag { font-size: var(--con-t-floor); }
+        &__skip-label, &__skip-reason { font-size: 0.92rem; }
         &__who { font-size: 0.95rem; }
+        &__arrow { font-size: 1.2rem; }
+        /* The pad contract — glyphs at the bar's own couch size, the ring around X. */
+        &__action {
+            font-size: var(--con-t-floor);
+
+            .gp-glyph { min-width: 1.45rem; height: 1.3rem; font-size: var(--con-t-floor); }
+        }
+        &__hold-ring { width: 2.15rem; height: 2.15rem; margin: -1.075rem 0 0 -1.075rem; }
+        &__ttl { height: .18rem; }
     }
     .con-notifq {
         font-size: var(--con-t-floor);
@@ -2023,8 +2049,9 @@ html.con-profile-tv .boot-loader__progress {
 
 /* ═══ 25 · NOTIFICATION LAYER placement (safe-area aware) ═════════ */
 html.console-mode.con-profile-tv .notifications-layer {
-    /* (top rides the shared --con-hud-h anchor from the base rule.) */
-    right: var(--con-edge-x, .7rem);
+    /* (top and right ride the CENTRAL OPENING's live edges from the base rule — TR59 decision 7: the card stands
+       in the opening's corner, never over the strategy rail.) */
+    right: calc(var(--con-stage-r, 11.3rem) + .7rem);
 }
 html.con-profile-tv.console-mode .notifications-layer.notifications-layer--journal-open {
     right: calc(min(44rem, 40vw) + var(--con-edge-x, .7rem) + 0.8rem);

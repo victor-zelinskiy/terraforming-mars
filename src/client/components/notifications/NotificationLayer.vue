@@ -395,7 +395,9 @@ export default defineComponent({
           continue;
         }
         notificationState.passedSeen.add(key);
-        if (canToast && color !== this.viewerColor) {
+        // Console-native has no pass CARD (TR59 decision 9): the status strip's «СПАСОВАЛ» pill already says it, the
+        // journal keeps the line — a card for it was one more toast in front of the ones that touch the player.
+        if (canToast && color !== this.viewerColor && !this.consoleEnabled) {
           pushTransient(buildPassNotification(color, gen, now));
         }
       }

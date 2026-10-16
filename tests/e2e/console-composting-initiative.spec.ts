@@ -354,11 +354,14 @@ for (const preset of PRESETS) {
       await settle(red, {timeoutMs: 30_000});
       const notes = await readRedProbe(red);
       console.log(`[red ${preset.id}] toasts: ${notes.map((n) => `${n.at}ms «${n.text}»`).join(' · ') || 'none'}`);
-      // PL-189: the play's card on red sums blue's M€ as the server paid it — −4 (the price) + 14 + 1 (Topsoil, the second
-      // answering Decomposers' microbe — an effect of an effect) = +11, never the «+10» a folded nested marker read.
+      // PL-189: the play's MODEL on red sums blue's M€ as the server paid it — −4 (the price) + 14 + 1 (Topsoil, the
+      // second answering Decomposers' microbe — an effect of an effect) = +11 (`notificationModel.spec`). TR59 «ОДИН
+      // ВЗГЛЯД» (decision 5a): what the ACTOR got is one quiet line of ≤ 2 chips in event order under «Кратко» — the
+      // counted microbes lead it; the whole sum is the journal's (hold X).
       const play = notes.find((n) => /Компостная инициатива/.test(n.text));
       if (play !== undefined) {
-        expect(play.text, 'the card of red counts every M€ of the chain').toContain('+11');
+        expect(play.text, 'the card of red names the counted gain').toContain('+14');
+        expect(play.text, 'the actor is named once (the head chip)').not.toMatch(/player1.*player1/);
       }
       await press(red, 'KeyR', 900);
       await expect(red.locator('.con-journal'), 'the journal of red opens').toBeVisible({timeout: 10_000});

@@ -72,6 +72,12 @@ import {
   notificationFeedModeState,
   setNotificationFeedMode,
 } from '@/client/components/notifications/notificationFeedMode';
+import {
+  CONTENT_MODE_CHOICES,
+  CONTENT_MODE_LABELS,
+  notificationContentModeState,
+  setNotificationContentMode,
+} from '@/client/components/notifications/notificationContentMode';
 import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {realtimeState, realtimeHealthy, realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {buildVersionLabel} from '@/common/utils/buildVersion';
@@ -82,10 +88,10 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 export type ConsoleSettingsContext = 'menu' | 'game';
 
 export type ConsoleSettingsCategoryId =
-  'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
+  'interface' | 'notifications' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'eventCounter' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'eventCounter' | 'notifications' | 'notificationContent' | 'controller' | 'buttons' | 'wheelControl' |
   'placeConfirm' |
   'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
@@ -298,18 +304,41 @@ function interfaceCategory(): ConsoleSettingsCategory {
     statusEventCounterState.enabled, ['Off', 'On'],
     (v) => setStatusEventCounter(v),
   ));
-  // Which top-right quick toasts present: everything (the default — identical
-  // to the pre-setting behaviour) or only events that directly involve the
-  // player. Filters PRESENTATION only — mandatory prompts, warnings, hostile
-  // losses and the journal are never touched (notificationFeedPolicy.ts).
-  rows.push(ringRow(
-    'notifications', 'Quick notifications',
-    'Hide events about other players unless they affect you directly; mandatory prompts and system alerts always show',
-    FEED_MODE_CHOICES, notificationFeedModeState.mode,
-    (v) => translateText(FEED_MODE_LABELS[v]),
-    (v) => setNotificationFeedMode(v),
-  ));
   return {id: 'interface', label: 'Interface', glyph: '◫', minor: false, rows, readout: []};
+}
+
+/**
+ * ── УВЕДОМЛЕНИЯ (TR59) ─────────────────────────────────────────────────
+ * The two notification settings side by side: WHICH toasts present (the feed mode) and WHAT a presented toast carries
+ * (the content mode). Neither may cut the answer to the viewer — the band, its cause, the actor, an attack on them,
+ * their skipped effect, warnings, the turn prompts (notificationFeedPolicy.ts / notificationContentPolicy.ts).
+ */
+function notificationsCategory(): ConsoleSettingsCategory {
+  const rows: Array<ConsoleSettingRow> = [
+    // Which top-right quick toasts present: everything (the default — identical
+    // to the pre-setting behaviour) or only events that directly involve the
+    // player. Filters PRESENTATION only — mandatory prompts, warnings, hostile
+    // losses and the journal are never touched (notificationFeedPolicy.ts).
+    ringRow(
+      'notifications', 'Quick notifications',
+      'Hide events about other players unless they affect you directly; mandatory prompts and system alerts always show',
+      FEED_MODE_CHOICES, notificationFeedModeState.mode,
+      (v) => translateText(FEED_MODE_LABELS[v]),
+      (v) => setNotificationFeedMode(v),
+    ),
+    // What a toast carries beyond its answer to you: a quiet line of what the actor got («Кратко», the default), or
+    // nothing but what changed for you, why and on whose turn («Только моё»). The rest is always in the journal.
+    ringRow(
+      'notificationContent', 'Notification content',
+      notificationContentModeState.mode === 'mine' ?
+        'Only what changed for you, why, and on whose turn; everything else is in the log' :
+        'What changed for you, why, on whose turn, and one short line of what the other player got',
+      CONTENT_MODE_CHOICES, notificationContentModeState.mode,
+      (v) => translateText(CONTENT_MODE_LABELS[v]),
+      (v) => setNotificationContentMode(v),
+    ),
+  ];
+  return {id: 'notifications', label: 'Notifications', glyph: '◇', minor: false, rows, readout: []};
 }
 
 /** ── УПРАВЛЕНИЕ ────────────────────────────────────────────────────── */
@@ -625,6 +654,7 @@ function versionMismatch(input: ConsoleSettingsInput): boolean {
 export function buildConsoleSettings(input: ConsoleSettingsInput): ReadonlyArray<ConsoleSettingsCategory> {
   const all: Array<ConsoleSettingsCategory> = [
     interfaceCategory(),
+    notificationsCategory(),
     controlsCategory(),
     graphicsCategory(),
   ];

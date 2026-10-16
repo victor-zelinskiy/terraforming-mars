@@ -96,11 +96,17 @@ test.describe('bot turn card · premium neutral story', () => {
       expect(line.startsWith(audit!.actor), `line re-opens with the actor: «${line}»`).toBe(false);
     }
 
-    // Ownership clusters label every context chip row (when any chips exist).
+    // Ownership clusters label every context chip row (when any chips exist) — and the BOT's own line wears only its
+    // dot (TR59: the head named the actor; ONE ACTOR STATEMENT), never «БОТ» again; no «Марс» cluster (the HUD).
     const chips = await card.locator('.con-notif__clusters .con-notif__chip').count();
     if (chips > 0) {
       expect(audit!.clusterTags.length, 'chips ride labelled clusters').toBeGreaterThan(0);
     }
+    const actorName = audit!.actor.replace(/^\W+/, '').trim();
+    for (const tag of audit!.clusterTags) {
+      expect(actorName !== '' && tag.includes(actorName), `a cluster re-names the actor: «${tag}»`).toBe(false);
+    }
+    expect(await card.locator('[data-notif-cluster="planet"]').count(), 'no «Марс» cluster on the toast').toBe(0);
 
     // No «(s)»-style pluralisation compromise anywhere on the card.
     expect(audit!.whole).not.toMatch(/\((s|а|ов|ы)\)/);

@@ -97,7 +97,9 @@ export type MarsBotVoteRefusal = 'no-seat' | 'no-resolution' | 'no-delegate' | '
  *  - `resource-loss` — a "${0} lost ${1} ${2}" stock deduction (labelled the
  *    "Trade cost" when it is the bot's own loss inside a colony-trade chain).
  */
-export type MarsBotLogRole = 'tie-flip' | 'colony-pick-flip' | 'resource-loss';
+/** `bonus-fate` (TR59): the played bonus card's own fate line («… уничтожена» / «… замешана обратно») — the toast
+ *  drops it when its cause line already names that card. */
+export type MarsBotLogRole = 'tie-flip' | 'colony-pick-flip' | 'resource-loss' | 'bonus-fate';
 
 /** What became of a bonus card THIS turn (Phase B — resolved, not the printed rule). */
 export type MarsBotBonusFate = 'discarded' | 'destroyed' | 'recurring' | 'reshuffled';

@@ -28,7 +28,7 @@ import {ViewModel, PlayerViewModel} from '@/common/models/PlayerModel';
 import {MarsBotImpact, MarsBotTurnVisual} from '@/common/automa/MarsBotTurn';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {NotificationModel, NotificationPillGroup, NOTIFICATION_TTL} from '@/client/components/notifications/notificationTypes';
+import {NotificationModel, NotificationPillGroup, NotificationSummaryLine, NOTIFICATION_TTL} from '@/client/components/notifications/notificationTypes';
 import {affectedPlayersOfBotTurn} from '@/client/components/notifications/notificationFeedPolicy';
 import {viewerImpactOfBotTurn} from '@/client/components/notifications/notificationSemantics';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
@@ -179,8 +179,8 @@ function leadingPlayerOf(message: LogMessage): Color | undefined {
  * («admin получил 1 тепло…» under «▲ ВЫ ПОЛУЧИЛИ +1») — one fact, one voice:
  * the band + its cause line own it; the full line stays in the inspect.
  */
-function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined, dropViewer?: Color): {lines: Array<LogMessage>, overflow: number} {
-  const all: Array<LogMessage> = [];
+function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined, dropViewer?: Color, namedBonusCards?: ReadonlySet<string>): {lines: Array<NotificationSummaryLine>, overflow: number} {
+  const all: Array<NotificationSummaryLine> = [];
   for (const step of entry.turn.steps) {
     // 'hazard' is in: the Ares-hazard consequence must be visible on the
     // compact card too, not only inside the inspect (the player must never
@@ -202,7 +202,18 @@ function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined
     if (dropViewer !== undefined && leadingPlayerOf(message) === dropViewer) {
       continue;
     }
-    all.push(message);
+    // THE FATE OF A CARD THE CAUSE LINE ALREADY NAMES (TR59): «… уничтожена» under «ИСТОЧНИК ‹карта›» says the
+    // card twice. Structural — the server's `bonus-fate` role, never the line's words.
+    const fate = step.kind === 'log' && step.role === 'bonus-fate';
+    if (fate && namedBonusCards !== undefined && namedBonusCards.size > 0) {
+      continue;
+    }
+    all.push({
+      message,
+      kind: step.kind,
+      ...(step.kind === 'attack' ? {target: step.attack.target} : {}),
+      ...(fate ? {fate: true as const} : {}),
+    });
   }
   return {
     lines: all.slice(0, BOT_TURN_SUMMARY_CAP),
@@ -277,8 +288,10 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
   const viewerImpact = viewerImpactOfBotTurn(entry.turn, opts.viewerColor, botColor);
   // With the band leading, a summary line that restates the viewer's own
   // delta is dropped (one fact, one voice — the inspect keeps the full log).
+  // The bonus cards the band's causes already NAME — their fate line is a second statement of the card.
+  const namedBonusCards = new Set(viewerImpact.causes.flatMap((c) => c.origin.kind === 'bonusCard' ? [c.origin.bonusCard] : []));
   const summary = summaryLinesOf(entry, header,
-    viewerImpact.sign === 'neutral' ? undefined : opts.viewerColor);
+    viewerImpact.sign === 'neutral' ? undefined : opts.viewerColor, namedBonusCards);
   const affects = affectedPlayersOfBotTurn(entry.turn);
   const viewerInvolved = opts.viewerColor !== undefined && affects.includes(opts.viewerColor);
   // OWNERSHIP clusters: the planet's own outcome (global parameters,

@@ -26971,10 +26971,13 @@ html.console-native :is(.con-res, .con-res-aux, .con-status, .con-hand, .con-han
    TRANSIENT feed renders through ConsoleNotificationCard - the
    console-native presentation of the same model. Console-only. */
 html.console-mode .notifications-layer {
-    /* Anchored to the SHARED rail token (the strip is thinner now and welded
-       to y=0) — profiles follow automatically, no per-profile top anchors. */
-    top: calc(var(--con-hud-h, 2.7rem) + 1.9rem);
-    right: 1rem;
+    /* TR59 decision 7 — THE CORNER OF THE CENTRAL OPENING. The card stands in the top-right corner of the box the
+       four hull members enclose, never over the strategy rail: «a modal never covers a bar» (the opening's law)
+       holds for the toasts too — the card covered the rail's «ДОСТИЖЕНИЯ» column on every 4K frame. The live
+       edges are the ones `useWorkspaceBandGeometry` publishes on <html> (a `v-show`n rail measures 0 → the corner
+       moves to the screen's edge by itself); the fallbacks are the pre-mount tokens. */
+    top: calc(var(--con-stage-t, calc(var(--con-hud-h, 2.7rem) + 1.3rem)) + .6rem);
+    right: calc(var(--con-stage-r, 11.3rem) + .6rem);
     /* The desktop layer is a FIXED 340px box; the console card (.con-notif)
        is rem-sized and — on the TV profile — scales past that, so a fixed
        box let the card overflow its right edge off-screen. Hug the card
@@ -26989,27 +26992,32 @@ html.console-mode .notifications-layer {
     }
 }
 
-/* ── P16: the console transient notification card ─────────────────────
-   The console-native shell of the desktop NotificationCard: same model,
-   same variant ACCENT vocabulary (inherited from the standalone
-   `.notification-card--variant-*` rules via var(--notif-accent) - the
-   two shells can never diverge on colour), console chrome (con-font,
-   glass, a strong left rail, TV type scale) and NON-INTERACTIVE by
-   design (no ✕ / expand / CTA a pad can't reach - the journal is the
-   detail surface; auto-dismiss via the lifetime shrink). */
+/* ── THE CONSOLE NOTIFICATION CARD — «ОДИН ВЗГЛЯД» (TR59) ─────────────
+   One plate, three answers, in weight order:
+     · the HERO BAND — what changed for YOU: a tinted stripe across the card
+       carrying its largest numbers (icon · unit · value), the sign in three
+       channels (label + glyph + tone);
+     · WHY — one line hanging off the band: the anchor naming WHAT OF YOURS
+       paid, the name in the accent voice, the trigger and the actor's move
+       as quiet tails;
+     · WHOSE TURN — the head's actor chip (the one identity statement).
+   What the others got is one quiet line under a hairline; the pad contract
+   is glyphs on the lifetime's own row. Same model, same variant accent
+   vocabulary as the desktop shell (`var(--notif-accent)`); NON-INTERACTIVE
+   (pointer-events none — the pad contract is shown, not clicked). */
 .con-notif {
     --notif-accent: @con-cyan; /* fallback; variants override */
+    --notif-pad-l: 1.05rem;
+    --notif-pad-r: .8rem;
     position: relative;
-    width: 20rem;
+    width: 21rem;
     max-width: 92vw;
-    padding: .55rem .75rem .6rem 1rem;
-    border-radius: .55rem;
+    padding: .55rem var(--notif-pad-r) .45rem var(--notif-pad-l);
+    border-radius: .6rem;
     overflow: hidden;
     /* The EVENT LAYER's material: effectively OPAQUE plate glass (a dark
-       metal-blue laminate + a faint accent sheen). The right rail's trophy
-       gallery used to bleed straight through a 0.92-alpha card and compete
-       with the text — an event surface must read on its own ground. Depth
-       comes from the shadow + hairline, never from see-through. */
+       metal-blue laminate + a faint accent sheen). Depth comes from the
+       shadow + hairline, never from see-through. */
     background:
         linear-gradient(160deg, fade(@con-cyan, 6%), transparent 45%),
         linear-gradient(200deg, rgba(19, 27, 40, 0.99), rgba(9, 14, 22, 0.985));
@@ -27031,20 +27039,21 @@ html.console-mode .notifications-layer {
         background: var(--notif-accent);
         opacity: 0.9;
     }
+    /* ── THE HEAD: glyph · type (+ the card of a displaced headline) · the ACTOR, once. ── */
     &__head {
         display: flex;
         align-items: center;
-        gap: .4rem;
-        margin-bottom: .25rem;
+        gap: .45rem;
+        margin-bottom: .4rem;
     }
     &__glyph {
         color: var(--notif-accent);
-        font-size: .85rem;
+        font-size: .9rem;
         line-height: 1;
     }
-    /* THE KICKER — the type label, and under it the card a card action is about (PL-150). A column, so the
-       name is the kicker's SECOND LINE and the actor chip keeps the row's right edge; the name is the card's
-       own voice (mixed case, heavier, brighter) under the tracked-caps type, never a second caps label. */
+    /* THE KICKER — the type label, and under it the card a card action is about (PL-150) when its headline is
+       not on screen. A column, so the name is the kicker's SECOND line and the actor chip keeps the row's right
+       edge; the name is the card's own voice (mixed case, heavier, brighter). */
     &__kicker {
         display: inline-flex;
         flex-direction: column;
@@ -27053,18 +27062,18 @@ html.console-mode .notifications-layer {
         min-width: 0;
     }
     &__type {
-        font-size: .625rem;
+        font-size: .7rem;
         font-weight: 700;
-        letter-spacing: .085rem;
+        letter-spacing: .09rem;
         text-transform: uppercase;
-        color: fade(#cfe2f2, 78%);
+        color: fade(#cfe2f2, 80%);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
     }
     &__type-card {
-        font-size: .76rem;
+        font-size: .86rem;
         font-weight: 800;
         letter-spacing: .01rem;
         line-height: 1.1;
@@ -27074,21 +27083,32 @@ html.console-mode .notifications-layer {
         text-overflow: ellipsis;
         max-width: 100%;
     }
+    /* WHOSE TURN — a calm chip: the player's dot and name, the head's right edge. The ONE place the actor is
+       named on the card. */
     &__actor {
         display: inline-flex;
         align-items: center;
-        gap: .3rem;
+        gap: .35rem;
         margin-left: auto;
-        font-size: .725rem;
+        padding: .14rem .55rem .14rem .4rem;
+        border-radius: 49.95rem;
+        background: rgba(14, 22, 33, 0.8);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.28);
+        font-size: .8rem;
         font-weight: 700;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        max-width: 55%;
+        flex-shrink: 1;
     }
-    &__cause &__actor { margin-left: 0; }
+    &__actor-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     &__dot {
-        width: .5rem;
-        height: .5rem;
+        width: .55rem;
+        height: .55rem;
         border-radius: 50%;
         flex-shrink: 0;
         box-shadow: 0 0 .3rem rgba(0, 0, 0, 0.6);
@@ -27096,12 +27116,12 @@ html.console-mode .notifications-layer {
     &__body {
         display: flex;
         flex-direction: column;
-        gap: .25rem;
-        font-size: .8rem;
+        gap: .3rem;
+        font-size: .82rem;
         line-height: 1.35;
     }
     &__meta {
-        font-size: .65rem;
+        font-size: .7rem;
         letter-spacing: .06rem;
         text-transform: uppercase;
         color: @con-text-dim;
@@ -27112,7 +27132,7 @@ html.console-mode .notifications-layer {
         flex-wrap: wrap;
         gap: .3rem;
     }
-    &__dim { color: @con-text-dim; font-size: .725rem; }
+    &__dim { color: @con-text-dim; font-size: .74rem; }
     &__strong { font-weight: 700; }
     &__card {
         color: var(--notif-accent);
@@ -27123,138 +27143,69 @@ html.console-mode .notifications-layer {
         border-radius: 49.95rem;
         background: rgba(14, 22, 33, 0.7);
         box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.3);
-        font-size: .65rem;
-        color: @con-text-dim;
-    }
-    /* ── THE «ПОЧЕМУ»-ZONE — the band's cause layer, one stable place. ──
-       Hangs directly OFF the band: the sign-tinted left rail visually binds
-       every cause line to the green/red plate above it, so «which outcome is
-       this the reason for» is stated by geometry, not by reading. One line
-       per cause; a multi-cause card prefixes each line with its own delta
-       chips (the honest breakdown of a shared total). The quietest voice on
-       the card after the cluster tags — the WHAT above always wins. */
-    &__why {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: .18rem;
-        margin: -.02rem 0 .05rem .35rem;
-        padding: .12rem 0 .1rem .5rem;
-        border-left: .125rem solid rgba(150, 175, 205, 0.35);
-    }
-    &__why--positive { border-left-color: fade(@con-mint, 55%); }
-    &__why--negative { border-left-color: fade(@con-red, 60%); }
-    &__why--mixed { border-left-color: fade(@con-amber, 55%); }
-    /* One cause line: [chips] ИСТОЧНИК <Name> · detail · trigger tail. */
-    &__cause {
-        display: inline-flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .35rem;
-    }
-    &__cause-label {
-        font-size: .55rem;
-        font-weight: 800;
-        letter-spacing: .09rem;
-        text-transform: uppercase;
-        color: fade(#c4d8ec, 58%);
-        white-space: nowrap;
-    }
-    &__cause-detail,
-    &__cause-trigger {
-        color: @con-text-dim;
         font-size: .7rem;
-    }
-    &__cause-chips {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-    }
-    &__chip--mini {
-        font-size: .625rem;
-        padding: .05rem .35rem;
-
-        .con-notif__chip-icon { width: .75rem; height: .75rem; }
-    }
-    &__side {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-    }
-    &__who { font-weight: 700; font-size: .75rem; }
-    &__arrow { color: var(--notif-accent); font-size: .9rem; }
-    &__scope {
-        display: inline-flex;
-        align-items: baseline;
-        gap: .5rem;
-    }
-    &__ba {
-        font-size: .75rem;
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        color: #ffd9d4;
+        color: @con-text-dim;
     }
 
-    /* ── THE VIEWER BAND — «что изменилось ДЛЯ ВАС», the card's loudest zone.
-       The sign is a THREE-channel statement (label + glyph + tone): positive
-       mint, negative red, mixed amber — never colour alone. The band is a
-       framed plate so it reads as the primary layer even in peripheral
-       vision; the initiator's story sits under it in the quiet voice. ── */
+    /* ── THE HERO BAND — «что изменилось У ВАС», the card's one loudest object.
+       A tinted STRIPE across the card (no plate inside the plate): the sign's
+       tone fades from the left edge, a hairline in that tone above and below,
+       the numbers bare and large. Three channels for the sign (label + glyph +
+       tone) — never colour alone. ── */
     &__you {
         display: flex;
         flex-direction: column;
         gap: .3rem;
-        margin: .1rem 0 .05rem;
-        padding: .45rem .6rem .5rem;
-        border-radius: .45rem;
-        background: linear-gradient(155deg, rgba(24, 34, 48, 0.72), rgba(12, 19, 29, 0.6));
-        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.24);
+        margin: .05rem calc(-1 * var(--notif-pad-r)) .05rem calc(-1 * var(--notif-pad-l) + .225rem);
+        padding: .5rem var(--notif-pad-r) .55rem calc(var(--notif-pad-l) - .225rem);
+        background: linear-gradient(90deg, rgba(150, 175, 205, 0.12), rgba(150, 175, 205, 0.03) 70%, transparent);
+        box-shadow:
+            inset 0 .05rem 0 rgba(150, 175, 205, 0.22),
+            inset 0 -.05rem 0 rgba(150, 175, 205, 0.12);
     }
     &__you--positive {
-        background: linear-gradient(155deg, fade(@con-mint, 13%), rgba(12, 22, 20, 0.62) 62%);
+        background: linear-gradient(90deg, fade(@con-mint, 20%), fade(@con-mint, 6%) 70%, transparent);
         box-shadow:
-            inset 0 0 0 .05rem fade(@con-mint, 40%),
-            inset .175rem 0 0 fade(@con-mint, 75%);
+            inset 0 .05rem 0 fade(@con-mint, 42%),
+            inset 0 -.05rem 0 fade(@con-mint, 18%);
         .con-notif__you-sign { color: #a8f4d4; }
     }
     &__you--negative {
-        background: linear-gradient(155deg, fade(@con-red, 15%), rgba(26, 13, 13, 0.66) 62%);
+        background: linear-gradient(90deg, fade(@con-red, 24%), fade(@con-red, 7%) 70%, transparent);
         box-shadow:
-            inset 0 0 0 .05rem fade(@con-red, 46%),
-            inset .175rem 0 0 fade(@con-red, 80%);
+            inset 0 .05rem 0 fade(@con-red, 48%),
+            inset 0 -.05rem 0 fade(@con-red, 20%);
         .con-notif__you-sign { color: #ffc9c2; }
     }
     &__you--mixed {
-        background: linear-gradient(155deg, fade(@con-amber, 13%), rgba(26, 20, 11, 0.62) 62%);
+        background: linear-gradient(90deg, fade(@con-amber, 20%), fade(@con-amber, 6%) 70%, transparent);
         box-shadow:
-            inset 0 0 0 .05rem fade(@con-amber, 42%),
-            inset .175rem 0 0 fade(@con-amber, 75%);
+            inset 0 .05rem 0 fade(@con-amber, 44%),
+            inset 0 -.05rem 0 fade(@con-amber, 18%);
         .con-notif__you-sign { color: #ffe6ae; }
     }
     &__you-sign {
         display: inline-flex;
         align-items: center;
-        gap: .3rem;
-        font-size: .6rem;
+        gap: .32rem;
+        font-size: .7rem;
         font-weight: 800;
-        letter-spacing: .105rem;
+        letter-spacing: .11rem;
         text-transform: uppercase;
         white-space: nowrap;
     }
     &__you-glyph {
-        font-size: .65rem;
+        font-size: .72rem;
         line-height: 1;
     }
     &__you-chips {
         display: inline-flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: .35rem;
+        gap: .3rem .75rem;
     }
-    /* ONE delta → ONE confident statement: the sign label and the chip share
-       the line (label left, the statement flush right), so a single «+1»
-       never floats in a large empty frame. The scope/before→after readout
-       keeps its own quiet second line. */
+    /* ONE delta → ONE confident statement: the sign label and the number share the line (label left, the
+       statement flush right), so a single «+1» never floats in an empty frame. */
     &__you--dense {
         display: grid;
         grid-template-columns: auto 1fr;
@@ -27263,52 +27214,131 @@ html.console-mode .notifications-layer {
         row-gap: .25rem;
 
         .con-notif__you-chips { justify-content: flex-end; }
-        .con-notif__scope { grid-column: 1 / -1; justify-content: flex-end; }
     }
-    /* The band's chips are the card's LOUDEST material: icon + spoken unit +
-       a large tabular value (the number is the message — it outweighs the
-       unit, and both outweigh everything below). */
+    /* The band's chips are BARE statements — icon · spoken unit · a large tabular value (the number is the
+       message). A production delta keeps the production plate under its icon, the one cue it needs. */
     &__chip--big {
-        font-size: .9rem;
-        padding: .2rem .6rem;
-        gap: .35rem;
+        gap: .38rem;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        font-size: .95rem;
 
-        .con-notif__chip-icon { width: 1.15rem; height: 1.15rem; }
+        .con-notif__chip-icon { width: 1.4rem; height: 1.4rem; }
+        &.con-notif__chip--prod {
+            padding: .12rem .45rem .12rem .3rem;
+            border-radius: .35rem;
+            background: rgba(66, 48, 34, 0.85);
+        }
     }
     &__chip-unit {
-        font-size: .6rem;
+        font-size: .7rem;
         font-weight: 800;
         letter-spacing: .07rem;
         text-transform: uppercase;
         opacity: 0.82;
         align-self: center;
     }
-    /* A COUNTED gain's reason on its own pill (PL-195) — «за 14 тайлов на Марсе»: quieter than the number, never cut. */
+    /* A COUNTED gain's reason on its own pill (PL-195) — «за 14 тайлов на Марсе»: quieter than the number. */
     &__chip-basis {
-        font-size: .66rem;
+        font-size: .7rem;
         font-weight: 600;
         opacity: 0.78;
         white-space: nowrap;
         align-self: center;
     }
     &__chip-value {
-        font-size: 1.05rem;
+        font-size: 1.35rem;
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
     }
+    &__chip--pos .con-notif__chip-value { color: #e1fff0; }
+    &__chip--neg .con-notif__chip-value { color: #ffe0db; }
     &__revealline { margin-top: .1rem; }
 
-    /* ── OWNERSHIP clusters — «чьи это чипы»: a compact scope tag (МАРС /
-       the initiator's name / a third player) opens each group, so a bot's
-       own +1 M€ can never read as one more viewer reward. The tag is the
-       quietest voice on the card; the chips keep their tones. ── */
+    /* ── WHY — the band's cause, hanging off it: a sign-tinted left rule binds every cause line to the stripe
+       above, so «which outcome is this the reason for» is stated by geometry. One line per cause:
+       [chips] ВАШ ТАЙЛ <Name> · trigger · ход: <the actor's move>. ── */
+    &__why {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .2rem;
+        margin: .1rem 0 0 .1rem;
+        padding: .05rem 0 .05rem .55rem;
+        border-left: .125rem solid rgba(150, 175, 205, 0.35);
+    }
+    &__why--positive { border-left-color: fade(@con-mint, 60%); }
+    &__why--negative { border-left-color: fade(@con-red, 64%); }
+    &__why--mixed { border-left-color: fade(@con-amber, 60%); }
+    &__cause {
+        display: inline-flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: .1rem .4rem;
+        font-size: .84rem;
+        line-height: 1.3;
+    }
+    &__cause-label {
+        font-size: .64rem;
+        font-weight: 800;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: fade(#c4d8ec, 66%);
+        white-space: nowrap;
+    }
+    /* The quiet tails — the detail, the trigger, the actor's move — on a line of their own under the name, separated
+       BETWEEN each other (a separator never strands at a wrapped line's start). */
+    &__cause-tails {
+        display: flex;
+        flex-wrap: wrap;
+        flex-basis: 100%;
+        column-gap: .4rem;
+        row-gap: .05rem;
+    }
+    &__cause-tail {
+        color: @con-text-dim;
+        font-size: .76rem;
+        white-space: nowrap;
+    }
+    &__cause-tail + &__cause-tail::before {
+        content: '·';
+        margin-right: .4rem;
+        opacity: .55;
+    }
+    &__cause-via { color: fade(@con-text-dim, 85%); }
+    &__cause-chips {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        align-self: center;
+    }
+    &__chip--mini {
+        font-size: .7rem;
+        padding: .04rem .35rem;
+
+        .con-notif__chip-icon { width: .8rem; height: .8rem; }
+    }
+    &__side {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+    &__who { font-weight: 700; font-size: .78rem; }
+    &__arrow { color: var(--notif-accent); font-size: 1rem; }
+
+    /* ── WHAT THE OTHERS GOT — one quiet line each, under a hairline: the actor's wears only their dot (the head
+       named them), a third player's names them. Never louder than the cause. ── */
     &__clusters {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
-        gap: .3rem;
-        margin-top: .4rem;
+        gap: .25rem;
+        margin-top: .45rem;
+        padding-top: .4rem;
+        border-top: .05rem solid rgba(150, 175, 205, 0.14);
+        opacity: .9;
     }
     &__cluster {
         display: inline-flex;
@@ -27319,25 +27349,19 @@ html.console-mode .notifications-layer {
     &__cluster-tag {
         display: inline-flex;
         align-items: center;
-        gap: .25rem;
-        padding: .08rem .4rem .08rem .3rem;
-        border-left: .125rem solid rgba(150, 175, 205, 0.4);
-        font-size: .55rem;
+        gap: .3rem;
+        font-size: .64rem;
         font-weight: 800;
         letter-spacing: .08rem;
         text-transform: uppercase;
-        color: fade(#c4d8ec, 62%);
+        color: fade(#c4d8ec, 66%);
         white-space: nowrap;
 
-        .con-notif__dot { width: .4rem; height: .4rem; }
+        .con-notif__dot { width: .45rem; height: .45rem; }
     }
-    &__cluster-tag--planet { border-left-color: fade(@con-cyan, 55%); }
-    &__cluster-tag--others { border-left-color: rgba(196, 216, 236, 0.5); }
 
-    /* ── NO SILENT LOSS — «ПРОПУЩЕНО»: an effect of this action that could NOT
-       apply, named with its cause. Slate, dashed, the magnitude struck —
-       nothing moved, so it borrows no sign tone and can never read as a
-       reward or a loss. Below the clusters, the quietest statement. ── */
+    /* ── NO SILENT LOSS — «ПРОПУЩЕНО»: an effect that could NOT apply, named with its cause. Slate, dashed, the
+       magnitude struck — nothing moved, so it borrows no sign tone. ── */
     &__skips {
         display: flex;
         flex-direction: column;
@@ -27358,17 +27382,17 @@ html.console-mode .notifications-layer {
         align-items: center;
         padding: .08rem .4rem .08rem .3rem;
         border-left: .125rem dashed rgba(170, 186, 206, 0.55);
-        font-size: .55rem;
+        font-size: .64rem;
         font-weight: 800;
         letter-spacing: .08rem;
         text-transform: uppercase;
-        color: fade(#c4d8ec, 62%);
+        color: fade(#c4d8ec, 66%);
         white-space: nowrap;
     }
-    &__skip-label { font-size: .7rem; color: @con-text; }
-    &__skip-reason { font-size: .7rem; color: @con-text-dim; font-style: italic; }
+    &__skip-label { font-size: .76rem; color: @con-text; }
+    &__skip-reason { font-size: .76rem; color: @con-text-dim; font-style: italic; }
 
-    /* Impact chips (band + clusters reuse one look). */
+    /* Impact chips (the others' line + the reveal / skip reuse one look). */
     &__chip {
         display: inline-flex;
         align-items: center;
@@ -27377,7 +27401,7 @@ html.console-mode .notifications-layer {
         border-radius: 49.95rem;
         background: rgba(14, 22, 33, 0.75);
         box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.28);
-        font-size: .725rem;
+        font-size: .74rem;
         font-weight: 700;
         font-variant-numeric: tabular-nums;
 
@@ -27406,48 +27430,38 @@ html.console-mode .notifications-layer {
         background-size: contain !important;
     }
 
-    /* Journal tokens inside the console card: same renderer (info parity),
-       console scale, INERT (the root's pointer-events:none already kills
-       clicks/hovers; these calm the desktop pill chrome). */
+    /* Journal tokens inside the console card: same renderer (info parity), console scale, INERT. */
     &__tokens {
-        .journal-text, .journal-em { font-size: .8rem; }
-        .journal-player { font-size: .75rem; }
+        .journal-text, .journal-em { font-size: .82rem; }
+        .journal-player { font-size: .78rem; }
         .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
-            font-size: .75rem;
+            font-size: .78rem;
         }
-        /* The desktop journal caps a chip label at a PX width — inside the
-           rem-scaled console card that cap lands mid-name on the TV profile
-           («Электроста…» with half the card free). Re-cap in rem so the name
-           rides the profile scale; the line wraps the whole chip when needed
-           (`__line` is flex-wrap), so a long name gets its own full row. */
+        /* The desktop journal caps a chip label at a PX width — inside the rem-scaled console card that cap lands
+           mid-name on the TV profile. Re-cap in rem so the name rides the profile scale. */
         .journal-chip__label { max-width: 14.5rem; }
     }
-    /* The EVENT-FIRST primary line (a neutral card's own story) — the card's
-       loudest voice when no viewer band leads: a step up from the context
-       type scale, with the card chips riding the same measure. */
+    /* The EVENT-FIRST primary line (a neutral card's own story — for a play / an action, the CARD alone): the
+       card's loudest voice when no band leads. */
     &__headline {
-        .journal-text, .journal-em { font-size: .875rem; }
+        .journal-text, .journal-em { font-size: .92rem; }
         .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
-            font-size: .825rem;
+            font-size: .9rem;
         }
         line-height: 1.4;
     }
-    /* …and the SAME line demoted to the CAUSE voice when the viewer band
-       leads a bot-turn card («разыграл бонусную карту ‹Метеоритный дождь›»
-       under «▼ ВЫ ПОТЕРЯЛИ») — the played card's NAME must survive the
-       hostile layout (the one-shot bonus card leaves the game right after),
-       but as the secondary statement, never competing with the band. */
+    /* …and the bot card's headline as the cause voice under a band, when no cause could be named (old saves). */
     &__headline--cause {
-        .journal-text { font-size: .75rem; color: @con-text-dim; }
-        .journal-em { font-size: .78rem; color: fade(@con-text, 88%); }
+        .journal-text { font-size: .8rem; color: @con-text-dim; }
+        .journal-em { font-size: .82rem; color: fade(@con-text, 88%); }
         .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip {
-            font-size: .75rem;
+            font-size: .8rem;
         }
         line-height: 1.35;
         opacity: .92;
     }
 
-    /* ── Compact OUTCOME lines (the AI-turn card): key log lines of the turn. ── */
+    /* ── The bot turn's OUTCOME lines (the content policy decides how many). ── */
     &__summary {
         list-style: none;
         margin: .1rem 0 0;
@@ -27460,7 +27474,7 @@ html.console-mode .notifications-layer {
         display: flex;
         align-items: baseline;
         gap: .4rem;
-        font-size: .75rem;
+        font-size: .78rem;
         line-height: 1.45;
         color: fade(#cfe2f2, 84%);
     }
@@ -27474,71 +27488,73 @@ html.console-mode .notifications-layer {
         background: var(--notif-accent);
         opacity: 0.55;
     }
-    &__summary-line--more { color: @con-text-dim; font-size: .65rem; }
+    &__summary-line--more { color: @con-text-dim; font-size: .7rem; }
 
-    /* ── The card's pad contract, shown ON every notification (the command
-       bar keeps the SCREEN's contract — a toast never re-labels it): the
-       DETAIL action first when the card has one (press-and-HOLD X — the
-       plate FILLS while held, mirroring the input timer 1:1), then the
-       global «B Закрыть». ── */
+    /* ── THE PAD CONTRACT, in glyphs, on the LIFETIME's own row (TR59 decision 8): [X] → where it leads ·
+       the lifetime track · [B]. The hold shows as a RING filling around the X glyph, on the input's own clock;
+       no «ЗАЖАТЬ», no «ЗАКРЫТЬ» — the glyphs are the contract. ── */
     &__actions {
         display: flex;
-        justify-content: flex-end;
-        gap: .7rem;
-        margin-top: .4rem;
-        padding-top: .35rem;
-        border-top: .05rem solid rgba(150, 175, 205, 0.18);
+        align-items: center;
+        gap: .55rem;
+        margin-top: .5rem;
     }
     &__action {
         display: inline-flex;
         align-items: center;
-        gap: .35rem;
-        font-size: .65rem;
-        letter-spacing: .06rem;
+        gap: .32rem;
+        flex: 0 0 auto;
+        font-size: .64rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
         text-transform: uppercase;
         color: @con-text-dim;
 
-        &:last-child { color: @con-text; }
+        .gp-glyph { min-width: 1.15rem; height: 1.05rem; font-size: .56rem; }
     }
-    /* The hold-to-fire DETAIL chip: a subtle plate (signals "this one is an
-       action, not a plain hint") that fills cyan while X is held. */
-    &__action--detail {
+    &__action-arrow { opacity: .6; letter-spacing: 0; }
+    &__action--detail { color: fade(@con-text, 86%); }
+    &__action--filling { color: @con-text; }
+    &__hold {
         position: relative;
-        overflow: hidden;
-        padding: .2rem .5rem;
-        border-radius: .4rem;
-        background: rgba(14, 22, 33, 0.75);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%);
-        color: @con-text;
-        transition: box-shadow calc(120ms * var(--motion-scale, 1)) ease-out;
-
-        > * { position: relative; } /* content above the fill layer */
+        display: inline-flex;
     }
-    &__action--filling {
-        box-shadow:
-            inset 0 0 0 .05rem fade(@con-cyan, 80%),
-            0 0 .5rem fade(@con-cyan, 25%);
-    }
-    &__action-hold {
-        font-size: .55rem;
-        font-weight: 700;
-        letter-spacing: .07rem;
-        color: fade(@con-cyan, 85%);
-    }
-    &__action-fill {
+    &__hold-ring {
         position: absolute;
-        inset: 0;
-        transform-origin: left center;
-        transform: scaleX(0);
-        background: linear-gradient(90deg, fade(@con-cyan, 18%), fade(@con-cyan, 45%));
-        will-change: transform;
-        /* Duration comes INLINE from NOTIF_HOLD_MS (the input threshold), so
-           the fill and the hold timer cannot drift. Deliberately NOT
-           motion-scaled: input ergonomics (the gamepadPollModel NAV_REPEAT
-           rule), and linear — progress IS elapsed time, honestly. */
-        animation-name: con-notif-hold-fill;
+        left: 50%;
+        top: 50%;
+        width: 1.75rem;
+        height: 1.75rem;
+        margin: -.875rem 0 0 -.875rem;
+        transform: rotate(-90deg);
+        overflow: visible;
+        /* Duration comes INLINE from NOTIF_HOLD_MS (the input threshold), so the ring and the hold timer cannot
+           drift. Deliberately NOT motion-scaled: input ergonomics, and linear — progress IS elapsed time. */
+        animation-name: con-notif-hold-ring;
         animation-timing-function: linear;
         animation-fill-mode: forwards;
+
+        circle {
+            fill: none;
+            stroke: @con-cyan;
+            stroke-width: 2.6;
+            stroke-linecap: round;
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: inherit;
+            animation-name: con-notif-hold-ring;
+        }
+    }
+    /* The lifetime: the row's own track, the shrinking bar inside it. */
+    &__ttl {
+        position: relative;
+        flex: 1 1 auto;
+        align-self: center;
+        height: .14rem;
+        min-width: 2rem;
+        border-radius: .07rem;
+        background: rgba(150, 175, 205, 0.1);
+        overflow: hidden;
     }
 
     /* ── IMPORTANCE GRADE (.con-notif--imp-*) — the second semantic axis,
@@ -27547,7 +27563,7 @@ html.console-mode .notifications-layer {
        rim and announce the ARRIVAL once with a paint-baseline-safe wash
        (opacity only — filter/text-shadow never render in console). ── */
     &--imp-ambient {
-        .con-notif__type { color: fade(#cfe2f2, 62%); }
+        .con-notif__type { color: fade(#cfe2f2, 66%); }
         .con-notif__glyph { opacity: 0.8; }
     }
     &--imp-notable {
@@ -27597,8 +27613,7 @@ html.console-mode .notifications-layer {
 
         .con-notif__type { color: #ffe9b8; }
 
-        /* One-shot arrival shimmer — paint-baseline-safe (the old
-           filter:brightness keyframes never rendered in console at all). */
+        /* One-shot arrival shimmer — paint-baseline-safe. */
         &::after {
             content: '';
             position: absolute;
@@ -27611,16 +27626,13 @@ html.console-mode .notifications-layer {
         }
     }
 
-    /* Lifetime shrink (reuses the global notif-progress keyframes). */
+    /* Lifetime shrink (reuses the global notif-progress keyframes) — inside the footer's own track. */
     &__progress {
         position: absolute;
-        left: 0;
-        bottom: 0;
-        height: .15rem;
-        width: 100%;
+        inset: 0;
         transform-origin: left center;
         background: var(--notif-accent);
-        opacity: 0.6;
+        opacity: 0.7;
         will-change: transform;
         animation-name: notif-progress;
         animation-timing-function: linear;
@@ -27635,9 +27647,10 @@ html.console-mode .notifications-layer {
     0% { opacity: 1; }
     100% { opacity: 0; }
 }
-@keyframes con-notif-hold-fill {
-    from { transform: scaleX(0); }
-    to { transform: scaleX(1); }
+/* The hold ring fills around the X glyph — functional input feedback, never decoration. */
+@keyframes con-notif-hold-ring {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
 }
 /* While the player HOLDS X the lifetime shrink pauses — a hold must never
    lose its card mid-fill (mirrors the desktop card's :hover pause). */
@@ -27647,13 +27660,16 @@ html.console-mode .notifications-layer {
 @media (prefers-reduced-motion: reduce) {
     .con-notif--prestige::after,
     .con-notif--imp-critical::after { animation: none; }
-    /* The hold fill is FUNCTIONAL feedback (input progress, not decoration):
-       keep the exact timing, swap the sweep for a calm in-place brighten. */
-    .con-notif__action-fill { animation-name: con-notif-hold-fill-rm; }
+    /* The hold ring is FUNCTIONAL feedback (input progress): keep the exact timing, swap the sweep for a calm
+       in-place brighten of the whole ring. */
+    .con-notif__hold-ring circle {
+        stroke-dashoffset: 0;
+        animation-name: con-notif-hold-ring-rm;
+    }
 }
-@keyframes con-notif-hold-fill-rm {
-    from { transform: scaleX(1); opacity: 0.1; }
-    to { transform: scaleX(1); opacity: 0.45; }
+@keyframes con-notif-hold-ring-rm {
+    from { opacity: 0.15; }
+    to { opacity: 0.85; }
 }
 
 /* ── P28: the journal is console-NATIVE now (.con-journal, mounted by

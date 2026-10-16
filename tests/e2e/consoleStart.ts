@@ -2630,7 +2630,11 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'parliament-devpassive-vote' | 'parliament-devpassive-assembly' | 'parliament-devaction-vote' | 'parliament-devaction-assembly' |
   // «ПРЕДСЕДАТЕЛЬСТВО»: the quest is completed and the GATE stands — nothing of
   // its reward is applied, and opening it is the whole flow.
-  'parliament-chairman-quest';
+  'parliament-chairman-quest' |
+  // TR59 — the SOURCE of a payout on the viewer's own Ares tile: blue's Restricted Area (Ares) on 47, the free city cell
+  // 48 beside it; red (Thorgate, 40 M€, Domed Crater in hand) on the move (`-ares`), or a solo table vs MarsBot whose
+  // deck is [B05 Expedited Construction] alone and whose city lands on 48 once blue passes (`-ares-bot`).
+  'notification-source-ares' | 'notification-source-ares-bot';
 
 export async function bootFixture(
   page: Page,

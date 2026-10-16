@@ -34,11 +34,11 @@ describe('consoleSettingsModel', () => {
   }
 
   it('the menu context has the tuned categories plus the minor diagnostics one', () => {
-    expect(ids('menu')).to.deep.eq(['interface', 'controls', 'graphics', 'diagnostics']);
+    expect(ids('menu')).to.deep.eq(['interface', 'notifications', 'controls', 'graphics', 'diagnostics']);
   });
 
   it('the game context swaps the network category for the per-game one', () => {
-    expect(ids('game')).to.deep.eq(['interface', 'controls', 'graphics', 'game', 'diagnostics']);
+    expect(ids('game')).to.deep.eq(['interface', 'notifications', 'controls', 'graphics', 'game', 'diagnostics']);
   });
 
   it('the shell switch is GONE (desktop-removal wave 1); the private-score mask is in-game only', () => {

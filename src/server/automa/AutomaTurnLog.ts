@@ -284,6 +284,12 @@ function logRoleOf(message: LogMessage): MarsBotLogRole | undefined {
   case '${0} lost ${1} ${2}':
   case '${0} lost ${1} ${2} because of ${3}':
     return 'resource-loss';
+  // The bonus card's fate (the named templates and the nameless ones archived games still carry).
+  case 'MarsBot bonus card ${0} was destroyed and removed from the game':
+  case 'MarsBot bonus card ${0} was shuffled back into its bonus deck':
+  case 'MarsBot bonus card was destroyed and removed from the game':
+  case 'MarsBot bonus card was shuffled back into its bonus deck':
+    return 'bonus-fate';
   default:
     return undefined;
   }

@@ -232,11 +232,12 @@ for (const profile of PROFILES) {
       // The two axes render as classes; the actor chip names the initiator.
       await expect(ambientCard).toHaveClass(/con-notif--imp-ambient/);
       await expect(page.locator('.con-notif__actor').first()).toContainText('Rival');
-      // The actor is stated ONCE (the head chip): the headline drops its own
-      // leading player token («сыграл ‹Электростанция›», never «Rival сыграл…»).
+      // The actor is stated ONCE (the head chip), and the TYPE label says what happened («КАРТА СЫГРАНА»): the
+      // headline of a play is the CARD alone (TR59 — «сыграл ‹…›» said the type a second time).
       const headlineText = (await page.locator('.con-notif__headline').innerText()).trim();
       expect(headlineText.startsWith('Rival'), `headline repeats the actor: «${headlineText}»`).toBe(false);
-      expect(headlineText.length, 'the headline still tells the story').toBeGreaterThan(0);
+      expect(headlineText, 'the headline is the played card').toMatch(/Электростанция|Power Plant/);
+      expect(headlineText, 'no verb restating the type label').not.toMatch(/сыграл|played/i);
       // No viewer band — nothing personal happened.
       expect(await page.locator('.con-notif__you').count(), 'no «для вас» band on a bystander event').toBe(0);
 
@@ -309,9 +310,10 @@ for (const profile of PROFILES) {
       expect(hostileCards.length, `ONE hostile card for one attack: ${JSON.stringify(hostileCards)}`).toBe(1);
       expect(hostileCards[0].id.startsWith('g'), 'the hostile card IS the root card (never a neg… twin)').toBe(true);
       expect(log.filter((t) => t.id.startsWith('neg')).length, 'no standalone hostile twin ever appeared').toBe(0);
-      // The band led with the loss; the production scope is stated.
+      // The band led with the loss; the production scope is stated IN THE UNIT (TR59 — the «доход» line is gone:
+      // «ПР. ЭНЕРГИИ −1»).
       expect(hostileCards[0].you).toMatch(/−1/);
-      expect(hostileCards[0].you).toMatch(/доход|production/i);
+      expect(hostileCards[0].you).toMatch(/пр\. энергии|energy prod\./i);
     });
   });
 }

@@ -257,6 +257,7 @@ import {lobbyingDelegates} from '../../../src/server/automa/AutomaLobbying';
 import {botQuestReachable} from '../../../src/common/parliament/botQuestPath';
 import {botQuestTableOf} from '../../../src/server/automa/BotQuestEvents';
 import {armedPlayEffectsOf} from '../../../src/server/cards/armedPlayEffects';
+import {RestrictedAreaAres} from '../../../src/server/cards/ares/RestrictedAreaAres';
 
 const OUT_DIR = __dirname;
 
@@ -6214,3 +6215,118 @@ reprocessingPlantFixture('reprocessing-plant', {placed: true, holders: true});
 reprocessingPlantFixture('reprocessing-plant-stormcraft', {placed: true, holders: true, stormcraft: true});
 reprocessingPlantFixture('reprocessing-plant-none', {placed: true});
 reprocessingPlantFixture('reprocessing-plant-locked', {ruling: PartyName.REDS});
+
+// ── TR59 · THE SOURCE OF A PAYOUT ON THE VIEWER'S OWN TILE (`notification-source-*`, the spec
+//    `console-notification-source.spec.ts`). Another seat places a tile NEXT TO the viewer's Ares tile and the viewer
+//    is paid the tile owner's 1 M€ (`AresHandler` — the owner bonus): the notification's cause line must name the
+//    viewer's OWN tile (the card that placed it), never the actor's card / standard project / bonus card. One board
+//    for both tables — Tharsis, Ares on, hazards off:
+//      · 47 — blue's Restricted Area tile placed BY «Restricted Area (Ares)» (the card in blue's tableau, `tile.card`
+//             set), its adjacency bonus (1 card) written exactly as the card's own `PlaceTile` writes it;
+//      · 48 — the free cell beside it (no printed bonus, no city around): the city cell of BOTH stands;
+//      · 49 · 54 · 55 — blue's greeneries around 48 (placed quietly — no oxygen, no bonus): only 48 touches three, so
+//             the bot's B05 «a city next to the most greenery / ocean» has exactly ONE answer (a tie would flip a card).
+//    `-ares`     red (Thorgate) on the move with 40 M€ and Domed Crater in hand (a CARD that places a city — the variant):
+//                the spec builds the City standard project on 48 over the API.
+//    `-ares-bot` a solo table vs MarsBot (Credicor), blue on the move; the bot's deck is [B05 Expedited Construction]
+//                alone — blue's pass hands the round over, the bot's city lands on 48 (proven below on a dry-run copy),
+//                and with its deck empty its next turn is a pass. ──
+const TR59_TILE = '47' as SpaceId;
+const TR59_CITY = '48' as SpaceId;
+const TR59_GROVES: ReadonlyArray<SpaceId> = ['49', '54', '55'] as Array<SpaceId>;
+
+function seatViewerAresTile(game: IGame, owner: IPlayer, name: string): void {
+  const board = game.board;
+  const tile = board.getSpaceOrThrow(TR59_TILE);
+  const city = board.getSpaceOrThrow(TR59_CITY);
+  if (!board.getAdjacentSpaces(tile).includes(city) || tile.tile !== undefined || city.tile !== undefined || city.bonus.length !== 0) {
+    throw new Error(`${name}: expected the free cells ${TR59_TILE} (the Ares tile) and ${TR59_CITY} (its bonus-less neighbour)`);
+  }
+  // The card's own road (`Executor` → `PlaceTile`): the tile carries its card, then the space takes the card's bonus.
+  const card = new RestrictedAreaAres();
+  game.addTile(owner, tile, {tileType: TileType.RESTRICTED_AREA, card: card.name});
+  tile.adjacency = card.behavior?.tile?.adjacencyBonus;
+  owner.playedCards.push(card);
+  for (const id of TR59_GROVES) {
+    game.simpleAddTile(owner, board.getSpaceOrThrow(id), {tileType: TileType.GREENERY});
+  }
+  // Re-read through the board (the guard above narrowed `tile.tile` to «absent» for the compiler).
+  const placed = board.getSpaceOrThrow(TR59_TILE);
+  if (placed.tile?.card !== CardName.RESTRICTED_AREA_ARES || placed.adjacency?.bonus.join(',') !== String(SpaceBonus.DRAW_CARD)) {
+    throw new Error(`${name}: the Ares tile did not take its card / adjacency (card=${placed.tile?.card} adjacency=${JSON.stringify(placed.adjacency)})`);
+  }
+}
+
+{
+  const name = 'notification-source-ares';
+  const pinned = [CardName.CREDICOR, CardName.THORGATE];
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, aresExtension: true, aresHazards: false,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [blue, red], pinned);
+  answerStartFlow(game, [blue, red]);
+  seatViewerAresTile(game, blue, name);
+  red.megaCredits = 40;
+  red.cardsInHand.push(new DomedCrater());
+  // Blue's turn is handed over before blue acted (no pass): red is on the move with the action menu, and the viewer
+  // holds no prompt while red builds (an out-of-band change reaches a promptless client).
+  blue.clearWaitingFor();
+  game.playerIsFinishedTakingActions();
+  runAllActions(game);
+  const domed = red.cardsInHand.find((c) => c.name === CardName.DOMED_CRATER);
+  const cities = game.board.getAvailableSpacesForCity(red).map((s) => s.id);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== red.id || !(red.getWaitingFor() instanceof OrOptions) ||
+      !cities.includes(TR59_CITY) || domed === undefined || !red.canPlay(domed) || blue.getWaitingFor() !== undefined) {
+    throw new Error(`${name}: expected red on the move with the action menu, ${TR59_CITY} a legal city cell and Domed Crater playable — got phase=${game.phase} active=${game.activePlayer.color} wf=${red.getWaitingFor()?.constructor.name} city=${cities.includes(TR59_CITY)} domed=${domed !== undefined && red.canPlay(domed)} blueWf=${blue.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+
+{
+  const name = 'notification-source-ares-bot';
+  const pinned = [CardName.CREDICOR];
+  const [game, human, bot] = testAutomaGame({
+    aresExtension: true, aresHazards: false, startingCorporations: 1, keepInitialCardSelection: true,
+    customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [human], pinned);
+  if (!(human.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${human.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [human]);
+  seatViewerAresTile(game, human, name);
+  human.megaCredits = 40;
+  const automa = game.automa;
+  if (automa === undefined) {
+    throw new Error(`${name}: not an automa game`);
+  }
+  automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B05_EXPEDITED_CONSTRUCTION}];
+  runAllActions(game);
+  // B05's own criterion (`tryCitySurroundedByTwo`): the legal city cells the bot may take, scored by adjacent greenery
+  // + ocean — 48 must be the ONE maximum, or the bot flips a card and the stand is a coin toss.
+  const surrounded = (id: SpaceId) => game.board.getAdjacentSpaces(game.board.getSpaceOrThrow(id))
+    .filter((adj) => Board.isGreenerySpace(adj) || Board.isOceanSpace(adj)).length;
+  const scored = game.board.getAvailableSpacesForCity(bot).map((s) => ({id: s.id, n: surrounded(s.id)})).filter((s) => s.n >= 2);
+  const top = Math.max(...scored.map((s) => s.n));
+  const winners = scored.filter((s) => s.n === top).map((s) => s.id);
+  // THE DRY RUN — blue's pass on a copy: the bot's turn resolves inline (the scheduler is off outside the server).
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const menu = blue.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  if (passIndex < 0) {
+    throw new Error(`${name}: blue holds no pass option (wf=${menu?.constructor.name})`);
+  }
+  blue.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(copy);
+  const landed = copy.board.getSpaceOrThrow(TR59_CITY);
+  const payout = copy.aresAdjacencyGrants.find((g) => g.spaceId === TR59_CITY)?.ownerPayouts
+    .find((p) => p.sourceSpaceId === TR59_TILE && p.ownerColor === human.color);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions) ||
+      winners.join(',') !== TR59_CITY || landed.tile?.tileType !== TileType.CITY || landed.player?.id !== bot.id || payout?.megacredits !== 1) {
+    throw new Error(`${name}: expected blue on the move, B05's one answer ${TR59_CITY}, and the dry run's bot city there paying blue 1 M€ — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name} winners=${winners.join(',')} (scored ${JSON.stringify(scored)}) landed=${landed.tile?.tileType}/${landed.player?.color} payout=${JSON.stringify(payout)}`);
+  }
+  write(name, game);
+}

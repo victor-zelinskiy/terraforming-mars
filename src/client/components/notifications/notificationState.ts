@@ -9,6 +9,8 @@ import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANS
 import {ImpactSign} from './notificationSemantics';
 import {notificationFeedModeState} from './notificationFeedMode';
 import {quickToastAllowed} from './notificationFeedPolicy';
+import {notificationContentModeState} from './notificationContentMode';
+import {presentedContent} from './notificationContentPolicy';
 import {
   currentBlockReason,
   isNotificationDeliveryBlocked,
@@ -171,6 +173,15 @@ function feedModeAllows(model: NotificationModel): boolean {
   return quickToastAllowed(model, notificationFeedModeState.mode, notificationState.viewerColor);
 }
 
+/**
+ * THE CONTENT GATE (TR59 «ОДИН ВЗГЛЯД») — what a card CARRIES under the player's content mode, decided at the one
+ * moment a model becomes VISIBLE (here and in `promoteFromQueue`). A queued model keeps its whole content, so a mode
+ * change reaches the next card; a visible one is never re-rendered in place (ITERATION 3).
+ */
+function presentable(model: NotificationModel): NotificationModel {
+  return presentedContent(model, notificationContentModeState.mode, notificationState.viewerColor);
+}
+
 function knownId(id: string): boolean {
   return notificationState.turn?.id === id ||
     notificationState.transient.some((n) => n.id === id) ||
@@ -247,7 +258,7 @@ export function promoteFromQueue(): void {
       }
     });
     const next = notificationState.queue.splice(bestIdx, 1)[0];
-    notificationState.transient.push({...next, expanded: false, presentedAt: Date.now()});
+    notificationState.transient.push({...presentable(next), expanded: false, presentedAt: Date.now()});
     armDecisionReadBeat();
   }
 }
@@ -406,7 +417,7 @@ export function pushTransient(model: NotificationModel): void {
     notificationState.queue.push(model);
     return;
   }
-  notificationState.transient.push({...model, expanded: false, presentedAt: Date.now()});
+  notificationState.transient.push({...presentable(model), expanded: false, presentedAt: Date.now()});
   armDecisionReadBeat();
 }
 

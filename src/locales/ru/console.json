@@ -1156,5 +1156,11 @@
     "the TR stays": "РТ остаётся",
     "MIN": "МИН.",
     "One of ${0}": "Один из ${0}",
-    "up to ${0}": "до ${0}"
+    "up to ${0}": "до ${0}",
+    "Notifications": "Уведомления",
+    "Notification content": "Содержание уведомлений",
+    "Brief": "Кратко",
+    "Only mine": "Только моё",
+    "Only what changed for you, why, and on whose turn; everything else is in the log": "Только то, что изменилось у вас, почему и чей это ход. Всё остальное — в журнале.",
+    "What changed for you, why, on whose turn, and one short line of what the other player got": "Что изменилось у вас, почему, чей это ход — и одна короткая строка о том, что получил другой игрок."
 }

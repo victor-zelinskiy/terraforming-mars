@@ -2021,7 +2021,7 @@ import {currentRevealEvent, drawnCardsState, markRevealPresented, registerReveal
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
-import {revealViewerState} from '@/client/components/notifications/revealViewerState';
+import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
@@ -13975,7 +13975,10 @@ export default defineComponent({
         // …and a card ABOUT THE PARLIAMENT (the chairmanship, a card's delegates / rally / support / walk — PL-025): the
         // model's own CTA opens the table, where the cubes and the marker read as they stand now; the label says so.
         const detailParliament = detailKey === undefined && detailResolution === undefined && topCard.cta?.action === 'open-parliament';
-        if ((detailKey !== undefined || detailResolution !== undefined || detailCorrelation !== undefined) && action === 'inspect' && !this.notifTapReplay) {
+        // …and a card about REVEALED / SHOWN cards (standalone, or folded into the play that revealed them): the detail
+        // is the cards themselves — the reveal viewer, never the journal (TR59, PL-557).
+        const detailReveal = detailKey === undefined && detailResolution === undefined && !detailParliament ? topCard.reveal : undefined;
+        if ((detailKey !== undefined || detailResolution !== undefined || detailCorrelation !== undefined || detailReveal !== undefined) && action === 'inspect' && !this.notifTapReplay) {
           beginNotifHold(topCard.id, () => {
             if (detailKey !== undefined) {
               openBotTurnReviewByKey(detailKey);
@@ -13989,6 +13992,15 @@ export default defineComponent({
             if (detailParliament) {
               dismissNotification(topCard.id);
               this.onNotificationOpenParliament();
+              return;
+            }
+            if (detailReveal !== undefined) {
+              if (this.placementActive) {
+                this.showNotice('Finish your current action first');
+                return;
+              }
+              dismissNotification(topCard.id);
+              openRevealViewer(detailReveal);
               return;
             }
             this.openJournalToNotification(topCard);

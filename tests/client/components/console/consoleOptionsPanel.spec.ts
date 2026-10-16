@@ -7,6 +7,7 @@ import {privateScoreState, setPrivateScore} from '@/client/components/overview/p
 import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
 import {currentProfileOverride, setConsoleProfileOverride} from '@/client/console/consoleLayoutProfile';
 import {notificationFeedModeState, setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
+import {notificationContentModeState, setNotificationContentMode} from '@/client/components/notifications/notificationContentMode';
 
 const A: GamepadIntent = {kind: 'press', button: 'confirm'};
 const B: GamepadIntent = {kind: 'press', button: 'back'};
@@ -69,17 +70,20 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     setButtonLayout('standard');
     setConsoleProfileOverride('auto');
     setNotificationFeedMode('all');
+    setNotificationContentMode('brief');
   });
 
   it('opens on the first category and shows only that category’s rows', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
     expect(vm.current.id).to.eq('interface');
     // The flat eleven-row list is gone: a category shows a handful of rows.
-    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['display', 'textScale', 'albumLayout', 'dockCards', 'cardNumbers', 'eventCounter', 'notifications']);
+    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['display', 'textScale', 'albumLayout', 'dockCards', 'cardNumbers', 'eventCounter']);
   });
 
-  it('the quick-notification feed mode is a dialable interface row (both directions, wrapping)', () => {
+  it('the quick-notification feed mode is a dialable NOTIFICATIONS row (both directions, wrapping)', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
+    vm.handleIntent(RB); // → notifications (TR59: the two notification settings have a category of their own)
+    expect(vm.current.id).to.eq('notifications');
     cursorTo(vm, 'notifications');
     expect(notificationFeedModeState.mode).to.eq('all');
     expect(vm.detail.title).to.eq('Quick notifications');
@@ -89,14 +93,32 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     expect(vm.detail.value).to.eq('Only involving me');
     vm.handleIntent(LEFT);
     expect(notificationFeedModeState.mode).to.eq('all');
-    // Available from the MAIN MENU too (the interface category exists in both
-    // hosts), so the preference can be set before a game starts.
+    // Available from the MAIN MENU too (the category exists in both hosts), so the preference can be set before a
+    // game starts.
     const menu = mountWith('menu').vm as unknown as PanelVm;
+    menu.handleIntent(RB);
     expect(menu.current.rows.some((r) => r.id === 'notifications')).to.eq(true);
+  });
+
+  it('the notification CONTENT mode is the category second row — Brief ⇄ Only mine (TR59)', () => {
+    const vm = mountWith('game').vm as unknown as PanelVm;
+    vm.handleIntent(RB);
+    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['notifications', 'notificationContent']);
+    cursorTo(vm, 'notificationContent');
+    expect(notificationContentModeState.mode).to.eq('brief');
+    expect(vm.detail.title).to.eq('Notification content');
+    expect(vm.detail.value).to.eq('Brief');
+    vm.handleIntent(RIGHT);
+    expect(notificationContentModeState.mode).to.eq('mine');
+    expect(vm.detail.value).to.eq('Only mine');
+    vm.handleIntent(RIGHT);
+    expect(notificationContentModeState.mode, 'the ring wraps').to.eq('brief');
   });
 
   it('LB / RB step the category and reset the row cursor', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
+    vm.handleIntent(RB);
+    expect(vm.current.id).to.eq('notifications');
     vm.handleIntent(RB);
     expect(vm.current.id).to.eq('controls');
     vm.handleIntent(DOWN);
@@ -110,11 +132,13 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     // VALUE wraps. Walking past the first category stays on it.
     vm.handleIntent(LB);
     vm.handleIntent(LB);
+    vm.handleIntent(LB);
     expect(vm.current.id).to.eq('interface');
   });
 
   it('D-pad right/left step the cursored setting in BOTH directions', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
+    vm.handleIntent(RB); // → notifications
     vm.handleIntent(RB); // → controls
     cursorTo(vm, 'buttons');
     expect(buttonLayoutState.layout).to.eq('standard');
@@ -138,6 +162,7 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
   it('the stepped value re-renders (the motion prefs are module-cached, not reactive)', () => {
     const w = mountWith('game');
     const vm = w.vm as unknown as PanelVm;
+    vm.handleIntent(RB);
     vm.handleIntent(RB);
     vm.handleIntent(RB); // → graphics
     cursorTo(vm, 'motionSpeed');
@@ -163,6 +188,7 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
 
   it('the detail strip describes the CURSORED row — never the row itself', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
+    vm.handleIntent(RB); // → notifications
     vm.handleIntent(RB); // → controls
     cursorTo(vm, 'wheelControl');
     expect(vm.detail.title).to.eq('Wheel control');

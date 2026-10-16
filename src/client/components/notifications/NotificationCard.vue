@@ -183,7 +183,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
           <span class="notification-card__summary-tick" aria-hidden="true"></span>
           <span class="notification-card__summary-body">
             <JournalTokenRenderer
-              v-for="(tok, j) in lineEntries(line)"
+              v-for="(tok, j) in lineEntries(line.message)"
               :key="j"
               :token="tok"
               :players="players" />

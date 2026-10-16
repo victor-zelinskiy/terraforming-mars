@@ -213,7 +213,7 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.viewerImpact?.attacker).eq('red');
       // The line that names the CARD survives: it is not a restatement of the
       // band (the chip says how much, only this says off WHAT).
-      expect((model.summaryLines ?? []).map((l) => l.message))
+      expect((model.summaryLines ?? []).map((l) => l.message.message))
         .contains('${0} removed ${1} resource(s) from ${2}\'s ${3}');
       // The seat is in `affects`, so the personal feed mode shows the card.
       expect(model.affects).contains('blue');
@@ -242,7 +242,7 @@ describe('marsBotPresentation (notification-first turns)', () => {
       const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
       const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
       expect(model.viewerImpact, 'the band leads').is.not.eq(undefined);
-      const lines = (model.summaryLines ?? []).map((l) => l.message);
+      const lines = (model.summaryLines ?? []).map((l) => l.message.message);
       expect(lines).not.contains('${0} gained 1 heat');
       // The bot's own line stays — only the band's restatement is folded.
       expect(lines).contains('${0} placed a city');
@@ -264,7 +264,7 @@ describe('marsBotPresentation (notification-first turns)', () => {
       // The attack ON THE VIEWER («removed plants») restates the band and is
       // dropped STRUCTURALLY (step.attack.target === viewer) — whatever its
       // message template looks like. The remaining key lines all fit the cap.
-      expect(model.summaryLines?.map((l) => l.message)).deep.eq([
+      expect(model.summaryLines?.map((l) => l.message.message)).deep.eq([
         'placed a city', 'failed action money', 'raised the temperature',
       ]);
       expect(model.summaryLines).lengthOf(BOT_TURN_SUMMARY_CAP);
@@ -291,7 +291,7 @@ describe('marsBotPresentation (notification-first turns)', () => {
           // (the server's coveredByAttack de-dup), which is exactly what made
           // the old impact-only reading build this card NEUTRAL.
           {kind: 'attack', attack: {target: 'blue' as never, resource: 'plants' as never, demanded: 5, removed: 5, before: 508, after: 503, outcome: 'hit'}, message: victimLine, cause: {kind: 'bonus'}},
-          {kind: 'log', message: fateLine, cause: {kind: 'bonus'}},
+          {kind: 'log', message: fateLine, cause: {kind: 'bonus'}, role: 'bonus-fate'},
           {kind: 'impact', impact: {target: 'red' as Color, targetIsBot: true, changes: [
             {resource: 'megacredits' as never, scope: 'stock', before: 10, after: 12},
           ]}},
@@ -308,12 +308,13 @@ describe('marsBotPresentation (notification-first turns)', () => {
       // 2) The headline IS the causal statement — it names the bonus card
       //    (the STRING token survives the one-shot card leaving the game).
       expect(model.header).eq(playedLine);
-      // 3) The victim's own line is dropped (the band owns that fact); the
-      //    card's FATE line stays — with the band leading, the story reads
-      //    hero → played card → destroyed.
-      const lines = (model.summaryLines ?? []).map((l) => l.message);
+      // 3) The victim's own line is dropped (the band owns that fact), and so is the card's FATE line (TR59): the
+      //    band's cause already names the bonus card — «… уничтожена» under «ИСТОЧНИК ‹карта›» says it twice.
+      //    Structural — the server's `bonus-fate` role, never the line's words.
+      const lines = (model.summaryLines ?? []).map((l) => l.message.message);
       expect(lines).not.contains('${0} lost ${1} ${2} because of ${3}');
-      expect(lines).contains('MarsBot bonus card ${0} was destroyed and removed from the game');
+      expect(model.viewerImpact?.causes.map((c) => c.origin)).deep.contains({kind: 'bonusCard', bonusCard: 'B01'});
+      expect(lines, 'the fate of a card the cause names is not repeated').not.contains('MarsBot bonus card ${0} was destroyed and removed from the game');
       // 4) One story, one card: the bot pipeline is the only producer for an
       //    automa turn (diffNegativeNotifications skips automa chains), and
       //    this model is complete at birth.
@@ -327,12 +328,20 @@ describe('marsBotPresentation (notification-first turns)', () => {
         {icon: 'temperature', text: '-30°→-28°', neutral: true},
         {icon: 'ocean', text: '2→3', neutral: true},
       ]);
-      presentFreshBotTurns(prev, next);
-      const card = notificationState.transient[0];
-      expect(card.pills.slice(0, 2)).deep.eq([
+      // The MODEL keeps the planet's before → after (the journal / the turn review read it)… (a turn of its own —
+      // the archive records each turn once)
+      const [entry] = recordBotTurnsFromView(prev, botView({lastTurn: turn(7), params: {temperature: -28, oceans: 3}}));
+      const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 1, autoExpand: false, paramChips: globalParamChips(prev, next)});
+      expect(model.pills.slice(0, 2)).deep.eq([
         {icon: 'temperature', text: '-30°→-28°', neutral: true},
         {icon: 'ocean', text: '2→3', neutral: true},
       ]);
+      expect(model.pillGroups?.[0].scope).eq('planet');
+      // …while the PRESENTED card drops the «Марс» cluster (TR59 — the HUD shows every global parameter).
+      presentFreshBotTurns(prev, next);
+      const card = notificationState.transient[0];
+      expect(card.pillGroups?.some((g) => g.scope === 'planet') ?? false).eq(false);
+      expect(card.pills.some((c) => c.neutral === true), 'no planet chip rides the presented card').eq(false);
       // The viewer's own loss leads the card as its band, never as a pill.
       expect(card.viewerImpact?.losses).deep.eq([{icon: 'plants', text: '−2'}]);
       expect(card.pills.some((c) => c.icon === 'plants')).eq(false);
