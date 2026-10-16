@@ -59,6 +59,7 @@ import {OverclockedEquipment} from './OverclockedEquipment';
 import {RoboticsFactory} from './RoboticsFactory';
 import {MiningMechs} from './MiningMechs';
 import {ReprocessingPlant} from './ReprocessingPlant';
+import {SponsoredPowerPlant} from './SponsoredPowerPlant';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -291,5 +292,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the Industrialists' plate; the set's first `or` on the PRICE side — two
     // prices (3 plants · 5 heat), ONE result (3 floaters onto ANY card).
     [CardName.REPROCESSING_PLANT]: {Factory: ReprocessingPlant},
+    // Only the module's icon at the bottom left: the Industrialists' plate; «+3 energy production» — a whole declaration
+    // (Power Plant's play at Fusion Power's size), Power + Building tags.
+    [CardName.SPONSORED_POWER_PLANT]: {Factory: SponsoredPowerPlant},
   },
 });
