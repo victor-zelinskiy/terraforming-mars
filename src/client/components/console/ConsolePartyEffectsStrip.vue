@@ -13,12 +13,16 @@
     </header>
     <div class="con-pfx__row">
       <div v-for="row in rows" :key="row.key" class="con-pfx__item" :class="{'con-pfx__item--resolution': row.resolution !== undefined}" :data-party="row.party" :data-resolution="row.resolution" :style="{'--parl-accent': row.accent}">
+        <!-- TR60 — the party tile at the SCENE's scale: the emblem, then WHAT the effect is (the name over the printed
+             formula, large), then WHY the seat holds it in a column of its own — never a narrow column of prose. -->
         <img class="con-pfx__emblem" :src="row.emblem" alt="" />
-        <div class="con-pfx__why">
+        <div class="con-pfx__main">
           <!-- The law's own kicker: a resolution row is titled by the card's NAME, so the kind is said above it. -->
           <span v-if="row.resolution !== undefined" class="con-pfx__law" v-i18n>Enacted resolution</span>
-          <b>{{ $t(row.title) }}</b>
+          <b class="con-pfx__title">{{ $t(row.title) }}</b>
           <ConsolePartyFormula class="con-pfx__formula" :party="row.party" :renderRoot="row.renderRoot" size="wide" />
+        </div>
+        <div class="con-pfx__why">
           <span v-for="(reason, i) in row.reasons" :key="i" class="con-pfx__reason" :class="'con-pfx__reason--' + reason.tone">{{ reasonText(reason) }}</span>
           <span v-if="row.action !== undefined" class="con-pfx__uses">{{ $t(row.action) }}</span>
         </div>

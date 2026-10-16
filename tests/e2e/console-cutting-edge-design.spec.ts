@@ -168,7 +168,7 @@ async function rivalSeesArmed(page: Page): Promise<boolean> {
     'the rival opens Information').toBe(true);
   await settle(page, {timeoutMs: 15_000});
   for (let i = 0; i < 4; i++) {
-    if (await page.locator('[data-zone="effects"] [data-armed-zone]').count() > 0) {
+    if (await page.locator('[data-zone="effects"] [data-dossier-effect="armed"]').count() > 0) {
       return true;
     }
     await press(page, 'KeyE', 700);

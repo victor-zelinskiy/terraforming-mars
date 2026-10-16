@@ -269,9 +269,10 @@
 
     <!-- The hidden-VP contract at the SAME depth — the crumb stays honest,
          LB/RB keeps cycling, nothing resets. -->
-    <div v-else class="con-vpx__hidden">
-      <div class="con-vpx__hidden-mark" aria-hidden="true">•••</div>
-      <div>{{ $t('Score is hidden until the end of the game') }}</div>
+    <!-- A HIDDEN score is the dossier's SEALED cell at the scene's scale (TR60, decision 7a) — what is sealed and why,
+         and what that seat has already put on the table; never a number of its score (`vpVisible` is the one gate). -->
+    <div v-else class="con-vpx__hidden" data-vpx-sealed>
+      <ConsoleDossierSealed :facts="sealedFacts" />
     </div>
   </div>
 </template>
@@ -341,6 +342,7 @@ import {
   formulaTagIcon as scoreFormulaTagIcon,
   formulaGlyph as scoreFormulaGlyph,
   formulaCountedCities as scoreFormulaCountedCities,
+  maArtSlug,
   previewCardFit,
 } from '@/client/console/scoreExplorerModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -373,11 +375,13 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleDossierSealed from '@/client/components/console/info/ConsoleDossierSealed.vue';
+import {DossierSealedFacts, dossierSealedFacts} from '@/client/console/infoDossierModel';
 import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'ConsoleScoreExplorer',
-  components: {Card, ConsoleScrollArea, PremiumCountGlyph},
+  components: {Card, ConsoleScrollArea, PremiumCountGlyph, ConsoleDossierSealed},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -418,6 +422,14 @@ export default defineComponent({
     },
     viewedIsBot(): boolean {
       return this.viewed.isMarsBot === true;
+    },
+    /** The public facts of a sealed score (the rating, the seat's claimed milestones and funded awards) — no VP. */
+    sealedFacts(): DossierSealedFacts {
+      const game = this.playerView.game;
+      return dossierSealedFacts(this.viewed.terraformRating, this.viewed.color,
+        (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
+        (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
+        maArtSlug);
     },
     vpVisible(): boolean {
       return this.isSelf || this.viewedIsBot ||

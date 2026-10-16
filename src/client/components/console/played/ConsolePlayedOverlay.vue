@@ -204,7 +204,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {
   buildPlayedZones, splitPiles, planPlayedLayout,
@@ -238,6 +238,13 @@ const STICK_SCROLL_STEP = 44;
 const CHROME_ALLOWANCE = 296;
 /** The pile-height budget never collapses below this (logical px). */
 const MIN_PILE_BUDGET = 280;
+/**
+ * THE EMBEDDED TABLE IS A SCENE, NOT A HUD (TR60, the Information workspace): hosted in the workspace's opening the
+ * table has the room a band never has, so its faces stand at the scene's scale — the base ladder times this gain. The
+ * pile budget is the same one (a pile still never runs past the screen; the cap derives from it), so a big tableau
+ * simply opens the next pile beside it.
+ */
+const EMBEDDED_SCENE_GAIN = 1.35;
 /** STAGED MOUNT (hydration): a tableau up to this many face-up cards mounts
  *  its faces synchronously (the historical behavior — one flush, no wave). */
 const HYDRATION_SYNC_MAX = 60;
@@ -442,7 +449,7 @@ export default defineComponent({
       const budget = Math.max(MIN_PILE_BUDGET * s, this.viewportH - CHROME_ALLOWANCE * s);
       const faceUp = this.zones.corporations.length + this.zones.preludes.length +
         this.zones.ceos.length + this.zones.active.length + this.zones.automated.length;
-      return planPlayedLayout({faceUpCount: faceUp, maxPileH: budget, uiScale: s});
+      return planPlayedLayout({faceUpCount: faceUp, maxPileH: budget, uiScale: this.embedded && consoleLayoutState.profile !== 'handheld' ? s * EMBEDDED_SCENE_GAIN : s});
     },
     faceUpCount(): number {
       const z = this.zones;

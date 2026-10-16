@@ -222,14 +222,19 @@ export type InfoZoneId = 'extras' | 'vp' | 'played' | 'actions' | 'effects' | 'p
  */
 export type InfoZoneContext = {campaign?: boolean, extras?: boolean, parliament?: boolean};
 
-/** The summary layout: columns of zones, read left → right, top → bottom.
- *  (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected
- *  seat's one physical hand representation for the workspace's lifetime.) */
-export const INFO_SUMMARY_COLUMNS: ReadonlyArray<ReadonlyArray<InfoZoneId>> = [
-  ['extras'],
-  ['vp'],
-  ['played'],
-  ['actions', 'effects', 'parliament', 'campaign', 'botdoor'],
+/**
+ * THE DOSSIER LAYOUT (TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА»): the satellite column on the left (shell chrome —
+ * the ring's leftmost stop), then TWO TIERS over the whole opening: the HEROES (the score, the card history — the
+ * shared zones, at one place for every participant) and the PLATES (the human's actions / effects or the bot's door,
+ * the Parliament, the campaign). Each zone carries its share of its tier's width (`weight`, the CSS flex weights),
+ * which is how a vertical move finds the zone standing under / over the one it leaves.
+ * (The old «Карты» readout zone is GONE — the HAND DOCK is the inspected seat's one physical hand representation
+ * for the workspace's lifetime.)
+ */
+export const INFO_SUMMARY_SATELLITE: InfoZoneId = 'extras';
+export const INFO_SUMMARY_TIERS: ReadonlyArray<ReadonlyArray<{zone: InfoZoneId, weight: number}>> = [
+  [{zone: 'vp', weight: 1}, {zone: 'played', weight: 1.4}],
+  [{zone: 'botdoor', weight: 1}, {zone: 'actions', weight: 1}, {zone: 'effects', weight: 1}, {zone: 'parliament', weight: 1}, {zone: 'campaign', weight: 1}],
 ];
 
 /** The detail route a zone opens, if any. */
@@ -289,11 +294,19 @@ export function infoZoneFocusable(zone: InfoZoneId, kind: InfoParticipantKind, c
   return infoZonePresent(zone, kind, ctx) && route !== undefined && infoRouteApplies(route, kind);
 }
 
-/** The focusable zones for a participant kind, in canonical order. */
+/** The zones that STAND on a tier for this participant (present — a door for the bot, the pair for a human). */
+export function infoTierZones(tier: number, kind: InfoParticipantKind, ctx: InfoZoneContext = {}): ReadonlyArray<{zone: InfoZoneId, weight: number}> {
+  return (INFO_SUMMARY_TIERS[tier] ?? []).filter((z) => infoZonePresent(z.zone, kind, ctx));
+}
+
+/** The focusable zones for a participant kind, in canonical order: the satellite, then the tiers, left → right. */
 export function infoFocusRing(kind: InfoParticipantKind, ctx: InfoZoneContext = {}): ReadonlyArray<InfoZoneId> {
   const ring: Array<InfoZoneId> = [];
-  for (const column of INFO_SUMMARY_COLUMNS) {
-    for (const zone of column) {
+  if (infoZoneFocusable(INFO_SUMMARY_SATELLITE, kind, ctx)) {
+    ring.push(INFO_SUMMARY_SATELLITE);
+  }
+  for (let tier = 0; tier < INFO_SUMMARY_TIERS.length; tier++) {
+    for (const {zone} of infoTierZones(tier, kind, ctx)) {
       if (infoZoneFocusable(zone, kind, ctx)) {
         ring.push(zone);
       }
@@ -302,12 +315,23 @@ export function infoFocusRing(kind: InfoParticipantKind, ctx: InfoZoneContext = 
   return ring;
 }
 
+/** The horizontal CENTRE of each standing zone of a tier, as a share of the tier's width (the flex weights). */
+function tierCentres(zones: ReadonlyArray<{zone: InfoZoneId, weight: number}>): Map<InfoZoneId, number> {
+  const total = zones.reduce((n, z) => n + z.weight, 0);
+  const centres = new Map<InfoZoneId, number>();
+  let at = 0;
+  for (const z of zones) {
+    centres.set(z.zone, total > 0 ? (at + z.weight / 2) / total : 0);
+    at += z.weight;
+  }
+  return centres;
+}
+
 /**
- * D-pad movement over the summary zones — column-aware: left/right move
- * between columns (keeping the nearest focusable row), up/down move within
- * a column. Returns the zone to focus, or the current one at an edge (the
- * ring never wraps — an edge is an edge, matching the console's d-pad
- * grammar everywhere else).
+ * D-pad movement over the dossier — the layout's own geometry: left / right walk a tier (left of its first zone is
+ * the satellite column), up / down cross to the other tier onto the FOCUSABLE zone whose centre stands nearest
+ * (a tie keeps the left one). From the satellite, right enters the heroes' tier. Returns the zone to focus, or the
+ * current one at an edge (the ring never wraps — an edge is an edge, the console's d-pad grammar everywhere).
  */
 export function infoZoneNavigate(
   from: InfoZoneId,
@@ -315,26 +339,56 @@ export function infoZoneNavigate(
   kind: InfoParticipantKind,
   ctx: InfoZoneContext = {},
 ): InfoZoneId {
-  const columns = INFO_SUMMARY_COLUMNS
-    .map((col) => col.filter((z) => infoZoneFocusable(z, kind, ctx)))
-    .filter((col) => col.length > 0);
-  const colIdx = columns.findIndex((col) => col.includes(from));
-  if (colIdx === -1) {
-    // The focus stands on a zone that stopped being focusable (a seat
-    // switch) — land on the first focusable zone instead of going dark.
-    return columns[0]?.[0] ?? from;
-  }
-  const rowIdx = columns[colIdx].indexOf(from);
-  if (dir === 'up' || dir === 'down') {
-    const next = rowIdx + (dir === 'down' ? 1 : -1);
-    return columns[colIdx][Math.min(Math.max(next, 0), columns[colIdx].length - 1)];
-  }
-  const nextCol = colIdx + (dir === 'right' ? 1 : -1);
-  if (nextCol < 0 || nextCol >= columns.length) {
+  const focusable = (z: InfoZoneId) => infoZoneFocusable(z, kind, ctx);
+  const tiers = INFO_SUMMARY_TIERS.map((_, t) => infoTierZones(t, kind, ctx));
+  const satellite = focusable(INFO_SUMMARY_SATELLITE);
+  if (from === INFO_SUMMARY_SATELLITE && satellite) {
+    if (dir !== 'right') {
+      return from;
+    }
+    for (const tier of tiers) {
+      const first = tier.find((z) => focusable(z.zone));
+      if (first !== undefined) {
+        return first.zone;
+      }
+    }
     return from;
   }
-  const target = columns[nextCol];
-  return target[Math.min(rowIdx, target.length - 1)];
+  const tierIdx = tiers.findIndex((tier) => tier.some((z) => z.zone === from) && focusable(from));
+  if (tierIdx === -1) {
+    // The focus stands on a zone that stopped being focusable (a seat
+    // switch) — land on the first focusable zone instead of going dark.
+    return infoFocusRing(kind, ctx).find((z) => z !== INFO_SUMMARY_SATELLITE) ?? infoFocusRing(kind, ctx)[0] ?? from;
+  }
+  const row = tiers[tierIdx].filter((z) => focusable(z.zone));
+  const at = row.findIndex((z) => z.zone === from);
+  if (dir === 'left' || dir === 'right') {
+    const next = at + (dir === 'right' ? 1 : -1);
+    if (next < 0) {
+      return satellite ? INFO_SUMMARY_SATELLITE : from;
+    }
+    return row[Math.min(next, row.length - 1)].zone;
+  }
+  const step = dir === 'down' ? 1 : -1;
+  for (let t = tierIdx + step; t >= 0 && t < tiers.length; t += step) {
+    const target = tiers[t].filter((z) => focusable(z.zone));
+    if (target.length === 0) {
+      continue;
+    }
+    const mine = tierCentres(tiers[tierIdx]).get(from) ?? 0;
+    const theirs = tierCentres(tiers[t]);
+    let best = target[0].zone;
+    let bestDist = Infinity;
+    for (const z of target) {
+      const dist = Math.abs((theirs.get(z.zone) ?? 0) - mine);
+      if (dist < bestDist - 1e-9) {
+        best = z.zone;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+  return from;
 }
 
 /**

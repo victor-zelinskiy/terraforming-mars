@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixture, bootFixtureSeats, closeZoomViewer, openCardActions, openMandatoryAnnounce, openZoomViewer, placeTile, press, pressUntil, settle} from './consoleStart';
+import {bootFixture, bootFixtureSeats, closeZoomViewer, openCardActions, openMandatoryAnnounce, openZoomViewer, placeTile, press, pressUntil, settle, focusInfoZone} from './consoleStart';
 import {
   answerAsksAs, answerGateAs, answerGateOnScreen, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest, focusParliamentZone, mandatoryPlate, openParliament,
   parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep, waitSittingAtRest,
@@ -445,13 +445,8 @@ for (const preset of PARLIAMENT_PRESETS) {
           await press(page, 'KeyY', 1100);
         }
         await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
-        const effectsFocused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-        for (const move of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown']) {
-          if (await effectsFocused() > 0) {
-            break;
-          }
-          await press(page, move, 300);
-        }
+        // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
+        expect(await focusInfoZone(page, 'effects'), 'the ring reaches the effects zone').toBe(true);
         expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
         await expect(page.locator('.con-pfx'), 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
         await settle(page, {timeoutMs: 20_000});

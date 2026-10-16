@@ -59,7 +59,7 @@ import {AquiferPumping} from '../../../src/server/cards/base/AquiferPumping';
 import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
 import {Ants} from '../../../src/server/cards/base/Ants';
 import {actionFutility} from '../../../src/server/models/actionFutility';
-import {IActionCard, ICard} from '../../../src/server/cards/ICard';
+import {IActionCard, ICard, isIActionCard} from '../../../src/server/cards/ICard';
 import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
 import {ShipmentToEarth} from '../../../src/server/cards/promo/ShipmentToEarth';
 import {Sponsors} from '../../../src/server/cards/base/Sponsors';
@@ -147,6 +147,15 @@ import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
 import {IchtiologyGrant} from '../../../src/server/cards/turmoilRedux/IchtiologyGrant';
 import {RoboticsFactory} from '../../../src/server/cards/turmoilRedux/RoboticsFactory';
 import {MiningMechs} from '../../../src/server/cards/turmoilRedux/MiningMechs';
+import {CivilianSpacefighters} from '../../../src/server/cards/turmoilRedux/CivilianSpacefighters';
+import {DevelopmentCenter} from '../../../src/server/cards/base/DevelopmentCenter';
+import {Ironworks} from '../../../src/server/cards/base/Ironworks';
+import {EarthOffice} from '../../../src/server/cards/base/EarthOffice';
+import {AdvancedAlloys} from '../../../src/server/cards/base/AdvancedAlloys';
+import {ArcticAlgae} from '../../../src/server/cards/base/ArcticAlgae';
+import {SpaceStation} from '../../../src/server/cards/base/SpaceStation';
+import {Comet} from '../../../src/server/cards/base/Comet';
+import {BigAsteroid} from '../../../src/server/cards/base/BigAsteroid';
 import {ReprocessingPlant} from '../../../src/server/cards/turmoilRedux/ReprocessingPlant';
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
@@ -6330,3 +6339,83 @@ function seatViewerAresTile(game: IGame, owner: IPlayer, name: string): void {
   }
   write(name, game);
 }
+
+// ── TR60 · «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА» (docs/TURMOIL_REDUX_CIVILIAN_SPACEFIGHTERS.md § ДОСЬЕ): a SATURATED table for
+//    the Information workspace (Y), blue on the move in generation 5, the Industrialists ruling:
+//      · `info-dossier` — blue (Teractor) with 19 cards on the table: EIGHT action cards in three states (TR60 · TR57 ·
+//        Regolith Eaters · Search For Life live; Security Fleet · Ironworks used this generation; Development Center ·
+//        Physics Complex refused for energy), effects of every family (Earth Office / Space Station discounts, Advanced
+//        Alloys' payment value, Decomposers / Arctic Algae / Mars University triggers), three automated cards, two
+//        events; a city and two greeneries, a claimed milestone and a funded award, two delegates on a resolution and
+//        the Agenda at step 4. Red (ThorGate) holds four cards — one action (Restricted Area), a microbe holder — and
+//        its score is HIDDEN from blue (`showOtherPlayersVP` off — the default).
+//    Red sits at a pinned corporation with no first action. ──
+function infoDossierFixture(name: string): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [24, 18],
+    agenda: [4, 1],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+      game.generation = 5;
+      // Red's city first — before blue's table holds its tile triggers (a door with no live scope).
+      addCity(p2);
+      // The ACTION cards, in three states.
+      const fighters = new CivilianSpacefighters();
+      fighters.resourceCount = 2;
+      const mining = new MiningMechs();
+      mining.resourceCount = 3;
+      const eaters = new RegolithEaters();
+      eaters.resourceCount = 1;
+      const fleet = new SecurityFleet();
+      fleet.resourceCount = 2;
+      const decomposers = new Decomposers();
+      decomposers.resourceCount = 4;
+      p1.playedCards.push(
+        fighters, mining, eaters, new SearchForLife(), fleet, new Ironworks(), new DevelopmentCenter(), new PhysicsComplex(),
+        new EarthOffice(), new SpaceStation(), new AdvancedAlloys(), decomposers, new ArcticAlgae(), new MarsUniversity(),
+        new PowerPlant(), new Mine(), new SolarPower(), new Comet(), new BigAsteroid(),
+      );
+      p1.actionsThisGeneration.add(CardName.SECURITY_FLEET);
+      p1.actionsThisGeneration.add(CardName.IRONWORKS);
+      p1.megaCredits = 24;
+      p1.steel = 3;
+      p1.titanium = 1;
+      p1.plants = 6;
+      p1.energy = 0;
+      p1.heat = 4;
+      p1.production.add(Resource.MEGACREDITS, 5);
+      p1.production.add(Resource.STEEL, 1);
+      p1.production.add(Resource.ENERGY, 2);
+      p1.setTerraformRating(28);
+      addCity(p1);
+      addGreenery(p1);
+      addGreenery(p1);
+      game.claimedMilestones.push({player: p1, milestone: game.milestones[0]});
+      game.fundedAwards.push({player: p1, award: game.awards[0]});
+      // Two of blue's delegates on a resolution of the table (the lobby's, then the reserve's).
+      const slot = parliament.slots.find((s) => s.instance !== undefined) ?? parliament.slots[0];
+      parliament.placeVote(p1, slot, 'lobby');
+      parliament.placeVote(p1, slot, 'reserve');
+      // Red: a smaller table, one action, a microbe holder.
+      const tardigrades = new Tardigrades();
+      tardigrades.resourceCount = 2;
+      p2.playedCards.push(new PowerPlant(), new Mine(), tardigrades, new RestrictedArea());
+      p2.setTerraformRating(24);
+    },
+    expect: ({game, p1, p2, parliament}) => {
+      const actions = p1.playedCards.asArray().filter(isIActionCard);
+      const live = p1.getPlayableActionCards().map((c) => c.name);
+      const used = actions.filter((c) => p1.actionsThisGeneration.has(c.name)).length;
+      const refused = actions.length - live.length - used;
+      if (game.activePlayer.id !== p1.id || p1.playedCards.length < 19 || actions.length !== 8 || live.length < 4 || used !== 2 || refused < 2 ||
+          game.claimedMilestones.length !== 1 || game.fundedAwards.length !== 1 || game.gameOptions.showOtherPlayersVP ||
+          p2.playedCards.length !== 5) {
+        throw new Error(`the ${name} fixture expected blue on the move with 19 cards (8 actions: ≥4 live, 2 used, ≥2 refused), a milestone, an award, red's score hidden — got active=${game.activePlayer.color} played=${p1.playedCards.length} actions=${actions.length} live=${live.join(',')} used=${used} ms=${game.claimedMilestones.length} aw=${game.fundedAwards.length} vp=${game.gameOptions.showOtherPlayersVP} red=${p2.playedCards.length}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+infoDossierFixture('info-dossier');

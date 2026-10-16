@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, commitFocusedSpace, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placementState, press,
-  pressUntil, sendPlayerInput, settle, walkToSpace,
+  pressUntil, sendPlayerInput, settle, walkToSpace, focusInfoZone,
 } from './consoleStart';
 import {answerGateAs, closeSitting, armLeakWitness, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
 
@@ -311,9 +311,11 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     // …but what answers A CITY PLACED still answers: Skyscrapers is enacted before its effect, so Mars First
     // rules — 1 steel for the tile and a CARD for the city, which the shared reveal presents; A takes it.
     expect(mid.thisPlayer.steel, 'the ruling party\'s steel for a tile placed on Mars').toBe(before.thisPlayer.steel + 1);
-    await expect.poll(async () => await page.locator('dialog.con-zoom[open]').count(), {timeout: 30_000, message: 'the party\'s card is presented'}).toBe(1);
+    // ONE received card no workspace owns is the reveal SCENE in the central opening since TR57 («НАГРАДА ВНЕ
+    // WORKSPACE») — never the fullscreen viewer.
+    await expect.poll(async () => await page.locator('.con-reveal [data-zoom-slot]').count(), {timeout: 30_000, message: 'the party\'s card is presented'}).toBe(1);
     await shoot(page, '06b-party-card');
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open]').count() === 0, {tries: 6, settleMs: 1500}), 'take the card').toBe(true);
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-reveal').count() === 0, {tries: 6, settleMs: 1500}), 'take the card').toBe(true);
     await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, {timeout: 30_000}).toBe(before.thisPlayer.cardsInHandNbr + 1);
     const redMid = await wireOf(request, red);
     expect((redMid.game.parliament.phase?.outcomes ?? redMid.game.parliament.lastPhase?.outcomes ?? []).find((o) => o.player === redMid.thisPlayer.color), 'red is passed over BY THE RULE — named').toMatchObject({
@@ -343,13 +345,8 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
       await press(page, 'KeyY', 1100);
     }
     await expect(info, 'the Information mode opens').toHaveCount(1);
-    const vpFocused = () => page.locator('.con-info__zone--vp.con-info__zone--focused').count();
-    for (const move of ['ArrowLeft', 'ArrowUp', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'] as const) {
-      if (await vpFocused() > 0) {
-        break;
-      }
-      await press(page, move, 300);
-    }
+    // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
+    expect(await focusInfoZone(page, 'vp'), 'the ring reaches the vp zone').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-vpx').count() > 0, {tries: 3, settleMs: 1100}), 'the score explorer opens').toBe(true);
     await focusTile(page, 'city');
     await press(page, 'Enter', 1000);

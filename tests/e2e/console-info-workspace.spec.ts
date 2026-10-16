@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootIntoGame, focusInfoZone, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * THE INFORMATION WORKSPACE (Y) — the overlay workspace probe.
@@ -341,11 +341,11 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__zone--vp.con-info__zone--focused')).toHaveCount(1);
 
       // ── 4 · CAPABILITY FALLBACK: «Действия» is human-only ───────────
-      // The ring is the ONE way in now: vp → played → actions, then A.
-      await key(page, 'ArrowRight', 400);
-      await key(page, 'ArrowRight', 400);
+      // The ring is the ONE way in now — the dossier's two tiers put «Действия»
+      // under the heroes, so the driver walks the zones' geometry, then A.
+      expect(await focusInfoZone(page, 'actions'), 'the ring reaches «Действия»').toBe(true);
       await key(page, 'Enter', 800); // A on the focused «Действия» zone
-      await expect(workspace.locator('.con-info__acrow, .con-info__empty--big').first()).toBeVisible();
+      await expect(workspace.locator('.con-dgal__tile, .con-dgal__void').first()).toBeVisible();
       await expect(crumbStage(page)).toHaveText(/Действия/i);
       await cycleTo(page, 'bot');
       // The route KEPT: the crumb still names the place, the zone presents
@@ -356,19 +356,17 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '04-fallback-bot');
       await cycleTo(page, 'human');
       await expect(workspace.locator('.con-info__na'), 'the human serves the route again').toHaveCount(0);
-      await expect(workspace.locator('.con-info__acrow, .con-info__empty--big').first()).toBeVisible();
+      await expect(workspace.locator('.con-dgal__tile, .con-dgal__void').first()).toBeVisible();
       await key(page, 'Escape', 700);
 
       // ── 5 · «ЭКРАН БОТА»: the bot's DOOR ZONE opens the hub (a ring
       // stop like every other — the dedicated R3 shortcut is retired), and
       // the printed board is one A deeper. ──────────────────────────────
       await cycleTo(page, 'bot');
-      // The seat switch normalized the stranded «Действия» focus onto the
-      // ring's first stop (the satellite); walk to the door: → vp → played
-      // → botdoor.
-      await key(page, 'ArrowRight', 400);
-      await key(page, 'ArrowRight', 400);
-      await key(page, 'ArrowRight', 400);
+      // The seat switch normalized the stranded «Действия» focus; walk to
+      // the door by the zones' geometry (the bot's door is a plate under
+      // the heroes).
+      expect(await focusInfoZone(page, 'botdoor'), 'the ring reaches the bot door').toBe(true);
       await expect(workspace.locator('[data-zone="botdoor"].con-info__zone--focused')).toHaveCount(1);
       await key(page, 'Enter', 900); // A on the door → the internals hub
       await expect(workspace.locator('.con-botscr__entry')).toHaveCount(2);
@@ -387,8 +385,9 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
 
       // ── 6 · «Разыграно» → the SAME premium embedded table for the bot
-      // (B from the hub landed the ring on the door — one step left). ───
-      await key(page, 'ArrowLeft', 400);
+      // (B from the hub landed the ring on the door — «Разыграно» is the
+      // hero over it). ─────────────────────────────────────────────────
+      expect(await focusInfoZone(page, 'played'), 'the ring reaches «Разыграно»').toBe(true);
       await expect(workspace.locator('[data-zone="played"].con-info__zone--focused')).toHaveCount(1);
       await key(page, 'Enter', 900);
       const embeddedBot = page.locator('.con-info .con-played--embedded');

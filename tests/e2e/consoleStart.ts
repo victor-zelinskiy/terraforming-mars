@@ -2021,10 +2021,16 @@ async function infoSummaryUp(page: Page): Promise<void> {
  *
  * The stops are DATA, never a hop count: the satellite disappears for a seat
  * with no extra-resource sources (`infoZoneFocusable`), the human-only pair is
- * absent on the bot, and a campaign mission adds one — so the walk reads the
- * focused stop and turns around at the wall ({@link walkFocusUntil}) instead of
- * counting ArrowRights. The satellite is rail chrome and carries no
- * `[data-zone]`, so its own focused marker (`.con-res-aux--focused`) names it.
+ * absent on the bot, a parliament or a campaign adds a plate — so the walk never
+ * counts presses. ⚠️ THE SUMMARY IS A DOSSIER OF TWO TIERS (TR60 — the heroes
+ * over the plates, `infoRoute.INFO_SUMMARY_TIERS`): a vertical press crosses to
+ * the zone standing NEAREST under / over the focused one, so a memorised key
+ * sequence lands wherever the table's composition puts it. The walk reads the
+ * zones' own GEOMETRY instead: each step goes toward the target's centre on the
+ * dominant axis first, the other axis when that one does not move, and any move
+ * that moves at all when neither does. The satellite is rail chrome and carries
+ * no `[data-zone]`, so its own focused marker (`.con-res-aux--focused`) and its
+ * column's box name it.
  */
 export async function focusInfoZone(page: Page, zone: string): Promise<boolean> {
   const at = async () => await page.evaluate(() => {
@@ -2033,42 +2039,41 @@ export async function focusInfoZone(page: Page, zone: string): Promise<boolean> 
     }
     return document.querySelector('.con-info__zone--focused')?.getAttribute('data-zone') ?? '';
   });
-  const hit = async () => await at() === zone;
-  // ⚠️ THE SUMMARY RING IS A GRID, NOT A LINE (`infoRoute.infoZoneNavigate`: ◀ ▶ move between
-  // COLUMNS, ▲ ▼ within one), so `walkFocusUntil` — a 1-D primitive — can only ever reach the FIRST
-  // focusable row of each column. That was invisible while the only deep stop was the bot's
-  // `botdoor` (alone in its column for a BOT seat); «Эффекты», «ПАРЛАМЕНТ» and «Кампания» sit under
-  // «Действия» in the HUMAN column and were unreachable by a horizontal walk, which reports the
-  // CONSEQUENCE («the ring never reached it») rather than the cause. Sweep both axes: climb to the
-  // column's top, walk it down, then step sideways and turn around at the wall.
-  const step = async (key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): Promise<boolean> => {
-    const before = await at();
-    await press(page, key, 360);
-    return await at() !== before;
-  };
-  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
-  for (let column = 0; column < 10; column++) {
-    for (let up = 0; up < 5 && !await hit(); up++) {
-      if (!await step('ArrowUp')) {
-        break;
-      }
-    }
-    for (let down = 0; down < 6 && !await hit(); down++) {
-      if (!await step('ArrowDown')) {
-        break;
-      }
-    }
-    if (await hit()) {
+  for (let i = 0; i < 16; i++) {
+    const from = await at();
+    if (from === zone) {
       return true;
     }
-    if (!await step(dir)) {
-      dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
-      if (!await step(dir)) {
+    const order = await page.evaluate(([a, b]) => {
+      const rectOf = (z: string) => (z === 'extras' ?
+        document.querySelector('.con-res-aux') :
+        document.querySelector(`.con-info [data-zone="${z}"]`))?.getBoundingClientRect();
+      const ra = rectOf(a);
+      const rb = rectOf(b);
+      const all = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
+      if (ra === undefined || rb === undefined) {
+        return all;
+      }
+      const dx = (rb.left + rb.width / 2) - (ra.left + ra.width / 2);
+      const dy = (rb.top + rb.height / 2) - (ra.top + ra.height / 2);
+      const h = dx >= 0 ? 'ArrowRight' : 'ArrowLeft';
+      const v = dy >= 0 ? 'ArrowDown' : 'ArrowUp';
+      const first = Math.abs(dy) > Math.abs(dx) ? [v, h] : [h, v];
+      return [...first, ...all.filter((k) => !first.includes(k))];
+    }, [from, zone] as const);
+    let moved = false;
+    for (const key of order) {
+      await press(page, key, 360);
+      if (await at() !== from) {
+        moved = true;
         break;
       }
     }
+    if (!moved) {
+      break;
+    }
   }
-  return await hit();
+  return await at() === zone;
 }
 
 /**
@@ -2634,7 +2639,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // TR59 — the SOURCE of a payout on the viewer's own Ares tile: blue's Restricted Area (Ares) on 47, the free city cell
   // 48 beside it; red (Thorgate, 40 M€, Domed Crater in hand) on the move (`-ares`), or a solo table vs MarsBot whose
   // deck is [B05 Expedited Construction] alone and whose city lands on 48 once blue passes (`-ares-bot`).
-  'notification-source-ares' | 'notification-source-ares-bot';
+  'notification-source-ares' | 'notification-source-ares-bot' |
+  // TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ»: a SATURATED table for the Information workspace — blue's 19 cards (eight actions in
+  // three states, every effect family, events, automated), a milestone, an award, delegates; red's score hidden.
+  'info-dossier';
 
 export async function bootFixture(
   page: Page,

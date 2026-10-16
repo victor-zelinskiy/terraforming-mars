@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, playCardFromHand, press, pressUntil, settle, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootIntoGame, focusInfoZone, playCardFromHand, press, pressUntil, settle, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * THE EFFECTS EXPLORER — the Information workspace's «Эффекты» vertical:
@@ -85,15 +85,7 @@ async function openInfo(page: Page): Promise<void> {
 /** Walk the summary ring onto the effects zone (positive witness, never a
  *  memorised key sequence — the ring's shape depends on the seat). */
 async function focusEffectsZone(page: Page): Promise<void> {
-  const focused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-  const moves = ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown'];
-  for (const move of moves) {
-    if (await focused() > 0) {
-      return;
-    }
-    await press(page, move, 300);
-  }
-  expect(await focused(), 'the ring must reach the effects zone').toBeGreaterThan(0);
+  expect(await focusInfoZone(page, 'effects'), 'the ring must reach the effects zone').toBe(true);
 }
 
 async function openExplorer(page: Page): Promise<void> {
@@ -151,15 +143,14 @@ for (const preset of PRESETS) {
       await openInfo(page);
       const zone = effectsZone(page);
       await expect(zone).toHaveCount(1);
-      // Triggers: Rover Construction + Olympus Conference + CN#0 = 3.
-      const triggersRow = zone.locator('.con-info__stat-line', {has: page.locator('.con-info__efam-dot--triggers')});
-      await expect(triggersRow.locator('b')).toHaveText('3');
+      // Triggers: Rover Construction + Olympus Conference + CN#0 = 3 — the
+      // family's medallion carries its count as its badge (the TR60 dossier).
+      await expect(zone.locator('[data-dossier-effect="triggers"] .con-deff__count')).toHaveText('3');
       // Spending power: CN#1 = 1 (the per-effect counting this rework exists for).
-      const payRow = zone.locator('.con-info__stat-line', {has: page.locator('.con-info__efam-dot--payValue')});
-      await expect(payRow.locator('b')).toHaveText('1');
+      await expect(zone.locator('[data-dossier-effect="payValue"] .con-deff__count')).toHaveText('1');
       // The whole-game line arrives WITH the stats (async — poll the locator);
       // CN + Olympus Conference both genuinely fired during the material plays.
-      await expect(zone.locator('.con-info__efam-note'), 'the stats line lands once /effect-stats answers')
+      await expect(zone.locator('.con-deffs__note'), 'the stats line lands once /effect-stats answers')
         .toContainText('Срабатываний', {timeout: 25_000});
       await shoot(page, preset, '1-summary-zone');
 

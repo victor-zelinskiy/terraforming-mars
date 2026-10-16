@@ -2229,6 +2229,7 @@ import {
 import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer} from '@/client/console/infoModeState';
 import {extrasExplorerUi, resetExtrasExplorer, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
 import {effectsExplorerLayer, resetEffectsExplorer} from '@/client/console/consoleEffectsExplorer';
+import {resetInfoActions} from '@/client/console/infoActionsUi';
 import {resetEffectStats} from '@/client/console/effectStatsStore';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
 import {marsBotExtrasContext, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
@@ -14477,6 +14478,7 @@ export default defineComponent({
       resetScoreExplorer(); // a fresh visit never resumes a stale VP cursor
       resetExtrasExplorer(); // …nor a stale extras type/card cursor
       resetEffectsExplorer(); // …nor a stale effects cursor / open detail
+      resetInfoActions(); // …nor a stale «Действия» cursor (TR60)
       openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
     },
     /** after-leave of the workspace's dismiss transition — release the
@@ -14707,6 +14709,29 @@ export default defineComponent({
             intent.kind === 'press' && consoleActionOf(intent) === 'back') {
           this.infoBack();
         }
+        return;
+      }
+      // THE «ДЕЙСТВИЯ» GALLERY (TR60): the «Действия карт» tiles read-only —
+      // the d-pad walks the cards (the page follows the cursor), X / A open
+      // the face. Global chords stay global: Y closes, LB/RB switch the
+      // seat, B returns to the summary with the ring on the zone.
+      if (this.infoModeState.route === 'actions' && infoRouteApplies('actions', this.infoViewedKind())) {
+        if (intent.kind === 'press') {
+          const action = consoleActionOf(intent);
+          if (action === 'fullscreen') {
+            this.toggleInfoMode();
+            return;
+          }
+          if (action === 'prevSection' || action === 'nextSection') {
+            this.cycleInspectedPlayer(action === 'prevSection' ? -1 : 1);
+            return;
+          }
+          if (action === 'back') {
+            this.infoBack();
+            return;
+          }
+        }
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleActionsIntent(intent);
         return;
       }
       // THE EFFECTS EXPLORER: the grid owns nav, A (descend into the effect

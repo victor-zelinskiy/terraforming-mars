@@ -17397,6 +17397,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--you { background: fade(@con-cyan, 15%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 60%); color: @con-cyan; }
         &--turn { background: fade(@con-mint, 14%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%); color: @con-mint; }
         &--passed { background: rgba(120, 140, 160, 0.14); box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.4); color: @con-text-dim; }
+        /* Another seat's dossier: a hollow, DASHED chip — the shape says «a read, not yours» with no colour needed. */
+        &--readonly { background: transparent; outline: .07rem dashed rgba(150, 175, 205, 0.55); outline-offset: -.07rem; color: @con-text-dim; text-transform: none; letter-spacing: .02rem; }
     }
     &__corp { color: @con-text-dim; font-size: 1.05rem; }
 
@@ -17410,27 +17412,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-height: 0;
         .con-scrollbars();
     }
-    /* THE PARTICIPANT SUMMARY — ONE canonical layout for EVERY participant:
-       three calm columns (score story · card story · extras + the
-       human-only pair). The SHARED zones sit at the same coordinates for a
-       human and the bot; the human-only pair renders after them, so its
-       absence never shifts the shared geometry. Fixed comfortable widths —
-       leftover workspace width stays as breathing room, never stretched
-       rows. */
+    /* THE PARTICIPANT SUMMARY — ONE canonical layout for EVERY participant: the DOSSIER (TR60,
+       `console_info_dossier.less`) — two tiers over the whole opening, every zone its objects at the scene's
+       scale. The SHARED zones (the score, the card history) sit at the same coordinates for a human and the bot. */
     &__layout {
         flex: 1;
         min-height: 0;
-        display: flex;
-        align-items: flex-start;
-        gap: .8rem;
-    }
-    &__col {
-        flex: 1 1 0;
-        min-width: 0;
-        max-width: 24rem;
-        display: flex;
-        flex-direction: column;
-        gap: .7rem;
     }
     &__block {
         padding: .7rem .9rem;
@@ -17441,18 +17428,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     /* A summary ZONE — the focus ring's stop. Same chassis as a block; the
        ring is functional state on box-shadow (paint-baseline safe), and it
        exists only where A can actually go (`--focusable`). */
+    /* The cursor is the ONE grammar (TR58, TR60's migration): the ring, its halo and the focused glass are a LAYER
+       of the zone carried by `.con-cursor()` — only its opacity moves, on the cursor's own clock; the zone never
+       repaints its own background or shadow for the cursor. */
     &__zone {
+        position: relative;
         padding: .7rem .9rem;
         border-radius: .5rem;
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
-            background-color calc(160ms * var(--motion-scale, 1)) ease;
+        .con-cursor(inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 .3rem 1.2rem rgba(0, 0, 0, 0.35); @bg: rgba(40, 70, 100, 0.18));
     }
     &__zone--focused {
-        background: rgba(18, 30, 44, 0.78);
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
-            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
+        .con-cursor-on();
     }
     /* No per-zone button badges: every zone opens through the ring + A,
        the ONE bottom bar carries the contextual hint (extras rework). */
@@ -17600,7 +17588,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        The blocks cap at a comfortable line and the leftover width stays
        breathing room (the summary columns' own rule). The extras explorer
        and the embedded table keep the full stage. */
-    &__detail-scroll > :is(.con-info__block, .con-info__acrow) {
+    &__detail-scroll > .con-info__block {
         max-width: 64rem;
         width: 100%;
     }
@@ -17699,36 +17687,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__parl-yield { margin-top: .3rem; }
     &__parl-nothing { display: inline-block; margin-top: .25rem; font-size: .72rem; color: fade(@con-text, 60%); }
 
-    &__acrow {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        padding: .5rem .7rem;
-        border-radius: .4rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        font-size: 1.05rem;
-
-        &--ok { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); }
-    }
-    &__acrow-state { width: 1.1rem; text-align: center; color: @con-mint; }
-    &__acrow-badge {
-        margin-left: auto;
-        padding: .1rem .6rem;
-        border-radius: 49.95rem;
-        background: fade(@con-mint, 16%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
-        color: @con-mint;
-        font-size: .8rem;
-        font-weight: 700;
-    }
-    &__acrow-reason {
-        margin-left: auto;
-        color: @con-amber;
-        font-size: .85rem;
-        max-width: 44%;
-        text-align: right;
-    }
     /* (`__effects` is gone — the effects route hosts ConsoleEffectsExplorer
        in `__efxhost`; the desktop-era EffectBlock grid left with it.) */
     /* ── CAPABILITY FALLBACK — «Не применимо»: the route survived a seat
@@ -19126,17 +19084,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         }
     }
 
-    /* The hidden-VP contract at the SAME depth. */
+    /* The hidden-VP contract at the SAME depth: the dossier's SEALED cell, at the scene's scale (TR60). */
     &__hidden {
         flex: 1;
+        min-height: 0;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: .5rem;
-        color: @con-text-dim;
+        padding: 2rem 3rem;
+        > .con-dsealed { flex: 0 1 64rem; max-height: 30rem; }
     }
-    &__hidden-mark { font-size: 1.6rem; letter-spacing: .3rem; }
 }
 
 /* ── «ЭКРАН БОТА» chrome — the hub's focusable deep entries. ────────── */
@@ -31259,6 +31216,39 @@ html.console-mode {
     &-name { font-size: 1.05rem; font-weight: 700; color: @con-text; }
 }
 
+/* THE SLOT-ANATOMY TOKENS of the «Действия карт» tile — ONE definition for every host of the tile (TR60, decision 6a:
+   the acting workspace and the Information zone's read-only gallery render ONE component, so they stand on ONE geometry).
+   Profiles override them through the same door (`.con-act-slot-tokens-tv()` in console_tv.less). */
+.con-act-slot-tokens() {
+    --act-head-h: .95rem;    /* the service row (variant way-finder / verdict) */
+    --act-canvas-h: 3rem;    /* the action graphic's fixed stage — HEIGHT */
+    --act-canvas-w: 9.2rem;  /* …and WIDTH: one stage for every formula */
+    /* ── THE CAPTION'S LENGTH LADDER — three (SIZE, LINES) pairs, picked by
+       the LOCALIZED text volume (`ConsoleCardActions.descTier` — the same
+       principle as the rules panel's reading tiers, and for the same reason:
+       one size for every length is the size the LONGEST text needs, and on the
+       couch profile that left seven in ten actions whispering).
+       The body row is a layout constant (--act-canvas-h) the «или» joint
+       anchors to, so a tier may spend the room but may never ask for more:
+       EVERY pair must satisfy `lines × size × --act-desc-lh ≤ --act-canvas-h`
+       (checked beside each declaration). A shorter rule buys a bigger face,
+       a longer one buys the third line — the box never moves either way.
+       Profiles own the VALUES; the tier classes only resolve which pair. */
+    --act-desc-lh: 1.25;
+    --act-desc-fs-brief: .95rem;  --act-desc-lines-brief: 2;  /* 2×19  ×1.25 = 47.5 ≤ 60 */
+    --act-desc-fs-reg: .82rem;    --act-desc-lines-reg: 2;    /* 2×16.4×1.25 = 41.0 ≤ 60 */
+    --act-desc-fs-dense: .72rem;  --act-desc-lines-dense: 3;  /* 3×14.4×1.25 = 54.0 ≤ 60 */
+    /* The resolved pair. Defaults to the DENSEST tier, so a caption that ever
+       renders without its tier class degrades to the safe rendering (the full
+       three lines) instead of to a one-line clamp. */
+    --act-desc-fs: var(--act-desc-fs-dense);
+    --act-desc-lines: var(--act-desc-lines-dense);
+    --act-meta-h: .95rem;    /* the diagnostics strip (validation / next step) */
+    --act-pad-t: .3rem;      /* the slot's top padding */
+    --act-gap: .22rem;       /* the slot's inner zone gap */
+    --act-pair-gap: 1.1rem;  /* the seam channel between two alternatives */
+}
+
 .con-cardactions {
     /* THE ACTION WORKSPACE — an absolute child of `.con-main` (the
        information-workspace seam geometry, `.con-info`'s twin): everything
@@ -31484,33 +31474,8 @@ html.console-mode {
        uses them, so every canvas sits at the same height and the «или» joint
        can anchor to the canvas' true centre by pure arithmetic. Profiles
        override the TOKENS, never a per-zone constant. ── */
-    --act-head-h: .95rem;    /* the service row (variant way-finder / verdict) */
-    --act-canvas-h: 3rem;    /* the action graphic's fixed stage — HEIGHT */
-    --act-canvas-w: 9.2rem;  /* …and WIDTH: one stage for every formula */
-    /* ── THE CAPTION'S LENGTH LADDER — three (SIZE, LINES) pairs, picked by
-       the LOCALIZED text volume (`ConsoleCardActions.descTier` — the same
-       principle as the rules panel's reading tiers, and for the same reason:
-       one size for every length is the size the LONGEST text needs, and on the
-       couch profile that left seven in ten actions whispering).
-       The body row is a layout constant (--act-canvas-h) the «или» joint
-       anchors to, so a tier may spend the room but may never ask for more:
-       EVERY pair must satisfy `lines × size × --act-desc-lh ≤ --act-canvas-h`
-       (checked beside each declaration). A shorter rule buys a bigger face,
-       a longer one buys the third line — the box never moves either way.
-       Profiles own the VALUES; the tier classes only resolve which pair. */
-    --act-desc-lh: 1.25;
-    --act-desc-fs-brief: .95rem;  --act-desc-lines-brief: 2;  /* 2×19  ×1.25 = 47.5 ≤ 60 */
-    --act-desc-fs-reg: .82rem;    --act-desc-lines-reg: 2;    /* 2×16.4×1.25 = 41.0 ≤ 60 */
-    --act-desc-fs-dense: .72rem;  --act-desc-lines-dense: 3;  /* 3×14.4×1.25 = 54.0 ≤ 60 */
-    /* The resolved pair. Defaults to the DENSEST tier, so a caption that ever
-       renders without its tier class degrades to the safe rendering (the full
-       three lines) instead of to a one-line clamp. */
-    --act-desc-fs: var(--act-desc-fs-dense);
-    --act-desc-lines: var(--act-desc-lines-dense);
-    --act-meta-h: .95rem;    /* the diagnostics strip (validation / next step) */
-    --act-pad-t: .3rem;      /* the slot's top padding */
-    --act-gap: .22rem;       /* the slot's inner zone gap */
-    --act-pair-gap: 1.1rem;  /* the seam channel between two alternatives */
+    /* The slot-anatomy tokens — ONE definition (`.con-act-slot-tokens()`, above): every host of the tile states them. */
+    .con-act-slot-tokens();
 
     &__group {
         position: relative;
@@ -36713,10 +36678,7 @@ html.con-profile-handheld {
            inset; re-stating the shorthand once doubled the lane). */
         &__frame { --con-info-satellite-w: 3.5rem; padding: .6rem var(--con-hud-pad-x, .8rem) .5rem; gap: .45rem; }
         &__head { padding-bottom: .4rem; }
-        /* The Deck's tighter budget: columns share the width evenly (no cap)
-           so three still fit without horizontal scroll. */
         &__layout { gap: .5rem; }
-        &__col { max-width: none; gap: .5rem; }
         &__block, &__zone { padding: .5rem .6rem; }
         &__block-title { font-size: .65rem; margin-bottom: .4rem; }
     }

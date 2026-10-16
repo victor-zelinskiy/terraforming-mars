@@ -1164,5 +1164,11 @@
     "Brief": "Кратко",
     "Only mine": "Только моё",
     "Only what changed for you, why, and on whose turn; everything else is in the log": "Только то, что изменилось у вас, почему и чей это ход. Всё остальное — в журнале.",
-    "What changed for you, why, on whose turn, and one short line of what the other player got": "Что изменилось у вас, почему, чей это ход — и одна короткая строка о том, что получил другой игрок."
+    "What changed for you, why, on whose turn, and one short line of what the other player got": "Что изменилось у вас, почему, чей это ход — и одна короткая строка о том, что получил другой игрок.",
+    "The score opens at the final scoring": "Счёт откроется в финале",
+    "The game settings keep other players' points hidden until the end": "Так задано в настройках партии: очки соперников скрыты до конца игры",
+    "Already on the table": "Уже на столе",
+    "No action cards on the table": "Карт с действием на столе нет",
+    "Not available": "Недоступно",
+    "Not used yet": "Ещё не использовано"
 }

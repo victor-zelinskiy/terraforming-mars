@@ -142,7 +142,7 @@ describe('MetalResearchReadings (RX19)', () => {
     expect(first.classes()).includes('con-pfx__item--resolution');
     expect(first.attributes('data-resolution')).eq(METAL_ID);
     expect(first.attributes('data-party')).eq(PartyName.INDUSTRIALISTS);
-    expect(first.find('.con-pfx__why b').text()).eq(law.text.name);
+    expect(first.find('.con-pfx__title').text()).eq(law.text.name);
     const formula = w.findComponent({name: 'ConsolePartyFormula'});
     expect(formula.props('renderRoot')).deep.eq(law.renderData);
   });

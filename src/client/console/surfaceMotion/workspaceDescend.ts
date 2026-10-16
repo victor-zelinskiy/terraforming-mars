@@ -275,6 +275,8 @@ export function descendUnfold(
   durationS: number,
   at: number | string = 0,
   fromRadiusPx?: number,
+  /** The opening's curve — a slow start (the default) or a door that visibly gives from its first frame (TR60's zone entry). */
+  ease = 'power3.inOut',
 ): boolean {
   const start = from === undefined ? undefined : descendSurfaceInset(surface, from, fromRadiusPx);
   if (start === undefined) {
@@ -284,7 +286,7 @@ export function descendUnfold(
     {clipPath: start, webkitClipPath: start},
     {
       clipPath: restingInset(surface), webkitClipPath: restingInset(surface),
-      duration: durationS, ease: 'power3.inOut',
+      duration: durationS, ease,
       clearProps: 'clipPath,webkitClipPath', overwrite: 'auto',
     },
     at);

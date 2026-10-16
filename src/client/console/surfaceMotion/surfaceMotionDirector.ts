@@ -600,11 +600,11 @@ function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline
   }
   if (id === 'info-mode') {
     // The dossier composes FROM the rail seam: the crumb header first, then
-    // the summary columns spread left→right (ONE layout for every
-    // participant now). Selector misses are silent no-ops (detail screens
-    // re-open with their own layout).
+    // the zones spread left→right, the heroes' tier before the plates' (ONE
+    // layout for every participant — TR60). Selector misses are silent no-ops
+    // (detail screens re-open with their own layout).
     const head = el.querySelector<HTMLElement>('.con-info__head');
-    const cols = [...el.querySelectorAll<HTMLElement>('.con-info__col')].slice(0, 8);
+    const cols = [...el.querySelectorAll<HTMLElement>('.con-dossier__zone')].slice(0, 8);
     if (head !== null) {
       tl.fromTo(head,
         {y: -6 * u, opacity: 0},

@@ -48,6 +48,25 @@ html.console-native.con-profile-tv {
     font-size: calc(20px * var(--con-ui-scale, 1)); /* keep-px: base × scale */
 }
 
+/* THE «ДЕЙСТВИЯ КАРТ» SLOT TOKENS at couch sizes (TR60 — one definition for every host of the tile). The anatomy:
+   the zoomed graphic needs a taller stage (the joint math follows the tokens automatically); the stage widens so the
+   sentence beside it reads from the sofa; THE COUCH LADDER for the caption — a short rule buys the face, a long one the
+   third line, every pair inside the unchanged 3.9rem body row (budgets beside each pair). */
+.con-act-slot-tokens-tv() {
+    --act-head-h: 1.05rem;
+    --act-canvas-h: 3.9rem;
+    --act-meta-h: 1.05rem;
+    --act-pad-t: 0.4rem;
+    --act-canvas-w: 11.5rem;
+    --act-desc-lh: 1.28;
+    --act-desc-fs-brief: var(--con-t-read);        /* 28 → 2×28×1.28 = 71.7 ≤ 78 */
+    --act-desc-lines-brief: 2;
+    --act-desc-fs-reg: var(--con-t-body);          /* 23 → 2×23×1.28 = 58.9 ≤ 78 */
+    --act-desc-lines-reg: 2;
+    --act-desc-fs-dense: var(--con-t-secondary);   /* 20 → 3×20×1.28 = 76.8 ≤ 78 */
+    --act-desc-lines-dense: 3;
+}
+
 html.con-profile-tv {
     /* ── central TV tokens ──
        THE EDGE PAD (shared token — see console.less): a small optical
@@ -1577,10 +1596,9 @@ html.con-profile-tv {
         &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.32 * var(--con-ui-scale, 1)); }
         /* The slot anatomy at couch sizes (the zoomed graphic needs a taller
            stage; the joint math follows the tokens automatically). */
-        --act-head-h: 1.05rem;
-        --act-canvas-h: 3.9rem;
-        --act-meta-h: 1.05rem;
-        --act-pad-t: 0.4rem;
+        /* The slot-anatomy tokens at couch sizes — ONE definition (`.con-act-slot-tokens-tv()`, the head of this file),
+           shared with the Information zone's read-only gallery (TR60). The values and their budgets are explained there. */
+        .con-act-slot-tokens-tv();
         /* The inspector's card THUMBNAIL — couch-readable, but bounded so the
            dossier column's tail (next-step + the X-history hint) never clips
            below the panel fold. */
@@ -1594,7 +1612,6 @@ html.con-profile-tv {
            Russian rule fits without a clamp on most actions), read from the
            sofa, and the whole grid becomes scannable WITHOUT walking the
            cursor. The stage grows with the profile; the text stays quiet. */
-        --act-canvas-w: 11.5rem;
         /* ── THE COUCH LADDER for the slot caption (console.less § the
            caption's length ladder owns the mechanism). One size for every
            length is the size the LONGEST rule needs — the caption step, 17
@@ -1608,13 +1625,6 @@ html.con-profile-tv {
            its anchor: every pair is checked against that budget below, and
            the text column (292 logical px beside the 4K canvas, measured) is
            what calibrates the tier thresholds in `actionDescTier`. */
-        --act-desc-lh: 1.28;
-        --act-desc-fs-brief: var(--con-t-read);        /* 28 → 2×28×1.28 = 71.7 ≤ 78 */
-        --act-desc-lines-brief: 2;
-        --act-desc-fs-reg: var(--con-t-body);          /* 23 → 2×23×1.28 = 58.9 ≤ 78 */
-        --act-desc-lines-reg: 2;
-        --act-desc-fs-dense: var(--con-t-secondary);   /* 20 → 3×20×1.28 = 76.8 ≤ 78 */
-        --act-desc-lines-dense: 3;
         /* Per-ACTION chips on the button, card identity on the plate. */
         &__tile-variant { font-size: var(--con-t-floor); }
         &__tile-status { font-size: var(--con-t-floor); }
@@ -1845,8 +1855,8 @@ html.con-profile-tv {
 
     /* ═══ 20 · INFORMATION WORKSPACE (Y) ══════════════════════════
        Couch pass: identity + block typography step up to the 10-foot
-       tokens; the three detail columns cap a notch wider so the freed
-       workspace width breathes instead of stretching rows. */
+       tokens; the dossier's tiers (TR60) fill the opening by their own rem
+       objects — the couch tokens carry the type. */
     .con-info {
         /* LEFT: the frame keeps the ORDINARY workspace inset — the header
            anchors to it, independent of the satellite (the old frame-wide
@@ -1865,10 +1875,8 @@ html.con-profile-tv {
             b { font-size: 1.3rem; }
         }
         &__layout { gap: 1rem; }
-        &__col { max-width: 27rem; }
         &__note { font-size: var(--con-t-caption); }
         &__empty { font-size: var(--con-t-secondary); }
-        &__acrow { font-size: var(--con-t-body); }
         &__na-title { font-size: 1.5rem; }
         &__na-body { font-size: var(--con-t-body); max-width: 30rem; }
     }

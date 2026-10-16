@@ -46,6 +46,8 @@ const MIGRATED: ReadonlyArray<{surface: string, host: string, on: string}> = [
   {surface: 'the Parliament (the voting plate)', host: '.con-parl__voting', on: '.con-parl__voting--focus'},
   {surface: 'the Parliament (a vote card)', host: '.con-parl__slot', on: '.con-parl__slot--selected'},
   {surface: 'the composers (the commit row)', host: '.con-composer__cta', on: '.con-composer__cta--focused'},
+  {surface: '«Информация» (a dossier zone, TR60)', host: '.con-info__zone', on: '.con-info__zone--focused'},
+  {surface: '«Информация» › «Действия» (a card of the gallery, TR60)', host: '.con-dgal__tile', on: '.con-dgal__tile--focused'},
 ];
 
 type Decl = {prop: string, value: string, line: number};

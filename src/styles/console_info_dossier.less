@@ -1,0 +1,1149 @@
+/* ══ THE PARTICIPANT DOSSIER (TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА») ═══════════════════════════════════════════
+   The Information summary over the WHOLE opening, in two tiers: the HEROES (the score — the screen's loudest thing —
+   and the card history) and the PLATES (actions / effects or the bot's door, the Parliament, the campaign). Every
+   zone shows its OBJECTS at the scene's scale — a face, an emblem, a token, a medallion; a number is the object's
+   badge. Objects are rem-authored (they grow with `--con-ui-scale`); the premium faces are px-authored and ride
+   `zoom × --con-ui-scale` on an INNER box (a zoomed element scales its own offsets too, so the positioned wrapper
+   never carries the zoom). Paint baseline: depth is box-shadow, state is shape + colour, motion transform/opacity.
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+.con-dossier {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+    align-items: stretch;
+
+    &__tier {
+        display: flex;
+        gap: .8rem;
+        min-height: 0;
+    }
+    &__tier--heroes { flex: 1.32 1 0; }
+    &__tier--plates { flex: 1 1 0; }
+
+    /* A zone of the dossier — the summary zone's chassis (the ring's stop) as a glass PLATE that fills its share of
+       the tier: the gradient carries the depth, the hairline the edge; the cursor's ring is the zone's own layer
+       (`.con-info__zone` — `.con-cursor()`). The card history takes the larger share of the heroes. */
+    &__zone {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: .85rem 1.1rem 1rem;
+        border-radius: .75rem;
+        background: linear-gradient(180deg, rgba(24, 37, 54, 0.82), rgba(10, 16, 26, 0.9));
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.2), inset 0 .06rem 0 rgba(190, 225, 255, 0.07), 0 .4rem 1.4rem rgba(0, 0, 0, 0.35);
+    }
+    &__zone[data-zone="played"] { flex-grow: 1.4; }
+    &__zone > .con-info__block-title {
+        flex: none;
+        margin-bottom: .5rem;
+    }
+    &__titlecount {
+        margin-left: .2rem;
+        padding: .05rem .5rem;
+        border-radius: 49.95rem;
+        background: fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        color: @con-text;
+        font-size: var(--con-t-secondary);
+        letter-spacing: 0;
+    }
+
+    /* The bot's door — its internals screen as a closed deck: three card backs and the one line of what is inside. */
+    &__door {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+    }
+    &__doorpile {
+        position: relative;
+        flex: none;
+        width: 5rem;
+        height: 7rem;
+        span {
+            position: absolute;
+            inset: 0;
+            border-radius: .45rem;
+            background: url(./assets/resources/card.webp) center / cover no-repeat, #1b2533;
+            box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.18), 0 .2rem .6rem rgba(0, 0, 0, 0.55);
+        }
+        span:nth-child(1) { transform: translate(-.6rem, .3rem) rotate(-6deg); }
+        span:nth-child(2) { transform: translate(-.2rem, .1rem) rotate(-2deg); }
+        span:nth-child(3) { transform: translate(.3rem, 0) rotate(3deg); }
+    }
+    &__door .con-info__note--door { font-size: var(--con-t-body); max-width: 22rem; }
+    &__door { gap: 2.2rem; justify-content: flex-start; padding-left: 1rem; }
+    &__pile {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__doorpile--empty span {
+        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
+        box-shadow: inset 0 0 0 .07rem rgba(150, 175, 205, 0.3);
+    }
+    &__pilecount {
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+    }
+    &__pilelabel {
+        font-size: var(--con-t-caption);
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+}
+
+/* ── THE SCORE — the shield, the total (the loudest number of the screen), the bar, the medallions ───────────── */
+.con-dscore {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+    &__shield {
+        flex: none;
+        width: 4.2rem;
+        height: 4.6rem;
+    }
+    &__totalrow.con-infovp__totalrow { margin: 0; }
+    &__total.con-infovp__total { font-size: 5rem; line-height: .9; }
+    &__unit.con-infovp__total-label { font-size: var(--con-t-section, 1.3rem); }
+    &__bar.con-infovp__bar { height: 1.1rem; margin: 0; flex: none; }
+
+    /* The medallions: ONE row across the hero (the finale's podium line) — each a disc ringed in the category's hue
+       with the category's own symbol, the value under it, the category's SHORT name (the ceremony's legend) under that. */
+    &__medals.con-infovp__legend {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(var(--dscore-cols, 6), minmax(0, 1fr));
+        align-content: center;
+        gap: 1rem .6rem;
+    }
+    &__medal.con-infovp__cat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        min-width: 0;
+        font-size: inherit;
+    }
+    &__disc {
+        position: relative;
+        width: 4.6rem;
+        height: 4.6rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.96), rgba(9, 14, 23, 0.98));
+        box-shadow: inset 0 0 0 .16rem var(--eg-c, @con-cyan), 0 .2rem .7rem rgba(0, 0, 0, 0.5);
+    }
+    /* Two classes: the sprite's own `.resource_icon` sizes it to a whole token at equal specificity. */
+    &__disc > &__glyph {
+        display: block;
+        width: 3rem;
+        height: 3rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__glyph--city { background-image: url(./assets/tiles/city.png); }
+    &__glyph--greenery { background-image: url(./assets/tiles/greenery.png); }
+    &__disc > &__glyph--mark {
+        width: 1.3rem;
+        height: 1.3rem;
+        border-radius: 50%;
+        background: var(--eg-c, @con-cyan);
+        box-shadow: 0 0 0 .3rem rgba(0, 0, 0, 0.35);
+    }
+    &__emblems {
+        display: flex;
+        align-items: center;
+    }
+    &__emblem {
+        width: 2.8rem;
+        height: 2.8rem;
+        object-fit: contain;
+        & + & { margin-left: -1.3rem; }
+    }
+    &__value {
+        margin-top: .15rem;
+        font-size: 2.5rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__label {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--con-t-caption);
+        letter-spacing: .02rem;
+        color: @con-text-dim;
+    }
+    &__medal--penalty &__value { color: #eb8f8f; }
+}
+
+/* ── THE SEALED SCORE — a cell under its seal + what is public on the table (decision 7a) ───────────────────── */
+.con-dsealed {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 1.4rem;
+
+    &__cell {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .6rem;
+        padding: 1.2rem 1rem;
+        text-align: center;
+        border-radius: .8rem;
+        background: repeating-linear-gradient(-45deg, rgba(255, 236, 200, 0.03) 0 .45rem, transparent .45rem .9rem), rgba(8, 12, 20, 0.55);
+        box-shadow: inset 0 0 0 .08rem rgba(211, 165, 87, 0.38);
+    }
+    &__seal {
+        position: relative;
+        width: 5.6rem;
+        height: 6.2rem;
+    }
+    &__shield {
+        width: 100%;
+        height: 100%;
+        opacity: .5;
+    }
+    &__lock {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 38%;
+        display: flex;
+        justify-content: center;
+        .vp-private { transform: scale(1.8); }
+    }
+    &__title {
+        font-size: var(--con-t-section, 1.3rem);
+        font-weight: 700;
+        letter-spacing: .03rem;
+        color: #ead7a8;
+    }
+    &__why {
+        max-width: 24rem;
+        font-size: var(--con-t-secondary);
+        color: @con-text-dim;
+    }
+    &__public {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .9rem;
+    }
+    &__kicker {
+        font-size: var(--con-t-caption);
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+    }
+    &__facts {
+        display: flex;
+        flex-direction: column;
+        gap: .8rem;
+    }
+    &__fact {
+        display: grid;
+        grid-template-columns: 3.6rem minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        align-items: center;
+        column-gap: .8rem;
+    }
+    &__fact > &__disc { grid-row: 1 / span 2; }
+    &__disc {
+        width: 3.4rem;
+        height: 3.4rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.96), rgba(9, 14, 23, 0.98));
+        box-shadow: inset 0 0 0 .12rem rgba(150, 175, 205, 0.4);
+    }
+    &__disc > &__glyph {
+        display: block;
+        width: 2.3rem;
+        height: 2.3rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__disc > &__glyph--none {
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.45);
+    }
+    &__emblem {
+        width: 2.1rem;
+        height: 2.1rem;
+        object-fit: contain;
+        & + & { margin-left: -1rem; }
+    }
+    &__value {
+        align-self: end;
+        font-size: 1.8rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__label {
+        align-self: start;
+        min-width: 0;
+        font-size: var(--con-t-secondary);
+        color: @con-text-dim;
+    }
+}
+
+/* ── THE CARD HISTORY — the corporation's face and the fans by type ─────────────────────────────────────────── */
+.con-dcards {
+    --dcards-corp-zoom: .76;
+    --dcards-mini-zoom: .4;
+    --dcards-mini-w: calc(320 / 20 * var(--dcards-mini-zoom) * 1rem);
+    --dcards-mini-h: calc(460 / 20 * var(--dcards-mini-zoom) * 1rem);
+    --dcards-fan-step: 1.1rem;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    gap: 1.4rem;
+
+    &__corp {
+        flex: none;
+        position: relative;
+        width: calc(320 / 20 * var(--dcards-corp-zoom) * 1rem);
+        height: calc(460 / 20 * var(--dcards-corp-zoom) * 1rem);
+    }
+    &__corpface {
+        position: absolute;
+        inset: 0;
+        border-radius: .6rem;
+        box-shadow: 0 .5rem 1.6rem rgba(0, 0, 0, 0.55);
+        > * { zoom: calc(var(--dcards-corp-zoom) * var(--con-ui-scale, 1)); }
+    }
+    &__corpface--ghost {
+        border-radius: .6rem;
+        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.28);
+        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
+    }
+    &__corpmore {
+        position: absolute;
+        right: -.7rem;
+        top: -.7rem;
+        min-width: 2.4rem;
+        height: 2.4rem;
+        padding: 0 .5rem;
+        border-radius: 1.2rem;
+        display: grid;
+        place-items: center;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #1a1405;
+        background: linear-gradient(180deg, #f2d690, #c99a43);
+        box-shadow: 0 .2rem .6rem rgba(0, 0, 0, 0.5);
+    }
+    &__stacks {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-evenly;
+        gap: 1rem;
+    }
+    &__stack {
+        flex: 0 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .7rem;
+    }
+    &__fan {
+        position: relative;
+        width: calc(var(--dcards-mini-w) + 2 * var(--dcards-fan-step));
+        height: calc(var(--dcards-mini-h) + .8rem);
+    }
+    /* One face of the fan — positioned and turned here, zoomed on its child (never both on one box). */
+    &__fanface {
+        position: absolute;
+        top: .4rem;
+        left: calc(var(--fan-i) * var(--dcards-fan-step) + (2 - (var(--fan-n) - 1)) * var(--dcards-fan-step) / 2);
+        width: var(--dcards-mini-w);
+        height: var(--dcards-mini-h);
+        transform-origin: 50% 115%;
+        transform: rotate(calc((var(--fan-i) - (var(--fan-n) - 1) / 2) * 5deg));
+        border-radius: .4rem;
+        box-shadow: 0 .3rem 1rem rgba(0, 0, 0, 0.55);
+        > * { zoom: calc(var(--dcards-mini-zoom) * var(--con-ui-scale, 1)); }
+    }
+    &__badge {
+        position: absolute;
+        right: -.4rem;
+        top: -.5rem;
+        z-index: 2;
+        min-width: 2.5rem;
+        height: 2.5rem;
+        padding: 0 .55rem;
+        border-radius: 1.25rem;
+        display: grid;
+        place-items: center;
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: @con-text;
+        background: linear-gradient(180deg, rgba(36, 52, 74, 0.98), rgba(12, 19, 30, 0.98));
+        box-shadow: inset 0 0 0 .1rem var(--dcards-c, fade(@con-cyan, 70%)), 0 .2rem .6rem rgba(0, 0, 0, 0.6);
+    }
+    &__label {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--con-t-secondary);
+        color: @con-text-dim;
+        padding-bottom: .2rem;
+        box-shadow: inset 0 -.12rem 0 var(--dcards-c, fade(@con-cyan, 60%));
+    }
+    &__more {
+        margin-left: .3rem;
+        font-style: normal;
+        color: @con-text;
+    }
+    /* Two fans or fewer take the room the third would have: bigger faces. */
+    &--few { --dcards-mini-zoom: .5; --dcards-fan-step: 1.3rem; }
+    /* Four fans or more (preludes, a CEO) share the same room: smaller faces, never an overlap. */
+    &--dense { --dcards-mini-zoom: .31; --dcards-fan-step: .85rem; }
+    &__stack--active { --dcards-c: #6fb6e8; }
+    &__stack--automated { --dcards-c: #74c27e; }
+    &__stack--events { --dcards-c: #e48c62; }
+    &__stack--prelude { --dcards-c: #d9a6cf; }
+    &__stack--ceo { --dcards-c: #b8a6e2; }
+
+    /* AN EMPTY STORY is a composed object: the fan that is not there, and the one line saying so. */
+    &__void {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .8rem;
+    }
+    &__fan--ghost { display: flex; justify-content: center; }
+    &__ghostcard {
+        position: absolute;
+        top: .4rem;
+        width: var(--dcards-mini-w);
+        height: var(--dcards-mini-h);
+        border-radius: .4rem;
+        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.28);
+        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
+        &:nth-child(1) { left: 0; transform: rotate(-5deg); }
+        &:nth-child(2) { left: var(--dcards-fan-step); }
+        &:nth-child(3) { left: calc(2 * var(--dcards-fan-step)); transform: rotate(5deg); }
+    }
+    &__voidline {
+        font-size: var(--con-t-body);
+        color: @con-text-dim;
+    }
+}
+
+/* ── THE ACTIONS PLATE — tiles: the card's art, its name, its state as a SHAPE ──────────────────────────────── */
+.con-dacts {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+
+    &__grid {
+        display: grid;
+        grid-template-columns: repeat(var(--dact-cols, 4), minmax(0, 1fr));
+        gap: .5rem;
+        align-content: start;
+    }
+    &__void {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        .con-dact { width: 7rem; flex: none; }
+    }
+    &__voidline {
+        font-size: var(--con-t-body);
+        color: @con-text-dim;
+    }
+    &__legend {
+        margin-top: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem 1.1rem;
+        font-size: var(--con-t-caption);
+        color: @con-text-dim;
+    }
+    &__count {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        b { color: @con-text; font-size: var(--con-t-secondary); }
+    }
+    &__countmark {
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 50%;
+        display: inline-grid;
+        place-items: center;
+        font-size: .8rem;
+        font-weight: 800;
+    }
+    &__count--ready &__countmark { background: @con-mint; color: #06140e; }
+    &__count--blocked &__countmark { background: @con-amber; color: #1b1004; }
+    &__count--used &__countmark { background: rgba(150, 175, 205, 0.7); color: #0b121c; }
+    &__count--idle &__countmark { box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.7); color: rgba(150, 175, 205, 0.9); }
+}
+.con-dact {
+    position: relative;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: .45rem;
+    overflow: hidden;
+    background: rgba(7, 11, 19, 0.92);
+    box-shadow: inset 0 0 0 .06rem rgba(130, 160, 195, 0.28);
+
+    &__art {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        background-color: #121b28;
+        background-size: cover;
+        background-position: center 38%;
+    }
+    &__name {
+        padding: .25rem .45rem .3rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--con-t-caption);
+        color: @con-text;
+    }
+    &__mark {
+        position: absolute;
+        top: .3rem;
+        right: .3rem;
+        z-index: 1;
+        width: 1.55rem;
+        height: 1.55rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: .82rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: 0 .1rem .35rem rgba(0, 0, 0, 0.6);
+    }
+    /* THE STATE IS A SHAPE: ▶ mint disc (can) · ✕ amber disc under a scrim (cannot) · ✓ steel disc over a sunk art
+       (done) · ○ hollow ring (another seat's, not used). Colour is the second voice. */
+    &--ready { box-shadow: inset 0 0 0 .08rem fade(@con-mint, 70%); }
+    &--ready &__mark { background: @con-mint; color: #06140e; }
+    &--blocked &__art::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.55) 0 .35rem, rgba(0, 0, 0, 0.38) .35rem .7rem);
+    }
+    &--blocked &__mark { background: @con-amber; color: #1b1004; }
+    &--blocked &__name { color: fade(@con-text, 75%); }
+    &--used &__art { opacity: .38; }
+    &--used &__mark { background: rgba(150, 175, 205, 0.85); color: #0b121c; }
+    &--used &__name { color: @con-text-dim; }
+    &--idle &__mark { background: rgba(8, 12, 20, 0.75); box-shadow: inset 0 0 0 .1rem rgba(170, 195, 225, 0.75); color: rgba(190, 210, 235, 0.95); }
+    &--more {
+        align-items: center;
+        justify-content: center;
+        background: rgba(12, 18, 28, 0.85);
+    }
+    &__morenum {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: @con-text;
+    }
+    &--ghost {
+        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .45rem, transparent .45rem .9rem);
+        box-shadow: inset 0 0 0 .07rem rgba(150, 175, 205, 0.28);
+        .con-dact__art { background: none; }
+    }
+}
+
+/* ── THE EFFECTS PLATE — families as medallions, the cards as coins ─────────────────────────────────────────── */
+.con-deffs {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+
+    &__families {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .7rem .9rem;
+    }
+    &__void {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+    }
+    &__voidline {
+        margin-left: .4rem;
+        font-size: var(--con-t-body);
+        color: @con-text-dim;
+    }
+    &__cards {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    &__coin {
+        width: 3.1rem;
+        height: 3.1rem;
+        border-radius: .55rem;
+        background-color: #121b28;
+        background-size: cover;
+        background-position: center 38%;
+        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.16), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+    }
+    &__coinmore {
+        font-size: var(--con-t-secondary);
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__note {
+        font-size: var(--con-t-caption);
+        color: fade(@con-mint, 85%);
+        font-variant-numeric: tabular-nums;
+    }
+}
+.con-deff {
+    --deff-c: fade(@con-mint, 90%);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: .65rem;
+    align-items: center;
+    min-width: 0;
+
+    &--discounts { --deff-c: fade(@con-cyan, 90%); }
+    &--payValue { --deff-c: fade(@con-amber, 90%); }
+    &--rules { --deff-c: rgba(160, 185, 215, 0.85); }
+    &--armed { --deff-c: #ecd08a; }
+
+    &__disc {
+        grid-row: 1 / span 2;
+        width: 2.9rem;
+        height: 2.9rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.96), rgba(9, 14, 23, 0.98));
+        box-shadow: inset 0 0 0 .13rem var(--deff-c), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+    }
+    &__disc--ghost {
+        background: none;
+        box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.3);
+    }
+    &__glyph {
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1;
+        color: var(--deff-c);
+    }
+    &__count {
+        align-self: end;
+        font-size: 1.6rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-text;
+    }
+    &__label {
+        align-self: start;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--con-t-caption);
+        color: @con-text-dim;
+    }
+}
+
+/* ── THE PARLIAMENT PLATE — influence, the career ladder, the delegates as tokens ───────────────────────────── */
+.con-dparl {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+
+    &__absent {
+        font-size: var(--con-t-body);
+        color: @con-text-dim;
+    }
+    &__lead {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+    }
+    &__inf {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__inficon {
+        width: 2.5rem;
+        height: 2.5rem;
+        background: url(./assets/misc/influence.png) center / contain no-repeat;
+    }
+    &__infval {
+        font-size: 2.4rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @con-mint;
+        font-variant-numeric: tabular-nums;
+    }
+    &__inflabel {
+        font-size: var(--con-t-secondary);
+        color: @con-text-dim;
+    }
+    &__chair {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: var(--con-t-caption);
+        color: #ead7a8;
+    }
+    &__chairicon { width: 1.9rem; height: 1.9rem; object-fit: contain; }
+    &__career {
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+    }
+    &__kicker {
+        font-size: var(--con-t-caption);
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+        b { color: @con-text; letter-spacing: 0; }
+    }
+    &__ladder {
+        display: flex;
+        gap: .22rem;
+    }
+    &__pip {
+        flex: 1 1 0;
+        height: 1.35rem;
+        border-radius: .3rem;
+        display: grid;
+        place-items: center;
+        background: rgba(120, 150, 180, 0.16);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.22);
+    }
+    &__pip--passed { background: fade(@con-mint, 38%); box-shadow: none; }
+    &__pip--here { background: @con-mint; box-shadow: 0 0 0 .1rem fade(@con-mint, 45%); }
+    &__pip--next { background: rgba(236, 208, 138, 0.18); box-shadow: inset 0 0 0 .1rem #ecd08a; }
+    &__pip > &__nexticon {
+        display: block;
+        width: 1.05rem;
+        height: 1.05rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__nexticon--influence { background-image: url(./assets/misc/influence.png); }
+    &__delegates {
+        margin-top: auto;
+        display: flex;
+        /* The sockets stand on ONE line whatever their captions do (a long caption may take two lines under its own token). */
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: .6rem 1.1rem;
+    }
+    &__token {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .3rem;
+    }
+    &__socket {
+        min-height: 2.6rem;
+        padding: 0 .55rem;
+        border-radius: .6rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        background: rgba(8, 12, 20, 0.8);
+        box-shadow: inset 0 0 0 .06rem rgba(130, 160, 195, 0.32);
+    }
+    &__token--empty &__socket {
+        min-width: 2.6rem;
+        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 0 .3rem, transparent .3rem .6rem);
+        box-shadow: inset 0 0 0 .07rem rgba(150, 175, 205, 0.35);
+    }
+    &__times {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__times--none { color: @con-text-dim; }
+    &__slot {
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+    }
+    &__emblem { width: 1.8rem; height: 1.8rem; object-fit: contain; }
+    &__leadmark { font-size: var(--con-t-secondary); font-weight: 800; color: @con-mint; }
+    &__tokenlabel {
+        font-size: var(--con-t-caption);
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+}
+
+/* ── «ЗОНА РАСКРЫВАЕТСЯ ИЗ ПЛИТКИ» — a detail arrives AS its zone's glass plate (same gradient, same edge), unfolds
+   to the whole room under the clip, and the plate dissolves under the rows that rose inside it; B is the reverse.
+   The plate is the host's own `::before` under its content (`isolation` keeps the −1 inside the host). ──────── */
+.con-info__unfolding {
+    position: relative;
+    isolation: isolate;
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: .75rem;
+        background: linear-gradient(180deg, rgba(24, 37, 54, 0.82), rgba(10, 16, 26, 0.9));
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.2), inset 0 .06rem 0 rgba(190, 225, 255, 0.07);
+        opacity: var(--con-unfold-plate, 1);
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+    }
+}
+
+/* ── «ДЕЙСТВИЯ» IN DEPTH — the «Действия карт» tiles, read-only, in strict pages (TR60, decision 6a) ──────────── */
+.con-info__dgalhost {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+.con-dgal {
+    /* The tile's anatomy is the acting workspace's own — ONE set of tokens for every host of the tile. */
+    .con-act-slot-tokens();
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+
+    &__page {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(var(--dgal-cols, 3), minmax(0, 1fr));
+        grid-auto-flow: row dense;
+        align-content: start;
+        gap: .9rem 1rem;
+    }
+    /* One card's group — the cursor stands on it in the ONE cursor grammar (TR58); a card with two variants takes
+       two columns, as it does in the acting workspace (its slots never squeeze). */
+    &__tile {
+        position: relative;
+        min-width: 0;
+        border-radius: .6rem;
+        .con-cursor(0 0 0 var(--con-focus-ring, .14rem) fade(@con-cyan, 85%), 0 .4rem 1.4rem rgba(0, 0, 0, 0.45); @radius: .6rem);
+    }
+    &__tile--wide { grid-column: span 2; }
+    /* A few cards stand centred at a scene's scale (`sparse` — one page of at most two rows). */
+    &--sparse &__page {
+        grid-template-columns: repeat(var(--dgal-cols, 3), minmax(0, 40rem));
+        justify-content: center;
+        align-content: center;
+        gap: 1.4rem 1.6rem;
+    }
+    &--sparse &__tile > .con-cardactions__group { zoom: var(--dgal-zoom, 1); }
+    &__tile--focused { .con-cursor-on(); }
+    &__tile > .con-cardactions__group { height: 100%; }
+    &__legend {
+        flex: none;
+        margin-top: 0;
+        align-items: center;
+    }
+    &__pager {
+        margin-left: auto;
+        font-size: var(--con-t-secondary);
+        font-weight: 700;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__void {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.1rem;
+    }
+    &__ghost {
+        display: flex;
+        gap: .9rem;
+        span {
+            width: 14rem;
+            height: 6.5rem;
+            border-radius: .6rem;
+            background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
+            box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.28);
+        }
+    }
+    &__voidline {
+        font-size: var(--con-t-body);
+        color: @con-text-dim;
+    }
+}
+html.con-profile-tv .con-dgal { .con-act-slot-tokens-tv(); }
+
+/* ── THE HANDHELD — the same dossier in a 7-inch frame: the history's faces and the parliament's tokens step down so
+   every plate holds its objects whole (the overview never scrolls, on the Deck either). ──────────────────────────── */
+html.con-profile-handheld {
+    .con-dcards { --dcards-corp-zoom: .5; --dcards-mini-zoom: .28; --dcards-fan-step: .75rem; gap: .8rem; }
+    .con-dcards--few { --dcards-mini-zoom: .34; --dcards-fan-step: .9rem; }
+    .con-dcards--dense { --dcards-mini-zoom: .22; --dcards-fan-step: .6rem; }
+    .con-dparl { gap: .45rem; }
+    .con-dparl__infval { font-size: 2rem; }
+    .con-dparl__delegates { flex-wrap: nowrap; gap: .5rem .7rem; }
+    .con-dparl__socket { min-height: 2.1rem; padding: 0 .4rem; }
+    .con-dparl__token--empty .con-dparl__socket { min-width: 2.1rem; }
+    .con-dparl__emblem { width: 1.4rem; height: 1.4rem; }
+    .con-dparl__times { font-size: 1rem; }
+    /* The parliament in depth keeps every section; its objects step down a size. */
+    .con-iparl.con-info__parl { gap: .55rem; }
+    .con-iparl__top { gap: .55rem; }
+    .con-iparl__sec.con-info__parl-sec { padding: .5rem .7rem .6rem; }
+    .con-iparl__inficon { width: 2.2rem; height: 2.2rem; }
+    .con-iparl__infval { font-size: 2.2rem; }
+    .con-iparl__socket { min-height: 2.2rem; }
+    .con-iparl__resemblem.con-info__parl-emblem { width: 1.8rem; height: 1.8rem; }
+    .con-iparl__res.con-info__parl-row { padding: .45rem .6rem .5rem; }
+}
+/* A page turn is a phrase, never a cut: the new page slides in from the side it comes from (a keyed page plays its
+   own entry once). Reduced motion: the console's own reduced-motion sheet stills it. */
+.con-dgal__page { animation: con-dgal-page-in calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes con-dgal-page-in {
+    from { opacity: 0; transform: translateX(1.2rem); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ── «ПАРЛАМЕНТ» IN DEPTH — one seat's standing as objects (TR60, decision 9a) ──────────────────────────────── */
+.con-iparl.con-info__parl { gap: .9rem; }
+.con-iparl {
+    &__top {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2.4fr);
+        gap: .9rem;
+    }
+    &__sec.con-info__parl-sec {
+        padding: .8rem 1rem .9rem;
+        border-radius: .7rem;
+        background: linear-gradient(180deg, rgba(24, 37, 54, 0.82), rgba(10, 16, 26, 0.9));
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.2);
+    }
+    &__sec .con-info__parl-title { font-size: var(--con-t-caption); }
+    &__badge {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        margin-bottom: .5rem;
+    }
+    &__inficon {
+        width: 3rem;
+        height: 3rem;
+        background: url(./assets/misc/influence.png) center / contain no-repeat;
+    }
+    &__infval { font-size: 3rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    &__sum.con-info__parl-sum { font-size: var(--con-t-secondary); }
+    &__sumtotal { font-size: 1.3rem; color: @con-mint; font-variant-numeric: tabular-nums; }
+    &__sources {
+        margin-top: .45rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem .9rem;
+        font-size: var(--con-t-caption);
+        color: @con-text-dim;
+        b { margin-left: .3rem; color: @con-text; }
+    }
+    &__step { margin-left: .4rem; color: @con-text; letter-spacing: 0; }
+    /* The track as printed: twelve rungs, each the step's own reward symbol; the marker under the seat's step. */
+    &__ladder {
+        display: flex;
+        gap: .35rem;
+        margin: .3rem 0 .5rem;
+    }
+    &__rung {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .3rem;
+    }
+    &__rungnode {
+        position: relative;
+        width: 100%;
+        max-width: 3.2rem;
+        aspect-ratio: 1;
+        border-radius: .45rem;
+        display: grid;
+        place-items: center;
+        background: rgba(120, 150, 180, 0.12);
+        box-shadow: inset 0 0 0 .06rem rgba(150, 175, 205, 0.24);
+    }
+    &__rung--passed &__rungnode { background: fade(@con-mint, 26%); box-shadow: inset 0 0 0 .06rem fade(@con-mint, 40%); }
+    &__rung--here &__rungnode { background: fade(@con-mint, 34%); box-shadow: inset 0 0 0 .14rem @con-mint, 0 0 .8rem fade(@con-mint, 35%); }
+    &__rung--next &__rungnode { background: rgba(236, 208, 138, 0.14); box-shadow: inset 0 0 0 .14rem #ecd08a; }
+    &__rung--ahead &__rungnode { opacity: .62; }
+    &__rungnode > &__rungicon {
+        display: block;
+        width: 62%;
+        height: 62%;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__rungicon--inf { background-image: url(./assets/misc/influence.png); }
+    &__runglevel {
+        position: absolute;
+        right: .15rem;
+        bottom: .05rem;
+        font-size: var(--con-t-caption);
+        font-weight: 800;
+        color: @con-text;
+    }
+    &__rungmark { height: 1.4rem; display: grid; place-items: center; }
+    &__next {
+        display: inline-flex;
+        gap: .5rem;
+        font-size: var(--con-t-secondary);
+        color: @con-text-dim;
+        b { color: #ecd08a; }
+    }
+    &__tokens {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .7rem 1.3rem;
+        align-items: flex-end;
+    }
+    &__token {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .3rem;
+    }
+    &__socket {
+        min-width: 3rem;
+        min-height: 3rem;
+        padding: 0 .65rem;
+        border-radius: .6rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        background: rgba(8, 12, 20, 0.8);
+        box-shadow: inset 0 0 0 .06rem rgba(130, 160, 195, 0.32);
+        b { font-size: 1.35rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__token--empty &__socket {
+        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 0 .3rem, transparent .3rem .6rem);
+        box-shadow: inset 0 0 0 .07rem rgba(150, 175, 205, 0.35);
+    }
+    &__tokenlabel {
+        font-size: var(--con-t-caption);
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__chair { width: 2.1rem; height: 2.1rem; object-fit: contain; }
+    &__slots {
+        margin-top: .7rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem 1.2rem;
+    }
+    &__slot.con-info__parl-slot { gap: .45rem; font-size: var(--con-t-secondary); }
+    &__slotemblem.con-info__parl-emblem { width: 2rem; height: 2rem; }
+    &__table {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+        gap: .7rem;
+    }
+    /* A resolution on the table as a TILE: its party's emblem, its name, the reading of what it pays this seat. */
+    &__res.con-info__parl-row {
+        padding: .6rem .8rem .7rem;
+        border-radius: .55rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.09);
+        & + & { border-top: 0; }
+    }
+    &__res--enacted.con-info__parl-row { box-shadow: inset 0 0 0 .07rem fade(#ecd08a, 45%); }
+    &__resemblem.con-info__parl-emblem { width: 2.4rem; height: 2.4rem; }
+    &__resname.con-info__parl-slot-name { font-size: var(--con-t-body); font-weight: 700; }
+    .con-info__parl-win, .con-info__parl-lead { font-size: var(--con-t-floor); padding: .1rem .55rem; }
+    /* The compact reading keeps its geometry; its quiet lines read at the TV floor, never under it. (Doubled block:
+       `console_influence_yield.less` is imported AFTER this file and its compact rule has the same weight.) */
+    .con-iyield.con-iyield .con-iyield__horizon,
+    .con-iyield.con-iyield .con-iyield__caption,
+    .con-iyield.con-iyield .con-iyield__who,
+    .con-iyield.con-iyield .con-iyield__upto,
+    .con-iyield.con-iyield .con-iyield__level { font-size: var(--con-t-floor); }
+    .con-info__parl-nothing { font-size: var(--con-t-caption); }
+}
+
+/* The sealed score IN DEPTH (the score explorer's level 1) — the same cell, at the room's scale. */
+.con-vpx__hidden .con-dsealed {
+    .con-dsealed__seal { width: 8rem; height: 8.8rem; }
+    .con-dsealed__lock .vp-private { transform: scale(2.6); }
+    .con-dsealed__title { font-size: 1.9rem; }
+    .con-dsealed__why { font-size: var(--con-t-body); max-width: 30rem; }
+    .con-dsealed__disc { width: 4.2rem; height: 4.2rem; }
+    .con-dsealed__value { font-size: 2.3rem; }
+    .con-dsealed__label { font-size: var(--con-t-body); }
+}

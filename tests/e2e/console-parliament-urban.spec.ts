@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, playCardFromHand, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, playCardFromHand, press, pressUntil, settle, focusInfoZone} from './consoleStart';
 import {strandedReports} from './parliamentDrive';
 
 /**
@@ -75,21 +75,15 @@ test.describe(`Urban Development · ${PRESET.id}`, () => {
       await press(page, 'KeyY', 1100);
     }
     await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
-    const effectsFocused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-    for (const move of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown']) {
-      if (await effectsFocused() > 0) {
-        break;
-      }
-      await press(page, move, 300);
-    }
-    expect(await effectsFocused(), 'the effects zone takes the focus').toBeGreaterThan(0);
+    // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
+    expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
     const strip = page.locator('.con-pfx');
     await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
     const lawRow = strip.locator('.con-pfx__item').first();
     await expect(lawRow, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
     await expect(lawRow).toHaveAttribute('data-resolution', URBAN_ID);
-    await expect(lawRow.locator('.con-pfx__why b'), 'titled by the card').toHaveText(/Городское развитие|Urban Development/i);
+    await expect(lawRow.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Городское развитие|Urban Development/i);
     // The rule is DRAWN, not left as a blank — the formula carries the card's own graphic.
     const formula = lawRow.locator('.con-pfx__formula');
     await expect(formula, 'the law states its rule in graphics').toHaveCount(1);

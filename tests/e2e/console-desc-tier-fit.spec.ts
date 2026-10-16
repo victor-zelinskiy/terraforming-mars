@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, openCardActions, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, openCardActions, press, pressUntil, settle, waitForBoardHome, focusInfoZone} from './consoleStart';
 import {ActionDescTier, actionDescTier} from '../../src/client/console/descTier';
 
 /**
@@ -119,15 +119,8 @@ async function openExplorer(page: Page): Promise<void> {
   expect(await pressUntil(page, 'KeyY', async () => await page.locator('.con-info .con-info__layout').count() > 0, {tries: 4, settleMs: 1100}),
     'the Information workspace opens on Y').toBe(true);
   await settle(page, {timeoutMs: 15_000});
-  // The effects zone sits BELOW the actions column — the ring walk needs the down arrow too (the gallery's route).
-  const effectsFocused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-  for (const move of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowDown']) {
-    if (await effectsFocused() > 0) {
-      break;
-    }
-    await press(page, move, 300);
-  }
-  expect(await effectsFocused(), 'the effects zone takes the focus').toBeGreaterThan(0);
+  // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
+  expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
   expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx__desc').count() > 0, {tries: 3, settleMs: 1100}),
     'the effects explorer opens with its captions').toBe(true);
   await settle(page, {timeoutMs: 15_000, notifications: false});

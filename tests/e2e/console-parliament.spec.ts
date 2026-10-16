@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   bootFixture, closeZoomViewer, crumbText, fetchPlayerModel, focusCard, openCardActions, openQuickWheel, openZoomViewer, press,
-  pressUntil, reloadConsole, settle, visibleSurfaces, walkFocusUntil,
+  pressUntil, reloadConsole, settle, visibleSurfaces, walkFocusUntil, focusInfoZone,
 } from './consoleStart';
 import {focusParliamentZone} from './parliamentDrive';
 
@@ -156,14 +156,7 @@ async function openInfo(page: Page): Promise<void> {
 
 /** Walk the summary ring onto the effects zone and open the explorer (positive witness, never a memorised key sequence). */
 async function openInfoEffects(page: Page): Promise<void> {
-  const focused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-  for (const move of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown']) {
-    if (await focused() > 0) {
-      break;
-    }
-    await press(page, move, 300);
-  }
-  expect(await focused(), 'the ring must reach the effects zone').toBeGreaterThan(0);
+  expect(await focusInfoZone(page, 'effects'), 'the ring must reach the effects zone').toBe(true);
   expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}),
     'A on the effects zone must open the explorer').toBeTruthy();
 }

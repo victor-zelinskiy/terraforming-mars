@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {
   bootFixtureSeats, cinematicBeat, closeZoomViewer, commitFocusedSpace, fetchPlayerModel, press, pressUntil, settle,
-  walkToSpace,
+  walkToSpace, focusInfoZone,
 } from './consoleStart';
 
 /**
@@ -108,15 +108,8 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
       await press(page, 'KeyY', 1100);
     }
     await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
-    // The effects zone sits BELOW the actions column — the ring walk needs the down arrow (the gallery's own route).
-    const effectsFocused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-    for (const move of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown']) {
-      if (await effectsFocused() > 0) {
-        break;
-      }
-      await press(page, move, 300);
-    }
-    expect(await effectsFocused(), 'the effects zone takes the focus').toBeGreaterThan(0);
+    // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
+    expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
     const strip = page.locator('.con-pfx');
     await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
@@ -124,7 +117,7 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     await expect(law, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
     await expect(law).toHaveAttribute('data-resolution', CRAZE_ID);
     await expect(law.locator('.con-pfx__law'), 'said for what it is').toHaveText(/Принятая резолюция/i);
-    await expect(law.locator('.con-pfx__why b'), 'titled by the card').toHaveText(/Строительная лихорадка/i);
+    await expect(law.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Строительная лихорадка/i);
     await expect(law.locator('.con-pformula__mech'), 'the card\'s own printed graphic').toHaveCount(1);
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '01-effects-strip');

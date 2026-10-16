@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle, focusInfoZone,
 } from './consoleStart';
 import {answerGateAs, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
@@ -208,21 +208,15 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
       await press(page, 'KeyY', 1100);
     }
     await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
-    const effectsFocused = () => page.locator('.con-info__zone--effects.con-info__zone--focused').count();
-    for (const move of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowDown', 'ArrowDown']) {
-      if (await effectsFocused() > 0) {
-        break;
-      }
-      await press(page, move, 300);
-    }
-    expect(await effectsFocused(), 'the effects zone takes the focus').toBeGreaterThan(0);
+    // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
+    expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
     const strip = page.locator('.con-pfx');
     await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
     const law = strip.locator('.con-pfx__item').first();
     await expect(law, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
     await expect(law).toHaveAttribute('data-resolution', HEAT_ID);
-    await expect(law.locator('.con-pfx__why b'), 'titled by the card').toHaveText(/Улавливание тепла|Heat Capture/i);
+    await expect(law.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Улавливание тепла|Heat Capture/i);
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '05-effects-strip');
     for (let i = 0; i < 6 && await page.locator('.con-info, .con-efx').count() > 0; i++) {

@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {
   BOT_SCREEN_ENTRIES,
-  INFO_SUMMARY_COLUMNS,
+  INFO_SUMMARY_SATELLITE,
+  INFO_SUMMARY_TIERS,
   InfoParticipantKind,
   InfoRouteId,
   botScreenNavigate,
@@ -119,12 +120,13 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZonePresent('extras', 'bot'), 'the shared zones are present for the bot').to.be.true;
   });
 
-  it('the ring order follows the canonical columns (the satellite extras column first)', () => {
+  it('the ring order follows the dossier\'s two tiers (the satellite extras column first)', () => {
     expect(infoFocusRing('human')).to.deep.eq(['extras', 'vp', 'played', 'actions', 'effects']);
     expect(infoFocusRing('bot')).to.deep.eq(['extras', 'vp', 'played', 'botdoor']);
-    // The layout table itself keeps the geometry: the extras group IS the
-    // rail satellite — the leftmost column of the whole summary.
-    expect(INFO_SUMMARY_COLUMNS[0]).to.deep.eq(['extras']);
+    // The layout table itself keeps the geometry: the extras group IS the rail satellite — the leftmost column of
+    // the whole summary; the HEROES' tier carries the shared zones for every participant, the plates' tier the rest.
+    expect(INFO_SUMMARY_SATELLITE).to.eq('extras');
+    expect(INFO_SUMMARY_TIERS[0].map((z) => z.zone)).to.deep.eq(['vp', 'played']);
   });
 
   it('the bot door is an ordinary ring stop (no dedicated button opens it)', () => {
@@ -134,21 +136,31 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZoneRoute('botdoor')).to.eq('botScreen');
   });
 
-  it('d-pad: columns move laterally, rows vertically, edges clamp (never wrap)', () => {
-    expect(infoZoneNavigate('extras', 'right', 'human')).to.eq('vp');
-    expect(infoZoneNavigate('vp', 'right', 'human')).to.eq('played');
-    expect(infoZoneNavigate('played', 'right', 'human')).to.eq('actions');
-    expect(infoZoneNavigate('actions', 'down', 'human')).to.eq('effects');
-    expect(infoZoneNavigate('effects', 'down', 'human'), 'the bottom edge clamps').to.eq('effects');
+  it('d-pad: a tier walks laterally, up / down cross to the zone standing nearest, edges clamp (never wrap)', () => {
+    const ctx = {parliament: true};
+    expect(infoZoneNavigate('extras', 'right', 'human', ctx)).to.eq('vp');
+    expect(infoZoneNavigate('vp', 'right', 'human', ctx)).to.eq('played');
+    expect(infoZoneNavigate('played', 'right', 'human', ctx), 'the heroes\' right edge clamps').to.eq('played');
+    // The score (centre ≈ .21 of the tier — weights 1 : 1.4) stands over «Действия» (≈ .17); the card history (≈ .71) over «Парламент» (≈ .83).
+    expect(infoZoneNavigate('vp', 'down', 'human', ctx)).to.eq('actions');
+    expect(infoZoneNavigate('played', 'down', 'human', ctx)).to.eq('parliament');
+    expect(infoZoneNavigate('actions', 'right', 'human', ctx)).to.eq('effects');
+    expect(infoZoneNavigate('effects', 'right', 'human', ctx)).to.eq('parliament');
+    expect(infoZoneNavigate('effects', 'up', 'human', ctx), 'the middle plate (.5) stands nearer the card history (.71) than the score (.21)').to.eq('played');
+    expect(infoZoneNavigate('actions', 'up', 'human', ctx)).to.eq('vp');
+    expect(infoZoneNavigate('effects', 'down', 'human', ctx), 'the bottom edge clamps').to.eq('effects');
+    expect(infoZoneNavigate('vp', 'up', 'human', ctx), 'the top edge clamps').to.eq('vp');
     expect(infoZoneNavigate('extras', 'left', 'human'), 'the left edge clamps').to.eq('extras');
     expect(infoZoneNavigate('vp', 'left', 'human'), 'left of the score is the satellite').to.eq('extras');
+    expect(infoZoneNavigate('actions', 'left', 'human'), 'left of the first plate is the satellite too').to.eq('extras');
     expect(infoZoneNavigate('extras', 'down', 'human'), 'the satellite is one column-wide stop').to.eq('extras');
-    expect(infoZoneNavigate('played', 'right', 'bot'), 'the bot\'s last column is its door').to.eq('botdoor');
+    expect(infoZoneNavigate('played', 'down', 'bot'), 'the bot\'s plates: its door stands under the heroes').to.eq('botdoor');
+    expect(infoZoneNavigate('vp', 'down', 'bot', ctx), 'the bot\'s parliament line is no stop — the door is').to.eq('botdoor');
   });
 
   it('a focus stranded by a seat switch lands on the first focusable zone', () => {
     // The cursor stood on «Действия» (human) and RB moved to the bot.
-    expect(infoZoneNavigate('actions', 'down', 'bot')).to.eq('extras');
+    expect(infoZoneNavigate('actions', 'down', 'bot')).to.eq('vp');
   });
 
   it('an EMPTY satellite is no ring stop — the ring skips it, nothing else changes', () => {
@@ -217,19 +229,16 @@ describe('infoRoute — the Information workspace route model', () => {
     expect(infoZoneForRoute('campaign')).to.eq('campaign');
     // The crumb tail is DYNAMIC (the overview names its nested layers).
     expect(infoRouteStagePath('campaign')).to.deep.eq([]);
-    // The d-pad reaches it inside column 3 and clamps below it (bot: the
-    // campaign zone sits between the door and the pair's absence).
-    expect(infoZoneNavigate('effects', 'down', 'human', {campaign: true})).to.eq('campaign');
-    expect(infoZoneNavigate('campaign', 'down', 'human', {campaign: true})).to.eq('campaign');
-    expect(infoZoneNavigate('campaign', 'down', 'bot', {campaign: true})).to.eq('botdoor');
+    // The d-pad reaches it at the plates' right end and clamps past it (bot: the campaign stands after its door).
+    expect(infoZoneNavigate('effects', 'right', 'human', {campaign: true})).to.eq('campaign');
+    expect(infoZoneNavigate('campaign', 'right', 'human', {campaign: true})).to.eq('campaign');
+    expect(infoZoneNavigate('campaign', 'left', 'bot', {campaign: true})).to.eq('botdoor');
   });
 
   // ── the «Карты» zone is GONE — the hand dock represents the hand ──────
   it('no summary zone without a route exists — the hand lives in the dock (dockInspection)', () => {
-    for (const column of INFO_SUMMARY_COLUMNS) {
-      for (const zone of column) {
-        expect(infoZoneRoute(zone), `${zone} must open a detail route — a pure-readout zone is a dead A`).to.not.be.undefined;
-      }
+    for (const zone of [INFO_SUMMARY_SATELLITE, ...INFO_SUMMARY_TIERS.flatMap((tier) => tier.map((z) => z.zone))]) {
+      expect(infoZoneRoute(zone), `${zone} must open a detail route — a pure-readout zone is a dead A`).to.not.be.undefined;
     }
   });
 

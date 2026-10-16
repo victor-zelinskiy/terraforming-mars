@@ -1,5 +1,5 @@
 import {expect, test} from './consoleTest';
-import {openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {focusInfoZone, openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {drive} from './consoleEndgameHarness';
 import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs} from './campaignFixtures';
 
@@ -182,12 +182,7 @@ for (const preset of PRESETS) {
       await shoot(page, 'info-summary-zone');
 
       // ── Ring → the campaign zone → A opens the overview. ─────────────────
-      for (let i = 0; i < 4; i++) {
-        await press(page, 'ArrowRight', 250);
-      }
-      for (let i = 0; i < 5 && await page.locator('.con-info__zone--campaign.con-info__zone--focused').count() === 0; i++) {
-        await press(page, 'ArrowDown', 250);
-      }
+      expect(await focusInfoZone(page, 'campaign'), 'the ring reaches the campaign zone').toBe(true);
       await expect(page.locator('.con-info__zone--campaign.con-info__zone--focused')).toHaveCount(1);
       await press(page, 'Enter', 900);
       const overview = page.locator('.con-cmpov');

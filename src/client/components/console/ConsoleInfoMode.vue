@@ -33,6 +33,9 @@
             <span v-if="isSelf" class="con-info__chip con-info__chip--you">{{ $t('You') }}</span>
             <span v-if="isSelf && myTurn" class="con-info__chip con-info__chip--turn">{{ $t('Your turn') }}</span>
             <span v-if="isPassed" class="con-info__chip con-info__chip--passed">{{ $t('passed') }}</span>
+            <!-- Another seat is a READ: the head says so once, in words and by shape (a hollow dashed chip — never a
+                 tint alone), so no zone below needs to repeat it (TR60 2.В). -->
+            <span v-if="!isSelf" class="con-info__chip con-info__chip--readonly" data-info-readonly>{{ $t('Opponent state is read-only') }}</span>
             <!-- The bot with a corporation wears it as its primary identity,
                  difficulty second: «CrediCor · Обычный». A multi-corporation
                  human (campaign lineage) NAMES the count — a single name must
@@ -53,143 +56,73 @@
                   @enter="detailZoneEnter" @leave="detailZoneLeave"
                   @enter-cancelled="detailZoneCancelled" @leave-cancelled="detailZoneCancelled">
 
-      <!-- ── THE PARTICIPANT SUMMARY — ONE canonical layout for EVERY
-           participant. The SHARED zones sit at the same coordinates for a
-           human and the bot (VP · played · extras); the human-only
-           pair (actions / effects) renders AFTER them and its absence never
-           shifts the shared geometry. The zones are a focus ring: d-pad
-           moves, A opens the focused zone's route. -->
-      <div v-if="presentation === 'summary'" key="summary" class="con-info__layout" data-insp-slide>
-
-        <!-- (The «Доп. ресурсы» zone is the RAIL SATELLITE now — the
-             persistent column beside the left rail is the ring's leftmost
-             stop; the panel renders no duplicate of it. All zones open via
-             the ring + A — the per-zone shortcut badges are GONE, the ONE
-             bottom bar carries the contextual hint.) -->
-        <!-- Col 1 — «ПОБЕДНЫЕ ОЧКИ»: the premium live score. The SAME
-             category system, order and colours as the final scoring
-             ceremony (liveScoreModel over the ceremony's own tables), so
-             live VP, endgame scoring and the finale read as one system.
-             The bot has NO opaque «Подсчёт бота» — its summands live inside
-             the shared categories (cards), exactly like the finale. -->
-        <div class="con-info__col">
-          <section class="con-info__zone con-info__zone--vp"
-                   :class="zoneStateClass('vp')" data-zone="vp">
+      <!-- ── THE PARTICIPANT DOSSIER (TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА») — ONE canonical layout for EVERY
+           participant, over the whole opening, in TWO TIERS: the HEROES (the score — the screen's loudest thing — and
+           the card history: the shared zones, at the same coordinates for a human and the bot) and the PLATES (the
+           human's actions and effects or the bot's door, the Parliament, the campaign). Every zone shows its OBJECTS at
+           the scene's scale — a face, an emblem, a token; a number is the object's badge — never label—number rows.
+           The zones are a focus ring (`infoZoneNavigate` reads the tiers' own geometry): d-pad moves, A opens the
+           focused zone's route, which unfolds OUT OF the zone's own rect (`detailZone*`). The satellite column (the
+           «Доп. ресурсы» zone) is shell chrome left of all of it. -->
+      <div v-if="presentation === 'summary'" key="summary" class="con-info__layout con-dossier" data-insp-slide data-dossier>
+        <div class="con-dossier__tier con-dossier__tier--heroes">
+          <!-- «ПОБЕДНЫЕ ОЧКИ» — the premium live score in the score cell's and the finale's language (liveScoreModel
+               over the ceremony's own tables). A hidden score is a SEALED cell with what is public on the table. -->
+          <section class="con-info__zone con-info__zone--vp con-dossier__zone con-dossier__zone--hero"
+                   :class="zoneStateClass('vp')" data-zone="vp" data-dossier-hero>
             <h3 class="con-info__block-title">{{ $t('Victory Points') }}</h3>
-            <template v-if="vpVisible">
-              <!-- data-vpx-total / data-vpx-bar / data-vpx-block are the
-                   SHARED-ELEMENT anchors of the score explorer's entry: the
-                   total and the bar fly INTO the explorer's hero on A and
-                   land back here on B (scoreExplorerMotion). -->
-              <div class="con-infovp__totalrow" data-vpx-total>
-                <span class="con-infovp__total">{{ liveScore.total }}</span>
-                <span class="con-infovp__total-label">{{ $t('VP') }}</span>
-              </div>
-              <!-- The segmented bar: one hue per category (.con-eg-cat--*),
-                   widths on the shared positive total. A penalty never draws
-                   here (it subtracts — the legend states it). -->
-              <div class="con-infovp__bar" data-vpx-bar aria-hidden="true">
-                <span v-for="seg in vpBarSegments" :key="seg.key"
-                      class="con-infovp__seg" :class="'con-eg-cat--' + seg.accent"
-                      :style="{width: seg.widthPct + '%'}"></span>
-              </div>
-              <div class="con-infovp__legend" data-vpx-block>
-                <div v-for="cat in liveScore.categories" :key="cat.key"
-                     class="con-infovp__cat" :class="['con-eg-cat--' + cat.accent, {'con-infovp__cat--zero': cat.value === 0, 'con-infovp__cat--penalty': cat.penalty}]">
-                  <i class="con-infovp__dot" aria-hidden="true"></i>
-                  <span class="con-infovp__cat-label">{{ $t(cat.label) }}</span>
-                  <b class="con-infovp__cat-value">{{ cat.value }}</b>
-                </div>
-              </div>
-            </template>
-            <div v-else class="con-info__hidden">{{ $t('Score is hidden until the end of the game') }}</div>
+            <ConsoleDossierScore v-if="vpVisible" :liveScore="liveScore" :medallions="dossierMedallions" :segments="vpBarSegments" />
+            <ConsoleDossierSealed v-else :facts="sealedFacts" />
           </section>
-        </div>
-
-        <!-- Col 2 — the card story: what was PLAYED. What remains to play is
-             NOT a panel any more — the HAND DOCK below IS the inspected
-             seat's hand for the workspace's whole lifetime (the closed fan +
-             exact count for another human / the bot's action deck, the real
-             pack for the viewer) — one physical representation, never a
-             duplicated readout. -->
-        <div class="con-info__col">
-          <section class="con-info__zone con-info__zone--played"
+          <!-- «РАЗЫГРАННЫЕ КАРТЫ» — the card story as the cards themselves (the played table's own grouping). What
+               remains to play is NOT a panel: the HAND DOCK below IS the inspected seat's hand. -->
+          <section class="con-info__zone con-info__zone--played con-dossier__zone"
                    :class="zoneStateClass('played')" data-zone="played">
-            <h3 class="con-info__block-title">{{ $t('Played cards') }}</h3>
-            <template v-if="playedSummary.total > 0">
-              <div class="con-info__stat-lines">
-                <div class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b class="con-info__mint">{{ playedSummary.total }}</b></div>
-                <div v-for="r in playedSummary.rows" :key="r.key" class="con-info__stat-line">
-                  <span class="con-info__pcat"><i class="con-info__pcat-dot" :class="'con-info__pcat-dot--' + r.key" aria-hidden="true"></i>{{ $t(r.label) }}</span>
-                  <b>{{ r.count }}</b>
-                </div>
-              </div>
-            </template>
-            <div v-else class="con-info__empty">{{ $t('No cards played yet') }}</div>
+            <h3 class="con-info__block-title">{{ $t('Played cards') }}<b v-if="cardHistory.total > 0" class="con-dossier__titlecount">{{ cardHistory.total }}</b></h3>
+            <ConsoleDossierCards :history="cardHistory" :tableau="viewed.tableau" :botCorp="viewedIsBot ? botAutoma?.corporation : undefined" />
           </section>
         </div>
 
-        <!-- Col 3 — the human-only pair / the bot's internals door. All of
-             them ordinary ring stops now (A opens; no dedicated buttons). -->
-        <div class="con-info__col">
-          <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--actions"
-                   :class="zoneStateClass('actions')" data-zone="actions">
-            <h3 class="con-info__block-title">{{ $t('Actions') }}</h3>
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
-              <div class="con-info__stat-line"><span>{{ $t('Total') }}</span><b>{{ actionsTotal }}</b></div>
+        <div class="con-dossier__tier con-dossier__tier--plates">
+          <!-- The bot's door to its internals — it stands where a human's actions and effects stand. -->
+          <section v-if="viewedIsBot" class="con-info__zone con-info__zone--botdoor con-dossier__zone"
+                   :class="zoneStateClass('botdoor')" data-zone="botdoor">
+            <h3 class="con-info__block-title">{{ $t('MarsBot screen') }}</h3>
+            <!-- The door's PREVIEW: the decks the algorithm plays from, as the piles themselves with their public counts
+                 (the room behind the door explains their mechanics), and the one line of what else is inside. -->
+            <div class="con-dossier__door" data-dossier-door>
+              <span v-for="pile in botPiles" :key="pile.key" class="con-dossier__pile" :data-dossier-pile="pile.key">
+                <span class="con-dossier__doorpile" :class="{'con-dossier__doorpile--empty': pile.count === 0}" aria-hidden="true"><span></span><span></span><span></span></span>
+                <b class="con-dossier__pilecount">{{ pile.count }}</b>
+                <span class="con-dossier__pilelabel">{{ $t(pile.label) }}</span>
+              </span>
+              <span class="con-info__note con-info__note--door">{{ $t('Decks, tracks, storage rules and the printed board') }}</span>
             </div>
           </section>
 
-          <!-- «ЭФФЕКТЫ» — counted PER EFFECT in the explorer's four families
-               (the tile-rail colour language), plus the seat's quiet
-               whole-game line (absent while the stats are on the wire —
-               loading must never read as «ничего не сработало»). -->
-          <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--effects"
+          <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--actions con-dossier__zone"
+                   :class="zoneStateClass('actions')" data-zone="actions">
+            <h3 class="con-info__block-title">{{ $t('Actions') }}</h3>
+            <ConsoleDossierActions :tiles="dossierActions" :max="8" :columns="4" />
+          </section>
+
+          <!-- «ЭФФЕКТЫ» — counted PER EFFECT in the explorer's families (+ what is armed for the next card, TR49). -->
+          <section v-if="!viewedIsBot" class="con-info__zone con-info__zone--effects con-dossier__zone"
                    :class="zoneStateClass('effects')" data-zone="effects">
             <h3 class="con-info__block-title">{{ $t('Effects') }}</h3>
-            <template v-if="effectsZone.total > 0 || armedCount > 0">
-              <div class="con-info__stat-lines">
-                <!-- TR49 class: an effect ARMED for the next card is an active effect of the seat — counted, named. -->
-                <div v-if="armedCount > 0" class="con-info__stat-line" data-armed-zone>
-                  <span class="con-info__efam"><i class="con-info__efam-dot con-info__efam-dot--armed" aria-hidden="true"></i>{{ $t('Armed for your next card') }}</span>
-                  <b class="con-info__mint">{{ armedCount }}</b>
-                </div>
-                <div v-for="f in effectsZone.families" :key="f.family" class="con-info__stat-line">
-                  <span class="con-info__efam"><i class="con-info__efam-dot" :class="'con-info__efam-dot--' + f.family" aria-hidden="true"></i>{{ $t(f.label) }}</span>
-                  <b>{{ f.count }}</b>
-                </div>
-              </div>
-              <div v-if="effectsZoneNote !== ''" class="con-info__efam-note">{{ effectsZoneNote }}</div>
-            </template>
-            <div v-else class="con-info__empty">{{ $t('No passive effects') }}</div>
+            <ConsoleDossierEffects :families="dossierEffects" :cards="effectCardNames" :note="effectsZoneNote" />
           </section>
 
-          <!-- «ПАРЛАМЕНТ» — a parliament game only: the seat's influence (the
-               number it votes with), where its Agenda marker stands, where
-               its delegates are, and the chairmanship when it holds it. The
-               whole standing is one A away. MarsBot's own fill is its one
-               honest line — the zone exists, the door does not. -->
-          <section v-if="parliamentReading !== undefined" class="con-info__zone con-info__zone--parliament"
+          <!-- «ПАРЛАМЕНТ» — a parliament game only: influence, the career ladder, the delegates as tokens. -->
+          <section v-if="parliamentReading !== undefined" class="con-info__zone con-info__zone--parliament con-dossier__zone"
                    :class="zoneStateClass('parliament')" data-zone="parliament">
             <h3 class="con-info__block-title">{{ $t('Parliament') }}</h3>
-            <template v-if="parliamentReading.participates">
-              <div class="con-info__stat-lines">
-                <div class="con-info__stat-line"><span>{{ $t('Influence') }}</span><b class="con-info__mint" data-parl-zone-influence>{{ parliamentReading.influence.total }}</b></div>
-                <div class="con-info__stat-line"><span>{{ $t('Agenda track') }}</span><b>{{ parliamentZoneAgenda }}</b></div>
-                <div class="con-info__stat-line"><span>{{ $t('Delegates') }}</span><b>{{ parliamentZoneDelegates }}</b></div>
-                <div v-if="parliamentReading.chairman" class="con-info__stat-line"><span>{{ $t('Chairman') }}</span><b class="con-info__mint">{{ $t('yes') }}</b></div>
-              </div>
-            </template>
-            <div v-else class="con-info__empty" data-parl-zone-absent>{{ $t('MarsBot takes no part in the parliament') }}</div>
+            <ConsoleDossierParliament :reading="parliamentReading" :color="viewed.color" />
           </section>
 
-          <!-- «КАМПАНИЯ» — campaign missions only: the mission frame (with
-               its board), the viewed seat's titles + TP as ONE visual
-               statement with the scoring semantics AT the value (never
-               under an unrelated line), and the composition count. The
-               full overview is one A away. -->
-          <section v-if="campaignContract !== undefined" class="con-info__zone con-info__zone--campaign"
+          <!-- «КАМПАНИЯ» — campaign missions only: the mission frame (with its board), the seat's titles + TP as ONE
+               statement with the scoring semantics AT the value, the composition count. -->
+          <section v-if="campaignContract !== undefined" class="con-info__zone con-info__zone--campaign con-dossier__zone"
                    :class="zoneStateClass('campaign')" data-zone="campaign">
             <h3 class="con-info__block-title">{{ $t('Campaign') }}</h3>
             <div class="con-info__stat-lines">
@@ -205,15 +138,6 @@
             <div class="con-info__stat-lines">
               <div class="con-info__stat-line"><span>{{ $t('Corporations') }}</span><b>{{ campaignCorpCount }}</b></div>
             </div>
-          </section>
-
-          <!-- The bot's door to its internals — a calm entry, not a data
-               dump: the algorithm's own room is one A away (a ring stop
-               like every other zone). -->
-          <section v-if="viewedIsBot" class="con-info__zone con-info__zone--botdoor"
-                   :class="zoneStateClass('botdoor')" data-zone="botdoor">
-            <h3 class="con-info__block-title">{{ $t('MarsBot screen') }}</h3>
-            <div class="con-info__note con-info__note--door">{{ $t('Decks, tracks, storage rules and the printed board') }}</div>
           </section>
         </div>
       </div>
@@ -237,7 +161,7 @@
            workspace. The seat is the workspace's inspected participant
            (LB/RB switch it globally — rail, header and table move as one);
            B folds an open category first, then returns to the summary. -->
-      <div v-else-if="infoModeState.route === 'played'" key="played" class="con-info__playedhost" data-insp-slide>
+      <div v-else-if="infoModeState.route === 'played'" key="played" class="con-info__playedhost" data-info-zone="played" data-insp-slide>
         <ConsolePlayedOverlay ref="playedView"
                               embedded
                               :players="playerView.players"
@@ -268,27 +192,22 @@
       <!-- ── «ПАРЛАМЕНТ» — ONE seat's whole standing (`seatParliamentReading`):
            what its influence is made of, the Agenda, its delegates, and what
            every resolution on the table would pay IT. -->
-      <div v-else-if="infoModeState.route === 'parliament'" key="parliament" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+      <div v-else-if="infoModeState.route === 'parliament'" key="parliament" class="con-info__scroll con-info__detail-scroll" data-info-zone="parliament" data-insp-slide>
         <ConsoleInfoParliament v-if="parliamentReading !== undefined" :reading="parliamentReading" />
       </div>
 
       <!-- ── «КАМПАНИЯ» — the full in-game campaign overview: the route
            dominates, participants read second, results/legacy unfold as
            nested layers of the same surface. Read-only by construction. -->
-      <div v-else-if="infoModeState.route === 'campaign'" key="campaign" class="con-info__cmphost" data-insp-slide>
+      <div v-else-if="infoModeState.route === 'campaign'" key="campaign" class="con-info__cmphost" data-info-zone="campaign" data-insp-slide>
         <ConsoleCampaignOverview ref="campaignView" :playerView="playerView" :viewedColor="viewed.color" />
       </div>
 
       <!-- ── «ДЕЙСТВИЯ» (human) ─────────────────────────────────────────── -->
-      <div v-else-if="infoModeState.route === 'actions'" key="actions" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
-        <div v-if="actionRows.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No action cards') }}</div>
-        <div v-for="row in actionRows" :key="row.name" class="con-info__acrow" :class="{'con-info__acrow--ok': row.available}">
-          <span class="con-info__acrow-state" aria-hidden="true">{{ row.available ? '✓' : '·' }}</span>
-          <span class="con-info__acrow-name">{{ $t(row.name) }}</span>
-          <span v-if="row.available" class="con-info__acrow-badge">{{ $t('Available now') }}</span>
-          <span v-else-if="row.reason !== ''" class="con-info__acrow-reason">{{ row.reason }}</span>
-        </div>
-        <div v-if="!isSelf" class="con-info__note">{{ $t('Opponent state is read-only') }}</div>
+      <!-- ── «ДЕЙСТВИЯ» — the seat's actions as the «Действия карт» TILES themselves (one component, two hosts —
+           TR60, decision 6a), read-only, in pages; X opens a card's face. -->
+      <div v-else-if="infoModeState.route === 'actions'" key="actions" class="con-info__dgalhost" data-info-zone="actions" data-insp-slide>
+        <ConsoleInfoActionGallery ref="actionsView" :playerView="playerView" :player="viewed" :isSelf="isSelf" />
       </div>
 
       <!-- ── «ЭФФЕКТЫ» — the EFFECTS EXPLORER: the card-actions browse
@@ -296,7 +215,7 @@
            the in-explorer detail layer (hero card + printed rule + the
            «За партию» stats). One component; its detail is a LAYER, so a
            level change is the explorer's own descend phrase. -->
-      <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__efxhost" data-insp-slide>
+      <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__efxhost" data-info-zone="effects" data-insp-slide>
         <!-- Turmoil Redux: the PARTY EFFECTS this seat holds stand beside the
              card effects — the same premium rendering the Parliament uses,
              each with WHY the seat holds it. Absent without the module. -->
@@ -314,7 +233,7 @@
       <!-- ── «ЭКРАН БОТА» и его вложенные маршруты — the bot's internals
            hub (decks, piles, storage rules, conversion, difficulty; the
            printed board and the bonus piles are one A deeper). -->
-      <div v-else-if="isBotRoute && botAutoma !== undefined" :key="'bot-' + infoModeState.route" class="con-info__scroll con-info__detail-scroll" data-insp-slide>
+      <div v-else-if="isBotRoute && botAutoma !== undefined" :key="'bot-' + infoModeState.route" class="con-info__scroll con-info__detail-scroll" :data-info-zone="infoModeState.route === 'botScreen' ? 'botdoor' : undefined" data-insp-slide>
         <ConsoleMarsBotSections
           :mode="botSectionMode"
           :bot="viewed"
@@ -357,7 +276,7 @@
  * is routed by ConsoleShell; this component is presentation over
  * infoModeState + the pure models. NEVER submits anything.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -371,23 +290,35 @@ import {buildPlayedZones} from '@/client/components/console/consolePlayedModel';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
 import {consolePlayedUi} from '@/client/console/consolePlayedUi';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
-import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
+import {cardHasAction} from '@/client/components/actions/actionExtraction';
 import {playerEffects} from '@/client/components/effects/effectExtraction';
 import {EffectsZoneCounts, effectsZoneCounts, effectsZoneStatsLine} from '@/client/console/effectsExplorerModel';
 import {effectStatsFor, effectStatsVersion, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {effectsExplorerUi, effectsStagePath} from '@/client/console/consoleEffectsExplorer';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
-import {findPerformActionCard} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {
   infoRouteDepth,
   infoRoutePresentation,
   infoRouteStagePath,
   infoZoneFocusable,
+  infoZoneForRoute,
   isVpRoute,
 } from '@/client/console/infoRoute';
-import {scoreStagePath} from '@/client/console/scoreExplorerModel';
+import {buildScoreOverview, maArtSlug, scoreStagePath} from '@/client/console/scoreExplorerModel';
+import {
+  DossierActionTile, dossierActionTiles, DossierCardHistory, dossierCardHistory, DossierEffectFamily, dossierEffectFamilies,
+  DossierMedallion, dossierMedallions, DossierSealedFacts, dossierSealedFacts,
+} from '@/client/console/infoDossierModel';
+import ConsoleDossierScore from '@/client/components/console/info/ConsoleDossierScore.vue';
+import ConsoleDossierSealed from '@/client/components/console/info/ConsoleDossierSealed.vue';
+import ConsoleDossierCards from '@/client/components/console/info/ConsoleDossierCards.vue';
+import ConsoleDossierActions from '@/client/components/console/info/ConsoleDossierActions.vue';
+import ConsoleDossierEffects from '@/client/components/console/info/ConsoleDossierEffects.vue';
+import ConsoleDossierParliament from '@/client/components/console/info/ConsoleDossierParliament.vue';
+import ConsoleInfoActionGallery from '@/client/components/console/info/ConsoleInfoActionGallery.vue';
+import {infoActionsUi} from '@/client/console/infoActionsUi';
 import {scoreExplorerUi} from '@/client/console/consoleScoreExplorer';
 import {extrasExplorerUi} from '@/client/console/consoleExtrasExplorer';
 import {armScoreHandoff, disposeScoreHandoff, playScoreHandoff} from '@/client/console/scoreExplorerMotion';
@@ -404,7 +335,6 @@ import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsEx
 import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
 import ConsoleArmedEffectsSection from '@/client/components/console/ConsoleArmedEffectsSection.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {PARLIAMENT_AGENDA_STEPS} from '@/common/parliament/ParliamentTypes';
 import {seatParliamentReadingOf, SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
 import ConsoleInfoParliament from '@/client/components/console/ConsoleInfoParliament.vue';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
@@ -428,21 +358,16 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 
-/** The played-summary rows follow the table's zone order + caption keys. */
-const PLAYED_SUMMARY_LABEL: ReadonlyArray<{key: string, label: string}> = [
-  {key: 'corporation', label: 'Corporation'},
-  {key: 'prelude', label: 'Preludes'},
-  {key: 'ceo', label: 'CEO'},
-  {key: 'active', label: 'Active'},
-  {key: 'automated', label: 'Automated'},
-  {key: 'events', label: 'Events'},
-];
+/** How many faces a dossier fan shows (the most recent on top; the rest are its «+K»). */
+const DOSSIER_FACES_PER_STACK = 3;
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
   components: {
     ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer,
     ConsoleInfoParliament, ConsolePartyEffectsStrip, ConsoleArmedEffectsSection, ConsoleWsHead, GamepadGlyph,
+    ConsoleDossierScore, ConsoleDossierSealed, ConsoleDossierCards, ConsoleDossierActions, ConsoleDossierEffects, ConsoleDossierParliament,
+    ConsoleInfoActionGallery,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -454,13 +379,14 @@ export default defineComponent({
       /** The previous route's depth — signs the zone-swap direction
        *  (descend rises from below, B sinks back). */
       lastDepth: 0,
-      /** The «Кампания» zone's rect, captured while the summary is still
-       *  in the DOM (the out-in enter hook runs after it left) — the
-       *  campaign overview unfolds from this box. */
-      campaignZoneRect: undefined as {left: number, top: number, width: number, height: number} | undefined,
-      /** The «Эффекты» zone's rect — same capture, the effects explorer's
-       *  entry unfolds out of the pressed zone and B folds back into it. */
-      effectsZoneRect: undefined as {left: number, top: number, width: number, height: number} | undefined,
+      /**
+       * EVERY dossier zone's rect, captured while the summary is still in the DOM (the out-in enter hook runs
+       * after it left) — the detail a zone opens UNFOLDS out of its zone's box, and B FOLDS back into it (TR60:
+       * «зона раскрывается из плитки», every zone, never a rise from below). Plain (markRaw), never reactive.
+       */
+      zoneRects: markRaw(new Map<string, {left: number, top: number, width: number, height: number}>()),
+      /** The zone a B is folding back into — the summary's entry keeps it standing while the rest compose. */
+      returningZone: undefined as string | undefined,
     };
   },
   computed: {
@@ -668,46 +594,62 @@ export default defineComponent({
           widthPct: (cat.value / positive) * 100,
         }));
     },
-    // ── the summary zones ─────────────────────────────────────────────────
-    /**
-     * The played-table SUMMARY: counts per printed zone through the SAME
-     * grouping the «Разыграно» table uses. THE BOT'S CORPORATION COUNTS —
-     * the table renders it in the corporation slot (parity: a human's
-     * corporation is inside their tableau already), so the summary and the
-     * X detail can never disagree.
-     */
-    playedSummary(): {total: number, rows: Array<{key: string, label: string, count: number}>} {
-      const tableau = this.viewedIsBot && this.botAutoma !== undefined ?
-        botTableauCards(this.botAutoma) : this.viewed.tableau;
-      const zones = buildPlayedZones(tableau);
-      const counts: Record<string, number> = {
-        corporation: zones.corporations.length,
-        prelude: zones.preludes.length,
-        ceo: zones.ceos.length,
-        active: zones.active.length,
-        automated: zones.automated.length,
-        events: zones.events.length,
-      };
-      if (this.viewedIsBot && this.botAutoma?.corporation !== undefined) {
-        counts.corporation += 1;
-      }
-      const rows = PLAYED_SUMMARY_LABEL
-        .map(({key, label}) => ({key, label, count: counts[key] ?? 0}))
-        .filter((r) => r.count > 0);
-      return {total: rows.reduce((n, r) => n + r.count, 0), rows};
+    // ── THE DOSSIER (TR60) — every object of the summary, from the models (`infoDossierModel`) ──────────────────
+    /** The score's medallions — the overview's tiles (the ceremony's order) with each category's own symbol. */
+    dossierMedallions(): ReadonlyArray<DossierMedallion> {
+      return dossierMedallions(buildScoreOverview(this.liveScore, this.viewed.victoryPointsBreakdown, {isBot: this.viewedIsBot}));
     },
+    /** A hidden score's SEALED cell: only what is public on the table — never a VP number (`vpVisible` said no). */
+    sealedFacts(): DossierSealedFacts {
+      const game = this.playerView.game;
+      return dossierSealedFacts(this.viewed.terraformRating, this.viewed.color,
+        (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
+        (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
+        maArtSlug);
+    },
+    /** The card story — the played table's own grouping (the bot's pile + its corporation, the parity). */
+    cardHistory(): DossierCardHistory {
+      const automa = this.viewedIsBot ? this.botAutoma : undefined;
+      const tableau = automa !== undefined ? botTableauCards(automa) : this.viewed.tableau;
+      return dossierCardHistory(buildPlayedZones(tableau), DOSSIER_FACES_PER_STACK, automa?.corporation !== undefined ? 1 : 0);
+    },
+    /** The action cards as tiles — the viewer's own with the server's reasons, another seat's by the public «used». */
+    dossierActions(): ReadonlyArray<DossierActionTile> {
+      const hasAction = (name: CardName) => {
+        try {
+          return cardHasAction(name);
+        } catch (err) {
+          return false;
+        }
+      };
+      return dossierActionTiles(this.viewed.tableau, hasAction, new Set(this.viewed.actionsThisGeneration ?? []), this.isSelf);
+    },
+    dossierEffects(): ReadonlyArray<DossierEffectFamily> {
+      return dossierEffectFamilies(this.effectsZone, this.armedCount);
+    },
+    /** The bot door's piles — the public counts of the decks the algorithm plays from (its room explains them). */
+    botPiles(): ReadonlyArray<{key: string, label: string, count: number}> {
+      const automa = this.botAutoma;
+      if (automa === undefined) {
+        return [];
+      }
+      return [
+        {key: 'action', label: 'Action deck', count: automa.actionDeckSize},
+        {key: 'bonus', label: 'Bonus deck', count: automa.bonusDeckSize},
+        {key: 'discard', label: 'Bonus discard', count: automa.bonusDiscard.length},
+      ];
+    },
+    /** The cards that carry the seat's passive effects (tableau order, each once) — the effects plate's coins. */
+    effectCardNames(): ReadonlyArray<CardName> {
+      return Array.from(new Set(playerEffects(this.viewed.tableau).map((e) => e.cardName)));
+    },
+    // ── the summary zones ─────────────────────────────────────────────────
     /* («КАРТЫ» — the old shared card-potential readout — is GONE: the HAND
        DOCK is the one physical representation of the inspected seat's hand.
        «ДОП. РЕСУРСЫ» is GONE from the panel too — the RAIL SATELLITE beside
        the left rail is the zone's one physical body: the summary's leftmost
        ring stop and the extras screen's type navigation, pixel-anchored
        across the whole flow.) */
-    actionsAvailable(): number {
-      return this.viewed.availableBlueCardActionCount;
-    },
-    actionsTotal(): number {
-      return playerActionSourceCount(this.viewed.tableau);
-    },
     /** The inspected seat's effect stats (undefined while on the wire — the
      *  zone line and the explorer's metas honestly claim nothing). */
     effectsStats(): ReadonlyArray<EffectOverlayStat> | undefined {
@@ -738,29 +680,6 @@ export default defineComponent({
         parts.push(`${translateText('Saved')}: ${line.savedMc} ${translateText('Megacredits')}`);
       }
       return parts.join(' · ');
-    },
-    /** Actions detail rows — availability is server truth for SELF only. */
-    actionRows(): Array<{name: CardName, available: boolean, reason: string}> {
-      const availableNames = this.isSelf ?
-        new Set((findPerformActionCard(this.playerView.waitingFor)?.model.cards ?? []).map((c) => c.name)) :
-        new Set<CardName>();
-      return this.viewed.tableau
-        .filter((c) => {
-          try {
-            return cardHasAction(c.name);
-          } catch (err) {
-            return false;
-          }
-        })
-        .map((c) => {
-          const reason = this.isSelf ? c.actionReasons?.[0] : undefined;
-          return {
-            name: c.name,
-            available: availableNames.has(c.name),
-            reason: reason !== undefined ?
-              translateTextWithParams(reason.message, (reason.params ?? []).map(String)) : '',
-          };
-        });
     },
     /** The live command contract — published to the shell's ONE bottom
      *  command bar through consolePanelUi (the footCommands watch below). */
@@ -795,6 +714,10 @@ export default defineComponent({
       // …and so does the EXTRAS EXPLORER (the satellite + gallery screen).
       if (route === 'extras' && extrasExplorerUi.barCommands !== undefined) {
         return [...extrasExplorerUi.barCommands];
+      }
+      // …and the «ДЕЙСТВИЯ» gallery (TR60 — its cursor and X; honest to an empty table).
+      if (route === 'actions' && this.presentation === 'content' && infoActionsUi.barCommands !== undefined) {
+        return [...infoActionsUi.barCommands];
       }
       // …and the EFFECTS EXPLORER (browse ⇄ detail change the verbs).
       if (route === 'effects' && effectsExplorerUi.barCommands !== undefined) {
@@ -883,23 +806,6 @@ export default defineComponent({
         return undefined;
       }
       return seatParliamentReadingOf(model, this.viewed.color, this.viewed.tableau, {viewer: this.playerView.thisPlayer.color});
-    },
-    /** «шаг 5 / 12 · далее [РТ]» — the zone's one line about the Agenda. */
-    parliamentZoneAgenda(): string {
-      const reading = this.parliamentReading;
-      if (reading === undefined) {
-        return '';
-      }
-      return translateTextWithParams('${0} of ${1}', [String(reading.agenda.position), String(PARLIAMENT_AGENDA_STEPS)]);
-    },
-    /** «● лобби · резерв ×4 · на резолюциях 2» — compressed into the zone's one line. */
-    parliamentZoneDelegates(): string {
-      const reading = this.parliamentReading;
-      if (reading === undefined) {
-        return '';
-      }
-      const lobby = reading.delegates.lobby ? '●' : '○';
-      return `${lobby} · ${translateText('Reserve')} ${reading.delegates.reserve} · ${translateText('On resolutions')} ${reading.delegates.onResolutions}`;
     },
     /** The chip the summary ring stands on (clamped — the composition can
      *  shrink under the cursor on a seat switch). */
@@ -1003,6 +909,10 @@ export default defineComponent({
     handleExtrasIntent(intent: GamepadIntent): void {
       (this.$refs.extrasView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
+    /** …and to the «Действия» gallery while the actions route is up (TR60). */
+    handleActionsIntent(intent: GamepadIntent): void {
+      (this.$refs.actionsView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+    },
     /** …and to the effects explorer while the effects route is up. */
     handleEffectsIntent(intent: GamepadIntent): void {
       (this.$refs.effectsView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
@@ -1027,13 +937,26 @@ export default defineComponent({
       return (this.$refs.scoreView as {consumeScoreBack?: () => boolean} | undefined)?.consumeScoreBack?.() === true;
     },
     // ── the content-zone swap beat (route changes) ──────────────────────
-    // Direction follows DEPTH: descending rises from below (the workspace
-    // «one level deeper» phrase), B sinks the leaving zone back down. A
-    // same-depth swap (fallback ⇄ content on a seat switch) keeps the calm
-    // vertical grammar with the descend sign.
+    // TR60 — «ЗОНА РАСКРЫВАЕТСЯ ИЗ ПЛИТКИ»: every zone of the dossier is the
+    // DOOR of its detail, and the transition is ONE phrase, both ways (the
+    // workspace law: RELEASE on the spot → UNFOLD from the rect the old
+    // object occupied → REVEAL from inside — never a `mode="out-in"` gap with
+    // nothing in it):
+    //   A — the pressed zone's CONTENT lets go where it stands while the
+    //       other zones fade; its glass plate stays. At the swap the detail
+    //       arrives as THAT plate (`con-info__unfolding` — the same glass, the
+    //       same rect), unfolds to the whole room, its rows rise inside it,
+    //       and the plate dissolves under them;
+    //   B — the rows let go, the plate comes back, the detail folds INTO the
+    //       zone's rect; the summary arrives with that zone standing (its
+    //       content surfacing in place) while the rest compose around it.
+    // The score keeps its shared-element handoff (the total and the bar fly)
+    // and the extras keep the satellite column as their continuity. A seat
+    // switch keeps the key (routes are semantic) → no beat here at all.
     detailZoneEnter(el: Element, done: () => void): void {
       if (consoleReducedMotionActive()) {
         gsap.set(el, {clearProps: 'transform,opacity'});
+        this.returningZone = undefined;
         // A SYNCHRONOUS done inside an out-in hook wedges the swap: Vue is
         // still inside the leave/enter patch when the callback fires, and
         // the deferred insertion of the incoming zone never runs (measured:
@@ -1047,9 +970,11 @@ export default defineComponent({
       // bar FLY between the zones while the categories unfold/cascade —
       // this replaces the plain fade for exactly this pair of zones.
       const host = el as HTMLElement;
+      const depth = infoRouteDepth(this.infoModeState.route);
       const cascade = Array.from(host.querySelectorAll<HTMLElement>('.con-vpx__tile, .con-infovp__cat'));
       if (playScoreHandoff(host, cascade, done)) {
-        this.lastDepth = infoRouteDepth(this.infoModeState.route);
+        this.lastDepth = depth;
+        this.returningZone = undefined;
         return;
       }
       // THE EXTRAS ENTRY: the content UNFOLDS OUT OF the satellite column —
@@ -1058,7 +983,7 @@ export default defineComponent({
       // is alive on both sides of the swap, so no proxy handoff is needed —
       // the continuity IS the column.
       if (host.classList.contains('con-info__exrhost')) {
-        this.lastDepth = infoRouteDepth(this.infoModeState.route);
+        this.lastDepth = depth;
         const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
         const tl = gsap.timeline({onComplete: done});
         if (!descendUnfold(tl, host, satRect, motionMs(280) / 1000, 0)) {
@@ -1067,36 +992,44 @@ export default defineComponent({
         descendCascade(tl, this.extrasRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
         return;
       }
-      // THE CAMPAIGN ENTRY: the overview UNFOLDS OUT OF the «Кампания»
-      // zone the player pressed (its rect is measured while the summary is
-      // still leaving). The overview's own choreography — mission cards
-      // surfacing in place, each board's real geometry materializing, the
-      // route line drawing, the seats joining — is CSS inside the
-      // component, so the unfold only opens the room; one motion, phases
-      // overlapping, never a ceremony that replays on seat switches or
-      // level returns (those never remount this branch).
-      if (host.classList.contains('con-info__cmphost')) {
-        this.lastDepth = infoRouteDepth(this.infoModeState.route);
+      // THE SUMMARY AFTER A B: the zone the detail folded into is STANDING
+      // (its plate at once, its content surfacing in place); the rest of the
+      // dossier composes around it.
+      if (host.classList.contains('con-info__layout') && this.returningZone !== undefined) {
+        const zone = host.querySelector<HTMLElement>(`[data-zone="${this.returningZone}"]`);
+        this.returningZone = undefined;
+        this.lastDepth = depth;
+        const others = Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone')).filter((z) => z !== zone);
         const tl = gsap.timeline({onComplete: done});
-        if (!descendUnfold(tl, host, this.campaignZoneRect, motionMs(300) / 1000, 0)) {
-          tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+        if (zone !== null) {
+          tl.fromTo(Array.from(zone.children), {opacity: 0}, {opacity: 1, duration: motionMs(150) / 1000, ease: 'power2.out', clearProps: 'opacity'}, 0);
         }
+        tl.fromTo(others, {opacity: 0}, {opacity: 1, duration: motionMs(190) / 1000, ease: 'power2.out', stagger: 0.03, clearProps: 'opacity'}, motionMs(40) / 1000);
         return;
       }
-      // THE EFFECTS ENTRY: the explorer UNFOLDS OUT OF the «Эффекты» zone
-      // the player pressed (its rect captured in the leave hook, while the
-      // summary was still in the DOM), then the browse composition cascades
-      // from inside the opened room.
-      if (host.classList.contains('con-info__efxhost')) {
-        this.lastDepth = infoRouteDepth(this.infoModeState.route);
-        const tl = gsap.timeline({onComplete: done});
-        if (!descendUnfold(tl, host, this.effectsZoneRect, motionMs(280) / 1000, 0)) {
-          tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
-        }
-        descendCascade(tl, this.effectsRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
+      // A ZONE'S DETAIL: it arrives as the zone's plate and unfolds out of
+      // the rect the zone stood in (captured in the summary's leave hook —
+      // the enter runs after the summary detached).
+      const zoneKey = host.dataset.infoZone;
+      const from = zoneKey === undefined ? undefined : this.zoneRects.get(zoneKey);
+      if (from !== undefined) {
+        this.lastDepth = depth;
+        host.classList.add('con-info__unfolding');
+        host.style.setProperty('--con-unfold-plate', '1');
+        const tl = gsap.timeline({onComplete: () => {
+          // The plate dissolves UNDER the revealed rows (a CSS opacity transition), then lets go of the host.
+          host.style.setProperty('--con-unfold-plate', '0');
+          gsap.delayedCall(motionMs(280) / 1000, () => {
+            host.classList.remove('con-info__unfolding');
+            host.style.removeProperty('--con-unfold-plate');
+          });
+          done();
+        }});
+        // The door gives from its FIRST frame (power3.out): the plate is the continuity, a slow start reads as a stall.
+        descendUnfold(tl, host, from, motionMs(320) / 1000, 0, this.zoneRadiusPx(), 'power3.out');
+        descendCascade(tl, this.detailRows(host), motionMs(170) / 1000, motionMs(160) / 1000, 0.03);
         return;
       }
-      const depth = infoRouteDepth(this.infoModeState.route);
       const rising = depth >= this.lastDepth;
       this.lastDepth = depth;
       gsap.fromTo(el,
@@ -1104,6 +1037,19 @@ export default defineComponent({
         {opacity: 1, y: 0, duration: motionMs(180) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
     },
     detailZoneLeave(el: Element, done: () => void): void {
+      const to = this.infoModeState.route;
+      const host = el as HTMLElement;
+      // Every zone's box, measured while the summary still stands — the door
+      // geometry both ways (the enter hook runs after this node detached).
+      if (host.classList.contains('con-info__layout')) {
+        this.zoneRects.clear();
+        for (const zone of Array.from(host.querySelectorAll<HTMLElement>('[data-zone]'))) {
+          const rect = descendRectOf(zone);
+          if (zone.dataset.zone !== undefined && rect !== undefined) {
+            this.zoneRects.set(zone.dataset.zone, rect);
+          }
+        }
+      }
       if (consoleReducedMotionActive()) {
         void Promise.resolve().then(done); // see detailZoneEnter — never sync
         return;
@@ -1112,41 +1058,40 @@ export default defineComponent({
       // total + bar: the summary leaving FOR the explorer, and the explorer
       // leaving BACK to the summary. The proxies bridge the out-in gap, so
       // the total never misses a frame.
-      const to = this.infoModeState.route;
-      const host = el as HTMLElement;
       const summaryToVp = host.classList.contains('con-info__layout') && isVpRoute(to);
       const vpToSummary = host.classList.contains('con-info__vpxhost') && to === 'summary';
       if (summaryToVp || vpToSummary) {
         armScoreHandoff(host);
       }
-      // Capture the «Кампания» zone's box before the summary leaves — the
-      // campaign overview's enter unfolds out of it (measuring in the enter
-      // hook would read a detached node).
-      if (host.classList.contains('con-info__layout') && to === 'campaign') {
-        this.campaignZoneRect = descendRectOf(host.querySelector<HTMLElement>('[data-zone="campaign"]'));
-      }
-      // …and the «Эффекты» zone's box, for the effects explorer's entry.
-      if (host.classList.contains('con-info__layout') && to === 'effects') {
-        this.effectsZoneRect = descendRectOf(host.querySelector<HTMLElement>('[data-zone="effects"]'));
-      }
-      // THE CAMPAIGN EXIT (B): the overview FOLDS BACK INTO the «Кампания»
-      // zone's box (the entry's reverse — the zone itself is not in the DOM
-      // yet, but its geometry is stable, so the captured rect is honest).
-      if (host.classList.contains('con-info__cmphost')) {
+      // A: THE PRESSED ZONE RELEASES ON THE SPOT — its content lets go where
+      // it stands, its plate stays for the detail to unfold out of; every
+      // other zone fades around it.
+      const pressed = infoZoneForRoute(to);
+      if (host.classList.contains('con-info__layout') && pressed !== undefined && pressed !== 'vp' && pressed !== 'extras' &&
+          this.zoneRects.has(pressed)) {
+        const zone = host.querySelector<HTMLElement>(`[data-zone="${pressed}"]`);
+        const others = Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone')).filter((z) => z !== zone);
         const tl = gsap.timeline({onComplete: done});
-        if (!descendFold(tl, host, this.campaignZoneRect, motionMs(240) / 1000, 0)) {
-          tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
+        tl.to(others, {opacity: 0, duration: motionMs(110) / 1000, ease: 'power1.in'}, 0);
+        if (zone !== null) {
+          tl.to(Array.from(zone.children), {opacity: 0, duration: motionMs(100) / 1000, ease: 'power1.in'}, 0);
         }
         return;
       }
-      // THE EFFECTS EXIT (B): the explorer FOLDS BACK INTO the «Эффекты»
-      // zone's box (the entry's reverse — the zone is not in the DOM yet,
-      // but the summary's geometry is stable, so the captured rect is
-      // honest), its composition letting go first.
-      if (host.classList.contains('con-info__efxhost')) {
+      // B FROM A ZONE'S DETAIL: the rows let go, the plate comes back, and
+      // the detail folds INTO the zone's rect (stable geometry — the captured
+      // box is honest); the summary's entry keeps that zone standing.
+      const zoneKey = host.dataset.infoZone;
+      const into = zoneKey === undefined ? undefined : this.zoneRects.get(zoneKey);
+      if (to === 'summary' && zoneKey !== undefined && into !== undefined) {
+        this.returningZone = zoneKey;
+        host.classList.add('con-info__unfolding');
+        host.style.setProperty('--con-unfold-plate', '0');
+        void host.offsetWidth;
+        host.style.setProperty('--con-unfold-plate', '1');
         const tl = gsap.timeline({onComplete: done});
-        descendCascadeOut(tl, this.effectsRows(host), motionMs(90) / 1000, 0);
-        if (!descendFold(tl, host, this.effectsZoneRect, motionMs(230) / 1000, motionMs(30) / 1000)) {
+        descendCascadeOut(tl, this.detailRows(host), motionMs(90) / 1000, 0);
+        if (!descendFold(tl, host, into, motionMs(240) / 1000, motionMs(40) / 1000, this.zoneRadiusPx())) {
           tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
         }
         return;
@@ -1170,17 +1115,30 @@ export default defineComponent({
     detailZoneCancelled(el: Element): void {
       gsap.killTweensOf(el);
       gsap.set(el, {clearProps: 'transform,opacity,clipPath,visibility'});
+      const host = el as HTMLElement;
+      host.classList.remove('con-info__unfolding');
+      host.style.removeProperty('--con-unfold-plate');
+      for (const child of Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone, .con-dossier__zone > *'))) {
+        gsap.killTweensOf(child);
+        gsap.set(child, {clearProps: 'opacity'});
+      }
       disposeScoreHandoff();
+    },
+    /** The dossier plate's corner radius in px (the clip's rounded inset matches the glass it grows out of). */
+    zoneRadiusPx(): number {
+      return 0.75 * 20 * conUiScale();
+    },
+    /** A detail's cascade rows: the known blocks of each detail, else the host's own children (entry / exit choreography). */
+    detailRows(host: HTMLElement): Array<HTMLElement> {
+      const known = Array.from(host.querySelectorAll<HTMLElement>(
+        '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty, .con-pfx, .con-armed-sec, ' +
+        '.con-info__parl-sec, .con-info__empty--big, .con-dgal__tile, .con-dgal__void, .con-dgal__legend'));
+      return known.length > 0 ? known : Array.from(host.children) as Array<HTMLElement>;
     },
     /** The extras screen's cascade rows (entry/exit choreography). */
     extrasRows(host: HTMLElement): Array<HTMLElement> {
       return Array.from(host.querySelectorAll<HTMLElement>(
         '.con-exr__hero, .con-exr__slot, .con-exr__detail, .con-exr__botpool, .con-exr__botnote, .con-exr__void'));
-    },
-    /** The effects explorer's cascade rows (entry/exit choreography). */
-    effectsRows(host: HTMLElement): Array<HTMLElement> {
-      return Array.from(host.querySelectorAll<HTMLElement>(
-        '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty'));
     },
   },
 });
