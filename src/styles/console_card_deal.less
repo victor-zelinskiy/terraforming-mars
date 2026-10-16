@@ -9,16 +9,16 @@
       zero layout shift;
     - lightweight proxy twins (ConsoleCardFaceLite) fly on the fixed
       `.con-deal-layer` stage (GSAP, transform/opacity only), land on the
-      exact slot rects and hand off: proxy fades out while the slot's own
-      160ms opacity transition fades the real card in;
-    - the gliding focus frame (`.con-focus-frame`, motion-v springs)
-      replaces the "jumping ring" as the aim indicator; the slot's soft
-      glow stays as the light.
+      exact slot rects and hand off: the real card is revealed under the
+      identical proxy and the proxy goes on the next frame;
+    - the cursor is the slot's own RING (the language decided 2026-07-17 —
+      the gliding L-tick frame is gone, TR58 deleted its last code): it
+      ARRIVES on the cursor's clock once the cards are dealt
+      (`.con-cursor()` / `--con-cursor-gate`, console.less).
 
    Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
    `transition: all`; `will-change` lives ONLY on elements that exist for
-   the duration of their animation (the deal layer is v-if'd, the 4 frame
-   ticks animate on every d-pad move).
+   the duration of their animation (the deal layer is v-if'd).
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── The HOLD: a slot whose real card hasn't been dealt yet ──────────
@@ -100,6 +100,19 @@
 }
 .con-deal-proxy__face--dim-strong > :is(.card-container, .pcard) {
     filter: grayscale(0.5) brightness(0.64);
+}
+/* THE COPY IS THE RESTING SLOT (TR58): the album hands its cards over on the NEXT frame with no fade, so the flying
+   face paints what the resting slot paints — the slot's corner (`.con-hand__slot > .pcard`, .4rem) and its mint
+   «playable» thread, at the slot's own decoration knee (`--con-hand-fx` over the stamped `--con-hand-zoom`). A docked
+   body keeps the pack's own corner. */
+.con-handbody {
+    --con-hand-fx: calc(1.6 / max(1.6, var(--con-hand-zoom, 0.66)));
+}
+.con-handbody:not([data-hand-body-mode="docked"]) .con-deal-proxy__face > :is(.card-container, .pcard) {
+    border-radius: .4rem;
+}
+.con-deal-proxy__face--playable > :is(.card-container, .pcard) {
+    box-shadow: 0 0 0 calc(.05rem * var(--con-hand-fx, 1)) fade(@con-mint, 26%);
 }
 /* The compact blocker chip — the visual twin of `.con-hand__chip` (same
    plate / type / placement), and the SAME counter-zoom law: 0.99 divided by
@@ -246,29 +259,6 @@
     height: 100%;
     background: url('./assets/resources/card.webp') center / 100% 100% no-repeat;
 }
-
-/* ── The gliding focus frame (four L-corner ticks, motion-v springs) ─── */
-.con-focus-frame {
-    position: fixed;
-    inset: 0;
-    z-index: 26; /* under the flight stage (30) */
-    pointer-events: none;
-}
-.con-focus-frame__tick {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 1.1rem;
-    height: 1.1rem;
-    border: 0 solid @con-cyan;
-    opacity: 0;
-    will-change: transform;
-    filter: drop-shadow(0 0 .35rem fade(@con-cyan, 55%));
-}
-.con-focus-frame__tick--tl { border-top-width: .15rem; border-left-width: .15rem; border-top-left-radius: .3rem; }
-.con-focus-frame__tick--tr { border-top-width: .15rem; border-right-width: .15rem; border-top-right-radius: .3rem; }
-.con-focus-frame__tick--bl { border-bottom-width: .15rem; border-left-width: .15rem; border-bottom-left-radius: .3rem; }
-.con-focus-frame__tick--br { border-bottom-width: .15rem; border-right-width: .15rem; border-bottom-right-radius: .3rem; }
 
 /* ── Selection states: the pick band POPS in (damped-spring ease) ────── */
 .con-cards__pickband {
@@ -869,8 +859,7 @@ dialog.con-zoom {
    and the «A …» action chips fade out (their existing transitions carry
    the fade). The focus LIFT (transform) deliberately stays — the open /
    close flights measure the slot rect, and dropping the scale mid-zoom
-   would land the returning card on a shifted target. The gliding focus
-   frame hides itself in JS (ConsoleCardFocusFrame reads the zoom state). */
+   would land the returning card on a shifted target. */
 body.con-zoom-open,
 body.con-play-modal-open {
     .con-cards__slot--focused,
@@ -878,8 +867,9 @@ body.con-play-modal-open {
     .con-start__prelude--focused {
         box-shadow: none;
     }
-    .con-hand__slot--selected > :is(.card-container, .pcard) {
-        box-shadow: none;
+    /* The hand's ring is the slot's cursor LAYER (TR58, `.con-cursor()`) — it fades out under the viewer, the lift stays. */
+    .con-hand__slot--selected::after {
+        opacity: 0;
     }
     .con-start__slot-a {
         opacity: 0;
@@ -893,7 +883,6 @@ body.con-play-modal-open {
     .con-verdict-swap-leave-active { transition: none; }
     .con-cards__verdictbar .con-cards__verdict-name { animation: none; }
     .con-cards__verdict-inner { transition: none; }
-    .con-focus-frame__tick { filter: none; }
     .con-zoom-veil,
     .con-zoom-veil-enter-active,
     .con-zoom-veil-leave-active { transition: none; }

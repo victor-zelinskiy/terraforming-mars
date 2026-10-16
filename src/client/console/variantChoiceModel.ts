@@ -93,6 +93,28 @@ export function variantDestinationsOf(branch: Pick<ActionPreviewBranch, 'steps' 
   return {cards: picks[0].cards, count: picks[0].cards.length};
 }
 
+/**
+ * THE RESULT EVERY OPTION BUYS (TR58 Reprocessing Plant — «3 [plant] OR 5 [heat] → 3 [floater]*»): when a card's «OR»
+ * stands on the PRICE side, the options are the prices and the good is ONE — printed once after the options (the card's
+ * own result nodes, `printedSharedResult`), its addresses once (`sharedVariantDestinations` — the holders every option
+ * offers alike; the TR56 law: never one fan per tile for one set of holders).
+ */
+export type VariantSharedResult = {
+  printed: ReadonlyArray<ItemType>;
+  destinations?: VariantDestinations;
+};
+
+/** The holders EVERY live option offers, when they are the same set (by name, in order) — else `undefined`. */
+export function sharedVariantDestinations(sets: ReadonlyArray<VariantDestinations | undefined>): VariantDestinations | undefined {
+  const live = sets.filter((d): d is VariantDestinations => d !== undefined);
+  if (live.length === 0) {
+    return undefined;
+  }
+  const key = (d: VariantDestinations) => d.cards.map((c) => c.name).join('|');
+  const first = key(live[0]);
+  return live.every((d) => key(d) === first) ? live[0] : undefined;
+}
+
 export type VariantChoiceOption = {
   key: string;
   state: VariantChoiceState;

@@ -1,0 +1,19 @@
+{
+  "console_board_bonus.less": 1,
+  "console_bot_attack.less": 3,
+  "console_card_deal.less": 5,
+  "console_colony_roster.less": 1,
+  "console_colony_trade.less": 1,
+  "console_effect_decision.less": 1,
+  "console_endgame_overview.less": 6,
+  "console_endgame.less": 2,
+  "console_fleet_dock.less": 3,
+  "console_menu.less": 3,
+  "console_parliament.less": 2,
+  "console_payment.less": 1,
+  "console_played.less": 6,
+  "console_production_loss.less": 1,
+  "console_tv.less": 2,
+  "console_variant_choice.less": 4,
+  "console.less": 74
+}

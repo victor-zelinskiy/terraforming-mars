@@ -134,6 +134,7 @@
  * card played from hand.
  *
  */
+import {probeTick} from '@/client/console/probeTick';
 import {defineComponent, markRaw, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -654,11 +655,20 @@ export default defineComponent({
       // would sit on the 5 s backstop while a fully interactive stage waited
       // for permission it had already earned.
       markWorkspaceOutcomeArrivalDone();
-      beginDeckPickChoosing();
       // One last verify: the host's own return choreography (a queue receding,
       // a shelf settling) can finish AFTER the batch has landed, and the row
-      // must end up solved against the box it actually got.
-      this.scheduleFit();
+      // must end up solved against the box it actually got — solved NOW, before
+      // the cursor opens (TR58): a refit in the frame the ring arrives read as
+      // every card changing size under a ring that was just coming in.
+      this.fitRow();
+      // …and the cursor opens one painted frame AFTER the handoff — its own beat,
+      // on the settled row (`beginDeckPickChoosing` is what makes a card focused).
+      const key = this.promptKey;
+      probeTick(() => {
+        if (this.promptKey === key) {
+          beginDeckPickChoosing();
+        }
+      });
     },
 
     // ── FIT ─────────────────────────────────────────────────────────────

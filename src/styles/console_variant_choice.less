@@ -81,8 +81,8 @@
     /* The printed graphic's zoom over the face's own px scale: a 24 px icon on the card → 30 px here at 1080 — the
        scene's scale (the hero formula's chips), never the HUD's. */
     --vchoice-print-zoom: 1.4;
-    --vchoice-ease: @con-ease-standard;
-    --vchoice-ms: 160ms;
+    --vchoice-ease: var(--con-cursor-ease);
+    --vchoice-ms: 180ms; /* the cursor's clock (`--con-cursor-ms` — TR58) */
 
     /* ── THE TILE ───────────────────────────────────────────────────────── */
     &__opt {
@@ -110,55 +110,64 @@
             inset 0 .06rem 0 rgba(255, 255, 255, 0.05),
             0 .35rem 1rem rgba(0, 0, 0, 0.36);
         cursor: pointer;
-        transition:
-            transform calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease),
-            box-shadow calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease),
-            opacity calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease),
-            background calc(var(--vchoice-ms) * var(--motion-scale, 1)) var(--vchoice-ease);
-
-        /* THE CURSOR — a cold lift. */
-        &--focused {
-            transform: translateY(-.14rem);
-            background:
-                radial-gradient(120% 70% at 50% 0%, rgba(140, 200, 255, 0.07), transparent 60%),
-                linear-gradient(168deg, rgba(30, 48, 70, 0.98) 0%, rgba(15, 24, 37, 0.98) 100%);
-            box-shadow:
-                inset 0 0 0 .1rem @con-cyan,
-                0 0 1.1rem fade(@con-cyan, 30%),
-                0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
-        }
-        /* THE CHOICE — a warm kant and the seal; it stays while the cursor walks away. */
-        &--selected {
+        /* The tile is its own stacking context — the answer's and the cursor's LAYERS paint over its glass and under
+           its print, whatever the cursor does. */
+        isolation: isolate;
+        /* THE CURSOR — a cold lift (TR58, `.con-cursor()`): the cyan ring, its halo, the deeper shadow and the cold
+           glass are ONE layer (`::after`) faded on the cursor's clock with the lift — the old focus list
+           `[inset, outer, outer]` against the resting `[inset, inset, outer]` could not interpolate, so the ring and
+           the glass snapped while only the lift moved. The rings are the profile tokens (`--con-focus-ring` /
+           `--con-glow-r`): the TV's thicker ring is a token, never a rule that out-paints the states. */
+        .con-cursor(
+            @shadow: inset 0 0 0 var(--con-focus-ring) @con-cyan, 0 0 var(--con-glow-r) fade(@con-cyan, 30%), 0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
+            @radius: .75rem;
+            @transform: ~"translateY(calc(-.14rem * var(--con-cursor-on)))";
+            @z: 2;
+            @layer-z: -1;
+            @bg: radial-gradient(120% 70% at 50% 0%, rgba(140, 200, 255, 0.07), transparent 60%), linear-gradient(168deg, rgba(30, 48, 70, 0.98) 0%, rgba(15, 24, 37, 0.98) 100%);
+        );
+        transition+: opacity var(--con-cursor-ms) var(--con-cursor-ease);
+        /* THE CHOICE — a warm kant and the warm glass, a LAYER of its own (`::before`, under the cursor's): it fades
+           in on the press and stays while the cursor walks away. */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            border-radius: .75rem;
             background:
                 radial-gradient(120% 70% at 50% 0%, fade(@con-mint, 10%), transparent 60%),
                 linear-gradient(168deg, rgba(22, 56, 48, 0.97) 0%, rgba(11, 24, 27, 0.98) 100%);
-            box-shadow:
-                inset 0 0 0 .1rem fade(@con-mint, 94%),
-                0 0 1rem fade(@con-mint, 24%),
-                0 .35rem 1rem rgba(0, 0, 0, 0.36);
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 94%), 0 0 1rem fade(@con-mint, 24%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--con-cursor-ms) var(--con-cursor-ease);
         }
-        /* BOTH — the answer keeps its kant, the cursor speaks in a separate OUTER ring: two rings, two facts. */
-        &--selected&--focused {
-            box-shadow:
-                inset 0 0 0 .1rem fade(@con-mint, 94%),
-                0 0 0 .14rem @con-cyan,
-                0 0 1.1rem fade(@con-cyan, 28%),
-                0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
+
+        &--focused { .con-cursor-on(); }
+        &--selected::before { opacity: 1; }
+        /* BOTH — the answer keeps its kant, the cursor speaks in a separate OUTER ring: two rings, two facts. The
+           cursor's layer drops its cold glass over the warm one. */
+        &--selected {
+            .con-cursor-paint(0 0 0 var(--con-focus-ring) @con-cyan, 0 0 var(--con-glow-r) fade(@con-cyan, 28%), 0 .6rem 1.3rem rgba(0, 0, 0, 0.46););
+            .con-cursor-layer(after; { background: none; });
         }
         /* A decided group's other options step back — legible, reachable, plainly NOT the answer. */
         &--recede {
             opacity: .6;
             transform: scale(.985);
         }
-        /* THE RULES — a faded print. Opacity on the CHILDREN (the tile stays opaque over the board), never a filter. */
+        /* THE RULES — a faded print. Opacity on the CHILDREN (the tile stays opaque over the board), never a filter.
+           Under the cursor: the steel ring, no lift, no cold glass. */
         &--off {
             cursor: default;
             background: linear-gradient(168deg, rgba(18, 22, 30, 0.96) 0%, rgba(11, 14, 20, 0.97) 100%);
             box-shadow: inset 0 0 0 .05rem rgba(150, 165, 185, 0.14);
+            .con-cursor-paint(inset 0 0 0 var(--con-focus-ring) rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36););
+            .con-cursor-layer(after; { background: none; });
         }
         &--off&--focused {
             transform: none;
-            box-shadow: inset 0 0 0 .1rem rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
         }
     }
     &__opt--off &__print { opacity: .34; }
@@ -352,11 +361,48 @@
         }
     }
 
+    /* ── THE RESULT EVERY OPTION BUYS (TR58 — the options are PRICES: «3 [plant] ИЛИ 5 [heat] → 3 [floater]*»). Not an
+       option: no cursor, no seal, no plate — the card's own result nodes bare on the glass behind the printed arrow,
+       its addresses once under it (TR56). It reads at the tiles' scale and never reflows them: content-sized, it
+       takes the room the two capped tiles leave. ── */
+    &__arrow {
+        flex: 0 0 auto;
+        align-self: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--vchoice-or-w, 2.2rem);
+    }
+    /* The printed arrow's weight — the face's gold, at the «ИЛИ» medallion's presence (a thin glyph beside the medal
+       read as a stray character on the 4K frame). */
+    &__arrow-mark {
+        font-size: 1.7rem;
+        font-weight: 800;
+        line-height: 1;
+        color: rgba(242, 215, 149, 0.9);
+    }
+    &__shared {
+        flex: 0 1 auto;
+        align-self: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        min-width: 0;
+        max-width: 100%;
+        padding: .45rem .6rem;
+    }
+
     /* …and once the cluster is too narrow for two readable tiles, the pair becomes a COLUMN and «ИЛИ» takes its own
        line BETWEEN them, its hairline turned across. */
     @container (max-width: 40rem) {
         &--compare &__opt { flex-basis: 100%; max-width: none; }
         &--compare &__or { .con-vchoice-seam-across(); }
+        /* The shared result follows the column: the arrow turned down on its own line, the result under it. */
+        &--compare &__arrow { flex-basis: 100%; width: auto; height: 1.6rem; }
+        &--compare &__arrow-mark { transform: rotate(90deg); }
+        &--compare &__shared { flex-basis: 100%; }
     }
 
     /* ── THE ROW TILE — `column` (always stacked; the host walks rows with ↑↓) and `list` (a pick list): the print
@@ -581,24 +627,8 @@ html.con-profile-tv .con-vchoice__print { min-height: 2.8rem; }
 html.con-profile-tv .con-vchoice__title { font-size: var(--con-t-secondary); }
 html.con-profile-tv .con-vchoice__print + .con-vchoice__text .con-vchoice__title { font-size: var(--con-t-caption); }
 html.con-profile-tv .con-vchoice__reason { font-size: var(--con-t-caption); }
-/* The couch's focus ring is the console-wide token (`--con-focus-ring` / `--con-glow-r` — the shared TV ring list), the
-   lift and the answer's kant keep their own. */
-html.con-profile-tv .con-vchoice__opt--focused {
-    box-shadow:
-        inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%),
-        0 0 var(--con-glow-r) fade(@con-cyan, 32%),
-        0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
-}
-html.con-profile-tv .con-vchoice__opt--selected.con-vchoice__opt--focused {
-    box-shadow:
-        inset 0 0 0 .1rem fade(@con-mint, 94%),
-        0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%),
-        0 0 var(--con-glow-r) fade(@con-cyan, 32%),
-        0 .6rem 1.3rem rgba(0, 0, 0, 0.46);
-}
-html.con-profile-tv .con-vchoice__opt--off.con-vchoice__opt--focused {
-    box-shadow: inset 0 0 0 var(--con-focus-ring) rgba(170, 190, 215, 0.62), 0 .35rem 1rem rgba(0, 0, 0, 0.36);
-}
+/* The couch's focus ring needs no rule of its own: the tile's cursor layer speaks the profile tokens
+   (`--con-focus-ring` / `--con-glow-r`), so the TV widens it and every state keeps its own paint (TR58). */
 html.con-profile-tv .con-vchoice { --vchoice-or-w: 2.6rem; }
 html.con-profile-tv .con-vchoice__or-medal { font-size: var(--con-t-floor); min-width: 2.4rem; height: 2.4rem; border-radius: 1.2rem; }
 html.con-profile-tv .con-vchoice--column .con-vchoice__or { height: 2rem; }

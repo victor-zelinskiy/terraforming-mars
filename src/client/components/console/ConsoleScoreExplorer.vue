@@ -296,6 +296,7 @@
  *    `onBrowse`, and B lands the card back in the preview — no duplicates,
  *    ever (the endgame's two-instance detail is exactly what this avoids).
  */
+import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {defineComponent, PropType, markRaw, nextTick} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -866,7 +867,10 @@ export default defineComponent({
             this.ui.catFocus = next;
             nextTick(() => {
               const el = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-vpx__maent--focused');
-              el?.scrollIntoView({block: 'nearest'});
+              const box = el === null ? undefined : scrollContainerOf(el, 'y');
+              if (el !== null && box !== undefined) {
+                cursorEnsureVisible(box, el, {axis: 'y'});
+              }
             });
           }
           return;

@@ -53,7 +53,9 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent';
-import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
+import {handCursor, handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
+import {arriveCursor, holdCursor, releaseCursor} from '@/client/console/cursorArrival';
+import {probeTick} from '@/client/console/probeTick';
 import {
   handBodiesOracle, handBodiesState, handBodyEl, handBodyMode, setHandBodiesFlying, ensureHandBodyFaces,
   setHandBodyMode, resetHandBodies,
@@ -146,7 +148,6 @@ export function runningHandRevealKind(): Episode['kind'] | undefined {
 const LIFT_MS = 120;
 const OPEN_FLIGHT_MS = 560;
 const CLOSE_FLIGHT_MS = 480;
-const HANDOFF_MS = 180; // body fade over the identical materialized slot
 const LIFT_PX = 18;
 const FILTER_MOVE_MS = 340;
 const FILTER_LEAVE_MS = 420;
@@ -342,8 +343,20 @@ function seizeBodies(pairs: ReadonlyArray<RevealPair>): Array<HTMLElement | unde
   });
 }
 
-/** Release every seized body into its post-episode mode. */
-function releaseBodies(ep: Episode, mode: (p: RevealPair) => 'docked' | 'shelf' | 'packet'): void {
+/**
+ * Release every seized body into its post-episode mode.
+ *
+ * THE HANDOFF IS «SHOW THE DESTINATION, THEN REMOVE THE COPY ON THE NEXT FRAME» (TR58; `animations.md` § A FLYING
+ * CARD). A `shelf` body stands over its slot, which the caller released in this very flush; the two are the SAME
+ * picture — the slot at REST (the cursor's pose is gated by `handCursor` until the handoff is over), the copy carrying
+ * the slot's state (its blocker chip, its playable thread) — so the body simply leaves on the next painted frame. The
+ * old 180 ms fade over the slot was a cross-fade of two DIFFERENT pictures: the slot already wore the focus ring the
+ * copy never had, and the ring bloomed out from under a fading card. `flightVisuals` (the chips on the copies) live
+ * until the copies are gone — cleared in the same flush, a chip still on screen blinked. `onHandedOver` runs once the
+ * copies have left (the cursor's arrival follows it).
+ */
+function releaseBodies(ep: Episode, mode: (p: RevealPair) => 'docked' | 'shelf' | 'packet', onHandedOver?: () => void): void {
+  const shelved: Array<{name: string, el: HTMLElement}> = [];
   ep.pairs.forEach((p, i) => {
     const el = ep.els[i];
     if (el === undefined) {
@@ -352,27 +365,30 @@ function releaseBodies(ep: Episode, mode: (p: RevealPair) => 'docked' | 'shelf' 
     const m = mode(p);
     setHandBodyMode(p.name as string, m);
     if (m === 'shelf') {
-      // The no-dip handoff: the slot snapped visible under the body (the
-      // caller released holdSlots in the same flush) — the body fades ON
-      // TOP of the identical picture, then hides for the shelf's lifetime.
-      gsap.to(el, {
-        autoAlpha: 0, duration: motionMs(HANDOFF_MS) / 1000, ease: 'power1.out',
-        onComplete: () => gsap.set(el, {autoAlpha: 0}),
-      });
-      // Wall-clock backstop: a starved fade must not leave a half-faded
-      // body over the slot forever.
-      window.setTimeout(() => {
-        if (handBodyMode(p.name as string) === 'shelf') {
-          gsap.killTweensOf(el, 'opacity,visibility');
-          gsap.set(el, {autoAlpha: 0});
-        }
-      }, motionMs(HANDOFF_MS) + 300);
+      shelved.push({name: p.name as string, el});
     } else {
       gsap.set(el, {autoAlpha: 1});
     }
   });
   setHandBodiesFlying([]);
-  handRevealState.flightVisuals = {};
+  if (shelved.length === 0) {
+    handRevealState.flightVisuals = {};
+    onHandedOver?.();
+    return;
+  }
+  probeTick(() => {
+    for (const {name, el} of shelved) {
+      // A body re-seized in between (a reverse, a close) belongs to the new episode now.
+      if (handBodyMode(name) === 'shelf') {
+        gsap.killTweensOf(el, 'opacity,visibility');
+        gsap.set(el, {autoAlpha: 0});
+      }
+    }
+    if (!isHandRevealEpisodeRunning()) {
+      handRevealState.flightVisuals = {};
+    }
+    onHandedOver?.();
+  });
 }
 
 function teardown(): void {
@@ -484,8 +500,11 @@ function finalizeOpenForward(): void {
   }
   ep.finished = true;
   handRevealState.phase = 'open';
+  // The cursor keeps its REST pose through the handoff (the slots show under identical copies), and arrives once the
+  // copies have gone — its own beat, never a ring revealed with the card.
+  holdCursor(handCursor);
   handRevealState.holdSlots = false; // slots snap visible under the bodies
-  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet');
+  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet', () => arriveCursor(handCursor));
   teardown();
 }
 
@@ -635,8 +654,9 @@ function finalizeCloseReverse(): void {
   }
   ep.finished = true;
   handRevealState.phase = 'open';
+  holdCursor(handCursor);
   handRevealState.holdSlots = false; // slots snap back under the page bodies
-  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet');
+  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet', () => arriveCursor(handCursor));
   teardown();
 }
 
@@ -763,9 +783,10 @@ function finalizeFilter(visibleNow: ReadonlySet<string>): void {
     return;
   }
   ep.finished = true;
+  holdCursor(handCursor);
   handRevealState.holdSlots = false;
   handRevealState.filterActive = false;
-  releaseBodies(ep, (p) => visibleNow.has(p.name as string) ? 'shelf' : 'packet');
+  releaseBodies(ep, (p) => visibleNow.has(p.name as string) ? 'shelf' : 'packet', () => arriveCursor(handCursor));
   teardown();
 }
 
@@ -900,6 +921,7 @@ function clearAlbumPresentation(): void {
  */
 export function resetHandReveal(): void {
   finishInstant();
+  releaseCursor(handCursor);
   buildSeq++;
   building = false;
   buildingKind = undefined;

@@ -35,8 +35,12 @@ export type BranchView = {
    *    branches share is the action's price, which the composer prints once above the tiles;
    *  · `undefined` when the print cannot say which outcome is which — the option then speaks in words and chips.
    * References into the card's render tree, never copies: the face, the option and the commit's impulse are one object.
+   *  · a row whose «OR» stands on the PRICE side (TR58 «3 [plant] OR 5 [heat] → 3 [floater]*») → the branch's own
+   *    PRICE segment; the good every price buys is `printedShared`, printed once after the tiles.
    */
   printed: ReadonlyArray<ItemType> | undefined;
+  /** The result every branch of a price-side row buys (`printedSharedResult`) — the same reference for each of them. */
+  printedShared?: ReadonlyArray<ItemType>;
 };
 
 export function branchTitleText(b: ActionPreviewBranch): string {
@@ -146,22 +150,54 @@ function trimFillers(items: ReadonlyArray<ItemType>): ReadonlyArray<ItemType> {
   return items.slice(a, b);
 }
 
-/**
- * The ALTERNATIVES an action box prints in its result — «2 [titanium] / 3 [energy] / 4 [heat]», «[production M€] OR
- * 2 [titanium]» — as separate item runs (face references), in the printed order; `[]` when the result has no seam.
- */
-export function printedAlternatives(node: ICardRenderEffect): ReadonlyArray<ReadonlyArray<ItemType>> {
-  const result: ReadonlyArray<ItemType> = node.rows?.[2] ?? [];
+/** A row's runs between its printed seams (fillers trimmed, empty runs dropped). */
+function seamRuns(items: ReadonlyArray<ItemType>): ReadonlyArray<ReadonlyArray<ItemType>> {
   const runs: Array<Array<ItemType>> = [[]];
-  for (const item of result) {
+  for (const item of items) {
     if (isAlternativeSeam(item)) {
       runs.push([]);
       continue;
     }
     runs[runs.length - 1].push(item);
   }
-  const trimmed = runs.map(trimFillers).filter((run) => run.length > 0);
-  return trimmed.length >= 2 ? trimmed : [];
+  return runs.map(trimFillers).filter((run) => run.length > 0);
+}
+
+/**
+ * Which side of the action box prints the alternatives — the RESULT (one price, several goods: «[asteroid] →
+ * [production M€] OR 2 [titanium]», PL-074) or the PRICE (several prices, ONE good: TR58 «3 [plant] OR 5 [heat] → 3
+ * [floater]*»); `undefined` when neither side has a seam. The result side wins when both would.
+ */
+export function printedAlternativesSide(node: ICardRenderEffect): 'result' | 'price' | undefined {
+  if (seamRuns(node.rows?.[2] ?? []).length >= 2) {
+    return 'result';
+  }
+  return seamRuns(node.rows?.[0] ?? []).length >= 2 ? 'price' : undefined;
+}
+
+/**
+ * The ALTERNATIVES an action box prints — «2 [titanium] / 3 [energy] / 4 [heat]», «[production M€] OR 2 [titanium]»
+ * on the result side, «3 [plant] OR 5 [heat]» on the price side — as separate item runs (face references), in the
+ * printed order; `[]` when the box has no seam.
+ */
+export function printedAlternatives(node: ICardRenderEffect): ReadonlyArray<ReadonlyArray<ItemType>> {
+  const side = printedAlternativesSide(node);
+  if (side === undefined) {
+    return [];
+  }
+  return seamRuns(node.rows?.[side === 'result' ? 2 : 0] ?? []);
+}
+
+/**
+ * THE GOOD EVERY PRICE BUYS (TR58): a box whose alternatives are its PRICES prints its result ONCE — the result's own
+ * nodes (references), for the variant group to print once after the price tiles. `undefined` for any other box.
+ */
+export function printedSharedResult(node: ICardRenderEffect): ReadonlyArray<ItemType> | undefined {
+  if (printedAlternativesSide(node) !== 'price') {
+    return undefined;
+  }
+  const result = trimFillers(node.rows?.[2] ?? []);
+  return result.length > 0 ? result : undefined;
 }
 
 /** Words a branch title may use for a printed thing, beside the render type's own name. */
@@ -266,6 +302,7 @@ function printedBranchRows(
   nodes: ReadonlyArray<GroupNode>,
   branches: ReadonlyArray<ActionPreviewBranch>,
   nodeOf: ReadonlyArray<number | undefined>,
+  shared?: Array<ReadonlyArray<ItemType> | undefined>,
 ): Array<ReadonlyArray<ItemType> | undefined> {
   const out: Array<ReadonlyArray<ItemType> | undefined> = branches.map(() => undefined);
   const byNode = new Map<number, Array<number>>();
@@ -288,8 +325,12 @@ function printedBranchRows(
     if (picks === undefined) {
       continue;
     }
+    const sharedResult = printedSharedResult(actionNode);
     positions.forEach((p, k) => {
       out[p] = segments[picks[k]];
+      if (shared !== undefined && sharedResult !== undefined) {
+        shared[p] = sharedResult;
+      }
     });
   }
   return out;
@@ -319,12 +360,14 @@ export function buildBranchViews(
     nodeOf = indices.map((p) => (p >= 0 ? p : undefined));
     printedNodeOf = nodeOf;
   }
-  const printed = printedBranchRows(nodes, branches, printedNodeOf);
+  const shared: Array<ReadonlyArray<ItemType> | undefined> = branches.map(() => undefined);
+  const printed = printedBranchRows(nodes, branches, printedNodeOf, shared);
   return branches.map((branch, i): BranchView => ({
     key: cardName + '#br' + i,
     node: nodeOf[i] === undefined ? undefined : strippedBranchNode(nodeAt(nodes, nodeOf[i])),
     branch,
     printed: printed[i],
+    ...(shared[i] !== undefined ? {printedShared: shared[i]} : {}),
   }));
 }
 

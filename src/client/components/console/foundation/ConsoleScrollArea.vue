@@ -32,9 +32,10 @@
  * changes) without manual listeners; scroll position rides the passive
  * scroll event. All measurement work is rAF-coalesced.
  */
-import {defineComponent, ref, computed, CSSProperties} from 'vue';
+import {defineComponent, ref, computed, CSSProperties, onBeforeUnmount} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {cursorEnsureVisible, cursorScrollTo, stopCursorScroll} from '@/client/console/cursorScroll';
 
 /**
  * How much travel makes the rail worth drawing.
@@ -140,6 +141,18 @@ export default defineComponent({
 
     const onScroll = (): void => measure();
 
+    /* THE CURSOR'S SCROLL (TR58 — `console/cursorScroll.ts`): a cursor-driven move rides the cursor's own clock
+       (`CURSOR_MS` on `CURSOR_EASE`), keeps the RESTING box in view (the cursor's own lift never asks for a scroll) and
+       is retargetable; the right stick and an unmount stop it. */
+    const axis = (): 'x' | 'y' => props.axis === 'y' ? 'y' : 'x';
+    const stopScroll = (): void => {
+      const vp = viewport.value;
+      if (vp !== undefined && vp !== null) {
+        stopCursorScroll(vp);
+      }
+    };
+    onBeforeUnmount(stopScroll);
+
     const thumbStyle = computed<CSSProperties>(() => {
       const len = ratio.value * 100;
       const offset = progress.value * (100 - len);
@@ -160,6 +173,8 @@ export default defineComponent({
       if (vp === undefined) {
         return;
       }
+      // The right stick drives the list directly — a cursor scroll in flight lets go.
+      stopScroll();
       if (props.axis === 'y') {
         vp.scrollTop += delta;
       } else {
@@ -168,14 +183,13 @@ export default defineComponent({
       measure();
     };
 
-    const scrollToStart = (): void => {
+    /** Back to the start — on the cursor's clock (the cursor walked back to the first row), instantly when asked. */
+    const scrollToStart = (opts: {instant?: boolean} = {}): void => {
       const vp = viewport.value;
-      if (vp === undefined) {
+      if (vp === undefined || vp === null) {
         return;
       }
-      vp.scrollTop = 0;
-      vp.scrollLeft = 0;
-      measure();
+      cursorScrollTo(vp, axis(), 0, {instant: opts.instant, onSettled: measure});
     };
 
     /** Jump to the end (follow-latest feeds — e.g. the journal). */
@@ -195,29 +209,18 @@ export default defineComponent({
     /**
      * Keep an element (the cursored row) inside the viewport with a margin.
      * Manual math on THIS viewport only — never scrollIntoView, which may
-     * walk into outer containers.
+     * walk into outer containers. The RESTING box is kept in view and the move
+     * rides the cursor's clock, unless the caller needs it settled NOW
+     * (`instant` — a measure about to read the scrolled layout).
      */
-    const ensureVisible = (el: Element | null | undefined, margin: number = 12): void => {
+    const ensureVisible = (el: Element | null | undefined, margin: number = 12, opts: {instant?: boolean} = {}): void => {
       const vp = viewport.value;
-      if (vp === undefined || el === null || el === undefined) {
+      if (vp === undefined || vp === null || el === null || el === undefined) {
         return;
       }
-      const er = el.getBoundingClientRect();
-      const vr = vp.getBoundingClientRect();
-      if (props.axis === 'y') {
-        if (er.top < vr.top + margin) {
-          vp.scrollTop += er.top - (vr.top + margin);
-        } else if (er.bottom > vr.bottom - margin) {
-          vp.scrollTop += er.bottom - (vr.bottom - margin);
-        }
-      } else {
-        if (er.left < vr.left + margin) {
-          vp.scrollLeft += er.left - (vr.left + margin);
-        } else if (er.right > vr.right - margin) {
-          vp.scrollLeft += er.right - (vr.right - margin);
-        }
+      if (!cursorEnsureVisible(vp, el, {axis: axis(), margin, instant: opts.instant, onSettled: measure})) {
+        measure();
       }
-      measure();
     };
 
     expose({scrollByPx, scrollToStart, scrollToEnd, ensureVisible, measure});

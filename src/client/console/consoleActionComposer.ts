@@ -230,6 +230,25 @@ export function commonVariantCost<T>(variants: ReadonlyArray<{cost: ReadonlyArra
   return common ? first : [];
 }
 
+/**
+ * THE GOOD EVERY OFFERED VARIANT BUYS (TR58 — the mirror of `commonVariantCost`): a card whose «OR» stands on the PRICE
+ * side («3 [plant] OR 5 [heat] → 3 [floater]*») gives the same result whichever price is paid — printed once after
+ * the price tiles, and taken off the tiles, which then read only what each COSTS. `[]` — no common good.
+ */
+export function commonVariantGain<T>(variants: ReadonlyArray<{gain: ReadonlyArray<T>, variableGain: number, cost: number}>): ReadonlyArray<T> {
+  if (variants.length < 2) {
+    return [];
+  }
+  const first = variants[0].gain;
+  if (first.length === 0) {
+    return [];
+  }
+  const key = (gain: ReadonlyArray<T>) => JSON.stringify(gain);
+  const shared = key(first);
+  const common = variants.every((v) => v.variableGain === 0 && v.cost > 0 && key(v.gain) === shared);
+  return common ? first : [];
+}
+
 /** The selected branch's choices: the direct optionInput + every input step. */
 export function branchChoices(branch: ActionPreviewBranch | undefined): Array<ComposerChoice> {
   if (branch === undefined) {
@@ -519,15 +538,18 @@ export function repeatActionResponses(chosenCard: CardName, composed: RepeatComp
   });
 }
 
-/** Collect captured step responses in steps order (input + tabbedTargets steps —
- *  the pre-collectable ones; a tabbedTargets response is a top-level or-response). */
+/** Collect captured step responses in steps order (input + tabbedTargets + spendHeat steps —
+ *  the pre-collectable ones; a tabbedTargets response is a top-level or-response). A BRANCH that
+ *  spends heat (TR58, Directed Heat Usage) carries Stormcraft's split among its own steps
+ *  (`models/actionPreview.ts` § branchHeatSteps) — its answer rides here, addressed, or the
+ *  server asks the split again after the press. */
 export function orderedStepResponses(
   branch: ActionPreviewBranch,
   steps: Readonly<Record<number, unknown>>,
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
-    if ((step.kind === 'input' || step.kind === 'tabbedTargets') && steps[i] !== undefined) {
+    if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat') && steps[i] !== undefined) {
       // ADDRESSED — the step's own address (the server's), so the replay lands
       // this answer only on its own prompt (`common/inputs/preselectAddress.ts`).
       out.push(addressed(steps[i], step.for));
@@ -557,7 +579,7 @@ export function plannedStepResponses(
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
-    if ((step.kind === 'input' || step.kind === 'tabbedTargets') && steps[i] !== undefined) {
+    if ((step.kind === 'input' || step.kind === 'tabbedTargets' || step.kind === 'spendHeat') && steps[i] !== undefined) {
       out.push(steps[i]);
     } else if (step.kind === 'deltaAdvance') {
       out.push(steps[i] ?? {type: 'deltaProject' as const, amount: step.offer.steps});

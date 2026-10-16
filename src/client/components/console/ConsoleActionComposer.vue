@@ -243,10 +243,18 @@
             <ActionEffectChip v-for="(eff, k) in heroCost" :key="'c' + k" :effect="eff" />
           </div>
         </div>
+        <!-- THE RESERVED PRICE (TR58 — the mirror of the reserved «Вы получите»): the variants are PRICES of one good,
+             so the good stands from the first frame and the price side is the slot the chosen tile fills. -->
+        <div v-else-if="heroPricePending" class="con-composer__hero-side con-composer__hero-side--pending" data-hero-pending="price">
+          <div class="con-composer__hero-label">{{ $t('Will be spent') }}</div>
+          <div class="con-composer__hero-chips">
+            <span class="con-composer__hero-slot" aria-hidden="true"></span>
+          </div>
+        </div>
         <!-- The arrow LEADS the consequence (it rides inside the «Вы получите» side): when the line wraps on the couch,
              «→ Вы получите» opens the second row — never an arrow stranded at the end of the first. -->
         <div v-if="heroGain.length > 0 || heroTimeline !== undefined" class="con-composer__hero-side">
-          <span v-if="heroCost.length > 0" class="con-composer__hero-arrow" aria-hidden="true">→</span>
+          <span v-if="heroCost.length > 0 || heroPricePending" class="con-composer__hero-arrow" aria-hidden="true">→</span>
           <div class="con-composer__hero-label">{{ $t('You will receive') }}</div>
           <div class="con-composer__hero-chips">
             <!-- A TIMELINE on the card's own capsule (TR28): ONE chip, start → end, its two movements in order. -->
@@ -384,6 +392,7 @@
                                   layout="compare"
                                   :data-variant-axis="branchAxis"
                                   :options="branchOptions"
+                                  :shared="variantShared"
                                   :label="$t('Choose an option')"
                                   @pick="pickBranchAt($event)">
               <template #body="{index}">
@@ -398,7 +407,8 @@
                       <b>{{ rangeText(vc) }}</b>
                     </span>
                     <span v-if="branchHasBothSides(pos)" class="con-composer__branch-arrow" aria-hidden="true">→</span>
-                    <template v-for="(eff, k) in branchView(pos).gain" :key="'g' + k">
+                    <!-- A good every variant buys is the group's, not this tile's: printed once, after the tiles (TR58). -->
+                    <template v-for="(eff, k) in branchGainShown(pos)" :key="'g' + k">
                       <ActionEffectChip :effect="eff" />
                     </template>
                     <span v-for="(vc, k) in branchView(pos).variableGain" :key="'vg' + k" class="con-composer__varchip con-composer__varchip--result">
@@ -427,6 +437,7 @@
                    'con-composer__row--missing': choiceMissing(item.choice),
                    'con-composer__row--dial': item.choice.id === focusFreeDialId,
                  }"
+                 :data-choice-kind="item.choice.kind"
                  :ref="isFocused(item) ? 'focusedEl' : undefined">
               <!-- A refused commit lands HERE, and says so: one short local
                    pulse on the row that is holding it. Never a toast detached
@@ -859,7 +870,7 @@ import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from 
 import {ActionFutilityVerdict} from '@/common/models/ActionFutilityModel';
 import {gainAtParameterLimit} from '@/client/components/actions/actionEffectReading';
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
-import {playCommitVerb, playDoorNextStepKey, playDoorOf, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
+import {playCommitVerb, playDoorNextStepKey, playDoorOf, samePreviewShape, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
 import {useResizeObserver} from '@vueuse/core';
 import {SettledColumn} from '@/client/console/settledColumn';
 import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
@@ -868,7 +879,7 @@ import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTie
 import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
-import {branchPositionsForNode, branchSetAvailability, branchTitleText, buildBranchViews, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {BranchView as PrintedBranchView, branchPositionsForNode, branchSetAvailability, branchTitleText, buildBranchViews, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, ACTION_RULE_LABEL, actionRuleText, actionRules} from '@/client/components/actions/actionDescription';
 import {
   ComposerChoice,
@@ -896,6 +907,8 @@ import {
   cardPickRoleKey, keepPlayAnswers,
   // The price every variant shares — printed once, on the price side.
   commonVariantCost,
+  // The good every variant buys — printed once, after the price tiles (TR58).
+  commonVariantGain,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip, takeStagedActionComposerDraft, railFocusKeysOf, consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {buildOrItems, orItemResponse, nestedPickHostable, ConsoleOrItem} from '@/client/console/consoleOrChoice';
@@ -907,7 +920,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
-import {variantDestinationsOf, heroOfEffect, paletteOf, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
+import {variantDestinationsOf, heroOfEffect, paletteOf, sharedVariantDestinations, VariantChoiceOption, VariantHero, VariantSharedResult} from '@/client/console/variantChoiceModel';
 import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
@@ -1708,6 +1721,10 @@ export default defineComponent({
     heroPending(): boolean {
       return this.needBranchRow && this.selectedBranch === undefined;
     },
+    /** The formula's PRICE side is the reserved one — the variants are prices of ONE good (`commonGain`, TR58). */
+    heroPricePending(): boolean {
+      return this.heroPending && this.commonCost.length === 0 && this.commonGain.length > 0;
+    },
     /** A hosted step that owns the whole decision column lifts the settled pin while it stands. */
     settleSuspended(): boolean {
       return this.sub?.kind === 'playedTarget';
@@ -2121,7 +2138,11 @@ export default defineComponent({
       }
       const variable = variablePartsForBranch(branch);
       const timeline = this.heroTimeline?.parts ?? [];
-      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon) && !timeline.includes(e));
+      // A heat price split over Stormcraft's floaters is stated by the split's own chips (`syntheticCost` — `1 → 0`
+      // heat, `−2` floaters): the branch's bare «−5 heat» beside them would count the heat twice (TR58).
+      const heatSplit = this.allChoices.some((c) => c.kind === 'spendHeat');
+      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon) && !timeline.includes(e) &&
+        !(heatSplit && e.icon === 'heat'));
       for (const c of this.allChoices) {
         out.push(...this.syntheticCost(c));
       }
@@ -2130,7 +2151,8 @@ export default defineComponent({
     heroGain(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
       if (branch === undefined) {
-        return [];
+        // The good every price buys is the action's: «Вы получите» states it before a price is chosen (TR58).
+        return this.commonGain;
       }
       const variable = variablePartsForBranch(branch);
       const timeline = this.heroTimeline?.parts ?? [];
@@ -2262,7 +2284,33 @@ export default defineComponent({
      * row of its own whole, a row shared with sibling branches sliced to THIS branch's outcome.
      */
     branchPrinted(): ReadonlyArray<ReadonlyArray<ItemType> | undefined> {
-      return buildBranchViews(this.entry.cardName, this.entry.group, this.branches).map((v) => v.printed);
+      return this.branchViews.map((v) => v.printed);
+    },
+    branchViews(): ReadonlyArray<PrintedBranchView> {
+      return buildBranchViews(this.entry.cardName, this.entry.group, this.branches);
+    },
+    /**
+     * THE GOOD EVERY PRICE BUYS (TR58 — «3 [plant] OR 5 [heat] → 3 [floater]*»): the card's «OR» stands on the price
+     * side, so the tiles are the PRICES and the good is ONE — printed once after them (the face's own result nodes) with
+     * its addresses once, when every variant offers the same holders (the TR56 law: never one fan per tile for one set).
+     */
+    variantShared(): VariantSharedResult | undefined {
+      const printed = this.branchItemPositions.map((pos) => this.branchViews[pos]?.printedShared).find((p) => p !== undefined);
+      if (printed === undefined) {
+        return undefined;
+      }
+      const destinations = sharedVariantDestinations(this.branchItemPositions.map((pos) => variantDestinationsOf(this.branchAt(pos))));
+      return destinations !== undefined ? {printed, destinations} : {printed};
+    },
+    /** The good every offered variant buys (`commonVariantGain`) — printed once after the tiles; `[]` otherwise. */
+    commonGain(): ReadonlyArray<ActionEffect> {
+      if (!this.needBranchRow) {
+        return [];
+      }
+      return commonVariantGain(this.positions.map((pos) => {
+        const v = this.branchView(pos);
+        return {gain: v.gain, variableGain: v.variableGain.length, cost: v.cost.length + v.variableCost.length};
+      }));
     },
     /** The variant grammar's options for the branch rows — cursor · answer · rules, the printed row, the reason. */
     branchOptions(): ReadonlyArray<VariantChoiceOption> {
@@ -2278,8 +2326,9 @@ export default defineComponent({
           // The server proved this live branch changes nothing right now — said on the tile, before the choice.
           ...(branch.available && branch.futile !== undefined ? {quiet: translateText(branch.futile.reason)} : {}),
           printed,
-          // «КУДА ЛЯЖЕТ» (TR56, П1): a variant that puts N on ANY card names its ADDRESSES — the server's holders for it.
-          destinations: variantDestinationsOf(branch),
+          // «КУДА ЛЯЖЕТ» (TR56, П1): a variant that puts N on ANY card names its ADDRESSES — the server's holders for it;
+          // a set every variant shares stands ONCE, beside the good they all buy (`variantShared`, TR58).
+          destinations: this.variantShared?.destinations !== undefined ? undefined : variantDestinationsOf(branch),
           attrs: {'data-branch-pos': String(pos), 'data-branch-nav': this.branchNavKind(pos)},
         };
       });
@@ -2842,8 +2891,15 @@ export default defineComponent({
      * REFUSAL rolls `submitting` back (abortNonce) and the next preview re-seats
      * normally.
      */
-    preview: {immediate: true, handler() {
+    preview: {immediate: true, handler(now: ActionPreview | undefined, was: ActionPreview | undefined) {
       if (this.submitting) {
+        return;
+      }
+      // THE TABLE MOVED UNDER AN OPEN COMPOSER (an opponent's move, a WS push — the store re-asks on every server
+      // version): an answer of the SAME SHAPE replaces the old one IN PLACE — the captures, the chosen variant and the
+      // CURSOR survive (TR58: every refetch used to re-seat the draft, so the cursor jumped back to the first variant
+      // mid-decision). The play composer's rule (`samePreviewShape`), one rule for both.
+      if (was !== undefined && now !== undefined && samePreviewShape(was, now)) {
         return;
       }
       this.resetFromPreview();
@@ -3379,10 +3435,14 @@ export default defineComponent({
     branchCostShown(pos: number): ReadonlyArray<ActionEffect> {
       return this.commonCost.length > 0 ? [] : this.branchView(pos).cost;
     },
+    /** The good THIS variant card prints — none when the good is every variant's (`commonGain`, TR58). */
+    branchGainShown(pos: number): ReadonlyArray<ActionEffect> {
+      return this.commonGain.length > 0 ? [] : this.branchView(pos).gain;
+    },
     branchHasBothSides(pos: number): boolean {
       const v = this.branchView(pos);
       const c = this.branchCostShown(pos).length + v.variableCost.length > 0;
-      const g = v.gain.length + v.variableGain.length > 0;
+      const g = this.branchGainShown(pos).length + v.variableGain.length > 0;
       return c && g;
     },
     playerName(color: string): string {
@@ -3534,6 +3594,13 @@ export default defineComponent({
       // …and then let the GATE have the last word: if a requirement is already
       // waiting, the cursor starts ON it. A screen that opens on a commit row
       // it will refuse is the defect this whole model exists to remove.
+      // Decided NOW, before the first render (TR58): re-seated a tick later, the
+      // cursor stood on one row and moved to another while the composer entered.
+      // The tick only scrolls to it (and re-asks — idempotent).
+      const gateTarget = commitCursorTarget(this.commitGate, this.ctaIndex);
+      if (gateTarget !== undefined) {
+        this.focusIdx = gateTarget;
+      }
       void this.$nextTick(() => this.syncCommitFocus());
     },
     /** The staged-return capture snapshot — written at the staged confirm,

@@ -6,7 +6,7 @@ import {PreselectAddress} from '../../src/common/inputs/preselectAddress';
 import {ActionPreview, ActionPreviewBranch} from '../../src/common/models/ActionPreviewModel';
 import {PlayerInputModel, SelectCardModel} from '../../src/common/models/PlayerInputModel';
 import {buildPlayCardBatch} from '../../src/client/console/consolePlayCardComposer';
-import {buildActionBatch, orderedPreResponses, orderedStepResponses, repeatActionResponses} from '../../src/client/console/consoleActionComposer';
+import {branchChoices, buildActionBatch, orderedPreResponses, orderedStepResponses, repeatActionResponses} from '../../src/client/console/consoleActionComposer';
 import {stepResponse} from '../../src/client/components/colonies/colonyTradePlan';
 import {armPostCommitWitness, checkPostCommitChoice, checkPreselectReask, notePreselectBatch, POST_COMMIT_CHOICE, resetPostCommitWitness, resetPreselectWitness} from '../../src/client/console/preselectWitness';
 import {ACTION_MENU_NEXT_TITLE} from '../../src/common/inputs/actionMenuTitles';
@@ -37,6 +37,35 @@ describe('pre-select stamping (the client batch builders)', () => {
       {type: 'card', cards: [CardName.PETS], for: GRANT},
       {type: 'card', cards: [CardName.BIRDS]},
     ]);
+  });
+
+  it('TR58: a BRANCH\'s heat split rides the batch, addressed to Stormcraft — never dropped (the server would ask it after the press)', () => {
+    const storm: PreselectAddress = {role: 'and', source: {kind: 'corporation', card: CardName.STORMCRAFT_INCORPORATED}};
+    const branch = branchWith([
+      {kind: 'spendHeat', input: {type: 'and', title: 'x', buttonLabel: 'x', options: []} as unknown as PlayerInputModel, for: storm},
+      {kind: 'input', input: CARD_MODEL, for: GRANT},
+    ]);
+    const split = {type: 'and', responses: [{type: 'amount', amount: 1}, {type: 'amount', amount: 2}]};
+    const out = orderedStepResponses(branch, {0: split, 1: {type: 'card', cards: [CardName.DIRIGIBLES]}});
+    expect(out).deep.eq([
+      {...split, for: storm},
+      {type: 'card', cards: [CardName.DIRIGIBLES], for: GRANT},
+    ]);
+  });
+
+  it('EVERY step the composer draws as a ROW is posted — a shown answer is never dropped (the class of the TR58 heat split)', () => {
+    const branch = branchWith([
+      {kind: 'input', input: CARD_MODEL},
+      {kind: 'spendHeat', input: {type: 'and', title: 'x', buttonLabel: 'x', options: []} as unknown as PlayerInputModel},
+      {kind: 'note', noteKind: 'generic'},
+    ]);
+    const rows = branchChoices(branch).filter((c) => c.scope === 'step');
+    const captured: Record<number, unknown> = {};
+    rows.forEach((c) => {
+      captured[c.index] = {type: 'answer', step: c.index};
+    });
+    expect(rows.length, 'the composer draws the input and the heat split as rows').eq(2);
+    expect(orderedStepResponses(branch, captured), 'every row it drew rides the batch').deep.eq(rows.map((c) => captured[c.index]));
   });
 
   it('orderedPreResponses stamps a pre-step\'s answer', () => {

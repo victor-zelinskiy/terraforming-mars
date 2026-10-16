@@ -85,6 +85,30 @@
         </div>
       </div>
     </template>
+    <!-- THE RESULT EVERY OPTION BUYS (TR58 — «3 [plant] OR 5 [heat] → 3 [floater]*»: the card's «OR» stands on the PRICE
+         side, so the options are the prices and the good is ONE). Printed ONCE after the last option, the card's own
+         result nodes behind the arrow, its addresses once (the law of TR56: the variants share their holders, so no
+         tile repeats them). Not an option: no cursor stop, no seal. -->
+    <template v-if="shared !== undefined">
+      <div class="con-vchoice__arrow" aria-hidden="true"><span class="con-vchoice__arrow-mark">→</span></div>
+      <div class="con-vchoice__shared" data-vchoice-shared>
+        <div class="con-vchoice__print" data-vchoice-print>
+          <span class="con-vchoice__ink">
+            <PremiumMechNode v-for="(node, n) in shared.printed" :key="n" :node="node" />
+          </span>
+        </div>
+        <div v-if="shared.destinations !== undefined" class="con-vchoice__dest" data-vchoice-dest
+             :data-vchoice-dest-count="shared.destinations.count">
+          <span class="con-vchoice__dest-fan" :data-fan="sharedFaces.length">
+            <span v-for="(card, k) in sharedFaces" :key="card.name" class="con-vchoice__dest-face"
+                  :style="{'--k': String(k)}" :data-vchoice-dest-card="card.name">
+              <ConsoleCardFaceLite :name="card.name" :card="card" lightweight />
+            </span>
+          </span>
+          <span class="con-vchoice__dest-label" data-vchoice-dest-label>{{ destinationsLabel(shared.destinations) }}</span>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -92,7 +116,10 @@
 import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {groupDecided, heroFigure, variantOptionClasses, variantQuiet, VariantChoiceOption, VariantHero, VARIANT_DESTINATION_FACES} from '@/client/console/variantChoiceModel';
+import {
+  groupDecided, heroFigure, variantOptionClasses, variantQuiet, VariantChoiceOption, VariantDestinations, VariantHero, VariantSharedResult,
+  VARIANT_DESTINATION_FACES,
+} from '@/client/console/variantChoiceModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {translateCardName, translateTextWithParams} from '@/client/directives/i18n';
@@ -119,6 +146,8 @@ export default defineComponent({
     exclusive: {type: Boolean, default: true},
     /** The radiogroup's accessible name (already translated). */
     label: {type: String, default: ''},
+    /** The ONE result every option buys (TR58 — the options are prices), printed once after them with its addresses. */
+    shared: {type: Object as PropType<VariantSharedResult | undefined>, default: undefined},
   },
   emits: ['pick'],
   computed: {
@@ -127,6 +156,9 @@ export default defineComponent({
     },
     wildUrl(): string {
       return wildIconUrl();
+    },
+    sharedFaces(): ReadonlyArray<CardModel> {
+      return (this.shared?.destinations?.cards ?? []).slice(0, VARIANT_DESTINATION_FACES);
     },
   },
   methods: {
@@ -151,7 +183,9 @@ export default defineComponent({
     },
     /** One holder names itself; several are a count «N карты на выбор». */
     destinationLabel(opt: VariantChoiceOption): string {
-      const d = opt.destinations;
+      return this.destinationsLabel(opt.destinations);
+    },
+    destinationsLabel(d: VariantDestinations | undefined): string {
       if (d === undefined) {
         return '';
       }

@@ -1925,7 +1925,7 @@ html.con-profile-tv {
        pass widens the ring + glow on the primary browse surfaces so a
        focused element reads instantly at 2 m, without lighting up idle
        chrome (OLED restraint: glow rides ONLY the focused element). */
-    .con-cards__slot--focused,
+    /* `.con-cards__slot--focused` speaks the ring TOKEN itself (TR58) — no couch rule out-paints its states. */
     .con-played__slot--focused {
         box-shadow: 0 0 0 var(--con-focus-ring) fade(@con-cyan, 92%), 0 0 1.4rem fade(@con-cyan, 40%);
         border-radius: 0.6rem;
@@ -1933,20 +1933,18 @@ html.con-profile-tv {
     /* ONE couch focus ring across every browse surface (§3.3 — the .con-focus()
        language at TV width). Single-class `--focused` only: compound state
        rings (selected/go/picked colour variants) out-specify this and keep
-       their semantic colour, just as in the base sheets. */
+       their semantic colour, just as in the base sheets.
+       ⚠ A surface on the CURSOR GRAMMAR (TR58 — `.con-cursor()`: the hand,
+       «Действия карт», the colonies, the standard projects, the composer rows,
+       the variant tiles, the start's minis) is NOT listed: its ring speaks the
+       profile tokens itself, and a rule here would paint a second, static ring
+       on the host beside its living layer. */
     .con-task__opt--focused,
     .con-task__option--focused,
     .con-sheet__row--focused,
     .con-colfocus__payrow--focused,
     .con-colfocus__steprow--focused,
-    .con-coltile--focused,
-    .con-ma__card--focused,
-    .con-stdp__card--focused,
     .con-govsupport__card--focused,
-    .con-cardactions__tile--focused,
-    .con-composer__row--focused,
-    .con-start__mini--focused,
-    .con-start__qcard--focused,
     .con-journal__node--focused,
     .con-played__family--focused,
     .con-hydro__stop--focused {

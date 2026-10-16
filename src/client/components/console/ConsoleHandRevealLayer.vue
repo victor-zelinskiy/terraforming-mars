@@ -38,6 +38,7 @@
              :class="{
                'con-deal-proxy__face--dim': visualOf(c.name)?.dim === 'soft',
                'con-deal-proxy__face--dim-strong': visualOf(c.name)?.dim === 'strong',
+               'con-deal-proxy__face--playable': visualOf(c.name)?.playable === true,
              }">
           <ConsoleCardFaceLite :name="c.name" :card="visualOf(c.name)?.card ?? c" :artTier="handRevealState.artTier" lightweight />
           <span v-if="visualOf(c.name)?.chip !== undefined" class="con-deal-proxy__chip"

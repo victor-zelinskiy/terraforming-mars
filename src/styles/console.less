@@ -134,6 +134,13 @@ html.console-native {
     --con-cta-h: 3.2rem;
     --con-focus-ring: 0.1rem;
     --con-glow-r: 0.9rem;
+    /* THE CURSOR'S CLOCK (TR58 «КУРСОР — ОДИН ЖИВОЙ ОБЪЕКТ») — one duration and one easing for every cursor of the
+       console: the ring's arrival and departure, the lift, a step. `.con-cursor()` reads them; the JS mirror is
+       `CURSOR_MS` / `CURSOR_EASE` (motionTokens.ts, the equality guarded by `cursorGrammarGuard.spec`). The lift has
+       its own token because reduced motion stills it while the ring keeps a short fade (console_reduced_motion.less). */
+    --con-cursor-ms: calc(180ms * var(--motion-scale, 1));
+    --con-cursor-move-ms: calc(180ms * var(--motion-scale, 1));
+    --con-cursor-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
     /* Effect-chip system (ActionEffectChip inside console surfaces): ONE
        token set so every confirm/composer/detail shows the same chip
        weight; the TV profile raises only the values (console_tv.less),
@@ -218,6 +225,94 @@ html.console-native {
 }
 .con-focus-outer(@color: @sem-focus) {
     box-shadow: 0 0 0 var(--con-focus-ring, 0.1rem) fade(@color, 92%), 0 0 var(--con-glow-r, 0.9rem) fade(@color, 36%);
+}
+
+/* ── THE CURSOR — ONE LIVING OBJECT (TR58; `.claude/rules/console-ui.md` § THE CURSOR) ──
+   The owner's 4K report: the focus «appeared in one frame» and the card made «a micro-jump» — the ring lived on the
+   card face with no transition while the lift ran 150 ms on the slot (two elements, two clocks), and a default focus
+   was born under the flying copy and revealed with it. The grammar every cursor host speaks instead:
+   · the RING (+ its halo and its shadow) is a LAYER — `::after` (or `::before`) of the host — that carries its
+     box-shadow ONCE, at rest and on the cursor alike, and only its OPACITY moves: an opacity always interpolates
+     (two box-shadow lists of different shapes snap), and it is compositor-only (the paint baseline);
+   · the LIFT is the host's own `transform`, written by the caller as a function of `--con-cursor-on` (0 at rest,
+     1 on the cursor), so one declaration serves both states and ONE transition carries ring and lift together;
+   · `.con-cursor-on()` sets `--con-cursor-on` to the ARRIVAL GATE (`--con-cursor-gate`): a surface root still
+     waiting for its ready signal wears `[data-cursor-pending]` (console/cursorArrival.ts) and the gate is 0 under
+     it — a default focus placed at mount stands at REST, logically there (input works), and ARRIVES by the very same
+     transition when the root lets go;
+   · a host leaving the cursor keeps its raised `z-index` until its lift has settled (a DISCRETE z transition, delayed
+     on the way down, immediate on the way up — the host stays `z-index: auto` at rest, so it is no stacking context
+     there and its content keeps the stacking it had), so an object still enlarged never dives under its neighbour.
+   The host must be positioned (the layer is `inset: 0`); `@radius` is the face's corner. A state colour (playable /
+   refused / not now) is a different `@shadow` on the SAME layer — a state change while focused swaps the paint, the
+   cursor itself never re-arrives. A host whose FOCUS BACKGROUND differs (a gradient — gradients never interpolate)
+   puts it on the layer too (`@bg`) and lays the layer UNDER its content (`@layer-z: -1` — the host is a stacking
+   context by its own `z-index`, so the layer paints over the host's background and under everything in it, exactly
+   where the host's own box-shadow used to paint). Rings speak the profile tokens (`--con-focus-ring` /
+   `--con-glow-r`), so the TV widens them by its tokens — never by a later rule that out-paints the state colours. */
+.con-cursor(@shadow; @radius: inherit; @transform: none; @z: 3; @pseudo: after; @bg: none; @layer-z: auto) {
+    --con-cursor-on: 0;
+    --con-cursor-z: @z;
+    --con-cursor-zdelay: var(--con-cursor-move-ms);
+    transform: @transform;
+    transition+: transform var(--con-cursor-lift-ms, var(--con-cursor-move-ms)) var(--con-cursor-ease);
+    transition+: z-index 0s linear var(--con-cursor-zdelay) allow-discrete;
+    .con-cursor-layer(@pseudo; {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: @layer-z;
+        border-radius: @radius;
+        background: @bg;
+        box-shadow: @shadow;
+        opacity: var(--con-cursor-on);
+        pointer-events: none;
+        transition: opacity var(--con-cursor-ring-ms, var(--con-cursor-ms)) var(--con-cursor-ease);
+    });
+}
+/* The ring layer's pseudo-element (Less cannot interpolate `::@{pseudo}`, so the two are spelled out). */
+.con-cursor-layer(after; @rules) {
+    &::after { @rules(); }
+}
+.con-cursor-layer(before; @rules) {
+    &::before { @rules(); }
+}
+/* The cursor stands here. */
+.con-cursor-on() {
+    --con-cursor-on: var(--con-cursor-gate, 1);
+    --con-cursor-zdelay: 0s;
+    z-index: var(--con-cursor-z);
+}
+/* A state paint of the ring (playable / refused / not now) on the SAME layer. */
+.con-cursor-paint(@shadow; @pseudo: after) {
+    .con-cursor-layer(@pseudo; { box-shadow: @shadow; });
+}
+/* THE SAME GRAMMAR FOR A HOST THAT CLIPS ITS OWN CHILDREN (`overflow: hidden` — the colony tile): a ring LAYER inside
+   it would lose its outer halo to the clip, so the host paints the ring on its OWN box-shadow, written as a function of
+   `--con-cursor-on` (lengths and alphas scaled by it — the resting shape and the cursor's are the SAME list, so the
+   transition always interpolates), on the cursor's clock. Gate, z, lift and `.con-cursor-on()` are the same. */
+.con-cursor-shadow(@transform: none; @z: 3) {
+    --con-cursor-on: 0;
+    --con-cursor-z: @z;
+    --con-cursor-zdelay: var(--con-cursor-move-ms);
+    transform: @transform;
+    transition+: box-shadow var(--con-cursor-ring-ms, var(--con-cursor-ms)) var(--con-cursor-ease);
+    transition+: transform var(--con-cursor-lift-ms, var(--con-cursor-move-ms)) var(--con-cursor-ease);
+    transition+: z-index 0s linear var(--con-cursor-zdelay) allow-discrete;
+}
+/* A surface root that has not let its default cursor arrive yet (`[data-cursor-pending]`, cursorArrival.ts). */
+[data-cursor-pending] {
+    --con-cursor-gate: 0;
+}
+/* A band surface's ENTRY gate is set from the enter hook — after the inserted element's style was already resolved (the
+   hook measures its panel), so the cursor pose had been computed lit. Gating may never be seen: under the entry gate
+   the POSE's own clock (the ring layer, the lift — `.con-cursor()` / `.con-cursor-shadow()`) is ZERO, the lit pose
+   drops before the first paint; lifting the gate restores it in the same style change, so the ARRIVAL runs the
+   ordinary transition (a transition takes the after-change duration). Only the pose's clock: everything else on the
+   cursor's clock (a row's own opacity, a stage's glow) keeps its transition through the entry. */
+[data-cursor-pending="entry"] {
+    --con-cursor-ring-ms: 0ms;
+    --con-cursor-lift-ms: 0ms;
 }
 
 /* Full-screen DIM-STRONG — the TASK/STAGE backdrop tier: the game stays
@@ -1206,14 +1301,15 @@ html.console-native {
 :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot {
     /* The ring ARRIVES, it never snaps on. The batch hands over and the focus
        opens a frame later, so this transition is what the player actually sees
-       as «the card settled and became the selected one» — at the carousel's
-       160ms/ease it read as a kick right after the landing. */
+       as «the card settled and became the selected one» — on the cursor's ONE
+       clock (TR58), the z held until the lift has settled. */
     transition:
-        transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
-        box-shadow calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+        transform var(--con-cursor-move-ms) var(--con-cursor-ease),
+        box-shadow var(--con-cursor-ms) var(--con-cursor-ease),
+        z-index 0s linear var(--con-cursor-zdelay, 0s) allow-discrete;
 }
 :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot--focused {
-    transform: translateY(-.2rem) scale(var(--con-ws-focus-scale, 1.045));
+    transform: translateY(calc(-.2rem * var(--con-cursor-gate, 1))) scale(calc(1 + (var(--con-ws-focus-scale, 1.045) - 1) * var(--con-cursor-gate, 1)));
 }
 .con-cards__verdictbar.con-ws-stage-status,
 .con-reveal__namebar.con-ws-stage-status,
@@ -8169,9 +8265,11 @@ html.con-section-leaving .con-strat {
         color: @con-text;
         font-family: @con-font;
         cursor: pointer;
-        transition: box-shadow calc(170ms * var(--motion-scale, 1)) ease,
-            background calc(170ms * var(--motion-scale, 1)) ease,
-            transform calc(170ms * var(--motion-scale, 1)) @con-ease-enter;
+        /* The cursor's clock (TR58). Every state's shadow list keeps the resting SHAPE — `[inset, inset, outer…]` —
+           so the transition interpolates instead of snapping (`cursorGrammarGuard`). */
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease),
+            background var(--con-cursor-ms) var(--con-cursor-ease),
+            transform var(--con-cursor-move-ms) var(--con-cursor-ease);
         .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
 
         /* A thin conduit accent along the top edge — the rail's own motif. */
@@ -8193,6 +8291,7 @@ html.con-section-leaving .con-strat {
                 linear-gradient(180deg, rgba(19, 32, 46, 0.96), rgba(11, 20, 30, 0.96));
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-cyan, 88%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
                 0 0 1.2rem fade(@con-cyan, 22%),
                 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
             transform: translateY(-.12rem);
@@ -8204,12 +8303,14 @@ html.con-section-leaving .con-strat {
                 linear-gradient(180deg, rgba(18, 34, 34, 0.96), rgba(10, 21, 22, 0.96));
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-hydro-mint, 82%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
                 0 .4rem 1.2rem rgba(0, 0, 0, 0.36);
             &::before { background: linear-gradient(90deg, transparent, fade(@con-hydro-mint, 80%), transparent); }
         }
         &--focused&--selected {
             box-shadow:
                 inset 0 0 0 .1rem fade(@con-hydro-mint, 95%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
                 0 0 1.3rem fade(@con-hydro-mint, 26%),
                 0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
         }
@@ -9654,12 +9755,23 @@ html.console-mode {
            colour, the opacity and the semantics are untouched. */
         --con-hand-fx: calc(1.6 / max(1.6, var(--con-hand-zoom, 0.66)));
         /* NO opacity transition ON PURPOSE: the reveal handoff releases the
-           held slots as an instant snap UNDER the still-opaque proxies (see
-           the `--transit` note above) — a transition here re-creates the
-           cross-fade dip at every landing. */
-        transition:
-            transform calc(150ms * var(--motion-scale, 1)) @con-ease-standard,
-            filter calc(150ms * var(--motion-scale, 1)) ease;
+           held slots UNDER the still-opaque copies, which leave on the NEXT
+           frame (TR58 — never a cross-fade: the copies are identical to the
+           resting slot, the cursor is not on them).
+           THE CURSOR (TR58, `.con-cursor()`): the ring + halo + shadow are the
+           slot's own `::after` layer and the lift is the slot's own scale —
+           one element, one clock. The layer is painted in the slot's STATE
+           colour at rest too (mint playable · red refused · amber not now ·
+           cyan otherwise), invisible until the cursor stands here, so a step
+           onto a card only fades a ring in, it never repaints one. A default
+           focus waits at rest under `[data-cursor-pending]` (the open episode)
+           and ARRIVES by this very transition. */
+        .con-cursor(
+            0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-cyan, 80%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-cyan, 34%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+            .4rem;
+            ~"scale(calc(1 + 0.035 * var(--con-cursor-on)))";
+            3
+        );
         /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
 
@@ -9680,29 +9792,22 @@ html.console-mode {
             filter: grayscale(0.42) brightness(0.78);
             animation: con-hand-dim-in calc(300ms * var(--motion-scale, 1)) ease both;
         }
-        /* SELECTED: the focus pop — a cheap ring + glow + slight scale (the
-           transform composes on top of the slot `zoom`), state-coloured. */
-        &--selected {
-            transform: scale(1.035);
-            z-index: 3;
+        /* SELECTED: the cursor stands here — the ring fades in, the card lifts (scale composes on top of the slot
+           `zoom`), state-coloured by the layer's paint below. */
+        &--selected { .con-cursor-on(); }
+        &--playable {
+            .con-cursor-paint(0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-mint, 84%), 0 0 calc(1rem * var(--con-hand-fx, 1)) fade(@con-mint, 40%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7););
         }
-        &--selected > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-cyan, 80%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-cyan, 34%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
-        }
-        &--selected&--playable > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-mint, 84%), 0 0 calc(1rem * var(--con-hand-fx, 1)) fade(@con-mint, 40%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
-        }
-        &--selected&--unplayable > :is(.card-container, .pcard) {
-            filter: grayscale(0.16) brightness(0.94);
-            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-red, 72%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-red, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+        &--unplayable {
+            .con-cursor-paint(0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-red, 72%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-red, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7););
         }
         /* «НЕ СЕЙЧАС»: legal by the rules, merely outside the player's window.
            NO dim at all — the card is exactly as good as it will be a moment
            from now — and the focus ring turns amber so the state is readable
            without colour alone (it is a box-shadow, so the paint baseline
            keeps it; see the paint-baseline contract). */
-        &--selected&--notnow > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-amber, 78%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-amber, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+        &--notnow {
+            .con-cursor-paint(0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-amber, 78%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-amber, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7););
         }
         /* SALE mode: picked cards get the amber sale frame + state band. */
         &--sale-picked > :is(.card-container, .pcard) {
@@ -11936,9 +12041,10 @@ html.console-mode {
         box-shadow:
             inset 0 0 0 .05rem rgba(126, 156, 188, 0.18),
             inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+        /* The cursor's clock (TR58); the focus list keeps the resting `[inset, inset]` shape before its glow. */
         transition:
-            box-shadow calc(140ms * var(--motion-scale, 1)) ease,
-            background calc(140ms * var(--motion-scale, 1)) ease;
+            box-shadow var(--con-cursor-ms) var(--con-cursor-ease),
+            background var(--con-cursor-ms) var(--con-cursor-ease);
 
         /* An odd list's LAST card owns the full row — no orphan gap. */
         &:last-child:nth-child(odd) {
@@ -12043,8 +12149,9 @@ html.console-mode {
            tile and replaces only the resting hairline, never a state. */
         &--focused {
             box-shadow:
-                inset 0 0 0 .075rem fade(@con-cyan, 85%),
-                0 0 1.1rem fade(@con-cyan, 18%);
+                inset 0 0 0 max(.075rem, var(--con-focus-ring)) fade(@con-cyan, 85%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
+                0 0 var(--con-glow-r) fade(@con-cyan, 18%);
         }
         /* The one-shot AVAILABILITY REVEAL (a live rising edge only): the
            emblem takes the strategy rail's own activation phrase — the same
@@ -12687,8 +12794,9 @@ html.console-mode {
         }
         .con-ma__card--focused {
             box-shadow:
-                inset 0 0 0 .075rem fade(@con-cyan, 85%),
-                0 0 1.1rem fade(@con-cyan, 18%);
+                inset 0 0 0 max(.075rem, var(--con-focus-ring)) fade(@con-cyan, 85%),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
+                0 0 var(--con-glow-r) fade(@con-cyan, 18%);
         }
         .con-ma__card--taken {
             background: linear-gradient(165deg, rgba(23, 21, 17, 0.95), rgba(14, 12, 10, 0.95));
@@ -13702,6 +13810,17 @@ html.con-profile-handheld .con-mafocus {
         border-radius: .55rem;
         background: rgba(14, 23, 34, 0.86);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
+        /* THE CURSOR (TR58, `.con-cursor()`): the row's ring + halo are a layer under its content on the cursor's
+           clock; the art stage and the emblem read the SAME `--con-cursor-on` (inherited) and move with it — one
+           object, one clock. An unavailable row comes back to full opacity under the cursor on that clock too (and the
+           entrance cascade's hand-over to the row's own .62 rides it instead of a one-frame snap). */
+        .con-cursor(
+            @shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 var(--con-glow-r) fade(@con-cyan, 24%);
+            @radius: .55rem;
+            @z: 1;
+            @layer-z: -1;
+        );
+        transition+: opacity var(--con-cursor-ms) var(--con-cursor-ease);
 
         &--off { opacity: 0.62; filter: saturate(0.55); }
         /* AVAILABLE and changing nothing: the emblem and the words a step back (opacity on the children — the row
@@ -13711,17 +13830,12 @@ html.con-profile-handheld .con-mafocus {
         &--futile&--focused .con-stdp__stage,
         &--futile&--focused .con-stdp__body { opacity: .9; }
         &--focused {
-            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 90%), 0 0 1.1rem fade(@con-cyan, 24%);
+            .con-cursor-on();
             opacity: 1;
         }
-        &--go&--focused {
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 85%), 0 0 1.1rem fade(@con-mint, 24%);
+        &--go {
+            .con-cursor-paint(inset 0 0 0 var(--con-focus-ring) fade(@con-mint, 85%), 0 0 var(--con-glow-r) fade(@con-mint, 24%););
         }
-        &--focused .con-stdp__stage {
-            background: linear-gradient(145deg, rgba(35, 69, 84, 0.88), rgba(11, 23, 32, 0.96));
-            box-shadow: inset 0 0 0 .06rem fade(@con-mint, 50%), 0 0 .9rem fade(@con-mint, 18%);
-        }
-        &--focused .con-stdp__icon { transform: scale(1.06); }
         &:last-child:nth-child(odd) { grid-column: 1 / -1; }
     }
     &__rail {
@@ -13755,8 +13869,14 @@ html.con-profile-handheld .con-mafocus {
         flex-shrink: 0;
         border-radius: .6rem;
         background: linear-gradient(145deg, rgba(28, 45, 63, 0.86), rgba(10, 18, 28, 0.94));
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28), 0 .35rem .9rem rgba(0, 0, 0, 0.28);
-        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease;
+        /* Under the row's cursor (its inherited `--con-cursor-on`): the rim turns mint, the drop shadow becomes a mint
+           glow and the art box brightens from inside (an inset tint, not a second gradient — gradients never
+           interpolate) — ONE list scaled by the cursor, on its clock. */
+        box-shadow:
+            inset 0 0 0 calc(.05rem + .01rem * var(--con-cursor-on, 0)) rgba(calc(120 - 32 * var(--con-cursor-on, 0)), calc(150 + 64 * var(--con-cursor-on, 0)), calc(180 - 14 * var(--con-cursor-on, 0)), calc(.28 + .22 * var(--con-cursor-on, 0))),
+            inset 0 0 1.6rem rgba(46, 96, 112, calc(.42 * var(--con-cursor-on, 0))),
+            0 calc(.35rem * (1 - var(--con-cursor-on, 0))) .9rem rgba(calc(88 * var(--con-cursor-on, 0)), calc(214 * var(--con-cursor-on, 0)), calc(166 * var(--con-cursor-on, 0)), calc(.28 - .1 * var(--con-cursor-on, 0)));
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease);
 
         &::before {
             content: '';
@@ -13789,7 +13909,9 @@ html.con-profile-handheld .con-mafocus {
            the growth the taller rows hand out). */
         width: 84%;
         height: 84%;
-        transition: transform calc(150ms * var(--motion-scale, 1)) ease;
+        /* The emblem lifts with its row's cursor — the row's `--con-cursor-on`, the cursor's clock. */
+        transform: scale(calc(1 + .06 * var(--con-cursor-on, 0)));
+        transition: transform var(--con-cursor-move-ms) var(--con-cursor-ease);
 
         &.std-icon--energy { background-size: 87% 87%; }
         &.std-icon--temperature { background-size: auto 92%; }
@@ -21293,16 +21415,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     padding: .5rem .7rem .45rem;
     border-radius: .6rem;
     background: @con-glass;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.45);
     overflow: hidden;
     font-family: @con-font;
     color: @con-text;
-    transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+    /* THE CURSOR (TR58, `.con-cursor-shadow()` — the tile clips its glyph zones, so the ring is its own box-shadow):
+       the rim thickens into the focus ring, the halo and the deeper shadow grow, the tile lifts — ONE list scaled by
+       `--con-cursor-on` on the cursor's clock, so a step cross-fades and a default focus ARRIVES after the grid has
+       entered. The ring and the halo are the profile tokens (the TV widens them by `--con-focus-ring` / `--con-glow-r`). */
+    .con-cursor-shadow(@transform: ~"translateY(calc(-.15rem * var(--con-cursor-on)))"; @z: 2);
+    box-shadow:
+        inset 0 0 0 calc(.05rem + (var(--con-focus-ring) - .05rem) * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.22 + .68 * var(--con-cursor-on))),
+        0 0 calc(var(--con-glow-r) * 1.22 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.26 * var(--con-cursor-on))),
+        0 calc(.4rem + .1rem * var(--con-cursor-on)) calc(1.2rem + .2rem * var(--con-cursor-on)) rgba(0, 0, 0, calc(.45 + .1 * var(--con-cursor-on)));
 
-    &--focused {
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 90%), 0 0 1.1rem fade(@con-cyan, 26%), 0 .5rem 1.4rem rgba(0, 0, 0, 0.55);
-        transform: translateY(-.15rem);
-    }
+    &--focused { .con-cursor-on(); }
     &--inactive { filter: saturate(0.55) brightness(0.78); }
     &--blocked:not(&--focused) { filter: saturate(0.75) brightness(0.9); }
 
@@ -23618,7 +23744,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
                climbed row 1 into the header/pick counter once the premium
                face grew the rows — the glow ring + the gliding focus frame
                carry the emphasis instead. Clip-safe within the paddings. */
-            > .con-cards__slot--focused { transform: scale(1.045); }
+            > .con-cards__slot--focused { transform: scale(calc(1 + .045 * var(--con-cursor-gate, 1))); }
         }
         /* FEW cards (corporation pick: 2-3 full-size cards): generous
            spacing + extra clip-safe headroom; the focused emphasis is
@@ -23628,13 +23754,16 @@ html.con-scale-focus-oceans .global-numbers-oceans {
             padding: 2.1rem 1.8rem 1.6rem;
 
             > .con-cards__slot--focused {
-                transform: translateY(-.3rem) scale(1.05);
+                transform: translateY(calc(-.3rem * var(--con-cursor-gate, 1))) scale(calc(1 + .05 * var(--con-cursor-gate, 1)));
             }
         }
-        /* In-place EMPHASIS: neighbours calm down, the focused card leads. */
-        &--has-focus > .con-cards__slot:not(.con-cards__slot--focused) {
-            opacity: 0.8;
-            filter: saturate(0.88);
+        /* In-place EMPHASIS: neighbours calm down, the focused card leads — a part of the CURSOR's pose (TR58): it
+           exists only once a card IS focused (never while the copies hand over — the copies are the undimmed cards,
+           so a row dimmed under them stepped down 1 → .8 in the handoff's frame), it is held back with the cursor's
+           arrival (`--con-cursor-gate`), and it rides the cursor's clock on the CARD (the slot's own opacity is the
+           deal hold's snap and must stay crisp). */
+        &--has-focus:has(> .con-cards__slot--focused) > .con-cards__slot:not(.con-cards__slot--focused) > :is(.card-container, .pcard) {
+            opacity: calc(1 - .2 * var(--con-cursor-gate, 1));
         }
 
         /* P15: at the pick max, unpicked cards DE-EMPHASIZE (desktop
@@ -23660,10 +23789,18 @@ html.con-scale-focus-oceans .global-numbers-oceans {
            deliberately keeps the short 160ms: it is the deal handoff's own
            release fade, and stretching it would soften a seam that must stay
            crisp (real card materializing under a proxy). */
-        transition: transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard,
-            box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard,
-            opacity calc(160ms * var(--motion-scale, 1)) ease;
-        > :is(.card-container, .pcard) { margin: 0; }
+        /* THE CURSOR'S CLOCK (TR58): the ring and the lift on the one token; a slot leaving the cursor keeps its
+           raised z until its lift has settled (a discrete, delayed z — it never dives under a neighbour while
+           still enlarged). The card inside fades its neighbour calm on the same clock. */
+        --con-cursor-zdelay: var(--con-cursor-move-ms);
+        transition: transform var(--con-cursor-move-ms) var(--con-cursor-ease),
+            box-shadow var(--con-cursor-ms) var(--con-cursor-ease),
+            opacity calc(160ms * var(--motion-scale, 1)) ease,
+            z-index 0s linear var(--con-cursor-zdelay) allow-discrete;
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            transition: opacity var(--con-cursor-ms) var(--con-cursor-ease);
+        }
 
         /* P13/P15 in-place emphasis: the focused card grows and comes
            forward. P15 tuned the maths clip-safe: a natural-size card at
@@ -23671,9 +23808,14 @@ html.con-scale-focus-oceans .global-numbers-oceans {
            strip padding — the top edge clipped (the reported overflow).
            1.08 + lift −6 stays within the padding at EVERY slot size. */
         &--focused {
-            transform: translateY(-.3rem) scale(1.08);
-            box-shadow: 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 1.5rem fade(@con-cyan, 28%);
+            /* The pose scales by the ARRIVAL GATE (TR58 — `--con-cursor-gate`, 0 under a root whose cards are still
+               dealing in): the ring and the lift come in on this slot's own transition once the root lets go. */
+            transform: translateY(calc(-.3rem * var(--con-cursor-gate, 1))) scale(calc(1 + .08 * var(--con-cursor-gate, 1)));
+            box-shadow:
+                0 0 0 calc(var(--con-focus-ring) * var(--con-cursor-gate, 1)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.85 * var(--con-cursor-gate, 1))),
+                0 0 1.5rem rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.28 * var(--con-cursor-gate, 1)));
             z-index: 3;
+            --con-cursor-zdelay: 0s;
         }
         &--picked {
             box-shadow: 0 0 0 .1rem fade(@con-mint, 85%), 0 0 1.1rem fade(@con-mint, 22%);
@@ -25052,23 +25194,28 @@ body.con-start-ceremony {
            the pane's live box, largest first — every card always fits, the
            width is genuinely used); the fallbacks only cover the pre-measure
            frame. */
-        zoom: calc(var(--con-start-mini-zoom, 0.62) * var(--con-ui-scale, 1));
+        --mini-z: calc(var(--con-start-mini-zoom, 0.62) * var(--con-ui-scale, 1));
+        zoom: var(--mini-z);
         position: relative;
         border-radius: .6rem;
-        /* (`--con-motion-fast` was a phantom token — defined nowhere, so the
-           raw 140ms fallback always won and never scaled with the preset.) */
-        transition: transform calc(140ms * var(--motion-scale, 1)) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
-        &--id { zoom: calc(var(--con-start-mini-id-zoom, 0.7) * var(--con-ui-scale, 1)); }
-
-        /* Summary focus cursor: the browsed tile lifts + leads; the gliding
-           ConsoleCardFocusFrame draws the ring around it (X inspects it). */
-        &--focused {
-            transform: translateY(-.2rem) scale(1.04);
-            z-index: 2;
+        &--id {
+            --mini-z: calc(var(--con-start-mini-id-zoom, 0.7) * var(--con-ui-scale, 1));
+            zoom: var(--mini-z);
         }
+
+        /* Summary focus cursor (TR58, `.con-cursor()`): the browsed tile lifts and takes the console's ring — the
+           slot's own OUTER layer (the TV's inset ring sat under the card face), its lengths de-zoomed (the rem already
+           carries the ui scale; the mini's zoom would carry it again). X inspects it. */
+        .con-cursor(
+            @shadow: 0 0 0 calc(var(--con-focus-ring) / var(--mini-z)) fade(@con-cyan, 85%), 0 0 calc(var(--con-glow-r) / var(--mini-z)) fade(@con-cyan, 30%), 0 calc(.6rem / var(--mini-z)) calc(1.2rem / var(--mini-z)) calc(-.6rem / var(--mini-z)) rgba(0, 0, 0, 0.7);
+            @radius: .6rem;
+            @transform: ~"translateY(calc(-.2rem * var(--con-cursor-on))) scale(calc(1 + .04 * var(--con-cursor-on)))";
+            @z: 2;
+        );
+        &--focused { .con-cursor-on(); }
     }
 
     /* ── The LAUNCH block: the side rail's ONE decision slot ──────────────
@@ -27784,7 +27931,8 @@ body.con-start-barshold .con-status {
         position: relative;
         border-radius: .6rem;
         zoom: calc(0.62 * var(--con-ui-scale, 1));
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+        /* The cursor's clock (TR58); the ring's lists `[outer, outer]` from none interpolate. */
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease);
         > :is(.card-container, .pcard) { margin: 0; }
 
         /* Focus is a RING, never a transform: the hero proxy spawns over the
@@ -30017,9 +30165,12 @@ body.con-start-barshold .con-status {
     .con-deal-proxy__face > * { margin: 0; }
 }
 
+/* The deal-in moves the card by `translate` — never `transform` (TR58): an animated `transform` overrides the focus pose
+   for the whole entrance and the lift then snapped on at the last keyframe («поза фокуса щелчком»). `translate`
+   composes with the pose, and the cursor's own arrival waits the entrance out (`gateCursorUntilAnimationsEnd`). */
 @keyframes con-start-deal {
-    from { opacity: 0; transform: translateY(.7rem); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; translate: 0 .7rem; }
+    to { opacity: 1; translate: 0 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -31283,6 +31434,7 @@ html.console-mode {
     --act-pair-gap: 1.1rem;  /* the seam channel between two alternatives */
 
     &__group {
+        position: relative;
         display: flex;
         flex-direction: column;
         min-width: 0;
@@ -31290,14 +31442,19 @@ html.console-mode {
         padding: .24rem .28rem .22rem;
         background: linear-gradient(170deg, rgba(18, 27, 40, 0.5) 0%, rgba(10, 16, 25, 0.55) 100%);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        /* The card HOLDING the cursor lifts as a whole — the eye finds the card first, the button second. The lift is
+           a cursor LAYER under the group's tiles (TR58, `.con-cursor()`): its brighter glass and cyan hairline fade in
+           with the tile's own ring on one clock, never a background that snaps. */
+        .con-cursor(
+            @shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%), 0 .3rem .9rem rgba(0, 0, 0, 0.32);
+            @radius: .6rem;
+            @z: 1;
+            @layer-z: -1;
+            @bg: linear-gradient(170deg, rgba(23, 36, 53, 0.62) 0%, rgba(13, 21, 33, 0.66) 100%);
+        );
         /* A card with alternatives spans BOTH columns. */
         &--wide { grid-column: span 2; }
-        /* The card HOLDING the cursor lifts as a whole — the eye finds the
-           card first, the button second (box-shadow: perf-lite keeps it). */
-        &--live {
-            background: linear-gradient(170deg, rgba(23, 36, 53, 0.62) 0%, rgba(13, 21, 33, 0.66) 100%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%), 0 .3rem .9rem rgba(0, 0, 0, 0.32);
-        }
+        &--live { .con-cursor-on(); }
         &--activated { opacity: 0.92; }
     }
     /* The action row: one button, or the «или» pair on two equal columns.
@@ -31421,6 +31578,18 @@ html.console-mode {
             inset 0 .06rem 0 rgba(210, 235, 255, 0.05),
             inset 0 0 0 .05rem rgba(120, 150, 180, 0.2),
             0 .3rem .8rem rgba(0, 0, 0, 0.4);
+        /* THE CURSOR (TR58, `.con-cursor()`): the focus ring, its halo, the deeper shadow AND the focus gradient are ONE
+           layer under the tile's content (the status rail and the graphic paint over it, as they did over the tile's
+           own shadow) — its opacity is the only thing a step moves, so the ring fades in and the gradient cross-fades
+           with it instead of a background and a box-shadow list that snap. The rings are the profile tokens: the TV
+           widens them by its own `--con-focus-ring` / `--con-glow-r`. */
+        .con-cursor(
+            @shadow: inset 0 .06rem 0 rgba(210, 240, 255, 0.08), inset 0 0 0 var(--con-focus-ring) @con-cyan, 0 .45rem 1.1rem rgba(0, 0, 0, 0.5), 0 0 var(--con-glow-r) fade(@con-cyan, 26%);
+            @radius: .55rem;
+            @z: 2;
+            @layer-z: -1;
+            @bg: linear-gradient(90deg, transparent 12%, fade(@con-cyan, 42%) 50%, transparent 88%) no-repeat top center ~"/" 100% .06rem, linear-gradient(168deg, rgba(26, 42, 62, 0.94) 0%, rgba(15, 25, 40, 0.96) 55%, rgba(10, 17, 27, 0.97) 100%);
+        );
 
         &::before {
             content: '';
@@ -31442,28 +31611,24 @@ html.console-mode {
         &--focused&--futile {
             .con-cardactions__graphic, .con-cardactions__desc, .con-cardactions__tile-variant { opacity: 0.88; }
         }
-
-        &--focused {
-            background:
-                linear-gradient(90deg, transparent 12%, fade(@con-cyan, 42%) 50%, transparent 88%) no-repeat top center / 100% .06rem,
-                linear-gradient(168deg, rgba(26, 42, 62, 0.94) 0%, rgba(15, 25, 40, 0.96) 55%, rgba(10, 17, 27, 0.97) 100%);
-            box-shadow:
-                inset 0 .06rem 0 rgba(210, 240, 255, 0.08),
-                inset 0 0 0 .1rem @con-cyan,
-                0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
-                0 0 .9rem fade(@con-cyan, 26%);
+        /* The content's quiet step back and its return under the cursor ride the cursor's clock too. */
+        .con-cardactions__graphic, .con-cardactions__desc, .con-cardactions__tile-variant, .con-cardactions__tile-choices {
+            transition: opacity var(--con-cursor-ms) var(--con-cursor-ease);
         }
+
+        &--focused { .con-cursor-on(); }
         &--rules, &--soft {
             .con-cardactions__graphic, .con-cardactions__tile-choices { opacity: 0.52; }
         }
         &--activated {
             .con-cardactions__graphic { opacity: 0.45; }
         }
+        /* A refused / not-now / spent tile under the cursor: the steel ring, no halo — the SAME layer, its own paint
+           (the TV used to out-paint this with the cyan ring by a later, more specific rule). */
+        &--rules, &--soft, &--activated {
+            .con-cursor-paint(inset 0 .06rem 0 rgba(210, 235, 255, 0.06), inset 0 0 0 var(--con-focus-ring) rgba(150, 175, 205, 0.65), 0 .45rem 1.1rem rgba(0, 0, 0, 0.5););
+        }
         &--focused&--rules, &--focused&--soft, &--focused&--activated {
-            box-shadow:
-                inset 0 .06rem 0 rgba(210, 235, 255, 0.06),
-                inset 0 0 0 .1rem rgba(150, 175, 205, 0.65),
-                0 .45rem 1.1rem rgba(0, 0, 0, 0.5);
             .con-cardactions__graphic, .con-cardactions__tile-choices { opacity: 0.85; }
         }
         &--shake { animation: con-cardact-shake calc(320ms * var(--motion-scale, 1)) ease; }
@@ -33203,13 +33368,26 @@ html.console-mode {
     /* Branch cards ride the system chip size (tokens). */
 
     &__row {
+        position: relative;
         display: flex; flex-direction: column; gap: .3rem;
         padding: .6rem .8rem; border-radius: .55rem;
         background: rgba(14, 22, 34, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
-        &--missing { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); }
-        &--missing&--focused { box-shadow: inset 0 0 0 .1rem @con-amber, 0 0 .9rem fade(@con-amber, 28%); }
+        /* THE CURSOR (TR58, `.con-cursor()`): the ring, the halo and the brighter plate are one layer under the row's
+           content, faded on the cursor's clock — a step crossed the rows with a ring and a plate that snapped. The
+           row's own resting kant (missing amber, deferred cool) stays under it. */
+        .con-cursor(
+            @shadow: inset 0 0 0 var(--con-focus-ring) @con-cyan, 0 0 var(--con-glow-r) fade(@con-cyan, 28%);
+            @radius: .55rem;
+            @z: 1;
+            @layer-z: -1;
+            @bg: rgba(20, 34, 50, 0.7);
+        );
+        &--focused { .con-cursor-on(); }
+        &--missing {
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
+            .con-cursor-paint(inset 0 0 0 var(--con-focus-ring) @con-amber, 0 0 var(--con-glow-r) fade(@con-amber, 28%););
+        }
         /* A FOCUS-FREE dial (the sole stepper, driven globally by LB/RB): a calm
            cyan rim says «this is live right now» without the strong focus ring —
            it is not a cursor stop, so it must not read as one. */
@@ -34102,28 +34280,29 @@ html.console-mode {
         position: relative;
         min-width: 0;
         zoom: var(--con-ptsel-zoom, .58);
-        transition: transform calc(150ms * var(--motion-scale, 1)) @con-ease-standard;
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
 
-        /* The cue's weight is the RING and the lift, not growth: at the sizes
-           this step now reaches a 4 % scale is 30 px of travel and reads as the
-           card jumping. The gap reserves exactly this much and no more. */
-        &--focused {
-            /* The lift and the ring are HUD lengths: DE-ZOOMED, or the rem (which
-               already carries the ui scale) rides a zoom that carries it AGAIN — the
-               4K solo card lifted and ringed at 4× its 1080 size (PL-170). */
-            transform: translateY(calc(-.22rem / var(--con-ptsel-zoom, .58))) scale(var(--con-ptsel-focus-scale, 1.02));
-            z-index: 2;
-        }
-        &--focused > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 calc(.16rem / var(--con-ptsel-zoom, .58)) fade(@con-cyan, 88%), 0 0 calc(1.1rem / var(--con-ptsel-zoom, .58)) fade(@con-cyan, 36%), 0 .7rem 1.4rem -.6rem rgba(0, 0, 0, 0.75);
-        }
-        /* LOCKED — the confirmed target, still lying in its owner's group. */
+        /* THE CURSOR (TR58, `.con-cursor()` — the hand's grammar): the ring, the halo and the shadow are the SLOT's own
+           layer (`::before` — `::after` is a near miss's scrim) and the lift is the slot's own transform, ONE clock;
+           the ring used to live on the card face with no transition while the lift ran on the slot.
+           The cue's weight is the RING and the lift, not growth: at the sizes this step now reaches a 4 % scale is 30
+           px of travel and reads as the card jumping. The gap reserves exactly this much and no more. The lift and the
+           ring are HUD lengths: DE-ZOOMED, or the rem (which already carries the ui scale) rides a zoom that carries
+           it AGAIN — the 4K solo card lifted and ringed at 4× its 1080 size (PL-170). */
+        .con-cursor(
+            @shadow: 0 0 0 calc(.16rem / var(--con-ptsel-zoom, .58)) fade(@con-cyan, 88%), 0 0 calc(1.1rem / var(--con-ptsel-zoom, .58)) fade(@con-cyan, 36%), 0 .7rem 1.4rem -.6rem rgba(0, 0, 0, 0.75);
+            @radius: .4rem;
+            @transform: ~"translateY(calc(-.22rem / var(--con-ptsel-zoom, .58) * var(--con-cursor-on))) scale(calc(1 + (var(--con-ptsel-focus-scale, 1.02) - 1) * var(--con-cursor-on)))";
+            @z: 2;
+            @pseudo: before;
+        );
+        &--focused { .con-cursor-on(); }
+        /* LOCKED — the confirmed target, still lying in its owner's group; under the cursor its ring brightens. */
         &--locked > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 calc(.16rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 90%), 0 0 calc(1rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 34%);
         }
-        &--focused&--locked > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 calc(.18rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 96%), 0 0 calc(1.3rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 44%);
+        &--locked {
+            .con-cursor-paint(0 0 0 calc(.18rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 96%), 0 0 calc(1.3rem / var(--con-ptsel-zoom, .58)) fade(@con-mint, 44%); before);
         }
     }
     /* A SHOWN NEAR MISS (TR52 — a holder short of what the step takes): the face recedes under an OPAQUE scrim
@@ -34233,20 +34412,22 @@ html.console-mode {
            border, so the two have to be one object to the eye. */
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 185, 0.24),
                     inset .16rem 0 0 0 fade(@con-cyan, 42%);
-        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease,
-                    background calc(140ms * var(--motion-scale, 1)) ease;
-        &--focused {
-            background: linear-gradient(100deg, rgba(24, 42, 60, 0.92) 0%, rgba(17, 29, 42, 0.8) 100%);
-            box-shadow: inset 0 0 0 .12rem fade(@con-cyan, 88%), 0 0 1.1rem fade(@con-cyan, 30%),
-                        inset .16rem 0 0 0 fade(@con-cyan, 95%);
-        }
+        /* THE CURSOR (TR58, `.con-cursor()`): the ring, the bright socket edge, the halo and the brighter glass are one
+           layer under the proxy's words — its old focus list `[inset, outer, inset]` against the resting
+           `[inset, inset]` could not interpolate, so it snapped while its transition promised a fade. */
+        .con-cursor(
+            @shadow: inset 0 0 0 .12rem fade(@con-cyan, 88%), inset .16rem 0 0 0 fade(@con-cyan, 95%), 0 0 var(--con-glow-r) fade(@con-cyan, 30%);
+            @radius: .7rem;
+            @z: 1;
+            @layer-z: -1;
+            @bg: linear-gradient(100deg, rgba(24, 42, 60, 0.92) 0%, rgba(17, 29, 42, 0.8) 100%);
+        );
+        &--focused { .con-cursor-on(); }
         &--locked {
             box-shadow: inset 0 0 0 .12rem fade(@con-mint, 88%),
                         inset .16rem 0 0 0 fade(@con-mint, 95%);
-        }
-        &--focused&--locked {
-            box-shadow: inset 0 0 0 .14rem fade(@con-mint, 96%), 0 0 1.2rem fade(@con-mint, 38%),
-                        inset .16rem 0 0 0 fade(@con-mint, 100%);
+            .con-cursor-paint(inset 0 0 0 .14rem fade(@con-mint, 96%), inset .16rem 0 0 0 fade(@con-mint, 100%), 0 0 1.2rem fade(@con-mint, 38%););
+            .con-cursor-layer(after; { background: none; });
         }
     }
     /* The name column FLEXES; the chip and the ✓ never take from it (the chip
@@ -35027,7 +35208,8 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         margin-top: .3rem; padding: .7rem .9rem; border-radius: .6rem;
         background: rgba(20, 28, 38, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
-        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease, background calc(140ms * var(--motion-scale, 1)) ease;
+        /* The cursor's clock (TR58 — its lists `[inset]` → `[inset, outer]` interpolate; only the clock was its own). */
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease), background var(--con-cursor-ms) var(--con-cursor-ease);
         /* ready but not focused — mint-tinted, inviting the play. */
         &--ready {
             background: fade(@con-mint, 12%);
@@ -37943,11 +38125,8 @@ dialog.con-zoom {
 .con-status__ribbon--dense .con-status__pstatus { min-width: 0; }
 .con-status__ribbon--dense .con-status__pname { max-width: 12rem; }
 
-/* A deferred table question keeps the console's focus ring when the cursor is on it (flat — the ring outranks the
-   row's own cool kant, 2026-10-15). */
-.con-composer__row--deferred.con-composer__row--focused {
-    box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%);
-}
+/* A deferred table question keeps the console's focus ring when the cursor is on it — the row's cursor LAYER paints
+   over its own cool kant (TR58), so no rule of its own is needed. */
 /* THE TABLE QUESTION'S STATE CHANGE — the value and the note cross-fade in their one grid cell (`.con-composer__tq-cell`):
    the old words let go on the spot while the new surface from inside; never a v-if blink, never a slide. */
 .con-tq-swap-enter-active,

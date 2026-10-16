@@ -12,6 +12,7 @@
   <div class="con-hand con-hand--album"
        :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--chrome-wait': chromeWait, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
+       :data-cursor-pending="cursorPending ? '' : undefined"
        :style="rootStyle">
   <!-- The workspace FRAME — ONE chrome for both presentation states (the card
        shelf AND the embedded play stage). It is the screen's single plane: the
@@ -469,12 +470,6 @@
       <span v-if="filteredCountText !== ''" class="con-hand__shown">{{ filteredCountText }}</span>
     </div>
 
-    <!-- The gliding selection frame — THE primary focus indicator of card
-         navigation (shared with the start scene / draft / reveal). Self-
-         resolving: tracks the cursored card inside this section itself,
-         following the focus scale transition live. Suppressed while the
-         reveal transition owns the cards (the frame would aim at a
-         held-invisible slot). -->
     </div><!-- /__browse -->
 
     <!-- ── THE EMBEDDED STAGE — the TELEPORT TARGET the shell's ONE
@@ -555,7 +550,8 @@
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
-import {handRevealState} from '@/client/console/handDock/handRevealState';
+import {handCursor, handRevealState} from '@/client/console/handDock/handRevealState';
+import {releaseCursor} from '@/client/console/cursorArrival';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import ConsoleDeferPlate from '@/client/components/console/foundation/ConsoleDeferPlate.vue';
@@ -879,6 +875,14 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * THE CURSOR'S POSE IS GATED (TR58, `[data-cursor-pending]` → `.con-cursor()`): while the copies hold the slots and
+     * through the handoff the focused card stands at REST — the copies land on the resting box and leave on the next
+     * frame — then the cursor ARRIVES (`handCursor`, released by the episode's handoff or by a step).
+     */
+    cursorPending(): boolean {
+      return this.transitHold || handCursor.pending;
+    },
     /** Every hand card's forecast plate (a walk or a counted play), keyed by name — the server's reading, never a client count. */
     forecastPlates(): ReadonlyMap<CardName, HandForecastPlate> {
       const out = new Map<CardName, HandForecastPlate>();
@@ -1409,6 +1413,11 @@ export default defineComponent({
        the player is no longer on. */
     index() {
       this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
+      // A step DURING the cursor's arrival IS the arrival — the ring comes to the new card now, input never waits for
+      // an animation (TR58). While the copies still fly the slots are held anyway (`transitHold`).
+      if (!this.transitHold && handCursor.pending) {
+        releaseCursor(handCursor);
+      }
     },
     /** A MODE flip re-seats the cursor semantics (select/sale enter and leave
      *  set their own index) — adopt the current position as the new anchor

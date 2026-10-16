@@ -466,6 +466,7 @@
  * reuses the same grid with per-colony server reasons. Button hints live
  * ONLY in the shell's bottom command bar.
  */
+import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {defineComponent, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -2204,7 +2205,15 @@ export default defineComponent({
     scrollSelectedIntoView(): void {
       const slot = this.$refs.selectedSlot as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
-      el?.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'smooth'});
+      // On the cursor's clock, bounded to the grid's own scroller (TR58 — never `scrollIntoView`).
+      if (el !== undefined && el !== null) {
+        for (const axis of ['y', 'x'] as const) {
+          const box = scrollContainerOf(el, axis);
+          if (box !== undefined) {
+            cursorEnsureVisible(box, el, {axis});
+          }
+        }
+      }
     },
     // ── The COLONY FOCUS descend (browse → focus and back) ─────────────────
     /**

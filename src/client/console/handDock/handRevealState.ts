@@ -23,6 +23,17 @@
 
 import {reactive} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
+import {createCursorArrival, trackCursorArrival} from '@/client/console/cursorArrival';
+
+/**
+ * THE ALBUM'S CURSOR ARRIVAL (TR58). The album mounts with its focused card already logically cursored, but the POSE
+ * (ring + lift) is gated while the copies fly and through the handoff: the copies are identical to the RESTING slot,
+ * they leave on the frame after the slots show, and only then does the cursor arrive — one transition, never a ring
+ * born under a copy and revealed with it. Held by the open episode, released by its handoff
+ * (`handRevealDirector.finalizeOpenForward`); the section binds it as `[data-cursor-pending]`.
+ */
+export const handCursor = createCursorArrival('hand album');
+trackCursorArrival(handCursor);
 
 export type HandRevealPhase = 'docked' | 'opening' | 'open' | 'closing';
 
@@ -45,6 +56,8 @@ export type RevealVisual = {
   chip?: string,
   /** The chip of a NAMED reason — the emblem and its compact counter (the slot's own, PL-479). */
   chipEmblem?: {emblem: string, text: string},
+  /** The slot's mint «playable» thread — the copy lands as the RESTING slot paints, so the handoff changes no pixel (TR58). */
+  playable?: boolean,
 };
 
 export const handRevealState = reactive({

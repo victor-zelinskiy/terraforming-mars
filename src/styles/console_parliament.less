@@ -368,7 +368,7 @@
         border-radius: .7rem;
         background: linear-gradient(165deg, rgba(38, 24, 66, 0.84), rgba(12, 9, 22, 0.9));
         box-shadow: inset 0 0 0 .05rem rgba(139, 106, 216, 0.28), 0 .5rem 1.4rem rgba(0, 0, 0, 0.35);
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease); /* the cursor's clock (TR58) */
         &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
     }
     &__gov-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; min-width: 0; flex-shrink: 0; .con-parl__kicker { white-space: nowrap; } }
@@ -432,7 +432,7 @@
         background: rgba(0, 0, 0, 0.24);
         box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 30%);
         overflow: hidden;
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease); /* the cursor's clock (TR58) */
         &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
     }
     &__ruler-kicker { flex-shrink: 0; font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-gold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -601,7 +601,7 @@
         border-radius: .7rem;
         background: rgba(10, 13, 24, 0.8);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16), 0 .5rem 1.4rem rgba(0, 0, 0, 0.35);
-        transition: box-shadow calc(180ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease), background-color calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
         &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
         &--carried { background: rgba(10, 13, 24, 0); box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0), 0 0 0 rgba(0, 0, 0, 0); }
     }

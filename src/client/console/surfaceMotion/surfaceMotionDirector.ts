@@ -30,6 +30,7 @@
  * between the stages of one operation instead of blinking.
  */
 
+import {gateCursorDuringEntry, releaseEntryCursorGate} from '@/client/console/cursorArrival';
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -327,6 +328,10 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     done();
     return;
   }
+  // THE CURSOR ARRIVES AFTER THE ENTRANCE (TR58 — `cursorArrival.gateCursorDuringEntry`): the surface's default focus
+  // stands at rest while the frame materializes and arrives one painted frame after it — never a ring revealed WITH the
+  // frame. Every entrance below finishes through this `done`.
+  done = gateCursorDuringEntry(el as HTMLElement, done);
   // THE ENTRANCE MUST HEAL EVERYTHING THE DEPARTURE POSED. The leave moves
   // EVERY panel under the root as one (`panelsOf` — a departing centre carries
   // its open composer with it, whose own transition never fires); the entrance
@@ -1123,6 +1128,7 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
 /** Vue `@enter-cancelled` / `@leave-cancelled` — re-align the shade owner
  *  with the element's ACTUAL direction and drop the dead tween. */
 export function surfaceEnterCancelledHook(el: Element): void {
+  releaseEntryCursorGate(el as HTMLElement);
   const id = surfaceIdOf(el);
   killLive(el);
   if (id !== undefined) {

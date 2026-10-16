@@ -10,7 +10,9 @@ import {ICardRenderEffect, ItemType, isICardRenderEffect, isICardRenderItem, isI
 import {actionPreview} from '../../src/server/models/actionPreview';
 import {IPlayer} from '../../src/server/IPlayer';
 import {playerActionGroups} from '../../src/client/components/actions/actionExtraction';
-import {assignPrintedAlternatives, branchPositionsForNode, buildBranchViews, printedAlternatives, printedSegmentDescription} from '../../src/client/components/actions/actionBranchView';
+import {
+  assignPrintedAlternatives, branchPositionsForNode, buildBranchViews, printedAlternatives, printedAlternativesSide, printedSegmentDescription, printedSharedResult,
+} from '../../src/client/components/actions/actionBranchView';
 import {AtmoCollectors} from '../../src/server/cards/colonies/AtmoCollectors';
 import {AsteroidRights} from '../../src/server/cards/promo/AsteroidRights';
 
@@ -115,6 +117,22 @@ describe('actionBranchView · the printed row of ONE branch', () => {
     it('a row without a printed seam has no alternatives', () => {
       expect(printedAlternatives({is: 'effect', rows: [[], [], [item(CardRenderItemType.TITANIUM, 2)]]} as unknown as ICardRenderEffect)).deep.eq([]);
     });
+
+    it('TR58: a seam on the PRICE side slices the prices, and the result is ONE — the same references for every branch', () => {
+      const plants = item(CardRenderItemType.PLANTS, 3);
+      const heat = item(CardRenderItemType.HEAT, 5);
+      const floater = {is: 'item', type: CardRenderItemType.RESOURCE, amount: 3, resource: 'Floater'} as unknown as ItemType;
+      const or = {is: 'symbol', type: 'OR'} as unknown as ItemType;
+      const node = {is: 'effect', rows: [[plants, or, heat], [], [floater]]} as unknown as ICardRenderEffect;
+      expect(printedAlternativesSide(node)).eq('price');
+      expect(printedAlternatives(node)).deep.eq([[plants], [heat]]);
+      expect(printedSharedResult(node)).deep.eq([floater]);
+      expect(printedSharedResult(node)![0]).eq(floater);
+      // A result-side seam wins and has no shared result (PL-074: one price, several goods).
+      const resultSide = {is: 'effect', rows: [[plants], [], [heat, or, floater]]} as unknown as ICardRenderEffect;
+      expect(printedAlternativesSide(resultSide)).eq('result');
+      expect(printedSharedResult(resultSide)).is.undefined;
+    });
   });
 
   /**
@@ -126,9 +144,6 @@ describe('actionBranchView · the printed row of ONE branch', () => {
   const KNOWN_UNSLICED: ReadonlyArray<string> = [
     // ONE printed row («→ +1 production of your lowest») over six branches — no seam to cut: words and chips.
     'Robinson Industries [prelude]',
-    // TR58 «3 [plant] OR 5 [heat] → 3 [floater]*» — the seam on the PRICE side; the price slice lands with the
-    // composer's price plates (TR58 §2.Е) and removes this row in the same diff.
-    'Reprocessing Plant [turmoilRedux]',
   ];
 
   it('corpus: a shared printed row is sliced WHOLE or not at all, every segment a face reference, no two branches the same', () => {
@@ -185,7 +200,17 @@ describe('actionBranchView · the printed row of ONE branch', () => {
               return;
             }
             sliced.push(where);
-            const result = node.actionNode.rows[2] ?? [];
+            // The side the seam stands on is the side the segments are cut from (TR58: the PRICE side — and then the
+            // result is ONE, the same references for every branch).
+            const side = printedAlternativesSide(node.actionNode);
+            const result = node.actionNode.rows[side === 'price' ? 0 : 2] ?? [];
+            if (side === 'price') {
+              const shared = positions.map((p) => views[p].printedShared);
+              const resultRow = node.actionNode.rows[2] ?? [];
+              if (shared.some((r) => r === undefined || r !== shared[0] || r.some((it) => !resultRow.includes(it)))) {
+                gaps.push(`${where}: a price-side row whose branches do not share ONE result of references`);
+              }
+            }
             const seen = new Set<ItemType>();
             prints.forEach((print, k) => {
               for (const item of print!) {
@@ -207,6 +232,7 @@ describe('actionBranchView · the printed row of ONE branch', () => {
     expect(sliced.some((w) => w.startsWith('Atmo Collectors')), 'Atmo Collectors is sliced').is.true;
     expect(sliced.some((w) => w.startsWith('Asteroid Rights')), 'Asteroid Rights is sliced').is.true;
     expect(sliced.some((w) => w.startsWith('AstroDrill')), 'AstroDrill\'s «[asteroid]* / [?]» row is sliced').is.true;
+    expect(sliced.some((w) => w.startsWith('Reprocessing Plant')), 'TR58\'s «3 [plant] OR 5 [heat]» price row is sliced').is.true;
     expect(gaps, `shared rows sliced wrongly:\n  ${gaps.join('\n  ')}`).to.deep.eq([]);
     expect(unsliced.map((w) => w.split(' row ')[0]).sort(), `the shared rows the print cannot split — the worklist (sliced: ${sliced.length})`)
       .to.deep.eq([...KNOWN_UNSLICED].sort());

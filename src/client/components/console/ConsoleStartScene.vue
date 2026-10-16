@@ -111,7 +111,8 @@
              restored by the frame watcher. The pane swap itself hides under
              the Selection Dock flights (collect on RT / return on LT). -->
         <div v-show="mode === 'wizard' && currentStep !== undefined && !legacyViewCovers"
-             class="con-start__body con-start__body--cards con-info__scroll" ref="body">
+             class="con-start__body con-start__body--cards con-info__scroll" ref="body"
+             :data-cursor-pending="deal.state.active ? '' : undefined">
           <div v-for="(st, si) in steps" :key="st.id"
                class="con-start__steppane" v-show="railPos === si"
                :ref="(el) => setPaneRef(si, el)">
@@ -1079,6 +1080,7 @@
  * never lose them. Sub-actions (payments, placements) arrive as normal
  * prompts → the scene yields to the T1–T4 native tasks and returns.
  */
+import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {defineComponent, markRaw, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/CardFace.vue';
@@ -1094,6 +1096,7 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {gateCursorUntilAnimationsEnd} from '@/client/console/cursorArrival';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
@@ -4768,6 +4771,13 @@ export default defineComponent({
         this.scrollFocusedIntoView();
         this.fitCardStrip();
         this.fitSummary();
+        // THE CURSOR ARRIVES AFTER THE DEAL-IN (TR58): a frame whose cards are still staggering in holds its cursor
+        // pose until their entrance has finished (the animations' own end), then the ring comes in on the slot's
+        // transition. (The proxy deal holds it through `deal.state.active` on the body.)
+        const pane = (this.onSummary ? this.$refs.summaryPane : this.$refs.body) as HTMLElement | undefined;
+        if (pane !== undefined && pane !== null) {
+          gateCursorUntilAnimationsEnd(pane);
+        }
       });
       if (this.fitTimer !== undefined) {
         window.clearTimeout(this.fitTimer);
@@ -5946,13 +5956,19 @@ export default defineComponent({
         // neighbours + churned the whole strip every d-pad move = Steam Deck
         // perf). Only the wizard GRID scrolls, and only VERTICALLY to the row.
         if ((this.mode === 'wizard' && this.wizardGrid) || this.onSummary) {
-          el.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+          const box = scrollContainerOf(el, 'y');
+          if (box !== undefined) {
+            cursorEnsureVisible(box, el, {axis: 'y'});
+          }
         }
         return;
       }
       const body = (this.$refs.ceremonyBody ?? this.$refs.body) as HTMLElement | undefined;
       const focused = body?.querySelector('.con-start__qcard--focused');
-      focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+      const box = focused === null || focused === undefined ? undefined : scrollContainerOf(focused, 'y');
+      if (focused !== null && focused !== undefined && box !== undefined) {
+        cursorEnsureVisible(box, focused, {axis: 'y'});
+      }
     },
     /** The participant strip's display name (bot-safe). */
     participantName(p: StartParticipant): string {

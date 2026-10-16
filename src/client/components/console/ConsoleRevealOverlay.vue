@@ -149,7 +149,7 @@
                   <div v-for="row in tableIncome" :key="row.key"
                        class="con-cards__slot con-start__deal con-reveal__incslot"
                        :data-zoom-slot="row.entry !== undefined ? row.entry.card.name + '#' + row.entry.index : undefined"
-                       :class="{'con-cards__slot--focused': row.entry !== undefined && focusIdx === row.entry.pos && !arrivalPending,
+                       :class="{'con-cards__slot--focused': row.entry !== undefined && focusIdx === row.entry.pos && !cursorHeld,
                                 'con-reveal__incslot--taken': row.entry === undefined}"
                        :ref="row.entry !== undefined && focusIdx === row.entry.pos ? 'focusedCardSlot' : undefined">
                     <Card v-if="row.entry !== undefined" :card="row.entry.card" :key="row.entry.card.name" lightweight />
@@ -169,7 +169,7 @@
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(entry.pos)"
                      :data-zoom-slot="entry.card.name + '#' + entry.index"
-                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos && !arrivalPending,
+                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos && !cursorHeld,
                               'con-cards__slot--taken': entry.taken}"
                      :ref="!entry.taken && focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
                   <!-- TAKE-IN-PLACE (embedded multi): the slot is a flip
@@ -228,7 +228,7 @@
                   <template v-if="tableOn">
                     <div class="con-cards__slot con-reveal__bonus-slot con-reveal__placeslot"
                          :data-zoom-slot="placeSlotKey(zone)"
-                         :class="{'con-cards__slot--focused': placeFocused(zone) && !arrivalPending}"
+                         :class="{'con-cards__slot--focused': placeFocused(zone) && !cursorHeld}"
                          :ref="placeFocused(zone) ? 'focusedCardSlot' : undefined">
                       <div class="con-reveal__place con-card3d-outer"
                            :class="{'con-reveal__place--gone': placeSocket(zone)}"
@@ -299,7 +299,7 @@
                   <div v-else-if="zone.state === 'active' && activeBonusEntry !== undefined"
                        class="con-cards__slot con-reveal__bonus-slot"
                        :data-zoom-slot="activeBonusEntry.card.name + '#' + activeBonusEntry.index"
-                       :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos}"
+                       :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos && !cursorHeld}"
                        :ref="focusIdx === activeBonusEntry.pos ? 'focusedCardSlot' : undefined">
                     <Card :card="activeBonusEntry.card" :key="activeBonusEntry.card.name" lightweight />
                     <!-- (No in-zone A-chip: the one command bar owns the verb,
@@ -544,6 +544,7 @@
  * shell) carries the whole contract — this overlay has NO footer of its own,
  * so B never reads two conflicting labels. Priority drawn > result > viewer.
  */
+import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
@@ -1491,6 +1492,15 @@ export default defineComponent({
      */
     arrivalPending(): boolean {
       return this.embedded && this.mode === 'drawn' && workspaceOutcomeArrivalPending();
+    },
+    /**
+     * THE CURSOR WAITS FOR THE CARDS (TR58): while a deal still owns this batch — the embedded arrival, or a
+     * standalone scene whose copies are still dissolving over the real cards (`revealSceneStaged`) — no card wears the
+     * focus pose. The ring then ARRIVES on the transition a step uses, after the copies have gone; opened at the start
+     * of their dissolve, the lifted card showed through a fading copy that was not lifted — two pictures of one card.
+     */
+    cursorHeld(): boolean {
+      return this.arrivalPending || this.revealSceneStaged;
     },
     /**
      * A STANDALONE deal cinematic still owns this batch's cards (the deck-draw
@@ -2554,7 +2564,10 @@ export default defineComponent({
           // whose deltas were measured against the pre-scroll layout — the
           // cards then glide against a moving floor.
           const busy = this.takingIdx !== undefined || this.collecting || this.arrivalPending;
-          el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: busy ? 'auto' : 'smooth'});
+          const strip = el === undefined || el === null ? undefined : scrollContainerOf(el, 'x');
+          if (el !== undefined && el !== null && strip !== undefined) {
+            cursorEnsureVisible(strip, el, {axis: 'x', align: 'center', instant: busy});
+          }
         });
       }
     },
@@ -2637,7 +2650,10 @@ export default defineComponent({
             const el = Array.isArray(slot) ? slot[0] : slot;
             // Same snap-under-episode rule as focusStep (see there).
             const busy = this.takingIdx !== undefined || this.collecting || this.arrivalPending;
-            el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: busy ? 'auto' : 'smooth'});
+            const strip = el === undefined || el === null ? undefined : scrollContainerOf(el, 'x');
+            if (el !== undefined && el !== null && strip !== undefined) {
+              cursorEnsureVisible(strip, el, {axis: 'x', align: 'center', instant: busy});
+            }
           });
         } : undefined,
       );

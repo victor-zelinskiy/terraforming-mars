@@ -64,6 +64,15 @@ export const MOTION_EASE = {
   convey: 'cubic-bezier(0.45, 0.02, 0.18, 1)',
 } as const;
 
+/**
+ * THE CURSOR'S CLOCK (TR58 «КУРСОР — ОДИН ЖИВОЙ ОБЪЕКТ») — the JS mirror of the console's `--con-cursor-ms` /
+ * `--con-cursor-ease` (console.less, `.con-cursor()`): the ring's arrival and departure, the lift, a step and a
+ * cursor-driven scroll all ride ONE duration and ONE easing. Base ms — resolve through `motionMs`. The equality with
+ * the CSS token is guarded (`tests/console/cursorGrammarGuard.spec.ts`).
+ */
+export const CURSOR_MS = 180;
+export const CURSOR_EASE = MOTION_EASE.standard;
+
 function storage(): Storage | undefined {
   try {
     return (globalThis as {localStorage?: Storage}).localStorage ??

@@ -620,6 +620,7 @@
  * targets with reasons and prompt warnings all carry over from the desktop
  * premium inputs. Submission payloads are byte-identical (taskResponses).
  */
+import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {defineComponent, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/CardFace.vue';
@@ -2963,12 +2964,18 @@ export default defineComponent({
         // strip every d-pad move (Steam Deck perf hit). Only GRID mode scrolls,
         // and only VERTICALLY to the focused row.
         if (this.gridMode) {
-          cardEl.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+          const box = scrollContainerOf(cardEl, 'y');
+          if (box !== undefined) {
+            cursorEnsureVisible(box, cardEl, {axis: 'y'});
+          }
         }
         return;
       }
       const focused = body?.querySelector('.con-task__option--focused, .con-task__palette .con-vchoice__opt--focused, .con-task__lane--focused, .con-payrow--focused');
-      focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+      const box = focused === null || focused === undefined ? undefined : scrollContainerOf(focused, 'y');
+      if (focused !== null && focused !== undefined && box !== undefined) {
+        cursorEnsureVisible(box, focused, {axis: 'y'});
+      }
     },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */
     scheduleFit(): void {

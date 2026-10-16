@@ -1602,6 +1602,7 @@
 </template>
 
 <script lang="ts">
+import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 /**
@@ -1630,6 +1631,7 @@ import type {PreselectAddress} from '@/common/inputs/preselectAddress';
  * P0: everything ends in gameTransport.submitInput()/submitBatch() with payloads
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
+import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
 import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWatch} from 'vue';
 import {promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -14748,7 +14750,10 @@ export default defineComponent({
           this.infoModeState.botScreenFocus = botScreenNavigate(before, intent.dir);
           if (this.infoModeState.botScreenFocus !== before) {
             const entry = document.querySelector<HTMLElement>(`[data-bot-entry="${this.infoModeState.botScreenFocus}"]`);
-            entry?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+            const box = entry === null ? undefined : scrollContainerOf(entry, 'y');
+            if (entry !== null && box !== undefined) {
+              cursorEnsureVisible(box, entry, {axis: 'y'});
+            }
             return;
           }
           // The cursor is at the ring's edge — the press becomes a plain
@@ -16333,23 +16338,27 @@ export default defineComponent({
       }
       this.consoleState.quick = undefined;
       enterWorkspace(sheet);
-      void this.$nextTick(() => {
-        // A RESTORED MA detail owns the cursor (the task-restore door seated
-        // it on the draft item before this tick) — never re-home it.
-        if (maFocusState.open) {
-          return;
-        }
-        // P26/P27: the MA + Std-Projects screens focus the first ACTIONABLE
-        // card, else the top row.
-        const selectables = this.maScreenKind !== undefined ?
-          this.maScreenItems.map((it) => ({header: false, available: it.available})) :
-          sheet === 'standard-projects' ?
-            this.stdProjectItems.map((it) => ({header: false, available: it.available})) :
-            this.sheetRows.map((r) => ({header: r.kind === 'header', available: r.available}));
-        const firstAvailable = selectables.findIndex((s) => !s.header && s.available);
-        const firstSelectable = selectables.findIndex((s) => !s.header);
-        this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
-      });
+      // THE CURSOR IS SEEDED BEFORE THE FIRST RENDER (TR58): the screen used to mount on the PREVIOUS visit's index and
+      // be re-seated a tick later — the ring stood on one row and jumped to another while the screen entered. The
+      // projections are synchronous after `enterWorkspace`, so the seat is known now; the tick only re-asks it (a
+      // restore door that seats a detail in between still wins), which lands on the same row.
+      this.seedSheetCursor(sheet);
+      void this.$nextTick(() => this.seedSheetCursor(sheet));
+    },
+    /** P26/P27: the MA + Std-Projects screens focus the first ACTIONABLE card, else the top row. */
+    seedSheetCursor(sheet: string): void {
+      // A RESTORED MA detail owns the cursor (the task-restore door seated it on the draft item) — never re-home it.
+      if (maFocusState.open) {
+        return;
+      }
+      const selectables = this.maScreenKind !== undefined ?
+        this.maScreenItems.map((it) => ({header: false, available: it.available})) :
+        sheet === 'standard-projects' ?
+          this.stdProjectItems.map((it) => ({header: false, available: it.available})) :
+          this.sheetRows.map((r) => ({header: r.kind === 'header', available: r.available}));
+      const firstAvailable = selectables.findIndex((s) => !s.header && s.available);
+      const firstSelectable = selectables.findIndex((s) => !s.header);
+      this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
     },
     /** A = «Выбрать» on the overview — descend into the focused item's
      *  detail stage. The SCREEN arms the descend origins (the pressed card's
@@ -22685,7 +22694,7 @@ export default defineComponent({
       // Mirrors the slot: the dim belongs to the RULES verdict, never to the
       // turn — a card the player simply cannot play YET lands bright.
       if (entry === undefined || entry.potential) {
-        return {card};
+        return {card, playable: entry?.playable === true};
       }
       return {card, dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? []),
         chipEmblem: unplayableReasonChip(entry.card.unplayableReasons ?? [])};
@@ -22978,6 +22987,8 @@ export default defineComponent({
     },
   },
   mounted() {
+    // THE CURSOR ARRIVES (TR58): a step or a press during an arrival releases it — input never waits for a ring.
+    installCursorArrivalInput();
     // A decision that IS its pick standing at boot (a reload mid-prompt) opens its album — the watcher is not
     // `immediate`, so the mount edge is asked here.
     this.openEffectDecisionPick(this.effectDecisionDirectPick);

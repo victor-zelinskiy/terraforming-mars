@@ -38,6 +38,23 @@ describe('ConsoleVariantChoice', () => {
     expect(dest[1].find('[data-vchoice-dest-label]').text()).contains('4');
   });
 
+  it('TR58 — the options are PRICES: the ONE good they all buy stands once AFTER the last option, its addresses once; not an option', () => {
+    const floater: ItemType = {is: 'item', type: CardRenderItemType.RESOURCE, amount: 3, resource: 'Floater'} as unknown as ItemType;
+    const holders = [{name: 'Dirigibles', resources: 1}, {name: 'Aerial Mappers', resources: 0}];
+    const w = make([option('plants', true, false, false), option('heat', false, false, false)],
+      {shared: {printed: [floater], destinations: {cards: holders as never, count: 2}}});
+    const shared = w.findAll('[data-vchoice-shared]');
+    expect(shared, 'printed ONCE').has.length(1);
+    expect(shared[0].find('[data-vchoice-print]').exists(), 'the card\'s own result nodes').is.true;
+    expect(shared[0].find('[data-vchoice-dest]').attributes('data-vchoice-dest-count')).eq('2');
+    expect(w.findAll('.con-vchoice__opt [data-vchoice-dest]'), 'no option repeats the addresses').has.length(0);
+    expect(w.findAll('[role="radio"]'), 'the good is not an option — two radios, no third stop').has.length(2);
+    const kids = Array.from(w.find('.con-vchoice').element.children);
+    const lastOpt = kids.map((k) => k.classList.contains('con-vchoice__opt')).lastIndexOf(true);
+    expect(kids.indexOf(shared[0].element), 'after the last option').greaterThan(lastOpt);
+    expect(make([option('a', false, false, false), option('b', false, false, false)]).find('[data-vchoice-shared]').exists(), 'absent without the prop').is.false;
+  });
+
   it('a radiogroup of radios — aria-checked is the ANSWER, aria-disabled the rules', () => {
     const w = make([option('a', true, false, false), option('b', false, true, false), option('c', false, false, true, {reason: 'No card'})]);
     expect(w.find('.con-vchoice').attributes('role')).eq('radiogroup');

@@ -66,3 +66,11 @@ html.con-reduced-motion :is(
     .con-dpile__plate--armed .con-dpile__slot)::after {
     animation-iteration-count: infinite !important;
 }
+
+/* THE CURSOR (TR58, `.con-cursor()` in console.less): under reduced motion the LIFT stands still — the focused
+   object takes its pose at once — and the ring keeps a short fade, never a pop. The arrival gate is never armed
+   either (`holdCursor` — the cursor simply stands). */
+html.con-reduced-motion {
+    --con-cursor-ms: 90ms;
+    --con-cursor-move-ms: 0ms;
+}
