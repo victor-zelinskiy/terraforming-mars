@@ -514,7 +514,8 @@ could show. Permanent acceptance condition for the transition core).
 
 The episode machinery shape (one reversible timeline per episode, B
 mid-open reverses from current progress, `finishInstant` on resize, the
-no-dip handoff «slots snap under proxies, proxies fade above», per-card
+no-dip handoff — since TR58 «show the slot, remove the copy on the NEXT
+frame», never a fade (§ THE CURSOR below), per-card
 gather landings + un-land on reverse), the mode props (sale / select /
 discard skin / pick bridge / embedded-in-start), the descend stage +
 outcome zones and their teleport-slot watchers, the verdict bar,
@@ -545,10 +546,32 @@ outcome zones and their teleport-slot watchers, the verdict bar,
   the only correct form for a badge inside a card slot. **When a density
   system raises a container's zoom, audit every descendant carrying a
   hard-coded `zoom`/size — the query is «what did this constant assume?».**
-- **The teardown HANDOFF fade needs a WALL-CLOCK backstop.** GSAP ticks on
-  rAF, and a quiet headless/backgrounded compositor stops delivering frames
-  exactly when the fade runs (the screen has just gone still) — the fade's
-  `onComplete` then never fires and the invisible proxy nodes linger on the
-  layer forever (18 stuck proxies on the tv4k close). `teardown` now arms a
-  `setTimeout(settle, HANDOFF + 700)` with the same epoch guard the fade's
-  own completion uses — a normal completion makes it a no-op.
+- **The handoff may not depend on rAF for liveness.** GSAP ticks on rAF, and a
+  quiet headless/backgrounded compositor stops delivering frames exactly when
+  the handoff runs (the screen has just gone still) — the old 180 ms fade's
+  `onComplete` never fired and 18 invisible proxies lingered on the tv4k close
+  (it needed a wall-clock backstop). Since TR58 there is no fade: the copies
+  leave on the next `probeTick` (the painted frame OR its fallback timer), so
+  a still compositor cannot strand them.
+
+## THE CURSOR (TR58 — `docs/claude/console/cursor.md`)
+
+- **The slot carries the cursor's whole pose** — `.con-cursor()` on
+  `.con-hand__slot` (the ring + halo + shadow are its `::after`, the lift
+  `scale(1 + .035 × --con-cursor-on)`), `.con-cursor-on()` on `--selected`,
+  the playable / unplayable / not-now colours `.con-cursor-paint()` on the
+  same layer. Nothing on the `.pcard` inside any more: a ring on the face with
+  no transition beside a lift on the slot was the «kick».
+- **The default cursor ARRIVES after the handoff**: `handCursor`
+  (`handRevealState.ts`, a `createCursorArrival` record) is held in the flush
+  that lets the slots go (`holdCursor` before `holdSlots = false`), the root
+  wears `data-cursor-pending` (with `transitHold`), the first card stands at
+  REST under the copies, and `arriveCursor` runs once the copies have left
+  (`releaseBodies` → `onHandedOver`) — the ring fades in and the card lifts on
+  ONE clock, the frame after the handoff. The same on close and on a filter
+  re-pagination. A d-pad press in the window releases it at once.
+- **The copies are identical to the resting slot**: the playable mint hairline
+  (`RevealVisual.playable` → `con-deal-proxy__face--playable`), the slot's
+  corner and fx scale on the face (`.con-handbody` — `console_card_deal.less`);
+  the targets are measured on RESTING slots because the focus pose is gated.
+  `flightVisuals` (the blocker chip) are cleared only once the copies are gone.

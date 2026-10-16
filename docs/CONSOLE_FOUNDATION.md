@@ -139,7 +139,7 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
    логирует ОДИН warn на сигнатуру. Pure-математика (`classifyRootOverflow`,
    `rankOverflowOffenders`) — юнит-тестирована.
 
-## §4–§6. Viewport / reduced-motion / focus frame
+## §4–§6. Viewport / reduced-motion / the cursor
 
 - **`useConsoleViewport.ts`** — единый reactive viewport: `width/height`
   (`useWindowSize`), `profile/isHandheld/isLarge` (источник —
@@ -153,12 +153,18 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
   как есть; ~5 legacy ручных `matchMedia`-хелперов мигрируют оппортунистически.
   Правило прежнее: reduced — ОТДЕЛЬНАЯ перекрывающая ось, не «быстрее», а
   «короткий/статичный вариант».
-- **`useConsoleFocusFrame.ts`** — measured-rect провайдер (`useElementBounding`)
-  под статичные measured-рамки. Живая скользящая рамка выделения РЕАЛИЗОВАНА как
-  `ConsoleCardFocusFrame.vue` (см. §Card-deal ниже) и осознанно НЕ на этом провайдере:
-  `useElementBounding` не реагирует на transform-анимации цели (focus lift/scale),
-  поэтому рамка ведёт собственный FPS-gated rAF-measure loop (один
-  getBoundingClientRect за кадр). Провайдер остаётся для рамок вокруг статичных целей.
+- **Курсор — ОДИН живой объект** (TR58, 2026-10-16; контракт
+  `docs/claude/console/cursor.md`). Индикатор фокуса — КОЛЬЦО СЛОТА (решение
+  2026-07-17, `dc067b295b`), нарисованное миксином `.con-cursor()` (`console.less`):
+  кольцо + ореол + тень — слой хоста, движется только его `opacity`; подъём —
+  `transform` хоста от `--con-cursor-on`; одни часы `--con-cursor-ms` /
+  `--con-cursor-ease` (JS — `CURSOR_MS` / `CURSOR_EASE`). Фокус по умолчанию
+  ПРИХОДИТ (`cursorArrival.ts`: `[data-cursor-pending]` на корне поверхности до её
+  сигнала готовности), прокрутка за курсором — `cursorScroll.ts` /
+  `ConsoleScrollArea.ensureVisible`, `scrollIntoView` запрещён (гард
+  `cursorGrammarGuard.spec.ts`). Скользящая рамка из L-тиков
+  (`ConsoleCardFocusFrame.vue`, `useConsoleFocusFrame.ts`) УДАЛЕНА — она нигде
+  не монтировалась с 2026-07-17.
 
 ## §7. Как добавлять новое (правила)
 
@@ -246,7 +252,7 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
 - **`refAutoReset`** — GameHome «какой id скопирован» (авто-сброс 3с).
 
 ### Approved-for-new (без форсированной миграции существующего)
-- **`useElementBounding`** — уже в `useConsoleFocusFrame`; существующие reposition-
+- **`useElementBounding`** — для новых measured-рамок; существующие reposition-
   popover (SpecialCellInfoOverlay/FinalScoringReveal/scaleTooltipState) — perf-tuned
   rAF, мигрировать по мере касания.
 - **`useScroll`** — для нового scroll-position. **JournalFeed — DEFER**: `atBottom`
@@ -272,7 +278,7 @@ Premium-подача раздачи/выбора карт (стартовые к
 раздавали» module-set; `cardDealSequence.ts` — reactive-клей per-host;
 `cardDealDirector.ts` — GSAP timeline) + `src/client/components/console/cardDeal/`
 (`ConsoleCardFaceLite.vue` — честная lite-карта; `ConsoleCardDealLayer.vue` — fixed
-слой полёта; `ConsoleCardFocusFrame.vue` — motion-v рамка) +
+слой полёта) +
 `src/styles/console_card_deal.less` + арт-хук `src/client/cards/cardArt.ts`.
 
 Контракты:
@@ -307,20 +313,12 @@ Premium-подача раздачи/выбора карт (стартовые к
   чист; никаких animated blur/filter; `will-change` живёт только пока жив v-if-слой;
   reduced-motion → БЕЗ полёта/прокси: короткий stagger-reveal ≤160ms, ввод не
   блокируется; safety-timeout жёстко завершает раздачу при замёрзшем rAF.
-- **Focus-рамка = ОСНОВНОЙ индикатор навигации по картам ВЕЗДЕ в console-native.**
-  `ConsoleCardFocusFrame` (4 L-corner тика, transform-only springs stiffness 420 /
-  damping 34; glow слота остаётся — «рамка = прицел, glow = свет»; reduced →
-  duration 0). Подключение = ОДНА строка прямым ребёнком корня поверхности:
-  `<ConsoleCardFocusFrame selector=".<slot>--focused > .card-container" />` —
-  рамка сама резолвит селектор ВНУТРИ родителя каждый measure-тик (scoped: две
-  наложенные карточные поверхности — reveal над task host — не крадут цель друг
-  у друга), хосту не нужен sync-код. Prop `active=false` гасит рамку (deal
-  cinematic). Покрытие: ConsoleStartScene (wizard + ceremony corp/prelude/
-  candidates), ConsoleTaskHost (draft/buy/select), ConsoleHandSection
-  (`.con-hand__slot--selected`), ConsoleRevealOverlay (drawn/viewer). НЕ карты
-  (MA-постеры, std-projects панели, action-тайлы, gov-support брифинг) держат
-  свой фокус-стиль — рамка семантически означает именно КАРТУ. Новая карточная
-  поверхность ОБЯЗАНА монтировать рамку с своим селектором.
+- **Индикатор навигации по картам — КОЛЬЦО СЛОТА на одних часах с подъёмом**
+  (TR58, `docs/claude/console/cursor.md`): `.con-cursor()` на слоте, `.con-cursor-on()`
+  на его `--focused` / `--selected`; на время раздачи фокус стоит в позе покоя
+  (`[data-cursor-pending]` на корне хоста) и ПРИХОДИТ кадром после передачи копий —
+  никогда не рождается под копией. Прежняя скользящая рамка из L-тиков
+  (`ConsoleCardFocusFrame`) снята 2026-07-17 и удалена в TR58.
 - **Расширение** (received cards / draft rewards / MarsBot reveal): переиспользовать
   sequence+director как есть — хосту нужны только hold-класс на слотах, layer в
   template и 4 строки хост-паттерна выше. Новую хореографию строить В director-
@@ -390,8 +388,7 @@ shell `stagedHandCard = pendingPlayCard ?? returningPlayCard ?? departingPlayCar
 материализуется ровно под прокси); SUCCESS ⇒ `departingPlayCard` держит слот до
 РЕАЛЬНОГО ухода карты из руки (watcher handEntriesAll; safety-таймер 6s на
 отклонённый розыгрыш) — никакого фальшивого возврата. Фокус-хром руки гаснет под
-композером: `body.con-play-modal-open` (те же правила, что `con-zoom-open`) +
-FocusFrame читает класс в measure-тике.
+композером: `body.con-play-modal-open` (те же правила, что `con-zoom-open`).
 
 **§10c. DRAFT TRAY + RESEARCH RISE (премиум-отбор карт в драфте).**
 Файлы: `consoleDraftTray.ts` (реактивный мозг: pending/held/scene-снапшот,
@@ -438,7 +435,7 @@ serving-surface леак-детектора; caption'ы монтируются �
   живого лотка → честный deck-deal fallback.
 - **Гейты**: ввод в бит проглатывается ХОСТОМ (первая строка handleIntent)
   И ШЕЛЛОМ (хост мог unmount'нуться под draftWait-ответом); футер/командбар
-  на время битов — только [A Пропустить]; focus-frame/verdict гаснут.
+  на время битов — только [A Пропустить]; кольцо фокуса и verdict гаснут.
 - Reduced motion: никаких полётов — commit/reveal мгновенно, сцена не
   армится (deck-deal reduced-reveal несёт смену фазы).
 - Расширение: новая «зона-приёмник» карт = зарегистрируй slot-resolver
@@ -575,8 +572,8 @@ inspector-вход, без фальшивого лифта). НИКОГДА не
   shell держит `body.con-zoom-open` (add на open-вотчере, remove в `@close` +
   beforeUnmount), CSS гасит слот-ring'и/glow (`--focused`/`--selected`) и
   «A …»-чипы; transform-lift слота НАМЕРЕННО остаётся (полёты меряют rect —
-  сброс scale сдвинул бы точку посадки). Скользящая focus-рамка гасит себя
-  сама (ConsoleCardFocusFrame читает `consoleCardZoom.card` в measure-тике).
+  сброс scale сдвинул бы точку посадки). Кольцо руки — слой `::after` слота
+  (`.con-cursor()`), гаснет его `opacity` (`console_card_deal.less`).
 - Zombie-safe: один module-ctx, kill на каждом open/close, `releaseZoomMotion`
   в `@close` (любой путь закрытия, вкл. нативный Esc), safety-таймеры на
   open-settle и close-resolve. Reduced-motion → короткие fades ≤160ms.

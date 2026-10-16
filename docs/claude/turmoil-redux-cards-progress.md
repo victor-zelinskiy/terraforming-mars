@@ -2862,6 +2862,42 @@ workspace; класс `con-root--ws-open` снимается только с у�
 `console-aerial-mappers` (B — `fixme` снят), `console-habitat-science` (Титан — рождён в ячейке, сел на ячейку НА ПОЛЕ, не под стеклом).
 **Регрессия № 2** (`.e2e-polish2`, `--workers=1`, 33 мин): aerial-mappers и habitat-science (fhd + 4K) зелёные; соседи класса — x87, eva-mechs, rail-landing, biological-simulations, plasma-fans, venusian-census, parliament-sitting-reward — зелёные (53); красные НЕ этой итерации: `console-spaceship-recycling` ×4 — спек ждёт старую форму POST (`"cards":[…]},{"type":"or"…`), а закон адреса pre-select TR43 (`54a9a30fb7`) шлёт адресованный предсбор в другом порядке — ротация спека TR43; `console-red-museum` «the tile pays» (красный и до итерации № 1); `console-colony-venus-trade` (PL-172 соседа, его правка в работе). Юниты: server — зелёный; client 6997 / 6998 — один красный `consolePlayedTargetModel.spec` § sizing от незакоммиченной правки соседа (PL-170) в его файлах; vue-tsc, `build:test`, `lint:i18n` — чисто.
 
+## TR58 · Reprocessing Plant — «3 [растения] ИЛИ 5 [тепло] → 3 [аэростата] на ЛЮБУЮ карту» под плашкой ИНДУСТРИАЛИСТОВ; БОЛЬШАЯ ИТЕРАЦИЯ «КУРСОР — ОДИН ЖИВОЙ ОБЪЕКТ» — 2026-10-16
+
+**Арт импортирован** — `Mars Arts/TR58.png` появился к работе (Adam Taylor); лицо с артом.
+
+**Карта** (`ReprocessingPlant.ts`): синяя, 8, метка Строительства, плашка Индустриалистов (класс TR15), без ПО и без своего ресурса.
+ОДНА декларация формы Electro Catapult — `or` из двух ЦЕН одного товара `{spend: {plants: 3} | {heat: 5}, addResourcesToAnyCard:
+{FLOATER, 3, mustHaveCard}}`, `autoSelect`, без `optional`. По пути классом: шаг разбиения тепла Stormcraft — среди шагов ВЕТКИ
+(`branchHeatSteps`, живой порядок «вариант → разбиение → цель»; чинит и Directed Heat Usage), `spendHeatStep` снова несёт
+`choiceContext` (адрес называет Stormcraft — Meltworks, Caretaker, Plasma Fans), причина, общая всем веткам («нет держателя»), —
+первой; Frontier Labs получил шаг оплаты в превью действия. Спек `ReprocessingPlant.spec` (правила 1–10), профиль Stormcraft в
+`actionPromptCoverage`. Фикстуры `reprocessing-plant`, `-stormcraft`, `-none`, `-locked`.
+
+**Композер (решение 4а)**: срез печатного ряда по стороне ЦЕНЫ (`printedAlternativesSide`), плитки = цены, общий товар ОДИН раз после
+плиток с адресами один раз (`printedSharedResult` · `commonVariantGain` · `sharedVariantDestinations` → `ConsoleVariantChoice` `shared`),
+формула с зарезервированной ценой (`data-hero-pending="price"`); TR58 ушёл из `KNOWN_UNSLICED`. e2e нашёл два настоящих дефекта: ответ
+строки «Источники тепла» НЕ уходил в батч (`orderedStepResponses` пересылал только `input` / `tabbedTargets` — сервер спрашивал после A;
+PL-503, гард «каждая строка композера — в батче») и чип «[тепло] 1 / 5» в тоне нехватки под Stormcraft (PL-504 — чип без пула «−5»).
+
+**Итерация «КУРСОР»** (раздел реестра AW, PL-490…511; контракт `docs/claude/console/cursor.md`): одна грамматика `.con-cursor()`
+(кольцо + ореол + тень — СЛОЙ хоста, движется только opacity; подъём — transform хоста от `--con-cursor-on`; z держится до конца
+спуска), одни часы (`--con-cursor-ms` 180 мс, `CURSOR_MS`), фокус по умолчанию ПРИХОДИТ (`cursorArrival.ts`: ворота
+`[data-cursor-pending]` до сигнала готовности поверхности — рука после передачи, лента после входа, старт после раздачи, выбор из
+колоды после фита), передача руки «показать слот — убрать копию следующим кадром», прокрутка за курсором — плавно по покоящейся
+коробке (`cursorScroll.ts`), `scrollIntoView` удалён (9 мест), мёртвая рамка `ConsoleCardFocusFrame` удалена. Переведены: рука,
+«Действия карт» (плитка + группа), колонии, СП, строки композеров, шаг цели (слот + «Эта карта»), плитки варианта, мини старта;
+Парламент — только часы (PL-509 открыта).
+
+**Замеры** (свидетель `focusWitness.ts`, один спек на двух сборках, GPU): открытия — `bornHidden` 8 / 8 → 0 / 8; рука — копия и карта
+вместе 89–481 мс → 0 мс, Δ передачи 0 px; шаги — snaps / jumps / zFlips / scrollJumps 0; раскадровка 4K — кольцо 4.8 → 59.4 одним
+кадром → 6.5 → 30.2 → 61.0 за три кадра; храповик ручных правил фокуса 142 → 116; неинтерполируемых переходов теней 6 → 0.
+
+**e2e** `console-reprocessing-plant` (fhd + tv4k, A–E) 10 / 10, `console-cursor` (fhd + tv4k) 8 / 8. Гарды: `cursorGrammarGuard`,
+`cubicBezier`, `cursorArrival`, `preselectStamp` § строки, `actionBranchPrinted` (срез по цене), e2e-живость. Ловушки — в документе карты § 5.
+
+**Регрессия** (свой снапшот `.e2e-tr58`, GPU, 3 воркера; список `e2e:affected` + стенды промта): 36 спеков, 147 тестов — 146 зелёных. Найдена и исправлена до коммита СВОЯ регрессия: ревил удерживал класс `--focused` на время «staged» сцены колонии — у карты бонуса Миранды курсора не было вовсе (`console-colony-miranda-bonus`, `console-card-trade-resume`); теперь гасится только поза (ворота на корне). Красный `console-colony-pluto-embed` «LARGE album» (прокси доставки рубашкой под нагрузкой) — 3 / 3 зелёный в одиночку и на снапшоте «до», и «после»: флейк нагрузки класса `album-facing-probe`, не TR58.
+
 ## TR57 · Mining Mechs — «+4 меха сюда; 2 меха → +1 пр. стали ИЛИ титана» под плашкой ИНДУСТРИАЛИСТОВ; БОЛЬШАЯ ИТЕРАЦИЯ «НАГРАДА ВНЕ WORKSPACE — СЦЕНА, А НЕ ФОРМА»: отдельная модалка «Получены карты» стала той же сценой получения, что внутри workspace, — в центральном проёме, с живыми рельсами, одной головой, клеткой-источником и входом картами — 2026-10-16
 
 **Арт импортирован** — `Mars Arts/TR57.png` появился к работе (Lumer_B, DRGR-8), заодно и `TR56.png`: временная строка TR56 в

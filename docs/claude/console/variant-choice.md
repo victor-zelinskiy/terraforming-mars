@@ -41,7 +41,18 @@ Files: `foundation/ConsoleVariantChoice.vue` · `console/variantChoiceModel.ts` 
   caption (quieter, lighter); a branch with a print and a formula has no words at all (the action composer).
 - **The three facts, three paints** are the TR51 grammar unchanged: cursor = cold lift + cyan ring; answer = seal +
   mint kant (survives the cursor leaving; the other live options RECEDE at .6, never hide); rules = faded print + the
-  reason on its own plate inside the tile. No `filter` anywhere.
+  reason on its own plate inside the tile. No `filter` anywhere. **The cursor speaks the console's one grammar** (TR58,
+  `cursor.md`): the ring, its halo and the cold focus glass are the tile's `.con-cursor()` LAYER under its content
+  (only its opacity moves — the old `[inset, inset, outer]` → `[inset, outer, outer]` lists could not interpolate and
+  snapped while the stylesheet said 160 ms), the answer's mint glass is a `::before` layer of its own, the clock is
+  `--con-cursor-ms`.
+- **A price-side «ИЛИ» prints ONE result** (TR58 «3 [plant] OR 5 [heat] → 3 [floater]*»): the options are the PRICES
+  (`printedAlternativesSide` = `price` — the slice is cut from the price row), the good every price buys is printed
+  ONCE after the last tile (`shared` prop — `.con-vchoice__arrow` + `.con-vchoice__shared`: the card's own result nodes,
+  `printedSharedResult`, and the addresses once when every variant offers the same holders, `sharedVariantDestinations`);
+  it is not an option — no cursor stop, no seal. The action composer drops the common good from the tiles' bodies
+  (`commonVariantGain`) and its formula states it before the choice with the PRICE side reserved
+  (`data-hero-pending="price"`).
 - **The seal stands INSIDE the tile's corner** (2026-10-14 — the owner: «the ✓ can be half hidden»): astride the edge it
   was cut by the scroller the group stood in (the action composer's group sits at its scroller's top — 24 px of the
   seal gone at 4K). A row's seal (list, column) stands at its end, in the row's reserved right lane. The group keeps a
