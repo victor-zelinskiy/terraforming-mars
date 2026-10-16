@@ -3,7 +3,7 @@
 **Status.** Shipped 2026-10-17. The prompt: `docs/claude/prompts/project-tr60-civilian-spacefighters.md`. The Information
 contract: `docs/claude/console/information-workspace.md` § THE DOSSIER; the law: `.claude/rules/console-ui.md` § THE
 INFORMATION WORKSPACE IS A DOSSIER, NOT A SPREADSHEET. Ledger: section AZ (`docs/claude/gameplay-polish-ledger.md`,
-PL-560…). Decisions 1–9 were taken at their defaults (§ 7); 5, 6, 7, 8 went to the owner in one batch.
+PL-560…581). Decisions 1–9 were taken at their defaults (§ 7); **the owner confirmed 5a · 6a · 7a · 8a on 2026-10-17** (one batch, with the three overview mockups).
 
 ## 1 · The card
 
@@ -129,10 +129,10 @@ no frame without content on the way in or across LB/RB. Storyboards: `screenshot
 | 2 | lore EN word for word, RU «Боевые истребители в руках обычных людей. Что может пойти не так?» | done |
 | 3 | art imported (BoneTech3D) | done |
 | 4a | the SET role (`HolderActionGood.with`) | done, guarded |
-| 5a | two tiers on the whole opening | done — in the owner's batch with mockups (`screenshots/tr60/mockups/`) |
-| 6a | the gallery of the SAME tiles, read-only | done — in the batch |
-| 7a | the sealed cell + public facts | done — in the batch |
-| 8a | every zone opens from its tile | done — in the batch |
+| 5a | two tiers on the whole opening | done — **confirmed by the owner 2026-10-17** over the mockups (`screenshots/tr60/mockups/`) |
+| 6a | the gallery of the SAME tiles, read-only | done — **confirmed 2026-10-17** |
+| 7a | the sealed cell + public facts | done — **confirmed 2026-10-17** |
+| 8a | every zone opens from its tile | done — **confirmed 2026-10-17** |
 | 9a | the parliament as objects | done |
 
 ## 8 · Tests
