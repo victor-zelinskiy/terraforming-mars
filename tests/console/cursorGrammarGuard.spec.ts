@@ -42,6 +42,10 @@ const MIGRATED: ReadonlyArray<{surface: string, host: string, on: string}> = [
   {surface: 'the target step (the self proxy)', host: '.con-ptsel__self', on: '.con-ptsel__self--focused'},
   {surface: 'the variant choice (an outcome tile)', host: '.con-vchoice__opt', on: '.con-vchoice__opt--focused'},
   {surface: 'the start workspace (a queue mini)', host: '.con-start__mini', on: '.con-start__mini--focused'},
+  {surface: 'the Parliament (a party plaque)', host: '.con-pseal', on: '.con-pseal--focus'},
+  {surface: 'the Parliament (the voting plate)', host: '.con-parl__voting', on: '.con-parl__voting--focus'},
+  {surface: 'the Parliament (a vote card)', host: '.con-parl__slot', on: '.con-parl__slot--selected'},
+  {surface: 'the composers (the commit row)', host: '.con-composer__cta', on: '.con-composer__cta--focused'},
 ];
 
 type Decl = {prop: string, value: string, line: number};
@@ -172,7 +176,8 @@ export function readLess(file: string, source: string): Array<Rule> {
   return rules;
 }
 
-const FOCUS = /--focused\b|--selected\b|\[data-focused|:focus-visible/;
+// `--focus` too (PL-509): the Parliament's whole family wore it and escaped both the ratchet and the interpolation check.
+const FOCUS = /--focus(ed)?\b|--selected\b|\[data-focused|:focus-visible/;
 const PAINT = new Set(['box-shadow', 'transform', 'background', 'background-color', 'background-image', 'opacity']);
 const CURSOR_CALL = /^\.con-cursor(-on|-paint)?\s*\(/;
 
@@ -236,10 +241,10 @@ describe('the cursor grammar (TR58 — the cursor is one living object)', () => 
     const rules = allRules();
     const missing: Array<string> = [];
     for (const m of MIGRATED) {
-      const host = rules.some((r) => r.selectors.includes(m.host) && r.calls.some((c) => c.startsWith('.con-cursor(') || c.startsWith('.con-cursor-shadow(')));
+      const host = rules.some((r) => r.selectors.includes(m.host) && r.calls.some((c) => ['.con-cursor(', '.con-cursor-shadow(', '.con-cursor-glow(', '.con-cursor-ring('].some((m) => c.startsWith(m))));
       const on = rules.some((r) => r.selectors.includes(m.on) && r.calls.some((c) => c.startsWith('.con-cursor-on(')));
       if (!host) {
-        missing.push(`${m.surface}: no \`.con-cursor(…)\` / \`.con-cursor-shadow(…)\` on ${m.host}`);
+        missing.push(`${m.surface}: no \`.con-cursor(…)\` / \`-shadow\` / \`-glow\` / \`-ring\` on ${m.host}`);
       }
       if (!on) {
         missing.push(`${m.surface}: no \`.con-cursor-on()\` on ${m.on}`);
@@ -257,7 +262,7 @@ describe('the cursor grammar (TR58 — the cursor is one living object)', () => 
         continue;
       }
       for (const sel of r.selectors.filter((s) => FOCUS.test(s))) {
-        const restSel = sel.replace(/(--focused|--selected)\b/g, '').replace(/\[data-focused[^\]]*\]/g, '').replace(/:focus-visible/g, '');
+        const restSel = sel.replace(/(--focused|--focus|--selected)\b/g, '').replace(/\[data-focused[^\]]*\]/g, '').replace(/:focus-visible/g, '');
         if (restSel === sel) {
           continue;
         }

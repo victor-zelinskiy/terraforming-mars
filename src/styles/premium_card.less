@@ -1062,6 +1062,8 @@
   transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out;
 }
 .pcard__art--loaded img { opacity: 1; }
+/* Already decoded at mount (PremiumCardArt `ready`): the card arrives WITH its art — no fade from black inside it. */
+.pcard__art--ready img { transition: none; }
 /* integration gradient: seats the art into the corpus + theme kiss of light */
 .pcard__art::after {
   content: '';

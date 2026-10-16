@@ -2,6 +2,7 @@
   <div class="pcard__art"
        :class="{
          'pcard__art--loaded': loaded,
+         'pcard__art--ready': ready,
          'pcard__art--fallback': onFallback,
          'pcard__art--void': exhausted,
        }"
@@ -46,6 +47,14 @@ export default defineComponent({
   data() {
     return {
       loaded: false,
+      /**
+       * THE PICTURE WAS ALREADY THERE AT MOUNT (PL-473): a file the browser holds (a warmed `preloadPremiumCardArt`, a
+       * face that painted it before) is `complete` the moment its `<img>` is created, so the face shows it at once —
+       * the card's own entry is its motion. Waiting for the async `load` and fading 240 ms from black lit the card's
+       * frame first and its art a beat later (the target step at 4K: a lit card with a black body). Mount only: a
+       * face re-pointed in place keeps the load fade.
+       */
+      ready: false,
       failedThumb: false,
       failedPrimary: false,
       exhausted: false,
@@ -74,8 +83,16 @@ export default defineComponent({
       this.resetChain();
     },
   },
+  mounted() {
+    const img = (this.$el as HTMLElement | undefined)?.querySelector?.('img');
+    if (img !== null && img !== undefined && img.complete && img.naturalWidth > 0) {
+      this.ready = true;
+      this.loaded = true;
+    }
+  },
   methods: {
     resetChain(): void {
+      this.ready = false;
       this.loaded = false;
       this.failedThumb = false;
       this.failedPrimary = false;

@@ -425,6 +425,42 @@ describe('PremiumCardArt', () => {
     expect(wrapper.classes()).to.include('pcard__art--void');
   });
 
+  it('a picture the browser already holds shows WITH the card (PL-473) — a re-pointed face keeps the load fade', async () => {
+    const proto = HTMLImageElement.prototype;
+    const complete = Object.getOwnPropertyDescriptor(proto, 'complete');
+    const natural = Object.getOwnPropertyDescriptor(proto, 'naturalWidth');
+    Object.defineProperty(proto, 'complete', {configurable: true, get: () => true});
+    Object.defineProperty(proto, 'naturalWidth', {configurable: true, get: () => 512});
+    try {
+      const wrapper = mount(PremiumCardArt, {
+        props: {art: {url: 'assets/card-images/001.webp', fallback: false}},
+      });
+      await wrapper.vm.$nextTick();
+      expect(wrapper.classes()).to.include('pcard__art--loaded');
+      expect(wrapper.classes()).to.include('pcard__art--ready');
+      await wrapper.setProps({art: {url: 'assets/card-images/042.webp', fallback: false}});
+      expect(wrapper.classes()).to.not.include('pcard__art--ready');
+      expect(wrapper.classes()).to.not.include('pcard__art--loaded');
+    } finally {
+      for (const [key, d] of [['complete', complete], ['naturalWidth', natural]] as const) {
+        if (d === undefined) {
+          delete (proto as unknown as Record<string, unknown>)[key];
+        } else {
+          Object.defineProperty(proto, key, d);
+        }
+      }
+    }
+  });
+
+  it('a picture still on the wire waits for its load (the fade stays)', async () => {
+    const wrapper = mount(PremiumCardArt, {
+      props: {art: {url: 'assets/card-images/001.webp', fallback: false}},
+    });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.classes()).to.not.include('pcard__art--ready');
+    expect(wrapper.classes()).to.not.include('pcard__art--loaded');
+  });
+
   it('a fallback-art card that errors goes straight to the procedural body', async () => {
     const wrapper = mount(PremiumCardArt, {
       props: {art: {url: 'assets/card-images/-1.webp', fallback: true}},

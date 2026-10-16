@@ -46,6 +46,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {gateCursorDuringEntry} from '@/client/console/cursorArrival';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ───────────────
 
@@ -169,6 +170,10 @@ export function handStageEnterHook(el: Element, done: () => void): void {
     done();
     return;
   }
+  // THE COMPOSER'S DEFAULT CURSOR ARRIVES AFTER THE STAGE HAS (PL-510): the groups cascade in from opacity 0, and a
+  // cursor posed on one of them rose WITH it — the ring revealed with its object. The stage's own entry is the ready
+  // signal: the pose stays at rest until `done`, then arrives a painted frame later (`cursorArrival`).
+  done = gateCursorDuringEntry(el as HTMLElement, done);
   const browse = browseOf(el);
 
   if (consoleReducedMotionActive() || browse === null) {

@@ -215,12 +215,35 @@ export async function armFocusWitness(page: Page, opts: FocusWitnessOptions): Pr
       lto = undefined;
     }
     const iv = window.setInterval(sample, 4);
-    const mo = new MutationObserver(sample);
+    // A mutation SCHEDULES a task-level sample (a MessageChannel message — after every microtask of the turn): sampled in
+    // its own microtask it would record states the browser never paints (a patch before the `nextTick` that poses it).
+    const channel = new MessageChannel();
+    let queued = false;
+    channel.port1.onmessage = () => {
+      queued = false;
+      sample();
+    };
+    const mo = new MutationObserver(() => {
+      if (!queued) {
+        queued = true;
+        channel.port2.postMessage(0);
+      }
+    });
     mo.observe(document.body, {subtree: true, attributes: true, childList: true});
+    // …and the boundaries of every CSS motion are samples (a cursor's ring and lift run on the compositor and mutate no
+    // DOM; the harness's timers are coarse — a whole 180 ms lift fell between two samples and read as a «jump»).
+    const EVENTS = ['transitionrun', 'transitionstart', 'transitionend', 'transitioncancel', 'animationstart', 'animationend', 'animationcancel'];
+    for (const ev of EVENTS) {
+      document.addEventListener(ev, sample, true);
+    }
     sample();
     w.__focusWitness = {t0, samples, scroll, long, uiScale, stop: () => {
       window.clearInterval(iv);
       mo.disconnect();
+      channel.port1.close();
+      for (const ev of EVENTS) {
+        document.removeEventListener(ev, sample, true);
+      }
       lto?.disconnect();
     }};
   }, opts);

@@ -428,6 +428,7 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     }
     handRevealState.phase = 'open';
     handRevealState.holdSlots = false;
+    handRevealState.chrome = 'all';
     return;
   }
   building = true;
@@ -436,6 +437,7 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
   const seq = ++buildSeq;
   handRevealState.phase = 'opening';
   handRevealState.holdSlots = true;
+  handRevealState.chrome = 'held';
   handRevealState.stageClip = stage;
   const els = seizeBodies(allPairs);
   await nextTick(); // faces mount under their flips before anything turns
@@ -484,6 +486,8 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>, st
     return;
   }
   installEpisode('open', tl, els, allPairs, 0, spawnBudget(allPairs.length, OPEN_FLIGHT_MS));
+  // The copies take off: the album's FRAME rises around their flight (PL-508 — never in the handoff's flush).
+  handRevealState.chrome = 'frame';
   tl.eventCallback('onComplete', () => finalizeOpenForward());
   tl.eventCallback('onReverseComplete', () => finalizeOpenReverse());
 }
@@ -504,7 +508,11 @@ function finalizeOpenForward(): void {
   // copies have gone — its own beat, never a ring revealed with the card.
   holdCursor(handCursor);
   handRevealState.holdSlots = false; // slots snap visible under the bodies
-  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet', () => arriveCursor(handCursor));
+  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet', () => {
+    // The READING beat (PL-508): the status rail and the dock spine come with the cursor, after the copies have gone.
+    handRevealState.chrome = 'all';
+    arriveCursor(handCursor);
+  });
   teardown();
 }
 
@@ -515,6 +523,7 @@ function finalizeOpenReverse(): void {
   }
   ep.finished = true;
   handRevealState.phase = 'docked';
+  handRevealState.chrome = 'all';
   handRevealState.holdSlots = false;
   handRevealState.stageClip = undefined;
   releaseBodies(ep, () => 'docked');
@@ -530,6 +539,7 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
   const oracle = handBodiesOracle();
   if (allPairs.length === 0 || consoleReducedMotionActive() || oracle === undefined) {
     handRevealState.phase = 'docked';
+    handRevealState.chrome = 'all';
     handRevealState.holdSlots = false;
     handRevealState.stageClip = undefined;
     for (const p of allPairs) {
@@ -640,6 +650,7 @@ function finalizeCloseForward(): void {
   }
   ep.finished = true;
   handRevealState.phase = 'docked';
+  handRevealState.chrome = 'all';
   handRevealState.holdSlots = false;
   handRevealState.stageClip = undefined;
   releaseBodies(ep, () => 'docked');
@@ -656,7 +667,10 @@ function finalizeCloseReverse(): void {
   handRevealState.phase = 'open';
   holdCursor(handCursor);
   handRevealState.holdSlots = false; // slots snap back under the page bodies
-  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet', () => arriveCursor(handCursor));
+  releaseBodies(ep, (p) => p.visible ? 'shelf' : 'packet', () => {
+    handRevealState.chrome = 'all';
+    arriveCursor(handCursor);
+  });
   teardown();
 }
 
@@ -900,6 +914,7 @@ export function reverseHandReveal(): boolean {
  *  returns below and of the non-choreographed reset). */
 function clearAlbumPresentation(): void {
   handRevealState.phase = 'docked';
+  handRevealState.chrome = 'all';
   handRevealState.holdSlots = false;
   handRevealState.filterActive = false;
   handRevealState.flightVisuals = {};
@@ -998,6 +1013,7 @@ export function holdHandBodiesForAlbum(): void {
   }
   handRevealState.phase = 'open';
   handRevealState.holdSlots = false;
+  handRevealState.chrome = 'all';
   for (const name of handBodiesOracle()?.names() ?? []) {
     setHandBodyMode(name, 'shelf');
     const el = handBodyEl(name);

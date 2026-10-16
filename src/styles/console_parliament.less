@@ -367,9 +367,15 @@
         padding: .5rem .6rem .5rem;
         border-radius: .7rem;
         background: linear-gradient(165deg, rgba(38, 24, 66, 0.84), rgba(12, 9, 22, 0.9));
-        box-shadow: inset 0 0 0 .05rem rgba(139, 106, 216, 0.28), 0 .5rem 1.4rem rgba(0, 0, 0, 0.35);
-        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease); /* the cursor's clock (TR58) */
-        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
+        /* The retired government zone's cursor (a restored save only — `closeStage` and the d-pad map it onto the
+           ruler's tile) on the ONE grammar (PL-509): GSAP parks this plate, so no lift. */
+        .con-cursor-glow();
+        box-shadow:
+            inset 0 0 0 .05rem rgba(139, 106, 216, calc(.28 * (1 - var(--con-cursor-on)))),
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            0 .5rem 1.4rem rgba(0, 0, 0, calc(.35 * (1 - var(--con-cursor-on)))),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+        &--focus { .con-cursor-on(); }
     }
     &__gov-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; min-width: 0; flex-shrink: 0; .con-parl__kicker { white-space: nowrap; } }
     &__gov-basis {
@@ -432,8 +438,8 @@
         background: rgba(0, 0, 0, 0.24);
         box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 30%);
         overflow: hidden;
-        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease); /* the cursor's clock (TR58) */
-        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
+        /* NO ring of its own (PL-509): the ruler zone's cursor is the ruler's TILE (`.con-pseal--focus` inside) — the
+           block and the plaque used to ring at once, two cursors for one object. `--focus` stays an e2e hook. */
     }
     &__ruler-kicker { flex-shrink: 0; font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; color: @con-parl-gold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__ruler-scope { color: fade(@con-parl-gold, 85%); letter-spacing: .08em; }
@@ -600,10 +606,20 @@
         padding: .45rem .6rem .45rem;
         border-radius: .7rem;
         background: rgba(10, 13, 24, 0.8);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16), 0 .5rem 1.4rem rgba(0, 0, 0, 0.35);
-        transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease), background-color calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); }
-        &--carried { background: rgba(10, 13, 24, 0); box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0), 0 0 0 rgba(0, 0, 0, 0); }
+        /* THE VOTING PLATE'S CURSOR on the ONE grammar (PL-509, `.con-cursor-glow()` — GSAP scales and parks this
+           plate, so no lift): the hairline and the drop shadow give way to the ring and the halo, ONE list. */
+        .con-cursor-glow();
+        box-shadow:
+            inset 0 0 0 .05rem rgba(120, 150, 180, calc(.16 * (1 - var(--con-cursor-on)))),
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            0 .5rem 1.4rem rgba(0, 0, 0, calc(.35 * (1 - var(--con-cursor-on)))),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+        transition+: background-color calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+        &--focus { .con-cursor-on(); }
+        &--carried {
+            background: rgba(10, 13, 24, 0);
+            box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0), inset 0 0 0 0 rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), 0), 0 0 0 rgba(0, 0, 0, 0), 0 0 0 rgba(63, 214, 241, 0);
+        }
     }
     &__voting-head { display: flex; align-items: center; gap: .8rem; flex-shrink: 0; min-width: 0; min-height: 1rem; .con-parl__kicker { white-space: nowrap; } }
     &__slots {
@@ -669,16 +685,36 @@
         padding: .4rem .45rem .35rem;
         border-radius: .55rem;
         background: rgba(255, 255, 255, 0.022);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.06);
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        /* THE VOTE'S CURSOR on the ONE grammar (PL-509, `.con-cursor-glow()` — the vote mode is still while the player
+           points: no lift, the stability contract measures these boxes WITH transforms). The card's own seam — the
+           neutral hairline, or the LEADING gold (`--slot-seam-*`) — and the cursor's ring + halo are ONE list scaled
+           by `--con-cursor-on`, on the cursor's clock (it was a 160 ms switch between two lists). */
+        --slot-seam: rgba(255, 255, 255, 0.06);
+        --slot-seam-w: .05rem;
+        --slot-crest: rgba(230, 195, 74, 0);
+        --slot-crest-w: 0rem;
+        .con-cursor-glow();
+        box-shadow:
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            inset 0 0 0 calc(var(--slot-seam-w) + .08rem * var(--con-cursor-on)) var(--slot-seam),
+            inset 0 calc(var(--slot-crest-w) + .1rem * var(--con-cursor-on)) 0 var(--slot-crest),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+        transition+: background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
         min-height: 0;
         min-width: 0;
         /* LEADING THE VOTE — gold: the badge on the label and the slot's seam, one character. */
-        &--winning { background: rgba(230, 195, 74, 0.045); box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 60%), inset 0 .18rem 0 fade(@con-parl-gold, 70%); }
-        &--selected { box-shadow: inset 0 0 0 .12rem @con-cyan, 0 0 1.2rem rgba(63, 214, 241, 0.25); background: rgba(63, 214, 241, 0.04); }
-        &--winning&--selected { background: rgba(230, 195, 74, 0.045); box-shadow: inset 0 0 0 .12rem @con-cyan, inset 0 0 0 .2rem fade(@con-parl-gold, 45%), inset 0 .28rem 0 fade(@con-parl-gold, 70%), 0 0 1.2rem rgba(63, 214, 241, 0.25); }
-        &--target { box-shadow: inset 0 0 0 .12rem @con-parl-mint, 0 0 1.4rem rgba(95, 227, 180, 0.3); }
-        &--candidate:not(&--target) { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 45%); }
+        &--winning {
+            background: rgba(230, 195, 74, 0.045);
+            --slot-seam: fade(@con-parl-gold, 60%);
+            --slot-seam-w: .07rem;
+            --slot-crest: fade(@con-parl-gold, 70%);
+            --slot-crest-w: .18rem;
+        }
+        &--selected { .con-cursor-on(); }
+        /* The chairman's seat pick (mint) — the SAME four-layer shape as the card's resting list (ring · seam · crest ·
+           halo), so the pick's ring cross-fades on the cursor's clock instead of snapping between two shapes. */
+        &--target { box-shadow: inset 0 0 0 .12rem @con-parl-mint, inset 0 0 0 var(--slot-seam-w) var(--slot-seam), inset 0 var(--slot-crest-w) 0 var(--slot-crest), 0 0 1.4rem rgba(95, 227, 180, 0.3); }
+        &--candidate:not(&--target) { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 45%), inset 0 0 0 var(--slot-seam-w) var(--slot-seam), inset 0 var(--slot-crest-w) 0 var(--slot-crest), 0 0 0 rgba(95, 227, 180, 0); }
         &--landed { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) @con-ease-standard both; }
     }
     &__slot-label { grid-area: label; display: flex; align-items: center; gap: .4rem; font-size: .72rem; height: 100%; min-width: 0; overflow: hidden; }

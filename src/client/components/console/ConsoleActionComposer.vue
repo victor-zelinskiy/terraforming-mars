@@ -988,6 +988,8 @@ import {translateMessage, translateText, translateTextWithParams, translateCardN
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
+import {armPayloadCarry, armPayloadReturn, playPayloadCarry, playPayloadReturn} from '@/client/console/played/payloadCarry';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
@@ -1497,6 +1499,19 @@ export default defineComponent({
     /** The embedded selector holds the surface right now. */
     playedTargetStepOpen(): boolean {
       return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
+    },
+    /**
+     * THE STEP'S CARDS, WARMED WHILE THE CURSOR STANDS ON ITS ROW (PL-473): the step draws its candidates at the FULL
+     * art tier (the row's strip draws thumbs), and decoding them in the press's own frames was the «empty glass» —
+     * ≈ 180 ms of a 4K step painted without its cards. The names of the row's candidates while the cursor is on it.
+     */
+    targetWarmNames(): string {
+      const item = this.focusedItem;
+      const choice = item?.kind === 'choice' ? item.choice : undefined;
+      if (choice === undefined || this.sub !== undefined || choice.id !== this.playedTargetChoice?.id) {
+        return '';
+      }
+      return (this.playedTargetModel?.owners ?? []).flatMap((o) => o.candidates.map((c) => c.cardName)).join('|');
     },
     /** The choice the open (or pending) played-target step serves. */
     playedTargetChoice(): ComposerChoice | undefined {
@@ -2847,6 +2862,34 @@ export default defineComponent({
     },
   },
   watch: {
+    /** PL-473: the step's full-tier art is decoded while the cursor stands on its row, never in the press's frames. */
+    targetWarmNames(names: string): void {
+      if (names !== '') {
+        preloadPremiumCardArt(names.split('|') as Array<CardName>);
+      }
+    },
+    /**
+     * THE STEP ENTERS ONE LEVEL DEEPER — the play composer's phrase (TR56 П3), now the action composer's too (PL-473:
+     * its step appeared in ONE frame, with no entry at all): the carried print — the shared result of a price-side
+     * «ИЛИ» (TR58), else the answered tile's — flies into the step's contract line while its groups surface from
+     * inside; back, the print flies home and the review returns the same way.
+     */
+    playedTargetStepOpen(now: boolean, was: boolean) {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function' || now === was) {
+        return;
+      }
+      if (now) {
+        const carry = armPayloadCarry(root.querySelector('.con-composer__branches'));
+        void this.$nextTick(() => {
+          const step = this.$refs.targetStep as {rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} | undefined;
+          playPayloadCarry(step?.rootEl?.(), step?.payloadEl?.(), carry);
+        });
+        return;
+      }
+      const from = armPayloadReturn(root.querySelector('.con-ptsel'));
+      void this.$nextTick(() => playPayloadReturn(this.$el as HTMLElement | undefined, from));
+    },
     settleSuspended(now: boolean) {
       this.settled?.suspend(now);
     },

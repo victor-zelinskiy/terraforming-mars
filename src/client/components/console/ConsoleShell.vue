@@ -2983,8 +2983,10 @@ export default defineComponent({
      *  spine's opaque well holds transparent so the pack is never covered
      *  mid-launch/mid-landing (chrome materializes around SETTLED cards). */
     handRevealTransit(): boolean {
+      // The spine is the album's READING (where the player stands in it) — it comes with the cursor, after the
+      // copies' handoff, never in its flush (PL-508: `chrome` stays below `all` until the copies have gone).
       return handRevealState.phase === 'opening' || handRevealState.phase === 'closing' ||
-        handRevealState.filterActive;
+        handRevealState.filterActive || handRevealState.chrome !== 'all';
     },
     /**
      * The PACK POSE the bodies layer renders (single-owner rework): raised
@@ -14978,6 +14980,7 @@ export default defineComponent({
       // the dock instantly and skip the choreography).
       handRevealState.phase = 'opening';
       handRevealState.holdSlots = true;
+      handRevealState.chrome = 'held'; // the album's chrome comes in its own beats (PL-508)
       // The dock stands FULL for the whole opening — its backs are the flight
       // sources, so the pose must not change while they are measured. The
       // lease covers the pre-install window too (measure + two frames), which
@@ -20468,6 +20471,7 @@ export default defineComponent({
         if (handComesBack) {
           handRevealState.phase = 'opening';
           handRevealState.holdSlots = true;
+          handRevealState.chrome = 'held';
         }
         restoreWorkspaceStack();
         if (handComesBack) {

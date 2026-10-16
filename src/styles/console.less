@@ -300,6 +300,35 @@ html.console-native {
     transition+: transform var(--con-cursor-lift-ms, var(--con-cursor-move-ms)) var(--con-cursor-ease);
     transition+: z-index 0s linear var(--con-cursor-zdelay) allow-discrete;
 }
+/* THE SAME GRAMMAR WITH NO LIFT AND NO Z — for a host something ELSE moves (the Parliament's plates are tweened by
+   GSAP: a CSS transform transition would chase every frame of it) or a host whose stability contract forbids a lift
+   (the vote mode's cards): its own box-shadow, ONE list written as a function of `--con-cursor-on`, on the ring's
+   clock. Gate and `.con-cursor-on()` are the same (its z-index resolves to `auto` here). PL-509. */
+.con-cursor-glow() {
+    --con-cursor-on: 0;
+    --con-cursor-z: auto;
+    transition+: box-shadow var(--con-cursor-ring-ms, var(--con-cursor-ms)) var(--con-cursor-ease);
+}
+/* THE RING LAYER ALONE — `.con-cursor()` without the host's lift and z, for a host whose transform belongs to
+   someone else (the composers' commit row: the ACTION COMMIT presses it with a GSAP scale, and a CSS transform
+   transition would chase every frame of it). The ring, its halo and a focus glass are the layer; only its opacity
+   moves; `.con-cursor-on()` / `.con-cursor-paint()` / the gate are the same. PL-510. */
+.con-cursor-ring(@shadow; @radius: inherit; @pseudo: after; @bg: none; @layer-z: auto) {
+    --con-cursor-on: 0;
+    --con-cursor-z: auto;
+    .con-cursor-layer(@pseudo; {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: @layer-z;
+        border-radius: @radius;
+        background: @bg;
+        box-shadow: @shadow;
+        opacity: var(--con-cursor-on);
+        pointer-events: none;
+        transition: opacity var(--con-cursor-ring-ms, var(--con-cursor-ms)) var(--con-cursor-ease);
+    });
+}
 /* A surface root that has not let its default cursor arrive yet (`[data-cursor-pending]`, cursorArrival.ts). */
 [data-cursor-pending] {
     --con-cursor-gate: 0;
@@ -9478,8 +9507,9 @@ html.console-mode {
        under a proxy fade-out was a cross-fade DIP (two half-transparent
        copies over a dark shelf — «все карты мигают» at the settle); the
        opaque-under / fade-above order can never dip below the settled card.
-       The chrome (header / verdict bar / scrollbar) is NOT held — it
-       arrives around the flying cards. */
+       The chrome is held in BEATS (PL-508 — `--frame-wait` / `--chrome-wait`
+       below): the frame rises as the copies take off, the reading comes with
+       the cursor after the handoff. */
     &--transit &__slot {
         opacity: 0 !important;
         pointer-events: none;
@@ -10099,7 +10129,10 @@ html.console-mode {
     &__head, &__verdictbar {
         transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
     }
-    &--chrome-wait :is(&__head, &__verdictbar, &__pgedge) {
+    /* THE CHROME IN BEATS (PL-508): the FRAME (header, page edges) waits for the copies to take off, the READING
+       (the rail) for the cursor's arrival after the handoff — never both in the handoff's flush. */
+    &--frame-wait :is(&__head, &__pgedge),
+    &--chrome-wait &__verdictbar {
         opacity: 0;
         transition: none;
         /* The MOUNT rise (`con-hand-chrome-in`, above) is a CSS animation,
@@ -10107,8 +10140,8 @@ html.console-mode {
            whole run — the rail faded IN mid-flight and snapped back to 0
            when the animation's fill let go (the reported «status rail
            мигает» at the open). Suppressed here, it RESTARTS the moment
-           chrome-wait lifts (none → named re-triggers), so the same quiet
-           rise plays exactly when the cards make their final approach. */
+           the wait lifts (none → named re-triggers): the header's rise
+           plays as the copies take off, the rail's with the cursor. */
         animation: none;
     }
     &__reason {
@@ -33976,9 +34009,10 @@ html.console-mode {
         background: fade(@con-mint, 7%);
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 38%);
     }
-    .con-composer__cta--ready.con-composer__cta--focused {
-        background: fade(@con-mint, 12%);
+    /* The embedded ready-and-focused commit row is the cursor LAYER's quieter mint paint (PL-510). */
+    .con-composer__cta--ready::after {
         box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 .8rem fade(@con-mint, 24%);
+        background: fade(@con-mint, 5%);
     }
     /* …and the base's ordering contract restated at THIS weight: a rail that
        cannot run must never wear the ready plate, whatever the state flags say
@@ -35204,32 +35238,37 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
        ONLY when this row is focused, so the glyph + the strong focus state make
        "A plays" unmistakable (a pick row's A opens/changes that pick instead). */
     &__cta {
+        position: relative;
+        isolation: isolate;
         display: flex; align-items: center; gap: .6rem;
         margin-top: .3rem; padding: .7rem .9rem; border-radius: .6rem;
         background: rgba(20, 28, 38, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
-        /* The cursor's clock (TR58 — its lists `[inset]` → `[inset, outer]` interpolate; only the clock was its own). */
+        /* The STATE plate (ready / waiting / held / blocked) keeps its own hairline and glass on the cursor's clock. */
         transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease), background var(--con-cursor-ms) var(--con-cursor-ease);
+        /* THE CURSOR on the ONE grammar (PL-510 — `.con-cursor-ring()`: the ACTION COMMIT presses this row with a GSAP
+           scale, so no lift): the strong ring that makes «A = play» read loud, its halo and the brighter glass are ONE
+           layer under the row's content whose opacity alone moves — and the gate holds it like every other cursor (a
+           late preview's commit row no longer arrives already ringed). */
+        .con-cursor-ring(@shadow: inset 0 0 0 .1rem @con-cyan, 0 0 1.1rem fade(@con-cyan, 30%); @radius: .6rem; @layer-z: -1; @bg: rgba(20, 34, 50, 0.38));
         /* ready but not focused — mint-tinted, inviting the play. */
         &--ready {
             background: fade(@con-mint, 12%);
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
+            .con-cursor-layer(after; {
+                box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 36%);
+                background: fade(@con-mint, 7%);
+            });
         }
-        /* focused (the cursor is on it) — a strong ring so A = play reads loud. */
-        &--focused {
-            box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 1.1rem fade(@con-cyan, 30%);
-            background: rgba(20, 34, 50, 0.72);
-        }
-        &--ready&--focused {
-            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 36%);
-            background: fade(@con-mint, 18%);
-        }
+        /* focused (the cursor is on it). */
+        &--focused { .con-cursor-on(); }
         /* IN-FLIGHT (surface motion awaiting handoff): the batch is committed,
            the composer holds the stage until the server's answer — a calm
            processing plate (no bright ring: the press has been taken). */
         &--waiting {
             background: rgba(18, 30, 42, 0.72);
             box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+            --con-cursor-on: 0;
         }
         /* HELD — a requirement is still outstanding, so this row cannot run.
            It keeps its place and stays readable (the flow's shape must not
@@ -35240,6 +35279,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         &--held {
             background: rgba(14, 21, 30, 0.55);
             box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+            --con-cursor-on: 0;
         }
         /* BLOCKED — a rule or the resources refuse this play. The rail's LABEL
            is the reason itself, so this only has to make the refusal legible:
@@ -35249,6 +35289,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         &--blocked {
             background: fade(@con-amber, 8%);
             box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+            --con-cursor-on: 0;
         }
     }
     /* The label stays legible while held — muted, never ghosted: the player

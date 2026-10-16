@@ -64,6 +64,18 @@ export const handRevealState = reactive({
   phase: 'docked' as HandRevealPhase,
   /** Album slots held empty (the bodies are the cards right now). */
   holdSlots: false,
+  /**
+   * THE ALBUM'S CHROME COMES IN THREE BEATS, NEVER ONE (PL-508 — the smoothness iteration after TR58). The open used
+   * to lift the header, the status rail, the page edges and the dock spine in the SAME flush as the copies' handoff,
+   * the cursor one frame later: three events in one beat. Now:
+   *  · `held`  — pre-armed with the open (`phase: 'opening'`): nothing of the chrome paints;
+   *  · `frame` — the copies took off: the album's FRAME (the header, the page edges) rises around the flight — it is
+   *    never on a flight path (the cards land BELOW the header), so it frames them instead of covering them;
+   *  · `all`   — the copies have handed over: the READING (the status rail — it names the card under the cursor — and
+   *    the dock spine) comes WITH the cursor's arrival, its own beat after the handoff.
+   * `all` is the resting value — every other path (a plain open, reduced motion, a close) paints the chrome as before.
+   */
+  chrome: 'all' as 'held' | 'frame' | 'all',
   /** A tag-FILTER episode is airborne — the status rail holds its text
    *  until the cards settle (the section's `--hold` class). */
   filterActive: false,

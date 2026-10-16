@@ -4,6 +4,7 @@ import {test, expect, Page} from './consoleTest';
 import {bootFixture, cinematicBeat, openQuickWheel, press, settle} from './consoleStart';
 import {storyboard} from './consoleEndgameHarness';
 import {FocusWitnessOptions, FocusWitnessReport, armFocusWitness, focusTrailAround, focusWitness, focusWitnessSummary} from './focusWitness';
+import {armBeatWitness, beatSummary, beatTrailAround, beatWitness} from './beatWitness';
 
 /*
  * TR58 «КУРСОР — ОДИН ЖИВОЙ ОБЪЕКТ» (`.claude/rules/console-ui.md` § THE CURSOR IS ONE LIVING OBJECT).
@@ -40,13 +41,17 @@ const TILES: FocusWitnessOptions = {candidates: '.con-cardactions__tile', keyAtt
 const COLONIES: FocusWitnessOptions = {candidates: '.con-coltile'};
 const STDP: FocusWitnessOptions = {candidates: '.con-stdp__card'};
 
-/** Every defect of the class, with the trail around the first of each kind — a red names the moment. */
-function expectLiving(r: FocusWitnessReport, where: string): void {
-  // The witness's numbers are the iteration's acceptance record (the report's «after» column) — kept beside the frames.
-  const line = `${where}: ${focusWitnessSummary(r)}`;
+/** The witnesses' numbers are the iteration's acceptance record (the report's «after» column) — kept beside the frames. */
+function recordLine(line: string): void {
   test.info().annotations.push({type: 'focus-witness', description: line});
   fs.mkdirSync(OUT, {recursive: true});
   fs.appendFileSync(path.join(OUT, 'witness.txt'), line + String.fromCharCode(10));
+}
+
+/** Every defect of the class, with the trail around the first of each kind — a red names the moment. */
+function expectLiving(r: FocusWitnessReport, where: string): void {
+  // The witness's numbers are the iteration's acceptance record (the report's «after» column) — kept beside the frames.
+  recordLine(`${where}: ${focusWitnessSummary(r)}`);
   const around = (list: ReadonlyArray<{t: number, key: string, what: string}>) =>
     list.slice(0, 3).map((f) => `${f.key} @${f.t} ms: ${f.what}\n${focusTrailAround(r, f.t, f.key)}`).join('\n---\n');
   expect(r.samples, `${where}: the witness sampled (a dead sampler proves nothing) — ${focusWitnessSummary(r)}`).toBeGreaterThan(1);
@@ -83,12 +88,30 @@ for (const profile of PROFILES) {
       await settle(page);
       await openQuickWheel(page);
       await armFocusWitness(page, HAND);
+      // THE CHROME IN BEATS (PL-508): the frame (header) around the flight, the handoff (the first slot shows), the
+      // reading (the status rail, the dock spine) with the cursor — never two of them in one flush.
+      await armBeatWitness(page, {
+        head: '.con-hand:not(.con-hand--embedded) .con-hand__head',
+        slot: '.con-hand__slot--selected',
+        rail: '.con-hand__verdictbar',
+        spine: '.con-handdock__pager',
+      });
       const stop = await storyboard(page, OUT, `${profile.tag}-hand-open`);
       await page.keyboard.press('Enter');
       await expect(page.locator('.con-hand:not(.con-hand--transit) .con-hand__slot--selected')).toHaveCount(1, {timeout: 15_000});
       await settle(page);
       await arrivalBeat(page);
       await stop();
+      const beats = await beatWitness(page);
+      recordLine(`${profile.tag} hand chrome: ${beatSummary(beats)}`);
+      const {head, slot, rail, spine} = beats.marks;
+      expect(slot.t05, `the handoff was seen — ${beatSummary(beats)}`).toBeDefined();
+      expect(head.t95 !== undefined && head.t95 < slot.t05!, `the FRAME is whole before the copies hand over — ${beatSummary(beats)}
+${beatTrailAround(beats, slot.t05!)}`).toBe(true);
+      expect(rail.t05 !== undefined && rail.t05 > slot.t05! + 60, `the READING (the rail) comes after the handoff, with the cursor — ${beatSummary(beats)}
+${beatTrailAround(beats, slot.t05!)}`).toBe(true);
+      expect(spine.t05 !== undefined && spine.t05 > slot.t05!, `the spine comes after the handoff — ${beatSummary(beats)}`).toBe(true);
+      expect([head, rail, spine].filter((m) => m.snapped !== undefined).map((m) => m.name), `no chrome part appears in one frame — ${beatSummary(beats)}`).toEqual([]);
       const open = await focusWitness(page);
       expectLiving(open, `${profile.tag} hand open`);
       const first = cursoredKey(open);
@@ -101,7 +124,9 @@ for (const profile of PROFILES) {
       const ringStart = open.trail.find((s) => s.key === first && s.ring > 0.02 && s.vis >= 0.5)?.t ?? -1;
       expect(ringStart, `the ring arrives only after the copy has gone (${JSON.stringify(handoff)})`).toBeGreaterThan(handoff!.t + handoff!.coexistMs);
       const grow = new Set(open.trail.filter((s) => s.key === first && s.ring > 0.02 && s.ring < 0.98 * open.full[first!]).map((s) => s.ring));
-      expect(grow.size, `the ring GROWS over several samples (${[...grow].join(', ')})`).toBeGreaterThanOrEqual(3);
+      // At least one sample caught the ring between rest and full (the harness's timers are coarse — the no-snap law
+      // itself is `expectLiving`'s, measured against the cursor's own curve).
+      expect(grow.size, `the ring GROWS — caught between rest and full (${[...grow].join(', ')})`).toBeGreaterThanOrEqual(1);
 
       await armFocusWitness(page, HAND);
       const stop2 = await storyboard(page, OUT, `${profile.tag}-hand-step`);

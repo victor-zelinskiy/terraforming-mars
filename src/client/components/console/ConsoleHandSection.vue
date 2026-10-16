@@ -10,7 +10,7 @@
        borrowed the shelf»), read by the chrome and by e2e; never inferred from
        an animation's side effects. -->
   <div class="con-hand con-hand--album"
-       :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--chrome-wait': chromeWait, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
+       :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--chrome-wait': chromeWait, 'con-hand--frame-wait': frameWait, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
        :data-cursor-pending="cursorPending ? '' : undefined"
        :style="rootStyle">
@@ -1174,15 +1174,21 @@ export default defineComponent({
       return this.tagFilters.find((o) => o.value === 'all')?.count ?? this.entries.length;
     },
     /**
-     * THE CHROME MATERIALIZES AROUND THE LANDED CARDS. Through the open
-     * episode's flight the header and the verdict rail are RESERVED in
-     * layout (zero shifts) but transparent — they used to stand opaque from
-     * frame 0, and the flights, which dive BEHIND the rail by z-design,
-     * read as covered by it. The fade-in rides the phase leaving 'opening'
-     * (the episode's own finalize), never a timer.
+     * THE CHROME COMES IN BEATS, NEVER IN THE HANDOFF'S FLUSH (PL-508). Through the open episode the header and the
+     * verdict rail are RESERVED in layout (zero shifts) but transparent — they used to stand opaque from frame 0, and
+     * the flights, which dive BEHIND the rail by z-design, read as covered by it. Then they rose together in the very
+     * flush that handed the copies over, the cursor a frame later — three events in one beat. Now the director's
+     * `chrome` beat drives them, never a timer: the FRAME (header, page edges) rises as the copies take off — it is
+     * never on their path —, the READING (the rail — it names the card under the cursor) comes with the cursor's
+     * arrival, after the copies have gone (`chromeWait`). A cancelled open (B mid-flight) never raises the rail.
      */
     chromeWait(): boolean {
-      return handRevealState.phase === 'opening';
+      const phase = handRevealState.phase;
+      return phase === 'opening' || ((phase === 'open' || phase === 'closing') && handRevealState.chrome !== 'all');
+    },
+    /** The album's FRAME (the header, the page edges) waits only for the copies to take off (PL-508). */
+    frameWait(): boolean {
+      return handRevealState.phase === 'opening' && handRevealState.chrome === 'held';
     },
     /** «Можно разыграть: N» — POTENTIAL, the same number the wheel shows: a
      *  count that halves because an opponent started thinking is not a fact

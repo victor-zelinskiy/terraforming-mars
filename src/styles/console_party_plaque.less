@@ -26,9 +26,17 @@
         linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 50%),
         linear-gradient(160deg, rgba(28, 26, 42, 0.94), rgba(12, 11, 20, 0.96));
     --pseal-accent: var(--parl-accent, @con-parl-violet);
-    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), inset 0 -.16rem 0 var(--pseal-accent);
-    /* The plaque's cursor (`--focus` — the overview's party zone) rides the cursor's ONE clock (TR58). */
-    transition: box-shadow var(--con-cursor-ms) var(--con-cursor-ease), background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+    /* THE PLAQUE'S CURSOR (`--focus` — the overview's party zone, the ruler's tile) is the console's ONE grammar
+       (PL-509, `.con-cursor-glow()` — the plaque clips its content, and its wrapper is what the swap FLIP moves): the
+       resting hairline gives way to the cursor's ring, the halo grows, the party's accent seam stays — ONE list scaled
+       by `--con-cursor-on`, on the cursor's clock; the entry gate holds it like every other cursor. */
+    .con-cursor-glow();
+    box-shadow:
+        inset 0 0 0 .05rem rgba(255, 255, 255, calc(.08 * (1 - var(--con-cursor-on)))),
+        inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+        inset 0 -.16rem 0 var(--pseal-accent),
+        0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+    transition+: background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
 
     /* THE SEAL — the emblem with its state ring. */
     &__seal {
@@ -280,7 +288,7 @@
     &--ruling, &--ruling-default { background: linear-gradient(160deg, rgba(58, 48, 30, 0.92), rgba(16, 13, 10, 0.96)); }
     &--delegates, &--granted { background: linear-gradient(160deg, rgba(22, 44, 40, 0.92), rgba(10, 16, 15, 0.96)); }
     &--used &__emblem { opacity: .85; }
-    &--focus { box-shadow: inset 0 0 0 .12rem @con-cyan, inset 0 -.16rem 0 var(--pseal-accent), 0 0 1rem rgba(63, 214, 241, 0.25); }
+    &--focus { .con-cursor-on(); }
 
     /* ── HERO — the action composer's source column: a column, the seal
        large, the mechanic wide. ── */

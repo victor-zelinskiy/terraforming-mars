@@ -1922,6 +1922,11 @@ export default defineComponent({
     closeStage(): void {
       killSittingMotion();
       this.walkOwed = false;
+      // The retired government zone (a sitting, a quest, a walk park the cursor there) folds onto the tile that
+      // replaced it — never a ring on the government plate until the first d-pad press (PL-509).
+      if (parliamentFlow.zone === 'government') {
+        parliamentFlow.zone = 'ruler';
+      }
       parliamentFlow.stage = 'browse';
       setWorkspaceFramePhase('parliament', 'browse');
     },

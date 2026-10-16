@@ -28,6 +28,7 @@
          'con-composer--restored': restored,
        }"
        role="dialog" :aria-label="titleText"
+       :data-cursor-pending="lateCursor.pending ? '' : undefined"
        :data-motion-surface="embedded ? undefined : 'play-composer'">
     <div class="con-composer__panel con-composer__panel--play" data-motion-panel>
       <!-- ── Header — standalone only (see the EMBEDDED note above) ───
@@ -720,10 +721,12 @@ import {
 } from '@/client/console/consoleForecastFocusMotion';
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
+import {arriveCursor, createCursorArrival, holdCursor, releaseCursor} from '@/client/console/cursorArrival';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
@@ -816,7 +819,7 @@ import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTar
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {MOTION_EASE, motionMs} from '@/client/components/motion/motionTokens';
 import {playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
 import {
   beginPlayLandingRelease, markPlayLandingReleased, playLandingHolding, playLandingShowing,
@@ -998,6 +1001,14 @@ export default defineComponent({
       boardPeekUi: boardPeekState,
       preview: undefined as ActionPreview | undefined,
       loading: true,
+      /**
+       * A SLOW PREVIEW'S CONTENT ARRIVES (PL-510): on a cache miss the entry cascade played over «Загрузка…», and the
+       * review, its rows and the commit row then appeared in ONE flush with the cursor already posed on them. The
+       * late content now enters as a cascade of its own, and the cursor's pose waits (`data-cursor-pending` on the
+       * root) until it has — then ARRIVES, its own beat. A press in the window releases it at once.
+       */
+      lateCursor: createCursorArrival('play composer (a late preview)'),
+      lateCascade: [] as Array<Animation>,
       /** This mount is the RETURN from a staged step (its draft is waiting to be applied): the card was on
        *  screen a moment ago, so its face skips the first-load fade. A peek — `applyPreview` consumes the draft. */
       restored: consolePlayCardUi.stagedDraft?.cardName === this.cardName,
@@ -1702,6 +1713,19 @@ export default defineComponent({
     },
     playedTargetStepOpen(): boolean {
       return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
+    },
+    /**
+     * THE STEP'S CARDS, WARMED WHILE THE CURSOR STANDS ON ITS ROW (PL-473): the step draws its candidates at the FULL
+     * art tier (the row's strip draws thumbs), and decoding them in the press's own frames was the «empty glass» —
+     * ≈ 180 ms of a 4K step painted without its cards. The names of the row's candidates while the cursor is on it.
+     */
+    targetWarmNames(): string {
+      const row = this.focusedRow;
+      const choice = row?.kind === 'step' ? row.choice : undefined;
+      if (choice === undefined || this.sub !== undefined || choice.id !== this.playedTargetChoice?.id) {
+        return '';
+      }
+      return (this.playedTargetModel?.owners ?? []).flatMap((o) => o.candidates.map((c) => c.cardName)).join('|');
     },
     /** The choice the open (or pending) played-target step serves. */
     playedTargetChoice(): ComposerChoice | undefined {
@@ -2471,6 +2495,11 @@ export default defineComponent({
      * in from it; back (A answered, B), the header's print is measured before the step unmounts and the tile's print flies
      * home from it while the review surfaces from inside. The carried object is the one thing that moves between levels.
      */
+    targetWarmNames(names: string): void {
+      if (names !== '') {
+        preloadPremiumCardArt(names.split('|') as Array<CardName>);
+      }
+    },
     playedTargetStepOpen(now: boolean, was: boolean) {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       if (root === undefined || now === was) {
@@ -2669,6 +2698,8 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    this.lateCascade.forEach((a) => a.cancel());
+    releaseCursor(this.lateCursor);
     this.settled?.stop();
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
@@ -2869,6 +2900,44 @@ export default defineComponent({
         })
         .catch(() => { /* the standing preview stays — nothing to roll back */ });
     },
+    /**
+     * THE LATE CONTENT ENTERS (PL-510) — called a tick after the preview landed on a cache miss, before that patch can
+     * paint: every group of the review (`[data-unfold-item]` — the result hero, the rows, the payment, the commit row)
+     * rises in reading order — opacity + a small rise, the workspace descend's own figure — and the cursor ARRIVES once
+     * the last has. Web Animations, never a main-thread tween: the late content lands exactly when the main thread is
+     * busiest (the review's first layout at 4K), and a JS-driven cascade there advanced in ~110 ms jumps — its last
+     * group, on a front-loaded curve, appeared in ONE frame. Compositor-driven, the rise keeps the display's cadence;
+     * `fill: backwards` paints the first frame at the from-state. A hand stage still ARMING owns its entry (its own
+     * cascade takes the groups and its entry gate holds the cursor) — the hold is simply handed back.
+     */
+    arriveLateContent(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (root === undefined || consoleReducedMotionActive() || root.closest('.con-hand__stage--arming') !== null ||
+          typeof root.animate !== 'function') {
+        arriveCursor(this.lateCursor);
+        return;
+      }
+      const items = Array.from(root.querySelectorAll<HTMLElement>('[data-unfold-item]'))
+        .filter((el) => el.closest('.con-composer') === root && el.getClientRects().length > 0);
+      if (items.length === 0) {
+        arriveCursor(this.lateCursor);
+        return;
+      }
+      this.lateCascade.forEach((a) => a.cancel());
+      const rise = 9 * conUiScale();
+      const duration = motionMs(260);
+      const stagger = motionMs(45);
+      this.lateCascade = items.map((el, i) => el.animate(
+        [{opacity: 0, transform: `translateY(${rise}px)`}, {opacity: 1, transform: 'none'}],
+        {duration, delay: i * stagger, easing: MOTION_EASE.standard, fill: 'backwards'}));
+      const last = this.lateCascade[this.lateCascade.length - 1];
+      const arrive = () => {
+        this.lateCascade = [];
+        arriveCursor(this.lateCursor);
+      };
+      last.onfinish = arrive;
+      last.oncancel = arrive;
+    },
     fetchPreview(): void {
       const cardName = this.cardName;
       // ONE URL builder with the prewarm — the warmed request and the live
@@ -2880,9 +2949,17 @@ export default defineComponent({
           // the same game state remounts content-complete.
           storeHandPlayPreview(this.playerView, cardName, p as ActionPreview | undefined);
           if (this.cardName === cardName) {
+            // The content mounts in THIS flush — the cursor's pose is held before it can paint with it (PL-510).
+            const late = this.loading;
+            if (late) {
+              holdCursor(this.lateCursor);
+            }
             this.preview = p as ActionPreview | undefined;
             this.loading = false;
             this.applyPreview();
+            if (late) {
+              this.$nextTick(() => this.arriveLateContent());
+            }
           }
         })
         .catch(() => {
@@ -3448,6 +3525,10 @@ export default defineComponent({
     },
     // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
+      // A press while the late content arrives: the step IS the cursor's arrival (input is never delayed — PL-510).
+      if (this.lateCursor.pending) {
+        releaseCursor(this.lateCursor);
+      }
       // The player's press pins the work column where it stands (centred) — nothing it causes re-centres it — and
       // whatever it moves inside the column slides into place.
       this.settled?.around();

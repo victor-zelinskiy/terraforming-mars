@@ -25,12 +25,15 @@ const CARRY_MS = 360;
 const REVEAL_MS = 300;
 
 /**
- * ARM — the selected variant tile's printed graphic, as it stands on the press frame (`[data-vchoice-print]` of the
- * answered tile inside `scope`). Undefined when the host shows no print (a branch without one, a pick outside a
- * variant group): the step then stands without a carry.
+ * ARM — the printed graphic of what the player CARRIES, as it stands on the press frame: the ONE result every price
+ * buys when the group's «ИЛИ» stands on the price side (TR58 — `.con-vchoice__shared`, the tiles are the prices), else
+ * the answered tile's own print (`[data-vchoice-print]` of the selected option inside `scope`). Undefined when the host
+ * shows no print (a branch without one, a pick outside a variant group): the step then ENTERS without a carry
+ * (`playPayloadCarry` — its groups still surface; it never stands in one frame, PL-473).
  */
 export function armPayloadCarry(scope: Element | null | undefined): Rect | undefined {
-  const ink = scope?.querySelector<HTMLElement>('.con-vchoice__opt--selected [data-vchoice-print] .con-vchoice__ink');
+  const ink = scope?.querySelector<HTMLElement>('.con-vchoice__shared [data-vchoice-print] .con-vchoice__ink') ??
+    scope?.querySelector<HTMLElement>('.con-vchoice__opt--selected [data-vchoice-print] .con-vchoice__ink');
   return descendRectOf(ink ?? undefined);
 }
 
@@ -39,11 +42,22 @@ export function armPayloadCarry(scope: Element | null | undefined): Rect | undef
  * contract line's own words with them. `stepRoot` is the step's `.con-ptsel`, `payload` its `[data-ptsel-payload]`.
  */
 export function playPayloadCarry(stepRoot: HTMLElement | undefined, payload: HTMLElement | undefined, from: Rect | undefined): void {
-  if (stepRoot === undefined || payload === undefined || from === undefined || consoleReducedMotionActive()) {
+  if (stepRoot === undefined || consoleReducedMotionActive()) {
     return;
   }
-  const flip = descendFlipFrom(payload, from);
-  if (flip === undefined) {
+  const flip = payload === undefined || from === undefined ? undefined : descendFlipFrom(payload, from);
+  if (payload === undefined || flip === undefined) {
+    // NOTHING TO CARRY (a branch without a print, a step with no payload in its contract): the step still ENTERS — its
+    // groups surface from inside, the contract line first (PL-473: it used to stand in one frame).
+    const groups = Array.from(stepRoot.querySelectorAll<HTMLElement>('[data-unfold-item]'));
+    if (groups.length === 0) {
+      return;
+    }
+    guardedDescend(stepRoot, REVEAL_MS, () => undefined, (finish) => {
+      const tl = gsap.timeline({onComplete: finish, onInterrupt: finish});
+      descendCascade(tl, groups, motionMs(REVEAL_MS) / 1000, 0);
+      return tl;
+    });
     return;
   }
   // The contract line's own words, and every group below it — never the payload (it is the carried object).
@@ -80,17 +94,25 @@ export function playPayloadReturn(scope: HTMLElement | undefined, from: Rect | u
   if (scope === undefined || from === undefined || consoleReducedMotionActive()) {
     return;
   }
-  const ink = scope.querySelector<HTMLElement>('.con-vchoice__opt--selected [data-vchoice-print] .con-vchoice__ink');
-  if (ink === null) {
-    return;
-  }
-  const flip = descendFlipFrom(ink, from);
-  if (flip === undefined) {
+  const ink = scope.querySelector<HTMLElement>('.con-vchoice__shared [data-vchoice-print] .con-vchoice__ink') ??
+    scope.querySelector<HTMLElement>('.con-vchoice__opt--selected [data-vchoice-print] .con-vchoice__ink');
+  const body = scope.querySelectorAll<HTMLElement>('.con-composer__scroll-body [data-unfold-item]');
+  const all = Array.from(body.length > 0 ? body : scope.querySelectorAll<HTMLElement>('[data-unfold-item]'))
+    .filter((el) => el.closest('.con-ptsel') === null);
+  const flip = ink === null ? undefined : descendFlipFrom(ink, from);
+  if (ink === null || flip === undefined) {
+    // Nothing to carry home: the review still RETURNS — its groups surface from inside (never one frame, PL-473).
+    if (all.length > 0) {
+      guardedDescend(scope, REVEAL_MS, () => undefined, (finish) => {
+        const tl = gsap.timeline({onComplete: finish, onInterrupt: finish});
+        descendCascade(tl, all, motionMs(REVEAL_MS) / 1000, 0);
+        return tl;
+      });
+    }
     return;
   }
   const home = ink.closest<HTMLElement>('[data-unfold-item]');
-  const groups = Array.from(scope.querySelectorAll<HTMLElement>('.con-composer__scroll-body [data-unfold-item]'))
-    .filter((el) => el !== home && !el.contains(ink));
+  const groups = all.filter((el) => el !== home && !el.contains(ink));
   guardedDescend(ink, CARRY_MS, () => undefined, (finish) => {
     const tl = gsap.timeline({onComplete: finish, onInterrupt: () => {
       gsap.set(ink, {clearProps: 'transform,transformOrigin'});
