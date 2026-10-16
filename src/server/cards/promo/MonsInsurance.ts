@@ -2,6 +2,7 @@ import {CorporationCard} from '../corporation/CorporationCard';
 import {IPlayer} from '../../IPlayer';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
+import {CardType} from '../../../common/cards/CardType';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
@@ -59,11 +60,20 @@ export class MonsInsurance extends CorporationCard implements ICorporationCard {
       const retribution = Math.min(player.megaCredits, 3);
       if (claimant) {
         // stock.add (NOT `claimant.megaCredits +=`) so the victim's compensation is
-        // recorded as a GameEvent — it shows in the journal / notifications, mirroring
-        // the owner's recorded `deduct` below. Left under the active (attacker) scope:
-        // attributing this GAIN to MonsInsurance too would CANCEL the owner's payout in
-        // the per-source effect aggregate (same source, opposite stock M€).
-        claimant.stock.add(Resource.MEGACREDITS, retribution);
+        // recorded as a GameEvent — it shows in the journal / notifications. The
+        // compensation is the INSURANCE's, never the attacker's (TR59): under the
+        // attacker's scope it read «ИСТОЧНИК ‹карта атакующего›» beside the very loss it
+        // repays. It is the insurer's effect reaching the claimant — the per-source
+        // aggregate folds only the source owner's own deltas (`aggregate.ts`
+        // `ownersOwn`), so the insurer's −3 is not cancelled by the claimant's +3.
+        const credit = () => claimant.stock.add(Resource.MEGACREDITS, retribution);
+        const events = player.game.events;
+        if (events !== undefined) {
+          const kind = this.type === CardType.CORPORATION ? 'corporation' : 'card';
+          events.withEffectSource(claimant, {kind, card: this.name, owner: player.color}, 'insurance-claim', credit);
+        } else {
+          credit();
+        }
       }
       // Attribute the owner's payout to MonsInsurance as a passive effect so the effects
       // overlay shows the compensation actually paid (it otherwise read as "never

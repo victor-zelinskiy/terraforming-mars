@@ -215,6 +215,21 @@ function foldImpact(acc: {
 }
 
 /**
+ * WHOSE ECONOMY AN EVENT IS. A source with an `owner` is that player's engine
+ * piece, and its stats are what it did FOR ITS OWNER. An effect can also
+ * reach another seat — Mons Insurance pays the claimant out of the insurer's
+ * pocket, and that +3 is recorded under the insurance as the claimant's
+ * notification cause (TR59 «ИСТОЧНИК — ТО, ЧТО ЗАПЛАТИЛО ВАМ») — but folded
+ * into the insurer's totals it cancelled the −3 the insurer actually paid.
+ * The per-source aggregates therefore fold only the owner's own events (or
+ * an event with no player / a source with no owner, exactly as before).
+ */
+function ownersOwn(e: GameEvent): boolean {
+  const owner = e.source !== undefined && 'owner' in e.source ? e.source.owner : undefined;
+  return owner === undefined || e.player === undefined || e.player === owner;
+}
+
+/**
  * Totals per source ("Earth Catapult saved 22 M€ over 12 applications",
  * "Pets gained 8 animals"). Sums the impact of EVERY event carrying that
  * source; triggerCount counts only the trigger-like events so a marker +
@@ -223,7 +238,7 @@ function foldImpact(acc: {
 export function aggregateBySource(events: ReadonlyArray<GameEvent>): Map<string, SourceStats> {
   const result = new Map<string, SourceStats>();
   for (const e of events) {
-    if (e.source === undefined) {
+    if (e.source === undefined || !ownersOwn(e)) {
       continue;
     }
     const key = sourceKey(e.source);
@@ -263,7 +278,9 @@ export function aggregateCorporationImpact(
 
   for (const e of events) {
     const root = byId.get(e.correlationId);
-    const direct = isThisCorp(e.source);
+    // A corp-sourced event on ANOTHER seat (an insurance payout to the claimant) is the corp reaching
+    // somebody else, never the owner's economy — see `ownersOwn`.
+    const direct = isThisCorp(e.source) && ownersOwn(e);
     const viaRoot = root !== undefined && root !== e && isThisCorp(root.source);
     if (!direct && !viaRoot) {
       continue;
@@ -821,7 +838,7 @@ export function effectOverlayStats(events: ReadonlyArray<GameEvent>, owner: Colo
   }
   const channelsBySource = new Map<string, Map<EffectStatChannel, SourceStats>>();
   for (const e of passiveEvents) {
-    if (e.source === undefined) {
+    if (e.source === undefined || !ownersOwn(e)) {
       continue;
     }
     const key = sourceKey(e.source);

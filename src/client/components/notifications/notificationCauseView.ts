@@ -28,8 +28,14 @@ import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
  */
 
 export type NotificationCauseLine = {
-  /** The dim anchor label — the stable word the player learns to look for. */
-  labelKey: 'Source' | 'Your card' | 'Your corporation';
+  /**
+   * The dim anchor label — the stable word the player learns to look for. The
+   * OWN labels name what of the VIEWER's paid them (TR59 «ИСТОЧНИК — ТО, ЧТО
+   * ЗАПЛАТИЛО ВАМ»): their card, their corporation, their TILE on Mars (an Ares
+   * neighbour's payout), their COLONY (a trade's colony bonus); «Источник» is
+   * for what is not theirs (an attack, a law, a party).
+   */
+  labelKey: 'Source' | 'Your card' | 'Your corporation' | 'Your tile' | 'Your colony';
   /** The accent voice — the concrete origin (an i18n key: a card / colony /
    *  bonus-card name or a semantic label like 'Cell bonus'). */
   nameKey: string;
@@ -39,6 +45,14 @@ export type NotificationCauseLine = {
   triggerKey?: string;
   /** The `${0}` of the trigger tail — itself an i18n key (tile / card name). */
   triggerParamKey?: string;
+  /**
+   * The ACTOR's move that fired the cause (TR59) — an i18n template with ONE
+   * `${0}` slot («ход: ${0}») and its param, itself an i18n key (the card the
+   * actor played, the bot's bonus card). The actor is NOT named here — the
+   * head's chip is the one identity statement.
+   */
+  viaKey?: string;
+  viaParamKey?: string;
   /** Per-cause delta chips — present only on a multi-cause card. */
   chips?: ReadonlyArray<JournalImpactChip>;
 };
@@ -66,6 +80,9 @@ const ACTION_CATEGORY_LABEL: Partial<Record<JournalActionCategory, string>> = {
   'vp-pressure': 'VP loss',
   'parliament': 'Parliament',
   'political-phase': 'Mars Parliament',
+  // A share of a bot turn's GAIN the event join could not attribute (TR59): the turn is its honest name, the card
+  // the bot acted with rides the via tail — never «the bot's card paid you».
+  'automa-turn': 'MarsBot turn',
 };
 
 /** The trigger tail templates — exhaustive over `EventTrigger`, so a new
@@ -74,6 +91,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'card-played': 'for a played card',
   'card-played-by-any': 'for a played card',
   'tile-placed': 'for a placed tile',
+  'tile-adjacency': 'for a tile placed next to it',
   'production-gain': 'for gained production',
   'tr-increase': 'for a TR increase',
   'colony-added': 'for a built colony',
@@ -91,6 +109,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
 /** Trigger templates that take a `${0}` — the concrete thing that fired. */
 const TRIGGER_WITH_PARAM: Partial<Record<EventTrigger, string>> = {
   'tile-placed': 'for placing: ${0}',
+  'tile-adjacency': 'for a tile next to it: ${0}',
   'card-played': 'for playing: ${0}',
   'card-played-by-any': 'for playing: ${0}',
 };
@@ -112,10 +131,45 @@ const BASE_TILE_TRIGGER: Partial<Record<TileType, string>> = {
   [TileType.OCEAN]: 'for a placed ocean',
 };
 
+/** …and the same three beside the viewer's own tile (an Ares neighbour, TR59): «за город рядом». */
+const ADJACENT_TILE_TRIGGER: Partial<Record<TileType, string>> = {
+  [TileType.CITY]: 'for a city next to it',
+  [TileType.GREENERY]: 'for a greenery next to it',
+  [TileType.OCEAN]: 'for an ocean next to it',
+};
+
+/** The via tail: «ход: ‹что сделал актор›» — the param is an i18n key (a card / bonus-card / colony name). */
+function viaOf(cause: ViewerImpactCause): {viaKey?: string; viaParamKey?: string} {
+  const via = cause.via;
+  if (via === undefined) {
+    return {};
+  }
+  switch (via.kind) {
+  case 'card':
+  case 'standardProject':
+    return {viaKey: 'move: ${0}', viaParamKey: via.card};
+  case 'bonusCard':
+    return {viaKey: 'move: ${0}', viaParamKey: bonusCardInfo(via.bonusCard).name};
+  case 'trade':
+    return {viaKey: 'move: ${0}', viaParamKey: 'trade'};
+  default: {
+    const exhaustive: never = via;
+    throw new Error(`Unhandled cause via ${JSON.stringify(exhaustive)}`);
+  }
+  }
+}
+
 function triggerOf(cause: ViewerImpactCause, nameKey: string): {triggerKey?: string; triggerParamKey?: string} {
   const trigger = cause.trigger;
   if (trigger === undefined) {
     return {};
+  }
+  if (trigger === 'tile-adjacency' && cause.triggerTile !== undefined) {
+    const base = ADJACENT_TILE_TRIGGER[cause.triggerTile];
+    if (base !== undefined) {
+      return {triggerKey: base};
+    }
+    return {triggerKey: TRIGGER_WITH_PARAM[trigger], triggerParamKey: tileTypeToString[cause.triggerTile]};
   }
   if (trigger === 'tile-placed' && cause.triggerTile !== undefined) {
     const base = BASE_TILE_TRIGGER[cause.triggerTile];
@@ -148,12 +202,17 @@ export function causeLineOf(cause: ViewerImpactCause): NotificationCauseLine | u
     nameKey,
     ...(detailKey !== undefined ? {detailKey} : {}),
     ...triggerOf(cause, nameKey),
+    ...viaOf(cause),
   });
+  // The viewer's TILE paid them (an Ares neighbour, TR59): the card that put the tile on Mars is its name.
+  const ownTile = cause.own === true && cause.trigger === 'tile-adjacency';
   switch (origin.kind) {
   case 'card':
-    return line(cause.own === true ? 'Your card' : 'Source', origin.card);
+    return line(ownTile ? 'Your tile' : (cause.own === true ? 'Your card' : 'Source'), origin.card);
   case 'corporation':
-    return line(cause.own === true ? 'Your corporation' : 'Source', origin.card);
+    return line(ownTile ? 'Your tile' : (cause.own === true ? 'Your corporation' : 'Source'), origin.card);
+  case 'tile':
+    return line(cause.own === true ? 'Your tile' : 'Source', tileTypeToString[origin.tileType]);
   case 'standardProject':
     return line('Source', origin.card);
   case 'milestone':
@@ -167,8 +226,10 @@ export function causeLineOf(cause: ViewerImpactCause): NotificationCauseLine | u
     if (origin.benefit === 'trade') {
       return line('Source', 'Trade income', origin.name);
     }
+    // The colony-owner bonus is paid only to whoever has a colony there — it is the VIEWER's colony that paid
+    // (TR59): «ВАША КОЛОНИЯ Европа · бонус колонии · ход: торговля».
     if (origin.benefit === 'colonyBonus') {
-      return line('Source', 'Colony bonus', origin.name);
+      return line('Your colony', origin.name, 'Colony bonus');
     }
     return line('Source', origin.name);
   case 'globalParameter':

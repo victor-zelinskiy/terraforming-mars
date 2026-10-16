@@ -6,6 +6,8 @@ import {EventTrigger, GameEvent, JournalActionCategory} from '@/common/events/Ga
 import {EventImpact} from '@/common/events/EventImpact';
 import {EventSource, sourceKey} from '@/common/events/EventSource';
 import {MarsBotImpactCause, MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
+import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {ColonyName} from '@/common/colonies/ColonyName';
 import {impactChips, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 
 /**
@@ -58,6 +60,23 @@ export type ViewerCauseOrigin =
   | {kind: 'action'; category?: JournalActionCategory; card?: CardName};
 
 /**
+ * WHAT THE ACTOR DID that set the viewer's cause off (TR59 «ИСТОЧНИК — ТО, ЧТО
+ * ЗАПЛАТИЛО ВАМ; ХОД — ТРИГГЕР»): the chain root's own «what» — the card they
+ * played, the standard project, the colony they traded with, the bot's
+ * revealed card. The SOURCE of a payout is what belongs to the recipient (their
+ * tile, their corporation, their colony); the actor's move is only what fired
+ * it, so it rides the cause as a quiet tail («· ход: Купольный кратер»), never
+ * as its name. Absent when the cause IS the actor's move (an attack names the
+ * attacker's card as its source — nothing to add) or when the root has no
+ * nameable «what».
+ */
+export type ViewerCauseVia =
+  | {kind: 'card'; card: CardName}
+  | {kind: 'standardProject'; card: CardName}
+  | {kind: 'bonusCard'; bonusCard: BonusCardId}
+  | {kind: 'trade'; colony: ColonyName};
+
+/**
  * One CAUSE GROUP of the viewer's own deltas: the origin, whether it is the
  * viewer's OWN engine piece (their corp paid them inside somebody else's
  * action), the trigger that fired a passive origin, and the SIGNED chips this
@@ -76,6 +95,8 @@ export type ViewerImpactCause = {
   triggerCard?: CardName;
   /** For a 'global-parameter' trigger: the ONE scale the chain raised, when unambiguous (PL-051 — «за шаг Венеры»). */
   triggerParameter?: GlobalParameter;
+  /** What the ACTOR did that fired this cause (TR59) — see {@link ViewerCauseVia}. */
+  via?: ViewerCauseVia;
   gains: ReadonlyArray<JournalImpactChip>;
   losses: ReadonlyArray<JournalImpactChip>;
 };
@@ -239,7 +260,7 @@ function causeOfEvent(e: GameEvent, byId: ReadonlyMap<number, GameEvent>, root: 
   // source — a delta nested under an unrelated marker must not inherit it.
   const trigger = marker !== undefined && marker.source !== undefined &&
     sourceKey(marker.source) === sourceKey(source) ? marker.trigger : undefined;
-  const own = (source.kind === 'card' || source.kind === 'corporation') && source.owner === viewer;
+  const own = (source.kind === 'card' || source.kind === 'corporation' || source.kind === 'tile') && source.owner === viewer;
   const benefit = source.kind === 'colony' ? source.benefit : undefined;
   return {
     origin: source,
@@ -249,11 +270,42 @@ function causeOfEvent(e: GameEvent, byId: ReadonlyMap<number, GameEvent>, root: 
   };
 }
 
+/** A source's identity for «is this the root itself?» — `sourceKey` plus a colony's benefit role (the colony-owner
+ *  bonus and the trade that set it off share `colony:<name>`, and they are different things). */
+function originIdentity(s: EventSource): string {
+  return `${sourceKey(s)}#${s.kind === 'colony' ? s.benefit ?? '' : ''}`;
+}
+
+/**
+ * WHAT THE ACTOR DID, off the chain root (TR59) — the via tail of a cause that is NOT the root itself: the
+ * viewer's tile / corporation / colony paid them, the root's card / standard project / trade is only what fired it.
+ * An attack (the cause IS the root's card) and a fallback to the action itself carry none.
+ */
+export function viaOfRoot(origin: ViewerCauseOrigin, root: GameEvent | undefined): ViewerCauseVia | undefined {
+  const s = root?.source;
+  if (s === undefined || origin.kind === 'action' || originIdentity(s) === originIdentity(origin)) {
+    return undefined;
+  }
+  switch (s.kind) {
+  case 'card':
+  case 'corporation':
+    return {kind: 'card', card: s.card};
+  case 'standardProject':
+    return {kind: 'standardProject', card: s.card};
+  case 'colony':
+    return root?.category === 'colony' ? {kind: 'trade', colony: s.name} : undefined;
+  case 'bonusCard':
+    return {kind: 'bonusCard', bonusCard: s.bonusCard};
+  default:
+    return undefined;
+  }
+}
+
 /** Structural context for the trigger phrase: the ONE tile the chain placed /
  *  the root card that was played — only when unambiguous. */
 function triggerContextOf(cause: {trigger?: EventTrigger}, chain: ReadonlyArray<GameEvent>, root: GameEvent | undefined):
   {triggerTile?: TileType; triggerCard?: CardName; triggerParameter?: GlobalParameter} {
-  if (cause.trigger === 'tile-placed') {
+  if (cause.trigger === 'tile-placed' || cause.trigger === 'tile-adjacency') {
     const tiles = chain.filter((e) => e.type === 'tile-placed' && e.tile !== undefined);
     if (tiles.length === 1) {
       return {triggerTile: tiles[0].tile};
@@ -341,7 +393,8 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
     const {key, ...cause} = causeOfEvent(e, byId, root, viewer);
     let acc = causesByKey.get(key);
     if (acc === undefined) {
-      acc = {cause: {...cause, ...triggerContextOf(cause, chain, root)}, rawGains: [], rawLosses: [], trackLosses: []};
+      const via = viaOfRoot(cause.origin, root);
+      acc = {cause: {...cause, ...triggerContextOf(cause, chain, root), ...(via !== undefined ? {via} : {})}, rawGains: [], rawLosses: [], trackLosses: []};
       causesByKey.set(key, acc);
       causeOrder.push(key);
     }
@@ -487,7 +540,8 @@ export function lossCausesOf(chain: ReadonlyArray<GameEvent>, negs: ReadonlyArra
     const {key, ...cause} = causeOfEvent(e, byId, root, viewer);
     let acc = byKey.get(key);
     if (acc === undefined) {
-      acc = {cause: {...cause, ...triggerContextOf(cause, chain, root)}, raw: []};
+      const via = viaOfRoot(cause.origin, root);
+      acc = {cause: {...cause, ...triggerContextOf(cause, chain, root), ...(via !== undefined ? {via} : {})}, raw: []};
       byKey.set(key, acc);
       order.push(key);
     }
@@ -611,23 +665,37 @@ function botCauseToViewer(c: MarsBotImpactCause, viewer: Color, turn: MarsBotTur
     };
     (change.amount < 0 ? causeLosses : causeGains).push(chip);
   }
-  const own = (c.source.kind === 'card' || c.source.kind === 'corporation') && c.source.owner === viewer;
+  const own = (c.source.kind === 'card' || c.source.kind === 'corporation' || c.source.kind === 'tile') && c.source.owner === viewer;
   const tiles = turn.visual?.tiles;
-  const triggerTile = c.trigger === 'tile-placed' && tiles !== undefined && tiles.length === 1 ? tiles[0].tileType : undefined;
+  const triggerTile = (c.trigger === 'tile-placed' || c.trigger === 'tile-adjacency') && tiles !== undefined && tiles.length === 1 ? tiles[0].tileType : undefined;
+  // The bot's move is the TRIGGER of a payout the viewer's own piece made (TR59) — never its source.
+  const via = botTurnVia(turn);
+  const viaApplies = via !== undefined && !sameAsVia(c.source, via);
   return {
     origin: c.source,
     ...(own ? {own: true} : {}),
     ...(c.trigger !== undefined ? {trigger: c.trigger} : {}),
     ...(triggerTile !== undefined ? {triggerTile} : {}),
+    ...(viaApplies ? {via} : {}),
     gains: mergeNet(causeGains),
     losses: mergeNet(causeLosses),
   };
 }
 
-/** The card the bot ACTED with this turn — the honest fallback origin for a
- *  delta the event join could not attribute finer (and for old scripts that
- *  carry no attribution at all). */
-function botTurnFallbackOrigin(turn: MarsBotTurn): ViewerCauseOrigin {
+/** Is this cause the bot's revealed card itself (an attack it made — nothing to add as a tail)? */
+function sameAsVia(source: EventSource, via: ViewerCauseVia): boolean {
+  switch (via.kind) {
+  case 'bonusCard':
+    return source.kind === 'bonusCard' && source.bonusCard === via.bonusCard;
+  case 'trade':
+    return source.kind === 'colony' && source.name === via.colony;
+  default:
+    return (source.kind === 'card' || source.kind === 'corporation' || source.kind === 'standardProject') && source.card === via.card;
+  }
+}
+
+/** The card the bot ACTED with this turn, as the via tail of a cause it set off. */
+function botTurnVia(turn: MarsBotTurn): ViewerCauseVia | undefined {
   for (const step of turn.steps) {
     if (step.kind === 'reveal') {
       return step.card.kind === 'project' ?
@@ -635,7 +703,25 @@ function botTurnFallbackOrigin(turn: MarsBotTurn): ViewerCauseOrigin {
         {kind: 'bonusCard', bonusCard: step.card.id};
     }
   }
-  return {kind: 'action', category: 'automa-turn'};
+  return undefined;
+}
+
+/** The card the bot ACTED with this turn — the honest fallback origin for a
+ *  delta the event join could not attribute finer (and for old scripts that
+ *  carry no attribution at all). Used for a LOSS only: the bot's card did
+ *  take it. A residual GAIN is never «the bot's card paid you» (TR59) — see
+ *  `botTurnCauses`. */
+function botTurnFallbackOrigin(turn: MarsBotTurn): ViewerCauseOrigin {
+  const via = botTurnVia(turn);
+  switch (via?.kind) {
+  case 'bonusCard':
+    return {kind: 'bonusCard', bonusCard: via.bonusCard};
+  case 'card':
+  case 'standardProject':
+    return {kind: 'card', card: via.card};
+  default:
+    return {kind: 'action', category: 'automa-turn'};
+  }
 }
 
 /**
@@ -670,8 +756,15 @@ function botTurnCauses(turn: MarsBotTurn, viewer: Color, gains: ReadonlyArray<Jo
   };
   const residualGains = residualOf(gains, (c) => c.gains);
   const residualLosses = residualOf(losses, (c) => c.losses);
-  if (residualGains.length > 0 || residualLosses.length > 0) {
-    causes.push({origin: botTurnFallbackOrigin(turn), gains: residualGains, losses: residualLosses});
+  // A residual LOSS is the bot's card's doing (a cube attack the join could not attribute). A residual GAIN is
+  // not «the bot's card paid you» (TR59 — the owner's report: «ИСТОЧНИК ‹карта / метки бота›» over money the
+  // viewer's own tile made): its honest name is the bot's TURN, with the card it acted with as the via tail.
+  if (residualLosses.length > 0) {
+    causes.push({origin: botTurnFallbackOrigin(turn), gains: [], losses: residualLosses});
+  }
+  if (residualGains.length > 0) {
+    const via = botTurnVia(turn);
+    causes.push({origin: {kind: 'action', category: 'automa-turn'}, ...(via !== undefined ? {via} : {}), gains: residualGains, losses: []});
   }
   return orderCauses(causes);
 }

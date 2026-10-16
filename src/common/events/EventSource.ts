@@ -7,6 +7,7 @@ import {AwardName} from '../ma/AwardName';
 import {ColonyName} from '../colonies/ColonyName';
 import {GlobalEventName} from '../turmoil/globalEvents/GlobalEventName';
 import {PartyName} from '../turmoil/PartyName';
+import {TileType} from '../TileType';
 
 /**
  * Which colony mechanic produced a `colony`-sourced bonus. Lets analytics (the
@@ -76,6 +77,13 @@ export type EventSource =
    * pure static `bonusCardInfo(id)` table, never via a live collection.
    */
   | {kind: 'bonusCard'; bonusCard: BonusCardId; owner?: Color}
+  /**
+   * A TILE ON MARS that pays its owner by itself, with no card behind it (an
+   * Ares adjacency-bonus tile from an old save or a setup that recorded no
+   * card). With a card on the tile the source is that card — the tile's own
+   * kind is then only the fallback a player can still be told about.
+   */
+  | {kind: 'tile'; tileType: TileType; owner?: Color}
   | {kind: 'production'}
   | {kind: 'spaceBonus'} // a hex's printed placement bonus ("cell bonus")
   | {kind: 'oceanBonus'} // M€ for placing adjacent to oceans
@@ -107,6 +115,8 @@ export function sourceKey(source: EventSource | undefined): string {
     return `${source.kind}:${source.parameter}`;
   case 'bonusCard':
     return `${source.kind}:${source.bonusCard}`;
+  case 'tile':
+    return `${source.kind}:${source.tileType}`;
   // A named rule is its own engine piece (every greenery's tile TR groups
   // together); the bare institution stays one key.
   case 'parliament':

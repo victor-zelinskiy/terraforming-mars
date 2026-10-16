@@ -383,7 +383,9 @@ describe('notificationSemantics (viewer-relative sign + importance)', () => {
       expect(impact.gains).deep.eq([{icon: 'megacredits', text: '+5'}]);
       expect(impact.causes).has.length(2);
       expect(impact.causes[0].gains).deep.eq([{icon: 'megacredits', text: '+2'}]);
-      expect(impact.causes[1].origin).deep.eq({kind: 'card', card: CARD});
+      // A residual GAIN is the bot's TURN (TR59) — the card it acted with rides as the via tail, never as the source.
+      expect(impact.causes[1].origin).deep.eq({kind: 'action', category: 'automa-turn'});
+      expect(impact.causes[1].via).deep.eq({kind: 'card', card: CARD});
       expect(impact.causes[1].gains, 'the residual is the exact remainder').deep.eq([{icon: 'megacredits', text: '+3'}]);
     });
 

@@ -274,7 +274,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       'delta-project': {crossPlayer: 'possible', proof: 'DP10 espionage retreat — delta-position-changed carries victim+attacker (tests/delta)'},
       'vp-pressure': {crossPlayer: 'possible', proof: 'Vermin flip → category vp-pressure (verminJournal.spec)'},
       'planetary-event': {crossPlayer: 'none', proof: 'hazard appearance mutates the BOARD; player costs occur inside the acting player\'s own later actions'},
-      'solar-phase': {crossPlayer: 'possible', proof: 'S5 — WGT branch scoped, Ares owner benefit delivered'},
+      'solar-phase': {crossPlayer: 'possible', proof: 'S5 — WGT branch scoped; in the SOLAR phase `Game.addTile` grants no placement bonus at all, so the Ares owner benefit is honestly NOT paid (TR59 — the old S5 ran outside SOLAR and asserted a payout production never makes); a passive reacting to the WGT\'s global step still pays inside the scope'},
       'automa-turn': {crossPlayer: 'possible', proof: 'S10 (deferred payout reaches the script) + bonusCardAttackEvents.spec (attack steps)'},
       'parliament': {crossPlayer: 'possible', proof: 'Turmoil Redux in-turn political action (vote / party action): scoped by ParliamentHandler.voteOption + PartyEffects.runPartyAction; a Mars First tile draw or an Industrialists shift can trigger reactive owners exactly like a card action (tests/parliament/PartyEffects.spec)'},
       'political-phase': {crossPlayer: 'possible', proof: 'Turmoil Redux end-of-generation resolution: every effect step runs under a per-player scope with a resolution source (ParliamentPhase.stepEffects); the Agenda bonus under the winner\'s parliament scope (tests/parliament/ParliamentPhase.spec)'},

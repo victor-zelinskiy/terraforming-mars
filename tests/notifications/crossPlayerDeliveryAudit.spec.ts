@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {Color} from '../../src/common/Color';
+import {Phase} from '../../src/common/Phase';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {TileType} from '../../src/common/TileType';
 import {IGame} from '../../src/server/IGame';
@@ -108,12 +109,12 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     }
   }
 
-  it('S1 — the REPORTED case: Ares owner benefit reaches the owner as a positive band on the builder\'s card', () => {
+  it('S1 — the REPORTED case: Ares owner benefit reaches the owner as a positive band, sourced to THEIR tile', () => {
     fresh({ares: true});
-    // The owner's «Запретная зона»-style tile with an adjacency bonus.
+    // The owner's «Запретная зона» tile with an adjacency bonus — placed by the card, so the tile records it.
     const tileSpace = game.board.getAvailableSpacesOnLand(builder)[0];
     tileSpace.adjacency = {bonus: [SpaceBonus.DRAW_CARD]};
-    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA});
+    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA, card: CardName.RESTRICTED_AREA_ARES});
     owner.megaCredits = 0;
 
     // The builder plays a CITY CARD — the real door: the play opens the action
@@ -149,9 +150,26 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(model.sign, 'the owner reads it as a personal gain').eq('positive');
     expect(model.importance).eq('notable');
     expect(model.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1'}]);
-    // The «почему»: the owner-benefit event inherits the placer's card as its
-    // source — the cause names the card whose placement paid the viewer.
-    expect(model.viewerImpact?.causes[0].origin).deep.include({kind: 'card', card: CardName.DOMED_CRATER});
+    // THE «ПОЧЕМУ» (TR59 «ИСТОЧНИК — ТО, ЧТО ЗАПЛАТИЛО ВАМ»; the old rule — «the owner benefit inherits the
+    // PLACER's card» — is retired): the source is the OWNER's tile (the card that placed it), the placement is the
+    // trigger, and the builder's card is only the via tail — never the source.
+    const cause = model.viewerImpact?.causes[0];
+    expect(model.viewerImpact?.causes, 'one cause — the tile').has.length(1);
+    expect(cause?.origin).deep.eq({kind: 'card', card: CardName.RESTRICTED_AREA_ARES, owner: owner.color});
+    expect(cause?.own, 'the tile is the VIEWER\'s').eq(true);
+    expect(cause?.trigger).eq('tile-adjacency');
+    expect(cause?.triggerTile, 'the ONE placed city names the trigger').eq(TileType.CITY);
+    expect(cause?.via, 'the builder\'s card rides as the via tail').deep.eq({kind: 'card', card: CardName.DOMED_CRATER});
+    expect(model.viewerImpact?.ownSource, 'the legacy fields agree: the viewer\'s own piece paid').eq(true);
+    expect(model.viewerImpact?.sourceCard).eq(CardName.RESTRICTED_AREA_ARES);
+    const [line] = causeLinesOf(model.viewerImpact!);
+    expect(line).deep.include({labelKey: 'Your tile', nameKey: CardName.RESTRICTED_AREA_ARES,
+      triggerKey: 'for a city next to it', viaKey: 'move: ${0}', viaParamKey: CardName.DOMED_CRATER});
+    // The journal agrees: the payout is the owner's tile's effect, recorded under its own marker.
+    const marker = game.events.events.find((e) => e.id === ownerGain!.parentId);
+    expect(marker?.type, 'the payout rides an effect-triggered marker').eq('effect-triggered');
+    expect(marker?.trigger).eq('tile-adjacency');
+    expect(marker?.source).deep.eq({kind: 'card', card: CardName.RESTRICTED_AREA_ARES, owner: owner.color});
     expect(model.affects, 'the personal feed mode keeps it').contains(owner.color);
     // The builder's own view of the same action carries NO viewer band (it is
     // their own move — self-suppressed as an ordinary action).
@@ -211,7 +229,7 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     fresh({ares: true});
     const tileSpace = game.board.getAvailableSpacesOnLand(builder)[0];
     tileSpace.adjacency = {bonus: [SpaceBonus.DRAW_CARD]};
-    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA});
+    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA, card: CardName.RESTRICTED_AREA_ARES});
     owner.megaCredits = 0;
 
     // The BASIC ACTION door (the wheel's «озеленение за растения»): the scope
@@ -236,6 +254,12 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     const model = bandOf(deliveredModels(game, owner.color), rootId);
     expect(model.sign).eq('positive');
     expect(model.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1'}]);
+    // The owner's tile paid; the conversion is the via tail (TR59).
+    const cause = model.viewerImpact?.causes[0];
+    expect(cause?.origin).deep.include({kind: 'card', card: CardName.RESTRICTED_AREA_ARES, owner: owner.color});
+    expect(cause?.trigger).eq('tile-adjacency');
+    expect(cause?.triggerTile).eq(TileType.GREENERY);
+    expect(cause?.via).deep.eq({kind: 'standardProject', card: CardName.CONVERT_PLANTS});
   });
 
   it('S4 — a deferred victim pick (Asteroid): ONE hostile story in the attacker\'s chain, no standalone twin', () => {
@@ -277,8 +301,12 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(neg.models, 'no standalone hostile twin').has.length(0);
   });
 
-  it('S5 — a WGT ocean (solar phase) pays the Ares neighbour INSIDE its own scoped chain (was: dropped outright)', () => {
+  it('S5 — a WGT ocean in the SOLAR phase pays NOBODY — the Ares neighbour included — inside its own scoped chain', () => {
+    // THE HONEST PATH (TR59): the WGT acts in `Phase.SOLAR`, where `Game.addTile` grants no placement bonus at all
+    // (no cell bonus, no ocean adjacency, no Ares owner benefit — and the tile has no owner). The old version of
+    // this scenario ran OUTSIDE the solar phase and asserted a payout production can never make.
     [game, builder, owner] = testGame(2, {aresExtension: true, venusNextExtension: false});
+    game.phase = Phase.SOLAR;
     // A land space adjacent to an ocean space carries the owner tile.
     const oceanSpace = game.board.getAvailableSpacesForOcean(builder)
       .find((s) => game.board.getAdjacentSpaces(s).some((n) => n.spaceType === 'land' && n.tile === undefined));
@@ -286,7 +314,7 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     const landNeighbour = game.board.getAdjacentSpaces(oceanSpace!)
       .find((n) => n.spaceType === 'land' && n.tile === undefined)!;
     landNeighbour.adjacency = {bonus: [SpaceBonus.DRAW_CARD]};
-    game.addTile(owner, landNeighbour, {tileType: TileType.RESTRICTED_AREA});
+    game.addTile(owner, landNeighbour, {tileType: TileType.RESTRICTED_AREA, card: CardName.RESTRICTED_AREA_ARES});
     owner.megaCredits = 0;
 
     // The WGT prompt — the real solar-phase door. Its ocean branch is the
@@ -300,14 +328,15 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     const root = game.events.events.find((e) => e.type === 'action' && e.category === 'solar-phase');
     expect(root, 'the WGT act rooted a solar-phase scope').is.not.undefined;
     const rootId = root!.correlationId;
-    const ownerGain = game.events.events.find((e) =>
-      e.player === owner.color && e.impact.stock?.megacredits === 1 && e.correlationId === rootId);
-    expect(ownerGain, 'the owner benefit EXISTS and lives in the WGT chain (it used to be dropped)').is.not.undefined;
+    expect(oceanSpace!.tile?.tileType, 'the ocean landed').eq(TileType.OCEAN);
+    expect(oceanSpace!.player, 'a WGT tile has no owner').is.undefined;
+    expect(owner.megaCredits, 'no Ares owner benefit in the solar phase').eq(0);
+    expect(game.events.events.find((e) => e.player === owner.color && e.impact.stock?.megacredits !== undefined),
+      'no payout event of the neighbour anywhere').is.undefined;
 
-    const model = bandOf(deliveredModels(game, owner.color), rootId);
-    expect(model.actor, 'the card is the WGT actor\'s').eq(builder.color);
-    expect(model.sign).eq('positive');
-    expect(model.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1'}]);
+    // The owner hears no band: nothing of theirs moved.
+    const model = deliveredModels(game, owner.color).find((m) => m.correlationId === rootId);
+    expect(model?.viewerImpact, 'no band for a payout that does not exist').is.undefined;
   });
 
   it('S6 — Mons Insurance on-play: every opponent\'s −2 M€ production is a recorded, delivered attack (was: no event)', () => {
@@ -340,7 +369,7 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     fresh({ares: true});
     const tileSpace = game.board.getAvailableSpacesOnLand(builder)[0];
     tileSpace.adjacency = {bonus: [SpaceBonus.DRAW_CARD]};
-    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA});
+    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA, card: CardName.RESTRICTED_AREA_ARES});
     owner.megaCredits = 0;
 
     builder.plants = 8;
@@ -365,6 +394,11 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     const model = bandOf(deliveredModels(game, owner.color), rootId);
     expect(model.sign).eq('positive');
     expect(model.viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1'}]);
+    // The owner's tile paid — the final greenery is the trigger, never the source (TR59).
+    const cause = model.viewerImpact?.causes[0];
+    expect(cause?.origin).deep.include({card: CardName.RESTRICTED_AREA_ARES, owner: owner.color});
+    expect(cause?.trigger).eq('tile-adjacency');
+    expect(cause?.triggerTile).eq(TileType.GREENERY);
   });
 
   it('S8 — THARSIS (the reported case): a foreign city\'s DEFERRED production payout reaches the corp owner', () => {
@@ -524,7 +558,7 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     fresh({ares: true});
     const tileSpace = game.board.getAvailableSpacesOnLand(builder)[0];
     tileSpace.adjacency = {bonus: [SpaceBonus.DRAW_CARD]};
-    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA});
+    game.addTile(owner, tileSpace, {tileType: TileType.RESTRICTED_AREA, card: CardName.RESTRICTED_AREA_ARES});
     owner.megaCredits = 0;
 
     // Action 1: a greenery next to the owner's tile (conversion door).
@@ -553,6 +587,7 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     for (const idx of [idx0, idx1]) {
       expect(models[idx].sign).eq('positive');
       expect(models[idx].viewerImpact?.gains).deep.eq([{icon: 'megacredits', text: '+1'}]);
+      expect(causeLinesOf(models[idx].viewerImpact!)[0].labelKey, 'each card names the viewer\'s TILE').eq('Your tile');
     }
   });
 

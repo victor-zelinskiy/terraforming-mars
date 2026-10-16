@@ -67,9 +67,12 @@ describe('notificationCauseView (the «почему» grammar)', () => {
     const trade = causeLineOf(cause({kind: 'colony', name: ColonyName.LUNA, benefit: 'trade'}));
     expect(trade?.nameKey).eq('Trade income');
     expect(trade?.detailKey).eq(ColonyName.LUNA);
+    // The colony-owner bonus is paid only to a colony's owner — the VIEWER's colony paid (TR59): the anchor says
+    // so, the colony is the name, the role is the detail.
     const bonus = causeLineOf(cause({kind: 'colony', name: ColonyName.LUNA, benefit: 'colonyBonus'}));
-    expect(bonus?.nameKey).eq('Colony bonus');
-    expect(bonus?.detailKey).eq(ColonyName.LUNA);
+    expect(bonus?.labelKey).eq('Your colony');
+    expect(bonus?.nameKey).eq(ColonyName.LUNA);
+    expect(bonus?.detailKey).eq('Colony bonus');
   });
 
   it('the three base tiles read as COMPLETE phrases; a special tile rides the ${0} slot', () => {
@@ -131,5 +134,47 @@ describe('notificationCauseView (the «почему» grammar)', () => {
     expect(causeLineOf(cause({kind: 'action'}))).is.undefined;
     // …but an action fallback WITH a card still names the card.
     expect(causeLineOf(cause({kind: 'action', card: CardName.PREDATORS}))?.nameKey).eq(CardName.PREDATORS);
+  });
+
+  describe('TR59 — «ИСТОЧНИК — ТО, ЧТО ЗАПЛАТИЛО ВАМ»', () => {
+    it('the viewer’s TILE paid (an Ares neighbour): «ВАШ ТАЙЛ ‹карта тайла› · за город рядом · ход: ‹карта актора›»', () => {
+      const line = causeLineOf(cause({kind: 'card', card: CardName.RESTRICTED_AREA_ARES, owner: 'blue'}, {
+        own: true, trigger: 'tile-adjacency', triggerTile: TileType.CITY, via: {kind: 'card', card: CardName.DOMED_CRATER},
+      }));
+      expect(line).deep.include({labelKey: 'Your tile', nameKey: CardName.RESTRICTED_AREA_ARES,
+        triggerKey: 'for a city next to it', viaKey: 'move: ${0}', viaParamKey: CardName.DOMED_CRATER});
+    });
+
+    it('a tile with no card behind it names the TILE; a special placed tile rides the ${0} slot', () => {
+      const line = causeLineOf(cause({kind: 'tile', tileType: TileType.RESTRICTED_AREA, owner: 'blue'}, {
+        own: true, trigger: 'tile-adjacency', triggerTile: TileType.CAPITAL,
+      }));
+      expect(line?.labelKey).eq('Your tile');
+      expect(line?.triggerKey).eq('for a tile next to it: ${0}');
+      expect(line?.triggerParamKey).eq(CardName.CAPITAL);
+    });
+
+    it('a card of the viewer’s reacting to a placement stays «ВАША КАРТА» (Marketing Experts, Pets)', () => {
+      const line = causeLineOf(cause({kind: 'card', card: CardName.MARKETING_EXPERTS, owner: 'blue'}, {own: true, trigger: 'tile-placed', triggerTile: TileType.CITY}));
+      expect(line?.labelKey).eq('Your card');
+    });
+
+    it('the via tail names the actor’s MOVE — a card, a standard project, a bot bonus card, a trade', () => {
+      expect(causeLineOf(cause({kind: 'corporation', card: CardName.THARSIS_REPUBLIC, owner: 'blue'}, {own: true, via: {kind: 'standardProject', card: CardName.CITY_STANDARD_PROJECT}}))?.viaParamKey)
+        .eq(CardName.CITY_STANDARD_PROJECT);
+      expect(causeLineOf(cause({kind: 'card', card: CardName.PETS, owner: 'blue'}, {own: true, via: {kind: 'bonusCard', bonusCard: 'B05' as BonusCardId}}))?.viaKey)
+        .eq('move: ${0}');
+      expect(causeLineOf(cause({kind: 'colony', name: ColonyName.LUNA, benefit: 'colonyBonus'}, {via: {kind: 'trade', colony: ColonyName.LUNA}}))?.viaParamKey)
+        .eq('trade');
+    });
+
+    it('an attack carries NO via — the attacker’s card IS the source', () => {
+      expect(causeLineOf(cause({kind: 'card', card: CardName.PREDATORS, owner: 'red'}))?.viaKey).is.undefined;
+    });
+
+    it('a residual bot GAIN is the bot’s TURN, never «the bot’s card paid you»', () => {
+      const line = causeLineOf(cause({kind: 'action', category: 'automa-turn'}, {via: {kind: 'bonusCard', bonusCard: 'B05' as BonusCardId}}));
+      expect(line).deep.include({labelKey: 'Source', nameKey: 'MarsBot turn', viaKey: 'move: ${0}'});
+    });
   });
 });

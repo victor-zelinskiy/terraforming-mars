@@ -30,7 +30,9 @@ export class DetectiveTVSeries extends Card implements IProjectCard {
 
   onCardPlayedByAnyPlayer(thisCardOwner: IPlayer, card: ICard) {
     const count = card.tags.filter((tag) => tag === Tag.CRIME).length;
-    thisCardOwner.stock.add(Resource.MEGACREDITS, 2 * count, {log: true, from: {card: card}});
+    // `from` names THIS card — the owner's (TR59): `fromToEventSource` stamps the recipient as the source's
+    // owner, so the played card here read «ВАША КАРТА ‹карта актора›». The played card is the trigger.
+    thisCardOwner.stock.add(Resource.MEGACREDITS, 2 * count, {log: true, from: {card: this}});
     return undefined;
   }
 }

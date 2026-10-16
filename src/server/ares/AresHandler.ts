@@ -26,6 +26,9 @@ import {AresHazards} from './AresHazards';
 import {CrashlandingBonus} from '../pathfinders/CrashlandingBonus';
 import {Board} from '../boards/Board';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
+import {EventSource} from '../../common/events/EventSource';
+import {CardType} from '../../common/cards/CardType';
+import {ICard} from '../cards/ICard';
 
 export class AresHandler {
   private constructor() {}
@@ -181,24 +184,69 @@ export class AresHandler {
     }
 
     if (giveAresTileOwnerBonus) {
-      let ownerBonus = 1;
-      if (adjacentPlayer.tableau.has(CardName.MARKETING_EXPERTS)) {
-        ownerBonus = 2;
-      }
-
-      adjacentPlayer.stock.add(Resource.MEGACREDITS, ownerBonus, {log: false});
-      const adjacentTile = adjacentSpace.tile;
-      if (adjacentTile !== undefined) {
-        player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).tileType(adjacentTile.tileType));
-      } else {
-        player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).string('no tile'));
-      }
+      const marketingExperts = adjacentPlayer.tableau.get(CardName.MARKETING_EXPERTS);
+      const ownerBonus = marketingExperts !== undefined ? 2 : 1;
+      AresHandler.payTileOwner(player, adjacentPlayer, adjacentSpace, marketingExperts);
       out?.ownerPayouts.push({
         sourceSpaceId: adjacentSpace.id,
         ownerColor: adjacentPlayer.color,
         megacredits: ownerBonus,
       });
     }
+  }
+
+  /**
+   * THE TILE PAYS ITS OWNER — and says so (TR59 «ИСТОЧНИК — ТО, ЧТО ЗАПЛАТИЛО ВАМ»).
+   *
+   * The owner of an adjacency-bonus tile earns 1 M€ whoever builds beside it.
+   * That money is the TILE's: the card that put it on Mars (Restricted Area,
+   * Commercial District, …), or the bare tile when nothing recorded a card.
+   * Paid under the live scope alone it inherited the PLACER's source — the
+   * card the actor played, the standard project, the bot's revealed card — so
+   * the owner read «ИСТОЧНИК ‹карта соперника›» for money their own tile made.
+   * Now it is the owner's passive effect (`tile-adjacency`): the event names
+   * the owner's tile, the placement stays the trigger, the actor stays the
+   * chain's root. Marketing Experts' extra M€ is ITS OWN effect, a group of
+   * its own — the card, not the tile, paid that one.
+   */
+  private static payTileOwner(placer: IPlayer, owner: IPlayer, ownerSpace: Space, marketingExperts: ICard | undefined): void {
+    const game = placer.game;
+    const tile = ownerSpace.tile;
+    const pay = () => {
+      owner.stock.add(Resource.MEGACREDITS, 1, {log: false});
+      if (tile !== undefined) {
+        game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(owner).number(1).tileType(tile.tileType));
+      } else {
+        game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(owner).number(1).string('no tile'));
+      }
+    };
+    const source = AresHandler.tileOwnerSource(owner, ownerSpace);
+    if (source !== undefined) {
+      game.events.withEffectSource(owner, source, 'tile-adjacency', pay);
+    } else {
+      pay();
+    }
+    if (marketingExperts !== undefined) {
+      // A CARD reacting to the placement (like Tharsis or Pets), never «the tile»: `tile-placed`.
+      game.events.withEffect(owner, marketingExperts, 'tile-placed', () => {
+        owner.stock.add(Resource.MEGACREDITS, 1, {log: false});
+        game.log('${0} gains ${1} more M€ from ${2}', (b) => b.player(owner).number(1).card(marketingExperts));
+      });
+    }
+  }
+
+  /** The owner's TILE as an event source: the card that placed it, else the tile itself. */
+  private static tileOwnerSource(owner: IPlayer, space: Space): EventSource | undefined {
+    const tile = space.tile;
+    if (tile === undefined) {
+      return undefined;
+    }
+    if (tile.card !== undefined) {
+      const card = owner.tableau.get(tile.card);
+      const kind = card?.type === CardType.CORPORATION ? 'corporation' : 'card';
+      return {kind, card: tile.card, owner: owner.color};
+    }
+    return {kind: 'tile', tileType: tile.tileType, owner: owner.color};
   }
 
   private static grantAdjacencyBonuses(

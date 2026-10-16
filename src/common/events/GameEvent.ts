@@ -205,6 +205,13 @@ export type EventTrigger =
   | 'card-played'
   | 'card-played-by-any'
   | 'tile-placed'
+  /**
+   * A tile was placed NEXT TO the recipient's own tile (Ares: the owner of an
+   * adjacency-bonus tile earns M€ whoever builds beside it). The source is the
+   * RECIPIENT's tile — the card that put it there, or the tile itself — never
+   * the placer's card: that is the trigger, and the actor of the chain.
+   */
+  | 'tile-adjacency'
   | 'production-gain'
   | 'tr-increase'
   | 'colony-added'

@@ -197,7 +197,9 @@ export abstract class MiningCard extends Card implements IProjectCard {
         this.bonusResource = [resource];
         if (this.placeTile) {
           const spaceBonus = resource === Resource.TITANIUM ? SpaceBonus.TITANIUM : SpaceBonus.STEEL;
-          player.game.addTile(player, space, {tileType: this.getTileType(spaceBonus)});
+          // The tile records the card that placed it (TR59): an Ares mining tile pays its owner for every
+          // neighbour, and that payout names its source — the card — like every other card-placed tile.
+          player.game.addTile(player, space, {tileType: this.getTileType(spaceBonus), card: this.name});
           space.adjacency = this.getAdjacencyBonus(spaceBonus);
         }
       });

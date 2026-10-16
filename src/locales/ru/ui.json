@@ -1324,5 +1324,19 @@
     "The temperature placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «температура» пропущен — ${0} не может заплатить ${1} M€",
     "The colony placement bonus is skipped — ${0} cannot pay ${1} M€": "Бонус клетки «колония» пропущен — ${0} не может заплатить ${1} M€",
     "${0} of 1 data on this card": "На карте ${0} из 1",
-    "Your production": "Ваше производство"
+    "Your production": "Ваше производство",
+    "Your tile": "Ваш тайл",
+    "Your colony": "Ваша колония",
+    "for a tile placed next to it": "за тайл рядом",
+    "for a tile next to it: ${0}": "за тайл рядом: ${0}",
+    "for a city next to it": "за город рядом",
+    "for a greenery next to it": "за озеленение рядом",
+    "for an ocean next to it": "за океан рядом",
+    "move: ${0}": "ход: ${0}",
+    "M€ prod.": "пр. M€",
+    "Steel prod.": "пр. стали",
+    "Titanium prod.": "пр. титана",
+    "Plant prod.": "пр. растений",
+    "Energy prod.": "пр. энергии",
+    "Heat prod.": "пр. тепла"
 }
