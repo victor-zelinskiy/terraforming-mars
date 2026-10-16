@@ -2375,6 +2375,14 @@ let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} |
 let freshPickFocusGiven = false;
 
 /**
+ * THE BOARD-BEAT DRAIN'S ONE QUIET-WAITER is armed (PL-489): the ledger re-drives the park every 500 ms while it is
+ * ready, and each re-drive over a blocked board used to arm ANOTHER bounded waiter — sixteen pollers deep behind a
+ * standing reveal, the first to reach its cap draining under it. Plain module state: `drainBoardBeats` is its only
+ * reader and writer.
+ */
+let boardBeatDrainWaitArmed = false;
+
+/**
  * THE PARLIAMENT'S LEAVE NET (v3 В1): the director's section dissolve is ~170 ms and reports back when it
  * lands; this bounds «it never did». A latched surface may never outlive its own leave by more than a
  * beat — every hold in this console is bounded and named.
@@ -20134,15 +20142,30 @@ export default defineComponent({
       }
       // The drain's full gate: the board's own cinematics (settling) AND the
       // scale story's read admission (no reveal above the board, no cards in
-      // transit — the old planet-focus beat's list). Bounded by the shared
-      // cap; the ledger's heartbeat re-asks if an edge is missed.
+      // transit — the old planet-focus beat's list). A transient cinematic is
+      // bounded by the shared cap; a reveal standing for the player is waited
+      // out (see below). The ledger's heartbeat re-asks if an edge is missed.
       const blocked = () => boardSceneSettling() || this.scaleStoryReadBlocked;
       if (!blocked()) {
         drainBoardBeatsIfDue();
         return;
       }
+      if (boardBeatDrainWaitArmed) {
+        return;
+      }
+      boardBeatDrainWaitArmed = true;
       void waitConsoleQuiet(blocked, {alive: () => this.boardBeatsWatchable})
-        .then(() => drainBoardBeatsIfDue());
+        .then(() => {
+          boardBeatDrainWaitArmed = false;
+          // A reveal STANDING for the player is not a wedged story: it ends on the player's take, and the scales'
+          // story belongs to the board that take uncovers (PL-489 — drained past the cap, the oxygen step's TR token
+          // was born on a marker UNDER the received-cards scene and flew over it). The ledger's re-drive asks again
+          // once the reveal is gone; the park's own 30 s safety still bounds the whole wait.
+          if (this.rawAdmissionSignals.revealOpen) {
+            return;
+          }
+          drainBoardBeatsIfDue();
+        });
     },
     resumeYieldedStackOverQuietBoard(): void {
       if (!stackYieldedToBoard()) {
