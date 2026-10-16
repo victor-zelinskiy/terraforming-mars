@@ -327,12 +327,20 @@ carve-out:
    was already correct before this pass and a SHEET workspace's (card actions /
    std projects / MA) was not: there `section` stays `'board'`, the rail is still
    laid out, and only the policy frees its zone.
-3. Full-bleed **cinematics** (reveal · ceremonies · the mandatory gate ·
-   fullscreen inspect · the system menu · the start scene · the endgame) and
-   **flight layers** are not in this family at all — they own the whole screen
-   and position themselves. Two SYSTEM failure surfaces stay full-bleed for the
+3. Full-bleed **cinematics** (ceremonies · the mandatory gate · fullscreen
+   inspect · the system menu · the start scene · the endgame) and **flight
+   layers** are not in this family at all — they own the whole screen and
+   position themselves. Two SYSTEM failure surfaces stay full-bleed for the
    same reason: `.con-stranded` (the leak guard) and `.con-alert`
    (`ConsoleSystemAlert`) must be unmissable.
+   ⚠️ **The received-cards REVEAL left this list (TR57, 2026-10-16).** It was a
+   full-width plate over both rails under the one FULL-BLEED shade owner, while
+   every workspace kept the rails lit — the same event («вы получили карты»)
+   read as a different interface outside a workspace. Its standalone root is
+   now `.con-modal-band()` and its dim the opening's (`FULL_BLEED_SHADE_OWNERS`
+   is gone — no owner greys a bar); the drawn batch is the plateless SCENE on
+   the embedded stage chassis (`docs/TURMOIL_REDUX_MINING_MECHS.md` §3). The
+   fullscreen VIEWER a player opens with X stays a cinematic.
 
 ## GEOMETRY is measured; REPLACEMENT is policy
 
@@ -415,7 +423,7 @@ keeps the rail measurable as a flight anchor.)
 | `.con-modal-band()` | all four stage insets | **THE** band (dialogs). `.con-ws-band()` is now literally this plus the `con-ws` marker contract. |
 | `.con-ws-sides()` | `--con-stage-l` + `--con-stage-r-eff` | The two sides for a DIALOG that owns its own top/bottom. |
 | `.con-ws-stage-band()` / `.con-ws-stage-sides()` | `--con-stage-l` + **`right: 0`** | The SCREEN variants: `.con-draftws` · `.con-ma` · `.con-stdp` (fixed) and `.con-cardactions` · `.con-info` · `.con-played` · `.con-start--bounded` (own top/bottom). **A screen declares its edge, never the policy token** — `right: 0` cannot disagree with «am I on screen», while the token flips the frame the stack empties, i.e. the frame the surface starts FADING: the grid would re-fit inside a 468px-narrower box (at 4K) mid-dissolve. |
-| `.con-shade` | all four | The ONE shared dim. `--fullbleed` (`FULL_BLEED_SHADE_OWNERS`, `surfaceMotionState.ts`) is the cinematic carve-out. |
+| `.con-shade` | all four | The ONE shared dim — for EVERY owner (the reveal's full-bleed carve-out ended with TR57). |
 | own `__backdrop` | `position: absolute; inset: 0` | `.con-sheet` · `.con-ma` · `.con-info` · `.con-played-cat` — bounded by their own band. A `fixed; inset: 0` dim greys all four members and only *looked* right because two of them out-stacked it; the side rails never did. |
 
 **One definition, because the defect was never per-surface.** «A modal must not
