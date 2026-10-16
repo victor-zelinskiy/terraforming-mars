@@ -16,7 +16,7 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
-import {ActionGood, actionGoodsOf} from '@/common/cards/holderRole';
+import {ActionGood, actionGoodsOf, actionGoodSetOf, isActionGoodSet, roleGoodsOf} from '@/common/cards/holderRole';
 import {DEFAULT_PAYMENT_VALUES} from '@/common/inputs/Payment';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -36,7 +36,7 @@ export type HolderRole =
    * The card's own action: `spend` units off this card buy `good` (PL-135) — or, a CHOICE at one price (PL-484), any
    * ONE of `good` and `or`. Read the set through `actionGoodsOf`, never `good` alone.
    */
-  | {kind: 'action', spend: number | 'all', good: ActionGood, or?: ReadonlyArray<ActionGood>}
+  | {kind: 'action', spend: number | 'all', good: ActionGood, or?: ReadonlyArray<ActionGood>, with?: ReadonlyArray<ActionGood>}
   /** Storage with no role the console can name. */
   | {kind: 'store'};
 
@@ -64,8 +64,12 @@ export function holderRoleOf(name: CardName): HolderRole {
     return {kind: 'vp', per: vp.per ?? 1, each: vp.each ?? 1};
   }
   if (card.actionGood !== undefined) {
-    const {spend, good, or} = card.actionGood;
-    return or === undefined || or.length === 0 ? {kind: 'action', spend, good} : {kind: 'action', spend, good, or};
+    const {spend, good, or, with: together} = card.actionGood;
+    return {
+      kind: 'action', spend, good,
+      ...(or === undefined || or.length === 0 ? {} : {or}),
+      ...(together === undefined || together.length === 0 ? {} : {with: together}),
+    };
   }
   return {kind: 'store'};
 }
@@ -125,15 +129,30 @@ export function actionGoodKey(good: ActionGood): string {
 
 /**
  * The identity of an action role's WHOLE set of goods (PL-484) — a choice is its own lane: TR57's «steel OR titanium
- * production» beside a holder that buys steel production alone are two different promises, never one chip.
+ * production» beside a holder that buys steel production alone are two different promises, never one chip. A SET
+ * (TR60 — «+1 M€ production AND 3 M€») is its own lane too, keyed apart from a choice of the same goods.
  */
-export function actionRoleGoodKey(role: {good: ActionGood, or?: ReadonlyArray<ActionGood>}): string {
-  return actionGoodsOf(role).map(actionGoodKey).join('|');
+export function actionRoleGoodKey(role: {good: ActionGood, or?: ReadonlyArray<ActionGood>, with?: ReadonlyArray<ActionGood>}): string {
+  return isActionGoodSet(role) ? actionGoodSetOf(role).map(actionGoodKey).join('+') : actionGoodsOf(role).map(actionGoodKey).join('|');
 }
 
 /** A CHOICE of goods at one price (PL-484): more than one good. */
 export function holderRoleIsChoice(role: HolderRole): boolean {
   return role.kind === 'action' && actionGoodsOf(role).length > 1;
+}
+
+/** A SET of goods at one price (TR60): ONE press buys more than one good. */
+export function holderRoleIsSet(role: HolderRole): boolean {
+  return role.kind === 'action' && isActionGoodSet(role);
+}
+
+/**
+ * How a role's several icons are JOINED where they are drawn on one plate — «or» for a choice («[steel-pr] /
+ * [titanium-pr]», PL-484), «and» for a set («[M€-pr] + [M€]», TR60). One reading for every host (the satellite's
+ * badge, the target step's value line and tag, the answered row) — never a host's own guess from the icon count.
+ */
+export function holderRoleJoin(role: HolderRole): 'or' | 'and' {
+  return holderRoleIsSet(role) ? 'and' : 'or';
 }
 
 /** The chip's one-word caption of a role (an i18n key) — only the roles the console names; `store` has none. */
@@ -162,7 +181,7 @@ export function holderRoleCaption(role: HolderRole): string | undefined {
   case 'action': {
     // A choice of one family speaks the family's word («production» for steel OR titanium production); a choice
     // across families has no one word but the action's own.
-    const kinds = new Set(actionGoodsOf(role).map((g) => g.kind));
+    const kinds = new Set(roleGoodsOf(role).map((g) => g.kind));
     return kinds.size === 1 ? ACTION_GOOD_CAPTION[role.good.kind] : 'Action';
   }
   default:
@@ -199,20 +218,44 @@ export function holderRoleIcon(role: HolderRole): string | undefined {
 }
 
 /**
- * EVERY icon a role shows (PL-484): one for every role but a CHOICE, whose goods are ALL drawn, in the printed order,
- * joined by the choice's «/» — «[steel-pr] / [titanium-pr]», never the first good standing for the set.
+ * EVERY icon a role shows (PL-484): one for every role but a CHOICE or a SET, whose goods are ALL drawn, in the
+ * printed order, joined by the role's own joint (`holderRoleJoin`) — «[steel-pr] / [titanium-pr]», «[M€-pr] + [M€]»,
+ * never the first good standing for the lot.
  */
 export function holderRoleIcons(role: HolderRole): ReadonlyArray<string> {
   if (role.kind === 'action') {
-    return actionGoodsOf(role).map(actionGoodIcon);
+    return roleGoodsOf(role).map(actionGoodIcon);
   }
   const icon = HOLDER_ROLE_ICON[role.kind];
   return icon === undefined ? [] : [icon];
 }
 
-/** A production good rides the PRODUCTION PLATE (the card art's brown box) wherever its icon is drawn — a choice only when EVERY good does. */
+/** A production good rides the PRODUCTION PLATE (the card art's brown box) wherever its icon is drawn — a choice / a set only when EVERY good does. */
 export function holderRolePlate(role: HolderRole): 'production' | undefined {
-  return role.kind === 'action' && actionGoodsOf(role).every((g) => g.kind === 'production') ? 'production' : undefined;
+  return role.kind === 'action' && roleGoodsOf(role).every((g) => g.kind === 'production') ? 'production' : undefined;
+}
+
+/**
+ * The plate of EACH icon (`holderRoleIcons`' order) when the goods do not share one — a SET of a production step and a
+ * stock gain (TR60: the brown box under the first M€, none under the second). Undefined when one plate (or none)
+ * stands for every icon: `holderRolePlate` says it.
+ */
+export function holderRoleIconPlates(role: HolderRole): ReadonlyArray<'production' | undefined> | undefined {
+  if (role.kind !== 'action') {
+    return undefined;
+  }
+  const plates = roleGoodsOf(role).map((g) => g.kind === 'production' ? 'production' as const : undefined);
+  return plates.every((p) => p === plates[0]) ? undefined : plates;
+}
+
+/**
+ * HOW the role's icon list is drawn, as fields to spread beside `icons` on a reading / a tag (TR60): the joint of a
+ * SET («+») and the plate of each icon when the goods do not share one. Empty for a choice and a single good — their
+ * `plate` says everything.
+ */
+export function holderRoleIconSpread(role: HolderRole): {join?: 'and', plates?: ReadonlyArray<'production' | undefined>} {
+  const plates = holderRoleIconPlates(role);
+  return {...(holderRoleJoin(role) === 'and' ? {join: 'and' as const} : {}), ...(plates === undefined ? {} : {plates})};
 }
 
 /** The amount an action's good moves — the label's second number. */
@@ -275,6 +318,14 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
     if (role.good.kind === 'look') {
       // TR46: every unit here is one more card turned over; the action keeps `keep` of them.
       return {label: 'All from here: as many cards off the deck, ${0} to the hand', params: [String(role.good.keep)]};
+    }
+    if (isActionGoodSet(role)) {
+      // A SET at one price (TR60): «Spend 1 from here: +1 and +3 at once» beside the goods' icons in the same order —
+      // every number a digit, nothing translated inside a param; a set of more than two joins its amounts.
+      const amounts = actionGoodSetOf(role).map((g) => String(actionGoodAmount(g)));
+      return amounts.length === 2 ?
+        {label: 'Spend ${0} from here: +${1} and +${2}', params: [String(role.spend), amounts[0], amounts[1]], tail: 'at once'} :
+        {label: 'Spend ${0} from here: +${1}', params: [String(role.spend), amounts.join(' + ')], tail: 'at once'};
     }
     const goods = actionGoodsOf(role);
     if (goods.length > 1) {

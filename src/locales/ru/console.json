@@ -912,6 +912,8 @@
     "Spend ${0} from here: +${1}": "Потратьте ${0} отсюда: +${1}",
     "production of your choice": "производство на выбор",
     "of your choice": "на выбор",
+    "Spend ${0} from here: +${1} and +${2}": "Потратьте ${0} отсюда: +${1} и +${2}",
+    "at once": "сразу",
     "All from here: as many cards off the deck, ${0} to the hand": "Все отсюда: столько же карт из колоды, ${0} в руку",
     "terraforming": "терраформирование",
     "Converted into VP by played cards, current rate: ${0}": "Метка конвертируется в ПО сыгранными картами, текущий коэффициент: ${0}",

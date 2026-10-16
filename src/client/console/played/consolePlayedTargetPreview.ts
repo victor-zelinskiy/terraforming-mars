@@ -37,7 +37,7 @@ import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewMode
 import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext, PlayedTargetTag} from './consolePlayedTargetModel';
 import {
   HolderGainOutcome, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeReading, holderLossOutcome, holderLossOutcomeReading,
-  holderRoleIcon, holderRoleIcons, holderRoleOf, holderRolePlate, holderRoleReading, holderGainOutcomeIcons,
+  holderRoleIcon, holderRoleIcons, holderRoleIconSpread, holderRoleOf, holderRolePlate, holderRoleReading, holderGainOutcomeIcons,
 } from '@/client/console/holderRoles';
 import {RAIL_CONTEXT_TAG} from '@/client/console/railValueModel';
 
@@ -234,7 +234,7 @@ export function playedTargetPreviewFor(
       const icons = holderRoleIcons(role);
       impacts.push({
         label: reading.label, params: reading.params, tail: reading.tail, value: true, icon: holderRoleIcon(role),
-        ...(icons.length > 1 ? {icons} : {}),
+        ...(icons.length > 1 ? {icons, ...holderRoleIconSpread(role)} : {}),
         ...(reading.tailParams === undefined ? {} : {tailParams: reading.tailParams}),
         ...(plate === undefined ? {} : {plate}),
       });
@@ -245,7 +245,7 @@ export function playedTargetPreviewFor(
       const icons = holderGainOutcomeIcons(outcome);
       impacts.push({
         label: said.label, params: said.params, icon: holderGainOutcomeIcon(outcome),
-        ...(icons.length > 1 ? {icons} : {}),
+        ...(icons.length > 1 ? {icons, ...(outcome.kind === 'reach' ? holderRoleIconSpread(outcome.role) : {})} : {}),
         outcome: outcome.kind === 'reach' ? outcome.state : 'gain',
         // Money and a look: the tag prints these numbers whole; a threshold's words are not under the card.
         ...(outcome.kind === 'reach' ? {} : {tagSays: true}),
@@ -259,7 +259,7 @@ export function playedTargetPreviewFor(
       const icons = holderGainOutcomeIcons(lost);
       impacts.push({
         label: said.label, params: said.params, icon: holderGainOutcomeIcon(lost),
-        ...(icons.length > 1 ? {icons} : {}),
+        ...(icons.length > 1 ? {icons, ...(lost.kind === 'reach' ? holderRoleIconSpread(lost.role) : {})} : {}),
         outcome: lost.kind === 'reach' ? lost.state : 'loss',
         ...(said.tail === undefined ? {} : {tail: said.tail}),
         ...(plate === undefined ? {} : {plate}),
@@ -335,7 +335,7 @@ export function playedTargetTagOf(o: {
     return {
       lead,
       ...(icon === undefined ? {} : {icon}),
-      ...(icons.length > 1 ? {icons} : {}),
+      ...(icons.length > 1 ? {icons, ...holderRoleIconSpread(r.role)} : {}),
       ...(plate === undefined ? {} : {plate}),
       // Within reach after the gain (or before it): the ✓ says it — the leading count already says how many land, so a
       // fraction beside it («0 → 6 · 6/1») would read the same number twice. Still SHORT: the fraction is the news.

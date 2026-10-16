@@ -60,6 +60,7 @@ import {RoboticsFactory} from './RoboticsFactory';
 import {MiningMechs} from './MiningMechs';
 import {ReprocessingPlant} from './ReprocessingPlant';
 import {SponsoredPowerPlant} from './SponsoredPowerPlant';
+import {CivilianSpacefighters} from './CivilianSpacefighters';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -295,5 +296,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the Industrialists' plate; «+3 energy production» — a whole declaration
     // (Power Plant's play at Fusion Power's size), Power + Building tags.
     [CardName.SPONSORED_POWER_PLANT]: {Factory: SponsoredPowerPlant},
+    // Only the module's icon at the bottom left: the Industrialists' plate; TR40's `or` in fighters — 1 titanium buys 2
+    // here, OR 1 fighter off here pays TWO goods at once (3 M€ AND +1 M€ production).
+    [CardName.CIVILIAN_SPACEFIGHTERS]: {Factory: CivilianSpacefighters},
   },
 });

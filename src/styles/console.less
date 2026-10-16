@@ -5193,6 +5193,36 @@ each(@players, {
         background: rgba(255, 236, 214, .72);
         transform: skewX(-20deg);
     }
+    /* ONE PRICE, SEVERAL GOODS AT ONCE (TR60 «1 fighter → +1 M€ production AND 3 M€», the owner's decision 4a): the
+       same pill as a choice, the goods joined by a small «+» (two hairlines — a symbol, never a word) instead of the
+       slant, and the plate per ICON — a production good sits on its own brown square, the stock gain beside it bare. */
+    &__rolebadge--icon&__rolebadge--set {
+        border-radius: calc(var(--valbadge-size, .92rem) * .5);
+    }
+    &__roleicon--production {
+        border-radius: .14rem;
+        background-color: #7a4e29;
+        box-shadow: inset 0 0 0 .04rem rgba(214, 158, 96, .7);
+        background-size: 78%;
+    }
+    &__roleand {
+        position: relative;
+        flex: none;
+        width: calc(var(--valbadge-size, .92rem) * .26);
+        height: calc(var(--valbadge-size, .92rem) * .26);
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            border-radius: .03rem;
+            background: rgba(255, 236, 214, .78);
+            transform: translate(-50%, -50%);
+        }
+        &::before { width: 100%; height: .07rem; }
+        &::after { width: .07rem; height: 100%; }
+    }
 }
 
 /* ── VALUE BADGES — the rail's passive information layer ─────────────

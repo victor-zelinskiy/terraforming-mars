@@ -3,7 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {actionGoodKey, actionRoleGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeIcons, holderGainOutcomeReading, holderGroupKey, holderLossOutcome, holderLossOutcomeReading, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleIcons, holderRoleIsChoice, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
+import {actionGoodKey, actionRoleGoodKey, holderGainOutcome, holderGainOutcomeIcon, holderGainOutcomeIcons, holderGainOutcomeReading, holderGroupKey, holderLossOutcome, holderLossOutcomeReading, holderRoleCaption, holderRoleClaims, holderRoleIcon, holderRoleIconPlates, holderRoleIcons, holderRoleIconSpread, holderRoleIsChoice, holderRoleIsSet, holderRoleJoin, holderRoleOf, holderRolePlate, holderRoleReading, HOLDER_ROLE_CAPTION} from '@/client/console/holderRoles';
 import {additionalResourceRoleGroups} from '@/client/components/additionalResources/additionalResources';
 import {buildExtrasTypes} from '@/client/console/extrasExplorerModel';
 import {infoExtrasChips} from '@/client/console/infoExtrasChips';
@@ -116,6 +116,51 @@ describe('holderRoles — what a stored resource is for', () => {
     // The lane of a choice is its whole set: steel OR titanium production is not steel production alone.
     expect(mining.kind === 'action' ? actionRoleGoodKey(mining) : '').to.eq('production-steel|production-titanium');
     expect(holderGroupKey('Mech' as never, mining, true, false, true)).to.eq('mech:action:production-steel|production-titanium');
+  });
+
+  it('TR60 (the owner\'s decision 4a): ONE PRICE, A SET OF GOODS — every good drawn, joined by «and», the plate PER ICON, «+1 and +3 at once»', () => {
+    const fighters = holderRoleOf(CardName.CIVILIAN_SPACEFIGHTERS);
+    expect(fighters).to.deep.eq({kind: 'action', spend: 1, good: {kind: 'production', resource: 'megacredits', amount: 1}, with: [{kind: 'stock', resource: 'megacredits', amount: 3}]});
+    expect(holderRoleIsSet(fighters)).to.eq(true);
+    expect(holderRoleIsChoice(fighters), 'a set is no choice — one press buys both').to.eq(false);
+    expect(holderRoleJoin(fighters)).to.eq('and');
+    expect(holderRoleJoin(holderRoleOf(CardName.MINING_MECHS))).to.eq('or');
+    expect(holderRoleIcons(fighters), 'the printed order: the production box first').to.deep.eq(['megacredits', 'megacredits']);
+    expect(holderRolePlate(fighters), 'a production step beside a stock gain shares no plate').to.eq(undefined);
+    expect(holderRoleIconPlates(fighters)).to.deep.eq(['production', undefined]);
+    expect(holderRoleIconPlates(holderRoleOf(CardName.MINING_MECHS)), 'one plate for the whole choice — `plate` says it').to.eq(undefined);
+    expect(holderRoleIconSpread(fighters)).to.deep.eq({join: 'and', plates: ['production', undefined]});
+    expect(holderRoleIconSpread(holderRoleOf(CardName.MINING_MECHS))).to.deep.eq({});
+    expect(holderRoleCaption(fighters), 'two families: the action\'s own word').to.eq('Action');
+    expect(holderRoleReading(fighters)).to.deep.eq({label: 'Spend ${0} from here: +${1} and +${2}', params: ['1', '1', '3'], tail: 'at once'});
+    // A lane of its own, keyed apart from a CHOICE of the same goods.
+    expect(fighters.kind === 'action' ? actionRoleGoodKey(fighters) : '').to.eq('production-megacredits+stock-megacredits');
+    // Arborist Collective (Underworld) is the same class: «2 plants AND +1 plant production», in its printed order.
+    expect(holderRoleOf(CardName.ARBORIST_COLLECTIVE)).to.deep.include({spend: 2, good: {kind: 'stock', resource: 'plants', amount: 2}});
+  });
+
+  it('TR60: six FIGHTER holders — Civilian Spacefighters\' fighters buy money, so they stand apart from the scorers / the store and from the census', () => {
+    const groups = additionalResourceRoleGroups([
+      card(CardName.SECURITY_FLEET, 2), card(CardName.CIVILIAN_SPACEFIGHTERS, 3), card(CardName.MARS_ARMY_SHIPS, 1), card(CardName.SPACESHIP_RECYCLING, 0),
+    ]);
+    expect(groups.map((g) => [g.key, g.total])).to.deep.eq([
+      ['fighter', 2],
+      ['fighter:action', 3],
+      ['fighter:delegate', 1],
+    ]);
+  });
+
+  it('TR60: fighters onto Civilian Spacefighters — the value line and the tag wear BOTH goods joined by «and», each icon on its own plate', () => {
+    const preview = playedTargetPreviewFor(undefined, input([{name: CardName.CIVILIAN_SPACEFIGHTERS, resources: 0}]), CardName.CIVILIAN_SPACEFIGHTERS, [onCardGain('fighter', 3)]);
+    const impacts = preview.flatMap((s) => s.impacts);
+    const value = impacts.find((i) => i.value === true && i.label === 'Spend ${0} from here: +${1} and +${2}');
+    expect(value).to.include({tail: 'at once', join: 'and'});
+    expect(value?.params).to.deep.eq(['1', '1', '3']);
+    expect(value?.icons).to.deep.eq(['megacredits', 'megacredits']);
+    expect(value?.plates).to.deep.eq(['production', undefined]);
+    const tag = preview.find((s) => s.tag !== undefined)?.tag;
+    expect(tag).to.deep.include({join: 'and', reached: true, tone: 'opens'});
+    expect(tag?.plates).to.deep.eq(['production', undefined]);
   });
 
   it('PL-484: a choice\'s gain / loss outcomes wear the whole set too — «The action opens: 2 / 2» under [steel] / [titanium]', () => {

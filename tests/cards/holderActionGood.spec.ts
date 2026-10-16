@@ -4,7 +4,7 @@ import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
 import {ICard} from '../../src/server/cards/ICard';
-import {actionGoodsOf, HolderActionGood} from '../../src/common/cards/holderRole';
+import {HolderActionGood, roleGoodsOf} from '../../src/common/cards/holderRole';
 
 /**
  * THE ACTION ROLE OF A HOLDER (PL-135) — what a card's stored resource buys
@@ -52,6 +52,12 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     [CardName.MINING_MECHS, {spend: 2, good: {kind: 'production', resource: 'steel' as never, amount: 1}, or: [{kind: 'production', resource: 'titanium' as never, amount: 1}]}],
     [CardName.ATMO_COLLECTORS, {spend: 1, good: {kind: 'stock', resource: 'titanium' as never, amount: 2}, or: [
       {kind: 'stock', resource: 'energy' as never, amount: 3}, {kind: 'stock', resource: 'heat' as never, amount: 4}]}],
+    // TR60 (the owner's decision 4a): ONE PRICE, A SET OF GOODS — one press buys every good, in the printed order.
+    [CardName.CIVILIAN_SPACEFIGHTERS, {spend: 1, good: {kind: 'production', resource: 'megacredits' as never, amount: 1}, with: [
+      {kind: 'stock', resource: 'megacredits' as never, amount: 3}]}],
+    // …the same class in Underworld: «2 activists → 2 plants and +1 plant production» (storage until the set was read).
+    [CardName.ARBORIST_COLLECTIVE, {spend: 2, good: {kind: 'stock', resource: 'plants' as never, amount: 2}, with: [
+      {kind: 'production', resource: 'plants' as never, amount: 1}]}],
   ];
 
   for (const [name, expected] of NAMED) {
@@ -108,6 +114,22 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     expect(holderActionGoodOf(onePrice)).deep.eq({spend: 2, good: {kind: 'stock', resource: 'titanium', amount: 2}, or: [{kind: 'production', resource: 'steel', amount: 1}]});
   });
 
+  it('TR60: a SET is read only from ONE spending variant — a choice between sets (or a set beside a single good) has no one plate: storage', () => {
+    const card = (behaviors: ReadonlyArray<object>) => ({
+      name: 'Sets' as CardName, resourceType: 'Fighter', action: () => undefined, canAct: () => true,
+      actionBehavior: {or: {behaviors}},
+    } as unknown as ICard);
+    expect(holderActionGoodOf(card([
+      {spend: {resourcesHere: 1}, stock: {megacredits: 3}, production: {megacredits: 1}, title: 'a'},
+      {spend: {resourcesHere: 1}, stock: {titanium: 2}, title: 'b'},
+    ]))).is.undefined;
+    // …while a set beside a variant that BUYS the resource is the set (TR60's own shape).
+    expect(holderActionGoodOf(card([
+      {spend: {titanium: 1}, addResources: 2, title: 'a'},
+      {spend: {resourcesHere: 1}, production: {megacredits: 1}, stock: {megacredits: 3}, title: 'b'},
+    ]))).deep.eq({spend: 1, good: {kind: 'production', resource: 'megacredits', amount: 1}, with: [{kind: 'stock', resource: 'megacredits', amount: 3}]});
+  });
+
   it('a DECLARED good is a bespoke action\'s only: a card with a declarative action never declares one (it is derived)', () => {
     for (const manifest of ALL_MODULE_MANIFESTS) {
       for (const [name, entry] of Object.entries(manifest.projectCards as Record<string, {Factory: new () => ICard}>)) {
@@ -131,8 +153,8 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
         if (good.spend !== 'all') {
           expect(good.spend, name).is.greaterThan(0);
         }
-        // Every good of a CHOICE too (PL-484) — a set with one empty good would promise nothing on its plate.
-        for (const g of actionGoodsOf(good)) {
+        // Every good of a CHOICE (PL-484) and of a SET (TR60) too — one empty good would promise nothing on its plate.
+        for (const g of roleGoodsOf(good)) {
           const amount = g.kind === 'global' ? g.steps : g.kind === 'look' ? g.keep : g.amount;
           expect(amount, name).is.greaterThan(0);
         }

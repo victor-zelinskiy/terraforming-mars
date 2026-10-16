@@ -15,8 +15,8 @@
       <!-- A CHOICE of goods at one price (PL-484): every good, in the printed order, joined by the choice's «/». -->
       <template v-if="tag.icons !== undefined">
         <template v-for="(icon, i) in tag.icons" :key="'c' + i">
-          <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">/</span>
-          <i class="con-ptsel__tag-icon" :class="[iconClass(icon), {'con-ptsel__tag-icon--production': tag.plate === 'production'}]"
+          <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">{{ tag.join === 'and' ? '+' : '/' }}</span>
+          <i class="con-ptsel__tag-icon" :class="[iconClass(icon), {'con-ptsel__tag-icon--production': (tag.plates?.[i] ?? tag.plate) === 'production'}]"
              :data-ptsel-choice-icon="icon" aria-hidden="true"></i>
         </template>
       </template>

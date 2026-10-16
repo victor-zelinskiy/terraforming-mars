@@ -94,6 +94,10 @@ export type PlayedTargetImpact = {
    * order, drawn joined by «/» instead of `icon` (which stays the first, for a reader that names one). Absent otherwise.
    */
   icons?: ReadonlyArray<string>;
+  /** A SET of goods at one press (TR60): `icons` are joined by «+» instead of the choice's «/». */
+  join?: 'and';
+  /** The plate of EACH icon when the goods do not share one (TR60: the production step's box, the stock bare). */
+  plates?: ReadonlyArray<'production' | undefined>;
   from?: number;
   to?: number;
   /** A standalone delta when there is no before/after to show. */
@@ -193,6 +197,10 @@ export type PlayedTargetTag = {
   icon?: string;
   /** A CHOICE of goods at one price (PL-484): every good's icon, drawn joined by «/» instead of `icon`. */
   icons?: ReadonlyArray<string>;
+  /** A SET of goods at one press (TR60): `icons` are joined by «+» instead of the choice's «/». */
+  join?: 'and';
+  /** The plate of EACH icon when the goods do not share one (TR60). */
+  plates?: ReadonlyArray<'production' | undefined>;
   /** The icon rides the production plate (an action good that is a production step). */
   plate?: 'production';
   /** A short word before the numbers — an i18n key («VP»). */

@@ -275,8 +275,8 @@
               <!-- A CHOICE of goods at one price (PL-484): every good's icon, joined by the choice's «/». -->
               <template v-if="imp.icons !== undefined">
                 <template v-for="(icon, i) in imp.icons" :key="'c' + i">
-                  <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">/</span>
-                  <i class="con-ptsel__imp-icon" :class="[iconClass(icon), {'con-ptsel__imp-icon--production': imp.plate === 'production'}]"
+                  <span v-if="i > 0" class="con-ptsel__tag-sep" aria-hidden="true">{{ imp.join === 'and' ? '+' : '/' }}</span>
+                  <i class="con-ptsel__imp-icon" :class="[iconClass(icon), {'con-ptsel__imp-icon--production': (imp.plates?.[i] ?? imp.plate) === 'production'}]"
                      :data-impact-plate="imp.plate" :data-impact-choice-icon="icon" aria-hidden="true"></i>
                 </template>
               </template>

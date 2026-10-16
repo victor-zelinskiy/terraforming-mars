@@ -12,18 +12,25 @@ import {Resource} from '../../common/Resource';
  * disguise, and a central table would rot).
  *
  * The reading is deliberately narrow — generically or not at all:
- *  · the variant must SPEND `resourcesHere` (a number) and pay exactly ONE
- *    plain good: one production step, one stock gain, a draw (with its tag
- *    filter at most), a TR step or one global-parameter step;
+ *  · the variant must SPEND `resourcesHere` (a number) and pay PLAIN goods:
+ *    production steps, stock gains, a draw (with its tag filter at most), a TR
+ *    step or a global-parameter step — each one of a single resource /
+ *    parameter;
  *  · a variant that spends this card's resource for anything the console
- *    cannot name as one good (a target to pick, a placement, several goods at
- *    once, a draw-and-keep) makes the WHOLE card plain storage — half a truth
- *    on a chip is a lie;
+ *    cannot name as plain goods (a target to pick, a placement, a
+ *    draw-and-keep) makes the WHOLE card plain storage — half a truth on a
+ *    chip is a lie;
+ *  · ONE spending variant paying SEVERAL plain goods at once is a SET — «1
+ *    fighter → +1 M€ production AND 3 M€» (TR60 Civilian Spacefighters, the
+ *    owner's decision 4a; Arborist Collective's «2 plants and +1 plant
+ *    production»): the same role, every good in the declared order — a card
+ *    declares its payload as it is printed (`good` + `with`);
  *  · several variants spending this card's resource at ONE price (Atmo
  *    Collectors' «1 floater → 2 titanium OR 3 energy OR 4 heat», TR57's «2 mechs
  *    → +1 steel OR titanium production») are a CHOICE of goods — the same role,
  *    every good in the printed order (`good` + `or`, PL-484); at two DIFFERENT
- *    prices there is no one reading of «spend N»: storage;
+ *    prices there is no one reading of «spend N», and a choice between SETS has
+ *    no one plate: storage;
  *  · a variant that spends something else (TR40's A: energy → a mech) is
  *    ignored — it buys the resource, it does not spend it.
  *
@@ -42,31 +49,41 @@ export function holderActionGoodOf(card: ICard): HolderActionGood | undefined {
     return card.holderActionGood;
   }
   const variants: ReadonlyArray<Behavior> = action.or !== undefined ? action.or.behaviors : [action];
-  const found: Array<HolderActionGood> = [];
+  const found: Array<{spend: number, goods: ReadonlyArray<ActionGood>}> = [];
   for (const variant of variants) {
     const spend = variant.spend?.resourcesHere;
     if (typeof spend !== 'number' || spend <= 0) {
       continue;
     }
-    const good = goodOf(variant);
-    if (good === undefined) {
+    const goods = goodsOf(variant);
+    if (goods === undefined) {
       return undefined;
     }
-    found.push({spend, good});
+    found.push({spend, goods});
   }
-  if (found.length <= 1) {
-    return found[0];
-  }
-  // A CHOICE of goods — only at ONE price: «spend 2 → this OR that» reads as one role, two prices do not.
-  const spend = found[0].spend;
-  if (found.some((f) => f.spend !== spend)) {
+  if (found.length === 0) {
     return undefined;
   }
-  return {spend, good: found[0].good, or: found.slice(1).map((f) => f.good)};
+  if (found.length === 1) {
+    // One good, or a SET of goods one press buys together (TR60).
+    const [{spend, goods: [good, ...rest]}] = found;
+    return rest.length === 0 ? {spend, good} : {spend, good, with: rest};
+  }
+  // A CHOICE of goods — only at ONE price and only between single goods: «spend 2 → this OR that» reads as one role;
+  // two prices do not, and a choice between SETS has no one plate.
+  const spend = found[0].spend;
+  if (found.some((f) => f.spend !== spend || f.goods.length !== 1)) {
+    return undefined;
+  }
+  return {spend, good: found[0].goods[0], or: found.slice(1).map((f) => f.goods[0])};
 }
 
-/** The ONE plain good a variant pays beside its `spend`, or undefined when it pays anything else. */
-function goodOf(variant: Behavior): ActionGood | undefined {
+/**
+ * The plain goods a variant pays beside its `spend`, in the declared (= printed) order, or undefined when it pays
+ * anything else — a payload the console cannot name, or a payload naming several resources under one key («+1 steel
+ * and +1 titanium production» would be a set the declaration does not order).
+ */
+function goodsOf(variant: Behavior): ReadonlyArray<ActionGood> | undefined {
   const goods: Array<ActionGood> = [];
   // A variant of an `or` is a TitledBehavior — its `title` is no payload.
   for (const key of Object.keys(variant)) {
@@ -114,9 +131,9 @@ function goodOf(variant: Behavior): ActionGood | undefined {
       break;
     }
     default:
-      // Any other payload (a resource onto a card, a tile, a colony, a delegate, …) — not one plain good.
+      // Any other payload (a resource onto a card, a tile, a colony, a delegate, …) — not a plain good.
       return undefined;
     }
   }
-  return goods.length === 1 ? goods[0] : undefined;
+  return goods.length === 0 ? undefined : goods;
 }
