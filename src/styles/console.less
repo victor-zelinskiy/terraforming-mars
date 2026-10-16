@@ -18297,19 +18297,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        category changes INK, never layout (an LB/RB seat switch morphs
        values without a single jump). */
     &__overview { display: flex; }
+    /* The grid takes the WHOLE stage (PL-574): its rows share the height, so the overview is a composition of
+       category objects over the opening — never a strip of short rows at the top of an empty frame. */
     &__grid {
         flex: 1;
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-auto-rows: minmax(0, 1fr);
         gap: .6rem;
-        align-content: start;
+        align-content: stretch;
         max-width: 72rem;
     }
     &__tile {
         position: relative;
         display: flex;
         flex-direction: column;
-        gap: .45rem;
+        justify-content: center;
+        gap: .7rem;
         min-height: 6.9rem;
         padding: .65rem 1.7rem .6rem .85rem;
         border: none;
@@ -18338,8 +18342,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__tile-head {
         display: flex;
         align-items: center;
-        gap: .5rem;
+        gap: .85rem;
         min-width: 0;
+    }
+    /* The category's MEDALLION — the dossier's own disc (`ConsoleScoreDisc`), ringed in the category's hue. */
+    &__tile-disc.con-dscore__disc { flex: none; width: 3.6rem; height: 3.6rem; }
+    &__tile-disc.con-dscore__disc > .con-dscore__glyph { width: 2.3rem; height: 2.3rem; }
+    &__tile-disc.con-dscore__disc > .con-dscore__glyph--mark { width: 1rem; height: 1rem; }
+    &__tile-id {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
     }
     &__dot {
         flex-shrink: 0;
@@ -18349,18 +18364,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: var(--eg-c, @con-cyan);
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
     }
+    /* The category's NAME may take a second line on a narrow tile — never an ellipsis over «Рейтинг терраформ…». */
     &__tile-label {
-        flex: 1;
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.15;
         font-size: 1.02rem;
         letter-spacing: .03rem;
         color: @con-text;
     }
     &__tile-value {
-        font-size: 1.55rem;
+        font-size: 2.3rem;
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
@@ -36726,8 +36739,11 @@ html.con-profile-handheld {
            screen without a scroll (gridCols mirrors this in JS). */
         &__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
         &__tile { min-height: 5.6rem; padding: .5rem 1.3rem .45rem .6rem; }
+        &__tile-head { gap: .55rem; }
+        &__tile-disc.con-dscore__disc { width: 2.4rem; height: 2.4rem; }
+        &__tile-disc.con-dscore__disc > .con-dscore__glyph { width: 1.55rem; height: 1.55rem; }
         &__tile-label { font-size: .8rem; }
-        &__tile-value { font-size: 1.2rem; }
+        &__tile-value { font-size: 1.5rem; }
         &__tile-ledger { font-size: .68rem; min-height: 1.7rem; gap: .1rem .4rem; }
         &__lg-num { font-size: .82rem; }
         &__med { width: 1.35rem; height: 1.35rem; }

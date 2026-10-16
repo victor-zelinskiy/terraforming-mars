@@ -464,7 +464,8 @@ for (const preset of PRESETS) {
       for (const seat of ['human', 'bot'] as const) {
         await cycleTo(page, seat);
         await focusTile(page, 'awards');
-        const meds = await page.locator('[data-vpx-tile="awards"] .con-vpx__med').count();
+        // The earned emblems stand in the tile's medallion (the dossier's disc, PL-574).
+        const meds = await page.locator('[data-vpx-tile="awards"] .con-dscore__emblem').count();
         if (meds > 0) {
           holder = seat;
           break;

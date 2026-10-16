@@ -27,14 +27,7 @@
            class="con-infovp__cat con-dscore__medal"
            :class="['con-eg-cat--' + m.accent, {'con-infovp__cat--zero': m.zero, 'con-dscore__medal--penalty': m.penalty}]"
            :data-dossier-medal="m.key" role="group" :aria-label="$t(m.label) + ': ' + m.value">
-        <span class="con-dscore__disc" aria-hidden="true">
-          <i v-if="m.glyph.kind === 'icon'" class="con-dscore__glyph" :class="iconClass(m.glyph.icon)"></i>
-          <i v-else-if="m.glyph.kind === 'tile'" class="con-dscore__glyph con-dscore__glyph--tile" :class="'con-dscore__glyph--' + m.glyph.tile"></i>
-          <span v-else-if="m.glyph.kind === 'emblems'" class="con-dscore__emblems" :data-emblems="m.glyph.slugs.length">
-            <img v-for="slug in m.glyph.slugs" :key="slug" class="con-dscore__emblem" :src="maArt(slug)" alt="" />
-          </span>
-          <i v-else class="con-dscore__glyph con-dscore__glyph--mark"></i>
-        </span>
+        <ConsoleScoreDisc :glyph="m.glyph" />
         <b class="con-dscore__value">{{ m.value }}</b>
         <span class="con-dscore__label">{{ $t(m.short) }}</span>
       </div>
@@ -46,12 +39,12 @@
 import {defineComponent, PropType} from 'vue';
 import {LiveScoreModel} from '@/client/console/liveScoreModel';
 import {DossierMedallion} from '@/client/console/infoDossierModel';
-import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
 
 export default defineComponent({
   name: 'ConsoleDossierScore',
-  components: {ConsoleVpBadge},
+  components: {ConsoleVpBadge, ConsoleScoreDisc},
   props: {
     liveScore: {type: Object as PropType<LiveScoreModel>, required: true},
     medallions: {type: Array as PropType<ReadonlyArray<DossierMedallion>>, required: true},
@@ -62,14 +55,6 @@ export default defineComponent({
     columns(): number {
       const n = this.medallions.length;
       return n <= 6 ? Math.max(n, 1) : Math.ceil(n / 2);
-    },
-  },
-  methods: {
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    maArt(slug: string): string {
-      return `assets/ma/${slug}.png`;
     },
   },
 });

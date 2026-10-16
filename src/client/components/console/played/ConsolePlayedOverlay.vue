@@ -18,7 +18,7 @@
   <!-- `con-ws` (standalone host only): the workspace-family marker — the
        player rail stays lit left of the table. The EMBEDDED re-seat lives
        inside the Information Workspace, which owns its own rail treatment. -->
-  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded, 'con-ws': !embedded}">
+  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded, 'con-ws': !embedded}" :data-room-gain="embedded ? roomGain : undefined">
     <div class="con-played__panel">
       <div class="con-played__head">
         <span class="con-played__title" v-i18n>Played</span>
@@ -192,7 +192,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, PropType, markRaw} from 'vue';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {MarsBotCorpModel} from '@/common/automa/MarsBotCorpData';
@@ -245,6 +245,15 @@ const MIN_PILE_BUDGET = 280;
  * simply opens the next pile beside it.
  */
 const EMBEDDED_SCENE_GAIN = 1.35;
+/**
+ * A SPARSE embedded table GROWS INTO ITS ROOM (PL-575): five cards at the ladder's size stood in the top half of the
+ * Information opening. The table is measured against its scroll host and the faces scale up until the table meets the
+ * room (never past this cap — a face larger than this stops reading as a table), never down (a big tableau keeps the
+ * ladder and its scroll).
+ */
+const EMBEDDED_ROOM_GAIN_MAX = 1.4;
+/** The room the table may fill, as a share of the host (the cursor's ring and the captions keep their air). */
+const EMBEDDED_ROOM_FILL = 0.94;
 /** STAGED MOUNT (hydration): a tableau up to this many face-up cards mounts
  *  its faces synchronously (the historical behavior — one flush, no wave). */
 const HYDRATION_SYNC_MAX = 60;
@@ -300,6 +309,9 @@ export default defineComponent({
   },
   data() {
     return {
+      /** The sparse embedded table's room gain (PL-575) — 1 everywhere else; solved by `fitEmbeddedRoom`. */
+      roomGain: 1,
+      roomObserver: undefined as ResizeObserver | undefined,
       /** WHOSE tableau is on the table (LB/RB cycles; defaults to the viewer). */
       viewColor: this.thisPlayerColor as Color,
       /** The focused CATEGORY (the only focusable objects of the table). */
@@ -449,7 +461,8 @@ export default defineComponent({
       const budget = Math.max(MIN_PILE_BUDGET * s, this.viewportH - CHROME_ALLOWANCE * s);
       const faceUp = this.zones.corporations.length + this.zones.preludes.length +
         this.zones.ceos.length + this.zones.active.length + this.zones.automated.length;
-      return planPlayedLayout({faceUpCount: faceUp, maxPileH: budget, uiScale: this.embedded && consoleLayoutState.profile !== 'handheld' ? s * EMBEDDED_SCENE_GAIN : s});
+      const scene = this.embedded && consoleLayoutState.profile !== 'handheld';
+      return planPlayedLayout({faceUpCount: faceUp, maxPileH: budget, uiScale: scene ? s * EMBEDDED_SCENE_GAIN * this.roomGain : s});
     },
     faceUpCount(): number {
       const z = this.zones;
@@ -562,6 +575,14 @@ export default defineComponent({
      *  inspected-player switch) restarts the staged mount for the new set. */
     'effectiveViewColor'() {
       this.startHydration();
+      this.scheduleRoomFit();
+    },
+    faceUpCount() {
+      this.scheduleRoomFit();
+    },
+    /** The gain moved the table: one more pass settles it (the captions do not scale, so the first solve is close). */
+    roomGain() {
+      this.scheduleRoomFit();
     },
     /** The reserved-slot measurer plugs into the transaction while an
      *  incoming card exists (registered fresh per scene). The category
@@ -591,7 +612,19 @@ export default defineComponent({
     // historical pass; a big one renders geometry first and waves in.
     this.startHydration();
   },
+  mounted() {
+    if (this.embedded && typeof ResizeObserver !== 'undefined') {
+      const host = (this.$refs.scroll as {$el?: HTMLElement} | undefined)?.$el;
+      if (host !== undefined) {
+        this.roomObserver = markRaw(new ResizeObserver(() => this.scheduleRoomFit()));
+        this.roomObserver.observe(host);
+      }
+    }
+    this.scheduleRoomFit();
+  },
   beforeUnmount() {
+    this.roomObserver?.disconnect();
+    this.roomObserver = undefined;
     this.cancelHydrationTick();
     this.unregisterHeroTarget?.();
     this.unregisterHeroTarget = undefined;
@@ -600,6 +633,49 @@ export default defineComponent({
     resetConsolePlayedUi();
   },
   methods: {
+    scheduleRoomFit(): void {
+      void this.$nextTick(() => this.fitEmbeddedRoom());
+    },
+    /**
+     * PL-575 — the embedded table's room gain: the table's painted extent at the current gain, divided back to the
+     * ladder's size, against the scroll host's box. Grows a sparse table into its room (capped), never shrinks below
+     * the ladder; settles within 3 %.
+     */
+    fitEmbeddedRoom(): void {
+      if (!this.embedded || consoleLayoutState.profile === 'handheld' || this.categoryUp) {
+        if (this.roomGain !== 1 && (!this.embedded || consoleLayoutState.profile === 'handheld')) {
+          this.roomGain = 1;
+        }
+        return;
+      }
+      const host = (this.$refs.scroll as {$el?: HTMLElement} | undefined)?.$el;
+      const table = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('.con-played__table');
+      if (host === undefined || table === null || table === undefined) {
+        return;
+      }
+      // The ROOM is the panel below the scroll area's top — the scroll area itself hugs its content (it grows only
+      // as far as the table does), so its own box says nothing about the space the table could take.
+      const hostBox = host.getBoundingClientRect();
+      const panelBox = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-played__panel')?.getBoundingClientRect();
+      const room = {top: hostBox.top, width: hostBox.width, height: (panelBox?.bottom ?? hostBox.bottom) - hostBox.top};
+      // The table's CONTENT extent — the union of its families (the table box itself stretches to the host's width).
+      const families = Array.from(table.querySelectorAll<HTMLElement>('.con-played__family'))
+        .map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+      if (room.width < 1 || room.height < 1 || families.length === 0) {
+        return;
+      }
+      const left = Math.min(...families.map((r) => r.left));
+      const right = Math.max(...families.map((r) => r.right));
+      const top = Math.min(room.top, ...families.map((r) => r.top));
+      const bottom = Math.max(...families.map((r) => r.bottom));
+      const naturalW = (right - left) / this.roomGain;
+      const naturalH = (bottom - top) / this.roomGain;
+      const want = Math.max(1, Math.min(EMBEDDED_ROOM_GAIN_MAX,
+        (room.width * EMBEDDED_ROOM_FILL) / naturalW, (room.height * EMBEDDED_ROOM_FILL) / naturalH));
+      if (Math.abs(want - this.roomGain) / this.roomGain > 0.03) {
+        this.roomGain = Math.round(want * 1000) / 1000;
+      }
+    },
     pilesOf(cards: ReadonlyArray<CardModel>): ReadonlyArray<ReadonlyArray<CardModel>> {
       return splitPiles(cards.length, this.plan.cap).map((p) => cards.slice(p.start, p.start + p.size));
     },

@@ -48,10 +48,14 @@
                     }]"
                     :data-vpx-tile="tile.key"
                     @click="tilePressed(i)">
+              <!-- The category as an OBJECT (PL-574): its medallion — the same disc the dossier's score wears —
+                   then its name over its value at the scene's scale. -->
               <span class="con-vpx__tile-head">
-                <i class="con-vpx__dot" aria-hidden="true"></i>
-                <span class="con-vpx__tile-label">{{ $t(tile.label) }}</span>
-                <b class="con-vpx__tile-value">{{ tile.value }}</b>
+                <ConsoleScoreDisc class="con-vpx__tile-disc" :glyph="tileGlyph(tile.key)" />
+                <span class="con-vpx__tile-id">
+                  <span class="con-vpx__tile-label">{{ $t(tile.label) }}</span>
+                  <b class="con-vpx__tile-value">{{ tile.value }}</b>
+                </span>
               </span>
               <!-- The SOURCE LEDGER — what the subtotal is MADE OF (the top
                    bar already owns «share of the total»; no track here). -->
@@ -63,11 +67,9 @@
                   </span>
                   <span v-if="tile.ledger.moreCount > 0" class="con-vpx__lg-more">{{ moreText(tile.ledger.moreCount) }}</span>
                 </template>
+                <!-- Milestones / awards: the earned emblems stand IN the tile's medallion (the dossier's own disc) —
+                     the ledger keeps their reading, never a second copy of the same laurels (PL-574). -->
                 <template v-else-if="tile.ledger.kind === 'medallions'">
-                  <span class="con-vpx__lg-meds" aria-hidden="true">
-                    <i v-for="m in tile.ledger.entries" :key="m.slug" class="con-vpx__med" :style="maArtStyle(m.slug)"></i>
-                    <span v-if="tile.ledger.moreCount > 0" class="con-vpx__med-more">+{{ tile.ledger.moreCount }}</span>
-                  </span>
                   <span class="con-vpx__lg-word">{{ factText(tile.ledger.caption) }}</span>
                 </template>
                 <span v-else class="con-vpx__lg-empty">{{ factText(tile.ledger.empty) }}</span>
@@ -376,12 +378,13 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleDossierSealed from '@/client/components/console/info/ConsoleDossierSealed.vue';
-import {DossierSealedFacts, dossierSealedFacts} from '@/client/console/infoDossierModel';
+import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
+import {DossierGlyph, DossierSealedFacts, dossierMedallions, dossierSealedFacts} from '@/client/console/infoDossierModel';
 import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'ConsoleScoreExplorer',
-  components: {Card, ConsoleScrollArea, PremiumCountGlyph, ConsoleDossierSealed},
+  components: {Card, ConsoleScrollArea, PremiumCountGlyph, ConsoleDossierSealed, ConsoleScoreDisc},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -514,6 +517,14 @@ export default defineComponent({
     },
     overview(): ScoreOverviewModel {
       return buildScoreOverview(this.liveScore, this.viewed.victoryPointsBreakdown, this.explorerCtx);
+    },
+    /** Each overview category's medallion symbol — the dossier's own (`dossierMedallions`, the earned emblems included). */
+    tileGlyphs(): Readonly<Record<string, DossierGlyph>> {
+      const out: Record<string, DossierGlyph> = {};
+      for (const m of dossierMedallions(this.overview)) {
+        out[m.key] = m.glyph;
+      }
+      return out;
     },
     barSegments(): Array<{key: string, accent: string, widthPct: number}> {
       return this.overview.tiles
@@ -724,6 +735,9 @@ export default defineComponent({
     scoreExplorerUi.barCommands = undefined;
   },
   methods: {
+    tileGlyph(key: string): DossierGlyph {
+      return this.tileGlyphs[key] ?? {kind: 'mark'};
+    },
     observePreview(live: boolean): void {
       this.previewRo?.disconnect();
       this.previewRo = undefined;

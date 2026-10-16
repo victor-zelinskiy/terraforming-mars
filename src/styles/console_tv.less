@@ -1919,14 +1919,20 @@ html.con-profile-tv {
         &__bar { height: 1.05rem; }
     }
     .con-vpx {
-        &__total { font-size: 3.6rem; }
-        &__bar { height: 1.2rem; }
-        &__tile { min-height: 7.6rem; }
+        &__total { font-size: 4.2rem; }
+        &__bar { height: 1.35rem; }
+        /* The overview's category objects at the couch's scale (PL-574): the medallion, the name over a value that
+           reads from the sofa, the ledger at body size. */
+        &__tile { min-height: 7.6rem; padding: 1rem 2.2rem 1rem 1.3rem; gap: 1rem; }
+        &__tile-disc.con-dscore__disc { width: 5.2rem; height: 5.2rem; }
+        &__tile-disc.con-dscore__disc > .con-dscore__glyph { width: 3.4rem; height: 3.4rem; }
+        &__tile-disc.con-dscore__disc > .con-dscore__glyph--mark { width: 1.4rem; height: 1.4rem; }
+        &__tile-head { gap: 1.1rem; }
         &__tile-label { font-size: var(--con-t-body); }
-        &__tile-value { font-size: 1.85rem; }
-        &__tile-ledger { font-size: var(--con-t-caption); min-height: 2.5rem; }
-        &__lg-num { font-size: 1.15rem; }
-        &__med { width: 2.1rem; height: 2.1rem; }
+        &__tile-value { font-size: 3.2rem; }
+        &__tile-ledger { font-size: var(--con-t-body); min-height: 3rem; }
+        &__lg-num { font-size: 1.4rem; }
+        &__med { width: 2.6rem; height: 2.6rem; }
         &__shareline { font-size: 1.05rem; }
         &__maent-name { font-size: var(--con-t-body); }
         &__maent-fact { font-size: var(--con-t-secondary); }

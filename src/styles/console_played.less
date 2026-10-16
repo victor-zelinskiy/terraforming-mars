@@ -176,6 +176,9 @@
         align-items: flex-start;
         gap: 1.05rem 1.3rem;
     }
+    /* A SPARSE embedded table grown into its room (PL-575 — `data-room-gain` above 1) stands centred in it, never
+       pressed to the left edge of an empty opening. */
+    &--embedded:not([data-room-gain="1"]) &__table { justify-content: center; }
     &__family {
         display: flex;
         flex-direction: column;
