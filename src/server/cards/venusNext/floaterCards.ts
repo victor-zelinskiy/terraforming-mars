@@ -33,5 +33,8 @@ export const floaterCards: ReadonlySet<CardName> = new Set([
 
   // Underworld
   CardName.SOIL_EXPORT,
+
+  // Turmoil Redux — TR56 prints «6 floaters to ANY card» (Celestic reveals it as a floater card)
+  CardName.ROBOTICS_FACTORY,
 ]);
 

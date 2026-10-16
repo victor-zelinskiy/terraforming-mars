@@ -115,6 +115,16 @@ describe('NuclearWarheadUtilization', () => {
     beforeEach(() => {
       seatEnacted(t.parliament, quietResolutionOf(PartyName.REDS));
       expect(t.parliament.rulingParty()).eq(PartyName.REDS);
+      // «Their resolution is not on the vote» is the ARRANGEMENT, never the deal: the seeded deal moves whenever the
+      // catalog grows (TR56 joining the project deck dealt the Industrialists into the area). A slot of theirs is
+      // replaced by a quiet card of a party the table does not hold.
+      const at = t.parliament.slots.findIndex((slot) => t.parliament.resolutionOf(slot.instance).party === I);
+      if (at >= 0) {
+        const onTable = t.parliament.slots.map((slot) => t.parliament.resolutionOf(slot.instance).party);
+        const free = [PartyName.MARS, PartyName.UNITY, PartyName.GREENS].find((p) => !onTable.includes(p));
+        seatResolution(t.parliament, at, quietResolutionOf(free!));
+      }
+      expect(t.parliament.slotOf(I), 'the Industrialists off the vote').is.undefined;
     });
 
     function industrialistsCubes(n: number): void {
