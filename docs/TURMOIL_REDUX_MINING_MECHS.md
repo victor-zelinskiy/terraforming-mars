@@ -3,7 +3,9 @@
 **Status.** Shipped 2026-10-16. The prompt: `docs/claude/prompts/project-tr57-mining-mechs.md`. The rules live in
 `.claude/rules/console-ui.md` § THE WORKSPACE BAND (the reveal is no longer a full-bleed cinematic) and
 `docs/claude/console/hud-frame.md` § THE CENTRAL OPENING; the entry in `docs/claude/console/card-draw-motion.md`
-§ THE STANDALONE SCENE. Ledger: section AV (`docs/claude/gameplay-polish-ledger.md`).
+§ THE STANDALONE SCENE. Ledger: section AV (`docs/claude/gameplay-polish-ledger.md`). **The owner confirmed decisions
+4a · 5a · 6a on 2026-10-16** (no ring on the cell after the take — PL-483 dropped); K-§6.1 (the satellite's «choice of
+goods» role, PL-484) is the next item.
 
 ## 1 · The card
 
