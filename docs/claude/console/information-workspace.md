@@ -113,18 +113,47 @@ renders from them).
   («ЭКРАН БОТА · ПЛАНШЕТ БОТА»). Identity chips + corp/difficulty ride the
   trailing slot (`.con-info__meta`, the `data-insp-slide` target).
 
-## ONE participant summary (`.con-info__layout`)
+## ONE participant summary — THE DOSSIER (`.con-info__layout.con-dossier`, TR60)
 
-Three columns, ONE canonical layout for every participant; the SHARED
-zones sit at the same coordinates (e2e-guarded ±2px):
+**«ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА» (TR60, 2026-10-17).** The summary was three
+narrow columns of «label — number» rows over 84 % of an empty 4K opening (probe:
+content bottom 69 %, void 84 %, the score 12 % of the room). It is now a DOSSIER of
+TWO TIERS over the whole opening — ONE canonical layout for every participant, the
+SHARED zones at the same coordinates (e2e-guarded ±2px):
 
-| zone (`data-zone` / body) | human | bot |
+| tier · zone (`data-zone` / body) | human | bot |
 | --- | --- | --- |
-| `extras` (col 0 — **the RAIL SATELLITE**, not a panel block) | card-resource cells | the bot's real pools (`marsBotExtraGroups`) |
-| `vp` (col 1) | the premium live score | the SAME zone — no bot variant |
-| `played` (col 2) | tableau counts (`buildPlayedZones`) | `playedPile` counts **+ the corporation** (parity: a human corp is in its tableau) |
-| `actions`/`effects` (col 3) | present | HIDDEN — absence never shifts the shared zones |
-| `botdoor` (col 3) | — | the bot's door to «Экран бота» (an ordinary ring stop) |
+| satellite — `extras` (**the RAIL SATELLITE**, not a panel block, left of everything) | card-resource cells | the bot's real pools (`marsBotExtraGroups`) |
+| HEROES — `vp` (`data-dossier-hero`, `ConsoleDossierScore`) | the score at the scene's scale: the shield + total (`[data-vpx-total]`), the share bar (`[data-vpx-bar]`), the categories as MEDALLIONS with their emblems (`[data-vpx-block]`) | the SAME zone — no bot variant |
+| HEROES — `played` (weight 1.4, `ConsoleDossierCards`) | the CARD HISTORY: the corporation's face + a bounded fan of mini faces per type (active / automated / events, preludes / CEO when present), the count a badge, «+K» past the fan | `playedPile` **+ the corporation** (parity) |
+| PLATES — `actions` (`ConsoleDossierActions`) | mini tiles (art + name) with their state by SHAPE: ▶ ready · ✕ blocked · ✓ used — the viewer's own seat; another seat: ✓ used / ○ idle only (public) | HIDDEN — absence never shifts the shared zones |
+| PLATES — `effects` (`ConsoleDossierEffects`) | the explorer's families as medallions with a glyph that reads without colour (↻ ◆ − × ≡) + the cards as art coins | HIDDEN |
+| PLATES — `botdoor` | — | the bot's door: its three piles (action deck · bonus deck · bonus discard) with their public counts |
+| PLATES — `parliament` (`ConsoleDossierParliament`) | influence (`[data-parl-zone-influence]`), the career ladder as pips (the next reward's icon), the delegates as TOKENS (lobby · reserve ×N · on resolutions) — ONE row by construction | the bot's honest line (`[data-parl-zone-absent]`) |
+| PLATES — `campaign` | the campaign frame (unchanged) | same |
+
+The pure half is `infoDossierModel.ts` (`dossierMedallions`, `dossierSealedFacts`,
+`dossierCardHistory`, `dossierActionTiles` — the state is the SERVER's
+`actionReasons` for the viewer's own seat and the PUBLIC `actionsThisGeneration`
+for anybody else, never a client rule — `dossierEffectFamilies`, `dossierLadder`;
+spec `tests/console/infoDossierModel.spec.ts`). Every zone shows its OBJECTS at the
+scene's scale (a face, an emblem, a token; a number is the object's badge) — never a
+label—number row where an object exists. Probe after (4K GPU): content bottom 98 %,
+void 13 %, the score 20 % of the room, nothing under the TV floor; fhd 99 / 8 %;
+Deck 99 / 14 % (the handheld steps the faces and tokens down — `html.con-profile-handheld`
+in `console_info_dossier.less`); nothing scrolls on any profile.
+
+**A SEALED SCORE IS AN OBJECT TOO (decision 7a).** Another seat's score the game's
+options keep hidden (`vpVisible` false — the ONLY gate) is `ConsoleDossierSealed`:
+the shield under its seal, «Счёт откроется в финале» + WHY («Так задано в настройках
+партии…»), and beside it what is PUBLIC on the table — the rating, the claimed
+milestones, the funded awards (their emblems) — from `dossierSealedFacts`, which
+reads no score at all. Not one VP number of that seat is in the DOM (e2e
+`console-info-dossier` (C) searches the text AND every `data-*vp*`). The same
+component stands at the scene's scale in the score explorer's hidden state
+(`.con-vpx__hidden`). **Another seat is a READ, said once in the HEAD**: the
+dashed chip «Состояние соперника — только просмотр» (`[data-info-readonly]`) beside
+the corporation — no zone below repeats it.
 
 **THE EXTRAS ZONE IS THE RAIL SATELLITE** (`.con-res-aux`, extras rework
 2026-09-10; STABLE-CHASSIS + per-chip ring, 2026-09-11; the NORMALIZATION
@@ -189,8 +218,12 @@ bonus deck stays on «Экран бота», where the deck MECHANICS live. Cont
 `handDock/dockInspection.ts`.
 
 The summary is a FOCUS RING (`infoModeState.summaryFocus`, d-pad +
-`infoZoneNavigate` — column-aware, clamping; the satellite is the leftmost
-column, the initial focus stays `vp`): A opens the focused zone's route;
+`infoZoneNavigate` — TIER-aware since TR60: `INFO_SUMMARY_TIERS` declares the two
+tiers with their zones' flex weights, a vertical press crosses to the zone whose
+CENTRE stands nearest under / over the focused one, the satellite stays LEFT of
+everything, a stranded focus lands on the first focusable zone; the initial focus
+stays `vp`. ⚠ A spec never walks the ring by a memorised key sequence — the e2e
+driver `focusInfoZone(page, zone)` walks the zones' own geometry): A opens the focused zone's route;
 every zone opens one (a pure-readout zone would advertise a dead A and is
 forbidden — `infoRoute.spec.ts` pins it); an absent zone is not focusable.
 B from a detail lands the ring on the zone it was entered from (`botScreen`
@@ -440,13 +473,61 @@ every seat, never a technical panel:
 ## Motion
 
 - Open/dismiss — the `info-mode` surface-motion branches (unfold from the
-  rail seam, own dim, content cascade over `.con-info__head` +
-  `.con-info__col`).
-- Route swap — a DIRECTED out-in beat (`detailZone*` hooks): descending
-  rises from below, B sinks back; depth is read from `infoRouteDepth`.
-  A seat switch keeps the key (routes are semantic) → instant patch, the
-  beat is the `inspectSwitchMotion` slide; rapid presses coalesce.
+  rail seam, own dim, content cascade over `.con-info__head` + the
+  dossier's `.con-dossier__zone`s).
+- **EVERY ZONE OPENS FROM ITS TILE (TR60, decision 8a)** — the generic
+  `detailZoneEnter/Leave` (the «Кампания» precedent generalized): the
+  summary's LEAVE captures every zone's rect (the enter hook runs after the
+  summary has detached); the pressed zone's content lets go first (100 ms)
+  and the others recede (110 ms); the detail host arrives AS that zone's
+  glass plate (`.con-info__unfolding` — its `::before` is the zone's own
+  gradient and edge) and unfolds to the whole room under a clip
+  (`descendUnfold(…, zoneRadiusPx(), 'power3.out')` — a door that gives
+  from its first frame), its rows cascading from inside; B is the reverse —
+  the plate returns, the rows cascade out, the clip folds into the SAME
+  zone's rect (`descendFold`), the ring stands on it (`returningZone`), the
+  zone's children surface and the rest of the dossier cascades back. A zone
+  that did not measure falls back to the old directed rise — never an empty
+  slot. The score keeps its own shared-element handoff
+  (`playScoreHandoff` — the anchors `[data-vpx-total/bar/block]` survive in
+  `ConsoleDossierScore`). Guard: e2e `console-info-dossier` (D) — the
+  plate's first PAINTED box (the box minus the clip's inset, task-clock
+  samples only) is the zone's own, the frame never empty on the way in, B
+  lands the ring on the zone.
+- A seat switch keeps the key (routes are semantic) → instant patch, the
+  beat is the `inspectSwitchMotion` slide; rapid presses coalesce; the
+  frame is never empty (e2e (D)).
 - Reduced motion: snaps (clear props), both axes.
+
+## «Действия» in depth — THE SAME TILES, read-only (TR60, decision 6a)
+
+The route hosts `info/ConsoleInfoActionGallery.vue`: the seat's actions as
+the «Действия карт» groups THEMSELVES — `ConsoleActionGroupView.vue` (the
+card plate + its printed action on the canvas, the sentence, the state
+chip, the diagnostics line), extracted host-agnostic from
+`ConsoleCardActions` (one markup, two hosts; `readonly` strips input, never
+content) with the pure readings in `actionTileView.ts`. The groups come from
+the acting workspace's own builder (`buildActionEntries` →
+`buildConsoleActionsModel`, availability `all`); the viewer's own seat reads
+its preview verdicts, another seat only the public «used this generation».
+STRICT PAGES by the grid's cells (3 × 3, handheld 2 × 2; a two-variant card
+spans two columns), the page DERIVED from the cursor (the album's law), a
+few cards stand centred at a scene's scale (`sparse` — one page of ≤ 2 rows:
+the used columns only, `zoom` 1.4 / 1.18; the canvas fit is a ratio of two
+painted rects, so it is zoom-blind). X (and A) open the focused card's face
+in the ONE zoom viewer; nothing here submits (e2e (B) watches the network).
+The bar is the gallery's own (`infoActionsUi.barCommands`), the shell routes
+the pad to `handleActionsIntent` while the route stands.
+
+## «Парламент» in depth — objects (TR60, decision 9a)
+
+`ConsoleInfoParliament` keeps every `data-parl-info-*` hook and its four
+sections; the influence is a badge with its sum, the Agenda is the CAREER
+LADDER (the 12 rungs of `AGENDA_TRACK`, the seat's cube on its rung, the
+next reward by its icon), the delegates are TOKENS (lobby · reserve ×N ·
+on resolutions · access · actions used), the table's resolutions are TILES
+(the party's emblem, the name, «ПРИНИМАЕТСЯ», the compact yield). Every
+text ≥ the TV floor (the compact yield's quiet lines are raised in this host).
 
 ## Command bar
 
@@ -461,7 +542,22 @@ verbatim). Y(0) and LB/RB(1) survive the Deck bar.
 ## Tests
 
 - `tests/console/infoRoute.spec.ts` — the tree (vp subtree included),
-  capability, ring (satellite column first, botdoor), clamps.
+  capability, ring (the two tiers by geometry, the satellite left of
+  everything, botdoor, a stranded focus), clamps.
+- `tests/console/infoDossierModel.spec.ts` — the dossier's pure half:
+  medallions (short labels, emblems), the sealed facts (no score read),
+  the card history (fans, «+K», the bot's corporation), the action tiles
+  (own: ready / blocked with the server's reason / used; another seat:
+  idle / used only), the effect families, the ladder.
+- `tests/e2e/console-info-dossier.spec.ts` — fhd + tv4k + deck: (A) two
+  tiers, foot ≥ 85 %, nothing scrolls, nothing outside the frame, the total
+  is the server's, the plate's three states, the delegates one row, nothing
+  under the TV floor; (C) the rival — the head chip, the sealed cell, the
+  public rating, no rival VP number in text or `data-*vp*`; (B) the gallery
+  is the «Действия карт» groups, X / A open the face, no POST; (D) the zone
+  opens from its tile, never an empty frame, B lands on the zone, LB/RB
+  never blinks; (E) TR60 — its two variants in «Действия карт», its
+  fighters' SET role on the satellite.
 - `tests/console/extrasExplorerModel.spec.ts` — the extras model: order +
   zeros, per-card flooring, conditional vs linear, no double count, the
   hidden-score rule fallback, payment attribution, navigation/paging.
