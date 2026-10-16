@@ -103,7 +103,6 @@ type BandProbe = {
   cmdbar: BandBox,
   shade: BandBox,
   shadeOn: boolean,
-  shadeFullBleed: boolean,
   railRight: number,
   railZ: string,
   railHostZ: string,
@@ -162,7 +161,6 @@ async function probe(page: Page, selector: string): Promise<BandProbe> {
       cmdbar: boxOf('.con-footer .con-cmdbar'),
       shade: shade === null ? null : {l: shade.left, r: shade.right, t: shade.top, b: shade.bottom},
       shadeOn: shadeEl !== null && shadeEl.classList.contains('con-shade--on'),
-      shadeFullBleed: shadeEl !== null && shadeEl.classList.contains('con-shade--fullbleed'),
       railRight: railBox.right,
       railZ: getComputedStyle(rail).zIndex,
       railHostZ: getComputedStyle(host).zIndex,
@@ -238,9 +236,9 @@ async function assertBand(page: Page, selector: string, label: string): Promise<
   // ── AND THE DIM COVERS THE SAME OPENING ──────────────────────────────────
   // Bounding the shade by GEOMETRY is what makes «no bar is ever dimmed» true
   // for all four at once — the old `inset: 0` relied on the two horizontal bars
-  // out-stacking it and had no answer for the side rails. A full-bleed owner
-  // (the card-reveal cinematic) is the one sanctioned exception.
-  if (p.shadeOn && p.shade !== null && !p.shadeFullBleed) {
+  // out-stacking it and had no answer for the side rails. No owner is exempt
+  // (the card reveal's full-bleed exception ended with TR57).
+  if (p.shadeOn && p.shade !== null) {
     expect(p.shade.l, `${label}: the dim reaches the player rail (${p.shade.l} < ${p.railRight})`)
       .toBeGreaterThanOrEqual(p.railRight - 2);
     if (p.strat !== null && !p.railReplaced) {

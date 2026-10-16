@@ -5,12 +5,14 @@ import {
   drawnRevealDetached,
   drawnRevealHeadless,
   drawnRevealViewerOpens,
+  drawnBatchGoesFullscreen,
+  LONE_REWARD_CARD_FULLSCREEN,
   resultRevealPresentation,
 } from '@/client/console/consoleRevealPresentation';
 
 /*
- * WHO PRESENTS A ONE-CARD DRAW — the workspace's own stage, or the headless
- * fullscreen viewer? (ConsoleRevealOverlay reads this decision; the component
+ * WHO PRESENTS A DRAWN BATCH — the workspace's own stage, the standalone scene,
+ * or (retired by TR57) the headless fullscreen viewer? (ConsoleRevealOverlay reads this decision; the component
  * itself cannot be unit-mounted — its static `Card` import loads a webpack
  * chunk mochapack cannot, which silently zeroes the whole spec file.)
  */
@@ -26,43 +28,33 @@ function ctx(over: Partial<DrawnRevealPresentationCtx> = {}): DrawnRevealPresent
   };
 }
 
-describe('consoleRevealPresentation — headless is for a card NOBODY owns', () => {
-  it('an unowned single card IS the fullscreen viewer (the board-cell cover lift)', () => {
-    expect(drawnRevealHeadless(ctx())).to.eq(true);
-    expect(drawnRevealViewerOpens(ctx())).to.eq(true);
+describe('consoleRevealPresentation — ONE event, ONE scene: a lone reward card is never the fullscreen (TR57, decision 4)', () => {
+  /*
+   * THE REASON. A lone card from a board cell opened the fullscreen INSPECTOR — lore and rules for a simple reward,
+   * its own chip bar over a dimmed shell bar repeating the same verbs — while two cards of the same cell stood in the
+   * scene. One event spoke two languages. The scene is now the presentation for any count; the viewer opens on X.
+   */
+  it('an unowned single card stands in the scene (the board-cell cover lift) — no headless, no viewer opened for it', () => {
+    expect(LONE_REWARD_CARD_FULLSCREEN).to.eq(false);
+    expect(drawnRevealHeadless(ctx())).to.eq(false);
+    expect(drawnRevealViewerOpens(ctx())).to.eq(false);
   });
 
-  it('several cards are never headless — the batch keeps its real surface', () => {
+  it('the scenes ask the SAME decision at their arm — a lone card flies into its slot, never to a presentation point', () => {
+    expect(drawnBatchGoesFullscreen(1, false)).to.eq(false);
+    expect(drawnBatchGoesFullscreen(1, true)).to.eq(false);
+    expect(drawnBatchGoesFullscreen(3, false)).to.eq(false);
+  });
+
+  it('several cards are never headless — the batch keeps its real surface, taken down to one or not', () => {
     expect(drawnRevealHeadless(ctx({cardCount: 3, untakenCount: 3}))).to.eq(false);
-    // …including one taken down to its last card: the mode never flips mid-batch.
     expect(drawnRevealHeadless(ctx({cardCount: 3, untakenCount: 1}))).to.eq(false);
   });
 
-  it('a workspace that owns the batch presents it INSIDE itself, never fullscreen', () => {
+  it('a workspace that owns the batch presents it INSIDE itself; the take seam stays latched', () => {
     expect(drawnRevealHeadless(ctx({ownedNow: true}))).to.eq(false);
-    expect(drawnRevealViewerOpens(ctx({ownedNow: true}))).to.eq(false);
-  });
-
-  it('THE TAKE SEAM: the claim is released while the batch is still on screen — ownership is LATCHED', () => {
-    // The intake's staged commit takes the card and HOLDS the batch; the
-    // `result-detached` emit then folds the workspace and drops the claim, so
-    // the live answer is already false — a tick before the batch is dismissed.
-    // Reading only `ownedNow` here is what threw the player into a fullscreen
-    // viewer of the card that was at that moment flying into their hand.
-    const seam = ctx({ownedNow: false, ownedEver: true, untakenCount: 0});
-    expect(drawnRevealHeadless(seam)).to.eq(false);
-    expect(drawnRevealViewerOpens(seam)).to.eq(false);
-  });
-
-  it('a claim that lands LATE still wins — the live term alone suppresses an open', () => {
-    expect(drawnRevealHeadless(ctx({ownedNow: true, ownedEver: false}))).to.eq(false);
-  });
-
-  it('nothing left to take: the mandatory viewer must not (re-)open over a departed card', () => {
-    // The surface itself stays as it is — flipping the PRESENTATION here would
-    // blank the modal mid-flight; only the open is withheld.
-    expect(drawnRevealHeadless(ctx({untakenCount: 0}))).to.eq(true);
-    expect(drawnRevealViewerOpens(ctx({untakenCount: 0}))).to.eq(false);
+    expect(drawnRevealHeadless(ctx({ownedNow: false, ownedEver: true, untakenCount: 0}))).to.eq(false);
+    expect(drawnRevealViewerOpens(ctx({ownedNow: false, ownedEver: true, untakenCount: 0}))).to.eq(false);
   });
 
   it('a payout owing its mandatory closing step keeps the real modal (Pluto, 1 cube)', () => {

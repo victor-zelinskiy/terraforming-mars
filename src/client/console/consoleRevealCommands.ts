@@ -31,6 +31,12 @@ export type DrawnRevealCommandCtx = {
   closer?: BonusDiscardStep;
   /** The batch names an inspectable CARD source → L3 opens it. */
   hasCardSource: boolean;
+  /**
+   * The scene's source is a board CELL (TR57, decision 6) → L3 shows it on the board; while it is shown
+   * (`peeking`) the bar offers only the way back — the cards wait, nothing is taken from under a peek.
+   */
+  hasCellSource?: boolean;
+  peeking?: boolean;
   /** The conditional search discarded at least one card → R3 opens the pile. */
   hasDiscards: boolean;
   /**
@@ -54,6 +60,9 @@ export type DrawnRevealCommandCtx = {
  * a draw is not cancellable, and offering «назад» would promise otherwise.
  */
 export function drawnRevealCommandRun(ctx: DrawnRevealCommandCtx): Array<ConsoleCommand> {
+  if (ctx.peeking === true) {
+    return [{control: 'stickL', label: 'Back to the cards', priority: 1}, {control: 'back', label: 'Back to the cards'}];
+  }
   const cmds: Array<ConsoleCommand> = [];
   const closerReady = ctx.closer?.ready === true;
   if (ctx.multi === true && !closerReady) {
@@ -62,7 +71,7 @@ export function drawnRevealCommandRun(ctx: DrawnRevealCommandCtx): Array<Console
   const take = ctx.autoDiscarded === true ? 'To the discard' : 'Take card';
   cmds.push({control: 'confirm', label: closerReady ? (ctx.closer?.label ?? take) : take});
   cmds.push({control: 'secondary', label: 'Inspect'});
-  if (ctx.hasCardSource) {
+  if (ctx.hasCardSource || ctx.hasCellSource === true) {
     // L3 = the SOURCE, in BOTH hosts. The embedded workspace does keep the
     // source hero standing beside the result — but past the commit X belongs
     // to the RESULT, so without this entry the source would have no inspect

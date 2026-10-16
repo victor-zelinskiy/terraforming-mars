@@ -105,12 +105,21 @@ export function runBonusFanOut(args: {
   gather: {x: number, y: number},
   t: BonusSceneTimings,
   reduced: boolean,
+  /** The FIRST cover touched its slot (the scene's chrome comes in with it, not after the last). */
+  onFirstLanded?: () => void,
   onAllLanded: () => void,
 }): BonusSceneHandle {
   const {proxies, flips, from, targets, gather, t} = args;
   const fromCx = from.left + from.width / 2;
   const fromCy = from.top + from.height / 2;
   const master = gsap.timeline({onComplete: args.onAllLanded});
+  let touched = false;
+  const touchdown = () => {
+    if (!touched) {
+      touched = true;
+      args.onFirstLanded?.();
+    }
+  };
   proxies.forEach((proxy, i) => {
     const target = targets[i];
     const flip = flips[i];
@@ -147,7 +156,7 @@ export function runBonusFanOut(args: {
       // Short but full path: straight to the slot, quick flip on the way.
       sub.to(proxy, {
         x: target.left, y: target.top, scale: scaleTo, rotation: 0,
-        duration: s(t.fanMs), ease: 'power2.out',
+        duration: s(t.fanMs), ease: 'power2.out', onComplete: touchdown,
       }, 0);
       sub.to(flip, {rotateY: 0, duration: s(t.fanMs * t.flipPortion), ease: 'power1.inOut'}, 0);
       master.add(sub, s(fanDelayMs(i, t)));
@@ -166,7 +175,7 @@ export function runBonusFanOut(args: {
     const fanAt = s(t.gatherMs + fanDelayMs(i, t));
     sub.to(proxy, {
       x: target.left, y: target.top, scale: scaleTo, rotation: 0,
-      duration: s(t.fanMs), ease: 'power3.out',
+      duration: s(t.fanMs), ease: 'power3.out', onComplete: touchdown,
     }, fanAt);
     sub.to(flip, {rotateY: 0, duration: s(t.fanMs * t.flipPortion), ease: 'power2.inOut'}, fanAt + s(t.fanMs * 0.08));
     master.add(sub, 0);

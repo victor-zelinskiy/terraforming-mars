@@ -104,6 +104,7 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
+import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -486,8 +487,8 @@ export default defineComponent({
       // (the same shared batch director every embedded draw plays). The
       // single-card HEADLESS reveal keeps the hold-zone path: the fullscreen
       // viewer lifts the arrived proxy, and there is no slot to fly into.
-      const headlessSingle = steps.length === 1 &&
-        !workspaceClaimsDrawReveal(e.source) && !workspaceClaimsColonyReveal(e.source);
+      const headlessSingle = drawnBatchGoesFullscreen(steps.length,
+        workspaceClaimsDrawReveal(e.source) || workspaceClaimsColonyReveal(e.source));
       if (plain && !headlessSingle) {
         void this.runPlainBatch(e);
         return;
@@ -715,7 +716,7 @@ export default defineComponent({
       // NOT when a workspace claimed the batch: the EMBEDDED reveal renders a
       // real slot even for one card (the card belongs inside the workspace,
       // never in a fullscreen hand-over) — fall through to the slot flight.
-      if (e.cards.length === 1 && !workspaceClaimsDrawReveal(e.source) && !workspaceClaimsColonyReveal(e.source)) {
+      if (drawnBatchGoesFullscreen(e.cards.length, workspaceClaimsDrawReveal(e.source) || workspaceClaimsColonyReveal(e.source))) {
         setDeckDrawPhase('frame');
         markDeckDrawZoomReady();
         // End once the viewer has taken over: the input gate must not stay

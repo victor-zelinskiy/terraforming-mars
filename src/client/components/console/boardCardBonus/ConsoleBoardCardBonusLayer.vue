@@ -62,6 +62,7 @@ import {
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
 } from '@/client/console/boardCardBonus/boardCardBonusDirector';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -484,7 +485,10 @@ export default defineComponent({
       if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
         return;
       }
-      if (e.cards.length === 1) {
+      // ONE SCENE FOR ANY COUNT (TR57, decision 4): a lone card fans into its own slot like two do — the
+      // presentation point and the fullscreen hand-over are the retired headless path, asked through the overlay's
+      // own decision so the scene can never fly a card to a viewer nobody will open.
+      if (drawnBatchGoesFullscreen(e.cards.length, false)) {
         await this.startSingle(e);
       } else {
         await this.startMulti(e);
@@ -650,9 +654,10 @@ export default defineComponent({
         gather: gatherPoint(from, resolved),
         t,
         reduced: consoleReducedMotionActive(),
+        // THE SCENE ASSEMBLES WITH ITS CARDS (TR57): the head, the status line and the floor come in at the FIRST
+        // touchdown, while the rest are still landing — never a frame that grows round cards already standing.
+        onFirstLanded: () => setBoardCardBonusPhase('frame'),
         onAllLanded: () => {
-          // The covers stand in the exact slots — NOW the frame assembles
-          // around them (the overlay unveils via its phase-driven classes).
           setBoardCardBonusPhase('frame');
           ctx.timers.push(setTimeout(() => {
             // Handoff: the overlay releases its held static cards (they

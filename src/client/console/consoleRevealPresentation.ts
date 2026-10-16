@@ -3,10 +3,11 @@
  *
  * WHO PRESENTS A DRAWN BATCH — the surface, or the fullscreen viewer?
  *
- * A one-card draw has a HEADLESS presentation: the modal renders nothing and
- * the received card IS the fullscreen viewer (mandatory, no close but a take).
- * It exists because a lone received card has no context worth framing — the
- * board-cell cover lift is the reference case.
+ * A one-card draw HAD a headless presentation: the modal rendered nothing and
+ * the received card WAS the fullscreen viewer (mandatory, no close but a take),
+ * on the theory that a lone received card has no context worth framing. TR57
+ * retired it (`LONE_REWARD_CARD_FULLSCREEN`): the board cell the card came from
+ * IS the context, and one card and two cards of the same cell are one scene.
  *
  * Inside a WORKSPACE the opposite is true: the card's whole meaning is that
  * THIS action produced it, and that context is standing on screen around it.
@@ -46,12 +47,34 @@ export type DrawnRevealPresentationCtx = {
   hasClosingStep: boolean,
 };
 
+/**
+ * DECISION 4 of TR57 «НАГРАДА ВНЕ WORKSPACE» (the owner's call, default (a), 2026-10-16): ONE EVENT, ONE SCENE.
+ *
+ * A lone received card used to be the FULLSCREEN INSPECTOR — lore and rules panels for a simple reward, its own chip
+ * bar («ПОЛУЧЕННАЯ КАРТА · ПОЛУЧЕНО 1 · A ВЗЯТЬ · ИСТОЧНИК») over a dimmed shell bar repeating «A ВЗЯТЬ · X ОСМОТРЕТЬ
+ * · B ВЗЯТЬ ВСЁ»: two command surfaces, and a different presentation from the two-card case of the same cell. Now the
+ * reward is the SAME scene for any count — one card is its hero (the stage fit gives it the room), X opens the viewer
+ * as for any card, the ONE bar of the shell owns the verbs. `false` here is that decision; the fullscreen branch
+ * stays reachable (option (б)) by flipping it, and every scene asks {@link drawnBatchGoesFullscreen}, never a count.
+ */
+export const LONE_REWARD_CARD_FULLSCREEN = false;
+
 /** Is this batch presented HEADLESS — the fullscreen viewer IS the reveal? */
 export function drawnRevealHeadless(ctx: DrawnRevealPresentationCtx): boolean {
-  if (ctx.hasClosingStep || ctx.ownedNow || ctx.ownedEver) {
+  if (!LONE_REWARD_CARD_FULLSCREEN || ctx.hasClosingStep || ctx.ownedNow || ctx.ownedEver) {
     return false;
   }
   return ctx.cardCount === 1;
+}
+
+/**
+ * THE SCENES' QUESTION — a deal / cover scene arming for a fresh batch asks whether its cards fly into the reveal's
+ * slots or to the fullscreen viewer's presentation point. The same decision as the overlay's, from what a scene knows
+ * at its arm (the batch's size; whether a workspace claims it) — so a scene can never fly a card to a viewer the
+ * overlay will not open (the three scenes each hand-rolled «one card → fullscreen» until TR57).
+ */
+export function drawnBatchGoesFullscreen(cardCount: number, claimed: boolean): boolean {
+  return drawnRevealHeadless({cardCount, untakenCount: cardCount, ownedNow: claimed, ownedEver: false, hasClosingStep: false});
 }
 
 /**

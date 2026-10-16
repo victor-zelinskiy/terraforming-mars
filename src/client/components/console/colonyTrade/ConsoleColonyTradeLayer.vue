@@ -66,6 +66,7 @@ import {
 } from '@/client/console/colonyTrade/colonyTradeModel';
 import {colonyResolutionUi, clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
 import {noteSettlementDealt, settlementClaimsBatch, settlementPlacesToDeal} from '@/client/console/colonyTrade/settlementTable';
+import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 import {
   RectLike, runColonyTrackGlide, runTradeCoverFlight, runTradeCoversHandoff, TradeDirectorHandle,
 } from '@/client/console/colonyTrade/colonyTradeDirector';
@@ -570,7 +571,7 @@ export default defineComponent({
       // and lands the cover pixel-perfect on it instead.
       const embeddedHost = typeof document !== 'undefined' &&
         document.querySelector('.con-reveal--embedded') !== null;
-      if (e.cards.length === 1 && !embeddedHost) {
+      if (drawnBatchGoesFullscreen(e.cards.length, embeddedHost)) {
         pulseAt(plan[0]?.role ?? 'income', plan[0]?.delayMs ?? 0);
         this.flySingle(e, plan[0], (plan[0]?.role === 'bonus' ? bonusRect : incomeRect) ?? incomeRect ?? bonusRect);
         return;

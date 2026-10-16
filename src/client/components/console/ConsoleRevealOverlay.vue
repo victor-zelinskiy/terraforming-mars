@@ -10,6 +10,8 @@
        :class="{
          'con-reveal--headless': headless,
          'con-reveal--embedded': embedded,
+         'con-reveal--scene': scene,
+         'con-reveal--peek': peeking,
          'con-reveal--collecting': collecting,
          'con-reveal--bonus-mode': bonusMode,
          'con-reveal--bonus-veiled': bonusVeiled,
@@ -30,7 +32,7 @@
     <template v-if="!headless">
       <transition name="con-task-swap" mode="out-in">
         <div class="con-reveal__card" :key="revealKey" data-motion-panel
-             :class="{'con-reveal__card--drawn': mode === 'drawn', 'con-ws-stage-frame': embedded}">
+             :class="{'con-reveal__card--drawn': mode === 'drawn', 'con-ws-stage-frame': stageChassis}">
           <!-- ── Header ──────────────────────────────────────────────────
                EMBEDDED follows the SAME rule as the embedded task host: the
                KICKER goes UP into the workspace breadcrumb (it would repeat
@@ -52,33 +54,55 @@
                «ИСТОЧНИК» column below states as an object rather than as a
                title. A stage that titles itself inside someone else's frame is
                exactly how an embedded surface starts reading as a modal. -->
-          <ConsoleWsStageHead v-if="embedded && mode !== 'result'"
-                              class="con-reveal__head con-reveal__head--embedded"
+          <!-- THE RECEIVED-CARDS HEAD — ONE reading (`revealStageHead`), ONE component, in BOTH hosts (TR57): the
+               stage's sentence once, its live state as badges on the same row. The scene (no workspace around it)
+               also NAMES where the cards came from — the paying cell by its own printed face, a card by its name
+               (L3 opens it); a workspace already stands its source on stage. -->
+          <ConsoleWsStageHead v-if="stageChassis && mode !== 'result'"
+                              class="con-reveal__head"
+                              :class="{'con-reveal__head--embedded': embedded}"
                               :title="titleText">
-            <!-- A SETTLEMENT TABLE's badge is the table's size — the places, one per settlement — constant from the first
-                 deal to the last turn (a «ПОЛУЧЕНО N» that read 3, then 1, would count batches the player never sees). -->
-            <template v-if="tableOn" #badges>
-              <span class="con-ws-stage-badge" data-settlement-badge>
-                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
-                <span class="con-ws-stage-badge__label">{{ $t('Settlements') }}</span>
-                <b class="con-ws-stage-badge__num">{{ tableMeta?.total ?? 0 }}</b>
-              </span>
-            </template>
-            <template v-else-if="mode === 'drawn' && drawnEvent !== undefined && (drawnEvent.cards.length > 1 || drawnEvent.search !== undefined)" #badges>
-              <!-- A FILTERED SEARCH states its whole outcome and its rule in the ONE badge (TR32 — K-4):
-                   «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 — без меток …». A plain draw keeps its count. -->
-              <span v-if="drawnEvent.search !== undefined" class="con-ws-stage-badge con-reveal__searchbadge">
-                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
-                <ConsoleDrawSearchTally :reveal="drawnEvent" />
-              </span>
-              <span v-else class="con-ws-stage-badge">
-                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
-                <span class="con-ws-stage-badge__label">{{ $t('Received') }}</span>
-                <b class="con-ws-stage-badge__num">{{ drawnEvent.cards.length }}</b>
-              </span>
+            <template v-if="stageHead.badges.length > 0" #badges>
+              <template v-for="badge in stageHead.badges" :key="badge.kind">
+                <!-- A SETTLEMENT TABLE's badge is the table's size — the places, one per settlement — constant from the
+                     first deal to the last turn (a «ПОЛУЧЕНО N» that read 3, then 1, would count batches the player
+                     never sees). -->
+                <span v-if="badge.kind === 'settlements'" class="con-ws-stage-badge" data-settlement-badge>
+                  <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+                  <span class="con-ws-stage-badge__label">{{ $t('Settlements') }}</span>
+                  <b class="con-ws-stage-badge__num">{{ badge.total }}</b>
+                </span>
+                <!-- A FILTERED SEARCH states its whole outcome and its rule in the ONE badge (TR32 — K-4):
+                     «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 — без меток …». -->
+                <span v-else-if="badge.kind === 'search' && drawnEvent !== undefined" class="con-ws-stage-badge con-reveal__searchbadge">
+                  <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+                  <ConsoleDrawSearchTally :reveal="drawnEvent" />
+                </span>
+                <span v-else-if="badge.kind === 'received'" class="con-ws-stage-badge" data-reveal-received>
+                  <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+                  <span class="con-ws-stage-badge__label">{{ $t('Received') }}</span>
+                  <b class="con-ws-stage-badge__num">{{ badge.count }}</b>
+                </span>
+                <!-- WHERE FROM — a navigation-context fact, never a second card: the cell's printed bonuses (the very
+                     glyphs the cover lifted off), a card's name with its L3, a colony / a scale / a law by name. -->
+                <span v-else-if="badge.kind === 'source'" class="con-ws-stage-badge con-reveal__sourcebadge"
+                      :class="{'con-reveal__sourcebadge--inspectable': badge.reading.inspectable}"
+                      data-reveal-source>
+                  <span class="con-ws-stage-badge__label">{{ $t(badge.reading.labelKey) }}</span>
+                  <span v-if="badge.reading.icons.length > 0" class="con-reveal__sourcebadge-cell" data-reveal-source-cell>
+                    <i v-for="(icon, i) in badge.reading.icons" :key="icon + i"
+                       class="con-reveal__sourcebadge-icon resource_icon" :class="icon" aria-hidden="true"></i>
+                  </span>
+                  <b v-if="badge.reading.nameText !== undefined || badge.reading.nameKey !== ''" class="con-reveal__sourcebadge-name">
+                    {{ badge.reading.nameText ?? $t(badge.reading.nameKey) }}
+                  </b>
+                  <!-- L3 answers «where from» for a card (the viewer) AND a cell (the board) — the glyph says so. -->
+                  <GamepadGlyph v-if="badge.reading.inspectable || cellSource !== undefined" control="stickL" />
+                </span>
+              </template>
             </template>
           </ConsoleWsStageHead>
-          <header v-else-if="!embedded" class="con-reveal__head">
+          <header v-else-if="!embedded && mode !== 'drawn'" class="con-reveal__head">
             <div class="con-task__kicker">
               <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
               <span>{{ $t(kickerText) }}</span>
@@ -86,39 +110,8 @@
             <div class="con-reveal__headrow">
               <div class="con-reveal__headmain">
                 <div class="con-reveal__title">{{ titleText }}</div>
-                <div v-if="mode === 'drawn'" class="con-reveal__subtitle">
-                  <!-- A filtered search names what it turned over and by which rule (TR32), never the generic line. -->
-                  <ConsoleDrawSearchTally v-if="drawnEvent !== undefined && drawnEvent.search !== undefined" :reveal="drawnEvent" />
-                  <template v-else>{{ $t('Cards were added from a draw source.') }}</template>
-                </div>
-                <!--
-                  Compact SOURCE chip — a navigation-context metadata element,
-                  NEVER a second full card competing with the received cards.
-                  An inspectable (card) source is a button (L3 opens it); a
-                  colony / tile source is a plain informational chip.
-                -->
-                <button v-if="mode === 'drawn' && sourceChip !== undefined"
-                        type="button"
-                        class="con-reveal__source-chip"
-                        :class="{'con-reveal__source-chip--inspectable': sourceChip.inspectable}"
-                        :disabled="!sourceChip.inspectable"
-                        @click="zoomSource">
-                  <span class="con-reveal__source-chip-mark" aria-hidden="true">◈</span>
-                  <span class="con-reveal__source-chip-label">{{ $t('Source') }}</span>
-                  <span class="con-reveal__source-chip-sep" aria-hidden="true">·</span>
-                  <span class="con-reveal__source-chip-name">{{ sourceChip.name }}</span>
-                  <span v-if="sourceChip.inspectable" class="con-reveal__source-chip-l3">
-                    <GamepadGlyph control="stickL" />
-                  </span>
-                </button>
               </div>
-              <!-- Compact premium count chip (NEVER a full-width strip). -->
-              <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__count">
-                <span class="con-reveal__count-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
-                <span class="con-reveal__count-label">{{ $t('Received') }}</span>
-                <b class="con-reveal__count-num">{{ drawnEvent.cards.length }}</b>
-              </div>
-              <div v-else-if="mode === 'viewer' && viewerReveal !== undefined" class="con-reveal__meta">
+              <div v-if="mode === 'viewer' && viewerReveal !== undefined" class="con-reveal__meta">
                 <span v-if="viewerActor !== undefined" class="con-task__opt-player">
                   <span :class="'con-status__dot player_bg_color_' + viewerActor.color"></span>
                   <span>{{ viewerActor.name }}</span>
@@ -146,7 +139,7 @@
               <transition-group tag="div" name="con-reveal-shift"
                    class="con-cards__strip con-reveal__strip"
                    :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1,
-                            'con-ws-stage-row': embedded, 'con-reveal__strip--table': tableOn}]"
+                            'con-ws-stage-row': stageChassis, 'con-reveal__strip--table': tableOn}]"
                    :style="stripZoomStyle">
                 <!-- THE SETTLEMENT TABLE's income places — keyed by POSITION: a taken card leaves its empty socket
                      (✓), and a later cycle draws the same sockets from the table's memory, so the places beside them
@@ -563,6 +556,10 @@ import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {RevealStageHead, revealStageHead} from '@/client/console/revealStageHead';
+import {closeRevealSourcePeek, openRevealSourcePeek, revealSourcePeekState} from '@/client/console/revealSourcePeek';
+import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {SpaceId} from '@/common/Types';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
@@ -742,6 +739,8 @@ export default defineComponent({
          already open. The `down/flipping/up` machine that used to live here —
          and the second, differently-shaped turn it played — is gone with it.) */
       focusIdx: 0,
+      /** The scene's source peek (module state — the shell's bar reads it too). */
+      revealSourcePeekState,
       /**
        * TAKE-IN-PLACE state machine (EMBEDDED MULTI batches only). A card is
        * `available` (untaken, not animating) → `taking` (`takingIdx` — the
@@ -974,7 +973,67 @@ export default defineComponent({
     },
     /** The measured embedded fit applies — the watcher owns install/teardown. */
     embedFitEligible(): boolean {
-      return this.embedded && this.mode === 'drawn';
+      return this.stageChassis && this.mode === 'drawn';
+    },
+    /**
+     * THE STANDALONE SCENE (TR57 «НАГРАДА ВНЕ WORKSPACE»): a drawn batch no workspace owns — a board cell's bonus, the
+     * Venus 8 %, any draw outside a workspace — is the SAME stage as the embedded one: the shared head, the shared row
+     * solved by `wsStageLayout`, the shared status rail right under it. What differs is the HOST: the central opening
+     * (between both bars and both rails — never over a rail) instead of a workspace's zone, and no plate — the cards
+     * are objects of the scene over the dimmed table, standing on a soft floor.
+     */
+    scene(): boolean {
+      return this.mode === 'drawn' && !this.embedded && !this.headless;
+    },
+    /** The scene's PAYING CELL — L3 «Источник» shows it on the board (`revealSourcePeek`). */
+    cellSource(): SpaceId | undefined {
+      const s = this.drawnSource;
+      return this.scene && s?.type === 'tile' && s.spaceId !== undefined ? s.spaceId : undefined;
+    },
+    /** The scene stands receded over the board, showing its source cell. */
+    peeking(): boolean {
+      return this.revealSourcePeekState.cell !== undefined;
+    },
+    /** The shared dim stands down while a scene veils its frame for the flight — or shows the board its cell came from. */
+    veilSuppressed(): boolean {
+      return this.bonusVeiled || this.peeking;
+    },
+    /** The drawn stage chassis (head · row · status) stands — in a workspace or as the scene. */
+    stageChassis(): boolean {
+      return this.embedded || this.scene;
+    },
+    /** A party's action / a law name themselves through this component's readers — handed to the head translated. */
+    sourceFallbackName(): string | undefined {
+      const s = this.drawnSource;
+      if (s?.type === 'party') {
+        return translateTextWithParams('Party action of ${0}', [translateText(partyNameKey(s.party))]);
+      }
+      if (s?.type === 'resolution') {
+        return translateText(resolutionName(s.resolution));
+      }
+      return undefined;
+    },
+    /** The paying cell's printed bonuses, read off the board the player sees (a tile source names its cell). */
+    sourceCellBonuses(): ReadonlyArray<SpaceBonus> | undefined {
+      const s = this.drawnSource;
+      if (s?.type !== 'tile' || s.spaceId === undefined) {
+        return undefined;
+      }
+      return this.playerView.game.spaces.find((sp) => sp.id === s.spaceId)?.bonus;
+    },
+    /** THE ONE READING of the received-cards head, for this host (`revealStageHead` — pure, spec'd). */
+    stageHead(): RevealStageHead {
+      const e = this.drawnEvent;
+      return revealStageHead({
+        host: this.embedded ? 'embedded' : 'scene',
+        cards: e?.cards.length ?? 0,
+        search: e?.search !== undefined,
+        table: this.tableOn ? {income: this.tableIncome.length, total: this.tableMeta?.total ?? 0} : undefined,
+        source: this.drawnSource,
+        cellBonuses: this.sourceCellBonuses,
+        sourceOnStage: this.sourceSeat,
+        fallbackName: this.sourceFallbackName,
+      });
     },
     /**
      * …and the VERDICT stage has a fit of its own, on the same lifecycle. Its
@@ -1397,7 +1456,7 @@ export default defineComponent({
     stripZoomStyle(): Record<string, string> {
       // EMBEDDED: the SHARED fit engine owns the size (one source with the
       // buy pick — see fitEmbeddedStrip).
-      if (this.embedded && this.mode === 'drawn') {
+      if (this.stageChassis && this.mode === 'drawn') {
         if (this.embedFitZoom > 0) {
           return this.embedLayoutStyle;
         }
@@ -1514,20 +1573,10 @@ export default defineComponent({
     titleText(): string {
       switch (this.mode) {
       case 'drawn':
-        // A SETTLEMENT TABLE names WHOSE payout this is and its rule (К-9) — «Получена карта» over a table of
-        // sealed places said neither; the ordinal stays the crumb's («БОНУС 2 ИЗ 2») and is never repeated here.
-        if (this.tableOn) {
-          // The table that also holds the trade's own income says so — those cards are not anybody's bonus.
-          return translateText(this.tableIncome.length > 0 ?
-            'Trade income · a bonus card per settlement' :
-            'Owner bonus · one card per settlement');
-        }
-        // Singular when the deck turned over exactly one card — «Получены
-        // карты» over a single card reads as a template that was not filled
-        // in. Counted off the batch's TOTAL (never the untaken remainder), so
-        // the heading cannot change mid-flow as cards are taken.
-        return translateText((this.drawnEvent?.cards.length ?? 0) === 1 ?
-          'Card received' : 'Cards received');
+        // THE ONE READING (`revealStageHead`): a settlement table names WHOSE payout this is and its rule (К-9); a
+        // plain batch says «Получена карта» / «Получены карты» off its TOTAL (never the untaken remainder — the head
+        // cannot change mid-flow as cards are taken).
+        return translateText(this.stageHead.titleKey);
       case 'result':
         return this.lastReveal !== undefined ? translateText(this.lastReveal.action) : '';
       default:
@@ -1652,6 +1701,7 @@ export default defineComponent({
     },
     revealKey() {
       this.focusIdx = 0;
+      closeRevealSourcePeek();
       // A NEW BATCH decides its take grammar once, against the live dock.
       this.refreshDockReachable();
       // A fresh reveal (result mode) restarts the deck→slot flight from the top.
@@ -1667,7 +1717,7 @@ export default defineComponent({
     // The batch (or its card count) changed — re-derive the embedded fit
     // against the fresh row. Also covers the first population after mount.
     stripCount() {
-      if (this.embedded && this.mode === 'drawn') {
+      if (this.stageChassis && this.mode === 'drawn') {
         void this.$nextTick(() => this.fitEmbeddedStrip());
       }
     },
@@ -1721,7 +1771,7 @@ export default defineComponent({
     // SURFACE MOTION: while a scene VEILS the mounted reveal (its frame is
     // measured but invisible, the cards still flying) the shared shade must
     // stay dark-free too — else the field dims before the scene hands over.
-    bonusVeiled: {
+    veilSuppressed: {
       immediate: true,
       handler(veiled: boolean): void {
         setRevealVeilSuppressed(veiled);
@@ -1782,6 +1832,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    closeRevealSourcePeek();
     if (this.discardPileLease !== '') {
       releaseDiscardPile(this.discardPileLease);
     }
@@ -2130,7 +2181,7 @@ export default defineComponent({
     },
     /** rAF-coalesced embedded fit for resize bursts (mirrors the buy host). */
     scheduleEmbedFit(): void {
-      if (this.embedFitScheduled || !this.embedded || this.mode !== 'drawn') {
+      if (this.embedFitScheduled || !this.stageChassis || this.mode !== 'drawn') {
         return;
       }
       this.embedFitScheduled = true;
@@ -2154,7 +2205,7 @@ export default defineComponent({
      * same value, so the direct write and the binding can never fight.
      */
     fitEmbeddedStrip(): void {
-      if (!this.embedded || this.mode !== 'drawn') {
+      if (!this.stageChassis || this.mode !== 'drawn') {
         return;
       }
       // A LANDING TARGET MUST NOT MOVE UNDER A FLYING COVER. The trade-cover
@@ -2418,6 +2469,13 @@ export default defineComponent({
       if (this.singleCardMode) {
         return;
       }
+      // THE SOURCE PEEK is a level of the scene: L3 / B bring the cards back, everything else waits.
+      if (this.peeking) {
+        if (intent.kind === 'press' && (intent.button === 'stickL' || consoleActionOf(intent) === 'back')) {
+          closeRevealSourcePeek();
+        }
+        return;
+      }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
@@ -2439,7 +2497,12 @@ export default defineComponent({
       // mode opens the DRAW SOURCE; result mode opens the acting card that did
       // the deck-check — the same L3 = source idiom, one language.
       if (intent.button === 'stickL' && this.mode === 'drawn') {
-        this.zoomSource();
+        // A CELL source shows its cell on the board (the scene recedes); a card source lifts the card (the viewer).
+        if (this.cellSource !== undefined) {
+          openRevealSourcePeek(this.cellSource);
+        } else {
+          this.zoomSource();
+        }
         return;
       }
       if (intent.button === 'stickL' && this.mode === 'result') {

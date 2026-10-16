@@ -197,7 +197,6 @@ html.console-native {
 .con-task__sub,
 .con-task__opt-sub,
 .con-notif__body,
-.con-reveal__subtitle,
 .con-confirm__body,
 .con-sysconfirm__body,
 .con-quit__body,
@@ -302,14 +301,10 @@ html.console-native {
         opacity: 0;
     }
 
-    /* THE ONE EXCEPTION — a FULL-BLEED owner (the card-reveal cinematic) covers
-       the whole shell by design, so its dim must too: a cinematic painting over
-       a rail while the rail's own strip stayed lit reads as a seam, not as
-       chrome. Declared by the OWNER (`surfaceShadeFullBleed`), never by this
-       stylesheet guessing which surface is up. */
-    &--fullbleed {
-        inset: 0;
-    }
+    /* (THE «FULL-BLEED OWNER» EXCEPTION IS GONE — TR57. Its one member was the
+       card reveal, which painted a full-width plate over both rails and so had
+       to dim them too. The reveal now stands in the opening like every decision
+       surface, so the dim never greys a bar for anyone.) */
 
     /* FOCUS VIGNETTE — the dimming as a transition instrument: while a
        wheel slot is ARMED the edges deepen and the centre stays readable
@@ -892,6 +887,127 @@ html.console-native {
    scrollbars anyway). */
 .con-reveal--embedded.con-reveal .con-reveal__body--drawn {
     overflow: hidden;
+}
+
+/* ═══ THE STANDALONE SCENE — «НАГРАДА ВНЕ WORKSPACE» (TR57) ════════════════
+   A drawn batch no workspace owns (a board cell's bonus, the Venus 8 %, any draw
+   outside a workspace) was a FORM: a fixed `min(70rem, 94vw) × min(42rem, …)`
+   plate at full width over BOTH rails whatever the count — two cards a third of
+   its width, the rest empty glass — under a full-bleed dim that greyed the very
+   rails the cards are about to land beside. It is now the SAME stage as the
+   embedded one (head · row · status, the ONE fit) standing in the CENTRAL
+   OPENING, and it wears NO plate: the cards are objects of the scene over the
+   dimmed table, on a soft floor.
+
+   · THE HOST IS THE OPENING — `.con-modal-band()`: between the two bars and the
+     two lit rails (the dim is the opening's too — `.con-shade` is no longer
+     full-bleed for the reveal). The bottom keeps the dock's reserve: a take
+     flies into a hand dock that is never covered.
+   · THE ROOM IS A SHARE OF THE OPENING, never a rem: the frame is a strict flex
+     column of `--con-reveal-scene-h` of the opening, its row the one part that
+     flexes, so the fit (`wsStageLayout`) reads the row's own box — the cards
+     size by the count and the opening, the head and the status hug them.
+   · Doubled class (0,3,0+) — the profile ladders restate `.con-reveal__card`
+     (width / padding / the drawn height) at (0,2,1) for the old plate. */
+.con-reveal--scene.con-reveal--scene.con-reveal {
+    padding: 0 0 var(--con-reveal-dock-reserve, 2.6rem);
+    /* The HOST factor of the strip's pre-fit zoom (the embedded one's — the card IS the outcome). */
+    --con-reveal-host-scale: 1;
+
+    .con-reveal__card {
+        width: 100%;
+        max-width: none;
+        height: var(--con-reveal-scene-h, 78%);
+        max-height: 100%;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 0;
+        /* The floor paints UNDER the row and the head, never over the shade's neighbours. */
+        isolation: isolate;
+    }
+    /* THE FLOOR — the table the cards are laid on: a cold pool of light behind the row and a contact shadow under
+       it. Gradient-only (no `filter`), out of flow, unseen with the frame while the scene is veiled. */
+    .con-reveal__card::before {
+        content: '';
+        position: absolute;
+        inset: 4% 3% 2%;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            radial-gradient(ellipse 34% 7% at 50% 87%, rgba(0, 0, 0, 0.55), transparent 72%),
+            radial-gradient(ellipse 46% 44% at 50% 50%, fade(@con-cyan, 11%), transparent 72%),
+            radial-gradient(ellipse 62% 58% at 50% 52%, rgba(6, 12, 20, 0.5), transparent 78%);
+    }
+    .con-reveal__body--drawn,
+    .con-reveal__main {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+    }
+    /* A fit's own chain may not contain a scroll container (see the embedded rule above). */
+    .con-reveal__body {
+        overflow: hidden;
+        padding-right: 0;
+    }
+    .con-reveal__main { gap: .5rem; }
+    .con-reveal__namebar {
+        gap: .6rem;
+        .con-cards__verdict-name { font-size: .95rem; }
+    }
+    /* The lone hero's open-composition halo — the embedded stage's own. */
+    .con-reveal__strip > .con-cards__slot:only-child::before {
+        content: '';
+        position: absolute;
+        inset: -3rem -3.6rem;
+        z-index: -1;
+        background: radial-gradient(48% 46% at 50% 47%, rgba(120, 190, 235, 0.09), transparent 74%);
+        pointer-events: none;
+    }
+}
+/* THE SOURCE PEEK (L3 on a cell source — `revealSourcePeek.ts`): the scene recedes IN PLACE (opacity only — the
+   frame keeps its box, the focus and the batch stay), the dim lets go, the board shows the cell ringed. */
+.con-reveal--scene .con-reveal__card {
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+}
+.con-reveal--scene.con-reveal--peek .con-reveal__card {
+    opacity: .07;
+}
+/* WHERE FROM — the source badge of the scene's head: the paying cell by its printed bonuses, a card by name (+ L3). */
+.con-reveal__sourcebadge {
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+    background: fade(@con-amber, 7%);
+
+    .con-ws-stage-badge__label { color: #ffe3b0; }
+    &-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: .12rem;
+        padding: .08rem .25rem;
+        border-radius: .3rem;
+        background: rgba(10, 18, 28, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 30%);
+    }
+    &-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        margin: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &-name {
+        font-weight: 800;
+        color: @con-text;
+        letter-spacing: .03em;
+        text-transform: none;
+    }
 }
 
 /* `:is()` takes the HIGHEST specificity of its arguments, so one rule here is
@@ -25294,21 +25410,18 @@ body.con-start-ceremony {
 
 /* ── REVEAL OVERLAY (CTS T6): drawn cards / deck-check result / viewer ── */
 .con-reveal {
-    position: fixed;
-    /* THE MODAL BAND on top (the card's head never slides under the HUD
-       strip); the BOTTOM keeps its own LARGER reserve — cards are taken ONE
-       BY ONE here and each must visibly fly into a fully UNCOVERED dock
-       below the panel (static dock-card tops ≈ 4.85rem + breathing > the
-       bar band). */
-    top: var(--con-band-top, 4.5rem);
-    bottom: 0;
-    left: 0;
-    right: 0;
+    /* THE CENTRAL OPENING (TR57 — the reveal left the «full-bleed cinematic»
+       family): between the two bars and the two LIT rails, like every decision
+       surface. The bottom keeps the DOCK's reserve inside the opening — cards
+       are taken one by one and each must visibly fly into an uncovered hand
+       dock (its card tops stand ≈ 4.85rem off the viewport's bottom, the bar's
+       band below that). */
+    .con-modal-band();
     z-index: 11520; /* above the task host (11480), below Info Mode (11560) */
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-bottom: 5.6rem;
+    padding-bottom: var(--con-reveal-dock-reserve, 2.6rem);
     font-family: @con-font;
     color: @con-text;
 
@@ -25573,7 +25686,8 @@ body.con-start-ceremony {
        deal choreography is untouched (the director skips variant='drawn'). */
     &__card {
         position: relative;
-        width: min(70rem, 94vw);
+        /* The verdict's / a public reveal's plate (the drawn batch is the plateless scene — `--scene`). */
+        width: min(70rem, 100%);
         max-height: 100%; /* the band top + the dock raise bound the box */
         display: flex;
         flex-direction: column;
@@ -25603,91 +25717,6 @@ body.con-start-ceremony {
         font-size: 1.3rem;
         font-weight: 700;
         line-height: 1.3;
-    }
-    &__subtitle {
-        margin-top: .3rem;
-        max-width: 60ch;
-        font-size: .8rem;
-        line-height: 1.4;
-        color: @con-text-dim;
-    }
-    /* Compact SOURCE chip (multi-card drawn header) — a navigation-context
-       metadata element sitting under the description, NEVER a second full
-       card. An inspectable (card) source is a subtle button (L3 opens it); a
-       colony / tile source is a plain informational chip (button disabled). */
-    &__source-chip {
-        appearance: none;
-        border: 0;
-        margin-top: .35rem;
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        max-width: 100%;
-        padding: .25rem .7rem;
-        border-radius: 49.95rem;
-        background: rgba(14, 22, 33, 0.66);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
-        font-family: @con-font;
-        color: @con-text-dim;
-        cursor: default;
-        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease;
-
-        &--inspectable {
-            cursor: pointer;
-            &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 75%), 0 0 .7rem fade(@con-amber, 12%); }
-        }
-        &-mark { color: @con-amber; font-size: .65rem; }
-        &-label {
-            letter-spacing: .065rem;
-            text-transform: uppercase;
-            font-size: .625rem;
-            color: #ffe3b0;
-        }
-        &-sep { color: fade(@con-amber, 55%); }
-        &-name {
-            font-weight: 700;
-            color: @con-text;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        &-l3 {
-            display: inline-flex;
-            align-items: center;
-            margin-left: .1rem;
-            padding-left: .4rem;
-            border-left: .05rem solid fade(@con-cyan, 30%);
-        }
-    }
-    /* The premium «Получено: N» chip — sized to content, subtle glow. */
-    &__count {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .35rem .8rem;
-        border-radius: 49.95rem;
-        background: rgba(14, 22, 33, 0.72);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 0 .8rem fade(@con-cyan, 12%);
-        white-space: nowrap;
-    }
-    &__count-icon {
-        width: 1.1rem;
-        height: 1.1rem;
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-    &__count-label {
-        font-size: .75rem;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__count-num {
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: @con-cyan;
     }
     &__meta {
         flex-shrink: 0;
@@ -34713,6 +34742,15 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     background-color: fade(@con-amber, 95%);
     opacity: .9;
 }
+/* The received-cards scene's SOURCE (TR57): the paying cell in the source badge's amber, the roll call's thick ring. */
+.board-log-highlight.con-peek-cell--source {
+    background-color: fade(@con-amber, 95%);
+    opacity: 1;
+    clip-path: polygon(evenodd,
+        50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%, 50% 0%,
+        50% 12%, 10.5% 31%, 10.5% 69%, 50% 88%, 89.5% 69%, 89.5% 31%, 50% 12%);
+    animation: con-peek-lit calc(1400ms * var(--motion-scale, 1)) ease-out both;
+}
 .board-log-highlight.con-peek-cell--lit {
     opacity: 1;
     clip-path: polygon(evenodd,
@@ -36205,8 +36243,8 @@ html.con-profile-handheld {
        back to the board (every px is board scale there). */
     .con-board { padding-bottom: 2.8rem; }
     /* The reveal raise follows the shorter Deck dock (card tops ≈ 4.1rem). */
-    .con-reveal { padding-bottom: 4.8rem; }
-    .con-reveal__card { max-height: calc(100vh - 6.8rem); }
+    .con-reveal { --con-reveal-dock-reserve: 2rem; }
+    .con-reveal__card { max-height: 100%; }
     .con-reveal__card--drawn { height: ~"min(42rem, calc(100vh - 6.8rem))"; }
 
     /* ── 4 · right context + command panel (placement dossier) ───── */
@@ -36621,14 +36659,9 @@ html.con-profile-handheld {
 
     /* ── 12/21 · reveal / play / trade confirms ──────────────────── */
     .con-reveal {
-        &__card { width: min(58rem, 96vw); padding: .7rem .9rem .5rem; }
+        &__card { width: min(58rem, 100%); padding: .7rem .9rem .5rem; }
         &__card--drawn { height: min(34rem, 88vh); }
         &__title { font-size: 1rem; }
-        &__subtitle { font-size: .7rem; max-width: 52ch; }
-        &__count { padding: .25rem .65rem; gap: .35rem; }
-        &__count-icon { width: .9rem; height: .9rem; }
-        &__count-label { font-size: .65rem; }
-        &__count-num { font-size: .95rem; }
         &__chip { font-size: .65rem; }
         &__source { zoom: 0.72; }
         &__source-hint { font-size: .65rem; padding: .15rem .5rem; }

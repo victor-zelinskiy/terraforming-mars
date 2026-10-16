@@ -87,4 +87,14 @@ describe('drawnRevealCommandRun — ONE contract for both hosts', () => {
     expect(labels(run)).to.not.contain('confirm:Take card');
     expect(labels(run).some((l) => l.startsWith('back:'))).to.eq(false);
   });
+
+  it('TR57: a CELL source offers L3 «Источник» too (the scene shows the paying cell on the board)', () => {
+    const run = drawnRevealCommandRun({hasCardSource: false, hasCellSource: true, hasDiscards: false});
+    expect(labels(run)).to.contain('stickL:Source');
+  });
+
+  it('TR57: while the scene shows its cell, the bar offers only the way back — nothing is taken from under a peek', () => {
+    const run = drawnRevealCommandRun({hasCardSource: false, hasCellSource: true, hasDiscards: false, multi: true, peeking: true});
+    expect(labels(run)).to.deep.eq(['stickL:Back to the cards', 'back:Back to the cards']);
+  });
 });

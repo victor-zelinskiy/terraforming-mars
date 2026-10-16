@@ -561,16 +561,14 @@
          wheel → focused hold → (commit) the shade hands its darkness to the
          incoming surface, or releases toward a workspace. Opacity-only. -->
     <!-- THE SHARED DIM. Its BOX is the central opening (the four hull members
-         stay lit — see `.con-shade` in console.less); `--fullbleed` is the one
-         exception, declared by the OWNER when a cinematic is covering the whole
-         shell and its dim must follow. -->
+         stay lit — see `.con-shade` in console.less) — for EVERY owner: the
+         card reveal, its one-time full-bleed exception, joined the opening in TR57. -->
     <div class="con-shade"
          :class="{
            'con-shade--on': surfaceShadeVisible,
            'con-shade--veil': surfaceShadeVeil,
            'con-shade--clear': surfaceShadeClear,
            'con-shade--focus': wheelInput.arm !== undefined,
-           'con-shade--fullbleed': surfaceShadeFullBleed,
          }" aria-hidden="true"></div>
 
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
@@ -2055,6 +2053,7 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
+import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
@@ -2159,7 +2158,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl, activeGlyphSet} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleQuickId, ConsoleSection} from '@/client/console/consoleRouter';
-import {surfaceShadeOn, surfaceShadeFullBleed, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/client/console/quickWheel/wheelArmModel';
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
@@ -3331,16 +3330,6 @@ export default defineComponent({
      *  the trade-fleet flight keeps its thin veil over the colony grid. */
     surfaceShadeVisible(): boolean {
       return surfaceShadeOn() || isTradeFleetActive();
-    },
-    /**
-     * The live shade belongs to a FULL-BLEED owner (the card-reveal cinematic),
-     * so its dim covers the whole shell rather than the opening. The set lives
-     * with the shade state (`surfaceShadeFullBleed`) — the shell only forwards
-     * the verdict, and the trade-fleet veil is a decision-surface dim like every
-     * other one.
-     */
-    surfaceShadeFullBleed(): boolean {
-      return surfaceShadeFullBleed();
     },
     /** The shade thins to a light veil: the task host's table beat (draft
      *  tray owns the screen) and the trade-fleet launch (ship focal, grid
@@ -9187,6 +9176,9 @@ export default defineComponent({
           cmds.push(...drawnRevealCommandRun({
             closer: this.revealDiscardCloser,
             hasCardSource: ev?.source?.type === 'card',
+            // A cell source is shown on the board by L3 — only in the standalone SCENE (a workspace stands its own).
+            hasCellSource: ev?.source?.type === 'tile' && ev.source.spaceId !== undefined && this.revealEmbedTarget === undefined,
+            peeking: revealSourcePeekState.cell !== undefined,
             hasDiscards: ev?.sequence?.some((step) => !step.matched) === true,
             multi: ev !== undefined && ev.cards.length - ev.takenIndices.size > 1,
             autoDiscarded: ev !== undefined && ev.cards.some((_c, i) => !ev.takenIndices.has(i)) &&
