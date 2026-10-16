@@ -7,6 +7,7 @@
        continuation — the source card FLIPs from the composer's slot into
        the «Источник» column below. -->
   <div ref="rootEl" class="con-reveal"
+       :data-cursor-pending="revealPoseHeld ? 'reveal' : undefined"
        :class="{
          'con-reveal--headless': headless,
          'con-reveal--embedded': embedded,
@@ -149,7 +150,7 @@
                   <div v-for="row in tableIncome" :key="row.key"
                        class="con-cards__slot con-start__deal con-reveal__incslot"
                        :data-zoom-slot="row.entry !== undefined ? row.entry.card.name + '#' + row.entry.index : undefined"
-                       :class="{'con-cards__slot--focused': row.entry !== undefined && focusIdx === row.entry.pos && !cursorHeld,
+                       :class="{'con-cards__slot--focused': row.entry !== undefined && focusIdx === row.entry.pos && !arrivalPending,
                                 'con-reveal__incslot--taken': row.entry === undefined}"
                        :ref="row.entry !== undefined && focusIdx === row.entry.pos ? 'focusedCardSlot' : undefined">
                     <Card v-if="row.entry !== undefined" :card="row.entry.card" :key="row.entry.card.name" lightweight />
@@ -169,7 +170,7 @@
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(entry.pos)"
                      :data-zoom-slot="entry.card.name + '#' + entry.index"
-                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos && !cursorHeld,
+                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos && !arrivalPending,
                               'con-cards__slot--taken': entry.taken}"
                      :ref="!entry.taken && focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
                   <!-- TAKE-IN-PLACE (embedded multi): the slot is a flip
@@ -228,7 +229,7 @@
                   <template v-if="tableOn">
                     <div class="con-cards__slot con-reveal__bonus-slot con-reveal__placeslot"
                          :data-zoom-slot="placeSlotKey(zone)"
-                         :class="{'con-cards__slot--focused': placeFocused(zone) && !cursorHeld}"
+                         :class="{'con-cards__slot--focused': placeFocused(zone) && !arrivalPending}"
                          :ref="placeFocused(zone) ? 'focusedCardSlot' : undefined">
                       <div class="con-reveal__place con-card3d-outer"
                            :class="{'con-reveal__place--gone': placeSocket(zone)}"
@@ -299,7 +300,7 @@
                   <div v-else-if="zone.state === 'active' && activeBonusEntry !== undefined"
                        class="con-cards__slot con-reveal__bonus-slot"
                        :data-zoom-slot="activeBonusEntry.card.name + '#' + activeBonusEntry.index"
-                       :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos && !cursorHeld}"
+                       :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos}"
                        :ref="focusIdx === activeBonusEntry.pos ? 'focusedCardSlot' : undefined">
                     <Card :card="activeBonusEntry.card" :key="activeBonusEntry.card.name" lightweight />
                     <!-- (No in-zone A-chip: the one command bar owns the verb,
@@ -1494,13 +1495,17 @@ export default defineComponent({
       return this.embedded && this.mode === 'drawn' && workspaceOutcomeArrivalPending();
     },
     /**
-     * THE CURSOR WAITS FOR THE CARDS (TR58): while a deal still owns this batch — the embedded arrival, or a
-     * standalone scene whose copies are still dissolving over the real cards (`revealSceneStaged`) — no card wears the
-     * focus pose. The ring then ARRIVES on the transition a step uses, after the copies have gone; opened at the start
-     * of their dissolve, the lifted card showed through a fading copy that was not lifted — two pictures of one card.
+     * THE CURSOR WAITS FOR THE CARDS (TR58): while a deal scene's copies still lie over this batch's real cards (the
+     * deck-draw scene, the board card-bonus lift) the focused card stands at REST — the root's arrival gate
+     * (`data-cursor-pending`), never the focused CLASS: the cursor is LOGICALLY there (the pad, the bar, the probes),
+     * only its pose waits, and ARRIVES on the transition a step uses once the copies have gone (opened at the start of
+     * their dissolve, the lifted card showed through a fading copy that was not lifted — two pictures of one card).
+     * The colony payout is NOT a term: its scene keeps the batch «staged» for the whole resolution (the cards stand in
+     * the stage), and gating there withheld the bonus card's cursor for good (`console-colony-miranda-bonus`).
      */
-    cursorHeld(): boolean {
-      return this.arrivalPending || this.revealSceneStaged;
+    revealPoseHeld(): boolean {
+      const id = this.drawnEvent?.id;
+      return (isDeckDrawActive() && isDeckDrawStaged(id)) || (isBoardCardBonusActive() && isBonusRevealStaged(id));
     },
     /**
      * A STANDALONE deal cinematic still owns this batch's cards (the deck-draw
