@@ -5,7 +5,7 @@
 `docs/claude/console/hud-frame.md` § THE CENTRAL OPENING; the entry in `docs/claude/console/card-draw-motion.md`
 § THE STANDALONE SCENE. Ledger: section AV (`docs/claude/gameplay-polish-ledger.md`). **The owner confirmed decisions
 4a · 5a · 6a on 2026-10-16** (no ring on the cell after the take — PL-483 dropped); K-§6.1 (the satellite's «choice of
-goods» role, PL-484) is the next item.
+goods» role, PL-484) shipped the same day — § 7.
 
 ## 1 · The card
 
@@ -127,3 +127,23 @@ build at 4K (`screenshots/tr57/tv4k/before/`, Terra Cimmeria Nova cells '38' —
   (`console-ui.md` § A BOARD BEAT WAITS).
 - **An empty holder steps back by colour on its COUNT** (PL-480): the satellite's pixel contract
   (`console-extras-explorer`) lets no opacity touch a value — the icon and the badges recede, the digit is muted.
+
+## 7 · One price, a choice of goods (K-§6.1 — PL-484 → ledger AX, PL-530)
+
+TR57 «2 mechs → +1 steel OR titanium production» was a holder the satellite could not name: the role reading refused a
+choice outright («half a truth on a chip is a lie»), so its mechs stood as a bare «[mech] 3» beside Forestry Mechs'
+plant badge — silence, which is no truth either. Atmo Collectors («1 floater → 2 titanium OR 3 energy OR 4 heat») was
+the corpus's only other such holder.
+
+- **The reading** (`server/cards/holderActionGood.ts`): several variants spending `resourcesHere` at ONE price, each one
+  plain good, are a CHOICE — `HolderActionGood.or` carries every good after the first, in the printed order. Two
+  DIFFERENT prices stay storage (no one reading of «spend N»). Exported with the client card as before.
+- **One reader of the set** — `common/cards/holderRole.actionGoodsOf`; the client's role keeps `good` + `or`, and
+  everything that draws or keys a good reads the set: the lane (`actionRoleGoodKey` — steel OR titanium is not steel
+  alone), the icons (`holderRoleIcons` / `holderGainOutcomeIcons`), the plate (production only when EVERY good is), the
+  caption (the family's word; a mixed set — «Действие»), the value line («Потратьте 2 отсюда: +1 производство на
+  выбор», «+2 / 3 / 4 на выбор» — digits in the param, words in the tail).
+- **One plate on the satellite** (`con-res-aux__rolebadge--choice`): every good on the single badge's height, joined by
+  a slant (`__roleor`), growing left over the emblem from the same corner. The target step's value line, outcome and tag
+  draw the same set (`icons`), joined by «/».
+- Frames `screenshots/tr57/pl484/{before,after}/` (fixture `mining-mechs-split`); witness e2e `console-mining-mechs` (E).
