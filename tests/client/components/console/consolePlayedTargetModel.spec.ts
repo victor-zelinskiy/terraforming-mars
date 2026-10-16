@@ -20,6 +20,7 @@ import {
   playedTargetSourceCardName,
   PLAYED_TARGET_RAIL_IMPACT_CAP,
   PLAYED_TARGET_FOCUS_SCALE,
+  playedTargetTagStacked,
   PlayedTargetCell,
   PlayedTargetPreviewSection,
   playedTargetResultOf,
@@ -30,6 +31,7 @@ import {
   playedTargetShortfalls,
   PlayedTargetOwner,
   PlayedTargetLayout,
+  playedTargetPayloadOf,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playChoiceMode} from '@/client/console/consolePlayCardComposer';
 
@@ -761,6 +763,28 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(plan(owner(3))).to.deep.eq(plan(owner(3)));
     });
 
+    /**
+     * A TAG THAT SAYS TWO THINGS READS ON TWO LINES (TR56): seven mech holders at 4K cut «[мех] 2 → 3 · [M€] +5
+     * [Космос]» to the card's width. The count and its consequence stack, and the solver reserves the second line
+     * out of the cards — a height-bound zone gives the cards no more than it did with one line.
+     */
+    it('a tag with a lead AND a consequence stacks; the two lines are paid out of the cards', () => {
+      expect(playedTargetTagStacked({lead: {icon: 'mech', text: '2 → 3'}, icon: 'megacredits', text: '+5', tone: 'gain'})).to.eq(true);
+      expect(playedTargetTagStacked({lead: {text: '0 → 6'}, icon: 'cards', text: '', reached: true, tone: 'opens'})).to.eq(true);
+      expect(playedTargetTagStacked({icon: 'floater', text: '0 → 6', tone: 'static'}), 'the count alone is one line').to.eq(false);
+      expect(playedTargetTagStacked(undefined)).to.eq(false);
+      for (const n of [1, 3, 7]) {
+        const box = {owners: [owner(n)], mode: 'tabs' as const, availW: 1600, availH: 600, ui: 1, handheld: false, tags: true};
+        const one = planPlayedTargetSizing({...box, tagLines: 1});
+        const two = planPlayedTargetSizing({...box, tagLines: 2});
+        expect(two.cardZoom, `n=${n}`).to.be.at.most(one.cardZoom);
+        if (!two.overflows) {
+          const used = two.rows * 460 * two.cardZoom + (two.rows - 1) * two.gapPx + two.headroomPx + two.rows * 54;
+          expect(used, `n=${n}: the cards, their headroom and two tag lines per row fit the box`).to.be.at.most(600 + 1);
+        }
+      }
+    });
+
     it('answers safely for an empty model', () => {
       const s = planPlayedTargetSizing({owners: [], mode: 'tabs', availW: 1600, availH: 800, ui: 1, handheld: false});
       expect(s.perRow).to.eq(1);
@@ -1245,5 +1269,58 @@ describe('sizing — the rail is reserved before the cards', () => {
   it('does not overflow when the band genuinely affords the set', () => {
     const roomy = planPlayedTargetSizing({owners: [many(6)], mode: 'tabs', availW: 1700, availH: 900, ui: 1, handheld: false});
     expect(roomy.overflows).to.eq(false);
+  });
+});
+
+/**
+ * «КУДА ЛЯЖЕТ» (TR56, П3 / П4) — the step names WHAT lands («КУДА: 3 [мех]»), and a lone candidate is the scene's
+ * protagonist on every profile.
+ */
+describe('consolePlayedTargetModel — the payload and the protagonist (TR56)', () => {
+  const players = [{color: 'blue', name: 'Me', tableau: [{name: 'Construction Mechs'}, {name: 'Dirigibles'}]}] as never;
+  const cards = [{name: 'Construction Mechs'}] as never;
+
+  it('a GAIN pick carries its payload — the step’s amount and resource, or the server’s marker on a live pick', () => {
+    expect(playedTargetPayloadOf({amount: 3, cardResource: 'mech'}, undefined)).to.deep.eq({amount: 3, icon: 'mech'});
+    expect(playedTargetPayloadOf(undefined, {amount: 6, cardResource: 'floater'})).to.deep.eq({amount: 6, icon: 'floater'});
+    const printed = [{type: 'resource'}] as never;
+    expect(playedTargetPayloadOf({amount: 3, cardResource: 'mech'}, undefined, printed)).to.deep.eq({amount: 3, icon: 'mech', printed});
+  });
+
+  it('no payload for a removal, a pick with no number, or several kinds with no print to speak for them', () => {
+    expect(playedTargetPayloadOf({amount: -1, cardResource: 'mech'}, undefined)).to.eq(undefined);
+    expect(playedTargetPayloadOf(undefined, undefined)).to.eq(undefined);
+    expect(playedTargetPayloadOf(undefined, {amount: 1, cardResources: ['data', 'microbe']})).to.eq(undefined);
+  });
+
+  it('the contract carries the payload of an ADD only — a taking step keeps the generic ask', () => {
+    const payload = {amount: 3, icon: 'mech'};
+    const give = buildPlayedTargetModel({candidates: cards, players, viewerColor: 'blue', ask: '', typeOf: () => undefined, preview: () => [], payload});
+    expect(give.contract.payload).to.deep.eq(payload);
+    const take = buildPlayedTargetModel({candidates: cards, players, viewerColor: 'blue', ask: '', typeOf: () => undefined, preview: () => [], payload, takesFromTarget: true});
+    expect(take.contract.payload).to.eq(undefined);
+  });
+
+  it('PL-126 / П4 — a LONE candidate stands at least a third of the step’s height in every zone; three share one row', () => {
+    const owner = (n: number): PlayedTargetOwner => ({
+      id: 'blue', name: 'Me', color: 'blue', self: true, totalPlayed: n, selfHarm: false,
+      candidates: Array.from({length: n}, (_v, i) => ({
+        cardName: ('C' + i) as CardName, category: 'active', relation: 'external-card', ownerId: 'blue', slotKey: 'C' + i, preview: [],
+      })),
+    } as unknown as PlayedTargetOwner);
+    const zones = [
+      {name: 'fhd', availW: 1000, availH: 700, ui: 1},
+      {name: 'tv4k', availW: 2100, availH: 1500, ui: 2},
+      {name: 'short', availW: 1000, availH: 480, ui: 1},
+    ];
+    for (const z of zones) {
+      const solo = planPlayedTargetSizing({owners: [owner(1)], mode: 'tabs', availW: z.availW, availH: z.availH, ui: z.ui, handheld: false, tags: true});
+      expect(solo.cardZoom * 460, `${z.name}: the lone card is the protagonist`).to.be.greaterThan(z.availH / 3);
+      expect(solo.overflows).to.eq(false);
+      const three = planPlayedTargetSizing({owners: [owner(3)], mode: 'tabs', availW: z.availW, availH: z.availH, ui: z.ui, handheld: false, tags: true});
+      expect(three.rows, `${z.name}: three candidates share one row`).to.eq(1);
+      const seven = planPlayedTargetSizing({owners: [owner(7)], mode: 'tabs', availW: z.availW, availH: z.availH, ui: z.ui, handheld: false, tags: true});
+      expect(seven.overflows, `${z.name}: seven still fit without a scroll`).to.eq(false);
+    }
   });
 });

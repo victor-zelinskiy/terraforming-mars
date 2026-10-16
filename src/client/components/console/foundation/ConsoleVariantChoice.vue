@@ -51,6 +51,20 @@
             <PremiumMechNode v-for="(node, n) in opt.printed" :key="n" :node="node" />
           </span>
         </div>
+        <!-- «КУДА ЛЯЖЕТ» (TR56, П1): the option's ADDRESSES — the holders the server offers for ITS «put N on ANY card»,
+             their faces fanned (up to three) beside their count, or the one holder's name. The decision between kinds is a
+             decision between these sets, so the tile shows them before the step that asks. Zero layout on a choice: the
+             fan is a fixed box, choosing repaints the tile and moves nothing. -->
+        <div v-if="opt.destinations !== undefined" class="con-vchoice__dest" data-vchoice-dest
+             :data-vchoice-dest-count="opt.destinations.count">
+          <span class="con-vchoice__dest-fan" :data-fan="faces(opt).length">
+            <span v-for="(card, k) in faces(opt)" :key="card.name" class="con-vchoice__dest-face"
+                  :style="{'--k': String(k)}" :data-vchoice-dest-card="card.name">
+              <ConsoleCardFaceLite :name="card.name" :card="card" lightweight />
+            </span>
+          </span>
+          <span class="con-vchoice__dest-label" data-vchoice-dest-label>{{ destinationLabel(opt) }}</span>
+        </div>
         <!-- The words and the reading — one column beside (a row) or under (a tile) the print. -->
         <div v-if="hasText(opt)" class="con-vchoice__text">
           <div v-if="opt.title !== '' || opt.color !== undefined || opt.door" class="con-vchoice__head">
@@ -77,13 +91,17 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
-import {groupDecided, heroFigure, variantOptionClasses, variantQuiet, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import {groupDecided, heroFigure, variantOptionClasses, variantQuiet, VariantChoiceOption, VariantHero, VARIANT_DESTINATION_FACES} from '@/client/console/variantChoiceModel';
+import {CardModel} from '@/common/models/CardModel';
+import {CardName} from '@/common/cards/CardName';
+import {translateCardName, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {wildIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
 export default defineComponent({
   name: 'ConsoleVariantChoice',
-  components: {PremiumMechNode},
+  components: {PremiumMechNode, ConsoleCardFaceLite},
   props: {
     options: {type: Array as PropType<ReadonlyArray<VariantChoiceOption>>, required: true},
     /**
@@ -126,6 +144,19 @@ export default defineComponent({
     },
     figureTone(hero: VariantHero): string {
       return hero.amount === 0 ? 'zero' : hero.direction;
+    },
+    /** The holder faces a tile fans out — the server's first ones, capped (the count says the rest). */
+    faces(opt: VariantChoiceOption): ReadonlyArray<CardModel> {
+      return (opt.destinations?.cards ?? []).slice(0, VARIANT_DESTINATION_FACES);
+    },
+    /** One holder names itself; several are a count «N карты на выбор». */
+    destinationLabel(opt: VariantChoiceOption): string {
+      const d = opt.destinations;
+      if (d === undefined) {
+        return '';
+      }
+      return d.count === 1 ? translateCardName(d.cards[0].name as CardName) :
+        translateTextWithParams('${0} card(s) to choose from', [String(d.count)]);
     },
     /** Anything beside the print — words, the host's body, a refusal. */
     hasText(opt: VariantChoiceOption): boolean {

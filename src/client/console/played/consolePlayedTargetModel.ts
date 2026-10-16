@@ -37,6 +37,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardType} from '@/common/cards/CardType';
 import {Tag} from '@/common/cards/Tag';
 import {NavRect, pickDirectional, pickStrictGrid} from '@/client/gamepad/spatialNav';
+import {ItemType} from '@/common/cards/render/Types';
 
 /** The tableau sections a candidate can belong to — the same vocabulary the
  *  «Разыграно» surfaces use, so the origin reads the same everywhere. */
@@ -125,7 +126,55 @@ export type PlayedTargetImpact = {
    * `further` — it was short and is now further; `loss` — tender's money / a look's count falling.
    */
   outcome?: 'gain' | 'opens' | 'short' | 'already' | 'lost' | 'kept' | 'further' | 'loss';
+  /**
+   * THE TAG UNDER THE CARD ALREADY PRINTS THIS NUMBER (TR56 «КУДА ЛЯЖЕТ», П4) — the count's `from → to` and the
+   * VP the gain moves. The one-line readings (the rail under the cursor, the answered row) leave it out: the same
+   * digits twice on one screen, one of them under the very card the rail names, is a repeat, not a reading. The
+   * FULL sections keep it (a host that lists every impact — the live task host — still reads it).
+   */
+  inTag?: boolean;
+  /**
+   * A reading whose NUMBERS the tag prints in full — a tender's money («Оплата: +18 M€ …» beside «[M€] +18 [V]»), a
+   * look's count, an «also draws a card» tail. The rail keeps its words (they say WHY); the answered composer row,
+   * which reads the tag beside the miniature, leaves it out. A threshold's sentence («Хватит на делегата: 3 / 3»)
+   * is not one: under the tag it is a glyph and a ✓, and the row keeps the words.
+   */
+  tagSays?: boolean;
 };
+
+/**
+ * WHAT A GAIN STEP CARRIES — the payload «N [resource]» that lands on the chosen card (TR56 «КУДА ЛЯЖЕТ», П3).
+ * The step's contract line names it («КУДА: 3 [мех]») instead of the generic «choose a card»: the player chose WHAT
+ * one level up, this level asks WHERE. `printed` — the card's own printed graphic of the chosen branch (the very
+ * nodes the variant tile showed as its hero), when the host has it; else `amount` + `icon` speak it.
+ */
+export type PlayedTargetPayload = {
+  amount: number;
+  /** The card resource's icon key (`iconClassFor` vocabulary); '' when several kinds land (the print speaks). */
+  icon: string;
+  printed?: ReadonlyArray<ItemType>;
+};
+
+/**
+ * The payload of a GAIN pick, from the step the host walks (its `amount` / `cardResource`) or the server's marker on
+ * the live model (`resourceGainPrompt`) — a removal, a pick with no number and a pick of several kinds without a
+ * print have none (the contract keeps its generic ask).
+ */
+export function playedTargetPayloadOf(
+  step: {amount?: number, cardResource?: string} | undefined,
+  marker: {amount?: number, cardResource?: string, cardResources?: ReadonlyArray<string>} | undefined,
+  printed?: ReadonlyArray<ItemType>,
+): PlayedTargetPayload | undefined {
+  const amount = step?.amount ?? marker?.amount;
+  if (amount === undefined || amount <= 0) {
+    return undefined;
+  }
+  const icon = step?.cardResource ?? marker?.cardResource ?? '';
+  if (icon === '' && (printed === undefined || printed.length === 0)) {
+    return undefined;
+  }
+  return {amount, icon, ...(printed !== undefined && printed.length > 0 ? {printed} : {})};
+}
 
 /**
  * THE OUTCOME TAG under a candidate (PL-219, the owner's decision 2026-10-12 — the TR50 walk). The rail reads the
@@ -155,7 +204,23 @@ export type PlayedTargetTag = {
    * STRUCK when the server names a zero («· [карта] ✕» — science draws nothing). Never a sentence: the rail says it.
    */
   extra?: ReadonlyArray<{icon: string, text: string, none?: true}>;
+  /**
+   * THE COUNT LEADS (TR56, П4) — the resource's own `from → to` when the tag's answer is something ELSE (a role's
+   * money, a priced good, VP that move): «[мех] 0 → 3 · [M€] +15 [Стр.]». The decision is «where do these N go», and
+   * it is answered by the count first, its consequence after; a plain storage tag IS the count and has no lead.
+   */
+  lead?: {icon?: string, text: string};
 };
+
+/**
+ * A tag that says TWO things — the count it leads with AND its consequence — reads on TWO lines under a candidate (the
+ * count, the consequence under it): on one line it outgrew the card it stands under (seven mech holders at 4K cut
+ * «[мех] 2 → 3 · [M€] +5 [Космос]» to «2 → 3 · [M€] +:»). A tag that IS the count stays one line.
+ */
+export function playedTargetTagStacked(tag: PlayedTargetTag | undefined): boolean {
+  return tag?.lead !== undefined &&
+    (tag.icon !== undefined || tag.word !== undefined || tag.text !== '' || tag.payTag !== undefined || tag.reached === true || (tag.extra?.length ?? 0) > 0);
+}
 
 /**
  * A titled group of impacts, scoped to WHAT it changes. The entity matters:
@@ -216,6 +281,22 @@ export function playedTargetQuickImpacts(
     });
   });
   return out;
+}
+
+/**
+ * THE ONE-LINE READINGS beside a TAG (TR56 «КУДА ЛЯЖЕТ», П4) — the rail under the cursor and the answered composer row:
+ * the quick impacts minus the digits the outcome tag under the card already prints (the count it leads with, the VP
+ * it answers with). The same number twice on one screen — once under the card, once on the line naming that card —
+ * is a repeat, not a reading; what stays is what only words can say (a role's sentence, an outcome's reason).
+ */
+export function playedTargetReadingImpacts(
+  sections: ReadonlyArray<PlayedTargetPreviewSection>,
+): ReadonlyArray<PlayedTargetQuickImpact> {
+  const tagged = new Set(sections.map((sec, si) => (sec.tag !== undefined ? si : -1)).filter((si) => si >= 0));
+  return playedTargetQuickImpacts(sections).filter((imp) => {
+    const si = Number(imp.key.split(':')[0]);
+    return !(tagged.has(si) && imp.inTag === true);
+  });
 }
 
 /**
@@ -381,6 +462,8 @@ export type PlayedTargetContract = {
   selfAllowed: boolean;
   /** At least one candidate belongs to somebody else. */
   opponentsInvolved: boolean;
+  /** WHAT lands on the chosen card (TR56, П3) — the contract line's «КУДА: [печать]»; absent → the generic ask. */
+  payload?: PlayedTargetPayload;
 };
 
 /** Toggle a candidate in a multi selection, respecting the cap. Returns the
@@ -473,6 +556,8 @@ export type BuildPlayedTargetInput = {
    * default on purpose: no host gets a generic resource overlay for free.
    */
   resourceContext?: (name: CardName, model: CardModel) => PlayedTargetResourceContext | undefined;
+  /** What lands on the chosen card (`playedTargetPayloadOf`) — a GAIN pick only; the contract line names it. */
+  payload?: PlayedTargetPayload;
 };
 
 /**
@@ -580,6 +665,7 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       ownerCount: owners.length,
       selfAllowed: owners.some((o) => o.self),
       opponentsInvolved: owners.some((o) => !o.self),
+      ...(input.payload !== undefined && direction === 'add' ? {payload: input.payload} : {}),
     },
   };
 }
@@ -871,6 +957,8 @@ const CARDS_PAD_Y = 12;
  * that took its height from the cards would shrink the row it explains.
  */
 export const PLAYED_TARGET_TAG_ROW_H = 30;
+/** The same row when a tag reads on two lines (`playedTargetTagStacked`): `height: 2.4rem; margin-top: .3rem` (48 + 6). */
+export const PLAYED_TARGET_TAG_ROW_H2 = 54;
 
 export const PLAYED_TARGET_VIEWPORT_CHROME_H =
   OWNER_BAR_H + ZONE_PAD_Y + OWNER_PAD_Y + OWNER_GAP + CARDS_PAD_Y;
@@ -922,6 +1010,8 @@ export type PlayedTargetSizingInput = {
   handheld: boolean;
   /** A candidate wears an outcome tag (PL-219) — every row reserves `PLAYED_TARGET_TAG_ROW_H` under its cards. */
   tags?: boolean;
+  /** Some tag reads on two lines (`playedTargetTagStacked`) — the row reserved is `PLAYED_TARGET_TAG_ROW_H2`. */
+  tagLines?: 1 | 2;
 };
 
 /** The card's aspect as width-per-height — the solver turns a height budget
@@ -1052,7 +1142,7 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   const ownerH = o.availH - PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui - (headroom - CARDS_PAD_TOP * o.ui);
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
 
-  const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH, o.tags === true ? PLAYED_TARGET_TAG_ROW_H * o.ui : 0);
+  const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH, o.tags === true ? (o.tagLines === 2 ? PLAYED_TARGET_TAG_ROW_H2 : PLAYED_TARGET_TAG_ROW_H) * o.ui : 0);
   const sections = Math.max(...groups.map((g) => g.length));
   const perRowOf = (rows: number): number =>
     Math.max(...groups.map((g) => Math.max(...sectionColumnsAt(g, rows))));

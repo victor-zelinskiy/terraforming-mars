@@ -502,6 +502,12 @@ export const consoleCardActionsUi = reactive({
    * and Vue dropped the host outright (a payment nobody could see or answer).
    */
   billZone: '',
+  /**
+   * THE COMPOSER'S TARGET STEP of a GAIN pick stands (TR56 «КУДА ЛЯЖЕТ», decision 6): «put N on ANY card» asks WHERE,
+   * and the crumb's tail names that stage — «ДЕЙСТВИЯ КАРТ › <карта> › ЦЕЛЬ» — instead of the setup it is a level of.
+   * Written by the action composer while the step is open, cleared on its way out.
+   */
+  targetStage: false,
 });
 
 /** The stage a party action's flow is in — see `consoleCardActionsUi.partyFlow`. */

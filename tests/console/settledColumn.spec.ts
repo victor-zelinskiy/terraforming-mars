@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {nextTick} from 'vue';
 import {relativeDeltas, settleTop, SettledColumn} from '../../src/client/console/settledColumn';
 
 /**
@@ -106,6 +107,28 @@ describe('settledColumn', () => {
       expect(column.style.paddingTop, 'never un-pinned by the unmount').eq('240px');
       expect(column.style.justifyContent).eq('flex-start');
       expect(column.attrs.has('data-settled')).is.true;
+    });
+
+    it('back from a step (TR56): the pin is re-clamped against the block that RETURNS, after the patch — never the step that left', async () => {
+      const {column, block} = stand();
+      const settled = new SettledColumn({
+        column: () => column as unknown as HTMLElement,
+        block: () => block as unknown as HTMLElement,
+        active: () => true,
+      });
+      settled.pin();
+      expect(column.style.paddingTop).eq('240px');
+      settled.suspend(true);
+      expect(column.style.paddingTop, 'the step owns the column').eq('');
+      // The host's `pre` watcher resumes while the DOM still holds the (short) step…
+      settled.suspend(false);
+      expect(column.style.paddingTop).eq('240px');
+      // …then the patch puts the review back, taller than the room under the old pin: 240 + 900 > 1000.
+      block.offsetHeight = 900;
+      block.clientHeight = 900;
+      (block as unknown as {getBoundingClientRect: () => unknown}).getBoundingClientRect = () => ({top: 240, left: 0, width: 600, height: 900});
+      await nextTick();
+      expect(column.style.paddingTop, 'the block rises exactly as far as it must — its scroller never turns on').eq('100px');
     });
 
     it('a live RELEASE (a new composition) still un-pins — only the unmount is state-only', () => {

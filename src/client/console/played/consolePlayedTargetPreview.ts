@@ -167,6 +167,8 @@ export function playedTargetPreviewFor(
         input.resourceGainPrompt?.cardResource,
       from,
       to: Math.max(0, from + amount),
+      // A GAIN's count is what the tag under the card leads with (TR56, П4) — the one-line readings leave it to it.
+      ...(amount > 0 ? {inTag: true} : {}),
     }];
     /**
      * …and the VICTORY POINTS that resource moves.
@@ -240,6 +242,8 @@ export function playedTargetPreviewFor(
       impacts.push({
         label: said.label, params: said.params, icon: holderGainOutcomeIcon(outcome),
         outcome: outcome.kind === 'reach' ? outcome.state : 'gain',
+        // Money and a look: the tag prints these numbers whole; a threshold's words are not under the card.
+        ...(outcome.kind === 'reach' ? {} : {tagSays: true}),
         ...(said.tail === undefined ? {} : {tail: said.tail}),
         ...(plate === undefined ? {} : {plate}),
       });
@@ -262,10 +266,17 @@ export function playedTargetPreviewFor(
     const extra = input.resourceGainPrompt?.extraByCard?.[name] ?? [];
     for (const e of extra) {
       impacts.push(e.amount > 0 ?
-        {label: e.icon === 'cards' ? 'Also draws a card' : 'Also gives', icon: e.icon, amount: e.amount, value: true, params: []} :
-        {label: e.note ?? 'Nothing more', icon: e.icon, value: true, static: true, params: []});
+        {label: e.icon === 'cards' ? 'Also draws a card' : 'Also gives', icon: e.icon, amount: e.amount, value: true, params: [], tagSays: true} :
+        {label: e.note ?? 'Nothing more', icon: e.icon, value: true, static: true, params: [], tagSays: true});
     }
     const base = playedTargetTagOf({reached, vp, icon: impacts[0].icon, from, to: Math.max(0, from + amount)});
+    // Moving VP are the tag's own answer when no role outranks them — then the tag prints them, the readings do not (П4).
+    if (base?.word === 'VP') {
+      const at = impacts.findIndex((imp) => imp.label === 'VP');
+      if (at >= 0) {
+        impacts[at] = {...impacts[at], inTag: true};
+      }
+    }
     const tag = base === undefined || extra.length === 0 ? base : {
       ...base,
       extra: extra.map((e) => e.amount > 0 ? {icon: e.icon, text: `+${e.amount}`} : {icon: e.icon, text: '', none: true as const}),
@@ -302,29 +313,35 @@ export function playedTargetTagOf(o: {
   if (o.to <= o.from) {
     return undefined;
   }
+  // THE COUNT LEADS every answer that is not the count itself (TR56 «КУДА ЛЯЖЕТ», П4): «[мех] 0 → 3 · ПО 1 → 4» —
+  // the shift the N make is the first thing a candidate says, its consequence after a dot.
+  const lead = {...(o.icon === undefined ? {} : {icon: o.icon}), text: `${o.from} → ${o.to}`};
   const r = o.reached;
   if (r?.kind === 'money') {
     const payTag = RAIL_CONTEXT_TAG[r.context];
-    return {icon: 'megacredits', text: `+${r.amount}`, tone: 'gain', ...(payTag === undefined ? {} : {payTag})};
+    return {lead, icon: 'megacredits', text: `+${r.amount}`, tone: 'gain', ...(payTag === undefined ? {} : {payTag})};
   }
   if (r?.kind === 'reach') {
     const plate = holderRolePlate(r.role);
     const icon = holderGainOutcomeIcon(r);
     return {
+      lead,
       ...(icon === undefined ? {} : {icon}),
       ...(plate === undefined ? {} : {plate}),
-      text: r.state === 'already' ? '' : `${r.have}/${r.need}`,
+      // Within reach after the gain (or before it): the ✓ says it — the leading count already says how many land, so a
+      // fraction beside it («0 → 6 · 6/1») would read the same number twice. Still SHORT: the fraction is the news.
+      text: r.state === 'short' ? `${r.have}/${r.need}` : '',
       ...(r.state === 'short' ? {} : {reached: true}),
       tone: r.state,
     };
   }
   if (r?.kind === 'look') {
-    return {icon: 'cards', text: `${r.from} → ${r.to}`, tone: 'gain'};
+    return {lead, icon: 'cards', text: `${r.from} → ${r.to}`, tone: 'gain'};
   }
   // A VP holder's POINTS are its answer only when they MOVE: «ПО 0 → 0» under Tardigrades (1 → 2 of 4) said nothing
   // the count does not say better — the count is what changes, so the tag reads it like any storage (TR53 iteration).
   if (o.vp !== undefined && o.vp.from !== o.vp.to) {
-    return {word: 'VP', text: `${o.vp.from} → ${o.vp.to}`, tone: 'gain'};
+    return {lead, word: 'VP', text: `${o.vp.from} → ${o.vp.to}`, tone: 'gain'};
   }
   return {...(o.icon === undefined ? {} : {icon: o.icon}), text: `${o.from} → ${o.to}`, tone: 'static'};
 }

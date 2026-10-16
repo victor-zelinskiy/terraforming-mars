@@ -48,6 +48,24 @@
     background: linear-gradient(@dir, transparent, rgba(242, 215, 149, 0.42), transparent);
 }
 
+/* THE FACE'S PRINT TOKENS, restated for a printed graphic standing OFF the card (a variant tile's hero, the target
+   step's payload — TR56): the nodes are the face's own (`PremiumMechNode`), their px scale and gold are the card's. */
+.con-face-ink-tokens() {
+    --pcard-mech-icon: 24px;
+    --pcard-mech-font: 15px;
+    --pcard-gold: #d9b878;
+    --pcard-gold-hi: #f2d795;
+    --pcard-gold-deep: #8a6a35;
+    --pcard-ink: #2c1e08;
+    --pcard-text: #e9eef4;
+    --pcard-onplay: #58d6a6;
+    --pcard-onplay-hi: #7ff0c4;
+    --pcard-onplay-deep: #2f7d5c;
+    --pcard-any-rgb: 207, 122, 99;
+    --pcard-action-rim: rgba(242, 215, 149, 0.55);
+    --pcard-effect-rim: rgba(90, 169, 230, 0.5);
+}
+
 .con-vchoice {
     /* What decides «side by side or a column» is the CLUSTER's own width (the band narrows with the profile, the dock
        and the nesting depth) — a container query, never a viewport breakpoint. */
@@ -171,19 +189,7 @@
         flex-wrap: wrap;
         gap: 2px 5px;
         zoom: calc(var(--vchoice-print-zoom) * var(--con-ui-scale, 1));
-        --pcard-mech-icon: 24px;
-        --pcard-mech-font: 15px;
-        --pcard-gold: #d9b878;
-        --pcard-gold-hi: #f2d795;
-        --pcard-gold-deep: #8a6a35;
-        --pcard-ink: #2c1e08;
-        --pcard-text: #e9eef4;
-        --pcard-onplay: #58d6a6;
-        --pcard-onplay-hi: #7ff0c4;
-        --pcard-onplay-deep: #2f7d5c;
-        --pcard-any-rgb: 207, 122, 99;
-        --pcard-action-rim: rgba(242, 215, 149, 0.55);
-        --pcard-effect-rim: rgba(90, 169, 230, 0.5);
+        .con-face-ink-tokens();
     }
 
     /* ── THE WORDS AND THE READING ──────────────────────────────────────── */

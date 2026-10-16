@@ -131,9 +131,21 @@ export class SettledColumn {
       this.unstyle();
       return;
     }
-    if (this.pinned !== undefined && column !== null && column !== undefined) {
-      this.apply(column, this.clamped(column, this.pinned));
+    if (this.pinned === undefined || column === null || column === undefined) {
+      return;
     }
+    // THE BLOCK THAT COMES BACK is clamped, never the step that leaves (TR56, the 4K walk): the host calls this from a
+    // `pre` watcher — the DOM still holds the step, shorter than the review it gives way to — so a clamp taken now let the
+    // review return under the old pin, overflow its column and turn its scroller on (1731 px of content in a 1602 px
+    // viewport: the commit row scrolled the heading away). Pinned now, re-clamped once the patch has put the block back.
+    this.apply(column, this.clamped(column, this.pinned));
+    void nextTick(() => {
+      const col = this.host.column();
+      if (this.suspended || this.pinned === undefined || col === null || col === undefined) {
+        return;
+      }
+      this.apply(col, this.clamped(col, this.pinned));
+    });
   }
 
   /** A new composition (the frame changed size, the column left): centre again from scratch. */

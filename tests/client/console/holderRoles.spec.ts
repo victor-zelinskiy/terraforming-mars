@@ -276,18 +276,19 @@ describe('the target step\'s VALUE LINE (PL-075) — what one unit is worth on t
   it('PL-219 — THE OUTCOME TAG under every candidate: the family of seven reads by meaning in glyphs and digits, from the same outcome as the rail', () => {
     const tagOf = (name: CardName, resources: number, vpBox?: Record<string, {from: number, to: number}>) =>
       playedTargetTagOfPreview(playedTargetPreviewFor(undefined, input([{name, resources}]), name, [onCardGain('mech', 1)], vpBox as never));
-    expect(tagOf(CardName.EVA_MECHS, 2), 'tender: the money and the tag it pays for').to.deep.eq({icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'space'});
-    expect(tagOf(CardName.CONSTRUCTION_MECHS, 1)).to.deep.eq({icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'building'});
-    expect(tagOf(CardName.MECH_SPORTS, 3, {[CardName.MECH_SPORTS]: {from: 3, to: 4}}), 'a VP holder: its points').to.deep.eq({word: 'VP', text: '3 → 4', tone: 'gain'});
+    // TR56 (П4): the COUNT LEADS every answer that is not the count itself — «[мех] 2 → 3 · [M€] +5 [Космос]».
+    expect(tagOf(CardName.EVA_MECHS, 2), 'tender: the money and the tag it pays for').to.deep.eq({lead: {icon: 'mech', text: '2 → 3'}, icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'space'});
+    expect(tagOf(CardName.CONSTRUCTION_MECHS, 1)).to.deep.eq({lead: {icon: 'mech', text: '1 → 2'}, icon: 'megacredits', text: '+5', tone: 'gain', payTag: 'building'});
+    expect(tagOf(CardName.MECH_SPORTS, 3, {[CardName.MECH_SPORTS]: {from: 3, to: 4}}), 'a VP holder: its points').to.deep.eq({lead: {icon: 'mech', text: '3 → 4'}, word: 'VP', text: '3 → 4', tone: 'gain'});
     // Points that do not move are no answer — the count is (TR53 iteration: «ПО 0 → 0» under a 1-of-4 holder).
     expect(tagOf(CardName.MECH_SPORTS, 3, {[CardName.MECH_SPORTS]: {from: 3, to: 3}})?.word, 'still points: the count instead').to.eq(undefined);
-    expect(tagOf(CardName.MARS_ARMY_MECHS, 1), 'a delegate already within reach: a quiet ✓ (the rail keeps the value line)').to.deep.eq({icon: 'delegate', text: '', reached: true, tone: 'already'});
-    expect(tagOf(CardName.MARS_ARMY_MECHS, 0), 'the gain brings it within reach: the fraction and the ✓').to.deep.eq({icon: 'delegate', text: '1/1', reached: true, tone: 'opens'});
+    expect(tagOf(CardName.MARS_ARMY_MECHS, 1), 'a delegate already within reach: a quiet ✓ (the rail keeps the value line)').to.deep.eq({lead: {icon: 'mech', text: '1 → 2'}, icon: 'delegate', text: '', reached: true, tone: 'already'});
+    expect(tagOf(CardName.MARS_ARMY_MECHS, 0), 'the gain brings it within reach: the ✓ (the leading count says how many — TR56)').to.deep.eq({lead: {icon: 'mech', text: '0 → 1'}, icon: 'delegate', text: '', reached: true, tone: 'opens'});
     expect(tagOf(CardName.FORESTRY_MECHS, 2), 'the action\'s good on its production plate').to.deep.include({icon: 'plants', plate: 'production', reached: true, tone: 'already'});
-    expect(tagOf(CardName.EXPEDITION_MECHS, 0), 'TR50: the card its action draws').to.deep.eq({icon: 'cards', text: '1/1', reached: true, tone: 'opens'});
+    expect(tagOf(CardName.EXPEDITION_MECHS, 0), 'TR50: the card its action draws').to.deep.eq({lead: {icon: 'mech', text: '0 → 1'}, icon: 'cards', text: '', reached: true, tone: 'opens'});
     // A priced good still SHORT after the gain: the fraction, no ✓ (data onto the census, 3 a delegate).
     const census = playedTargetTagOfPreview(playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources: 0}]), CardName.MARTIAN_CENSUS, [onCardGain('data', 2)]));
-    expect(census).to.deep.eq({icon: 'delegate', text: '2/3', tone: 'short'});
+    expect(census).to.deep.eq({lead: {icon: 'data', text: '0 → 2'}, icon: 'delegate', text: '2/3', tone: 'short'});
     // A LOSS wears no tag — the rail keeps the reading (TR29's source step).
     const spent = playedTargetPreviewFor({kind: 'input', amount: -1, cardResource: 'mech'} as never, input([{name: CardName.EVA_MECHS, resources: 2}]), CardName.EVA_MECHS);
     expect(playedTargetTagOfPreview(spent)).to.eq(undefined);

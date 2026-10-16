@@ -1251,6 +1251,10 @@ export default defineComponent({
         // The composer's R3 «Эффекты» layer is a level INSIDE the setup: the
         // tail gains «· ЭФФЕКТЫ» (+ the source card at its detail) and gives
         // it back on B / R3 — a composed, pre-translated string (`focusKickerRaw`).
+        // A gain pick's TARGET step stands in the composer (TR56, decision 6) — the tail says WHERE, «ЦЕЛЬ».
+        if (consoleCardActionsUi.targetStage) {
+          return 'Target';
+        }
         const setup = focusKicker('setup');
         return forecastStageText('action', setup) ?? setup;
       }

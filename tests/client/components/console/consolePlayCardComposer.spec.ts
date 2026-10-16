@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
   computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
-  playPrimaryVerb, initialVariantSelection, samePreviewShape, variantGroupNav,
+  playPrimaryVerb, initialVariantSelection, samePreviewShape, variantGroupNav, keepPlayAnswers,
 } from '@/client/console/consolePlayCardComposer';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget,
@@ -468,6 +468,21 @@ describe('consolePlayCardComposer.computePrimaryAction', () => {
  * the green frame meant «cursor» and «answer» at once and a single A played a
  * card on a result nobody had chosen.
  */
+describe('consolePlayCardComposer.keepPlayAnswers — a change of variant takes the variant’s answers with it (TR56, П5)', () => {
+  it('the PLAY’s answers (`pre#…` — the table’s questions) survive; the branch’s own (`step#…`, `option`) go', () => {
+    const before = {'pre#0': 'Olympus', 'step#0': 'Construction Mechs', 'option': '1', 'step#1': 'x'};
+    expect(keepPlayAnswers(before)).deep.eq({'pre#0': 'Olympus'});
+  });
+
+  it('the target answered under «мехи» is NOT read back as an answer when the player returns to «мехи» after «аэростаты»', () => {
+    // Every branch numbers its steps from `step#0`: the mechs' target and the floaters' target share the key.
+    let results: Record<string, {cardName: string}> = {'step#0': {cardName: 'Construction Mechs'}};
+    results = keepPlayAnswers(results); // → floaters
+    results = keepPlayAnswers(results); // → back to mechs
+    expect(results['step#0'], 'the row is unanswered — the batch holds nothing for it').eq(undefined);
+  });
+});
+
 describe('consolePlayCardComposer.initialVariantSelection', () => {
   const av = (available: boolean) => ({available});
 

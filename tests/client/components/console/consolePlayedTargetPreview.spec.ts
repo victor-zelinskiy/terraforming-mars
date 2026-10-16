@@ -4,7 +4,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
-import {playedTargetQuickImpacts, playedTargetShowsResource} from '@/client/console/played/consolePlayedTargetModel';
+import {playedTargetQuickImpacts, playedTargetReadingImpacts, playedTargetShowsResource, playedTargetTagOfPreview} from '@/client/console/played/consolePlayedTargetModel';
 
 const input = (cards: ReadonlyArray<{name: string, resources?: number}>, amount?: number): SelectCardModel =>
   ({type: 'card', title: 't', buttonLabel: 'b', cards: cards as ReadonlyArray<CardModel>, min: 1, max: 1, amount} as never);
@@ -374,5 +374,47 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
       expect(lost).to.include({label: 'No longer a delegate within reach: ${0} → ${1} / ${2}', icon: 'delegate'});
       expect(lost.params).to.deep.eq(['3', '1', '3']);
     });
+  });
+});
+
+/**
+ * «КУДА ЛЯЖЕТ» (TR56, П4) — the tag under every candidate LEADS with the count the N make and states its consequence
+ * after a dot; the one-line readings beside it (the rail, the answered row) keep only what words can say.
+ */
+describe('consolePlayedTargetPreview — the count leads the tag, the line keeps the words (TR56)', () => {
+  it('a VP holder: «[fighter] 1 → 4 · ПО 1 → 4» — and the rail says neither number again', () => {
+    const sections = playedTargetPreviewFor(undefined, input([{name: CardName.SECURITY_FLEET, resources: 1}]), CardName.SECURITY_FLEET,
+      [onCardGain('fighter', 3)], {[CardName.SECURITY_FLEET]: {from: 1, to: 4}} as never);
+    expect(playedTargetTagOfPreview(sections)).to.deep.eq({lead: {icon: 'fighter', text: '1 → 4'}, word: 'VP', text: '1 → 4', tone: 'gain'});
+    expect(playedTargetQuickImpacts(sections).map((i) => i.label), 'the full reading still has both').to.deep.eq(['Resources on this card', 'VP']);
+    expect(playedTargetReadingImpacts(sections), 'the tag prints both — the line repeats neither').to.deep.eq([]);
+  });
+
+  it('a tender: the money is the tag’s answer and the payment’s SENTENCE stays on the line', () => {
+    const sections = playedTargetPreviewFor(undefined, input([{name: CardName.CONSTRUCTION_MECHS, resources: 2}]), CardName.CONSTRUCTION_MECHS, [onCardGain('mech', 3)]);
+    expect(playedTargetTagOfPreview(sections)).to.deep.eq({lead: {icon: 'mech', text: '2 → 5'}, icon: 'megacredits', text: '+15', tone: 'gain', payTag: 'building'});
+    expect(playedTargetReadingImpacts(sections).map((i) => i.label)).to.deep.eq(['Payment: +${0} M€']);
+  });
+
+  it('the answered row leaves out only what the tag prints WHOLE: a tender’s money, a look, an «also» — never a threshold’s words', () => {
+    const tender = playedTargetPreviewFor(undefined, input([{name: CardName.CONSTRUCTION_MECHS, resources: 2}]), CardName.CONSTRUCTION_MECHS, [onCardGain('mech', 3)]);
+    expect(playedTargetReadingImpacts(tender).map((i) => [i.label, i.tagSays === true]), 'the «+15» is the tag’s').to.deep.eq([['Payment: +${0} M€', true]]);
+    const census = playedTargetPreviewFor(undefined, input([{name: CardName.MARTIAN_CENSUS, resources: 1}], 2), CardName.MARTIAN_CENSUS);
+    expect(playedTargetReadingImpacts(census).map((i) => [i.label, i.tagSays === true]), '«[делегат] ✓» does not say «a delegate»')
+      .to.deep.eq([['A delegate within reach: ${0} / ${1}', false]]);
+  });
+
+  it('plain storage: the count IS the tag (no lead), and the line leaves it to the tag', () => {
+    // A holder with no role of its own (no tender, no action, no VP) — Dirigibles would read its Venus tender.
+    const sections = playedTargetPreviewFor(undefined, input([{name: 'Plain Holder', resources: 0}]), 'Plain Holder' as CardName, [onCardGain('floater', 6)]);
+    expect(playedTargetTagOfPreview(sections)).to.deep.eq({icon: 'floater', text: '0 → 6', tone: 'static'});
+    expect(playedTargetReadingImpacts(sections)).to.deep.eq([]);
+  });
+
+  it('a LOSS has no tag — the line keeps every reading (the count included)', () => {
+    const sections = playedTargetPreviewFor({kind: 'input', amount: -1, cardResource: 'mech'} as unknown as ActionPreviewStep,
+      input([{name: CardName.EVA_MECHS, resources: 2}]), CardName.EVA_MECHS);
+    expect(playedTargetTagOfPreview(sections)).to.eq(undefined);
+    expect(playedTargetReadingImpacts(sections).map((i) => i.label)).to.deep.eq(playedTargetQuickImpacts(sections).map((i) => i.label));
   });
 });

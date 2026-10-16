@@ -428,56 +428,21 @@
                   </div>
                   <div class="con-composer__row-note">{{ $t('Heat') }}: {{ heatStockFor(row.choice) }}</div>
                 </template>
-                <!-- SELECTED TARGET SUMMARY — an answered played-target choice
-                     is a LINK to a card still lying in its owner's tableau, so
-                     it shows a thumbnail with its origin and the contextual
-                     result, never a second full-size copy of the card. -->
-                <template v-else-if="playedTargetResult(row.choice) !== undefined">
-                  <div class="con-composer__row-label">{{ $t('Selected card') }}</div>
-                  <div class="con-composer__target" v-for="tgt in targetSummaryOf(row.choice)" :key="tgt.cardName">
-                    <!-- A SOURCE-CARD target draws no thumbnail: the real card is
-                         still standing in the hero slot to the left, and a second
-                         copy of it here would be the duplication the selector
-                         itself just stopped making. -->
-                    <!-- `data-composer-card`: the miniature IS the card on this surface — the play's price taken off it
-                         (PL-268, TR52's 2 data) is born on it; the same hook the action composer's rows carry. -->
-                    <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" :data-composer-card="tgt.cardName" aria-hidden="true">
-                      <ConsoleCardFaceLite :name="tgt.cardName" />
-                    </div>
-                    <span v-else class="con-composer__target-selflink" aria-hidden="true">↰</span>
-                    <!-- ONE line: what was chosen, whose it is, and the fact
-                         that links it to the Result strip above. The full
-                         before→after lives THERE — repeating it here would be
-                         the same number twice on one screen. -->
-                    <div class="con-composer__target-body">
-                      <span class="con-composer__target-name">{{ $t(tgt.cardName) }}</span>
-                      <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
-                      <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
-                      <span v-for="imp in targetSummaryImpacts(row.choice)" :key="imp.key" class="con-ptsel__imp"
-                            :class="[imp.outcome !== undefined ? 'con-ptsel__imp--' + imp.outcome : '', {'con-ptsel__imp--down': imp.from !== undefined && imp.to !== undefined && imp.to < imp.from && imp.static !== true}]">
-                        <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
-                        <!-- ONE renderer for a reading with params (PL-160) — never `$t(imp.label)`. -->
-                        <span class="con-ptsel__imp-label">{{ impactText(imp) }}</span>
-                        <span v-if="imp.tail !== undefined" class="con-ptsel__imp-tail">{{ impactTail(imp) }}</span>
-                        <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
-                        <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
-                        <template v-else-if="imp.per !== undefined"><b class="con-ptsel__imp-delta con-ptsel__imp-count">{{ imp.from }}</b><span class="con-ptsel__imp-per">· {{ $t(imp.per) }}</span></template>
-                      </span>
-                    </div>
-                    <!-- The CHANGE affordance — drawn ONLY while this row holds
-                         the cursor. A dimmed Ⓐ here was still an Ⓐ: with the
-                         focus on the commit rail the screen promised «изменить»
-                         next to a button that would have played the card. One
-                         physical button may advertise exactly one verb at a
-                         time, so this is presence, not emphasis.
-                         The slot is RESERVED either way (`visibility`), so
-                         gaining the cursor cannot move the row, the thumbnail
-                         or anything below it. -->
-                    <span class="con-composer__target-change" :class="{'con-composer__target-change--on': focusIdx === row.i}">
-                      <GamepadGlyph control="confirm" />
-                      <span>{{ $t('Change selection') }}</span>
-                    </span>
-                  </div>
+                <!-- THE TARGET ROW (TR56 «КУДА ЛЯЖЕТ», П2) — ONE row with the action composer (`ConsoleComposerTargetRow`):
+                     the question «КУДА: [печать]» never changes; unanswered, the server's candidates as a strip of live
+                     faces; answered, a LINK to the card still lying in its owner's tableau — its miniature, origin and
+                     the step's own tag. Both values in ONE cell at ONE height: answering, or a change of variant taking
+                     the answer away (П5), moves nothing below. A MERGED multi pick (Astra) keeps its own row. -->
+                <template v-else-if="choiceMode(row.choice) === 'playedTarget' && !isMergedPickChoice(row.choice)">
+                  <ConsoleComposerTargetRow :label="targetRowLabel(row.choice)"
+                                            :payload="payloadFor(row.choice)"
+                                            :candidates="targetRowCandidates(row.choice)"
+                                            :sourceCard="cardName"
+                                            :result="playedTargetResult(row.choice)"
+                                            :resultModel="targetRowModel(row.choice)"
+                                            :tag="targetRowTag(row.choice)"
+                                            :impacts="targetSummaryImpacts(row.choice)"
+                                            :focused="focusIdx === row.i" />
                 </template>
                 <!-- THE ESPIONAGE TARGET (Corporate Espionage) — the pick row
                      whose picker is the Hydronetwork workspace itself. The
@@ -725,7 +690,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
-import {heroOfEffect, paletteOf, printedVariantRows, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
+import {heroOfEffect, paletteOf, printedVariantRows, variantDestinationsOf, VariantChoiceOption, VariantHero} from '@/client/console/variantChoiceModel';
 import {reactionDeferral, ReactionDeferral} from '@/common/models/tableQuestionDeferral';
 import {
   TableQuestionRowState, cardsHeldByOtherDiscards, deferPlateOf, tableQuestionCanWait, tableQuestionNote, tableQuestionRowFocusable,
@@ -797,7 +762,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
-  orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey,
+  orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey, cardPickRoleKey, keepPlayAnswers,
 } from '@/client/console/consoleActionComposer';
 import {buildOrItems, orItemResponse, buildTabbedTargets, nestedPickHostable, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
 import {
@@ -832,18 +797,20 @@ import {handStageReveal} from '@/client/console/consoleHandStageMotion';
 import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/client/console/consoleHandPlayPrewarm';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
+import ConsoleComposerTargetRow from '@/client/components/console/played/ConsoleComposerTargetRow.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
-  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts, playedTargetSourceCardName,
+  playedTargetResultOf, playedTargetResultLive, playedTargetReadingImpacts, playedTargetSourceCardName,
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
   PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
   PlayedTargetResourceContext,
-  togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks, playedTargetShortfalls,
+  togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks, playedTargetShortfalls, playedTargetPayloadOf,
+  playedTargetTagOfPreview, PlayedTargetPayload, PlayedTargetTag,
 } from '@/client/console/played/consolePlayedTargetModel';
-import {readingTailText, readingText} from '@/client/console/readingText';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
+import {armPayloadCarry, armPayloadReturn, playPayloadCarry, playPayloadReturn} from '@/client/console/played/payloadCarry';
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate} from '@/client/console/consoleCommitGate';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1007,7 +974,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1310,6 +1277,10 @@ export default defineComponent({
       }
       if (this.sub?.kind === 'payment') {
         return 'Payment';
+      }
+      // A gain pick asks WHERE its payload lands — the stage is the TARGET (TR56, decision 6: «… › ЦЕЛЬ»).
+      if (this.sub?.kind === 'playedTarget' && this.playedTargetModel?.contract.payload !== undefined) {
+        return 'Target';
       }
       if (this.sub !== undefined) {
         return 'Selection';
@@ -1687,7 +1658,22 @@ export default defineComponent({
         blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason), model.resourceGainPrompt?.holdsAtLeast),
         preview: (name) => this.playedTargetPreview(choice, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
+        // «КУДА: 3 [мех]» (TR56, П3) — what lands, carried from the tile it was chosen on.
+        payload: this.payloadFor(choice),
       });
+    },
+    /**
+     * The SELECTED variant's printed graphic — the tile's hero, when the branch has exactly ONE gain-to-a-card pick
+     * (then the print IS that pick's payload: «3 [мех]*»). A branch with several picks keeps the words.
+     */
+    selectedVariantPrint(): ReadonlyArray<ItemType> | undefined {
+      const pos = this.selectedPos;
+      if (pos === undefined || !this.hasVariants) {
+        return undefined;
+      }
+      const k = this.variantRows.findIndex((row) => row.pos === pos);
+      const gainPicks = (this.branches[pos]?.steps ?? []).filter((st) => st.kind === 'input' && st.input.type === 'card' && (st.amount ?? 0) > 0);
+      return k >= 0 && gainPicks.length === 1 ? this.variantPrinted?.[k] : undefined;
     },
     /** The embedded selector holds the surface right now. */
     /** The embedded step's self-handle is focused — the played card answers. */
@@ -1945,11 +1931,15 @@ export default defineComponent({
       return this.variantRows.map((row, k): VariantChoiceOption => {
         const branch = this.branches[row.pos];
         const hero = this.variantPalette ? this.variantHeroes[k] : undefined;
+        // «КУДА ЛЯЖЕТ» (TR56, П1): a «put N on ANY card» option names its ADDRESSES — the server's holders for it.
+        const destinations = variantDestinationsOf(branch);
         return {
           key: row.id,
           state: {focused: this.focusIdx === row.i, selected: this.selectedPos === row.pos, off: !branch.available},
-          // A palette tile speaks with its hero and its number — the words would only repeat them.
-          title: hero !== undefined ? '' : this.branchTitle(branch),
+          // A palette tile speaks with its hero and its number — the words would only repeat them; a printed payload
+          // with its addresses says WHAT and WHERE, and its sentence would be the print read aloud (TR56, П1).
+          title: hero !== undefined || (destinations !== undefined && printed?.[k] !== undefined) ? '' : this.branchTitle(branch),
+          destinations,
           // ONE LOSS, ONE VOICE (PL-171): with the strip naming every option's loss, the tile carries no second reason.
           reason: !branch.available && !this.variantLossesInStrip ? this.branchReasonText(branch) : undefined,
           // NO EFFECT (the server's verdict — TR54's «production 0»): the tile quiets and names it, never hidden.
@@ -2474,6 +2464,28 @@ export default defineComponent({
   watch: {
     settleSuspended(now: boolean) {
       this.settled?.suspend(now);
+    },
+    /**
+     * THE PAYLOAD IS CARRIED, both ways (TR56 «КУДА ЛЯЖЕТ», П3) — a `pre` watcher, so the level that is LEAVING is still
+     * in the DOM: in, the selected tile's print is measured before the review unmounts and the step's header print flies
+     * in from it; back (A answered, B), the header's print is measured before the step unmounts and the tile's print flies
+     * home from it while the review surfaces from inside. The carried object is the one thing that moves between levels.
+     */
+    playedTargetStepOpen(now: boolean, was: boolean) {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (root === undefined || now === was) {
+        return;
+      }
+      if (now) {
+        const carry = armPayloadCarry(root.querySelector('.con-composer__variants'));
+        void this.$nextTick(() => {
+          const step = this.$refs.targetStep as {rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} | undefined;
+          playPayloadCarry(step?.rootEl?.(), step?.payloadEl?.(), carry);
+        });
+        return;
+      }
+      const from = armPayloadReturn(root.querySelector('.con-ptsel'));
+      void this.$nextTick(() => playPayloadReturn(this.$refs.rootEl as HTMLElement | undefined, from));
     },
     /** PL-127: the hosted-step declaration, handed to the shell as it changes (cleared with the composer by `resetConsolePlayCardUi`). */
     hostedStepDeclared: {
@@ -3417,6 +3429,11 @@ export default defineComponent({
       if (this.variantPalette && this.branches[pos]?.futile !== undefined) {
         return [];
       }
+      // A printed payload with its addresses: the «+N на карту» chip would be the print's third telling (TR56, П1).
+      const k = this.variantRows.findIndex((row) => row.pos === pos);
+      if (this.variantPrinted?.[k] !== undefined && variantDestinationsOf(this.branches[pos]) !== undefined) {
+        return this.variantOwnEffects(pos).filter((e) => !(e.note === 'to a card' && e.direction === 'gain'));
+      }
       return this.variantOwnEffects(pos);
     },
     branchTitle(b: ActionPreviewBranch): string {
@@ -4162,13 +4179,6 @@ export default defineComponent({
       const owners = this.playedTargetModel?.owners ?? [];
       return playedTargetResultLive(result, owners, this.playedTargetVersion) ? result : undefined;
     },
-    /** The answered target as a ONE-ELEMENT list — a template alias that lets
-     *  the summary bind it once instead of calling the lookup six times (and
-     *  keeps it non-nullable for the type checker). */
-    targetSummaryOf(c: ComposerChoice): ReadonlyArray<PlayedTargetResult> {
-      const result = this.playedTargetResult(c);
-      return result === undefined ? [] : [result];
-    },
     /**
      * The summary's compact impact chips — the SAME derivation the focus rail
      * uses, capped shorter.
@@ -4185,14 +4195,38 @@ export default defineComponent({
       if (result === undefined) {
         return [];
       }
-      return playedTargetQuickImpacts(result.preview).slice(0, PLAYED_TARGET_SUMMARY_IMPACT_CAP);
+      return playedTargetReadingImpacts(result.preview).slice(0, PLAYED_TARGET_SUMMARY_IMPACT_CAP);
     },
-    /** A summary impact's text — the ONE renderer of a reading with params (PL-160). */
-    impactText(imp: PlayedTargetQuickImpact): string {
-      return readingText(imp);
+    /**
+     * WHAT LANDS on the card a pick chooses (TR56 «КУДА ЛЯЖЕТ») — the step's header and the row's label read the same:
+     * the branch's own print when the pick IS the selected branch's one gain pick, else its amount and resource.
+     */
+    payloadFor(c: ComposerChoice): PlayedTargetPayload | undefined {
+      const model = c.input as SelectCardModel;
+      return playedTargetPayloadOf({amount: c.amount, cardResource: c.cardResource}, model.resourceGainPrompt,
+        c.scope === 'step' ? this.selectedVariantPrint : undefined);
     },
-    impactTail(imp: PlayedTargetQuickImpact): string {
-      return readingTailText(imp) ?? '';
+    /** The target row's label when it carries no payload — the role once answered, the server's ask before. */
+    targetRowLabel(c: ComposerChoice): string {
+      if (this.playedTargetResult(c) !== undefined) {
+        return translateText(cardPickRoleKey(c.amount));
+      }
+      // A spend's SOURCE asks by its direction (PL-056 — «Выберите карту-источник», never «выберите себе карту»).
+      return (c.amount ?? 0) < 0 ? translateText(cardPickAskKey(c.amount)) : this.choiceTitle(c);
+    },
+    /** The server's candidates of a target pick — the unanswered row's strip. */
+    targetRowCandidates(c: ComposerChoice): ReadonlyArray<CardModel> {
+      return (c.input as SelectCardModel).cards ?? [];
+    },
+    /** The chosen card's model as the server sent it — the miniature's capsule reads its count. */
+    targetRowModel(c: ComposerChoice): CardModel | undefined {
+      const name = this.playedTargetResult(c)?.cardName;
+      return name === undefined ? undefined : (c.input as SelectCardModel).cards.find((card) => card.name === name);
+    },
+    /** The chosen candidate's outcome tag — the step's own line under that card (PL-219), read again on the row. */
+    targetRowTag(c: ComposerChoice): PlayedTargetTag | undefined {
+      const result = this.playedTargetResult(c);
+      return result === undefined ? undefined : playedTargetTagOfPreview(result.preview);
     },
     // (`openTableauPick` is gone. Every played-card pick this flow has — the
     // single «point at one card» ask AND the server's merged up-to-N ask —
@@ -4545,8 +4579,10 @@ export default defineComponent({
       // questions, TR51) are the PLAY's, not the variant's: their captures (`capturedPre`) and their labels survive.
       this.captured = {};
       this.capturedOption = undefined;
-      this.picks = Object.fromEntries(Object.entries(this.picks).filter(([id]) => id.startsWith('pre#')));
-      this.multiPicks = Object.fromEntries(Object.entries(this.multiPicks).filter(([id]) => id.startsWith('pre#')));
+      this.picks = keepPlayAnswers(this.picks);
+      this.multiPicks = keepPlayAnswers(this.multiPicks);
+      // …the variant's TARGET answer too (TR56, П5): its row lets go by a phrase back to the NEW kind's candidates.
+      this.playedTargetResults = keepPlayAnswers(this.playedTargetResults);
       this.amounts = {};
       this.floaters = {};
       this.repeatResult = undefined;

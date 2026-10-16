@@ -23,6 +23,21 @@ function make(options: ReadonlyArray<VariantChoiceOption>, props: Record<string,
 }
 
 describe('ConsoleVariantChoice', () => {
+  it('«КУДА ЛЯЖЕТ» (TR56, П1): an option names its ADDRESSES — up to three holder faces and the count; one holder its name', () => {
+    const holders = ['Dirigibles', 'Aerial Mappers', 'Floating Habs', 'Titan Shuttles'].map((name) => ({name, resources: 1}));
+    const w = make([
+      option('mechs', false, false, false, {destinations: {cards: [{name: 'Construction Mechs', resources: 2}] as never, count: 1}}),
+      option('floaters', false, false, false, {destinations: {cards: holders as never, count: 4}}),
+      option('fighters', false, false, true, {reason: 'No card'}),
+    ]);
+    const dest = w.findAll('[data-vchoice-dest]');
+    expect(dest.map((d) => d.attributes('data-vchoice-dest-count')), 'a refused option has no addresses').deep.eq(['1', '4']);
+    expect(dest[0].findAll('[data-vchoice-dest-card]').map((f) => f.attributes('data-vchoice-dest-card'))).deep.eq(['Construction Mechs']);
+    expect(dest[0].find('[data-vchoice-dest-label]').text(), 'one holder names itself').eq('Construction Mechs');
+    expect(dest[1].findAll('[data-vchoice-dest-card]'), 'the faces are capped — the count says the rest').has.length(3);
+    expect(dest[1].find('[data-vchoice-dest-label]').text()).contains('4');
+  });
+
   it('a radiogroup of radios — aria-checked is the ANSWER, aria-disabled the rules', () => {
     const w = make([option('a', true, false, false), option('b', false, true, false), option('c', false, false, true, {reason: 'No card'})]);
     expect(w.find('.con-vchoice').attributes('role')).eq('radiogroup');

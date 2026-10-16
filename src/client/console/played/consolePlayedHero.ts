@@ -1338,9 +1338,12 @@ export async function endPlayedHero(): Promise<void> {
         if (!playedHeroState.active) {
           return;
         }
-        // The card's OWN «+N on this card» (TR45's «+14 microbes») is born on the PRINTED icon of its on-play row —
-        // the icon the player read the rule on (PL-190); a card that prints none keeps the shared spawn point.
-        const origins = group.self ? group.specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec)) : undefined;
+        // The play's «+N» is born on the PRINTED icon of that resource in its on-play row — the icon the player read the
+        // rule on: the card's OWN «+14 microbes» (TR45, PL-190) and a payload put on ANOTHER card alike (TR56 «КУДА
+        // ЛЯЖЕТ», П6: «3 [мех] ИЛИ 3 [истребитель] ИЛИ 6 [аэростат]» — the chosen branch's own icon, never the row's
+        // first); a card that prints none keeps the shared spawn point.
+        const printedOrigins = group.specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec));
+        const origins = printedOrigins.some((o) => o !== undefined) ? printedOrigins : undefined;
         await receiveOnStage(group, hooks, () =>
           runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release}));
         if (!playedHeroState.active) {
@@ -1844,14 +1847,16 @@ function heroTagOrigin(card: string, tag: Tag): TransferPoint | undefined {
 }
 
 /**
- * WHERE THE PLAY'S OWN CARD-RESOURCE GAIN IS BORN (PL-190 — the play's twin of PL-063): on the landed card, the
- * PRINTED icon of that resource in its ON-PLAY row — never one inside an action or effect frame (TR45 prints two
- * microbes in its action, «spend 2 microbes»; the play's «+14» is the third, «[microbe] / [tile on Mars]»). The
- * first such icon of the first measurable place of the reward ladder; undefined when the face prints none outside
- * a frame (the shared spawn point stands) or for any other channel.
+ * WHERE THE PLAY'S CARD-RESOURCE GAIN IS BORN (PL-190 — the play's twin of PL-063; TR56 — a payload put on ANOTHER
+ * card): on the landed card, the PRINTED icon of that resource in its ON-PLAY row — never one inside an action or
+ * effect frame (TR45 prints two microbes in its action, «spend 2 microbes»; the play's «+14» is the third,
+ * «[microbe] / [tile on Mars]»). A row of alternatives prints each branch's own resource («3 [мех]* OR 3 [истребитель]*
+ * OR 6 [аэростат]*»), so the icon of the token's resource IS the chosen branch's. The first such icon of the first
+ * measurable place of the reward ladder; undefined when the face prints none outside a frame (the shared spawn point
+ * stands) or for any other channel.
  */
 function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint | undefined {
-  if (typeof document === 'undefined' || card === '' || spec.channel !== 'card-resource' || spec.targetCard !== card) {
+  if (typeof document === 'undefined' || card === '' || spec.channel !== 'card-resource') {
     return undefined;
   }
   const needles = iconNeedlesFor(spec.resource) ?? [];

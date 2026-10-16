@@ -1,0 +1,277 @@
+/* ══ «КУДА ЛЯЖЕТ» — A PAYLOAD NAMES ITS ADDRESSES ON EVERY LEVEL (TR56 Robotics Factory, 2026-10-16) ══════════════
+   «Put N of a resource on ANY card» is ONE question asked on two levels — WHAT (the variant) and WHERE (the target) —
+   and before this iteration each level spoke as if the other did not exist: the variant tile said the same fact three
+   times and never «where», the target row said «this card» about a card it did not mean, the target step asked
+   «choose a played card» with the payload nowhere on screen and its one candidate in a corner of an empty 4K zone.
+   One language now, on every level:
+     · the TILE carries its ADDRESSES — the faces of the holders the server offers for THAT branch (`destinations`);
+     · the TARGET ROW, unanswered, is the payload and the strip of those faces; answered, the chosen face and its tag;
+     · the TARGET STEP's contract line is «КУДА: [печать]» — the very print the tile led with, carried in;
+     · every candidate's TAG leads with the count the N make («[мех] 0 → 3 · ПО 1 → 4»), its consequence after.
+   Contract: docs/TURMOIL_REDUX_ROBOTICS_FACTORY.md § «КУДА ЛЯЖЕТ». */
+
+/* ── THE TARGET STEP — «КУДА: [печать нагрузки]» (П3) ─────────────────────────────────────────────────────────── */
+.con-ptsel {
+    &__contract-title--where { color: fade(@con-cyan, 96%); }
+    /* The carried object: the branch's own print (or its number + icon), a clear step louder than the line's words. */
+    &__payload {
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+        gap: .3rem;
+        line-height: 1;
+        position: relative;
+        z-index: 1;
+    }
+    &__payload-ink {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px 5px;
+        zoom: calc(1.2 * var(--con-ui-scale, 1));
+        .con-face-ink-tokens();
+    }
+    &__payload-num {
+        font-size: 1.25rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &__payload-icon {
+        flex: 0 0 auto;
+        width: 1.5rem;
+        height: 1.5rem;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    /* ── THE TAG'S LEADING COUNT (П4) — «[мех] 0 → 3 ·» before the role's answer; the reading voice, the dot quiet. ── */
+    &__tag-lead {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        flex: 0 0 auto;
+        color: @con-text;
+    }
+}
+
+/* ── A LONE GROUP STANDS IN THE MIDDLE OF ITS ROOM — in EITHER mode (П4). One owner is always `tabs`
+   (`planPlayedTargetLayout` splits only two), so PL-170's centring never reached the common case: TR43's one target sat
+   in the top-left corner of a 2100 px zone. The zone keeps its full width (it is the box the solver MEASURES); only
+   the lone visible owner becomes content-sized and centred, its sections carrying their solved spans. ── */
+.con-composer .con-ptsel[data-owners='1'] .con-ptsel__zone { justify-content: center; }
+.con-composer .con-ptsel[data-owners='1'] .con-ptsel__owner { flex: 0 1 auto; }
+
+html.con-profile-tv .con-ptsel__payload-ink { zoom: calc(1.7 * var(--con-ui-scale, 1)); }
+html.con-profile-tv .con-ptsel__payload-num { font-size: var(--con-t-body); }
+html.con-profile-tv .con-ptsel__payload-icon { width: 1.8rem; height: 1.8rem; }
+html.con-profile-handheld .con-ptsel__payload-ink { zoom: calc(.95 * var(--con-ui-scale, 1)); }
+
+/* ── THE TILE'S ADDRESSES (П1) — the holders the server offers for THIS option: their faces fanned under the print,
+   the count (or the one holder's name) beside them. A fixed box per tile (the face zoom is the profile's token), so
+   choosing repaints and moves nothing; a refused option has no addresses (its reason speaks). The faces are the
+   holders' own live models — each capsule states what the card already holds. ── */
+.con-vchoice {
+    --vchoice-face-zoom: calc(.14 * var(--con-ui-scale, 1));
+
+    &__dest {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__dest-fan {
+        display: inline-flex;
+        align-items: flex-end;
+        flex: 0 0 auto;
+        /* The fan's own height = one face — the rotation's corners ride the padding, never the line. */
+        padding: .15rem .1rem;
+    }
+    &__dest-face {
+        position: relative;
+        flex: 0 0 auto;
+        zoom: var(--vchoice-face-zoom);
+        transform-origin: 50% 100%;
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            border-radius: .55rem;
+            box-shadow: 0 .35rem .9rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.6);
+        }
+    }
+    /* Overlap in the FACE's own px (the zoom scales the margin with it): each next card covers ⅝ of the one before. */
+    &__dest-face + &__dest-face { margin-left: -200px; }
+    &__dest-fan[data-fan='2'] &__dest-face { transform: rotate(calc((var(--k) * 2 - 1) * 3deg)); }
+    &__dest-fan[data-fan='3'] &__dest-face { transform: rotate(calc((var(--k) - 1) * 5deg)); }
+    &__dest-label {
+        flex: 0 1 auto;
+        min-width: 0;
+        font-size: .74rem;
+        font-weight: 700;
+        line-height: 1.25;
+        text-align: left;
+        color: fade(@con-text, 86%);
+        overflow-wrap: anywhere;
+    }
+    /* A decided group's other tiles recede by their tile's own opacity — the faces need no paint of their own. */
+}
+html.con-profile-tv .con-vchoice { --vchoice-face-zoom: calc(.16 * var(--con-ui-scale, 1)); }
+html.con-profile-tv .con-vchoice__dest-label { font-size: var(--con-t-caption); }
+html.con-profile-handheld .con-vchoice { --vchoice-face-zoom: calc(.11 * var(--con-ui-scale, 1)); }
+
+/* ── THE OUTCOME TAG'S LINE (`ConsolePlayedTargetTag`) — one inline run inside whichever box hosts it. ── */
+.con-ptsel__tag-line {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    min-width: 0;
+    white-space: nowrap;
+}
+.con-ptsel__tag-out {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    min-width: 0;
+}
+/* STACKED — the count, its consequence under it (`playedTargetTagStacked`): a cell narrower than the whole line keeps
+   both whole. The step reserves the two lines for every cell (`PLAYED_TARGET_TAG_ROW_H2`), so a one-line tag beside a
+   stacked one stands on the first line, level with the counts. */
+.con-ptsel__tag-line--stacked {
+    flex-direction: column;
+    gap: .05rem;
+    line-height: 1.1rem;
+}
+/* 1.1 (the count) + .05 + 1.21 (a production plate's icon with its padding — the tallest thing a line holds) < 2.4. */
+.con-ptsel[data-tag-lines='2'] .con-ptsel__tag {
+    height: 2.4rem;
+    align-items: flex-start;
+}
+
+/* ── THE TARGET ROW (П2) — `ConsoleComposerTargetRow`, ONE row in both composers. The label is the question
+   («КУДА: [печать]») and never changes with the answer; the value is the candidates' strip or the answer, both in ONE
+   grid cell at ONE height (the miniature's), so answering — or a change of variant taking the answer away — moves
+   nothing below the row. ── */
+/* .14: the row stays as tall as the two-line row it replaced (4K ≈ 177 px against 180) — a taller row made TR51's column
+   rise 88 px on the variant's A at 4K (`console-variant-settle` B). The answer's miniature rides the same zoom here. */
+@con-tgtrow-face-zoom: ~"calc(.14 * var(--con-ui-scale, 1))";
+.con-tgtrow {
+    /* ONE LINE — the question on the left, the value beside it; the row is the miniature's height. */
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+
+    &__label {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+    }
+    &__cell { flex: 1 1 auto; }
+    &__where { color: fade(@con-cyan, 96%); }
+    &__asker { color: @con-text; }
+    &__sep { color: fade(@con-text, 45%); }
+    &__payload {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        line-height: 1;
+        /* The label's own caps are tracked — the payload's digit is not a word. */
+        letter-spacing: 0;
+        text-transform: none;
+    }
+    &__payload-ink {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px 5px;
+        zoom: calc(.95 * var(--con-ui-scale, 1));
+        .con-face-ink-tokens();
+    }
+    &__payload-num { font-size: 1rem; font-weight: 900; color: @con-text; font-variant-numeric: tabular-nums; }
+    &__payload-icon {
+        width: 1.2rem;
+        height: 1.2rem;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    &__cell { display: grid; min-width: 0; }
+    &__body { grid-area: 1 / 1; min-width: 0; }
+    &__strip {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        /* The miniature's height in every state — the strip and the answer are one box (П5). */
+        min-height: ~"calc(460px * .14 * var(--con-ui-scale, 1))";
+    }
+    &__mini {
+        flex: 0 0 auto;
+        zoom: @con-tgtrow-face-zoom;
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            border-radius: .5rem;
+            box-shadow: 0 .35rem .9rem rgba(0, 0, 0, 0.5);
+        }
+    }
+    /* The card being played: a handle in the strip, pointing at the hero slot (never a second face). Not `&__self` —
+       that name is the target step's own proxy, whose width the layout contract guards (`playedTargetLayoutContract`). */
+    &__handle {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.4rem;
+        align-self: stretch;
+        border-radius: .5rem;
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 45%);
+        color: fade(@con-cyan, 90%);
+        font-size: 1.2rem;
+        font-weight: 800;
+    }
+    &__more {
+        flex: 0 0 auto;
+        font-size: .8rem;
+        font-weight: 800;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+    }
+    &__door {
+        margin-left: auto;
+        flex: 0 0 auto;
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: fade(@con-cyan, 78%);
+    }
+    /* The answer's miniature — the strip's size, so the two values are one box (П5). */
+    .con-composer__target-thumb { zoom: @con-tgtrow-face-zoom; }
+    /* The step's tag, read again beside the answer — its own height, no reserved row here. */
+    &__tag {
+        height: auto;
+        margin-top: 0;
+        max-width: none;
+    }
+}
+.con-tgtrow-swap-enter-active,
+.con-tgtrow-swap-leave-active {
+    transition:
+        opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard,
+        transform calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+}
+.con-tgtrow-swap-enter-from,
+.con-tgtrow-swap-leave-to {
+    opacity: 0;
+    transform: scale(.985);
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-tgtrow-swap-enter-active,
+    .con-tgtrow-swap-leave-active { transition: opacity calc(120ms * var(--motion-scale, 1)) linear; }
+    .con-tgtrow-swap-enter-from,
+    .con-tgtrow-swap-leave-to { transform: none; }
+}
+html.con-profile-tv .con-tgtrow__payload-ink { zoom: calc(1.1 * var(--con-ui-scale, 1)); }
+html.con-profile-tv .con-tgtrow__payload-num { font-size: var(--con-t-body); }
+html.con-profile-tv .con-tgtrow__more { font-size: var(--con-t-secondary); }

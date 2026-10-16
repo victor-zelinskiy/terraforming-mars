@@ -3,7 +3,9 @@ import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {isICardRenderItem, isICardRenderSymbol, ItemType} from '@/common/cards/render/Types';
 import {buildMechanics, MechGroup} from '@/client/components/premiumCard/mechanicsModel';
-import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {CardModel} from '@/common/models/CardModel';
+import {SelectCardModel} from '@/common/models/PlayerInputModel';
 
 /*
  * THE VARIANT CHOICE — ONE grammar for every «choose one of these» in the console (TR51 Influential Discovery, the
@@ -48,6 +50,49 @@ export type VariantHero = {
   direction: 'gain' | 'loss';
 };
 
+/**
+ * WHERE THIS OPTION'S PAYLOAD CAN LAND (TR56 «КУДА ЛЯЖЕТ», П1) — the holders the SERVER offers for the option's own
+ * «put N on ANY card» pick, in its order. A tile that only says WHAT («3 [мех]») hides the half of the decision that
+ * differs most between options: each kind has its own set of holders, and the set is the reason to pick one kind over
+ * another. The tile shows up to three of their faces and their count; the client never looks for a holder itself.
+ */
+export type VariantDestinations = {
+  /** The candidate holders, the server's own models (the capsule states each one's count). */
+  cards: ReadonlyArray<CardModel>;
+  /** How many there are — the faces shown are capped, the count never is. */
+  count: number;
+};
+
+/** How many holder faces a tile fans out — the rest are the count. */
+export const VARIANT_DESTINATION_FACES = 3;
+
+/**
+ * The option's DESTINATIONS — the candidates of its one GAIN-to-a-card pick: an input step whose `SelectCard` puts a
+ * positive amount on the chosen card (`step.amount`), or, for a branch whose target is its OPTION (no step carries
+ * it), that option's `SelectCard` beside the branch's own «to a card» gain. A branch with no such pick, or with
+ * several (the payload would be ambiguous), has none; a branch the rules refuse keeps none either (its reason speaks).
+ */
+export function variantDestinationsOf(branch: Pick<ActionPreviewBranch, 'steps' | 'optionInput' | 'effects' | 'available'> | undefined): VariantDestinations | undefined {
+  if (branch === undefined || !branch.available) {
+    return undefined;
+  }
+  const picks: Array<SelectCardModel> = [];
+  for (const step of branch.steps) {
+    if (step.kind === 'input' && step.input.type === 'card' && (step.amount ?? 0) > 0) {
+      picks.push(step.input as SelectCardModel);
+    }
+  }
+  const option = branch.optionInput;
+  if (picks.length === 0 && option !== undefined && option.type === 'card' &&
+      branch.effects.some((e) => e.note === 'to a card' && e.direction === 'gain' && e.amount > 0)) {
+    picks.push(option as SelectCardModel);
+  }
+  if (picks.length !== 1 || picks[0].cards.length === 0) {
+    return undefined;
+  }
+  return {cards: picks[0].cards, count: picks[0].cards.length};
+}
+
 export type VariantChoiceOption = {
   key: string;
   state: VariantChoiceState;
@@ -65,6 +110,8 @@ export type VariantChoiceOption = {
   printed?: ReadonlyArray<ItemType>;
   /** The palette tile's hero — the kind of resource the option IS, when no print of its own speaks for it. */
   hero?: VariantHero;
+  /** WHERE the option's payload can land (TR56, П1) — the holders' faces and their count under the print. */
+  destinations?: VariantDestinations;
   /** The option OPENS a pick of its own (a door, not an answer) — the ›. */
   door?: boolean;
   /** A player row's colour (the owner dot). */

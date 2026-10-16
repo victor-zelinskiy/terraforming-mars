@@ -124,6 +124,18 @@ export function initialVariantSelection(
 }
 
 /**
+ * THE ANSWERS A CHANGE OF VARIANT KEEPS (TR56 «КУДА ЛЯЖЕТ», П5) — a composer's per-choice record, keyed by the choice
+ * id: a CARD-LEVEL answer (`pre#…` — the table's questions, a card-level source) is the PLAY's and survives; a
+ * branch's own (`step#…`, `option`) is the variant's and goes with it. Every branch numbers its steps from `step#0`,
+ * so a target answered under one variant and left in place was read as the NEXT variant's answer the moment that
+ * variant's candidates included the card again (back to «мехи» after a detour through «аэростаты»): the row painted
+ * answered while the batch held nothing for it.
+ */
+export function keepPlayAnswers<T>(record: Readonly<Record<string, T>>): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).filter(([id]) => id.startsWith('pre#')));
+}
+
+/**
  * The pre-branch choices (branch-independent — captured once per preview). A
  * card-level input carries its delta and resource exactly like a branch step:
  * the SOURCE of a spend taken from a card the player chooses (TR29 — «spend 1

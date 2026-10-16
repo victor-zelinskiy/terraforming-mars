@@ -5,6 +5,8 @@
        and the source card stays visible to its left throughout. -->
   <div class="con-ptsel"
        :data-mode="layout.mode"
+       :data-owners="visibleOwners.length"
+       :data-tag-lines="tagLines"
        :data-flow="sizing.sectionFlow"
        :data-direction="model.contract.direction"
        :data-overflow="sizing.overflows ? '1' : undefined"
@@ -22,7 +24,24 @@
     <header v-if="!hostStatesAsk" class="con-ptsel__contract" data-unfold-item ref="contract">
       <div class="con-ptsel__contract-head">
         <span class="con-ptsel__contract-mark" aria-hidden="true">◈</span>
-        <span class="con-ptsel__contract-title">{{ $t('Choose a played card') }}</span>
+        <!-- «КУДА ЛЯЖЕТ» (TR56, П3): a GAIN pick names its PAYLOAD — the very print the variant tile led with, carried one
+             level deeper (`data-motion-anchor`: the host FLIPs it in from the tile) — then the count. The player chose
+             WHAT one level up; this level asks WHERE. A pick with no known payload (a taking step, an attack) keeps a
+             plain ask in the table's own words. -->
+        <template v-if="payload !== undefined">
+          <span class="con-ptsel__contract-title con-ptsel__contract-title--where" data-ptsel-where>{{ $t('Where to') }}:</span>
+          <span class="con-ptsel__payload" data-ptsel-payload data-motion-anchor="payload" ref="payload"
+                :data-ptsel-payload-icon="payload.icon">
+            <span v-if="payload.printed !== undefined" class="con-ptsel__payload-ink">
+              <PremiumMechNode v-for="(node, n) in payload.printed" :key="n" :node="node" />
+            </span>
+            <template v-else>
+              <b class="con-ptsel__payload-num">{{ payload.amount }}</b>
+              <i class="con-ptsel__payload-icon" :class="iconClass(payload.icon)" aria-hidden="true"></i>
+            </template>
+          </span>
+        </template>
+        <span v-else class="con-ptsel__contract-title">{{ $t('Choose a card on the table') }}</span>
         <span class="con-ptsel__contract-sep" aria-hidden="true">·</span>
         <span class="con-ptsel__scope-count">{{ scopeLine }}</span>
         <!-- MULTI: the live accumulation, so «сколько ещё можно» is never a
@@ -204,23 +223,8 @@
                 <div v-if="tagsOn" class="con-ptsel__tag"
                      :class="tagOf(cand) === undefined ? 'con-ptsel__tag--none' : 'con-ptsel__tag--' + tagOf(cand)?.tone"
                      :data-ptsel-tag="tagOf(cand)?.tone ?? 'none'">
-                  <template v-if="tagOf(cand) !== undefined">
-                    <i v-if="tagOf(cand)?.icon !== undefined" class="con-ptsel__tag-icon"
-                       :class="[iconClass(tagOf(cand)?.icon ?? ''), {'con-ptsel__tag-icon--production': tagOf(cand)?.plate === 'production'}]"
-                       aria-hidden="true"></i>
-                    <span v-if="tagOf(cand)?.word !== undefined" class="con-ptsel__tag-word">{{ $t(tagOf(cand)?.word ?? '') }}</span>
-                    <b v-if="tagOf(cand)?.text !== ''" class="con-ptsel__tag-num">{{ tagOf(cand)?.text }}</b>
-                    <TagGlyph v-for="pt in tagPayGlyphs(cand)" :key="pt" class="con-ptsel__tag-pay" :tag="pt" size="big" type="secondary" />
-                    <span v-if="tagOf(cand)?.reached === true" class="con-ptsel__tag-check" aria-hidden="true">✓</span>
-                    <!-- WHAT ELSE this candidate gives (TR53 — the server's `extraByCard`): «· [card] +1», or the glyph
-                         struck when the server names a zero (science draws nothing). -->
-                    <span v-for="(x, k) in tagOf(cand)?.extra ?? []" :key="'x' + k" class="con-ptsel__tag-extra"
-                          :class="{'con-ptsel__tag-extra--none': x.none === true}" :data-ptsel-extra="x.none === true ? 'none' : x.icon">
-                      <span class="con-ptsel__tag-sep" aria-hidden="true">·</span>
-                      <i class="con-ptsel__tag-icon" :class="iconClass(x.icon)" aria-hidden="true"></i>
-                      <b v-if="x.text !== ''" class="con-ptsel__tag-num">{{ x.text }}</b>
-                    </span>
-                  </template>
+                  <!-- ONE renderer for the tag (`ConsolePlayedTargetTag`) — the answered composer row reads the same line. -->
+                  <ConsolePlayedTargetTag v-for="tag in tagList(cand)" :key="'tag'" :tag="tag" :stacked="tagLines === 2" />
                 </div>
               </div>
             </div>
@@ -333,9 +337,9 @@ import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleC
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import type {DeclineModel} from '@/client/console/optionalChoice';
-import TagGlyph from '@/client/components/Tag.vue';
-import {Tag as CardTag} from '@/common/cards/Tag';
+import ConsolePlayedTargetTag from '@/client/components/console/played/ConsolePlayedTargetTag.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
@@ -344,11 +348,11 @@ import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTarget
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
-  PlayedTargetSizing, PlayedTargetCell, PlayedTargetQuickImpact, PlayedTargetTag, playedTargetTagOfPreview,
+  PlayedTargetSizing, PlayedTargetCell, PlayedTargetQuickImpact, PlayedTargetTag, PlayedTargetPayload, playedTargetTagOfPreview, playedTargetTagStacked,
   PLAYED_TARGET_RAIL_IMPACT_CAP, PLAYED_TARGET_FOCUS_SCALE, playedTargetSelfBox,
   playedTargetSections, playedTargetShowsCategoryRails, playedTargetAt,
   playedTargetShowsOwnerTargetCount, playedTargetShowsResource,
-  playedTargetQuickImpacts, planPlayedTargetSizing,
+  playedTargetReadingImpacts, planPlayedTargetSizing,
 } from '@/client/console/played/consolePlayedTargetModel';
 
 /** The sizing used until the first measurement lands (one frame, at most). */
@@ -363,7 +367,7 @@ const UNMEASURED: PlayedTargetSizing =
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
-  components: {ConsoleDeclinePlate, ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, TagGlyph},
+  components: {ConsoleDeclinePlate, ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, ConsolePlayedTargetTag, PremiumMechNode},
   props: {
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
@@ -449,6 +453,10 @@ export default defineComponent({
     showsOwnerTargets(): boolean {
       return playedTargetShowsOwnerTargetCount(this.model.owners);
     },
+    /** WHAT lands on the chosen card (TR56, П3) — the contract's «КУДА: [печать]»; undefined = the generic ask. */
+    payload(): PlayedTargetPayload | undefined {
+      return this.model.contract.payload;
+    },
     /** «3 доступные цели у 2 игроков» — the scope, in one honest line. */
     scopeLine(): string {
       const {targetCount, ownerCount} = this.model.contract;
@@ -466,8 +474,13 @@ export default defineComponent({
     tagsOn(): boolean {
       return this.model.owners.some((o) => o.candidates.some((c) => playedTargetTagOfPreview(c.preview) !== undefined));
     },
+    /** Two lines when some tag says the count AND its consequence (`playedTargetTagStacked`) — every cell reserves them. */
+    tagLines(): 1 | 2 {
+      return this.model.owners.some((o) => o.candidates.some((c) => playedTargetTagStacked(playedTargetTagOfPreview(c.preview)))) ? 2 : 1;
+    },
     railQuick(): ReadonlyArray<PlayedTargetQuickImpact> {
-      return this.focused === undefined ? [] : playedTargetQuickImpacts(this.focused.preview);
+      // The rail keeps the WORDS; the digits the tag under the card prints are the tag's (TR56, П4).
+      return this.focused === undefined ? [] : playedTargetReadingImpacts(this.focused.preview);
     },
     /** The focused candidate belongs to the viewer AND this step takes from it. */
     focusedSelfHarm(): boolean {
@@ -628,10 +641,10 @@ export default defineComponent({
     tagOf(cand: PlayedTargetCandidate): PlayedTargetTag | undefined {
       return playedTargetTagOfPreview(cand.preview);
     },
-    /** The tag a tender pays for, as a list of none or one — a glyph the template can bind without a cast. */
-    tagPayGlyphs(cand: PlayedTargetCandidate): ReadonlyArray<CardTag> {
-      const pay = playedTargetTagOfPreview(cand.preview)?.payTag;
-      return pay === undefined ? [] : [pay];
+    /** The candidate's tag as a list of none or one — the template binds it once, without a cast. */
+    tagList(cand: PlayedTargetCandidate): ReadonlyArray<PlayedTargetTag> {
+      const tag = playedTargetTagOfPreview(cand.preview);
+      return tag === undefined ? [] : [tag];
     },
     impactLabel(imp: PlayedTargetQuickImpact): string {
       return readingText(imp);
@@ -713,6 +726,10 @@ export default defineComponent({
         const el = this.rootEl()?.querySelector('[data-ptsel-cell][data-focused]');
         area?.ensureVisible?.(el);
       });
+    },
+    /** The header's payload (the carried print) — the host FLIPs it in from the variant tile it was chosen on. */
+    payloadEl(): HTMLElement | undefined {
+      return this.$refs.payload as HTMLElement | undefined;
     },
     /** Right-stick scroll, routed by the host while the step owns the screen. */
     scrollBy(dy: number): void {
@@ -823,6 +840,7 @@ export default defineComponent({
         ui: conUiScale(),
         handheld: consoleLayoutState.profile === 'handheld',
         tags: this.tagsOn,
+        tagLines: this.tagLines,
       });
     },
     /** Chosen = the confirmed single target, or a member of the multi pick. */

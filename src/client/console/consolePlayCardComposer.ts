@@ -640,7 +640,7 @@ export function computePrimaryAction(ctx: {
  * from the shared composer base, where BOTH screens read it (the play card's
  * «ИЛИ» and the blue action's branch radiogroup are the same question).
  */
-export {initialVariantSelection} from '@/client/console/consoleActionComposer';
+export {initialVariantSelection, keepPlayAnswers} from '@/client/console/consoleActionComposer';
 
 // ── The «ИЛИ» radiogroup moves by its GEOMETRY ──────────────────────────────
 

@@ -1,5 +1,14 @@
 import {expect} from 'chai';
-import {groupDecided, heroFigure, heroOfEffect, paletteOf, printedVariantRows, variantOptionClasses, variantRecedes, VariantChoiceState} from '../../src/client/console/variantChoiceModel';
+import {groupDecided, heroFigure, heroOfEffect, paletteOf, printedVariantRows, variantDestinationsOf, variantOptionClasses, variantRecedes, VariantChoiceState} from '../../src/client/console/variantChoiceModel';
+import {RoboticsFactory} from '../../src/server/cards/turmoilRedux/RoboticsFactory';
+import {ConstructionMechs} from '../../src/server/cards/turmoilRedux/ConstructionMechs';
+import {SecurityFleet} from '../../src/server/cards/base/SecurityFleet';
+import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {AerialMappers} from '../../src/server/cards/venusNext/AerialMappers';
+import {CardResource} from '../../src/common/CardResource';
+import {CardName} from '../../src/common/cards/CardName';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
 import {OverclockedEquipment} from '../../src/server/cards/turmoilRedux/OverclockedEquipment';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {sharedLeadingEffects} from '../../src/client/console/consolePlayCardComposer';
@@ -78,11 +87,63 @@ describe('variantChoiceModel', () => {
       expect(rows.every((r) => r.length === 1 && isICardRenderEffect(r[0] as never))).is.true;
     });
 
+    it('TR56 — ONE printed row with TWO interior ORs: three prints, each its payload and its asterisk, in the printed order', () => {
+      const card = new RoboticsFactory();
+      const rows = printedVariantRows(render(card), 3)!;
+      expect(rows).has.length(3);
+      expect(rows.map((r) => [(r[0] as {resource?: string}).resource, (r[0] as {amount?: number}).amount, r.length])).deep.eq([
+        [CardResource.MECH, 3, 2], [CardResource.FIGHTER, 3, 2], [CardResource.FLOATER, 6, 2],
+      ]);
+      // REFERENCES into the face's own row — the tile's hero IS the face.
+      const tree = (render(card) as unknown as {rows: Array<Array<ItemType>>}).rows[0];
+      expect(rows.every((r) => tree.includes(r[0]))).is.true;
+      expect(printedVariantRows(render(card), 2), 'three alternatives are never read as two').is.undefined;
+    });
+
     it('UNAMBIGUOUS or nothing: a card with no printed OR, a count that does not match, a single option', () => {
       expect(printedVariantRows(render(new Algae()), 2)).is.undefined;
       expect(printedVariantRows(render(new InfluentialDiscovery()), 3)).is.undefined;
       expect(printedVariantRows(render(new InfluentialDiscovery()), 1)).is.undefined;
       expect(printedVariantRows(undefined, 2)).is.undefined;
+    });
+  });
+
+  describe('«КУДА ЛЯЖЕТ» (TR56, П1) — an option\'s ADDRESSES are the server\'s holders of ITS pick', () => {
+    function table() {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      seatEnacted(game.parliament!, quietResolutionOf(PartyName.INDUSTRIALISTS));
+      const card = new RoboticsFactory();
+      player.cardsInHand.push(card);
+      player.megaCredits = 20;
+      return {player, card};
+    }
+
+    it('three kinds, three different sets: each variant names the holders of its own resource, in the server\'s order', () => {
+      const {player, card} = table();
+      player.playedCards.push(new ConstructionMechs(), new SecurityFleet(), new Dirigibles(), new AerialMappers());
+      const branches = cardPlayPreview(player, card).branches;
+      expect(branches.map((b) => variantDestinationsOf(b)?.cards.map((c) => c.name))).deep.eq([
+        [CardName.CONSTRUCTION_MECHS], [CardName.SECURITY_FLEET], [CardName.DIRIGIBLES, CardName.AERIAL_MAPPERS],
+      ]);
+      expect(branches.map((b) => variantDestinationsOf(b)?.count)).deep.eq([1, 1, 2]);
+    });
+
+    it('a refused variant has no addresses (its reason speaks); with no holder at all nothing has any', () => {
+      const {player, card} = table();
+      player.playedCards.push(new Dirigibles());
+      const branches = cardPlayPreview(player, card).branches;
+      expect(branches.map((b) => variantDestinationsOf(b) === undefined)).deep.eq([true, true, false]);
+      const none = table();
+      expect(cardPlayPreview(none.player, none.card).branches.map((b) => variantDestinationsOf(b))).deep.eq([undefined, undefined, undefined, undefined]);
+      expect(variantDestinationsOf(undefined)).is.undefined;
+    });
+
+    it('a branch whose target is its OPTION (no step carries it) reads the option\'s candidates beside its «to a card» gain', () => {
+      const option = {type: 'card', cards: [{name: CardName.DIRIGIBLES}]} as never;
+      const gain = {direction: 'gain', icon: 'floater', amount: 1, note: 'to a card'} as ActionEffect;
+      expect(variantDestinationsOf({available: true, steps: [], optionInput: option, effects: [gain]})?.count).eq(1);
+      expect(variantDestinationsOf({available: true, steps: [], optionInput: option, effects: []}), 'no gain to a card: no payload, no address').is.undefined;
     });
   });
 
