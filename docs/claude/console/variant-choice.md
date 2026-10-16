@@ -135,3 +135,18 @@ Measured (4K): the play composer's palette 2018 × 479 px in a 2106 px column, t
 `ConsoleVariantChoice.spec` § THE PALETTE, `consoleActionCommitOrigins.spec` § the printed «?», `taskHostResourcePalette.spec`;
 e2e `console-overclocked-equipment` (fhd + tv4k), the translated `console-action-resource-pick`, `console-parliament-actions`
 § Industrialists palette · tv4k, `console-prompt-family` § resource-palette. Contract: `docs/TURMOIL_REDUX_OVERCLOCKED_EQUIPMENT.md`.
+
+## 7 · A payload names its ADDRESSES (TR56, «КУДА ЛЯЖЕТ», 2026-10-16)
+
+An option that puts N of a resource on ANY card answers WHAT — and the half of the decision that differs most between
+kinds is WHERE: each kind has its own set of holders. The tile shows them (`VariantChoiceOption.destinations` ←
+`variantDestinationsOf(branch)` — the server's candidates of the branch's ONE gain pick, never a client search): up to
+three holder faces fanned under the print (`ConsoleCardFaceLite` with the live models — the capsules state what each card
+holds) beside «N карты на выбор» / the one holder's name; a fixed box (choosing repaints, moves nothing). A printed payload
+with its addresses carries no sentence and no «+N на карту» chip (the print says both). A refused option has none — its
+reason speaks. The same payload is then the target row's label («КУДА: [печать]») and the target step's contract line,
+carried in by a FLIP — one language on every level (`docs/TURMOIL_REDUX_ROBOTICS_FACTORY.md` § 3).
+
+Measured (4K, `robotics-factory`): three tiles in one row of a 2106 px column, addresses 1 · 1 · 2, the face zoom
+`.16 × --con-ui-scale` (TV) / `.14` (fhd). Guards: `variantChoiceModel.spec` § «КУДА ЛЯЖЕТ», `ConsoleVariantChoice.spec`;
+e2e `console-robotics-factory` (A).
